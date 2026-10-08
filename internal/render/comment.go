@@ -21,18 +21,25 @@ type strippedBody struct {
 }
 
 // stripBody hides body's comments and records what that cost the line geometry.
-// unclosed is stripObsidianComments's, unchanged.
-func stripBody(body string) (stripped strippedBody, unclosed unclosedComment) {
-	text, unclosed := stripObsidianComments(body)
+// report retains the original comment coordinates beside that text.
+func stripBody(body string) (stripped strippedBody, report commentReport) {
+	text, report := stripObsidianComments(body)
 	return strippedBody{
 		text:    text,
 		address: BlockAddressLines(strings.Split(body, "\n"), text),
-	}, unclosed
+	}, report
+}
+
+// commentReport distinguishes container silence from a marker that hides every
+// remaining word of the body. Containers retain their source order.
+type commentReport struct {
+	bodywide   unclosedComment
+	containers []unclosedComment
 }
 
 // unclosedComment is a comment that never met its closer and so hides the rest
-// of the body: the 1-based body line its marker was written on, and that
-// marker. A zero line means no such comment.
+// of its container or body: the original 1-based body line and marker.
+// A zero line means no such comment.
 type unclosedComment struct {
 	line   int
 	marker string
@@ -40,10 +47,9 @@ type unclosedComment struct {
 
 // stripObsidianComments removes %% and HTML comment regions while preserving the
 // delimiters and contents of fenced code blocks. An unclosed comment runs to the
-// end of its Markdown container or the body. unclosed names one that runs to the
-// end of the body, so a page that went quiet can name where the silence starts.
-// Only one can: whichever opens first swallows any later opener.
-func stripObsidianComments(body string) (stripped string, unclosed unclosedComment) {
+// end of its Markdown container or the body. The report retains each container
+// opener and at most one body-wide opener, which swallows any later opener.
+func stripObsidianComments(body string) (stripped string, report commentReport) {
 	lines := strings.Split(body, "\n")
 	state := commentState{htmlCode: htmlCommentCode(body), limits: graph.HTMLCommentLimits(body)}
 	offset := 0
@@ -77,8 +83,9 @@ func stripObsidianComments(body string) (stripped string, unclosed unclosedComme
 		}
 
 		var openedHere bool
+		state.sourceLine = i + 1
 		lines[i], openedHere = stripObsidianCommentLine(line, body, at, &state)
-		unclosed.follow(&state, i+1, openedHere)
+		report.bodywide.follow(&state, i+1, openedHere)
 		if state.closing != "" {
 			continue
 		}
@@ -88,7 +95,8 @@ func stripObsidianComments(body string) (stripped string, unclosed unclosedComme
 			fenceLen = n
 		}
 	}
-	return strings.Join(lines, "\n"), unclosed
+	report.containers = state.containers
+	return strings.Join(lines, "\n"), report
 }
 
 // follow updates the record after one line is stripped: a comment opened on it
@@ -113,6 +121,8 @@ type commentState struct {
 	quoteDepth int
 	htmlCode   []graph.Span
 	limits     map[int]int
+	containers []unclosedComment
+	sourceLine int
 }
 
 func htmlCommentQuotePrefix(line string) string {
@@ -198,6 +208,12 @@ func (s *commentState) htmlAt(line, body string, offset, mark int) (kept string,
 	// A comment its Markdown container ends keeps the words after that
 	// container; one that never closes hides every word after it, as %% does.
 	s.unclosed = !closed && span.Stop == len(body)
+	if !closed && span.Stop < len(body) {
+		s.containers = append(s.containers, unclosedComment{
+			line:   s.sourceLine,
+			marker: "<!--",
+		})
+	}
 	start := strings.LastIndex(body[:open], "\n") + 1
 	s.quoteDepth = strings.Count(htmlCommentQuotePrefix(body[start:open]), ">")
 	return "", len(line), true
@@ -268,11 +284,19 @@ func unclosedCommentDiagnostic(unclosed unclosedComment) Diagnostic {
 	}
 }
 
-// appendUnclosedComment adds that report when a marker was left open, and adds
-// nothing for a body whose markers all matched — which is nearly every body.
-func appendUnclosedComment(diagnostics []Diagnostic, unclosed unclosedComment) []Diagnostic {
-	if unclosed.line == 0 {
-		return diagnostics
+// commentDiagnostics converts one scan's original source records for host and
+// embedded publication. Only the body-wide kind explains an empty page.
+func commentDiagnostics(report commentReport) []Diagnostic {
+	var diagnostics []Diagnostic
+	for _, container := range report.containers {
+		diagnostics = append(diagnostics, Diagnostic{
+			Kind:    DiagCommentContainerUnclosed,
+			Target:  container.marker,
+			Message: fmt.Sprintf("an unclosed %s comment opened at line %d of the note body hides the rest of its Markdown container", container.marker, container.line),
+		})
 	}
-	return append(diagnostics, unclosedCommentDiagnostic(unclosed))
+	if report.bodywide.line != 0 {
+		diagnostics = append(diagnostics, unclosedCommentDiagnostic(report.bodywide))
+	}
+	return diagnostics
 }

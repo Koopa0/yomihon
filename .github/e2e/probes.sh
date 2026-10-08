@@ -84,6 +84,7 @@ probes=(
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "read-aloud-run.mjs|/notes/Writing/lessons/japanese/L02.md"
   "read-aloud-languages.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
+  "read-aloud-local-voices.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "branch-title-wrap.mjs|/syllabus/Maps/branches.md"
