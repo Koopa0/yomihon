@@ -176,6 +176,12 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				failures[i] = append(failures[i], agreementFailure{Property: "setup", Identity: "designed-receipt", Observation: designedSetup})
 			}
 			unusedTargets := agreementUnusedFootnoteTargets(c.Body)
+			var headingCounts map[string]int
+			headingObserved := false
+			var codeTargets map[string]int
+			codeObserved := false
+			var continuationTargets map[string]int
+			continuationObserved := false
 			for failureIndex := range failures[i] {
 				failure := &failures[i][failureIndex]
 				if designed[agreementSignature(failure)] {
@@ -185,6 +191,27 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				classification, authority, wrong := agreementKnownDifference(c, failure)
 				if classification == "" {
 					classification, authority, wrong = agreementUnusedFootnoteDifference(c, failure, unusedTargets)
+				}
+				if classification == "" && failure.Property == "P4" {
+					if !headingObserved {
+						headingCounts = agreementPlainHeadingCounts(c.Body)
+						headingObserved = true
+					}
+					classification, authority, wrong = agreementDuplicateHeadingDifference(c, failure, headingCounts)
+				}
+				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
+					if !codeObserved {
+						codeTargets = agreementCodeDebtTargets(c.Body)
+						codeObserved = true
+					}
+					classification, authority, wrong = agreementCodeDebtDifference(c, failure, codeTargets)
+				}
+				if classification == "" && failure.Property == "P1" {
+					if !continuationObserved {
+						continuationTargets = agreementFootnoteContinuationTargets(c.Body)
+						continuationObserved = true
+					}
+					classification, authority, wrong = agreementFootnoteContinuationDifference(c, failure, continuationTargets)
 				}
 				if classification != "" {
 					t.Logf("known=%s authority=%s wrong=%s case=%s signature=%s", classification, authority, wrong, c.Name, agreementSignature(failure))
