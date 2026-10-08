@@ -1169,10 +1169,9 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 // taken. This is the only place a transcluded body's Obsidian %% comments come
 // off, so no later pass can reopen a marker this one ruled literal.
 func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped string, matches int) {
-	stripped, unclosed := stripBody(body)
-	if unclosed.line != 0 {
-		unclosedDiagnostic := unclosedCommentDiagnostic(unclosed)
-		col.report(&unclosedDiagnostic)
+	stripped, comments := stripBody(body)
+	for _, diagnostic := range commentDiagnostics(comments) {
+		col.report(&diagnostic)
 	}
 	scoped, matches = excerptOf(stripped, fragmentOf(link))
 	switch {
