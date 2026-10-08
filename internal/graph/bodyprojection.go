@@ -220,6 +220,11 @@ func (f *bodyFactsData) projectCodes(authority *bodyObservation, expanded bodyPr
 }
 
 func (f *bodyFactsData) projectProse(authority *bodyObservation, expanded bodyProjection) {
+	for _, block := range authority.htmlBlocks {
+		if span, authored := expanded.originalSpan(block); authored {
+			f.htmlBlocks = append(f.htmlBlocks, span)
+		}
+	}
 	for _, link := range authority.autolinks {
 		if span, authored := expanded.originalSpan(link); authored {
 			f.autolinks = append(f.autolinks, span)

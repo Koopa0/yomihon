@@ -1150,7 +1150,10 @@ func skipFacts(facts graph.BodyFacts) []Span {
 			code = append(code, definition.Span)
 		}
 	}
-	return append(code, graph.LineSkipZones(facts.Source())...)
+	for block := range facts.HTMLBlocks() {
+		code = append(code, block)
+	}
+	return code
 }
 
 // sourceLine is one line of a block with its offset from the block's start.

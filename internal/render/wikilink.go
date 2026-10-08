@@ -523,10 +523,10 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 		// While an HTML block is still running, every line belongs to it: a fence
 		// marker or a callout opener inside one is raw text, not the start of
 		// anything, so neither pass may claim it.
-		case st.htmlEnds == nil && !st.code[st.i].indented && tryOpenFence(st):
+		case st.htmlEnds == nil && !st.code[st.i].html && !st.code[st.i].indented && tryOpenFence(st):
 			// handled: either entered a fence, or fully consumed a
 			// mermaid block — see tryOpenFence.
-		case st.htmlEnds == nil && !st.code[st.i].block && r.tryConsumeCallout(st, allowEmbed, col):
+		case st.htmlEnds == nil && !st.code[st.i].html && !st.code[st.i].block && r.tryConsumeCallout(st, allowEmbed, col):
 			// handled: a callout block was consumed.
 		default:
 			r.scanOrdinaryLine(st, allowEmbed, col)

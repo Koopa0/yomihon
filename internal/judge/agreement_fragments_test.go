@@ -19,12 +19,22 @@ import (
 
 type agreementProbe struct {
 	Path       string
+	Line       int
 	Target     string
 	ResolvedTo string
 	Fragment   string
 	Rule       judge.RuleID
 	Case       int
 	Absent     bool
+}
+
+type agreementProbeKey struct {
+	Path string
+	Line int
+}
+
+func (p *agreementProbe) key() agreementProbeKey {
+	return agreementProbeKey{Path: p.Path, Line: p.Line}
 }
 
 func agreementWrite(t agreementTB, root, path string, data []byte) {
@@ -102,6 +112,7 @@ func agreementFragmentFailures(t agreementTB, cases []agreementCase, actual []ag
 	agreementWrite(t, root, schema.ContractRelPath, []byte(prepared))
 	var probes []agreementProbe
 	var inputs []graph.NoteInput
+	firstProbeLine := 1 + strings.Count(string(agreementEnvelope(t, "")), "\n")
 	for i := range cases {
 		if i >= len(actual) {
 			t.Fatal("fragment observation index outside captured batch")
@@ -126,8 +137,12 @@ func agreementFragmentFailures(t agreementTB, cases []agreementCase, actual []ag
 		headings := append(slices.Clone(observed.Headings), absent)
 		slices.Sort(headings)
 		headings = slices.Compact(headings)
+		// Each written fragment keeps its own source line and verdict, while
+		// sharing the note envelope and file scan with its sibling probes.
+		probePath := fmt.Sprintf("Notes/probe-%04d.md", i)
+		var probeLines []string
 		for family, fragments := range [][]string{blocks, headings} {
-			for index, fragment := range fragments {
+			for _, fragment := range fragments {
 				if strings.ContainsAny(fragment, "|#]\r\n") || strings.HasSuffix(fragment, "\\") {
 					// Manufactured raw candidates that are not literal addresses do
 					// not assert product behavior. An emitted id must be spellable.
@@ -145,7 +160,6 @@ func agreementFragmentFailures(t agreementTB, cases []agreementCase, actual []ag
 					rule = "link.section_missing"
 				}
 				target := strings.TrimSuffix(path, ".md") + "#" + fragment
-				probePath := fmt.Sprintf("Notes/probe-%04d-%d-%04d.md", i, family, index)
 				probeBody := "[[" + target + "]]\n"
 				wantTarget := strings.TrimSuffix(path, ".md")
 				if diff := cmp.Diff([]string{wantTarget}, judge.LinkTargets(probeBody)); diff != "" {
@@ -155,10 +169,11 @@ func agreementFragmentFailures(t agreementTB, cases []agreementCase, actual []ag
 				if !ok || link.Target != wantTarget || (family == 0 && "^"+link.Block != fragment) || (family == 1 && link.Heading != fragment) {
 					t.Fatalf("probe cannot spell literal fragment %q", fragment)
 				}
-				agreementWrite(t, root, probePath, agreementEnvelope(t, probeBody))
-				probes = append(probes, agreementProbe{Path: probePath, Target: target, ResolvedTo: path, Fragment: fragment, Rule: rule, Case: i, Absent: fragment == absent || fragment == "^"+absent})
+				probes = append(probes, agreementProbe{Path: probePath, Line: firstProbeLine + len(probeLines), Target: target, ResolvedTo: path, Fragment: fragment, Rule: rule, Case: i, Absent: fragment == absent || fragment == "^"+absent})
+				probeLines = append(probeLines, probeBody)
 			}
 		}
+		agreementWrite(t, root, probePath, agreementEnvelope(t, strings.Join(probeLines, "")))
 	}
 	idx := graph.BuildFromNotes(inputs, nil)
 	for _, probe := range probes {
@@ -169,8 +184,8 @@ func agreementFragmentFailures(t agreementTB, cases []agreementCase, actual []ag
 	}
 	control := agreementMissing(t, root, probes)
 	for _, probe := range probes {
-		if control[probe.Path] != 1 {
-			t.Fatalf("control scan lacks exact receipt: %+v count=%d", probe, control[probe.Path])
+		if control[probe.key()] != 1 {
+			t.Fatalf("control scan lacks exact receipt: %+v count=%d", probe, control[probe.key()])
 		}
 	}
 	for i, c := range cases {
@@ -182,7 +197,7 @@ func agreementFragmentFailures(t agreementTB, cases []agreementCase, actual []ag
 	missing := agreementMissing(t, root, probes)
 	for _, probe := range probes {
 		c := cases[probe.Case]
-		accepted := missing[probe.Path] == 0
+		accepted := missing[probe.key()] == 0
 		if probe.Absent && accepted {
 			t.Fatalf("absent fragment accepted: %+v", probe)
 		}
@@ -216,24 +231,28 @@ func agreementFragmentFailures(t agreementTB, cases []agreementCase, actual []ag
 	return failures
 }
 
-func agreementMissing(t agreementTB, root string, probes []agreementProbe) map[string]int {
+func agreementMissing(t agreementTB, root string, probes []agreementProbe) map[agreementProbeKey]int {
 	t.Helper()
 	findings, err := agreementPublicCheck(t, root)
 	if err != nil {
 		t.Fatalf("public Check setup/refusal: %v", err)
 	}
-	planned := make(map[string]agreementProbe, len(probes))
+	planned := make(map[agreementProbeKey]agreementProbe, len(probes))
+	paths := make(map[string]bool)
 	for _, probe := range probes {
-		planned[probe.Path] = probe
+		if _, duplicate := planned[probe.key()]; duplicate {
+			t.Fatalf("duplicate probe identity: %+v", probe)
+		}
+		planned[probe.key()] = probe
+		paths[probe.Path] = true
 	}
-	counts := make(map[string]int)
+	counts := make(map[agreementProbeKey]int)
 	for i := range findings {
 		finding := &findings[i]
 		if finding.RuleID == "scan.unreadable" || finding.RuleID == "scan.skipped" {
 			t.Fatalf("incomplete Check corpus: %+v", *finding)
 		}
-		probe, isProbe := planned[finding.Path]
-		if !isProbe {
+		if !paths[finding.Path] {
 			continue
 		}
 		if strings.HasPrefix(string(finding.RuleID), "link.") && finding.RuleID != "link.block_missing" && finding.RuleID != "link.section_missing" {
@@ -242,11 +261,19 @@ func agreementMissing(t agreementTB, root string, probes []agreementProbe) map[s
 		if finding.RuleID != "link.block_missing" && finding.RuleID != "link.section_missing" {
 			continue
 		}
+		if finding.Line == nil {
+			t.Fatalf("probe verdict has no source line: %+v", *finding)
+		}
+		key := agreementProbeKey{Path: finding.Path, Line: *finding.Line}
+		probe, isProbe := planned[key]
+		if !isProbe {
+			t.Fatalf("unexpected probe verdict: %+v", *finding)
+		}
 		if finding.RuleID != probe.Rule || finding.Target == nil || *finding.Target != probe.Target || finding.ResolvedTo == nil || *finding.ResolvedTo != probe.ResolvedTo {
 			t.Fatalf("misattributed receipt: %+v want=%+v", *finding, probe)
 		}
-		counts[probe.Path]++
-		if counts[probe.Path] > 1 {
+		counts[key]++
+		if counts[key] > 1 {
 			t.Fatalf("duplicate probe receipt: %+v", *finding)
 		}
 	}

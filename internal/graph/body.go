@@ -106,6 +106,7 @@ type bodyFactsData struct {
 	headings          []BodyHeading
 	destinations      []BodyDestination
 	autolinks         []Span
+	htmlBlocks        []Span
 	literals          []CodeLiteral
 	htmlLimits        []CommentLimit
 	inlineNotes       []InlineFootnoteFact
@@ -235,8 +236,15 @@ func PresentationCodes(body string) iter.Seq[CodeFact] {
 // one presentation parse. Replacing brackets inside a URL would change where
 // that URL ends, letting its backticks acquire a different meaning.
 func PresentationCodesAndAutolinks(body string) (codes iter.Seq[CodeFact], autolinks iter.Seq[Span]) {
+	codes, autolinks, _ = PresentationRegions(body)
+	return codes, autolinks
+}
+
+// PresentationRegions also retains raw HTML's ownership of its lines. A
+// dialect shell must not end such a block before the grammar does.
+func PresentationRegions(body string) (codes iter.Seq[CodeFact], autolinks, htmlBlocks iter.Seq[Span]) {
 	observation := observeBody(body, bodyExpandedMarkdown.Parser())
-	return bodyValues(observation.codes), bodyValues(observation.autolinks)
+	return bodyValues(observation.codes), bodyValues(observation.autolinks), bodyValues(observation.htmlBlocks)
 }
 
 // CommentFree returns the one comment strip's immutable presentation source.
@@ -387,6 +395,14 @@ func (f BodyFacts) Autolinks() iter.Seq[Span] {
 	return bodyValues(f.data.autolinks)
 }
 
+// HTMLBlocks yields original raw-block spans without classifying them as code.
+func (f BodyFacts) HTMLBlocks() iter.Seq[Span] {
+	if f.data == nil {
+		return bodyValues[Span](nil)
+	}
+	return bodyValues(f.data.htmlBlocks)
+}
+
 // CodeLiterals yields displayed inline code words with source provenance.
 func (f BodyFacts) CodeLiterals() iter.Seq[CodeLiteral] {
 	if f.data == nil {
@@ -472,6 +488,7 @@ func (o *bodyObservation) collectSourceNode(node ast.Node, source []byte) {
 	case *ast.CodeSpan:
 		o.collectCodeLiteral(n, source)
 	case *ast.HTMLBlock:
+		o.collectHTMLBlock(n)
 		o.collectHTMLLimit(n, source)
 	}
 }
@@ -489,6 +506,17 @@ func (o *bodyObservation) collectCodeLiteral(n *ast.CodeSpan, source []byte) {
 			return
 		}
 	}
+}
+
+func (o *bodyObservation) collectHTMLBlock(n *ast.HTMLBlock) {
+	if n.Lines().Len() == 0 {
+		return
+	}
+	stop := n.Lines().At(n.Lines().Len() - 1).Stop
+	if n.HasClosure() {
+		stop = n.ClosureLine.Stop
+	}
+	o.htmlBlocks = append(o.htmlBlocks, Span{Start: n.Lines().At(0).Start, Stop: stop})
 }
 
 func (o *bodyObservation) collectHTMLLimit(n *ast.HTMLBlock, source []byte) {

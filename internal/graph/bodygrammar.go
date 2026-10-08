@@ -195,6 +195,7 @@ type bodyObservation struct {
 	headings       []BodyHeading
 	destinations   []BodyDestination
 	autolinks      []Span
+	htmlBlocks     []Span
 	literals       []CodeLiteral
 	htmlLimits     []CommentLimit
 	blocks         map[ast.Node]int

@@ -1,6 +1,7 @@
 package judge_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -23,12 +24,16 @@ func agreementHTMLOwnership(t *testing.T) {
 		want         []string
 		callout      bool
 		sequenceWant []string
+		htmlSpans    []graph.Span
 	}{
-		{body: "</div>\n> [!note] title\n`open\n[[A]]\nclose`", want: []string{"A"}},
-		{body: "<custom>\n> [!note] title\n`[[A]]`", want: []string{"A"}},
-		{body: "</div>\n```\n[[A]]\n```", want: []string{"A"}},
-		{body: "</div>\n\n> [!note] title\n> `[[A]]`\n> [[B]]\n", want: []string{"B"}, callout: true, sequenceWant: []string{"B"}},
+		{body: "</div>\n> [!note] title\n`open\n[[A]]\nclose`", want: []string{"A"}, htmlSpans: []graph.Span{{Start: 0, Stop: 41}}},
+		{body: "<custom>\n> [!note] title\n`[[A]]`", want: []string{"A"}, htmlSpans: []graph.Span{{Start: 0, Stop: 32}}},
+		{body: "</div>\n```\n[[A]]\n```", want: []string{"A"}, htmlSpans: []graph.Span{{Start: 0, Stop: 20}}},
+		{body: "</div>\n\n> [!note] title\n> `[[A]]`\n> [[B]]\n", want: []string{"B"}, callout: true, sequenceWant: []string{"B"}, htmlSpans: []graph.Span{{Start: 0, Stop: 7}}},
 	} {
+		if diff := cmp.Diff(tc.htmlSpans, slices.Collect(graph.ReadBody(tc.body).HTMLBlocks())); diff != "" {
+			t.Errorf("caught: S5 html-ownership complete original HTML spans body=%q (-want +got):\n%s", tc.body, diff)
+		}
 		page := render.New(graph.BuildFromNotes(nil, nil), capturedBodies{}, noTitlesDeclared{}, everyFileHeld{})
 		result := page.HTML("Notes/Reading.md", "", tc.body, wording.En)
 		actual := agreementObserve(t, result.HTML)
@@ -64,4 +69,44 @@ func agreementHTMLOwnership(t *testing.T) {
 func TestAgreementHTMLOwnership(t *testing.T) {
 	agreementHTMLOwnership(t)
 	t.Log("AGREEMENT-INVOKED S5/stage5-html-ownership")
+}
+
+func TestAgreementHTMLObservation(t *testing.T) {
+	agreementHTMLOwnership(t)
+	t.Log("AGREEMENT-INVOKED S5/stage5-html-observation")
+}
+
+func TestAgreementHTMLProjection(t *testing.T) {
+	agreementHTMLOwnership(t)
+	t.Log("AGREEMENT-INVOKED S5/stage5-html-projection")
+}
+
+func TestAgreementHTMLAccessor(t *testing.T) {
+	agreementHTMLOwnership(t)
+	t.Log("AGREEMENT-INVOKED S5/stage5-html-accessor")
+}
+
+func TestAgreementHTMLPresentation(t *testing.T) {
+	agreementHTMLOwnership(t)
+	t.Log("AGREEMENT-INVOKED S5/stage5-html-presentation")
+}
+
+func TestAgreementHTMLLineOwnership(t *testing.T) {
+	agreementHTMLOwnership(t)
+	t.Log("AGREEMENT-INVOKED S5/stage5-html-lines")
+}
+
+func TestAgreementHTMLFenceOwnership(t *testing.T) {
+	agreementHTMLOwnership(t)
+	t.Log("AGREEMENT-INVOKED S5/stage5-html-fence")
+}
+
+func TestAgreementHTMLCalloutOwnership(t *testing.T) {
+	agreementHTMLOwnership(t)
+	t.Log("AGREEMENT-INVOKED S5/stage5-html-callout")
+}
+
+func TestAgreementHTMLSequenceOwnership(t *testing.T) {
+	agreementHTMLOwnership(t)
+	t.Log("AGREEMENT-INVOKED S5/stage5-html-sequence")
 }

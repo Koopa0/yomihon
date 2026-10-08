@@ -23,7 +23,7 @@ import (
 func presentationCodeLines(body string) map[int]presentationCodeLine {
 	lines := strings.Split(body, "\n")
 	codeLines := make(map[int]presentationCodeLine)
-	codes, autolinks := graph.PresentationCodesAndAutolinks(body)
+	codes, autolinks, htmlBlocks := graph.PresentationRegions(body)
 	starts := make([]int, len(lines))
 	for i := 1; i < len(lines); i++ {
 		starts[i] = starts[i-1] + len(lines[i-1]) + 1
@@ -48,7 +48,19 @@ func presentationCodeLines(body string) map[int]presentationCodeLine {
 		}
 	}
 	addPresentationAutolinks(codeLines, lines, starts, autolinks)
+	addPresentationHTML(codeLines, lines, starts, htmlBlocks)
 	return codeLines
+}
+
+func addPresentationHTML(codeLines map[int]presentationCodeLine, lines []string, starts []int, blocks iter.Seq[graph.Span]) {
+	for block := range blocks {
+		first := sort.Search(len(lines), func(i int) bool { return starts[i]+len(lines[i]) > block.Start })
+		for i := first; i < len(lines) && starts[i] < block.Stop; i++ {
+			reading := codeLines[i]
+			reading.html = true
+			codeLines[i] = reading
+		}
+	}
 }
 
 func addPresentationAutolinks(codeLines map[int]presentationCodeLine, lines []string, starts []int, autolinks iter.Seq[graph.Span]) {
@@ -65,6 +77,7 @@ func addPresentationAutolinks(codeLines map[int]presentationCodeLine, lines []st
 type presentationCodeLine struct {
 	spans                         [][2]int
 	block, indented, fenceContent bool
+	html                          bool
 }
 
 // codeBlockLines puts canonical indented-code facts onto body's own lines.
