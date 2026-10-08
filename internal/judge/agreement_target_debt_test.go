@@ -24,7 +24,7 @@ func agreementStandaloneTargetDebt(body string) agreementStandaloneTargets {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementIndependentDeclarationMarkers(source, doc) {
+	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
 		return agreementStandaloneTargets{}
 	}
 	budget := agreementStandaloneTargets{Page: make(map[string]int), Judge: make(map[string]int)}
@@ -84,6 +84,7 @@ func TestAgreementStandaloneTargetDebt(t *testing.T) {
 		{name: "duplicate standalone suffixes", body: "[[A\\]]\n\n[[A\\]]\n", page: map[string]int{"A\\": 2}, check: map[string]int{"A": 2}},
 		{name: "multiple trailing slashes", body: "[[A\\\\]]\n", page: map[string]int{"A\\\\": 1}, check: map[string]int{"A": 1}},
 		{name: "backslash before heading already agrees", body: "[[A\\#A]]\n"},
+		{name: "independent plain opener run", body: "> [!note] one\n> [!note] two\n> [!note] three\n\n[[A\\]]\n", page: map[string]int{"A\\": 1}, check: map[string]int{"A": 1}},
 		{name: "independent plain opener", body: "> [!note] title\n\n[[A\\]]\n", page: map[string]int{"A\\": 1}, check: map[string]int{"A": 1}},
 		{name: "unrelated prose", body: "ordinary words\n\n[[A\\]]\n", page: map[string]int{"A\\": 1}, check: map[string]int{"A": 1}},
 		{name: "independent live target", body: "[[A]]\n\n[[A\\]]\n", page: map[string]int{"A\\": 1}, check: map[string]int{"A": 1}},

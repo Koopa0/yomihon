@@ -33,7 +33,7 @@ func agreementReferenceFieldBudget(body string, compound bool) agreementReferenc
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementIndependentDeclarationMarkers(source, doc) {
+	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
 		return agreementReferenceDestinations{}
 	}
 	budget := agreementReferenceDestinations{Diagnostics: make(map[agreementCitation]int), Targets: make(map[string]int)}
@@ -134,6 +134,7 @@ func TestAgreementReferenceDestinationDebt(t *testing.T) {
 		{name: "reference use does not display destination", body: "[read][n]\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
 		{name: "independent live target", body: "[[A]]\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
 		{name: "independent literal markers", body: "`%%<!--[!note]`\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
+		{name: "independent plain opener run", body: "> [!note] one\n> [!note] two\n> [!note] three\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
 		{name: "independent plain opener", body: "> [!note] title\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
 		{name: "independent prose words", body: "show [!note] words\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
 		{name: "ordinary wikilink", body: "[[A]]\n"},

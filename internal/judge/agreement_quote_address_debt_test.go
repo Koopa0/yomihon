@@ -28,7 +28,7 @@ func agreementQuoteAddressOwnership(body string) agreementQuoteAddresses {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementIndependentDeclarationMarkers(source, doc) {
+	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
 		return agreementQuoteAddresses{}
 	}
 	quotedFence := false
@@ -126,6 +126,7 @@ func TestAgreementQuoteAddressDebt(t *testing.T) {
 		literal    map[string]int
 	}{
 		{name: "outer prose ends empty quoted fence", body: "> ```\n^a\n", want: map[string]int{"^a": 1}},
+		{name: "independent plain opener run", body: "> [!note] one\n> [!note] two\n> [!note] three\n\nordinary separator\n\n> ```\n^a\n", want: map[string]int{"^a": 1}},
 		{name: "independent plain opener", body: "> [!note] title\n\nordinary separator\n\n> ```\n^a\n", want: map[string]int{"^a": 1}},
 		{name: "independent root callout words", body: "show [!note] words\n\n> ```\n^a\n", want: map[string]int{"^a": 1}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n> ```\n^a\n", want: map[string]int{"^a": 1}},

@@ -23,7 +23,7 @@ func agreementFootnoteContinuationTargets(body string) map[string]int {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementIndependentDeclarationMarkers(source, doc) {
+	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
 		return nil
 	}
 	targets := make(map[string]int)
@@ -68,6 +68,7 @@ func TestAgreementFootnoteContinuationDebt(t *testing.T) {
 		{name: "used second paragraph", body: "ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\nref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "comment closing line owns reference text", body: "<!--%%[!note]--> ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{}},
+		{name: "independent plain opener run", body: "> [!note] one\n> [!note] two\n> [!note] three\n\nref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "independent plain opener", body: "> [!note] title\n\nref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "independent root callout words", body: "show [!note] words\n\nref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\nref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n", want: map[string]int{"B": 1}},

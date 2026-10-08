@@ -26,7 +26,7 @@ func agreementUnusedFootnoteAddresses(body string) map[string]int {
 	context.Set(agreementFootnoteAddressesKey, addresses)
 	source := []byte(body)
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementIndependentDeclarationMarkers(source, doc) {
+	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
 		return nil
 	}
 	all := make(map[string]int)
@@ -60,6 +60,7 @@ func TestAgreementUnusedFootnoteAddressDebt(t *testing.T) {
 		want            map[string]int
 	}{
 		{name: "unused first paragraph", body: "[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},
+		{name: "independent plain opener run", body: "> [!note] one\n> [!note] two\n> [!note] three\n\n[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},
 		{name: "independent plain opener", body: "> [!note] title\n\n[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},
 		{name: "independent root callout words", body: "show [!note] words\n\n[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n[^n]: text ^a\n", cut: "[^n]: text ^a", want: map[string]int{"^a": 1}},

@@ -22,7 +22,7 @@ func agreementDeclaredHeadingCounts(body string) map[string]int {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementIndependentDeclarationMarkers(source, doc) {
+	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
 		return nil
 	}
 	counts := make(map[string]int)
@@ -73,6 +73,7 @@ func TestAgreementDuplicateHeadingDebt(t *testing.T) {
 		want       map[string]int
 	}{
 		{name: "duplicate atx", body: "## A\n## A\n", want: map[string]int{"a": 2}},
+		{name: "independent plain opener run", body: "## A\n  > [!note] one\n> [!note] two\n> [!note] three\n## A\n## A\n", want: map[string]int{"a": 3}},
 		{name: "independent plain opener", body: "## A\n  > [!note] title\n## A\n## A\n", want: map[string]int{"a": 3}},
 		{name: "independent unknown opener", body: "> [!unknown] title\n\n## A\n## A\n", want: map[string]int{"a": 2}},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n## A\n## A\n", want: map[string]int{"a": 2}},

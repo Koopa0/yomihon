@@ -13,6 +13,14 @@ import (
 // A root quote containing one plain opener line owns only that declaration.
 // Its delimiter cannot change source ownership in separate blocks.
 func agreementIndependentDeclarationMarkers(source []byte, doc ast.Node) bool {
+	return agreementPlainQuoteMarkers(source, doc, false)
+}
+
+func agreementPlainOpenerDeclarationMarkers(source []byte, doc ast.Node) bool {
+	return agreementIndependentDeclarationMarkers(source, doc) || agreementPlainQuoteMarkers(source, doc, true)
+}
+
+func agreementPlainQuoteMarkers(source []byte, doc ast.Node, run bool) bool {
 	if agreementDeclarationMarkers(source, doc) {
 		return true
 	}
@@ -23,7 +31,7 @@ func agreementIndependentDeclarationMarkers(source []byte, doc ast.Node) bool {
 			continue
 		}
 		paragraph, prose := quote.FirstChild().(*ast.Paragraph)
-		if !prose || paragraph.Lines().Len() != 1 {
+		if !prose || !run && paragraph.Lines().Len() != 1 || run && paragraph.Lines().Len() < 2 {
 			continue
 		}
 		plain := true
@@ -34,16 +42,13 @@ func agreementIndependentDeclarationMarkers(source []byte, doc ast.Node) bool {
 		}
 		line := paragraph.Lines().At(0)
 		physicalStart := bytes.LastIndexByte(source[:line.Start], '\n') + 1
-		if strings.TrimSpace(string(source[physicalStart:line.Start])) != ">" {
-			continue
-		}
 		// An extension can remove a definition without removing its container.
-		// Quoted source beside this line still prevents a one-line declaration.
+		// Quoted source beside the paragraph prevents an isolated declaration set.
 		before := strings.TrimSpace(string(source[:physicalStart]))
 		if at := strings.LastIndexByte(before, '\n'); at >= 0 {
 			before = strings.TrimSpace(before[at+1:])
 		}
-		nextStart := line.Stop
+		nextStart := paragraph.Lines().At(paragraph.Lines().Len() - 1).Stop
 		if nextStart > 0 && source[nextStart-1] != '\n' {
 			if nextStart < len(source) && source[nextStart] == '\r' {
 				nextStart++
@@ -69,16 +74,27 @@ func agreementIndependentDeclarationMarkers(source []byte, doc ast.Node) bool {
 				continue
 			}
 		}
-		raw := string(line.Value(source))
-		closeAt := strings.IndexByte(raw, ']')
-		if !plain || !strings.HasPrefix(raw, "[!") || closeAt <= 2 || strings.ContainsAny(raw[2:closeAt], " \t[") || strings.Contains(raw, "[[") || strings.Contains(raw, "[^") {
+		var starts []int
+		for i := range paragraph.Lines().Len() {
+			line := paragraph.Lines().At(i)
+			physicalStart := bytes.LastIndexByte(source[:line.Start], '\n') + 1
+			raw := string(line.Value(source))
+			closeAt := strings.IndexByte(raw, ']')
+			if strings.TrimSpace(string(source[physicalStart:line.Start])) != ">" || !plain || !strings.HasPrefix(raw, "[!") || closeAt <= 2 || strings.ContainsAny(raw[2:closeAt], " \t[") || strings.Contains(raw, "[[") || strings.Contains(raw, "[^") || run && strings.Contains(raw, "`") {
+				break
+			}
+			rest := raw[closeAt+1:]
+			if rest != "" && !strings.HasPrefix(rest, " ") && !strings.HasPrefix(rest, "\n") {
+				break
+			}
+			starts = append(starts, line.Start)
+		}
+		if len(starts) != paragraph.Lines().Len() {
 			continue
 		}
-		rest := raw[closeAt+1:]
-		if rest != "" && !strings.HasPrefix(rest, " ") && !strings.HasPrefix(rest, "\n") {
-			continue
+		for _, start := range starts {
+			clean[start], clean[start+1] = ' ', ' '
 		}
-		clean[line.Start], clean[line.Start+1] = ' ', ' '
 	}
 	return agreementDeclarationMarkers(clean, doc)
 }

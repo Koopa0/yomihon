@@ -83,6 +83,8 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/headings", Body: "## A\n## A\n\nB\n===\n"},
 		{Name: "control/headings-beside-opener", Body: "## A\n  > [!note] title\n## A\n## A\n"},
 		{Name: "control/heading-collision-beside-opener", Body: "## A\n> [!note] title\n## A\n## A-2\n"},
+		{Name: "control/unused-and-headings-beside-opener-run", Body: "> [!note] one\n> [!note] two\n> [!note] three\n\n[^unused]: [[A]]\n\n## A\n## A\n"},
+		{Name: "control/wrapped-code-beside-opener-run", Body: "> [!note] one\n> [!note] two\n> [!note] three\n\n`open\n[[A]]\nclose`\n"},
 		{Name: "control/inline-footnote", Body: "paragraph ^[literal]\n"},
 		{Name: "control/footnote", Body: "ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n\n[^unused]: [[A]]\n"},
 		{Name: "control/callout", Body: "> [!note] [[A]]\n> [[B]] ^a\n"},
@@ -90,6 +92,7 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/list-fence-info", Body: "1. ```[[A]]\n"},
 		{Name: "control/reference-destination", Body: "[n]: [[A]]\n"},
 		{Name: "control/compound-reference-destination", Body: "[n]: [[A]][[B]]\n"},
+		{Name: "control/shared-reference-destination", Body: "[n]: [[A]]\n[m]: [[A]][[B]]\n"},
 		{Name: "control/unused-beside-opener", Body: "> [!note] title\n\n[^unused]: [[A]]\n"},
 		{Name: "control/wrapped-code-beside-opener", Body: "> [!note] title\n\n`open\n[[A]]\nclose`\n"},
 		{Name: "control/suffix-beside-opener", Body: "> [!note] title\n\n[[A\\]]\n"},
@@ -237,6 +240,10 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						compoundReferencesObserved = true
 					}
 					classification, authority, wrong = agreementReferenceDestinationDifference(c, failure, compoundReferences)
+				}
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					combined := agreementSharedReferenceBudget(referenceDestinations, compoundReferences)
+					classification, authority, wrong = agreementReferenceDestinationDifference(c, failure, combined)
 				}
 				if classification == "" && failure.Property == "P0" {
 					if !containerFenceObserved {

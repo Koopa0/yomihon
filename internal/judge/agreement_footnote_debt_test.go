@@ -79,7 +79,7 @@ func agreementUnusedFootnoteTargets(body string) map[string]int {
 	context.Set(agreementFootnoteTargetsKey, targets)
 	source := []byte(body)
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementIndependentDeclarationMarkers(source, doc) {
+	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
 		return nil
 	}
 	return targets
@@ -106,6 +106,7 @@ func TestAgreementUnusedFootnoteDebt(t *testing.T) {
 	}{
 		{name: "unused", body: "[^unused]: [[A]]\n", want: 1},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n[^unused]: [[A]]\n", want: 1},
+		{name: "independent plain opener run", body: "> [!note] one\n> [!note] two\n> [!note] three\n\n[^unused]: [[A]]\n", want: 1},
 		{name: "independent plain opener", body: "> [!note] title\n\n[^unused]: [[A]]\n", want: 1},
 		{name: "independent root callout words", body: "show [!note] words\n\n[^unused]: [[A]]\n", want: 1},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n[^unused]: [[A]]\n", want: 1},

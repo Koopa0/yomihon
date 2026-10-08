@@ -18,7 +18,7 @@ func agreementFenceInfoTargets(body string) map[string]int {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementIndependentDeclarationMarkers(source, doc) {
+	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
 		return nil
 	}
 	targets := make(map[string]int)
@@ -52,6 +52,7 @@ func TestAgreementFenceInfoDebt(t *testing.T) {
 	}{
 		{name: "info occurrence", body: "``` [[A]]\n```\n", want: map[string]int{"A": 1}},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
+		{name: "independent plain opener run", body: "> [!note] one\n> [!note] two\n> [!note] three\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
 		{name: "independent plain opener", body: "> [!note] title\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
 		{name: "independent root callout words", body: "show [!note] words\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n``` [[A]]\n```\n", want: map[string]int{"A": 1}},
