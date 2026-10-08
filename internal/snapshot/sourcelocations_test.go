@@ -74,6 +74,25 @@ No body citation.
 	}
 }
 
+func TestFragmentNormalizationDeclaredSources(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeNote(t, root, "Source.md", "## Y\u030a\n\nPASSAGE\n\nQuote. ^QUOTE-1\n")
+	writeNote(t, root, "Claim.md", "---\nbased_on:\n - '[[Source#Y\u030a|First heading]]'\n - '[[Source#y\u030a|Second heading]]'\n - '[[Source#\u1e99|Third heading]]'\n - '[[Source#^QUOTE-1|First block]]'\n - '[[Source#^quote-1|Second block]]'\n---\nClaim.\n")
+	store, _ := newTestStore(t, root, testContract(t, root))
+	got, diagnostics := store.Current().DeclaredSources("Claim.md", wording.En)
+	if len(diagnostics) != 0 {
+		t.Fatalf("caught: fragment-normalization declared diagnostics = %+v, want none", diagnostics)
+	}
+	want := []DeclaredSource{{Name: "Source", RelPath: "Source.md", Locations: []render.SourceLocation{
+		{Label: "First heading", Fragment: "\u1e99"},
+		{Label: "First block", Fragment: "^quote-1"},
+	}}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("caught: fragment-normalization declared sources (-want +got):\n%s", diff)
+	}
+}
+
 func TestDeclaredLocationsUseTheirCapturedGeneration(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

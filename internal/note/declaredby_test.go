@@ -69,6 +69,39 @@ My thought.
 	}
 }
 
+func TestFragmentNormalizationDeclaredBy(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeNote(t, root, "Source.md", "---\ntitle: Y\u030a\n---\n# Y\u030a\n\n## Y\u030a child\n\nQuote. ^QUOTE-1\n")
+	writeNote(t, root, "Claim.md", "---\nbased_on: ['[[Source#\u1e99]]', '[[Source#\u1e99 child]]', '[[Source#^quote-1]]', '[[Source#Absent]]', '[[Source#^absent]]']\n---\nClaim.\n")
+	snap := plainVaultView(t, root)
+	source, ok := snap.Note("Source.md")
+	if !ok {
+		t.Fatal("source absent from captured fixture")
+	}
+	for _, prefix := range []string{"", "right-"} {
+		t.Run(prefix, func(t *testing.T) {
+			t.Parallel()
+			result := snap.Render(source.RelPath, source.Body, wording.En)
+			render.Qualify(prefix, &result)
+			got := declaredBy(snap, source.RelPath, &result, prefix, wording.En)
+			want := []pages.DeclaringNoteView{{
+				Note: nav.NoteRef{Name: "Claim", RelPath: "Claim.md"},
+				Locations: []pages.DeclaredPlaceView{
+					{Label: "#\u1e99", Href: "#" + prefix + "%E1%BA%99"},
+					{Label: "#\u1e99 child", Href: "#" + prefix + "%E1%BA%99-child"},
+					{Label: "#^quote-1", Href: "#" + prefix + "%5Equote-1"},
+					{Label: "#Absent"},
+					{Label: "#^absent"},
+				},
+			}}
+			if diff := cmp.Diff(want, got); diff != "" {
+				t.Errorf("caught: fragment-normalization declaredBy (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestDeclaredByUsesOnlyPlacesInTheSuppliedRender(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()

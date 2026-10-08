@@ -40,7 +40,10 @@ func (h *Handler) openThoughts(w http.ResponseWriter, r *http.Request) {
 type openThoughtCandidate struct {
 	openThoughtRow
 
-	rel string
+	rel    string
+	kept   *mark.Uncertainty
+	path   string
+	anchor string
 }
 
 // openThoughtShelf interleaves marks with notes in the declared role's initial
@@ -69,9 +72,9 @@ func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generatio
 	}
 	candidates, fault := h.openCandidates(snap, role, lang)
 	slices.SortStableFunc(candidates, func(a, b openThoughtCandidate) int {
-		return cmp.Or(b.at.Compare(a.at), vault.ComparePaths(a.row.Href, b.row.Href), strings.Compare(a.row.Text, b.row.Text))
+		return cmp.Or(b.at.Compare(a.at), vault.ComparePaths(a.path, b.path), strings.Compare(a.anchor, b.anchor))
 	})
-	rows, total, readFault := h.confirmOpenRows(ctx, candidates, role, limit, lang)
+	rows, total, readFault := h.confirmOpenRows(ctx, candidates, role, limit, lang, newPlaceResolver(snap))
 	shelf.Rows = rows
 	fault = cmp.Or(readFault, fault)
 	if fault == "" {
@@ -88,9 +91,8 @@ func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generatio
 }
 
 // openCandidates reads the snapshot's notes of the role in an initial status
-// and the kept marks whose notes the snapshot holds. A mark whose note is not
-// in the snapshot is never a candidate: its path is text nothing in the vault
-// vouches for. The fault is set when the mark file cannot be read.
+// and every stored mark. Mark identities remain candidates even when their
+// note or place is gone. The fault is set when the mark file cannot be read.
 //
 // A note's snapshot status selects it, so a note moved back to an initial
 // status reappears only after the next scan (at most one scan interval); a
@@ -99,7 +101,7 @@ func (h *Handler) openCandidates(snap *snapshot.Generation, role string, lang wo
 	notes := snap.NotesOfType(role)
 	for i := range notes {
 		if h.sources.Contract.DeclaresInitial(role, notes[i].Status) {
-			candidates = append(candidates, openThoughtCandidate{openThoughtRow: openNoteRow(&notes[i], snap), rel: notes[i].RelPath})
+			candidates = append(candidates, openThoughtCandidate{openThoughtRow: openNoteRow(&notes[i], snap), rel: notes[i].RelPath, path: notes[i].RelPath})
 		}
 	}
 	if h.sources.Uncertainties == nil {
@@ -110,9 +112,10 @@ func (h *Handler) openCandidates(snap *snapshot.Generation, role string, lang wo
 		return candidates, wording.UncertaintyUnavailable.In(lang)
 	}
 	for i := range marks {
-		if row, ok := openMarkRow(&marks[i], snap, lang); ok {
-			candidates = append(candidates, openThoughtCandidate{openThoughtRow: row})
-		}
+		candidates = append(candidates, openThoughtCandidate{
+			at:   marks[i].At,
+			kept: &marks[i], path: marks[i].RelPath, anchor: marks[i].Anchor,
+		})
 	}
 	return candidates, ""
 }
@@ -121,7 +124,7 @@ func (h *Handler) openCandidates(snap *snapshot.Generation, role string, lang wo
 // (all when limit is zero), reading the live status of each note row it is
 // about to show. total is the candidate count less any note the live read
 // removed or could not read; a candidate past the limit is counted as it stands.
-func (h *Handler) confirmOpenRows(ctx context.Context, candidates []openThoughtCandidate, role string, limit int, lang wording.Lang) (rows []pages.Row, total int, fault string) {
+func (h *Handler) confirmOpenRows(ctx context.Context, candidates []openThoughtCandidate, role string, limit int, lang wording.Lang, places *placeResolver) (rows []pages.Row, total int, fault string) {
 	total = len(candidates)
 	for i := range candidates {
 		if limit > 0 && len(rows) >= limit {
@@ -139,7 +142,11 @@ func (h *Handler) confirmOpenRows(ctx context.Context, candidates []openThoughtC
 				continue
 			}
 		}
-		rows = append(rows, candidates[i].row)
+		row := candidates[i].row
+		if candidates[i].kept != nil {
+			row = openMarkRow(candidates[i].kept, places, lang).row
+		}
+		rows = append(rows, row)
 	}
 	return rows, total, fault
 }
@@ -156,19 +163,30 @@ func openNoteRow(reading *snapshot.Reading, snap *snapshot.Generation) openThoug
 	return openThoughtRow{row: row, at: reading.Updated}
 }
 
-// openMarkRow reports false for a mark whose note is not in the snapshot.
-func openMarkRow(kept *mark.Uncertainty, snap *snapshot.Generation, lang wording.Lang) (openThoughtRow, bool) {
-	reading, found := snap.Note(kept.RelPath)
-	if !found {
-		return openThoughtRow{}, false
+// openMarkRow projects a stored identity without moving or deleting it.
+func openMarkRow(kept *mark.Uncertainty, places *placeResolver, lang wording.Lang) openThoughtRow {
+	resolved := places.note(kept.RelPath)
+	row := pages.Row{Text: kept.RelPath, Wrap: true, When: kept.At.Format(time.DateOnly)}
+	if resolved.readable {
+		row.Text = cmp.Or(resolved.reading.Title, kept.RelPath)
+		row.Language = resolved.reading.Language
+		if kept.Anchor != "" {
+			row.Text += " #" + kept.Anchor
+		}
+		row.Href = pages.ResumeHref(kept.RelPath, "", 0)
+		if places.hasPlace(kept.RelPath, kept.Anchor) {
+			row.Href = pages.ResumeHref(kept.RelPath, kept.Anchor, 0)
+			row.Mark = wording.UncertaintyControl.In(lang)
+			return openThoughtRow{row: row, at: kept.At}
+		}
+		row.Mark = wording.UncertaintyPlaceNotFound.In(lang)
+	} else {
+		row.Mark = wording.UncertaintyNoteNotFound.In(lang)
 	}
-	text := cmp.Or(reading.Title, kept.RelPath)
-	if kept.Anchor != "" {
-		text += " #" + kept.Anchor
+	row.Fault = true
+	row.Removal = &pages.UncertaintyRemoval{Endpoint: mark.UncertaintyAddress, Path: kept.RelPath, Anchor: kept.Anchor,
+		Label: wording.UncertaintyClearControl.In(lang), Unavailable: wording.UncertaintyUnavailable.In(lang),
+		Failed: wording.UncertaintyNotStored.In(lang), Cleared: wording.UncertaintyCleared.In(lang), Language: string(lang),
 	}
-	row := pages.Row{
-		Text: text, Href: pages.ResumeHref(kept.RelPath, kept.Anchor, 0), Wrap: true,
-		When: kept.At.Format(time.DateOnly), Mark: wording.UncertaintyControl.In(lang), Language: reading.Language,
-	}
-	return openThoughtRow{row: row, at: kept.At}, true
+	return openThoughtRow{row: row, at: kept.At}
 }
