@@ -137,12 +137,13 @@ export function initUncertainty() {
     const trigger = event.target.closest('[data-concept]');
     const article = trigger?.closest('[data-uncertainty-endpoint]');
     const dialog = document.querySelector('[data-concept-sheet]');
-    if (!article || !dialog?.open) return;
+    const body = dialog?.querySelector('[data-concept-body]');
+    if (!article || !dialog?.open || !body) return;
     dialog.querySelector('[data-uncertainty-control]')?.remove();
     const address = new URL(trigger.href, location.href);
     if (address.origin !== location.origin || !address.pathname.startsWith('/notes/')) return;
     try {
-      addControl(dialog, article, decodeURIComponent(address.pathname.slice('/notes/'.length)), decodeURIComponent(address.hash.slice(1)));
+      addControl(body, article, decodeURIComponent(address.pathname.slice('/notes/'.length)), decodeURIComponent(address.hash.slice(1)));
     } catch {
       // A malformed address remains a link, never a guessed mark location.
     }
