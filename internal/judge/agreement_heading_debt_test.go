@@ -1,10 +1,10 @@
 package judge_test
 
 import (
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
-	"unicode"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/yuin/goldmark/ast"
@@ -12,12 +12,13 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/render"
 )
 
-// Plain heading declarations share their folded base. Repetition explains a
-// numeric suffix only when no authored name can itself claim that suffix.
-func agreementPlainHeadingCounts(body string) map[string]int {
-	if strings.Contains(body, "%%") || strings.Contains(body, "<") || strings.Contains(body, "[!") || strings.Contains(body, "\\") {
+// Heading declarations name their base through the canonical source-word
+// reader. Repetition explains a suffix only when no authored name claims it.
+func agreementDeclaredHeadingCounts(body string) map[string]int {
+	if strings.Contains(body, "%%") || strings.Contains(body, "<!--") || strings.Contains(body, "[!") {
 		return nil
 	}
 	source := []byte(body)
@@ -25,23 +26,17 @@ func agreementPlainHeadingCounts(body string) map[string]int {
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
 	counts := make(map[string]int)
-	plain := true
+	unclaimed := true
 	if err := ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		heading, ok := node.(*ast.Heading)
 		if !entering || !ok {
 			return ast.WalkContinue, nil
 		}
-		raw := strings.TrimSpace(string(heading.Lines().Value(source)))
-		if raw == "" || strings.ContainsFunc(raw, func(r rune) bool {
-			return !unicode.IsLetter(r) && !unicode.IsNumber(r) && !unicode.IsSpace(r) && r != '-'
-		}) {
-			plain = false
-			return ast.WalkStop, nil
-		}
-		base := graph.SectionID(raw)
+		raw := string(heading.Lines().Value(source))
+		base := graph.SectionID(render.HeadingWords(raw))
 		if _, suffix, found := strings.CutLast(base, "-"); found {
 			if _, err := strconv.Atoi(suffix); err == nil {
-				plain = false
+				unclaimed = false
 				return ast.WalkStop, nil
 			}
 		}
@@ -50,7 +45,7 @@ func agreementPlainHeadingCounts(body string) map[string]int {
 	}); err != nil {
 		panic(err)
 	}
-	if !plain {
+	if !unclaimed {
 		return nil
 	}
 	return counts
@@ -78,6 +73,11 @@ func TestAgreementDuplicateHeadingDebt(t *testing.T) {
 		want       map[string]int
 	}{
 		{name: "duplicate atx", body: "## A\n## A\n", want: map[string]int{"a": 2}},
+		{name: "unrelated inline html", body: "text <em>outside</em>\n\n## A\n## A\n", want: map[string]int{"a": 2}},
+		{name: "raw html owns apparent headings", body: "<div>\n## A\n## A\n</div>\n", want: map[string]int{}},
+		{name: "unrelated escaped prose", body: "\\[[A]]\n\n## A\n## A\n", want: map[string]int{"a": 2}},
+		{name: "escaped heading marker", body: "\\## A\n", want: map[string]int{}},
+		{name: "escaped heading words", body: "## \\A\n## A\n", want: map[string]int{"a": 2}},
 		{name: "three declarations", body: "## A\n## A\n## A\n", want: map[string]int{"a": 3}},
 		{name: "setext and atx", body: "A\n===\n\n## A\n", want: map[string]int{"a": 2}},
 		{name: "different declarations", body: "## A\n## B\n", want: map[string]int{"a": 1, "b": 1}},
@@ -86,27 +86,39 @@ func TestAgreementDuplicateHeadingDebt(t *testing.T) {
 		{name: "fenced code is not a declaration", body: "## A\n\n```\n## A\n```\n", want: map[string]int{"a": 1}},
 		{name: "authored suffix collision", body: "## A\n## A\n## A-2\n"},
 		{name: "multiword suffix collision", body: "## Alpha beta\n## Alpha beta\n## Alpha beta-2\n"},
-		{name: "formatted words need ownership", body: "## A\n## *A*\n"},
+		{name: "formatted words share base", body: "## A\n## *A*\n", want: map[string]int{"a": 2}},
+		{name: "alias names share base", body: "## [[A|alias]]\n## alias\n", want: map[string]int{"alias": 2}},
+		{name: "admitted formatting shares base", body: "## <mark>A</mark>\n## A\n", want: map[string]int{"a": 2}},
+		{name: "inert authored tag keeps its words", body: "## <em>A</em>\n## A\n", want: map[string]int{"em-a-em": 1, "a": 1}},
+		{name: "empty words use fallback", body: "## !\n## !\n", want: map[string]int{"section": 2}},
+		{name: "formatted authored suffix collision", body: "## A\n## A\n## *A-2*\n"},
 		{name: "comment role needs ownership", body: "%%\n## A\n%%\n## A\n"},
 		{name: "callout layout needs ownership", body: "> [!note] t\n> ## A\n> ## A\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			counts := agreementPlainHeadingCounts(tc.body)
+			counts := agreementDeclaredHeadingCounts(tc.body)
 			if diff := cmp.Diff(tc.want, counts); diff != "" {
-				t.Fatalf("caught: plain heading declaration inventory (-want +got):\n%s", diff)
+				t.Fatalf("caught: heading declaration inventory (-want +got):\n%s", diff)
 			}
 			c := agreementCase{Body: tc.body}
-			for ordinal := 1; ordinal <= 4; ordinal++ {
-				f := agreementFailure{Property: "P4", Identity: "literal-heading-id", Fragment: "a-" + strconv.Itoa(ordinal), Direction: "page-only", Multiplicity: 1, PagePresent: true}
-				kind, authority, wrong := agreementDuplicateHeadingDifference(c, &f, counts)
-				want := ordinal >= 2 && ordinal <= tc.want["a"]
-				if want && (kind != "debt" || authority != "#1011 stage 8" || wrong != "judge") || !want && kind != "" {
-					t.Fatalf("caught: duplicate declaration ownership ordinal=%d counts=%v kind=%q authority=%q wrong=%q", ordinal, counts, kind, authority, wrong)
-				}
-				f.Multiplicity = 2
-				if kind, _, _ := agreementDuplicateHeadingDifference(c, &f, counts); kind != "" {
-					t.Fatalf("caught: non-unit heading delta admitted: %+v", f)
+			bases := []string{"unrelated"}
+			for base := range tc.want {
+				bases = append(bases, base)
+			}
+			slices.Sort(bases)
+			for _, base := range slices.Compact(bases) {
+				for ordinal := 1; ordinal <= 4; ordinal++ {
+					f := agreementFailure{Property: "P4", Identity: "literal-heading-id", Fragment: base + "-" + strconv.Itoa(ordinal), Direction: "page-only", Multiplicity: 1, PagePresent: true}
+					kind, authority, wrong := agreementDuplicateHeadingDifference(c, &f, counts)
+					want := ordinal >= 2 && ordinal <= tc.want[base]
+					if want && (kind != "debt" || authority != "#1011 stage 8" || wrong != "judge") || !want && kind != "" {
+						t.Fatalf("caught: duplicate declaration ownership ordinal=%d counts=%v kind=%q authority=%q wrong=%q", ordinal, counts, kind, authority, wrong)
+					}
+					f.Multiplicity = 2
+					if kind, _, _ := agreementDuplicateHeadingDifference(c, &f, counts); kind != "" {
+						t.Fatalf("caught: non-unit heading delta admitted: %+v", f)
+					}
 				}
 			}
 		})

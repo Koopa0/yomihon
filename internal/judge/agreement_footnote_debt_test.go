@@ -71,9 +71,9 @@ func (agreementFootnoteDeclarations) Transform(doc *ast.Document, reader text.Re
 }
 
 func agreementUnusedFootnoteTargets(body string) map[string]int {
-	// Comment removal, delimiter escapes and callout layout can change the
-	// reference grammar's input. Those bodies require separate ownership.
-	if !strings.Contains(body, "[^") || strings.Contains(body, "%%") || strings.Contains(body, "<!--") || strings.Contains(body, "[!") || strings.Contains(body, "\\") {
+	// Comment removal and callout layout can change the reference grammar's
+	// input. Those bodies require separate ownership.
+	if !strings.Contains(body, "[^") || strings.Contains(body, "%%") || strings.Contains(body, "<!--") || strings.Contains(body, "[!") {
 		return nil
 	}
 	targets := make(map[string]int)
@@ -106,7 +106,10 @@ func TestAgreementUnusedFootnoteDebt(t *testing.T) {
 		{name: "two occurrences", body: "[^unused]: [[A]] [[A]]\n", want: 2},
 		{name: "used", body: "ref[^n]\n\n[^n]: [[A]]\n"},
 		{name: "ordinary prose", body: "[[A]]\n"},
-		{name: "escaped input needs ownership", body: "\\[[A]]\n\n[^unused]: [[A]]\n"},
+		{name: "unrelated escaped prose", body: "\\[[A]]\n\n[^unused]: [[A]]\n", want: 1},
+		{name: "escaped reference leaves definition unused", body: "\\ref\\[^n]\n\n[^n]: [[A]]\n", want: 1},
+		{name: "escaped definition marker", body: "\\[^unused]: [[A]]\n"},
+		{name: "escaped definition target", body: "[^unused]: \\[[A]]\n"},
 		{name: "independent live occurrence", body: "[[A]]\n\n[^unused]: [[A]]\n", want: 1},
 		{name: "comment role needs ownership", body: "%%\n[^unused]: [[A]]\n%%\n"},
 		{name: "callout layout needs ownership", body: "> [!note] t\n> [^unused]: [[A]]\n"},

@@ -15,7 +15,7 @@ import (
 // Wrapped spans and list-item fences own their literal bytes even where a
 // line-by-line replacement currently treats those bytes as prose.
 func agreementCodeDebtTargets(body string) map[string]int {
-	if strings.Contains(body, "%%") || strings.Contains(body, "<") || strings.Contains(body, "[!") || strings.Contains(body, "\\") || strings.Contains(body, "://") {
+	if strings.Contains(body, "%%") || strings.Contains(body, "<!--") || strings.Contains(body, "[!") || strings.Contains(body, "://") {
 		return nil
 	}
 	source := []byte(body)
@@ -80,6 +80,8 @@ func TestAgreementCodeDebt(t *testing.T) {
 		want       int
 	}{
 		{name: "wrapped span", body: "`open\n[[A]]\nclose`\n", want: 1},
+		{name: "unrelated inline html", body: "text <em>outside</em>\n\n`open\n[[A]]\nclose`\n", want: 1},
+		{name: "raw html owns apparent literal", body: "<div>\n`open\n[[A]]\nclose`\n</div>\n"},
 		{name: "two wrapped occurrences", body: "`open\n[[A]] [[A]]\nclose`\n", want: 2},
 		{name: "independent live occurrence", body: "[[A]]\n\n`open\n[[A]]\nclose`\n", want: 1},
 		{name: "list fence", body: "- item\n\n    ```\n    [[A]]\n    ```\n", want: 1},
@@ -89,7 +91,9 @@ func TestAgreementCodeDebt(t *testing.T) {
 		{name: "indented block", body: "    [[A]]\n"},
 		{name: "comment role needs ownership", body: "%%\n`open\n[[A]]\nclose`\n%%\n"},
 		{name: "callout layout needs ownership", body: "> [!note] t\n> `open\n> [[A]]\n> close`\n"},
-		{name: "escape role needs ownership", body: "\\[[A]]\n\n`open\n[[A]]\nclose`\n"},
+		{name: "unrelated escaped prose", body: "\\[[A]]\n\n`open\n[[A]]\nclose`\n", want: 1},
+		{name: "escaped opening delimiter", body: "\\`open\n[[A]]\nclose`\n"},
+		{name: "escaped target within literal", body: "`open\n\\[[A]]\nclose`\n"},
 		{name: "linkify needs ownership", body: "https://example.invalid/`open\n[[A]]\nclose`\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

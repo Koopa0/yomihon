@@ -85,6 +85,9 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/callout", Body: "> [!note] [[A]]\n> [[B]] ^a\n"},
 		{Name: "control/comments", Body: "%%[[A]]%%\n<!-- [[B]] -->\n[[A]]\n"},
 		{Name: "control/containers", Body: "- item\n\n      [[A]] ^a\n\n> ```\n> [[B]]\n> ```\n"},
+		{Name: "control/quote-fence-outer-address", Body: "> ```\n^a\n"},
+		{Name: "control/quote-fence-outer-after-content", Body: "> ```\n> code\n\n^a\n"},
+		{Name: "control/quote-fence-literal-address", Body: "> ```\n> ^a\n"},
 	}
 	for _, c := range controls {
 		t.Logf("control=%s sha256=%x", c.Name, sha256.Sum256([]byte(c.Body)))
@@ -186,6 +189,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			fenceInfoObserved := false
 			var unusedAddresses map[string]int
 			unusedAddressesObserved := false
+			var outerQuoteAddresses agreementQuoteAddresses
+			outerQuoteAddressesObserved := false
 			for failureIndex := range failures[i] {
 				failure := &failures[i][failureIndex]
 				if designed[agreementSignature(failure)] {
@@ -198,7 +203,7 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				}
 				if classification == "" && failure.Property == "P4" {
 					if !headingObserved {
-						headingCounts = agreementPlainHeadingCounts(c.Body)
+						headingCounts = agreementDeclaredHeadingCounts(c.Body)
 						headingObserved = true
 					}
 					classification, authority, wrong = agreementDuplicateHeadingDifference(c, failure, headingCounts)
@@ -230,6 +235,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						unusedAddressesObserved = true
 					}
 					classification, authority, wrong = agreementUnusedFootnoteAddressDifference(c, failure, unusedAddresses)
+				}
+				if classification == "" && failure.Property == "P3" {
+					if !outerQuoteAddressesObserved {
+						outerQuoteAddresses = agreementQuoteAddressOwnership(c.Body)
+						outerQuoteAddressesObserved = true
+					}
+					classification, authority, wrong = agreementQuoteAddressDifference(c, failure, outerQuoteAddresses)
 				}
 				if classification != "" {
 					t.Logf("known=%s authority=%s wrong=%s case=%s signature=%s", classification, authority, wrong, c.Name, agreementSignature(failure))
