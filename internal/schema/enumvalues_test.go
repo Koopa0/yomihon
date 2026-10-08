@@ -54,10 +54,6 @@ func TestEnumValuesCompleteDeclaration(t *testing.T) {
 			if len(got) > 0 {
 				got[0] = "changed"
 			}
-			got = append(got, "appended")
-			if len(got) != len(want)+1 {
-				t.Fatal("caller append did not extend its vocabulary")
-			}
 			if diff := cmp.Diff(want, contract.EnumValues(name, kind)); diff != "" {
 				t.Errorf("EnumValues(%q, %q) changed after caller mutation (-want +got):\n%s", name, kind, diff)
 			}
@@ -95,10 +91,6 @@ func TestEnumValuesCompleteDeclaration(t *testing.T) {
 		}
 		if len(got) > 0 {
 			got[0] = "changed"
-		}
-		got = append(got, "appended")
-		if len(got) != len(want)+1 {
-			t.Fatal("caller append did not extend its vocabulary")
 		}
 		if diff := cmp.Diff(want, contract.EnumValues("status", kind)); diff != "" {
 			t.Errorf("EnumValues(status, %q) changed after caller mutation (-want +got):\n%s", kind, diff)

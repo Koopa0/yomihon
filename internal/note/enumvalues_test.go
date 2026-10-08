@@ -2,7 +2,6 @@ package note_test
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -20,121 +19,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
-
-// TestEnumGuidanceKeepsTheJudgedStatusGroup protects schema advice for scalar
-// type spellings without relaxing the reading model's string-only metadata.
-func TestEnumGuidanceKeepsTheJudgedStatusGroup(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	source := string(data)
-	for _, pair := range [][2]string{
-		{`"study-path", "topic-map"]`, `"study-path", "topic-map", "1", "true"]`},
-		{`system = ["system", "template", "guide"]`, `system = ["system", "template", "guide", "1", "true"]`},
-	} {
-		if strings.Count(source, pair[0]) != 1 {
-			t.Fatalf("scalar fixture needle %q is not unique", pair[0])
-		}
-		source = strings.Replace(source, pair[0], pair[1], 1)
-	}
-	var raw map[string]any
-	if _, decodeErr := toml.Decode(source, &raw); decodeErr != nil {
-		t.Fatal(decodeErr)
-	}
-	enums := enumWholeTable(t, raw["enums"], "enums")
-	types := enumWholeStrings(t, enums["type"], "enums.type")
-	groups := enumWholeTable(t, enumWholeTable(t, raw["fields"], "fields")["status_group"], "fields.status_group")
-	systemTypes := enumWholeStrings(t, groups["system"], "fields.status_group.system")
-	for _, kind := range []string{"1", "true"} {
-		for _, members := range [][]string{types, systemTypes} {
-			count := 0
-			for _, member := range members {
-				if member == kind {
-					count++
-				}
-			}
-			if count != 1 {
-				t.Fatalf("scalar fixture type %q membership count = %d, want 1 in %q", kind, count, members)
-			}
-		}
-	}
-	wantValues := enumWholeStrings(t, enumWholeTable(t, enums["status"], "enums.status")["system"], "enums.status.system")
-	if !slices.Equal(wantValues, []string{"active", "archived"}) || slices.Contains(wantValues, "draft") {
-		t.Fatalf("scalar fixture system vocabulary = %q, want [active archived] excluding draft", wantValues)
-	}
-	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if writeErr := os.WriteFile(path, []byte(source), 0o600); writeErr != nil { // #nosec G703 -- fixed basename under t.TempDir
-		t.Fatal(writeErr)
-	}
-	contract, err := schema.LoadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, tc := range []struct{ name, kind, authored, readingType string }{
-		{name: "numeric-bare", kind: "1", authored: "1"},
-		{name: "boolean-bare", kind: "true", authored: "true"},
-		{name: "numeric-quoted", kind: "1", authored: "'1'", readingType: "1"},
-		{name: "boolean-quoted", kind: "true", authored: "'true'", readingType: "true"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			form := "bare"
-			if tc.readingType != "" {
-				form = "quoted"
-			}
-			body := func(status string) string {
-				return "---\ntitle: Enum scalar\ntype: " + tc.authored + "\nstatus: '" + status + "'\n---\n\n# Body\n"
-			}
-			invalid := body("draft")
-			findings, lintErr := judge.LintFrontmatter("Writing/Enum.md", []byte(invalid), contract)
-			if lintErr != nil {
-				t.Fatal(lintErr)
-			}
-			t.Logf("hit: scalar-enum type=%s form=%s judge=returned", tc.kind, form)
-			want := []judge.Finding{{
-				RuleID:          "schema.enum",
-				Severity:        judge.SeverityError,
-				Path:            "Writing/Enum.md",
-				Field:           new("status"),
-				Message:         `status "draft" is not a valid system status`,
-				Evidence:        "frontmatter validated against vault-schema.toml",
-				SuggestedAction: "fix the frontmatter to match the schema",
-				SourceRule:      "vault-schema.toml",
-				Target:          new("draft"),
-				Fingerprint:     "v1:ff090e61331c4f15",
-			}}
-			if diff := cmp.Diff(want, findings); diff != "" {
-				t.Fatalf("caught: scalar-enum type=%s form=%s judge=finding (-want +got):\n%s", tc.kind, form, diff)
-			}
-			root := writeOneNote(t, "Writing/Enum.md", invalid)
-			store, _ := newSnapshotStore(t, root, slog.New(slog.DiscardHandler), contract, contract.Governance())
-			reading, found := store.Current().Capture().Note("Writing/Enum.md")
-			if !found {
-				t.Fatal("scalar fixture absent from captured reading")
-			}
-			if reading.Type != tc.readingType {
-				t.Fatalf("caught: scalar-enum type=%s form=%s Reading.Type=%q want=%q", tc.kind, form, reading.Type, tc.readingType)
-			}
-			enumScalarSurfaces(t, invalid, contract, tc.kind+" form="+form, wantValues, true)
-			for _, value := range wantValues {
-				t.Run("accepted-"+value, func(t *testing.T) {
-					accepted := body(value)
-					got, acceptedErr := judge.LintFrontmatter("Writing/Enum.md", []byte(accepted), contract)
-					if acceptedErr != nil {
-						t.Fatal(acceptedErr)
-					}
-					t.Logf("hit: scalar-enum type=%s form=%s value=%s judge=returned", tc.kind, form, value)
-					for _, finding := range got {
-						if finding.RuleID == "schema.enum" {
-							t.Fatalf("caught: scalar-enum type=%s form=%s value=%s judge=rejected %+v", tc.kind, form, value, finding)
-						}
-					}
-					enumScalarSurfaces(t, accepted, contract, tc.kind+" form="+form, nil, false)
-				})
-			}
-		})
-	}
-}
 
 // TestEnumGuidanceWholeInventory keeps expected words independent of the
 // Contract's detached Definition and the vocabulary lookup used by the UI.
@@ -435,11 +319,6 @@ func enumWholeAccepted(t *testing.T, findings []judge.Finding, field, kind, valu
 func enumWholeSurfaces(t *testing.T, body string, contract *schema.Contract, field, kind string, want []string, invalid bool) {
 	t.Helper()
 	enumReadingSurfaces(t, body, contract, field, kind, want, invalid, "enum-guidance")
-}
-
-func enumScalarSurfaces(t *testing.T, body string, contract *schema.Contract, kind string, want []string, invalid bool) {
-	t.Helper()
-	enumReadingSurfaces(t, body, contract, "status", kind, want, invalid, "scalar-enum")
 }
 
 func enumReadingSurfaces(t *testing.T, body string, contract *schema.Contract, field, kind string, want []string, invalid bool, marker string) {

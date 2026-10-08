@@ -242,19 +242,18 @@ func healthNavigationFaults(found []nav.CoreFault, articleLang pages.ArticleLang
 // Other diagnostics stay on the note; only enum repair needs the whole list.
 func healthEnumFindings(rows []pages.HealthNoteFindings, snap *snapshot.Generation, lang wording.Lang, contract *schema.Contract) []pages.HealthNoteFindings {
 	for i := range rows {
-		_, ok := snap.Note(rows[i].Note.RelPath)
+		reading, ok := snap.Note(rows[i].Note.RelPath)
 		if !ok {
 			continue
 		}
-		result := snap.SchemaResult(rows[i].Note.RelPath)
-		findings := result.Findings
+		findings := snap.SchemaFindings(rows[i].Note.RelPath)
 		for j := range findings {
 			finding := &findings[j]
 			if finding.RuleID != "schema.enum" {
 				continue
 			}
 			field := deref(finding.Field)
-			parts := wording.AllowedEnumValues(lang, field, enumValues(contract, field, result.EnumNoteType))
+			parts := wording.AllowedEnumValues(lang, field, enumValues(contract, field, reading.Type))
 			if len(parts) > 0 {
 				rows[i].EnumNotices = append(rows[i].EnumNotices, parts)
 			}

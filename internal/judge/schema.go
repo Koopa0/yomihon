@@ -119,18 +119,14 @@ func newLintRun(contract *schema.Contract) (*lintRun, error) {
 func (r *lintRun) check(notes []note) []Finding {
 	var out []Finding
 	for i := range notes {
-		out = append(out, r.checkNote(&notes[i]).Findings...)
+		n := &notes[i]
+		seg := strings.Split(n.path, "/")
+		skipped := slices.Contains(r.skip, seg[len(seg)-1])
+		if r.scope.Includes(n.path) && !skipped {
+			out = append(out, r.note(n)...)
+		}
 	}
 	return out
-}
-
-// checkNote applies the same scope and basename selection to every judge caller.
-func (r *lintRun) checkNote(n *note) FrontmatterResult {
-	seg := strings.Split(n.path, "/")
-	if !r.scope.Includes(n.path) || slices.Contains(r.skip, seg[len(seg)-1]) {
-		return FrontmatterResult{}
-	}
-	return r.noteResult(n)
 }
 
 // note returns the frontmatter findings for one in-scope note, in the
@@ -138,26 +134,21 @@ func (r *lintRun) checkNote(n *note) FrontmatterResult {
 // the lesson-only rules, then either the light document rules or the full
 // knowledge-note rules. That order is the tiebreak the stable sort preserves.
 func (r *lintRun) note(n *note) []Finding {
-	return r.noteResult(n).Findings
-}
-
-// noteResult retains the enum selector chosen by the actual frontmatter rule.
-func (r *lintRun) noteResult(n *note) FrontmatterResult {
 	if n.noFrontmatter {
 		// The fence that never closes is said whatever the contract thinks of
 		// a note with no block, and in place of "is missing": the block is
 		// there and only its closing line is not, so "is missing" would send
 		// the author to the wrong fault.
 		if n.unclosedFrontmatter {
-			return FrontmatterResult{Findings: []Finding{unclosedFrontmatterFinding(n)}}
+			return []Finding{unclosedFrontmatterFinding(n)}
 		}
 		if r.requiresFrontmatter {
-			return FrontmatterResult{Findings: []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is missing")}}
+			return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is missing")}
 		}
-		return FrontmatterResult{}
+		return nil
 	}
 	if n.badFrontmatter {
-		return FrontmatterResult{Findings: []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is not valid YAML")}}
+		return []Finding{schemaFinding(n, "schema.frontmatter", "", "", "is not valid YAML")}
 	}
 
 	var out []Finding
@@ -179,9 +170,9 @@ func (r *lintRun) noteResult(n *note) FrontmatterResult {
 	// and a vault that files those types under another name still takes the
 	// full knowledge-note rules.
 	if hasType && r.contract.StatusGroup(ty) == schema.SystemDocumentGroup {
-		return FrontmatterResult{Findings: append(out, r.documentStatus(n, ty, schema.SystemDocumentGroup)...), EnumNoteType: ty}
+		return append(out, r.documentStatus(n, ty, schema.SystemDocumentGroup)...)
 	}
-	return FrontmatterResult{Findings: append(out, r.knowledge(n)...), EnumNoteType: n.noteType}
+	return append(out, r.knowledge(n)...)
 }
 
 // articleLanguage reports a language tag the reader's browser cannot act on,
@@ -510,15 +501,6 @@ func LintFrontmatter(relPath string, data []byte, contract *schema.Contract) ([]
 	return lint.Lint(relPath, data), nil
 }
 
-// FrontmatterResult keeps a frontmatter verdict and the enum selector that
-// produced it together. EnumNoteType is only the selector supplied to the
-// contract's enum lookup; it is not typed metadata or lifecycle authority.
-// Findings retain the check command's ordering and frozen diagnostic bytes.
-type FrontmatterResult struct {
-	Findings     []Finding
-	EnumNoteType string
-}
-
 // FrontmatterLinter is LintFrontmatter for a caller with many notes to judge
 // against one contract: the contract is resolved once, rather than once per
 // note, and a note is read for its frontmatter alone, because the frontmatter
@@ -546,17 +528,10 @@ func NewFrontmatterLinter(contract *schema.Contract) (FrontmatterLinter, error) 
 // in the order the command puts the findings in. Like LintFrontmatter it takes
 // the note's own bytes.
 func (l FrontmatterLinter) Lint(relPath string, data []byte) []Finding {
-	return l.LintResult(relPath, data).Findings
-}
-
-// LintResult judges the note's own bytes once and retains the actual enum
-// selector with its findings. A zero linter or an excluded note has no result.
-func (l FrontmatterLinter) LintResult(relPath string, data []byte) FrontmatterResult {
 	if l.run == nil {
-		return FrontmatterResult{}
+		return nil
 	}
-	n := parseFrontmatter(relPath, data)
-	result := l.run.checkNote(&n)
-	sortFindings(result.Findings)
-	return result
+	findings := l.run.check([]note{parseFrontmatter(relPath, data)})
+	sortFindings(findings)
+	return findings
 }

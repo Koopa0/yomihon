@@ -13,19 +13,10 @@ import (
 // not hold, both answer with nothing. The slice is the caller's own; the
 // findings in it point into what the generation holds and are read-only.
 func (g *Generation) SchemaFindings(relPath string) []judge.Finding {
-	return g.SchemaResult(relPath).Findings
-}
-
-// SchemaResult returns the captured frontmatter verdict and its enum selector
-// together. Absent, clean and unavailable notes return the zero result. The
-// Findings slice belongs to the caller; its pointed-to fields remain read-only.
-func (g *Generation) SchemaResult(relPath string) judge.FrontmatterResult {
 	if g == nil {
-		return judge.FrontmatterResult{}
+		return nil
 	}
-	result := g.schemaResults[relPath]
-	result.Findings = slices.Clone(result.Findings)
-	return result
+	return slices.Clone(g.schemaFindings[relPath])
 }
 
 // DomainFolder returns the first folder below a declared domain root for a

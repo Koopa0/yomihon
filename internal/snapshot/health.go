@@ -78,14 +78,14 @@ type HealthNoteFindings struct {
 // order every other list here is in.
 func schemaFaultRows(
 	notes []*vault.Note,
-	results map[string]judge.FrontmatterResult,
+	findings map[string][]judge.Finding,
 	readings map[string]Reading,
 ) (unreadable, faults []HealthNoteFindings) {
 	for _, n := range notes {
 		if n == nil {
 			continue
 		}
-		found := results[n.RelPath].Findings
+		found := findings[n.RelPath]
 		if len(found) == 0 {
 			continue
 		}

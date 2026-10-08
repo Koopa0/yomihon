@@ -428,12 +428,11 @@ func TestSnapshotWarningVerdict(t *testing.T) {
 	}
 	reported := make(map[warningKey]struct{})
 	logger := slog.New(slog.NewJSONHandler(f.logs, nil))
-	result := judge.FrontmatterResult{Findings: []judge.Finding{{RuleID: "schema.enum"}}, EnumNoteType: "system"}
 	for range 3 {
 		g := newGeneration(1)
 		g.warnings = newWarningAttempt(reported)
-		g.recordVerdict(entry, result, errors.New("unavailable pattern"), logger)
-		if len(g.results) != 0 {
+		g.recordVerdict(entry, nil, errors.New("unavailable pattern"), logger)
+		if len(g.findings) != 0 {
 			t.Fatal("failed verdict gained findings")
 		}
 		g.warnings.complete()
@@ -442,14 +441,14 @@ func TestSnapshotWarningVerdict(t *testing.T) {
 	assertWarningCount(t, f, "schema verdict unavailable for a note", 1, "verdict warning was reported again")
 	g := newGeneration(1)
 	g.warnings = newWarningAttempt(reported)
-	g.recordVerdict(entry, result, nil, logger)
-	if diff := cmp.Diff(result, g.results["note.md"]); diff != "" {
-		t.Fatalf("successful verdict lost its bundle (-want +got):\n%s", diff)
+	g.recordVerdict(entry, []judge.Finding{{}}, nil, logger)
+	if len(g.findings["note.md"]) != 1 {
+		t.Fatal("successful verdict lost its findings")
 	}
 	g.warnings.complete()
 	g = newGeneration(1)
 	g.warnings = newWarningAttempt(reported)
-	g.recordVerdict(entry, result, errors.New("unavailable pattern"), logger)
+	g.recordVerdict(entry, nil, errors.New("unavailable pattern"), logger)
 	assertWarningCount(t, f, "schema verdict unavailable for a note", 2, "recovered verdict was not rearmed")
 }
 
