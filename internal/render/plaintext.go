@@ -516,7 +516,7 @@ func plainWikilink(token string) string {
 // error (the ast.Walk error path in PlainBlocks is therefore unreachable).
 func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.WalkStatus, error) {
 	if !entering {
-		if link, ok := n.(*ast.Link); ok && leavesTheLibrary(link.Destination) {
+		if _, ok := n.(*ast.Link); ok {
 			w.recordInsertion()
 		}
 		return ast.WalkContinue, nil

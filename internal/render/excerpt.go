@@ -154,7 +154,11 @@ func (w *plainWalk) writeProse(seg text.Segment, source []byte) {
 			continue
 		}
 		end := at + roleSourceUnitWidth(source[at:seg.Stop])
-		w.emitSource(sourceEmission{start: at, end: end, atomic: true}, proseText(source[at:end]))
+		value := source[at:end]
+		if !w.rewritten.literalRoleAt(at) && !withinAny(w.rewritten.wikilinks, at, end) {
+			value = proseText(value)
+		}
+		w.emitSource(sourceEmission{start: at, end: end, atomic: true}, value)
 		at = end
 	}
 	if seg.ForceNewline && (seg.Stop == seg.Start || source[seg.Stop-1] != '\n') {

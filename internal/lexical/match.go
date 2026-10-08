@@ -794,15 +794,13 @@ func (e *entry) finishCrossingLanding(end, firstEnd int, terms *landingTerms) la
 // heading's own words, and on a narrow page it stands above the prose, so any
 // run taken from inside the heading is answered by the list's copy first.
 //
-// The last words of the previous block are preferred when a known preceding
-// contents entry cannot answer them. This preserves a proven leading context
-// when decoding makes another following run eligible. Otherwise the first
-// words of the next block provide context: the list's copy is followed by the
-// next entry's name, or its last entry is followed by reading aids and then
-// the body's first block. Each run comes from adjacent page text, and
-// only where the list cannot answer it too. Both empty means the hit keeps
-// the terms any other block gives it. headingStart is where the heading's
-// text begins.
+// The first words of the next block are preferred: the list's copy is
+// followed by the next entry's name, or its last entry is followed by reading
+// aids and then the body's first block. The last words of the previous block
+// provide context when a known preceding contents entry cannot answer them.
+// Each run comes from adjacent page text, and only where the list cannot
+// answer it too. Both empty means the hit keeps the terms any other block
+// gives it. headingStart is where the heading's text begins.
 func (e *entry) sectionContext(headingEnd int) (headingStart int, before, after string) {
 	for i, b := range e.blocks {
 		if b.End != headingEnd {
@@ -812,18 +810,18 @@ func (e *entry) sectionContext(headingEnd int) (headingStart int, before, after 
 		if !b.Heading || e.hasInsertion(headingStart, headingEnd) {
 			return headingStart, "", ""
 		}
-		if i > 0 && e.shownAsWritten(i-1) {
-			closingStart, _ := e.insertionBounds(headingStart-1, e.blockStart(i-1), headingStart)
-			closing := landingPrefix(e.PlainText[closingStart:headingStart])
-			if closing != "" && e.closingFollowsAnEntry(closing, i-1) {
-				return headingStart, closing, ""
-			}
-		}
 		if i+1 < len(e.blocks) && e.shownAsWritten(i+1) {
 			_, openingEnd := e.insertionBounds(headingEnd, headingEnd, e.blocks[i+1].End)
 			opening := landingOpening(e.PlainText[headingEnd:openingEnd])
 			if opening != "" && !e.opensAnotherBlock(opening, i+1) {
 				return headingStart, "", opening
+			}
+		}
+		if i > 0 && e.shownAsWritten(i-1) {
+			closingStart, _ := e.insertionBounds(headingStart, e.blockStart(i-1), headingStart)
+			closing := landingPrefix(e.PlainText[closingStart:headingStart])
+			if closing != "" && e.closingFollowsAnEntry(closing, i-1) {
+				return headingStart, closing, ""
 			}
 		}
 		return headingStart, "", ""

@@ -198,7 +198,7 @@ func TestPlainProjectionDecodedCoordinates(t *testing.T) {
 		{name: "external decoded label", body: `[Tom &amp; Jerry](https://example.test) tail`, text: "Tom & Jerry tail", shown: "Tom & Jerry tail", insertions: []int{11}},
 		{name: "bare www label", body: "www.example.test tail", text: "www.example.test tail", shown: "www.example.test tail", insertions: []int{16}},
 		{name: "multiple links at body edges", body: `[a](https://a.test)[b](https://b.test)`, text: "ab", shown: "ab", insertions: []int{1, 2}},
-		{name: "local link", body: `[a](#local)`, text: "a", shown: "a"},
+		{name: "local link", body: `[a](#local)`, text: "a", shown: "a", insertions: []int{1}},
 		{name: "literal span", body: "`snake\\_case &amp;`", text: "snake\\_case &amp;", shown: "snake\\_case &amp;"},
 		{name: "literal fence", body: "```\nsnake\\_case &amp;\n```", text: "snake\\_case &amp;", shown: "snake\\_case &amp;"},
 	}
