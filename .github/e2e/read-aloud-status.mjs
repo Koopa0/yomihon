@@ -91,7 +91,7 @@ async function documentWithoutColumn(browser, width, language, theme) {
           ? original.replace(NULL_GUARD, '    toolbar.append(speechStatus);\n') : original });
       });
     }
-    const response = await page.goto(BASE + '/notes/Notes/speech-document/README.md', { waitUntil: 'networkidle' });
+    const response = await page.goto(BASE + '/notes/README.md', { waitUntil: 'networkidle' });
     const paragraphs = await page.locator('[data-tts]').count();
     const columns = await page.locator('[data-readaloud-controls]').count();
     setup(response?.status() === 200 && paragraphs === 1 && columns === 0,
