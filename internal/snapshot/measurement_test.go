@@ -3,6 +3,7 @@ package snapshot
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"runtime"
@@ -21,6 +22,7 @@ const visibleTimeout = 10 * time.Second
 // distinguish an unchanged vault from a refused scan.
 type measuredSource struct {
 	ObservedSource
+
 	completed bool
 	scanErr   error
 }
@@ -36,13 +38,13 @@ func idleObservation(tb testing.TB, before, after *Generation, completed bool, s
 	tb.Helper()
 	measurementHit(tb, "idle")
 	if !completed {
-		return fmt.Errorf("caught: idle scan did not complete")
+		return errors.New("caught: idle scan did not complete")
 	}
 	if scanErr != nil {
 		return fmt.Errorf("caught: idle scan failed: %w", scanErr)
 	}
 	if before != after && !measurementFault("idle-publication") {
-		return fmt.Errorf("caught: idle published a replacement generation")
+		return errors.New("caught: idle published a replacement generation")
 	}
 	return nil
 }
@@ -51,11 +53,11 @@ func overlapObservation(tb testing.TB, before, after *Generation, expected [sha2
 	tb.Helper()
 	measurementHit(tb, "overlap")
 	if before == after && !measurementFault("overlap-no-replacement") {
-		return fmt.Errorf("caught: overlap did not publish a replacement generation")
+		return errors.New("caught: overlap did not publish a replacement generation")
 	}
 	reading, ok := after.Note(measurementNote)
 	if !ok || reading.ContentIdentity != expected {
-		return fmt.Errorf("caught: overlap did not publish the expected body identity")
+		return errors.New("caught: overlap did not publish the expected body identity")
 	}
 	return nil
 }
@@ -89,7 +91,7 @@ func heapSample(f *representativeFixture, store *Store, held *Generation) uint64
 // caller's released/current-only collection.
 //
 //go:noinline
-func overlapSample(b *testing.B, f *representativeFixture, store *Store, original string, longer bool) (uint64, uint64) {
+func overlapSample(b *testing.B, f *representativeFixture, store *Store, original string, longer bool) (oneHeap, twoHeap uint64) {
 	b.Helper()
 	old := store.Current()
 	one := heapSample(f, store, old)
@@ -119,7 +121,7 @@ func awaitVisible(ctx context.Context, tb testing.TB, store *Store, expected [sh
 		}
 		select {
 		case <-scannerDone:
-			return fmt.Errorf("caught: visible scanner exited before observation")
+			return errors.New("caught: visible scanner exited before observation")
 		default:
 		}
 		reading, ok := store.Current().Note(measurementNote)
@@ -130,7 +132,7 @@ func awaitVisible(ctx context.Context, tb testing.TB, store *Store, expected [sh
 		case <-ctx.Done():
 			return fmt.Errorf("caught: visible timeout or cancellation: %w", ctx.Err())
 		case <-scannerDone:
-			return fmt.Errorf("caught: visible scanner exited before observation")
+			return errors.New("caught: visible scanner exited before observation")
 		case <-ticker.C:
 		}
 	}
