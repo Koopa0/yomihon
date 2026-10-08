@@ -77,6 +77,8 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
 		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
+		{Name: "control/repeated-literal-title-receipts", Body: "> [!note] [[A]]\n> [!note] [[A]]\n"},
+		{Name: "control/shared-literal-title-targets", Body: "> [!note] [[A]] [[B]]\n> [!note] [[A]] [[A]] [[B]]\n"},
 		{Name: "control/realized-callout-heading-namespace", Body: "> [!note] title\n> words\n\n## A\n## A\n"},
 		{Name: "control/realized-comment-heading-namespace", Body: "%%\nhidden\n%%\n## A\n## A\n"},
 		{Name: "control/realized-terminal-heading-namespace", Body: "## A\n## A\n<!-- hidden\n"},
@@ -201,6 +203,9 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			designed := make(map[string]bool)
 			designedSetup := agreementCapture(t, func(observer agreementTB) {
 				designed = agreementDesignedDifferences(observer, c, &observed[i], failures[i])
+				for signature := range agreementMultipleTitleDifferences(observer, c, &observed[i], failures[i]) {
+					designed[signature] = true
+				}
 			})
 			if designedSetup != "" {
 				failures[i] = append(failures[i], agreementFailure{Property: "setup", Identity: "designed-receipt", Observation: designedSetup})
