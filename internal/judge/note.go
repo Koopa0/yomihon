@@ -70,11 +70,12 @@ type note struct {
 // enum check reads a scalar and skips a list, and a required-field check treats
 // an empty scalar or an empty list as absent.
 type fmValue struct {
-	scalar         string
-	list           []string
-	stringList     []string
-	isList         bool
-	scalarIsString bool
+	scalar            string
+	list              []string
+	stringList        []string
+	isList            bool
+	scalarIsString    bool
+	hasNestedSequence bool
 }
 
 // asScalar reports the scalar text, or false when the value is a list.
@@ -382,13 +383,17 @@ func nodeValue(n *yaml.Node) fmValue {
 	case yaml.SequenceNode:
 		items := make([]string, 0, len(n.Content))
 		stringItems := make([]string, 0, len(n.Content))
+		hasNestedSequence := false
 		for _, item := range n.Content {
+			if resolveAlias(item).Kind == yaml.SequenceNode {
+				hasNestedSequence = true
+			}
 			items = append(items, scalarText(item))
 			if value, ok := asString(item); ok && value != "" {
 				stringItems = append(stringItems, value)
 			}
 		}
-		return fmValue{list: items, stringList: stringItems, isList: true}
+		return fmValue{list: items, stringList: stringItems, isList: true, hasNestedSequence: hasNestedSequence}
 	case yaml.ScalarNode:
 		_, scalarIsString := asString(n)
 		return fmValue{scalar: scalarText(n), scalarIsString: scalarIsString}

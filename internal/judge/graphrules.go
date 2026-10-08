@@ -330,15 +330,7 @@ func provenanceUnresolved(
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
-		fields := []referenceField{
-			{name: "based_on", values: n.basedOn, sourceRule: sourceYomihon},
-			{name: "related", values: n.related, sourceRule: sourceYomihon},
-		}
-		if vocabulary, ok := supersessionForNote(contract, n); ok {
-			lessonType, _ := contract.LessonType()
-			fields = appendConfiguredReferences(fields, n, vocabulary, lessonType)
-		}
-		for _, field := range fields {
+		for _, field := range noteReferenceFields(n, contract) {
 			for _, value := range field.values {
 				if !provenanceResolves(idx, slugs, value) {
 					out = append(out, provenanceFinding(n, field.name, value, field.sourceRule))
@@ -347,6 +339,21 @@ func provenanceUnresolved(
 		}
 	}
 	return out
+}
+
+// noteReferenceFields is the shared selection and authority for reference
+// resolution and YAML-shape diagnostics. Provenance requirements do not
+// declare additional reference fields.
+func noteReferenceFields(n *note, contract *schema.Contract) []referenceField {
+	fields := []referenceField{
+		{name: "based_on", values: n.basedOn, sourceRule: sourceYomihon},
+		{name: "related", values: n.related, sourceRule: sourceYomihon},
+	}
+	if vocabulary, ok := supersessionForNote(contract, n); ok {
+		lessonType, _ := contract.LessonType()
+		fields = appendConfiguredReferences(fields, n, vocabulary, lessonType)
+	}
+	return fields
 }
 
 func supersessionForNote(contract *schema.Contract, n *note) (schema.Supersession, bool) {
