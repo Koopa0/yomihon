@@ -113,8 +113,8 @@ func (h *Handler) openCandidates(snap *snapshot.Generation, role string, lang wo
 	}
 	for i := range marks {
 		candidates = append(candidates, openThoughtCandidate{
-			openThoughtRow: openThoughtRow{at: marks[i].At},
-			kept:           &marks[i], path: marks[i].RelPath, anchor: marks[i].Anchor,
+			at:   marks[i].At,
+			kept: &marks[i], path: marks[i].RelPath, anchor: marks[i].Anchor,
 		})
 	}
 	return candidates, ""

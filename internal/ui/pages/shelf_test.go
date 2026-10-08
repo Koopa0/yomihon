@@ -317,6 +317,7 @@ func TestShelfKeepsAnInertFaultRow(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var out strings.Builder
 			if err := tt.render(&out); err != nil {
 				t.Fatalf("render fault row: %v", err)

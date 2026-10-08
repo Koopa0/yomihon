@@ -140,14 +140,15 @@ func railRows(s *Shelf, limit int) (window []Row, trimmed int) {
 func shelfRows(s *Shelf, limit int) []Row {
 	limit = max(limit, 0)
 	rows := make([]Row, 0, limit)
-	for _, row := range s.Rows {
+	for i := range s.Rows {
+		row := &s.Rows[i]
 		if len(rows) == limit {
 			return rows
 		}
 		if row.Href == "" && !row.Fault {
 			continue
 		}
-		rows = append(rows, row)
+		rows = append(rows, *row)
 	}
 	return rows
 }

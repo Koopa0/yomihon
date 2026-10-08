@@ -71,12 +71,12 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 			assertLostMarkPair(t, mux, tt.lang, rel, "chapter")
 			before := lostMarkRecords(t, mux, tt.lang)
 			if tt.noteGone {
-				if err := os.Remove(file); err != nil {
-					t.Fatal(err)
+				if removeErr := os.Remove(file); removeErr != nil {
+					t.Fatal(removeErr)
 				}
 			} else {
-				if err := os.WriteFile(file, []byte("---\ntitle: Own title\n---\n# Own title\n\n## Renamed\n\nWords.\n"), 0o600); err != nil {
-					t.Fatal(err)
+				if writeErr := os.WriteFile(file, []byte("---\ntitle: Own title\n---\n# Own title\n\n## Renamed\n\nWords.\n"), 0o600); writeErr != nil {
+					t.Fatal(writeErr)
 				}
 			}
 			rebuilt, err := snapshot.New(t.Context(), source, log, nil, schema.Ungoverned())
@@ -156,7 +156,7 @@ func lostMarkRequest(t *testing.T, mux http.Handler, method, address, body, lang
 	if method == http.MethodPost {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
-	req.AddCookie(&http.Cookie{Name: "yomihon_lang", Value: lang})
+	req.AddCookie(&http.Cookie{Name: "yomihon_lang", Value: lang}) // #nosec G124 -- synthetic incoming Cookie header; response-cookie security attributes are not transmitted
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -215,8 +215,8 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 			initial := http.NewServeMux()
 			mark.NewUncertaintyHandler(marks, handler, log).Register(initial)
 			assertLostMarkPair(t, initial, "en", "Source.md", "chapter")
-			if err := os.WriteFile(file, []byte("---\ntitle: Later title\n---\n## Renamed\n"), 0o600); err != nil {
-				t.Fatal(err)
+			if writeErr := os.WriteFile(file, []byte("---\ntitle: Later title\n---\n## Renamed\n"), 0o600); writeErr != nil {
+				t.Fatal(writeErr)
 			}
 			second, err = snapshot.New(t.Context(), source, log, nil, schema.Ungoverned())
 			if err != nil {
@@ -265,7 +265,6 @@ func assertLostMarkPair(t *testing.T, mux http.Handler, lang, rel, anchor string
 // Catches sorting after lost-row classification: the lost path must occupy its
 // stored position before Home cuts to five, and the total still includes six.
 func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
-	t.Parallel()
 	root := t.TempDir()
 	for _, fixture := range []struct {
 		rel  string
@@ -304,9 +303,9 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 		{RelPath: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
 		{RelPath: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
 	} {
-		marked, err := marks.ToggleUncertainty(&kept, func(u *mark.Uncertainty) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
-		if err != nil {
-			t.Fatal(err)
+		marked, markErr := marks.ToggleUncertainty(&kept, func(u *mark.Uncertainty) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
+		if markErr != nil {
+			t.Fatal(markErr)
 		}
 		if !marked {
 			t.Fatalf("initial mark %s #%s was not added", kept.RelPath, kept.Anchor)
@@ -327,8 +326,8 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	if diff := cmp.Diff(wantStored, held); diff != "" {
 		t.Fatalf("initial complete stored sort fixture mismatch (-want +got):\n%s", diff)
 	}
-	if err := os.Remove(filepath.Join(root, "Missing.md")); err != nil {
-		t.Fatal(err)
+	if removeErr := os.Remove(filepath.Join(root, "Missing.md")); removeErr != nil {
+		t.Fatal(removeErr)
 	}
 	rebuilt, err := snapshot.New(t.Context(), source, log, nil, schema.Ungoverned())
 	if err != nil {
