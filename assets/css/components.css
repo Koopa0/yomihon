@@ -4233,6 +4233,15 @@ a.y-facetrow:hover {
   margin: -8px 0 12px;
 }
 
+/* The sentence under the chip row explaining why some notes state no status:
+   the card lede's voice, upright, set below the row rather than under a head. */
+.y-homeblock__note {
+  color: var(--fg-faint);
+  font-family: var(--font-serif);
+  font-size: var(--fs-13);
+  margin: 12px 0 0;
+}
+
 .y-homeseamnote {
   color: var(--fg-faint);
   font-family: var(--font-serif);
@@ -4369,7 +4378,7 @@ a.y-facetrow:hover {
   padding: 7px 9px;
 }
 
-.y-homechip:hover {
+.y-homechip[href]:hover {
   border-color: var(--border-strong);
   color: var(--fg);
 }

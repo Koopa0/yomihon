@@ -2616,9 +2616,12 @@ func homeLifecycleRow(t *testing.T, section, statusName string) string {
 	return section[openAt : markerAt+closeAt+len("</a>")]
 }
 
-// chipCounts reads every per-status figure the block states.
+// chipCounts reads every per-status figure the block states. The cells for
+// notes with no status follow the statuses in the same row and are read by
+// unstatedCounts, so reading stops where the first of them begins.
 func chipCounts(t *testing.T, block string) []int {
 	t.Helper()
+	block, _, _ = strings.Cut(block, " data-unstated")
 	var out []int
 	const marker = `class="y-homechip__count"`
 	for rest := block; ; {
@@ -4120,17 +4123,18 @@ func TestTheLifecycleBlockAccountsForEveryIndexedNote(t *testing.T) {
 }
 
 // unstatedCounts reads the counts from the cells that stand for notes with no
-// status. They carry their own markup rather than the status chip's, so this
-// cannot pick up a status by accident — which is also what stops the block
-// from dressing them as statuses.
+// status. They are marked data-unstated rather than told apart by their look,
+// so this cannot pick up a status by accident — which is also what stops the
+// block from dressing them as statuses.
 func unstatedCounts(t *testing.T, block string) []int {
 	t.Helper()
+	const marker = `class="y-homechip__count"`
 	var out []int
-	const marker = `class="y-homeunstated__count"`
-	for rest := block; ; {
+	cells := strings.Split(block, " data-unstated")
+	for _, rest := range cells[1:] {
 		at := strings.Index(rest, marker)
 		if at < 0 {
-			return out
+			t.Fatalf("an unstated cell carries no count: %q", rest[:min(len(rest), 120)])
 		}
 		rest = rest[at:]
 		open := strings.IndexByte(rest, '>')
@@ -4143,8 +4147,8 @@ func unstatedCounts(t *testing.T, block string) []int {
 			t.Fatalf("an unstated cell states no number: %v", err)
 		}
 		out = append(out, n)
-		rest = rest[shut:]
 	}
+	return out
 }
 
 // TestNoteMetarowCarriesADate holds the reading page's one date: the author's
