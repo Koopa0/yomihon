@@ -169,9 +169,9 @@ type Generation struct {
 	notes    map[string]Reading
 	markdown *render.Pipeline
 
-	// schemaFindings is what the schema said about each note when this generation
+	// schemaResults is what the schema said about each note when this generation
 	// read it, reached once so a page and the check command answer for one read.
-	schemaFindings map[string][]judge.Finding
+	schemaResults map[string]judge.FrontmatterResult
 	// domainRoots is the detached declaration used by this generation's findings.
 	domainRoots []string
 
@@ -1007,7 +1007,7 @@ func buildGeneration(
 	// every page.
 	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titles, capabilities.Navigation)
 	health.NavigationFaults = navigation.CoreFaults()
-	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(g.ordered, g.findings, g.readings)
+	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(g.ordered, g.results, g.readings)
 	gen := &Generation{
 		graph:          graphIndex,
 		navigation:     navigation,
@@ -1023,7 +1023,7 @@ func buildGeneration(
 		privacyPolicy:  contract.PrivacyPolicy(),
 		scan:           scan,
 		notes:          g.readings,
-		schemaFindings: g.findings,
+		schemaResults:  g.results,
 		domainRoots:    contract.Definition().Rules.DomainEqualsFolderUnder,
 		titles:         titles,
 		parsed:         g.parsed,
@@ -1073,8 +1073,8 @@ type generation struct {
 	files []lexical.Document
 	// resources are every non-note path, read or not: a wikilink may name any.
 	resources []string
-	// findings are the schema's verdicts, kept only for notes that drew one.
-	findings map[string][]judge.Finding
+	// results are the schema's verdicts, kept only for notes that drew one.
+	results map[string]judge.FrontmatterResult
 	// skippedNotes are paths left out of the note map by skip_basenames.
 	skippedNotes map[string]struct{}
 	// sizeSkipped are notes this reading refused for size, recorded here so
@@ -1106,7 +1106,7 @@ func newGeneration(entries int) *generation {
 		sidecars:     make(map[string][]byte),
 		files:        make([]lexical.Document, 0, entries),
 		resources:    make([]string, 0, entries),
-		findings:     make(map[string][]judge.Finding),
+		results:      make(map[string]judge.FrontmatterResult),
 		skippedNotes: make(map[string]struct{}),
 		products:     make(map[string]noteProducts, entries),
 		htmlTitles:   make(map[string]string),
@@ -1220,7 +1220,7 @@ type noteProducts struct {
 type noteRead struct {
 	parsed     *vault.Note
 	reading    Reading
-	findings   []judge.Finding
+	result     judge.FrontmatterResult
 	verdictErr error
 	products   noteProducts
 }
@@ -1257,7 +1257,7 @@ func deriveNote(
 	}()
 	read.parsed = parsers.note(relPath, data)
 	read.reading = newReading(read.parsed, data, languages)
-	read.findings, read.verdictErr = lint.Lint(relPath, data), lintErr
+	read.result, read.verdictErr = lint.LintResult(relPath, data), lintErr
 	read.products = noteProducts{
 		document: parsers.document(read.parsed),
 		planned:  parsers.planned(read.parsed.Body, contract),
@@ -1292,7 +1292,7 @@ func (g *generation) readNote(
 	g.ordered = append(g.ordered, read.parsed)
 	g.readings[relPath] = read.reading
 	g.products[relPath] = read.products
-	g.recordVerdict(entry, read.findings, read.verdictErr, log)
+	g.recordVerdict(entry, read.result, read.verdictErr, log)
 	return ""
 }
 
@@ -1342,7 +1342,7 @@ func (g *generation) linkTargets() map[string][]string {
 // and clean read the same at the accessor. The only fault it can meet is a slug
 // pattern nothing can compile, which is said once and leaves that note without
 // a verdict rather than the folder without a generation.
-func (g *generation) recordVerdict(entry vault.Entry, findings []judge.Finding, err error, log *slog.Logger) {
+func (g *generation) recordVerdict(entry vault.Entry, result judge.FrontmatterResult, err error, log *slog.Logger) {
 	relPath := entry.Path()
 	if err != nil {
 		if g.warnings.record(entry, warningVerdict, err.Error()) {
@@ -1350,8 +1350,8 @@ func (g *generation) recordVerdict(entry vault.Entry, findings []judge.Finding, 
 		}
 		return
 	}
-	if len(findings) > 0 {
-		g.findings[relPath] = findings
+	if len(result.Findings) > 0 {
+		g.results[relPath] = result
 	}
 }
 

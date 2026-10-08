@@ -157,7 +157,7 @@ func inspectRepresentative(ctx context.Context, f *representativeFixture, gen *G
 	health := gen.Health()
 	if len(health.SchemaFaults) != 0 {
 		rel := health.SchemaFaults[0].Note.RelPath
-		return metrics, fmt.Errorf("caught: invalid generated note %s: %+v", rel, gen.schemaFindings[rel])
+		return metrics, fmt.Errorf("caught: invalid generated note %s: %+v", rel, gen.SchemaFindings(rel))
 	}
 	if len(health.SchemaFaults)+len(health.FrontmatterUnreadable)+len(health.NavigationFaults)+len(health.Unwritten)+len(health.Collisions) != 0 {
 		return metrics, fmt.Errorf("caught: invalid generated workload: %+v", health)

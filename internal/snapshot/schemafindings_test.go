@@ -44,11 +44,19 @@ func TestAGenerationCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 	}
 	t.Logf("the fixture draws: %s", strings.Join(ruleIDs, ", "))
 
+	if diff := cmp.Diff(judge.FrontmatterResult{Findings: want, EnumNoteType: "concept"}, gen.SchemaResult(faulty)); diff != "" {
+		t.Errorf("Generation.SchemaResult(%q) differs from captured verdict (-want +got):\n%s", faulty, diff)
+	}
 	if diff := cmp.Diff(want, gen.SchemaFindings(faulty)); diff != "" {
 		t.Errorf("Generation.SchemaFindings(%q) differs from the seam (-seam +generation):\n%s", faulty, diff)
 	}
 	if got := gen.SchemaFindings(clean); len(got) != 0 {
 		t.Errorf("Generation.SchemaFindings(%q) = %v, want nothing for a note that satisfies the schema", clean, got)
+	}
+	for _, rel := range []string{clean, "Concepts/golang/Absent.md"} {
+		if diff := cmp.Diff(judge.FrontmatterResult{}, gen.SchemaResult(rel)); diff != "" {
+			t.Errorf("Generation.SchemaResult(%q) (-zero +got):\n%s", rel, diff)
+		}
 	}
 	if got := gen.SchemaFindings("Concepts/golang/Absent.md"); len(got) != 0 {
 		t.Errorf("Generation.SchemaFindings(absent) = %v, want nothing", got)
@@ -70,14 +78,22 @@ func TestSchemaFindingsAreTheCallersOwnSlice(t *testing.T) {
 	store, _ := newTestStore(t, root, contract)
 	gen := store.Current()
 
-	first := gen.SchemaFindings(faulty)
-	if len(first) == 0 {
+	first := gen.SchemaResult(faulty)
+	if len(first.Findings) == 0 {
 		t.Fatal("the fixture note draws no schema findings, so this test would prove nothing")
 	}
-	first[0] = judge.Finding{RuleID: "scribbled.over"}
-	second := gen.SchemaFindings(faulty)
-	if second[0].RuleID == "scribbled.over" {
-		t.Error("writing to one caller's slice changed the next caller's; the accessor handed out the generation's own array")
+	first.Findings[0] = judge.Finding{RuleID: "scribbled.over"}
+	first.EnumNoteType = "scribbled.over"
+	wantFindings, err := judge.LintFrontmatter(faulty, []byte(body), contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := judge.FrontmatterResult{Findings: wantFindings, EnumNoteType: "concept"}
+	if diff := cmp.Diff(want, gen.SchemaResult(faulty)); diff != "" {
+		t.Errorf("caught: modifying caller result changed captured verdict (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantFindings, gen.SchemaFindings(faulty)); diff != "" {
+		t.Errorf("caught: modifying caller result changed compatibility findings (-want +got):\n%s", diff)
 	}
 }
 
@@ -211,4 +227,76 @@ func domainRootContract(t *testing.T, root, roots string) *schema.Contract {
 		t.Fatalf("load contract: %v", err)
 	}
 	return contract
+}
+
+// TestSchemaResultKeepsItsCapturedSelector binds advice to the verdict's read,
+// even after another generation reads a different scalar spelling from disk.
+func TestSchemaResultKeepsItsCapturedSelector(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	testContract(t, root)
+	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	data, err := os.ReadFile(contractPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(data)
+	for _, pair := range [][2]string{
+		{`"study-path", "topic-map"]`, `"study-path", "topic-map", "1", "true"]`},
+		{`system = ["system", "template", "guide"]`, `system = ["system", "template", "guide", "1", "true"]`},
+	} {
+		if strings.Count(source, pair[0]) != 1 {
+			t.Fatalf("fixture selector needle %q is not unique", pair[0])
+		}
+		source = strings.Replace(source, pair[0], pair[1], 1)
+	}
+	writeNote(t, root, schema.ContractRelPath, source)
+	contract, err := schema.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lint, err := judge.NewFrontmatterLinter(contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const rel = "Writing/Scalar.md"
+	firstBody := "---\ntitle: Scalar\ntype: 1\nstatus: draft\n---\n"
+	writeNote(t, root, rel, firstBody)
+	firstStore, _ := newTestStore(t, root, contract)
+	first := firstStore.Current().Capture()
+	secondBody := strings.Replace(firstBody, "type: 1", "type: true", 1)
+	writeNote(t, root, rel, secondBody)
+	secondStore, _ := newTestStore(t, root, contract)
+	second := secondStore.Current().Capture()
+	for _, tt := range []struct {
+		name     string
+		gen      *Generation
+		body     string
+		selector string
+	}{
+		{name: "retained first", gen: first, body: firstBody, selector: "1"},
+		{name: "replacement", gen: second, body: secondBody, selector: "true"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			want := lint.LintResult(rel, []byte(tt.body))
+			if want.EnumNoteType != tt.selector || len(want.Findings) != 1 {
+				t.Fatalf("fixture verdict = %+v, want selector %q and one finding", want, tt.selector)
+			}
+			if diff := cmp.Diff(want, tt.gen.SchemaResult(rel)); diff != "" {
+				t.Errorf("caught: captured SchemaResult (%s) (-want +got):\n%s", tt.name, diff)
+			}
+			reading, found := tt.gen.Note(rel)
+			if !found {
+				t.Fatal("fixture reading absent")
+			}
+			if reading.Type != "" {
+				t.Errorf("caught: scalar reading Type = %q, want empty", reading.Type)
+			}
+		})
+	}
+	for _, gen := range []*Generation{nil, {}, first, second} {
+		if diff := cmp.Diff(judge.FrontmatterResult{}, gen.SchemaResult("Writing/Absent.md")); diff != "" {
+			t.Errorf("caught: absent SchemaResult (-zero +got):\n%s", diff)
+		}
+	}
 }
