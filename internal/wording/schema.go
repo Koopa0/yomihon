@@ -61,11 +61,15 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 	case "schema.required":
 		return []SchemaPart{text(schemaRequiredStart), code(field), text(schemaRequiredEnd)}
 	case "schema.reference_nested_sequence":
-		return []SchemaPart{
+		parts := []SchemaPart{
 			code(field), text(schemaReferenceNestedSequence),
 			code(field + ": [\"[[Note]]\"]"), text(schemaReferenceOr),
 			code(field + ": [\"Note\"]"), text(schemaReferenceEnd),
 		}
+		if prefix := schemaReferenceStart.In(lang); prefix != "" {
+			return append([]SchemaPart{{Text: prefix}}, parts...)
+		}
+		return parts
 	case "schema.unknown_key":
 		return []SchemaPart{code(target), text(schemaUnknownKey)}
 	case "schema.provenance":
@@ -131,8 +135,9 @@ var (
 
 	schemaUnknownKey = both(" 不是 schema 認得的欄位。", " is not a field the schema knows.")
 
+	schemaReferenceStart          = both("", "An item in ")
 	schemaReferenceNestedSequence = both(
-		" 的值被 YAML 讀成巢狀清單，沒有讀成引用。請替連結加上引號，例如 ",
+		" 裡有一項被 YAML 讀成巢狀清單，沒有讀成引用。請替連結加上引號，例如 ",
 		" was read as a nested YAML list, not a reference. Quote the link, for example ")
 	schemaReferenceOr  = both(" 或 ", " or ")
 	schemaReferenceEnd = both("。", ".")

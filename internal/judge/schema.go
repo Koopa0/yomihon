@@ -131,8 +131,9 @@ func (r *lintRun) check(notes []note) []Finding {
 
 // note returns the frontmatter findings for one in-scope note, in the
 // contract's reading order: the type enum, unknown keys, the article language,
-// the lesson-only rules, then either the light document rules or the full
-// knowledge-note rules. That order is the tiebreak the stable sort preserves.
+// the lesson-only rules, reference shapes, then either the light document
+// rules or the full knowledge-note rules. That order is the tiebreak the
+// stable sort preserves.
 func (r *lintRun) note(n *note) []Finding {
 	if n.noFrontmatter {
 		// The fence that never closes is said whatever the contract thinks of

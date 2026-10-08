@@ -104,8 +104,10 @@ Run `yomihon check --root ~/notes` to find broken links, frontmatter problems an
 
 Quote references inside YAML lists: write `based_on: ["[[Note]]"]` or
 `based_on: ["Note"]`. An unquoted `based_on: [[Note]]` is a nested YAML list,
-so the command and the reading page report `schema.reference_nested_sequence`
-once for that field. The same diagnostic applies to `related` and the
+so `yomihon check` reports `schema.reference_nested_sequence` once for that
+field, and the note's page says the same in your language. Like the other
+frontmatter rules, it judges only notes inside `[scan] knowledge_dirs`.
+The same diagnostic applies to `related` and the
 replacement fields the contract configures for the note's type. Edit the
 reference in your editor; yomihon leaves its bytes unchanged.
 
