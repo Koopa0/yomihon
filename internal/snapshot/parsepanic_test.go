@@ -64,18 +64,18 @@ var stagePanics = []struct {
 	}},
 	{"the search entry", "document", func(p noteParsers) noteParsers {
 		genuine := p.document
-		p.document = func(n *vault.Note) lexical.Document {
+		p.document = func(n *vault.Note, body graph.BodyFacts) lexical.Document {
 			if strings.Contains(n.Body, poisonMark) {
 				panic(panicValue)
 			}
-			return genuine(n)
+			return genuine(n, body)
 		}
 		return p
 	}},
 	{"the planned names", "planned", func(p noteParsers) noteParsers {
 		genuine := p.planned
-		p.planned = func(body string, contract *schema.Contract) judge.Planned {
-			if strings.Contains(body, poisonMark) {
+		p.planned = func(body graph.BodyFacts, contract *schema.Contract) judge.Planned {
+			if strings.Contains(body.Source(), poisonMark) {
 				panic(panicValue)
 			}
 			return genuine(body, contract)
@@ -84,8 +84,8 @@ var stagePanics = []struct {
 	}},
 	{"the link targets", "links", func(p noteParsers) noteParsers {
 		genuine := p.links
-		p.links = func(body string) []string {
-			if strings.Contains(body, poisonMark) {
+		p.links = func(body graph.BodyFacts) []string {
+			if strings.Contains(body.Source(), poisonMark) {
 				panic(panicValue)
 			}
 			return genuine(body)

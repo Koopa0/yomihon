@@ -109,7 +109,7 @@ func degradedLink(href string, link graph.Wikilink, miss fragmentMiss, lang word
 // The marker delimiters below are written by the placeholder builders and read
 // back by the substitution pass, in one place so the two cannot drift.
 const (
-	blockMarkOpen   = "<!--yomihon-block:"
+	blockMarkOpen   = graph.RenderedBlockMarkerOpen
 	blockMarkClose  = "-->"
 	inlineMarkOpen  = "\ue000"
 	inlineMarkClose = "\ue001"
@@ -173,7 +173,7 @@ func placeholderFor(i int, markup string) string {
 // stands — inside a fenced block and inside a code span too, where every other
 // character survives as typed. Nothing readable is lost; something somebody
 // could see is.
-const inlinePlaceholderRunes = "\ue000\ue001\ue002\ue003"
+const inlinePlaceholderRunes = "\ue000\ue001\ue002\ue003\ue004"
 
 // blockMarkupMarker matches one planted block-markup marker in rendered HTML.
 // The runes are stripped from authored text before markers exist, so every
@@ -212,6 +212,7 @@ func substituteMarkedBlocks(htmlOut string, marks *markers) (rendered string, em
 
 	usedBlock := make([]bool, len(blocks))
 	usedInline := make([]bool, len(inline))
+	marks.emittedInline = usedInline
 	pos := 0
 	nextComment := strings.Index(htmlOut, blockMarkOpen)
 	nextInline := strings.Index(htmlOut, inlineMarkOpen)
@@ -472,7 +473,7 @@ func looksRisky(line string) bool {
 	if strings.Contains(line, "[[") {
 		return true
 	}
-	if calloutStartPattern.MatchString(line) {
+	if _, _, _, ok := calloutStart(line); ok {
 		return true
 	}
 	return pipeTableLine.MatchString(line)
@@ -489,7 +490,7 @@ func (r *Pipeline) preprocess(body string, address []string, allowEmbed embedPol
 	st := &preprocessState{
 		lines:   strings.Split(body, "\n"),
 		address: address,
-		quoted:  r.indentedCodeLines(body),
+		code:    presentationCodeLines(body),
 		marks:   &markers{},
 	}
 	r.scan(st, allowEmbed, col)
@@ -522,39 +523,42 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 		// While an HTML block is still running, every line belongs to it: a fence
 		// marker or a callout opener inside one is raw text, not the start of
 		// anything, so neither pass may claim it.
-		case st.htmlEnds == nil && tryOpenFence(st):
+		case st.htmlEnds == nil && !st.code[st.i].html && !st.code[st.i].indented && tryOpenFence(st):
 			// handled: either entered a fence, or fully consumed a
 			// mermaid block — see tryOpenFence.
-		case st.htmlEnds == nil && r.tryConsumeCallout(st, allowEmbed, col):
+		case st.htmlEnds == nil && !st.code[st.i].html && !st.code[st.i].block && r.tryConsumeCallout(st, allowEmbed, col):
 			// handled: a callout block was consumed.
 		default:
-			// An indented code block hands its line to the reader as written, so
-			// a bracket pair on it is syntax being shown and stays as typed. The
-			// address a line carries is read there all the same, because a code
-			// block is somewhere in the note a reader can be sent to and the
-			// adjudicator counts one written there. A block opener shown that way
-			// is being displayed rather than opened, so it starts nothing this
-			// scan would afterwards have to close.
-			line := st.lines[st.i]
-			if !st.quoted[st.i] {
-				st.trackHTMLBlock(line)
-				line = r.convertWikilinks(line, allowEmbed, col, &st.marks.inline)
-			}
-			// A transcluded body's blocks belong to the note it came from, so an
-			// excerpt never takes an id on the page reading it; the line is still
-			// classified so speech can drop the address. Embeds being allowed is
-			// exactly the state of being the note's own text. Links convert first,
-			// so a caret inside one is never read as an address. A code span is
-			// the same kind of quoted text, asked of the author's own lines
-			// because a span can run past the end of one; the answer does not
-			// widen to indented code.
-			if !st.owned[st.i] {
-				line = markBlockAnchor(line, col.page, st.marks, allowEmbed == embedsAllowed)
-			}
-			st.kept = append(st.kept, line)
-			st.i++
+			r.scanOrdinaryLine(st, allowEmbed, col)
 		}
 	}
+}
+
+func (r *Pipeline) scanOrdinaryLine(st *preprocessState, allowEmbed embedPolicy, col *collector) {
+	// Code belongs to the grammar's whole-body reading, including fences
+	// inside lists and inline quotation that crosses a line ending.
+	line := st.lines[st.i]
+	if !st.code[st.i].block {
+		st.trackHTMLBlock(line)
+		line = r.convertWikilinks(line, st.code[st.i].spans, allowEmbed, col, st.marks)
+	}
+	if st.code[st.i].fenceContent && !st.riskyFenceReported && looksRisky(line) {
+		st.riskyFenceReported = true
+		col.report(&Diagnostic{Kind: DiagRiskyFence, Message: "wikilink/callout/table syntax found inside a fenced code block; left untouched"})
+	}
+	// A transcluded body's blocks belong to the note it came from, so an
+	// excerpt never takes an id on the page reading it; the line is still
+	// classified so speech can drop the address. Embeds being allowed is
+	// exactly the state of being the note's own text. Links convert first,
+	// so a caret inside one is never read as an address. A code span is
+	// the same kind of quoted text, asked of the author's own lines
+	// because a span can run past the end of one; the answer does not
+	// widen to indented code.
+	if !st.owned[st.i] && !st.code[st.i].block {
+		line = markBlockAnchor(line, col.page, st.marks, allowEmbed == embedsAllowed)
+	}
+	st.kept = append(st.kept, line)
+	st.i++
 }
 
 // markers is the table of renderer-written markup one note's preprocessing
@@ -565,11 +569,54 @@ func (r *Pipeline) scan(st *preprocessState, allowEmbed embedPolicy, col *collec
 type markers struct {
 	blocks []string
 	inline []string
+	// effects belong to the markup that carries them. A discarded definition
+	// cannot publish a diagnostic or claim that an excerpt reached the page.
+	effects       map[int]markupEffects
+	emittedInline []bool
 	// anchors binds a claimed block id to the inline marker that emits it.
 	anchors map[int]string
 
 	// blockAnchors binds an opening-line id to the shell marker that emits it.
 	blockAnchors map[int]string
+}
+
+type markupEffects struct {
+	diagnostics, excerpts [2]int
+}
+
+func (m *markers) holdEffects(index, diagStart, excerptStart int, col *collector) {
+	if m.effects == nil {
+		m.effects = make(map[int]markupEffects)
+	}
+	m.effects[index] = markupEffects{diagnostics: [2]int{diagStart, len(col.diags)}, excerpts: [2]int{excerptStart, len(col.page.transcluded)}}
+}
+
+func (m *markers) keepEffects(col *collector) {
+	omitDiags, omitExcerpts := make(map[int]bool), make(map[int]bool)
+	for index, effect := range m.effects {
+		if !m.emittedInline[index] {
+			for i := effect.diagnostics[0]; i < effect.diagnostics[1]; i++ {
+				omitDiags[i] = true
+			}
+			for i := effect.excerpts[0]; i < effect.excerpts[1]; i++ {
+				omitExcerpts[i] = true
+			}
+		}
+	}
+	diags := col.diags[:0]
+	for i, diagnostic := range col.diags {
+		if !omitDiags[i] {
+			diags = append(diags, diagnostic)
+		}
+	}
+	col.diags = diags
+	excerpts := col.page.transcluded[:0]
+	for i, excerpt := range col.page.transcluded {
+		if !omitExcerpts[i] {
+			excerpts = append(excerpts, excerpt)
+		}
+	}
+	col.page.transcluded = excerpts
 }
 
 // plantBlock files markup that stands on its own line and answers with the
@@ -593,10 +640,8 @@ type preprocessState struct {
 	// lines, and only that pass reads this.
 	address []string
 
-	// quoted holds the lines an indented code block shows as written. It is
-	// read once per body rather than per line, since answering it needs the
-	// whole body's block structure.
-	quoted map[int]bool
+	// code holds quotation in this scan's exact presentation coordinates.
+	code map[int]presentationCodeLine
 
 	// owned records address carets inside the original source's code spans,
 	// including ownership inherited from a consumed unknown opener.
@@ -735,7 +780,7 @@ func consumeMermaid(st *preprocessState, marker byte, openerLen int) {
 func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy, col *collector) bool {
 	// A line an indented code block holds is shown as written, so a callout
 	// opener on it is syntax on display: neither a callout nor an unknown type.
-	if st.quoted[st.i] {
+	if st.code[st.i].block {
 		return false
 	}
 	typ, fold, title, ok := calloutStart(st.lines[st.i])
@@ -792,7 +837,7 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 		// geometry is the note's own for these lines rather than what the cut
 		// left.
 		address: BlockAddressLines(st.address[opened:st.i], bodySource),
-		quoted:  r.indentedCodeLines(bodySource),
+		code:    presentationCodeLines(bodySource),
 		marks:   st.marks,
 	}
 	if bucket == bucketUnknown {
@@ -819,11 +864,10 @@ func calloutOpeningTitle(title string, page *composition, allowEmbed embedPolicy
 
 // convertWikilinks scans one source line for [[...]] and ![[...]] and replaces
 // each with its rendered form.
-func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *collector, inline *[]string) string {
+func (r *Pipeline) convertWikilinks(text string, spans [][2]int, allowEmbed embedPolicy, col *collector, marks *markers) string {
 	// A code span is quoted text: the author is showing what a wikilink looks
 	// like, not making one. Converting it would print a placeholder in place of
 	// the syntax and report a broken link the author never wrote.
-	spans := codeSpanRanges(text)
 	return replaceOutside(text, spans, wikilinkToken, func(start int, m string) string {
 		embed := strings.HasPrefix(m, "!")
 		raw := m
@@ -849,25 +893,30 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 			// same-note heading is a page link without a cross-file target.
 			return html.EscapeString(link.Display)
 		}
+		diagStart, excerptStart := len(col.diags), len(col.page.transcluded)
 		if embed {
 			embedHTML := r.renderEmbed(link, m, allowEmbed, col)
-			*inline = append(*inline, embedHTML)
-			return placeholderFor(len(*inline)-1, embedHTML)
+			marks.inline = append(marks.inline, embedHTML)
+			index := len(marks.inline) - 1
+			marks.holdEffects(index, diagStart, excerptStart, col)
+			return placeholderFor(index, embedHTML)
 		}
 		linkHTML := r.renderWikilink(link, col)
-		*inline = append(*inline, linkHTML)
-		return placeholderFor(len(*inline)-1, linkHTML)
+		marks.inline = append(marks.inline, linkHTML)
+		index := len(marks.inline) - 1
+		marks.holdEffects(index, diagStart, excerptStart, col)
+		return placeholderFor(index, linkHTML)
 	})
 }
 
-// replaceOutside applies fn to every match of re lying wholly outside the given
-// ranges, leaving everything else byte-identical. fn receives the match's
+// replaceOutside applies fn when a match opens outside the quoted ranges.
+// Closing brackets in prose cannot make a code-owned opening live. fn receives the match's
 // starting byte offset alongside the matched bytes, so a caller can look behind it.
 func replaceOutside(text string, skip [][2]int, re *regexp.Regexp, fn func(start int, m string) string) string {
 	var out strings.Builder
 	last := 0
 	for _, loc := range re.FindAllStringIndex(text, -1) {
-		if withinAny(skip, loc[0], loc[1]) {
+		if withinAny(skip, loc[0], loc[0]+1) {
 			continue
 		}
 		out.WriteString(text[last:loc[0]])

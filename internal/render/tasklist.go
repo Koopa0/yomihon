@@ -8,49 +8,13 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	east "github.com/yuin/goldmark/extension/ast"
-	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer"
 	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
-	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/wording"
 )
-
-// neutralTaskMarkers are Obsidian's progress, cancellation and forwarding
-// markers. They preserve the author's character without claiming completion
-// or interpreting a theme's vocabulary of icons.
-const neutralTaskMarkers = "/->"
-
-const taskMarkerAttr = "yomihonTaskMarker"
-
-type neutralTaskParser struct{}
-
-func (neutralTaskParser) Trigger() []byte { return []byte{'['} }
-
-func (neutralTaskParser) Parse(parent ast.Node, block text.Reader, _ parser.Context) ast.Node {
-	item, ok := parent.Parent().(*ast.ListItem)
-	if !ok || item.FirstChild() != parent || parent.HasChildren() {
-		return nil
-	}
-	line, _ := block.PeekLine()
-	if len(line) < 3 || line[0] != '[' || line[2] != ']' || !strings.ContainsRune(neutralTaskMarkers, rune(line[1])) {
-		return nil
-	}
-	if len(line) > 3 && !util.IsSpace(line[3]) {
-		return nil
-	}
-	consumed := 3
-	for consumed < len(line) && util.IsSpace(line[consumed]) {
-		consumed++
-	}
-	block.Advance(consumed)
-	node := east.NewTaskCheckBox(false)
-	node.SetAttributeString(taskMarkerAttr, string(line[1]))
-	return node
-}
-
-func (neutralTaskParser) CloseBlock(ast.Node, parser.Context) {}
 
 // taskListRenderer keeps the checkbox and its first block's inline content in
 // one native label. Closing at that block rather than at the list item keeps
@@ -97,7 +61,7 @@ func renderTaskCheckBox(w util.BufWriter, _ []byte, node ast.Node, entering bool
 	if err := writeStrings(w, `disabled="" type="checkbox"`); err != nil {
 		return ast.WalkStop, err
 	}
-	if marker, present := n.AttributeString(taskMarkerAttr); present {
+	if marker, present := n.AttributeString(graph.TaskMarkerAttr); present {
 		if value, known := marker.(string); known {
 			if err := writeStrings(w, ` data-task="`, html.EscapeString(value), `"`); err != nil {
 				return ast.WalkStop, err
@@ -126,7 +90,6 @@ func (r taskListRenderer) renderTaskBlock(w util.BufWriter, source []byte, node 
 type taskListExtension struct{}
 
 func (taskListExtension) Extend(markdown goldmark.Markdown) {
-	markdown.Parser().AddOptions(parser.WithInlineParsers(util.Prioritized(neutralTaskParser{}, -100)))
 	markdown.Renderer().AddOptions(renderer.WithNodeRenderers(util.Prioritized(newTaskListRenderer(), 200)))
 }
 

@@ -4,6 +4,7 @@ import (
 	"html"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
@@ -100,7 +101,7 @@ func taskRowWords(own string) (inner string, offset int, ok bool) {
 	input := own[start:inputEnd]
 	const checkbox = `<input disabled="" type="checkbox"`
 	valid := input == checkbox+">" || input == `<input checked="" disabled="" type="checkbox">`
-	for _, marker := range neutralTaskMarkers {
+	for _, marker := range graph.NeutralTaskMarkers {
 		valid = valid || input == checkbox+` data-task="`+html.EscapeString(string(marker))+`">`
 	}
 	if !valid {

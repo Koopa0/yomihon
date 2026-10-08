@@ -143,10 +143,10 @@ func readNote(rel string, data []byte, marks *plannedMarks) note {
 		n.body = body
 		facts := inspectBody(body, marks.heading)
 		n.wikilinks = extractWikilinksFrom(body, block.BodyStartLine, &facts)
-		n.pathRefs = extractPathRefsFrom(body, block.BodyStartLine, facts.comments)
+		n.pathRefs = extractPathRefsFacts(facts.body, block.BodyStartLine)
 		n.plannedNames = extractPlannedNamesFrom(body, *marks, &facts)
 		n.calloutTitles = extractCalloutTitlesFrom(body, block.BodyStartLine, facts.comments)
-		n.sequence = sequence.Parse(body, block.BodyStartLine)
+		n.sequence = sequence.ParseFacts(facts.body, block.BodyStartLine)
 		n.sectionAnchors, n.excerptSectionAnchors, n.blockAddresses = anchorSurfaceFrom(body, facts.comments)
 	}
 	if !found {

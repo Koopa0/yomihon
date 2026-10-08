@@ -1451,3 +1451,76 @@ func TestAQuotedContinuationReadsAsThePlainOneDoes(t *testing.T) {
 		})
 	}
 }
+
+// Expanded original-source structure keeps inline-note text in the row's
+// first block. An Authored opaque-note observation would silently lose gloss.
+func TestOriginalInlineNoteKeepsTheWholeDocument(t *testing.T) {
+	t.Parallel()
+	body := "## P {sequence=primary}\n\n- [[A]] ^[note]\n"
+	want := Document{Groups: []*Group{{
+		Name: "P", Level: 2, Line: 7, Role: RolePrimary,
+		Items: []Item{{Entry: &Candidate{
+			Text: "A", Target: "A", Line: 9,
+			Span: Span{Start: 27, Stop: 40}, Gloss: "^[note]",
+			TargetSpan: Span{Start: 27, Stop: 32}, State: EntryAccepted,
+		}}},
+	}}}
+	if diff := cmp.Diff(want, Parse(body, 7)); diff != "" {
+		t.Errorf("caught: original row grammar changed Document (-want +got):\n%s", diff)
+	}
+}
+
+// Page task recognition also accepts neutral markers. Course membership stays
+// narrower: only space and x/X suppress candidates; the others remain visible.
+func TestTaskMarkerPolicyKeepsTheWholeDocument(t *testing.T) {
+	t.Parallel()
+	for _, marker := range []string{" ", "x", "X", "/", "-", ">"} {
+		t.Run(marker, func(t *testing.T) {
+			t.Parallel()
+			own := "[" + marker + "] [[A]]"
+			want := Document{Groups: []*Group{{Name: "P", Level: 2, Line: 1, Role: RolePrimary}}}
+			if marker == "/" || marker == "-" || marker == ">" {
+				want.Groups[0].Items = []Item{{Entry: &Candidate{
+					Text: "A", Target: "A", Line: 3,
+					Span: Span{Start: 27, Stop: 36}, TargetSpan: Span{Start: 31, Stop: 36},
+					State: EntryNoncanonical,
+				}}}
+				want.Diagnostics = []Diagnostic{{
+					Rule: RuleEntryNoncanonical, Line: 3,
+					Message:  "a lesson row opens with its link; move the link to the front, or take the row out of the course",
+					Evidence: own,
+				}}
+			}
+			body := "## P {sequence=primary}\n\n- " + own + "\n"
+			if diff := cmp.Diff(want, Parse(body, 1)); diff != "" {
+				t.Errorf("caught: checkbox distinction changed Document (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// A heading without source lines did not change the legacy sequence owner.
+func TestEmptyHeadingKeepsTheWholeDocument(t *testing.T) {
+	t.Parallel()
+	t.Run("keeps the preceding primary owner", func(t *testing.T) {
+		t.Parallel()
+		body := "## P {sequence=primary}\n\n##\n\n- [[A]]\n"
+		want := Document{Groups: []*Group{{
+			Name: "P", Level: 2, Line: 1, Role: RolePrimary,
+			Items: []Item{{Entry: &Candidate{
+				Text: "A", Target: "A", Line: 5,
+				Span: Span{Start: 31, Stop: 36}, TargetSpan: Span{Start: 31, Stop: 36},
+				State: EntryAccepted,
+			}}},
+		}}}
+		if diff := cmp.Diff(want, Parse(body, 1)); diff != "" {
+			t.Errorf("caught: empty heading changed Document (-want +got):\n%s", diff)
+		}
+	})
+	t.Run("creates no group on its own", func(t *testing.T) {
+		t.Parallel()
+		if diff := cmp.Diff(Document{}, Parse("##\n", 1)); diff != "" {
+			t.Errorf("caught: empty heading created Document (-want +got):\n%s", diff)
+		}
+	})
+}

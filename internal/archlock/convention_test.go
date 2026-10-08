@@ -941,10 +941,9 @@ func TestOneOwnerFoldsAFragment(t *testing.T) {
 // The scan is found by the bytes that make it a scan rather than by its type
 // name, since the two copies already disagreed about what to call it. Each
 // row names its owner: the heading, fence, quote-prefix, HTML-block, and
-// Obsidian comment-pairing patterns live in internal/graph/; the callout
-// opening, the closed type list, and the line no address can survive on live
-// in internal/render/,
-// because only that package holds the vocabulary the page answers to.
+// Obsidian comment-pairing and callout-opening patterns live in internal/graph/.
+// The closed type list and the line no address can survive on live in
+// internal/render/, which holds the vocabulary the page answers to.
 func TestOneOwnerScansALine(t *testing.T) {
 	t.Parallel()
 
@@ -952,13 +951,13 @@ func TestOneOwnerScansALine(t *testing.T) {
 		{"an ATX heading the scan recognises", `^ {0,3}(#{1,6})[ \t]+(.*?)(?:[ \t]+#+)?[ \t]*$`, "internal/graph/"},
 		{"the HTML block tags a line scan can open without paragraph state", `address|article|aside|base|basefont|blockquote`, "internal/graph/"},
 		{"the scan's running HTML-block close test", "htmlCloses func(string) bool", "internal/graph/"},
-		{"an Obsidian callout's opening line", `^\s*>\s*\[!([A-Za-z0-9_-]+)\]([+-]?)\s?(.*)$`, "internal/render/"},
+		{"an Obsidian callout's opening line", `^\s*>\s*\[!([A-Za-z0-9_-]+)\]([+-]?)\s?(.*)$`, "internal/graph/"},
 		{"the single leading quote marker a line scan peels", `^\s*>\s?`, "internal/graph/"},
 		{"a backtick fence the scan opens", "strings.HasPrefix(t, \"```\")", "internal/graph/"},
 		{"a tilde fence the scan opens", `strings.HasPrefix(t, "~~~")`, "internal/graph/"},
 		{"a fence-close line the scan recognises", `strings.Count(t, string(marker)) == len(t)`, "internal/graph/"},
 		{"an unpaired Obsidian comment running to the end of the body", "Span{Start: start, Stop: len(body)}", "internal/graph/"},
-		{"the pairing of a closed Obsidian comment mark", "stop = off + end + len(closer)", "internal/graph/"},
+		{"the pairing of a closed Obsidian comment mark", "stop = open + 2 + end + 2", "internal/graph/"},
 		{"the function that refuses a line no block address can survive on", "func UnanchorableLine(line string) bool", "internal/render/"},
 		{"the grammar that extracts a supported block address", "func BlockAddress(line string) string", "internal/render/"},
 		{"the function that refuses a caret a code span owns as an address", "func CodeSpanOwnedAddresses(lines []string) []bool", "internal/render/"},

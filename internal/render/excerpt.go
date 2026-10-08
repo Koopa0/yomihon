@@ -15,6 +15,7 @@ import (
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
@@ -43,9 +44,15 @@ type DisplaySpan struct {
 
 // PlainProjection returns the searchable corpus with note display annotations.
 func PlainProjection(body string) Projection {
+	return PlainProjectionFacts(graph.ReadBody(body))
+}
+
+// PlainProjectionFacts borrows the captured body reading for searchable text.
+func PlainProjectionFacts(facts graph.BodyFacts) Projection {
+	body := facts.Source()
 	var emissions []sourceEmission
 	var insertions []int
-	source, rewritten := plainPreprocess(body)
+	source, rewritten := plainPreprocessFacts(facts)
 	plain, blocks, fences := plainSourceBlocks(body, source, &rewritten, &emissions, &insertions)
 	result := Projection{Text: plain, Blocks: blocks, FenceRanges: fences, Insertions: insertions}
 	if plain == "" {
@@ -239,6 +246,7 @@ func (w *plainWalk) writeCodeLines(n ast.Node, source []byte) {
 
 func (w *plainWalk) writeAutoLink(a *ast.AutoLink, source []byte) {
 	label := a.Label(source)
+
 	written := false
 	for _, start := range []int{a.Pos(), a.Pos() + 1} {
 		if start >= 0 && start+len(label) <= len(source) && bytes.Equal(source[start:start+len(label)], label) {
@@ -261,7 +269,27 @@ func (w *plainWalk) writeAutoLink(a *ast.AutoLink, source []byte) {
 type delimiterObservation struct {
 	effects   []DisplaySpan
 	lengths   map[*parser.Delimiter]int
+	left      map[*parser.Delimiter]int
 	rewritten *rewrittenLines
+	corpus    map[ast.Node][2]text.Segment
+}
+
+// delimiterRemnant maps the parser's surviving prefix-shaped segment back to
+// the actual remaining bytes after a closer consumed characters from the left.
+type delimiterRemnant struct {
+	span   text.Segment
+	offset int
+}
+
+func (o *delimiterObservation) remnants() []delimiterRemnant {
+	var remnants []delimiterRemnant
+	for delimiter, offset := range o.left {
+		if delimiter.Length > 0 {
+			remnants = append(remnants, delimiterRemnant{span: delimiter.Segment, offset: offset})
+		}
+	}
+	slices.SortFunc(remnants, func(a, b delimiterRemnant) int { return a.span.Start - b.span.Start })
+	return remnants
 }
 
 type observedInlineParser struct {
@@ -301,21 +329,32 @@ func (p observedDelimiterProcessor) OnMatch(consumes int) ast.Node {
 		// before OnMatch. Every previous match updated those same two records,
 		// so the first known changed downstream run is this match's closer.
 		for closer := opener.NextDelimiter; closer != nil; closer = closer.NextDelimiter {
-			if before, known := p.observation.lengths[closer]; known && before-closer.Length == consumes {
-				p.observation.recordMatch(opener, closer, consumes)
-				p.observation.lengths[opener] = opener.Length
-				p.observation.lengths[closer] = closer.Length
-				break
+			before, known := p.observation.lengths[closer]
+			if !known || before-closer.Length != consumes {
+				continue
 			}
+			if p.observation.corpus != nil {
+				openEnd := opener.Segment.Start + p.observation.left[opener] + previous
+				closeStart := closer.Segment.Start + p.observation.left[closer]
+				p.observation.corpus[node] = [2]text.Segment{
+					text.NewSegment(openEnd-consumes, openEnd),
+					text.NewSegment(closeStart, closeStart+consumes),
+				}
+			}
+			p.observation.recordMatch(opener, closer, consumes)
+			p.observation.left[closer] += consumes
+			p.observation.lengths[opener] = opener.Length
+			p.observation.lengths[closer] = closer.Length
+			break
 		}
 	}
 	return node
 }
 
 func (o *delimiterObservation) recordMatch(opener, closer *parser.Delimiter, consumes int) {
-	openEnd := opener.Segment.Start + o.lengths[opener]
+	openEnd := opener.Segment.Start + o.left[opener] + o.lengths[opener]
 	openStart := openEnd - consumes
-	closeStart := closer.Segment.Start + closer.OriginalLength - o.lengths[closer]
+	closeStart := closer.Segment.Start + o.left[closer]
 	closeEnd := closeStart + consumes
 	if o.literalMatch([2]int{openStart, openEnd}, [2]int{closeStart, closeEnd}) {
 		return
@@ -345,14 +384,14 @@ func (o *delimiterObservation) literalMatch(open, closeSpan [2]int) bool {
 func (o *delimiterObservation) SetParserOption(config *parser.Config) {
 	for i, item := range config.InlineParsers {
 		delegate, ok := item.Value.(parser.InlineParser)
-		if ok && (delegate == extension.NewStrikethroughParser() || delegate == defaultHighlightParser) {
+		if ok && (delegate == extension.NewStrikethroughParser() || delegate == graph.NewHighlightParser()) {
 			config.InlineParsers[i].Value = observedInlineParser{delegate: delegate, observation: o}
 		}
 	}
 }
 
 func noteDisplayEffects(source []byte, rewritten *rewrittenLines) []DisplaySpan {
-	observation := delimiterObservation{lengths: make(map[*parser.Delimiter]int), rewritten: rewritten}
+	observation := delimiterObservation{lengths: make(map[*parser.Delimiter]int), left: make(map[*parser.Delimiter]int), rewritten: rewritten}
 	md := pageMarkdown()
 	md.Parser().AddOptions(&observation)
 	roleText := &roleTextRenderer{}

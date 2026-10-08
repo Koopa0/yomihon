@@ -166,22 +166,21 @@ var blockAddressBodies = []struct {
 	},
 	{
 		// Four spaces after a blank line make an indented code block, so the
-		// page shows the opener as written and stamps the address at its end.
-		// A known type's opener is refused an address only where it is a
-		// callout, whose opening line is consumed as the title.
+		// page shows the opener as written and keeps its caret as code.
+		// Neither quoted code nor a consumed callout title carries an address.
 		name:      "a callout opener an indented code block shows as written",
 		body:      "para\n\n    > [!success] X ^probe\n",
-		addressed: true,
+		addressed: false,
 	},
 	{
 		name:      "a callout opener an indented code block shows as written, older type",
 		body:      "para\n\n    > [!note] X ^probe\n",
-		addressed: true,
+		addressed: false,
 	},
 	{
 		name:      "a table row an indented code block shows as written",
 		body:      "para\n\n    | a | b ^probe\n",
-		addressed: true,
+		addressed: false,
 	},
 	{
 		// The same opener at the top level is a callout, whose opening line

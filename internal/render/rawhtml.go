@@ -1,6 +1,7 @@
 package render
 
 import (
+	"bufio"
 	"bytes"
 	"io"
 	"net/url"
@@ -28,12 +29,7 @@ var (
 	// is not admitted.
 	safeFormattingTag = regexp.MustCompile(`^<(/?)(kbd|sub|sup|mark|u)[ \t\r\n]*>$`)
 	safeMarkupLangTag = regexp.MustCompile(`^<(?:ruby|rt|rp)[ \t\r\n]+lang=(?:"[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*"|'[A-Za-z0-9]{1,8}(?:-[A-Za-z0-9]{1,8})*')[ \t\r\n]*>$`)
-	// readAloudMarker matches the read-aloud marker by its shape, whatever value
-	// its author wrote after the colon. An invalid declaration is still an
-	// instruction rather than prose, so it is dropped instead of escaped into
-	// the reading column.
-	readAloudMarker = regexp.MustCompile(`(?s)^<!--[ \t\r\n]*read-aloud:.*-->$`)
-	trustedBlockTag = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
+	trustedBlockTag   = regexp.MustCompile(`^<!--yomihon-block:\d+-->$`)
 )
 
 // safeMarkupRenderer is the note-body authority boundary. Authored HTML is still
@@ -69,8 +65,30 @@ func renderSafeHTMLBlock(w util.BufWriter, source []byte, node ast.Node, enterin
 		chunks = append(chunks, n.ClosureLine.Value(source))
 	}
 	gate := pairFormatting(chunks...)
+	roleBlock := false
 	for _, chunk := range chunks {
-		if err := writeSafeMarkup(w, chunk, gate); err != nil {
+		roleBlock = roleBlock || bytes.Contains(chunk, []byte(graph.CommentRoleBlockPrefix))
+	}
+	if !roleBlock {
+		for _, chunk := range chunks {
+			if err := writeSafeMarkup(w, chunk, gate); err != nil {
+				return ast.WalkStop, err
+			}
+		}
+		return ast.WalkContinue, nil
+	}
+	var rendered bytes.Buffer
+	buffer := bufio.NewWriter(&rendered)
+	for _, chunk := range chunks {
+		if err := writeSafeMarkup(buffer, chunk, gate); err != nil {
+			return ast.WalkStop, err
+		}
+	}
+	if err := buffer.Flush(); err != nil {
+		return ast.WalkStop, err
+	}
+	if strings.TrimSpace(rendered.String()) != "" {
+		if _, err := w.Write(rendered.Bytes()); err != nil {
 			return ast.WalkStop, err
 		}
 	}

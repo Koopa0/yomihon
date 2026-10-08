@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
+
+	"github.com/koopa0/yomihon/internal/graph"
 )
 
 // formattingGate decides, in source order, whether each formatting opener of
@@ -173,7 +173,11 @@ func (c *formattingContainer) markUnpaired() {
 // them with, so a code span, a backslash escape or an autolink claims the bytes
 // it claims there, and the formatting pairing runs as it does on the page. It
 // keeps nothing between parses.
-var headingParser = goldmark.New(goldmark.WithExtensions(extension.GFM, safeMarkupExtension{})).Parser()
+var headingParser = func() parser.Parser {
+	markdown := graph.NewBodyMarkdown(nil)
+	safeMarkupExtension{}.Extend(markdown)
+	return markdown.Parser()
+}()
 
 // headingMarkup prepares a heading's words for the allowlist walk the way the
 // page's parse of that heading reads them, and returns the gate that decides

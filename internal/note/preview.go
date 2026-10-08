@@ -2,7 +2,6 @@ package note
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
@@ -85,25 +84,25 @@ func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.Previ
 	if !ok {
 		return pages.PreviewView{Notice: wording.PreviewNoNote.In(lang)}, false
 	}
-	slice, found, narrowed := render.ExcerptPreview(n.Body, section)
+	excerpt, found, narrowed := render.ReadExcerptPreview(n.Body, section)
 	if !found {
 		// The sentence is the one the reading page says inside an embed whose
 		// address the note does not answer to, so the card and the article
 		// report one fact in one voice.
 		return pages.PreviewView{RelPath: rel, Title: n.Title, Notice: render.ExcerptWithheld(rel, section, lang)}, true
 	}
-	source, truncated := capPreviewSource(slice)
+	excerpt, truncated := excerpt.Cap(previewSourceCap)
 	view := pages.PreviewView{
 		RelPath:  rel,
 		Title:    n.Title,
-		Section:  render.ExcerptHeading(source),
+		Section:  render.ExcerptHeading(excerpt.Source()),
 		Language: n.Language,
 		// Rendered through the same generation the excerpt was cut from, so a
 		// link inside the card resolves against the vault the card is showing.
 		// The places inside it come off afterwards: the excerpt shares a
 		// document with the page that opened it, and every name it brought
 		// would be a second place answering to one the page already has.
-		BodyHTML: render.StripAnchors(snap.RenderIn(previewRegion, rel, source, lang).HTML),
+		BodyHTML: render.StripAnchors(snap.RenderExcerptIn(previewRegion, rel, excerpt, lang).HTML),
 	}
 	// The notice fires when either the byte cap or the empty-fragment cut left
 	// words behind. A lede is far under the budget, so the cut has to say so
@@ -113,23 +112,4 @@ func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.Previ
 		view.Notice = wording.PreviewMore.In(lang)
 	}
 	return view, true
-}
-
-// capPreviewSource shortens the markdown a card is cut from to the budget, and
-// says whether anything was left behind. The cut lands on a line boundary and
-// never inside a line: a rule that could stop mid-character would put a broken
-// one on the card, and a rule that could stop mid-word would read as the note's
-// own writing. A single line wider than the whole budget is kept whole — it is
-// the budget that gives way there, not the words.
-func capPreviewSource(source string) (capped string, truncated bool) {
-	if len(source) <= previewSourceCap {
-		return source, false
-	}
-	if cut := strings.LastIndexByte(source[:previewSourceCap], '\n'); cut >= 0 {
-		return source[:cut], true
-	}
-	if first, _, ok := strings.Cut(source, "\n"); ok {
-		return first, true
-	}
-	return source, false
 }

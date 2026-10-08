@@ -11,22 +11,14 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
 	east "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/sequence"
 )
-
-// plainParser is a minimal goldmark parser used only to walk a note body for
-// PlainText. Table and TaskList expose cell and task text. Linkify shares the page
-// parser's bare-link grammar while retaining the authored display label.
-// Footnotes are on because a definition whose text has no spaces — every CJK one —
-// otherwise parses as a link reference definition and no search could find it.
-var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote, extension.Linkify, taskListExtension{})).Parser()
 
 // PlainText returns the searchable plain text of a note body: prose, headings,
 // table cells, task text, code-fence contents and the base and reading of
@@ -96,9 +88,19 @@ func PlainBlocks(body string) (plain string, blocks []Block, fenceRanges [][2]in
 
 func plainSourceBlocks(body, source string, rewritten *rewrittenLines, emissions *[]sourceEmission, insertions *[]int) (plain string, blocks []Block, fenceRanges [][2]int) {
 	src := []byte(source)
-	doc := plainParser.Parse(text.NewReader(src))
+	// Search retains strike/highlight delimiter bytes even though the page
+	// consumes them. Observe the canonical recognizers' actual matched pairs;
+	// the text walk emits those source segments around each recognized node.
+	observation := delimiterObservation{
+		lengths: make(map[*parser.Delimiter]int), left: make(map[*parser.Delimiter]int), rewritten: rewritten,
+		corpus: make(map[ast.Node][2]text.Segment),
+	}
+	markdown := graph.NewBodyMarkdown(nil)
+	markdown.Parser().AddOptions(&observation)
+	doc := markdown.Parser().Parse(text.NewReader(src))
 
-	w := plainWalk{blockVerbatim: true, blockContext: true, rewritten: rewritten, emissions: emissions, insertions: insertions}
+	w := plainWalk{blockVerbatim: true, blockContext: true, rewritten: rewritten, emissions: emissions, insertions: insertions, delimiters: observation.corpus, remnants: observation.remnants()}
+
 	if err := ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
 		return walkPlain(&w, n, entering, src)
 	}); err != nil {
@@ -158,9 +160,8 @@ func reproducedByThePage(kind ast.NodeKind) bool {
 }
 
 // spentByPage reports that the text carries characters the page consumes
-// rather than shows. The two delimiter pairs are markup this walk's parser
-// has no concept of and so keeps as written, while the page turns them into
-// an element and shows only what was between them; the private-use runes are
+// rather than shows. Search preserves the two recognized delimiter pairs,
+// while the page shows only what was between them; the private-use runes are
 // the ones a body loses before it is rendered at all.
 func spentByPage(s string) bool {
 	if strings.Contains(s, "==") || strings.Contains(s, "~~") {
@@ -192,10 +193,13 @@ type plainWalk struct {
 	// its children the walk is inside; together they decide where the next
 	// text node goes, and an inner ruby's end restores the state of the one
 	// around it. <rp> is only a parenthesis fallback and is dropped.
+
 	readings          strings.Builder
 	emissions         *[]sourceEmission
 	insertions        *[]int
 	readingInsertions []int
+	delimiters        map[ast.Node][2]text.Segment
+	remnants          []delimiterRemnant
 	readingEmissions  []sourceEmission
 	ruby              []rubyChild
 }
@@ -334,6 +338,7 @@ func (w *plainWalk) completedBlock(s string, start, end int) Block {
 		// they vouch for nothing beside a match in it.
 		contexts = nil
 	}
+
 	return Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading}
 }
 
@@ -424,8 +429,11 @@ func (r *rewrittenLines) literalRoleAt(off int) bool {
 func plainPreprocess(body string) (string, rewrittenLines) {
 	// The retrieval projections report nothing: a corpus entry is not a page,
 	// and a fault in a note is the reading page's news to break.
-	body, _ = stripObsidianComments(body)
-	body = expandInlineFootnotes(body)
+	return plainPreprocessFacts(graph.ReadBody(body))
+}
+
+func plainPreprocessFacts(facts graph.BodyFacts) (string, rewrittenLines) {
+	body := expandInlineFootnotes(facts.CommentFree())
 	lines := strings.Split(body, "\n")
 	rewritten := rewrittenLines{starts: make([]int, len(lines)), changed: make([]bool, len(lines)), literalRoles: make([]bool, len(lines))}
 	wikiLines := make([][][2]int, len(lines))
@@ -450,7 +458,7 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 			}
 			_, _, _, opener := calloutStart(line)
 			if !parsed && opener {
-				code, parsed = codeBlockLines(plainParser, body), true
+				code, parsed = codeBlockLines(body), true
 			}
 			rewritten.literalRoles[i] = opener && !code[i]
 			lines[i] = plainLine(line, code[i], &wikiLines[i])
@@ -473,10 +481,10 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 // indented code block holds keeps its marker, because the page shows it as
 // written.
 func plainLine(line string, code bool, wikilinks *[][2]int) string {
-	if m := calloutStartPattern.FindStringSubmatch(line); m != nil && !code {
+	if _, _, title, ok := graph.CalloutStart(line); ok && !code {
 		// Drop the marker, keep the callout's title. The body lines that follow
 		// keep their quote marker and are collected as ordinary quoted text.
-		line = m[3]
+		line = title
 	}
 	return replaceWikilinksPlain(line, wikilinks)
 }
@@ -516,6 +524,10 @@ func plainWikilink(token string) string {
 // error (the ast.Walk error path in PlainBlocks is therefore unreachable).
 func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.WalkStatus, error) {
 	if !entering {
+		if delimiters, recognized := w.delimiters[n]; recognized {
+			w.writeSource(delimiters[1], source)
+		}
+
 		if _, ok := n.(*ast.Link); ok {
 			// An unresolved local link adds an out-of-sight explanation. The
 			// corpus cannot resolve files, so every link exit keeps a safe cut.
@@ -533,7 +545,8 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 	}
 	// After the separator, so the doubt lands on the block this node opens
 	// rather than the one it closed.
-	if !reproducedByThePage(kind) {
+	_, corpusDelimiters := w.delimiters[n]
+	if !reproducedByThePage(kind) && !corpusDelimiters {
 		w.blockVerbatim = false
 		if heading, ok := n.(*ast.Heading); ok {
 			w.headingLevel = heading.Level
@@ -541,6 +554,13 @@ func walkPlain(w *plainWalk, n ast.Node, entering bool, source []byte) (ast.Walk
 			w.blockContext = false
 		}
 	}
+	if delimiters, recognized := w.delimiters[n]; recognized {
+		w.writeSource(delimiters[0], source)
+	}
+	return writePlainNode(w, n, kind, source)
+}
+
+func writePlainNode(w *plainWalk, n ast.Node, kind ast.NodeKind, source []byte) (ast.WalkStatus, error) {
 	switch kind {
 	case ast.KindRawHTML, ast.KindHTMLBlock:
 		// The tags are not content. Text between them arrives as separate text
@@ -615,13 +635,54 @@ func (w *plainWalk) writeTextNode(n ast.Node, source []byte) {
 		w.blockVerbatim = false
 		w.blockContext = false
 	}
-	if t.IsRaw() || t.Parent() != nil && t.Parent().Kind() == ast.KindCodeSpan {
-		w.writeSource(t.Segment, source)
-	} else {
-		w.writeProse(t.Segment, source)
-	}
+
+	raw := t.IsRaw() || t.Parent() != nil && t.Parent().Kind() == ast.KindCodeSpan
+	w.writeTextSource(t.Segment, source, raw)
+
 	if t.SoftLineBreak() || t.HardLineBreak() {
 		w.writeSourceBreak(t.Segment.Stop, source)
+	}
+}
+
+// writeTextSource preserves the actual source coordinates of a remaining
+// delimiter. Goldmark retains its prefix segment even after consuming the
+// closer's left edge; the characters agree, but display effects need its origin.
+func (w *plainWalk) writeTextSource(segment text.Segment, source []byte, raw bool) {
+	write := func(start, stop, offset int) {
+		part := segment
+		part.Start, part.Stop = start+offset, stop+offset
+		if start != segment.Start {
+			part.Padding = 0
+		}
+		if stop != segment.Stop {
+			part.ForceNewline = false
+		}
+		if raw {
+			w.writeSource(part, source)
+		} else {
+			w.writeProse(part, source)
+		}
+	}
+	first, _ := slices.BinarySearchFunc(w.remnants, segment.Start, func(remnant delimiterRemnant, start int) int {
+		if remnant.span.Stop <= start {
+			return -1
+		}
+		return 1
+	})
+	at := segment.Start
+	for _, remnant := range w.remnants[first:] {
+		if remnant.span.Start >= segment.Stop {
+			break
+		}
+		start, stop := max(at, remnant.span.Start), min(segment.Stop, remnant.span.Stop)
+		if at < start {
+			write(at, start, 0)
+		}
+		write(start, stop, remnant.offset)
+		at = stop
+	}
+	if at < segment.Stop || at == segment.Start {
+		write(at, segment.Stop, 0)
 	}
 }
 

@@ -19,7 +19,6 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
@@ -245,15 +244,13 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 // pageMarkdown creates each consumer's parser from the page grammar. Parser
 // contexts and delimiter observations belong to that consumer's single parse.
 func pageMarkdown() goldmark.Markdown {
-	return goldmark.New(
-		goldmark.WithExtensions(
-			extension.GFM,
-			// The extension is told only what to prefix the ids with, per body,
-			// so several bodies on one page do not share a first note's id.
-			extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
-			highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
-		),
-	)
+	markdown := graph.NewBodyMarkdown(footnoteRegionPrefix)
+	for _, extension := range []goldmark.Extender{
+		highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{}, authoredTextExtension{},
+	} {
+		extension.Extend(markdown)
+	}
+	return markdown
 }
 
 // HTML renders one note's body: the markdown pipeline, plus the passes that
@@ -275,9 +272,18 @@ func (r *Pipeline) HTML(relPath, title, body string, lang wording.Lang) Result {
 // derived from the page rather than a running process, so two readers of one
 // lesson receive the same bytes.
 func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang) Result {
-	page := &composition{base: region, lang: lang}
 	stripped, comments := stripBody(body)
-	source, titleAnchor, dropped := removeBodyFirstH1(title, stripped.text)
+	return r.htmlReadingIn(region, relPath, title, body, stripped, comments, lang)
+}
+
+// HTMLExcerptIn renders a cut without reclassifying the private bytes it lost.
+func (r *Pipeline) HTMLExcerptIn(region, relPath, title string, excerpt ExcerptReading, lang wording.Lang) Result {
+	return r.htmlReadingIn(region, relPath, title, excerpt.Source(), excerpt.body, commentReport{}, lang)
+}
+
+func (r *Pipeline) htmlReadingIn(region, relPath, title, body string, stripped strippedBody, comments commentReport, lang wording.Lang) Result {
+	page := &composition{base: region, lang: lang}
+	source, titleAnchor, dropped := removeBodyFirstH1(title, stripped.text, stripped.roleGaps...)
 	address := stripped.address
 	if dropped >= 0 {
 		// The heading came out of the text, so it comes out of the geometry
@@ -486,7 +492,7 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 	// This prefix belongs to preprocess, never to vault text. Neutralizing an
 	// authored copy before placeholders exist prevents source from selecting or
 	// relocating renderer-owned HTML during substituteBlocks.
-	body = strings.ReplaceAll(body, "<!--yomihon-block:", "&lt;!--yomihon-block:")
+	body = strings.ReplaceAll(body, graph.RenderedBlockMarkerOpen, "&lt;!--yomihon-block:")
 	body = strings.Map(func(r rune) rune {
 		if strings.ContainsRune(inlinePlaceholderRunes, r) {
 			return -1
@@ -501,6 +507,7 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 	// the document the footnote extension will ask about.
 	src := []byte(source)
 	doc := r.md.Parser().Parse(text.NewReader(src))
+	removePaddingParagraphs(doc, src)
 	r.resolveMarkdownLinks(doc, input.path, col)
 	markHeadingNotes(doc)
 	doc.SetAttributeString(footnoteRegionAttr, []byte(region))
@@ -518,8 +525,9 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 		return Result{HTML: "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: col.diags}
 	}
 
-	named := nameTaskLabels(buf.String(), marks.inline, page.lang)
+	named := nameTaskLabels(strings.ReplaceAll(buf.String(), "<u></u>", ""), marks.inline, page.lang)
 	htmlOut, blocks := substituteMarkedBlocks(named, marks)
+	marks.keepEffects(col)
 	return Result{HTML: htmlOut, Blocks: blocks, Diagnostics: col.diags}
 }
 
@@ -528,7 +536,13 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 // meets those words only as the title, never as a heading of the body.
 func DropsTitleHeading(title, body string) bool {
 	stripped, _ := stripBody(body)
-	_, _, dropped := removeBodyFirstH1(title, stripped.text)
+	_, _, dropped := removeBodyFirstH1(title, stripped.text, stripped.roleGaps...)
+	return dropped >= 0
+}
+
+// DropsTitleHeadingFacts applies the page title rule to the captured reading.
+func DropsTitleHeadingFacts(title string, facts graph.BodyFacts) bool {
+	_, _, dropped := removeBodyFirstH1(title, facts.PresentationSource(), slices.Collect(facts.PresentationRoleGaps())...)
 	return dropped >= 0
 }
 
@@ -539,10 +553,16 @@ func DropsTitleHeading(title, body string) bool {
 // the title is then the only thing on the page still saying those words. The
 // third return is the line the removal took out, or -1 when it took none, so
 // anything read alongside this body by line number can lose the same one.
-func removeBodyFirstH1(title, body string) (stripped, anchor string, dropped int) {
+func removeBodyFirstH1(title, body string, gaps ...string) (stripped, anchor string, dropped int) {
 	lines := strings.Split(body, "\n")
 	i := 0
-	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
+	blank := func(line string) bool {
+		for _, gap := range gaps {
+			line = strings.ReplaceAll(line, gap, "")
+		}
+		return strings.TrimSpace(line) == ""
+	}
+	for i < len(lines) && blank(lines[i]) {
 		i++
 	}
 	if i >= len(lines) || !strings.HasPrefix(lines[i], "# ") {
@@ -553,4 +573,28 @@ func removeBodyFirstH1(title, body string) (stripped, anchor string, dropped int
 		return body, "", -1
 	}
 	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n"), graph.SectionID(heading), i
+}
+
+// A paragraph whose only surviving source is invisible comment-role padding
+// carries no reading block. Other paragraphs keep the grammar's original role.
+func removePaddingParagraphs(doc ast.Node, source []byte) {
+	var empty []ast.Node
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error
+		if !entering || n.Kind() != ast.KindParagraph {
+			return ast.WalkContinue, nil
+		}
+		var raw strings.Builder
+		for i := range n.Lines().Len() {
+			line := n.Lines().At(i)
+			raw.Write(line.Value(source))
+		}
+		value := raw.String()
+		if strings.Contains(value, "<u></u>") && strings.TrimSpace(strings.ReplaceAll(value, "<u></u>", "")) == "" {
+			empty = append(empty, n)
+		}
+		return ast.WalkContinue, nil
+	})
+	for _, n := range empty {
+		n.Parent().RemoveChild(n.Parent(), n)
+	}
 }

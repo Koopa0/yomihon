@@ -346,7 +346,7 @@ func TestBlockAddressAndExcerptScanAgreeOnUnusualLines(t *testing.T) {
 			body: "Section ^set\n===\n\nbody text.\n",
 		},
 		{
-			name: "an indented code line", address: "^ind", addressed: true,
+			name: "an indented code line", address: "^ind", addressed: false,
 			body: "paragraph.\n\n    sample ^ind\n",
 		},
 		{

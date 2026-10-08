@@ -20,32 +20,20 @@ type calloutTitle struct {
 	line  int
 }
 
-func extractCalloutTitlesFrom(body string, bodyStartLine int, skip []byteRange) []calloutTitle {
+func extractCalloutTitlesFrom(body string, bodyStartLine int, comments bodyComments) []calloutTitle {
 	var out []calloutTitle
-	inFence, fenceByte, fenceLen := false, byte(0), 0
 	offset := 0
 	for i, line := range strings.Split(body, "\n") {
 		lineStart := offset
 		offset += len(line) + 1
-		if graph.In(skip, lineStart) {
-			continue
-		}
-		unquoted := graph.QuotePrefix.ReplaceAllString(line, "")
-		if inFence {
-			if graph.FenceCloses(unquoted, fenceByte, fenceLen) {
-				inFence = false
-			}
-			continue
-		}
-		if marker, n, ok := graph.FenceOpens(unquoted); ok {
-			inFence, fenceByte, fenceLen = true, marker, n
-			continue
-		}
-		if graph.IndentedCodeLine.MatchString(line) {
+		if !comments.body.EmittedAt(lineStart) || graph.In(comments.zones, lineStart) {
 			continue
 		}
 		title, ok := recognisedCalloutTitle(line)
 		if !ok || title == "" {
+			continue
+		}
+		if comments.body.CodeAt(lineStart + strings.Index(line, "[!")) {
 			continue
 		}
 		out = append(out, calloutTitle{title: title, line: bodyStartLine + i})

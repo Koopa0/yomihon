@@ -2,12 +2,10 @@ package render
 
 import (
 	"fmt"
+	"iter"
 	"path"
+	"sort"
 	"strings"
-
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/sequence"
@@ -19,44 +17,79 @@ import (
 // that answer to the note's own source rather than to rendered HTML, because an
 // embed slices the file's own bytes.
 
-// indentedCodeLines reports which lines of body this pipeline will show the
-// reader as written because an indented code block holds them, so a bracket pair
-// on one of them is syntax on display rather than a citation. Only this kind of
-// code has to be asked about: the dialect pass tracks a fenced block itself, and
-// a code span never spans a line.
-//
-// The question is put to the pipeline's own parser, and it is a method for that
-// reason: the answer has to come from the reading that will render the body,
-// never from a second parser configured beside it. A plain CommonMark reading
-// looks close enough and is not — it calls a footnote definition's later
-// paragraphs an indented code block, so a citation an author wrote in one would
-// reach the reader as brackets in the middle of a sentence, with neither face
-// reporting anything.
-//
-// It also has to be a parse rather than an indent test, because the indent that
-// opens a block is measured from the content column of whatever list encloses
-// the line. Read over the 535 notes of the vault this serves — its notes, not
-// the agent files kept under its dot directories — an indent test disagrees with
-// the parse on four, every disagreement a list whose own indented prose the test
-// called code.
-func (r *Pipeline) indentedCodeLines(body string) map[int]bool {
-	return codeBlockLines(r.md.Parser(), body)
-}
-
-// codeBlockLines reports which lines of body p reads as an indented code
-// block. It takes the parser rather than owning one, so each reading — the
-// page's, the search text's — asks the parser that will read the same body.
-func codeBlockLines(p parser.Parser, body string) map[int]bool {
-	var spans [][2]int
-	//nolint:errcheck // the visitor never returns an error, so the walk cannot fail
-	_ = ast.Walk(p.Parse(text.NewReader([]byte(body))), func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-		if _, ok := n.(*ast.CodeBlock); ok && entering {
-			if ls := n.Lines(); ls != nil && ls.Len() > 0 {
-				spans = append(spans, [2]int{ls.At(0).Start, ls.At(ls.Len() - 1).Stop})
+// presentationCodeLines maps the shared grammar's quoted regions onto the
+// exact lines the dialect converter will read. Inline spans may cross lines;
+// fence content is distinguished from its info and closing delimiters.
+func presentationCodeLines(body string) map[int]presentationCodeLine {
+	lines := strings.Split(body, "\n")
+	codeLines := make(map[int]presentationCodeLine)
+	codes, autolinks, htmlBlocks := graph.PresentationRegions(body)
+	starts := make([]int, len(lines))
+	for i := 1; i < len(lines); i++ {
+		starts[i] = starts[i-1] + len(lines[i-1]) + 1
+	}
+	for code := range codes {
+		first := sort.Search(len(lines), func(i int) bool { return starts[i]+len(lines[i]) > code.Span.Start })
+		for i := first; i < len(lines) && starts[i] < code.Span.Stop; i++ {
+			line, at := lines[i], starts[i]
+			end := at + len(line)
+			if at < code.Span.Stop && end > code.Span.Start {
+				reading := codeLines[i]
+				reading.spans = append(reading.spans, [2]int{max(0, code.Span.Start-at), min(len(line), code.Span.Stop-at)})
+				if code.Kind != graph.CodeInline {
+					reading.block = true
+					reading.indented = code.Kind == graph.CodeIndent
+				}
+				if code.Kind == graph.CodeFence && at >= code.Opener.Stop && (code.Closer.Zero() || at < code.Closer.Start) {
+					reading.fenceContent = true
+				}
+				codeLines[i] = reading
 			}
 		}
-		return ast.WalkContinue, nil
-	})
+	}
+	addPresentationAutolinks(codeLines, lines, starts, autolinks)
+	addPresentationHTML(codeLines, lines, starts, htmlBlocks)
+	return codeLines
+}
+
+func addPresentationHTML(codeLines map[int]presentationCodeLine, lines []string, starts []int, blocks iter.Seq[graph.Span]) {
+	for block := range blocks {
+		first := sort.Search(len(lines), func(i int) bool { return starts[i]+len(lines[i]) > block.Start })
+		for i := first; i < len(lines) && starts[i] < block.Stop; i++ {
+			reading := codeLines[i]
+			reading.html = true
+			codeLines[i] = reading
+		}
+	}
+}
+
+func addPresentationAutolinks(codeLines map[int]presentationCodeLine, lines []string, starts []int, autolinks iter.Seq[graph.Span]) {
+	for link := range autolinks {
+		i := sort.Search(len(lines), func(i int) bool { return starts[i]+len(lines[i]) > link.Start })
+		if i < len(lines) {
+			reading := codeLines[i]
+			reading.spans = append(reading.spans, [2]int{link.Start - starts[i], min(len(lines[i]), link.Stop-starts[i])})
+			codeLines[i] = reading
+		}
+	}
+}
+
+type presentationCodeLine struct {
+	spans                         [][2]int
+	block, indented, fenceContent bool
+	html                          bool
+}
+
+// codeBlockLines puts canonical indented-code facts onto body's own lines.
+// Callers may pass transformed presentation source; these coordinates belong
+// to that source rather than to the original note's immutable BodyFacts.
+func codeBlockLines(body string) map[int]bool {
+	var spans [][2]int
+	for code := range graph.PresentationCodes(body) {
+		if code.Kind == graph.CodeIndent {
+			spans = append(spans, [2]int{code.Span.Start, code.Span.Stop})
+		}
+	}
 	if len(spans) == 0 {
 		return nil
 	}
@@ -82,6 +115,11 @@ func codeBlockLines(p parser.Parser, body string) map[int]bool {
 // through the section id over heading text reduced the way the anchor pass
 // reduces it, keeping the same source boundaries as a single-name excerpt.
 func headingSlice(body, heading string) (slice string, matches int) {
+	slice, matches, _ = headingCut(body, heading)
+	return slice, matches
+}
+
+func headingCut(body, heading string) (slice string, matches, startLine int) {
 	want := graph.SectionID(heading)
 	lines := strings.Split(body, "\n")
 	headings := graph.Headings(body, graph.LineSkipZones(body))
@@ -106,6 +144,7 @@ func headingSlice(body, heading string) (slice string, matches int) {
 			// and what the rest are for is to say how many there were.
 			continue
 		}
+		startLine = h.Line
 		slice = strings.Join(lines[h.Line:], "\n")
 		for _, next := range headings[i+1:] {
 			if next.Level <= h.Level {
@@ -114,10 +153,10 @@ func headingSlice(body, heading string) (slice string, matches int) {
 			}
 		}
 	}
-	return slice, matches
+	return slice, matches, startLine
 }
 
-// ledeSlice returns the opening of body a hover card shows when no fragment
+// ledeCut returns the opening of body a hover card shows when no fragment
 // named a place: the lines before the first heading when they hold any
 // non-blank content, or that heading plus the lines up to the next heading of
 // any level when the note opens on one — leading blanks ignored, so a file
@@ -125,24 +164,24 @@ func headingSlice(body, heading string) (slice string, matches int) {
 // heading of any level is the edge, not the next same-or-higher one: an H1
 // opener would otherwise run to the end of the note. narrowed is true when
 // anything is left behind; a cut that is the whole body is not a narrowing.
-func ledeSlice(body string) (slice string, narrowed bool) {
+func ledeCut(body string) (slice string, narrowed bool, startLine int) {
 	lines := strings.Split(body, "\n")
 	headings := graph.Headings(body, graph.LineSkipZones(body))
 	if len(headings) == 0 {
-		return body, false
+		return body, false, 0
 	}
 	first := headings[0]
 	if opening := openingBefore(lines, first.Line); opening != "" {
-		return opening, true
+		return opening, true, 0
 	}
 	end := len(lines)
 	if len(headings) > 1 {
 		end = headings[1].Line
 	}
 	if end >= len(lines) {
-		return body, false
+		return body, false, 0
 	}
-	return strings.Join(lines[first.Line:end], "\n"), true
+	return strings.Join(lines[first.Line:end], "\n"), true, first.Line
 }
 
 // Opening is what a note's author wrote to say what the note is, ahead of
@@ -244,7 +283,7 @@ func ledeBeforeHeading(lines []string, first int) bool {
 func Excerpt(body, fragment string) (slice string, found bool) {
 	stripped, _ := stripBody(body)
 	slice, matches := excerptOf(stripped, fragment)
-	return slice, matches > 0
+	return stripped.sourceSlice(slice), matches > 0
 }
 
 // ExcerptPreview is the hover card's reading of the same address Excerpt
@@ -255,13 +294,52 @@ func Excerpt(body, fragment string) (slice string, found bool) {
 // can say so with the sentence a byte-capped preview already uses. An embed
 // still asks Excerpt (or excerptOf) for the whole note; this cut is the card's.
 func ExcerptPreview(body, fragment string) (slice string, found, narrowed bool) {
+	excerpt, found, narrowed := ReadExcerptPreview(body, fragment)
+	return excerpt.Source(), found, narrowed
+}
+
+// ExcerptReading keeps a cut's original block roles private until rendering.
+// Source exposes only authored surviving words, without presentation carriers.
+type ExcerptReading struct{ body strippedBody }
+
+// ReadExcerptPreview retains the same address and lede decisions as the public
+// source cut, beside the geometry a card needs to render those words.
+func ReadExcerptPreview(body, fragment string) (excerpt ExcerptReading, found, narrowed bool) {
 	stripped, _ := stripBody(body)
+	var slice string
+	var startLine int
 	if fragment == "" {
-		slice, narrowed = ledeSlice(stripped.text)
-		return slice, true, narrowed
+		slice, narrowed, startLine = ledeCut(stripped.text)
+		found = true
+	} else {
+		var matches int
+		slice, matches, startLine = excerptCut(stripped, fragment)
+		found = matches > 0
 	}
-	slice, matches := excerptOf(stripped, fragment)
-	return slice, matches > 0, false
+	return ExcerptReading{body: stripped.cut(slice, startLine)}, found, narrowed
+}
+
+func (e ExcerptReading) Source() string { return e.body.sourceSlice(e.body.text) }
+
+// Cap spends the card's budget on authored bytes. Carriers stay beside their
+// lines and never count as words or cause the budget to cut a character.
+func (e ExcerptReading) Cap(budget int) (ExcerptReading, bool) {
+	source := e.Source()
+	if len(source) <= budget {
+		return e, false
+	}
+	cut := strings.LastIndexByte(source[:budget], '\n')
+	if cut < 0 {
+		first, _, ok := strings.Cut(source, "\n")
+		if !ok {
+			return e, false
+		}
+		cut = len(first)
+	}
+	lines := strings.Count(source[:cut], "\n") + 1
+	text := strings.SplitN(e.body.text, "\n", lines+1)
+	e.body = e.body.cut(strings.Join(text[:lines], "\n"), 0)
+	return e, true
 }
 
 // excerptOf is the one cut every excerpt is made with, over a body whose
@@ -272,17 +350,22 @@ func ExcerptPreview(body, fragment string) (slice string, found, narrowed bool) 
 // to, and then nothing is cut: there is no narrower answer than the one asked
 // for, and a wider one would be this renderer's rather than the author's.
 func excerptOf(stripped strippedBody, fragment string) (slice string, matches int) {
+	slice, matches, _ = excerptCut(stripped, fragment)
+	return slice, matches
+}
+
+func excerptCut(stripped strippedBody, fragment string) (slice string, matches, startLine int) {
 	switch {
 	case strings.HasPrefix(fragment, "^"):
-		cut, ok := blockSlice(stripped, strings.TrimPrefix(fragment, "^"))
+		cut, ok, start := blockCut(stripped, strings.TrimPrefix(fragment, "^"))
 		if !ok {
-			return "", 0
+			return "", 0, 0
 		}
-		return cut, 1
+		return cut, 1, start
 	case fragment != "":
-		return headingSlice(stripped.text, fragment)
+		return headingCut(stripped.text, fragment)
 	}
-	return stripped.text, 1
+	return stripped.text, 1, 0
 }
 
 // fragmentOf is the address an embed carries, in the spelling Excerpt reads. A
@@ -349,10 +432,15 @@ func headingSourceText(raw string, level int) string {
 // fragment kinds share, so "^quote-1" and "^quote1" stay two names. Nothing rules
 // how wide a block reference reaches, so the narrow reading is taken.
 func blockSlice(body strippedBody, block string) (string, bool) {
+	cut, found, _ := blockCut(body, block)
+	return cut, found
+}
+
+func blockCut(body strippedBody, block string) (slice string, found bool, startLine int) {
 	lines := strings.Split(body.text, "\n")
 	at := blockMarkerLine(lines, body.address, UnanchorableLines(body.text), block)
 	if at < 0 {
-		return "", false
+		return "", false, 0
 	}
 	start := at
 	for start > 0 && !graph.ListItemLine.MatchString(lines[start]) && strings.TrimSpace(lines[start-1]) != "" {
@@ -362,7 +450,7 @@ func blockSlice(body strippedBody, block string) (string, bool) {
 	for end < len(lines) && strings.TrimSpace(lines[end]) != "" && !graph.ListItemLine.MatchString(lines[end]) {
 		end++
 	}
-	return strings.Join(lines[start:end], "\n"), true
+	return strings.Join(lines[start:end], "\n"), true, start
 }
 
 // blockMarkerLine reports which line carries the marker naming block, or -1

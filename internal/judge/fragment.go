@@ -4,9 +4,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/yuin/goldmark/ast"
-	"github.com/yuin/goldmark/text"
-
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/sequence"
@@ -34,10 +31,13 @@ func headingWords(raw string) string {
 	return render.HeadingWords(raw)
 }
 
-func anchorSurfaceFrom(body string, comments []byteRange) (sections, excerptSections map[string]bool, blockAddresses []string) {
-	stripped := withoutCommentZones(body, comments)
+// anchorSurfaceFrom recognizes the comment-stripped fragment presentation.
+// Its coordinates belong to that transformed text; original extraction keeps
+// the immutable BodyFacts bound by readNote.
+func anchorSurfaceFrom(body string, comments bodyComments) (sections, excerptSections map[string]bool, blockAddresses []string) {
+	stripped := comments.body.CommentFree()
 	sections = make(map[string]bool)
-	collectParsedHeadings(stripped, sections)
+	collectParsedHeadings(comments.body, sections)
 	collectGenerousHeadings(stripped, sections)
 	excerptSections = make(map[string]bool)
 	collectExcerptHeadings(stripped, excerptSections)
@@ -45,47 +45,15 @@ func anchorSurfaceFrom(body string, comments []byteRange) (sections, excerptSect
 		collectBlockAddresses(stripped, render.BlockAddressLines(strings.Split(body, "\n"), stripped))
 }
 
-// withoutCommentZones is the body with its comment spans cut out, located by
-// the same zones the link extraction skips, so the two readings of one note
-// hide the same text. A comment the author wrapped over several lines leaves
-// those line endings behind: a note is read by line here and on the page, and
-// gluing the words on either side of a hidden passage into one line would make
-// a paragraph, a heading and the run a block address sits in out of text nobody
-// wrote that way.
-func withoutCommentZones(body string, zones []byteRange) string {
-	if len(zones) == 0 {
-		return body
-	}
-	var b strings.Builder
-	last := 0
-	for _, z := range zones {
-		b.WriteString(body[last:z.Start])
-		b.WriteString(strings.Repeat("\n", strings.Count(body[z.Start:z.Stop], "\n")))
-		last = z.Stop
-	}
-	b.WriteString(body[last:])
-	return b.String()
-}
-
-// collectParsedHeadings adds the id of every heading the markdown parser
-// sees: either heading form, at any quote or list nesting, and never a
+// collectParsedHeadings adds the id of every rich heading the body facts
+// retain: either heading form, at any quote or list nesting, and never a
 // heading-shaped line inside code or an authored HTML block. This is how the
 // destination page really stamps its ids, since it renders the same tree. A
 // heading with no text still stamps the fallback id, so it is added too.
-func collectParsedHeadings(body string, into map[string]bool) {
-	src := []byte(body)
-	doc := mdParser.Parse(text.NewReader(src))
-	walkNodes(doc, func(n ast.Node) {
-		h, ok := n.(*ast.Heading)
-		if !ok {
-			return
-		}
-		raw := ""
-		if r, ok := linesRange(h); ok {
-			raw = body[r.Start:r.Stop]
-		}
-		into[graph.SectionID(headingWords(sequence.HeadingName(raw, h.Level)))] = true
-	})
+func collectParsedHeadings(facts graph.BodyFacts, into map[string]bool) {
+	for heading := range facts.RichHeadings() {
+		into[graph.SectionID(headingWords(sequence.HeadingName(heading.Raw, heading.Level)))] = true
+	}
 }
 
 // collectGenerousHeadings adds what a deliberately generous line reading

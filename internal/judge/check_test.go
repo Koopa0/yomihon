@@ -64,6 +64,10 @@ var checkGoldens = []struct {
 	// Markup on a recognised callout's title line. Additive fixture for
 	// callout.title_markup; existing goldens stay byte-identical.
 	{name: "callout title markup", fixture: "testdata/vault-callout-title", golden: "testdata/golden/callout-title.jsonl"},
+	{name: "page fence info", fixture: "testdata/vault-page-fence-info", golden: "testdata/golden/page-fence-info.jsonl"},
+	{name: "page footnote paragraph", fixture: "testdata/vault-page-footnote-paragraph", golden: "testdata/golden/page-footnote-paragraph.jsonl"},
+	{name: "page task path", fixture: "testdata/vault-page-task-path", golden: "testdata/golden/page-task-path.jsonl"},
+	{name: "page linkify code", fixture: "testdata/vault-page-linkify-code", golden: "testdata/golden/page-linkify-code.jsonl"},
 }
 
 // TestCheckGolden drives the whole check engine — extraction, resolution, the
@@ -76,7 +80,6 @@ var checkGoldens = []struct {
 // below rather than being mislabelled as predecessor output.
 func TestCheckGolden(t *testing.T) {
 	t.Parallel()
-
 	for _, tt := range checkGoldens {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

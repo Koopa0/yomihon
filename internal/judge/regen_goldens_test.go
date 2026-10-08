@@ -38,6 +38,10 @@ var engineGoldens = []struct {
 	{fixture: "testdata/vault-titlecollision", golden: "testdata/golden/titlecollision.jsonl"},
 	{fixture: "testdata/vault-titlecollision", golden: "testdata/golden/titlecollision-privacy.jsonl", private: []string{"Private"}},
 	{fixture: "testdata/vault-callout-title", golden: "testdata/golden/callout-title.jsonl"},
+	{fixture: "testdata/vault-page-fence-info", golden: "testdata/golden/page-fence-info.jsonl"},
+	{fixture: "testdata/vault-page-footnote-paragraph", golden: "testdata/golden/page-footnote-paragraph.jsonl"},
+	{fixture: "testdata/vault-page-task-path", golden: "testdata/golden/page-task-path.jsonl"},
+	{fixture: "testdata/vault-page-linkify-code", golden: "testdata/golden/page-linkify-code.jsonl"},
 }
 
 var schemaGoldens = []struct {

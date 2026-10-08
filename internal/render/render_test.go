@@ -149,8 +149,8 @@ func TestHTMLDoesNotLetAuthoredTextSelectRendererBlocks(t *testing.T) {
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "Target.md"}}, nil, nil)
 
 	got := r.HTML("note.md", "", `<!--yomihon-block:0--> [[Target]]`, wording.ZhHant).HTML
-	if strings.Contains(got, "yomihon-block") {
-		t.Fatalf("authored reserved comment reached the page: %s", got)
+	if !strings.Contains(got, "&lt;!--yomihon-block:0--&gt;") {
+		t.Fatalf("authored reserved spelling is missing from the page: %s", got)
 	}
 	if n := strings.Count(got, `<a href="/notes/Target.md" class="wikilink">Target</a>`); n != 1 {
 		t.Errorf("renderer-owned wikilink count = %d, want exactly 1: %s", n, got)

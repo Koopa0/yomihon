@@ -75,24 +75,16 @@ func UnanchorableLine(line string) bool {
 	return strings.HasPrefix(strings.TrimLeft(quotePrefix.ReplaceAllString(line, ""), " \t"), "|")
 }
 
-// UnanchorableLines is UnanchorableLine asked of the lines of body, numbered
-// as strings.Split(body, "\n") numbers them. A line an indented code block
-// holds is shown as written, so a callout opener or a table row on it is text
-// on display rather than something taken apart, and the address at its end is
-// stamped like any other. Which lines that is depends on the container around
-// them, so it is the reading page's own parse that is asked, and only once a
-// line the line test refuses makes the answer matter.
+// UnanchorableLines rejects quotation under the shared body grammar as well as
+// opening lines and table rows that the page consumes without an address.
 func UnanchorableLines(body string) func(i int, line string) bool {
-	var code map[int]bool
+	var code map[int]presentationCodeLine
 	parsed := false
 	return func(i int, line string) bool {
-		if !UnanchorableLine(line) {
-			return false
-		}
 		if !parsed {
-			code, parsed = codeBlockLines(pageMarkdown().Parser(), body), true
+			code, parsed = presentationCodeLines(body), true
 		}
-		return !code[i]
+		return code[i].block || UnanchorableLine(line)
 	}
 }
 
