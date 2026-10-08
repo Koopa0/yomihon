@@ -169,7 +169,7 @@ func (r *lintRun) note(n *note) []Finding {
 	// is pinned on schema.SystemDocumentGroup: the contract assigns membership,
 	// and a vault that files those types under another name still takes the
 	// full knowledge-note rules.
-	if hasType && r.contract.StatusGroup(n.noteType) == schema.SystemDocumentGroup {
+	if hasType && r.contract.StatusGroup(ty) == schema.SystemDocumentGroup {
 		return append(out, r.documentStatus(n, ty, schema.SystemDocumentGroup)...)
 	}
 	return append(out, r.knowledge(n)...)
