@@ -89,7 +89,11 @@ func TestSchemaFindingsAreTheCallersOwnSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := judge.FrontmatterResult{Findings: wantFindings, EnumNoteType: "concept"}
-	if diff := cmp.Diff(want, gen.SchemaResult(faulty)); diff != "" {
+	got := gen.SchemaResult(faulty)
+	if got.EnumNoteType == first.EnumNoteType {
+		t.Errorf("caught: modifying caller selector changed captured selector = %q", got.EnumNoteType)
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("caught: modifying caller result changed captured verdict (-want +got):\n%s", diff)
 	}
 	if diff := cmp.Diff(wantFindings, gen.SchemaFindings(faulty)); diff != "" {
@@ -235,8 +239,16 @@ func TestSchemaResultKeepsItsCapturedSelector(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	testContract(t, root)
-	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	data, err := os.ReadFile(contractPath)
+	tree, openErr := os.OpenRoot(root)
+	if openErr != nil {
+		t.Fatalf("open fixture root: %v", openErr)
+	}
+	t.Cleanup(func() {
+		if closeErr := tree.Close(); closeErr != nil {
+			t.Errorf("close fixture root: %v", closeErr)
+		}
+	})
+	data, err := tree.ReadFile(filepath.FromSlash(schema.ContractRelPath))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,6 +290,7 @@ func TestSchemaResultKeepsItsCapturedSelector(t *testing.T) {
 		{name: "replacement", gen: second, body: secondBody, selector: "true"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			want := lint.LintResult(rel, []byte(tt.body))
 			if want.EnumNoteType != tt.selector || len(want.Findings) != 1 {
 				t.Fatalf("fixture verdict = %+v, want selector %q and one finding", want, tt.selector)
