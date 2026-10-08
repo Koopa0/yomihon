@@ -32,3 +32,9 @@ var UncertaintyPlaceOnly = both(
 	"只記住這台裝置上的位置與時間，不保存選出的句子；內容變動後，位置可能失效。",
 	"Only the location and time are kept on this device, not the chosen sentence. The location may stop working if the content changes.",
 )
+
+// UncertaintyNoteNotFound names a stored mark whose note is no longer readable.
+var UncertaintyNoteNotFound = both("找不到這篇筆記", "Note not found")
+
+// UncertaintyPlaceNotFound names a stored place absent from its current note.
+var UncertaintyPlaceNotFound = both("找不到這個位置", "Place not found")

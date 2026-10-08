@@ -33,19 +33,22 @@ func (n urlName) String() string { return string(n) }
 func (v Versions) versionedURL(name string, e entry) string {
 	token := v.Token
 	if token == "" {
-		token = e.etag[1:13]
+		token = versionToken(e)
 	}
 	return "/static/" + name + "?v=" + url.QueryEscape(token)
 }
 
 var clientImportMap = buildClientImportMap(registry)
 
-// ImportMap is the JSON projection of every registered native client module
-// with this version selection. Relative imports resolve to these absolute path
+// versionToken is shared by URL projection, stylesheet rewriting and cache
+// authority; each entry's validator was computed from its final served bytes.
+func versionToken(e entry) string { return e.etag[1:13] }
+
+// ImportMap projects every native client module and the vendored Mermaid
+// facade with this version selection. Relative imports resolve to absolute path
 // keys, so the modules reached through the entry receive the same byte
-// identities too. Changing the token cannot change module membership. The
-// vendored Mermaid facade remains unversioned; its chunks keep their authored
-// content-hash filenames.
+// identities too. Changing the token cannot change module membership.
+// Mermaid's chunks retain their authored content-hash filenames.
 func (v Versions) ImportMap() string {
 	if v.Token == "" {
 		return clientImportMap
@@ -60,7 +63,7 @@ func buildClientImportMap(reg map[string]entry) string {
 func (v Versions) buildClientImportMap(reg map[string]entry) string {
 	imports := make(map[string]string)
 	for name, e := range reg {
-		if e.contentType == jsContentType && strings.HasSuffix(name, ".js") && !strings.Contains(name, "/") {
+		if e.contentType == jsContentType && !strings.Contains(name, "/") && (strings.HasSuffix(name, ".js") || name == "mermaid.esm.min.mjs") {
 			imports["/static/"+name] = v.versionedURL(name, e)
 		}
 	}
