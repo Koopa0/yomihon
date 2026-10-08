@@ -51,6 +51,9 @@ func stripListRowRole(own string) string {
 // later blocks remain outside that label and outside its declaration.
 func listRowRoleRange(own string) (start, end int, ok bool) {
 	if inner, offset, task := taskRowWords(own); task {
+		if line, _, wrapped := strings.Cut(inner, "\n"); wrapped {
+			inner = line
+		}
 		stripped := sequence.HeadingName(inner, listRowLevel)
 		if stripped == inner {
 			return 0, 0, false
