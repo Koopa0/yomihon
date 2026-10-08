@@ -12,8 +12,8 @@ func TestReferenceSequenceSentence(t *testing.T) {
 		lang Lang
 		want []SchemaPart
 	}{
-		{lang: ZhHant, want: []SchemaPart{{Text: "based_on", Code: true}, {Text: " 的值被 YAML 讀成巢狀清單，沒有讀成引用。請替連結加上引號，例如 "}, {Text: "based_on: [\"[[Note]]\"]", Code: true}, {Text: " 或 "}, {Text: "based_on: [\"Note\"]", Code: true}, {Text: "。"}}},
-		{lang: En, want: []SchemaPart{{Text: "based_on", Code: true}, {Text: " was read as a nested YAML list, not a reference. Quote the link, for example "}, {Text: "based_on: [\"[[Note]]\"]", Code: true}, {Text: " or "}, {Text: "based_on: [\"Note\"]", Code: true}, {Text: "."}}},
+		{lang: ZhHant, want: []SchemaPart{{Text: "based_on", Code: true}, {Text: " 裡有一項被 YAML 讀成巢狀清單，沒有讀成引用。請替連結加上引號，例如 "}, {Text: "based_on: [\"[[Note]]\"]", Code: true}, {Text: " 或 "}, {Text: "based_on: [\"Note\"]", Code: true}, {Text: "。"}}},
+		{lang: En, want: []SchemaPart{{Text: "An item in "}, {Text: "based_on", Code: true}, {Text: " was read as a nested YAML list, not a reference. Quote the link, for example "}, {Text: "based_on: [\"[[Note]]\"]", Code: true}, {Text: " or "}, {Text: "based_on: [\"Note\"]", Code: true}, {Text: "."}}},
 	} {
 		t.Run(string(tt.lang), func(t *testing.T) {
 			t.Parallel()

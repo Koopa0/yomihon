@@ -176,6 +176,7 @@ func TestReferenceSequenceContractSelection(t *testing.T) {
 		want         []string
 	}{
 		{name: "lesson fields", noteType: "lesson", fields: "predecessor: [[Old]]\nsuccessors: [[New]]\nlineage: [[Ignored]]\n", want: []string{"predecessor / vault-schema.toml#supersession", "successors / vault-schema.toml#supersession"}},
+		{name: "system document fields", replacements: [][2]string{{`type = ["concept", "lesson", "memo"]`, `type = ["concept", "lesson", "memo", "system"]`}, {"[enums.status]\n", "[enums.status]\nsystem = [\"draft\", \"archived\"]\n"}, {"[fields.status_group]\n", "[fields.status_group]\nsystem = [\"system\"]\n"}}, noteType: "system", fields: "based_on: [[Source]]\nlineage: [[New]]\n", want: []string{"based_on / yomihon", "lineage / vault-schema.toml#supersession"}},
 		{name: "renamed general field", replacements: [][2]string{{"lineage", "replaces"}}, noteType: "memo", fields: "replaces: [[New]]\nlineage: [[Ignored]]\n", want: []string{"replaces / vault-schema.toml#supersession"}},
 		{name: "renamed lesson fields", replacements: [][2]string{{`"predecessor"`, `"earlier"`}, {`"successors"`, `"later"`}}, noteType: "lesson", fields: "earlier: [[Old]]\nlater: [[New]]\npredecessor: [[Ignored]]\n", want: []string{"earlier / vault-schema.toml#supersession", "later / vault-schema.toml#supersession"}},
 		{name: "unknown type has no status group", noteType: "unknown", fields: "lineage: [[Ignored]]\nbased_on: [[Source]]\n", want: []string{"based_on / yomihon"}},
@@ -227,6 +228,51 @@ func TestReferenceSequenceContractSelection(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("caught: contract reference fields (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestReferenceSequenceSystemFindingContract(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("testdata/vault-reference-sequence/System/schemas/vault-schema.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	declaration := string(data)
+	for _, replacement := range [][2]string{
+		{`type = ["concept", "lesson", "memo"]`, `type = ["concept", "lesson", "memo", "system"]`},
+		{"[enums.status]\n", "[enums.status]\nsystem = [\"draft\", \"archived\"]\n"},
+		{"[fields.status_group]\n", "[fields.status_group]\nsystem = [\"system\"]\n"},
+	} {
+		if strings.Count(declaration, replacement[0]) != 1 {
+			t.Fatalf("contract replacement %q has no unique declaration", replacement[0])
+		}
+		declaration = strings.Replace(declaration, replacement[0], replacement[1], 1)
+	}
+	path := filepath.Join(t.TempDir(), "contract.toml")
+	if writeErr := os.WriteFile(path, []byte(declaration), 0o600); writeErr != nil { // #nosec G703 -- fixed basename below t.TempDir
+		t.Fatal(writeErr)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	basedOn, lineage := "based_on", "lineage"
+	want := []Finding{
+		{RuleID: "schema.reference_nested_sequence", Severity: "error", Path: "Concepts/Probe.md", Field: &basedOn, Message: "based_on contains a nested YAML list instead of a reference", Evidence: "a reference item was read as a YAML sequence", SuggestedAction: "quote the reference, for example based_on: [\"[[Note]]\"] or based_on: [\"Note\"]", SourceRule: "yomihon", Fingerprint: "v1:8d1e0a396dea0de3"},
+		{RuleID: "schema.reference_nested_sequence", Severity: "error", Path: "Concepts/Probe.md", Field: &lineage, Message: "lineage contains a nested YAML list instead of a reference", Evidence: "a reference item was read as a YAML sequence", SuggestedAction: "quote the reference, for example lineage: [\"[[Note]]\"] or lineage: [\"Note\"]", SourceRule: "vault-schema.toml#supersession", Fingerprint: "v1:c8642cae83a4d17b"},
+	}
+	for _, status := range []string{"draft", "archived"} {
+		t.Run(status, func(t *testing.T) {
+			t.Parallel()
+			findings, lintErr := LintFrontmatter("Concepts/Probe.md", []byte("---\ntitle: Probe\ntype: system\nstatus: "+status+"\nbased_on: [[Source]]\nlineage: [[New]]\n---\n\nReadable body.\n"), contract)
+			if lintErr != nil {
+				t.Fatal(lintErr)
+			}
+			t.Log("hit: system reference finding contract reached")
+			if diff := cmp.Diff(want, findings); diff != "" {
+				t.Errorf("caught: system reference finding contract (-want +got):\n%s", diff)
 			}
 		})
 	}
