@@ -100,6 +100,11 @@ func TestSearchDirectivesNameAdjacentReadingText(t *testing.T) {
 		{"nfd-before-link", "cafe\u0301 [乙](https://go.dev)丙搜尋尾。\n", "搜尋"},
 		{"multiple-links", "[甲](https://a.test)乙搜尋丙[丁](https://b.test)戊。\n", "搜尋"},
 		{"body-end-link", "搜尋[尾](https://go.dev)\n", "搜尋"},
+		{"prior-block-link-end", "## Earlier\n\nPrior words [x](https://go.dev)\n\n## Where the inkwell waits\n\n## Next\n", "inkwell"},
+		{"prior-block-link-inside", "## Earlier\n\nPrior [x](https://go.dev) words here.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell"},
+		{"heading-link-end", "## Where the inkwell [waits](https://go.dev)\n\nThe shelf keeps it dry.\n", "inkwell"},
+		{"heading-link-after-prior", "## Earlier\n\nPrior words here.\n\n## Where the inkwell [waits](https://go.dev)\n\n## Next\n", "inkwell"},
+		{"missing-local-link", "## Where the inkwell waits\n\n[notes](Missing.md) explains it.\n", "inkwell"},
 		{"decoded-entity", "Tom &amp; Jerry run.\n", `"Tom & Jerry"`},
 		{"decoded-escape", "The snake\\_case name.\n", "snake_case"},
 	}
@@ -185,6 +190,12 @@ func TestSearchConsumesProseMarkupAndKeepsCodeLiteral(t *testing.T) {
 		{"span-escape-source", "`snake\\_case`\n", `snake\_case`, 1, "snake\\_case"},
 		{"fence-entity-source", "```\nTom &amp; Jerry\n```\n", "&amp;", 1, "Tom &amp; Jerry"},
 		{"fence-escape-source", "```\nsnake\\_case\n```\n", `snake\_case`, 1, "snake\\_case"},
+		{"wikilink-alias-entity-literal", "See [[Other|Tom &amp; Jerry]] here.\n", "&amp;", 1, "See Other Tom &amp; Jerry here."},
+		{"wikilink-alias-entity-decoded", "See [[Other|Tom &amp; Jerry]] here.\n", `"Tom & Jerry"`, 0, ""},
+		{"wikilink-target-escape-literal", "[[snake\\_case]]\n", `snake\_case`, 1, "snake\\_case"},
+		{"wikilink-target-escape-decoded", "[[snake\\_case]]\n", "snake_case", 0, ""},
+		{"callout-title-entity-literal", "> [!note] Tom &amp; Jerry\n", "&amp;", 1, "Tom &amp; Jerry"},
+		{"callout-title-entity-decoded", "> [!note] Tom &amp; Jerry\n", `"Tom & Jerry"`, 0, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -291,8 +302,7 @@ func TestDroppedTitleKeepsMainLanding(t *testing.T) {
 
 	tests := []struct{ name, body, query, href string }{
 		{"comment-before-title", "%% prefatory comment %%\n# comment-before-title\n\nOpening words here.\n", "comment-before-title", "/notes/Notes/comment-before-title.md#:~:text=comment%2Dbefore%2Dtitle"},
-		{"unsafe-next-known-prior", "## Earlier\n\nPrior words here.\n\n## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", "/notes/Notes/unsafe-next-known-prior.md#:~:text=Prior%20words%20here.-,Where%20the%20inkwell%20waits"},
-		{"safe-next-known-prior", "## Earlier\n\nPrior words here.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry.\n", "inkwell", "/notes/Notes/safe-next-known-prior.md#:~:text=Prior%20words%20here.-,Where%20the%20inkwell%20waits"},
+		{"decoded-opening", "## Earlier\n\nPrior words here.\n\n## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", "/notes/Notes/decoded-opening.md#:~:text=inkwell%20waits,-Tom%20%26%20Jerry"},
 		{"prefix-budget-control", "## Earlier\n\none two three four five.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "/notes/Notes/prefix-budget-control.md#:~:text=three%20four%20five.-,Where%20the%20inkwell%20waits"},
 		{"safe-plain-control", "Intro.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry.\n", "inkwell", "/notes/Notes/safe-plain-control.md#:~:text=inkwell%20waits,-The%20shelf%20keeps"},
 	}
