@@ -23,19 +23,9 @@
 // Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (the note that
 // carries the links). MUTATE names one of the self-test modes below;
 // MUTATE=list prints them.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';

@@ -2,6 +2,7 @@
 // Read actual computed families at local language boundaries: changing a font
 // variable alone does not change the family inherited by a paragraph.
 // Env: YOMIHON_BASE, PAGE_PATH (a Japanese lesson with ruby), and MUTATE.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -38,11 +39,6 @@ class LockFired extends Error {
   constructor(site, detail) { super(`caught: ${site}: ${detail}`); this.site = site; }
 }
 const escaped = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const arrived = (page) => page.waitForFunction(async () => {
-  if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-  await Promise.all(document.getAnimations().filter((animation) => animation.animationName === 'y-come-forward').map((animation) => animation.finished.catch(() => {})));
-  return true;
-}, null, { timeout: 3000 });
 
 const mutate = async (page, mode) => {
   const proof = { requests: 0, blocks: 0, declarations: 0, changes: 0, errors: [] };
