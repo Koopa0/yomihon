@@ -34,7 +34,7 @@ func headingWords(raw string) string {
 	return render.HeadingWords(raw)
 }
 
-func anchorSurfaceFrom(body string, comments []byteRange) (sections, excerptSections map[string]bool, blockLines []string) {
+func anchorSurfaceFrom(body string, comments []byteRange) (sections, excerptSections map[string]bool, blockAddresses []string) {
 	stripped := withoutCommentZones(body, comments)
 	sections = make(map[string]bool)
 	collectParsedHeadings(stripped, sections)
@@ -42,7 +42,7 @@ func anchorSurfaceFrom(body string, comments []byteRange) (sections, excerptSect
 	excerptSections = make(map[string]bool)
 	collectExcerptHeadings(stripped, excerptSections)
 	return sections, excerptSections,
-		collectBlockLines(stripped, render.BlockAddressLines(strings.Split(body, "\n"), stripped))
+		collectBlockAddresses(stripped, render.BlockAddressLines(strings.Split(body, "\n"), stripped))
 }
 
 // withoutCommentZones is the body with its comment spans cut out, located by
@@ -142,7 +142,7 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 	}
 }
 
-// collectBlockLines keeps each extracted, folded address that could answer a
+// collectBlockAddresses keeps each extracted, folded address that could answer a
 // block address, so a link's "^name" matches the reading the destination page
 // uses. A line inside a fence is code, a recognised callout's opening line is
 // consumed as the title, a row opening with a pipe is table syntax whose tail
@@ -154,7 +154,7 @@ func collectExcerptHeadings(body string, into map[string]bool) {
 // is asked over: this face hides a comment with a different scan than the page
 // does, and a run edge read from either strip would be a different edge here
 // than there.
-func collectBlockLines(body string, address []string) []string {
+func collectBlockAddresses(body string, address []string) []string {
 	var out []string
 	inFence, fenceByte, fenceLen := false, byte(0), 0
 	lines := strings.Split(body, "\n")
@@ -188,8 +188,8 @@ func collectBlockLines(body string, address []string) []string {
 
 // blockAddressed compares the extracted, folded addresses with the requested
 // folded name. Whole-line suffixes do not declare an address.
-func blockAddressed(lines []string, want string) bool {
-	return slices.Contains(lines, want)
+func blockAddressed(addresses []string, want string) bool {
+	return slices.Contains(addresses, want)
 }
 
 // fragmentFindings judges the fragment half of every link and transclusion
@@ -253,7 +253,7 @@ func fragmentFinding(
 		return Finding{}, false
 	}
 	if link.block != "" {
-		if blockAddressed(target.blockAnchorLines, graph.FoldFragment("^"+link.block)) {
+		if blockAddressed(target.blockAddresses, graph.FoldFragment("^"+link.block)) {
 			return Finding{}, false
 		}
 		return blockMissing(n, link, res.RelPath), true

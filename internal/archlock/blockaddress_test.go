@@ -27,7 +27,7 @@ func supportedBlockGrammarInventory() blockGrammarInventory {
 		"patterns": {"internal/render/blockanchor.go:blockMarkerTail"},
 		"readers":  {"internal/render/blockanchor.go:BlockAddress"},
 		"callers": {
-			"internal/judge/fragment.go:collectBlockLines -> BlockAddress",
+			"internal/judge/fragment.go:collectBlockAddresses -> BlockAddress",
 			"internal/render/blockanchor.go:CodeSpanOwnedAddresses -> blockAddressIn",
 			"internal/render/blockanchor.go:blockAddressIn -> BlockAddress",
 			"internal/render/blockanchor.go:markBlockAnchor -> blockAddressIn",
@@ -232,7 +232,7 @@ func blockGrammarControlSources() map[string]string {
 		"internal/render/tts.go":      "package render\nfunc stripTrailingBlockAddress() { BlockAddress(\"\") }\n",
 		"internal/render/wikilink.go": "package render\nfunc calloutOpeningTitle() { blockAddressIn(\"\") }\n",
 		"internal/judge/fragment.go": "package judge\nimport r \"github.com/koopa0/yomihon/internal/render\"\n" +
-			"func collectBlockLines() { r.BlockAddress(\"\") }\nfunc blockAddressed() {}\n",
+			"func collectBlockAddresses() { r.BlockAddress(\"\") }\nfunc blockAddressed() {}\n",
 	}
 }
 
@@ -274,7 +274,7 @@ func TestBlockGrammarInventoryControls(t *testing.T) {
 		{name: "grammar declaration removed", path: "internal/render/blockanchor.go", before: "var blockMarkerTail = regexp.MustCompile(`(\\^x)\\z`)", after: "", want: []string{"caught: block grammar grammars changed", "caught: block grammar patterns changed"}},
 		{name: "adapter declaration removed", path: "internal/render/blockanchor.go", before: "func blockAddressIn(line string) (string, []int) { BlockAddress(line); return \"\", nil }", after: "", want: []string{"caught: block grammar adapters changed", "caught: block grammar callers changed"}},
 		{name: "excerpt stale suffix", path: "internal/render/section.go", before: "func blockMarkerLine() { BlockAddress(\"\") }", after: "import \"strings\"\nfunc blockMarkerLine() { BlockAddress(\"\"); strings.HasSuffix(\"\", \"\") }", want: []string{"caught: block grammar suffixes changed"}},
-		{name: "judge stale suffix", path: "internal/judge/fragment.go", before: "func collectBlockLines() { r.BlockAddress(\"\") }\nfunc blockAddressed() {}", after: "import \"strings\"\nfunc collectBlockLines() { r.BlockAddress(\"\") }\nfunc blockAddressed() { strings.HasSuffix(\"\", \"\") }", want: []string{"caught: block grammar suffixes changed"}},
+		{name: "judge stale suffix", path: "internal/judge/fragment.go", before: "func collectBlockAddresses() { r.BlockAddress(\"\") }\nfunc blockAddressed() {}", after: "import \"strings\"\nfunc collectBlockAddresses() { r.BlockAddress(\"\") }\nfunc blockAddressed() { strings.HasSuffix(\"\", \"\") }", want: []string{"caught: block grammar suffixes changed"}},
 		{name: "noncall owner alias", path: "internal/render/section.go", before: "BlockAddress(\"\")", after: "address := BlockAddress; address(\"\")", want: []string{"caught: block grammar callers changed", "caught: block grammar aliases changed"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

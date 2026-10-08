@@ -212,8 +212,8 @@ func TestTheThreeBlockAddressFacesAgreeOverAStrippedBody(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, blockLines := anchorSurface(tt.body)
-			if got := blockAddressed(blockLines, "^probe"); got != tt.addressed {
+			_, _, blockAddresses := anchorSurface(tt.body)
+			if got := blockAddressed(blockAddresses, "^probe"); got != tt.addressed {
 				t.Errorf("the check finds the address = %v, want %v", got, tt.addressed)
 			}
 			if _, got := render.Excerpt(tt.body, "^probe"); got != tt.addressed {
