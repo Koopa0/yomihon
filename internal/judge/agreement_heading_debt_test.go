@@ -39,8 +39,8 @@ func agreementPlainHeadingCounts(body string) map[string]int {
 			return ast.WalkStop, nil
 		}
 		base := graph.SectionID(raw)
-		if at := strings.LastIndexByte(base, '-'); at >= 0 {
-			if _, err := strconv.Atoi(base[at+1:]); err == nil {
+		if _, suffix, found := strings.CutLast(base, "-"); found {
+			if _, err := strconv.Atoi(suffix); err == nil {
 				plain = false
 				return ast.WalkStop, nil
 			}
@@ -60,11 +60,10 @@ func agreementDuplicateHeadingDifference(c agreementCase, f *agreementFailure, c
 	if c.Title != "" || len(c.Companions) != 0 || f.Property != "P4" || f.Identity != "literal-heading-id" || f.Tuple != (agreementCitation{}) || f.Direction != "page-only" || f.Multiplicity != 1 || !f.PagePresent || f.JudgeAccepted || f.ExcerptFound || f.Cut != "" {
 		return "", "", ""
 	}
-	at := strings.LastIndexByte(f.Fragment, '-')
-	if at < 0 {
+	base, suffix, found := strings.CutLast(f.Fragment, "-")
+	if !found {
 		return "", "", ""
 	}
-	base, suffix := f.Fragment[:at], f.Fragment[at+1:]
 	ordinal, err := strconv.Atoi(suffix)
 	if err != nil || strconv.Itoa(ordinal) != suffix || ordinal < 2 || ordinal > counts[base] {
 		return "", "", ""

@@ -754,9 +754,11 @@ func TestAgreementDifferenceControls(t *testing.T) {
 func TestAgreementWitnessControls(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
+		title string
 		body  string
 		known int
 	}{
+		{name: "title reservation and duplicate headings", title: "A", body: "# A\n\n## A\n## A\n", known: 2},
 		{name: "frozen bare backslash", body: "[[Trail\\]]\n", known: 2},
 		{name: "frozen list fence", body: "- a list item\n\n    ```\n    [[Nested]]\n    ```\n\n[[Outside List]]\n", known: 2},
 		{name: "unused-footnote-2-0332", body: "[^unused]: [[A]]\n", known: 2},
@@ -765,7 +767,7 @@ func TestAgreementWitnessControls(t *testing.T) {
 		{name: "duplicate-heading-3-1181", body: "## A\n## A\n", known: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			c := agreementCase{Name: tc.name, Body: tc.body}
+			c := agreementCase{Name: tc.name, Title: tc.title, Body: tc.body}
 			result, actual := agreementIsolatedPage(t, c)
 			failures := agreementPageFailures(c.Body, &result, &actual)
 			fragments := agreementFragmentFailures(t, []agreementCase{c}, []agreementHTML{actual})
@@ -790,6 +792,11 @@ func TestAgreementWitnessControls(t *testing.T) {
 				changed.Multiplicity++
 				if kind, _, _ := agreementKnownDifference(c, &changed); kind != "" {
 					t.Errorf("caught: debt-occurrence-budget accepted=%+v", changed)
+				}
+				otherTitle := c
+				otherTitle.Title = "Unrelated"
+				if kind, _, _ := agreementKnownDifference(otherTitle, failure); kind != "" {
+					t.Errorf("caught: debt-title-drift accepted=%+v", *failure)
 				}
 				companion := c
 				companion.Companions = capturedBodies{"Notes/Other.md": "other"}

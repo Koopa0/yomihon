@@ -260,10 +260,11 @@ func agreementSignature(failure *agreementFailure) string {
 // Finite witnessed membership is intentionally narrow. Other bodies or
 // additional tuples remain red, including additional deltas in these bodies.
 func agreementKnownDifference(c agreementCase, failure *agreementFailure) (kind, authority, wrong string) {
-	if c.Title != "" || len(c.Companions) != 0 || failure.Multiplicity != 1 || failure.Cut != "" || failure.JudgeAccepted || failure.ExcerptFound || failure.PagePresent != (failure.Property == "P4") {
+	if len(c.Companions) != 0 || failure.Multiplicity != 1 || failure.Cut != "" || failure.JudgeAccepted || failure.ExcerptFound || failure.PagePresent != (failure.Property == "P4") {
 		return "", "", ""
 	}
 	type witness struct {
+		title     string
 		body      string
 		property  string
 		identity  string
@@ -274,6 +275,8 @@ func agreementKnownDifference(c agreementCase, failure *agreementFailure) (kind,
 		stage     int
 	}
 	witnesses := []witness{
+		{title: "A", body: "# A\n\n## A\n## A\n", property: "P4", identity: "literal-heading-id", fragment: "a-2", direction: "page-only", wrong: "judge", stage: 8},
+		{title: "A", body: "# A\n\n## A\n## A\n", property: "P4", identity: "literal-heading-id", fragment: "a-3", direction: "page-only", wrong: "judge", stage: 8},
 		{body: "[[Trail\\]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "Trail"}, direction: "judge-only", wrong: "page", stage: 3},
 		{body: "[[Trail\\]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "Trail\\"}, direction: "page-only", wrong: "page", stage: 3},
 		{body: "- a list item\n\n    ```\n    [[Nested]]\n    ```\n\n[[Outside List]]\n", property: "P1", identity: "citation-occurrences", tuple: agreementCitation{Target: "Nested"}, direction: "page-only", wrong: "page", stage: 5},
@@ -287,7 +290,7 @@ func agreementKnownDifference(c agreementCase, failure *agreementFailure) (kind,
 	}
 	for i := range witnesses {
 		witness := &witnesses[i]
-		if c.Body == witness.body && failure.Property == witness.property && failure.Identity == witness.identity && failure.Tuple == witness.tuple && failure.Fragment == witness.fragment && failure.Direction == witness.direction {
+		if c.Title == witness.title && c.Body == witness.body && failure.Property == witness.property && failure.Identity == witness.identity && failure.Tuple == witness.tuple && failure.Fragment == witness.fragment && failure.Direction == witness.direction {
 			return "debt", fmt.Sprintf("#1011 stage %d", witness.stage), witness.wrong
 		}
 	}
