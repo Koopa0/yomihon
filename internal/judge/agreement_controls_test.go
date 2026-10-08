@@ -36,9 +36,8 @@ func agreementExcerptCuts(t *testing.T) {
 		{name: "multiline bounded paragraph", body: "first line\ncontinued ^a\n\nsecond ^b\n", fragment: "^a", want: "first line\ncontinued ^a", found: true},
 		{name: "first duplicate", body: "first ^a\n\nsecond ^a\n", fragment: "^a", want: "first ^a", found: true},
 		{name: "missing does not widen", body: "first ^a\n\nsecond\n", fragment: "^absent"},
-		// Raw helper acceptance grants no rendered block identity or lossless
-		// public address; the inline-footnote control below locks those separately.
-		{name: "raw inline footnote tail", body: "paragraph ^[literal]\n", fragment: "^[literal]", want: "paragraph ^[literal]", found: true},
+		// An inline footnote is prose, so it grants no block address or excerpt.
+		{name: "inline footnote grants no block cut", body: "paragraph ^[literal]\n", fragment: "^[literal]"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cut, found := render.Excerpt(tc.body, tc.fragment)
