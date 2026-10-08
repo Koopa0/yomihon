@@ -2,6 +2,7 @@ package render
 
 import (
 	"bytes"
+	"html"
 	"slices"
 	"unicode/utf8"
 
@@ -18,13 +19,18 @@ import (
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
-// Projection carries the unchanged searchable corpus and its display metadata.
+// Projection carries the searchable reading text and its display metadata.
 // All offsets name bytes in Text, before excerpt selection or normalization.
 type Projection struct {
 	Text         string
 	Blocks       []Block
 	FenceRanges  [][2]int
 	DisplaySpans []DisplaySpan
+
+	// Insertions name conservative cuts where the page may add words absent
+	// from Text. A missing local link can add an out-of-sight explanation; the
+	// corpus cannot tell which local destinations exist.
+	Insertions []int
 }
 
 // DisplaySpan describes a display effect on a half-open range of corpus bytes.
@@ -39,9 +45,10 @@ type DisplaySpan struct {
 // PlainProjection returns the searchable corpus with note display annotations.
 func PlainProjection(body string) Projection {
 	var emissions []sourceEmission
+	var insertions []int
 	source, rewritten := plainPreprocess(body)
-	plain, blocks, fences := plainSourceBlocks(body, source, &rewritten, &emissions)
-	result := Projection{Text: plain, Blocks: blocks, FenceRanges: fences}
+	plain, blocks, fences := plainSourceBlocks(body, source, &rewritten, &emissions, &insertions)
+	result := Projection{Text: plain, Blocks: blocks, FenceRanges: fences, Insertions: insertions}
 	if plain == "" {
 		return result
 	}
@@ -82,10 +89,15 @@ func emittedDisplaySpans(intervals []DisplaySpan, emissions []sourceEmission, si
 			if interval.Start >= e.end {
 				break
 			}
-			start, end := max(e.start, interval.Start), min(e.end, interval.End)
 			span := interval
-			span.Start = max(0, e.out+start-e.start)
-			span.End = min(size, e.out+end-e.start)
+			// One decoded source unit is indivisible in the output coordinate
+			// space: an escape or entity can occupy fewer or more bytes.
+			span.Start = max(0, e.out)
+			span.End = min(size, e.outEnd)
+			if !e.atomic {
+				span.Start = max(0, e.out+max(e.start, interval.Start)-e.start)
+				span.End = min(size, e.out+min(e.end, interval.End)-e.start)
+			}
 			if span.Start < span.End {
 				spans = append(spans, span)
 			}
@@ -117,19 +129,81 @@ func displayIntervals(effects []DisplaySpan, hidden bool) []DisplaySpan {
 
 // sourceEmission records a copied source segment at its actual write site.
 // Held ruby readings use reading-builder offsets until flushReadings moves them.
-type sourceEmission struct{ start, end, out int }
+type sourceEmission struct {
+	start, end, out, outEnd int
+	atomic                  bool
+}
+
+// proseText uses the same escape/entity writer as the reading page. The
+// resulting HTML escaping is removed once to recover the browser's text.
+func proseText(source []byte) []byte {
+	var markup roleMarkup
+	goldmarkhtml.DefaultWriter.Write(&markup, source)
+	return []byte(html.UnescapeString(markup.String()))
+}
+
+func (w *plainWalk) writeProse(seg text.Segment, source []byte) {
+	if seg.Padding > 0 {
+		w.writeVisible(bytes.Repeat([]byte{' '}, seg.Padding))
+	}
+	for at := seg.Start; at < seg.Stop; {
+		if source[at] != '&' && source[at] != '\\' && source[at] != 0 {
+			end := seg.Stop
+			if next := bytes.IndexAny(source[at:seg.Stop], "&\\\x00"); next >= 0 {
+				end = at + next
+			}
+			w.emitSource(sourceEmission{start: at, end: end}, source[at:end])
+			at = end
+			continue
+		}
+		end := at + roleSourceUnitWidth(source[at:seg.Stop])
+		value := source[at:end]
+		if !w.rewritten.literalRoleAt(at) && !withinAny(w.rewritten.wikilinks, at, end) {
+			value = proseText(value)
+		}
+		w.emitSource(sourceEmission{start: at, end: end, atomic: true}, value)
+		at = end
+	}
+	if seg.ForceNewline && (seg.Stop == seg.Start || source[seg.Stop-1] != '\n') {
+		w.writeBreak()
+	}
+}
 
 func (w *plainWalk) writeSource(seg text.Segment, source []byte) {
+	value := seg.Value(source)
+	if seg.Padding > 0 {
+		w.writeVisible(value[:seg.Padding])
+		value = value[seg.Padding:]
+	}
+	w.emitSource(sourceEmission{start: seg.Start, end: seg.Stop}, value)
+}
+
+func (w *plainWalk) emitSource(e sourceEmission, value []byte) {
 	if w.emissions != nil && rubyRoute(w.ruby) != rubyParen {
-		e := sourceEmission{start: seg.Start, end: seg.Stop, out: w.b.Len() + seg.Padding}
+		e.out = w.b.Len()
 		if rubyRoute(w.ruby) == rubyAnnotation {
-			e.out = w.readings.Len() + seg.Padding
+			e.out = w.readings.Len()
+			e.outEnd = e.out + len(value)
 			w.readingEmissions = append(w.readingEmissions, e)
 		} else {
+			e.outEnd = e.out + len(value)
 			*w.emissions = append(*w.emissions, e)
 		}
 	}
-	w.writeVisible(seg.Value(source))
+	w.writeVisible(value)
+}
+
+func (w *plainWalk) recordInsertion() {
+	if w.insertions == nil {
+		return
+	}
+	switch rubyRoute(w.ruby) {
+	case rubyParen:
+	case rubyAnnotation:
+		w.readingInsertions = append(w.readingInsertions, w.readings.Len())
+	default:
+		*w.insertions = append(*w.insertions, w.b.Len())
+	}
 }
 
 func (w *plainWalk) writeSourceBreak(after int, source []byte) {
@@ -139,11 +213,12 @@ func (w *plainWalk) writeSourceBreak(after int, source []byte) {
 		// the one byte that the existing writeBreak emits in their place.
 		if relative := bytes.IndexByte(source[after:], '\n'); relative >= 0 {
 			at := after + relative
-			e := sourceEmission{start: at, end: at + 1, out: w.b.Len()}
+			e := sourceEmission{start: at, end: at + 1, out: w.b.Len(), outEnd: w.b.Len() + 1}
 			switch rubyRoute(w.ruby) {
 			case rubyParen:
 			case rubyAnnotation:
 				e.out = w.readings.Len()
+				e.outEnd = e.out + 1
 				w.readingEmissions = append(w.readingEmissions, e)
 			default:
 				*w.emissions = append(*w.emissions, e)
@@ -157,7 +232,7 @@ func (w *plainWalk) writeCodeLines(n ast.Node, source []byte) {
 	for i := range n.Lines().Len() {
 		seg := n.Lines().At(i)
 		if w.emissions != nil {
-			*w.emissions = append(*w.emissions, sourceEmission{start: seg.Start, end: seg.Stop, out: w.b.Len() + seg.Padding})
+			*w.emissions = append(*w.emissions, sourceEmission{start: seg.Start, end: seg.Stop, out: w.b.Len() + seg.Padding, outEnd: w.b.Len() + len(seg.Value(source))})
 		}
 		w.b.Write(seg.Value(source))
 	}
@@ -165,20 +240,22 @@ func (w *plainWalk) writeCodeLines(n ast.Node, source []byte) {
 
 func (w *plainWalk) writeAutoLink(a *ast.AutoLink, source []byte) {
 	label := a.Label(source)
-	start := a.Pos()
-	if start >= 0 && start < len(source) && source[start] == '<' {
-		start++
+
+	written := false
+	for _, start := range []int{a.Pos(), a.Pos() + 1} {
+		if start >= 0 && start+len(label) <= len(source) && bytes.Equal(source[start:start+len(label)], label) {
+			w.writeSource(text.NewSegment(start, start+len(label)), source)
+			written = true
+			break
+		}
 	}
-	// Linkify can start at the preceding space or delimiter and consume it
-	// before its label. Its canonical parser advances by exactly one byte.
-	if start >= 0 && start+len(label) < len(source) && !bytes.Equal(source[start:start+len(label)], label) && bytes.Equal(source[start+1:start+1+len(label)], label) {
-		start++
+	if !written {
+		w.writeVisible(label)
 	}
-	if start >= 0 && start+len(label) <= len(source) && bytes.Equal(source[start:start+len(label)], label) {
-		w.writeSource(text.NewSegment(start, start+len(label)), source)
-		return
+	if a.AutoLinkType == ast.AutoLinkURL && leavesTheLibrary(a.URL(source)) {
+		w.recordInsertion()
 	}
-	w.writeVisible(label)
+
 }
 
 // delimiterObservation delegates grammar to the existing inline parsers. The
@@ -407,7 +484,11 @@ func roleSourceUnitWidth(source []byte) int {
 		return 2
 	}
 	if source[0] == '&' {
-		if end := bytes.IndexByte(source, ';'); end >= 0 {
+		end := 1
+		for end < len(source) && (util.IsAlphaNumeric(source[end]) || source[end] == '#') {
+			end++
+		}
+		if end < len(source) && source[end] == ';' {
 			reference := source[:end+1]
 			if !bytes.ContainsRune(reference[1:], '&') && (!bytes.Equal(util.ResolveEntityNames(reference), reference) || !bytes.Equal(util.ResolveNumericReferences(reference), reference)) {
 				return end + 1
@@ -426,24 +507,20 @@ func roleDisplayEffects(md goldmark.Markdown, n ast.Node, source []byte, rewritt
 		}
 	}
 	inner := own.String()
-	prefix := 0
-	level := listRowLevel
+	var start, end int
 	if heading, ok := n.(*ast.Heading); ok {
-		level = heading.Level
-	} else {
-		if stripListRowRole(inner) == inner {
+		stripped := sequence.HeadingName(inner, heading.Level)
+		if stripped == inner {
 			return nil
 		}
-		if unwrapped, before, _, ok := unwrapOwnParagraph(inner); ok {
-			inner = unwrapped
-			prefix = len(before)
+		start, end = len(stripped), len(inner)
+	} else {
+		var ok bool
+		start, end, ok = listRowRoleRange(inner)
+		if !ok {
+			return nil
 		}
 	}
-	stripped := sequence.HeadingName(inner, level)
-	if stripped == inner {
-		return nil
-	}
-	start, end := prefix+len(stripped), prefix+len(inner)
 	var effects []DisplaySpan
 	for _, unit := range own.units {
 		if unit.markupStart >= start && unit.markupEnd <= end && unit.markupStart < unit.markupEnd && !withinAny(rewritten.wikilinks, unit.sourceStart, unit.sourceEnd) {

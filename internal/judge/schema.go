@@ -153,12 +153,12 @@ func (r *lintRun) note(n *note) []Finding {
 
 	var out []Finding
 	ty, hasType := fmScalar(n.frontmatter, "type")
-	if hasType && !r.contract.DeclaresType(ty) {
+	if hasType && !slices.Contains(r.contract.EnumValues("type", ty), schema.NormalizeWord(ty)) {
 		out = append(out, schemaFinding(n, "schema.enum", "type", ty, "is not an allowed type"))
 	}
 
 	isLesson := hasType && ty == r.lessonType
-	out = append(out, r.unknownKeys(n, isLesson)...)
+	out = append(out, r.unknownKeys(n, ty)...)
 	out = append(out, r.articleLanguage(n)...)
 	if isLesson {
 		out = append(out, r.lessonSlug(n)...)
@@ -170,7 +170,7 @@ func (r *lintRun) note(n *note) []Finding {
 	// and a vault that files those types under another name still takes the
 	// full knowledge-note rules.
 	if hasType && r.contract.StatusGroup(ty) == schema.SystemDocumentGroup {
-		return append(out, r.documentStatus(n, schema.SystemDocumentGroup)...)
+		return append(out, r.documentStatus(n, ty, schema.SystemDocumentGroup)...)
 	}
 	return append(out, r.knowledge(n)...)
 }
@@ -196,15 +196,32 @@ func (r *lintRun) articleLanguage(n *note) []Finding {
 
 // unknownKeys reports every frontmatter key the contract does not list as
 // known, in sorted key order. A lesson may additionally use the lesson-only
-// keys.
-func (r *lintRun) unknownKeys(n *note, isLesson bool) []Finding {
+// keys. An undeclared non-empty scalar type leaves those keys unjudged and
+// reports that dependency once, without hiding genuinely unknown keys.
+func (r *lintRun) unknownKeys(n *note, noteType string) []Finding {
 	var out []Finding
+	isLesson := noteType != "" && noteType == r.lessonType
+	invalidType := noteType != "" && !r.contract.DeclaresType(noteType)
+	deferred := false
 	for _, key := range slices.Sorted(maps.Keys(n.frontmatter)) {
-		known := slices.Contains(r.definition.Fields.Known, key) ||
-			(isLesson && slices.Contains(r.definition.Fields.LessonOnly, key))
-		if !known {
-			out = append(out, schemaFinding(n, "schema.unknown_key", "", key, "is not a known field"))
+		if slices.Contains(r.definition.Fields.Known, key) {
+			continue
 		}
+		if slices.Contains(r.definition.Fields.LessonOnly, key) {
+			if isLesson {
+				continue
+			}
+			if invalidType {
+				deferred = true
+				continue
+			}
+		}
+		out = append(out, schemaFinding(n, "schema.unknown_key", "", key, "is not a known field"))
+	}
+	if deferred {
+		finding := schemaFinding(n, "schema.type_dependent", "type", noteType, "is not valid, so type-only fields cannot be judged until type is valid")
+		finding.SuggestedAction = "fix type before judging type-only fields"
+		out = append(out, finding)
 	}
 	return out
 }
@@ -226,15 +243,15 @@ func (r *lintRun) lessonSlug(n *note) []Finding {
 // contract holds its own values in one spelling already, so only the note's
 // value is folded here, and a note that composes a word its contract decomposes
 // still names the status the contract declares.
-func (r *lintRun) statusDeclared(group, status string) bool {
-	return slices.Contains(r.contract.StatusesInGroup(group), schema.NormalizeWord(status))
+func (r *lintRun) statusDeclared(noteType, status string) bool {
+	return slices.Contains(r.contract.EnumValues("status", noteType), schema.NormalizeWord(status))
 }
 
 // documentStatus reports a document's status outside the status set its own
 // group declares. The group is the one the caller routed by, so the enum
 // checked here is the enum that decided this note is a document.
-func (r *lintRun) documentStatus(n *note, group string) []Finding {
-	if st, ok := fmScalar(n.frontmatter, "status"); ok && !r.statusDeclared(group, st) {
+func (r *lintRun) documentStatus(n *note, noteType, group string) []Finding {
+	if st, ok := fmScalar(n.frontmatter, "status"); ok && !r.statusDeclared(noteType, st) {
 		return []Finding{schemaFinding(n, "schema.enum", "status", st, "is not a valid "+group+" status")}
 	}
 	return nil
@@ -249,14 +266,14 @@ func (r *lintRun) knowledge(n *note) []Finding {
 	// A type outside the contract resolves to no group and reads against the
 	// general note group; it already carries its own finding.
 	group := r.contract.JudgedStatusGroup(n.noteType)
-	if st, ok := fmScalar(n.frontmatter, "status"); ok && !r.statusDeclared(group, st) {
+	if st, ok := fmScalar(n.frontmatter, "status"); ok && !r.statusDeclared(n.noteType, st) {
 		reason := "is not a valid status"
 		if group != "note" {
 			reason = "is not a valid " + group + " status"
 		}
 		out = append(out, schemaFinding(n, "schema.enum", "status", st, reason))
 	}
-	out = append(out, r.unreachableStatus(n, n.noteType, group)...)
+	out = append(out, r.unreachableStatus(n, n.noteType)...)
 	out = append(out, r.enumFields(n)...)
 	out = append(out, r.structural(n)...)
 	return out
@@ -293,20 +310,19 @@ func (r *lintRun) required(n *note) []Finding {
 // its nonempty declared vocabulary.
 func (r *lintRun) enumFields(n *note) []Finding {
 	var out []Finding
-	enums := reflect.ValueOf(r.definition.Enums)
 	// Walk declaration order to preserve finding order. Type and grouped
 	// status retain their dedicated rules, identified by the Go name so a
 	// renamed struct tag cannot quietly pull them into this walk. Visible
-	// fields only: an unexported field panics through TypeAssert.
-	for _, field := range reflect.VisibleFields(enums.Type()) {
-		if field.Name == "Type" || field.Name == "Status" {
-			continue
-		}
-		allowed, ok := reflect.TypeAssert[[]string](enums.FieldByIndex(field.Index))
-		if !ok || len(allowed) == 0 {
+	// fields only; values come from the contract's shared vocabulary lookup.
+	for _, field := range reflect.VisibleFields(reflect.TypeFor[schema.Enums]()) {
+		if !field.IsExported() || field.Type != reflect.TypeFor[[]string]() || field.Name == "Type" || field.Name == "Status" {
 			continue
 		}
 		name := field.Tag.Get("toml")
+		allowed := r.contract.EnumValues(name, n.noteType)
+		if len(allowed) == 0 {
+			continue
+		}
 		// The contract holds its own values in one spelling already, so only
 		// the note's value is folded here; the finding still carries the word
 		// the file wrote, so a reader is shown their own bytes.
@@ -392,12 +408,12 @@ func schemaRuleSource(ruleID RuleID) string {
 
 // unreachableStatus reports a note whose status is in its type's declared
 // group while no lifecycle row with that status applies to its type.
-func (r *lintRun) unreachableStatus(n *note, noteType, group string) []Finding {
+func (r *lintRun) unreachableStatus(n *note, noteType string) []Finding {
 	if noteType == "" || !r.contract.DeclaresType(noteType) {
 		return nil
 	}
 	st, ok := fmScalar(n.frontmatter, "status")
-	if !ok || !r.statusDeclared(group, st) {
+	if !ok || !r.statusDeclared(noteType, st) {
 		return nil
 	}
 	if _, reachable := r.contract.Stage(noteType, st); reachable {

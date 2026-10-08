@@ -56,6 +56,10 @@ func (bodyHighlightParser) Parse(_ ast.Node, reader text.Reader, pc parser.Conte
 	return node
 }
 
+// NeutralTaskMarkers preserve Obsidian progress, cancellation and forwarding
+// characters without interpreting a theme's vocabulary of icons.
+const NeutralTaskMarkers = "/->"
+
 type bodyTaskParser struct{}
 
 func (bodyTaskParser) Trigger() []byte { return []byte{'['} }
@@ -65,7 +69,7 @@ func (bodyTaskParser) Parse(parent ast.Node, reader text.Reader, _ parser.Contex
 		return nil
 	}
 	line, _ := reader.PeekLine()
-	if len(line) < 3 || line[0] != '[' || line[2] != ']' || !strings.ContainsRune("/->", rune(line[1])) {
+	if len(line) < 3 || line[0] != '[' || line[2] != ']' || !strings.ContainsRune(NeutralTaskMarkers, rune(line[1])) {
 		return nil
 	}
 	if len(line) > 3 && !util.IsSpace(line[3]) {
