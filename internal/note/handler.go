@@ -210,6 +210,17 @@ func blockedSource(snap *snapshot.Generation, rel string) snapshot.BlockedSource
 	return snapshot.BlockedSource{}
 }
 
+// blockedAt finds a captured failure at the path or any folder above it.
+// A folder covers whole path segments, never a similarly named sibling.
+func blockedAt(snap *snapshot.Generation, rel string) snapshot.BlockedSource {
+	for _, source := range snap.Freshness().Blocked {
+		if source.Path == rel || strings.HasPrefix(rel, source.Path+"/") {
+			return source
+		}
+	}
+	return snapshot.BlockedSource{}
+}
+
 func (h *Handler) showMissing(
 	w http.ResponseWriter,
 	r *http.Request,
