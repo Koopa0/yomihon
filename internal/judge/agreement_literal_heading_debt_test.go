@@ -20,7 +20,7 @@ func agreementLiteralHeadingIDs(body string) map[string]bool {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementDeclarationMarkers(source, doc) {
+	if !agreementIndependentDeclarationMarkers(source, doc) {
 		return nil
 	}
 	var sole *ast.Heading
@@ -71,6 +71,7 @@ func TestAgreementLiteralHeadingDebt(t *testing.T) {
 		{name: "alias remains literal", body: "## `[[B|alias]]`\n", want: map[string]bool{"b-alias": true}},
 		{name: "whole literal words", body: "## `[[B|alias]] [[A]]`\n", want: map[string]bool{"b-alias-a": true}},
 		{name: "literal markers", body: "## `[[B|alias]] %%[!note]<!--`\n", want: map[string]bool{"b-alias-note": true}},
+		{name: "independent plain opener", body: "> [!note] title\n\n## `[[B|alias]]`\n", want: map[string]bool{"b-alias": true}},
 		{name: "independent prose", body: "show [!note] words\n\n## `[[B|alias]]`\n", want: map[string]bool{"b-alias": true}},
 		{name: "independent closed comment", body: "<!--hidden-->\n\n## `[[B|alias]]`\n", want: map[string]bool{"b-alias": true}},
 		{name: "plain code agrees", body: "## `[[A]]`\n"},

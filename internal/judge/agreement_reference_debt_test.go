@@ -21,11 +21,19 @@ type agreementReferenceDestinations struct {
 // A reference declaration stores a destination; it does not display a
 // wikilink there. Keep every declaration, including duplicate labels.
 func agreementReferenceDestinationBudget(body string) agreementReferenceDestinations {
+	return agreementReferenceFieldBudget(body, false)
+}
+
+func agreementCompoundReferenceBudget(body string) agreementReferenceDestinations {
+	return agreementReferenceFieldBudget(body, true)
+}
+
+func agreementReferenceFieldBudget(body string, compound bool) agreementReferenceDestinations {
 	source := []byte(body)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementDeclarationMarkers(source, doc) {
+	if !agreementIndependentDeclarationMarkers(source, doc) {
 		return agreementReferenceDestinations{}
 	}
 	budget := agreementReferenceDestinations{Diagnostics: make(map[agreementCitation]int), Targets: make(map[string]int)}
@@ -35,16 +43,30 @@ func agreementReferenceDestinationBudget(body string) agreementReferenceDestinat
 			continue
 		}
 		destination := string(ref.Destination)
-		inner, open := strings.CutPrefix(destination, "[[")
-		inner, closed := strings.CutSuffix(inner, "]]")
-		if !open || !closed || strings.ContainsAny(inner, "]\n") || strings.Contains(string(ref.Label), "[[") || strings.Contains(string(ref.Title), "[[") {
+		if strings.Contains(string(ref.Label), "[[") || strings.Contains(string(ref.Title), "[[") {
 			continue
 		}
-		link, cites := graph.ParseWikilink(inner)
-		if !cites {
+		var links []graph.Wikilink
+		if compound {
+			links = agreementCompoundReferenceLinks(destination)
+		} else {
+			inner, open := strings.CutPrefix(destination, "[[")
+			inner, closed := strings.CutSuffix(inner, "]]")
+			if !open || !closed || strings.ContainsAny(inner, "]\n") {
+				continue
+			}
+			link, cites := graph.ParseWikilink(inner)
+			if !cites {
+				continue
+			}
+			links = []graph.Wikilink{link}
+		}
+		if len(links) == 0 {
 			continue
 		}
-		budget.Diagnostics[agreementCitation{Target: link.Target, Section: link.Heading, State: "wikilink-broken"}]++
+		for _, link := range links {
+			budget.Diagnostics[agreementCitation{Target: link.Target, Section: link.Heading, State: "wikilink-broken"}]++
+		}
 		for _, target := range judge.LinkTargets(destination) {
 			budget.Targets[target]++
 		}
@@ -53,6 +75,29 @@ func agreementReferenceDestinationBudget(body string) agreementReferenceDestinat
 		return agreementReferenceDestinations{}
 	}
 	return budget
+}
+
+// The complete destination must consist of adjacent literal widgets. No
+// surrounding URL bytes or nested brackets enter this set.
+func agreementCompoundReferenceLinks(destination string) []graph.Wikilink {
+	var links []graph.Wikilink
+	for remaining := destination; remaining != ""; {
+		inner, open := strings.CutPrefix(remaining, "[[")
+		inner, rest, closed := strings.Cut(inner, "]]")
+		if !open || !closed || strings.ContainsAny(inner, "[]\n`") {
+			return nil
+		}
+		link, cites := graph.ParseWikilink(inner)
+		if !cites {
+			return nil
+		}
+		links = append(links, link)
+		remaining = rest
+	}
+	if len(links) < 2 {
+		return nil
+	}
+	return links
 }
 
 func agreementReferenceDestinationDifference(c agreementCase, f *agreementFailure, budget agreementReferenceDestinations) (kind, authority, wrong string) {
@@ -89,6 +134,7 @@ func TestAgreementReferenceDestinationDebt(t *testing.T) {
 		{name: "reference use does not display destination", body: "[read][n]\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
 		{name: "independent live target", body: "[[A]]\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
 		{name: "independent literal markers", body: "`%%<!--[!note]`\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
+		{name: "independent plain opener", body: "> [!note] title\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
 		{name: "independent prose words", body: "show [!note] words\n\n[n]: [[A]]\n", diagnostics: map[agreementCitation]int{a: 1}, targets: map[string]int{"A": 1}},
 		{name: "ordinary wikilink", body: "[[A]]\n"},
 		{name: "ordinary destination", body: "[n]: Other.md\n"},

@@ -81,12 +81,19 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/title", Title: "A", Body: "# A\n\n## A\n## A\n"},
 		{Name: "control/literal-heading", Body: "## `[[B|alias]]`\n"},
 		{Name: "control/headings", Body: "## A\n## A\n\nB\n===\n"},
+		{Name: "control/headings-beside-opener", Body: "## A\n  > [!note] title\n## A\n## A\n"},
+		{Name: "control/heading-collision-beside-opener", Body: "## A\n> [!note] title\n## A\n## A-2\n"},
 		{Name: "control/inline-footnote", Body: "paragraph ^[literal]\n"},
 		{Name: "control/footnote", Body: "ref[^n]\n\n[^n]: [[A]]\n\n    [[B]]\n\n[^unused]: [[A]]\n"},
 		{Name: "control/callout", Body: "> [!note] [[A]]\n> [[B]] ^a\n"},
 		{Name: "control/quoted-fence-info", Body: "> ```[[A]]\n"},
 		{Name: "control/list-fence-info", Body: "1. ```[[A]]\n"},
 		{Name: "control/reference-destination", Body: "[n]: [[A]]\n"},
+		{Name: "control/compound-reference-destination", Body: "[n]: [[A]][[B]]\n"},
+		{Name: "control/unused-beside-opener", Body: "> [!note] title\n\n[^unused]: [[A]]\n"},
+		{Name: "control/wrapped-code-beside-opener", Body: "> [!note] title\n\n`open\n[[A]]\nclose`\n"},
+		{Name: "control/suffix-beside-opener", Body: "> [!note] title\n\n[[A\\]]\n"},
+		{Name: "control/reference-beside-opener", Body: "> [!note] title\n\n[n]: [[A]]\n"},
 		{Name: "control/comments", Body: "%%[[A]]%%\n<!-- [[B]] -->\n[[A]]\n"},
 		{Name: "control/containers", Body: "- item\n\n      [[A]] ^a\n\n> ```\n> [[B]]\n> ```\n"},
 		{Name: "control/quote-fence-outer-address", Body: "> ```\n^a\n"},
@@ -185,6 +192,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			unusedTargets := agreementUnusedFootnoteTargets(c.Body)
 			var referenceDestinations agreementReferenceDestinations
 			referenceObserved := false
+			var compoundReferences agreementReferenceDestinations
+			compoundReferencesObserved := false
 			var containerFenceDiagnostics map[agreementCitation]int
 			containerFenceObserved := false
 			var standaloneTargets agreementStandaloneTargets
@@ -221,6 +230,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						referenceObserved = true
 					}
 					classification, authority, wrong = agreementReferenceDestinationDifference(c, failure, referenceDestinations)
+				}
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					if !compoundReferencesObserved {
+						compoundReferences = agreementCompoundReferenceBudget(c.Body)
+						compoundReferencesObserved = true
+					}
+					classification, authority, wrong = agreementReferenceDestinationDifference(c, failure, compoundReferences)
 				}
 				if classification == "" && failure.Property == "P0" {
 					if !containerFenceObserved {

@@ -22,7 +22,7 @@ func agreementHeadingCollisionIDs(body string) map[string]bool {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementDeclarationMarkers(source, doc) {
+	if !agreementIndependentDeclarationMarkers(source, doc) {
 		return nil
 	}
 	var names []string
@@ -77,6 +77,7 @@ func TestAgreementHeadingCollisionDebt(t *testing.T) {
 		want       map[string]bool
 	}{
 		{name: "authored suffix follows repetition", body: "## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
+		{name: "independent plain opener", body: "## A\n> [!note] title\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
 		{name: "independent closed comment", body: "<!--%%[!note]-->\n\n## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
 		{name: "independent root callout words", body: "show [!note] words\n\n## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},
 		{name: "independent root percent comment", body: "%%[[Hidden]]%%\n\n## A\n## A\n## A-2\n", want: map[string]bool{"a-2-2": true}},

@@ -19,7 +19,7 @@ func agreementContainerFenceDiagnostics(body string) map[agreementCitation]int {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementDeclarationMarkers(source, doc) {
+	if !agreementIndependentDeclarationMarkers(source, doc) {
 		return nil
 	}
 	diagnostics := make(map[agreementCitation]int)
@@ -72,6 +72,7 @@ func TestAgreementContainerFenceMetadataDebt(t *testing.T) {
 		want       map[agreementCitation]int
 	}{
 		{name: "quoted info", body: "> ```[[A]]\n", want: map[agreementCitation]int{a: 1}},
+		{name: "independent plain opener", body: "> [!note] title\n\nordinary separator\n\n> ```[[A]]\n", want: map[agreementCitation]int{a: 1}},
 		{name: "list info", body: "1. ```[[A]]\n", want: map[agreementCitation]int{a: 1}},
 		{name: "nested quoted info", body: "> > ```[[A]]\n", want: map[agreementCitation]int{a: 1}},
 		{name: "whole info set", body: "> ```[[A]]\n> ```\n\n1. ```[[B]]\n", want: map[agreementCitation]int{a: 1, b: 1}},
