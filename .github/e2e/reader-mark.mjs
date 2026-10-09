@@ -1,3 +1,4 @@
+import { lateArrivalRestore, measureBackArrival } from './support/arrival-lifetime.mjs';
 // Behavior lock for the place a reader keeps and comes back to.
 //
 // The whole of this feature is one round trip the reader can see: press the
@@ -45,6 +46,7 @@ const ANCHOR_SITES = [
   'no-accepted-predecessor-keeps-the-document-offset',
 ];
 const SITES = [
+  'kept-arrival-ends-on-leaving',
   ...ANCHOR_SITES,
   'kept-place-is-offered-back',
   'following-it-lands-where-the-window-was',
@@ -151,6 +153,11 @@ const dropSecondPost = () => async (page) => {
 };
 
 const MUTATIONS = {
+  're-arm-the-arrival': {
+    target: 'kept-arrival-ends-on-leaving',
+    // The late-delivery phase owns this mutation's route and receipt.
+    apply: async () => () => '',
+  },
   ...Object.fromEntries(ANCHOR_SITES.map((site, index) => [
     ['keep-an-invalid-block', 'keep-an-oversized-heading', 'keep-an-invalid-fallback'][index],
     {
@@ -803,6 +810,14 @@ try {
   }
 
   }
+  if (!REGRESSIONS_ONLY) {
+    const lifetime = await lateArrivalRestore(browser, BASE, '/notes/Notes/reading-fidelity.md', 'mark.js', '?at=900', MUTATE === 're-arm-the-arrival');
+    if (Math.abs(lifetime.after - lifetime.before) > 4) {
+      fail('kept-arrival-ends-on-leaving', `restore moved the reader from ${lifetime.before} to ${lifetime.after}`);
+    }
+    await measureBackArrival(browser, BASE, '/notes/Notes/reading-fidelity.md', '?at=900');
+  }
+
   if (REGRESSIONS_ONLY) console.log('PASS reader-mark: accepted-anchor regression cases');
   else console.log(
     'PASS reader-mark: a kept place returns on the desk, lands where the window was,'
