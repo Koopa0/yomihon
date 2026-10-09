@@ -230,6 +230,56 @@ const waitSettled = (page, selector) =>
     await Promise.all(el.getAnimations().map((a) => a.finished.catch(() => {})));
   }, selector);
 
+// Failure-only evidence for the original preview hover wait. Document and
+// network clocks stay separate; observing events never schedules another hover.
+const previewSetupReceipt = async (page) => {
+  const network = [];
+  const started = performance.now();
+  const record = (kind, request, status) => {
+    const path = new URL(request.url()).pathname;
+    if (path !== '/static/preview.js' && !path.startsWith('/preview/')) return;
+    network.push({ ms: performance.now() - started, kind, path, status, failure: request.failure()?.errorText });
+    if (network.length > 100) network.shift();
+  };
+  page.on('request', (request) => record('request', request));
+  page.on('response', (response) => record('response', response.request(), response.status()));
+  page.on('requestfinished', (request) => record('finished', request));
+  page.on('requestfailed', (request) => record('failed', request));
+  await page.addInitScript(() => {
+    const events = [];
+    window.__previewSetupEvents = events;
+    for (const type of ['pointerenter', 'pointerleave', 'focus', 'blur', 'scroll', 'beforetoggle', 'toggle']) {
+      document.addEventListener(type, (event) => {
+        const target = event.target;
+        events.push({
+          ms: performance.now(), type, target: target.localName || 'document',
+          href: target.closest?.('a')?.getAttribute('href'),
+          x: event.clientX, y: event.clientY, scrollY,
+          active: document.activeElement?.localName,
+          collapsed: getSelection()?.isCollapsed,
+          previewOpen: document.querySelector('[data-preview-card]')?.matches(':popover-open'),
+          state: event.newState,
+        });
+        if (events.length > 200) events.shift();
+      }, { capture: true, passive: true });
+    }
+  });
+  return async () => ({
+    mode: MUTATE, network,
+    document: await page.evaluate((selector) => {
+      const link = document.querySelector(selector);
+      const rect = link?.getBoundingClientRect();
+      return {
+        events: window.__previewSetupEvents, scrollY,
+        active: document.activeElement?.localName,
+        collapsed: getSelection()?.isCollapsed,
+        link: link ? { hovered: link.matches(':hover'), rect: rect.toJSON() } : null,
+        previewOpen: document.querySelector('[data-preview-card]')?.matches(':popover-open'),
+      };
+    }, PREVIEW_LINK),
+  });
+};
+
 const closeAndRead = (page, selector, kind) =>
   page.evaluate(({ sel, kind: closeKind }) => {
     const el = document.querySelector(sel);
@@ -289,6 +339,7 @@ let proof = null;
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
+  const previewReceipt = await previewSetupReceipt(page);
   // Each mutation aims at one site, and the named-section site runs on its own
   // pages below, so this page takes every mode except those. Arming on the aim
   // rather than on a mode name keeps a newly added mutation from either missing
@@ -332,9 +383,15 @@ try {
   const previewLink = page.locator(PREVIEW_LINK);
   if ((await previewLink.count()) < 1) broken('the lesson paints no Glass Tide wikilink to open a card');
   await previewLink.hover();
-  await page.waitForFunction((sel) => document.querySelector(sel)?.matches(':popover-open'), PREVIEW, {
-    timeout: 4000,
-  });
+  try {
+    await page.waitForFunction((sel) => document.querySelector(sel)?.matches(':popover-open'), PREVIEW, {
+      timeout: 4000,
+    });
+  } catch (error) {
+    const receipt = await previewReceipt().catch((diagnosticError) => ({ unavailable: diagnosticError.message }));
+    console.error(`PREVIEW-HOVER-RECEIPT ${JSON.stringify(receipt)}`);
+    throw error;
+  }
   await waitSettled(page, PREVIEW);
   const previewExit = await closePreviewAsReader(page, PREVIEW);
   if (previewExit.error) broken(`preview close: ${previewExit.error}`);
