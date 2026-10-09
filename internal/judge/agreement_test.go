@@ -77,6 +77,7 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
 		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
+		{Name: "control/unused-text-address-escape", Body: "\\[[A]]\n\n[^unused]: words ^a\n"},
 		{Name: "control/multiple-section-code-fields", Body: "`open\n[[A#A]] [[A#A]] [[B#B]]\nclose`\n"},
 		{Name: "control/URL-separated-code", Body: "`open\n[[A]]\nclose`## A\nhttps://example.invalid/`[[A]]` ~~~~\n\ue0020\ue003"},
 		{Name: "control/terminal-comment-code", Body: "``[[A]] [[A]]## !\n[[A\nB]]``\\[[A]]```` go [[A]]\nÉ\n<!--"},
@@ -269,6 +270,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			fenceInfoObserved := false
 			var unusedAddresses map[string]int
 			unusedAddressesObserved := false
+			var unusedTextAddresses agreementUnusedTextAddresses
+			unusedTextAddressesObserved := false
 			var outerQuoteAddresses agreementQuoteAddresses
 			outerQuoteAddressesObserved := false
 			for failureIndex := range failures[i] {
@@ -466,6 +469,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						unusedAddressesObserved = true
 					}
 					classification, authority, wrong = agreementUnusedFootnoteAddressDifference(c, failure, unusedAddresses)
+				}
+				if classification == "" && failure.Property == "P3" {
+					if !unusedTextAddressesObserved {
+						unusedTextAddresses = agreementUnusedTextAddressBudget(c.Body)
+						unusedTextAddressesObserved = true
+					}
+					classification, authority, wrong = agreementUnusedTextAddressDifference(c, failure, unusedTextAddresses)
 				}
 				if classification == "" && failure.Property == "P3" {
 					if !outerQuoteAddressesObserved {
