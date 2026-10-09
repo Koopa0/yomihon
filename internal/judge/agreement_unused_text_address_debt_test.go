@@ -28,15 +28,16 @@ func agreementUnusedTextAddressBudget(body string) agreementUnusedTextAddresses 
 }
 
 func agreementUnusedAddressProfile(body string, grammar goldmark.Markdown, textOnly bool) agreementUnusedTextAddresses {
+	return agreementUnusedAddressReading(body, grammar, textOnly, false)
+}
+
+func agreementUnusedAddressReading(body string, grammar goldmark.Markdown, textOnly, unusedOpeners bool) agreementUnusedTextAddresses {
 	source := []byte(body)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	var unused []*extast.Footnote
 	context.Set(agreementUnusedFootnoteNodesKey, &unused)
 	doc := grammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
-		return agreementUnusedTextAddresses{}
-	}
 	addresses := make(map[string]int)
 	lines := make(map[string][]string)
 	for _, footnote := range unused {
@@ -65,6 +66,27 @@ func agreementUnusedAddressProfile(body string, grammar goldmark.Markdown, textO
 				}
 			}
 		}
+	}
+	contextSource := source
+	if unusedOpeners {
+		contextSource = bytes.Clone(source)
+		// A discarded paragraph cannot supply a live callout opener. Keep the
+		// original tree and offsets when checking markers outside that paragraph.
+		for _, footnote := range unused {
+			for node := footnote.FirstChild(); node != nil; node = node.NextSibling() {
+				for i := range node.Lines().Len() {
+					line := node.Lines().At(i)
+					for at := line.Start; at+1 < line.Stop; at++ {
+						if source[at] == '[' && source[at+1] == '!' {
+							contextSource[at], contextSource[at+1] = ' ', ' '
+						}
+					}
+				}
+			}
+		}
+	}
+	if !agreementPlainOpenerDeclarationMarkers(contextSource, doc) {
+		return agreementUnusedTextAddresses{}
 	}
 	all := make(map[string]int)
 	for line := range strings.SplitSeq(body, "\n") {
