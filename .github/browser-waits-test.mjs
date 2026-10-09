@@ -11,6 +11,8 @@ const plugins = (config.plugins || []).map((plugin) => resolve(root, typeof plug
 const diagnostic = 'support/arrival.mjs';
 const rejected = [
   ['async arrow', 'page.waitForFunction(async () => false);'],
+  ['bare async parameter', 'page.waitForFunction(async value => value);'],
+  ['parenthesized async', 'page.waitForFunction((async () => false));'],
   ['async function', 'page.waitForFunction(async function () { return false; }, null, { timeout: 3000 });'],
   ['named async function', 'page.waitForFunction(async function ready() { return false; });'],
   ['commented async arrow', 'page.waitForFunction(/* readiness */ async (value) => value);'],

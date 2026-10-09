@@ -1,9 +1,10 @@
 `$page.waitForFunction($args)` where {
     $args <: [$predicate, ...],
     $predicate <: or {
-        `async ($params) => $body`,
-        `async function ($params) { $body }`,
-        `async function $name($params) { $body }`,
+        contains `async ($params) => $body`,
+        contains `async $param => $body`,
+        contains `async function ($params) { $body }`,
+        contains `async function $name($params) { $body }`,
         contains `new Promise($promiseArgs)`,
         contains `Promise.$method($promiseArgs)`
     },
