@@ -107,7 +107,15 @@ func agreementDeclaredWrappedCode(body string) agreementWidgetCodeBudget {
 }
 
 func agreementDeclaredWidgetCode(body string, callout bool) agreementWidgetCodeBudget {
-	if strings.Contains(body, "://") {
+	return agreementWidgetCodeProfile(body, callout, false)
+}
+
+func agreementCodeFieldBudget(body string) agreementWidgetCodeBudget {
+	return agreementWidgetCodeProfile(body, false, true)
+}
+
+func agreementWidgetCodeProfile(body string, callout, fields bool) agreementWidgetCodeBudget {
+	if !fields && strings.Contains(body, "://") {
 		return agreementWidgetCodeBudget{}
 	}
 	source := []byte(body)
@@ -125,6 +133,7 @@ func agreementDeclaredWidgetCode(body string, callout bool) agreementWidgetCodeB
 		return agreementWidgetCodeBudget{}
 	}
 	budget := agreementWidgetCodeBudget{Citations: make(map[agreementCitation]int), LocalHeadings: make(map[string]int)}
+	invalid := false
 	if err := ast.Walk(owner, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if !entering {
 			return ast.WalkContinue, nil
@@ -156,6 +165,21 @@ func agreementDeclaredWidgetCode(body string, callout bool) agreementWidgetCodeB
 			}
 		}
 		for _, literal := range literals {
+			if fields {
+				links, complete := agreementLiteralCodeFields(literal)
+				if !complete {
+					invalid = true
+					return ast.WalkStop, nil
+				}
+				for _, link := range links {
+					if link.Target != "" {
+						budget.Citations[agreementCitation{Target: link.Target, Section: link.Heading, State: "wikilink-broken"}]++
+					} else {
+						budget.LocalHeadings[link.Heading]++
+					}
+				}
+				continue
+			}
 			for line := range strings.SplitSeq(literal, "\n") {
 				field := strings.TrimSpace(line)
 				inner, opened := strings.CutPrefix(field, "[[")
@@ -175,7 +199,7 @@ func agreementDeclaredWidgetCode(body string, callout bool) agreementWidgetCodeB
 	}); err != nil {
 		panic(err)
 	}
-	if len(budget.Citations) == 0 && len(budget.LocalHeadings) == 0 {
+	if invalid || len(budget.Citations) == 0 && len(budget.LocalHeadings) == 0 {
 		return agreementWidgetCodeBudget{}
 	}
 	return budget
