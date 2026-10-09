@@ -181,9 +181,11 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 	for start := 0; start < len(cases); start += 64 {
 		batch := cases[start:min(start+64, len(cases))]
 		observed := make([]agreementHTML, len(batch))
+		rendered := make([]string, len(batch))
 		failures := make([][]agreementFailure, len(batch))
 		for i, c := range batch {
 			result := page.HTML("Notes/Reading.md", c.Title, c.Body, wording.En)
+			rendered[i] = result.HTML
 			setup := agreementCapture(t, func(observer agreementTB) {
 				observed[i] = agreementObserve(observer, result.HTML)
 				if c.Title != "" {
@@ -258,6 +260,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			wrappedHeadingNamespaceObserved := false
 			var embedHeadingIDs map[string]bool
 			embedHeadingObserved := false
+			var codePayload agreementCodePayload
+			codePayloadObserved := false
 			var codeTargets map[string]int
 			var tailCodeTargets map[string]int
 			var urlCodeTargets map[string]int
@@ -544,6 +548,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						codeFieldsObserved = true
 					}
 					classification, authority, wrong = agreementWidgetCodeDifference(c, failure, codeFields, &observed[i])
+				}
+				if classification == "" && failure.Property == "P2" {
+					if !codePayloadObserved {
+						codePayload = agreementCodeWindowBudget(c.Body, rendered[i])
+						codePayloadObserved = true
+					}
+					classification, authority, wrong = agreementCodeWindowDifference(c, failure, &observed[i], codePayload)
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !exclusiveCodeObserved {
