@@ -182,10 +182,12 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 		batch := cases[start:min(start+64, len(cases))]
 		observed := make([]agreementHTML, len(batch))
 		rendered := make([]string, len(batch))
+		diagnostics := make([][]render.Diagnostic, len(batch))
 		failures := make([][]agreementFailure, len(batch))
 		for i, c := range batch {
 			result := page.HTML("Notes/Reading.md", c.Title, c.Body, wording.En)
 			rendered[i] = result.HTML
+			diagnostics[i] = result.Diagnostics
 			setup := agreementCapture(t, func(observer agreementTB) {
 				observed[i] = agreementObserve(observer, result.HTML)
 				if c.Title != "" {
@@ -221,6 +223,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			}
 			unusedTargets := agreementUnusedFootnoteTargets(c.Body)
 			var unusedTailTargets map[string]int
+			var sharedUnusedWidgets agreementUnusedWidgetPayload
+			sharedUnusedWidgetsObserved := false
 			var unusedWidgets agreementReferenceDestinations
 			unusedWidgetsObserved := false
 			unusedTailObserved := false
@@ -374,6 +378,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					}
 				}
 
+				if classification == "" && failure.Property == "P0" {
+					if !sharedUnusedWidgetsObserved {
+						sharedUnusedWidgets = agreementSharedUnusedWidgetBudget(c.Body)
+						sharedUnusedWidgetsObserved = true
+					}
+					classification, authority, wrong = agreementSharedUnusedDiagnosticDifference(c, failure, &observed[i], diagnostics[i], sharedUnusedWidgets)
+				}
 				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
 					if !commentMadeObserved {
 						commentMadeTargets = agreementCommentMadeFootnoteTargets(c.Body)
