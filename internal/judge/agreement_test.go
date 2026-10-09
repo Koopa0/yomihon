@@ -237,6 +237,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			unusedCodeWidgetsObserved := false
 			var unusedCodeCitations agreementUnusedCitationPayload
 			unusedCodeCitationsObserved := false
+			var nativeCheckOwners agreementNativeCheckPayload
+			nativeCheckOwnersObserved := false
 			var htmlFenceCitations agreementUnusedCitationPayload
 			htmlFenceCitationsObserved := false
 			var commentFootnoteCitations agreementUnusedCitationPayload
@@ -469,6 +471,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						unusedCodeCitationsObserved = true
 					}
 					classification, authority, wrong = agreementSharedUnusedCitationDifference(c, failure, &observed[i], unusedCodeCitations)
+				}
+				if classification == "" && failure.Property == "P1" {
+					if !nativeCheckOwnersObserved {
+						nativeCheckOwners = agreementNativeCheckBudget(c.Body)
+						nativeCheckOwnersObserved = true
+					}
+					classification, authority, wrong = agreementNativeCheckDifference(c, failure, &observed[i], nativeCheckOwners)
 				}
 				if classification == "" && failure.Property == "P1" {
 					if !htmlFenceCitationsObserved {
