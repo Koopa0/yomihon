@@ -233,6 +233,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			incompleteUnusedWidgetsObserved := false
 			var commentFootnoteWidgets agreementUnusedWidgetPayload
 			commentFootnoteWidgetsObserved := false
+			var htmlFenceCitations agreementUnusedCitationPayload
+			htmlFenceCitationsObserved := false
 			var commentFootnoteCitations agreementUnusedCitationPayload
 			commentFootnoteCitationsObserved := false
 			var sharedUnusedCitations agreementUnusedCitationPayload
@@ -449,6 +451,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						incompleteUnusedCitationsObserved = true
 					}
 					classification, authority, wrong = agreementSharedUnusedCitationDifference(c, failure, &observed[i], incompleteUnusedCitations)
+				}
+				if classification == "" && failure.Property == "P1" {
+					if !htmlFenceCitationsObserved {
+						htmlFenceCitations = agreementHTMLFenceBudget(c.Body)
+						htmlFenceCitationsObserved = true
+					}
+					classification, authority, wrong = agreementHTMLFenceDifference(c, failure, &observed[i], htmlFenceCitations)
 				}
 				if classification == "" && failure.Property == "P1" {
 					if !commentFootnoteCitationsObserved {
