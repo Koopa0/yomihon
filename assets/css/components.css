@@ -780,8 +780,8 @@ html:not([data-js]) .y-themebtn {
    choices, the text size, the keyboard explanation, the language and the theme
    — gather behind this button below 1281px. The row first ran out of room at
    938px, but unfolding there left a laptop-width reader with no control for
-   keeping a place. The #729 ruling keeps the panel through that band until
-   #884 H moves the action into the header row. The popover brings the
+   keeping a place. The panel keeps that action available until the wide
+   header row and reading rail are both drawn. The popover brings the
    browser's own light dismiss, Escape, and focus return with it.
 
    One width serves both languages, though the Traditional Chinese row holds

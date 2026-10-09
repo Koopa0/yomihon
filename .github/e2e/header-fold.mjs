@@ -358,7 +358,7 @@ try {
         broken(`${PAGE} carries no single ${selector}; this probe has to be driven against a note that offers to keep a reading place`);
       }
     }
-    // The folded panel covers the laptop band until #884 H replaces it.
+    // The folded panel covers the laptop band before the header unfolds.
     // Opening it must not leave a second copy drawn in the reading rail.
     if (MUTATE && MUTATIONS[MUTATE].phase === 'place-widths') await MUTATIONS[MUTATE].apply(page);
     for (const width of [937, 938, 1024, 1280, 1281, 1440]) {
