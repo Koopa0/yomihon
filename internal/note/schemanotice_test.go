@@ -125,7 +125,8 @@ func TestNotePageShowsTheFolderTheDomainRuleCompared(t *testing.T) {
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
 				Source: source, Status: writer.Authority, Snapshot: store.Current,
-				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log,
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log,
 			}).Register(mux)
 
 			for _, language := range []struct {
@@ -191,7 +192,8 @@ func TestNotePageKeepsCapturedDomainRoots(t *testing.T) {
 					current = secondStore.Current()
 					return captured
 				},
-				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log,
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log,
 			}).Register(mux)
 			for i, want := range tt.want {
 				rr := httptest.NewRecorder()

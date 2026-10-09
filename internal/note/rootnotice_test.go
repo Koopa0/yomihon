@@ -47,7 +47,7 @@ func TestRootReplacementReachesBothPagesInBothLanguages(t *testing.T) {
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
 		Source: reader, VaultName: shell.VaultName(reader.Name()), Status: writer.Authority,
-		Snapshot: func() *snapshot.Generation { return store.Current() }, ObservedStatus: writer.ObservedStatus,
+		Snapshot: func() *snapshot.Generation { return store.Current() }, RequestReconcile: func() {}, ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Continuation:   func() (mark.Continuation, bool) { return mark.Continuation{}, false }, Log: log,
 	}).Register(mux)

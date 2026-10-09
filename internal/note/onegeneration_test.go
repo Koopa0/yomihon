@@ -97,13 +97,14 @@ func TestTheMapIndexReadsOneGeneration(t *testing.T) {
 			t.Parallel()
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				Source:         sourceA,
-				Status:         writer.Authority,
-				Snapshot:       tt.published(),
-				ObservedStatus: writer.ObservedStatus,
-				ConsumeReceipt: writer.ConsumeReceipt,
-				Continuation:   noMark,
-				Log:            log,
+				Source:           sourceA,
+				Status:           writer.Authority,
+				Snapshot:         tt.published(),
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus,
+				ConsumeReceipt:   writer.ConsumeReceipt,
+				Continuation:     noMark,
+				Log:              log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)

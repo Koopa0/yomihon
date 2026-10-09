@@ -155,16 +155,17 @@ func newServerKeepingPlaces(
 	store, source := newSnapshotStore(t, root, log, contract, governance)
 	writer := openStatusWriter(t, source, contract, governance)
 	h := note.New(&note.Sources{
-		Source:         source,
-		Contract:       contract,
-		VaultName:      shell.VaultName(source.Name()),
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   kept,
-		MarkAddress:    markAddress,
-		Log:            log,
+		Source:           source,
+		Contract:         contract,
+		VaultName:        shell.VaultName(source.Name()),
+		Status:           writer.Authority,
+		Snapshot:         store.Current,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus,
+		ConsumeReceipt:   writer.ConsumeReceipt,
+		Continuation:     kept,
+		MarkAddress:      markAddress,
+		Log:              log,
 	})
 	h.Register(mux)
 	status.NewHandler(writer, func() nav.Shell { return nav.Shell{} }, log).Register(mux)
@@ -283,13 +284,14 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 
 	mux := http.NewServeMux()
 	handler := note.New(&note.Sources{
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Source:         source,
-		Status:         statusProvider,
-		Snapshot:       store.Current,
-		Log:            log,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus,
+		ConsumeReceipt:   writer.ConsumeReceipt,
+		Continuation:     noMark,
+		Source:           source,
+		Status:           statusProvider,
+		Snapshot:         store.Current,
+		Log:              log,
 	})
 	handler.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -378,13 +380,14 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				ObservedStatus: writer.ObservedStatus,
-				ConsumeReceipt: writer.ConsumeReceipt,
-				Continuation:   noMark,
-				Source:         source,
-				Status:         func() status.Authority { return authority },
-				Snapshot:       func() *snapshot.Generation { return captured },
-				Log:            log,
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus,
+				ConsumeReceipt:   writer.ConsumeReceipt,
+				Continuation:     noMark,
+				Source:           source,
+				Status:           func() status.Authority { return authority },
+				Snapshot:         func() *snapshot.Generation { return captured },
+				Log:              log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
@@ -475,13 +478,14 @@ func TestTheFolderIndexClosesTheLifecycleBlockForEitherAuthorityCaptureOrder(t *
 
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				ObservedStatus: writer.ObservedStatus,
-				ConsumeReceipt: writer.ConsumeReceipt,
-				Continuation:   noMark,
-				Source:         source,
-				Status:         func() status.Authority { return authority },
-				Snapshot:       func() *snapshot.Generation { return captured },
-				Log:            log,
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus,
+				ConsumeReceipt:   writer.ConsumeReceipt,
+				Continuation:     noMark,
+				Source:           source,
+				Status:           func() status.Authority { return authority },
+				Snapshot:         func() *snapshot.Generation { return captured },
+				Log:              log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
@@ -553,10 +557,11 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 	statusCaptures := 0
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Source:         source,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus,
+		ConsumeReceipt:   writer.ConsumeReceipt,
+		Continuation:     noMark,
+		Source:           source,
 		Status: func() status.Authority {
 			statusCaptures++
 			return writer.Authority()
@@ -1587,11 +1592,12 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 			calls := 0
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				ObservedStatus: writer.ObservedStatus,
-				ConsumeReceipt: writer.ConsumeReceipt,
-				Continuation:   noMark,
-				Source:         firstSource,
-				Status:         writer.Authority,
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus,
+				ConsumeReceipt:   writer.ConsumeReceipt,
+				Continuation:     noMark,
+				Source:           firstSource,
+				Status:           writer.Authority,
 				Snapshot: func() *snapshot.Generation {
 					calls++
 					return current.Swap(secondStore.Current())
@@ -1671,11 +1677,12 @@ func TestMissingPageKeepsCapturedGenerationWhenCurrentSwaps(t *testing.T) {
 			calls := 0
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				ObservedStatus: writer.ObservedStatus,
-				ConsumeReceipt: writer.ConsumeReceipt,
-				Continuation:   noMark,
-				Source:         firstSource,
-				Status:         writer.Authority,
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus,
+				ConsumeReceipt:   writer.ConsumeReceipt,
+				Continuation:     noMark,
+				Source:           firstSource,
+				Status:           writer.Authority,
 				Snapshot: func() *snapshot.Generation {
 					calls++
 					return current.Swap(secondStore.Current())
@@ -1732,11 +1739,12 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 			calls := 0
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				ObservedStatus: writer.ObservedStatus,
-				ConsumeReceipt: writer.ConsumeReceipt,
-				Continuation:   noMark,
-				Source:         source,
-				Status:         writer.Authority,
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus,
+				ConsumeReceipt:   writer.ConsumeReceipt,
+				Continuation:     noMark,
+				Source:           source,
+				Status:           writer.Authority,
 				Snapshot: func() *snapshot.Generation {
 					calls++
 					return store.Current()
@@ -1979,13 +1987,14 @@ body
 	}
 	mux := http.NewServeMux()
 	handler := note.New(&note.Sources{
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Source:         source,
-		Status:         requestStatus,
-		Snapshot:       store.Current,
-		Log:            log,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus,
+		ConsumeReceipt:   writer.ConsumeReceipt,
+		Continuation:     noMark,
+		Source:           source,
+		Status:           requestStatus,
+		Snapshot:         store.Current,
+		Log:              log,
 	})
 	handler.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -3165,6 +3174,11 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			want:  "note: New requires a non-nil Snapshot provider",
 		},
 		{
+			name:  "reconcile request provider",
+			clear: func(d *note.Sources) { d.RequestReconcile = nil },
+			want:  "note: New requires a non-nil RequestReconcile provider",
+		},
+		{
 			name:  "observed status provider",
 			clear: func(d *note.Sources) { d.ObservedStatus = nil },
 			want:  "note: New requires a non-nil ObservedStatus provider",
@@ -3204,13 +3218,14 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 			writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 			deps := note.Sources{
-				ObservedStatus: writer.ObservedStatus,
-				ConsumeReceipt: writer.ConsumeReceipt,
-				Continuation:   noMark,
-				Source:         source,
-				Status:         writer.Authority,
-				Snapshot:       store.Current,
-				Log:            log,
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus,
+				ConsumeReceipt:   writer.ConsumeReceipt,
+				Continuation:     noMark,
+				Source:           source,
+				Status:           writer.Authority,
+				Snapshot:         store.Current,
+				Log:              log,
 			}
 			tt.clear(&deps)
 			note.New(&deps)
@@ -3229,13 +3244,14 @@ func TestNewCopiesItsSources(t *testing.T) {
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 	deps := note.Sources{
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Source:         source,
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		Log:            log,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus,
+		ConsumeReceipt:   writer.ConsumeReceipt,
+		Continuation:     noMark,
+		Source:           source,
+		Status:           writer.Authority,
+		Snapshot:         store.Current,
+		Log:              log,
 	}
 	handler := note.New(&deps)
 	deps.Source = openReadingVault(t, t.TempDir())
@@ -3514,13 +3530,14 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 	store, source := newSnapshotStore(t, root, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source:         source,
-		Status:         func() status.Authority { return status.Authority{} },
-		Snapshot:       store.Current,
-		ObservedStatus: func(context.Context, string) (string, error) { return "", nil },
-		ConsumeReceipt: func(string, string) bool { return false },
-		Continuation:   noMark,
-		Log:            slog.New(slog.DiscardHandler),
+		Source:           source,
+		Status:           func() status.Authority { return status.Authority{} },
+		Snapshot:         store.Current,
+		RequestReconcile: func() {},
+		ObservedStatus:   func(context.Context, string) (string, error) { return "", nil },
+		ConsumeReceipt:   func(string, string) bool { return false },
+		Continuation:     noMark,
+		Log:              slog.New(slog.DiscardHandler),
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

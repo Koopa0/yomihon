@@ -56,8 +56,9 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 			current := store.Current()
 			handler := note.New(&note.Sources{
 				Source: source, Status: writer.Authority,
-				Snapshot:       func() *snapshot.Generation { return current },
-				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+				Snapshot:         func() *snapshot.Generation { return current },
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
 				Continuation: noMark, Uncertainties: marks.Uncertainties,
 				UncertaintyAddress: mark.UncertaintyAddress, Log: log,
 			})
@@ -201,7 +202,8 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 					}
 					return first.Current()
 				},
-				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+				RequestReconcile: func() {},
+				ObservedStatus:   writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
 				Continuation: noMark, Uncertainties: marks.Uncertainties,
 				UncertaintyAddress: mark.UncertaintyAddress, Log: log,
 			})
@@ -290,8 +292,9 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	current := store.Current()
 	handler := note.New(&note.Sources{
 		Source: source, Status: writer.Authority,
-		Snapshot:       func() *snapshot.Generation { return current },
-		ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+		Snapshot:         func() *snapshot.Generation { return current },
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
 		Continuation: noMark, Uncertainties: marks.Uncertainties,
 		UncertaintyAddress: mark.UncertaintyAddress, Log: log,
 	})

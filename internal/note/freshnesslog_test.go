@@ -41,13 +41,14 @@ func newFreshnessLogFixture(t *testing.T, root string) *freshnessLogFixture {
 		published: store.Current(),
 	}
 	note.New(&note.Sources{
-		Source:         source,
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Log:            slog.New(slog.NewJSONHandler(&f.written, nil)),
+		Source:           source,
+		Status:           writer.Authority,
+		Snapshot:         store.Current,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus,
+		ConsumeReceipt:   writer.ConsumeReceipt,
+		Continuation:     noMark,
+		Log:              slog.New(slog.NewJSONHandler(&f.written, nil)),
 	}).Register(f.mux)
 	return f
 }
