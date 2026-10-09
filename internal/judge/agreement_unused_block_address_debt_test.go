@@ -59,6 +59,13 @@ func agreementUnusedBlockMarkerContext(source []byte, doc ast.Node, nodes []ast.
 
 func agreementUnusedBlockAddressReading(body string, grammar goldmark.Markdown) agreementUnusedTextAddresses {
 	source, doc, nodes := agreementUnusedBlockDeclarations(body, grammar)
+	if !agreementUnusedBlockMarkerContext(source, doc, nodes) {
+		return agreementUnusedTextAddresses{}
+	}
+	return agreementUnusedBlockAddressSources(body, source, nodes)
+}
+
+func agreementUnusedBlockAddressSources(body string, source []byte, nodes []ast.Node) agreementUnusedTextAddresses {
 	addresses := make(map[string]int)
 	lines := make(map[string][]string)
 	for _, node := range nodes {
@@ -75,9 +82,6 @@ func agreementUnusedBlockAddressReading(body string, grammar goldmark.Markdown) 
 		}
 	}
 
-	if !agreementUnusedBlockMarkerContext(source, doc, nodes) {
-		return agreementUnusedTextAddresses{}
-	}
 	all := make(map[string]int)
 	for line := range strings.SplitSeq(body, "\n") {
 		if address := render.BlockAddress(strings.TrimSuffix(line, "\r")); address != "" {
