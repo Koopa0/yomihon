@@ -1,4 +1,15 @@
-`$page.waitForFunction($args)` where {
+or {
+    `$page.waitForFunction($args)`,
+    `$page?.waitForFunction($args)`,
+    `$page.waitForFunction?.($args)`,
+    `$page?.waitForFunction?.($args)`,
+    `$page["waitForFunction"]($args)`,
+    `$page['waitForFunction']($args)`,
+    `$page?.["waitForFunction"]($args)`,
+    `$page["waitForFunction"]?.($args)`,
+    `$page?.["waitForFunction"]?.($args)`,
+    `($page.waitForFunction)($args)`
+} where {
     $args <: [$predicate, ...],
     $predicate <: or {
         contains `async ($params) => $body`,
