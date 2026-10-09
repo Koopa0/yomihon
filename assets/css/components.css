@@ -5975,8 +5975,10 @@ samp,
 
 /* Half the page's width per note, so the reading measure gives back what the
    note page spends on a gutter it no longer has room for. */
-.y-compare__column .y-article {
-  --article-gutter: 28px;
+@media (min-width: 1101px) {
+  .y-compare__column .y-article {
+    --gutter-read: 28px;
+  }
 }
 
 /* The aids fold inline inside every column at every width: the right rail that
