@@ -500,6 +500,15 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 		withhold(&mapBlock.Shelf)
 	}
 	reportBlock := deskBlock(&reportIndex, wording.DeskReportsLede.In(lang))
+	// The desk has only three ways in; an attachment-only folder must not
+	// displace a folder with notes. The full index keeps every folder.
+	var readableFolders []nav.Folder
+	for _, folder := range model.ShelfFolders() {
+		if countNotes(folder.Notes, folder.Subfolders) > 0 {
+			readableFolders = append(readableFolders, folder)
+		}
+	}
+	folderIndex.Shelf.Rows = folderRows(model.RootNotes(), readableFolders, lang, true, articleLang)
 	folderBlock := deskBlock(&folderIndex, wording.DeskFoldersLede.In(lang))
 	// A plain folder already has a way to read. Put it before the modes whose
 	// organisation the reader has not declared; a present contract keeps its
@@ -542,8 +551,8 @@ func withhold(s *Shelf) {
 // something the page did not, which is the one disagreement this arrangement
 // exists to make impossible.
 //
-// The block and the page share the rows rather than copying them, which is
-// what makes the two the same shelf rather than two shelves that agree today.
+// Except for the desk's zero-note folder cut, the block and page share rows,
+// which makes the two the same shelf rather than two shelves that agree today.
 // The rows are read-only by the shelf's own contract, and both views are built
 // for one request from a projection the model already handed over as a copy.
 func deskBlock(index *ListIndexView, lede string) DeskBlock {
