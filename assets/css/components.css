@@ -816,15 +816,20 @@ html:not([data-js]) .y-themebtn {
   color: inherit;
 }
 
+/* Folded, the six are a menu rather than a row of marks: one 36px row each,
+   the control's name on the left and what it shows now on the right — the
+   size, the language it switches to, the theme's sun or moon. The name is the
+   words the control is already announced by, so what is seen and what is heard
+   are one string, and a size the script renames is renamed here too. */
 .y-headerfold:popover-open {
-  align-items: center;
+  align-items: stretch;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-2);
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: 0;
   inset: calc(var(--header-height) + 4px) 8px auto auto;
   margin: 0;
   /* As wide as the window allows up to the width of the narrowest phone this
@@ -834,21 +839,9 @@ html:not([data-js]) .y-themebtn {
      counts that column too, and a panel sized from it would hang off the far
      edge by exactly the scrollbar's width. */
   max-width: min(360px, calc(100% - 16px));
-  padding: 10px;
-  position: fixed;
-}
-
-/* Folded, the six are a menu rather than a row of marks: one 36px row each,
-   the control's name on the left and what it shows now on the right — the
-   size, the language it switches to, the theme's sun or moon. The name is the
-   words the control is already announced by, so what is seen and what is heard
-   are one string, and a size the script renames is renamed here too. */
-.y-headerfold:popover-open {
-  align-items: stretch;
-  flex-direction: column;
-  gap: 0;
   min-width: 248px;
   padding: 6px;
+  position: fixed;
 }
 
 /* Each row keeps the display its control already has — a link becomes a block
@@ -6403,10 +6396,7 @@ samp,
     --border-strong: #888;
     --border-faint: #ddd;
     --accent: #000;
-    --accent-strong: #000;
     --accent-muted: transparent;
-    --accent-faint: transparent;
-    --on-accent: #fff;
     --link: #000;
     --warn: #000;
     --warn-bg: transparent;
@@ -6416,8 +6406,6 @@ samp,
     --error-bg: transparent;
     --sage: #000;
     --sage-bg: transparent;
-    --success: #000;
-    --success-bg: transparent;
   }
 
   /* A notice about a fault prints as its words. The box around it on screen

@@ -44,10 +44,7 @@
      a status is the author's word and not the reader's. The official mark's
      fixed obi draws the same red but does not consume this theme token. ---- */
   --accent: oklch(0.470 0.175 33);
-  --accent-strong: oklch(0.400 0.165 33);
   --accent-muted: oklch(0.550 0.180 33 / 0.12);
-  --accent-faint: oklch(0.550 0.180 33 / 0.06);
-  --on-accent: oklch(0.985 0.003 106);
   --link: oklch(0.470 0.150 33);
 
   /* ---- Honest diagnostics — muted ochre, never angry red (金繼ぎ) ---- */
@@ -64,9 +61,6 @@
   --sage: oklch(0.450 0.060 145);
   --sage-bg: oklch(0.560 0.055 145 / 0.11);
 
-  --success: oklch(0.520 0.130 155);
-  --success-bg: oklch(0.520 0.130 155 / 0.10);
-
   /* ---- Slot-machine colours — the 8 grammatical roles. Each coloured
      element reads --c; the .y-slot-<token> class only assigns it, so one token
      tints a slot's select border, its surface, and its ruby together. Muted so
@@ -81,8 +75,6 @@
   --slot-time: oklch(0.560 0.095 45);
   --slot-verb: oklch(0.505 0.095 150);
   --slot-num: oklch(0.520 0.120 350);
-
-  --shadow-1: 0 2px 8px -2px oklch(0.30 0.02 107 / 0.10), 0 1px 2px oklch(0.30 0.02 107 / 0.07);
   --shadow-2: 0 18px 40px -12px oklch(0.28 0.02 107 / 0.18), 0 4px 12px oklch(0.28 0.02 107 / 0.10);
 
   color-scheme: light;
@@ -103,10 +95,7 @@
   --fg-faint: var(--fg-subtle);
 
   --accent: oklch(0.820 0.150 34);
-  --accent-strong: oklch(0.880 0.130 34);
   --accent-muted: oklch(0.660 0.170 34 / 0.16);
-  --accent-faint: oklch(0.660 0.170 34 / 0.07);
-  --on-accent: oklch(0.150 0.010 60);
   --link: oklch(0.740 0.150 34);
 
   --warn: oklch(0.860 0.120 82);
@@ -119,9 +108,6 @@
   --sage: oklch(0.820 0.065 148);
   --sage-bg: oklch(0.680 0.060 148 / 0.13);
 
-  --success: oklch(0.740 0.120 155);
-  --success-bg: oklch(0.740 0.120 155 / 0.14);
-
   /* Slot roles, brightened for the dark ink-stone (same hues as light). */
   --slot-topic: oklch(0.780 0.120 250);
   --slot-pred: oklch(0.800 0.115 65);
@@ -131,8 +117,6 @@
   --slot-time: oklch(0.810 0.090 45);
   --slot-verb: oklch(0.795 0.090 150);
   --slot-num: oklch(0.790 0.115 350);
-
-  --shadow-1: 0 2px 8px -2px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
   --shadow-2: 0 18px 40px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.45);
 
   color-scheme: dark;
@@ -160,10 +144,7 @@
     --fg-faint: var(--fg-subtle);
 
     --accent: oklch(0.820 0.150 34);
-    --accent-strong: oklch(0.880 0.130 34);
     --accent-muted: oklch(0.660 0.170 34 / 0.16);
-    --accent-faint: oklch(0.660 0.170 34 / 0.07);
-    --on-accent: oklch(0.150 0.010 60);
     --link: oklch(0.740 0.150 34);
 
     --warn: oklch(0.860 0.120 82);
@@ -176,9 +157,6 @@
     --sage: oklch(0.820 0.065 148);
     --sage-bg: oklch(0.680 0.060 148 / 0.13);
 
-    --success: oklch(0.740 0.120 155);
-    --success-bg: oklch(0.740 0.120 155 / 0.14);
-
     /* Slot roles, brightened for the dark ink-stone (same hues as light). */
     --slot-topic: oklch(0.780 0.120 250);
     --slot-pred: oklch(0.800 0.115 65);
@@ -188,8 +166,6 @@
     --slot-time: oklch(0.810 0.090 45);
     --slot-verb: oklch(0.795 0.090 150);
     --slot-num: oklch(0.790 0.115 350);
-
-    --shadow-1: 0 2px 8px -2px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
     --shadow-2: 0 18px 40px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.45);
 
     color-scheme: dark;
@@ -254,11 +230,9 @@
   --fw-regular: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
-  --fw-bold: 700;
 
   /* Line heights */
   --lh-tight: 1.15;
-  --lh-snug: 1.35;
   --lh-normal: 1.5;
   --lh-read: 1.8;   /* CJK prose floor (≥1.8) */
   --lh-cjk: 2;      /* ruby-safe reading measure */
@@ -280,9 +254,7 @@
 
   /* Tracking is never positive. A heading in Latin letters may close up a
      little; Han and kana are never tracked, either way. */
-  --track-tight: -0.025em;
   --track-snug: -0.015em;
-  --track-normal: 0;
 
   /* Lines and washes. Every one is the reading ink at a fixed share of
      itself, so a hairline over the paper and a hairline over a panel are the
@@ -300,7 +272,6 @@
   --r-sm: 6px;
   --r-md: 8px;
   --r-lg: 12px;
-  --r-xl: 16px;
 
   /* Overlay mask — the wash behind a dialog, sheet or drawer. One value for
      every kind of overlay rather than one per component: a reader dismissing
