@@ -25,7 +25,7 @@ const CONCEPT = 'Concepts/japanese/は.md';
 const SLOT = '.y-slotcard [data-uncertainty-control] button';
 const SHEET = '[data-concept-sheet][open] [data-uncertainty-control] button';
 
-const SITES = ['slot-mark-survives-reload', 'concept-mark-names-its-source', 'lost-mark-removes-original-pair'];
+const SITES = ['slot-mark-survives-reload', 'concept-mark-names-its-source', 'lost-mark-removes-original-pair', 'section-mark-survives-reload'];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -59,6 +59,10 @@ const rewriteModule = (needle, replacement, label) => async (page) => {
 };
 
 const MUTATIONS = {
+  'drop-contents-controls': {
+    target: 'section-mark-survives-reload',
+    apply: rewriteModule("list.querySelectorAll('.y-toc__row')", "list.querySelectorAll('.no-uncertainty-sections')", 'the contents-row controls'),
+  },
   'lost-removal-stays-disabled': {
     target: 'lost-mark-removes-original-pair',
     apply: rewriteModule('button.disabled = !available || !keys.has(key);', 'button.disabled = true;', 'the initial stored-pair removal gate'),
@@ -165,7 +169,7 @@ const clearMarks = async () => {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  const context = await browser.newContext({ viewport: PHONE });
+  const context = await browser.newContext({ viewport: PHONE, hasTouch: true });
   const page = await context.newPage();
   const proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : () => '';
   mutationProof = proof;
@@ -194,6 +198,70 @@ try {
   await settle(page, 'slot-mark-survives-reload', SLOT, false, 'after the second press');
   held = await records(page);
   if (held.length !== 0) fail('slot-mark-survives-reload', `a second press left ${JSON.stringify(held)}, want none`);
+
+  // A contents entry keeps the note's section, with both copies sharing state.
+  const sectionButton = '.y-toc-inline .y-toc__row:first-child .y-toc__uncertainty';
+  if (await page.locator(sectionButton).count() !== 1) {
+    fail('section-mark-survives-reload', 'caught: the first contents entry has no uncertainty toggle');
+  }
+  const statusCounts = await page.locator('.y-toc__list').evaluateAll(lists => lists.map(list => list.querySelectorAll('.y-uncertainty__said[role="status"]').length));
+  if (statusCounts.some(count => count !== 1)) fail('section-mark-survives-reload', `contents status owners = ${JSON.stringify(statusCounts)}, want one per list`);
+  const sectionHref = await page.locator('.y-toc-inline .y-toc__row:first-child > a').getAttribute('href');
+  const sectionAnchor = decodeURIComponent(sectionHref.slice(1));
+  const returnFragment = `#${encodeURIComponent(sectionAnchor)}`;
+  owned.push({ path: LESSON, anchor: sectionAnchor });
+  await page.locator('.y-toc-inline').evaluate(element => { element.open = true; });
+  await ready(page, sectionButton);
+  const stableName = await page.locator(sectionButton).getAttribute('aria-label');
+  const sectionWords = await page.locator('.y-toc-inline .y-toc__row:first-child > a').textContent();
+  if (!stableName?.includes(sectionWords)) fail('section-mark-survives-reload', 'the toggle does not name its section');
+  await page.locator(sectionButton).waitFor({ state: 'visible', timeout: 4000 });
+  const touchWidth = await page.locator(sectionButton).evaluate(element => element.getBoundingClientRect().width);
+  if (touchWidth < 44) fail('section-mark-survives-reload', `the touch toggle is only ${touchWidth}px wide`);
+  await page.locator(sectionButton).click();
+  await settle(page, 'section-mark-survives-reload', sectionButton, true, 'section after press');
+  held = await records(page);
+  if (held.length !== 1 || held[0].path !== LESSON || held[0].anchor !== sectionAnchor) {
+    fail('section-mark-survives-reload', `caught: contents press stored ${JSON.stringify(held)}`);
+  }
+  const twins = await page.locator('.y-toc__row .y-toc__uncertainty').evaluateAll((buttons, name) => buttons.filter(button => button.getAttribute('aria-label') === name).map(button => button.getAttribute('aria-pressed')), stableName);
+  if (twins.length !== 2 || twins.some(value => value !== 'true')) fail('section-mark-survives-reload', `caught: section copies disagree: ${JSON.stringify(twins)}`);
+  await page.reload({ waitUntil: 'load' });
+  await settle(page, 'section-mark-survives-reload', sectionButton, true, 'section after reload');
+  if (await page.locator(sectionButton).getAttribute('aria-label') !== stableName) fail('section-mark-survives-reload', 'the section name changed with its pressed state');
+  await page.goto(BASE + '/', { waitUntil: 'load' });
+  if (await page.locator(`[data-desk-item][href$="${returnFragment}"]`).count() !== 1) fail('section-mark-survives-reload', 'caught: the kept section has no Home return row');
+  await page.goto(BASE + '/open-thoughts', { waitUntil: 'load' });
+  const markedRow = page.locator(`[data-index-row][href$="${returnFragment}"]`);
+  if (await markedRow.count() !== 1) fail('section-mark-survives-reload', 'caught: the kept section has no return row');
+  await page.goto(BASE + PAGE, { waitUntil: 'load' });
+  await settle(page, 'section-mark-survives-reload', sectionButton, true, 'section on return');
+  await page.locator('.y-toc-inline').evaluate(element => { element.open = true; });
+  await page.locator(sectionButton).click();
+  await settle(page, 'section-mark-survives-reload', sectionButton, false, 'section after clearing');
+  if ((await records(page)).length !== 0) fail('section-mark-survives-reload', 'clearing the section left a mark');
+  await page.goto(BASE + '/open-thoughts', { waitUntil: 'load' });
+  if (await page.locator(`[data-index-row][href$="${returnFragment}"]`).count() !== 0) fail('section-mark-survives-reload', 'the cleared section is still listed');
+  await page.goto(BASE + PAGE, { waitUntil: 'load' });
+  await ready(page, SLOT);
+
+  // The second comparison column must store its own unqualified section.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(BASE + '/compare/Notes/cutover.md?with=Writing%2Flessons%2Fjapanese%2FL01.md', { waitUntil: 'load' });
+  const comparedButton = '#compare-b .y-toc__row:first-child .y-toc__uncertainty';
+  await ready(page, comparedButton);
+  const qualified = decodeURIComponent((await page.locator('#compare-b .y-toc__row:first-child > a').getAttribute('href')).slice(1));
+  if (!qualified.startsWith('b-')) throw new ProbeBroken('BROKEN uncertainty-marks: comparison fixture has no qualified second-column heading');
+  await page.locator('#compare-b .y-toc-inline').evaluate(element => { element.open = true; });
+  await page.locator(comparedButton).click();
+  await settle(page, 'section-mark-survives-reload', comparedButton, true, 'second comparison column');
+  held = await records(page);
+  if (held.length !== 1 || held[0].path !== LESSON || held[0].anchor !== qualified.slice(2)) fail('section-mark-survives-reload', `caught: comparison section stored ${JSON.stringify(held)}`);
+  await page.locator(comparedButton).click();
+  await settle(page, 'section-mark-survives-reload', comparedButton, false, 'clearing comparison section');
+  await page.setViewportSize(PHONE);
+  await page.goto(BASE + PAGE, { waitUntil: 'load' });
+  await ready(page, SLOT);
 
   // --- A concept-sheet mark names the concept's own note -----------------
   await page.locator('[data-concept][href*="#"]').first().click();
@@ -275,7 +343,39 @@ try {
   }
   if ((await records(page)).length !== 0) fail('lost-mark-removes-original-pair', 'native removal left the original pair stored');
   await context.close();
-  console.log('PASS uncertainty-marks: a phone-width slot mark survives a reload and clears; a concept mark names its own note; lost-pair removal remains usable at both widths, languages, and themes');
+
+  const fine = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await fine.addCookies([{ name: 'yomihon_lang', value: 'en', url: BASE }]);
+  const desktop = await fine.newPage();
+  await desktop.goto(BASE + PAGE, { waitUntil: 'load' });
+  const railButton = '.y-rail-right .y-toc__row:first-child .y-toc__uncertainty';
+  await ready(desktop, railButton);
+  const opacity = () => desktop.locator(railButton).evaluate(button => getComputedStyle(button).opacity);
+  if (await opacity() !== '0') fail('section-mark-survives-reload', 'an unpressed fine-pointer toggle is drawn at rest');
+  await desktop.locator('.y-rail-right .y-toc__row:first-child').hover();
+  if (await opacity() !== '1') fail('section-mark-survives-reload', 'hover does not reveal the section toggle');
+  await desktop.mouse.move(0, 0);
+  await desktop.locator('.y-rail-right .y-toc__row:first-child > a').focus();
+  for (let tab = 0; tab < 2; tab += 1) {
+    await desktop.keyboard.press('Tab');
+    if (await desktop.locator(railButton).evaluate(button => button === document.activeElement)) break;
+  }
+  if (!(await desktop.locator(railButton).evaluate(button => button === document.activeElement)) || await opacity() !== '1') fail('section-mark-survives-reload', 'Tab cannot reach a visible section toggle');
+  const name = await desktop.locator(railButton).getAttribute('aria-label');
+  if (!name.startsWith('Not sure yet: ')) fail('section-mark-survives-reload', 'the English section toggle does not use the interface language');
+  await desktop.keyboard.press('Enter');
+  await settle(desktop, 'section-mark-survives-reload', railButton, true, 'keyboard section press');
+  await desktop.locator('.y-brand__name').focus();
+  if (await opacity() !== '1') fail('section-mark-survives-reload', 'a pressed section toggle disappears at rest');
+  await desktop.locator(railButton).click();
+  await settle(desktop, 'section-mark-survives-reload', railButton, false, 'clearing keyboard section press');
+  await fine.close();
+  const noScript = await browser.newContext({ javaScriptEnabled: false });
+  const plain = await noScript.newPage();
+  await plain.goto(BASE + PAGE, { waitUntil: 'load' });
+  if (await plain.locator('.y-toc__uncertainty').count() !== 0 || await plain.locator('.y-toc__list a').count() === 0) fail('section-mark-survives-reload', 'without script the contents lost its links or gained inert marking controls');
+  await noScript.close();
+  console.log('PASS uncertainty-marks: phone-width slot and section marks survive reloads and clear; section copies stay in sync and comparison anchors name their own note; a concept mark names its own note; lost-pair removal remains usable at both widths, languages, and themes');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

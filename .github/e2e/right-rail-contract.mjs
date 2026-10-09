@@ -336,7 +336,10 @@ try {
         fail(`Tab order did not reach status control ${i + 1} at 1600×${height}`);
       }
     }
-    await tocLinks.last().focus();
+    // Section marks are native buttons after the row's links. Start at the
+    // outline's last enabled control, so the next Tab still proves it hands
+    // on to the rest of the rail rather than stopping on the new toggle.
+    await rail.locator('.y-toc__list a[href], .y-toc__list button:not(:disabled)').last().focus();
     await page.keyboard.press('Tab');
     const wentOn = await rail.evaluate((element) => {
       const active = document.activeElement;
@@ -363,7 +366,8 @@ try {
   }
 
   // Case: the section doors. One heading stays one row with its door at the
-  // row's end inside it; the door is drawn on hover and on focus, and always
+  // row's end inside it, before an offered section toggle; the door is drawn
+  // on hover and on focus, and always
   // where there is no hover, without widening the phone. Where a pointer can
   // reveal it, it takes no width of its own, so the heading's link runs the
   // whole row and a long heading wraps where it would with no door at all.
@@ -386,13 +390,16 @@ try {
         const box = (element) => element.getBoundingClientRect();
         const link = row.firstElementChild;
         const door = row.querySelector('.y-toc__door');
-        return { row: box(row), link: box(link), door: box(door), opacity: getComputedStyle(door).opacity, doors: row.querySelectorAll('.y-toc__door').length };
+        const mark = row.querySelector('.y-toc__uncertainty');
+        return { row: box(row), link: box(link), door: box(door), mark: mark ? box(mark) : null, opacity: getComputedStyle(door).opacity, doors: row.querySelectorAll('.y-toc__door').length };
       });
       if (shape.doors !== 1) broken(`contents row ${i + 1} holds ${shape.doors} doors, want 1`);
       if (shape.row.height > shape.link.height + 1) {
         failDoor(`contents row ${i + 1} is ${shape.row.height}px tall around a ${shape.link.height}px heading link, so its door is a row of its own`);
       }
-      if (!(shape.door.left >= shape.row.left && shape.door.right <= shape.row.right + 1 && shape.door.right >= shape.row.right - 1 && shape.door.top >= shape.row.top - 1 && shape.door.bottom <= shape.row.bottom + 1)) {
+      const end = shape.mark ? shape.mark.left : shape.row.right;
+      if (shape.mark && !(Math.abs(shape.mark.right - shape.row.right) <= 1 && shape.mark.top >= shape.row.top - 1 && shape.mark.bottom <= shape.row.bottom + 1)) failDoor(`contents row ${i + 1} does not hold its section toggle at the row's end: ${JSON.stringify(shape)}`);
+      if (!(shape.door.left >= shape.row.left && Math.abs(shape.door.right - end) <= 1 && shape.door.top >= shape.row.top - 1 && shape.door.bottom <= shape.row.bottom + 1)) {
         failDoor(`contents row ${i + 1} does not hold its door at the row's end: ${JSON.stringify(shape)}`);
       }
       if (shape.link.width < shape.row.width - 1) {
@@ -429,7 +436,8 @@ try {
       // The fold cuts off what is inside it, so a door pushed past the phone is
       // lost without the document growing; its own edge is measured too.
       const door = document.querySelector('.y-toc-inline .y-toc__door').getBoundingClientRect();
-      return { coarse: matchMedia('(pointer: coarse)').matches, overflow: Math.max(document.documentElement.scrollWidth - viewport, door.right - viewport) };
+      const mark = document.querySelector('.y-toc-inline .y-toc__uncertainty')?.getBoundingClientRect();
+      return { coarse: matchMedia('(pointer: coarse)').matches, overflow: Math.max(document.documentElement.scrollWidth - viewport, door.right - viewport, mark ? mark.right - viewport : 0) };
     });
     if (!coarse.coarse) broken('the phone context does not report a coarse pointer');
     if (await inline.evaluate((element) => getComputedStyle(element).opacity) !== '1') failDoor('under a coarse pointer the door is not drawn without a hover');

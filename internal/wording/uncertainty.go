@@ -38,3 +38,6 @@ var UncertaintyNoteNotFound = both("找不到這篇筆記", "Note not found")
 
 // UncertaintyPlaceNotFound names a stored place absent from its current note.
 var UncertaintyPlaceNotFound = both("找不到這個位置", "Place not found")
+
+// UncertaintySectionFmt gives the contents toggle its stable accessible name.
+var UncertaintySectionFmt = both("還不確定：{section}", "Not sure yet: {section}")
