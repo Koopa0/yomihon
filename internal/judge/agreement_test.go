@@ -298,6 +298,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			embedHeadingObserved := false
 			var codePayload agreementCodePayload
 			codePayloadObserved := false
+			var blockCodePayload agreementCodePayload
+			blockCodePayloadObserved := false
 			var markerCodePayload agreementCodePayload
 			markerCodePayloadObserved := false
 			var embedCodePayload agreementCodePayload
@@ -749,6 +751,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					if classification == "" {
 						classification, authority, wrong = agreementCodeCitationDifference(c, failure, &observed[i], markerCodePayload)
 					}
+				}
+				if classification == "" && failure.Property == "P2" {
+					if !blockCodePayloadObserved {
+						blockCodePayload = agreementBlockCodeWindowBudget(c.Body, rendered[i])
+						blockCodePayloadObserved = true
+					}
+					classification, authority, wrong = agreementCodeWindowDifference(c, failure, &observed[i], blockCodePayload)
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !exclusiveCodeObserved {
