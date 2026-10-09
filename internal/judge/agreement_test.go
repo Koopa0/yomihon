@@ -451,12 +451,15 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					}
 					classification, authority, wrong = agreementWidgetCodeDifference(c, failure, codeFields, &observed[i])
 				}
-				if classification == "" && failure.Property == "P2" {
+				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !exclusiveCodeObserved {
 						exclusiveCode = agreementExclusiveCodeBudget(c.Body)
 						exclusiveCodeObserved = true
 					}
 					classification, authority, wrong = agreementExclusiveCodeDifference(c, failure, exclusiveCode)
+					if classification == "" {
+						classification, authority, wrong = agreementExclusiveCodeCitationDifference(c, failure, &observed[i], exclusiveCode)
+					}
 				}
 				if classification == "" && failure.Property == "P1" {
 					if !continuationObserved {
