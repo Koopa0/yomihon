@@ -43,7 +43,7 @@ func agreementUnusedParagraphZones(body string, grammar goldmark.Markdown) []gra
 	return spans
 }
 
-func agreementExclusiveUnusedDiagnostics(body string) map[agreementCitation]int {
+func agreementExclusiveUnusedFieldBudget(body string) map[agreementCitation]int {
 	if !strings.Contains(body, "[^") {
 		return nil
 	}
@@ -101,7 +101,7 @@ func TestAgreementExclusiveUnusedDiagnostics(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			budget := agreementExclusiveUnusedDiagnostics(tc.body)
+			budget := agreementExclusiveUnusedFieldBudget(tc.body)
 			if diff := cmp.Diff(tc.want, budget); diff != "" {
 				t.Fatalf("caught: exclusive unused diagnostic inventory (-want +got):\n%s", diff)
 			}
