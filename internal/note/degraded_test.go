@@ -258,3 +258,48 @@ func healthBlockedSection(t *testing.T, page string) string {
 	t.Helper()
 	return healthSectionBody(t, page, "讀不進來的檔案")
 }
+
+func TestBlockedFolderNotePage(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for _, rel := range []string{"Closed/x.md", "Closed/a/x.md", "Closedx/x.md"} {
+		file := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(file), 0o750); err != nil { // #nosec G301 -- fixture directories need search permission
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, []byte("# Reading\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	folder := filepath.Join(root, "Closed")
+	if err := os.Chmod(folder, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(folder, 0o750); err != nil { // #nosec G302 -- restore fixture directory search permission
+			t.Error(err)
+		}
+	})
+	if _, err := os.ReadFile(filepath.Join(folder, "x.md")); err == nil { // #nosec G304 -- fixture-owned permission probe
+		t.Skip("directory permissions do not deny reads here")
+	}
+	srv := newServer(t, root)
+	for _, rel := range []string{"Closed/x.md", "Closed/a/x.md"} {
+		code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
+		if code == http.StatusNotFound {
+			t.Errorf("%s: blocked folder answered 404", rel)
+		}
+		if !strings.Contains(page, "<code>Closed</code>") {
+			t.Errorf("%s: repair does not name blocked folder Closed", rel)
+		}
+		if strings.Contains(page, wording.NothingHere.In(wording.ZhHant)) {
+			t.Errorf("%s: page claims absence", rel)
+		}
+	}
+	if code, _ := get(t, srv.Client(), srv.URL+"/notes/Closedx/x.md"); code != http.StatusOK {
+		t.Errorf("sibling status = %d, want 200", code)
+	}
+	if code, _ := get(t, srv.Client(), srv.URL+"/notes/Closedx/missing.md"); code != http.StatusNotFound {
+		t.Errorf("missing sibling status = %d, want 404", code)
+	}
+}

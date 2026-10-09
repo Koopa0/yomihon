@@ -8,14 +8,16 @@ import (
 // NotFoundView is what a reader who asked for something that is not here needs
 // to see. Asked is the path they typed, echoed back escaped like any other note
 // text. Unreadable distinguishes a file that exists and could not be read from a
-// path that names nothing. ParsePanic says its bytes opened but could not be
+// path that names nothing. BlockedFolder names the unreadable ancestor that
+// prevents establishing absence. ParsePanic says its bytes opened but could not be
 // parsed; Reason carries that parser's words.
 type NotFoundView struct {
-	Asked      string
-	Unreadable bool
-	ParsePanic bool
-	Reason     string
-	Sidebar    Sidebar
+	Asked         string
+	BlockedFolder string
+	Unreadable    bool
+	ParsePanic    bool
+	Reason        string
+	Sidebar       Sidebar
 }
 
 // NotFound answers a request for something the vault does not hold, inside the
@@ -37,6 +39,11 @@ templ NotFound(v NotFoundView, c layouts.Chrome) {
 							<p>{ wording.ParseFailedLede.In(c.Lang) }</p>
 							<p><code lang="en">{ v.Reason }</code></p>
 						}
+					} else if v.BlockedFolder != "" {
+						@nothingToShow(nothingNotice{Kind: "notfound", Mark: wording.NotReadableKicker.In(c.Lang), Title: wording.FolderNotReadableTitle.In(c.Lang), TitleID: "notfound-title", Page: true, Fault: true}) {
+							<p>{ wording.FolderNotReadableLede.In(c.Lang) }</p>
+							<p><code>{ v.BlockedFolder }</code></p>
+						}
 					} else if v.Unreadable {
 						@nothingToShow(nothingNotice{Kind: "notfound", Mark: wording.NotReadableKicker.In(c.Lang), Title: wording.NotReadableTitle.In(c.Lang), TitleID: "notfound-title", Page: true, Fault: true}) {
 							<p>{ wording.NotReadableLede.In(c.Lang) }</p>
@@ -56,6 +63,8 @@ templ NotFound(v NotFoundView, c layouts.Chrome) {
 						<h2 id="notfound-next-title">{ wording.WhatNext.In(c.Lang) }</h2>
 						if v.Unreadable && v.ParsePanic {
 							<p>{ wording.ParseFailedNext.In(c.Lang) }</p>
+						} else if v.BlockedFolder != "" {
+							<p>{ wording.FolderNotReadableNext.In(c.Lang) }</p>
 						} else {
 							<p>{ wording.NotFoundNext.In(c.Lang) }</p>
 						}

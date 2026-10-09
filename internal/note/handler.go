@@ -183,11 +183,11 @@ func (h *Handler) showNotFound(
 	authority status.Authority,
 	snap *snapshot.Generation,
 ) {
-	h.showMissing(w, r, asked, false, snapshot.BlockedSource{}, authority, snap)
+	h.showMissing(w, r, asked, false, snapshot.BlockedSource{}, "", authority, snap)
 }
 
-// showUnreadable answers a note the generation captured but could not read:
-// the file exists on disk, so the plain not-found page — whose repair is a
+// showUnreadable answers a note or an ancestor the generation could not read:
+// absence has not been established, so the plain not-found page — whose repair is a
 // typo or an unwritten note — would send the reader the wrong way.
 func (h *Handler) showUnreadable(
 	w http.ResponseWriter,
@@ -196,29 +196,23 @@ func (h *Handler) showUnreadable(
 	authority status.Authority,
 	snap *snapshot.Generation,
 ) {
-	h.showMissing(w, r, asked, true, blockedSource(snap, rel), authority, snap)
-}
-
-// blockedSource names the captured path's failure without treating the words
-// an error wrote as its type. A retained reading can carry the same failure.
-func blockedSource(snap *snapshot.Generation, rel string) snapshot.BlockedSource {
-	for _, source := range snap.Freshness().Blocked {
-		if source.Path == rel {
-			return source
-		}
+	cause, _ := blockedAt(snap, rel)
+	folder := ""
+	if cause.Path != "" && cause.Path != rel {
+		folder = cause.Path
 	}
-	return snapshot.BlockedSource{}
+	h.showMissing(w, r, asked, true, cause, folder, authority, snap)
 }
 
 // blockedAt finds a captured failure at the path or any folder above it.
 // A folder covers whole path segments, never a similarly named sibling.
-func blockedAt(snap *snapshot.Generation, rel string) snapshot.BlockedSource {
+func blockedAt(snap *snapshot.Generation, rel string) (snapshot.BlockedSource, bool) {
 	for _, source := range snap.Freshness().Blocked {
 		if source.Path == rel || strings.HasPrefix(rel, source.Path+"/") {
-			return source
+			return source, true
 		}
 	}
-	return snapshot.BlockedSource{}
+	return snapshot.BlockedSource{}, false
 }
 
 func (h *Handler) showMissing(
@@ -227,16 +221,18 @@ func (h *Handler) showMissing(
 	asked string,
 	unreadable bool,
 	cause snapshot.BlockedSource,
+	blockedFolder string,
 	authority status.Authority,
 	snap *snapshot.Generation,
 ) {
 	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	view := pages.NotFoundView{
-		Asked:      asked,
-		Unreadable: unreadable,
-		ParsePanic: cause.ParsePanic,
-		Reason:     cause.Reason,
-		Sidebar:    pages.NewSidebar(pageShell, ""),
+		Asked:         asked,
+		BlockedFolder: blockedFolder,
+		Unreadable:    unreadable,
+		ParsePanic:    cause.ParsePanic,
+		Reason:        cause.Reason,
+		Sidebar:       pages.NewSidebar(pageShell, ""),
 	}
 	lang := origin.Language(r)
 	title := wording.NotFoundKicker.In(lang)
@@ -322,15 +318,14 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 
 	n, ok := snap.Note(rel)
 	if !ok {
-		// The scan observed a regular file here and this generation has no
-		// body for it: the file exists and could not be read, which is a
-		// different fact — and a different repair — from a path that names
-		// nothing. Asking for the file rather than for anything at the path
-		// is what keeps that repair honest: a folder whose name ends in .md
-		// is observed by the scan too, and no permission on it can be the one
-		// the reader would be sent to clear.
-		if _, isFile := snap.Entry(rel); isFile {
-			h.sources.Log.Warn("note captured in scan but unreadable in this generation", "path", rel)
+		// A captured regular file without a body, or a scan refusal at a
+		// folder above this address, cannot establish that the note is absent.
+		// Name the read failure so the reader can clear its permission.
+		// Entry still asks for a file: a readable folder ending in .md is not
+		// a note whose permission needs repair.
+		_, blocked := blockedAt(snap, rel)
+		if _, isFile := snap.Entry(rel); isFile || blocked {
+			h.sources.Log.Warn("note unavailable in this generation", "path", rel)
 			h.showUnreadable(w, r, r.URL.Path, rel, authority, snap)
 			return
 		}
@@ -440,7 +435,7 @@ func (h *Handler) reading(
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
 	domainFolder, _ := snap.DomainFolder(rel)
 	contract := h.enumContract(authority)
-	cause := blockedSource(snap, rel)
+	cause, _ := blockedAt(snap, rel)
 	view = pages.NoteView{
 		Title:              n.Title,
 		RelPath:            n.RelPath,

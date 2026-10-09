@@ -81,9 +81,12 @@ var (
 		"在原本的編輯器檢查這篇筆記的內容。修正並存檔後，重新整理這一頁。",
 		"Check this note's content in your editor. After saving a correction, reload this page.",
 	)
-	NotReadableKicker = both("讀不進來", "Unreadable")
-	NotReadableTitle  = both("這個檔案目前讀不進來", "This file cannot be read right now")
-	NotReadableLede   = both(
+	FolderNotReadableTitle = both("這個資料夾目前讀不進來", "This folder cannot be read right now")
+	FolderNotReadableLede  = both("這次讀取無法開啟下列資料夾，因此還不能判斷你要找的筆記是否在裡面。", "This read could not open the folder below, so it cannot establish whether the requested note is inside.")
+	FolderNotReadableNext  = both("檢查這個資料夾的權限，以及是否有其他程式擋住它。排除之後，過幾秒重新整理這一頁。", "Check the folder's permissions and whether another program is holding it. Once that clears, reload this page after a few seconds.")
+	NotReadableKicker      = both("讀不進來", "Unreadable")
+	NotReadableTitle       = both("這個檔案目前讀不進來", "This file cannot be read right now")
+	NotReadableLede        = both(
 		"檔案存在，但這一次讀取沒有成功——可能是權限設定，或另一個程式正擋住它。排除之後，過幾秒重新整理就會看到內容。",
 		"The file is there, but this read did not succeed — a permission, or another program holding it. Once that clears, reloading in a few seconds shows it.",
 	)
