@@ -263,6 +263,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			var calloutWidgetCode agreementWidgetCodeBudget
 			var codeFields agreementWidgetCodeBudget
 			codeFieldsObserved := false
+			var exclusiveCode map[agreementCitation]int
+			exclusiveCodeObserved := false
 			calloutWidgetCodeObserved := false
 			var continuationTargets map[string]int
 			continuationObserved := false
@@ -448,6 +450,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						codeFieldsObserved = true
 					}
 					classification, authority, wrong = agreementWidgetCodeDifference(c, failure, codeFields, &observed[i])
+				}
+				if classification == "" && failure.Property == "P2" {
+					if !exclusiveCodeObserved {
+						exclusiveCode = agreementExclusiveCodeBudget(c.Body)
+						exclusiveCodeObserved = true
+					}
+					classification, authority, wrong = agreementExclusiveCodeDifference(c, failure, exclusiveCode)
 				}
 				if classification == "" && failure.Property == "P1" {
 					if !continuationObserved {
