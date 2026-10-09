@@ -31,7 +31,8 @@ func agreementSharedUnusedWidgetReading(body string, grammar goldmark.Markdown) 
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	var unused []*extast.Footnote
 	context.Set(agreementUnusedFootnoteNodesKey, &unused)
-	grammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
+	doc := grammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
+	comments := agreementUnusedWidgetComments(body, doc)
 	var fields []agreementUnusedWidgetField
 	for _, definition := range unused {
 		for node := definition.FirstChild(); node != nil; node = node.NextSibling() {
@@ -66,11 +67,15 @@ func agreementSharedUnusedWidgetReading(body string, grammar goldmark.Markdown) 
 					if !cites || link.Block != "" {
 						return nil
 					}
-					fields = append(fields, agreementUnusedWidgetField{
+					field := agreementUnusedWidgetField{
 						Span:  graph.Span{Start: line.Start + start, Stop: line.Start + offset},
 						Word:  word,
 						Tuple: agreementCitation{Target: link.Target, Section: link.Heading, State: "wikilink-broken"},
-					})
+					}
+					if agreementUnusedWidgetCommentOwned(field.Span, comments) {
+						return nil
+					}
+					fields = append(fields, field)
 				}
 			}
 		}
