@@ -77,6 +77,7 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
 		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
+		{Name: "control/comment-made-definition", Body: "A\n<!-- [[A]] -->[^unused]: [[A]]\n"},
 		{Name: "control/text-owned-suffix-targets", Body: "[[A\\]]  ```\n\n1. [[B\\]]text \n"},
 		{Name: "control/repeated-literal-title-receipts", Body: "> [!note] [[A]]\n> [!note] [[A]]\n"},
 		{Name: "control/shared-literal-title-targets", Body: "> [!note] [[A]] [[B]]\n> [!note] [[A]] [[A]] [[B]]\n"},
@@ -214,6 +215,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			unusedTargets := agreementUnusedFootnoteTargets(c.Body)
 			var unusedTailTargets map[string]int
 			unusedTailObserved := false
+			var commentMadeTargets map[string]int
+			commentMadeObserved := false
 			var referenceDestinations agreementReferenceDestinations
 			referenceObserved := false
 			var compoundReferences agreementReferenceDestinations
@@ -272,6 +275,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						unusedTailObserved = true
 					}
 					classification, authority, wrong = agreementUnusedFootnoteDifference(c, failure, unusedTailTargets)
+				}
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					if !commentMadeObserved {
+						commentMadeTargets = agreementCommentMadeFootnoteTargets(c.Body)
+						commentMadeObserved = true
+					}
+					classification, authority, wrong = agreementCommentMadeFootnoteDifference(c, failure, commentMadeTargets)
 				}
 				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
 					if !referenceObserved {
