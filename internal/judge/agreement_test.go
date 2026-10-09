@@ -230,6 +230,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			compoundReferencesObserved := false
 			var containerFenceDiagnostics map[agreementCitation]int
 			containerFenceObserved := false
+			var exclusiveContainerInfo map[agreementCitation]int
+			exclusiveContainerInfoObserved := false
 			var standaloneTargets agreementStandaloneTargets
 			standaloneTargetsObserved := false
 			var proseTargets agreementStandaloneTargets
@@ -389,6 +391,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						containerFenceObserved = true
 					}
 					classification, authority, wrong = agreementContainerFenceDiagnosticDifference(c, failure, containerFenceDiagnostics)
+				}
+				if classification == "" && failure.Property == "P0" {
+					if !exclusiveContainerInfoObserved {
+						exclusiveContainerInfo = agreementExclusiveContainerInfoBudget(c.Body)
+						exclusiveContainerInfoObserved = true
+					}
+					classification, authority, wrong = agreementExclusiveContainerInfoDifference(c, failure, &observed[i], exclusiveContainerInfo)
 				}
 				if classification == "" && failure.Property == "P1" {
 					if !standaloneTargetsObserved {
