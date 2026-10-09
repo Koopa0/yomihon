@@ -28,10 +28,12 @@ func TestDeskFolderBlockSkipsFoldersWithoutNotes(t *testing.T) {
 		if page.Shelf.Rows[1].Text != "Concepts" {
 			t.Fatalf("full folder page lost its zero-note folder: %+v", page.Shelf.Rows)
 		}
+		folderBlocks := 0
 		for _, block := range NewDeskBlocks(model, schema.NavigationRoles{}, ContractGoverning, lang, nil) {
 			if block.Mode != folderMode {
 				continue
 			}
+			folderBlocks++
 			shown := shelfRows(&block.Shelf, deskBlockItems)
 			var names []string
 			for _, row := range shown {
@@ -43,6 +45,9 @@ func TestDeskFolderBlockSkipsFoldersWithoutNotes(t *testing.T) {
 			if block.Shelf.Count != page.Count {
 				t.Errorf("desk count = %q, full shelf count = %q", block.Shelf.Count, page.Count)
 			}
+		}
+		if folderBlocks != 1 {
+			t.Errorf("caught: desk in %s offers %d folder blocks, want exactly one", lang, folderBlocks)
 		}
 	}
 }
