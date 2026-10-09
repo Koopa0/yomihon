@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
@@ -17,6 +18,10 @@ func agreementUnusedBlockFieldZones(body string, grammar goldmark.Markdown) []gr
 	if !agreementUnusedBlockMarkerContext(source, doc, nodes) {
 		return nil
 	}
+	return agreementUnusedBlockSourceLines(nodes)
+}
+
+func agreementUnusedBlockSourceLines(nodes []ast.Node) []graph.Span {
 	var spans []graph.Span
 	for _, node := range nodes {
 		for i := range node.Lines().Len() {
@@ -29,6 +34,10 @@ func agreementUnusedBlockFieldZones(body string, grammar goldmark.Markdown) []gr
 func agreementUnusedBlockFieldBudgets(body string) (raw map[agreementCitation]int, check map[string]int) {
 	plain := agreementUnusedBlockFieldZones(body, agreementFootnoteGrammar)
 	gfm := agreementUnusedBlockFieldZones(body, agreementExclusiveCodeGrammar)
+	return agreementDiscardedFieldBudgets(body, plain, gfm)
+}
+
+func agreementDiscardedFieldBudgets(body string, plain, gfm []graph.Span) (raw map[agreementCitation]int, check map[string]int) {
 	raw = agreementExclusiveFieldBudget(body, plain, gfm)
 	normalized := agreementExclusiveTargetFieldBudget(body, plain, gfm, func(field string) string {
 		targets := judge.LinkTargets(field)
