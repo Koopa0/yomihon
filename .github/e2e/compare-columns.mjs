@@ -32,6 +32,7 @@ const COLUMN_B_PREFIX = 'b-';
 const SITES = [
   'one-comparison-heading',
   'columns-side-by-side',
+  'column-reading-gutter',
   'columns-scroll-alone',
   'narrow-tabs-switch-columns',
   'narrow-no-sideways-scroll',
@@ -148,6 +149,10 @@ const putHeadingInGrid = async (page) => {
 };
 
 const MUTATIONS = {
+  'orphan-column-gutter': {
+    target: 'column-reading-gutter',
+    apply: weakenStylesheet('@media (min-width:1101px){.y-compare__column .y-article{--gutter-read:48px !important}}'),
+  },
   'let-the-heading-take-a-grid-cell': {
     target: 'columns-side-by-side',
     apply: putHeadingInGrid,
@@ -303,6 +308,19 @@ try {
       fail('columns-side-by-side', `column ${name} is ${Math.round(box.width)}px of a 1280px page, so it is not sharing the width`);
     }
   }
+
+  for (const width of [1280, 1101, 1100, 900, 390]) {
+    await page.setViewportSize({ width, height: 440 });
+    const gutters = await page.locator('.y-compare__column .y-article').evaluateAll(articles => articles.map(article => {
+      const style = getComputedStyle(article);
+      return [style.paddingLeft, style.paddingRight];
+    }));
+    const expected = width > 1100 ? '28px' : width <= 520 ? '20px' : width <= 900 ? '24px' : '48px';
+    if (gutters.length !== 2 || gutters.some(sides => sides.some(side => side !== expected))) {
+      fail('column-reading-gutter', `caught: at ${width}px column gutters = ${JSON.stringify(gutters)}, want ${expected} on both sides`);
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 440 });
 
   // The content has to be taller than the window for a scroller to have
   // anywhere to go. That is a fact about the fixture, not about the layout.
