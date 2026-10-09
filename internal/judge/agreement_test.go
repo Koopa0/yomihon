@@ -77,6 +77,7 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
 		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
+		{Name: "control/terminal-comment-code", Body: "``[[A]] [[A]]## !\n[[A\nB]]``\\[[A]]```` go [[A]]\nÉ\n<!--"},
 		{Name: "control/comment-made-definition", Body: "A\n<!-- [[A]] -->[^unused]: [[A]]\n"},
 		{Name: "control/text-owned-suffix-targets", Body: "[[A\\]]  ```\n\n1. [[B\\]]text \n"},
 		{Name: "control/repeated-literal-title-receipts", Body: "> [!note] [[A]]\n> [!note] [[A]]\n"},
@@ -244,6 +245,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			var embedHeadingIDs map[string]bool
 			embedHeadingObserved := false
 			var codeTargets map[string]int
+			var tailCodeTargets map[string]int
+			tailCodeObserved := false
 			codeObserved := false
 			var localCodeHeadings map[string]int
 			localCodeObserved := false
@@ -384,6 +387,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						codeObserved = true
 					}
 					classification, authority, wrong = agreementCodeDebtDifference(c, failure, codeTargets)
+				}
+				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
+					if !tailCodeObserved {
+						tailCodeTargets = agreementCodeDebtTailTargets(c.Body)
+						tailCodeObserved = true
+					}
+					classification, authority, wrong = agreementCodeTailDifference(c, failure, tailCodeTargets, &observed[i])
 				}
 				if classification == "" && failure.Property == "P2" {
 					if !localCodeObserved {

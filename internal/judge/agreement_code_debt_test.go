@@ -15,6 +15,14 @@ import (
 // Wrapped spans and fences inside containers own their literal bytes where a
 // line-by-line replacement currently treats those bytes as prose.
 func agreementCodeDebtTargets(body string) map[string]int {
+	return agreementCodeDebtTargetProfile(body, false)
+}
+
+func agreementCodeDebtTailTargets(body string) map[string]int {
+	return agreementCodeDebtTargetProfile(body, true)
+}
+
+func agreementCodeDebtTargetProfile(body string, tail bool) map[string]int {
 	if strings.Contains(body, "://") {
 		return nil
 	}
@@ -22,7 +30,11 @@ func agreementCodeDebtTargets(body string) map[string]int {
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	doc := agreementFootnoteGrammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
+	markers := agreementPlainOpenerDeclarationMarkers(source, doc)
+	if tail {
+		markers = agreementTailHTMLCommentMarkers(source, doc)
+	}
+	if !markers {
 		return nil
 	}
 	targets := make(map[string]int)
