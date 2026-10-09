@@ -9,6 +9,10 @@ import (
 // A terminal comment's payload is separate from earlier code declarations.
 // All code carriers for a target must match its complete source-owned count.
 func agreementCodeTailDifference(c agreementCase, f *agreementFailure, targets map[string]int, actual *agreementHTML) (kind, authority, wrong string) {
+	return agreementCodeCarrierDifference(c, f, targets, actual)
+}
+
+func agreementCodeCarrierDifference(c agreementCase, f *agreementFailure, targets map[string]int, actual *agreementHTML) (kind, authority, wrong string) {
 	expected := map[agreementCitation]int{{Target: f.Tuple.Target, State: "wikilink-broken"}: targets[f.Tuple.Target]}
 	found := make(map[agreementCitation]int)
 	for _, tuple := range actual.CodeCitations {

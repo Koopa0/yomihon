@@ -26,6 +26,17 @@ func agreementCodeDebtTargetProfile(body string, tail bool) map[string]int {
 	if strings.Contains(body, "://") {
 		return nil
 	}
+	return agreementCodeDeclarationTargets(body, tail)
+}
+
+func agreementURLCodeDebtTargets(body string) map[string]int {
+	if !strings.Contains(body, "://") {
+		return nil
+	}
+	return agreementCodeDeclarationTargets(body, false)
+}
+
+func agreementCodeDeclarationTargets(body string, tail bool) map[string]int {
 	source := []byte(body)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))

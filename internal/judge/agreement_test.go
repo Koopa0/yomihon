@@ -77,6 +77,7 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
 		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
+		{Name: "control/URL-separated-code", Body: "`open\n[[A]]\nclose`## A\nhttps://example.invalid/`[[A]]` ~~~~\n\ue0020\ue003"},
 		{Name: "control/terminal-comment-code", Body: "``[[A]] [[A]]## !\n[[A\nB]]``\\[[A]]```` go [[A]]\nÉ\n<!--"},
 		{Name: "control/unused-definition-raw-fields", Body: "[[A\nB]]- item\n\n      ## A\n[^unused]: [[A]]\n[[A\\]]"},
 		{Name: "control/comment-made-definition", Body: "A\n<!-- [[A]] -->[^unused]: [[A]]\n"},
@@ -249,6 +250,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			embedHeadingObserved := false
 			var codeTargets map[string]int
 			var tailCodeTargets map[string]int
+			var urlCodeTargets map[string]int
+			urlCodeObserved := false
 			tailCodeObserved := false
 			codeObserved := false
 			var localCodeHeadings map[string]int
@@ -404,6 +407,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						tailCodeObserved = true
 					}
 					classification, authority, wrong = agreementCodeTailDifference(c, failure, tailCodeTargets, &observed[i])
+				}
+				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
+					if !urlCodeObserved {
+						urlCodeTargets = agreementURLCodeDebtTargets(c.Body)
+						urlCodeObserved = true
+					}
+					classification, authority, wrong = agreementCodeCarrierDifference(c, failure, urlCodeTargets, &observed[i])
 				}
 				if classification == "" && failure.Property == "P2" {
 					if !localCodeObserved {
