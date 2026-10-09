@@ -58,7 +58,7 @@ export function initUncertainty() {
     });
   }
 
-  function addControl(container, article, path, anchor) {
+  function addControl(container, article, path, anchor, section = null) {
     const words = {
       uncertaintyLang: article.dataset.uncertaintyLang,
       uncertaintyLabel: article.dataset.uncertaintyLabel,
@@ -70,29 +70,37 @@ export function initUncertainty() {
       uncertaintyFailed: article.dataset.uncertaintyFailed,
     };
     const key = keyOf(path, anchor);
-    const group = document.createElement('div');
-    group.dataset.uncertaintyControl = '';
-    group.lang = words.uncertaintyLang;
+    const group = section ? container : document.createElement('div');
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'y-xbtn';
-    button.textContent = words.uncertaintyLabel;
+    button.lang = words.uncertaintyLang;
+    button.className = section ? 'y-iconbtn y-toc__uncertainty' : 'y-xbtn';
     button.disabled = true;
     button.setAttribute('aria-pressed', 'false');
-    const scope = document.createElement('p');
-    scope.className = 'y-fileinfo__note';
-    scope.textContent = words.uncertaintyScope;
-    const said = document.createElement('p');
-    said.className = 'y-uncertainty__said';
-    said.setAttribute('role', 'status');
-    group.append(button, scope, said);
-    container.append(group);
-    controls.push({ key, button });
+    let said;
+    if (section) {
+      button.textContent = '?';
+      button.setAttribute('aria-label', section.label);
+      said = section.said;
+      group.append(button);
+    } else {
+      group.dataset.uncertaintyControl = '';
+      group.lang = words.uncertaintyLang;
+      const scope = document.createElement('p');
+      scope.className = 'y-fileinfo__note';
+      scope.textContent = words.uncertaintyScope;
+      said = document.createElement('p');
+      said.className = 'y-uncertainty__said';
+      said.setAttribute('role', 'status');
+      group.append(button, scope, said);
+      container.append(group);
+    }
     const reflect = () => {
       const marked = keys.has(key);
       button.setAttribute('aria-pressed', String(marked));
-      button.textContent = marked ? words.uncertaintyClearLabel : words.uncertaintyLabel;
+      if (!section) button.textContent = marked ? words.uncertaintyClearLabel : words.uncertaintyLabel;
     };
+    controls.push({ key, button, reflect });
     ready.then(() => {
       button.disabled = !available;
       reflect();
@@ -114,9 +122,7 @@ export function initUncertainty() {
         for (const control of controls) {
           if (control.key !== key) continue;
           control.button.disabled = false;
-          const marked = keys.has(key);
-          control.button.setAttribute('aria-pressed', String(marked));
-          control.button.textContent = marked ? words.uncertaintyClearLabel : words.uncertaintyLabel;
+          control.reflect?.();
         }
       }
     });
@@ -129,6 +135,34 @@ export function initUncertainty() {
       const prefix = article.dataset.uncertaintyPrefix;
       const anchor = prefix && heading.id.startsWith(prefix) ? heading.id.slice(prefix.length) : heading.id;
       addControl(card, article, article.dataset.uncertaintyPath, anchor);
+    }
+  }
+
+  for (const article of articles) {
+    const column = article.closest('[data-note-column]') || document;
+    for (const list of column.querySelectorAll('.y-toc__list')) {
+      const rows = [...list.querySelectorAll('.y-toc__row')];
+      let said;
+      for (const row of rows) {
+        const link = row.querySelector('a:first-child');
+        if (!link || !link.getAttribute('href')?.startsWith('#')) continue;
+        let id;
+        try { id = decodeURIComponent(link.getAttribute('href').slice(1)); } catch { continue; }
+        const target = document.getElementById(id);
+        if (!target?.hasAttribute('data-mark-anchor') || !article.contains(target)) continue;
+        if (!said) {
+          const sectionSaid = document.createElement('p');
+          sectionSaid.className = 'y-uncertainty__said';
+          sectionSaid.setAttribute('role', 'status');
+          sectionSaid.lang = article.dataset.uncertaintyLang;
+          said = sectionSaid;
+          list.append(said);
+        }
+        const prefix = article.dataset.uncertaintyPrefix;
+        const anchor = prefix && id.startsWith(prefix) ? id.slice(prefix.length) : id;
+        const label = article.dataset.uncertaintySectionFmt.replace('{section}', link.textContent);
+        addControl(row, article, article.dataset.uncertaintyPath, anchor, { label, said });
+      }
     }
   }
 

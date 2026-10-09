@@ -2788,6 +2788,47 @@ button.y-freshness__action {
   }
 }
 
+/* A kept doubt remains visible in its contents row, even without a pointer.
+   The note's two contents lists share that state and the same named toggle. */
+.y-toc__list .y-toc__uncertainty {
+  background: var(--bg);
+  border: 0;
+  color: var(--fg-subtle);
+  height: 2rem;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  opacity: 0;
+  padding: 0;
+  position: absolute;
+  width: 28px;
+}
+
+.y-toc__row:has(.y-toc__uncertainty) .y-toc__door {
+  inset-inline-end: 28px;
+}
+
+.y-toc__row:hover .y-toc__uncertainty,
+.y-toc__row:focus-within .y-toc__uncertainty,
+.y-toc__uncertainty[aria-pressed='true'] {
+  opacity: 1;
+}
+
+.y-toc__uncertainty[aria-pressed='true'] {
+  color: var(--fg);
+  font-weight: var(--fw-semibold);
+}
+
+@media (pointer: coarse) {
+  .y-toc__list .y-toc__uncertainty {
+    flex: none;
+    height: auto;
+    min-height: 44px;
+    opacity: 1;
+    position: static;
+    width: 44px;
+  }
+}
+
 .y-statuspanel {
   border-top: 1px solid var(--line);
   padding-top: 20px;
