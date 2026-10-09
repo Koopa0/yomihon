@@ -282,6 +282,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			unusedBlockAddressesObserved := false
 			var discardedBlockAddresses agreementUnusedTextAddresses
 			discardedBlockAddressesObserved := false
+			var physicalDiscardedAddresses agreementUnusedTextAddresses
+			physicalDiscardedAddressesObserved := false
 			unusedOpenerAddressesObserved := false
 			unusedParagraphAddressesObserved := false
 			var exclusiveUnusedFields map[agreementCitation]int
@@ -580,6 +582,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						discardedBlockAddressesObserved = true
 					}
 					classification, authority, wrong = agreementUnusedTextAddressDifference(c, failure, discardedBlockAddresses)
+				}
+				if classification == "" && failure.Property == "P3" {
+					if !physicalDiscardedAddressesObserved {
+						physicalDiscardedAddresses = agreementDiscardedPhysicalAddressBudget(c.Body)
+						physicalDiscardedAddressesObserved = true
+					}
+					classification, authority, wrong = agreementPhysicalDiscardedAddressDifference(c, failure, physicalDiscardedAddresses)
 				}
 
 				if classification == "" && failure.Property == "P3" {

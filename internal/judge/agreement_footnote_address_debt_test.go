@@ -43,11 +43,18 @@ func agreementUnusedFootnoteAddresses(body string) map[string]int {
 	return addresses
 }
 
-func agreementUnusedFootnoteAddressDifference(c agreementCase, f *agreementFailure, addresses map[string]int) (kind, authority, wrong string) {
-	if c.Title != "" || len(c.Companions) != 0 || f.Property != "P3" || f.Identity != "block-three-way" || f.Tuple != (agreementCitation{}) || f.Multiplicity != 1 || f.PagePresent || !f.JudgeAccepted || !f.ExcerptFound || f.Cut == "" || !strings.Contains(c.Body, f.Cut) || addresses[f.Fragment] == 0 {
-		return "", "", ""
+func agreementUnusedFootnoteAddressSignature(c agreementCase, f *agreementFailure, addresses map[string]int) bool {
+	if c.Title != "" || len(c.Companions) != 0 || f.Property != "P3" || f.Identity != "block-three-way" || f.Tuple != (agreementCitation{}) || f.Multiplicity != 1 || f.PagePresent || !f.JudgeAccepted || !f.ExcerptFound || f.Cut == "" || addresses[f.Fragment] == 0 {
+		return false
 	}
 	if f.Direction != "judge-only" && f.Direction != "excerpt-only" {
+		return false
+	}
+	return true
+}
+
+func agreementUnusedFootnoteAddressDifference(c agreementCase, f *agreementFailure, addresses map[string]int) (kind, authority, wrong string) {
+	if !agreementUnusedFootnoteAddressSignature(c, f, addresses) || !strings.Contains(c.Body, f.Cut) {
 		return "", "", ""
 	}
 	return "debt", "#1011 stage 5", "judge+excerpt"
