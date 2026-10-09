@@ -286,6 +286,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			realizedNamespaceObserved := false
 			var nativeHeadingPayload agreementNativeHeadingPayload
 			nativeHeadingObserved := false
+			var commentHeadingPayload agreementCommentHeadingPayload
+			commentHeadingObserved := false
 			var mixedNamespaceIDs map[string]bool
 			mixedNamespaceObserved := false
 			var literalNamespaceIDs map[string]bool
@@ -675,6 +677,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						embedHeadingObserved = true
 					}
 					classification, authority, wrong = agreementWrappedHeadingDifference(c, failure, embedHeadingIDs)
+				}
+				if classification == "" && failure.Property == "P4" {
+					if !commentHeadingObserved {
+						commentHeadingPayload = agreementCommentHeadingBudget(t, c.Body, &observed[i])
+						commentHeadingObserved = true
+					}
+					classification, authority, wrong = agreementCommentHeadingDifference(c, failure, &observed[i], &commentHeadingPayload)
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !codeObserved {
