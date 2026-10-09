@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/note"
@@ -100,7 +101,7 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 					}
 					marker, warning = "data-desk-item", "ui-navitem__count--warn"
 				}
-				text := "Own title #chapter"
+				text := "Own title</span>"
 				if tt.noteGone {
 					text = "Lost &lt;note&gt;.md"
 				}
@@ -230,7 +231,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 				got := struct {
 					CapturedTitle, CapturedLink, LaterTitle, Missing bool
 				}{
-					CapturedTitle: strings.Contains(page, "Captured title #chapter"), CapturedLink: strings.Contains(page, `href="/notes/Source.md#chapter"`),
+					CapturedTitle: strings.Contains(page, "Captured title — <span>Chapter</span>"), CapturedLink: strings.Contains(page, `href="/notes/Source.md#chapter"`),
 					LaterTitle: strings.Contains(page, "Later title"), Missing: strings.Contains(page, "Place not found"),
 				}
 				want := struct {
@@ -374,7 +375,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 				if !ok {
 					t.Fatal("desk title span has no closing end")
 				}
-				titles = append(titles, title)
+				titles = append(titles, shelfText(t, title))
 			}
 			got := struct {
 				Titles    []string
@@ -383,7 +384,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 			want := struct {
 				Titles    []string
 				FullCount bool
-			}{Titles: []string{"Newest", "Z title #alpha", "Z title #beta", "A title", "Missing.md"}, FullCount: true}
+			}{Titles: []string{"Newest", "Z title — Alpha", "Z title — Beta", "A title", "Missing.md"}, FullCount: true}
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("caught: stored-field Home ordering mismatch (-want +got):\n%s", diff)
 			}
@@ -411,4 +412,24 @@ func assertLostMarksUnchanged(t *testing.T, mux http.Handler, lang string, want 
 	if diff := cmp.Diff(want, lostMarkRecords(t, mux, lang)); diff != "" {
 		t.Errorf("caught: reading changed complete stored marks (-want +got):\n%s", diff)
 	}
+}
+
+func shelfText(t *testing.T, fragment string) string {
+	t.Helper()
+	root, err := html.Parse(strings.NewReader(fragment))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var text strings.Builder
+	var walk func(*html.Node)
+	walk = func(node *html.Node) {
+		if node.Type == html.TextNode {
+			text.WriteString(node.Data)
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			walk(child)
+		}
+	}
+	walk(root)
+	return text.String()
 }

@@ -170,11 +170,9 @@ func openMarkRow(kept *mark.Uncertainty, places *placeResolver, lang wording.Lan
 	if resolved.readable {
 		row.Text = cmp.Or(resolved.reading.Title, kept.RelPath)
 		row.Language = resolved.reading.Language
-		if kept.Anchor != "" {
-			row.Text += " #" + kept.Anchor
-		}
 		row.Href = pages.ResumeHref(kept.RelPath, "", 0)
 		if places.hasPlace(kept.RelPath, kept.Anchor) {
+			row.Place = places.label(kept.RelPath, kept.Anchor, lang)
 			row.Href = pages.ResumeHref(kept.RelPath, kept.Anchor, 0)
 			row.Mark = wording.UncertaintyControl.In(lang)
 			return openThoughtRow{row: row, at: kept.At}
