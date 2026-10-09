@@ -561,12 +561,15 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						classification, authority, wrong = agreementCodeCitationDifference(c, failure, &observed[i], codePayload)
 					}
 				}
-				if classification == "" && failure.Property == "P2" {
+				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !pageCodePayloadObserved {
 						pageCodePayload = agreementPageCodeWindowBudget(c.Body, rendered[i])
 						pageCodePayloadObserved = true
 					}
 					classification, authority, wrong = agreementCodeWindowDifference(c, failure, &observed[i], pageCodePayload)
+					if classification == "" {
+						classification, authority, wrong = agreementCodeCitationDifference(c, failure, &observed[i], pageCodePayload)
+					}
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !exclusiveCodeObserved {
