@@ -298,6 +298,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			embedHeadingObserved := false
 			var codePayload agreementCodePayload
 			codePayloadObserved := false
+			var outsideCodePayload agreementOutsideCodePayload
+			outsideCodeObserved := false
 			var rawNamespacePayload agreementRawNamespacePayload
 			rawNamespaceObserved := false
 			var blockCodePayload agreementCodePayload
@@ -760,6 +762,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						rawNamespaceObserved = true
 					}
 					classification, authority, wrong = agreementRawNamespaceDifference(c, failure, &observed[i], &rawNamespacePayload)
+				}
+				if classification == "" && failure.Property == "P1" {
+					if !outsideCodeObserved {
+						outsideCodePayload = agreementOutsideCodeBudget(c.Body, &observed[i])
+						outsideCodeObserved = true
+					}
+					classification, authority, wrong = agreementOutsideCodeDifference(c, failure, &observed[i], &outsideCodePayload)
 				}
 				if classification == "" && failure.Property == "P2" {
 					if !blockCodePayloadObserved {
