@@ -36,6 +36,10 @@ function restorePosition() {
   const y = Number(raw.slice(MARK.length));
   if (!Number.isFinite(y) || y < 0 || !Number.isInteger(y)) return;
   history.replaceState(null, '', `${location.pathname}${location.search}`);
+  // A late module may miss the first reveal. Leaving ends this arrival,
+  // so a later history restore cannot reapply its spent position.
+  const arrival = new AbortController();
+  window.addEventListener('pagehide', () => arrival.abort(), { once: true });
   const apply = () => {
     window.scrollTo(0, y);
   };
@@ -49,7 +53,7 @@ function restorePosition() {
   // been handed over yet.
   window.addEventListener('pagereveal', () => {
     apply();
-  }, { once: true });
+  }, { once: true, signal: arrival.signal });
 }
 
 // The walk to the reading choices is a link, so the position goes on the

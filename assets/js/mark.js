@@ -127,6 +127,10 @@ function land() {
     // the document by the same address; this leaves them there too.
     if (!anchor) return;
   }
+  // A late module may miss the first reveal. Leaving ends this arrival,
+  // so a later history restore cannot reapply its spent position.
+  const arrival = new AbortController();
+  window.addEventListener('pagehide', () => arrival.abort(), { once: true });
   const apply = () => {
     window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);
   };
@@ -142,7 +146,7 @@ function land() {
     () => {
       apply();
     },
-    { once: true },
+    { once: true, signal: arrival.signal },
   );
 }
 

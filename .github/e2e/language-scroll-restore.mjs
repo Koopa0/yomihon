@@ -1,3 +1,4 @@
+import { lateArrivalRestore, measureBackArrival } from './support/arrival-lifetime.mjs';
 // Behavior lock: switching the chrome's language mid-note returns the reader
 // to the place they were reading. The form posts a path; without a position
 // on that address the reload lands at the top of a long note.
@@ -12,7 +13,7 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/Glass%20Tide.md';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['position-survives-switch', 'an-arrival-paints', 'position-survives-preferences'];
+const SITES = ['language-arrival-ends-on-leaving', 'position-survives-switch', 'an-arrival-paints', 'position-survives-preferences'];
 const TARGET_Y = 600;
 const SLACK_FLOOR = 700;
 const TOLERANCE = 48;
@@ -62,6 +63,11 @@ const restoreNavigationTransition = async (page) => {
 };
 
 const MUTATIONS = {
+  're-arm-the-arrival': {
+    target: 'language-arrival-ends-on-leaving',
+    // The late-delivery phase owns this mutation's route and receipt.
+    apply: async () => () => '',
+  },
   'restore-the-navigation-transition': {
     target: 'an-arrival-paints',
     apply: restoreNavigationTransition,
@@ -469,6 +475,12 @@ try {
       `after choosing ${leaving.lang} → ${returned.lang} in the reading choices the page is at scrollY=${returned.y}, want near ${leaving.y} (within ${TOLERANCE}px); arrived at ${returned.href} with ${returned.slack}px of slack`,
     );
   }
+
+  const lifetime = await lateArrivalRestore(browser, BASE, '/notes/Notes/reading-fidelity.md', 'langform.js', '#y-at:900', MUTATE === 're-arm-the-arrival');
+  if (Math.abs(lifetime.after - lifetime.before) > 4) {
+    fail('language-arrival-ends-on-leaving', `restore moved the reader from ${lifetime.before} to ${lifetime.after}`);
+  }
+  await measureBackArrival(browser, BASE, '/notes/Notes/reading-fidelity.md', '#y-at:900');
 
   console.log(`PASS language-scroll-restore: a mid-note language switch (${before.lang} → ${after.lang}) returned at scrollY=${after.y} from ${before.y}; a page reached by following a link was revealed and painted; the same through the reading choices (${leaving.lang} → ${returned.lang}) returned at scrollY=${returned.y} from ${leaving.y}`);
 } catch (err) {
