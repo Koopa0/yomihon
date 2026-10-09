@@ -262,6 +262,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			embedHeadingObserved := false
 			var codePayload agreementCodePayload
 			codePayloadObserved := false
+			var pageCodePayload agreementCodePayload
+			pageCodePayloadObserved := false
 			var codeTargets map[string]int
 			var tailCodeTargets map[string]int
 			var urlCodeTargets map[string]int
@@ -558,6 +560,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					if classification == "" {
 						classification, authority, wrong = agreementCodeCitationDifference(c, failure, &observed[i], codePayload)
 					}
+				}
+				if classification == "" && failure.Property == "P2" {
+					if !pageCodePayloadObserved {
+						pageCodePayload = agreementPageCodeWindowBudget(c.Body, rendered[i])
+						pageCodePayloadObserved = true
+					}
+					classification, authority, wrong = agreementCodeWindowDifference(c, failure, &observed[i], pageCodePayload)
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !exclusiveCodeObserved {

@@ -212,13 +212,17 @@ func agreementCodeWindowBudget(body, raw string) agreementCodePayload {
 	if !plainOK || !gfmOK || !cmp.Equal(plain, gfm) {
 		return agreementCodePayload{}
 	}
+	return agreementDeclaredCodePayload(body, raw, plain)
+}
+
+func agreementDeclaredCodePayload(body, raw string, declared []agreementNativeCodeWindow) agreementCodePayload {
 	actual, actualOK := agreementCodeWindowParts(raw)
-	if !actualOK || len(plain) != len(actual) {
+	if !actualOK || len(declared) != len(actual) {
 		return agreementCodePayload{}
 	}
 	budget := make(map[agreementCitation]int)
-	for i, declared := range plain {
-		matched, owned := agreementMatchCodeWindow(declared.Text, actual[i])
+	for i, window := range declared {
+		matched, owned := agreementMatchCodeWindow(window.Text, actual[i])
 		if !owned {
 			return agreementCodePayload{}
 		}
