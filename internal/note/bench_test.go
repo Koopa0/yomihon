@@ -108,14 +108,15 @@ func benchServer(b *testing.B) *httptest.Server {
 	}
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source:         reader,
-		VaultName:      shell.VaultName(reader.Name()),
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Log:            log,
+		Source:           reader,
+		VaultName:        shell.VaultName(reader.Name()),
+		Status:           writer.Authority,
+		Snapshot:         store.Current,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus,
+		ConsumeReceipt:   writer.ConsumeReceipt,
+		Continuation:     noMark,
+		Log:              log,
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
 	b.Cleanup(srv.Close)

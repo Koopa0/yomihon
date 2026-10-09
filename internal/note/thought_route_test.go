@@ -127,7 +127,8 @@ func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (h
 	writer := openStatusWriter(t, source, contract, contract.Governance())
 	handler = note.New(&note.Sources{
 		Source: source, Contract: contract, Snapshot: store.Current, Status: writer.Authority,
-		ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
 		Continuation: noMark, Log: log,
 	})
 	return handler, root

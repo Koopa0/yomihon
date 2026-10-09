@@ -56,7 +56,8 @@ func TestTypeDependentNotePage(t *testing.T) {
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
 		Source: source, Status: writer.Authority, Snapshot: store.Current,
-		ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log,
 	}).Register(mux)
 	for _, tt := range []struct {
 		lang   wording.Lang

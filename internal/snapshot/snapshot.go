@@ -32,7 +32,9 @@ import (
 const scanInterval = 2 * time.Second
 
 // maxRetryDelay caps the exponential backoff between full rebuild attempts while
-// a wanted source stays unreadable. A metadata-visible change retries at once.
+// a wanted source stays unreadable. It also floors reader-requested rebuilds,
+// so repeated freshness polls cannot keep a quiescent vault rebuilding.
+// A metadata-visible change retries at once.
 const maxRetryDelay = time.Minute
 
 // degradeAfter is how many build attempts in a row may come back incomplete —
@@ -589,13 +591,18 @@ type Store struct {
 	// lastRebuild is when the last completed build attempt finished, driving
 	// the slow cycle that catches metadata-invisible edits from elapsed time
 	// rather than a tick count.
-	lastRebuild time.Time
+	lastRebuild        time.Time
+	reconcileRequested atomic.Bool
 
 	// running records that the reconciliation loop has been claimed. The
-	// fields above are that loop's alone and carry no synchronization, so a
+	// fields above, apart from the reader hint, are that loop's alone, so a
 	// second Run is refused rather than left to advance them beside the first.
 	running atomic.Bool
 }
+
+// RequestReconcile coalesces a reader's observation of changed source bytes.
+// The scanner owns when to answer it; a request performs no scan or read.
+func (s *Store) RequestReconcile() { s.reconcileRequested.Store(true) }
 
 // New captures and builds the initial generation synchronously. source and log
 // are required; a nil contract builds instance-derived projections over the
@@ -736,13 +743,7 @@ func (s *Store) rescan(ctx context.Context) {
 	// A scan that completed is no longer being refused, whatever it goes on to
 	// find unchanged below.
 	s.setCollision(nil)
-	// The metadata comparison cannot see an in-place edit that preserves inode,
-	// mode, size and mtime, so once a wall-clock reconcileEvery period has
-	// elapsed the next tick rebuilds without the short-circuit. It never fires
-	// while rebuilds are failing: the backoff owns the cadence there, and every
-	// retry is already a full re-read.
-	reconcile := !s.retry && s.now().Sub(s.lastRebuild) >= time.Duration(reconcileEvery)*scanInterval
-	if !s.retry && !reconcile && s.prev.SameFiles(scan) {
+	if !s.retry && !s.reconcileDue() && s.prev.SameFiles(scan) {
 		return
 	}
 	// While rebuilds keep failing over an unchanged file domain, the expensive
@@ -752,6 +753,9 @@ func (s *Store) rescan(ctx context.Context) {
 	}
 	capabilities := validateArtifactSource(s.capabilities)
 	validatePrivacySource(s.contract)
+	// Every full read answers earlier hints; a hint raised during the build
+	// belongs to a later attempt and must survive it.
+	s.reconcileRequested.Store(false)
 	candidate, blocked, err := buildGeneration(
 		ctx,
 		s.source,
@@ -792,6 +796,19 @@ func (s *Store) rescan(ctx context.Context) {
 	s.nextRetry = time.Time{}
 	s.incompleteScan = vault.Scan{}
 	s.logBuild("vault snapshot rebuilt", candidate, scan)
+}
+
+// reconcileDue answers when metadata-invisible edits need a full read. A
+// reader hint brings the periodic reconciliation forward, bounded by the same
+// minute cap as retries. While a read is failing, backoff owns the cadence and
+// its next attempt already rereads every file.
+func (s *Store) reconcileDue() bool {
+	if s.retry {
+		return false
+	}
+	elapsed := s.now().Sub(s.lastRebuild)
+	return elapsed >= time.Duration(reconcileEvery)*scanInterval ||
+		(s.reconcileRequested.Load() && elapsed >= maxRetryDelay)
 }
 
 // collidingPair is the two files a refused scan names as colliding, as a copy

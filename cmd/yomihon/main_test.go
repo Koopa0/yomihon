@@ -391,7 +391,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		ObservedStatus: writer.ObservedStatus,
+		RequestReconcile: func() {}, ObservedStatus: writer.ObservedStatus,
 		ConsumeReceipt: writer.ConsumeReceipt,
 		Continuation:   func() (mark.Continuation, bool) { return mark.Continuation{}, false },
 		Source:         reader,

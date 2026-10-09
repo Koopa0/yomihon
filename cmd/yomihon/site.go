@@ -196,6 +196,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		VaultName:          vaultName,
 		Status:             writer.Authority,
 		Snapshot:           store.Current,
+		RequestReconcile:   store.RequestReconcile,
 		ObservedStatus:     writer.ObservedStatus,
 		ConsumeReceipt:     writer.ConsumeReceipt,
 		Continuation:       keptPlace,

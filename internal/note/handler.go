@@ -64,6 +64,8 @@ type Sources struct {
 	VaultName string
 	Status    func() status.Authority
 	Snapshot  func() *snapshot.Generation
+	// RequestReconcile leaves a coalesced hint after a verified content mismatch.
+	RequestReconcile func()
 	// ObservedStatus is a closure over the write package's read of the note's
 	// own status line. The rest of the page comes from a scan that lags the
 	// folder by a couple of seconds, which a body and a link graph can afford
@@ -121,6 +123,9 @@ func New(d *Sources) *Handler {
 	}
 	if d.Snapshot == nil {
 		panic("note: New requires a non-nil Snapshot provider")
+	}
+	if d.RequestReconcile == nil {
+		panic("note: New requires a non-nil RequestReconcile provider")
 	}
 	if d.ObservedStatus == nil {
 		panic("note: New requires a non-nil ObservedStatus provider")

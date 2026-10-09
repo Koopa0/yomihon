@@ -26,7 +26,7 @@ func parseFailureHTTPServer(t *testing.T, root string) (*httptest.Server, *snaps
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 	mux := http.NewServeMux()
-	note.New(&note.Sources{Source: source, Status: writer.Authority, Snapshot: store.Current, VaultName: shell.VaultName(source.Name()), ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log}).Register(mux)
+	note.New(&note.Sources{Source: source, Status: writer.Authority, Snapshot: store.Current, VaultName: shell.VaultName(source.Name()), RequestReconcile: store.RequestReconcile, ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log}).Register(mux)
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return server, store

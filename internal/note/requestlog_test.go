@@ -126,7 +126,7 @@ func requestLogServer(t *testing.T, root string) (srv *httptest.Server, logPath 
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
 		Source: source, VaultName: shell.VaultName(source.Name()), Status: writer.Authority,
-		Snapshot: store.Current, ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+		Snapshot: store.Current, RequestReconcile: func() {}, ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
 		Continuation: noMark, Log: slog.New(slog.NewJSONHandler(file, nil)),
 	}).Register(mux)
 	srv = httptest.NewServer(origin.LoopbackOnly(origin.Protect(http.NewCrossOriginProtection().Handler(mux))))

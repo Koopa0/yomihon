@@ -124,13 +124,14 @@ func newServerWithObservedStatus(
 		}
 	}
 	note.New(&note.Sources{
-		Source:         source,
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: observed,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Log:            log,
+		Source:           source,
+		Status:           writer.Authority,
+		Snapshot:         store.Current,
+		RequestReconcile: func() {},
+		ObservedStatus:   observed,
+		ConsumeReceipt:   writer.ConsumeReceipt,
+		Continuation:     noMark,
+		Log:              log,
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

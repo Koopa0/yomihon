@@ -44,13 +44,14 @@ func TestAProbeThatLeavesIsNotLoggedAsAFault(t *testing.T) {
 	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source:         source,
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Log:            log,
+		Source:           source,
+		Status:           writer.Authority,
+		Snapshot:         store.Current,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus,
+		ConsumeReceipt:   writer.ConsumeReceipt,
+		Continuation:     noMark,
+		Log:              log,
 	}).Register(mux)
 
 	mux.ServeHTTP(&goneReader{}, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/favicon.ico", http.NoBody))

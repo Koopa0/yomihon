@@ -202,7 +202,11 @@ func (h *Handler) compareNote(ctx context.Context, rel string, ask *freshnessAsk
 	// read just saw.
 	snap := h.sources.Snapshot().Capture()
 	published, ok := snap.Note(rel)
-	if !ok || published.ContentIdentity != disk {
+	if !ok {
+		return freshPreparing
+	}
+	if published.ContentIdentity != disk {
+		h.sources.RequestReconcile()
 		return freshPreparing
 	}
 	if disk != ask.rendered {

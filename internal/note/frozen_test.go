@@ -43,14 +43,15 @@ func runningFolder(t *testing.T, root string) *httptest.Server {
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
 	h := note.New(&note.Sources{
-		Source:         source,
-		VaultName:      shell.VaultName(source.Name()),
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Log:            log,
+		Source:           source,
+		VaultName:        shell.VaultName(source.Name()),
+		Status:           writer.Authority,
+		Snapshot:         store.Current,
+		RequestReconcile: func() {},
+		ObservedStatus:   writer.ObservedStatus,
+		ConsumeReceipt:   writer.ConsumeReceipt,
+		Continuation:     noMark,
+		Log:              log,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
