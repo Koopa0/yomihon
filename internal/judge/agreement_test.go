@@ -77,6 +77,7 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/citations", Body: "[[A]] [[A]] [[B|alias]]\n"},
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
 		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
+		{Name: "control/text-owned-suffix-targets", Body: "[[A\\]]  ```\n\n1. [[B\\]]text \n"},
 		{Name: "control/repeated-literal-title-receipts", Body: "> [!note] [[A]]\n> [!note] [[A]]\n"},
 		{Name: "control/shared-literal-title-targets", Body: "> [!note] [[A]] [[B]]\n> [!note] [[A]] [[A]] [[B]]\n"},
 		{Name: "control/realized-callout-heading-namespace", Body: "> [!note] title\n> words\n\n## A\n## A\n"},
@@ -223,6 +224,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			standaloneTargetsObserved := false
 			var proseTargets agreementStandaloneTargets
 			proseTargetsObserved := false
+			var textTargets agreementStandaloneTargets
+			textTargetsObserved := false
 			var headingCounts map[string]int
 			headingObserved := false
 			var collisionIDs map[string]bool
@@ -308,6 +311,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						proseTargetsObserved = true
 					}
 					classification, authority, wrong = agreementStandaloneTargetDifference(c, failure, proseTargets)
+				}
+				if classification == "" && failure.Property == "P1" {
+					if !textTargetsObserved {
+						textTargets = agreementTextTargetDebt(c.Body)
+						textTargetsObserved = true
+					}
+					classification, authority, wrong = agreementStandaloneTargetDifference(c, failure, textTargets)
 				}
 				if classification == "" && failure.Property == "P4" {
 					if !headingObserved {
