@@ -276,6 +276,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			unusedTextAddressesObserved := false
 			var unusedParagraphAddresses agreementUnusedTextAddresses
 			unusedParagraphAddressesObserved := false
+			var exclusiveUnusedDiagnostics map[agreementCitation]int
+			exclusiveUnusedDiagnosticsObserved := false
 			var outerQuoteAddresses agreementQuoteAddresses
 			outerQuoteAddressesObserved := false
 			for failureIndex := range failures[i] {
@@ -302,6 +304,14 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					}
 					classification, authority, wrong = agreementUnusedFootnoteWidgetDifference(c, failure, unusedWidgets)
 				}
+				if classification == "" && failure.Property == "P0" {
+					if !exclusiveUnusedDiagnosticsObserved {
+						exclusiveUnusedDiagnostics = agreementExclusiveUnusedDiagnostics(c.Body)
+						exclusiveUnusedDiagnosticsObserved = true
+					}
+					classification, authority, wrong = agreementExclusiveUnusedDiagnosticDifference(c, failure, &observed[i], exclusiveUnusedDiagnostics)
+				}
+
 				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
 					if !commentMadeObserved {
 						commentMadeTargets = agreementCommentMadeFootnoteTargets(c.Body)

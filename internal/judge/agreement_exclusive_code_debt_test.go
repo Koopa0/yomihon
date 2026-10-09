@@ -56,7 +56,7 @@ func agreementExclusiveCodeZones(source []byte, grammar goldmark.Markdown) []gra
 	}
 	return zones
 }
-func agreementCodeFieldContained(zones []graph.Span, start, stop int) bool {
+func agreementFieldContained(zones []graph.Span, start, stop int) bool {
 	for _, zone := range zones {
 		if start >= zone.Start && stop <= zone.Stop {
 			return true
@@ -69,6 +69,10 @@ func agreementExclusiveCodeBudget(body string) map[agreementCitation]int {
 	source := []byte(body)
 	plain := agreementExclusiveCodeZones(source, agreementFootnoteGrammar)
 	gfm := agreementExclusiveCodeZones(source, agreementExclusiveCodeGrammar)
+	return agreementExclusiveFieldBudget(body, plain, gfm)
+}
+
+func agreementExclusiveFieldBudget(body string, plain, gfm []graph.Span) map[agreementCitation]int {
 	all, owned := make(map[string]int), make(map[string]int)
 	tuples := make(map[agreementCitation]int)
 	for off := 0; off < len(body); {
@@ -90,7 +94,7 @@ func agreementExclusiveCodeBudget(body string) map[agreementCitation]int {
 			return nil
 		}
 		all[link.Target]++
-		if agreementCodeFieldContained(plain, start, off) && agreementCodeFieldContained(gfm, start, off) {
+		if agreementFieldContained(plain, start, off) && agreementFieldContained(gfm, start, off) {
 			owned[link.Target]++
 			tuples[agreementCitation{Target: link.Target, Section: link.Heading, State: "wikilink-broken"}]++
 		}
