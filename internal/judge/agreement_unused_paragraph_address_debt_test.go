@@ -1,105 +1,22 @@
 package judge_test
 
 import (
-	"bytes"
-	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
-	extast "github.com/yuin/goldmark/extension/ast"
-	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/text"
-
-	"github.com/koopa0/yomihon/internal/graph"
-	"github.com/koopa0/yomihon/internal/render"
 )
 
-type agreementUnusedTextAddresses struct {
-	Counts map[string]int
-	Lines  map[string][]string
-}
-
-// A discarded definition owns only its plain source lines. Unrelated escapes
-// do not make those lines live, and every raw claim of an address must be here.
-func agreementUnusedTextAddressBudget(body string) agreementUnusedTextAddresses {
-	return agreementUnusedAddressProfile(body, agreementFootnoteGrammar, true)
-}
-
-func agreementUnusedAddressProfile(body string, grammar goldmark.Markdown, textOnly bool) agreementUnusedTextAddresses {
-	source := []byte(body)
-	context := parser.NewContext()
-	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
-	var unused []*extast.Footnote
-	context.Set(agreementUnusedFootnoteNodesKey, &unused)
-	doc := grammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	if !agreementPlainOpenerDeclarationMarkers(source, doc) {
+// Formatting does not make a discarded definition live. Both grammars must
+// agree on every owned source line and on which definitions are unused.
+func agreementUnusedParagraphAddressBudget(body string) agreementUnusedTextAddresses {
+	plain := agreementUnusedAddressProfile(body, agreementFootnoteGrammar, false)
+	gfm := agreementUnusedAddressProfile(body, agreementExclusiveCodeGrammar, false)
+	if !cmp.Equal(plain, gfm) {
 		return agreementUnusedTextAddresses{}
 	}
-	addresses := make(map[string]int)
-	lines := make(map[string][]string)
-	for _, footnote := range unused {
-		for node := footnote.FirstChild(); node != nil; node = node.NextSibling() {
-			switch node.(type) {
-			case *ast.Paragraph, *ast.TextBlock:
-			default:
-				return agreementUnusedTextAddresses{}
-			}
-			if textOnly {
-				for child := node.FirstChild(); child != nil; child = child.NextSibling() {
-					if _, ok := child.(*ast.Text); !ok {
-						return agreementUnusedTextAddresses{}
-					}
-				}
-			}
-			for i := range node.Lines().Len() {
-				line := node.Lines().At(i)
-				raw := strings.TrimSuffix(strings.TrimSuffix(string(line.Value(source)), "\n"), "\r")
-				if address := render.BlockAddress(raw); address != "" {
-					key := graph.FoldFragment(address)
-					addresses[key]++
-					start := bytes.LastIndexByte(source[:line.Start], '\n') + 1
-					physical := strings.TrimSuffix(strings.TrimSuffix(string(source[start:line.Stop]), "\n"), "\r")
-					lines[key] = append(lines[key], physical)
-				}
-			}
-		}
-	}
-	all := make(map[string]int)
-	for line := range strings.SplitSeq(body, "\n") {
-		if address := render.BlockAddress(strings.TrimSuffix(line, "\r")); address != "" {
-			all[graph.FoldFragment(address)]++
-		}
-	}
-	for address, count := range addresses {
-		if all[address] != count {
-			delete(addresses, address)
-			delete(lines, address)
-		}
-	}
-	if len(addresses) == 0 {
-		return agreementUnusedTextAddresses{}
-	}
-	return agreementUnusedTextAddresses{Counts: addresses, Lines: lines}
+	return plain
 }
-
-func agreementUnusedTextAddressDifference(c agreementCase, f *agreementFailure, budget agreementUnusedTextAddresses) (kind, authority, wrong string) {
-	kind, authority, wrong = agreementUnusedFootnoteAddressDifference(c, f, budget.Counts)
-	if kind == "" {
-		return "", "", ""
-	}
-	for line := range strings.SplitSeq(f.Cut, "\n") {
-		for _, owned := range budget.Lines[f.Fragment] {
-			if strings.TrimSuffix(line, "\r") == owned {
-				return kind, authority, wrong
-			}
-		}
-	}
-	return "", "", ""
-}
-
-func TestAgreementUnusedTextAddresses(t *testing.T) {
+func TestAgreementUnusedParagraphAddresses(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, body string
@@ -110,26 +27,29 @@ func TestAgreementUnusedTextAddresses(t *testing.T) {
 		{name: "complete lines and definitions", body: "[^n]: first ^A\nnext ^a\n\n    second ^b\n\n[^m]: third ^c\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^a": 2, "^b": 1, "^c": 1}, Lines: map[string][]string{"^a": {"[^n]: first ^A", "next ^a"}, "^b": {"    second ^b"}, "^c": {"[^m]: third ^c"}}}, public: true},
 		{name: "unrelated HTML words", body: "## <em>A</em>\n\n[^unused]: words ^a\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^a": 1}, Lines: map[string][]string{"^a": {"[^unused]: words ^a"}}}, public: true},
 		{name: "recorded lazy continuation", body: "## A\n[^n]: [[A]]\n\n    [[B]]\n ^a-2\n\\[[A]]- [ ] [[A]]\n## A\n## A\n-->B\n``` [[A]]\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^a-2": 1}, Lines: map[string][]string{"^a-2": {" ^a-2"}}}, public: true},
+		{name: "recorded formatted lazy paragraph", body: "[^unused]: [[A]]\n章節\nA\n[[B|alias]]`[[A]]`[[A\nB]]# A\n0  ^a\n  - ## <em>A</em>\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^a": 1}, Lines: map[string][]string{"^a": {"0  ^a"}}}, public: true},
 		{name: "used and unused definition set", body: "ref[^n]\n\n[^n]: words ^a\n\n[^m]: other ^b\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^b": 1}, Lines: map[string][]string{"^b": {"[^m]: other ^b"}}}, public: true},
 		{name: "used definition", body: "ref[^n]\n\n[^n]: words ^a\n"},
 		{name: "ordinary address", body: "words ^a\n"},
 		{name: "remaining owned set beside shared claim", body: "ordinary ^a\n\n[^n]: first ^a\nsecond ^b\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^b": 1}, Lines: map[string][]string{"^b": {"second ^b"}}}, public: true},
 		{name: "shared live claim", body: "ordinary ^a\n\n[^n]: words ^a\n"},
-		{name: "inline code owns text", body: "[^n]: `words` ^a\n"},
-		{name: "inline markup owns text", body: "[^n]: *words* ^a\n"},
-		{name: "HTML owns text", body: "[^n]: <mark>words</mark> ^a\n"},
+		{name: "inline code owns text", body: "[^n]: `words` ^a\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^a": 1}, Lines: map[string][]string{"^a": {"[^n]: `words` ^a"}}}, public: true},
+		{name: "inline markup owns text", body: "[^n]: *words* ^a\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^a": 1}, Lines: map[string][]string{"^a": {"[^n]: *words* ^a"}}}, public: true},
+		{name: "HTML owns text", body: "[^n]: <mark>words</mark> ^a\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^a": 1}, Lines: map[string][]string{"^a": {"[^n]: <mark>words</mark> ^a"}}}, public: true},
 		{name: "block code owns text", body: "[^n]: first\n\n    ```\n    words ^a\n    ```\n"},
 		{name: "heading owns text", body: "[^n]: first ^a\n\n    ## heading ^b\n"},
-		{name: "later nontext refuses whole inventory", body: "[^n]: first ^a\n\n[^m]: *words* ^b\n"},
+		{name: "complete mixed inline inventory", body: "[^n]: first ^A\nsecond `words` ^a\n\n    *next* ^b\n\n[^m]: <mark>words</mark> ^c\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^a": 2, "^b": 1, "^c": 1}, Lines: map[string][]string{"^a": {"[^n]: first ^A", "second `words` ^a"}, "^b": {"    *next* ^b"}, "^c": {"[^m]: <mark>words</mark> ^c"}}}, public: true},
+		{name: "used and unused markup", body: "ref[^n]\n\n[^n]: `used` ^a\n\n[^m]: *unused* ^b\n", want: agreementUnusedTextAddresses{Counts: map[string]int{"^b": 1}, Lines: map[string][]string{"^b": {"[^m]: *unused* ^b"}}}, public: true},
+		{name: "grammars disagree on use", body: "https://example.invalid/` words ref[^n]\nclose`\n\n[^n]: *words* ^a\n"},
 		{name: "live percent role", body: "%%\n[^n]: words ^a\n%%\n"},
 		{name: "live comment role", body: "<!--\n[^n]: words ^a\n-->\n"},
 		{name: "empty definition", body: "[^n]: words\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			budget := agreementUnusedTextAddressBudget(tc.body)
+			budget := agreementUnusedParagraphAddressBudget(tc.body)
 			if diff := cmp.Diff(tc.want, budget); diff != "" {
-				t.Fatalf("caught: complete unused text address inventory (-want +got):\n%s", diff)
+				t.Fatalf("caught: complete unused paragraph address inventory (-want +got):\n%s", diff)
 			}
 			if !tc.public {
 				return
@@ -147,12 +67,12 @@ func TestAgreementUnusedTextAddresses(t *testing.T) {
 				}
 				kind, authority, wrong := agreementUnusedTextAddressDifference(c, f, budget)
 				if kind != "debt" || authority != "#1011 stage 5" || wrong != "judge+excerpt" {
-					t.Fatalf("caught: unused text address public ownership %q %q %q %s", kind, authority, wrong, agreementSignature(f))
+					t.Fatalf("caught: unused paragraph address public ownership %q %q %q %s", kind, authority, wrong, agreementSignature(f))
 				}
 				matched++
 				for _, other := range []agreementCase{{Body: c.Body, Title: "title"}, {Body: c.Body, Companions: capturedBodies{"A.md": "body"}}} {
 					if kind, _, _ := agreementUnusedTextAddressDifference(other, f, budget); kind != "" {
-						t.Fatal("caught: unused text address borrowed vault context")
+						t.Fatal("caught: unused paragraph address borrowed vault context")
 					}
 				}
 				for _, change := range []func(*agreementFailure){
@@ -161,12 +81,12 @@ func TestAgreementUnusedTextAddresses(t *testing.T) {
 					changed := *f
 					change(&changed)
 					if kind, _, _ := agreementUnusedTextAddressDifference(c, &changed, budget); kind != "" {
-						t.Fatalf("caught: unused text address borrowed signature %s", agreementSignature(&changed))
+						t.Fatalf("caught: unused paragraph address borrowed signature %s", agreementSignature(&changed))
 					}
 				}
 			}
 			if matched != 2*len(budget.Counts) {
-				t.Fatalf("caught: unused text address public set got=%d want=%d", matched, 2*len(budget.Counts))
+				t.Fatalf("caught: unused paragraph address public set got=%d want=%d", matched, 2*len(budget.Counts))
 			}
 		})
 	}
