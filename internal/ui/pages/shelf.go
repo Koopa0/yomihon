@@ -58,9 +58,16 @@ type UncertaintyRemoval struct {
 	Anchor      string
 }
 
+// RowPlace names a marked location in its own authored language.
+type RowPlace struct {
+	Text     string
+	Language string
+}
+
 // Row is one document on the shelf.
 type Row struct {
-	Text string
+	Text  string
+	Place RowPlace
 	// Removal is present only for a lost uncertainty mark.
 	Removal *UncertaintyRemoval
 	// Wrap preserves a location or declaration that must stay readable even

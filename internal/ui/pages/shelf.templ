@@ -102,7 +102,11 @@ templ shelfNarrowBody(row Row) {
 	if row.When != "" && !row.ByTitle {
 		<span class="ui-navitem__when">{ row.When }</span>
 	}
-	<span { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span>
+	if row.Place.Text == "" {
+		<span { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span>
+	} else {
+		<span { authoredLanguageAttrs(row.Language)... }>{ row.Text }{ " — " }<span { authoredLanguageAttrs(row.Place.Language)... }>{ row.Place.Text }</span></span>
+	}
 	if row.When != "" && row.ByTitle {
 		<span class="ui-navitem__when">{ row.When }</span>
 	}
@@ -174,7 +178,11 @@ templ shelfRowBody(row Row) {
 	if row.When != "" && !row.ByTitle {
 		<span class="y-row__when">{ row.When }</span>
 	}
-	<span class="y-row__title" { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span>
+	if row.Place.Text == "" {
+		<span class="y-row__title" { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span>
+	} else {
+		<span class="y-row__title" { authoredLanguageAttrs(row.Language)... }>{ row.Text }{ " — " }<span { authoredLanguageAttrs(row.Place.Language)... }>{ row.Place.Text }</span></span>
+	}
 	if row.Opening != "" {
 		<span class="y-row__opening" { authoredLanguageAttrs(row.Language)... }>{ row.Opening }</span>
 	}
