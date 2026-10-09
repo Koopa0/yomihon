@@ -8,7 +8,8 @@ import (
 )
 
 // WriteNotFound answers one request with the shared not-found page: the content
-// type, the 404 status, and the page itself, in that order. It exists because
+// type, the status, and the page itself, in that order. An unreadable folder
+// withholds evidence of absence and answers a temporary service refusal. It exists because
 // three faces refuse a name they do not hold — a note, a report, a study path —
 // and each had written those three steps out. Three copies of a response are
 // three chances for one of them to answer a missing name with a different
@@ -29,6 +30,10 @@ func WriteNotFound(
 	chrome layouts.Chrome,
 ) error {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(http.StatusNotFound)
+	code := http.StatusNotFound
+	if view.BlockedFolder != "" {
+		code = http.StatusServiceUnavailable
+	}
+	w.WriteHeader(code)
 	return NotFound(view, chrome).Render(ctx, w)
 }

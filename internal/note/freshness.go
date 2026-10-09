@@ -175,7 +175,7 @@ func (h *Handler) compareNote(ctx context.Context, rel string, ask *freshnessAsk
 			h.noteFreshnessFailure(rel, "lookup", err)
 			return freshUnreadable
 		}
-		if blockedAt(snap, rel).Path == "" {
+		if _, blocked := blockedAt(snap, rel); !blocked {
 			return freshGone
 		}
 		return freshUnreadable
