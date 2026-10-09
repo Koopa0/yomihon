@@ -260,7 +260,8 @@ frontend-deps:
 	npm ci --prefix .github --ignore-scripts --no-audit --fund=false
 
 frontend-check: frontend-deps
-	npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/e2e/*.mjs .github/e2e/support/*.mjs .github/*.mjs
+	node --test .github/browser-waits-test.mjs
+	find .github/e2e -type f -name '*.mjs' -exec npm exec --prefix .github -- biome lint --error-on-warnings assets/js/*.js .github/*.mjs {} +
 	@$(MAKE) --no-print-directory stylelint-check
 
 # Regenerates the README's pictures from the example vault. The script sits

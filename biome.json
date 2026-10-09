@@ -1,5 +1,6 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
+  "plugins": ["./.github/synchronous-browser-waits.grit"],
   "linter": {
     "rules": {
       "complexity": {
