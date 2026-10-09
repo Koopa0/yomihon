@@ -60,11 +60,11 @@ const mutation = async (page) => {
 
 
 
-const settled = (page) => page.waitForFunction(async () => {
+const settled = (page) => page.waitForFunction(() => {
   const dialog = document.querySelector('[data-concept-sheet][open]');
   if (!dialog) return false;
-  await Promise.all(dialog.getAnimations().map((animation) => animation.finished.catch(() => {})));
-  return true;
+  return dialog.getAnimations().every((animation) =>
+    !animation.pending && !['running', 'paused'].includes(animation.playState));
 }, null, { timeout: 3000 });
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });

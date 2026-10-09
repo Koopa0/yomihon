@@ -1,0 +1,11 @@
+`$page.waitForFunction($args)` where {
+    $args <: [$predicate, ...],
+    $predicate <: or {
+        `async ($params) => $body`,
+        `async function ($params) { $body }`,
+        `async function $name($params) { $body }`,
+        contains `new Promise($promiseArgs)`,
+        contains `Promise.$method($promiseArgs)`
+    },
+    register_diagnostic(span = $predicate, message = "Use a synchronous predicate or support/arrival.mjs; waitForFunction does not repoll a returned Promise.")
+}
