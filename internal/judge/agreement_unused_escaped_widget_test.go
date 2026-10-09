@@ -14,8 +14,8 @@ const agreementUnusedEscapedField = "unused-escaped"
 // Keep quoted fields in the source inventory without lending their counts to an
 // active diagnostic. Unquoted fields still belong to the discarded definition.
 func agreementUnusedEscapedWidgetBudget(body string) agreementUnusedWidgetPayload {
-	plain := agreementUnusedPlainWidgetReading(body, agreementFootnoteGrammar, true)
-	gfm := agreementUnusedPlainWidgetReading(body, agreementExclusiveCodeGrammar, true)
+	plain := agreementUnusedPlainWidgetReading(body, agreementFootnoteGrammar, true, false)
+	gfm := agreementUnusedPlainWidgetReading(body, agreementExclusiveCodeGrammar, true, false)
 	if !cmp.Equal(plain, gfm) || len(plain) == 0 {
 		return agreementUnusedWidgetPayload{}
 	}
@@ -58,7 +58,7 @@ func TestAgreementUnusedEscapedWidgetSource(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			for _, grammar := range []goldmark.Markdown{agreementFootnoteGrammar, agreementExclusiveCodeGrammar} {
-				if diff := cmp.Diff(tc.want, agreementUnusedPlainWidgetReading(tc.body, grammar, true)); diff != "" {
+				if diff := cmp.Diff(tc.want, agreementUnusedPlainWidgetReading(tc.body, grammar, true, false)); diff != "" {
 					t.Fatalf("caught: complete unused escaped widget source inventory (-want +got):\n%s", diff)
 				}
 			}
