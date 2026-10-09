@@ -20,6 +20,7 @@ const SITES = [
   'metarow-off-paper',
   'folder-steps-off-paper',
   'course-steps-on-paper',
+  'course-actions-off-paper',
 ];
 
 class LockFired extends Error {
@@ -50,6 +51,10 @@ const weakenStylesheet = (rule) => async (page) => {
 };
 
 const MUTATIONS = {
+  'drop-hide-course-actions': {
+    target: 'course-actions-off-paper',
+    apply: weakenStylesheet('@media print{.y-cover__ways{display:flex !important}.y-cover__note{display:block !important}}'),
+  },
   'drop-hide-crumbs': {
     target: 'crumbs-off-paper',
     apply: weakenStylesheet('@media print{.y-crumbs{display:block !important}}'),
@@ -158,6 +163,18 @@ try {
   await page.emulateMedia({ media: 'print' });
   if (!(await laidOut(page.locator('nav.y-steps.y-steps--course')))) {
     fail('course-steps-on-paper', 'course lesson-order previous/next vanished from paper');
+  }
+
+  await page.emulateMedia({ media: 'screen' });
+  await page.goto(BASE + '/syllabus/Maps/listen.md', { waitUntil: 'load' });
+  const actions = page.locator('.y-syl-read');
+  if (await actions.count() !== 2) broken('course fixture must offer both the note and listening links');
+  for (const action of await actions.all()) {
+    if (!(await laidOut(action))) broken('course action is unavailable on screen, so hiding it on paper proves nothing');
+  }
+  await page.emulateMedia({ media: 'print' });
+  for (const action of await actions.all()) {
+    if (await laidOut(action)) fail('course-actions-off-paper', `caught: course action ${await action.textContent()} still prints`);
   }
 
   await context.close();

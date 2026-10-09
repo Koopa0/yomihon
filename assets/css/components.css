@@ -6469,10 +6469,11 @@ samp,
   .y-steps:not(.y-steps--course) {
     display: none !important;
   }
-  /* A course's own verb is pressed, and paper takes no press. What the author
+  /* A course's entry actions are pressed, and paper takes no press. What the author
      wrote above the counts stays on the sheet: it is the course's own words,
      which is what the sheet is for. */
-  .y-cover__open {
+  .y-cover__ways,
+  .y-cover__note {
     display: none !important;
   }
   /* stylelint-enable declaration-no-important */
