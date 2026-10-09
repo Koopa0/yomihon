@@ -39,6 +39,9 @@ func (agreementFootnoteDeclarations) Transform(doc *ast.Document, reader text.Re
 		if !entering || !ok || footnote.Index >= 0 {
 			return ast.WalkContinue, nil
 		}
+		if declarations, retain := context.Get(agreementUnusedFootnoteNodesKey).(*[]*extast.Footnote); retain {
+			*declarations = append(*declarations, footnote)
+		}
 		if err := ast.Walk(footnote, func(child ast.Node, entering bool) (ast.WalkStatus, error) {
 			if !entering {
 				return ast.WalkContinue, nil

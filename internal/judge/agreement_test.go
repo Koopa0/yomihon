@@ -78,6 +78,7 @@ func TestAgreement(t *testing.T) {
 		{Name: "control/code", Body: "`[[A]]`\n\n``` go\n[[A]]\n```\n"},
 		{Name: "control/wrapped-local-heading-code", Body: "# A\n\n`open\n[[#A]]\nclose`\n"},
 		{Name: "control/terminal-comment-code", Body: "``[[A]] [[A]]## !\n[[A\nB]]``\\[[A]]```` go [[A]]\nÉ\n<!--"},
+		{Name: "control/unused-definition-raw-fields", Body: "[[A\nB]]- item\n\n      ## A\n[^unused]: [[A]]\n[[A\\]]"},
 		{Name: "control/comment-made-definition", Body: "A\n<!-- [[A]] -->[^unused]: [[A]]\n"},
 		{Name: "control/text-owned-suffix-targets", Body: "[[A\\]]  ```\n\n1. [[B\\]]text \n"},
 		{Name: "control/repeated-literal-title-receipts", Body: "> [!note] [[A]]\n> [!note] [[A]]\n"},
@@ -215,6 +216,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			}
 			unusedTargets := agreementUnusedFootnoteTargets(c.Body)
 			var unusedTailTargets map[string]int
+			var unusedWidgets agreementReferenceDestinations
+			unusedWidgetsObserved := false
 			unusedTailObserved := false
 			var commentMadeTargets map[string]int
 			commentMadeObserved := false
@@ -278,6 +281,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						unusedTailObserved = true
 					}
 					classification, authority, wrong = agreementUnusedFootnoteDifference(c, failure, unusedTailTargets)
+				}
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					if !unusedWidgetsObserved {
+						unusedWidgets = agreementUnusedFootnoteWidgetBudget(c.Body)
+						unusedWidgetsObserved = true
+					}
+					classification, authority, wrong = agreementUnusedFootnoteWidgetDifference(c, failure, unusedWidgets)
 				}
 				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
 					if !commentMadeObserved {
