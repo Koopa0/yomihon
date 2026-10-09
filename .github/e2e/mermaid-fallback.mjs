@@ -394,6 +394,7 @@ try {
       fail('initial-theme-follows-system', `case 4: a dark system preference with no stored choice drew a node ${systemDarkFill}, want the dark drawing's ${darkFill}`);
     }
 
+    if (!(await systemLight.page.locator('[data-theme-toggle]').isVisible())) await systemLight.page.click('[popovertarget="_y-header-fold"]');
     await systemLight.page.click('[data-theme-toggle]');
     // The claim is where the redraw lands, not that it has begun, so this waits
     // for the drawn colour to move and then reads where it settled.

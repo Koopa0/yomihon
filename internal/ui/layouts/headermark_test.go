@@ -15,8 +15,8 @@ func offer() *MarkOffer {
 }
 
 // TestTheHeaderMarkIsInsideTheFoldedPanelAndLast holds the seam the wide row
-// opens. The panel's children become the header row's own items above the
-// width the row folds at, so an item that has no room there has to be inside
+// opens. Under the #729 ruling the panel serves through 1280px; its children
+// become the header row's own items from 1281px, so the mark has to be inside
 // the panel and nowhere else in the header. And it has to come after the six
 // that do move, because the reader who tabs into the panel walks it in the
 // order it is written.

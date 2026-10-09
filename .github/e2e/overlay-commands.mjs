@@ -264,7 +264,7 @@ const isOpen = (page, selector) => page.$eval(selector, (element) => (
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  // Ask the wide row and the positively opened native fold. A closed fold
+  // Ask the row or the positively opened native fold at each measured width. A closed fold
   // would hide its children even if their capability rule had disappeared.
   for (const width of [1280, 390]) for (const language of ['zh-Hant', 'en']) for (const theme of ['light', 'dark']) {
     const site = 'script-only-header-controls-stay-out-of-the-way';
@@ -284,7 +284,7 @@ try {
     for (const selector of SCRIPT_ONLY) {
       if (await page.locator(`header ${selector}`).count() !== 1) broken(`the header does not carry exactly one ${selector}`);
     }
-    if (width === 390) {
+    if (await page.locator('.y-foldbtn').isVisible()) {
       await page.locator('.y-foldbtn').click();
       if (!(await isOpen(page, '#_y-header-fold'))) broken('the native header fold did not open');
     }
@@ -421,6 +421,9 @@ try {
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
     if (await page.locator(HELP).count() !== 1) broken(`${PAGE} carries no single keyboard help panel`);
     if (await isOpen(page, HELP)) broken('the keyboard help is already open before anything was pressed');
+    if (!(await page.locator(HELP_OPEN).isVisible())) {
+      await page.locator('.y-foldbtn').click();
+    }
     await page.locator(HELP_OPEN).click();
     checkProof(proof);
     if (!(await isOpen(page, HELP))) {

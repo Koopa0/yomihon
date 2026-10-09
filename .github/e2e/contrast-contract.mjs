@@ -1004,6 +1004,7 @@ try {
     // The reader's own control, not a scripted attribute: what is under test
     // includes the button reaching the stylesheet at all.
     await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+    if (!(await page.locator('[data-theme-toggle]').isVisible())) await page.click('[popovertarget="_y-header-fold"]');
     await page.click('[data-theme-toggle]');
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
 
