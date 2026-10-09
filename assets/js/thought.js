@@ -6,7 +6,7 @@ export function initThought() {
     const said = stub.querySelector('[data-thought-said]');
     if (!button || !markdown || !said) continue;
     button.hidden = false;
-    button?.addEventListener('click', async () => {
+    button.addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(markdown.value);
         said.textContent = stub.dataset.thoughtCopied;
