@@ -269,6 +269,13 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 		}
 		shown := shelfRows(&block.Shelf, deskBlockItems)
 		listed := shelfRows(&page.Shelf, len(page.Shelf.Rows))
+		if block.Mode == folderMode {
+			zero := make(map[string]bool)
+			for _, folder := range model.ShelfFolders() {
+				zero[folderHref(folder.RelPath)] = countNotes(folder.Notes, folder.Subfolders) == 0
+			}
+			listed = slices.DeleteFunc(listed, func(row Row) bool { return zero[row.Href] })
+		}
 		// A block that showed nothing at all used to satisfy this: comparing
 		// no rows against any number of rows found no disagreement. It owes
 		// the reader as many as it has room for.
