@@ -238,6 +238,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			proseTargetsObserved := false
 			var textTargets agreementStandaloneTargets
 			textTargetsObserved := false
+			var textSuffixFields agreementTextSuffixFields
+			textSuffixFieldsObserved := false
 			var headingCounts map[string]int
 			headingObserved := false
 			var collisionIDs map[string]bool
@@ -419,6 +421,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						textTargetsObserved = true
 					}
 					classification, authority, wrong = agreementStandaloneTargetDifference(c, failure, textTargets)
+				}
+				if classification == "" && failure.Property == "P1" {
+					if !textSuffixFieldsObserved {
+						textSuffixFields = agreementTextSuffixFieldBudget(c.Body)
+						textSuffixFieldsObserved = true
+					}
+					classification, authority, wrong = agreementTextSuffixFieldDifference(c, failure, &observed[i], textSuffixFields)
 				}
 				if classification == "" && failure.Property == "P4" {
 					if !headingObserved {
