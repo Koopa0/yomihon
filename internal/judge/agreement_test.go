@@ -281,6 +281,9 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			unusedOpenerAddressesObserved := false
 			unusedParagraphAddressesObserved := false
 			var exclusiveUnusedFields map[agreementCitation]int
+			var unusedBlockFields map[agreementCitation]int
+			var unusedBlockCheckFields map[string]int
+			unusedBlockFieldsObserved := false
 			exclusiveUnusedFieldsObserved := false
 			var outerQuoteAddresses agreementQuoteAddresses
 			outerQuoteAddressesObserved := false
@@ -316,6 +319,19 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					classification, authority, wrong = agreementExclusiveUnusedDiagnosticDifference(c, failure, &observed[i], exclusiveUnusedFields)
 					if classification == "" {
 						classification, authority, wrong = agreementExclusiveHiddenCitationDifference(c, failure, &observed[i], exclusiveUnusedFields)
+					}
+				}
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					if !unusedBlockFieldsObserved {
+						unusedBlockFields, unusedBlockCheckFields = agreementUnusedBlockFieldBudgets(c.Body)
+						unusedBlockFieldsObserved = true
+					}
+					classification, authority, wrong = agreementExclusiveUnusedDiagnosticDifference(c, failure, &observed[i], unusedBlockFields)
+					if classification == "" {
+						classification, authority, wrong = agreementExclusiveHiddenCitationDifference(c, failure, &observed[i], unusedBlockFields)
+					}
+					if classification == "" {
+						classification, authority, wrong = agreementUnusedBlockCheckDifference(c, failure, &observed[i], unusedBlockCheckFields)
 					}
 				}
 

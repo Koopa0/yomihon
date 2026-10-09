@@ -18,17 +18,14 @@ import (
 
 // The unused definition is discarded with every block it owns. Native block
 // lines retain the source boundaries without borrowing live address claims.
-func agreementUnusedBlockAddressReading(body string, grammar goldmark.Markdown) agreementUnusedTextAddresses {
-	source := []byte(body)
+func agreementUnusedBlockDeclarations(body string, grammar goldmark.Markdown) (source []byte, doc ast.Node, nodes []ast.Node) {
+	source = []byte(body)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
 	var unused []*extast.Footnote
 	context.Set(agreementUnusedFootnoteNodesKey, &unused)
-	doc := grammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
-	addresses := make(map[string]int)
-	lines := make(map[string][]string)
+	doc = grammar.Parser().Parse(text.NewReader(source), parser.WithContext(context))
 
-	var nodes []ast.Node
 	for _, footnote := range unused {
 		if err := ast.Walk(footnote, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 			if entering && node.Type() == ast.TypeBlock && node.Lines().Len() > 0 {
@@ -39,20 +36,10 @@ func agreementUnusedBlockAddressReading(body string, grammar goldmark.Markdown) 
 			panic(err)
 		}
 	}
-	for _, node := range nodes {
-		for i := range node.Lines().Len() {
-			line := node.Lines().At(i)
-			raw := strings.TrimSuffix(strings.TrimSuffix(string(line.Value(source)), "\n"), "\r")
-			if address := render.BlockAddress(raw); address != "" {
-				key := graph.FoldFragment(address)
-				addresses[key]++
-				start := bytes.LastIndexByte(source[:line.Start], '\n') + 1
-				physical := strings.TrimSuffix(strings.TrimSuffix(string(source[start:line.Stop]), "\n"), "\r")
-				lines[key] = append(lines[key], physical)
-			}
-		}
-	}
+	return source, doc, nodes
+}
 
+func agreementUnusedBlockMarkerContext(source []byte, doc ast.Node, nodes []ast.Node) bool {
 	contextSource := bytes.Clone(source)
 	// Discarded blocks cannot supply a live opener. Context checks retain the
 	// original tree and offsets for every marker outside those blocks.
@@ -67,7 +54,28 @@ func agreementUnusedBlockAddressReading(body string, grammar goldmark.Markdown) 
 		}
 	}
 
-	if !agreementPlainOpenerDeclarationMarkers(contextSource, doc) {
+	return agreementPlainOpenerDeclarationMarkers(contextSource, doc)
+}
+
+func agreementUnusedBlockAddressReading(body string, grammar goldmark.Markdown) agreementUnusedTextAddresses {
+	source, doc, nodes := agreementUnusedBlockDeclarations(body, grammar)
+	addresses := make(map[string]int)
+	lines := make(map[string][]string)
+	for _, node := range nodes {
+		for i := range node.Lines().Len() {
+			line := node.Lines().At(i)
+			raw := strings.TrimSuffix(strings.TrimSuffix(string(line.Value(source)), "\n"), "\r")
+			if address := render.BlockAddress(raw); address != "" {
+				key := graph.FoldFragment(address)
+				addresses[key]++
+				start := bytes.LastIndexByte(source[:line.Start], '\n') + 1
+				physical := strings.TrimSuffix(strings.TrimSuffix(string(source[start:line.Stop]), "\n"), "\r")
+				lines[key] = append(lines[key], physical)
+			}
+		}
+	}
+
+	if !agreementUnusedBlockMarkerContext(source, doc, nodes) {
 		return agreementUnusedTextAddresses{}
 	}
 	all := make(map[string]int)

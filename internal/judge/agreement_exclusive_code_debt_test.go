@@ -73,6 +73,10 @@ func agreementExclusiveCodeBudget(body string) map[agreementCitation]int {
 }
 
 func agreementExclusiveFieldBudget(body string, plain, gfm []graph.Span) map[agreementCitation]int {
+	return agreementExclusiveTargetFieldBudget(body, plain, gfm, nil)
+}
+
+func agreementExclusiveTargetFieldBudget(body string, plain, gfm []graph.Span, targetReader func(string) string) map[agreementCitation]int {
 	all, owned := make(map[string]int), make(map[string]int)
 	tuples := make(map[agreementCitation]int)
 	for off := 0; off < len(body); {
@@ -93,10 +97,17 @@ func agreementExclusiveFieldBudget(body string, plain, gfm []graph.Span) map[agr
 		if link.Block != "" {
 			return nil
 		}
-		all[link.Target]++
+		target := link.Target
+		if targetReader != nil {
+			target = targetReader("[[" + inner + "]]")
+		}
+		if target == "" {
+			continue
+		}
+		all[target]++
 		if agreementFieldContained(plain, start, off) && agreementFieldContained(gfm, start, off) {
-			owned[link.Target]++
-			tuples[agreementCitation{Target: link.Target, Section: link.Heading, State: "wikilink-broken"}]++
+			owned[target]++
+			tuples[agreementCitation{Target: target, Section: link.Heading, State: "wikilink-broken"}]++
 		}
 	}
 	for tuple := range tuples {
