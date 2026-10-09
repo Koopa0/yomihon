@@ -19,6 +19,10 @@ const agreementUnusedCommentOverlap = "comment-overlap"
 // Ordinary words do not change a discarded text field's position. Retain every
 // field, including comment overlap, so a hidden name cannot lend a contribution.
 func agreementUnusedTextWidgetReading(body string, grammar goldmark.Markdown) []agreementUnusedWidgetField {
+	return agreementUnusedPlainWidgetReading(body, grammar, false)
+}
+
+func agreementUnusedPlainWidgetReading(body string, grammar goldmark.Markdown, retainEscapes bool) []agreementUnusedWidgetField {
 	source := []byte(body)
 	context := parser.NewContext()
 	context.Set(agreementFootnoteTargetsKey, make(map[string]int))
@@ -55,7 +59,7 @@ func agreementUnusedTextWidgetReading(body string, grammar goldmark.Markdown) []
 					}
 					closeAt += open + 2
 					inner := raw[open+2 : closeAt]
-					if strings.ContainsAny(inner, "[]\r\n`") || graph.EscapedWikilinkAt(raw, open) {
+					if strings.ContainsAny(inner, "[]\r\n`") || !retainEscapes && graph.EscapedWikilinkAt(raw, open) {
 						return nil
 					}
 					link, cites := graph.ParseWikilink(inner)
@@ -74,6 +78,9 @@ func agreementUnusedTextWidgetReading(body string, grammar goldmark.Markdown) []
 					}
 					if agreementUnusedWidgetCommentOwned(field.Span, comments) {
 						field.Tuple.SourceRole = agreementUnusedCommentOverlap
+					}
+					if graph.EscapedWikilinkAt(raw, open) {
+						field.Tuple.SourceRole = agreementUnusedEscapedField
 					}
 					fields = append(fields, field)
 				}
