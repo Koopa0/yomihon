@@ -285,15 +285,20 @@ func TestBlockedFolderNotePage(t *testing.T) {
 	}
 	srv := newServer(t, root)
 	for _, rel := range []string{"Closed/x.md", "Closed/a/x.md"} {
-		code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
-		if code == http.StatusNotFound {
-			t.Errorf("%s: blocked folder answered 404", rel)
-		}
-		if !strings.Contains(page, "<code>Closed</code>") {
-			t.Errorf("%s: repair does not name blocked folder Closed", rel)
-		}
-		if strings.Contains(page, wording.NothingHere.In(wording.ZhHant)) {
-			t.Errorf("%s: page claims absence", rel)
+		for _, lang := range bothLanguages {
+			code, page := pageIn(t, srv, "/notes/"+rel, lang)
+			if code != http.StatusServiceUnavailable {
+				t.Errorf("%s (%s): blocked folder status = %d, want 503", rel, lang, code)
+			}
+			if !strings.Contains(page, "<code>Closed</code>") {
+				t.Errorf("%s (%s): repair does not name blocked folder Closed", rel, lang)
+			}
+			if strings.Contains(page, inPage(wording.NothingHere, lang)) {
+				t.Errorf("%s (%s): page claims absence", rel, lang)
+			}
+			sentenceFollowsTheReader(t, page, lang, wording.FolderNotReadableTitle, "blocked-folder title")
+			sentenceFollowsTheReader(t, page, lang, wording.FolderNotReadableLede, "blocked-folder explanation")
+			sentenceFollowsTheReader(t, page, lang, wording.FolderNotReadableNext, "blocked-folder repair")
 		}
 	}
 	if code, _ := get(t, srv.Client(), srv.URL+"/notes/Closedx/x.md"); code != http.StatusOK {
