@@ -51,6 +51,7 @@ var schemaGoldens = []struct {
 	{fixture: "testdata/vault-status-unreachable", golden: "testdata/golden/status-unreachable.jsonl"},
 	{fixture: "testdata/vault-unclosed", golden: "testdata/golden/unclosed.jsonl"},
 	{fixture: "testdata/vault-reference-sequence", golden: "testdata/golden/reference-sequence.jsonl"},
+	{fixture: "testdata/vault-type-dependent", golden: "testdata/golden/type-dependent.jsonl"},
 }
 
 var coverageGoldens = []struct {
