@@ -521,6 +521,11 @@ func FuzzRewriteQuery(f *testing.F) {
 	f.Add("", "status", "")
 	f.Add("   ", "type", `a" b`)
 	f.Add("「深度 工作」 status:ready", "status", "ready")
+	f.Add("needle", "domain", `"east"`)
+	f.Add("needle", "domain", "「east」")
+	f.Add("needle", "domain", "『east』")
+	f.Add("needle", "folder", `"east"`)
+	f.Add("needle", "folder", "Notes/e\u0301/")
 
 	f.Fuzz(func(t *testing.T, raw, key, value string) {
 		if !utf8.ValidString(raw) || !utf8.ValidString(value) {
@@ -556,8 +561,17 @@ func FuzzRewriteQuery(f *testing.F) {
 		if !strings.HasPrefix(added, raw) {
 			t.Errorf("WithFilter(%q, %v) = %q, which does not open with the reader's own query", raw, constraint, added)
 		}
-		if len(Parse(added).Filters()) != len(Parse(raw).Filters())+1 {
-			t.Errorf("WithFilter(%q, %v) = %q, which reads back with the wrong number of constraints", raw, constraint, added)
+		filters := Parse(added).Filters()
+		if len(filters) != len(Parse(raw).Filters())+1 {
+			t.Fatalf("WithFilter(%q, %v) = %q, which reads back with the wrong number of constraints", raw, constraint, added)
+		}
+		wanted := value
+		if key == "folder" {
+			wanted = strings.TrimSuffix(wanted, "/")
+		}
+		last := filters[len(filters)-1]
+		if last.Key != key || !filterValuesEqual(key, last.Value, wanted) {
+			t.Errorf("WithFilter(%q, %v) = %q, whose added constraint %v changes the requested value", raw, constraint, added, last)
 		}
 	})
 }
