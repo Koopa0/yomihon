@@ -331,6 +331,15 @@ const (
 // back through the parser instead of reasoning about which characters are safe,
 // so it cannot disagree with the grammar it is protecting.
 func WithFilter(raw string, f Filter) (string, bool) {
+	// The requested value is data rather than query syntax, so normalize it
+	// without letting its quote characters group it.
+	key, value, reading := splitFilter(f.Key+":"+f.Value, -1)
+	if reading != readAsFilter || key != f.Key {
+		return "", false
+	}
+	if key != "folder" {
+		value = fold(value)
+	}
 	written := spellFilter(f)
 	out := written
 	if raw != "" {
@@ -343,8 +352,8 @@ func WithFilter(raw string, f Filter) (string, bool) {
 	if !slices.Equal(before.tokens, after.tokens) || !slices.Equal(before.unknownKeys, after.unknownKeys) {
 		return "", false
 	}
-	want := append(slices.Clip(before.filters), Parse(written).filters...)
-	if len(want) != len(before.filters)+1 || !slices.Equal(want, after.filters) {
+	want := append(slices.Clip(before.filters), Filter{Key: key, Value: value})
+	if !slices.Equal(want, after.filters) {
 		return "", false
 	}
 	return out, true
