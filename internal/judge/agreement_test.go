@@ -225,6 +225,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			var unusedTailTargets map[string]int
 			var sharedUnusedWidgets agreementUnusedWidgetPayload
 			sharedUnusedWidgetsObserved := false
+			var sharedUnusedCitations agreementUnusedCitationPayload
+			sharedUnusedCitationsObserved := false
 			var unusedWidgets agreementReferenceDestinations
 			unusedWidgetsObserved := false
 			unusedTailObserved := false
@@ -384,6 +386,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						sharedUnusedWidgetsObserved = true
 					}
 					classification, authority, wrong = agreementSharedUnusedDiagnosticDifference(c, failure, &observed[i], diagnostics[i], sharedUnusedWidgets)
+				}
+				if classification == "" && failure.Property == "P1" {
+					if !sharedUnusedCitationsObserved {
+						sharedUnusedCitations = agreementSharedUnusedCitationBudget(c.Body)
+						sharedUnusedCitationsObserved = true
+					}
+					classification, authority, wrong = agreementSharedUnusedCitationDifference(c, failure, &observed[i], sharedUnusedCitations)
 				}
 				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
 					if !commentMadeObserved {
