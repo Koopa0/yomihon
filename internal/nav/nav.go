@@ -814,18 +814,8 @@ func leadingDate(name string) string {
 		return ""
 	}
 	head := name[:iso]
-	for i, r := range head {
-		digit := r >= '0' && r <= '9'
-		switch i {
-		case 4, 7:
-			if r != '-' {
-				return ""
-			}
-		default:
-			if !digit {
-				return ""
-			}
-		}
+	if _, err := time.Parse(time.DateOnly, head); err != nil {
+		return ""
 	}
 	return head
 }
