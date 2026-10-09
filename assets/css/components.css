@@ -778,19 +778,18 @@ html:not([data-js]) .y-themebtn {
 /* Six of the header's controls are somewhere to go or something to set rather
    than anything about the note being read — the whole-folder view, the reading
    choices, the text size, the keyboard explanation, the language and the theme
-   — and below 938px the row can no longer hold them all. 938px is measured,
-   not chosen: at 937 the English chrome, the wider of the two, has begun
-   shortening the wordmark to make room, and the name of the thing being read
-   is not what should pay for a control that is not about it. Under that width
-   the six sit inside a popover this button opens, which brings the browser's
-   own light dismiss, Escape, and focus return with it.
+   — gather behind this button below 1281px. The row first ran out of room at
+   938px, but unfolding there left a laptop-width reader with no control for
+   keeping a place. The panel keeps that action available until the wide
+   header row and reading rail are both drawn. The popover brings the
+   browser's own light dismiss, Escape, and focus return with it.
 
    One width serves both languages, though the Traditional Chinese row holds
    out until 617. One breakpoint is one layout; a width per language would be a
    second layout to keep true, and a media query cannot see which language the
    page is in to choose between them.
 
-   At 938px and above the box around them dissolves: display: contents leaves
+   At 1281px and above the box around them dissolves: display: contents leaves
    its children as the row's own flex items, in the order they are written, so
    the wide row is drawn from the same elements it always was and no control
    is written twice.
@@ -915,7 +914,7 @@ html:not([data-js]) .y-themebtn {
   visibility: visible;
 }
 
-@media (min-width: 938px) {
+@media (min-width: 1281px) {
   .y-foldbtn {
     display: none;
   }
@@ -7809,6 +7808,13 @@ samp,
 
 [data-js] .y-headerfold:popover-open .y-headermark {
   display: block;
+}
+
+/* The rail begins at 1280px, one pixel before the header unfolds. While the
+   panel offers this same action, including a panel kept open while widening
+   the window, draw only its copy. Dismissing it gives the rail its copy back. */
+.yomihon:has(.y-headerfold:popover-open) .y-rail-right .y-markset {
+  display: none;
 }
 
 .y-headermark__said {

@@ -146,6 +146,7 @@ try {
   }
 
   const toggled = await visit(browser, async (page) => {
+    if (!(await page.locator('[data-theme-toggle]').isVisible())) await page.click('[popovertarget="_y-header-fold"]');
     await page.click('[data-theme-toggle]');
     await page.waitForFunction(() => !document.querySelector('script[type="speculationrules"]'), null, { timeout: 1500 }).catch(() => {});
   });

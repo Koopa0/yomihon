@@ -30,9 +30,9 @@ const MUTATE = process.env.MUTATE || '';
 // FOLD is the first width that holds the whole row; one pixel under it the
 // six are behind the button. Naming both sides is what makes a breakpoint
 // that has moved in either direction show up here.
-const FOLD = 938;
-const WIDE = [1280, FOLD];
-const NARROW = [FOLD - 1, 720, 521, 390, 375];
+const FOLD = 1281;
+const WIDE = [1440, FOLD];
+const NARROW = [FOLD - 1, 1024, 938, 937, 720, 521, 390, 375];
 
 // Each folded control, named by the hook that survives a restyling: the class
 // the stylesheet already dresses, or the attribute the runtime already finds.
@@ -60,6 +60,7 @@ const PANEL = '.y-headerfold';
 const PANEL_ONLY = ['.y-headermark'];
 
 const SITES = [
+  'reading-place-reachable',
   'row-unfolded-above',
   'row-folded-below',
   'row-fits',
@@ -124,6 +125,14 @@ const changeOne = async (page, selector, change) => {
 };
 
 const MUTATIONS = {
+  'restore-old-fold-breakpoint': {
+    target: 'reading-place-reachable',
+    phase: 'place-widths',
+    apply: async (page) => {
+      if (await page.locator(FOLD_BUTTON).count() !== 1 || await page.locator(PANEL).count() !== 1) notApplied('the old fold breakpoint has no single button and panel to change');
+      await page.addStyleTag({ content: `@media (min-width: 938px) and (max-width: 1280px) { ${FOLD_BUTTON} { display: none; } ${PANEL} { display: contents; } }` });
+    },
+  },
   // The fold reaches up past every width a desk window is, so the wide row is
   // folded too.
   'fold-above-the-measured-width': {
@@ -131,7 +140,7 @@ const MUTATIONS = {
     apply: async (page) => {
       if (await page.locator(FOLD_BUTTON).count() !== 1) notApplied('there is no fold button for the moved breakpoint to show');
       await page.addStyleTag({
-        content: `@media (max-width: 1400px) { ${FOLD_BUTTON} { display: inline-flex; } ${PANEL}, ${PANEL}:popover-open { display: none; } }`,
+        content: `@media (max-width: 1600px) { ${FOLD_BUTTON} { display: inline-flex; } ${PANEL}, ${PANEL}:popover-open { display: none; } }`,
       });
     },
   },
@@ -349,6 +358,19 @@ try {
         broken(`${PAGE} carries no single ${selector}; this probe has to be driven against a note that offers to keep a reading place`);
       }
     }
+    // The folded panel covers the laptop band before the header unfolds.
+    // Opening it must not leave a second copy drawn in the reading rail.
+    if (MUTATE && MUTATIONS[MUTATE].phase === 'place-widths') await MUTATIONS[MUTATE].apply(page);
+    for (const width of [937, 938, 1024, 1280, 1281, 1440]) {
+      await page.setViewportSize({ width, height: 800 });
+      if (await page.locator(FOLD_BUTTON).isVisible()) await page.locator(FOLD_BUTTON).click();
+      const reachable = await page.locator('[data-mark-button]').evaluateAll(buttons => buttons.filter(button => {
+        const box = button.getBoundingClientRect();
+        return button.checkVisibility() && box.width > 0 && box.height > 0 && !button.disabled;
+      }).length);
+      if (reachable !== 1) fail('reading-place-reachable', `caught: ${language} at ${width}px offers ${reachable} reading-place controls, want exactly one`);
+      if (await isOpen(page)) await page.keyboard.press('Escape');
+    }
     if (MUTATE && !MUTATIONS[MUTATE].phase) await MUTATIONS[MUTATE].apply(page);
 
     for (const width of [...WIDE, ...NARROW]) {
@@ -409,7 +431,7 @@ try {
     }
 
     // The names the controls answer to while they are out on the row.
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.setViewportSize({ width: 1440, height: 800 });
     const onTheRow = await readNames(page, FOLDED);
     for (const [selector, seen] of Object.entries(onTheRow)) {
       if (seen.count !== 1 || !seen.name) {
@@ -522,7 +544,7 @@ try {
     // reader has to guess their way out of.
     await page.locator(FOLD_BUTTON).click();
     if (!(await isOpen(page))) broken('the panel did not open for the widening question');
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.setViewportSize({ width: 1440, height: 800 });
     await page.waitForTimeout(80);
     const widened = await page.evaluate((selector) => {
       const button = document.querySelector(selector);
