@@ -325,7 +325,11 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		// a note whose permission needs repair.
 		_, blocked := blockedAt(snap, rel)
 		if _, isFile := snap.Entry(rel); isFile || blocked {
-			h.sources.Log.Warn("note unavailable in this generation", "path", rel)
+			message := "note captured in scan but unreadable in this generation"
+			if !isFile {
+				message = "note unavailable beneath an unreadable folder"
+			}
+			h.sources.Log.Warn(message, "path", rel)
 			h.showUnreadable(w, r, r.URL.Path, rel, authority, snap)
 			return
 		}
