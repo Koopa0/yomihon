@@ -45,6 +45,7 @@ probes=(
   "brand-contract.mjs|/"
   "palette.mjs|/"
   "search-behavior.mjs|/"
+  "search-clear.mjs|/"
   "search-keys.mjs|/"
   "search-focus-restore.mjs|/notes/Notes/alpha.md"
   "filter-inline-reveal.mjs|/notes/Notes/alpha.md"
