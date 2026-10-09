@@ -103,7 +103,8 @@ func finalResponseStatus(statusCode int) bool {
 // Protect stamps every final response with the refusal to be embedded by any
 // origin but yomihon's own, the reading shell's content policy, the permissions
 // it never requests, the referrer and sniffing headers, and the cache headers
-// that tell a store the cookie mattered. Every path that commits a response
+// that tell a store when the cookie mattered. Successful static assets carry
+// fixed bytes; their cache key does not include preferences. Every path that commits a response
 // reasserts them first — a named
 // status, a body written without one, a ReadFrom copy, a flush, and the
 // implicit 200 after a handler writes nothing — and a new commit path has to
@@ -111,12 +112,15 @@ func finalResponseStatus(statusCode int) bool {
 func Protect(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nonce := rand.Text()
-		cw := &writer{ResponseWriter: w, defaultCSP: readingPolicy(nonce)}
-		cw.applyHeaders()
+		cw := &writer{
+			ResponseWriter: w, defaultCSP: readingPolicy(nonce),
+			staticAsset: (r.Method == http.MethodGet || r.Method == http.MethodHead) && strings.HasPrefix(r.URL.Path, "/static/"),
+		}
+		cw.applyHeaders(0)
 		ctx := context.WithValue(r.Context(), nonceContextKey{}, nonce)
 		next.ServeHTTP(cw, r.WithContext(ctx))
 		if !cw.wroteFinalHeader {
-			cw.applyHeaders()
+			cw.applyHeaders(http.StatusOK)
 		}
 	})
 }
@@ -157,6 +161,7 @@ type writer struct {
 	wroteFinalHeader bool
 	defaultCSP       string
 	explicitCSP      string
+	staticAsset      bool
 }
 
 func (w *writer) setContentSecurityPolicy(policy string) {
@@ -164,7 +169,7 @@ func (w *writer) setContentSecurityPolicy(policy string) {
 	w.Header().Set(cspHeader, policy)
 }
 
-func (w *writer) applyHeaders() {
+func (w *writer) applyHeaders(statusCode int) {
 	w.Header().Set(corpHeader, corpValue)
 	policy := w.defaultCSP
 	if w.explicitCSP != "" {
@@ -182,7 +187,12 @@ func (w *writer) applyHeaders() {
 	if w.Header().Get(cacheControl) == "" {
 		w.Header().Set(cacheControl, cacheControlPrivate)
 	}
-	w.Header().Set(varyHeader, varyCookie)
+	// Defer the static route's cookie decision until its status is known.
+	// Missing assets carry a localized sentence; successful and conditional
+	// responses use the same bytes in every language and theme.
+	if !w.staticAsset || (statusCode != 0 && statusCode != http.StatusOK && statusCode != http.StatusPartialContent && statusCode != http.StatusNotModified) {
+		w.Header().Set(varyHeader, varyCookie)
+	}
 }
 
 func (w *writer) WriteHeader(statusCode int) {
@@ -190,7 +200,7 @@ func (w *writer) WriteHeader(statusCode int) {
 		w.ResponseWriter.WriteHeader(statusCode)
 		return
 	}
-	w.applyHeaders()
+	w.applyHeaders(statusCode)
 	w.ResponseWriter.WriteHeader(statusCode)
 	if finalResponseStatus(statusCode) {
 		w.wroteFinalHeader = true
