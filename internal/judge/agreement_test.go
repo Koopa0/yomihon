@@ -242,6 +242,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			collisionObserved := false
 			var realizedNamespaceIDs map[string]bool
 			realizedNamespaceObserved := false
+			var literalNamespaceIDs map[string]bool
+			literalNamespaceObserved := false
 			var literalHeadingIDs map[string]bool
 			literalHeadingObserved := false
 			var wrappedHeadingIDs map[string]bool
@@ -433,6 +435,14 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					}
 					classification, authority, wrong = agreementLiteralHeadingDifference(c, failure, literalHeadingIDs)
 				}
+				if classification == "" && failure.Property == "P4" {
+					if !literalNamespaceObserved {
+						literalNamespaceIDs = agreementLiteralNamespaceIDs(c.Body, &observed[i])
+						literalNamespaceObserved = true
+					}
+					classification, authority, wrong = agreementWrappedHeadingDifference(c, failure, literalNamespaceIDs)
+				}
+
 				if classification == "" && failure.Property == "P4" {
 					if !wrappedHeadingObserved {
 						wrappedHeadingIDs = agreementWrappedHeadingIDs(c.Body)
