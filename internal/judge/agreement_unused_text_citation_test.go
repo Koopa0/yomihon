@@ -17,12 +17,16 @@ import (
 // Preserve the whole physical definition when plain words surround its fields.
 // Comment overlap cannot supply an active check contribution.
 func agreementUnusedTextCitationReading(body string, grammar goldmark.Markdown) agreementUnusedCitationSource {
-	fields := agreementUnusedTextWidgetReading(body, grammar)
+	return agreementUnusedPlainCitationReading(body, grammar, false)
+}
+
+func agreementUnusedPlainCitationReading(body string, grammar goldmark.Markdown, retainIncomplete bool) agreementUnusedCitationSource {
+	fields := agreementUnusedPlainWidgetReading(body, grammar, false, retainIncomplete)
 	if len(fields) == 0 {
 		return agreementUnusedCitationSource{}
 	}
 	for _, field := range fields {
-		if field.Tuple.SourceRole != "" {
+		if field.Tuple.SourceRole != "" && (!retainIncomplete || field.Tuple.SourceRole != agreementUnusedIncompleteField) {
 			return agreementUnusedCitationSource{}
 		}
 	}
