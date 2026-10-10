@@ -97,8 +97,11 @@ type agreementNativeHTMLAddressWitness struct {
 // These complete original bodies name finite disagreements. Literal HTML
 // backticks must not manufacture a fence; percent bytes owned by code must not
 // hide a later address; a quoted fence ends with its native quote container.
+// Literal callout openers in HTML must not create an unused footnote.
 func agreementNativeHTMLAddressWitnesses() []agreementNativeHTMLAddressWitness {
 	return []agreementNativeHTMLAddressWitness{
+		{Name: "literal HTML callout openers manufacture an unused footnote", Body: "\n\n[[B|alias]]~~~\n<div>\n[[A]]\n</div>\n   ```\n   ```\n> [!note] one\n> [!note] two\n> [!note] three\n[^unused]: [[A]]\n`open\n[[A]]\nclose` ^a\nA\n---\nÉ\n## A-2\n## A\n## A\n\t```\n``  > [!note] title\n````\n> [!note] one\n> [!note] two\n> [!note] three\n``` [[A]]\n\\[[A]]<!-- [[A]] -->[[image.png]]", Repair: "\n\n[[B|alias]]~~~\n<div>\n[[A]]\n</div>\n   ```\n   ```\n> [!note] one\n> [!note] two\n> [!note] three\nx^unused]: [[A]]\n`open\n[[A]]\nclose` ^a\nA\n---\nÉ\n## A-2\n## A\n## A\n\t```\n``  > [!note] title\n````\n> [!note] one\n> [!note] two\n> [!note] three\n``` [[A]]\n\\[[A]]<!-- [[A]] -->[[image.png]]", Authority: "#1011 stage 6", Wrong: "page", Sites: []agreementNativeHTMLAddressSite{{Root: 0, Node: 6, Parent: 0, Kind: "HTMLBlock", ParentKind: "Document", Type: 6,
+			Lines: []text.Segment{{Start: 17, Stop: 23, Padding: 0, ForceNewline: false}, {Start: 23, Stop: 29, Padding: 0, ForceNewline: false}, {Start: 29, Stop: 36, Padding: 0, ForceNewline: false}, {Start: 36, Stop: 43, Padding: 0, ForceNewline: false}, {Start: 43, Stop: 50, Padding: 0, ForceNewline: false}, {Start: 50, Stop: 64, Padding: 0, ForceNewline: false}, {Start: 64, Stop: 78, Padding: 0, ForceNewline: false}, {Start: 78, Stop: 94, Padding: 0, ForceNewline: false}, {Start: 94, Stop: 111, Padding: 0, ForceNewline: false}, {Start: 111, Stop: 117, Padding: 0, ForceNewline: false}, {Start: 117, Stop: 123, Padding: 0, ForceNewline: false}, {Start: 123, Stop: 133, Padding: 0, ForceNewline: false}, {Start: 133, Stop: 135, Padding: 0, ForceNewline: false}, {Start: 135, Stop: 139, Padding: 0, ForceNewline: false}, {Start: 139, Stop: 142, Padding: 0, ForceNewline: false}, {Start: 142, Stop: 149, Padding: 0, ForceNewline: false}, {Start: 149, Stop: 154, Padding: 0, ForceNewline: false}, {Start: 154, Stop: 159, Padding: 0, ForceNewline: false}, {Start: 159, Stop: 164, Padding: 0, ForceNewline: false}, {Start: 164, Stop: 184, Padding: 0, ForceNewline: false}, {Start: 184, Stop: 189, Padding: 0, ForceNewline: false}, {Start: 189, Stop: 203, Padding: 0, ForceNewline: false}, {Start: 203, Stop: 217, Padding: 0, ForceNewline: false}, {Start: 217, Stop: 233, Padding: 0, ForceNewline: false}, {Start: 233, Stop: 243, Padding: 0, ForceNewline: false}, {Start: 243, Stop: 276, Padding: 0, ForceNewline: false}}, Closure: text.Segment{Start: -1, Stop: -1, Padding: 0, ForceNewline: false}, Info: text.Segment{Start: 0, Stop: 0, Padding: 0, ForceNewline: false}, HasClosure: false, HasInfo: false, Raw: true}}, Code: nil, Names: []string{"^a", "^a-2", "^agreement-absent-0", "^é"}, Blocks: nil, RepairBlocks: []string{"^a"}, Original: map[string]agreementNativeAddressReceipt{"^a": {Page: false, Judge: true, Found: true, Cut: "[[B|alias]]~~~\n<div>\n[[A]]\n</div>\n   ```\n   ```\n> [!note] one\n> [!note] two\n> [!note] three\n[^unused]: [[A]]\n`open\n[[A]]\nclose` ^a\nA\n---\nÉ\n## A-2\n## A\n## A\n\t```\n``  > [!note] title\n````\n> [!note] one\n> [!note] two\n> [!note] three\n``` [[A]]\n\\[[A]]<!-- [[A]] -->[[image.png]]"}, "^a-2": {Page: false, Judge: false, Found: false, Cut: ""}, "^agreement-absent-0": {Page: false, Judge: false, Found: false, Cut: ""}, "^é": {Page: false, Judge: false, Found: false, Cut: ""}}, Repaired: map[string]agreementNativeAddressReceipt{"^a": {Page: true, Judge: true, Found: true, Cut: "[[B|alias]]~~~\n<div>\n[[A]]\n</div>\n   ```\n   ```\n> [!note] one\n> [!note] two\n> [!note] three\nx^unused]: [[A]]\n`open\n[[A]]\nclose` ^a\nA\n---\nÉ\n## A-2\n## A\n## A\n\t```\n``  > [!note] title\n````\n> [!note] one\n> [!note] two\n> [!note] three\n``` [[A]]\n\\[[A]]<!-- [[A]] -->[[image.png]]"}, "^a-2": {Page: false, Judge: false, Found: false, Cut: ""}, "^agreement-absent-0": {Page: false, Judge: false, Found: false, Cut: ""}, "^é": {Page: false, Judge: false, Found: false, Cut: ""}}},
 		{Name: "literal HTML backticks manufacture a fence", Body: "> [!note] [[A]]\n> <!-- [[A]] -->```` go [[A]]\nref[^n]\n%%[[A]]%%<div>\n[[A]]\n</div>\n1.  ^a-2\n![[image.png]]-  ^é\n[[A\\]][[A\nB]]B\n[[A]] [[A]][[A]]> > \\\\[[A]]![[A]]\n\\\\[[A]]É\n> ~~~\n## <em>A</em>\n<div>\n[[A]]\n</div>\n`` ^é\n", Repair: "> [!note] [[A]]\n> <!-- [[A]] -->x``` go [[A]]\nref[^n]\n%%[[A]]%%<div>\n[[A]]\n</div>\n1.  ^a-2\n![[image.png]]-  ^é\n[[A\\]][[A\nB]]B\n[[A]] [[A]][[A]]> > \\\\[[A]]![[A]]\n\\\\[[A]]É\n> ~~~\n## <em>A</em>\n<div>\n[[A]]\n</div>\n`` ^é\n", Authority: "#1011 stage 5", Wrong: "judge+excerpt", Sites: []agreementNativeHTMLAddressSite{{Root: 0, Node: 8, Parent: 1, Kind: "HTMLBlock", ParentKind: "Blockquote", Type: 2,
 			Lines: []text.Segment{{Start: 18, Stop: 46, Padding: 0, ForceNewline: false}}, Closure: text.Segment{Start: -1, Stop: -1, Padding: 0, ForceNewline: false}, Info: text.Segment{Start: 0, Stop: 0, Padding: 0, ForceNewline: false}, HasClosure: false, HasInfo: false, Raw: true},
 			{Root: 0, Node: 16, Parent: 9, Kind: "RawHTML", ParentKind: "Paragraph", Type: 0,
@@ -281,5 +284,29 @@ func TestAgreementNativeHTMLAddressDifferences(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAgreementNativeHTMLCalloutControl(t *testing.T) {
+	t.Parallel()
+	witness := agreementNativeHTMLAddressWitnesses()[0]
+	originalSource := agreementNativeQuoteAddressReading(witness.Body)
+	if len(originalSource.Address.Original.Native.Definitions) != 0 || len(originalSource.Original.Definitions) != 0 || len(originalSource.Quotes) != 0 || len(originalSource.Original.Code) != 0 {
+		t.Fatal("caught: literal HTML acquired a native footnote, quote, or code declaration")
+	}
+	body := "\n\n[[B|alias]]~~~\n<div>\n[[A]]\n</div>\n   ```\n   ```\n  [!note] one\n  [!note] two\n  [!note] three\n[^unused]: [[A]]\n`open\n[[A]]\nclose` ^a\nA\n---\nÉ\n## A-2\n## A\n## A\n\t```\n``    [!note] title\n````\n  [!note] one\n  [!note] two\n  [!note] three\n``` [[A]]\n\\[[A]]<!-- [[A]] -->[[image.png]]"
+	repairedSource := agreementNativeQuoteAddressReading(body)
+	originalFacts := []any{originalSource.Address.Original, originalSource.Original, originalSource.Lists, originalSource.Quotes, agreementNativeHTMLAddressSites(witness.Body)}
+	repairedFacts := []any{repairedSource.Address.Original, repairedSource.Original, repairedSource.Lists, repairedSource.Quotes, agreementNativeHTMLAddressSites(body)}
+	if diff := cmp.Diff(originalFacts, repairedFacts); diff != "" {
+		t.Fatalf("caught: literal callout control changed native declarations (-want +got):\n%s", diff)
+	}
+	_, actual := agreementIsolatedPage(t, agreementCase{Body: body})
+	if diff := cmp.Diff([]string{"^a"}, actual.Blocks); diff != "" {
+		t.Fatalf("caught: complete literal callout control page address set (-want +got):\n%s", diff)
+	}
+	want := map[string]agreementNativeAddressReceipt{"^a": {Page: true, Judge: true, Found: true, Cut: "[[B|alias]]~~~\n<div>\n[[A]]\n</div>\n   ```\n   ```\n  [!note] one\n  [!note] two\n  [!note] three\n[^unused]: [[A]]\n`open\n[[A]]\nclose` ^a\nA\n---\nÉ\n## A-2\n## A\n## A\n\t```\n``    [!note] title\n````\n  [!note] one\n  [!note] two\n  [!note] three\n``` [[A]]\n\\[[A]]<!-- [[A]] -->[[image.png]]"}, "^a-2": {Page: false, Judge: false, Found: false, Cut: ""}, "^agreement-absent-0": {Page: false, Judge: false, Found: false, Cut: ""}, "^é": {Page: false, Judge: false, Found: false, Cut: ""}}
+	if diff := cmp.Diff(want, agreementNativeAddressPublic(t, body, &actual, witness.Names)); diff != "" {
+		t.Fatalf("caught: literal callout control public address ledger (-want +got):\n%s", diff)
 	}
 }
