@@ -2,7 +2,7 @@ module github.com/koopa0/yomihon
 
 go 1.27.0
 
-toolchain go1.27.1
+toolchain go1.27.2
 
 require (
 	github.com/BurntSushi/toml v1.6.0
@@ -16,7 +16,7 @@ require (
 	github.com/yuin/goldmark v1.8.6
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/mod v0.41.0
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.48.0
 	golang.org/x/text v0.42.0
 )
