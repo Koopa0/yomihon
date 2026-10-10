@@ -10,11 +10,17 @@ const MUTATE = process.env.MUTATE || '';
 const MODE = 'move-region-below-paragraph-return';
 const LANGUAGE_MODE = 'inherit-authored-language';
 const NULL_MODE = 'append-null-status';
-const MODES = [MODE, LANGUAGE_MODE, NULL_MODE];
+const PLACEMENT_MODE = 'append-status-to-page-column';
+const MODES = [MODE, LANGUAGE_MODE, NULL_MODE, PLACEMENT_MODE];
 const NULL_GUARD = '    if (speechStatus) toolbar.append(speechStatus);\n';
 const LANGUAGE = "      speechStatus.setAttribute('lang', document.documentElement.lang);\n";
 const STATUS = '.y-ttsbar__status';
 const CARD = '[data-slot-action="speak"]';
+const PRACTICE_PAGES = [
+  { name: 'practice', path: PAGE },
+  { name: 'compare-a', path: PAGE.replace('/notes/', '/compare/') + '?with=Notes%2Falpha.md' },
+  { name: 'compare-b', path: '/compare/Notes/alpha.md?with=' + encodeURIComponent(decodeURIComponent(PAGE.slice('/notes/'.length))) },
+];
 const UNAVAILABLE = { 'zh-Hant': '目前無法播放語音', en: 'Speech is unavailable right now' };
 const COMPOSITIONS = [
   { name: 'mixed', path: '/notes/Writing/lessons/japanese/L01.md', paragraphs: 1, cards: 1 },
@@ -22,6 +28,7 @@ const COMPOSITIONS = [
   { name: 'listen', path: '/listen/Maps/listen.md', paragraphs: 4, cards: 0 },
   { name: 'no-controls', path: '/notes/Notes/alpha.md', paragraphs: 0, cards: 0 },
   { name: 'practice', path: PAGE, paragraphs: 0, cards: 1 },
+  { name: 'compare-mixed', path: '/compare/Writing/lessons/japanese/L01.md?with=Writing%2Flessons%2Fjapanese%2FPractice%20only.md', paragraphs: 1, cards: 2 },
 ];
 class LockFired extends Error {
   constructor(site, message) { super(`caught: read-aloud-status [${site}]: ${message}`); this.site = site; }
@@ -36,10 +43,22 @@ const REGION = "    if (column?.querySelector('[data-tts], [data-slot-action=\"s
   "      speechStatus = document.createElement('span');\n" +
   "      speechStatus.className = 'y-ttsbar__status';\n" +
   "      speechStatus.setAttribute('aria-live', 'polite');\n" +
-  LANGUAGE + "      column.append(speechStatus);\n    }\n";
+  LANGUAGE + "      speechStatusHome = column.querySelector('.y-slotcard, .y-reading');\n" +
+  "      speechStatusHome?.append(speechStatus);\n    }\n";
 const RETURN = '    if (readingButtons.length === 0) return;\n';
+const PLACEMENTS = [
+  ['      speechStatusHome?.append(speechStatus);\n', '      column.append(speechStatus);\n'],
+  ['      statusHome.append(speechStatus);\n', '      column.append(speechStatus);\n'],
+];
 let applied = false;
 let hit = false;
+async function openPage(page, path) {
+  const response = await page.goto(BASE + path, { waitUntil: 'networkidle' });
+  // An intercepted module can still be held when network traffic settles.
+  // Wait for its initialization before checking mutation coverage or layout.
+  await page.waitForLoadState('load');
+  return response;
+}
 async function waitForHandoff(page, count) {
   await page.waitForFunction((expected) => window.__speechFixture.utterances.length === expected, count);
   // The fixture schedules the actual start event after the handoff.
@@ -69,6 +88,25 @@ async function observePractice(page) {
       }).observe(document.body, { childList: true, subtree: true });
     });
   });
+}
+async function checkPracticePlacement(trigger, identity) {
+  const placement = await trigger.evaluate((button) => {
+    const status = document.querySelector('.y-ttsbar__status');
+    const card = button.closest('.y-slotcard');
+    const rect = status?.getBoundingClientRect();
+    const column = button.closest('.y-compare__column');
+    const bounds = column?.getBoundingClientRect();
+    return {
+      inCard: !!status && card.contains(status),
+      inGrid: status?.parentElement.matches('.y-compare') ?? false,
+      visible: !!rect && rect.width > 0 && rect.height > 0 &&
+        rect.left >= 0 && rect.right <= innerWidth && rect.top >= 0 && rect.bottom <= innerHeight &&
+        (!bounds || (rect.top >= bounds.top && rect.bottom <= bounds.bottom)),
+      rect: rect?.toJSON(),
+    };
+  });
+  check(!placement.inGrid, 'compare-grid', `${identity} status became a direct grid child: ${JSON.stringify(placement)}`);
+  check(placement.inCard && placement.visible, 'practice-placement', `${identity} refusal is outside the pressed card or viewport: ${JSON.stringify(placement)}`);
 }
 async function documentWithoutColumn(browser, width, language, theme) {
   const context = await browser.newContext({ viewport: { width, height: 800 } });
@@ -102,7 +140,7 @@ async function documentWithoutColumn(browser, width, language, theme) {
       await route.fulfill({ response, body: documentMatches === 1
         ? original.replace('</main>', paragraph + '</main>') : original });
     });
-    const response = await page.goto(BASE + '/notes/README.md', { waitUntil: 'networkidle' });
+    const response = await openPage(page, '/notes/README.md');
     setup(documentMatches === 1, `document paragraph capability matched ${documentMatches} main closers, want 1`);
     const paragraphs = await page.locator('[data-tts]').count();
     const columns = await page.locator('[data-readaloud-controls]').count();
@@ -120,7 +158,7 @@ async function documentWithoutColumn(browser, width, language, theme) {
     await context.close();
   }
 }
-async function noLocalVoice(browser, width, language, theme) {
+async function noLocalVoice(browser, width, language, theme, fixture) {
   const context = await browser.newContext({ viewport: { width, height: 800 } });
   try {
     await context.addCookies([
@@ -137,23 +175,27 @@ async function noLocalVoice(browser, width, language, theme) {
     await observePractice(page);
     let requests = 0;
     let matches = [];
-    if (MUTATE === MODE) {
+    if (MUTATE === MODE || MUTATE === PLACEMENT_MODE) {
       await page.route('**/lesson.js{,?*}', async (route) => {
         const response = await route.fetch();
         const original = await response.text();
         requests += 1;
-        matches = [REGION, RETURN].map((needle) => original.split(needle).length - 1);
-        const body = matches.every((count) => count === 1)
-          ? original.replace(REGION, '').replace(RETURN, RETURN + REGION) : original;
+        const needles = MUTATE === MODE ? [REGION, RETURN] : PLACEMENTS.map(([needle]) => needle);
+        matches = needles.map((needle) => original.split(needle).length - 1);
+        let body = original;
+        if (matches.every((count) => count === 1)) {
+          if (MUTATE === MODE) body = original.replace(REGION, '').replace(RETURN, RETURN + REGION);
+          else for (const [needle, replacement] of PLACEMENTS) body = body.replace(needle, replacement);
+        }
         await route.fulfill({ response, body });
       });
     }
-    const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
+    const response = await openPage(page, fixture.path);
     setup(response?.status() === 200 && errors.length === 0, `no-local-voice setup: ${response?.status()} ${errors.join('; ')}`);
-    if (MUTATE === MODE) {
+    if (MUTATE === MODE || MUTATE === PLACEMENT_MODE) {
       setup(requests === 1 && matches.every((count) => count === 1), `not-applied requests=${requests} matches=${JSON.stringify(matches)}`);
       applied = true;
-      console.log(`MUTATE-APPLIED: ${MODE} requests=1 matches=[1,1]`);
+      console.log(`MUTATE-APPLIED: ${MUTATE} requests=1 matches=[1,1]`);
     }
     setup(await page.locator(CARD).count() === 1 && await page.locator('[data-tts]').count() === 0,
       'no-local-voice fixture must have one card and no paragraph speaker');
@@ -162,13 +204,15 @@ async function noLocalVoice(browser, width, language, theme) {
       idle: document.querySelector('[data-slot-action="speak"]').getAttribute('aria-label'),
       region: document.querySelector('.y-ttsbar__status')?.textContent ?? null,
     }));
-    await page.click(CARD);
+    const trigger = page.locator(CARD);
+    await trigger.click();
     await page.waitForFunction(() => window.__speechFixture.reads > 0 && !document.querySelector('[data-speaking]'));
     hit = true;
     console.log(`INVOCATION-HIT read-aloud-status no-local-voice ${width}/${language}/${theme}: card press and voice lookup completed`);
     const refusal = await page.locator(STATUS).allTextContents();
     check(refusal.length === 1 && refusal[0] === UNAVAILABLE[language], 'practice-no-local-voice',
       `${width}/${language}/${theme} no-local-voice refusal ${JSON.stringify(refusal)}, want ${JSON.stringify(UNAVAILABLE[language])}`);
+    await checkPracticePlacement(trigger, `${fixture.name}/${width}/${language}/${theme}/no-local-voice`);
     const after = await page.evaluate(() => ({
       refusals: window.__refusals,
       receipts: window.__speechFixture.receipts,
@@ -217,7 +261,7 @@ async function composition(browser, width, language, theme, fixture, noAPI) {
         await route.fulfill({ response, body: matches === 1 ? original.replace(LANGUAGE, '') : original });
       });
     }
-    const response = await page.goto(BASE + fixture.path, { waitUntil: 'networkidle' });
+    const response = await openPage(page, fixture.path);
     const identity = `${fixture.name}/${width}/${language}/${theme}/${noAPI ? 'no-api' : 'api'}`;
     setup(response?.status() === 200 && errors.length === 0, `${identity} setup: ${response?.status()} ${errors.join('; ')}`);
     if (MUTATE === LANGUAGE_MODE) {
@@ -244,22 +288,24 @@ async function composition(browser, width, language, theme, fixture, noAPI) {
       check(await page.locator('[data-readaloud-bar] .y-ttsbar').count() === 1, 'listen-placement', `${identity} listening anchor changed`);
     }
     const triggers = [];
-    if (fixture.cards) triggers.push(CARD);
+    if (fixture.cards) triggers.push(...await page.locator(CARD).all());
     if (fixture.paragraphs) triggers.push('[data-tts]');
     const shuffle = await page.locator('.y-slotlive').allTextContents();
     for (const selector of triggers) {
-      const trigger = page.locator(selector).first();
+      const trigger = typeof selector === 'string' ? page.locator(selector).first() : selector;
       const idle = await trigger.getAttribute('aria-label');
       if (noAPI) {
         // Without a speech engine the page withholds these affordances. Check
         // that state through the UI instead of pressing an inaccessible button.
-        check(await page.locator(selector).evaluateAll((controls) => controls.every((control) => getComputedStyle(control).display === 'none')), 'unsupported-hidden', `${identity} unsupported speech control is exposed`);
+        check(await (typeof selector === 'string' ? page.locator(selector) : selector).evaluateAll((controls) => controls.every((control) => getComputedStyle(control).display === 'none')), 'unsupported-hidden', `${identity} unsupported speech control is exposed`);
         check(await page.evaluate(() => window.__speechFixture.utterances.length) === 0 && await page.locator(STATUS).textContent() === '' && await trigger.getAttribute('aria-label') === idle && await page.locator('[data-speaking], [data-reading]').count() === 0, 'unsupported-silent', `${identity} unsupported API changed idle behavior`);
         continue;
       }
       await pressForHandoff(page, trigger);
       await page.evaluate(() => window.__speechFixture.utterances.at(-1).dispatchEvent(new Event('error')));
       check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await trigger.getAttribute('aria-label') === idle && await page.locator('[data-speaking], [data-reading]').count() === 0, 'composition-error', `${identity} ${selector} refusal failed`);
+      if (typeof selector !== 'string') await checkPracticePlacement(trigger, identity);
+      else check(await page.locator('.y-ttsbar .y-ttsbar__status').count() === 1, 'paragraph-placement', `${identity} paragraph did not return status to toolbar`);
       check(await page.evaluate(() => window.__sharedStatus === document.querySelector('.y-ttsbar__status')) && await page.locator(STATUS).count() === 1, 'composition-identity', `${identity} replaced or duplicated status`);
     }
     check(JSON.stringify(await page.locator('.y-slotlive').allTextContents()) === JSON.stringify(shuffle), 'shuffle-isolation', `${identity} speech changed shuffle announcements`);
@@ -296,6 +342,60 @@ async function composition(browser, width, language, theme, fixture, noAPI) {
     await context.close();
   }
 }
+async function practiceError(browser, width, language, theme, fixture) {
+  const context = await browser.newContext({ viewport: { width, height: 800 } });
+  await context.addCookies([
+    { name: 'yomihon_lang', value: language, url: BASE },
+    { name: 'yomihon_theme', value: theme, url: BASE },
+  ]);
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await installSpeechVoices(page, { record: true });
+  await observePractice(page);
+  const response = await openPage(page, fixture.path);
+  setup(response?.status() === 200, `practice fixture returned ${response?.status()}`);
+  setup(errors.length === 0, `runtime errors: ${errors.join('; ')}`);
+  setup(await page.locator(CARD).count() === 1 && await page.locator('[data-tts]').count() === 0, 'practice fixture must have one card and no paragraph speaker');
+  const before = await page.evaluate(() => ({
+    text: window.__authoredText(),
+    idle: document.querySelector('[data-slot-action="speak"]')?.getAttribute('aria-label'),
+    region: document.querySelector('.y-ttsbar__status')?.textContent ?? null,
+  }));
+  await pressForHandoff(page, CARD);
+  const handoff = await page.evaluate(() => window.__speechFixture.utterances.map((utterance) => ({ text: utterance.text, lang: utterance.lang })));
+  setup(handoff.length === 1 && handoff[0].text === 'わたし' && handoff[0].lang === 'ja', `wrong handoff ${JSON.stringify(handoff)}`);
+  await page.evaluate(() => window.__speechFixture.utterances[0].dispatchEvent(new Event('error')));
+  hit = true;
+  console.log(`INVOCATION-HIT read-aloud-status ${width}/${language}/${theme}: captured utterance error delivered`);
+  const refusal = await page.locator(STATUS).allTextContents();
+  check(refusal.length === 1 && refusal[0] === UNAVAILABLE[language], 'practice-unavailable', `${width}/${language}/${theme} practice refusal ${JSON.stringify(refusal)}, want ${JSON.stringify(UNAVAILABLE[language])}`);
+  await checkPracticePlacement(page.locator(CARD), `${fixture.name}/${width}/${language}/${theme}/error`);
+  check(before.region === '', 'initial-region', 'the shared region must exist empty before pressing');
+  check(await page.locator('.y-ttsbar').count() === 0, 'practice-toolbar', 'practice-only lesson acquired a paragraph toolbar');
+  const first = await page.evaluate(() => ({
+    refusals: window.__refusals,
+    speaking: document.querySelectorAll('[data-speaking], [data-reading]').length,
+    label: document.querySelector('[data-slot-action="speak"]')?.getAttribute('aria-label'),
+    language: document.querySelector('.y-ttsbar__status')?.closest('[lang]')?.lang,
+    text: window.__authoredText(),
+  }));
+  check(first.refusals === 1 && first.speaking === 0 && first.label === before.idle, 'refusal-recovery', `first refusal did not recover: ${JSON.stringify(first)}`);
+  check(first.language === language, 'region-language', `status inherited ${first.language}, want ${language}`);
+  check(first.text === before.text, 'authored-content', 'speech refusal changed authored article text');
+  await page.evaluate(() => window.__speechFixture.utterances[0].dispatchEvent(new Event('error')));
+  check(await page.evaluate(() => window.__refusals) === 1, 'double-error', 'repeated error announced twice');
+  await pressForHandoff(page, CARD);
+  await page.click(CARD); // Stop the active generation.
+  await pressForHandoff(page, CARD); // Replace it with a later generation.
+  const current = await page.locator(STATUS).textContent();
+  await page.evaluate(() => window.__speechFixture.utterances[1].dispatchEvent(new Event('error')));
+  check(await page.locator(STATUS).textContent() === current && await page.locator('[data-speaking]').count() === 1, 'stale-error', 'stale error altered the later generation');
+  await page.evaluate(() => window.__speechFixture.utterances[2].dispatchEvent(new Event('error')));
+  check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await page.evaluate(() => window.__refusals) === 2, 'later-refusal', 'later generation did not announce its refusal once');
+  setup(errors.length === 0, `runtime errors after speech: ${errors.join('; ')}`);
+  await context.close();
+}
 let browser;
 try {
   browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -303,58 +403,10 @@ try {
     for (const language of ['zh-Hant', 'en']) {
       for (const theme of ['light', 'dark']) {
         await documentWithoutColumn(browser, width, language, theme);
-        await noLocalVoice(browser, width, language, theme);
-        const context = await browser.newContext({ viewport: { width, height: 800 } });
-        await context.addCookies([
-          { name: 'yomihon_lang', value: language, url: BASE },
-          { name: 'yomihon_theme', value: theme, url: BASE },
-        ]);
-        const page = await context.newPage();
-        const errors = [];
-        page.on('pageerror', (error) => errors.push(error.message));
-        await installSpeechVoices(page, { record: true });
-        await observePractice(page);
-        const response = await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
-        setup(response?.status() === 200, `practice fixture returned ${response?.status()}`);
-        setup(errors.length === 0, `runtime errors: ${errors.join('; ')}`);
-        setup(await page.locator(CARD).count() === 1 && await page.locator('[data-tts]').count() === 0, 'practice fixture must have one card and no paragraph speaker');
-        const before = await page.evaluate(() => ({
-          text: window.__authoredText(),
-          idle: document.querySelector('[data-slot-action="speak"]')?.getAttribute('aria-label'),
-          region: document.querySelector('.y-ttsbar__status')?.textContent ?? null,
-        }));
-        await pressForHandoff(page, CARD);
-        const handoff = await page.evaluate(() => window.__speechFixture.utterances.map((utterance) => ({ text: utterance.text, lang: utterance.lang })));
-        setup(handoff.length === 1 && handoff[0].text === 'わたし' && handoff[0].lang === 'ja', `wrong handoff ${JSON.stringify(handoff)}`);
-        await page.evaluate(() => window.__speechFixture.utterances[0].dispatchEvent(new Event('error')));
-        hit = true;
-        console.log(`INVOCATION-HIT read-aloud-status ${width}/${language}/${theme}: captured utterance error delivered`);
-        const refusal = await page.locator(STATUS).allTextContents();
-        check(refusal.length === 1 && refusal[0] === UNAVAILABLE[language], 'practice-unavailable', `${width}/${language}/${theme} practice refusal ${JSON.stringify(refusal)}, want ${JSON.stringify(UNAVAILABLE[language])}`);
-        check(before.region === '', 'initial-region', 'the shared region must exist empty before pressing');
-        check(await page.locator('.y-ttsbar').count() === 0, 'practice-toolbar', 'practice-only lesson acquired a paragraph toolbar');
-        const first = await page.evaluate(() => ({
-          refusals: window.__refusals,
-          speaking: document.querySelectorAll('[data-speaking], [data-reading]').length,
-          label: document.querySelector('[data-slot-action="speak"]')?.getAttribute('aria-label'),
-          language: document.querySelector('.y-ttsbar__status')?.closest('[lang]')?.lang,
-          text: window.__authoredText(),
-        }));
-        check(first.refusals === 1 && first.speaking === 0 && first.label === before.idle, 'refusal-recovery', `first refusal did not recover: ${JSON.stringify(first)}`);
-        check(first.language === language, 'region-language', `status inherited ${first.language}, want ${language}`);
-        check(first.text === before.text, 'authored-content', 'speech refusal changed authored article text');
-        await page.evaluate(() => window.__speechFixture.utterances[0].dispatchEvent(new Event('error')));
-        check(await page.evaluate(() => window.__refusals) === 1, 'double-error', 'repeated error announced twice');
-        await pressForHandoff(page, CARD);
-        await page.click(CARD); // Stop the active generation.
-        await pressForHandoff(page, CARD); // Replace it with a later generation.
-        const current = await page.locator(STATUS).textContent();
-        await page.evaluate(() => window.__speechFixture.utterances[1].dispatchEvent(new Event('error')));
-        check(await page.locator(STATUS).textContent() === current && await page.locator('[data-speaking]').count() === 1, 'stale-error', 'stale error altered the later generation');
-        await page.evaluate(() => window.__speechFixture.utterances[2].dispatchEvent(new Event('error')));
-        check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await page.evaluate(() => window.__refusals) === 2, 'later-refusal', 'later generation did not announce its refusal once');
-        setup(errors.length === 0, `runtime errors after speech: ${errors.join('; ')}`);
-        await context.close();
+        for (const fixture of PRACTICE_PAGES) {
+          await noLocalVoice(browser, width, language, theme, fixture);
+          await practiceError(browser, width, language, theme, fixture);
+        }
         for (const fixture of COMPOSITIONS) {
           for (const noAPI of [false, true]) {
             await composition(browser, width, language, theme, fixture, noAPI);
@@ -370,7 +422,8 @@ try {
     console.log('caught: read-aloud-status practice-unavailable');
   }
   const intended = MUTATE === MODE ? 'practice-no-local-voice'
-    : MUTATE === NULL_MODE ? 'document-status' : 'composition-initial';
+    : MUTATE === NULL_MODE ? 'document-status'
+      : MUTATE === PLACEMENT_MODE ? 'practice-placement' : 'composition-initial';
   if (MUTATE && error instanceof LockFired && error.site === intended && applied && hit) {
     console.log(`MUTATE-RESULT: caught ${MUTATE}`);
     process.exitCode = 1;

@@ -3798,6 +3798,19 @@ a.y-facetrow:hover {
   padding: 18px 20px;
 }
 
+/* The shared speech reply also lives in a card, where no toolbar supplies
+   its layout. An empty announcer takes no space before the first press. */
+.y-slotcard .y-ttsbar__status {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  margin: 0;
+}
+
+.y-slotcard .y-ttsbar__status:not(:empty) {
+  margin-top: 12px;
+}
+
 .y-slotcard__head {
   align-items: baseline;
   display: flex;

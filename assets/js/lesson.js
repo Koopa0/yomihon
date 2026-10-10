@@ -18,6 +18,7 @@ export function initLesson(enhanceCodeCopy) {
   let speechGeneration = 0;
   let activeSpeakButton = null;
   let speechStatus = null;
+  let speechStatusHome = null;
   let voiceReadiness = null;
 
   // A device with no voices may never announce voiceschanged. Bound the wait
@@ -187,6 +188,12 @@ export function initLesson(enhanceCodeCopy) {
       }
     }
     stopSpeech();
+    // A card can be far from the paragraph controls, including in the other
+    // compare column. Keep the one announcer beside the control being used.
+    const statusHome = trigger?.closest('.y-slotcard') ?? speechStatusHome;
+    if (speechStatus && statusHome && speechStatus.parentElement !== statusHome) {
+      statusHome.append(speechStatus);
+    }
     const generation = speechGeneration;
     const utterance = new SpeechSynthesisUtterance(text);
     // Each passage owns its speech language independently of article language
@@ -284,7 +291,8 @@ export function initLesson(enhanceCodeCopy) {
       speechStatus.className = 'y-ttsbar__status';
       speechStatus.setAttribute('aria-live', 'polite');
       speechStatus.setAttribute('lang', document.documentElement.lang);
-      column.append(speechStatus);
+      speechStatusHome = column.querySelector('.y-slotcard, .y-reading');
+      speechStatusHome?.append(speechStatus);
     }
     if (!('speechSynthesis' in window)) return;
     // Above the test for marked paragraphs, because the practice card can be
@@ -348,6 +356,7 @@ export function initLesson(enhanceCodeCopy) {
       rateButton.dataset.speechRate = String(rate);
       toolbar.append(rateButton);
     });
+    speechStatusHome = toolbar;
     if (speechStatus) toolbar.append(speechStatus);
     // What the voice cannot be asked for, said where a reader would look for
     // the controls that are missing. Only a page that offers it carries the
