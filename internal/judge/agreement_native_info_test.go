@@ -19,7 +19,7 @@ type agreementNativeInfoOwner struct {
 }
 
 // A physical word belongs to one complete declared fence-info segment.
-func agreementNativeInfoOwners(native agreementNativeOwnerSource, check *agreementNativeCheckSource, sites []agreementNativeCodePayloadSite, target string) ([]agreementNativeInfoOwner, bool) {
+func agreementNativeInfoOwners(native agreementNativeOwnerSource, check *agreementNativeCheckSource, sites []agreementNativeCodePayloadSite) ([]agreementNativeInfoOwner, bool) {
 	var owners []agreementNativeInfoOwner
 	used := make(map[graph.Span]bool)
 	for fi, field := range check.Fields {
@@ -35,10 +35,10 @@ func agreementNativeInfoOwners(native agreementNativeOwnerSource, check *agreeme
 		default:
 			return nil, false
 		}
-		if code.Kind != "FencedCodeBlockInfo" || !slices.Contains(field.Targets, target) {
+		if code.Kind != "FencedCodeBlockInfo" || !slices.Contains(field.Targets, "A") {
 			continue
 		}
-		if target == "" || len(field.Targets) != 1 || code.Span.Start < 0 || code.Span.Stop <= code.Span.Start || field.Span.Start < code.Span.Start || field.Span.Stop > code.Span.Stop || field.Span.Stop <= field.Span.Start || used[field.Span] {
+		if len(field.Targets) != 1 || code.Span.Start < 0 || code.Span.Stop <= code.Span.Start || field.Span.Start < code.Span.Start || field.Span.Stop > code.Span.Stop || field.Span.Stop <= field.Span.Start || used[field.Span] {
 			return nil, false
 		}
 		candidate := -1
@@ -62,11 +62,11 @@ func agreementNativeInfoOwners(native agreementNativeOwnerSource, check *agreeme
 }
 
 // Private words change only the selected fence-info targets.
-func agreementNativeInfoRename(body string, native agreementNativeOwnerSource, check *agreementNativeCheckSource, sites []agreementNativeCodePayloadSite, target string) (string, []agreementNativeInfoOwner, []agreementNativeCodePayloadTarget, bool) {
+func agreementNativeInfoRename(body string, native agreementNativeOwnerSource, check *agreementNativeCheckSource, sites []agreementNativeCodePayloadSite) (string, []agreementNativeInfoOwner, []agreementNativeCodePayloadTarget, bool) {
 	if strings.Contains(body, "q") {
 		return "", nil, nil, false
 	}
-	owners, valid := agreementNativeInfoOwners(native, check, sites, target)
+	owners, valid := agreementNativeInfoOwners(native, check, sites)
 	if !valid {
 		return "", nil, nil, false
 	}
@@ -79,7 +79,7 @@ func agreementNativeInfoRename(body string, native agreementNativeOwnerSource, c
 		}
 		inner := field.Word[2 : len(field.Word)-2]
 		link, ok := graph.ParseWikilink(inner)
-		if !ok || strings.ContainsAny(inner, "[]\r\n") || strings.ContainsRune(inner, 96) || link.Target == "" || link.Target != target {
+		if !ok || strings.ContainsAny(inner, "[]\r\n") || strings.ContainsRune(inner, 96) || link.Target != "A" {
 			return "", nil, nil, false
 		}
 		start := field.Span.Start + 2 + strings.Index(inner, link.Target)
@@ -204,7 +204,7 @@ func agreementNativeInfoDifference(c agreementCase, f *agreementFailure, raw str
 		sites := agreementNativeCodePayloadSites(c.Body)
 		tree := agreementNativeProseAddressTreeReading(c.Body, nil)
 		parts, partsOK := agreementCodeWindowParts(raw)
-		private, owners, changes, renameOK := agreementNativeInfoRename(c.Body, native, &check, sites, "A")
+		private, owners, changes, renameOK := agreementNativeInfoRename(c.Body, native, &check, sites)
 		if !partsOK || !renameOK || !tree.Valid || private != w.Private || !cmp.Equal(native, w.Native) || !cmp.Equal(check, w.Check) || !cmp.Equal(sites, w.Sites) || !cmp.Equal(tree, w.Tree) || !cmp.Equal(agreementNativeHTMLAddressSites(c.Body), w.HTML) || !cmp.Equal(judge.LinkTargets(c.Body), w.Targets) || !cmp.Equal(parts, w.Parts) || !cmp.Equal(*actual, w.Page) || !cmp.Equal(owners, w.Owners) || !cmp.Equal(changes, w.Changes) || !maps.Equal(agreementNativeInfoCurrent(failures), w.Signatures) {
 			return "", "", ""
 		}
@@ -256,7 +256,7 @@ func TestAgreementNativeInfoSource(t *testing.T) {
 					t.Fatalf("caught: complete public check targets (-want +got):\n%s", diff)
 				}
 			}
-			private, owners, changes, ok := agreementNativeInfoRename(w.Body, w.Native, &w.Check, w.Sites, "A")
+			private, owners, changes, ok := agreementNativeInfoRename(w.Body, w.Native, &w.Check, w.Sites)
 			if !ok || private != w.Private || !cmp.Equal(owners, w.Owners) || !cmp.Equal(changes, w.Changes) {
 				t.Fatal("caught: exact declared info owner map and target-only bytes")
 			}
@@ -461,18 +461,18 @@ func TestAgreementNativeInfoOwnershipRefusals(t *testing.T) {
 			if tc.Change != nil {
 				tc.Change(&n, &c, s)
 			}
-			if _, ok := agreementNativeInfoOwners(n, &c, s, "A"); ok {
+			if _, ok := agreementNativeInfoOwners(n, &c, s); ok {
 				t.Fatal("caught: info borrowed an absent, ambiguous or partial declaration")
 			}
 		})
 	}
-	if _, _, _, ok := agreementNativeInfoRename(w.Body+"q", w.Native, &w.Check, w.Sites, "A"); ok {
+	if _, _, _, ok := agreementNativeInfoRename(w.Body+"q", w.Native, &w.Check, w.Sites); ok {
 		t.Fatal("caught: info borrowed an existing private namespace")
 	}
 	c := w.Check
 	c.Fields = slices.Clone(c.Fields)
 	c.Fields[field].Word = "[[A\nB]]"
-	if _, _, _, ok := agreementNativeInfoRename(w.Body, w.Native, &c, w.Sites, "A"); ok {
+	if _, _, _, ok := agreementNativeInfoRename(w.Body, w.Native, &c, w.Sites); ok {
 		t.Fatal("caught: info borrowed a changed physical word")
 	}
 }
