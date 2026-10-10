@@ -235,6 +235,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			commentFootnoteWidgetsObserved := false
 			var unusedCodeWidgets agreementUnusedWidgetPayload
 			unusedCodeWidgetsObserved := false
+			var diagnosticLivePayload agreementDiagnosticLivePayload
+			diagnosticLiveObserved := false
 			var nativeDiagnosticOwners agreementUnusedWidgetPayload
 			nativeDiagnosticOwnersObserved := false
 			var unusedCodeCitations agreementUnusedCitationPayload
@@ -468,6 +470,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						nativeDiagnosticOwnersObserved = true
 					}
 					classification, authority, wrong = agreementNativeDiagnosticDifference(c, failure, &observed[i], diagnostics[i], nativeDiagnosticOwners)
+				}
+				if classification == "" && failure.Property == "P0" {
+					if !diagnosticLiveObserved {
+						diagnosticLivePayload = agreementDiagnosticLiveBudget(t, c.Body, &observed[i], diagnostics[i])
+						diagnosticLiveObserved = true
+					}
+					classification, authority, wrong = agreementDiagnosticLiveDifference(c, failure, &observed[i], diagnostics[i], &diagnosticLivePayload)
 				}
 				if classification == "" && failure.Property == "P1" {
 					if !sharedUnusedCitationsObserved {
