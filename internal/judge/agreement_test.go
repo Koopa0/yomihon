@@ -804,6 +804,9 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				if classification == "" && failure.Property == "P0" {
 					classification, authority, wrong = agreementUnusedDiagnosticDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
 				}
+				if classification == "" && failure.Property == "P0" {
+					classification, authority, wrong = agreementPartialUnusedDiagnosticDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !embedCodePayloadObserved {
 						embedCodePayload = agreementEmbedCodeWindowBudget(c.Body, rendered[i])
