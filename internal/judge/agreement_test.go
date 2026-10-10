@@ -948,6 +948,9 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					}
 					classification, authority, wrong = agreementNativeQuoteAddressDifference(c, failure, &observed[i], fragments[i], &nativeQuoteAddressPayload)
 				}
+				if classification == "" && failure.Property == "P3" {
+					classification, authority, wrong = agreementNativeHTMLAddressDifference(c, failure, &observed[i], fragments[i])
+				}
 				if classification != "" {
 					t.Logf("known=%s authority=%s wrong=%s case=%s signature=%s", classification, authority, wrong, c.Name, agreementSignature(failure))
 					continue
