@@ -81,6 +81,7 @@ probes=(
   "status-recovery-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "shortcut-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "rail-collapse.mjs|/notes/Notes/alpha.md"
+  "rail-initial-target.mjs|/notes/Writing/lessons/long-rail/Rail%20lesson%2030.md"
   "keyboard-scroll.mjs|/notes/Writing/lessons/japanese/L01.md"
   "slot-announce-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "read-aloud-run.mjs|/notes/Writing/lessons/japanese/L02.md"
