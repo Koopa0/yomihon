@@ -786,6 +786,9 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				if classification == "" && failure.Property == "P2" {
 					classification, authority, wrong = agreementNativeTypedCodeDifference(c, failure, rendered[i], &observed[i], failures[i])
 				}
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					classification, authority, wrong = agreementNativeInfoDifference(c, failure, rendered[i], &observed[i], failures[i])
+				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !embedCodePayloadObserved {
 						embedCodePayload = agreementEmbedCodeWindowBudget(c.Body, rendered[i])
