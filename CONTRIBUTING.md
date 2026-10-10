@@ -28,14 +28,17 @@ rather than take it:
   decision for the maintainer, not a pull request.
 - **The vault contract is the only schema.** A vault's
   `System/schemas/vault-schema.toml` is the single source of what a note type
-  is and which status transitions exist. `internal/schema` is the only package
-  that reads it, and the only importer of a TOML decoder. A test in
-  `internal/archlock` fails when a word the contract owns — `lesson`,
-  `concept`, `inbox`, `draft`, `ready`, `published` — stands as a whole string
-  literal in the Go source this repository ships, outside `internal/schema`. It
-  reaches no further, and says so: a word inside a longer sentence, inside a
-  test, or inside the Go in a `.templ` file goes past it. When you feel the urge
-  to write `if status == "ready"`, the answer is already in `internal/schema`.
+  is and which status transitions exist. In product code, `internal/schema` is
+  the only package that reads it and may import `github.com/BurntSushi/toml`;
+  an import test in `internal/archlock` enforces that ownership, including
+  generated Go and excluding test files. The vocabulary tests there fail when
+  a word in `vaultVocabulary`, the authoritative list in
+  [`vocabulary_test.go`](internal/archlock/vocabulary_test.go), stands as a
+  whole string literal in shipped Go outside `internal/schema`. Go inside a
+  `.templ` file is covered through its generated `*_templ.go` file. Composed
+  strings, words inside longer sentences, test files, fixtures, and words not
+  on the list are outside that vocabulary check. When you feel the urge to
+  write `if status == "ready"`, the answer is already in `internal/schema`.
 - **It reports; it does not repair.** The renderer reads fault-tolerantly and
   surfaces what is wrong where it is wrong: broken frontmatter, a link with no
   target, and one name two files answer to. `yomihon check` says the same thing
