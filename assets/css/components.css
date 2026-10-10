@@ -2,7 +2,7 @@
    yomihon — product layer
    ------------------------------------------------------------
    The DS component classes this page actually uses (ui-navitem,
-   ui-side__label, ui-status, ui-type, ui-kbd, ui-scrim, ui-dialog),
+   ui-side__label, ui-status, ui-type, ui-kbd, ui-dialog),
    the y-* product classes that translate the mock's inline styles
    into named classes (shell / rails / header / article / status /
    diagnostics), ruby zero-reflow, and the reading
@@ -420,13 +420,7 @@ samp {
   line-height: 1;
 }
 
-/* ---- Scrim + dialog (⌘K) ---- */
-.ui-scrim {
-  background: var(--overlay-mask);
-  inset: 0;
-  position: fixed;
-  z-index: 101;
-}
+/* ---- Dialog (⌘K) ---- */
 
 .ui-dialog {
   background: var(--panel);
@@ -1215,13 +1209,6 @@ html:not([data-js]) .y-themebtn {
   flex: none;
   height: 6px;
   width: 6px;
-}
-
-.y-navicon {
-  display: inline-flex;
-  flex: none;
-  justify-content: center;
-  width: 17px;
 }
 
 /* filter box — pure enhancement: ships hidden, and the sidebar's pre-paint
@@ -2983,14 +2970,6 @@ button.y-freshness__action {
   font-size: var(--fs-12);
 }
 
-.y-diag__note {
-  color: var(--fg-faint);
-  font-family: var(--font-serif);
-  font-size: var(--fs-12);
-  font-style: italic;
-  line-height: 1.6;
-  margin: 2px 0 0;
-}
 /* out-of-enum status flag — the diagnostics rail's amber accent applied to a
    status-face notice, so the flag reads as a finding rather than as copy */
 .y-statusflag {
@@ -3459,14 +3438,6 @@ a.y-facetrow:hover {
 }
 
 .y-searchpage__empty p {
-  margin: 0;
-}
-
-.y-searchpage__emptytitle {
-  color: var(--fg);
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-20);
-  font-weight: var(--fw-regular);
   margin: 0;
 }
 
@@ -4242,12 +4213,13 @@ a.y-facetrow:hover {
   margin: -8px 0 12px;
 }
 
-.y-homeseamnote {
+/* The sentence under the chip row explaining why some notes state no status:
+   the card lede's voice, upright, set below the row rather than under a head. */
+.y-homeblock__note {
   color: var(--fg-faint);
   font-family: var(--font-serif);
   font-size: var(--fs-13);
-  font-style: italic;
-  margin: 16px 0 0;
+  margin: 12px 0 0;
 }
 
 .y-shelfblocks {
@@ -4296,8 +4268,7 @@ a.y-facetrow:hover {
   margin: 4px 0 0;
 }
 
-.y-homerecent,
-.y-homepaths {
+.y-homerecent {
   display: flex;
   flex-direction: column;
 }
@@ -4315,8 +4286,7 @@ a.y-facetrow:hover {
   border-top: 0;
 }
 
-.y-homenote:hover .y-homenote__title,
-.y-homepath:hover .y-homepath__title {
+.y-homenote:hover .y-homenote__title {
   color: var(--link);
 }
 
@@ -4378,7 +4348,7 @@ a.y-facetrow:hover {
   padding: 7px 9px;
 }
 
-.y-homechip:hover {
+.y-homechip[href]:hover {
   border-color: var(--border-strong);
   color: var(--fg);
 }
@@ -4391,33 +4361,6 @@ a.y-facetrow:hover {
   color: var(--fg-faint);
   min-width: 1.35em;
   text-align: right;
-}
-
-.y-homepath {
-  align-items: baseline;
-  border-top: 1px solid var(--border-faint);
-  display: flex;
-  gap: 14px;
-  padding: 11px 2px;
-}
-
-.y-homepath:first-child {
-  border-top: 0;
-}
-
-.y-homepath__title {
-  color: var(--fg);
-  flex: 1;
-  font-family: var(--font-serif);
-  font-size: var(--fs-14);
-  min-width: 0;
-}
-
-.y-homepath__progress {
-  color: var(--fg-faint);
-  flex: none;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
 }
 
 .y-homesearch {
@@ -4433,21 +4376,6 @@ a.y-facetrow:hover {
   margin: 58px 0 0;
   max-width: var(--measure-read);
   padding-top: 34px;
-}
-
-.y-homereadme__head {
-  align-items: baseline;
-  display: flex;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.y-homereadme__head h2 {
-  color: var(--fg);
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-regular);
-  margin: 0;
 }
 
 @media (max-width: 1180px) {
@@ -6653,17 +6581,6 @@ samp,
   font-size: var(--fs-13);
   line-height: 1.6;
   margin: 0;
-}
-/* The one line a folder carrying no vault contract gets: a fact about what this
-   folder is, set below the key list and quieter than it, because it explains an
-   absence rather than offering an action. */
-.y-kbdhelp__note {
-  border-top: 1px solid var(--border-faint);
-  color: var(--fg-subtle);
-  font-size: var(--fs-12);
-  line-height: 1.6;
-  margin: 12px 0 0;
-  padding-top: 10px;
 }
 /* Cited-by and declared sources share spacing: two lists of names in the
    rail, answering different questions. Cited-by keeps its heading when the

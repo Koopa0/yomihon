@@ -28,7 +28,7 @@ templ railFoot(v nav.Vault, lang wording.Lang) {
 		<p class="y-railfoot__size">{ plural(v.Notes, wording.NoteCountOne, wording.NoteCountMany, lang) }</p>
 		<a class="y-railfoot__health" href="/health" data-rail-foot-findings={ strconv.Itoa(v.Findings) }>
 			<span class="y-railfoot__dot" aria-hidden="true"></span>
-			<span class="y-railfoot__label">{ wording.HealthTitle.In(lang) }</span>
+			<span>{ wording.HealthTitle.In(lang) }</span>
 			<span class="y-railfoot__count">{ libraryFindings(v.Findings, v.Noticed, lang) }</span>
 		</a>
 	</div>
