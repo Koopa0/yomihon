@@ -2441,6 +2441,39 @@ button.y-freshness__action {
   cursor: pointer;
 }
 
+/* A native summary's marker is reset away, so a closed foldable callout would
+   read as a title with nothing under it. The chevron every other disclosure in
+   the interface uses is drawn at the end of the title row instead: the same
+   glyph, size, stroke, muted ink and quarter-turn, in the title's own colour
+   and not the callout's accent. The glyph is a mask so the ink follows the
+   title, and the renderer's markup is left as it is. */
+/* stylelint-disable-next-line selector-no-qualifying-type -- as above. */
+.y-prose details.callout > .callout-title::after {
+  background-color: currentcolor;
+  content: '';
+  flex: none;
+  height: 11px;
+  margin-block-start: calc((1.25rem - 11px) / 2);
+  margin-inline-start: auto;
+  mask-image: url(data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%20fill=%27none%27%20stroke=%27black%27%20stroke-width=%272.2%27%20stroke-linecap=%27round%27%3E%3Cpath%20d=%27m6%209%206%206%206-6%27/%3E%3C/svg%3E);
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+  opacity: 0.7;
+  transition: transform var(--dur-base) var(--ease-standard);
+  width: 11px;
+}
+
+/* stylelint-disable-next-line selector-no-qualifying-type -- as above. */
+.y-prose details.callout:not([open]) > .callout-title::after {
+  transform: rotate(-90deg);
+}
+
+/* stylelint-disable-next-line selector-no-qualifying-type -- as above. */
+.y-prose details.callout:not([open]) > .callout-title:dir(rtl)::after {
+  transform: rotate(90deg);
+}
+
 .y-prose .callout-warning .callout-title {
   color: var(--warn);
 }
@@ -6353,6 +6386,16 @@ samp,
     background: Highlight;
     forced-color-adjust: none;
   }
+
+  /* A callout's fold chevron is a mask over its background, and the background
+     is what forced colours replaces, leaving no shape. The system text colour
+     keeps it drawn. */
+  /* stylelint-disable-next-line selector-no-qualifying-type -- a callout
+     renders as either a details or a div; only the details folds. */
+  .y-prose details.callout > .callout-title::after {
+    background-color: CanvasText;
+    forced-color-adjust: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .y-rail-left {
@@ -6427,6 +6470,14 @@ samp,
   .y-nothing--fault {
     border: 0;
     padding: 0;
+  }
+
+  /* Paper takes no click and a folded callout prints open, so the chevron that
+     says the title can be opened marks nothing. */
+  /* stylelint-disable-next-line selector-no-qualifying-type -- a callout
+     renders as either a details or a div; only the details folds. */
+  .y-prose details.callout > .callout-title::after {
+    display: none;
   }
 
   /* stylelint-disable declaration-no-important -- print has no later stylesheet
