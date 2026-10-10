@@ -982,6 +982,11 @@ html:not([data-js]) .y-themebtn {
   top: var(--header-height);
 }
 
+/* Arrival targets only the rail, leaving the document's fragment landing alone. */
+.y-rail-left .ui-navitem[aria-current='page'] {
+  scroll-initial-target: nearest;
+}
+
 /* The rail's first row: the button that folds the whole left column away and,
    beside it, the filter. It is one row, and it sticks to the top of the rail's
    own scroll box, because the rail scrolls by itself and neither the button nor
