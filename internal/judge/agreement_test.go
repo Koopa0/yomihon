@@ -360,6 +360,8 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 			exclusiveUnusedFieldsObserved := false
 			var nativeAddressPayload agreementNativeAddressPayload
 			nativeAddressObserved := false
+			var nativeReservationPayload agreementNativeReservationPayload
+			nativeReservationObserved := false
 			var outerQuoteAddresses agreementQuoteAddresses
 			outerQuoteAddressesObserved := false
 			for failureIndex := range failures[i] {
@@ -893,6 +895,13 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 						nativeAddressObserved = true
 					}
 					classification, authority, wrong = agreementNativeAddressDifference(c, failure, &observed[i], fragments[i], &nativeAddressPayload)
+				}
+				if classification == "" && failure.Property == "P3" {
+					if !nativeReservationObserved {
+						nativeReservationPayload = agreementNativeReservationBudget(t, c.Body, &observed[i], fragments[i])
+						nativeReservationObserved = true
+					}
+					classification, authority, wrong = agreementNativeReservationDifference(c, failure, &observed[i], fragments[i], &nativeReservationPayload)
 				}
 				if classification != "" {
 					t.Logf("known=%s authority=%s wrong=%s case=%s signature=%s", classification, authority, wrong, c.Name, agreementSignature(failure))
