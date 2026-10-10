@@ -205,7 +205,6 @@ async function noLocalVoice(browser, width, language, theme, fixture) {
       region: document.querySelector('.y-ttsbar__status')?.textContent ?? null,
     }));
     const trigger = page.locator(CARD);
-    await trigger.evaluate((button) => button.scrollIntoView({ block: 'center' }));
     await trigger.click();
     await page.waitForFunction(() => window.__speechFixture.reads > 0 && !document.querySelector('[data-speaking]'));
     hit = true;
@@ -302,7 +301,6 @@ async function composition(browser, width, language, theme, fixture, noAPI) {
         check(await page.evaluate(() => window.__speechFixture.utterances.length) === 0 && await page.locator(STATUS).textContent() === '' && await trigger.getAttribute('aria-label') === idle && await page.locator('[data-speaking], [data-reading]').count() === 0, 'unsupported-silent', `${identity} unsupported API changed idle behavior`);
         continue;
       }
-      if (typeof selector !== 'string') await trigger.evaluate((button) => button.scrollIntoView({ block: 'center' }));
       await pressForHandoff(page, trigger);
       await page.evaluate(() => window.__speechFixture.utterances.at(-1).dispatchEvent(new Event('error')));
       check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await trigger.getAttribute('aria-label') === idle && await page.locator('[data-speaking], [data-reading]').count() === 0, 'composition-error', `${identity} ${selector} refusal failed`);
@@ -364,7 +362,6 @@ async function practiceError(browser, width, language, theme, fixture) {
     idle: document.querySelector('[data-slot-action="speak"]')?.getAttribute('aria-label'),
     region: document.querySelector('.y-ttsbar__status')?.textContent ?? null,
   }));
-  await page.locator(CARD).evaluate((button) => button.scrollIntoView({ block: 'center' }));
   await pressForHandoff(page, CARD);
   const handoff = await page.evaluate(() => window.__speechFixture.utterances.map((utterance) => ({ text: utterance.text, lang: utterance.lang })));
   setup(handoff.length === 1 && handoff[0].text === 'わたし' && handoff[0].lang === 'ja', `wrong handoff ${JSON.stringify(handoff)}`);
