@@ -795,6 +795,9 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				if classification == "" && failure.Property == "P1" {
 					classification, authority, wrong = agreementUsedFootnoteDifference(c, failure, rendered[i], &observed[i], failures[i])
 				}
+				if classification == "" && failure.Property == "P1" {
+					classification, authority, wrong = agreementMixedInfoUnusedDifference(c, failure, rendered[i], &observed[i], failures[i])
+				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
 					if !embedCodePayloadObserved {
 						embedCodePayload = agreementEmbedCodeWindowBudget(c.Body, rendered[i])
