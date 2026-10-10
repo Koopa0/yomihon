@@ -39,10 +39,12 @@ type commentReport struct {
 
 // unclosedComment is a comment that never met its closer and so hides the rest
 // of its container or body: the original 1-based body line and marker.
-// A zero line means no such comment.
+// A zero line means no such comment. The container end is retained because an
+// excerpt can begin after its opener and still contain words it hid.
 type unclosedComment struct {
-	line   int
-	marker string
+	line     int
+	marker   string
+	lastLine int // the container's last affected line; zero means the rest of the body
 }
 
 // stripObsidianComments removes %% and HTML comment regions while preserving the
@@ -210,8 +212,9 @@ func (s *commentState) htmlAt(line, body string, offset, mark int) (kept string,
 	s.unclosed = !closed && span.Stop == len(body)
 	if !closed && span.Stop < len(body) {
 		s.containers = append(s.containers, unclosedComment{
-			line:   s.sourceLine,
-			marker: "<!--",
+			line:     s.sourceLine,
+			marker:   "<!--",
+			lastLine: strings.Count(strings.TrimSuffix(body[:span.Stop], "\n"), "\n") + 1,
 		})
 	}
 	start := strings.LastIndex(body[:open], "\n") + 1
@@ -297,6 +300,26 @@ func commentDiagnostics(report commentReport) []Diagnostic {
 	}
 	if report.bodywide.line != 0 {
 		diagnostics = append(diagnostics, unclosedCommentDiagnostic(report.bodywide))
+	}
+	return diagnostics
+}
+
+// embeddedCommentDiagnostics reports only silence touching the selected source
+// lines. A marker before the cut still matters when it hides part of the cut.
+// start and end are the cut's zero-based, half-open line bounds.
+func embeddedCommentDiagnostics(report commentReport, source string, start, end int) []Diagnostic {
+	var scoped commentReport
+	for _, container := range report.containers {
+		if container.line <= end && container.lastLine > start {
+			scoped.containers = append(scoped.containers, container)
+		}
+	}
+	if report.bodywide.line > 0 && report.bodywide.line <= end {
+		scoped.bodywide = report.bodywide
+	}
+	diagnostics := commentDiagnostics(scoped)
+	for i := range diagnostics {
+		diagnostics[i].Message = source + ": " + diagnostics[i].Message
 	}
 	return diagnostics
 }

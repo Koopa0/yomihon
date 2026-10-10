@@ -180,8 +180,8 @@ func TestStripObsidianCommentsRetainsOrderedSourceRecords(t *testing.T) {
 			want: commentReport{
 				bodywide: unclosedComment{line: 12, marker: "%%"},
 				containers: []unclosedComment{
-					{line: 2, marker: "<!--"},
-					{line: 8, marker: "<!--"},
+					{line: 2, marker: "<!--", lastLine: 3},
+					{line: 8, marker: "<!--", lastLine: 10},
 				},
 			},
 		},

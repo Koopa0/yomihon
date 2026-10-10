@@ -1170,10 +1170,11 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 // off, so no later pass can reopen a marker this one ruled literal.
 func embedScope(link graph.Wikilink, resPath, body string, col *collector) (scoped string, matches int) {
 	stripped, comments := stripBody(body)
-	for _, diagnostic := range commentDiagnostics(comments) {
+	start, end, matches := excerptLines(stripped, fragmentOf(link))
+	scoped = strings.Join(strings.Split(stripped.text, "\n")[start:end], "\n")
+	for _, diagnostic := range embeddedCommentDiagnostics(comments, resPath, start, end) {
 		col.report(&diagnostic)
 	}
-	scoped, matches = excerptOf(stripped, fragmentOf(link))
 	switch {
 	case matches == 0 && link.Block != "":
 		col.report(&Diagnostic{

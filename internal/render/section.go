@@ -82,8 +82,14 @@ func codeBlockLines(p parser.Parser, body string) map[int]bool {
 // through the section id over heading text reduced the way the anchor pass
 // reduces it, keeping the same source boundaries as a single-name excerpt.
 func headingSlice(body, heading string) (slice string, matches int) {
+	start, end, matches := headingLines(body, heading)
+	return strings.Join(strings.Split(body, "\n")[start:end], "\n"), matches
+}
+
+// headingLines keeps source coordinates beside the cut so diagnostics do not
+// mistake identical words elsewhere in the note for the selected section.
+func headingLines(body, heading string) (start, end, matches int) {
 	want := graph.SectionID(heading)
-	lines := strings.Split(body, "\n")
 	headings := graph.Headings(body, graph.LineSkipZones(body))
 	var pathMatches map[int]bool
 	if IsHeadingPath(heading) {
@@ -106,15 +112,15 @@ func headingSlice(body, heading string) (slice string, matches int) {
 			// and what the rest are for is to say how many there were.
 			continue
 		}
-		slice = strings.Join(lines[h.Line:], "\n")
+		start, end = h.Line, strings.Count(body, "\n")+1
 		for _, next := range headings[i+1:] {
 			if next.Level <= h.Level {
-				slice = strings.Join(lines[h.Line:next.Line], "\n")
+				end = next.Line
 				break
 			}
 		}
 	}
-	return slice, matches
+	return start, end, matches
 }
 
 // ledeSlice returns the opening of body a hover card shows when no fragment
@@ -285,6 +291,22 @@ func excerptOf(stripped strippedBody, fragment string) (slice string, matches in
 	return stripped.text, 1
 }
 
+// excerptLines shares the cut's boundaries with callers that report source
+// diagnostics, since stripping preserves lines but not byte offsets.
+func excerptLines(stripped strippedBody, fragment string) (start, end, matches int) {
+	switch {
+	case strings.HasPrefix(fragment, "^"):
+		start, end, ok := blockLines(stripped, strings.TrimPrefix(fragment, "^"))
+		if !ok {
+			return 0, 0, 0
+		}
+		return start, end, 1
+	case fragment != "":
+		return headingLines(stripped.text, fragment)
+	}
+	return 0, strings.Count(stripped.text, "\n") + 1, 1
+}
+
 // fragmentOf is the address an embed carries, in the spelling Excerpt reads. A
 // block wins when the author wrote both a block and a section, which is the
 // order a link's address resolves that conflict in too.
@@ -349,20 +371,25 @@ func headingSourceText(raw string, level int) string {
 // fragment kinds share, so "^quote-1" and "^quote1" stay two names. Nothing rules
 // how wide a block reference reaches, so the narrow reading is taken.
 func blockSlice(body strippedBody, block string) (string, bool) {
+	start, end, ok := blockLines(body, block)
+	return strings.Join(strings.Split(body.text, "\n")[start:end], "\n"), ok
+}
+
+func blockLines(body strippedBody, block string) (start, end int, found bool) {
 	lines := strings.Split(body.text, "\n")
 	at := blockMarkerLine(lines, body.address, UnanchorableLines(body.text), block)
 	if at < 0 {
-		return "", false
+		return 0, 0, false
 	}
-	start := at
+	start = at
 	for start > 0 && !graph.ListItemLine.MatchString(lines[start]) && strings.TrimSpace(lines[start-1]) != "" {
 		start--
 	}
-	end := at + 1
+	end = at + 1
 	for end < len(lines) && strings.TrimSpace(lines[end]) != "" && !graph.ListItemLine.MatchString(lines[end]) {
 		end++
 	}
-	return strings.Join(lines[start:end], "\n"), true
+	return start, end, true
 }
 
 // blockMarkerLine reports which line carries the marker naming block, or -1

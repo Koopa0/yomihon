@@ -78,7 +78,7 @@ func TestUnclosedHTMLCommentNamesItsLine(t *testing.T) {
 		{
 			name:    "embedded",
 			body:    "![[Target]]",
-			message: "an unclosed <!-- comment opened at line 3 of the note body hides everything after it",
+			message: "Target.md: an unclosed <!-- comment opened at line 3 of the note body hides everything after it",
 		},
 	}
 	for _, tt := range tests {
@@ -236,7 +236,10 @@ func TestEmbeddedHTMLContainerCommentKeepsOriginalLine(t *testing.T) {
 		t.Run(body, func(t *testing.T) {
 			t.Parallel()
 			got := r.HTML("Host.md", "", body, wording.En)
-			want := []render.Diagnostic{{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 5 of the note body hides the rest of its Markdown container"}}
+			var want []render.Diagnostic
+			if body != "![[Target#^kept]]" {
+				want = []render.Diagnostic{{Kind: render.DiagCommentContainerUnclosed, Target: "<!--", Message: "Target.md: an unclosed <!-- comment opened at line 5 of the note body hides the rest of its Markdown container"}}
+			}
 			if diff := cmp.Diff(want, got.Diagnostics); diff != "" {
 				t.Errorf("caught: embedded original-line diagnostic (-want +got):\n%s", diff)
 			}
@@ -260,6 +263,68 @@ func TestEmbeddedHTMLContainerCommentKeepsOriginalLine(t *testing.T) {
 	linked := r.HTML("Host.md", "", "[[Target#Kept]]", wording.En)
 	if diff := cmp.Diff([]render.Diagnostic(nil), linked.Diagnostics); diff != "" {
 		t.Errorf("non-embedded target diagnostics (-want +got):\n%s", diff)
+	}
+}
+
+func TestEmbeddedCommentDiagnosticsFollowExcerpt(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, source, embed string
+		want                []render.Diagnostic
+	}{
+		{
+			name:   "whole note container",
+			source: "# Title\n\n> Kept. ^b\n> <!-- private\n> hidden\n\nAfter.", embed: "![[T]]",
+			want: []render.Diagnostic{{Kind: render.DiagCommentContainerUnclosed, Target: "<!--", Message: "T.md: an unclosed <!-- comment opened at line 4 of the note body hides the rest of its Markdown container"}},
+		},
+		{
+			name:   "block contains container comment",
+			source: "# Title\n\n> Kept. ^b\n> <!-- private\n> hidden\n\nAfter.", embed: "![[T#^b]]",
+			want: []render.Diagnostic{{Kind: render.DiagCommentContainerUnclosed, Target: "<!--", Message: "T.md: an unclosed <!-- comment opened at line 4 of the note body hides the rest of its Markdown container"}},
+		},
+		{
+			name:   "whole note body-wide HTML",
+			source: "# Title\n\nKept. ^b <!-- private\nhidden", embed: "![[T]]",
+			want: []render.Diagnostic{{Kind: render.DiagCommentUnclosed, Target: "<!--", Message: "T.md: an unclosed <!-- comment opened at line 3 of the note body hides everything after it"}},
+		},
+		{
+			name:   "block contains body-wide HTML",
+			source: "# Title\n\nKept. ^b <!-- private\nhidden", embed: "![[T#^b]]",
+			want: []render.Diagnostic{{Kind: render.DiagCommentUnclosed, Target: "<!--", Message: "T.md: an unclosed <!-- comment opened at line 3 of the note body hides everything after it"}},
+		},
+		{
+			name:   "block contains body-wide percent",
+			source: "# Title\n\nKept. ^b %% private\nhidden", embed: "![[T#^b]]",
+			want: []render.Diagnostic{{Kind: render.DiagCommentUnclosed, Target: "%%", Message: "T.md: an unclosed %% comment opened at line 3 of the note body hides everything after it"}},
+		},
+		{
+			name:   "container before block",
+			source: "> Before\n> <!-- private\n> hidden\n\nKept. ^b", embed: "![[T#^b]]",
+		},
+		{
+			name:   "container after block",
+			source: "Kept. ^b\n\n> After\n> <!-- private\n> hidden\n\nEnd.", embed: "![[T#^b]]",
+		},
+		{
+			name:   "body-wide after block",
+			source: "Kept. ^b\n\n<!-- private\nhidden", embed: "![[T#^b]]",
+		},
+		{
+			name:   "same visible block in another section",
+			source: "## Other\n> Kept.\n> <!-- private\n> hidden\n\n## Selected\n> Kept.\n> <!-- closed -->\n> hidden\n", embed: "![[T#Selected]]",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r := newRenderer(t, []graph.NoteInput{{RelPath: "T.md"}}, nil, transclusions{"T.md": tt.source})
+			got := r.HTML("Host.md", "", tt.embed, wording.En)
+			if diff := cmp.Diff(tt.want, got.Diagnostics); diff != "" {
+				t.Errorf("embedded excerpt diagnostics (-want +got):\n%s", diff)
+			}
+			if !strings.Contains(got.HTML, "Kept.") || strings.Contains(got.HTML, "private") {
+				t.Errorf("embedded visible words or comment privacy changed: %s", got.HTML)
+			}
+		})
 	}
 }
 
