@@ -854,6 +854,10 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				}
 
 				if classification == "" && failure.Property == "P0" {
+					classification, authority, wrong = agreementRemovedAliasDiagnosticDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P0" {
 					classification, authority, wrong = agreementNativeCodePlainDiagnosticDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
