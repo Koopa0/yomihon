@@ -870,6 +870,10 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				}
 
 				if classification == "" && failure.Property == "P0" {
+					classification, authority, wrong = agreementCutDiagnosticDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P0" {
 					classification, authority, wrong = agreementNativeCodePlainDiagnosticDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
 				}
 				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
@@ -1046,6 +1050,50 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				if classification == "" && failure.Property == "P3" {
 					classification, authority, wrong = agreementNativeHTMLAddressDifference(c, failure, &observed[i], fragments[i])
 				}
+				if classification == "" && failure.Property == "P1" {
+					classification, authority, wrong = agreementDiagnosticP1Difference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P0" {
+					classification, authority, wrong = agreementZeroActiveDiagnosticDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P0" {
+					classification, authority, wrong = agreementSectionDiagnosticDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P0" {
+					classification, authority, wrong = agreementEscapedClosingDiagnosticDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P1" {
+					classification, authority, wrong = agreementOpaqueP1Difference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P1" {
+					classification, authority, wrong = agreementProseP1Difference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P0" {
+					classification, authority, wrong = agreementProseP0Difference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P4" {
+					classification, authority, wrong = agreementHeadingSingleDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P1" {
+					classification, authority, wrong = agreementRawP1Difference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P0" {
+					classification, authority, wrong = agreementCommentCutP0Difference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					classification, authority, wrong = agreementConsumedTableCellDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
 				if classification != "" {
 					t.Logf("known=%s authority=%s wrong=%s case=%s signature=%s", classification, authority, wrong, c.Name, agreementSignature(failure))
 					continue

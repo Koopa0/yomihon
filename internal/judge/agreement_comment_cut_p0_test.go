@@ -1,0 +1,31288 @@
+package judge_test
+
+import (
+	"encoding/json"
+	"maps"
+	"slices"
+	"strconv"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/render"
+)
+
+type agreementCommentCutP0Declaration struct {
+	Body, Private, Target, Section, Selected, Case, HTML, PrivateHTML string
+	Equation                                                          bool
+	Active                                                            int
+	Physical, Owners                                                  []agreementZeroActiveDiagnosticOwner
+	Changes                                                           []agreementMixedRename
+	Singles                                                           []agreementZeroActiveDiagnosticSingle
+	Native, PrivateNative                                             agreementNativeOwnerSource
+	Check, PrivateCheck                                               agreementNativeCheckSource
+	Tree, PrivateTree                                                 agreementNativeProseAddressTree
+	Page, PrivatePage                                                 agreementHTML
+	Parts, PrivateParts                                               [][]agreementCodePart
+	Before, After                                                     []agreementFailure
+	Diagnostics, PrivateDiagnostics                                   []render.Diagnostic
+	Targets, PrivateTargets                                           []string
+	Signatures, PrivateSignatures                                     map[string]int
+	Sites                                                             []agreementNativeCodePayloadSite
+	HTMLSites                                                         []agreementNativeHTMLAddressSite
+	Removed, PrivateRemoved                                           agreementRemovedCommentDiagnosticReading
+	CheckRemoved, PrivateCheckRemoved                                 agreementRemovedCommentDiagnosticReading
+}
+
+// Frozen declarations are shared read-only; observations always use fresh readers.
+var agreementCommentCutP0Declarations = sync.OnceValue(func() []agreementCommentCutP0Declaration {
+	const frozen = `[
+  {
+    "Active": 1,
+    "After": [
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:q Section: State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "q",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:A Section: State:} direction=judge-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:q Section: State:} direction=judge-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "q",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"- > [!note] title\\n^absent-prose \\ue0000\\ue001> [!note] [[A]]\\n## [[A|alias]]\\n> -    \u0060\u0060\u0060\\n[^unused]: [[q]]\\n ^a-2\\n[[#A]]## A-2\\n## A\\n## A\\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n## [[A|alias]]\n> -    \u0060\u0060\u0060\n[^unused]: [[q]]\n ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"- > [!note] title\\n^absent-prose \\ue0000\\ue001> [!note] [[A]]\\n## [[A|alias]]\\n> -    \u0060\u0060\u0060\\n[^unused]: [[q]]\\n ^a-2\\n[[#A]]## A-2\\n## A\\n## A\\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "excerpt-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n## [[A|alias]]\n> -    \u0060\u0060\u0060\n[^unused]: [[q]]\n ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      },
+      {
+        "Property": "P4",
+        "Identity": "literal-heading-id",
+        "Observation": "id=\"a-2\" check=missing",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "page-only",
+        "Multiplicity": 1,
+        "Fragment": "a-2",
+        "Cut": "",
+        "PagePresent": true,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      }
+    ],
+    "Before": [
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section: State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:A Section: State:} direction=judge-only occurrences=2",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 2,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"- > [!note] title\\n^absent-prose \\ue0000\\ue001> [!note] [[A]]\\n## [[A|alias]]\\n> -    \u0060\u0060\u0060\\n[^unused]: [[A]]\\n ^a-2\\n[[#A]]## A-2\\n## A\\n## A\\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n## [[A|alias]]\n> -    \u0060\u0060\u0060\n[^unused]: [[A]]\n ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"- > [!note] title\\n^absent-prose \\ue0000\\ue001> [!note] [[A]]\\n## [[A|alias]]\\n> -    \u0060\u0060\u0060\\n[^unused]: [[A]]\\n ^a-2\\n[[#A]]## A-2\\n## A\\n## A\\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "excerpt-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n## [[A|alias]]\n> -    \u0060\u0060\u0060\n[^unused]: [[A]]\n ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      },
+      {
+        "Property": "P4",
+        "Identity": "literal-heading-id",
+        "Observation": "id=\"a-2\" check=missing",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "page-only",
+        "Multiplicity": 1,
+        "Fragment": "a-2",
+        "Cut": "",
+        "PagePresent": true,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      }
+    ],
+    "Body": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n<!-- [[A]] -->## [[A|alias]]\n> - <!--![[A#A]]<!-- [[A]] -->   \u0060\u0060\u0060\n[^unused]: [[A]]\n%%[[A]]%% ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\n- [ ] [[A]]\n## !\n[[A#^a]]\\\\[[A]]> > --> ^A\n![[A]]",
+    "Case": "pcg-agreement-v1/seeds-4a75646765416772-65656d656e743034/shard-3/index-1005",
+    "Changes": [
+      {
+        "Field": 5,
+        "Span": {
+          "Start": 134,
+          "Stop": 135
+        },
+        "Old": "A",
+        "New": "q"
+      }
+    ],
+    "Check": {
+      "Code": [
+        {
+          "Start": 192,
+          "Stop": 241
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 55,
+          "Stop": 69
+        },
+        {
+          "Start": 88,
+          "Stop": 114
+        },
+        {
+          "Start": 138,
+          "Stop": 147
+        }
+      ],
+      "Fields": [
+        {
+          "Span": {
+            "Start": 49,
+            "Stop": 54
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 60,
+            "Stop": 65
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 72,
+            "Stop": 83
+          },
+          "Word": "[[A|alias]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 93,
+            "Stop": 100
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 105,
+            "Stop": 110
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 132,
+            "Stop": 137
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 140,
+            "Stop": 145
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 153,
+            "Stop": 159
+          },
+          "Word": "[[#A]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 186,
+            "Stop": 191
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 198,
+            "Stop": 203
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 209,
+            "Stop": 217
+          },
+          "Word": "[[A#^a]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 219,
+            "Stop": 224
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 236,
+            "Stop": 241
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        }
+      ],
+      "Targets": [
+        "A",
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "CheckRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 192,
+            "Stop": 241
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 55,
+            "Stop": 69
+          },
+          {
+            "Start": 88,
+            "Stop": 114
+          },
+          {
+            "Start": 138,
+            "Stop": 147
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 49,
+              "Stop": 54
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 60,
+              "Stop": 65
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 83
+            },
+            "Word": "[[A|alias]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 93,
+              "Stop": 100
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 105,
+              "Stop": 110
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 132,
+              "Stop": 137
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 140,
+              "Stop": 145
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 153,
+              "Stop": 159
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 191
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 198,
+              "Stop": 203
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 209,
+              "Stop": 217
+            },
+            "Word": "[[A#^a]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 219,
+              "Stop": 224
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 236,
+              "Stop": 241
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n## [[A|alias]]\n> -    \u0060\u0060\u0060\n[^unused]: [[A]]\n ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\n- [ ] [[A]]\n## !\n[[A#^a]]\\\\[[A]]> > --> ^A\n![[A]]",
+      "Positions": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201,
+        202,
+        203,
+        204,
+        205,
+        206,
+        207,
+        208,
+        209,
+        210,
+        211,
+        212,
+        213,
+        214,
+        215,
+        216,
+        217,
+        218,
+        219,
+        220,
+        221,
+        222,
+        223,
+        224,
+        225,
+        226,
+        227,
+        228,
+        229,
+        230,
+        231,
+        232,
+        233,
+        234,
+        235,
+        236,
+        237,
+        238,
+        239,
+        240
+      ],
+      "ProjectedNative": {
+        "Definitions": [
+          {
+            "Label": "unused",
+            "Parent": "Document",
+            "Span": {
+              "Start": 81,
+              "Stop": 117
+            },
+            "Name": {
+              "Start": 81,
+              "Stop": 91
+            },
+            "Nodes": [
+              {
+                "Kind": "Footnote",
+                "Depth": 0,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 92,
+                    "Stop": 98
+                  },
+                  {
+                    "Start": 99,
+                    "Stop": 104
+                  },
+                  {
+                    "Start": 104,
+                    "Stop": 116
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 92,
+                    "Stop": 93
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 93,
+                    "Stop": 94
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 94,
+                    "Stop": 96
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 96,
+                    "Stop": 97
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 99,
+                    "Stop": 103
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 104,
+                    "Stop": 105
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 105,
+                    "Stop": 106
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 106,
+                    "Stop": 112
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 112,
+                    "Stop": 116
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 143,
+              "Stop": 192
+            }
+          },
+          {
+            "Kind": "FencedCodeBlockInfo",
+            "Parent": "Document",
+            "Span": {
+              "Start": 134,
+              "Stop": 142
+            }
+          }
+        ],
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": [
+          {
+            "Start": 143,
+            "Stop": 192
+          }
+        ],
+        "Comments": null,
+        "Fields": [
+          {
+            "Span": {
+              "Start": 49,
+              "Stop": 54
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 58,
+              "Stop": 69
+            },
+            "Word": "[[A|alias]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 92,
+              "Stop": 97
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 104,
+              "Stop": 110
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 137,
+              "Stop": 142
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": 1
+          },
+          {
+            "Span": {
+              "Start": 149,
+              "Stop": 154
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": 0
+          },
+          {
+            "Span": {
+              "Start": 160,
+              "Stop": 168
+            },
+            "Word": "[[A#^a]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": 0
+          },
+          {
+            "Span": {
+              "Start": 170,
+              "Stop": 175
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": 0
+          },
+          {
+            "Span": {
+              "Start": 187,
+              "Stop": 192
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": 0
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "ProjectedTree": {
+        "Trees": [
+          [
+            {
+              "Kind": "Document",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "List",
+              "Depth": 1,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "ListItem",
+              "Depth": 2,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Blockquote",
+              "Depth": 3,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 4,
+              "Lines": [
+                {
+                  "Start": 4,
+                  "Stop": 18
+                },
+                {
+                  "Start": 18,
+                  "Stop": 54
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 4,
+                  "Stop": 5
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 5,
+                  "Stop": 11
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 11,
+                  "Stop": 17
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 18,
+                  "Stop": 42
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 42,
+                  "Stop": 50
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 50,
+                  "Stop": 51
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 51,
+                  "Stop": 53
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 53,
+                  "Stop": 54
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 58,
+                  "Stop": 69
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 58,
+                  "Stop": 59
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 59,
+                  "Stop": 60
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 60,
+                  "Stop": 68
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 68,
+                  "Stop": 69
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Blockquote",
+              "Depth": 1,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "List",
+              "Depth": 2,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "ListItem",
+              "Depth": 3,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "FencedCodeBlock",
+              "Depth": 4,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 120,
+                  "Stop": 121
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 120,
+                  "Stop": 121
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 125,
+                  "Stop": 126
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 125,
+                  "Stop": 126
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "FencedCodeBlock",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 143,
+                  "Stop": 155
+                },
+                {
+                  "Start": 155,
+                  "Stop": 160
+                },
+                {
+                  "Start": 160,
+                  "Stop": 186
+                },
+                {
+                  "Start": 186,
+                  "Stop": 192
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ],
+          [
+            {
+              "Kind": "Footnote",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 92,
+                  "Stop": 98
+                },
+                {
+                  "Start": 99,
+                  "Stop": 104
+                },
+                {
+                  "Start": 104,
+                  "Stop": 116
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 92,
+                  "Stop": 93
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 93,
+                  "Stop": 94
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 94,
+                  "Stop": 96
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 96,
+                  "Stop": 97
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 99,
+                  "Stop": 103
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 104,
+                  "Stop": 105
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 105,
+                  "Stop": 106
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 106,
+                  "Stop": 112
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 112,
+                  "Stop": 116
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ]
+        ],
+        "Definitions": [
+          {
+            "Root": 1,
+            "Node": 0,
+            "Label": "unused",
+            "Bounds": {
+              "Span": {
+                "Start": 81,
+                "Stop": 117
+              },
+              "Label": {
+                "Start": 81,
+                "Stop": 91
+              },
+              "Parent": "Document"
+            },
+            "Found": true
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 143,
+              "Stop": 192
+            }
+          },
+          {
+            "Kind": "FencedCodeBlockInfo",
+            "Parent": "Document",
+            "Span": {
+              "Start": 134,
+              "Stop": 142
+            }
+          }
+        ],
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": true
+      },
+      "Valid": true
+    },
+    "Diagnostics": [
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "risky-fence",
+        "Target": "",
+        "Message": "wikilink/callout/table syntax found inside a fenced code block; left untouched",
+        "Section": "",
+        "Block": ""
+      }
+    ],
+    "HTML": "<ul>\n<li>\n<blockquote>\n<p>[!note] title\n^absent-prose 0&gt; [!note] <span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet\">A<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet)</span></span></p>\n</blockquote>\n</li>\n</ul>\n<h3 id=\"alias\" data-level=\"2\"><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet\">alias<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet)</span></span></h3>\n<blockquote>\n<ul>\n<li>\n<pre class=\"chroma\"><code></code></pre></li>\n</ul>\n</blockquote>\n<h3 id=\"a\" data-level=\"2\">A</h3>\n<h3 id=\"a-2\" data-level=\"2\">A</h3>\n<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\"><span class=\"o\">-</span><span class=\"w\"> </span><span class=\"p\">[</span><span class=\"w\"> </span><span class=\"p\">]</span><span class=\"w\"> </span><span class=\"p\">[[</span><span class=\"nx\">A</span><span class=\"p\">]]</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"err\">##</span><span class=\"w\"> </span><span class=\"p\">!</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"p\">[[</span><span class=\"nx\">A</span><span class=\"err\">#</span><span class=\"p\">^</span><span class=\"nx\">a</span><span class=\"p\">]]</span><span class=\"err\">\\\\</span><span class=\"p\">[[</span><span class=\"nx\">A</span><span class=\"p\">]]&gt;</span><span class=\"w\"> </span><span class=\"p\">&gt;</span><span class=\"w\"> </span><span class=\"o\">--</span><span class=\"p\">&gt;</span><span class=\"w\"> </span><span class=\"p\">^</span><span class=\"nx\">A</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"p\">![[</span><span class=\"nx\">A</span><span class=\"p\">]]</span><span class=\"w\">\n</span></span></span></code></pre>",
+    "HTMLSites": [
+      {
+        "Root": 0,
+        "Node": 13,
+        "Parent": 0,
+        "Kind": "HTMLBlock",
+        "ParentKind": "Document",
+        "Type": 2,
+        "Lines": [
+          {
+            "Start": 55,
+            "Stop": 84,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Closure": {
+          "Start": -1,
+          "Stop": -1,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": true
+      },
+      {
+        "Root": 0,
+        "Node": 17,
+        "Parent": 16,
+        "Kind": "HTMLBlock",
+        "ParentKind": "ListItem",
+        "Type": 2,
+        "Lines": [
+          {
+            "Start": 88,
+            "Stop": 121,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Closure": {
+          "Start": -1,
+          "Stop": -1,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": true
+      },
+      {
+        "Root": 0,
+        "Node": 22,
+        "Parent": 0,
+        "Kind": "FencedCodeBlock",
+        "ParentKind": "Document",
+        "Type": 0,
+        "Lines": [
+          {
+            "Start": 192,
+            "Stop": 204,
+            "Padding": 0,
+            "ForceNewline": true
+          },
+          {
+            "Start": 204,
+            "Stop": 209,
+            "Padding": 0,
+            "ForceNewline": true
+          },
+          {
+            "Start": 209,
+            "Stop": 235,
+            "Padding": 0,
+            "ForceNewline": true
+          },
+          {
+            "Start": 235,
+            "Stop": 241,
+            "Padding": 0,
+            "ForceNewline": true
+          }
+        ],
+        "Closure": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 183,
+          "Stop": 191,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": true,
+        "Raw": true
+      }
+    ],
+    "Native": {
+      "Definitions": null,
+      "Code": null,
+      "Comments": null
+    },
+    "Owners": [
+      {
+        "Field": 5,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 5,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 1,
+          "Line": 0,
+          "Label": "unused"
+        }
+      }
+    ],
+    "Page": {
+      "Citations": [
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": "wikilink-broken"
+        }
+      ],
+      "CitationsInCode": 0,
+      "Blocks": null,
+      "Headings": [
+        "alias",
+        "a",
+        "a-2"
+      ],
+      "Failures": null,
+      "CodeCitations": null,
+      "CalloutTitles": null
+    },
+    "Parts": [
+      null,
+      [
+        {
+          "Text": "- [ ] [[A]]\n## !\n[[A#^a]]\\\\[[A]]> > --> ^A\n![[A]]\n",
+          "Citation": {
+            "SourceRole": "",
+            "Target": "",
+            "Section": "",
+            "State": ""
+          },
+          "Field": false
+        }
+      ]
+    ],
+    "Physical": [
+      {
+        "Field": 0,
+        "Family": "native-prose-line",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 0,
+          "Definition": -1,
+          "Root": 0,
+          "Node": 4,
+          "Line": 1,
+          "Label": ""
+        }
+      },
+      {
+        "Field": 5,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 5,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 1,
+          "Line": 0,
+          "Label": "unused"
+        }
+      }
+    ],
+    "Private": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n<!-- [[A]] -->## [[A|alias]]\n> - <!--![[A#A]]<!-- [[A]] -->   \u0060\u0060\u0060\n[^unused]: [[q]]\n%%[[A]]%% ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\n- [ ] [[A]]\n## !\n[[A#^a]]\\\\[[A]]> > --> ^A\n![[A]]",
+    "PrivateCheck": {
+      "Code": [
+        {
+          "Start": 192,
+          "Stop": 241
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 55,
+          "Stop": 69
+        },
+        {
+          "Start": 88,
+          "Stop": 114
+        },
+        {
+          "Start": 138,
+          "Stop": 147
+        }
+      ],
+      "Fields": [
+        {
+          "Span": {
+            "Start": 49,
+            "Stop": 54
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 60,
+            "Stop": 65
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 72,
+            "Stop": 83
+          },
+          "Word": "[[A|alias]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 93,
+            "Stop": 100
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 105,
+            "Stop": 110
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 132,
+            "Stop": 137
+          },
+          "Word": "[[q]]",
+          "Targets": [
+            "q"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 140,
+            "Stop": 145
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 153,
+            "Stop": 159
+          },
+          "Word": "[[#A]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 186,
+            "Stop": 191
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 198,
+            "Stop": 203
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 209,
+            "Stop": 217
+          },
+          "Word": "[[A#^a]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 219,
+            "Stop": 224
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 236,
+            "Stop": 241
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        }
+      ],
+      "Targets": [
+        "A",
+        "A",
+        "q",
+        "A"
+      ]
+    },
+    "PrivateCheckRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 192,
+            "Stop": 241
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 55,
+            "Stop": 69
+          },
+          {
+            "Start": 88,
+            "Stop": 114
+          },
+          {
+            "Start": 138,
+            "Stop": 147
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 49,
+              "Stop": 54
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 60,
+              "Stop": 65
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 83
+            },
+            "Word": "[[A|alias]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 93,
+              "Stop": 100
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 105,
+              "Stop": 110
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 132,
+              "Stop": 137
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 140,
+              "Stop": 145
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 153,
+              "Stop": 159
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 191
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 198,
+              "Stop": 203
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 209,
+              "Stop": 217
+            },
+            "Word": "[[A#^a]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 219,
+              "Stop": 224
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 236,
+              "Stop": 241
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "q",
+          "A"
+        ]
+      },
+      "Projected": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n## [[A|alias]]\n> -    \u0060\u0060\u0060\n[^unused]: [[q]]\n ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\n- [ ] [[A]]\n## !\n[[A#^a]]\\\\[[A]]> > --> ^A\n![[A]]",
+      "Positions": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201,
+        202,
+        203,
+        204,
+        205,
+        206,
+        207,
+        208,
+        209,
+        210,
+        211,
+        212,
+        213,
+        214,
+        215,
+        216,
+        217,
+        218,
+        219,
+        220,
+        221,
+        222,
+        223,
+        224,
+        225,
+        226,
+        227,
+        228,
+        229,
+        230,
+        231,
+        232,
+        233,
+        234,
+        235,
+        236,
+        237,
+        238,
+        239,
+        240
+      ],
+      "ProjectedNative": {
+        "Definitions": [
+          {
+            "Label": "unused",
+            "Parent": "Document",
+            "Span": {
+              "Start": 81,
+              "Stop": 117
+            },
+            "Name": {
+              "Start": 81,
+              "Stop": 91
+            },
+            "Nodes": [
+              {
+                "Kind": "Footnote",
+                "Depth": 0,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 92,
+                    "Stop": 98
+                  },
+                  {
+                    "Start": 99,
+                    "Stop": 104
+                  },
+                  {
+                    "Start": 104,
+                    "Stop": 116
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 92,
+                    "Stop": 93
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 93,
+                    "Stop": 94
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 94,
+                    "Stop": 96
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 96,
+                    "Stop": 97
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 99,
+                    "Stop": 103
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 104,
+                    "Stop": 105
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 105,
+                    "Stop": 106
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 106,
+                    "Stop": 112
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 112,
+                    "Stop": 116
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 143,
+              "Stop": 192
+            }
+          },
+          {
+            "Kind": "FencedCodeBlockInfo",
+            "Parent": "Document",
+            "Span": {
+              "Start": 134,
+              "Stop": 142
+            }
+          }
+        ],
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": [
+          {
+            "Start": 143,
+            "Stop": 192
+          }
+        ],
+        "Comments": null,
+        "Fields": [
+          {
+            "Span": {
+              "Start": 49,
+              "Stop": 54
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 58,
+              "Stop": 69
+            },
+            "Word": "[[A|alias]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 92,
+              "Stop": 97
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 104,
+              "Stop": 110
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 137,
+              "Stop": 142
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": 1
+          },
+          {
+            "Span": {
+              "Start": 149,
+              "Stop": 154
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": 0
+          },
+          {
+            "Span": {
+              "Start": 160,
+              "Stop": 168
+            },
+            "Word": "[[A#^a]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": 0
+          },
+          {
+            "Span": {
+              "Start": 170,
+              "Stop": 175
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": 0
+          },
+          {
+            "Span": {
+              "Start": 187,
+              "Stop": 192
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": 0
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "q",
+          "A"
+        ]
+      },
+      "ProjectedTree": {
+        "Trees": [
+          [
+            {
+              "Kind": "Document",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "List",
+              "Depth": 1,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "ListItem",
+              "Depth": 2,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Blockquote",
+              "Depth": 3,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 4,
+              "Lines": [
+                {
+                  "Start": 4,
+                  "Stop": 18
+                },
+                {
+                  "Start": 18,
+                  "Stop": 54
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 4,
+                  "Stop": 5
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 5,
+                  "Stop": 11
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 11,
+                  "Stop": 17
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 18,
+                  "Stop": 42
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 42,
+                  "Stop": 50
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 50,
+                  "Stop": 51
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 51,
+                  "Stop": 53
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 5,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 53,
+                  "Stop": 54
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 58,
+                  "Stop": 69
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 58,
+                  "Stop": 59
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 59,
+                  "Stop": 60
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 60,
+                  "Stop": 68
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 68,
+                  "Stop": 69
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Blockquote",
+              "Depth": 1,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "List",
+              "Depth": 2,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "ListItem",
+              "Depth": 3,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "FencedCodeBlock",
+              "Depth": 4,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 120,
+                  "Stop": 121
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 120,
+                  "Stop": 121
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 125,
+                  "Stop": 126
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 125,
+                  "Stop": 126
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "FencedCodeBlock",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 143,
+                  "Stop": 155
+                },
+                {
+                  "Start": 155,
+                  "Stop": 160
+                },
+                {
+                  "Start": 160,
+                  "Stop": 186
+                },
+                {
+                  "Start": 186,
+                  "Stop": 192
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ],
+          [
+            {
+              "Kind": "Footnote",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 92,
+                  "Stop": 98
+                },
+                {
+                  "Start": 99,
+                  "Stop": 104
+                },
+                {
+                  "Start": 104,
+                  "Stop": 116
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 92,
+                  "Stop": 93
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 93,
+                  "Stop": 94
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 94,
+                  "Stop": 96
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 96,
+                  "Stop": 97
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 99,
+                  "Stop": 103
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 104,
+                  "Stop": 105
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 105,
+                  "Stop": 106
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 106,
+                  "Stop": 112
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 112,
+                  "Stop": 116
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ]
+        ],
+        "Definitions": [
+          {
+            "Root": 1,
+            "Node": 0,
+            "Label": "unused",
+            "Bounds": {
+              "Span": {
+                "Start": 81,
+                "Stop": 117
+              },
+              "Label": {
+                "Start": 81,
+                "Stop": 91
+              },
+              "Parent": "Document"
+            },
+            "Found": true
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 143,
+              "Stop": 192
+            }
+          },
+          {
+            "Kind": "FencedCodeBlockInfo",
+            "Parent": "Document",
+            "Span": {
+              "Start": 134,
+              "Stop": 142
+            }
+          }
+        ],
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": true
+      },
+      "Valid": true
+    },
+    "PrivateDiagnostics": [
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "q",
+        "Message": "wikilink \"q\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "risky-fence",
+        "Target": "",
+        "Message": "wikilink/callout/table syntax found inside a fenced code block; left untouched",
+        "Section": "",
+        "Block": ""
+      }
+    ],
+    "PrivateHTML": "<ul>\n<li>\n<blockquote>\n<p>[!note] title\n^absent-prose 0&gt; [!note] <span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet\">A<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet)</span></span></p>\n</blockquote>\n</li>\n</ul>\n<h3 id=\"alias\" data-level=\"2\"><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet\">alias<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet)</span></span></h3>\n<blockquote>\n<ul>\n<li>\n<pre class=\"chroma\"><code></code></pre></li>\n</ul>\n</blockquote>\n<h3 id=\"a\" data-level=\"2\">A</h3>\n<h3 id=\"a-2\" data-level=\"2\">A</h3>\n<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\"><span class=\"o\">-</span><span class=\"w\"> </span><span class=\"p\">[</span><span class=\"w\"> </span><span class=\"p\">]</span><span class=\"w\"> </span><span class=\"p\">[[</span><span class=\"nx\">A</span><span class=\"p\">]]</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"err\">##</span><span class=\"w\"> </span><span class=\"p\">!</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"p\">[[</span><span class=\"nx\">A</span><span class=\"err\">#</span><span class=\"p\">^</span><span class=\"nx\">a</span><span class=\"p\">]]</span><span class=\"err\">\\\\</span><span class=\"p\">[[</span><span class=\"nx\">A</span><span class=\"p\">]]&gt;</span><span class=\"w\"> </span><span class=\"p\">&gt;</span><span class=\"w\"> </span><span class=\"o\">--</span><span class=\"p\">&gt;</span><span class=\"w\"> </span><span class=\"p\">^</span><span class=\"nx\">A</span><span class=\"w\">\n</span></span></span><span class=\"line\"><span class=\"cl\"><span class=\"p\">![[</span><span class=\"nx\">A</span><span class=\"p\">]]</span><span class=\"w\">\n</span></span></span></code></pre>",
+    "PrivateNative": {
+      "Definitions": null,
+      "Code": null,
+      "Comments": null
+    },
+    "PrivatePage": {
+      "Citations": [
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": "wikilink-broken"
+        }
+      ],
+      "CitationsInCode": 0,
+      "Blocks": null,
+      "Headings": [
+        "alias",
+        "a",
+        "a-2"
+      ],
+      "Failures": null,
+      "CodeCitations": null,
+      "CalloutTitles": null
+    },
+    "PrivateParts": [
+      null,
+      [
+        {
+          "Text": "- [ ] [[A]]\n## !\n[[A#^a]]\\\\[[A]]> > --> ^A\n![[A]]\n",
+          "Citation": {
+            "SourceRole": "",
+            "Target": "",
+            "Section": "",
+            "State": ""
+          },
+          "Field": false
+        }
+      ]
+    ],
+    "PrivateRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 192,
+            "Stop": 241
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 55,
+            "Stop": 69
+          },
+          {
+            "Start": 88,
+            "Stop": 114
+          },
+          {
+            "Start": 138,
+            "Stop": 147
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 49,
+              "Stop": 54
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 60,
+              "Stop": 65
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 83
+            },
+            "Word": "[[A|alias]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 93,
+              "Stop": 100
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 105,
+              "Stop": 110
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 132,
+              "Stop": 137
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 140,
+              "Stop": 145
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 153,
+              "Stop": 159
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 191
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 198,
+              "Stop": 203
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 209,
+              "Stop": 217
+            },
+            "Word": "[[A#^a]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 219,
+              "Stop": 224
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 236,
+              "Stop": 241
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "q",
+          "A"
+        ]
+      },
+      "Projected": "",
+      "Positions": null,
+      "ProjectedNative": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": null,
+        "Comments": null,
+        "Fields": null,
+        "Targets": null
+      },
+      "ProjectedTree": {
+        "Trees": null,
+        "Definitions": null,
+        "Code": null,
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": false
+      },
+      "Valid": false
+    },
+    "PrivateSignatures": {
+      "P0/diagnostic-html tuple={SourceRole: Target:q Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:A Section: State:} fragment=\"\" direction=judge-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:q Section: State:} fragment=\"\" direction=judge-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=excerpt-only multiplicity=1 cut=\"- > [!note] title\\n^absent-prose \\ue0000\\ue001> [!note] [[A]]\\n## [[A|alias]]\\n> -    \u0060\u0060\u0060\\n[^unused]: [[q]]\\n ^a-2\\n[[#A]]## A-2\\n## A\\n## A\\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\" page=false judge=true excerpt=true": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=judge-only multiplicity=1 cut=\"- > [!note] title\\n^absent-prose \\ue0000\\ue001> [!note] [[A]]\\n## [[A|alias]]\\n> -    \u0060\u0060\u0060\\n[^unused]: [[q]]\\n ^a-2\\n[[#A]]## A-2\\n## A\\n## A\\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\" page=false judge=true excerpt=true": 1,
+      "P4/literal-heading-id tuple={SourceRole: Target: Section: State:} fragment=\"a-2\" direction=page-only multiplicity=1 cut=\"\" page=true judge=false excerpt=false": 1
+    },
+    "PrivateTargets": [
+      "A",
+      "A",
+      "q",
+      "A"
+    ],
+    "PrivateTree": {
+      "Trees": [
+        [
+          {
+            "Kind": "Document",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "List",
+            "Depth": 1,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "ListItem",
+            "Depth": 2,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Blockquote",
+            "Depth": 3,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 4,
+            "Lines": [
+              {
+                "Start": 4,
+                "Stop": 18
+              },
+              {
+                "Start": 18,
+                "Stop": 54
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 4,
+                "Stop": 5
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 5,
+                "Stop": 11
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 11,
+                "Stop": 17
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 18,
+                "Stop": 42
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 42,
+                "Stop": 50
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 50,
+                "Stop": 51
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 51,
+                "Stop": 53
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 53,
+                "Stop": 54
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "HTMLBlock",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 55,
+                "Stop": 84
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Blockquote",
+            "Depth": 1,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "List",
+            "Depth": 2,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "ListItem",
+            "Depth": 3,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "HTMLBlock",
+            "Depth": 4,
+            "Lines": [
+              {
+                "Start": 88,
+                "Stop": 121
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Heading",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 169,
+                "Stop": 170
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 169,
+                "Stop": 170
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Heading",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 174,
+                "Stop": 175
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 174,
+                "Stop": 175
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "FencedCodeBlock",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 192,
+                "Stop": 204
+              },
+              {
+                "Start": 204,
+                "Stop": 209
+              },
+              {
+                "Start": 209,
+                "Stop": 235
+              },
+              {
+                "Start": 235,
+                "Stop": 241
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ],
+        [
+          {
+            "Kind": "Footnote",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 132,
+                "Stop": 138
+              },
+              {
+                "Start": 138,
+                "Stop": 153
+              },
+              {
+                "Start": 153,
+                "Stop": 165
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 132,
+                "Stop": 133
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 133,
+                "Stop": 134
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 134,
+                "Stop": 136
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 136,
+                "Stop": 137
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 138,
+                "Stop": 141
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 141,
+                "Stop": 142
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 142,
+                "Stop": 147
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 147,
+                "Stop": 152
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 153,
+                "Stop": 154
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 154,
+                "Stop": 155
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 155,
+                "Stop": 161
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 161,
+                "Stop": 165
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ]
+      ],
+      "Definitions": [
+        {
+          "Root": 1,
+          "Node": 0,
+          "Label": "unused",
+          "Bounds": {
+            "Span": {
+              "Start": 121,
+              "Stop": 166
+            },
+            "Label": {
+              "Start": 121,
+              "Stop": 131
+            },
+            "Parent": "Document"
+          },
+          "Found": true
+        }
+      ],
+      "Code": [
+        {
+          "Kind": "FencedCodeBlock",
+          "Parent": "Document",
+          "Span": {
+            "Start": 192,
+            "Stop": 241
+          }
+        },
+        {
+          "Kind": "FencedCodeBlockInfo",
+          "Parent": "Document",
+          "Span": {
+            "Start": 183,
+            "Stop": 191
+          }
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 55,
+          "Stop": 69
+        },
+        {
+          "Start": 88,
+          "Stop": 114
+        },
+        {
+          "Start": 138,
+          "Stop": 147
+        }
+      ],
+      "Unanchorable": null,
+      "Valid": true
+    },
+    "Removed": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 192,
+            "Stop": 241
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 55,
+            "Stop": 69
+          },
+          {
+            "Start": 88,
+            "Stop": 114
+          },
+          {
+            "Start": 138,
+            "Stop": 147
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 49,
+              "Stop": 54
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 60,
+              "Stop": 65
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 83
+            },
+            "Word": "[[A|alias]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 93,
+              "Stop": 100
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 105,
+              "Stop": 110
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 132,
+              "Stop": 137
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 140,
+              "Stop": 145
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 153,
+              "Stop": 159
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 191
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 198,
+              "Stop": 203
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 209,
+              "Stop": 217
+            },
+            "Word": "[[A#^a]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 219,
+              "Stop": 224
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 236,
+              "Stop": 241
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "",
+      "Positions": null,
+      "ProjectedNative": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": null,
+        "Comments": null,
+        "Fields": null,
+        "Targets": null
+      },
+      "ProjectedTree": {
+        "Trees": null,
+        "Definitions": null,
+        "Code": null,
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": false
+      },
+      "Valid": false
+    },
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Signatures": {
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:A Section: State:} fragment=\"\" direction=judge-only multiplicity=2 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=excerpt-only multiplicity=1 cut=\"- > [!note] title\\n^absent-prose \\ue0000\\ue001> [!note] [[A]]\\n## [[A|alias]]\\n> -    \u0060\u0060\u0060\\n[^unused]: [[A]]\\n ^a-2\\n[[#A]]## A-2\\n## A\\n## A\\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\" page=false judge=true excerpt=true": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=judge-only multiplicity=1 cut=\"- > [!note] title\\n^absent-prose \\ue0000\\ue001> [!note] [[A]]\\n## [[A|alias]]\\n> -    \u0060\u0060\u0060\\n[^unused]: [[A]]\\n ^a-2\\n[[#A]]## A-2\\n## A\\n## A\\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\" page=false judge=true excerpt=true": 1,
+      "P4/literal-heading-id tuple={SourceRole: Target: Section: State:} fragment=\"a-2\" direction=page-only multiplicity=1 cut=\"\" page=true judge=false excerpt=false": 1
+    },
+    "Singles": [
+      {
+        "Field": 5,
+        "Index": 2,
+        "Start": 134,
+        "Body": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n<!-- [[A]] -->## [[A|alias]]\n> - <!--![[A#A]]<!-- [[A]] -->   \u0060\u0060\u0060\n[^unused]: [[q]]\n%%[[A]]%% ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\n- [ ] [[A]]\n## !\n[[A#^a]]\\\\[[A]]> > --> ^A\n![[A]]",
+        "Diagnostics": [
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "q",
+            "Message": "wikilink \"q\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "risky-fence",
+            "Target": "",
+            "Message": "wikilink/callout/table syntax found inside a fenced code block; left untouched",
+            "Section": "",
+            "Block": ""
+          }
+        ]
+      }
+    ],
+    "Sites": [
+      {
+        "Root": 0,
+        "Node": 22,
+        "Parent": 0,
+        "Kind": "FencedCodeBlock",
+        "ParentKind": "Document",
+        "Lines": [
+          {
+            "Start": 192,
+            "Stop": 204,
+            "Padding": 0,
+            "ForceNewline": true
+          },
+          {
+            "Start": 204,
+            "Stop": 209,
+            "Padding": 0,
+            "ForceNewline": true
+          },
+          {
+            "Start": 209,
+            "Stop": 235,
+            "Padding": 0,
+            "ForceNewline": true
+          },
+          {
+            "Start": 235,
+            "Stop": 241,
+            "Padding": 0,
+            "ForceNewline": true
+          }
+        ],
+        "Text": null,
+        "Info": {
+          "Start": 183,
+          "Stop": 191,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasInfo": true,
+        "Raw": true
+      }
+    ],
+    "Target": "A",
+    "Targets": [
+      "A",
+      "A",
+      "A",
+      "A"
+    ],
+    "Tree": {
+      "Trees": [
+        [
+          {
+            "Kind": "Document",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "List",
+            "Depth": 1,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "ListItem",
+            "Depth": 2,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Blockquote",
+            "Depth": 3,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 4,
+            "Lines": [
+              {
+                "Start": 4,
+                "Stop": 18
+              },
+              {
+                "Start": 18,
+                "Stop": 54
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 4,
+                "Stop": 5
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 5,
+                "Stop": 11
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 11,
+                "Stop": 17
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 18,
+                "Stop": 42
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 42,
+                "Stop": 50
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 50,
+                "Stop": 51
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 51,
+                "Stop": 53
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 5,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 53,
+                "Stop": 54
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "HTMLBlock",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 55,
+                "Stop": 84
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Blockquote",
+            "Depth": 1,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "List",
+            "Depth": 2,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "ListItem",
+            "Depth": 3,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "HTMLBlock",
+            "Depth": 4,
+            "Lines": [
+              {
+                "Start": 88,
+                "Stop": 121
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Heading",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 169,
+                "Stop": 170
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 169,
+                "Stop": 170
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Heading",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 174,
+                "Stop": 175
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 174,
+                "Stop": 175
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "FencedCodeBlock",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 192,
+                "Stop": 204
+              },
+              {
+                "Start": 204,
+                "Stop": 209
+              },
+              {
+                "Start": 209,
+                "Stop": 235
+              },
+              {
+                "Start": 235,
+                "Stop": 241
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ],
+        [
+          {
+            "Kind": "Footnote",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 132,
+                "Stop": 138
+              },
+              {
+                "Start": 138,
+                "Stop": 153
+              },
+              {
+                "Start": 153,
+                "Stop": 165
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 132,
+                "Stop": 133
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 133,
+                "Stop": 134
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 134,
+                "Stop": 136
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 136,
+                "Stop": 137
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 138,
+                "Stop": 141
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 141,
+                "Stop": 142
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 142,
+                "Stop": 147
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 147,
+                "Stop": 152
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 153,
+                "Stop": 154
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 154,
+                "Stop": 155
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 155,
+                "Stop": 161
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 161,
+                "Stop": 165
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ]
+      ],
+      "Definitions": [
+        {
+          "Root": 1,
+          "Node": 0,
+          "Label": "unused",
+          "Bounds": {
+            "Span": {
+              "Start": 121,
+              "Stop": 166
+            },
+            "Label": {
+              "Start": 121,
+              "Stop": 131
+            },
+            "Parent": "Document"
+          },
+          "Found": true
+        }
+      ],
+      "Code": [
+        {
+          "Kind": "FencedCodeBlock",
+          "Parent": "Document",
+          "Span": {
+            "Start": 192,
+            "Stop": 241
+          }
+        },
+        {
+          "Kind": "FencedCodeBlockInfo",
+          "Parent": "Document",
+          "Span": {
+            "Start": 183,
+            "Stop": 191
+          }
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 55,
+          "Stop": 69
+        },
+        {
+          "Start": 88,
+          "Stop": 114
+        },
+        {
+          "Start": 138,
+          "Stop": 147
+        }
+      ],
+      "Unanchorable": null,
+      "Valid": true
+    },
+    "Equation": true
+  },
+  {
+    "Active": 4,
+    "After": [
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section:A State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:B Section: State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "B",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:q Section: State:wikilink-broken} direction=diagnostic-only occurrences=4",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "q",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 4,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:A Section: State:} direction=judge-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:q Section: State:} direction=judge-only occurrences=4",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "q",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 4,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[q]]\\nB\\n ^a-2\\n[[q]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[q]]\nB\n ^a-2\n[[q]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[q]]\\nB\\n ^a-2\\n[[q]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "excerpt-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[q]]\nB\n ^a-2\n[[q]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      }
+    ],
+    "Before": [
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section: State:wikilink-broken} direction=diagnostic-only occurrences=4",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 4,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section:A State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:B Section: State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "B",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:A Section: State:} direction=judge-only occurrences=5",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 5,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "excerpt-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      }
+    ],
+    "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Case": "pcg-agreement-v1/seeds-4a75646765416772-65656d656e743033/shard-2/index-0498",
+    "Changes": [
+      {
+        "Field": 0,
+        "Span": {
+          "Start": 8,
+          "Stop": 9
+        },
+        "Old": "A",
+        "New": "q"
+      },
+      {
+        "Field": 4,
+        "Span": {
+          "Start": 63,
+          "Stop": 64
+        },
+        "Old": "A",
+        "New": "q"
+      },
+      {
+        "Field": 5,
+        "Span": {
+          "Start": 77,
+          "Stop": 78
+        },
+        "Old": "A",
+        "New": "q"
+      },
+      {
+        "Field": 6,
+        "Span": {
+          "Start": 83,
+          "Stop": 84
+        },
+        "Old": "A",
+        "New": "q"
+      }
+    ],
+    "Check": {
+      "Code": [
+        {
+          "Start": 17,
+          "Stop": 23
+        },
+        {
+          "Start": 111,
+          "Stop": 116
+        },
+        {
+          "Start": 136,
+          "Stop": 141
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Fields": [
+        {
+          "Span": {
+            "Start": 6,
+            "Stop": 11
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 17,
+            "Stop": 22
+          },
+          "Word": "[[B]]",
+          "Targets": [
+            "B"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 24,
+            "Stop": 31
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 40,
+            "Stop": 45
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 61,
+            "Stop": 66
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 75,
+            "Stop": 80
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 81,
+            "Stop": 86
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 146,
+            "Stop": 153
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 154,
+            "Stop": 161
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 184,
+            "Stop": 190
+          },
+          "Word": "[[#A]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 195,
+            "Stop": 202
+          },
+          "Word": "[[A\nB]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        }
+      ],
+      "Targets": [
+        "A",
+        "A",
+        "A",
+        "A",
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "CheckRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+      "Positions": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201
+      ],
+      "ProjectedNative": {
+        "Definitions": [
+          {
+            "Label": "n",
+            "Parent": "Document",
+            "Span": {
+              "Start": 0,
+              "Stop": 123
+            },
+            "Name": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Nodes": [
+              {
+                "Kind": "Footnote",
+                "Depth": 0,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 6,
+                    "Stop": 11
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 6,
+                    "Stop": 7
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 7,
+                    "Stop": 8
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 8,
+                    "Stop": 10
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 10,
+                    "Stop": 11
+                  }
+                ]
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 17,
+                    "Stop": 23
+                  },
+                  {
+                    "Start": 23,
+                    "Stop": 38
+                  },
+                  {
+                    "Start": 38,
+                    "Stop": 58
+                  },
+                  {
+                    "Start": 58,
+                    "Stop": 60
+                  },
+                  {
+                    "Start": 61,
+                    "Stop": 66
+                  },
+                  {
+                    "Start": 66,
+                    "Stop": 122
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 17,
+                    "Stop": 18
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 18,
+                    "Stop": 19
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 19,
+                    "Stop": 21
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 21,
+                    "Stop": 22
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 23,
+                    "Stop": 25
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 25,
+                    "Stop": 26
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 26,
+                    "Stop": 30
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 30,
+                    "Stop": 37
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 38,
+                    "Stop": 44
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 44,
+                    "Stop": 53
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 53,
+                    "Stop": 54
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 54,
+                    "Stop": 56
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 56,
+                    "Stop": 57
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 58,
+                    "Stop": 59
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 61,
+                    "Stop": 65
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 66,
+                    "Stop": 67
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 67,
+                    "Stop": 68
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 68,
+                    "Stop": 73
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 73,
+                    "Stop": 74
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 74,
+                    "Stop": 101
+                  }
+                ]
+              },
+              {
+                "Kind": "CodeSpan",
+                "Depth": 2,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 3,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 102,
+                    "Stop": 107
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 108,
+                    "Stop": 112
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 112,
+                    "Stop": 116
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 116,
+                    "Stop": 117
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 117,
+                    "Stop": 122
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 102,
+            "Stop": 107
+          },
+          {
+            "Start": 127,
+            "Stop": 132
+          }
+        ],
+        "Comments": null,
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 52,
+              "Stop": 57
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 66,
+              "Stop": 71
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 77
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": 1
+          },
+          {
+            "Span": {
+              "Start": 137,
+              "Stop": 144
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 145,
+              "Stop": 152
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 175,
+              "Stop": 181
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 193
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "ProjectedTree": {
+        "Trees": [
+          [
+            {
+              "Kind": "Document",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "FencedCodeBlock",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 127,
+                  "Stop": 132
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 137,
+                  "Stop": 158
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 137,
+                  "Stop": 138
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 138,
+                  "Stop": 139
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 139,
+                  "Stop": 146
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 146,
+                  "Stop": 147
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 147,
+                  "Stop": 151
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 151,
+                  "Stop": 158
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Blockquote",
+              "Depth": 1,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 2,
+              "Lines": [
+                {
+                  "Start": 161,
+                  "Stop": 175
+                },
+                {
+                  "Start": 175,
+                  "Stop": 181
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 161,
+                  "Stop": 162
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 162,
+                  "Stop": 168
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 168,
+                  "Stop": 174
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 175,
+                  "Stop": 176
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 176,
+                  "Stop": 177
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 177,
+                  "Stop": 180
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 180,
+                  "Stop": 181
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 186,
+                  "Stop": 190
+                },
+                {
+                  "Start": 190,
+                  "Stop": 193
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 186,
+                  "Stop": 187
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 187,
+                  "Stop": 188
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 188,
+                  "Stop": 189
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 190,
+                  "Stop": 192
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 192,
+                  "Stop": 193
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ],
+          [
+            {
+              "Kind": "Footnote",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 6,
+                  "Stop": 11
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 6,
+                  "Stop": 7
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 7,
+                  "Stop": 8
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 8,
+                  "Stop": 10
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 10,
+                  "Stop": 11
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 17,
+                  "Stop": 23
+                },
+                {
+                  "Start": 23,
+                  "Stop": 38
+                },
+                {
+                  "Start": 38,
+                  "Stop": 58
+                },
+                {
+                  "Start": 58,
+                  "Stop": 60
+                },
+                {
+                  "Start": 61,
+                  "Stop": 66
+                },
+                {
+                  "Start": 66,
+                  "Stop": 122
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 17,
+                  "Stop": 18
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 18,
+                  "Stop": 19
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 19,
+                  "Stop": 21
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 21,
+                  "Stop": 22
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 23,
+                  "Stop": 25
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 25,
+                  "Stop": 26
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 26,
+                  "Stop": 30
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 30,
+                  "Stop": 37
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 38,
+                  "Stop": 44
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 44,
+                  "Stop": 53
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 53,
+                  "Stop": 54
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 54,
+                  "Stop": 56
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 56,
+                  "Stop": 57
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 58,
+                  "Stop": 59
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 61,
+                  "Stop": 65
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 66,
+                  "Stop": 67
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 67,
+                  "Stop": 68
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 68,
+                  "Stop": 73
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 73,
+                  "Stop": 74
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 74,
+                  "Stop": 101
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "CodeSpan",
+              "Depth": 2,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 102,
+                  "Stop": 107
+                }
+              ],
+              "Raw": true,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 108,
+                  "Stop": 112
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 112,
+                  "Stop": 116
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 116,
+                  "Stop": 117
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 117,
+                  "Stop": 122
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ]
+        ],
+        "Definitions": [
+          {
+            "Root": 1,
+            "Node": 0,
+            "Label": "n",
+            "Bounds": {
+              "Span": {
+                "Start": 0,
+                "Stop": 123
+              },
+              "Label": {
+                "Start": 0,
+                "Stop": 5
+              },
+              "Parent": "Document"
+            },
+            "Found": true
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": true
+      },
+      "Valid": true
+    },
+    "Diagnostics": [
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "B",
+        "Message": "wikilink \"B\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      }
+    ],
+    "HTML": "<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\">## A\n</span></span></code></pre><p><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">A#A<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">![[A#A]]<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span>章節</p>\n<div class=\"callout callout-note\"><p class=\"callout-title\"><svg class=\"callout-icon\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"></circle><path d=\"M12 11v5\"></path><path d=\"M12 8h.01\"></path></svg>title</p><div class=\"callout-body\">\n</div></div>\n<p><a href=\"#a\" class=\"wikilink\">#A</a></p>\n<h2 id=\"a\" data-level=\"1\">A</h2>\n<p>[[A\nB]]</p>\n",
+    "HTMLSites": [
+      {
+        "Root": 0,
+        "Node": 1,
+        "Parent": 0,
+        "Kind": "FencedCodeBlock",
+        "ParentKind": "Document",
+        "Type": 0,
+        "Lines": [
+          {
+            "Start": 136,
+            "Stop": 141,
+            "Padding": 0,
+            "ForceNewline": true
+          }
+        ],
+        "Closure": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": true
+      },
+      {
+        "Root": 1,
+        "Node": 32,
+        "Parent": 6,
+        "Kind": "RawHTML",
+        "ParentKind": "Paragraph",
+        "Type": 0,
+        "Lines": [
+          {
+            "Start": 121,
+            "Stop": 125,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Closure": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": false
+      },
+      {
+        "Root": 1,
+        "Node": 34,
+        "Parent": 6,
+        "Kind": "RawHTML",
+        "ParentKind": "Paragraph",
+        "Type": 0,
+        "Lines": [
+          {
+            "Start": 126,
+            "Stop": 131,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Closure": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": false
+      }
+    ],
+    "Native": {
+      "Definitions": null,
+      "Code": null,
+      "Comments": null
+    },
+    "Owners": [
+      {
+        "Field": 0,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 1,
+          "Line": 0,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 4,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 4,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 2,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 5,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 5,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 5,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 6,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 6,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 5,
+          "Label": "n"
+        }
+      }
+    ],
+    "Page": {
+      "Citations": [
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        }
+      ],
+      "CitationsInCode": 0,
+      "Blocks": null,
+      "Headings": [
+        "a"
+      ],
+      "Failures": null,
+      "CodeCitations": null,
+      "CalloutTitles": [
+        "title"
+      ]
+    },
+    "Parts": [
+      [
+        {
+          "Text": "## A\n",
+          "Citation": {
+            "SourceRole": "",
+            "Target": "",
+            "Section": "",
+            "State": ""
+          },
+          "Field": false
+        }
+      ]
+    ],
+    "Physical": [
+      {
+        "Field": 0,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 1,
+          "Line": 0,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 2,
+        "Family": "native-prose-line",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 2,
+          "Definition": -1,
+          "Root": 1,
+          "Node": 6,
+          "Line": 1,
+          "Label": ""
+        }
+      },
+      {
+        "Field": 4,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 4,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 2,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 5,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 5,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 5,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 6,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 6,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 5,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 7,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 7,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 5,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 8,
+        "Family": "native-prose-line",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 8,
+          "Definition": -1,
+          "Root": 0,
+          "Node": 2,
+          "Line": 0,
+          "Label": ""
+        }
+      },
+      {
+        "Field": 9,
+        "Family": "native-prose-line",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 9,
+          "Definition": -1,
+          "Root": 0,
+          "Node": 2,
+          "Line": 0,
+          "Label": ""
+        }
+      }
+    ],
+    "Private": "[^n]: [[q]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[q]]\nB\n ^a-2\n[[q]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "PrivateCheck": {
+      "Code": [
+        {
+          "Start": 17,
+          "Stop": 23
+        },
+        {
+          "Start": 111,
+          "Stop": 116
+        },
+        {
+          "Start": 136,
+          "Stop": 141
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Fields": [
+        {
+          "Span": {
+            "Start": 6,
+            "Stop": 11
+          },
+          "Word": "[[q]]",
+          "Targets": [
+            "q"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 17,
+            "Stop": 22
+          },
+          "Word": "[[B]]",
+          "Targets": [
+            "B"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 24,
+            "Stop": 31
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 40,
+            "Stop": 45
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 61,
+            "Stop": 66
+          },
+          "Word": "[[q]]",
+          "Targets": [
+            "q"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 75,
+            "Stop": 80
+          },
+          "Word": "[[q]]",
+          "Targets": [
+            "q"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 81,
+            "Stop": 86
+          },
+          "Word": "[[q]]",
+          "Targets": [
+            "q"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 146,
+            "Stop": 153
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 154,
+            "Stop": 161
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 184,
+            "Stop": 190
+          },
+          "Word": "[[#A]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 195,
+            "Stop": 202
+          },
+          "Word": "[[A\nB]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        }
+      ],
+      "Targets": [
+        "q",
+        "A",
+        "q",
+        "q",
+        "q",
+        "A",
+        "A"
+      ]
+    },
+    "PrivateCheckRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "q",
+          "A",
+          "q",
+          "q",
+          "q",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "[^n]: [[q]]\n\n    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[q]]\nB\n ^a-2\n[[q]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+      "Positions": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201
+      ],
+      "ProjectedNative": {
+        "Definitions": [
+          {
+            "Label": "n",
+            "Parent": "Document",
+            "Span": {
+              "Start": 0,
+              "Stop": 123
+            },
+            "Name": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Nodes": [
+              {
+                "Kind": "Footnote",
+                "Depth": 0,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 6,
+                    "Stop": 11
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 6,
+                    "Stop": 7
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 7,
+                    "Stop": 8
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 8,
+                    "Stop": 10
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 10,
+                    "Stop": 11
+                  }
+                ]
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 17,
+                    "Stop": 23
+                  },
+                  {
+                    "Start": 23,
+                    "Stop": 38
+                  },
+                  {
+                    "Start": 38,
+                    "Stop": 58
+                  },
+                  {
+                    "Start": 58,
+                    "Stop": 60
+                  },
+                  {
+                    "Start": 61,
+                    "Stop": 66
+                  },
+                  {
+                    "Start": 66,
+                    "Stop": 122
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 17,
+                    "Stop": 18
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 18,
+                    "Stop": 19
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 19,
+                    "Stop": 21
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 21,
+                    "Stop": 22
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 23,
+                    "Stop": 25
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 25,
+                    "Stop": 26
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 26,
+                    "Stop": 30
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 30,
+                    "Stop": 37
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 38,
+                    "Stop": 44
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 44,
+                    "Stop": 53
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 53,
+                    "Stop": 54
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 54,
+                    "Stop": 56
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 56,
+                    "Stop": 57
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 58,
+                    "Stop": 59
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 61,
+                    "Stop": 65
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 66,
+                    "Stop": 67
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 67,
+                    "Stop": 68
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 68,
+                    "Stop": 73
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 73,
+                    "Stop": 74
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 74,
+                    "Stop": 101
+                  }
+                ]
+              },
+              {
+                "Kind": "CodeSpan",
+                "Depth": 2,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 3,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 102,
+                    "Stop": 107
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 108,
+                    "Stop": 112
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 112,
+                    "Stop": 116
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 116,
+                    "Stop": 117
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 117,
+                    "Stop": 122
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 102,
+            "Stop": 107
+          },
+          {
+            "Start": 127,
+            "Stop": 132
+          }
+        ],
+        "Comments": null,
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 52,
+              "Stop": 57
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 66,
+              "Stop": 71
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 77
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": 1
+          },
+          {
+            "Span": {
+              "Start": 137,
+              "Stop": 144
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 145,
+              "Stop": 152
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 175,
+              "Stop": 181
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 193
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "q",
+          "A",
+          "q",
+          "q",
+          "q",
+          "A",
+          "A"
+        ]
+      },
+      "ProjectedTree": {
+        "Trees": [
+          [
+            {
+              "Kind": "Document",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "FencedCodeBlock",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 127,
+                  "Stop": 132
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 137,
+                  "Stop": 158
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 137,
+                  "Stop": 138
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 138,
+                  "Stop": 139
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 139,
+                  "Stop": 146
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 146,
+                  "Stop": 147
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 147,
+                  "Stop": 151
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 151,
+                  "Stop": 158
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Blockquote",
+              "Depth": 1,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 2,
+              "Lines": [
+                {
+                  "Start": 161,
+                  "Stop": 175
+                },
+                {
+                  "Start": 175,
+                  "Stop": 181
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 161,
+                  "Stop": 162
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 162,
+                  "Stop": 168
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 168,
+                  "Stop": 174
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 175,
+                  "Stop": 176
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 176,
+                  "Stop": 177
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 177,
+                  "Stop": 180
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 180,
+                  "Stop": 181
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 186,
+                  "Stop": 190
+                },
+                {
+                  "Start": 190,
+                  "Stop": 193
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 186,
+                  "Stop": 187
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 187,
+                  "Stop": 188
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 188,
+                  "Stop": 189
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 190,
+                  "Stop": 192
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 192,
+                  "Stop": 193
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ],
+          [
+            {
+              "Kind": "Footnote",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 6,
+                  "Stop": 11
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 6,
+                  "Stop": 7
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 7,
+                  "Stop": 8
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 8,
+                  "Stop": 10
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 10,
+                  "Stop": 11
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 17,
+                  "Stop": 23
+                },
+                {
+                  "Start": 23,
+                  "Stop": 38
+                },
+                {
+                  "Start": 38,
+                  "Stop": 58
+                },
+                {
+                  "Start": 58,
+                  "Stop": 60
+                },
+                {
+                  "Start": 61,
+                  "Stop": 66
+                },
+                {
+                  "Start": 66,
+                  "Stop": 122
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 17,
+                  "Stop": 18
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 18,
+                  "Stop": 19
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 19,
+                  "Stop": 21
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 21,
+                  "Stop": 22
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 23,
+                  "Stop": 25
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 25,
+                  "Stop": 26
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 26,
+                  "Stop": 30
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 30,
+                  "Stop": 37
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 38,
+                  "Stop": 44
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 44,
+                  "Stop": 53
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 53,
+                  "Stop": 54
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 54,
+                  "Stop": 56
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 56,
+                  "Stop": 57
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 58,
+                  "Stop": 59
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 61,
+                  "Stop": 65
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 66,
+                  "Stop": 67
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 67,
+                  "Stop": 68
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 68,
+                  "Stop": 73
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 73,
+                  "Stop": 74
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 74,
+                  "Stop": 101
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "CodeSpan",
+              "Depth": 2,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 102,
+                  "Stop": 107
+                }
+              ],
+              "Raw": true,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 108,
+                  "Stop": 112
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 112,
+                  "Stop": 116
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 116,
+                  "Stop": 117
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 117,
+                  "Stop": 122
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ]
+        ],
+        "Definitions": [
+          {
+            "Root": 1,
+            "Node": 0,
+            "Label": "n",
+            "Bounds": {
+              "Span": {
+                "Start": 0,
+                "Stop": 123
+              },
+              "Label": {
+                "Start": 0,
+                "Stop": 5
+              },
+              "Parent": "Document"
+            },
+            "Found": true
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": true
+      },
+      "Valid": true
+    },
+    "PrivateDiagnostics": [
+      {
+        "Kind": "wikilink-broken",
+        "Target": "q",
+        "Message": "wikilink \"q\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "B",
+        "Message": "wikilink \"B\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "q",
+        "Message": "wikilink \"q\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "q",
+        "Message": "wikilink \"q\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "q",
+        "Message": "wikilink \"q\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      }
+    ],
+    "PrivateHTML": "<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\">## A\n</span></span></code></pre><p><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">A#A<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">![[A#A]]<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span>章節</p>\n<div class=\"callout callout-note\"><p class=\"callout-title\"><svg class=\"callout-icon\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"></circle><path d=\"M12 11v5\"></path><path d=\"M12 8h.01\"></path></svg>title</p><div class=\"callout-body\">\n</div></div>\n<p><a href=\"#a\" class=\"wikilink\">#A</a></p>\n<h2 id=\"a\" data-level=\"1\">A</h2>\n<p>[[A\nB]]</p>\n",
+    "PrivateNative": {
+      "Definitions": null,
+      "Code": null,
+      "Comments": null
+    },
+    "PrivatePage": {
+      "Citations": [
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        }
+      ],
+      "CitationsInCode": 0,
+      "Blocks": null,
+      "Headings": [
+        "a"
+      ],
+      "Failures": null,
+      "CodeCitations": null,
+      "CalloutTitles": [
+        "title"
+      ]
+    },
+    "PrivateParts": [
+      [
+        {
+          "Text": "## A\n",
+          "Citation": {
+            "SourceRole": "",
+            "Target": "",
+            "Section": "",
+            "State": ""
+          },
+          "Field": false
+        }
+      ]
+    ],
+    "PrivateRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "q",
+          "A",
+          "q",
+          "q",
+          "q",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "",
+      "Positions": null,
+      "ProjectedNative": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": null,
+        "Comments": null,
+        "Fields": null,
+        "Targets": null
+      },
+      "ProjectedTree": {
+        "Trees": null,
+        "Definitions": null,
+        "Code": null,
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": false
+      },
+      "Valid": false
+    },
+    "PrivateSignatures": {
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section:A State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:B Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:q Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:A Section: State:} fragment=\"\" direction=judge-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:q Section: State:} fragment=\"\" direction=judge-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=excerpt-only multiplicity=1 cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[q]]\\nB\\n ^a-2\\n[[q]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=judge-only multiplicity=1 cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[q]]\\nB\\n ^a-2\\n[[q]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1
+    },
+    "PrivateTargets": [
+      "q",
+      "A",
+      "q",
+      "q",
+      "q",
+      "A",
+      "A"
+    ],
+    "PrivateTree": {
+      "Trees": [
+        [
+          {
+            "Kind": "Document",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "FencedCodeBlock",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 136,
+                "Stop": 141
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 146,
+                "Stop": 167
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 146,
+                "Stop": 147
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 147,
+                "Stop": 148
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 148,
+                "Stop": 155
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 155,
+                "Stop": 156
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 156,
+                "Stop": 160
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 160,
+                "Stop": 167
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Blockquote",
+            "Depth": 1,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 2,
+            "Lines": [
+              {
+                "Start": 170,
+                "Stop": 184
+              },
+              {
+                "Start": 184,
+                "Stop": 190
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 170,
+                "Stop": 171
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 171,
+                "Stop": 177
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 177,
+                "Stop": 183
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 184,
+                "Stop": 185
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 185,
+                "Stop": 186
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 186,
+                "Stop": 189
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 189,
+                "Stop": 190
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Heading",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 195,
+                "Stop": 199
+              },
+              {
+                "Start": 199,
+                "Stop": 202
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 195,
+                "Stop": 196
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 196,
+                "Stop": 197
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 197,
+                "Stop": 198
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 199,
+                "Stop": 201
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 201,
+                "Stop": 202
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ],
+        [
+          {
+            "Kind": "Footnote",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 6,
+                "Stop": 11
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 6,
+                "Stop": 7
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 7,
+                "Stop": 8
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 8,
+                "Stop": 10
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 10,
+                "Stop": 11
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 17,
+                "Stop": 23
+              },
+              {
+                "Start": 23,
+                "Stop": 38
+              },
+              {
+                "Start": 38,
+                "Stop": 67
+              },
+              {
+                "Start": 67,
+                "Stop": 69
+              },
+              {
+                "Start": 70,
+                "Stop": 75
+              },
+              {
+                "Start": 75,
+                "Stop": 131
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 17,
+                "Stop": 18
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 18,
+                "Stop": 19
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 19,
+                "Stop": 21
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 21,
+                "Stop": 22
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 23,
+                "Stop": 25
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 25,
+                "Stop": 26
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 26,
+                "Stop": 30
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 30,
+                "Stop": 37
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 38,
+                "Stop": 41
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 41,
+                "Stop": 42
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 42,
+                "Stop": 53
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 53,
+                "Stop": 62
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 62,
+                "Stop": 63
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 63,
+                "Stop": 65
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 65,
+                "Stop": 66
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 67,
+                "Stop": 68
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 70,
+                "Stop": 74
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 75,
+                "Stop": 76
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 76,
+                "Stop": 77
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 77,
+                "Stop": 82
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 82,
+                "Stop": 83
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 83,
+                "Stop": 110
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "CodeSpan",
+            "Depth": 2,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 111,
+                "Stop": 116
+              }
+            ],
+            "Raw": true,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 117,
+                "Stop": 121
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 121,
+                "Stop": 125
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 125,
+                "Stop": 126
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 126,
+                "Stop": 131
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ]
+      ],
+      "Definitions": [
+        {
+          "Root": 1,
+          "Node": 0,
+          "Label": "n",
+          "Bounds": {
+            "Span": {
+              "Start": 0,
+              "Stop": 132
+            },
+            "Label": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Parent": "Document"
+          },
+          "Found": true
+        }
+      ],
+      "Code": [
+        {
+          "Kind": "FencedCodeBlock",
+          "Parent": "Document",
+          "Span": {
+            "Start": 136,
+            "Stop": 141
+          }
+        },
+        {
+          "Kind": "CodeSpan",
+          "Parent": "Paragraph",
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          }
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Unanchorable": null,
+      "Valid": true
+    },
+    "Removed": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "",
+      "Positions": null,
+      "ProjectedNative": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": null,
+        "Comments": null,
+        "Fields": null,
+        "Targets": null
+      },
+      "ProjectedTree": {
+        "Trees": null,
+        "Definitions": null,
+        "Code": null,
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": false
+      },
+      "Valid": false
+    },
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false",
+    "Signatures": {
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section:A State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:B Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:A Section: State:} fragment=\"\" direction=judge-only multiplicity=5 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=excerpt-only multiplicity=1 cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=judge-only multiplicity=1 cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1
+    },
+    "Singles": [
+      {
+        "Field": 0,
+        "Index": 0,
+        "Start": 8,
+        "Body": "[^n]: [[q]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "Diagnostics": [
+          {
+            "Kind": "wikilink-broken",
+            "Target": "q",
+            "Message": "wikilink \"q\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "B",
+            "Message": "wikilink \"B\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          }
+        ]
+      },
+      {
+        "Field": 4,
+        "Index": 3,
+        "Start": 63,
+        "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[q]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "Diagnostics": [
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "B",
+            "Message": "wikilink \"B\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "q",
+            "Message": "wikilink \"q\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          }
+        ]
+      },
+      {
+        "Field": 5,
+        "Index": 4,
+        "Start": 77,
+        "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[q]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "Diagnostics": [
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "B",
+            "Message": "wikilink \"B\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "q",
+            "Message": "wikilink \"q\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          }
+        ]
+      },
+      {
+        "Field": 6,
+        "Index": 5,
+        "Start": 83,
+        "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "Diagnostics": [
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "B",
+            "Message": "wikilink \"B\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "q",
+            "Message": "wikilink \"q\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          }
+        ]
+      }
+    ],
+    "Sites": [
+      {
+        "Root": 0,
+        "Node": 1,
+        "Parent": 0,
+        "Kind": "FencedCodeBlock",
+        "ParentKind": "Document",
+        "Lines": [
+          {
+            "Start": 136,
+            "Stop": 141,
+            "Padding": 0,
+            "ForceNewline": true
+          }
+        ],
+        "Text": null,
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasInfo": false,
+        "Raw": true
+      },
+      {
+        "Root": 1,
+        "Node": 29,
+        "Parent": 6,
+        "Kind": "CodeSpan",
+        "ParentKind": "Paragraph",
+        "Lines": null,
+        "Text": [
+          {
+            "Start": 111,
+            "Stop": 116,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasInfo": false,
+        "Raw": false
+      }
+    ],
+    "Target": "A",
+    "Targets": [
+      "A",
+      "A",
+      "A",
+      "A",
+      "A",
+      "A",
+      "A"
+    ],
+    "Tree": {
+      "Trees": [
+        [
+          {
+            "Kind": "Document",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "FencedCodeBlock",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 136,
+                "Stop": 141
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 146,
+                "Stop": 167
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 146,
+                "Stop": 147
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 147,
+                "Stop": 148
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 148,
+                "Stop": 155
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 155,
+                "Stop": 156
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 156,
+                "Stop": 160
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 160,
+                "Stop": 167
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Blockquote",
+            "Depth": 1,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 2,
+            "Lines": [
+              {
+                "Start": 170,
+                "Stop": 184
+              },
+              {
+                "Start": 184,
+                "Stop": 190
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 170,
+                "Stop": 171
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 171,
+                "Stop": 177
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 177,
+                "Stop": 183
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 184,
+                "Stop": 185
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 185,
+                "Stop": 186
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 186,
+                "Stop": 189
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 189,
+                "Stop": 190
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Heading",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 195,
+                "Stop": 199
+              },
+              {
+                "Start": 199,
+                "Stop": 202
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 195,
+                "Stop": 196
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 196,
+                "Stop": 197
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 197,
+                "Stop": 198
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 199,
+                "Stop": 201
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 201,
+                "Stop": 202
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ],
+        [
+          {
+            "Kind": "Footnote",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 6,
+                "Stop": 11
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 6,
+                "Stop": 7
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 7,
+                "Stop": 8
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 8,
+                "Stop": 10
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 10,
+                "Stop": 11
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 17,
+                "Stop": 23
+              },
+              {
+                "Start": 23,
+                "Stop": 38
+              },
+              {
+                "Start": 38,
+                "Stop": 67
+              },
+              {
+                "Start": 67,
+                "Stop": 69
+              },
+              {
+                "Start": 70,
+                "Stop": 75
+              },
+              {
+                "Start": 75,
+                "Stop": 131
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 17,
+                "Stop": 18
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 18,
+                "Stop": 19
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 19,
+                "Stop": 21
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 21,
+                "Stop": 22
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 23,
+                "Stop": 25
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 25,
+                "Stop": 26
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 26,
+                "Stop": 30
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 30,
+                "Stop": 37
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 38,
+                "Stop": 41
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 41,
+                "Stop": 42
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 42,
+                "Stop": 53
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 53,
+                "Stop": 62
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 62,
+                "Stop": 63
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 63,
+                "Stop": 65
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 65,
+                "Stop": 66
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 67,
+                "Stop": 68
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 70,
+                "Stop": 74
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 75,
+                "Stop": 76
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 76,
+                "Stop": 77
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 77,
+                "Stop": 82
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 82,
+                "Stop": 83
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 83,
+                "Stop": 110
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "CodeSpan",
+            "Depth": 2,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 111,
+                "Stop": 116
+              }
+            ],
+            "Raw": true,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 117,
+                "Stop": 121
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 121,
+                "Stop": 125
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 125,
+                "Stop": 126
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 126,
+                "Stop": 131
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ]
+      ],
+      "Definitions": [
+        {
+          "Root": 1,
+          "Node": 0,
+          "Label": "n",
+          "Bounds": {
+            "Span": {
+              "Start": 0,
+              "Stop": 132
+            },
+            "Label": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Parent": "Document"
+          },
+          "Found": true
+        }
+      ],
+      "Code": [
+        {
+          "Kind": "FencedCodeBlock",
+          "Parent": "Document",
+          "Span": {
+            "Start": 136,
+            "Stop": 141
+          }
+        },
+        {
+          "Kind": "CodeSpan",
+          "Parent": "Paragraph",
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          }
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Unanchorable": null,
+      "Valid": true
+    },
+    "Equation": true
+  },
+  {
+    "Active": 1,
+    "After": [
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section: State:wikilink-broken} direction=diagnostic-only occurrences=4",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 4,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:B Section: State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "B",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:q Section:A State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "q",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:A Section: State:} direction=judge-only occurrences=4",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 4,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:q Section: State:} direction=judge-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "q",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[B]]\\n![[q#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[B]]\n![[q#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[B]]\\n![[q#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "excerpt-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[B]]\n![[q#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      }
+    ],
+    "Before": [
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section: State:wikilink-broken} direction=diagnostic-only occurrences=4",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 4,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section:A State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:B Section: State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "B",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:A Section: State:} direction=judge-only occurrences=5",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 5,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "excerpt-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      }
+    ],
+    "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Case": "pcg-agreement-v1/seeds-4a75646765416772-65656d656e743033/shard-2/index-0498",
+    "Changes": [
+      {
+        "Field": 2,
+        "Span": {
+          "Start": 26,
+          "Stop": 27
+        },
+        "Old": "A",
+        "New": "q"
+      }
+    ],
+    "Check": {
+      "Code": [
+        {
+          "Start": 17,
+          "Stop": 23
+        },
+        {
+          "Start": 111,
+          "Stop": 116
+        },
+        {
+          "Start": 136,
+          "Stop": 141
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Fields": [
+        {
+          "Span": {
+            "Start": 6,
+            "Stop": 11
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 17,
+            "Stop": 22
+          },
+          "Word": "[[B]]",
+          "Targets": [
+            "B"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 24,
+            "Stop": 31
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 40,
+            "Stop": 45
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 61,
+            "Stop": 66
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 75,
+            "Stop": 80
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 81,
+            "Stop": 86
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 146,
+            "Stop": 153
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 154,
+            "Stop": 161
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 184,
+            "Stop": 190
+          },
+          "Word": "[[#A]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 195,
+            "Stop": 202
+          },
+          "Word": "[[A\nB]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        }
+      ],
+      "Targets": [
+        "A",
+        "A",
+        "A",
+        "A",
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "CheckRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+      "Positions": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201
+      ],
+      "ProjectedNative": {
+        "Definitions": [
+          {
+            "Label": "n",
+            "Parent": "Document",
+            "Span": {
+              "Start": 0,
+              "Stop": 123
+            },
+            "Name": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Nodes": [
+              {
+                "Kind": "Footnote",
+                "Depth": 0,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 6,
+                    "Stop": 11
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 6,
+                    "Stop": 7
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 7,
+                    "Stop": 8
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 8,
+                    "Stop": 10
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 10,
+                    "Stop": 11
+                  }
+                ]
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 17,
+                    "Stop": 23
+                  },
+                  {
+                    "Start": 23,
+                    "Stop": 38
+                  },
+                  {
+                    "Start": 38,
+                    "Stop": 58
+                  },
+                  {
+                    "Start": 58,
+                    "Stop": 60
+                  },
+                  {
+                    "Start": 61,
+                    "Stop": 66
+                  },
+                  {
+                    "Start": 66,
+                    "Stop": 122
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 17,
+                    "Stop": 18
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 18,
+                    "Stop": 19
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 19,
+                    "Stop": 21
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 21,
+                    "Stop": 22
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 23,
+                    "Stop": 25
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 25,
+                    "Stop": 26
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 26,
+                    "Stop": 30
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 30,
+                    "Stop": 37
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 38,
+                    "Stop": 44
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 44,
+                    "Stop": 53
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 53,
+                    "Stop": 54
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 54,
+                    "Stop": 56
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 56,
+                    "Stop": 57
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 58,
+                    "Stop": 59
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 61,
+                    "Stop": 65
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 66,
+                    "Stop": 67
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 67,
+                    "Stop": 68
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 68,
+                    "Stop": 73
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 73,
+                    "Stop": 74
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 74,
+                    "Stop": 101
+                  }
+                ]
+              },
+              {
+                "Kind": "CodeSpan",
+                "Depth": 2,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 3,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 102,
+                    "Stop": 107
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 108,
+                    "Stop": 112
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 112,
+                    "Stop": 116
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 116,
+                    "Stop": 117
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 117,
+                    "Stop": 122
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 102,
+            "Stop": 107
+          },
+          {
+            "Start": 127,
+            "Stop": 132
+          }
+        ],
+        "Comments": null,
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 52,
+              "Stop": 57
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 66,
+              "Stop": 71
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 77
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": 1
+          },
+          {
+            "Span": {
+              "Start": 137,
+              "Stop": 144
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 145,
+              "Stop": 152
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 175,
+              "Stop": 181
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 193
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "ProjectedTree": {
+        "Trees": [
+          [
+            {
+              "Kind": "Document",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "FencedCodeBlock",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 127,
+                  "Stop": 132
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 137,
+                  "Stop": 158
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 137,
+                  "Stop": 138
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 138,
+                  "Stop": 139
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 139,
+                  "Stop": 146
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 146,
+                  "Stop": 147
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 147,
+                  "Stop": 151
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 151,
+                  "Stop": 158
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Blockquote",
+              "Depth": 1,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 2,
+              "Lines": [
+                {
+                  "Start": 161,
+                  "Stop": 175
+                },
+                {
+                  "Start": 175,
+                  "Stop": 181
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 161,
+                  "Stop": 162
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 162,
+                  "Stop": 168
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 168,
+                  "Stop": 174
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 175,
+                  "Stop": 176
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 176,
+                  "Stop": 177
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 177,
+                  "Stop": 180
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 180,
+                  "Stop": 181
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 186,
+                  "Stop": 190
+                },
+                {
+                  "Start": 190,
+                  "Stop": 193
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 186,
+                  "Stop": 187
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 187,
+                  "Stop": 188
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 188,
+                  "Stop": 189
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 190,
+                  "Stop": 192
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 192,
+                  "Stop": 193
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ],
+          [
+            {
+              "Kind": "Footnote",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 6,
+                  "Stop": 11
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 6,
+                  "Stop": 7
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 7,
+                  "Stop": 8
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 8,
+                  "Stop": 10
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 10,
+                  "Stop": 11
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 17,
+                  "Stop": 23
+                },
+                {
+                  "Start": 23,
+                  "Stop": 38
+                },
+                {
+                  "Start": 38,
+                  "Stop": 58
+                },
+                {
+                  "Start": 58,
+                  "Stop": 60
+                },
+                {
+                  "Start": 61,
+                  "Stop": 66
+                },
+                {
+                  "Start": 66,
+                  "Stop": 122
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 17,
+                  "Stop": 18
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 18,
+                  "Stop": 19
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 19,
+                  "Stop": 21
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 21,
+                  "Stop": 22
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 23,
+                  "Stop": 25
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 25,
+                  "Stop": 26
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 26,
+                  "Stop": 30
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 30,
+                  "Stop": 37
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 38,
+                  "Stop": 44
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 44,
+                  "Stop": 53
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 53,
+                  "Stop": 54
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 54,
+                  "Stop": 56
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 56,
+                  "Stop": 57
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 58,
+                  "Stop": 59
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 61,
+                  "Stop": 65
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 66,
+                  "Stop": 67
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 67,
+                  "Stop": 68
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 68,
+                  "Stop": 73
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 73,
+                  "Stop": 74
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 74,
+                  "Stop": 101
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "CodeSpan",
+              "Depth": 2,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 102,
+                  "Stop": 107
+                }
+              ],
+              "Raw": true,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 108,
+                  "Stop": 112
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 112,
+                  "Stop": 116
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 116,
+                  "Stop": 117
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 117,
+                  "Stop": 122
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ]
+        ],
+        "Definitions": [
+          {
+            "Root": 1,
+            "Node": 0,
+            "Label": "n",
+            "Bounds": {
+              "Span": {
+                "Start": 0,
+                "Stop": 123
+              },
+              "Label": {
+                "Start": 0,
+                "Stop": 5
+              },
+              "Parent": "Document"
+            },
+            "Found": true
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": true
+      },
+      "Valid": true
+    },
+    "Diagnostics": [
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "B",
+        "Message": "wikilink \"B\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      }
+    ],
+    "HTML": "<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\">## A\n</span></span></code></pre><p><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">A#A<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">![[A#A]]<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span>章節</p>\n<div class=\"callout callout-note\"><p class=\"callout-title\"><svg class=\"callout-icon\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"></circle><path d=\"M12 11v5\"></path><path d=\"M12 8h.01\"></path></svg>title</p><div class=\"callout-body\">\n</div></div>\n<p><a href=\"#a\" class=\"wikilink\">#A</a></p>\n<h2 id=\"a\" data-level=\"1\">A</h2>\n<p>[[A\nB]]</p>\n",
+    "HTMLSites": [
+      {
+        "Root": 0,
+        "Node": 1,
+        "Parent": 0,
+        "Kind": "FencedCodeBlock",
+        "ParentKind": "Document",
+        "Type": 0,
+        "Lines": [
+          {
+            "Start": 136,
+            "Stop": 141,
+            "Padding": 0,
+            "ForceNewline": true
+          }
+        ],
+        "Closure": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": true
+      },
+      {
+        "Root": 1,
+        "Node": 32,
+        "Parent": 6,
+        "Kind": "RawHTML",
+        "ParentKind": "Paragraph",
+        "Type": 0,
+        "Lines": [
+          {
+            "Start": 121,
+            "Stop": 125,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Closure": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": false
+      },
+      {
+        "Root": 1,
+        "Node": 34,
+        "Parent": 6,
+        "Kind": "RawHTML",
+        "ParentKind": "Paragraph",
+        "Type": 0,
+        "Lines": [
+          {
+            "Start": 126,
+            "Stop": 131,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Closure": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": false
+      }
+    ],
+    "Native": {
+      "Definitions": null,
+      "Code": null,
+      "Comments": null
+    },
+    "Owners": [
+      {
+        "Field": 2,
+        "Family": "native-prose-line",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 2,
+          "Definition": -1,
+          "Root": 1,
+          "Node": 6,
+          "Line": 1,
+          "Label": ""
+        }
+      }
+    ],
+    "Page": {
+      "Citations": [
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        }
+      ],
+      "CitationsInCode": 0,
+      "Blocks": null,
+      "Headings": [
+        "a"
+      ],
+      "Failures": null,
+      "CodeCitations": null,
+      "CalloutTitles": [
+        "title"
+      ]
+    },
+    "Parts": [
+      [
+        {
+          "Text": "## A\n",
+          "Citation": {
+            "SourceRole": "",
+            "Target": "",
+            "Section": "",
+            "State": ""
+          },
+          "Field": false
+        }
+      ]
+    ],
+    "Physical": [
+      {
+        "Field": 0,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 1,
+          "Line": 0,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 2,
+        "Family": "native-prose-line",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 2,
+          "Definition": -1,
+          "Root": 1,
+          "Node": 6,
+          "Line": 1,
+          "Label": ""
+        }
+      },
+      {
+        "Field": 4,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 4,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 2,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 5,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 5,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 5,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 6,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 6,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 5,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 7,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 7,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 5,
+          "Label": "n"
+        }
+      },
+      {
+        "Field": 8,
+        "Family": "native-prose-line",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 8,
+          "Definition": -1,
+          "Root": 0,
+          "Node": 2,
+          "Line": 0,
+          "Label": ""
+        }
+      },
+      {
+        "Field": 9,
+        "Family": "native-prose-line",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 9,
+          "Definition": -1,
+          "Root": 0,
+          "Node": 2,
+          "Line": 0,
+          "Label": ""
+        }
+      }
+    ],
+    "Private": "[^n]: [[A]]\n\n    [[B]]\n![[q#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "PrivateCheck": {
+      "Code": [
+        {
+          "Start": 17,
+          "Stop": 23
+        },
+        {
+          "Start": 111,
+          "Stop": 116
+        },
+        {
+          "Start": 136,
+          "Stop": 141
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Fields": [
+        {
+          "Span": {
+            "Start": 6,
+            "Stop": 11
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 17,
+            "Stop": 22
+          },
+          "Word": "[[B]]",
+          "Targets": [
+            "B"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 24,
+            "Stop": 31
+          },
+          "Word": "[[q#A]]",
+          "Targets": [
+            "q"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 40,
+            "Stop": 45
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 61,
+            "Stop": 66
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 75,
+            "Stop": 80
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 81,
+            "Stop": 86
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 146,
+            "Stop": 153
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 154,
+            "Stop": 161
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 184,
+            "Stop": 190
+          },
+          "Word": "[[#A]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 195,
+            "Stop": 202
+          },
+          "Word": "[[A\nB]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        }
+      ],
+      "Targets": [
+        "A",
+        "q",
+        "A",
+        "A",
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "PrivateCheckRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[q#A]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "q",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "[^n]: [[A]]\n\n    [[B]]\n![[q#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+      "Positions": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201
+      ],
+      "ProjectedNative": {
+        "Definitions": [
+          {
+            "Label": "n",
+            "Parent": "Document",
+            "Span": {
+              "Start": 0,
+              "Stop": 123
+            },
+            "Name": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Nodes": [
+              {
+                "Kind": "Footnote",
+                "Depth": 0,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 6,
+                    "Stop": 11
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 6,
+                    "Stop": 7
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 7,
+                    "Stop": 8
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 8,
+                    "Stop": 10
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 10,
+                    "Stop": 11
+                  }
+                ]
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 17,
+                    "Stop": 23
+                  },
+                  {
+                    "Start": 23,
+                    "Stop": 38
+                  },
+                  {
+                    "Start": 38,
+                    "Stop": 58
+                  },
+                  {
+                    "Start": 58,
+                    "Stop": 60
+                  },
+                  {
+                    "Start": 61,
+                    "Stop": 66
+                  },
+                  {
+                    "Start": 66,
+                    "Stop": 122
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 17,
+                    "Stop": 18
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 18,
+                    "Stop": 19
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 19,
+                    "Stop": 21
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 21,
+                    "Stop": 22
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 23,
+                    "Stop": 25
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 25,
+                    "Stop": 26
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 26,
+                    "Stop": 30
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 30,
+                    "Stop": 37
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 38,
+                    "Stop": 44
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 44,
+                    "Stop": 53
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 53,
+                    "Stop": 54
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 54,
+                    "Stop": 56
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 56,
+                    "Stop": 57
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 58,
+                    "Stop": 59
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 61,
+                    "Stop": 65
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 66,
+                    "Stop": 67
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 67,
+                    "Stop": 68
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 68,
+                    "Stop": 73
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 73,
+                    "Stop": 74
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 74,
+                    "Stop": 101
+                  }
+                ]
+              },
+              {
+                "Kind": "CodeSpan",
+                "Depth": 2,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 3,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 102,
+                    "Stop": 107
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 108,
+                    "Stop": 112
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 112,
+                    "Stop": 116
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 116,
+                    "Stop": 117
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 117,
+                    "Stop": 122
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 102,
+            "Stop": 107
+          },
+          {
+            "Start": 127,
+            "Stop": 132
+          }
+        ],
+        "Comments": null,
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[q#A]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 52,
+              "Stop": 57
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 66,
+              "Stop": 71
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 77
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": 1
+          },
+          {
+            "Span": {
+              "Start": 137,
+              "Stop": 144
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 145,
+              "Stop": 152
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 175,
+              "Stop": 181
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 193
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "q",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "ProjectedTree": {
+        "Trees": [
+          [
+            {
+              "Kind": "Document",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "FencedCodeBlock",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 127,
+                  "Stop": 132
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 137,
+                  "Stop": 158
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 137,
+                  "Stop": 138
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 138,
+                  "Stop": 139
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 139,
+                  "Stop": 146
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 146,
+                  "Stop": 147
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 147,
+                  "Stop": 151
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 151,
+                  "Stop": 158
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Blockquote",
+              "Depth": 1,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 2,
+              "Lines": [
+                {
+                  "Start": 161,
+                  "Stop": 175
+                },
+                {
+                  "Start": 175,
+                  "Stop": 181
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 161,
+                  "Stop": 162
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 162,
+                  "Stop": 168
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 168,
+                  "Stop": 174
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 175,
+                  "Stop": 176
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 176,
+                  "Stop": 177
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 177,
+                  "Stop": 180
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 180,
+                  "Stop": 181
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 186,
+                  "Stop": 190
+                },
+                {
+                  "Start": 190,
+                  "Stop": 193
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 186,
+                  "Stop": 187
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 187,
+                  "Stop": 188
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 188,
+                  "Stop": 189
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 190,
+                  "Stop": 192
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 192,
+                  "Stop": 193
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ],
+          [
+            {
+              "Kind": "Footnote",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 6,
+                  "Stop": 11
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 6,
+                  "Stop": 7
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 7,
+                  "Stop": 8
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 8,
+                  "Stop": 10
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 10,
+                  "Stop": 11
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 17,
+                  "Stop": 23
+                },
+                {
+                  "Start": 23,
+                  "Stop": 38
+                },
+                {
+                  "Start": 38,
+                  "Stop": 58
+                },
+                {
+                  "Start": 58,
+                  "Stop": 60
+                },
+                {
+                  "Start": 61,
+                  "Stop": 66
+                },
+                {
+                  "Start": 66,
+                  "Stop": 122
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 17,
+                  "Stop": 18
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 18,
+                  "Stop": 19
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 19,
+                  "Stop": 21
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 21,
+                  "Stop": 22
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 23,
+                  "Stop": 25
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 25,
+                  "Stop": 26
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 26,
+                  "Stop": 30
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 30,
+                  "Stop": 37
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 38,
+                  "Stop": 44
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 44,
+                  "Stop": 53
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 53,
+                  "Stop": 54
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 54,
+                  "Stop": 56
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 56,
+                  "Stop": 57
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 58,
+                  "Stop": 59
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 61,
+                  "Stop": 65
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 66,
+                  "Stop": 67
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 67,
+                  "Stop": 68
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 68,
+                  "Stop": 73
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 73,
+                  "Stop": 74
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 74,
+                  "Stop": 101
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "CodeSpan",
+              "Depth": 2,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 102,
+                  "Stop": 107
+                }
+              ],
+              "Raw": true,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 108,
+                  "Stop": 112
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 112,
+                  "Stop": 116
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 116,
+                  "Stop": 117
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 117,
+                  "Stop": 122
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ]
+        ],
+        "Definitions": [
+          {
+            "Root": 1,
+            "Node": 0,
+            "Label": "n",
+            "Bounds": {
+              "Span": {
+                "Start": 0,
+                "Stop": 123
+              },
+              "Label": {
+                "Start": 0,
+                "Stop": 5
+              },
+              "Parent": "Document"
+            },
+            "Found": true
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": true
+      },
+      "Valid": true
+    },
+    "PrivateDiagnostics": [
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "B",
+        "Message": "wikilink \"B\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "q",
+        "Message": "embed target \"q\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      }
+    ],
+    "PrivateHTML": "<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\">## A\n</span></span></code></pre><p><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">A#A<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">![[A#A]]<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span>章節</p>\n<div class=\"callout callout-note\"><p class=\"callout-title\"><svg class=\"callout-icon\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"></circle><path d=\"M12 11v5\"></path><path d=\"M12 8h.01\"></path></svg>title</p><div class=\"callout-body\">\n</div></div>\n<p><a href=\"#a\" class=\"wikilink\">#A</a></p>\n<h2 id=\"a\" data-level=\"1\">A</h2>\n<p>[[A\nB]]</p>\n",
+    "PrivateNative": {
+      "Definitions": null,
+      "Code": null,
+      "Comments": null
+    },
+    "PrivatePage": {
+      "Citations": [
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        }
+      ],
+      "CitationsInCode": 0,
+      "Blocks": null,
+      "Headings": [
+        "a"
+      ],
+      "Failures": null,
+      "CodeCitations": null,
+      "CalloutTitles": [
+        "title"
+      ]
+    },
+    "PrivateParts": [
+      [
+        {
+          "Text": "## A\n",
+          "Citation": {
+            "SourceRole": "",
+            "Target": "",
+            "Section": "",
+            "State": ""
+          },
+          "Field": false
+        }
+      ]
+    ],
+    "PrivateRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[q#A]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "q",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "",
+      "Positions": null,
+      "ProjectedNative": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": null,
+        "Comments": null,
+        "Fields": null,
+        "Targets": null
+      },
+      "ProjectedTree": {
+        "Trees": null,
+        "Definitions": null,
+        "Code": null,
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": false
+      },
+      "Valid": false
+    },
+    "PrivateSignatures": {
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:B Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:q Section:A State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:A Section: State:} fragment=\"\" direction=judge-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:q Section: State:} fragment=\"\" direction=judge-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=excerpt-only multiplicity=1 cut=\"    [[B]]\\n![[q#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=judge-only multiplicity=1 cut=\"    [[B]]\\n![[q#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1
+    },
+    "PrivateTargets": [
+      "A",
+      "q",
+      "A",
+      "A",
+      "A",
+      "A",
+      "A"
+    ],
+    "PrivateTree": {
+      "Trees": [
+        [
+          {
+            "Kind": "Document",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "FencedCodeBlock",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 136,
+                "Stop": 141
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 146,
+                "Stop": 167
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 146,
+                "Stop": 147
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 147,
+                "Stop": 148
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 148,
+                "Stop": 155
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 155,
+                "Stop": 156
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 156,
+                "Stop": 160
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 160,
+                "Stop": 167
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Blockquote",
+            "Depth": 1,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 2,
+            "Lines": [
+              {
+                "Start": 170,
+                "Stop": 184
+              },
+              {
+                "Start": 184,
+                "Stop": 190
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 170,
+                "Stop": 171
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 171,
+                "Stop": 177
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 177,
+                "Stop": 183
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 184,
+                "Stop": 185
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 185,
+                "Stop": 186
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 186,
+                "Stop": 189
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 189,
+                "Stop": 190
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Heading",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 195,
+                "Stop": 199
+              },
+              {
+                "Start": 199,
+                "Stop": 202
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 195,
+                "Stop": 196
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 196,
+                "Stop": 197
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 197,
+                "Stop": 198
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 199,
+                "Stop": 201
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 201,
+                "Stop": 202
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ],
+        [
+          {
+            "Kind": "Footnote",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 6,
+                "Stop": 11
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 6,
+                "Stop": 7
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 7,
+                "Stop": 8
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 8,
+                "Stop": 10
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 10,
+                "Stop": 11
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 17,
+                "Stop": 23
+              },
+              {
+                "Start": 23,
+                "Stop": 38
+              },
+              {
+                "Start": 38,
+                "Stop": 67
+              },
+              {
+                "Start": 67,
+                "Stop": 69
+              },
+              {
+                "Start": 70,
+                "Stop": 75
+              },
+              {
+                "Start": 75,
+                "Stop": 131
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 17,
+                "Stop": 18
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 18,
+                "Stop": 19
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 19,
+                "Stop": 21
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 21,
+                "Stop": 22
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 23,
+                "Stop": 25
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 25,
+                "Stop": 26
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 26,
+                "Stop": 30
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 30,
+                "Stop": 37
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 38,
+                "Stop": 41
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 41,
+                "Stop": 42
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 42,
+                "Stop": 53
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 53,
+                "Stop": 62
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 62,
+                "Stop": 63
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 63,
+                "Stop": 65
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 65,
+                "Stop": 66
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 67,
+                "Stop": 68
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 70,
+                "Stop": 74
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 75,
+                "Stop": 76
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 76,
+                "Stop": 77
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 77,
+                "Stop": 82
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 82,
+                "Stop": 83
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 83,
+                "Stop": 110
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "CodeSpan",
+            "Depth": 2,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 111,
+                "Stop": 116
+              }
+            ],
+            "Raw": true,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 117,
+                "Stop": 121
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 121,
+                "Stop": 125
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 125,
+                "Stop": 126
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 126,
+                "Stop": 131
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ]
+      ],
+      "Definitions": [
+        {
+          "Root": 1,
+          "Node": 0,
+          "Label": "n",
+          "Bounds": {
+            "Span": {
+              "Start": 0,
+              "Stop": 132
+            },
+            "Label": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Parent": "Document"
+          },
+          "Found": true
+        }
+      ],
+      "Code": [
+        {
+          "Kind": "FencedCodeBlock",
+          "Parent": "Document",
+          "Span": {
+            "Start": 136,
+            "Stop": 141
+          }
+        },
+        {
+          "Kind": "CodeSpan",
+          "Parent": "Paragraph",
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          }
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Unanchorable": null,
+      "Valid": true
+    },
+    "Removed": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "",
+      "Positions": null,
+      "ProjectedNative": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": null,
+        "Comments": null,
+        "Fields": null,
+        "Targets": null
+      },
+      "ProjectedTree": {
+        "Trees": null,
+        "Definitions": null,
+        "Code": null,
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": false
+      },
+      "Valid": false
+    },
+    "Section": "A",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section:A State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Signatures": {
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section:A State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:B Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:A Section: State:} fragment=\"\" direction=judge-only multiplicity=5 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=excerpt-only multiplicity=1 cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=judge-only multiplicity=1 cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1
+    },
+    "Singles": [
+      {
+        "Field": 2,
+        "Index": 2,
+        "Start": 26,
+        "Body": "[^n]: [[A]]\n\n    [[B]]\n![[q#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "Diagnostics": [
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "B",
+            "Message": "wikilink \"B\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "q",
+            "Message": "embed target \"q\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          }
+        ]
+      }
+    ],
+    "Sites": [
+      {
+        "Root": 0,
+        "Node": 1,
+        "Parent": 0,
+        "Kind": "FencedCodeBlock",
+        "ParentKind": "Document",
+        "Lines": [
+          {
+            "Start": 136,
+            "Stop": 141,
+            "Padding": 0,
+            "ForceNewline": true
+          }
+        ],
+        "Text": null,
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasInfo": false,
+        "Raw": true
+      },
+      {
+        "Root": 1,
+        "Node": 29,
+        "Parent": 6,
+        "Kind": "CodeSpan",
+        "ParentKind": "Paragraph",
+        "Lines": null,
+        "Text": [
+          {
+            "Start": 111,
+            "Stop": 116,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasInfo": false,
+        "Raw": false
+      }
+    ],
+    "Target": "A",
+    "Targets": [
+      "A",
+      "A",
+      "A",
+      "A",
+      "A",
+      "A",
+      "A"
+    ],
+    "Tree": {
+      "Trees": [
+        [
+          {
+            "Kind": "Document",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "FencedCodeBlock",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 136,
+                "Stop": 141
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 146,
+                "Stop": 167
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 146,
+                "Stop": 147
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 147,
+                "Stop": 148
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 148,
+                "Stop": 155
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 155,
+                "Stop": 156
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 156,
+                "Stop": 160
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 160,
+                "Stop": 167
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Blockquote",
+            "Depth": 1,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 2,
+            "Lines": [
+              {
+                "Start": 170,
+                "Stop": 184
+              },
+              {
+                "Start": 184,
+                "Stop": 190
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 170,
+                "Stop": 171
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 171,
+                "Stop": 177
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 177,
+                "Stop": 183
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 184,
+                "Stop": 185
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 185,
+                "Stop": 186
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 186,
+                "Stop": 189
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 189,
+                "Stop": 190
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Heading",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 195,
+                "Stop": 199
+              },
+              {
+                "Start": 199,
+                "Stop": 202
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 195,
+                "Stop": 196
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 196,
+                "Stop": 197
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 197,
+                "Stop": 198
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 199,
+                "Stop": 201
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 201,
+                "Stop": 202
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ],
+        [
+          {
+            "Kind": "Footnote",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 6,
+                "Stop": 11
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 6,
+                "Stop": 7
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 7,
+                "Stop": 8
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 8,
+                "Stop": 10
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 10,
+                "Stop": 11
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 17,
+                "Stop": 23
+              },
+              {
+                "Start": 23,
+                "Stop": 38
+              },
+              {
+                "Start": 38,
+                "Stop": 67
+              },
+              {
+                "Start": 67,
+                "Stop": 69
+              },
+              {
+                "Start": 70,
+                "Stop": 75
+              },
+              {
+                "Start": 75,
+                "Stop": 131
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 17,
+                "Stop": 18
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 18,
+                "Stop": 19
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 19,
+                "Stop": 21
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 21,
+                "Stop": 22
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 23,
+                "Stop": 25
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 25,
+                "Stop": 26
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 26,
+                "Stop": 30
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 30,
+                "Stop": 37
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 38,
+                "Stop": 41
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 41,
+                "Stop": 42
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 42,
+                "Stop": 53
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 53,
+                "Stop": 62
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 62,
+                "Stop": 63
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 63,
+                "Stop": 65
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 65,
+                "Stop": 66
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 67,
+                "Stop": 68
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 70,
+                "Stop": 74
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 75,
+                "Stop": 76
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 76,
+                "Stop": 77
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 77,
+                "Stop": 82
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 82,
+                "Stop": 83
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 83,
+                "Stop": 110
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "CodeSpan",
+            "Depth": 2,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 111,
+                "Stop": 116
+              }
+            ],
+            "Raw": true,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 117,
+                "Stop": 121
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 121,
+                "Stop": 125
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 125,
+                "Stop": 126
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 126,
+                "Stop": 131
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ]
+      ],
+      "Definitions": [
+        {
+          "Root": 1,
+          "Node": 0,
+          "Label": "n",
+          "Bounds": {
+            "Span": {
+              "Start": 0,
+              "Stop": 132
+            },
+            "Label": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Parent": "Document"
+          },
+          "Found": true
+        }
+      ],
+      "Code": [
+        {
+          "Kind": "FencedCodeBlock",
+          "Parent": "Document",
+          "Span": {
+            "Start": 136,
+            "Stop": 141
+          }
+        },
+        {
+          "Kind": "CodeSpan",
+          "Parent": "Paragraph",
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          }
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Unanchorable": null,
+      "Valid": true
+    },
+    "Equation": true
+  },
+  {
+    "Active": 0,
+    "After": [
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section: State:wikilink-broken} direction=diagnostic-only occurrences=4",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 4,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section:A State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:q Section: State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "q",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:A Section: State:} direction=judge-only occurrences=5",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 5,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[q]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[q]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[q]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "excerpt-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[q]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      }
+    ],
+    "Before": [
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section: State:wikilink-broken} direction=diagnostic-only occurrences=4",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 4,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:A Section:A State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P0",
+        "Identity": "diagnostic-html",
+        "Observation": "tuple={SourceRole: Target:B Section: State:wikilink-broken} direction=diagnostic-only occurrences=1",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "B",
+          "Section": "",
+          "State": "wikilink-broken"
+        },
+        "Direction": "diagnostic-only",
+        "Multiplicity": 1,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P1",
+        "Identity": "citation-occurrences",
+        "Observation": "tuple={SourceRole: Target:A Section: State:} direction=judge-only occurrences=5",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 5,
+        "Fragment": "",
+        "Cut": "",
+        "PagePresent": false,
+        "JudgeAccepted": false,
+        "ExcerptFound": false
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "judge-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      },
+      {
+        "Property": "P3",
+        "Identity": "block-three-way",
+        "Observation": "id=\"^a-2\" page=false judge=true excerpt=true cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\"",
+        "Tuple": {
+          "SourceRole": "",
+          "Target": "",
+          "Section": "",
+          "State": ""
+        },
+        "Direction": "excerpt-only",
+        "Multiplicity": 1,
+        "Fragment": "^a-2",
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "PagePresent": false,
+        "JudgeAccepted": true,
+        "ExcerptFound": true
+      }
+    ],
+    "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Case": "pcg-agreement-v1/seeds-4a75646765416772-65656d656e743033/shard-2/index-0498",
+    "Changes": [
+      {
+        "Field": 1,
+        "Span": {
+          "Start": 19,
+          "Stop": 20
+        },
+        "Old": "B",
+        "New": "q"
+      }
+    ],
+    "Check": {
+      "Code": [
+        {
+          "Start": 17,
+          "Stop": 23
+        },
+        {
+          "Start": 111,
+          "Stop": 116
+        },
+        {
+          "Start": 136,
+          "Stop": 141
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Fields": [
+        {
+          "Span": {
+            "Start": 6,
+            "Stop": 11
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 17,
+            "Stop": 22
+          },
+          "Word": "[[B]]",
+          "Targets": [
+            "B"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 24,
+            "Stop": 31
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 40,
+            "Stop": 45
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 61,
+            "Stop": 66
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 75,
+            "Stop": 80
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 81,
+            "Stop": 86
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 146,
+            "Stop": 153
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 154,
+            "Stop": 161
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 184,
+            "Stop": 190
+          },
+          "Word": "[[#A]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 195,
+            "Stop": 202
+          },
+          "Word": "[[A\nB]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        }
+      ],
+      "Targets": [
+        "A",
+        "A",
+        "A",
+        "A",
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "CheckRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+      "Positions": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201
+      ],
+      "ProjectedNative": {
+        "Definitions": [
+          {
+            "Label": "n",
+            "Parent": "Document",
+            "Span": {
+              "Start": 0,
+              "Stop": 123
+            },
+            "Name": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Nodes": [
+              {
+                "Kind": "Footnote",
+                "Depth": 0,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 6,
+                    "Stop": 11
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 6,
+                    "Stop": 7
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 7,
+                    "Stop": 8
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 8,
+                    "Stop": 10
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 10,
+                    "Stop": 11
+                  }
+                ]
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 17,
+                    "Stop": 23
+                  },
+                  {
+                    "Start": 23,
+                    "Stop": 38
+                  },
+                  {
+                    "Start": 38,
+                    "Stop": 58
+                  },
+                  {
+                    "Start": 58,
+                    "Stop": 60
+                  },
+                  {
+                    "Start": 61,
+                    "Stop": 66
+                  },
+                  {
+                    "Start": 66,
+                    "Stop": 122
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 17,
+                    "Stop": 18
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 18,
+                    "Stop": 19
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 19,
+                    "Stop": 21
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 21,
+                    "Stop": 22
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 23,
+                    "Stop": 25
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 25,
+                    "Stop": 26
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 26,
+                    "Stop": 30
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 30,
+                    "Stop": 37
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 38,
+                    "Stop": 44
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 44,
+                    "Stop": 53
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 53,
+                    "Stop": 54
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 54,
+                    "Stop": 56
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 56,
+                    "Stop": 57
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 58,
+                    "Stop": 59
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 61,
+                    "Stop": 65
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 66,
+                    "Stop": 67
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 67,
+                    "Stop": 68
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 68,
+                    "Stop": 73
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 73,
+                    "Stop": 74
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 74,
+                    "Stop": 101
+                  }
+                ]
+              },
+              {
+                "Kind": "CodeSpan",
+                "Depth": 2,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 3,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 102,
+                    "Stop": 107
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 108,
+                    "Stop": 112
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 112,
+                    "Stop": 116
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 116,
+                    "Stop": 117
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 117,
+                    "Stop": 122
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 102,
+            "Stop": 107
+          },
+          {
+            "Start": 127,
+            "Stop": 132
+          }
+        ],
+        "Comments": null,
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 52,
+              "Stop": 57
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 66,
+              "Stop": 71
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 77
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": 1
+          },
+          {
+            "Span": {
+              "Start": 137,
+              "Stop": 144
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 145,
+              "Stop": 152
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 175,
+              "Stop": 181
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 193
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "ProjectedTree": {
+        "Trees": [
+          [
+            {
+              "Kind": "Document",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "FencedCodeBlock",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 127,
+                  "Stop": 132
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 137,
+                  "Stop": 158
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 137,
+                  "Stop": 138
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 138,
+                  "Stop": 139
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 139,
+                  "Stop": 146
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 146,
+                  "Stop": 147
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 147,
+                  "Stop": 151
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 151,
+                  "Stop": 158
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Blockquote",
+              "Depth": 1,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 2,
+              "Lines": [
+                {
+                  "Start": 161,
+                  "Stop": 175
+                },
+                {
+                  "Start": 175,
+                  "Stop": 181
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 161,
+                  "Stop": 162
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 162,
+                  "Stop": 168
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 168,
+                  "Stop": 174
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 175,
+                  "Stop": 176
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 176,
+                  "Stop": 177
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 177,
+                  "Stop": 180
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 180,
+                  "Stop": 181
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 186,
+                  "Stop": 190
+                },
+                {
+                  "Start": 190,
+                  "Stop": 193
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 186,
+                  "Stop": 187
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 187,
+                  "Stop": 188
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 188,
+                  "Stop": 189
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 190,
+                  "Stop": 192
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 192,
+                  "Stop": 193
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ],
+          [
+            {
+              "Kind": "Footnote",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 6,
+                  "Stop": 11
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 6,
+                  "Stop": 7
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 7,
+                  "Stop": 8
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 8,
+                  "Stop": 10
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 10,
+                  "Stop": 11
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 17,
+                  "Stop": 23
+                },
+                {
+                  "Start": 23,
+                  "Stop": 38
+                },
+                {
+                  "Start": 38,
+                  "Stop": 58
+                },
+                {
+                  "Start": 58,
+                  "Stop": 60
+                },
+                {
+                  "Start": 61,
+                  "Stop": 66
+                },
+                {
+                  "Start": 66,
+                  "Stop": 122
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 17,
+                  "Stop": 18
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 18,
+                  "Stop": 19
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 19,
+                  "Stop": 21
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 21,
+                  "Stop": 22
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 23,
+                  "Stop": 25
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 25,
+                  "Stop": 26
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 26,
+                  "Stop": 30
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 30,
+                  "Stop": 37
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 38,
+                  "Stop": 44
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 44,
+                  "Stop": 53
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 53,
+                  "Stop": 54
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 54,
+                  "Stop": 56
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 56,
+                  "Stop": 57
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 58,
+                  "Stop": 59
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 61,
+                  "Stop": 65
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 66,
+                  "Stop": 67
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 67,
+                  "Stop": 68
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 68,
+                  "Stop": 73
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 73,
+                  "Stop": 74
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 74,
+                  "Stop": 101
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "CodeSpan",
+              "Depth": 2,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 102,
+                  "Stop": 107
+                }
+              ],
+              "Raw": true,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 108,
+                  "Stop": 112
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 112,
+                  "Stop": 116
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 116,
+                  "Stop": 117
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 117,
+                  "Stop": 122
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ]
+        ],
+        "Definitions": [
+          {
+            "Root": 1,
+            "Node": 0,
+            "Label": "n",
+            "Bounds": {
+              "Span": {
+                "Start": 0,
+                "Stop": 123
+              },
+              "Label": {
+                "Start": 0,
+                "Stop": 5
+              },
+              "Parent": "Document"
+            },
+            "Found": true
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": true
+      },
+      "Valid": true
+    },
+    "Diagnostics": [
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "B",
+        "Message": "wikilink \"B\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      }
+    ],
+    "HTML": "<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\">## A\n</span></span></code></pre><p><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">A#A<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">![[A#A]]<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span>章節</p>\n<div class=\"callout callout-note\"><p class=\"callout-title\"><svg class=\"callout-icon\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"></circle><path d=\"M12 11v5\"></path><path d=\"M12 8h.01\"></path></svg>title</p><div class=\"callout-body\">\n</div></div>\n<p><a href=\"#a\" class=\"wikilink\">#A</a></p>\n<h2 id=\"a\" data-level=\"1\">A</h2>\n<p>[[A\nB]]</p>\n",
+    "HTMLSites": [
+      {
+        "Root": 0,
+        "Node": 1,
+        "Parent": 0,
+        "Kind": "FencedCodeBlock",
+        "ParentKind": "Document",
+        "Type": 0,
+        "Lines": [
+          {
+            "Start": 136,
+            "Stop": 141,
+            "Padding": 0,
+            "ForceNewline": true
+          }
+        ],
+        "Closure": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": true
+      },
+      {
+        "Root": 1,
+        "Node": 32,
+        "Parent": 6,
+        "Kind": "RawHTML",
+        "ParentKind": "Paragraph",
+        "Type": 0,
+        "Lines": [
+          {
+            "Start": 121,
+            "Stop": 125,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Closure": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": false
+      },
+      {
+        "Root": 1,
+        "Node": 34,
+        "Parent": 6,
+        "Kind": "RawHTML",
+        "ParentKind": "Paragraph",
+        "Type": 0,
+        "Lines": [
+          {
+            "Start": 126,
+            "Stop": 131,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Closure": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasClosure": false,
+        "HasInfo": false,
+        "Raw": false
+      }
+    ],
+    "Native": {
+      "Definitions": null,
+      "Code": null,
+      "Comments": null
+    },
+    "Owners": [
+      {
+        "Field": 1,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 1,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 0,
+          "Label": "n"
+        }
+      }
+    ],
+    "Page": {
+      "Citations": [
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        }
+      ],
+      "CitationsInCode": 0,
+      "Blocks": null,
+      "Headings": [
+        "a"
+      ],
+      "Failures": null,
+      "CodeCitations": null,
+      "CalloutTitles": [
+        "title"
+      ]
+    },
+    "Parts": [
+      [
+        {
+          "Text": "## A\n",
+          "Citation": {
+            "SourceRole": "",
+            "Target": "",
+            "Section": "",
+            "State": ""
+          },
+          "Field": false
+        }
+      ]
+    ],
+    "Physical": [
+      {
+        "Field": 1,
+        "Family": "consumed-paragraph-word",
+        "Code": {
+          "Field": 0,
+          "Code": 0
+        },
+        "Native": {
+          "Field": 0,
+          "Definition": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "HTML": {
+          "Field": 0,
+          "Site": 0,
+          "Line": 0,
+          "Root": 0,
+          "Node": 0,
+          "Closure": false
+        },
+        "Info": {
+          "Field": 0,
+          "Code": 0,
+          "Site": 0,
+          "Root": 0,
+          "Node": 0
+        },
+        "Paragraph": {
+          "Field": 1,
+          "Definition": 0,
+          "Root": 1,
+          "Node": 6,
+          "Line": 0,
+          "Label": "n"
+        }
+      }
+    ],
+    "Private": "[^n]: [[A]]\n\n    [[q]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "PrivateCheck": {
+      "Code": [
+        {
+          "Start": 17,
+          "Stop": 23
+        },
+        {
+          "Start": 111,
+          "Stop": 116
+        },
+        {
+          "Start": 136,
+          "Stop": 141
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Fields": [
+        {
+          "Span": {
+            "Start": 6,
+            "Stop": 11
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 17,
+            "Stop": 22
+          },
+          "Word": "[[q]]",
+          "Targets": [
+            "q"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 24,
+            "Stop": 31
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 40,
+            "Stop": 45
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": true,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 61,
+            "Stop": 66
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 75,
+            "Stop": 80
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 81,
+            "Stop": 86
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          },
+          "Word": "[[A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": true,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 146,
+            "Stop": 153
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 154,
+            "Stop": 161
+          },
+          "Word": "[[A#A]]",
+          "Targets": [
+            "A"
+          ],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 184,
+            "Stop": 190
+          },
+          "Word": "[[#A]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        },
+        {
+          "Span": {
+            "Start": 195,
+            "Stop": 202
+          },
+          "Word": "[[A\nB]]",
+          "Targets": [],
+          "Code": false,
+          "Comment": false,
+          "Escaped": false,
+          "DefinitionOwner": -1,
+          "CodeOwner": -1
+        }
+      ],
+      "Targets": [
+        "A",
+        "A",
+        "A",
+        "A",
+        "A",
+        "A",
+        "A"
+      ]
+    },
+    "PrivateCheckRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "[^n]: [[A]]\n\n    [[q]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+      "Positions": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        66,
+        67,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+        91,
+        92,
+        93,
+        94,
+        95,
+        96,
+        97,
+        98,
+        99,
+        100,
+        101,
+        102,
+        103,
+        104,
+        105,
+        106,
+        107,
+        108,
+        109,
+        110,
+        111,
+        112,
+        113,
+        114,
+        115,
+        116,
+        117,
+        118,
+        119,
+        120,
+        121,
+        122,
+        123,
+        124,
+        125,
+        126,
+        127,
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159,
+        160,
+        161,
+        162,
+        163,
+        164,
+        165,
+        166,
+        167,
+        168,
+        169,
+        170,
+        171,
+        172,
+        173,
+        174,
+        175,
+        176,
+        177,
+        178,
+        179,
+        180,
+        181,
+        182,
+        183,
+        184,
+        185,
+        186,
+        187,
+        188,
+        189,
+        190,
+        191,
+        192,
+        193,
+        194,
+        195,
+        196,
+        197,
+        198,
+        199,
+        200,
+        201
+      ],
+      "ProjectedNative": {
+        "Definitions": [
+          {
+            "Label": "n",
+            "Parent": "Document",
+            "Span": {
+              "Start": 0,
+              "Stop": 123
+            },
+            "Name": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Nodes": [
+              {
+                "Kind": "Footnote",
+                "Depth": 0,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 6,
+                    "Stop": 11
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 6,
+                    "Stop": 7
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 7,
+                    "Stop": 8
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 8,
+                    "Stop": 10
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 10,
+                    "Stop": 11
+                  }
+                ]
+              },
+              {
+                "Kind": "Paragraph",
+                "Depth": 1,
+                "Lines": [
+                  {
+                    "Start": 17,
+                    "Stop": 23
+                  },
+                  {
+                    "Start": 23,
+                    "Stop": 38
+                  },
+                  {
+                    "Start": 38,
+                    "Stop": 58
+                  },
+                  {
+                    "Start": 58,
+                    "Stop": 60
+                  },
+                  {
+                    "Start": 61,
+                    "Stop": 66
+                  },
+                  {
+                    "Start": 66,
+                    "Stop": 122
+                  }
+                ],
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 17,
+                    "Stop": 18
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 18,
+                    "Stop": 19
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 19,
+                    "Stop": 21
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 21,
+                    "Stop": 22
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 23,
+                    "Stop": 25
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 25,
+                    "Stop": 26
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 26,
+                    "Stop": 30
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 30,
+                    "Stop": 37
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 38,
+                    "Stop": 44
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 44,
+                    "Stop": 53
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 53,
+                    "Stop": 54
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 54,
+                    "Stop": 56
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 56,
+                    "Stop": 57
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 58,
+                    "Stop": 59
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 61,
+                    "Stop": 65
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 66,
+                    "Stop": 67
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 67,
+                    "Stop": 68
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 68,
+                    "Stop": 73
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 73,
+                    "Stop": 74
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 74,
+                    "Stop": 101
+                  }
+                ]
+              },
+              {
+                "Kind": "CodeSpan",
+                "Depth": 2,
+                "Lines": null,
+                "Text": null
+              },
+              {
+                "Kind": "Text",
+                "Depth": 3,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 102,
+                    "Stop": 107
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 108,
+                    "Stop": 112
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 112,
+                    "Stop": 116
+                  }
+                ]
+              },
+              {
+                "Kind": "Text",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 116,
+                    "Stop": 117
+                  }
+                ]
+              },
+              {
+                "Kind": "RawHTML",
+                "Depth": 2,
+                "Lines": null,
+                "Text": [
+                  {
+                    "Start": 117,
+                    "Stop": 122
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 102,
+            "Stop": 107
+          },
+          {
+            "Start": 127,
+            "Stop": 132
+          }
+        ],
+        "Comments": null,
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 52,
+              "Stop": 57
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 66,
+              "Stop": 71
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 77
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": 0,
+            "CodeOwner": 1
+          },
+          {
+            "Span": {
+              "Start": 137,
+              "Stop": 144
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 145,
+              "Stop": 152
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 175,
+              "Stop": 181
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 193
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "ProjectedTree": {
+        "Trees": [
+          [
+            {
+              "Kind": "Document",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "FencedCodeBlock",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 127,
+                  "Stop": 132
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 137,
+                  "Stop": 158
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 137,
+                  "Stop": 138
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 138,
+                  "Stop": 139
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 139,
+                  "Stop": 146
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 146,
+                  "Stop": 147
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 147,
+                  "Stop": 151
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 151,
+                  "Stop": 158
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Blockquote",
+              "Depth": 1,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 2,
+              "Lines": [
+                {
+                  "Start": 161,
+                  "Stop": 175
+                },
+                {
+                  "Start": 175,
+                  "Stop": 181
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 161,
+                  "Stop": 162
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 162,
+                  "Stop": 168
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 168,
+                  "Stop": 174
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 175,
+                  "Stop": 176
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 176,
+                  "Stop": 177
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 177,
+                  "Stop": 180
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 180,
+                  "Stop": 181
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Heading",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 184,
+                  "Stop": 185
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 186,
+                  "Stop": 190
+                },
+                {
+                  "Start": 190,
+                  "Stop": 193
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 186,
+                  "Stop": 187
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 187,
+                  "Stop": 188
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 188,
+                  "Stop": 189
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 190,
+                  "Stop": 192
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 192,
+                  "Stop": 193
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ],
+          [
+            {
+              "Kind": "Footnote",
+              "Depth": 0,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 6,
+                  "Stop": 11
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 6,
+                  "Stop": 7
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 7,
+                  "Stop": 8
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 8,
+                  "Stop": 10
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 10,
+                  "Stop": 11
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Paragraph",
+              "Depth": 1,
+              "Lines": [
+                {
+                  "Start": 17,
+                  "Stop": 23
+                },
+                {
+                  "Start": 23,
+                  "Stop": 38
+                },
+                {
+                  "Start": 38,
+                  "Stop": 58
+                },
+                {
+                  "Start": 58,
+                  "Stop": 60
+                },
+                {
+                  "Start": 61,
+                  "Stop": 66
+                },
+                {
+                  "Start": 66,
+                  "Stop": 122
+                }
+              ],
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 17,
+                  "Stop": 18
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 18,
+                  "Stop": 19
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 19,
+                  "Stop": 21
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 21,
+                  "Stop": 22
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 23,
+                  "Stop": 25
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 25,
+                  "Stop": 26
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 26,
+                  "Stop": 30
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 30,
+                  "Stop": 37
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 38,
+                  "Stop": 44
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 44,
+                  "Stop": 53
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 53,
+                  "Stop": 54
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 54,
+                  "Stop": 56
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 56,
+                  "Stop": 57
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 58,
+                  "Stop": 59
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 61,
+                  "Stop": 65
+                }
+              ],
+              "Raw": false,
+              "Soft": true,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 66,
+                  "Stop": 67
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 67,
+                  "Stop": 68
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 68,
+                  "Stop": 73
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 73,
+                  "Stop": 74
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 74,
+                  "Stop": 101
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "CodeSpan",
+              "Depth": 2,
+              "Lines": null,
+              "Text": null,
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 3,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 102,
+                  "Stop": 107
+                }
+              ],
+              "Raw": true,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 108,
+                  "Stop": 112
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 112,
+                  "Stop": 116
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "Text",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 116,
+                  "Stop": 117
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            },
+            {
+              "Kind": "RawHTML",
+              "Depth": 2,
+              "Lines": null,
+              "Text": [
+                {
+                  "Start": 117,
+                  "Stop": 122
+                }
+              ],
+              "Raw": false,
+              "Soft": false,
+              "Hard": false
+            }
+          ]
+        ],
+        "Definitions": [
+          {
+            "Root": 1,
+            "Node": 0,
+            "Label": "n",
+            "Bounds": {
+              "Span": {
+                "Start": 0,
+                "Stop": 123
+              },
+              "Label": {
+                "Start": 0,
+                "Stop": 5
+              },
+              "Parent": "Document"
+            },
+            "Found": true
+          }
+        ],
+        "Code": [
+          {
+            "Kind": "FencedCodeBlock",
+            "Parent": "Document",
+            "Span": {
+              "Start": 127,
+              "Stop": 132
+            }
+          },
+          {
+            "Kind": "CodeSpan",
+            "Parent": "Paragraph",
+            "Span": {
+              "Start": 102,
+              "Stop": 107
+            }
+          }
+        ],
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": true
+      },
+      "Valid": true
+    },
+    "PrivateDiagnostics": [
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "q",
+        "Message": "wikilink \"q\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "wikilink \"A\" does not resolve to any note or file",
+        "Section": "A",
+        "Block": ""
+      },
+      {
+        "Kind": "wikilink-broken",
+        "Target": "A",
+        "Message": "embed target \"A\" does not resolve",
+        "Section": "A",
+        "Block": ""
+      }
+    ],
+    "PrivateHTML": "<pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\">## A\n</span></span></code></pre><p><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">A#A<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span><span class=\"wikilink-broken\" title=\"There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;\">![[A#A]]<span class=\"y-offscreen\"> (There is no note called &#34;A&#34; yet; what follows &#34;#&#34; was read as the section &#34;A&#34;)</span></span>章節</p>\n<div class=\"callout callout-note\"><p class=\"callout-title\"><svg class=\"callout-icon\" aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"9\"></circle><path d=\"M12 11v5\"></path><path d=\"M12 8h.01\"></path></svg>title</p><div class=\"callout-body\">\n</div></div>\n<p><a href=\"#a\" class=\"wikilink\">#A</a></p>\n<h2 id=\"a\" data-level=\"1\">A</h2>\n<p>[[A\nB]]</p>\n",
+    "PrivateNative": {
+      "Definitions": null,
+      "Code": null,
+      "Comments": null
+    },
+    "PrivatePage": {
+      "Citations": [
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        },
+        {
+          "SourceRole": "",
+          "Target": "A",
+          "Section": "A",
+          "State": "wikilink-broken"
+        }
+      ],
+      "CitationsInCode": 0,
+      "Blocks": null,
+      "Headings": [
+        "a"
+      ],
+      "Failures": null,
+      "CodeCitations": null,
+      "CalloutTitles": [
+        "title"
+      ]
+    },
+    "PrivateParts": [
+      [
+        {
+          "Text": "## A\n",
+          "Citation": {
+            "SourceRole": "",
+            "Target": "",
+            "Section": "",
+            "State": ""
+          },
+          "Field": false
+        }
+      ]
+    ],
+    "PrivateRemoved": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "",
+      "Positions": null,
+      "ProjectedNative": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": null,
+        "Comments": null,
+        "Fields": null,
+        "Targets": null
+      },
+      "ProjectedTree": {
+        "Trees": null,
+        "Definitions": null,
+        "Code": null,
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": false
+      },
+      "Valid": false
+    },
+    "PrivateSignatures": {
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section:A State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:q Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:A Section: State:} fragment=\"\" direction=judge-only multiplicity=5 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=excerpt-only multiplicity=1 cut=\"    [[q]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=judge-only multiplicity=1 cut=\"    [[q]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1
+    },
+    "PrivateTargets": [
+      "A",
+      "A",
+      "A",
+      "A",
+      "A",
+      "A",
+      "A"
+    ],
+    "PrivateTree": {
+      "Trees": [
+        [
+          {
+            "Kind": "Document",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "FencedCodeBlock",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 136,
+                "Stop": 141
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 146,
+                "Stop": 167
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 146,
+                "Stop": 147
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 147,
+                "Stop": 148
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 148,
+                "Stop": 155
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 155,
+                "Stop": 156
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 156,
+                "Stop": 160
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 160,
+                "Stop": 167
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Blockquote",
+            "Depth": 1,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 2,
+            "Lines": [
+              {
+                "Start": 170,
+                "Stop": 184
+              },
+              {
+                "Start": 184,
+                "Stop": 190
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 170,
+                "Stop": 171
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 171,
+                "Stop": 177
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 177,
+                "Stop": 183
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 184,
+                "Stop": 185
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 185,
+                "Stop": 186
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 186,
+                "Stop": 189
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 189,
+                "Stop": 190
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Heading",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 195,
+                "Stop": 199
+              },
+              {
+                "Start": 199,
+                "Stop": 202
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 195,
+                "Stop": 196
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 196,
+                "Stop": 197
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 197,
+                "Stop": 198
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 199,
+                "Stop": 201
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 201,
+                "Stop": 202
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ],
+        [
+          {
+            "Kind": "Footnote",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 6,
+                "Stop": 11
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 6,
+                "Stop": 7
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 7,
+                "Stop": 8
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 8,
+                "Stop": 10
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 10,
+                "Stop": 11
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 17,
+                "Stop": 23
+              },
+              {
+                "Start": 23,
+                "Stop": 38
+              },
+              {
+                "Start": 38,
+                "Stop": 67
+              },
+              {
+                "Start": 67,
+                "Stop": 69
+              },
+              {
+                "Start": 70,
+                "Stop": 75
+              },
+              {
+                "Start": 75,
+                "Stop": 131
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 17,
+                "Stop": 18
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 18,
+                "Stop": 19
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 19,
+                "Stop": 21
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 21,
+                "Stop": 22
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 23,
+                "Stop": 25
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 25,
+                "Stop": 26
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 26,
+                "Stop": 30
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 30,
+                "Stop": 37
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 38,
+                "Stop": 41
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 41,
+                "Stop": 42
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 42,
+                "Stop": 53
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 53,
+                "Stop": 62
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 62,
+                "Stop": 63
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 63,
+                "Stop": 65
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 65,
+                "Stop": 66
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 67,
+                "Stop": 68
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 70,
+                "Stop": 74
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 75,
+                "Stop": 76
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 76,
+                "Stop": 77
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 77,
+                "Stop": 82
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 82,
+                "Stop": 83
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 83,
+                "Stop": 110
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "CodeSpan",
+            "Depth": 2,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 111,
+                "Stop": 116
+              }
+            ],
+            "Raw": true,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 117,
+                "Stop": 121
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 121,
+                "Stop": 125
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 125,
+                "Stop": 126
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 126,
+                "Stop": 131
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ]
+      ],
+      "Definitions": [
+        {
+          "Root": 1,
+          "Node": 0,
+          "Label": "n",
+          "Bounds": {
+            "Span": {
+              "Start": 0,
+              "Stop": 132
+            },
+            "Label": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Parent": "Document"
+          },
+          "Found": true
+        }
+      ],
+      "Code": [
+        {
+          "Kind": "FencedCodeBlock",
+          "Parent": "Document",
+          "Span": {
+            "Start": 136,
+            "Stop": 141
+          }
+        },
+        {
+          "Kind": "CodeSpan",
+          "Parent": "Paragraph",
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          }
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Unanchorable": null,
+      "Valid": true
+    },
+    "Removed": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Projected": "",
+      "Positions": null,
+      "ProjectedNative": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "ProjectedCheck": {
+        "Code": null,
+        "Comments": null,
+        "Fields": null,
+        "Targets": null
+      },
+      "ProjectedTree": {
+        "Trees": null,
+        "Definitions": null,
+        "Code": null,
+        "Comments": null,
+        "Unanchorable": null,
+        "Valid": false
+      },
+      "Valid": false
+    },
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:B Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Signatures": {
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:A Section:A State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P0/diagnostic-html tuple={SourceRole: Target:B Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P1/citation-occurrences tuple={SourceRole: Target:A Section: State:} fragment=\"\" direction=judge-only multiplicity=5 cut=\"\" page=false judge=false excerpt=false": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=excerpt-only multiplicity=1 cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1,
+      "P3/block-three-way tuple={SourceRole: Target: Section: State:} fragment=\"^a-2\" direction=judge-only multiplicity=1 cut=\"    [[B]]\\n![[A#A]]章節\\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\\nB\\n ^a-2\\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\\n\u0060\u0060\u0060\\n## A\\n \u0060\u0060\u0060\\n[[A#A]]![[A#A]]章節\\n> [!note] title\\n[[#A]]\\n# A\\n[[A\\nB]]\" page=false judge=true excerpt=true": 1
+    },
+    "Singles": [
+      {
+        "Field": 1,
+        "Index": 1,
+        "Start": 19,
+        "Body": "[^n]: [[A]]\n\n    [[q]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+        "Diagnostics": [
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "q",
+            "Message": "wikilink \"q\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "wikilink \"A\" does not resolve to any note or file",
+            "Section": "A",
+            "Block": ""
+          },
+          {
+            "Kind": "wikilink-broken",
+            "Target": "A",
+            "Message": "embed target \"A\" does not resolve",
+            "Section": "A",
+            "Block": ""
+          }
+        ]
+      }
+    ],
+    "Sites": [
+      {
+        "Root": 0,
+        "Node": 1,
+        "Parent": 0,
+        "Kind": "FencedCodeBlock",
+        "ParentKind": "Document",
+        "Lines": [
+          {
+            "Start": 136,
+            "Stop": 141,
+            "Padding": 0,
+            "ForceNewline": true
+          }
+        ],
+        "Text": null,
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasInfo": false,
+        "Raw": true
+      },
+      {
+        "Root": 1,
+        "Node": 29,
+        "Parent": 6,
+        "Kind": "CodeSpan",
+        "ParentKind": "Paragraph",
+        "Lines": null,
+        "Text": [
+          {
+            "Start": 111,
+            "Stop": 116,
+            "Padding": 0,
+            "ForceNewline": false
+          }
+        ],
+        "Info": {
+          "Start": 0,
+          "Stop": 0,
+          "Padding": 0,
+          "ForceNewline": false
+        },
+        "HasInfo": false,
+        "Raw": false
+      }
+    ],
+    "Target": "B",
+    "Targets": [
+      "A",
+      "A",
+      "A",
+      "A",
+      "A",
+      "A",
+      "A"
+    ],
+    "Tree": {
+      "Trees": [
+        [
+          {
+            "Kind": "Document",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "FencedCodeBlock",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 136,
+                "Stop": 141
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 146,
+                "Stop": 167
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 146,
+                "Stop": 147
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 147,
+                "Stop": 148
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 148,
+                "Stop": 155
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 155,
+                "Stop": 156
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 156,
+                "Stop": 160
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 160,
+                "Stop": 167
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Blockquote",
+            "Depth": 1,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 2,
+            "Lines": [
+              {
+                "Start": 170,
+                "Stop": 184
+              },
+              {
+                "Start": 184,
+                "Stop": 190
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 170,
+                "Stop": 171
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 171,
+                "Stop": 177
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 177,
+                "Stop": 183
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 184,
+                "Stop": 185
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 185,
+                "Stop": 186
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 186,
+                "Stop": 189
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 189,
+                "Stop": 190
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Heading",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 193,
+                "Stop": 194
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 195,
+                "Stop": 199
+              },
+              {
+                "Start": 199,
+                "Stop": 202
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 195,
+                "Stop": 196
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 196,
+                "Stop": 197
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 197,
+                "Stop": 198
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 199,
+                "Stop": 201
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 201,
+                "Stop": 202
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ],
+        [
+          {
+            "Kind": "Footnote",
+            "Depth": 0,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 6,
+                "Stop": 11
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 6,
+                "Stop": 7
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 7,
+                "Stop": 8
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 8,
+                "Stop": 10
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 10,
+                "Stop": 11
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Paragraph",
+            "Depth": 1,
+            "Lines": [
+              {
+                "Start": 17,
+                "Stop": 23
+              },
+              {
+                "Start": 23,
+                "Stop": 38
+              },
+              {
+                "Start": 38,
+                "Stop": 67
+              },
+              {
+                "Start": 67,
+                "Stop": 69
+              },
+              {
+                "Start": 70,
+                "Stop": 75
+              },
+              {
+                "Start": 75,
+                "Stop": 131
+              }
+            ],
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 17,
+                "Stop": 18
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 18,
+                "Stop": 19
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 19,
+                "Stop": 21
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 21,
+                "Stop": 22
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 23,
+                "Stop": 25
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 25,
+                "Stop": 26
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 26,
+                "Stop": 30
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 30,
+                "Stop": 37
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 38,
+                "Stop": 41
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 41,
+                "Stop": 42
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 42,
+                "Stop": 53
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 53,
+                "Stop": 62
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 62,
+                "Stop": 63
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 63,
+                "Stop": 65
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 65,
+                "Stop": 66
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 67,
+                "Stop": 68
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 70,
+                "Stop": 74
+              }
+            ],
+            "Raw": false,
+            "Soft": true,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 75,
+                "Stop": 76
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 76,
+                "Stop": 77
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 77,
+                "Stop": 82
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 82,
+                "Stop": 83
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 83,
+                "Stop": 110
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "CodeSpan",
+            "Depth": 2,
+            "Lines": null,
+            "Text": null,
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 3,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 111,
+                "Stop": 116
+              }
+            ],
+            "Raw": true,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 117,
+                "Stop": 121
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 121,
+                "Stop": 125
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "Text",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 125,
+                "Stop": 126
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          },
+          {
+            "Kind": "RawHTML",
+            "Depth": 2,
+            "Lines": null,
+            "Text": [
+              {
+                "Start": 126,
+                "Stop": 131
+              }
+            ],
+            "Raw": false,
+            "Soft": false,
+            "Hard": false
+          }
+        ]
+      ],
+      "Definitions": [
+        {
+          "Root": 1,
+          "Node": 0,
+          "Label": "n",
+          "Bounds": {
+            "Span": {
+              "Start": 0,
+              "Stop": 132
+            },
+            "Label": {
+              "Start": 0,
+              "Stop": 5
+            },
+            "Parent": "Document"
+          },
+          "Found": true
+        }
+      ],
+      "Code": [
+        {
+          "Kind": "FencedCodeBlock",
+          "Parent": "Document",
+          "Span": {
+            "Start": 136,
+            "Stop": 141
+          }
+        },
+        {
+          "Kind": "CodeSpan",
+          "Parent": "Paragraph",
+          "Span": {
+            "Start": 111,
+            "Stop": 116
+          }
+        }
+      ],
+      "Comments": [
+        {
+          "Start": 38,
+          "Stop": 47
+        }
+      ],
+      "Unanchorable": null,
+      "Valid": true
+    },
+    "Equation": true
+  }
+]`
+	var records []agreementCommentCutP0Declaration
+	if json.Unmarshal([]byte(frozen), &records) != nil {
+		return nil
+	}
+	return records
+})
+
+type agreementCommentCutP0AddressWitness struct {
+	Body, Private, Target, Section, Selected string
+	Names                                    []string
+	Original, Projected                      agreementNativeAddressPart
+	OriginalAddresses, PrivateAddresses      map[string]agreementNativeAddressReceipt
+}
+
+func agreementCommentCutP0Reading(body string) agreementRemovedCommentDiagnosticReading {
+	r := agreementRemovedCommentDiagnosticReading{Native: agreementNativeOwnerReading(body)}
+	r.Check = agreementNativeCheckReading(body, r.Native)
+	if len(r.Check.Comments) == 0 {
+		return r
+	}
+	end := 0
+	for _, span := range r.Check.Comments {
+		if span.Start < end || span.Start < 0 || span.Stop > len(body) || span.Stop <= span.Start {
+			return r
+		}
+		end = span.Stop
+	}
+	var projected []byte
+	for at := range len(body) {
+		hidden := false
+		for _, span := range r.Check.Comments {
+			if at >= span.Start && at < span.Stop {
+				hidden = true
+			}
+		}
+		if hidden && body[at] != '\n' && body[at] != '\r' {
+			continue
+		}
+		projected = append(projected, body[at])
+		r.Positions = append(r.Positions, at)
+	}
+	r.Projected = string(projected)
+	r.ProjectedNative = agreementNativeOwnerReading(r.Projected)
+	r.ProjectedCheck = agreementNativeCheckReading(r.Projected, r.ProjectedNative)
+	r.ProjectedTree = agreementNativeProseAddressTreeReading(r.Projected, nil)
+	r.Valid = r.ProjectedTree.Valid
+	return r
+}
+
+func agreementCommentCutP0CutProjection(body, private string, changes []agreementMixedRename, before, after []agreementFailure) bool {
+	if len(body) != len(private) || len(changes) == 0 {
+		return false
+	}
+	oldReading, newReading := agreementCommentCutP0Reading(body), agreementCommentCutP0Reading(private)
+	if !oldReading.Valid || !newReading.Valid || !slices.Equal(oldReading.Positions, newReading.Positions) || !cmp.Equal(oldReading.Native, newReading.Native) {
+		return false
+	}
+	reverse := map[int]int{}
+	for i, at := range oldReading.Positions {
+		if _, exists := reverse[at]; exists {
+			return false
+		}
+		reverse[at] = i
+	}
+	mapped := slices.Clone(changes)
+	for i := range mapped {
+		c := &mapped[i]
+		start, ok := reverse[c.Span.Start]
+		if !ok {
+			return false
+		}
+		stop, ok := reverse[c.Span.Stop-1]
+		if !ok || stop-start+1 != c.Span.Stop-c.Span.Start {
+			return false
+		}
+		for j := start; j <= stop; j++ {
+			if oldReading.Positions[j] != c.Span.Start+j-start {
+				return false
+			}
+		}
+		c.Span.Start = start
+		c.Span.Stop = stop + 1
+	}
+	body, private, changes = oldReading.Projected, newReading.Projected, mapped
+	projected := []byte(body)
+	last := 0
+	seenFields := map[int]bool{}
+	for _, change := range changes {
+		a, b := change.Span.Start, change.Span.Stop
+		if a < last || a < 0 || b > len(body) || b <= a || len(change.Old) != len(change.New) || body[a:b] != change.Old || seenFields[change.Field] {
+			return false
+		}
+		seenFields[change.Field] = true
+		last = b
+		copy(projected[a:b], change.New)
+	}
+	if string(projected) != private {
+		return false
+	}
+	expected := map[string]int{}
+	changed := false
+	for i := range before {
+		f := before[i]
+		if f.Property != "P3" {
+			continue
+		}
+		if f.Cut == "" {
+			expected[agreementSignature(&f)]++
+			continue
+		}
+		if strings.Count(body, f.Cut) != 1 {
+			return false
+		}
+		start := strings.Index(body, f.Cut)
+		stop := start + len(f.Cut)
+		cut := []byte(f.Cut)
+		for _, change := range changes {
+			a, b := change.Span.Start, change.Span.Stop
+			if a < 0 || b > len(body) || b <= a || body[a:b] != change.Old || private[a:b] != change.New || len(change.Old) != len(change.New) {
+				return false
+			}
+			if a >= stop || b <= start {
+				continue
+			}
+			if a < start || b > stop {
+				return false
+			}
+			copy(cut[a-start:b-start], change.New)
+		}
+		if string(cut) != f.Cut {
+			changed = true
+		}
+		f.Cut = string(cut)
+		expected[agreementSignature(&f)]++
+	}
+	actual := map[string]int{}
+	for i := range after {
+		f := after[i]
+		if f.Property == "P3" {
+			actual[agreementSignature(&f)]++
+		}
+	}
+	return changed && maps.Equal(expected, actual)
+}
+
+func agreementCommentCutP0SignedProjection(before, after []agreementFailure, page *agreementHTML, targets []string, selected *agreementFailure, fields, active int, body, private string, changes []agreementMixedRename) bool {
+	if !agreementCommentCutP0CutProjection(body, private, changes, before, after) {
+		return false
+	}
+	cleanBefore := []agreementFailure{}
+	cleanAfter := []agreementFailure{}
+	for fi := range before {
+		f := before[fi]
+		if f.Property != "P3" {
+			cleanBefore = append(cleanBefore, f)
+		}
+	}
+	for fi := range after {
+		f := after[fi]
+		if f.Property != "P3" {
+			cleanAfter = append(cleanAfter, f)
+		}
+	}
+	before = cleanBefore
+	after = cleanAfter
+	if selected == nil || fields < 1 || active < 0 || active > fields || fields != selected.Multiplicity || selected.Tuple.Target == "" {
+		return false
+	}
+	target := selected.Tuple.Target
+	replacement := strings.Repeat("q", len(target))
+	counts := map[string]int{}
+	for _, name := range targets {
+		counts[name]++
+	}
+	visible := map[string]int{}
+	for _, citation := range page.Citations {
+		if citation.SourceRole == "" && citation.Target != "" {
+			visible[citation.Target]++
+		}
+	}
+	if counts[target] < active || counts[replacement] != 0 || visible[replacement] != 0 {
+		return false
+	}
+	signed := func(name string, delta int) string {
+		if delta == 0 {
+			return ""
+		}
+		direction := "judge-only"
+		if delta < 0 {
+			direction = "page-only"
+			delta = -delta
+		}
+		f := agreementFailure{Property: "P1", Identity: "citation-occurrences", Tuple: agreementCitation{Target: name}, Direction: direction, Multiplicity: delta}
+		return agreementSignature(&f)
+	}
+	oldP1 := map[string]int{}
+	for i := range before {
+		f := &before[i]
+		if f.Property == "P1" && (f.Tuple.Target == target || f.Tuple.Target == replacement) {
+			oldP1[agreementSignature(f)]++
+		}
+	}
+	declared := map[string]int{}
+	if signature := signed(target, counts[target]-visible[target]); signature != "" {
+		declared[signature] = 1
+	}
+	if !maps.Equal(oldP1, declared) {
+		return false
+	}
+	expected := maps.Clone(agreementMixedCurrent(before))
+	signature := agreementSignature(selected)
+	if expected[signature] != 1 {
+		return false
+	}
+	delete(expected, signature)
+	renamed := *selected
+	renamed.Tuple.Target = replacement
+	expected[agreementSignature(&renamed)]++
+	for key := range oldP1 {
+		delete(expected, key)
+	}
+	if key := signed(target, counts[target]-active-visible[target]); key != "" {
+		expected[key]++
+	}
+	if key := signed(replacement, active); key != "" {
+		expected[key]++
+	}
+	return maps.Equal(expected, agreementMixedCurrent(after))
+}
+
+func agreementCommentCutP0Producers(t *testing.T, body, target, section string, native agreementNativeOwnerSource, check *agreementNativeCheckSource) agreementDiagnosticProducerReading {
+	t.Helper()
+	tree := agreementNativeProseAddressTreeReading(body, nil)
+	physical, ok := agreementProseP1Physical(body, check, &tree, target)
+	if !ok {
+		return agreementDiagnosticProducerReading{Physical: physical}
+	}
+	raw, page := agreementIsolatedPage(t, agreementCase{Body: body})
+	parts, pok := agreementCodeWindowParts(raw.HTML)
+	if !pok {
+		return agreementDiagnosticProducerReading{Physical: physical}
+	}
+	owners := []agreementZeroActiveDiagnosticOwner{}
+	changes := []agreementMixedRename{}
+	singles := []agreementZeroActiveDiagnosticSingle{}
+	whole := []byte(body)
+	expected := slices.Clone(raw.Diagnostics)
+	used := map[int]bool{}
+	for owneri := range physical {
+		owner := physical[owneri]
+		if owner.Field < 0 || owner.Field >= len(check.Fields) {
+			continue
+		}
+		private, one, valid := agreementProseP1PrivateSingle(body, target, &owner, check)
+		if !valid || len(one) != 1 {
+			continue
+		}
+		pr, pp := agreementIsolatedPage(t, agreementCase{Body: private})
+		part, good := agreementCodeWindowParts(pr.HTML)
+		if !good || !cmp.Equal(native, agreementNativeOwnerReading(private)) || !cmp.Equal(tree, agreementNativeProseAddressTreeReading(private, nil)) || raw.HTML != pr.HTML || !cmp.Equal(page, pp) || !cmp.Equal(parts, part) || len(raw.Diagnostics) != len(pr.Diagnostics) {
+			continue
+		}
+		index := -1
+		valid = true
+		for i := range raw.Diagnostics {
+			if cmp.Equal(raw.Diagnostics[i], pr.Diagnostics[i]) {
+				continue
+			}
+			if index >= 0 {
+				valid = false
+				break
+			}
+			index = i
+		}
+		if !valid {
+			continue
+		}
+		if index < 0 {
+			continue
+		}
+		if index >= 0 {
+			a, b := raw.Diagnostics[index], pr.Diagnostics[index]
+			if used[index] || a.Kind != render.DiagWikilinkBroken || a.Target != target || a.Section != section || b.Target != one[0].New || a.Kind != b.Kind || a.Section != b.Section || a.Block != b.Block || b.Message != strings.ReplaceAll(a.Message, strconv.Quote(target), strconv.Quote(one[0].New)) {
+				continue
+			}
+			used[index] = true
+			expected[index] = b
+		}
+		owners = append(owners, owner)
+		changes = append(changes, one[0])
+		copy(whole[one[0].Span.Start:one[0].Span.Stop], one[0].New)
+		singles = append(singles, agreementZeroActiveDiagnosticSingle{Field: owner.Field, Index: index, Start: one[0].Span.Start, Body: private, Diagnostics: pr.Diagnostics})
+	}
+	return agreementDiagnosticProducerReading{Physical: physical, Owners: owners, Changes: changes, Private: string(whole), Diagnostics: expected, Singles: singles, Valid: len(owners) > 0}
+}
+
+func agreementCommentCutP0Projection(r *agreementCommentCutP0Declaration, before, after []agreementFailure, privateDiagnostics []render.Diagnostic) bool {
+	if r == nil || (r.Signatures != nil && !maps.Equal(agreementMixedCurrent(before), r.Signatures)) || (r.PrivateSignatures != nil && !maps.Equal(agreementMixedCurrent(after), r.PrivateSignatures)) || r.Active < 0 || r.Active > len(r.Owners) || len(r.Singles) != len(r.Owners) || len(r.Changes) != len(r.Owners) || !cmp.Equal(privateDiagnostics, r.PrivateDiagnostics) {
+		return false
+	}
+	var selected *agreementFailure
+	for i := range before {
+		if agreementSignature(&before[i]) == r.Selected {
+			if selected != nil {
+				return false
+			}
+			selected = &before[i]
+		}
+	}
+	if selected == nil || selected.Property != "P0" || selected.Direction != "diagnostic-only" || selected.Multiplicity != len(r.Owners) || selected.Tuple.Target != r.Target || selected.Tuple.Section != r.Section {
+		return false
+	}
+	expected := slices.Clone(r.Diagnostics)
+	whole := []byte(r.Body)
+	seen := map[int]bool{}
+	fields := map[int]bool{}
+	for i := range r.Owners {
+		o, c, s := r.Owners[i], r.Changes[i], r.Singles[i]
+		if o.Field < 0 || o.Field >= len(r.Check.Fields) || fields[o.Field] || c.Field != o.Field || s.Field != o.Field || s.Start != c.Span.Start || c.Span.Start < 0 || c.Span.Stop > len(r.Body) || c.Span.Stop <= c.Span.Start || r.Body[c.Span.Start:c.Span.Stop] != r.Target || c.Old != r.Target || c.New != strings.Repeat("q", len(r.Target)) || len(s.Diagnostics) != len(r.Diagnostics) {
+			return false
+		}
+		fields[o.Field] = true
+		single := []byte(r.Body)
+		copy(single[c.Span.Start:c.Span.Stop], c.New)
+		if string(single) != s.Body {
+			return false
+		}
+		copy(whole[c.Span.Start:c.Span.Stop], c.New)
+		for di, d := range r.Diagnostics {
+			p := s.Diagnostics[di]
+			if di != s.Index {
+				if !cmp.Equal(d, p) {
+					return false
+				}
+				continue
+			}
+			if seen[di] || d.Kind != render.DiagWikilinkBroken || d.Target != r.Target || d.Section != r.Section || p.Target != c.New || d.Kind != p.Kind || d.Section != p.Section || d.Block != p.Block || p.Message != strings.ReplaceAll(d.Message, strconv.Quote(r.Target), strconv.Quote(c.New)) {
+				return false
+			}
+			seen[di] = true
+			expected[di] = p
+		}
+		if s.Index < -1 || s.Index >= len(r.Diagnostics) {
+			return false
+		}
+	}
+	if string(whole) != r.Private || !cmp.Equal(expected, r.PrivateDiagnostics) {
+		return false
+	}
+	old, newCounts := map[string]int{}, map[string]int{}
+	for _, n := range r.Targets {
+		old[n]++
+	}
+	for _, n := range r.PrivateTargets {
+		newCounts[n]++
+	}
+	replacement := strings.Repeat("q", len(r.Target))
+	if old[r.Target]-newCounts[r.Target] != r.Active || newCounts[replacement]-old[replacement] != r.Active || old[replacement] != 0 {
+		return false
+	}
+	delete(old, r.Target)
+	delete(old, replacement)
+	delete(newCounts, r.Target)
+	delete(newCounts, replacement)
+	if !maps.Equal(old, newCounts) {
+		return false
+	}
+	return agreementCommentCutP0SignedProjection(before, after, &r.Page, r.Targets, selected, len(r.Owners), r.Active, r.Body, r.Private, r.Changes)
+}
+
+func agreementCommentCutP0Difference(c agreementCase, f *agreementFailure, raw string, page *agreementHTML, diagnostics []render.Diagnostic, failures []agreementFailure) (kind, authority, wrong string) {
+	if f == nil || page == nil || c.Title != "" || len(c.Companions) != 0 || f.Property != "P0" || f.Identity != "diagnostic-html" || f.Direction != "diagnostic-only" || f.Multiplicity < 1 || f.Tuple.SourceRole != "" || f.Tuple.State != "wikilink-broken" || f.Fragment != "" || f.Cut != "" || f.PagePresent || f.JudgeAccepted || f.ExcerptFound {
+		return "", "", ""
+	}
+	records := agreementCommentCutP0Declarations()
+	for i := range records {
+		r := &records[i]
+		if r.Body != c.Body || r.Target != f.Tuple.Target || r.Section != f.Tuple.Section {
+			continue
+		}
+		native := agreementNativeOwnerReading(c.Body)
+		check := agreementNativeCheckReading(c.Body, native)
+		tree := agreementNativeProseAddressTreeReading(c.Body, nil)
+		parts, ok := agreementCodeWindowParts(raw)
+		physical, pok := agreementProseP1Physical(c.Body, &check, &tree, r.Target)
+		private, changes, valid := agreementProseP1Private(c.Body, r.Target, r.Owners, &check)
+		if agreementSignature(f) != r.Selected || !ok || !pok || !valid || private != r.Private || !cmp.Equal(changes, r.Changes) || !cmp.Equal(physical, r.Physical) || !cmp.Equal(native, r.Native) || !cmp.Equal(check, r.Check) || !cmp.Equal(tree, r.Tree) || !cmp.Equal(parts, r.Parts) || raw != r.HTML || !cmp.Equal(*page, r.Page) || !cmp.Equal(diagnostics, r.Diagnostics) || !cmp.Equal(agreementNativeCodePayloadSites(c.Body), r.Sites) || !cmp.Equal(agreementNativeHTMLAddressSites(c.Body), r.HTMLSites) || !cmp.Equal(agreementRemovedCommentDiagnosticRead(c.Body), r.Removed) || !cmp.Equal(agreementCommentCutP0Reading(c.Body), r.CheckRemoved) || !cmp.Equal(judge.LinkTargets(c.Body), r.Targets) || !maps.Equal(agreementMixedCurrent(failures), r.Signatures) || !agreementCommentCutP0Projection(r, failures, r.After, r.PrivateDiagnostics) {
+			return "", "", ""
+		}
+		return "debt", "#1011 stage 5", "page-diagnostic"
+	}
+	return "", "", ""
+}
+
+func agreementCommentCutP0Failures(t *testing.T, body string) (render.Result, agreementHTML, []agreementFailure) {
+	t.Helper()
+	raw, page := agreementIsolatedPage(t, agreementCase{Body: body})
+	failures := agreementPageFailures(body, &raw, &page)
+	failures = append(failures, agreementFragmentFailures(t, []agreementCase{{Body: body}}, []agreementHTML{page})[0]...)
+	return raw, page, failures
+}
+
+func TestAgreementCommentCutP0OwnedSource(t *testing.T) {
+	records := agreementCommentCutP0Declarations()
+	if len(records) != 4 {
+		t.Fatal("caught: whole comment-removed cut P0 declarations")
+	}
+	for i := range records {
+		r := &records[i]
+		t.Run(r.Case+"/"+r.Target, func(t *testing.T) {
+			native := agreementNativeOwnerReading(r.Body)
+			check := agreementNativeCheckReading(r.Body, native)
+			reading := agreementCommentCutP0Producers(t, r.Body, r.Target, r.Section, native, &check)
+			physical, owners, changes, private, diagnostics, singles, ok := reading.Physical, reading.Owners, reading.Changes, reading.Private, reading.Diagnostics, reading.Singles, reading.Valid
+			if !ok || !cmp.Equal(physical, r.Physical) || !cmp.Equal(owners, r.Owners) || !cmp.Equal(changes, r.Changes) || private != r.Private || !cmp.Equal(diagnostics, r.PrivateDiagnostics) || !cmp.Equal(singles, r.Singles) {
+				t.Fatal("caught: complete comment-removed cut P0 physical source and single-field declarations")
+			}
+			raw, page, before := agreementCommentCutP0Failures(t, r.Body)
+			pr, pp, after := agreementCommentCutP0Failures(t, r.Private)
+			if raw.HTML != r.HTML || pr.HTML != r.PrivateHTML || raw.HTML != pr.HTML || !cmp.Equal(raw.Diagnostics, r.Diagnostics) || !cmp.Equal(pr.Diagnostics, r.PrivateDiagnostics) || !cmp.Equal(page, r.Page) || !cmp.Equal(pp, r.PrivatePage) || !cmp.Equal(page, pp) || !maps.Equal(agreementMixedCurrent(before), r.Signatures) || !maps.Equal(agreementMixedCurrent(after), r.PrivateSignatures) || !agreementCommentCutP0Projection(r, before, after, pr.Diagnostics) {
+				t.Fatal("caught: complete comment-removed cut P0 original and private public signed ledgers")
+			}
+			parts, partsOK := agreementCodeWindowParts(raw.HTML)
+			privateParts, privateOK := agreementCodeWindowParts(pr.HTML)
+			if !partsOK || !privateOK || !cmp.Equal(parts, r.Parts) || !cmp.Equal(privateParts, r.PrivateParts) || !cmp.Equal(agreementNativeCodePayloadSites(r.Private), r.Sites) || !cmp.Equal(agreementNativeHTMLAddressSites(r.Private), r.HTMLSites) || !cmp.Equal(native, r.Native) || !cmp.Equal(agreementNativeOwnerReading(r.Private), r.PrivateNative) || !cmp.Equal(check, r.Check) || !cmp.Equal(agreementNativeCheckReading(r.Private, r.PrivateNative), r.PrivateCheck) || !cmp.Equal(agreementNativeProseAddressTreeReading(r.Body, nil), r.Tree) || !cmp.Equal(agreementNativeProseAddressTreeReading(r.Private, nil), r.PrivateTree) || !cmp.Equal(agreementRemovedCommentDiagnosticRead(r.Private), r.PrivateRemoved) || !cmp.Equal(agreementCommentCutP0Reading(r.Body), r.CheckRemoved) || !cmp.Equal(agreementCommentCutP0Reading(r.Private), r.PrivateCheckRemoved) || !cmp.Equal(judge.LinkTargets(r.Private), r.PrivateTargets) {
+				t.Fatal("caught: whole comment-removed cut P0 original and private reader declarations")
+			}
+			for _, s := range r.Singles {
+				sr, sp := agreementIsolatedPage(t, agreementCase{Body: s.Body})
+				parts, valid := agreementCodeWindowParts(sr.HTML)
+				if !valid || sr.HTML != raw.HTML || !cmp.Equal(sr.Diagnostics, s.Diagnostics) || !cmp.Equal(sp, r.Page) || !cmp.Equal(parts, r.Parts) || !cmp.Equal(agreementNativeOwnerReading(s.Body), r.Native) || !cmp.Equal(agreementNativeProseAddressTreeReading(s.Body, nil), r.Tree) {
+					t.Fatal("caught: independent comment-removed cut P0 single-field public observation")
+				}
+			}
+			count := 0
+			for fi := range before {
+				f := before[fi]
+				if agreementSignature(&f) == r.Selected {
+					count++
+					k, a, w := agreementCommentCutP0Difference(agreementCase{Body: r.Body}, &f, raw.HTML, &page, raw.Diagnostics, before)
+					if k != "debt" || a != "#1011 stage 5" || w != "page-diagnostic" {
+						t.Fatal("caught: complete comment-removed cut P0 declared authority")
+					}
+				}
+			}
+			if count != 1 {
+				t.Fatal("caught: unique complete comment-removed cut P0 selected signature")
+			}
+		})
+	}
+}
+
+func TestAgreementCommentCutP0OwnedRefusals(t *testing.T) {
+	for i := range agreementCommentCutP0Declarations() {
+		r := &agreementCommentCutP0Declarations()[i]
+		t.Run(r.Case+"/"+r.Target, func(t *testing.T) {
+			raw, page, failures := agreementCommentCutP0Failures(t, r.Body)
+			var selected agreementFailure
+			found := 0
+			for _, f := range failures {
+				if agreementSignature(&f) == r.Selected {
+					selected = f
+					found++
+				}
+			}
+			if found != 1 {
+				t.Fatal("selected comment-removed cut P0 setup")
+			}
+			refuse := func(c agreementCase, f *agreementFailure, html string, p *agreementHTML, d []render.Diagnostic, fs []agreementFailure) {
+				t.Helper()
+				k, a, w := agreementCommentCutP0Difference(c, f, html, p, d, fs)
+				if k != "" || a != "" || w != "" {
+					t.Fatal("caught: exact comment-removed cut P0 membership and full public context")
+				}
+			}
+			refuse(agreementCase{Body: r.Body}, nil, raw.HTML, &page, raw.Diagnostics, failures)
+			refuse(agreementCase{Body: r.Body}, &selected, raw.HTML, nil, raw.Diagnostics, failures)
+			mutations := []struct {
+				name   string
+				change func(*agreementFailure)
+			}{
+				{"property", func(f *agreementFailure) { f.Property = "P1" }}, {"identity", func(f *agreementFailure) { f.Identity += "!" }}, {"direction", func(f *agreementFailure) { f.Direction = "page-only" }}, {"count", func(f *agreementFailure) { f.Multiplicity++ }}, {"target", func(f *agreementFailure) { f.Tuple.Target = "q" }}, {"role", func(f *agreementFailure) { f.Tuple.SourceRole = "image" }}, {"section", func(f *agreementFailure) { f.Tuple.Section = "outside" }}, {"state", func(f *agreementFailure) { f.Tuple.State = "other" }}, {"fragment", func(f *agreementFailure) { f.Fragment = "^a" }}, {"cut", func(f *agreementFailure) { f.Cut = "text" }}, {"page", func(f *agreementFailure) { f.PagePresent = true }}, {"judge", func(f *agreementFailure) { f.JudgeAccepted = true }}, {"excerpt", func(f *agreementFailure) { f.ExcerptFound = true }},
+			}
+			for _, m := range mutations {
+				t.Run(m.name, func(t *testing.T) {
+					f := selected
+					m.change(&f)
+					refuse(agreementCase{Body: r.Body}, &f, raw.HTML, &page, raw.Diagnostics, failures)
+				})
+			}
+			refuse(agreementCase{Body: r.Body + "!"}, &selected, raw.HTML, &page, raw.Diagnostics, failures)
+			refuse(agreementCase{Body: r.Body, Title: "other"}, &selected, raw.HTML, &page, raw.Diagnostics, failures)
+			refuse(agreementCase{Body: r.Body, Companions: capturedBodies{"outside.md": "other"}}, &selected, raw.HTML, &page, raw.Diagnostics, failures)
+			refuse(agreementCase{Body: r.Body}, &selected, raw.HTML+"!", &page, raw.Diagnostics, failures)
+			changedPage := page
+			changedPage.Blocks = append(slices.Clone(page.Blocks), "^outside")
+			refuse(agreementCase{Body: r.Body}, &selected, raw.HTML, &changedPage, raw.Diagnostics, failures)
+			changedDiags := append(slices.Clone(raw.Diagnostics), render.Diagnostic{Kind: render.DiagWikilinkBroken, Target: "outside"})
+			refuse(agreementCase{Body: r.Body}, &selected, raw.HTML, &page, changedDiags, failures)
+			for fi := range failures {
+				missing := slices.Delete(slices.Clone(failures), fi, fi+1)
+				refuse(agreementCase{Body: r.Body}, &selected, raw.HTML, &page, raw.Diagnostics, missing)
+				changed := slices.Clone(failures)
+				changed[fi].Multiplicity++
+				refuse(agreementCase{Body: r.Body}, &selected, raw.HTML, &page, raw.Diagnostics, changed)
+			}
+		})
+	}
+}
+
+func TestAgreementCommentCutP0OwnedSignedProjection(t *testing.T) {
+	for i := range agreementCommentCutP0Declarations() {
+		r := &agreementCommentCutP0Declarations()[i]
+		t.Run(r.Case+"/"+r.Target, func(t *testing.T) {
+			if !agreementCommentCutP0Projection(r, r.Before, r.After, r.PrivateDiagnostics) {
+				t.Fatal("caught: whole comment-removed cut P0 signed projection")
+			}
+			for fi := range r.After {
+				missing := slices.Delete(slices.Clone(r.After), fi, fi+1)
+				if agreementCommentCutP0Projection(r, r.Before, missing, r.PrivateDiagnostics) {
+					t.Fatal("caught: every private comment-removed cut P0 signed receipt retained")
+				}
+				changed := slices.Clone(r.After)
+				changed[fi].Multiplicity++
+				if agreementCommentCutP0Projection(r, r.Before, changed, r.PrivateDiagnostics) {
+					t.Fatal("caught: every comment-removed cut P0 signed multiplicity retained")
+				}
+			}
+			for fi := range r.Before {
+				missing := slices.Delete(slices.Clone(r.Before), fi, fi+1)
+				if agreementCommentCutP0Projection(r, missing, r.After, r.PrivateDiagnostics) {
+					t.Fatal("caught: every original comment-removed cut P0 signed receipt retained")
+				}
+			}
+			for ci := range r.Changes {
+				changed := *r
+				changed.Changes = slices.Delete(slices.Clone(r.Changes), ci, ci+1)
+				if agreementCommentCutP0Projection(&changed, r.Before, r.After, r.PrivateDiagnostics) {
+					t.Fatal("caught: whole comment-removed cut P0 owned target interval set")
+				}
+			}
+		})
+	}
+}
+
+func TestAgreementCommentCutP0OwnedWholeSet(t *testing.T) {
+	records := agreementCommentCutP0Declarations()
+	bodies := map[string]bool{}
+	pairs := map[[3]string]bool{}
+	fields, silent, info := 0, 0, 0
+	for _, r := range records {
+		bodies[r.Body] = true
+		key := [3]string{r.Body, r.Target, r.Section}
+		if pairs[key] {
+			t.Fatal("caught: unique comment-removed cut P0 declaration")
+		}
+		pairs[key] = true
+		fields += len(r.Owners)
+		for _, s := range r.Singles {
+			if s.Index == -1 {
+				silent++
+			}
+		}
+		for oi := range r.Owners {
+			o := r.Owners[oi]
+			if o.Family == "native-info" {
+				info++
+			}
+		}
+	}
+	if len(records) != 4 || len(bodies) != 2 || len(pairs) != 4 || fields != 7 || silent != 0 || info != 0 {
+		t.Fatal("caught: complete comment-removed cut P0 body, target, physical field, silent field and mixed info sets")
+	}
+}
+
+func TestAgreementCommentCutP0OwnedCensus(t *testing.T) {
+	const frozen = `[
+  {
+    "Body": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n<!-- [[A]] -->## [[A|alias]]\n> - <!--![[A#A]]<!-- [[A]] -->   \u0060\u0060\u0060\n[^unused]: [[A]]\n%%[[A]]%% ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\n- [ ] [[A]]\n## !\n[[A#^a]]\\\\[[A]]> > --> ^A\n![[A]]",
+    "Target": "A",
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": true
+  },
+  {
+    "Body": "[^n]: [[A]]\n\n    [[B]]\n[[A#A]][[#A]]\\\\[[A]]  - %%[[A]]%%\u0060open\n[[A]]\nclose\u0060> [!note] [[A]]\n\\\u0060\u0060\u0060\u0060\n> \u0060\u0060\u0060\u0060 go [[A]]\n    \u0060\u0060\u0060\n## A\n## A\n\n[[A\\|alias]]## !\n  \u0060\u0060\u0060\n ^é\n<div>\n[[A]]\n</div>\n<div>\n[[A]]\n</div>\n- > [!note] title\n> [!note] title\n",
+    "Target": "A",
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=5 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": false
+  },
+  {
+    "Body": "## A\nhttps://example.invalid/\u0060[[A]]\u0060  ^é\n\t ^a-2\n    \u0060\u0060\u0060\n ^é\n[^unused]: [[A]]\n| a | b |\n|---|---|\n| [[A]] | ^a |\n ^a\n0<!-- [[A]] --> ^é\n\u0060open\n[[A]]\nclose\u0060",
+    "Target": "A",
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=3 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": false
+  },
+  {
+    "Body": "## A\n## A\n\tA\n===\nÉ\n\n[^n]: [[A]]\n\n    [[B]]\n[^n]: [[A]]\n\n    [[B]]\n![[A#A]][[A\\]]<!-- [[A]] -->> >   - [[B|alias]][[A\\]]章節\n\\\u0060^absent-prose text [^n]: [[A]]\n\n    [[B]]\n\u0060\u0060\u0060\u0060\n[[A#^a]][^n]: [[A]]\n\n    [[B]]\n  > [!note] title\ntext ",
+    "Target": "A\\",
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A\\ Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=2 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": false
+  },
+  {
+    "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Target": "A",
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": true
+  },
+  {
+    "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Target": "A",
+    "Section": "A",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section:A State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": true
+  },
+  {
+    "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Target": "B",
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:B Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": true
+  },
+  {
+    "Body": "章節\n > [!note] one\n> [!note] two\n> [!note] three\n[[B|alias]]  > [!note] title\n<!-- [[A]] -->- item\n\n      [[A\nB]]\\\\[[A]] ^é\n\u0060open\n[[A]]\nclose\u0060  > [!note] title\n- [x] [[B]]\n  - \u0060\u0060\u0060\u0060 go [[A]]\n![[A]][^n]: [[A]]\n\n    [[B]]\n  - \n>  ref[^n]\n\\[[A]]  - A\n===\nB\nB\nhttps://example.invalid/\u0060[[A]]\u0060 text É\n章節\n",
+    "Target": "A",
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": false
+  },
+  {
+    "Body": "> > \u0060\u0060\u0060\u0060 go [[A]]\n[[A]] [[A]]\u0060> [!note] [[A]]\n## [[A|alias]]\n[[B|alias]]\u0060\u0060\u0060\u0060\n ^é\n![[image.png]]   \u0060\u0060\u0060\nB\n<!--\n[[A]]\n--><!--- item\n\n      É\n ^a\n![[A]][^n]: [[A]]\n\n    [[B]]\n[^unused]: [[A]]\n~~~~\n[[A#^a]]É\n- item\n\n      \u0060\u0060\u0060 [[A]]\n",
+    "Target": "A",
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": false
+  },
+  {
+    "Body": "%%[[A]]%%[^n]: [[A]]\n\n    [[B]]\n[[A\\]]\u0060[[A]]\u00600~~~~\n## A\n  \u0060\u0060\u0060\n![[image.png]]A\n===\n[[A#^a]] ^é\n~~~\n[[A\nB]]%%[[A]]%%\\\u0060[[B|alias]]",
+    "Target": "A\\",
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A\\ Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": false
+  },
+  {
+    "Body": "[[A]] ^a\n[[image.png]]^absent-prose \t\u0060\u0060\u0060\nA\nhttps://example.invalid/\u0060[[A]]\u0060  \u0060\u0060\u0060\n![[A]]\tB\n ^é\n<!-- [[A]] -->[^unused]: [[A]]\n| a | b |\n|---|---|\n| [[A]] | ^a |\n\n ^A\n0A\n[[A]]%%",
+    "Target": "A",
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=2 cut=\"\" page=false judge=false excerpt=false",
+    "Equation": false
+  }
+]`
+	var rows []struct {
+		Body, Target, Section, Selected string
+		Equation                        bool
+	}
+	if json.Unmarshal([]byte(frozen), &rows) != nil || len(rows) != 11 {
+		t.Fatal("caught: whole comment-removed cut P0 prospect set")
+	}
+	eligible := map[[3]string]bool{}
+	for _, r := range rows {
+		native := agreementNativeOwnerReading(r.Body)
+		check := agreementNativeCheckReading(r.Body, native)
+		raw, page, before := agreementCommentCutP0Failures(t, r.Body)
+		var selected *agreementFailure
+		for i := range before {
+			if agreementSignature(&before[i]) == r.Selected {
+				selected = &before[i]
+			}
+		}
+		if selected == nil {
+			t.Fatal("caught: every original comment-removed cut P0 prospect exists")
+		}
+		accepted := false
+		if selected.Direction == "diagnostic-only" {
+			reading := agreementCommentCutP0Producers(t, r.Body, r.Target, r.Section, native, &check)
+			physical, owners, changes, private, diagnostics, singles, ok := reading.Physical, reading.Owners, reading.Changes, reading.Private, reading.Diagnostics, reading.Singles, reading.Valid
+			if ok && len(owners) == selected.Multiplicity {
+				pr, pp, after := agreementCommentCutP0Failures(t, private)
+				active := 0
+				for oi := range owners {
+					o := owners[oi]
+					if !check.Fields[o.Field].Code {
+						active++
+					}
+				}
+				declaration := agreementCommentCutP0Declaration{Section: r.Section, Body: r.Body, Private: private, Target: r.Target, Selected: r.Selected, Active: active, Check: check, Physical: physical, Owners: owners, Changes: changes, Singles: singles, Page: page, Diagnostics: raw.Diagnostics, PrivateDiagnostics: diagnostics, Targets: judge.LinkTargets(r.Body), PrivateTargets: judge.LinkTargets(private)}
+				accepted = raw.HTML == pr.HTML && cmp.Equal(page, pp) && cmp.Equal(native, agreementNativeOwnerReading(private)) && cmp.Equal(agreementNativeProseAddressTreeReading(r.Body, nil), agreementNativeProseAddressTreeReading(private, nil)) && agreementCommentCutP0Projection(&declaration, before, after, pr.Diagnostics)
+			}
+		}
+		if accepted != r.Equation {
+			t.Fatal("caught: whole comment-removed cut P0 eligibility and refusal set")
+		}
+		if accepted {
+			eligible[[3]string{r.Body, r.Target, r.Selected}] = true
+		}
+	}
+	records := agreementCommentCutP0Declarations()
+	if len(eligible) != 4 || len(records) != 4 {
+		t.Fatal("caught: complete comment-removed cut P0 eligible declaration set")
+	}
+	for _, r := range records {
+		if !eligible[[3]string{r.Body, r.Target, r.Selected}] {
+			t.Fatal("caught: every comment-removed cut P0 eligible declaration is source-bound")
+		}
+	}
+}
+
+var agreementCommentCutP0AddressWitnesses = sync.OnceValue(func() []agreementCommentCutP0AddressWitness {
+	const frozen = `[
+  {
+    "Body": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n<!-- [[A]] -->## [[A|alias]]\n> - <!--![[A#A]]<!-- [[A]] -->   \u0060\u0060\u0060\n[^unused]: [[A]]\n%%[[A]]%% ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\n- [ ] [[A]]\n## !\n[[A#^a]]\\\\[[A]]> > --> ^A\n![[A]]",
+    "Changes": [
+      {
+        "Field": 5,
+        "Span": {
+          "Start": 134,
+          "Stop": 135
+        },
+        "Old": "A",
+        "New": "q"
+      }
+    ],
+    "Names": [
+      "^a",
+      "^a-2",
+      "^agreement-absent-0",
+      "^é"
+    ],
+    "Original": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 192,
+            "Stop": 241
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 55,
+            "Stop": 69
+          },
+          {
+            "Start": 88,
+            "Stop": 114
+          },
+          {
+            "Start": 138,
+            "Stop": 147
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 49,
+              "Stop": 54
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 60,
+              "Stop": 65
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 83
+            },
+            "Word": "[[A|alias]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 93,
+              "Stop": 100
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 105,
+              "Stop": 110
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 132,
+              "Stop": 137
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 140,
+              "Stop": 145
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 153,
+              "Stop": 159
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 191
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 198,
+              "Stop": 203
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 209,
+              "Stop": 217
+            },
+            "Word": "[[A#^a]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 219,
+              "Stop": 224
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 236,
+              "Stop": 241
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Fields": [
+        {
+          "Line": {
+            "Start": 138,
+            "Stop": 152
+          },
+          "Token": {
+            "Start": 148,
+            "Stop": 152
+          },
+          "Raw": "%%[[A]]%% ^a-2",
+          "Name": "^a-2",
+          "Folded": "^a-2",
+          "Owner": -1,
+          "Nodes": null,
+          "Code": false,
+          "Comment": false
+        },
+        {
+          "Line": {
+            "Start": 209,
+            "Stop": 234
+          },
+          "Token": {
+            "Start": 232,
+            "Stop": 234
+          },
+          "Raw": "[[A#^a]]\\\\[[A]]> > --> ^A",
+          "Name": "^A",
+          "Folded": "^a",
+          "Owner": -1,
+          "Nodes": null,
+          "Code": false,
+          "Comment": false
+        }
+      ],
+      "Names": [
+        "^a",
+        "^a-2",
+        "^é"
+      ]
+    },
+    "Private": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n<!-- [[A]] -->## [[A|alias]]\n> - <!--![[A#A]]<!-- [[A]] -->   \u0060\u0060\u0060\n[^unused]: [[q]]\n%%[[A]]%% ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]\n- [ ] [[A]]\n## !\n[[A#^a]]\\\\[[A]]> > --> ^A\n![[A]]",
+    "Projected": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 192,
+            "Stop": 241
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 55,
+            "Stop": 69
+          },
+          {
+            "Start": 88,
+            "Stop": 114
+          },
+          {
+            "Start": 138,
+            "Stop": 147
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 49,
+              "Stop": 54
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 60,
+              "Stop": 65
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 72,
+              "Stop": 83
+            },
+            "Word": "[[A|alias]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 93,
+              "Stop": 100
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 105,
+              "Stop": 110
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 132,
+              "Stop": 137
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 140,
+              "Stop": 145
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 153,
+              "Stop": 159
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 186,
+              "Stop": 191
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 198,
+              "Stop": 203
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 209,
+              "Stop": 217
+            },
+            "Word": "[[A#^a]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 219,
+              "Stop": 224
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 236,
+              "Stop": 241
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "q",
+          "A"
+        ]
+      },
+      "Fields": [
+        {
+          "Line": {
+            "Start": 138,
+            "Stop": 152
+          },
+          "Token": {
+            "Start": 148,
+            "Stop": 152
+          },
+          "Raw": "%%[[A]]%% ^a-2",
+          "Name": "^a-2",
+          "Folded": "^a-2",
+          "Owner": -1,
+          "Nodes": null,
+          "Code": false,
+          "Comment": false
+        },
+        {
+          "Line": {
+            "Start": 209,
+            "Stop": 234
+          },
+          "Token": {
+            "Start": 232,
+            "Stop": 234
+          },
+          "Raw": "[[A#^a]]\\\\[[A]]> > --> ^A",
+          "Name": "^A",
+          "Folded": "^a",
+          "Owner": -1,
+          "Nodes": null,
+          "Code": false,
+          "Comment": false
+        }
+      ],
+      "Names": [
+        "^a",
+        "^a-2",
+        "^é"
+      ]
+    },
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Target": "A",
+    "OriginalAddresses": {
+      "^a": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^a-2": {
+        "Page": false,
+        "Judge": true,
+        "Found": true,
+        "Cut": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n## [[A|alias]]\n> -    \u0060\u0060\u0060\n[^unused]: [[A]]\n ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]"
+      },
+      "^agreement-absent-0": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^é": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      }
+    },
+    "PrivateAddresses": {
+      "^a": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^a-2": {
+        "Page": false,
+        "Judge": true,
+        "Found": true,
+        "Cut": "- > [!note] title\n^absent-prose 0> [!note] [[A]]\n## [[A|alias]]\n> -    \u0060\u0060\u0060\n[^unused]: [[q]]\n ^a-2\n[[#A]]## A-2\n## A\n## A\n\u0060\u0060\u0060\u0060\u0060\u0060 go [[A]]"
+      },
+      "^agreement-absent-0": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^é": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      }
+    }
+  },
+  {
+    "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Changes": [
+      {
+        "Field": 0,
+        "Span": {
+          "Start": 8,
+          "Stop": 9
+        },
+        "Old": "A",
+        "New": "q"
+      },
+      {
+        "Field": 4,
+        "Span": {
+          "Start": 63,
+          "Stop": 64
+        },
+        "Old": "A",
+        "New": "q"
+      },
+      {
+        "Field": 5,
+        "Span": {
+          "Start": 77,
+          "Stop": 78
+        },
+        "Old": "A",
+        "New": "q"
+      },
+      {
+        "Field": 6,
+        "Span": {
+          "Start": 83,
+          "Stop": 84
+        },
+        "Old": "A",
+        "New": "q"
+      }
+    ],
+    "Names": [
+      "^a",
+      "^a-2",
+      "^agreement-absent-0",
+      "^é"
+    ],
+    "Original": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Fields": [
+        {
+          "Line": {
+            "Start": 69,
+            "Stop": 74
+          },
+          "Token": {
+            "Start": 70,
+            "Stop": 74
+          },
+          "Raw": " ^a-2",
+          "Name": "^a-2",
+          "Folded": "^a-2",
+          "Owner": -1,
+          "Nodes": null,
+          "Code": false,
+          "Comment": false
+        }
+      ],
+      "Names": [
+        "^a",
+        "^a-2",
+        "^é"
+      ]
+    },
+    "Private": "[^n]: [[q]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[q]]\nB\n ^a-2\n[[q]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Projected": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "q",
+          "A",
+          "q",
+          "q",
+          "q",
+          "A",
+          "A"
+        ]
+      },
+      "Fields": [
+        {
+          "Line": {
+            "Start": 69,
+            "Stop": 74
+          },
+          "Token": {
+            "Start": 70,
+            "Stop": 74
+          },
+          "Raw": " ^a-2",
+          "Name": "^a-2",
+          "Folded": "^a-2",
+          "Owner": -1,
+          "Nodes": null,
+          "Code": false,
+          "Comment": false
+        }
+      ],
+      "Names": [
+        "^a",
+        "^a-2",
+        "^é"
+      ]
+    },
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=4 cut=\"\" page=false judge=false excerpt=false",
+    "Target": "A",
+    "OriginalAddresses": {
+      "^a": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^a-2": {
+        "Page": false,
+        "Judge": true,
+        "Found": true,
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]"
+      },
+      "^agreement-absent-0": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^é": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      }
+    },
+    "PrivateAddresses": {
+      "^a": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^a-2": {
+        "Page": false,
+        "Judge": true,
+        "Found": true,
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[q]]\nB\n ^a-2\n[[q]] [[q]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]"
+      },
+      "^agreement-absent-0": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^é": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      }
+    }
+  },
+  {
+    "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Changes": [
+      {
+        "Field": 2,
+        "Span": {
+          "Start": 26,
+          "Stop": 27
+        },
+        "Old": "A",
+        "New": "q"
+      }
+    ],
+    "Names": [
+      "^a",
+      "^a-2",
+      "^agreement-absent-0",
+      "^é"
+    ],
+    "Original": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Fields": [
+        {
+          "Line": {
+            "Start": 69,
+            "Stop": 74
+          },
+          "Token": {
+            "Start": 70,
+            "Stop": 74
+          },
+          "Raw": " ^a-2",
+          "Name": "^a-2",
+          "Folded": "^a-2",
+          "Owner": -1,
+          "Nodes": null,
+          "Code": false,
+          "Comment": false
+        }
+      ],
+      "Names": [
+        "^a",
+        "^a-2",
+        "^é"
+      ]
+    },
+    "Private": "[^n]: [[A]]\n\n    [[B]]\n![[q#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Projected": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[q#A]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "q",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Fields": [
+        {
+          "Line": {
+            "Start": 69,
+            "Stop": 74
+          },
+          "Token": {
+            "Start": 70,
+            "Stop": 74
+          },
+          "Raw": " ^a-2",
+          "Name": "^a-2",
+          "Folded": "^a-2",
+          "Owner": -1,
+          "Nodes": null,
+          "Code": false,
+          "Comment": false
+        }
+      ],
+      "Names": [
+        "^a",
+        "^a-2",
+        "^é"
+      ]
+    },
+    "Section": "A",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:A Section:A State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Target": "A",
+    "OriginalAddresses": {
+      "^a": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^a-2": {
+        "Page": false,
+        "Judge": true,
+        "Found": true,
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]"
+      },
+      "^agreement-absent-0": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^é": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      }
+    },
+    "PrivateAddresses": {
+      "^a": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^a-2": {
+        "Page": false,
+        "Judge": true,
+        "Found": true,
+        "Cut": "    [[B]]\n![[q#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]"
+      },
+      "^agreement-absent-0": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^é": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      }
+    }
+  },
+  {
+    "Body": "[^n]: [[A]]\n\n    [[B]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Changes": [
+      {
+        "Field": 1,
+        "Span": {
+          "Start": 19,
+          "Stop": 20
+        },
+        "Old": "B",
+        "New": "q"
+      }
+    ],
+    "Names": [
+      "^a",
+      "^a-2",
+      "^agreement-absent-0",
+      "^é"
+    ],
+    "Original": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[B]]",
+            "Targets": [
+              "B"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Fields": [
+        {
+          "Line": {
+            "Start": 69,
+            "Stop": 74
+          },
+          "Token": {
+            "Start": 70,
+            "Stop": 74
+          },
+          "Raw": " ^a-2",
+          "Name": "^a-2",
+          "Folded": "^a-2",
+          "Owner": -1,
+          "Nodes": null,
+          "Code": false,
+          "Comment": false
+        }
+      ],
+      "Names": [
+        "^a",
+        "^a-2",
+        "^é"
+      ]
+    },
+    "Private": "[^n]: [[A]]\n\n    [[q]]\n![[A#A]]章節\n%%[[A]]%%-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]",
+    "Projected": {
+      "Native": {
+        "Definitions": null,
+        "Code": null,
+        "Comments": null
+      },
+      "Check": {
+        "Code": [
+          {
+            "Start": 17,
+            "Stop": 23
+          },
+          {
+            "Start": 111,
+            "Stop": 116
+          },
+          {
+            "Start": 136,
+            "Stop": 141
+          }
+        ],
+        "Comments": [
+          {
+            "Start": 38,
+            "Stop": 47
+          }
+        ],
+        "Fields": [
+          {
+            "Span": {
+              "Start": 6,
+              "Stop": 11
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 17,
+              "Stop": 22
+            },
+            "Word": "[[q]]",
+            "Targets": [
+              "q"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 24,
+              "Stop": 31
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 40,
+              "Stop": 45
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": true,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 61,
+              "Stop": 66
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 75,
+              "Stop": 80
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 81,
+              "Stop": 86
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 111,
+              "Stop": 116
+            },
+            "Word": "[[A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": true,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 146,
+              "Stop": 153
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 154,
+              "Stop": 161
+            },
+            "Word": "[[A#A]]",
+            "Targets": [
+              "A"
+            ],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 184,
+              "Stop": 190
+            },
+            "Word": "[[#A]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          },
+          {
+            "Span": {
+              "Start": 195,
+              "Stop": 202
+            },
+            "Word": "[[A\nB]]",
+            "Targets": [],
+            "Code": false,
+            "Comment": false,
+            "Escaped": false,
+            "DefinitionOwner": -1,
+            "CodeOwner": -1
+          }
+        ],
+        "Targets": [
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A",
+          "A"
+        ]
+      },
+      "Fields": [
+        {
+          "Line": {
+            "Start": 69,
+            "Stop": 74
+          },
+          "Token": {
+            "Start": 70,
+            "Stop": 74
+          },
+          "Raw": " ^a-2",
+          "Name": "^a-2",
+          "Folded": "^a-2",
+          "Owner": -1,
+          "Nodes": null,
+          "Code": false,
+          "Comment": false
+        }
+      ],
+      "Names": [
+        "^a",
+        "^a-2",
+        "^é"
+      ]
+    },
+    "Section": "",
+    "Selected": "P0/diagnostic-html tuple={SourceRole: Target:B Section: State:wikilink-broken} fragment=\"\" direction=diagnostic-only multiplicity=1 cut=\"\" page=false judge=false excerpt=false",
+    "Target": "B",
+    "OriginalAddresses": {
+      "^a": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^a-2": {
+        "Page": false,
+        "Judge": true,
+        "Found": true,
+        "Cut": "    [[B]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]"
+      },
+      "^agreement-absent-0": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^é": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      }
+    },
+    "PrivateAddresses": {
+      "^a": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^a-2": {
+        "Page": false,
+        "Judge": true,
+        "Found": true,
+        "Cut": "    [[q]]\n![[A#A]]章節\n-->-->\u0060\u0060\u0060\u0060 go [[A]]\nB\n ^a-2\n[[A]] [[A]]https://example.invalid/\u0060[[A]]\u0060 ## <em>A</em>\n\u0060\u0060\u0060\n## A\n \u0060\u0060\u0060\n[[A#A]]![[A#A]]章節\n> [!note] title\n[[#A]]\n# A\n[[A\nB]]"
+      },
+      "^agreement-absent-0": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      },
+      "^é": {
+        "Page": false,
+        "Judge": false,
+        "Found": false,
+        "Cut": ""
+      }
+    }
+  }
+]`
+	var records []agreementCommentCutP0AddressWitness
+	if json.Unmarshal([]byte(frozen), &records) != nil {
+		return nil
+	}
+	return records
+})
+
+func TestAgreementCommentCutP0OwnedCutReceipts(t *testing.T) {
+	t.Parallel()
+	records := agreementCommentCutP0AddressWitnesses()
+	if len(records) != len(agreementCommentCutP0Declarations()) || len(records) != 4 {
+		t.Fatal("caught: complete comment-removed cut P0 address declaration set")
+	}
+	for ri := range records {
+		r := &records[ri]
+		t.Run(r.Target+"/"+r.Body, func(t *testing.T) {
+			t.Parallel()
+			raw, page := agreementIsolatedPage(t, agreementCase{Body: r.Body})
+			pr, pp := agreementIsolatedPage(t, agreementCase{Body: r.Private})
+			a := agreementNativeAddressPartReading(r.Body)
+			b := agreementNativeAddressPartReading(r.Private)
+			if !cmp.Equal(a, r.Original) || !cmp.Equal(b, r.Projected) {
+				t.Fatal("caught: whole original and private diagnostic address declarations")
+			}
+			names := slices.Clone(a.Names)
+			names = append(names, b.Names...)
+			names = append(names, page.Blocks...)
+			names = append(names, pp.Blocks...)
+			absent := "^agreement-absent-0"
+			for strings.Contains(r.Body, absent) || strings.Contains(r.Private, absent) || slices.Contains(names, absent) {
+				absent += "x"
+			}
+			names = append(names, absent)
+			slices.Sort(names)
+			names = slices.Compact(names)
+			if !slices.Equal(names, r.Names) {
+				t.Fatal("caught: whole diagnostic address namespace including absent control")
+			}
+			if !cmp.Equal(agreementNativeAddressPublic(t, r.Body, &page, names), r.OriginalAddresses) || !cmp.Equal(agreementNativeAddressPublic(t, r.Private, &pp, names), r.PrivateAddresses) {
+				t.Fatal("caught: whole original and private diagnostic address public receipts")
+			}
+			before := agreementPageFailures(r.Body, &raw, &page)
+			before = append(before, agreementFragmentFailures(t, []agreementCase{{Body: r.Body}}, []agreementHTML{page})[0]...)
+			after := agreementPageFailures(r.Private, &pr, &pp)
+			after = append(after, agreementFragmentFailures(t, []agreementCase{{Body: r.Private}}, []agreementHTML{pp})[0]...)
+			var v *agreementCommentCutP0Declaration
+			for i := range agreementCommentCutP0Declarations() {
+				d := &agreementCommentCutP0Declarations()[i]
+				if d.Body == r.Body && d.Target == r.Target && d.Section == r.Section && d.Selected == r.Selected {
+					v = d
+				}
+			}
+			ok := v != nil
+			if !ok || v.Private != r.Private || !agreementCommentCutP0CutProjection(r.Body, r.Private, v.Changes, before, after) {
+				t.Fatal("caught: complete source-bound diagnostic excerpt cut projection")
+			}
+			for i := range after {
+				if after[i].Property != "P3" {
+					continue
+				}
+				missing := slices.Delete(slices.Clone(after), i, i+1)
+				if agreementCommentCutP0CutProjection(r.Body, r.Private, v.Changes, before, missing) {
+					t.Fatal("caught: every projected address cut receipt retained")
+				}
+				changed := slices.Clone(after)
+				changed[i].Cut += "!"
+				if agreementCommentCutP0CutProjection(r.Body, r.Private, v.Changes, before, changed) {
+					t.Fatal("caught: projected address cut follows exact owned source intervals")
+				}
+				changed = slices.Clone(after)
+				changed[i].PagePresent = !changed[i].PagePresent
+				if agreementCommentCutP0CutProjection(r.Body, r.Private, v.Changes, before, changed) {
+					t.Fatal("caught: address faces cannot change with diagnostic target bytes")
+				}
+			}
+			for i := range before {
+				if before[i].Property != "P3" {
+					continue
+				}
+				missing := slices.Delete(slices.Clone(before), i, i+1)
+				if agreementCommentCutP0CutProjection(r.Body, r.Private, v.Changes, missing, after) {
+					t.Fatal("caught: every original address cut receipt retained")
+				}
+			}
+			for i := range v.Changes {
+				duplicate := slices.Clone(v.Changes)
+				duplicate = append(duplicate, duplicate[i])
+				if agreementCommentCutP0CutProjection(r.Body, r.Private, duplicate, before, after) {
+					t.Fatal("caught: every target source interval named exactly once")
+				}
+				omitted := slices.Delete(slices.Clone(v.Changes), i, i+1)
+				if agreementCommentCutP0CutProjection(r.Body, r.Private, omitted, before, after) {
+					t.Fatal("caught: whole private body follows the complete owned interval set")
+				}
+			}
+		})
+	}
+}
