@@ -1154,6 +1154,10 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 					classification, authority, wrong = agreementMappedCodeP2Difference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
 				}
 
+				if classification == "" && (failure.Property == "P1" || failure.Property == "P2") {
+					classification, authority, wrong = agreementCoupledMappedCodeDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
 				if classification != "" {
 					t.Logf("known=%s authority=%s wrong=%s case=%s signature=%s", classification, authority, wrong, c.Name, agreementSignature(failure))
 					continue
