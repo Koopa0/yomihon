@@ -1093,6 +1093,22 @@ func agreementBatchCases(t *testing.T, cases []agreementCase) {
 				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
 					classification, authority, wrong = agreementConsumedTableCellDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
 				}
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					classification, authority, wrong = agreementDocumentTableDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+				if classification == "" && (failure.Property == "P0" || failure.Property == "P1") {
+					classification, authority, wrong = agreementTreeInfoDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+				if classification == "" && failure.Property == "P0" {
+					classification, authority, wrong = agreementRawProseP0Difference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+				if classification == "" && failure.Property == "P0" {
+					classification, authority, wrong = agreementCrossingInfoDifference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
+
+				if classification == "" && failure.Property == "P2" {
+					classification, authority, wrong = agreementCoupledCodeP2Difference(c, failure, rendered[i], &observed[i], diagnostics[i], failures[i])
+				}
 
 				if classification != "" {
 					t.Logf("known=%s authority=%s wrong=%s case=%s signature=%s", classification, authority, wrong, c.Name, agreementSignature(failure))
