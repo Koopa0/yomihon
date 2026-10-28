@@ -131,7 +131,7 @@ func TestAContractWithoutANavigationTableIsReportedToo(t *testing.T) {
 	if text == string(data) {
 		t.Fatalf("fixture drift: the contract no longer carries %q", table)
 	}
-	if err := os.WriteFile(contractPath, []byte(text), 0o600); err != nil {
+	if err := os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- contractPath is the fixed contract location under this test's own t.TempDir
 		t.Fatalf("WriteFile(contract) error = %v", err)
 	}
 
