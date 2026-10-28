@@ -7,10 +7,8 @@
 # step here. Nothing in the product needs any of them: they are the gate's
 # tools, not the reader's.
 GOLANGCI_LINT_VERSION := 2.14.0
-GOSEC_VERSION := v2.29.0
-# The export-data reader fix for Go 1.27.2 is still untagged; move this pin
-# to the next release tag containing it.
-STATICCHECK_VERSION := v0.7.0-0.dev.0.20261009221906-f1838cc308e5
+GOSEC_VERSION := v2.30.0
+STATICCHECK_VERSION := v0.8.2
 ACTIONLINT_VERSION := v1.7.12
 SHELLCHECK_VERSION := 0.11.0
 GOVULNCHECK_VERSION := v1.8.0
