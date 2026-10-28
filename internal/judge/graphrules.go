@@ -134,16 +134,8 @@ func linkHealth(
 			if idx.Names(link.target) {
 				continue
 			}
-			// The page shows an embedded picture or document in place, so
-			// one it cannot find is a missing file, not a missing note. A
-			// name can still be an unread file's alias, so a run that could
-			// not read one says nothing about it, as it says nothing about a
-			// broken link; and a name under ground the contract withholds is
-			// not judged, because its absence would describe that ground.
 			if link.embed && render.NamesAFile(link.target) {
-				if !partial && authority.egressAllowed(vault.NormalizeNFC(link.target)) {
-					out = append(out, missingImage(n, link.line, link.target))
-				}
+				out = appendMissingEmbed(out, n, link, authority, partial)
 				continue
 			}
 			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
@@ -212,6 +204,20 @@ func brokenLink(n *note, link *wikiLink, planned Planned) Finding {
 		Target:          new(link.target),
 		Fingerprint:     fingerprint("link.broken", n.path, link.target),
 	}
+}
+
+// appendMissingEmbed adds the image rule's finding for an unresolved embed
+// naming a file. The page shows an embedded picture or document in place, so
+// one it cannot find is a missing file, not a missing note. The name can still
+// be an unread file's alias, so a run that could not read one says nothing
+// about it, as it says nothing about a broken link; and a name under ground the
+// contract withholds is not judged, because its absence would describe that
+// ground.
+func appendMissingEmbed(out []Finding, n *note, link *wikiLink, authority scanAuthority, partial bool) []Finding {
+	if partial || !authority.egressAllowed(vault.NormalizeNFC(link.target)) {
+		return out
+	}
+	return append(out, missingImage(n, link.line, link.target))
 }
 
 // aliasCollisions maps each alias more than one note declares in frontmatter to

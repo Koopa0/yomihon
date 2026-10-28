@@ -37,8 +37,8 @@ func TestMissingImageFindings(t *testing.T) {
 
 			Severity string `json:"severity"`
 		}
-		if err := json.Unmarshal([]byte(line), &wire); err != nil {
-			t.Fatalf("decode golden: %v", err)
+		if decodeErr := json.Unmarshal([]byte(line), &wire); decodeErr != nil {
+			t.Fatalf("decode golden: %v", decodeErr)
 		}
 		if wire.Severity != "warn" {
 			t.Fatalf("golden severity %q, want every record at warn", wire.Severity)
@@ -63,7 +63,8 @@ func TestMissingImageFindings(t *testing.T) {
 	if !bytes.Equal(wantBytes, gotBytes) {
 		t.Errorf("RunCheck JSONL:\nwant %s\ngot  %s", wantBytes, gotBytes)
 	}
-	if _, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"link.broken.image"}}); err != nil || exit != 1 {
+	_, exit, err = RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"link.broken.image"}})
+	if err != nil || exit != 1 {
 		t.Errorf("RunCheck --deny link.broken.image: exit=%d error=%v, want exit 1", exit, err)
 	}
 }

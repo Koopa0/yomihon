@@ -58,9 +58,10 @@ func TestMissingImagePageParity(t *testing.T) {
 	page := generation.Render("Notes/Images.md", string(before), wording.En)
 	var markdown, wiki []string
 	for _, d := range page.Diagnostics {
-		if d.Kind == render.DiagImageMissing {
+		switch d.Kind {
+		case render.DiagImageMissing:
 			markdown = append(markdown, d.Target)
-		} else if d.Kind == render.DiagWikilinkBroken {
+		case render.DiagWikilinkBroken:
 			if d.Target == "missing-wiki.png" || d.Target == "missing.pdf" {
 				wiki = append(wiki, d.Target)
 			}

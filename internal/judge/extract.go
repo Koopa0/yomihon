@@ -174,9 +174,7 @@ func extractReferencesFrom(body string, bodyStartLine int, comments []byteRange)
 	walkNodes(doc, func(n ast.Node) {
 		switch node := n.(type) {
 		case *ast.Image:
-			if off, ok := inlineOffset(node); ok && !graph.In(comments, off) {
-				images = append(images, imageRef{destination: string(node.Destination), line: bodyStartLine + strings.Count(body[:off], "\n")})
-			}
+			images = appendImage(images, node, body, bodyStartLine, comments)
 		case *ast.Link:
 			if target, ok := fileLink(string(node.Destination)); ok {
 				if off, ok := inlineOffset(node); ok && !graph.In(comments, off) {
@@ -192,6 +190,23 @@ func extractReferencesFrom(body string, bodyStartLine int, comments []byteRange)
 		}
 	})
 	return refs, images
+}
+
+// appendImage adds one image occurrence outside the comment zones. It is placed
+// at its own opening "!", which the parser records, so an image with no alt
+// text is not put on the line of the text beside it.
+func appendImage(images []imageRef, node *ast.Image, body string, bodyStartLine int, comments []byteRange) []imageRef {
+	off := node.Pos()
+	if off < 0 {
+		var ok bool
+		if off, ok = inlineOffset(node); !ok {
+			return images
+		}
+	}
+	if graph.In(comments, off) {
+		return images
+	}
+	return append(images, imageRef{destination: string(node.Destination), line: bodyStartLine + strings.Count(body[:off], "\n")})
 }
 
 // extractPlannedNames returns the concept names listed as planned under a gap
