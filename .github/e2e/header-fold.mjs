@@ -27,12 +27,13 @@ const PAGE = process.env.PAGE_PATH || '/';
 const MUTATE = process.env.MUTATE || '';
 
 // The width the stylesheet folds at, and the widths the row is asked about.
-// FOLD is the first width that holds the whole row; one pixel under it the
-// six are behind the button. Naming both sides is what makes a breakpoint
-// that has moved in either direction show up here.
-const FOLD = 938;
-const WIDE = [1280, FOLD];
-const NARROW = [FOLD - 1, 720, 521, 390, 375];
+// FOLD is the first width at which the rail carries the reading-place control,
+// so the header row unfolds from here; one pixel under it the six are behind
+// the button. Naming both sides is what makes a breakpoint that has moved in
+// either direction show up here.
+const FOLD = 1281;
+const WIDE = [1440, FOLD];
+const NARROW = [FOLD - 1, 1024, 938, 937, 720, 521, 390, 375];
 
 // Each folded control, named by the hook that survives a restyling: the class
 // the stylesheet already dresses, or the attribute the runtime already finds.
@@ -50,9 +51,10 @@ const FOLD_BUTTON = '[popovertarget="_y-header-fold"]';
 const PANEL = '.y-headerfold';
 
 // What the panel holds that the row never does. The six above move between the
-// two; this one has only the panel, because at the fold width the row has no
-// pixels left and a seventh item there is paid for by the wordmark. The rule
-// that keeps it in is its own, and the wide row's display: contents would
+// two; this one has only the panel, because from the fold width the rail
+// carries the reading-place control and a second copy in the row would be
+// two controls with one name. The rule that keeps it in is its own, and the
+// wide row's display: contents would
 // otherwise make a row item of it like everything else inside the panel — so
 // this is the seam that needs watching, not a seventh copy of the questions
 // above. The page this probe is driven against has to be a note that offers to
@@ -60,6 +62,7 @@ const PANEL = '.y-headerfold';
 const PANEL_ONLY = ['.y-headermark'];
 
 const SITES = [
+  'reading-place-reachable',
   'row-unfolded-above',
   'row-folded-below',
   'row-fits',
@@ -124,6 +127,14 @@ const changeOne = async (page, selector, change) => {
 };
 
 const MUTATIONS = {
+  'restore-old-fold-breakpoint': {
+    target: 'reading-place-reachable',
+    phase: 'place-widths',
+    apply: async (page) => {
+      if (await page.locator(FOLD_BUTTON).count() !== 1 || await page.locator(PANEL).count() !== 1) notApplied('the old fold breakpoint has no single button and panel to change');
+      await page.addStyleTag({ content: `@media (min-width: 938px) and (max-width: 1280px) { ${FOLD_BUTTON} { display: none; } ${PANEL} { display: contents; } }` });
+    },
+  },
   // The fold reaches up past every width a desk window is, so the wide row is
   // folded too.
   'fold-above-the-measured-width': {
@@ -131,8 +142,19 @@ const MUTATIONS = {
     apply: async (page) => {
       if (await page.locator(FOLD_BUTTON).count() !== 1) notApplied('there is no fold button for the moved breakpoint to show');
       await page.addStyleTag({
-        content: `@media (max-width: 1400px) { ${FOLD_BUTTON} { display: inline-flex; } ${PANEL}, ${PANEL}:popover-open { display: none; } }`,
+        content: `@media (max-width: 1600px) { ${FOLD_BUTTON} { display: inline-flex; } ${PANEL}, ${PANEL}:popover-open { display: none; } }`,
       });
+    },
+  },
+  // The rail keeps drawing its own reading-place control while the folded
+  // panel offers the same action, so a reader at the first rail width is shown
+  // two controls for one verb.
+  'draw-the-rail-copy-under-an-open-panel': {
+    target: 'reading-place-reachable',
+    phase: 'place-widths',
+    apply: async (page) => {
+      if (await page.locator('.y-rail-right .y-markset').count() === 0) notApplied('there is no rail copy of the reading-place control for the injected rule to draw');
+      await page.addStyleTag({ content: '@media (min-width: 1280px) { .y-rail-right .y-markset { display: block !important; } }' });
     },
   },
   // One control stays out on the row below the fold width, which is the shape
@@ -349,6 +371,19 @@ try {
         broken(`${PAGE} carries no single ${selector}; this probe has to be driven against a note that offers to keep a reading place`);
       }
     }
+    // The folded panel covers the laptop band before the header unfolds.
+    // Opening it must not leave a second copy drawn in the reading rail.
+    if (MUTATE && MUTATIONS[MUTATE].phase === 'place-widths') await MUTATIONS[MUTATE].apply(page);
+    for (const width of [937, 938, 1024, 1280, 1281, 1440]) {
+      await page.setViewportSize({ width, height: 800 });
+      if (await page.locator(FOLD_BUTTON).isVisible()) await page.locator(FOLD_BUTTON).click();
+      const reachable = await page.locator('[data-mark-button]').evaluateAll(buttons => buttons.filter(button => {
+        const box = button.getBoundingClientRect();
+        return button.checkVisibility() && box.width > 0 && box.height > 0 && !button.disabled;
+      }).length);
+      if (reachable !== 1) fail('reading-place-reachable', `caught: ${language} at ${width}px offers ${reachable} reading-place controls, want exactly one`);
+      if (await isOpen(page)) await page.keyboard.press('Escape');
+    }
     if (MUTATE && !MUTATIONS[MUTATE].phase) await MUTATIONS[MUTATE].apply(page);
 
     for (const width of [...WIDE, ...NARROW]) {
@@ -395,21 +430,13 @@ try {
       if (row.headerLeft < -0.5 || row.headerRight > row.windowWidth + 0.5 || row.headerOverflow > 0.5) {
         fail('row-fits', `${where}: the row runs past the window — ${JSON.stringify({ left: row.headerLeft, right: row.headerRight, windowWidth: row.windowWidth, overflow: row.headerOverflow })}`);
       }
-      // Not asked at the fold width itself. That width is where the row runs
-      // out of room, so the margin there is under a pixel by construction, and
-      // the fonts the chrome is set in do not measure identically on every
-      // machine this is ever run on — an assertion with sub-pixel margin would
-      // be answering the font's question, not the layout's. Which side of the
-      // fold that width falls on is asked instead, just above, and no font
-      // metric can move a media query. Everywhere else there is a hundred
-      // pixels of room and the question is real.
-      if (width !== FOLD && row.wordmarkLost > 0) {
+      if (row.wordmarkLost > 0) {
         fail('wordmark-whole', `${where}: the wordmark is ${row.wordmarkLost}px short of its own text, so the name of the book is paying for the row`);
       }
     }
 
     // The names the controls answer to while they are out on the row.
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.setViewportSize({ width: 1440, height: 800 });
     const onTheRow = await readNames(page, FOLDED);
     for (const [selector, seen] of Object.entries(onTheRow)) {
       if (seen.count !== 1 || !seen.name) {
@@ -522,7 +549,7 @@ try {
     // reader has to guess their way out of.
     await page.locator(FOLD_BUTTON).click();
     if (!(await isOpen(page))) broken('the panel did not open for the widening question');
-    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.setViewportSize({ width: 1440, height: 800 });
     await page.waitForTimeout(80);
     const widened = await page.evaluate((selector) => {
       const button = document.querySelector(selector);
