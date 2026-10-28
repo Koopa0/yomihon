@@ -151,6 +151,7 @@ func stampHeadings(htmlOut, reserved string, all *[]TOCEntry) (string, []TOCEntr
 		seen[reserved] = true
 	}
 	transcluded := embedSpans(htmlOut)
+	closed := closedCalloutSpans(htmlOut)
 	var out strings.Builder
 	rest := 0
 	for _, m := range headingTag.FindAllStringSubmatchIndex(htmlOut, -1) {
@@ -201,7 +202,7 @@ func stampHeadings(htmlOut, reserved string, all *[]TOCEntry) (string, []TOCEntr
 			*all = append(*all, TOCEntry{Level: level, Text: text, ID: id})
 		}
 		if !withinAny(transcluded, m[0], m[1]) {
-			toc = append(toc, TOCEntry{Level: level, Text: text, ID: id})
+			toc = append(toc, TOCEntry{Level: level, Text: text, ID: id, Folded: withinAny(closed, m[0], m[1])})
 		}
 		fmt.Fprintf(&out, `<h%d id="%s" data-level="%d">%s</h%d>`, rendered, id, level, inner, rendered)
 	}
@@ -255,20 +256,48 @@ func embedSpans(htmlOut string) [][2]int {
 // balances it. A tail with no balancing close — nothing this renderer writes —
 // ends the span at the end of the document rather than walking off it.
 func divEnd(htmlOut string, from int) int {
+	return elementEnd(htmlOut, from, "<div", "</div>")
+}
+
+// elementEnd walks from just inside one open element to just past the close
+// that balances it, counting only the opener and closer it is given.
+func elementEnd(htmlOut string, from int, opener, closer string) int {
 	depth := 1
 	for depth > 0 {
-		nextOpen := strings.Index(htmlOut[from:], "<div")
-		nextClose := strings.Index(htmlOut[from:], "</div>")
+		nextOpen := strings.Index(htmlOut[from:], opener)
+		nextClose := strings.Index(htmlOut[from:], closer)
 		if nextClose < 0 {
 			return len(htmlOut)
 		}
 		if nextOpen >= 0 && nextOpen < nextClose {
 			depth++
-			from += nextOpen + len("<div")
+			from += nextOpen + len(opener)
 			continue
 		}
 		depth--
-		from += nextClose + len("</div>")
+		from += nextClose + len(closer)
 	}
 	return from
+}
+
+// calloutDetailsOpener begins every foldable callout this renderer writes; the
+// bucket class and the optional open attribute follow it.
+const calloutDetailsOpener = `<details class="callout callout-`
+
+// closedCalloutSpans reports the byte ranges of callouts that start closed,
+// each running from its opening tag to the </details> that balances it. A
+// foldable callout with the open attribute is visible, so it is not listed,
+// but a closed one inside it still is. The renderer is the only source of a
+// details element here, since authored markup arrives escaped, so counting the
+// tags is sound.
+func closedCalloutSpans(htmlOut string) [][2]int {
+	var spans [][2]int
+	for at := nextMark(htmlOut, calloutDetailsOpener, 0); at >= 0; at = nextMark(htmlOut, calloutDetailsOpener, at+len(calloutDetailsOpener)) {
+		tagEnd := strings.IndexByte(htmlOut[at:], '>')
+		if tagEnd < 0 || !strings.HasSuffix(htmlOut[at:at+tagEnd], `"`) {
+			continue
+		}
+		spans = append(spans, [2]int{at, elementEnd(htmlOut, at+tagEnd+1, "<details", "</details>")})
+	}
+	return spans
 }

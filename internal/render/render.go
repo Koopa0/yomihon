@@ -166,6 +166,10 @@ type TOCEntry struct {
 	Level int
 	Text  string
 	ID    string
+	// Folded is set on a heading inside a callout that is closed until the
+	// reader opens it. A link can still land on it, but the contents list does
+	// not name it, since a closed callout is where an author hides an answer.
+	Folded bool
 }
 
 // Result is everything one HTML render produces.
@@ -189,6 +193,13 @@ type Result struct {
 	// a freshness answer can say whether a reload would deliver different words
 	// — a note or an address written since the page opened included.
 	TranscludedIdentity string
+}
+
+// Outline is the contents list the reading page shows: TOC without the
+// headings that sit inside a closed callout. TOC itself keeps them, because a
+// link to such a heading is still a link to a place that exists.
+func (r Result) Outline() []TOCEntry {
+	return slices.DeleteFunc(slices.Clone(r.TOC), func(e TOCEntry) bool { return e.Folded })
 }
 
 // embedPolicy caps embed transclusion at exactly one level deep: an embedded
