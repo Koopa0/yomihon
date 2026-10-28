@@ -155,9 +155,23 @@ func collectClassSources(t *testing.T) classSources {
 		}
 	}
 
+	// A name written after a dot inside a literal is a selector, such as the
+	// querySelector call of an inline script, so it is looked up there rather
+	// than put on an element.
+	emitLiteral := func(count *int, lit string) {
+		for _, at := range classSpans(lit) {
+			name := lit[at[0]:at[1]]
+			if at[0] > 0 && lit[at[0]-1] == '.' {
+				cs.addressed[name] = true
+			} else {
+				emit(count, []string{name})
+			}
+		}
+	}
+
 	for _, path := range filesUnder(t, "../internal", func(p string) bool { return strings.HasSuffix(p, ".templ") }) {
 		for _, lit := range quotedLiteral.FindAllString(readFile(t, path), -1) {
-			emit(&fromTemplates, classNames(lit))
+			emitLiteral(&fromTemplates, lit)
 		}
 	}
 	isGo := func(p string) bool { return strings.HasSuffix(p, ".go") }
@@ -172,7 +186,7 @@ func collectClassSources(t *testing.T) classSources {
 				}
 			default:
 				for _, lit := range goStringLiterals(readFile(t, path)) {
-					emit(&fromGo, classNames(lit))
+					emitLiteral(&fromGo, lit)
 				}
 			}
 		}
@@ -244,6 +258,6 @@ func TestEveryClassIsStyledOrAddressedAndEveryRuleIsUsed(t *testing.T) {
 		t.Errorf("%s is emitted, has no stylesheet rule, and nothing looks it up: remove it from the markup, or style it if it was meant to have a look", name)
 	}
 	for _, name := range deadRules {
-		t.Errorf("%s has a stylesheet rule and nothing emits it: delete the rule", name)
+		t.Errorf("%s has a stylesheet rule and nothing emits it: delete the rule, or, if the name is finished at run time, write its stem with the trailing separator as one literal (\"y-x--\" + kind)", name)
 	}
 }
