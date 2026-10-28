@@ -110,11 +110,17 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
 
-  const fold = page.locator('.y-prose details.callout:not([open])').first();
-  if ((await fold.count()) === 0) {
+  // Handles, not locators: a locator for the closed fold stops matching the
+  // moment the fold opens, so every later read through it would wait for an
+  // element that no longer qualifies.
+  const fold = await page.locator('.y-prose details.callout:not([open])').first().elementHandle({ timeout: 5000 }).catch(() => null);
+  if (fold === null) {
     broken(`${PAGE} carries no closed foldable callout, so no indicator can be judged`);
   }
-  const summary = fold.locator('> summary.callout-title');
+  const summary = await fold.$('summary.callout-title');
+  if (summary === null) {
+    broken(`${PAGE} has a foldable callout with no summary.callout-title to carry the indicator`);
+  }
   await summary.scrollIntoViewIfNeeded();
 
   const readChevron = () => summary.evaluate((element) => {
