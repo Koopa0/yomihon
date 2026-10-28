@@ -422,7 +422,7 @@ func TestFrontmatterSchemaNoticesQuoteTheCapturedParser(t *testing.T) {
 				t.Parallel()
 				root := writeNotes(t, map[string]string{"Writing/Bad.md": tc.body})
 				server := newServerWithContract(t, root, loadContract(t))
-				page := frontmatterNoticePage(t, server, chrome.lang, "Writing/Bad.md")
+				page := frontmatterNoticePage(t, server, chrome.lang)
 				_, notice, ok := strings.Cut(page, `id="_y-schema-notices"`)
 				if !ok {
 					t.Fatal("invalid YAML has no _y-schema-notices panel")
@@ -468,7 +468,7 @@ func TestFrontmatterSchemaNoticeDistinguishesMissingAndUnclosedBlocks(t *testing
 				t.Parallel()
 				root := writeNotes(t, map[string]string{"Writing/Bad.md": tc.body})
 				server := newServerWithContract(t, root, tc.contract(t))
-				page := frontmatterNoticePage(t, server, chrome.lang, "Writing/Bad.md")
+				page := frontmatterNoticePage(t, server, chrome.lang)
 				_, notice, hasNotice := strings.Cut(page, `id="_y-schema-notices"`)
 				if hasNotice != tc.hasNotice {
 					t.Fatalf("_y-schema-notices present=%v, want %v", hasNotice, tc.hasNotice)
@@ -492,9 +492,9 @@ func TestFrontmatterSchemaNoticeDistinguishesMissingAndUnclosedBlocks(t *testing
 	}
 }
 
-func frontmatterNoticePage(t *testing.T, server *httptest.Server, lang wording.Lang, rel string) string {
+func frontmatterNoticePage(t *testing.T, server *httptest.Server, lang wording.Lang) string {
 	t.Helper()
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/notes/"+rel, http.NoBody)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, server.URL+"/notes/Writing/Bad.md", http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}

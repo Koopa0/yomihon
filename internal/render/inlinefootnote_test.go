@@ -127,7 +127,7 @@ func TestInlineFootnotesPreserveSearchBlockProvenance(t *testing.T) {
 	if diff := cmp.Diff("Ordinary lead needle.\nWith citation.\n^[code]\n註腳詞", plain); diff != "" {
 		t.Errorf("PlainBlocks() text mismatch (-want +got):\n%s", diff)
 	}
-	want := []render.Block{{End: 21, Verbatim: true, Literal: true}, {End: 36}, {End: 44, Literal: true}, {End: 54, Literal: true}}
+	want := []render.Block{{End: 21, Verbatim: true}, {End: 36}, {End: 44}, {End: 54}}
 	if diff := cmp.Diff(want, blocks); diff != "" {
 		t.Errorf("PlainBlocks() blocks mismatch (-want +got):\n%s", diff)
 	}

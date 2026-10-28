@@ -1290,11 +1290,9 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 		}
 	})
 
-	// A block address and a heading name are both written by hand on one side
-	// and read back on the other, so they fold the same way: case and Unicode
-	// form, and nothing else. An address is an identifier the author chose, so
-	// the punctuation inside it is part of the name rather than a separator.
-	t.Run("the block address folds case and unicode form", func(t *testing.T) {
+	// Supported block addresses fold ASCII case and retain hyphens as part
+	// of the name. Unicode text does not declare a block address.
+	t.Run("the block address folds ASCII case and keeps hyphens", func(t *testing.T) {
 		t.Parallel()
 		const (
 			composed   = "\u304C"       // が
@@ -1307,7 +1305,7 @@ func TestEmbedBlockFragmentScopesTheTransclusion(t *testing.T) {
 			want     bool
 		}{
 			{name: "case differs", marker: "^Quote1", fragment: "^quote1", want: true},
-			{name: "unicode form differs", marker: "^" + decomposed, fragment: "^" + composed, want: true},
+			{name: "unicode form differs", marker: "^" + decomposed, fragment: "^" + composed, want: false},
 			{name: "punctuation differs", marker: "^quote-1", fragment: "^quote1", want: false},
 		}
 		for _, tt := range tests {

@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -107,19 +108,6 @@ const settle = async (page, site, selector, wanted, what) => {
     fail(site, `${what}: the control never settled at aria-pressed=${wanted}`);
   }
 };
-
-// Wait for the page's existing arrival animation before measuring its controls.
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 const ready = async (page, selector) => {
   try {

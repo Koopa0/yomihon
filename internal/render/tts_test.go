@@ -351,11 +351,11 @@ func TestReadAloudTextDropsATrailingBlockAddress(t *testing.T) {
 			drop: []string{`data-tts="` + spokenPlain + " ^same"},
 		},
 		{
-			name: "punctuation the existing marker grammar already allows",
+			name: "unsupported punctuation stays visible and spoken",
 			body: "<!-- read-aloud: ja -->\n" + spoken + " ^rain-1-1。\n",
-			want: spokenPlain,
-			keep: []string{spoken, `<span id="^rain-1-1。">^rain-1-1。</span>`},
-			drop: []string{`data-tts="` + spokenPlain + " ^rain-1-1。"},
+			want: spokenPlain + " ^rain-1-1。",
+			keep: []string{spoken + " ^rain-1-1。"},
+			drop: []string{`id="^rain-1-1。"`, `<span`},
 		},
 		{
 			name: "a Chinese translation in the next paragraph is not spoken",

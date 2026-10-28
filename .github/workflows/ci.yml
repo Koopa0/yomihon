@@ -32,8 +32,8 @@ concurrency:
 env:
   GOLANGCI_LINT_VERSION: v2.14.0
   GOLANGCI_LINT_SHA256: ab90aeb7b066f92a33415b638a50fe5344bbb75a0d32ad30cc248d88f81032ab
-  GOSEC_VERSION: v2.29.0
-  STATICCHECK_VERSION: v0.8.1
+  GOSEC_VERSION: v2.30.0
+  STATICCHECK_VERSION: v0.8.2
   ACTIONLINT_VERSION: v1.7.12
   GOVULNCHECK_VERSION: v1.8.0
   DEADCODE_VERSION: v0.50.0
@@ -352,7 +352,9 @@ jobs:
       - name: Run the behavior probes against the fixture vault
         run: make browser-check
 
-  # Proves the probes above can fail. Each one names its own self-test modes;
+  # Proves the mutable probes above can fail. Behavior-only probes prove their
+  # canary inside the plain job and are skipped during mutation discovery.
+  # Each mutable probe names its own self-test modes;
   # every mode injects the regression that probe exists to catch, and the run is
   # required to exit 1 and print the marker naming the mode it caught. Exit 0
   # means the injected regression walked past the probe. Exit 2 means the

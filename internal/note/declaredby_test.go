@@ -15,12 +15,13 @@ import (
 func TestDeclaredByKeepsNotesAndSourceLocationsSeparate(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNote(t, root, "Sources/Book.md", "---\ntitle: Book\n---\n# Book\n\n## First & second\n\nThe quotation. ^Q&\"\n\n## Later\n")
+	writeNote(t, root, "Sources/Book.md", "---\ntitle: Book\n---\n# Book\n\n## First & second\n\nThe quotation. ^Q&\"\n\nA supported quotation. ^Q-1\n\n## Later\n")
 	writeNote(t, root, "Thoughts/Apple.md", `---
 based_on:
   - '[[Book#First & second]]'
   - '[[Book#Later]]'
   - '[[Book#^Q&"]]'
+  - '[[Book#^Q-1]]'
   - '[[Book]]'
   - '[[Book#Book]]'
   - '[[Book#Missing]]'
@@ -47,7 +48,8 @@ My thought.
 						Locations: []pages.DeclaredPlaceView{
 							{Label: "#First & second", Href: "#" + prefix + "first-second"},
 							{Label: "#Later", Href: "#" + prefix + "later"},
-							{Label: "#^Q&\"", Href: "#" + prefix + "%5Eq&%22"},
+							{Label: "#^Q&\""},
+							{Label: "#^Q-1", Href: "#" + prefix + "%5Eq-1"},
 							{Label: wording.WholeSource.In(lang), Href: "#" + prefix + "book"},
 							{Label: "#Book", Href: "#" + prefix + "book"},
 							{Label: "#Missing"},

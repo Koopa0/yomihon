@@ -281,7 +281,7 @@ that:
 | `![[Note#Heading]]` | an excerpt | nothing is shown; the block names the address that failed and links the note |
 | `> [!warning] Title` | a tinted callout | a type outside the list below → a neutral note-style callout with its authored title, or its type name when untitled. The note page names it under the page's own diagnostics; `check` has no rule for it |
 | `> [!tip]-` / `> [!tip]+` | a native `<details>`, closed / open | — |
-| `text. ^my-id` | a block address a link can reach | works on a heading, an ordinary paragraph, a callout's body line and an unknown callout's opening line; refused on a recognised callout's opening line and on a table row; the caret stays in the id |
+| `text. ^my-id` | a block address a link can reach | works on a heading, an ordinary paragraph, a callout's body line and an unknown callout's opening line; refused on a recognised callout's opening line and on a table row; the caret stays in the rendered id; the id after the caret uses `[A-Za-z0-9-]`, as in Obsidian; anything else stays text, and a link to it reports `link.block_missing` |
 | `==text==` | a highlight | exactly two `=` on each side. A single `=` is literal; surplus `=` also stay literal, outside the mark on the left and inside it on the right, so `===x===` gives `=<mark>x=</mark>` |
 | `%%hidden%%` | nothing | unclosed runs to the end of the body, with a diagnostic naming the body line it opened on |
 | `<!-- a remark -->` | hidden, like `%%…%%` | both spellings hide a remark from the reading page, search text and link extraction. Delimiters shown inside code remain literal. A `read-aloud` marker keeps its handling in the row below |

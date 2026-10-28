@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -734,6 +735,60 @@ func TestTheProvenanceRuleFollowsTheContractsOwnConceptType(t *testing.T) {
 	}
 }
 
+// TestDocumentScalarTypeKeepsItsStatusGroup preserves the scalar type used
+// to route document rules, even when graph metadata does not accept its shape.
+func TestDocumentScalarTypeKeepsItsStatusGroup(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
+		[2]string{`type = ["inbox",`, `type = ["1", "true", "inbox",`},
+		[2]string{`system = ["system", "template", "guide"]`, `system = ["1", "true", "system", "template", "guide"]`},
+	))
+	contract := loadTestAuthority(t, root).contract
+	for _, tc := range []struct {
+		name, kind, status string
+		rejected           bool
+	}{
+		{name: "numeric system member", kind: "1", status: "active"},
+		{name: "numeric note member", kind: "1", status: "draft", rejected: true},
+		{name: "boolean system member", kind: "true", status: "active"},
+		{name: "boolean note member", kind: "true", status: "draft", rejected: true},
+		{name: "quoted numeric system member", kind: "'1'", status: "active"},
+		{name: "quoted numeric note member", kind: "'1'", status: "draft", rejected: true},
+		{name: "quoted boolean system member", kind: "'true'", status: "active"},
+		{name: "quoted boolean note member", kind: "'true'", status: "draft", rejected: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			body := "---\ntype: " + tc.kind + "\nstatus: " + tc.status + "\n---\nBody.\n"
+			got, err := LintFrontmatter("Writing/Scalar.md", []byte(body), contract)
+			if err != nil {
+				t.Fatalf("LintFrontmatter() error = %v", err)
+			}
+			t.Logf("hit: document-scalar type=%s status=%s judge=returned", tc.kind, tc.status)
+			var want []Finding
+			if tc.rejected {
+				want = []Finding{{
+					RuleID:          "schema.enum",
+					Severity:        SeverityError,
+					Path:            "Writing/Scalar.md",
+					Field:           new("status"),
+					Target:          new("draft"),
+					Message:         `status "draft" is not a valid system status`,
+					Evidence:        "frontmatter validated against vault-schema.toml",
+					SuggestedAction: "fix the frontmatter to match the schema",
+					SourceRule:      "vault-schema.toml",
+				}}
+			}
+			// Frozen output tests own fingerprint bytes; this predicate owns the
+			// full diagnostic and the absence of full knowledge-note findings.
+			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(Finding{}, "Fingerprint")); diff != "" {
+				t.Errorf("caught: document-scalar type=%s status=%s (-want +got):\n%s", tc.kind, tc.status, diff)
+			}
+		})
+	}
+}
+
 // TestADocumentsStatusIsJudgedAgainstItsOwnGroup holds the light rule that
 // templates, guides and system notes answer to. Which statuses that group
 // allows is the contract's declaration, and the rule reads the group the note
@@ -797,9 +852,9 @@ func TestADocumentsStatusIsJudgedAgainstItsOwnGroup(t *testing.T) {
 // TestEnumFieldsPartition holds the reflection walk to the next field of
 // schema.Enums. Every visible field is either a dedicated rule (Type, Status)
 // identified by the Go name, or an exported []string the walk validates. A
-// vocabulary that is not []string is no longer silently skipped; an unexported
-// field is not visible here, so TypeAssert cannot panic on one; the type
-// exclusion is the identifier, not a struct tag that can be renamed away.
+// vocabulary that is not []string or is unexported must not silently lose its
+// membership check. The type exclusion is the identifier, not a struct tag
+// that can be renamed away.
 func TestEnumFieldsPartition(t *testing.T) {
 	t.Parallel()
 
@@ -809,7 +864,7 @@ func TestEnumFieldsPartition(t *testing.T) {
 			continue
 		}
 		if !field.IsExported() {
-			t.Errorf("Enums.%s is visible but not exported; enumFields TypeAssert would panic", field.Name)
+			t.Errorf("Enums.%s is visible but not exported; enumFields would skip it silently", field.Name)
 			continue
 		}
 		if field.Type.Kind() != reflect.Slice || field.Type.Elem().Kind() != reflect.String {

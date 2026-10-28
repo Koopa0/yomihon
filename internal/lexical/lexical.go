@@ -155,6 +155,9 @@ type Document struct {
 	// draws as deleted; PlainText remains the searchable authority.
 	DisplaySpans []render.DisplaySpan
 
+	// Insertions cut runs where the page adds text absent from PlainText.
+	Insertions []int
+
 	// File marks an entry that is not a note: a vault file shown as characters.
 	// It carries no frontmatter, so it answers no metadata projection, and it
 	// sorts after every note in a result list.
@@ -205,19 +208,21 @@ type entry struct {
 	// Topics are the note's declared subjects, held as written. TopicFolds
 	// is what matching reads; Topics is what the result row shows, so a
 	// declared Colour Theory is not rewritten as colour theory.
-	Topics           []string
-	TopicFolds       []string
-	Tags             []string
-	TagFolds         []string
-	PlainText        string
-	PlainFold        string
-	blocks           []render.Block
-	fenceRanges      [][2]int
-	fenceFoldRanges  [][2]int
-	displaySpans     []render.DisplaySpan
-	isFile           bool
-	outsideKnowledge bool
-	metadataCapable  bool
+	Topics            []string
+	TopicFolds        []string
+	Tags              []string
+	TagFolds          []string
+	PlainText         string
+	PlainFold         string
+	blocks            []render.Block
+	fenceRanges       [][2]int
+	fenceFoldRanges   [][2]int
+	displaySpans      []render.DisplaySpan
+	insertions        []int
+	insertionBarriers [][2]int
+	isFile            bool
+	outsideKnowledge  bool
+	metadataCapable   bool
 	// frontmatterUnreadable records that this note had a frontmatter block that
 	// could not be parsed, so a tally can separate it from a note that declared
 	// nothing.
@@ -312,6 +317,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	// builds PlainFold, so a query can classify a hit without walking
 	// the note once per fence occurrence.
 	blocks, fenceRanges := remapPlainOffsets(d.PlainText, d.Blocks, d.FenceRanges)
+	insertions, barriers := remapInsertions(d.PlainText, d.Insertions)
 	plainFold, fenceFoldRanges := foldPlain(plain, fenceRanges)
 	noteType := vault.NormalizeNFC(d.NoteType)
 	domain := vault.NormalizeNFC(d.Domain)
@@ -336,32 +342,34 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		aliasFolds[i] = fold(aliases[i])
 	}
 	return entry{
-		RelPath:          d.RelPath,
-		PathFold:         fold(vault.NormalizeNFC(d.RelPath)),
-		Title:            title,
-		TitleFold:        fold(title),
-		Aliases:          aliases,
-		AliasFolds:       aliasFolds,
-		NoteType:         noteType,
-		NoteTypeFold:     fold(noteType),
-		Domain:           domain,
-		DomainFold:       fold(domain),
-		Status:           status,
-		StatusFold:       fold(status),
-		Slug:             slug,
-		SlugFold:         fold(slug),
-		Topics:           topics,
-		TopicFolds:       topicFolds,
-		Tags:             tags,
-		TagFolds:         tagFolds,
-		PlainText:        plain,
-		PlainFold:        plainFold,
-		blocks:           blocks,
-		fenceRanges:      fenceRanges,
-		fenceFoldRanges:  fenceFoldRanges,
-		displaySpans:     remapDisplaySpans(d.PlainText, d.DisplaySpans),
-		isFile:           d.File,
-		outsideKnowledge: d.OutsideKnowledge,
+		RelPath:           d.RelPath,
+		PathFold:          fold(vault.NormalizeNFC(d.RelPath)),
+		Title:             title,
+		TitleFold:         fold(title),
+		Aliases:           aliases,
+		AliasFolds:        aliasFolds,
+		NoteType:          noteType,
+		NoteTypeFold:      fold(noteType),
+		Domain:            domain,
+		DomainFold:        fold(domain),
+		Status:            status,
+		StatusFold:        fold(status),
+		Slug:              slug,
+		SlugFold:          fold(slug),
+		Topics:            topics,
+		TopicFolds:        topicFolds,
+		Tags:              tags,
+		TagFolds:          tagFolds,
+		PlainText:         plain,
+		PlainFold:         plainFold,
+		blocks:            blocks,
+		insertions:        insertions,
+		insertionBarriers: barriers,
+		fenceRanges:       fenceRanges,
+		fenceFoldRanges:   fenceFoldRanges,
+		displaySpans:      remapDisplaySpans(d.PlainText, d.DisplaySpans),
+		isFile:            d.File,
+		outsideKnowledge:  d.OutsideKnowledge,
 		// An unclaimed policy excludes nothing, so every readable note answers over
 		// its own raw frontmatter. A file has no frontmatter, so it answers no
 		// metadata projection under any policy.
@@ -403,7 +411,7 @@ func remapPlainOffsets(raw string, blocks []render.Block, fences [][2]int) (mapp
 			end = len(raw)
 		}
 		cur.advanceTo(end)
-		mapped = appendUniqueBlock(mapped, render.Block{End: cur.n, Verbatim: b.Verbatim, Heading: b.Heading, Literal: b.Literal})
+		mapped = appendUniqueBlock(mapped, render.Block{End: cur.n, Verbatim: b.Verbatim, Heading: b.Heading})
 		if len(b.ContextRanges) > 0 && cur.n > 0 {
 			contexts = append(contexts, contextMapping{block: len(mapped) - 1, first: first, count: len(b.ContextRanges)})
 		}
@@ -522,7 +530,6 @@ func appendUniqueBlock(out []render.Block, block render.Block) []render.Block {
 	if n := len(out); n > 0 && out[n-1].End == block.End {
 		out[n-1].Verbatim = out[n-1].Verbatim && block.Verbatim
 		out[n-1].Heading = false
-		out[n-1].Literal = out[n-1].Literal && block.Literal
 		return out
 	}
 	return append(out, block)
@@ -640,6 +647,7 @@ func DocumentFromNote(n *vault.Note) Document {
 		Blocks:       projection.Blocks,
 		FenceRanges:  projection.FenceRanges,
 		DisplaySpans: projection.DisplaySpans,
+		Insertions:   projection.Insertions,
 		// A diagnostic here means the block was present and did not parse. A
 		// note that simply carries no frontmatter has none, and is not this.
 		FrontmatterUnreadable: n.FMDiagnostic != "",
@@ -750,4 +758,33 @@ func (idx *Index) EachStatusHolder() (iter.Seq[StatusHolder], error) {
 			}
 		}
 	}, nil
+}
+
+// remapInsertions preserves exact NFC edges. A composed or reordered interior
+// has no provable display position, so the surrounding segment is a barrier.
+func remapInsertions(raw string, offsets []int) (mapped []int, barriers [][2]int) {
+	if len(offsets) == 0 {
+		return nil, nil
+	}
+	positions := nfcDisplayPositions(raw)
+	for _, at := range offsets {
+		if at < 0 || at > len(raw) {
+			continue
+		}
+		if positions[at] >= 0 {
+			mapped = append(mapped, positions[at])
+			continue
+		}
+		low, high := at, at
+		for positions[low] < 0 {
+			low--
+		}
+		for positions[high] < 0 {
+			high++
+		}
+		barriers = append(barriers, [2]int{positions[low], positions[high]})
+		mapped = append(mapped, positions[low], positions[high])
+	}
+	slices.Sort(mapped)
+	return slices.Compact(mapped), barriers
 }

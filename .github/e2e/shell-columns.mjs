@@ -2,6 +2,7 @@
 // An empty reading-aids rail must not become another window-height grid row.
 // The Go catalog covers every template using this shell; this lock measures
 // the health page's real CSS layout after its arrival animation has finished.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -24,17 +25,6 @@ if (MUTATE && MUTATE !== MODE) {
   process.exit(2);
 }
 
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
