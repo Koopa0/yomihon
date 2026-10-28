@@ -1,22 +1,31 @@
 // Arrival must find the current lesson without moving the reading surface.
-// The control loads the same document with only the target declaration removed,
-// so fragment positioning is compared with the browser's own landing.
+// Without scripting the stylesheet's initial target does it; with scripting the
+// rail module does it once. The control loads the same document with both
+// removed, so fragment positioning is compared with the browser's own landing.
 import { chromium } from 'playwright-core';
 import { arrived } from './support/arrival.mjs';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/long-rail/Rail%20lesson%2030.md';
 const MUTATE = process.env.MUTATE || '';
-const MODE = 'remove-initial-target';
-const NEEDLE = '  scroll-initial-target: nearest;\n';
 const RAIL = '.y-rail-left';
 const CURRENT = `${RAIL} .ui-navitem[aria-current="page"]`;
 
+// Each way the row is placed, and the line that removing it takes away.
+const PLACERS = {
+  stylesheet: { glob: '**/app.css{,?*}', needle: '    scroll-initial-target: nearest;\n' },
+  script: { glob: '**/rail.js{,?*}', needle: '  if (rail) revealCurrent(rail);\n' },
+};
+const MODES = {
+  'remove-initial-target': ['stylesheet'],
+  'skip-arrival-reveal': ['script'],
+};
+
 if (MUTATE === 'list') {
-  console.log(MODE);
+  console.log(Object.keys(MODES).join('\n'));
   process.exit(0);
 }
-if (MUTATE && MUTATE !== MODE) {
+if (MUTATE && !MODES[MUTATE]) {
   console.error(`rail-initial-target: unknown MUTATE mode ${MUTATE}`);
   process.exit(2);
 }
@@ -27,18 +36,23 @@ const fail = (message) => { throw new LockFired(`FAIL rail-initial-target: ${mes
 const broken = (message) => { throw new Error(`BROKEN rail-initial-target: ${message}`); };
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
+// A script is only fetched where scripting runs, so a placer is removed, and
+// its removal proved, only where the page would load it.
 const open = async (path, options, remove) => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 800 }, ...options });
   const page = await context.newPage();
-  let requests = 0;
-  let matches = 0;
-  if (remove) {
-    await page.route('**/app.css{,?*}', async (route) => {
-      requests += 1;
+  const routed = [];
+  for (const name of remove) {
+    if (name === 'script' && !options.javaScriptEnabled) continue;
+    const { glob, needle } = PLACERS[name];
+    const seen = { name, requests: 0, matches: 0 };
+    routed.push(seen);
+    await page.route(glob, async (route) => {
+      seen.requests += 1;
       const response = await route.fetch();
       const original = await response.text();
-      matches += original.split(NEEDLE).length - 1;
-      await route.fulfill({ response, body: original.replace(NEEDLE, '') });
+      seen.matches += original.split(needle).length - 1;
+      await route.fulfill({ response, body: original.replace(needle, '') });
     });
   }
   await page.goto(BASE + path, { waitUntil: 'load' });
@@ -47,8 +61,10 @@ const open = async (path, options, remove) => {
     page,
     context,
     proof() {
-      if (requests < 1 || matches !== requests) {
-        throw new NotApplied(`NOT-APPLIED rail-initial-target: declaration matched ${matches} times across ${requests} stylesheet requests`);
+      for (const { name, requests, matches } of routed) {
+        if (requests < 1 || matches !== requests) {
+          throw new NotApplied(`NOT-APPLIED rail-initial-target: the ${name} placer matched ${matches} times across ${requests} requests`);
+        }
       }
     },
   };
@@ -88,10 +104,11 @@ try {
   ]) {
     for (const fragment of ['', '#heading']) {
       const path = PAGE + fragment;
-      const control = await open(path, options, true);
+      const control = await open(path, options, Object.keys(PLACERS));
+      control.proof();
       const baseline = await geometry(control.page);
       await control.context.close();
-      const subject = await open(path, options, Boolean(MUTATE));
+      const subject = await open(path, options, MUTATE ? MODES[MUTATE] : []);
       if (MUTATE) subject.proof();
       const actual = await geometry(subject.page);
       if (baseline.rows !== 1 || actual.rows !== 1) broken('the fixture must draw exactly one current row');

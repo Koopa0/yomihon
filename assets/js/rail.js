@@ -8,11 +8,14 @@
 // drawer sets, and the drawer never touches what this sets. Crossing the line
 // therefore leaves nothing stale on either side, because neither side wrote to
 // the other's state.
+//
+// It also brings the reader's own row into the rail's view on arrival.
 export function initRail(preferences) {
   const root = document.documentElement;
   const media = window.matchMedia('(max-width: 900px)');
   const rail = document.querySelector('#_y-nav-rail');
   const button = document.querySelector('[data-rail-toggle]');
+  if (rail) revealCurrent(rail);
   if (!rail || !button) {
     return { available: () => false, isCollapsed: () => false, toggle() {}, expand() {}, collapse() {} };
   }
@@ -73,4 +76,24 @@ export function initRail(preferences) {
   button.addEventListener('click', toggle);
 
   return { available, isCollapsed, toggle, expand, collapse };
+}
+
+// A long tree opens at its top, so a page low in it would arrive with its own
+// row out of sight. The row is brought to the top of the rail's view, under the
+// sticky head, by moving the rail alone: the document keeps the place the
+// address landed it at. A row already in view leaves the rail where it is, so a
+// short tree never moves. The stylesheet can do this without scripting, but its
+// target stays declared after arrival and goes on steering the page: a fold
+// that reflows the text then loses the paragraph being read. With scripting,
+// this runs once instead.
+function revealCurrent(rail) {
+  const row = [...rail.querySelectorAll(".ui-navitem[aria-current='page']")]
+    .find((item) => item.getClientRects().length > 0);
+  if (!row) return;
+  const box = rail.getBoundingClientRect();
+  const top = box.top + rail.clientTop + (Number.parseFloat(getComputedStyle(rail).scrollPaddingTop) || 0);
+  const bottom = box.top + rail.clientTop + rail.clientHeight;
+  const place = row.getBoundingClientRect();
+  if (place.top >= top && place.bottom <= bottom) return;
+  rail.scrollTop += place.top - top;
 }
