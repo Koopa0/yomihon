@@ -4700,3 +4700,39 @@ func deskBlockMarkup(t *testing.T, page, mode string) string {
 	}
 	return block
 }
+
+// TestTheContentsListOmitsAClosedCalloutsHeadings pins what a reader sees on
+// the page: a heading inside a callout closed by default is not named in the
+// contents list, since naming it would give away the answer, yet the heading
+// keeps its id in the body so a link can still land on it.
+func TestTheContentsListOmitsAClosedCalloutsHeadings(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n" +
+		"\n## Before\n\ntext\n\n> [!question]-\n> ## Hidden Answer\n> the answer\n\n> [!tip]+\n> ## Open Answer\n> shown\n\n## After\n\ntext\n"
+	rel := "Writing/lessons/japanese/L01.md"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	for _, id := range []string{"before", "open-answer", "after"} {
+		if !strings.Contains(page, `href="#`+id+`"`) {
+			t.Errorf("the contents list does not name %q; page = %q", id, page)
+		}
+	}
+	if strings.Contains(page, `href="#hidden-answer"`) {
+		t.Error("the contents list names a heading inside a closed callout")
+	}
+	if !strings.Contains(page, `id="hidden-answer"`) {
+		t.Error("the closed callout's heading lost its id in the body")
+	}
+}
