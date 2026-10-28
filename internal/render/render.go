@@ -198,7 +198,7 @@ type Result struct {
 // Outline is the contents list the reading page shows: TOC without the
 // headings that sit inside a closed callout. TOC itself keeps them, because a
 // link to such a heading is still a link to a place that exists.
-func (r Result) Outline() []TOCEntry {
+func (r *Result) Outline() []TOCEntry {
 	return slices.DeleteFunc(slices.Clone(r.TOC), func(e TOCEntry) bool { return e.Folded })
 }
 
