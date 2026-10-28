@@ -25,20 +25,21 @@ func checkNavigation(roles schema.NavigationRoles) []Finding {
 }
 
 // navigationUnavailableFinding is the whole of what is said about a refused
-// [navigation] table. It carries no path, because the fault is in the contract
-// as a whole and a contract file's own path is dropped from every run that did
-// not ask for System, and the sentence is fixed: the decoder's account of why
-// the table was refused quotes keys out of the contract, which this face
-// does not hand to an agent.
+// [navigation] table. It names the contract file, which sits at the same place
+// in every vault, so the path carries nothing out of the vault. The sentence is
+// fixed: the decoder's account of why the table was refused quotes keys out of
+// the contract, which this face does not hand to an agent. The finding is added
+// past the scope filters, so the contract living under System does not drop it.
 func navigationUnavailableFinding() Finding {
 	return Finding{
 		RuleID:          navigationUnavailableRule,
 		Severity:        SeverityError,
+		Path:            schema.ContractRelPath,
 		Message:         "course and map rules did not run, because the contract's [navigation] table is missing or could not be used",
 		Evidence:        "without it no note type is known to be a course or a map, so those rules skipped every note; the reason is not quoted here, because it would repeat the contract's own text",
 		SuggestedAction: "correct the [navigation] table in the vault contract (yomihon serve logs the reason at startup), then judge the vault again",
 		SourceRule:      sourceContract,
-		Fingerprint:     fingerprint(navigationUnavailableRule, "", ""),
+		Fingerprint:     fingerprint(navigationUnavailableRule, schema.ContractRelPath, ""),
 	}
 }
 

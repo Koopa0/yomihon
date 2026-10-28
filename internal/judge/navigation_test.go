@@ -1,7 +1,12 @@
 package judge
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestARefusedNavigationTableFailsTheGateOfTheRulesItSilenced is the lock on
@@ -48,9 +53,10 @@ func TestARefusedNavigationTableFailsTheGateOfTheRulesItSilenced(t *testing.T) {
 }
 
 // TestTheNavigationFindingSurvivesEveryScope holds the finding past the
-// filters a scope applies: it names no path, so a filter by directory has
-// nothing to keep it by, and dropping it there would leave a scoped run
-// reading as a clean verdict over courses that were never read.
+// filters a scope applies: it names the contract, which lies outside the
+// knowledge layer and outside any directory a run is narrowed to, and dropping
+// it there would leave a scoped run reading as a clean verdict over courses
+// that were never read.
 func TestTheNavigationFindingSurvivesEveryScope(t *testing.T) {
 	t.Parallel()
 
@@ -74,6 +80,9 @@ func TestTheNavigationFindingSurvivesEveryScope(t *testing.T) {
 			for i := range findings {
 				if findings[i].RuleID == navigationUnavailableRule {
 					got++
+					if findings[i].Path != schema.ContractRelPath {
+						t.Errorf("finding path = %q, want the contract file %q", findings[i].Path, schema.ContractRelPath)
+					}
 				}
 			}
 			if got != 1 {
@@ -97,5 +106,46 @@ func TestNoNavigationFindingWhenTheTableIsUsable(t *testing.T) {
 		if findings[i].RuleID == navigationUnavailableRule {
 			t.Errorf("a usable [navigation] table drew %s", navigationUnavailableRule)
 		}
+	}
+}
+
+// TestAContractWithoutANavigationTableIsReportedToo pins the other way the
+// roles go missing. A contract that exists and leaves the table out declared
+// nothing about which types are courses, and the course rules skip every note
+// just as they do for a refused one; the finding's sentence says "missing"
+// for this case, so the case has to draw it.
+func TestAContractWithoutANavigationTableIsReportedToo(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	if err := os.CopyFS(root, os.DirFS("testdata/vault-course")); err != nil {
+		t.Fatalf("CopyFS() error = %v", err)
+	}
+	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
+	data, err := os.ReadFile(contractPath) // #nosec G304 -- a path under this test's own temp directory
+	if err != nil {
+		t.Fatalf("ReadFile(contract) error = %v", err)
+	}
+	const table = "[navigation]\npath_types = [\"course\"]\nmap_types = [\"topic-map\"]\n"
+	text := strings.Replace(string(data), table, "", 1)
+	if text == string(data) {
+		t.Fatalf("fixture drift: the contract no longer carries %q", table)
+	}
+	if err := os.WriteFile(contractPath, []byte(text), 0o600); err != nil {
+		t.Fatalf("WriteFile(contract) error = %v", err)
+	}
+
+	findings, err := runCheckAction(t.Context(), root, nil, true)
+	if err != nil {
+		t.Fatalf("runCheckAction() error = %v", err)
+	}
+	var got int
+	for i := range findings {
+		if findings[i].RuleID == navigationUnavailableRule {
+			got++
+		}
+	}
+	if got != 1 {
+		t.Errorf("a contract with no [navigation] table drew %d %s findings, want 1", got, navigationUnavailableRule)
 	}
 }
