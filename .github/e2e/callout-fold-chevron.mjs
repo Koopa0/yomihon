@@ -63,11 +63,13 @@ const MUTATIONS = {
     target: 'chevron-turns',
     apply: weakenStylesheet('.y-prose details.callout > .callout-title::after{transform:none !important}'),
   },
-  // The forced-colours rule dropped: the mask is painted from a background the
-  // mode replaces, so the adjustment is handed back to the browser.
+  // The forced-colours rule dropped: the fill is back to the screen rule's
+  // background and the adjustment is handed back to the browser, which
+  // replaces that background. Handing back the adjustment alone changes
+  // nothing, because a system colour the author names is kept either way.
   'no-forced-colors-rule': {
     target: 'chevron-forced-colors',
-    apply: weakenStylesheet('@media (forced-colors: active){.y-prose details.callout > .callout-title::after{forced-color-adjust:auto !important}}'),
+    apply: weakenStylesheet('@media (forced-colors: active){.y-prose details.callout > .callout-title::after{background-color:currentcolor !important;forced-color-adjust:auto !important}}'),
   },
   // The print rule dropped: the chevron stays on the sheet.
   'chevron-on-paper': {
