@@ -8,8 +8,9 @@ var (
 		"替換詞語，句子會重新組合；朗讀鍵會唸出來。",
 		"Swap a word and the sentence rebuilds; the speaker button reads it aloud.",
 	)
-	SlotMachineSpeak   = both("朗讀這組句子", "Read this sentence aloud")
-	SlotMachineShuffle = both("隨機更換組合", "Shuffle the words")
+	SlotMachineSpeak     = both("朗讀這組句子", "Read this sentence aloud")
+	SlotMachineShuffle   = both("隨機更換組合", "Shuffle the words")
+	PracticeCardLabelFmt = both("第 %d 張練習卡", "practice card %d")
 )
 
 // A file's own facts, for the page shown where yomihon has no reader for it.

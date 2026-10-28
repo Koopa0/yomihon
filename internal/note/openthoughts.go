@@ -170,16 +170,18 @@ func openMarkRow(kept *mark.Uncertainty, places *placeResolver, lang wording.Lan
 	if resolved.readable {
 		row.Text = cmp.Or(resolved.reading.Title, kept.RelPath)
 		row.Language = resolved.reading.Language
-		if kept.Anchor != "" {
-			row.Text += " #" + kept.Anchor
-		}
 		row.Href = pages.ResumeHref(kept.RelPath, "", 0)
 		if places.hasPlace(kept.RelPath, kept.Anchor) {
+			row.Place = places.label(kept.RelPath, kept.Anchor, lang)
 			row.Href = pages.ResumeHref(kept.RelPath, kept.Anchor, 0)
 			row.Mark = wording.UncertaintyControl.In(lang)
 			return openThoughtRow{row: row, at: kept.At}
 		}
 		row.Mark = wording.UncertaintyPlaceNotFound.In(lang)
+		if kept.Anchor != "" {
+			// The anchor is all that tells two lost marks in one note apart.
+			row.Place = pages.RowPlace{Text: "#" + kept.Anchor, Language: resolved.reading.Language}
+		}
 	} else {
 		row.Mark = wording.UncertaintyNoteNotFound.In(lang)
 	}

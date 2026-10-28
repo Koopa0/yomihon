@@ -1,6 +1,9 @@
 package note
 
 import (
+	"fmt"
+
+	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -25,7 +28,12 @@ type placeResolver struct {
 type resolvedPlaces struct {
 	reading  snapshot.Reading
 	readable bool
-	anchors  map[string]bool
+	anchors  map[string]resolvedPlace
+}
+
+type resolvedPlace struct {
+	label pages.RowPlace
+	card  int
 }
 
 func newPlaceResolver(snap *snapshot.Generation) *placeResolver {
@@ -51,19 +59,33 @@ func (p *placeResolver) hasPlace(rel, anchor string) bool {
 		return true
 	}
 	if n.anchors == nil {
-		n.anchors = make(map[string]bool)
+		n.anchors = make(map[string]resolvedPlace)
 		result := p.snap.Render(rel, n.reading.Body, wording.ZhHant)
 		if result.TitleAnchor != "" {
-			n.anchors[result.TitleAnchor] = true
+			n.anchors[result.TitleAnchor] = resolvedPlace{}
 		}
 		for _, heading := range result.TOC {
-			n.anchors[heading.ID] = true
+			n.anchors[heading.ID] = resolvedPlace{label: pages.RowPlace{Text: heading.Text, Language: n.reading.Language}}
 		}
 		if sidecar, found := p.snap.Slots().Lookup(n.reading.Slug); found {
-			for i := range sidecar.Patterns {
-				n.anchors[pages.SlotPatternID(i)] = true
+			for i, pattern := range sidecar.Patterns {
+				n.anchors[pages.SlotPatternID(i)] = resolvedPlace{
+					label: pages.RowPlace{Text: lesson.AbstractTemplate(pattern.Template), Language: "ja"}, card: i + 1,
+				}
 			}
 		}
 	}
-	return n.anchors[anchor]
+	_, found := n.anchors[anchor]
+	return found
+}
+
+func (p *placeResolver) label(rel, anchor string, lang wording.Lang) pages.RowPlace {
+	if !p.hasPlace(rel, anchor) {
+		return pages.RowPlace{}
+	}
+	place := p.note(rel).anchors[anchor]
+	if place.card > 0 && place.label.Text == "" {
+		return pages.RowPlace{Text: fmt.Sprintf(wording.PracticeCardLabelFmt.In(lang), place.card), Language: lang.Tag()}
+	}
+	return place.label
 }
