@@ -371,7 +371,7 @@ func (h *Handler) respondRecovery(
 	failure *recovery,
 ) {
 	if failure.logMessage != "" {
-		h.log.Error(failure.logMessage, "path", path, "from", from, "to", to, "error", failure.cause)
+		h.log.Error(failure.logMessage, "path", path, "from", from, "to", to, "error", failure.cause) // #nosec G706 -- the message is a constant and the text handler quotes every attribute value, so a requested path cannot forge a log record
 	}
 	notePath := recoveryNotePath(path)
 	if failure.noteGone {
