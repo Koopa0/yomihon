@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
@@ -432,9 +433,10 @@ func stripParens(s string) string {
 	return b.String()
 }
 
-// headingIsGap reports whether a heading's text carries any gap mark.
+// headingIsGap reports whether a heading's text carries any gap mark at the
+// start of a word.
 func headingIsGap(n *ast.Heading, src []byte, headingMarks []string) bool {
-	return containsAnySubstring(headingText(n, src), headingMarks)
+	return containsAnyWordStart(headingText(n, src), headingMarks)
 }
 
 // headingText is a heading's plain text — the text of its inline content with
@@ -612,4 +614,43 @@ func containsAnySubstring(s string, marks []string) bool {
 		}
 	}
 	return false
+}
+
+// containsAnyWordStart reports whether s carries any of the marks at the start
+// of a word: the rune before an occurrence must be the start of s, a space, or
+// punctuation. A mark buried after another ideograph is prose that happens to
+// share its characters — 缺口 inside "產品化缺口與事故" names a topic, not an
+// owed section. What follows the mark is deliberately not checked, because
+// authors coin gap headings by appending to the mark (缺口帳, 缺口清單), and a
+// right-hand boundary would reject exactly those. Every occurrence is tried,
+// since an embedded first one does not rule out a bounded later one. Both
+// sides are folded to NFC first, as in containsAnySubstring.
+func containsAnyWordStart(s string, marks []string) bool {
+	folded := vault.NormalizeNFC(s)
+	for _, m := range marks {
+		mark := vault.NormalizeNFC(m)
+		if mark == "" {
+			continue
+		}
+		for from := 0; ; {
+			i := strings.Index(folded[from:], mark)
+			if i < 0 {
+				break
+			}
+			start := from + i
+			before, _ := utf8.DecodeLastRuneInString(folded[:start])
+			if start == 0 || isWordStartEdge(before) {
+				return true
+			}
+			_, size := utf8.DecodeRuneInString(folded[start:])
+			from = start + size
+		}
+	}
+	return false
+}
+
+// isWordStartEdge reports whether r can stand directly before a mark that
+// begins a word.
+func isWordStartEdge(r rune) bool {
+	return unicode.IsSpace(r) || unicode.IsPunct(r)
 }

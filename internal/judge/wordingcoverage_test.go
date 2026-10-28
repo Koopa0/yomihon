@@ -31,12 +31,14 @@ func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 		// Reached from the scan rather than from any note's frontmatter, so no
 		// note page can be asked to say it.
 		"schema.unmatched_knowledge_dir": "it is about the folder rather than a note",
+		// Reached from the contract's navigation table, not from any note.
+		"schema.navigation_unavailable": "it is about the contract rather than a note",
 	}
 
 	var expected, checked []string
 	for _, ruleID := range ruleIDs {
 		id := string(ruleID)
-		if strings.HasPrefix(id, "schema.") && id != "schema.unmatched_knowledge_dir" {
+		if _, elsewhere := saidElsewhere[id]; strings.HasPrefix(id, "schema.") && !elsewhere {
 			expected = append(expected, id)
 		}
 	}

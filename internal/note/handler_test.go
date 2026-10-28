@@ -2616,9 +2616,12 @@ func homeLifecycleRow(t *testing.T, section, statusName string) string {
 	return section[openAt : markerAt+closeAt+len("</a>")]
 }
 
-// chipCounts reads every per-status figure the block states.
+// chipCounts reads every per-status figure the block states. The cells for
+// notes with no status follow the statuses in the same row and are read by
+// unstatedCounts, so reading stops where the first of them begins.
 func chipCounts(t *testing.T, block string) []int {
 	t.Helper()
+	block, _, _ = strings.Cut(block, " data-unstated")
 	var out []int
 	const marker = `class="y-homechip__count"`
 	for rest := block; ; {
@@ -4120,17 +4123,18 @@ func TestTheLifecycleBlockAccountsForEveryIndexedNote(t *testing.T) {
 }
 
 // unstatedCounts reads the counts from the cells that stand for notes with no
-// status. They carry their own markup rather than the status chip's, so this
-// cannot pick up a status by accident — which is also what stops the block
-// from dressing them as statuses.
+// status. They are marked data-unstated rather than told apart by their look,
+// so this cannot pick up a status by accident — which is also what stops the
+// block from dressing them as statuses.
 func unstatedCounts(t *testing.T, block string) []int {
 	t.Helper()
+	const marker = `class="y-homechip__count"`
 	var out []int
-	const marker = `class="y-homeunstated__count"`
-	for rest := block; ; {
+	cells := strings.Split(block, " data-unstated")
+	for _, rest := range cells[1:] {
 		at := strings.Index(rest, marker)
 		if at < 0 {
-			return out
+			t.Fatalf("an unstated cell carries no count: %q", rest[:min(len(rest), 120)])
 		}
 		rest = rest[at:]
 		open := strings.IndexByte(rest, '>')
@@ -4143,8 +4147,8 @@ func unstatedCounts(t *testing.T, block string) []int {
 			t.Fatalf("an unstated cell states no number: %v", err)
 		}
 		out = append(out, n)
-		rest = rest[shut:]
 	}
+	return out
 }
 
 // TestNoteMetarowCarriesADate holds the reading page's one date: the author's
@@ -4695,4 +4699,40 @@ func deskBlockMarkup(t *testing.T, page, mode string) string {
 		t.Fatalf("the %s block is never closed", mode)
 	}
 	return block
+}
+
+// TestTheContentsListOmitsAClosedCalloutsHeadings pins what a reader sees on
+// the page: a heading inside a callout closed by default is not named in the
+// contents list, since naming it would give away the answer, yet the heading
+// keeps its id in the body so a link can still land on it.
+func TestTheContentsListOmitsAClosedCalloutsHeadings(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n" +
+		"\n## Before\n\ntext\n\n> [!question]-\n> ## Hidden Answer\n> the answer\n\n> [!tip]+\n> ## Open Answer\n> shown\n\n## After\n\ntext\n"
+	rel := "Writing/lessons/japanese/L01.md"
+	dir := filepath.Join(root, "Writing", "lessons", "japanese")
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	srv := newServerWithContract(t, root, loadContract(t))
+
+	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	for _, id := range []string{"before", "open-answer", "after"} {
+		if !strings.Contains(page, `href="#`+id+`"`) {
+			t.Errorf("the contents list does not name %q; page = %q", id, page)
+		}
+	}
+	if strings.Contains(page, `href="#hidden-answer"`) {
+		t.Error("the contents list names a heading inside a closed callout")
+	}
+	if !strings.Contains(page, `id="hidden-answer"`) {
+		t.Error("the closed callout's heading lost its id in the body")
+	}
 }

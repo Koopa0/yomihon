@@ -205,6 +205,9 @@ try {
     broken(`scrolled to ${before.y}, want near ${TARGET_Y}; the page did not travel`);
   }
 
+  if (!(await page.locator('.y-langform .y-langbtn').isVisible())) {
+    await page.locator('.y-foldbtn').click();
+  }
   await page.locator('.y-langform .y-langbtn').click();
   const switched = await page.waitForFunction(
     (from) => document.documentElement.getAttribute('lang') !== from,
@@ -243,6 +246,9 @@ try {
   // at all, and reaching the readings below would already be impossible. Left
   // uncaught, that heavier shape kills the run before any assertion speaks,
   // which reads as a broken probe rather than as the page a reader cannot see.
+  if (!(await page.locator('.y-prefslink').isVisible())) {
+    await page.locator('.y-foldbtn').click();
+  }
   try {
     await Promise.all([
       page.waitForURL('**/preferences**'),
@@ -334,6 +340,9 @@ try {
 
   const prefsLinks = await prefsPage.locator('.y-prefslink').count();
   if (prefsLinks !== 1) broken(`the page carries ${prefsLinks} links to the reading choices, want exactly 1`);
+  if (!(await prefsPage.locator('.y-prefslink').isVisible())) {
+    await prefsPage.locator('.y-foldbtn').click();
+  }
   await Promise.all([
     prefsPage.waitForURL('**/preferences**'),
     prefsPage.locator('.y-prefslink').click(),

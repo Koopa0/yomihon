@@ -33,6 +33,9 @@ var checkGoldens = []struct {
 	// This fixture is the evidence that the type comes from the contract:
 	// nothing in it is named "study-path".
 	{name: "a vault that renames its courses", fixture: "testdata/vault-course", golden: "testdata/golden/course.jsonl"},
+	// The same vault under a contract whose [navigation] table is refused:
+	// the course finding above is replaced by the one saying it could not run.
+	{name: "a refused navigation table", fixture: "testdata/vault-navigation-unavailable", golden: "testdata/golden/navigation-unavailable.jsonl"},
 	{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
 	// The fragment half of a link: a section and a block address that
 	// place, one of each that does not, a same-file fragment the page

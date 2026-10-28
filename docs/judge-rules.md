@@ -42,6 +42,7 @@ rules and does not define new behavior.
 | `schema.frontmatter` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.language` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.legacy_tag` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
+| `schema.navigation_unavailable` | `vault-schema.toml` | [`internal/judge/navigation.go`](../internal/judge/navigation.go) |
 | `schema.provenance` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.reference_nested_sequence` | `vault-schema.toml#supersession` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.reference_nested_sequence` | `yomihon` | [`internal/judge/schema.go`](../internal/judge/schema.go) |

@@ -78,7 +78,7 @@ it is an error, and writing it is an unknown key.
 | `domain_equals_folder_under` | directory roots under which a note's `domain` must equal the folder it sits in |
 | `concept_requires_provenance` | the fields a note of the `concept` type — an idea distilled from somewhere else — must have at least one of, so it says where it came from. The finding's message is a frozen sentence naming two particular fields; the list actually demanded is whichever your contract wrote here |
 | `forbid_tag_with_slash` | when true, a tag containing `/` is a property written in the wrong place |
-| `planned_gap_marks` | the heading words that mark a section as owed rather than missing |
+| `planned_gap_marks` | the heading words that mark a section as owed rather than missing; a word must begin the heading or follow a space or punctuation mark, and what comes after it does not matter (`## 缺口帳` matches, `## 產品化缺口與事故` does not) |
 | `planned_inline_marks` | the same for a single line |
 
 The last two are worth knowing exist, because a contract that omits them is

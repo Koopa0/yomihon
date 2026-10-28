@@ -471,7 +471,7 @@ templ searchFacets(facets []SearchFacet, lang wording.Lang) {
 		</summary>
 		<nav class="y-facets__body" aria-label={ wording.FacetsTitle.In(lang) }>
 			for _, facet := range facets {
-				<section class="y-facetgroup" data-facet-key={ facet.Key }>
+				<section data-facet-key={ facet.Key }>
 					<h2 class="y-facetgroup__head">{ facet.Heading }</h2>
 					<ul class="y-facetlist" role="list">
 						for _, row := range facet.Rows {
