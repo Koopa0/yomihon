@@ -159,7 +159,7 @@ func FuzzParseNote(f *testing.F) {
 		}
 
 		n2 := parseNote(rel, data)
-		if diff := cmp.Diff(n, n2, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{})); diff != "" {
+		if diff := cmp.Diff(n, n2, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{}, imageRef{})); diff != "" {
 			t.Errorf("parseNote(%q) is not deterministic (-first +second):\n%s", data, diff)
 		}
 	})

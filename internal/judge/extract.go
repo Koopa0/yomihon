@@ -51,6 +51,14 @@ type pathRef struct {
 	code   bool
 }
 
+// imageRef is one Markdown image occurrence. destination is the address as the
+// parser read it, before the page's own admission decides whether it names a
+// file in the vault at all.
+type imageRef struct {
+	destination string
+	line        int
+}
+
 // mdParser is the shared markdown parser. It is plain CommonMark with no
 // extensions, matching the structure the vault's linker sees, so code spans,
 // code blocks, and headings are located identically.
@@ -156,12 +164,19 @@ func extractWikilinksFrom(body string, bodyStartLine int, facts *bodyStructure) 
 	return links
 }
 
-func extractPathRefsFrom(body string, bodyStartLine int, comments []byteRange) []pathRef {
+// extractReferencesFrom returns the body's path references and its Markdown
+// images from one parse, each outside the comment zones with its file line.
+func extractReferencesFrom(body string, bodyStartLine int, comments []byteRange) ([]pathRef, []imageRef) {
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
 	var refs []pathRef
+	var images []imageRef
 	walkNodes(doc, func(n ast.Node) {
 		switch node := n.(type) {
+		case *ast.Image:
+			if off, ok := inlineOffset(node); ok && !graph.In(comments, off) {
+				images = append(images, imageRef{destination: string(node.Destination), line: bodyStartLine + strings.Count(body[:off], "\n")})
+			}
 		case *ast.Link:
 			if target, ok := fileLink(string(node.Destination)); ok {
 				if off, ok := inlineOffset(node); ok && !graph.In(comments, off) {
@@ -176,7 +191,7 @@ func extractPathRefsFrom(body string, bodyStartLine int, comments []byteRange) [
 			}
 		}
 	})
-	return refs
+	return refs, images
 }
 
 // extractPlannedNames returns the concept names listed as planned under a gap

@@ -7,7 +7,9 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // The graph rules turn the resolved link graph into findings: a wikilink that
@@ -35,7 +37,7 @@ func runGraphRules(a *action, idx *graph.Index) []Finding {
 	aliases := aliasCollisions(notes, authority)
 	lessonType, _ := authority.lessonType()
 	return slices.Concat(
-		linkHealth(notes, idx, titles, planned, authority.roles()),
+		linkHealth(notes, idx, titles, planned, authority, a.partialCorpus()),
 		fragmentFindings(notes, a.unreadable, idx),
 		collisionAlias(aliases),
 		collisionName(idx, aliases, authority),
@@ -99,15 +101,18 @@ func plannedNamesSet(notes []note, authority scanAuthority) Planned {
 
 // linkHealth classifies every note's unresolved or suffix-ambiguous wikilinks. A study-path's links
 // are its course list, owned by the map rule, so they are not double-reported
-// here. A link whose target is some note's title is the title case; any other
-// unresolved link is broken.
+// here. An embed naming a file is the image rule's; a link whose target is some
+// note's title is the title case; any other unresolved link is broken. partial
+// says a file in the vault could not be read.
 func linkHealth(
 	notes []note,
 	idx *graph.Index,
 	titles map[string][]string,
 	planned Planned,
-	roles schema.NavigationRoles,
+	authority scanAuthority,
+	partial bool,
 ) []Finding {
+	roles := authority.roles()
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
@@ -127,6 +132,18 @@ func linkHealth(
 			// carries, so no collision reports it; the page links nothing and
 			// check reports the same broken link it always has.
 			if idx.Names(link.target) {
+				continue
+			}
+			// The page shows an embedded picture or document in place, so
+			// one it cannot find is a missing file, not a missing note. A
+			// name can still be an unread file's alias, so a run that could
+			// not read one says nothing about it, as it says nothing about a
+			// broken link; and a name under ground the contract withholds is
+			// not judged, because its absence would describe that ground.
+			if link.embed && render.NamesAFile(link.target) {
+				if !partial && authority.egressAllowed(vault.NormalizeNFC(link.target)) {
+					out = append(out, missingImage(n, link.line, link.target))
+				}
 				continue
 			}
 			if targetNotes, ok := titles[normalizeKey(link.target)]; ok {
