@@ -226,8 +226,11 @@ Three things about this that a reader gets wrong:
   and the like). `## 缺口帳` and `## 【待補】清單` open a gap section;
   `## 產品化缺口與事故` does not, because 缺口 follows an ideograph there and
   is prose, not a mark. Every occurrence is tried, so a buried first one does
-  not hide a bounded later one. A heading that merely contains the characters
-  is therefore no longer a gap, and the links beneath it keep their warning.
+  not hide a bounded later one. A heading where the characters only appear
+  inside a longer word is not a gap, and the links beneath it keep their
+  warning. A heading that starts with a mark word is a gap section even when it
+  names a topic, such as `## 缺口分析的方法`: the links under it silently drop
+  to `info`, which `--deny warn` does not catch.
   The one-line rule (`planned_inline_marks`) is still a plain substring match:
   a word that sits inside a longer word on an ordinary line still softens that
   line's links.
