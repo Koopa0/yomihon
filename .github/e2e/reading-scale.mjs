@@ -1,5 +1,7 @@
-// Code and tables follow the reader's type choice, including table readings.
+// Code, tables and footnotes follow the reader's type choice, including table
+// readings; code wraps at the two large sizes and scrolls at the smaller ones.
 // The measured elements come from authored Markdown through the real renderer.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -7,7 +9,10 @@ const ORIGIN = new URL(BASE).origin;
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-scale.md';
 const MUTATE = process.env.MUTATE || '';
 const SIZE_CHOICES = ['m', 'l', 'xl'];
-const SITES = ['code-scale', 'table-scale', 'table-reading', 'size-catalog'];
+const SITES = ['code-scale', 'table-scale', 'table-reading', 'footnote-scale', 'code-wrap', 'size-catalog'];
+const WRAPS = { m: 'pre', l: 'pre-wrap', xl: 'pre-wrap' };
+const LONG_LINE = '// A long comment whose words are separated by spaces, so that a wrapping reader sees it break at a space while a scrolling reader scrolls the box sideways to reach its end: one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty.';
+const FOOTNOTE_PX = [14, 16, 18];
 const MODES = {
   'add-unchecked-size': { site: 'size-catalog', catalog: 'add' },
   'drop-extra-large-size': { site: 'size-catalog', catalog: 'drop' },
@@ -17,6 +22,10 @@ const MODES = {
   'pin-cell': { site: 'table-scale', selector: '.y-prose td', from: 'inherit', to: 'var(--fs-15)' },
   'shrink-table-reading': { site: 'table-reading', selector: '.y-prose td rt', from: '0.7em', to: '0.55em' },
   'pin-table-reading': { site: 'table-scale', selector: '.y-prose td rt', from: '0.7em', to: '10.5px' },
+  'pin-footnote': { site: 'footnote-scale', selector: '.y-prose .footnotes', from: 'var(--fs-ed-14)', to: 'var(--fs-14)' },
+  'pin-large-footnote-step': { site: 'footnote-scale', selector: ":root[data-textsize='l']", property: '--fs-ed-14', from: '1rem', to: '0.875rem' },
+  'wrap-at-medium': { site: 'code-wrap', selector: '.y-prose pre', property: 'white-space', from: 'pre', to: 'pre-wrap' },
+  'no-wrap-at-large': { site: 'code-wrap', selector: ":root:is([data-textsize='l'], [data-textsize='xl']) .y-prose pre", property: 'white-space', from: 'pre-wrap', to: 'pre' },
   'pin-large-code-step': { site: 'code-scale', selector: ":root[data-textsize='l']", property: '--fs-ed-13', from: '0.9375rem', to: '0.8125rem' },
 };
 if (MUTATE === 'list') {
@@ -171,8 +180,8 @@ try {
               if (response.status() !== 200) throw new Error(`page HTTP ${response.status()}`);
               await page.evaluate(async () => {
                 await document.fonts.ready;
-                await Promise.all(document.getAnimations().filter((animation) => animation.animationName === 'y-come-forward').map((animation) => animation.finished));
               });
+              await arrived(page);
               applied();
               const row = await page.evaluate(() => {
                 const groups = {
@@ -180,7 +189,9 @@ try {
                   headers: [...document.querySelectorAll('.y-prose th')],
                   cells: [...document.querySelectorAll('.y-prose td')],
                   readings: [...document.querySelectorAll('.y-prose td rt')],
+                  footnotes: [...document.querySelectorAll('.y-prose .footnotes li')],
                 };
+                const wide = document.querySelectorAll('.y-prose pre')[1];
                 return {
                   size: document.documentElement.dataset.textsize,
                   lang: document.documentElement.lang,
@@ -191,14 +202,17 @@ try {
                     px: parseFloat(getComputedStyle(element).fontSize),
                     visible: getComputedStyle(element).visibility,
                   }))])),
+                  whiteSpace: getComputedStyle(wide).whiteSpace,
+                  wideScrolls: wide.scrollWidth > wide.clientWidth + 1,
                   prose: parseFloat(getComputedStyle(document.querySelector('.y-prose p')).fontSize),
                   room: document.documentElement.clientWidth,
                   pageWidth: document.documentElement.scrollWidth,
                 };
               });
               if (row.size !== size || row.lang !== lang || row.theme !== theme || row.ruby !== 'on') throw new Error(`wrong emitted preferences ${JSON.stringify(row)}`);
-              const texts = Object.fromEntries(Object.entries(row.groups).map(([key, elements]) => [key, elements.map((element) => element.text)]));
-              const authored = { code: ['value := <-results'], headers: ['Word', 'Meaning'], cells: ['辞書じしょ', 'dictionary'], readings: ['じしょ'] };
+              if (row.groups.footnotes.length !== 1 || !row.groups.footnotes[0].text.startsWith('The footnote follows the reading size.')) throw new Error(`footnote fixture differs: ${JSON.stringify(row.groups.footnotes)}`);
+              const texts = Object.fromEntries(Object.entries(row.groups).filter(([key]) => key !== 'footnotes').map(([key, elements]) => [key, elements.map((element) => element.text)]));
+              const authored = { code: ['value := <-results', LONG_LINE], headers: ['Word', 'Meaning'], cells: ['辞書じしょ', 'dictionary'], readings: ['じしょ'] };
               if (JSON.stringify(texts) !== JSON.stringify(authored)) throw new Error(`fixture members differ: ${JSON.stringify(texts)}`);
               if (assetStatuses.length !== 1 || assetStatuses[0] !== 200 || writes !== 0) throw new Error(`unqualified assets/writes ${JSON.stringify({ assetStatuses, writes })}`);
               if (row.pageWidth > row.room + 1) throw new Error(`article overflows: ${row.pageWidth}/${row.room}`);
@@ -218,6 +232,13 @@ try {
               if (!(sizes[0] < sizes[1] && sizes[1] < sizes[2])) fail('table-scale', `${where}: ${group}[${i}] ${JSON.stringify(sizes)} does not grow m<l<xl`);
             }
           }
+          const footnotes = rows.map((row) => row.groups.footnotes[0].px);
+          if (JSON.stringify(footnotes) !== JSON.stringify(FOOTNOTE_PX)) fail('footnote-scale', `${where}: footnotes ${JSON.stringify(footnotes)}, expected ${JSON.stringify(FOOTNOTE_PX)} (the medium ratio to body text, growing with the reading size)`);
+          rows.forEach((row, i) => {
+            const size = sizes[i];
+            if (row.whiteSpace !== WRAPS[size]) fail('code-wrap', `${where}: size ${size} code white-space ${row.whiteSpace}, expected ${WRAPS[size]}`);
+            else if (row.wideScrolls !== (size === 'm')) fail('code-wrap', `${where}: size ${size} long code line ${row.wideScrolls ? 'scrolls' : 'wraps'}`);
+          });
           const readings = rows.map((row) => row.groups.readings[0].px);
           if (readings.some((px) => px < 10)) fail('table-reading', `${where}: table readings ${JSON.stringify(readings)} fall below 10px`);
           if (JSON.stringify(rows.map((row) => row.prose)) !== '[17,19,21]') throw new Error(`prose control changed: ${where}`);
@@ -233,7 +254,7 @@ try {
   } else if (MUTATE) {
     throw new Error(`mutation escaped: ${MUTATE}`);
   } else {
-    console.log('PASS reading-scale: code, whole table and table readings grow m<l<xl, readings at least10px; both widths/languages/themes and no-JS; no writes');
+    console.log('PASS reading-scale: code, whole table, footnotes and table readings grow; code wraps at l/xl only m<l<xl, readings at least10px; both widths/languages/themes and no-JS; no writes');
   }
 } catch (error) {
   if (error instanceof LockFired) {

@@ -65,14 +65,31 @@ func TestRepresentativeBenchmarkEntryAndOptIn(t *testing.T) {
 	if !strings.Contains(inventory, "\nBenchmarkRepresentativeSnapshot\n") && !strings.HasPrefix(inventory, "BenchmarkRepresentativeSnapshot\n") {
 		t.Fatal("caught: representative benchmark entry missing from compiled inventory")
 	}
-	const selector = "-test.bench=^BenchmarkRepresentativeSnapshot$/^notes=100$"
-	disabled := run(selector, "-test.benchtime=1x", "-test.benchmem", "-test.v")
+	const selector = "-test.bench=^BenchmarkRepresentativeSnapshot$/^notes=100$/^(initial|rebuild)$"
+	disabled := run("-test.bench=^BenchmarkRepresentativeSnapshot$", "-test.benchtime=1x", "-test.benchmem", "-test.v")
 	if !strings.Contains(disabled, "representative snapshots require -snapshot-bench") {
 		t.Fatalf("caught: representative benchmark was not explicitly skipped: %s", disabled)
 	}
 	rows := regexp.MustCompile(`(?m)^(BenchmarkRepresentativeSnapshot/\S+)\s+1\s+[^\n]+$`)
+	if strings.Contains(disabled, "invoked: representative fixture setup") {
+		t.Fatal("caught: disabled representative benchmark constructed a fixture")
+	}
 	if rows.MatchString(disabled) {
 		t.Fatal("caught: disabled representative benchmark produced measured rows")
+	}
+	leaves := regexp.MustCompile(`(?m)^[\t ]*--- SKIP: (BenchmarkRepresentativeSnapshot/notes=\d+/\w+)$`)
+	var skipped []string
+	for _, match := range leaves.FindAllStringSubmatch(disabled, -1) {
+		skipped = append(skipped, match[1])
+	}
+	var wantSkipped []string
+	for _, size := range []string{"100", "1000", "5000"} {
+		for _, name := range []string{"initial", "rebuild", "idle", "overlap", "visible"} {
+			wantSkipped = append(wantSkipped, "BenchmarkRepresentativeSnapshot/notes="+size+"/"+name)
+		}
+	}
+	if diff := cmp.Diff(wantSkipped, skipped); diff != "" {
+		t.Fatalf("caught: disabled benchmark leaf inventory (-want +got):\n%s", diff)
 	}
 	enabled := run(selector, "-test.benchtime=1x", "-test.benchmem", "-snapshot-bench")
 	var got []string

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -53,28 +54,18 @@ func TestProductionSearchLandings(t *testing.T) {
 	}
 }
 
-// TestGatedHeadingHitsKeepTheDirectiveMainEmits pins the heading hits that
-// get no section context, each to the directive the index gave them before
-// section context existed, byte for byte. A block whose source holds, among
-// others, an entity reference, a backslash escape, a link or a bare address
-// is shown by the page in other characters, so its words would name a
-// run the page does not have, and the directive would find nothing. The
-// same holds for a heading written that way. And a run the contents list's
-// copy could answer as well — an opening that also starts the body, a closing
-// that also ends the previous entry's name, or one ahead of the first entry,
-// which follows the list's own label — tells the two copies apart no
-// better than the heading alone. Each want was read off the index before
-// section context, by the same requests against the same notes.
-func TestGatedHeadingHitsKeepTheDirectiveMainEmits(t *testing.T) {
+// TestHeadingHitsRespectDecodedReadingContext preserves ambiguity controls
+// while decoded prose and clipped link labels supply useful section context.
+func TestHeadingHitsRespectDecodedReadingContext(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct{ name, body, query, fragment string }{
-		{"an entity reference opens the section", "## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", "#:~:text=inkwell"},
-		{"a backslash escape opens the section", "## Where the inkwell waits\n\nThe snake\\_case name.\n", "inkwell", "#:~:text=inkwell"},
-		{"a link opens the section", "## Where the inkwell waits\n\n[Go docs](https://go.dev) explains it.\n", "inkwell", "#:~:text=inkwell"},
-		{"a bare address opens the section", "## Where the inkwell waits\n\nhttps://go.dev explains it.\n", "inkwell", "#:~:text=inkwell"},
-		{"the heading holds an entity reference", "## X &amp; place\n\nThe shelf keeps it dry.\n", "place", "#:~:text=place"},
-		{"an entity reference closes the block before", "## First\n\nTom &amp; Jerry run.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=inkwell"},
+		{"an entity reference opens the section", "## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", "#:~:text=inkwell%20waits,-Tom%20%26%20Jerry"},
+		{"a backslash escape opens the section", "## Where the inkwell waits\n\nThe snake\\_case name.\n", "inkwell", "#:~:text=inkwell%20waits,-The%20snake_case%20name."},
+		{"a link opens the section", "## Where the inkwell waits\n\n[Go docs](https://go.dev) explains it.\n", "inkwell", "#:~:text=inkwell%20waits,-Go%20docs"},
+		{"a bare address opens the section", "## Where the inkwell waits\n\nhttps://go.dev explains it.\n", "inkwell", "#:~:text=inkwell%20waits,-https%3A%2F%2Fgo.dev"},
+		{"the heading holds an entity reference", "## X &amp; place\n\nThe shelf keeps it dry.\n", "place", "#:~:text=place,-The%20shelf%20keeps"},
+		{"an entity reference closes the block before", "## First\n\nTom &amp; Jerry run.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=%26%20Jerry%20run.-,Where%20the%20inkwell%20waits"},
 		{"the opening also starts the body", "Shared opening words.\n\n## Zebra place\n\nShared opening words again.\n", "zebra", "#:~:text=Zebra"},
 		{"the heading is the first entry", "Intro words here.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=inkwell"},
 		{"the closing also ends the previous entry", "## Alpha\n\nIntro Alpha\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "#:~:text=inkwell"},
@@ -94,12 +85,227 @@ func TestGatedHeadingHitsKeepTheDirectiveMainEmits(t *testing.T) {
 
 var resultLink = regexp.MustCompile(`<a class="y-result" href="([^"]+)">`)
 
-func TestDroppedTitleKeepsMainLanding(t *testing.T) {
+// TestSearchDirectivesNameAdjacentReadingText follows production result links
+// into the article, including the localized words external links insert.
+func TestSearchDirectivesNameAdjacentReadingText(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, body, query string
+		context           bool
+	}{
+		{"entity", "## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", true},
+		{"escape", "## Where the inkwell waits\n\nThe snake\\_case name.\n", "inkwell", true},
+		{"external", "## Where the inkwell waits\n\n[Go docs](https://go.dev) explains it.\n", "inkwell", true},
+		{"explicit-autolink", "## Where the inkwell waits\n\n<https://go.dev> explains it.\n", "inkwell", true},
+		{"bare-https", "## Where the inkwell waits\n\nhttps://go.dev explains it.\n", "inkwell", true},
+		{"bare-www", "## Where the inkwell waits\n\nwww.example.com explains it.\n", "inkwell", true},
+		{"cjk-link", "甲[乙](https://go.dev)丙丁搜尋戊己。\n", "搜尋", true},
+		{"nfd-before-link", "cafe\u0301 [乙](https://go.dev)丙搜尋尾。\n", "搜尋", true},
+		{"multiple-links", "[甲](https://a.test)乙搜尋丙[丁](https://b.test)戊。\n", "搜尋", true},
+		{"body-end-link", "搜尋[尾](https://go.dev)\n", "搜尋", true},
+		{"prior-block-link-end", "## Earlier\n\nPrior words [x](https://go.dev)\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", false},
+		{"prior-block-link-inside", "## Earlier\n\nPrior [x](https://go.dev) words here.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", true},
+		{"heading-link-end", "## Where the inkwell [waits](https://go.dev)\n\nThe shelf keeps it dry.\n", "inkwell", false},
+		{"heading-link-after-prior", "## Earlier\n\nPrior words here.\n\n## Where the inkwell [waits](https://go.dev)\n\n## Next\n", "inkwell", false},
+		{"missing-local-link", "## Where the inkwell waits\n\n[notes](Missing.md) explains it.\n", "inkwell", true},
+		{"decoded-entity", "Tom &amp; Jerry run.\n", `"Tom & Jerry"`, false},
+		{"decoded-escape", "The snake\\_case name.\n", "snake_case", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			path := "Notes/" + tt.name + ".md"
+			site := homeSite(t, map[string]string{path: tt.body})
+			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+					page := readingPageIn(t, site, route+url.Values{"q": {tt.query}}.Encode(), lang)
+					rows := resultLink.FindAllStringSubmatch(page, -1)
+					if len(rows) != 1 {
+						t.Fatalf("caught: display search case=%s lang=%s route=%s rows=%d, want one", tt.name, lang, route, len(rows))
+					}
+					href := html.UnescapeString(rows[0][1])
+					address, err := url.Parse(href)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if address.Path != "/notes/"+path {
+						t.Fatalf("result target = %q, want %q", address.Path, "/notes/"+path)
+					}
+					address.Fragment, address.RawFragment = "", ""
+					article := articleSearchText(t, readingPageIn(t, site, address.String(), lang))
+					_, directive, ok := strings.Cut(href, ":~:text=")
+					if !ok {
+						t.Fatalf("caught: result %q has no text directive", href)
+					}
+					assertAdjacentDirective(t, directive, article, tt.name, tt.context, lang, route)
+				}
+			}
+		})
+	}
+}
+func articleSearchText(t *testing.T, page string) string {
+	t.Helper()
+	doc, err := nethtml.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var text strings.Builder
+	articles := 0
+	var walk func(*nethtml.Node, bool)
+	walk = func(n *nethtml.Node, article bool) {
+		for _, attr := range n.Attr {
+			if attr.Key == "class" {
+				for class := range strings.FieldsSeq(attr.Val) {
+					if class == "y-article" {
+						articles++
+						article = true
+					}
+				}
+			}
+		}
+		if article && n.Type == nethtml.TextNode {
+			text.WriteString(n.Data)
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			walk(child, article)
+		}
+	}
+	walk(doc, false)
+	if articles != 1 {
+		t.Fatalf("article count = %d, want one", articles)
+	}
+	return strings.Join(strings.Fields(text.String()), " ")
+}
+
+func TestSearchConsumesProseMarkupAndKeepsCodeLiteral(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name, body, query string
+		rows              int
+		snippet           string
+	}{
+		{"prose-entity-display", "Tom &amp; Jerry run.\n", `"Tom & Jerry"`, 1, "Tom & Jerry run."},
+		{"prose-entity-source", "Tom &amp; Jerry run.\n", "&amp;", 0, ""},
+		{"prose-escape-display", "The snake\\_case name.\n", "snake_case", 1, "The snake_case name."},
+		{"prose-escape-source", "The snake\\_case name.\n", `snake\_case`, 0, ""},
+		{"span-entity-source", "`Tom &amp; Jerry`\n", "&amp;", 1, "Tom &amp; Jerry"},
+		{"span-escape-source", "`snake\\_case`\n", `snake\_case`, 1, "snake\\_case"},
+		{"fence-entity-source", "```\nTom &amp; Jerry\n```\n", "&amp;", 1, "Tom &amp; Jerry"},
+		{"fence-escape-source", "```\nsnake\\_case\n```\n", `snake\_case`, 1, "snake\\_case"},
+		{"wikilink-alias-entity-literal", "See [[Other|Tom &amp; Jerry]] here.\n", "&amp;", 1, "See Other Tom &amp; Jerry here."},
+		{"wikilink-alias-entity-decoded", "See [[Other|Tom &amp; Jerry]] here.\n", `"Tom & Jerry"`, 0, ""},
+		{"wikilink-target-escape-literal", "[[snake\\_case]]\n", `snake\_case`, 1, "snake\\_case"},
+		{"wikilink-target-escape-decoded", "[[snake\\_case]]\n", "snake_case", 0, ""},
+		{"callout-title-entity-literal", "> [!note] Tom &amp; Jerry\n", "&amp;", 1, "Tom &amp; Jerry"},
+		{"callout-title-entity-decoded", "> [!note] Tom &amp; Jerry\n", `"Tom & Jerry"`, 0, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			site := homeSite(t, map[string]string{"Notes/Reading.md": tt.body})
+			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+					page := readingPageIn(t, site, route+url.Values{"q": {tt.query}}.Encode(), lang)
+					if rows := len(resultLink.FindAllStringSubmatch(page, -1)); rows != tt.rows {
+						t.Errorf("caught: prose-code corpus case=%s lang=%s route=%s rows=%d, want %d", tt.name, lang, route, rows, tt.rows)
+					}
+					if tt.snippet != "" {
+						doc, err := nethtml.Parse(strings.NewReader(page))
+						if err != nil {
+							t.Fatal(err)
+						}
+						var snippets []string
+						var visit func(*nethtml.Node)
+						visit = func(n *nethtml.Node) {
+							for _, attr := range n.Attr {
+								if attr.Key == "class" && slices.Contains(strings.Fields(attr.Val), "y-result__snippet") {
+									snippets = append(snippets, searchExcerptText(n))
+								}
+							}
+							for child := n.FirstChild; child != nil; child = child.NextSibling {
+								visit(child)
+							}
+						}
+						visit(doc)
+						if diff := cmp.Diff([]string{tt.snippet}, snippets); diff != "" {
+							t.Errorf("caught: literal excerpt case=%s lang=%s route=%s (-want +got):\n%s", tt.name, lang, route, diff)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+func assertAdjacentDirective(t *testing.T, directive, article, name string, context bool, lang wording.Lang, route string) {
+	t.Helper()
+	parts := strings.Split(directive, ",")
+	prefix, suffix := "", ""
+	if value, ok := strings.CutSuffix(parts[0], "-"); ok {
+		prefix = value
+		parts = parts[1:]
+	}
+	if len(parts) > 1 && strings.HasPrefix(parts[len(parts)-1], "-") {
+		suffix = strings.TrimPrefix(parts[len(parts)-1], "-")
+		parts = parts[:len(parts)-1]
+	}
+	decode := func(s string) string {
+		value, err := url.PathUnescape(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return strings.Join(strings.Fields(value), " ")
+	}
+	prefix, suffix = decode(prefix), decode(suffix)
+	if len(parts) < 1 || len(parts) > 2 || decode(parts[0]) == "" {
+		t.Fatalf("invalid directive %q", directive)
+	}
+	start := decode(parts[0])
+	end := ""
+	if len(parts) == 2 {
+		end = decode(parts[1])
+		if end == "" {
+			t.Fatalf("caught: empty directive end %q", directive)
+		}
+	}
+	if context && prefix == "" && suffix == "" {
+		t.Errorf("caught: nonempty display context case=%s lang=%s route=%s directive=%q", name, lang, route, directive)
+	}
+	found := false
+	for at := 0; at <= len(article); {
+		i := strings.Index(article[at:], start)
+		if i < 0 {
+			break
+		}
+		i += at
+		stop := i + len(start)
+		if end != "" {
+			j := strings.Index(article[stop:], end)
+			if j < 0 {
+				break
+			}
+			stop += j + len(end)
+		}
+		before := strings.TrimRight(article[:i], " ")
+		after := strings.TrimLeft(article[stop:], " ")
+		if strings.HasSuffix(before, prefix) && strings.HasPrefix(after, suffix) {
+			found = true
+			break
+		}
+		at = i + len(start)
+	}
+	if !found {
+		t.Errorf("caught: adjacent reading context case=%s lang=%s route=%s directive=%q article=%q", name, lang, route, directive, article)
+	}
+}
+
+func TestDroppedTitleLandsWithDecodedOpening(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct{ name, body, query, href string }{
 		{"comment-before-title", "%% prefatory comment %%\n# comment-before-title\n\nOpening words here.\n", "comment-before-title", "/notes/Notes/comment-before-title.md#:~:text=comment%2Dbefore%2Dtitle"},
-		{"unsafe-next-known-prior", "## Earlier\n\nPrior words here.\n\n## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", "/notes/Notes/unsafe-next-known-prior.md#:~:text=Prior%20words%20here.-,Where%20the%20inkwell%20waits"},
+		{"decoded-opening", "## Earlier\n\nPrior words here.\n\n## Where the inkwell waits\n\nTom &amp; Jerry run.\n", "inkwell", "/notes/Notes/decoded-opening.md#:~:text=inkwell%20waits,-Tom%20%26%20Jerry"},
+		{"prefix-budget-control", "## Earlier\n\none two three four five.\n\n## Where the inkwell waits\n\n## Next\n", "inkwell", "/notes/Notes/prefix-budget-control.md#:~:text=three%20four%20five.-,Where%20the%20inkwell%20waits"},
 		{"safe-plain-control", "Intro.\n\n## Where the inkwell waits\n\nThe shelf keeps it dry.\n", "inkwell", "/notes/Notes/safe-plain-control.md#:~:text=inkwell%20waits,-The%20shelf%20keeps"},
 	}
 	for _, tt := range tests {
@@ -224,4 +430,19 @@ func assertLandingOnEveryRoute(t *testing.T, site http.Handler, query, path, fra
 			}
 		}
 	}
+}
+
+func searchExcerptText(n *nethtml.Node) string {
+	var text strings.Builder
+	var visit func(*nethtml.Node)
+	visit = func(node *nethtml.Node) {
+		if node.Type == nethtml.TextNode {
+			text.WriteString(node.Data)
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			visit(child)
+		}
+	}
+	visit(n)
+	return strings.Join(strings.Fields(text.String()), " ")
 }

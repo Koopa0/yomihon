@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-var representativeBench = flag.Bool("snapshot-bench", false, "include representative snapshot initial/rebuild benchmarks")
+var representativeBench = flag.Bool("snapshot-bench", false, "include representative snapshot lifecycle benchmarks")
+
+var representativePhases = []string{"initial", "rebuild", "idle", "overlap", "visible"}
 
 // BenchmarkBuildSnapshot measures one scan-and-rebuild of all three derived
 // models over a small fixed vault written once to a temp directory. It reads
@@ -51,20 +53,25 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 	}
 }
 
-// BenchmarkRepresentativeSnapshot exercises the same synchronous initial build
-// and reconciliation method the server uses. The larger fixture sizes are
-// explicitly enabled so routine tests and the CI smoke keep their small vault.
+// BenchmarkRepresentativeSnapshot observes initial builds, reconciliation,
+// retained generations and body-edit visibility over complete synthetic
+// vaults. Every measurement requires explicit opt-in before fixture setup.
 func BenchmarkRepresentativeSnapshot(b *testing.B) {
-	if !*representativeBench {
-		b.Skip("representative snapshots require -snapshot-bench")
-	}
 	for _, notes := range representativeSizes {
 		b.Run(fmt.Sprintf("notes=%d", notes), func(b *testing.B) {
-			for _, phase := range []string{"initial", "rebuild"} {
+			for _, phase := range representativePhases {
 				b.Run(phase, func(b *testing.B) {
-					f := newRepresentativeFixture(b, notes)
+					if !*representativeBench {
+						b.Skip("representative snapshots require -snapshot-bench")
+					}
+					f := representativeBenchmarkFixture(b, notes)
 					store := representativeGeneration(b, f)
 					receipt := representativeReceipt(b, f, store.Current())
+					if phase == "idle" || phase == "overlap" || phase == "visible" {
+						benchmarkLifecycle(b, f, store, phase)
+						reportRepresentativeMetrics(b, receipt)
+						return
+					}
 					const edited = "Concepts/golang/Note-00000.md"
 					original := f.sources[edited]
 					longer := false
@@ -93,14 +100,27 @@ func BenchmarkRepresentativeSnapshot(b *testing.B) {
 						representativeReceipt(b, f, store.Current())
 						b.StartTimer()
 					}
-					b.ReportMetric(float64(receipt.Notes), "notes")
-					b.ReportMetric(float64(receipt.Files), "files")
-					b.ReportMetric(float64(receipt.SourceBytes), "source-B")
-					b.ReportMetric(float64(receipt.Links), "links")
+					reportRepresentativeMetrics(b, receipt)
 				})
 			}
 		})
 	}
+}
+
+func representativeBenchmarkFixture(b *testing.B, notes int) *representativeFixture {
+	b.Helper()
+	if testing.Verbose() {
+		b.Log("invoked: representative fixture setup")
+	}
+	return newRepresentativeFixture(b, notes)
+}
+
+func reportRepresentativeMetrics(b *testing.B, receipt representativeMetrics) {
+	b.Helper()
+	b.ReportMetric(float64(receipt.Notes), "notes")
+	b.ReportMetric(float64(receipt.Files), "files")
+	b.ReportMetric(float64(receipt.SourceBytes), "source-B")
+	b.ReportMetric(float64(receipt.Links), "links")
 }
 
 // benchVault is a small vault spanning the directories the three builders read:

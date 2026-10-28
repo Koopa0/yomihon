@@ -165,7 +165,18 @@ so silence there is not a verdict.
 | `schema.domain_folder` | the note's `domain` disagrees with the folder it sits in, under a root `[rules] domain_equals_folder_under` names | `#rules` |
 | `schema.legacy_tag` | a tag carrying a slash, under `[rules] forbid_tag_with_slash` — a property written in the wrong place | `#rules` |
 | `schema.provenance` | a note of the `concept` type carries none of the provenance fields `[rules] concept_requires_provenance` names. Its message is a frozen sentence, `frontmatter concept has neither based_on nor source_locator`, and those two words are in the message rather than in your contract: the fields actually demanded are whichever your contract lists, and `source_locator` is not even a legal key in the vault this repository ships. Read the contract, not the message | `#rules` |
+| `schema.reference_nested_sequence` | an item in a recognized reference list is itself a YAML list, including an alias to a list. One finding names each affected `field` | `yomihon` for `based_on` and `related`; `vault-schema.toml#supersession` for configured replacement fields |
 | `schema.unmatched_knowledge_dir` | `[scan] knowledge_dirs` names a directory this vault does not have, so the frontmatter rules reach nothing there. The fault is in the contract, not in a note | `#scan` |
+
+For `schema.reference_nested_sequence`, quote the reference: write
+`based_on: ["[[Note]]"]` or `based_on: ["Note"]`. YAML reads the unquoted
+`based_on: [[Note]]` as nested lists. The rule shares reference selection with
+`provenance.unresolved`: configured predecessor and successor fields apply to
+the lesson type, and the configured general replacement field applies to
+other types with a declared status group. A configured field named `based_on`
+or `related` retains its `yomihon` authority. `source_locator` and additional
+provenance requirements do not declare reference fields. The reading page
+explains the same finding; neither surface rewrites the note.
 
 ## The link and name rules
 

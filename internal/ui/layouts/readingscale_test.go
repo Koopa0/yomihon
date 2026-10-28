@@ -17,6 +17,7 @@ import (
 // said.
 var readingScaleSteps = []string{
 	"--fs-ed-13",
+	"--fs-ed-14",
 	"--fs-ed-15",
 	"--fs-ed-17",
 	"--fs-ed-20",

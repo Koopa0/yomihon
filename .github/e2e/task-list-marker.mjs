@@ -7,6 +7,7 @@
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note that carries a tight task list, a
 // loose task list, an ordered task item, and an ordinary ul), and MUTATE.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -146,17 +147,6 @@ const requirePolarity = (items, shape) => {
   }
 };
 
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {

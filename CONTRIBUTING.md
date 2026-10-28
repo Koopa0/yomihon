@@ -232,10 +232,12 @@ make that proof worthless:
   after the regression lands.
 
 The repository already mechanizes this proof on the browser side.
-`make mutation-check` runs each probe against the regression that probe exists
+`make mutation-check` runs each mutable probe against the regression it exists
 to catch, and demands that the probe report catching it by name. A probe that
 lets the regression through fails the run, and so does an injection that matched
-nothing. Read `.github/e2e/probes.sh`.
+nothing. Probes in the runner's `behavior_only` list prove their canary inside
+the ordinary `make browser-check` run and are skipped during mutation discovery.
+Read `.github/e2e/probes.sh`.
 
 The full local command remains `make mutation-check`. To inspect one canonical
 shard, use `make mutation-check MUTATION_SHARD=1` (or `2`, `3`, `4`). Each shard

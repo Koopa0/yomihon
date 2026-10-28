@@ -1,6 +1,7 @@
 // Authored image fields survive rendering; loaded pictures keep their natural
 // ratio inside the responsive reading column. Each fault rewrites one served declaration or image field, and the
 // oracle reads the real loaded image after page arrival has settled.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -37,19 +38,6 @@ class NotApplied extends Error {
 }
 const assert = (site, condition, message) => {
   if (!condition) throw new LockFired(site, message);
-};
-const arrived = async (page) => {
-  await page.waitForFunction(
-    async () => {
-      if (![...document.styleSheets].some((s) => (s.href || '').includes('/static/app.css'))) return false;
-      await Promise.all(
-        document.getAnimations().filter((a) => a.animationName === 'y-come-forward').map((a) => a.finished.catch(() => {})),
-      );
-      return true;
-    },
-    null,
-    { timeout: 3000 },
-  );
 };
 const one = (source, needle, replacement) => {
   if (source.split(needle).length !== 2) throw new NotApplied('image field matched zero or several sites');

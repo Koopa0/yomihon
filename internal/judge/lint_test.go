@@ -227,7 +227,7 @@ func TestFrontmatterOnlyParseAgreesWithTheFullParse(t *testing.T) {
 	// there is not listed, so it shows as a difference until someone decides
 	// whether the frontmatter lint reads it.
 	bodyFields := cmpopts.IgnoreFields(note{}, "body", "wikilinks", "pathRefs", "plannedNames", "calloutTitles",
-		"sectionAnchors", "excerptSectionAnchors", "blockAnchorLines", "sequence")
+		"sectionAnchors", "excerptSectionAnchors", "blockAddresses", "sequence")
 	vaults, linted, findings := 0, 0, 0
 	for _, entry := range entries {
 		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "vault") {

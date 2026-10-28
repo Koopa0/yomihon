@@ -162,7 +162,7 @@ func spokenText(inner string) string {
 	return strings.TrimSpace(html.UnescapeString(s))
 }
 
-// stripTrailingBlockAddress removes a trailing span that blockMarkerTail
+// stripTrailingBlockAddress removes a trailing span that BlockAddress
 // classifies as an address. It does not invent a second caret grammar, and it
 // does not look at a flattened tail: the span is the signal the preprocess
 // pass left for a classified marker, claimed or not.
@@ -178,7 +178,7 @@ func stripTrailingBlockAddress(inner string) string {
 		return inner
 	}
 	text := html.UnescapeString(span[openAt+1 : endAt])
-	if !blockMarkerTail.MatchString(text) {
+	if BlockAddress(text) == "" {
 		return inner
 	}
 	return inner[:loc[0]]

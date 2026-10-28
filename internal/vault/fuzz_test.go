@@ -22,6 +22,7 @@ func FuzzParse(f *testing.F) {
 	f.Add([]byte("---\ntitle: \"unterminated\n---\nbody\n"))
 	f.Add([]byte("---\na: 1\na: 2\n---\nbody\n"))
 	f.Add([]byte("---\nbase: &base {title: Note}\nnote: {<<: *base}\n---\nbody\n"))
+	f.Add([]byte("---\nm:\n  c: plain\n  <<:\n    c: &c {self: *c}\n    t:\n      ? [1]\n      : 2\n---\nbody\n"))
 	f.Add([]byte("---\ntitle: Note\n"))
 	f.Add([]byte("---\ntitle: Note\nstatus: draft\n--\n\nbody\n"))
 

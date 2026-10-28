@@ -2012,7 +2012,7 @@ details.y-metarow {
 .y-prose .footnotes {
   color: var(--fg-subtle);
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: var(--fs-ed-14);
   line-height: var(--lh-read);
   margin: var(--sp-h2) 0 0;
 }
@@ -2079,6 +2079,14 @@ details.y-metarow {
   margin: var(--sp-block) 0 0;
   overflow-x: auto;
   padding: 16px 20px;
+  white-space: pre;
+}
+
+/* A reader who chose a large size has said small type is too hard, so a wide
+   line wraps at a space instead of sending them sideways. Wrapping is only
+   how the line is drawn: the copied text is the code's own characters. */
+:root:is([data-textsize='l'], [data-textsize='xl']) .y-prose pre {
+  white-space: pre-wrap;
 }
 
 .y-codecopy {
