@@ -160,13 +160,29 @@ try {
   // Forced colours replaces an unprotected background with the canvas colour,
   // which is opaque and so would pass any test for "not transparent" while the
   // mask paints the page's own ground. The chevron is visible only when its
-  // fill is the text colour the mode gives the title.
-  const forced = await summary.evaluate((element) => ({
-    fill: getComputedStyle(element, '::after').backgroundColor,
-    ink: getComputedStyle(element).color,
-  }));
-  if (forced.fill !== forced.ink) {
-    fail('chevron-forced-colors', `under forced colours the chevron is filled ${forced.fill} and the title is inked ${forced.ink}, so the mask paints the ground`);
+  // fill is the system text colour rather than the system canvas colour. Both
+  // are resolved by the browser, in this mode, from a throwaway element, so the
+  // palette is never written into the probe.
+  const forced = await summary.evaluate((element) => {
+    const resolve = (keyword) => {
+      const probe = document.createElement('span');
+      probe.style.color = keyword;
+      element.append(probe);
+      const resolved = getComputedStyle(probe).color;
+      probe.remove();
+      return resolved;
+    };
+    return {
+      canvas: resolve('Canvas'),
+      fill: getComputedStyle(element, '::after').backgroundColor,
+      text: resolve('CanvasText'),
+    };
+  });
+  if (forced.canvas === forced.text) {
+    broken(`forced colours resolve Canvas and CanvasText alike (${forced.text}), so the chevron fill cannot be judged`);
+  }
+  if (forced.fill !== forced.text) {
+    fail('chevron-forced-colors', `under forced colours the chevron is filled ${forced.fill}, want the system text colour ${forced.text} (the canvas is ${forced.canvas}), so the mask paints the ground`);
   }
 
   await page.emulateMedia({ forcedColors: 'none', media: 'print' });
