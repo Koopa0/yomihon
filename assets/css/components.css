@@ -7793,10 +7793,10 @@ samp,
 
    Drawn only while the panel is open. Above the width the panel folds at, the
    box around its controls dissolves and each of them becomes an item of the
-   header row — this one never does, because at that width the row has nothing
-   left to give and the wordmark would be what pays for it. The script is the
-   second condition, for the reason the rail's control has it: what the press
-   sends is where the window is.
+   header row — this one never does, because from that width the rail carries
+   the control and a second copy in the row would be two controls for one
+   verb. The script is the second condition, for the reason the rail's control
+   has it: what the press sends is where the window is.
 
    Its own row inside the panel rather than another item wrapped in beside the
    icons, because it is a sentence-long verb about the note and they are marks

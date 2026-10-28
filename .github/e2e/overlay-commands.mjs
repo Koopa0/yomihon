@@ -264,9 +264,10 @@ const isOpen = (page, selector) => page.$eval(selector, (element) => (
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  // Ask the row or the positively opened native fold at each measured width. A closed fold
-  // would hide its children even if their capability rule had disappeared.
-  for (const width of [1280, 390]) for (const language of ['zh-Hant', 'en']) for (const theme of ['light', 'dark']) {
+  // Ask the wide row at 1281, where the header is unfolded, and the positively opened native
+  // fold at 1280 and below. A closed fold would hide its children even if their capability
+  // rule had disappeared.
+  for (const width of [1281, 1280, 390]) for (const language of ['zh-Hant', 'en']) for (const theme of ['light', 'dark']) {
     const site = 'script-only-header-controls-stay-out-of-the-way';
     const destinationSite = 'scriptless-preferences-remains-a-keyboard-destination';
     const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width, height: 800 } });
@@ -376,7 +377,7 @@ try {
       checkProof(proof);
       fail(site, 'the page offers no visible, named scriptless search link');
     }
-    for (const width of [1280, 938, 937, 720, 521, 520, 390, 375, 360]) {
+    for (const width of [1281, 1280, 938, 937, 720, 521, 520, 390, 375, 360]) {
       await page.setViewportSize({ width, height: 800 });
       const row = await page.evaluate(() => {
         const header = document.querySelector('header');
