@@ -178,6 +178,10 @@ func openMarkRow(kept *mark.Uncertainty, places *placeResolver, lang wording.Lan
 			return openThoughtRow{row: row, at: kept.At}
 		}
 		row.Mark = wording.UncertaintyPlaceNotFound.In(lang)
+		if kept.Anchor != "" {
+			// The anchor is all that tells two lost marks in one note apart.
+			row.Place = pages.RowPlace{Text: "#" + kept.Anchor, Language: resolved.reading.Language}
+		}
 	} else {
 		row.Mark = wording.UncertaintyNoteNotFound.In(lang)
 	}

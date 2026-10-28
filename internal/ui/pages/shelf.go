@@ -66,7 +66,9 @@ type RowPlace struct {
 
 // Row is one document on the shelf.
 type Row struct {
-	Text  string
+	Text string
+	// Place names the location inside the document that the row marks, drawn
+	// after Text in its own language. The zero value draws no place.
 	Place RowPlace
 	// Removal is present only for a lost uncertainty mark.
 	Removal *UncertaintyRemoval

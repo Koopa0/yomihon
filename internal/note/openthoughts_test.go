@@ -101,7 +101,7 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 					}
 					marker, warning = "data-desk-item", "ui-navitem__count--warn"
 				}
-				text := "Own title</span>"
+				text := ">#chapter</span>"
 				if tt.noteGone {
 					text = "Lost &lt;note&gt;.md"
 				}
