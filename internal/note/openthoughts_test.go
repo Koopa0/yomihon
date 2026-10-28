@@ -101,9 +101,13 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 					}
 					marker, warning = "data-desk-item", "ui-navitem__count--warn"
 				}
-				text := ">#chapter</span>"
+				texts := []string{"Own title</span>", ">#chapter</span>"}
 				if tt.noteGone {
-					text = "Lost &lt;note&gt;.md"
+					texts = []string{"Lost &lt;note&gt;.md"}
+				}
+				hasText := true
+				for _, text := range texts {
+					hasText = hasText && strings.Contains(page, text)
 				}
 				buttonAt := strings.Index(page, "data-uncertainty-remove")
 				button := ""
@@ -125,7 +129,7 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 					Rows                                                                                                  int
 					Text, Missing, Fault, Count, Link, DeadFragment, Remove, Pair, NativeRemove, OutsideLink, GatedRemove bool
 				}{
-					Rows: strings.Count(page, marker), Text: strings.Contains(page, text), Missing: strings.Contains(page, tt.missing), Fault: strings.Contains(page, warning), Count: strings.Contains(page, tt.count),
+					Rows: strings.Count(page, marker), Text: hasText, Missing: strings.Contains(page, tt.missing), Fault: strings.Contains(page, warning), Count: strings.Contains(page, tt.count),
 					Link: strings.Contains(page, `href="/notes/Lost%20%3Cnote%3E.md"`), DeadFragment: strings.Contains(page, `href="/notes/Lost%20%3Cnote%3E.md#chapter"`),
 					Remove:       strings.Contains(page, "data-uncertainty-remove") && strings.Contains(page, tt.remove),
 					NativeRemove: strings.Contains(button, `type="button"`) && strings.Contains(button, "disabled"), OutsideLink: outsideLink, GatedRemove: gatedRemove,
