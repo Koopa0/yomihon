@@ -220,11 +220,17 @@ Three things about this that a reader gets wrong:
   下一課` for lines — which is why they look like product behaviour. A contract
   that overrides them softens on entirely different words, and one that writes
   an empty list softens nothing. Check yours before relying on a word.
-- **The match is a substring, with no word boundary.** A heading that merely
-  happens to contain one of those words turns its whole section into a planned
-  gap, and every broken link beneath it silently drops to `info` — which
-  `--deny warn` does not catch. This is the most expensive accident in the
-  dialect: the gate stays green and the links stay dead.
+- **A heading word must begin the heading or follow a space or punctuation
+  mark; what comes after it does not matter.** The character before the word
+  must be the edge of the heading, a space, or punctuation (`【` `：` `、` `（`
+  and the like). `## 缺口帳` and `## 【待補】清單` open a gap section;
+  `## 產品化缺口與事故` does not, because 缺口 follows an ideograph there and
+  is prose, not a mark. Every occurrence is tried, so a buried first one does
+  not hide a bounded later one. A heading that merely contains the characters
+  is therefore no longer a gap, and the links beneath it keep their warning.
+  The one-line rule (`planned_inline_marks`) is still a plain substring match:
+  a word that sits inside a longer word on an ordinary line still softens that
+  line's links.
 - **A course entry is softened by position and never by name.** Listing a name
   under a gap heading marks it planned for every ordinary link in the vault —
   but a study path that promises that same note still reports `warn`, because a
