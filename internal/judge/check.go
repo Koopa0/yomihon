@@ -76,8 +76,11 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 	// Last, and so past every filter above. A scope names the ground a reader
 	// wants judged; it does not make the hole in the judgement somebody else's
 	// business, and a filter that kept the missing rules while removing the
-	// sentence explaining them would leave a report that reads complete.
+	// sentence explaining them would leave a report that reads complete. The
+	// navigation finding is a hole of the same kind: the course and map rules
+	// that went silent did so for every scope.
 	findings = append(findings, checkUnreadable(a.unreadable, a.authority)...)
+	findings = append(findings, checkNavigation(a.authority.roles())...)
 	sortFindings(findings)
 	return findings, nil
 }
