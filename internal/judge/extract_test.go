@@ -284,6 +284,40 @@ func TestGapMarkInsideACodeSpanOpensNothing(t *testing.T) {
 	}
 }
 
+// A gap mark in a heading counts where a word starts. The same characters
+// buried after another ideograph are ordinary prose — a topic about gaps is not
+// an owed section — so the broken links under such a heading keep their
+// warning. What follows the mark is free: authors coin headings like 缺口帳.
+func TestHeadingGapMarkMatchesAtWordStartOnly(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		heading string
+		want    bool
+	}{
+		{name: "mark inside a topic phrase", heading: "7. 陷阱、產品化缺口與事故對照", want: false},
+		{name: "mark after an ideograph in a clause", heading: "3. 核心觀念：不同的排序空間，決定誰被缺口卡住", want: false},
+		{name: "mark after an ideograph in a longer word", heading: "尚待補證的書目資訊", want: false},
+		{name: "no mark at all", heading: "完成", want: false},
+		{name: "mark begins a coined compound", heading: "缺口帳", want: true},
+		{name: "mark after a space, followed by an ideograph", heading: "L4 待補範圍", want: true},
+		{name: "mark begins the heading, followed by an ideograph", heading: "待補與更新", want: true},
+		{name: "bracketed mark", heading: "【待補】清單", want: true},
+		{name: "mark after a full-width colon", heading: "L4：待寫", want: true},
+		{name: "first occurrence embedded, later one bounded", heading: "產品化缺口與事故 缺口", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := len(extractPlannedNames("## "+tt.heading+"\n- 甲\n")) > 0
+			if got != tt.want {
+				t.Errorf("heading %q opens a gap section = %v, want %v", tt.heading, got, tt.want)
+			}
+		})
+	}
+}
+
 // A heading wrapped in %% is content the author took back: Obsidian hides it,
 // so it is no more a section boundary than a commented-out link is a link. The
 // same note is written four ways — mark visible, opening mark hidden, a closing
