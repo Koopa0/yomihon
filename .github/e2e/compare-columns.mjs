@@ -153,6 +153,20 @@ const MUTATIONS = {
     target: 'column-reading-gutter',
     apply: weakenStylesheet('@media (min-width:1101px){.y-compare__column .y-article{--gutter-read:48px !important}}'),
   },
+  // The wide gutter declared without the width it belongs to. The selector
+  // out-weighs the phone and tablet gutters on the bare article wherever it
+  // applies, so the narrow columns keep the wide gutter. Written unwrapped and
+  // appended, as the source would read if the media query were dropped.
+  'unwrap-column-gutter': {
+    target: 'column-reading-gutter',
+    apply: weakenStylesheet('.y-compare__column .y-article{--gutter-read:28px}'),
+  },
+  // The same fault confined to the tablet band, so the 900px measurement is
+  // reached on its own rather than after the 1100px one has already fired.
+  'wide-column-gutter-on-tablets': {
+    target: 'column-reading-gutter',
+    apply: weakenStylesheet('@media (max-width:900px){.y-compare__column .y-article{--gutter-read:28px}}'),
+  },
   'let-the-heading-take-a-grid-cell': {
     target: 'columns-side-by-side',
     apply: putHeadingInGrid,
