@@ -1,6 +1,7 @@
 // The native concept dialog fills the phone and gives its controls the same
 // reading inset and quiet feedback as the explanation. No mark is written:
 // the unavailable read exercises visible feedback through the real module.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -57,13 +58,7 @@ const mutation = async (page) => {
   };
 };
 
-const arrived = (page) => page.waitForFunction(async () => {
-  if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-  await Promise.all(document.getAnimations()
-    .filter((animation) => animation.animationName === 'y-come-forward')
-    .map((animation) => animation.finished.catch(() => {})));
-  return true;
-}, null, { timeout: 3000 });
+
 
 const settled = (page) => page.waitForFunction(async () => {
   const dialog = document.querySelector('[data-concept-sheet][open]');

@@ -1459,11 +1459,21 @@ func TestFlipPreservesPermissionBits(t *testing.T) {
 	if err := os.WriteFile(path, []byte(original), 0o644); err != nil { // #nosec G306 -- 0o644 is the mode under test: writeTemp must copy it, not keep the temp's 0o600
 		t.Fatalf("write: %v", err)
 	}
-
-	if err := writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original)); err != nil {
-		t.Fatalf("Flip() = %v, want nil", err)
+	if err := os.Chmod(path, 0o644); err != nil { // #nosec G302 -- the fixture needs 0o644 regardless of umask to test permission preservation
+		t.Fatalf("chmod fixture: %v", err)
 	}
 	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat fixture before flip: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o644 {
+		t.Fatalf("fixture Perm() before flip = %04o, want 0644", got)
+	}
+
+	if err = writer.Flip(t.Context(), testRel, "draft", "ready", diskIdentity(original)); err != nil {
+		t.Fatalf("Flip() = %v, want nil", err)
+	}
+	info, err = os.Stat(path)
 	if err != nil {
 		t.Fatalf("stat after flip: %v", err)
 	}

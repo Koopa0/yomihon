@@ -482,12 +482,9 @@ func inOneBlock(text string, blocks []render.Block, a, b string) bool {
 	return false
 }
 
-// TestBareURLsAreIndexedVerbatim pins the deliberate absence of
-// linkification in the plain-text parser: a bare URL contributes exactly the
-// bytes in the file (what a grep of the vault would see), and is never
-// synthesized into a link — linkification would invent an http:// prefix for
-// a www name. An angle-bracket autolink contributes its URL; a markdown link
-// contributes its label only, never its destination.
+// TestBareURLsAreIndexedVerbatim pins the authored label of each link kind.
+// Linkification may add a protocol to the destination of a www address, but
+// that protocol is not part of the displayed label or the searchable text.
 func TestBareURLsAreIndexedVerbatim(t *testing.T) {
 	t.Parallel()
 

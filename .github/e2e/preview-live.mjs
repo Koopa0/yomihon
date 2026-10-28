@@ -1,6 +1,7 @@
 // A reopened hover card asks the live note again, including a target that was
 // removed. Only the disposable vault copy owned by serve.sh is changed; the
 // original fixture and the reader's vault are never the mutation stimulus.
+import { arrived } from './support/arrival.mjs';
 import { randomUUID } from 'node:crypto';
 import { realpath, unlink, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
@@ -37,17 +38,6 @@ class LockFired extends Error {
   }
 }
 
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 const rewriteHeldBody = async (context) => {
   let matches = -1;

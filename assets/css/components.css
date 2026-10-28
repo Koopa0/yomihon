@@ -2,7 +2,7 @@
    yomihon — product layer
    ------------------------------------------------------------
    The DS component classes this page actually uses (ui-navitem,
-   ui-side__label, ui-status, ui-type, ui-kbd, ui-scrim, ui-dialog),
+   ui-side__label, ui-status, ui-type, ui-kbd, ui-dialog),
    the y-* product classes that translate the mock's inline styles
    into named classes (shell / rails / header / article / status /
    diagnostics), ruby zero-reflow, and the reading
@@ -420,13 +420,7 @@ samp {
   line-height: 1;
 }
 
-/* ---- Scrim + dialog (⌘K) ---- */
-.ui-scrim {
-  background: var(--overlay-mask);
-  inset: 0;
-  position: fixed;
-  z-index: 101;
-}
+/* ---- Dialog (⌘K) ---- */
 
 .ui-dialog {
   background: var(--panel);
@@ -778,19 +772,18 @@ html:not([data-js]) .y-themebtn {
 /* Six of the header's controls are somewhere to go or something to set rather
    than anything about the note being read — the whole-folder view, the reading
    choices, the text size, the keyboard explanation, the language and the theme
-   — and below 938px the row can no longer hold them all. 938px is measured,
-   not chosen: at 937 the English chrome, the wider of the two, has begun
-   shortening the wordmark to make room, and the name of the thing being read
-   is not what should pay for a control that is not about it. Under that width
-   the six sit inside a popover this button opens, which brings the browser's
-   own light dismiss, Escape, and focus return with it.
+   — gather behind this button below 1281px. The row first ran out of room at
+   938px, but unfolding there left a laptop-width reader with no control for
+   keeping a place. The panel keeps that action available until the wide
+   header row and reading rail are both drawn. The popover brings the
+   browser's own light dismiss, Escape, and focus return with it.
 
    One width serves both languages, though the Traditional Chinese row holds
    out until 617. One breakpoint is one layout; a width per language would be a
    second layout to keep true, and a media query cannot see which language the
    page is in to choose between them.
 
-   At 938px and above the box around them dissolves: display: contents leaves
+   At 1281px and above the box around them dissolves: display: contents leaves
    its children as the row's own flex items, in the order they are written, so
    the wide row is drawn from the same elements it always was and no control
    is written twice.
@@ -915,7 +908,7 @@ html:not([data-js]) .y-themebtn {
   visibility: visible;
 }
 
-@media (min-width: 938px) {
+@media (min-width: 1281px) {
   .y-foldbtn {
     display: none;
   }
@@ -1215,13 +1208,6 @@ html:not([data-js]) .y-themebtn {
   flex: none;
   height: 6px;
   width: 6px;
-}
-
-.y-navicon {
-  display: inline-flex;
-  flex: none;
-  justify-content: center;
-  width: 17px;
 }
 
 /* filter box — pure enhancement: ships hidden, and the sidebar's pre-paint
@@ -2012,7 +1998,7 @@ details.y-metarow {
 .y-prose .footnotes {
   color: var(--fg-subtle);
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: var(--fs-ed-14);
   line-height: var(--lh-read);
   margin: var(--sp-h2) 0 0;
 }
@@ -2079,6 +2065,14 @@ details.y-metarow {
   margin: var(--sp-block) 0 0;
   overflow-x: auto;
   padding: 16px 20px;
+  white-space: pre;
+}
+
+/* A reader who chose a large size has said small type is too hard, so a wide
+   line wraps at a space instead of sending them sideways. Wrapping is only
+   how the line is drawn: the copied text is the code's own characters. */
+:root:is([data-textsize='l'], [data-textsize='xl']) .y-prose pre {
+  white-space: pre-wrap;
 }
 
 .y-codecopy {
@@ -2431,6 +2425,39 @@ button.y-freshness__action {
    to click); the type picks out only the former's title for the pointer cursor. */
 .y-prose details.callout > .callout-title {
   cursor: pointer;
+}
+
+/* A native summary's marker is reset away, so a closed foldable callout would
+   read as a title with nothing under it. The chevron every other disclosure in
+   the interface uses is drawn at the end of the title row instead: the same
+   glyph, size, stroke, muted ink and quarter-turn, in the title's own colour
+   and not the callout's accent. The glyph is a mask so the ink follows the
+   title, and the renderer's markup is left as it is. */
+/* stylelint-disable-next-line selector-no-qualifying-type -- as above. */
+.y-prose details.callout > .callout-title::after {
+  background-color: currentcolor;
+  content: '';
+  flex: none;
+  height: 11px;
+  margin-block-start: calc((1.25rem - 11px) / 2);
+  margin-inline-start: auto;
+  mask-image: url(data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%20fill=%27none%27%20stroke=%27black%27%20stroke-width=%272.2%27%20stroke-linecap=%27round%27%3E%3Cpath%20d=%27m6%209%206%206%206-6%27/%3E%3C/svg%3E);
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+  opacity: 0.7;
+  transition: transform var(--dur-base) var(--ease-standard);
+  width: 11px;
+}
+
+/* stylelint-disable-next-line selector-no-qualifying-type -- as above. */
+.y-prose details.callout:not([open]) > .callout-title::after {
+  transform: rotate(-90deg);
+}
+
+/* stylelint-disable-next-line selector-no-qualifying-type -- as above. */
+.y-prose details.callout:not([open]) > .callout-title:dir(rtl)::after {
+  transform: rotate(90deg);
 }
 
 .y-prose .callout-warning .callout-title {
@@ -2975,14 +3002,6 @@ button.y-freshness__action {
   font-size: var(--fs-12);
 }
 
-.y-diag__note {
-  color: var(--fg-faint);
-  font-family: var(--font-serif);
-  font-size: var(--fs-12);
-  font-style: italic;
-  line-height: 1.6;
-  margin: 2px 0 0;
-}
 /* out-of-enum status flag — the diagnostics rail's amber accent applied to a
    status-face notice, so the flag reads as a finding rather than as copy */
 .y-statusflag {
@@ -3451,14 +3470,6 @@ a.y-facetrow:hover {
 }
 
 .y-searchpage__empty p {
-  margin: 0;
-}
-
-.y-searchpage__emptytitle {
-  color: var(--fg);
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-20);
-  font-weight: var(--fw-regular);
   margin: 0;
 }
 
@@ -4234,12 +4245,13 @@ a.y-facetrow:hover {
   margin: -8px 0 12px;
 }
 
-.y-homeseamnote {
+/* The sentence under the chip row explaining why some notes state no status:
+   the card lede's voice, upright, set below the row rather than under a head. */
+.y-homeblock__note {
   color: var(--fg-faint);
   font-family: var(--font-serif);
   font-size: var(--fs-13);
-  font-style: italic;
-  margin: 16px 0 0;
+  margin: 12px 0 0;
 }
 
 .y-shelfblocks {
@@ -4288,8 +4300,7 @@ a.y-facetrow:hover {
   margin: 4px 0 0;
 }
 
-.y-homerecent,
-.y-homepaths {
+.y-homerecent {
   display: flex;
   flex-direction: column;
 }
@@ -4307,8 +4318,7 @@ a.y-facetrow:hover {
   border-top: 0;
 }
 
-.y-homenote:hover .y-homenote__title,
-.y-homepath:hover .y-homepath__title {
+.y-homenote:hover .y-homenote__title {
   color: var(--link);
 }
 
@@ -4370,7 +4380,7 @@ a.y-facetrow:hover {
   padding: 7px 9px;
 }
 
-.y-homechip:hover {
+.y-homechip[href]:hover {
   border-color: var(--border-strong);
   color: var(--fg);
 }
@@ -4383,33 +4393,6 @@ a.y-facetrow:hover {
   color: var(--fg-faint);
   min-width: 1.35em;
   text-align: right;
-}
-
-.y-homepath {
-  align-items: baseline;
-  border-top: 1px solid var(--border-faint);
-  display: flex;
-  gap: 14px;
-  padding: 11px 2px;
-}
-
-.y-homepath:first-child {
-  border-top: 0;
-}
-
-.y-homepath__title {
-  color: var(--fg);
-  flex: 1;
-  font-family: var(--font-serif);
-  font-size: var(--fs-14);
-  min-width: 0;
-}
-
-.y-homepath__progress {
-  color: var(--fg-faint);
-  flex: none;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
 }
 
 .y-homesearch {
@@ -4425,21 +4408,6 @@ a.y-facetrow:hover {
   margin: 58px 0 0;
   max-width: var(--measure-read);
   padding-top: 34px;
-}
-
-.y-homereadme__head {
-  align-items: baseline;
-  display: flex;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-
-.y-homereadme__head h2 {
-  color: var(--fg);
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-24);
-  font-weight: var(--fw-regular);
-  margin: 0;
 }
 
 @media (max-width: 1180px) {
@@ -5967,8 +5935,10 @@ samp,
 
 /* Half the page's width per note, so the reading measure gives back what the
    note page spends on a gutter it no longer has room for. */
-.y-compare__column .y-article {
-  --article-gutter: 28px;
+@media (min-width: 1101px) {
+  .y-compare__column .y-article {
+    --gutter-read: 28px;
+  }
 }
 
 /* The aids fold inline inside every column at every width: the right rail that
@@ -6345,6 +6315,16 @@ samp,
     background: Highlight;
     forced-color-adjust: none;
   }
+
+  /* A callout's fold chevron is a mask over its background, and the background
+     is what forced colours replaces, leaving no shape. The system text colour
+     keeps it drawn. */
+  /* stylelint-disable-next-line selector-no-qualifying-type -- a callout
+     renders as either a details or a div; only the details folds. */
+  .y-prose details.callout > .callout-title::after {
+    background-color: CanvasText;
+    forced-color-adjust: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .y-rail-left {
@@ -6421,6 +6401,14 @@ samp,
     padding: 0;
   }
 
+  /* Paper takes no click and a folded callout prints open, so the chevron that
+     says the title can be opened marks nothing. */
+  /* stylelint-disable-next-line selector-no-qualifying-type -- a callout
+     renders as either a details or a div; only the details folds. */
+  .y-prose details.callout > .callout-title::after {
+    display: none;
+  }
+
   /* stylelint-disable declaration-no-important -- print has no later stylesheet
      to out-order and no script to toggle a class instead; !important is the
      only way these rules can be sure they win against whatever screen-only
@@ -6461,10 +6449,11 @@ samp,
   .y-steps:not(.y-steps--course) {
     display: none !important;
   }
-  /* A course's own verb is pressed, and paper takes no press. What the author
+  /* A course's entry actions are pressed, and paper takes no press. What the author
      wrote above the counts stays on the sheet: it is the course's own words,
      which is what the sheet is for. */
-  .y-cover__open {
+  .y-cover__ways,
+  .y-cover__note {
     display: none !important;
   }
   /* stylelint-enable declaration-no-important */
@@ -6645,17 +6634,6 @@ samp,
   font-size: var(--fs-13);
   line-height: 1.6;
   margin: 0;
-}
-/* The one line a folder carrying no vault contract gets: a fact about what this
-   folder is, set below the key list and quieter than it, because it explains an
-   absence rather than offering an action. */
-.y-kbdhelp__note {
-  border-top: 1px solid var(--border-faint);
-  color: var(--fg-subtle);
-  font-size: var(--fs-12);
-  line-height: 1.6;
-  margin: 12px 0 0;
-  padding-top: 10px;
 }
 /* Cited-by and declared sources share spacing: two lists of names in the
    rail, answering different questions. Cited-by keeps its heading when the
@@ -7786,10 +7764,10 @@ samp,
 
    Drawn only while the panel is open. Above the width the panel folds at, the
    box around its controls dissolves and each of them becomes an item of the
-   header row — this one never does, because at that width the row has nothing
-   left to give and the wordmark would be what pays for it. The script is the
-   second condition, for the reason the rail's control has it: what the press
-   sends is where the window is.
+   header row — this one never does, because from that width the rail carries
+   the control and a second copy in the row would be two controls for one
+   verb. The script is the second condition, for the reason the rail's control
+   has it: what the press sends is where the window is.
 
    Its own row inside the panel rather than another item wrapped in beside the
    icons, because it is a sentence-long verb about the note and they are marks
@@ -7801,6 +7779,13 @@ samp,
 
 [data-js] .y-headerfold:popover-open .y-headermark {
   display: block;
+}
+
+/* The rail begins at 1280px, one pixel before the header unfolds. While the
+   panel offers this same action, including a panel kept open while widening
+   the window, draw only its copy. Dismissing it gives the rail its copy back. */
+.yomihon:has(.y-headerfold:popover-open) .y-rail-right .y-markset {
+  display: none;
 }
 
 .y-headermark__said {

@@ -41,19 +41,9 @@
 //              spanning it is text the page does not carry in one piece
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the report's own search), and MUTATE.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const REPORT_QUERY = 'れ、';

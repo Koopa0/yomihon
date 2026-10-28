@@ -338,7 +338,7 @@ templ syllabusRail(v PathView, c layouts.Chrome) {
 			if len(v.Branches) > 0 {
 				<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">{ wording.ThisPath.In(lang) }</div>
 				for _, sec := range v.Branches {
-					<a class="ui-navitem y-pathitem" href={ templ.URL("#" + sec.Anchor) }>
+					<a class="ui-navitem" href={ templ.URL("#" + sec.Anchor) }>
 						<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
 						<span class="y-pathitem__name">{ sec.Heading }</span>
 					</a>

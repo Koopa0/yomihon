@@ -86,21 +86,19 @@ templ shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Ch
 								@lifecycleChipBody(it, c.Lang)
 							</a>
 						}
+						for _, it := range statuses.Unstated {
+							if it.Href == "" {
+								<span class="y-homechip" data-unstated>
+									@unstatedChipBody(it, c.Lang)
+								</span>
+							} else {
+								<a class="y-homechip" data-unstated href={ templ.URL(it.Href) }>
+									@unstatedChipBody(it, c.Lang)
+								</a>
+							}
+						}
 					</div>
 					if len(statuses.Unstated) > 0 {
-						<div class="y-homeunstated">
-							for _, it := range statuses.Unstated {
-								if it.Href == "" {
-									<span class="y-homeunstated__cell">
-										@unstatedChipBody(it, c.Lang)
-									</span>
-								} else {
-									<a class="y-homeunstated__cell" href={ templ.URL(it.Href) }>
-										@unstatedChipBody(it, c.Lang)
-									</a>
-								}
-							}
-						</div>
 						<p class="y-homeblock__note">{ wording.LifecycleUnstatedNote.In(c.Lang) }</p>
 					}
 				</section>

@@ -1,6 +1,7 @@
 // A note's size explanation leads to its own finding, with the file name clear
 // of the fixed header after arrival. Probe files live only in serve.sh's owned
 // copy and are removed from the published report before the next probe runs.
+import { arrived } from './support/arrival.mjs';
 import { randomUUID } from 'node:crypto';
 import { mkdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
@@ -21,13 +22,6 @@ if (MUTATE && !MODES.includes(MUTATE)) {
 class Broken extends Error {}
 class NotApplied extends Error {}
 class LockFired extends Error {}
-const arrived = (page) => page.waitForFunction(async () => {
-  if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-  await Promise.all(document.getAnimations()
-    .filter((animation) => animation.animationName === 'y-come-forward')
-    .map((animation) => animation.finished.catch(() => {})));
-  return true;
-}, null, { timeout: 5000 });
 
 let browser;
 let control;
@@ -93,7 +87,7 @@ try {
       page.on('pageerror', (error) => errors.push(error.message));
       const response = await page.goto(noteURL, { waitUntil: 'load' });
       if (response?.status() !== 200) throw new Broken(`note returned ${response?.status()}, want 200`);
-      await arrived(page);
+      await arrived(page, 5000);
       const links = page.locator('.y-fileinfo a[href^="/health?page=all#"]');
       if (await links.count() !== 1) throw new Broken('the size explanation has no single finding link');
       const href = await links.getAttribute('href');
@@ -109,7 +103,7 @@ try {
       });
       await links.click();
       await page.waitForURL(BASE + href);
-      await arrived(page);
+      await arrived(page, 5000);
       await page.evaluate(() => document.fonts.ready);
       if (MUTATE && matches !== 1) throw new NotApplied(`mutation matched ${matches} sites, want exactly 1`);
       const row = page.locator(`[id="${id}"]`);

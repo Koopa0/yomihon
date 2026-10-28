@@ -472,7 +472,7 @@ func (h *Handler) reading(
 		StepsToContents:    foot.ToContents,
 		StepsAsides:        foot.Asides,
 		Running:            running,
-		TOC:                result.TOC,
+		TOC:                result.Outline(),
 		BodyHTML:           result.HTML,
 		TitleAnchor:        result.TitleAnchor,
 		ReadingRail:        readingRail,

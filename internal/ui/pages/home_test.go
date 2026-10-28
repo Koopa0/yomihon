@@ -74,7 +74,7 @@ func TestShelfCountSpansCarryTheUnitInTheDOM(t *testing.T) {
 		t.Fatalf("render FolderIndex: %v", err)
 	}
 	html := buf.String()
-	for _, class := range []string{`class="y-homechip__count"`, `class="y-homeunstated__count"`} {
+	for _, class := range []string{`class="y-homechip__count"`} {
 		span, ok := countSpanHTML(html, class)
 		if !ok {
 			t.Fatalf("shelf is missing a complete %s span", class)

@@ -50,8 +50,10 @@ func allRuleIDs() []RuleID {
 		"schema.domain_folder",
 		"schema.legacy_tag",
 		"schema.provenance",
+		"schema.reference_nested_sequence",
 		"schema.frontmatter",
 		"schema.unmatched_knowledge_dir",
+		navigationUnavailableRule,
 		"schema.status_unreachable",
 		"scan.skipped",
 		unreadableRule,
@@ -342,7 +344,9 @@ func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionH
 // gated reports whether any finding reaches the deny gate. A severity keyword
 // gates any finding at or above the lowest denied severity; a rule id gates a
 // finding of that rule, but only at warn or above, so an info-level tracked
-// forward-reference never gates through its rule id.
+// forward-reference never gates through its rule id. A finding that the
+// navigation roles were unavailable also gates when a rule that reads those
+// roles is denied, since that rule could not have fired.
 func gated(findings []Finding, deny []string) bool {
 	threshold, hasThreshold := minDeniedSeverity(deny)
 	for i := range findings {
@@ -351,6 +355,9 @@ func gated(findings []Finding, deny []string) bool {
 			return true
 		}
 		if f.Severity >= SeverityWarn && slices.Contains(deny, string(f.RuleID)) {
+			return true
+		}
+		if f.RuleID == navigationUnavailableRule && slices.ContainsFunc(deny, silencedWithoutNavigation) {
 			return true
 		}
 	}

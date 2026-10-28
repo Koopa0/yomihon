@@ -14,32 +14,45 @@ import (
 // excerpt scan finds a marker by reading lines, so every line it matches is a line
 // this pass sees. The id keeps the caret, which no heading anchor can collide with.
 
-// blockMarkerTail matches the address a line ends with: a caret opening a word,
-// taking the rest of the line with it. A caret glued to the end of a word is part
-// of that word, the same reading the excerpt scan takes. A caret followed by a
-// bracket opens an inline footnote, never an address, so `Para ^[note]` is a
-// note whether its text holds a space or not.
-var blockMarkerTail = regexp.MustCompile(`(?:\A|[ \t])(\^[^\s\[]\S*)\z`)
+// blockMarkerTail is the token grammar read only by BlockAddress.
+var blockMarkerTail = regexp.MustCompile(`(?:\A|[ \t])(\^[A-Za-z0-9-]+)\z`)
 
-// blockAddressIn finds the address line ends with. It answers nil when the line
-// ends in none; otherwise m is blockMarkerTail's match on trimmed, the line
-// without its trailing blanks, and m[2] and m[3] bound the address within it.
-// The pattern has no literal prefix, so the engine would try it from every byte
-// of the line, and almost no line holds a caret at all: a line without one
-// cannot end in an address, and is answered before the pattern is asked. Every
-// reader of an address asks through here, so none of them pays for the lines
-// that cannot have one.
-func blockAddressIn(line string) (trimmed string, m []int) {
+// BlockAddress returns the authored caret and nonempty ASCII letter, digit,
+// or hyphen token at the end of line, preserving its case. The caret starts
+// the line or follows an ASCII space or tab; only spaces and tabs may follow
+// the token. It returns an empty string when no supported address is present.
+// Code zones and other structural exclusions belong to the caller.
+func BlockAddress(line string) string {
 	if strings.IndexByte(line, '^') < 0 {
+		return ""
+	}
+	trimmed := strings.TrimRight(line, " \t")
+	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
+	if m == nil {
+		return ""
+	}
+	return trimmed[m[2]:m[3]]
+}
+
+// blockAddressIn adapts the shared token to positions in the trimmed line.
+// The last pair bounds the authored address; the first includes its boundary
+// space or tab when present. Absence has no positions.
+func blockAddressIn(line string) (trimmed string, m []int) {
+	address := BlockAddress(line)
+	if address == "" {
 		return "", nil
 	}
 	trimmed = strings.TrimRight(line, " \t")
-	return trimmed, blockMarkerTail.FindStringSubmatchIndex(trimmed)
+	start, end := len(trimmed)-len(address), len(trimmed)
+	boundary := start
+	if boundary > 0 {
+		boundary--
+	}
+	return trimmed, []int{boundary, end, start, end}
 }
 
 // blockAnchorID is the single definition of the id a block address makes: the
-// address folded the way both kinds of fragment fold, so capitals and Unicode
-// form never keep an address from its marker.
+// supported authored address folded so ASCII capitals name the same marker.
 func blockAnchorID(address string) string {
 	return graph.FoldFragment(address)
 }

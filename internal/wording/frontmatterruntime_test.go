@@ -17,9 +17,14 @@ func TestFrontmatterRuntimeExplanationBoundaries(t *testing.T) {
 		{"runtime list key", "frontmatter is not valid YAML: yaml: runtime error: hash of unhashable type []interface {}", true},
 		{"runtime mapping key", "frontmatter is not valid YAML: yaml: runtime error: hash of unhashable type map[string]interface {}", true},
 		{"runtime prefix only", "frontmatter is not valid YAML: yaml: runtime error:", true},
+		{"invalid list key", "frontmatter is not valid YAML: yaml: invalid map key: []interface {}{1}", true},
+		{"invalid mapping key", "frontmatter is not valid YAML: yaml: invalid map key: map[string]interface {}{\"a\":1}", true},
+		{"invalid map key prefix only", "frontmatter is not valid YAML: yaml: invalid map key:", true},
 		{"ordinary syntax", "frontmatter is not valid YAML: yaml: line 2: mapping values are not allowed in this context", false},
 		{"quoted runtime text", "frontmatter is not valid YAML: yaml: unmarshal errors:\n  line 4: mapping key \"frontmatter is not valid YAML: yaml: runtime error: <script>&\" already defined at line 3", false},
+		{"quoted invalid map key text", "frontmatter is not valid YAML: yaml: unmarshal errors:\n  line 4: mapping key \"frontmatter is not valid YAML: yaml: invalid map key:\" already defined at line 3", false},
 		{"unwrapped text", "yaml: runtime error: hash of unhashable type []interface {}", false},
+		{"unwrapped invalid map key", "yaml: invalid map key: []interface {}{1}", false},
 	} {
 		for _, chrome := range []struct {
 			lang                            Lang

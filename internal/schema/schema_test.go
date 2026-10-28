@@ -2312,6 +2312,14 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
+		"EnumValues": func() string {
+			for _, field := range []string{"type", "status", "unknown"} {
+				if got := c.EnumValues(field, "lesson"); got != nil {
+					return fmt.Sprintf("EnumValues(%q, %q) = %v, want nil", field, "lesson", got)
+				}
+			}
+			return ""
+		},
 		"JudgedStatusGroup": func() string {
 			for _, kind := range []string{"", "lesson", "undeclared"} {
 				if got := c.JudgedStatusGroup(kind); got != "" {

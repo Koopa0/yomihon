@@ -16,19 +16,9 @@
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a side-by-side address), and MUTATE.
 // MUTATE=list prints every watched regression.
+import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
-const arrived = (page) => page.waitForFunction(
-  async () => {
-    if (![...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css'))) return false;
-    await Promise.all(document.getAnimations()
-      .filter((animation) => animation.animationName === 'y-come-forward')
-      .map((animation) => animation.finished.catch(() => {})));
-    return true;
-  },
-  null,
-  { timeout: 3000 },
-);
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md';
@@ -42,6 +32,7 @@ const COLUMN_B_PREFIX = 'b-';
 const SITES = [
   'one-comparison-heading',
   'columns-side-by-side',
+  'column-reading-gutter',
   'columns-scroll-alone',
   'narrow-tabs-switch-columns',
   'narrow-no-sideways-scroll',
@@ -158,6 +149,24 @@ const putHeadingInGrid = async (page) => {
 };
 
 const MUTATIONS = {
+  'orphan-column-gutter': {
+    target: 'column-reading-gutter',
+    apply: weakenStylesheet('@media (min-width:1101px){.y-compare__column .y-article{--gutter-read:48px !important}}'),
+  },
+  // The wide gutter declared without the width it belongs to. The selector
+  // out-weighs the phone and tablet gutters on the bare article wherever it
+  // applies, so the narrow columns keep the wide gutter. Written unwrapped and
+  // appended, as the source would read if the media query were dropped.
+  'unwrap-column-gutter': {
+    target: 'column-reading-gutter',
+    apply: weakenStylesheet('.y-compare__column .y-article{--gutter-read:28px}'),
+  },
+  // The same fault confined to the tablet band, so the 900px measurement is
+  // reached on its own rather than after the 1100px one has already fired.
+  'wide-column-gutter-on-tablets': {
+    target: 'column-reading-gutter',
+    apply: weakenStylesheet('@media (max-width:900px){.y-compare__column .y-article{--gutter-read:28px}}'),
+  },
   'let-the-heading-take-a-grid-cell': {
     target: 'columns-side-by-side',
     apply: putHeadingInGrid,
@@ -313,6 +322,19 @@ try {
       fail('columns-side-by-side', `column ${name} is ${Math.round(box.width)}px of a 1280px page, so it is not sharing the width`);
     }
   }
+
+  for (const width of [1280, 1101, 1100, 900, 390]) {
+    await page.setViewportSize({ width, height: 440 });
+    const gutters = await page.locator('.y-compare__column .y-article').evaluateAll(articles => articles.map(article => {
+      const style = getComputedStyle(article);
+      return [style.paddingLeft, style.paddingRight];
+    }));
+    const expected = width > 1100 ? '28px' : width <= 520 ? '20px' : width <= 900 ? '24px' : '48px';
+    if (gutters.length !== 2 || gutters.some(sides => sides.some(side => side !== expected))) {
+      fail('column-reading-gutter', `caught: at ${width}px column gutters = ${JSON.stringify(gutters)}, want ${expected} on both sides`);
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 440 });
 
   // The content has to be taller than the window for a scroller to have
   // anywhere to go. That is a fact about the fixture, not about the layout.
