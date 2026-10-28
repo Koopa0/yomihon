@@ -975,6 +975,17 @@ html:not([data-js]) .y-themebtn {
   top: var(--header-height);
 }
 
+/* Without scripting, arrival brings the current row into the rail's view and
+   leaves the document's own landing alone. The target stays declared after
+   arrival, and a fold that reflows the text would then lose the reader's
+   paragraph, so with scripting the rail module places the row once instead.
+   Without scripting nothing folds the column while the page is read. */
+@media (scripting: none) {
+  .y-rail-left .ui-navitem[aria-current='page'] {
+    scroll-initial-target: nearest;
+  }
+}
+
 /* The rail's first row: the button that folds the whole left column away and,
    beside it, the filter. It is one row, and it sticks to the top of the rail's
    own scroll box, because the rail scrolls by itself and neither the button nor
