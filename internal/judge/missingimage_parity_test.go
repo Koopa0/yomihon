@@ -65,6 +65,9 @@ func TestMissingImagePageParity(t *testing.T) {
 			if d.Target == "missing-wiki.png" || d.Target == "missing.pdf" {
 				wiki = append(wiki, d.Target)
 			}
+		default:
+			// Every other diagnostic is about something other than a file
+			// the page could not show, so neither rule compares it.
 		}
 	}
 	wantMarkdown := []string{"Notes/missing.png", "Notes/missing.png", "Notes/nested.png", "missing-reference.png"}
