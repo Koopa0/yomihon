@@ -230,59 +230,28 @@ const waitSettled = (page, selector) =>
     await Promise.all(el.getAnimations().map((a) => a.finished.catch(() => {})));
   }, selector);
 
-// Failure-only evidence for the original preview hover wait. Document and
-// network clocks stay separate; observing events never schedules another hover.
-const previewSetupReceipt = async (page) => {
-  const network = [];
-  const started = performance.now();
-  const record = (kind, request, status) => {
-    const path = new URL(request.url()).pathname;
-    if (path !== '/static/preview.js' && !path.startsWith('/preview/')) return;
-    network.push({ ms: performance.now() - started, kind, path, status, failure: request.failure()?.errorText });
-    if (network.length > 100) network.shift();
-  };
-  page.on('request', (request) => record('request', request));
-  page.on('response', (response) => record('response', response.request(), response.status()));
-  page.on('requestfinished', (request) => record('finished', request));
-  page.on('requestfailed', (request) => record('failed', request));
-  await page.addInitScript(() => {
-    const events = [];
-    window.__previewSetupEvents = events;
-    for (const type of ['pointerover', 'pointerenter', 'pointerleave', 'focus', 'blur', 'scroll', 'close', 'beforetoggle', 'toggle']) {
-      document.addEventListener(type, (event) => {
-        const target = event.target;
-        events.push({
-          ms: performance.now(), type, target: target.localName || 'document',
-          href: target.closest?.('a')?.getAttribute('href'),
-          x: event.clientX, y: event.clientY, scrollY,
-          active: document.activeElement?.localName,
-          collapsed: getSelection()?.isCollapsed,
-          previewOpen: document.querySelector('[data-preview-card]')?.matches(':popover-open'),
-          state: event.newState,
-        });
-        if (events.length > 200) events.shift();
-      }, { capture: true, passive: true });
-    }
+// Puts a link in view and waits for the page to stop moving before the pointer
+// travels to it. Playwright scrolls a link into view on the way to hovering it,
+// and the card closes on any scroll outside it, which also clears the open it
+// has only scheduled. The scroll event arrives a frame after the scroll, so it
+// can land just after the pointer does: the open the hover asked for is
+// cancelled, the pointer rests on the link, and with no second entry nothing
+// asks again. Quiet is judged by that event rather than by a resting position,
+// which cannot see an event still in flight.
+const QUIET = 150;
+const bringIntoView = async (page, locator) => {
+  await locator.evaluate((el) => {
+    window.__probeScrolledAt = performance.now();
+    document.addEventListener(
+      'scroll',
+      () => {
+        window.__probeScrolledAt = performance.now();
+      },
+      { capture: true, passive: true },
+    );
+    el.scrollIntoView({ block: 'center' });
   });
-  return async () => ({
-    mode: MUTATE, network,
-    document: await page.evaluate((selector) => {
-      const link = document.querySelector(selector);
-      const rect = link?.getBoundingClientRect();
-      return {
-        events: window.__previewSetupEvents, scrollY,
-        active: document.activeElement?.localName,
-        collapsed: getSelection()?.isCollapsed,
-        link: link ? { hovered: link.matches(':hover'), rect: rect.toJSON() } : null,
-        atLinkCentre: rect ? document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.outerHTML.slice(0, 120) : null,
-        sheet: (() => {
-          const sheet = document.querySelector('[data-concept-sheet]');
-          return sheet ? { open: sheet.open, animations: sheet.getAnimations().length } : null;
-        })(),
-        previewOpen: document.querySelector('[data-preview-card]')?.matches(':popover-open'),
-      };
-    }, PREVIEW_LINK),
-  });
+  await page.waitForFunction((quiet) => performance.now() - window.__probeScrolledAt > quiet, QUIET, { timeout: 5000 });
 };
 
 const closeAndRead = (page, selector, kind) =>
@@ -344,7 +313,6 @@ let proof = null;
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
-  const previewReceipt = await previewSetupReceipt(page);
   // Each mutation aims at one site, and the named-section site runs on its own
   // pages below, so this page takes every mode except those. Arming on the aim
   // rather than on a mode name keeps a newly added mutation from either missing
@@ -387,17 +355,19 @@ try {
 
   const previewLink = page.locator(PREVIEW_LINK);
   if ((await previewLink.count()) < 1) broken('the lesson paints no Glass Tide wikilink to open a card');
+  // Onto the sticky header first, where nothing scrolls under the pointer, so
+  // no link is entered on the way and the hover below is the one entry.
+  await page.mouse.move(4, 4);
+  await bringIntoView(page, previewLink);
+  const rest = await page.evaluate(() => Math.round(window.scrollY));
   await previewLink.hover();
-  await page.evaluate(() => window.__previewSetupEvents?.push({ ms: performance.now(), type: 'hover-returned', scrollY }));
-  try {
-    await page.waitForFunction((sel) => document.querySelector(sel)?.matches(':popover-open'), PREVIEW, {
-      timeout: 4000,
-    });
-  } catch (error) {
-    const receipt = await previewReceipt().catch((diagnosticError) => ({ unavailable: diagnosticError.message }));
-    console.error(`PREVIEW-HOVER-RECEIPT ${JSON.stringify(receipt)}`);
-    throw error;
+  const landed = await page.evaluate(() => Math.round(window.scrollY));
+  if (landed !== rest) {
+    broken(`the page moved ${Math.abs(landed - rest)}px as the pointer reached the Glass Tide link, so an absent card after it would be this probe's own doing rather than the product's answer`);
   }
+  await page.waitForFunction((sel) => document.querySelector(sel)?.matches(':popover-open'), PREVIEW, {
+    timeout: 4000,
+  });
   await waitSettled(page, PREVIEW);
   const previewExit = await closePreviewAsReader(page, PREVIEW);
   if (previewExit.error) broken(`preview close: ${previewExit.error}`);
