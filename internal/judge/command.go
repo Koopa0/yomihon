@@ -33,6 +33,7 @@ func allRuleIDs() []RuleID {
 	ids := []RuleID{
 		"link.title_not_alias",
 		"link.broken",
+		"link.broken.image",
 		"link.section_missing",
 		"link.block_missing",
 		"embed.section_missing",

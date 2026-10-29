@@ -47,6 +47,7 @@ type note struct {
 
 	wikilinks     []wikiLink
 	pathRefs      []pathRef
+	images        []imageRef
 	plannedNames  []string
 	calloutTitles []calloutTitle
 
@@ -143,7 +144,7 @@ func readNote(rel string, data []byte, marks *plannedMarks) note {
 		n.body = body
 		facts := inspectBody(body, marks.heading)
 		n.wikilinks = extractWikilinksFrom(body, block.BodyStartLine, &facts)
-		n.pathRefs = extractPathRefsFrom(body, block.BodyStartLine, facts.comments)
+		n.pathRefs, n.images = extractReferencesFrom(body, block.BodyStartLine, facts.comments)
 		n.plannedNames = extractPlannedNamesFrom(body, *marks, &facts)
 		n.calloutTitles = extractCalloutTitlesFrom(body, block.BodyStartLine, facts.comments)
 		n.sequence = sequence.Parse(body, block.BodyStartLine)

@@ -193,6 +193,7 @@ that same note is judged here as usual.
 | `link.title_not_alias` | the target is some note's frontmatter `title`, and titles are not keys. The message names the note you meant |
 | `link.section_missing` | the note resolved; no heading answers the text after `#`. `resolved_to` says which note |
 | `link.block_missing` | the note resolved; no line carries the `^address` |
+| `link.broken.image` | a picture the page would show from the vault names no file there: a Markdown image `![](path)`, resolved from the note's own folder, or an `![[file]]` embed of a picture or PDF. `target` is the path or name the page reports. A missing `![[file]]` is reported here and never as `link.broken` |
 | `link.broken.path` | a plain path reference to a file that is not in the vault. Drops to `info` under a planned gap |
 | `embed.section_missing` | an `![[…#Heading]]` embed whose heading is not there, so there is no excerpt to cut. Nothing is shown; the block names the address that failed |
 | `embed.block_missing` | the same for `![[…#^id]]` |
@@ -245,6 +246,11 @@ none of these five, and the notice is the only account you get of why:
 One link is narrowed rather than silenced: an address whose `#section` or
 `#^block` lands in the file that could not be opened says nothing, while every
 other fragment in the run is still judged.
+
+`link.broken.image` is split the same way: a missing `![[file]]` embed says
+nothing for that run, since the name could be the unread file's alias, while a
+Markdown image is still judged, because it names a path and the scan already
+saw every path.
 
 A run over a healthy vault is unaffected — there is no notice, so nothing is
 withheld. What this costs is the run you make **while** a permission is wrong:

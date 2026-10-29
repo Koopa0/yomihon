@@ -21,7 +21,7 @@ import (
 // the one the author typed is reported failing with nothing saying why.
 func unwrittenTarget(target, display, heading string, lang wording.Lang) string {
 	fmtString := wording.UnwrittenTargetFmt
-	if namesAFile(target) {
+	if NamesAFile(target) {
 		fmtString = wording.UnwrittenFileFmt
 	}
 	reason := fmt.Sprintf(fmtString.In(lang), target)
@@ -31,11 +31,11 @@ func unwrittenTarget(target, display, heading string, lang wording.Lang) string 
 	return degradedSpan("wikilink-broken", display, reason, lang)
 }
 
-// namesAFile reports whether a citation's target names a file rather than a
+// NamesAFile reports whether a citation's target names a file rather than a
 // note, so an absence can be described as what the author was reaching for. It
 // recognises the extensions this program already reads and infers nothing wider
 // from a dot: a note called "Go sync.Pool" is not a picture.
-func namesAFile(target string) bool {
+func NamesAFile(target string) bool {
 	return IsPicture(target) || IsPDF(target)
 }
 

@@ -8,6 +8,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/yuin/goldmark/util"
+
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -34,18 +36,18 @@ var localImageSrc = regexp.MustCompile(`(<img src=")([^"]*)("[^>]*>)`)
 // it leaves alone is returned as the tag it arrived in, so an address it has no
 // business rewriting keeps the spelling its author gave it.
 func resolveAssetHrefs(htmlOut, noteRelPath string, files Files, lang wording.Lang, diags *[]Diagnostic) string {
-	noteDir := pathpkg.Dir(noteRelPath)
-	if noteDir == "." {
-		noteDir = ""
-	}
+	noteDir := assetDir(noteRelPath)
 	return localImageSrc.ReplaceAllStringFunc(htmlOut, func(tag string) string {
 		parts := localImageSrc.FindStringSubmatch(tag)
 		src := attributeUnescaper.Replace(parts[2])
-		resolved, ok := rawAssetHref(src, noteDir)
+		joined, suffix, ok := assetPath(src, noteDir)
 		if !ok {
 			return tag
 		}
-		rewritten := parts[1] + attributeEscaper.Replace(resolved) + parts[3]
+		// The escaping is rawHref's, not a second copy of it: the route that
+		// serves these bytes decodes one spelling, and a rule written twice in
+		// one package is one a later change fixes in one of its two places.
+		rewritten := parts[1] + attributeEscaper.Replace(rawHref(joined)+suffix) + parts[3]
 		// The address resolved, so it names a path inside the vault: the same
 		// resolution the rewrite above just used. What is asked now is whether
 		// anything is there.
@@ -55,8 +57,6 @@ func resolveAssetHrefs(htmlOut, noteRelPath string, files Files, lang wording.La
 		// reader sees a broken image with nothing said about it; naming that
 		// would mean reporting where this reader looks as a fault in the note,
 		// and where the picture actually is, is the author's own business.
-		target, _ := splitSuffix(src)
-		joined, _ := vaultPath(target, noteDir)
 		if !files.MissingFile(joined) {
 			return rewritten
 		}
@@ -137,19 +137,42 @@ func vaultPath(target, noteDir string) (string, bool) {
 	return joined, true
 }
 
-// rawAssetHref maps one rendered image source onto the raw-bytes route, or
-// reports that it should be left exactly as it is.
-func rawAssetHref(src, noteDir string) (string, bool) {
+// assetPath resolves one rendered image source to the vault path it names, with
+// the query and fragment that decorate it, or reports that the source should be
+// left exactly as it is.
+func assetPath(src, noteDir string) (joined, suffix string, ok bool) {
 	if servedElsewhere(src) {
-		return "", false
+		return "", "", false
 	}
 	target, suffix := splitSuffix(src)
-	joined, ok := vaultPath(target, noteDir)
+	joined, ok = vaultPath(target, noteDir)
 	if !ok {
+		return "", "", false
+	}
+	return joined, suffix, true
+}
+
+// assetDir is the directory a note's relative image sources resolve against,
+// written the way a vault-relative path is: the root is the empty string.
+func assetDir(noteRelPath string) string {
+	if dir := pathpkg.Dir(noteRelPath); dir != "." {
+		return dir
+	}
+	return ""
+}
+
+// ImagePath reports the vault path the page shows a Markdown image from, given
+// the destination as the note at noteRelPath writes it, or false when the page
+// does not show it as a picture held in the vault: a remote or data address, one
+// of this reader's own routes, a destination it refuses, or a path climbing past
+// the root. It runs the page's own admission and resolution, in the page's
+// order, so check asks about the same file the page marks missing.
+func ImagePath(destination, noteRelPath string) (string, bool) {
+	raw := []byte(destination)
+	escaped := util.URLEscape(raw, true)
+	if !localImageDestination(raw, escaped) {
 		return "", false
 	}
-	// The escaping is rawHref's, not a second copy of it: the route that serves
-	// these bytes decodes one spelling, and a rule written twice in one package
-	// is one a later change fixes in one of its two places.
-	return rawHref(joined) + suffix, true
+	joined, _, ok := assetPath(string(escaped), assetDir(noteRelPath))
+	return joined, ok
 }

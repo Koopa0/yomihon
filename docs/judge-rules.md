@@ -16,6 +16,7 @@ rules and does not define new behavior.
 | `embed.section_missing` | `yomihon` | [`internal/judge/fragment.go`](../internal/judge/fragment.go) |
 | `link.block_missing` | `yomihon` | [`internal/judge/fragment.go`](../internal/judge/fragment.go) |
 | `link.broken` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
+| `link.broken.image` | `yomihon` | [`internal/judge/image.go`](../internal/judge/image.go) |
 | `link.broken.path` | `yomihon` | [`internal/judge/diskref.go`](../internal/judge/diskref.go) |
 | `link.section_missing` | `yomihon` | [`internal/judge/fragment.go`](../internal/judge/fragment.go) |
 | `link.title_not_alias` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
