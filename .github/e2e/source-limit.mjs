@@ -3,7 +3,7 @@
 // copy and are removed from the published report before the next probe runs.
 import { arrived } from './support/arrival.mjs';
 import { randomUUID } from 'node:crypto';
-import { mkdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { chromium } from 'playwright-core';
 
@@ -26,27 +26,32 @@ class LockFired extends Error {}
 let browser;
 let control;
 let folder;
+let staging;
 const token = randomUUID();
 const rel = `Notes/Source limit ${token}/A huge 字 # %.md`;
 const noteURL = `${BASE}/notes/${encodeURIComponent(rel)}`;
 
-// Both barriers read the served report, so the note is not asked for before the
-// scanner has published it, and the next probe cannot inherit a finding from a
-// removed file that the scanner has not yet published away. The wait is a loop
+// Both barriers read what the server serves, so the note is not asked for before
+// the scanner has published it, and the next probe cannot inherit a finding from
+// a removed file that the scanner has not yet published away. The report alone
+// is not enough to settle the first: a scan that could not read a file yet names
+// it there as unreadable while the retained generation still has no page for it,
+// so the first barrier also waits for the note itself. The wait is a loop
 // here rather than waitForFunction: that settles on the first truthy return,
 // and an async predicate returns a pending promise, which would let either
 // barrier pass on its first look.
 const published = async (present) => {
   const deadline = Date.now() + 20000;
   while (Date.now() < deadline) {
-    const settled = await control.page.evaluate(async ({ address, marker, expected }) => {
+    const settled = await control.page.evaluate(async ({ address, note, marker, expected }) => {
       const response = await fetch(address, { cache: 'no-store' });
-      return response.ok && (await response.text()).includes(marker) === expected;
-    }, { address: `${BASE}/health?page=all`, marker: token, expected: present });
+      if (!response.ok || (await response.text()).includes(marker) !== expected) return false;
+      return !expected || (await fetch(note, { cache: 'no-store' })).ok;
+    }, { address: `${BASE}/health?page=all`, note: noteURL, marker: token, expected: present });
     if (settled) return;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Broken(`the health report ${present ? 'never named' : 'still names'} the probe's files after 20s`);
+  throw new Broken(`the server ${present ? 'never served the probe’s note and named its files' : 'still names the probe’s files'} after 20s`);
 };
 
 try {
@@ -57,14 +62,20 @@ try {
   const notes = join(root, 'Notes');
   if (await realpath(notes) !== notes) throw new Broken('fixture Notes directory is a link outside the owned copy');
   const ownedFolder = join(notes, `Source limit ${token}`);
-  await mkdir(ownedFolder);
-  folder = ownedFolder;
-  await writeFile(join(folder, 'A huge 字 # %.md'), 'x'.repeat((1 << 20) + 1));
+  // The folder is written beside the vault and renamed in whole, so a scan sees
+  // every file complete or none of them: a megabyte file written in place can be
+  // caught growing between the scanner's observation and its read, which
+  // discards that rebuild.
+  staging = join(dirname(root), `stage-${token}`);
+  await mkdir(staging);
+  await writeFile(join(staging, 'A huge 字 # %.md'), 'x'.repeat((1 << 20) + 1));
   // Later findings give the native fragment room to align at its target. A
   // last row clamped by the end of a short report would hide a lost margin.
   for (let index = 0; index < 30; index += 1) {
-    await writeFile(join(folder, `Z${index}.md`), `# Probe ${index}\n\n[[Missing ${token} ${index}]]\n`);
+    await writeFile(join(staging, `Z${index}.md`), `# Probe ${index}\n\n[[Missing ${token} ${index}]]\n`);
   }
+  await rename(staging, ownedFolder);
+  folder = ownedFolder;
   browser = await chromium.launch({ channel: 'chrome', headless: true });
   control = { context: await browser.newContext() };
   control.page = await control.context.newPage();
@@ -133,6 +144,7 @@ try {
   }
 } finally {
   try {
+    if (staging) await rm(staging, { recursive: true, force: true });
     if (folder) {
       await rm(folder, { recursive: true });
       if (control) await published(false);
