@@ -351,9 +351,9 @@ Check that:
 - the version, `README.md` and `README.zh-TW.md` agree, and both READMEs give
   the same install path, linking the latest-release page rather than one
   version's asset;
-- the platform assets `release.yml` builds match what the READMEs promise, and
-  the Windows limit (status changes refused) is still stated where the install
-  choice is;
+- the platforms the READMEs name match the assets `release.yml` builds, and
+  `.github/release-notes.md` states each platform's limits and lists what is
+  new since the last release: edit it for this release rather than append;
 - `go install github.com/koopa0/yomihon/cmd/yomihon@<the commit>` in a
   disposable `GOBIN`, `GOMODCACHE` and `GOCACHE` installs the module you expect,
   without touching your own binary;

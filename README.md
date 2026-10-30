@@ -8,7 +8,7 @@ English | [繁體中文](README.zh-TW.md)
 
 **yomihon turns the Markdown you have already organised into a book that reads well.**
 
-[![A lesson in a study path: the course on the left with the current lesson marked, the lesson in the centre, and on the right the notes that cite it and a button to leave off here](.github/media/reading-en.png)](.github/media/reading-en.png)
+[![A lesson in a study path: the course on the left with the current lesson marked, the lesson in the centre, and on the right the notes it cites and a button to leave off here](.github/media/reading-en.png)](.github/media/reading-en.png)
 
 A study path is a course, with its parts and the lesson you are on. Search, backlinks and reports are built in. yomihon runs on your machine, makes no network requests and never edits your text.
 
@@ -23,6 +23,8 @@ A study path is a course, with its parts and the lesson you are on. Search, back
 ```sh
 go install github.com/koopa0/yomihon/cmd/yomihon@latest
 ```
+
+`@latest` installs the latest release; `@main` installs the development head.
 
 yomihon runs on macOS, Linux and Windows. The example library comes with the source, not the binary. Take it from the release's source archive or clone this repository.
 
