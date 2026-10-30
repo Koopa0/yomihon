@@ -24,6 +24,8 @@
 go install github.com/koopa0/yomihon/cmd/yomihon@latest
 ```
 
+`@latest` 安裝最新的發行版，`@main` 安裝開發中的最新版本。
+
 yomihon 可在 macOS、Linux 與 Windows 上執行。範例知識庫附在原始碼裡，不在執行檔中。請從該版本的原始碼壓縮檔取得，或 clone 本 repo。
 
 ## 使用
