@@ -196,6 +196,27 @@ Spaces matter to whether CommonMark parses a link:
 The latter two resolve identically when a unique file exists. Malformed percent
 escapes are left as the Markdown renderer emits them and are not diagnosed.
 
+A bare `http://`, `https://` or `ftp://` address (and a `www.` one) links only
+where the Markdown renderer expects an address to begin. Anywhere else it stays
+plain text, and `check` has nothing to report because no link was written. In
+Chinese and Japanese notes the usual positions, right after `：` or `（`, are
+the ones that fail:
+
+| Written just before the address | On the page |
+|---|---|
+| start of the line | a link |
+| an ASCII space, or one of `* _ ~ (` | a link |
+| a code span, bold text or another link, with nothing between | a link |
+| `：` `，` `、` `。` `（` `）` `「` | plain text |
+| CJK text, directly | plain text |
+| an ASCII `:` or `,` | plain text |
+| a tab, U+00A0 or U+3000 | plain text |
+| `<` and `>` around the address | a link, in every position above |
+
+What follows the address does not matter: `https://example.com）後文` links the
+address without the `）`. Write `來源：<https://example.com>` rather than
+`來源：https://example.com`.
+
 ## Naming a link as owed rather than broken
 
 A vault is written forward. You link a concept from where it belongs long
