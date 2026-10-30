@@ -15,6 +15,8 @@ type markdownFiles map[string]bool
 
 func (f markdownFiles) MissingFile(p string) bool { return !f[p] }
 
+func (markdownFiles) OutsideScan(string) bool { return false }
+
 func markdownRenderer(t *testing.T, notes []graph.NoteInput, resources []string, bodies transclusions) *render.Pipeline {
 	t.Helper()
 	files := markdownFiles{}
@@ -60,6 +62,28 @@ func TestMarkdownLinksKeepLabelsAndSourceOwnership(t *testing.T) {
 				t.Errorf("Markdown label/owner missing %q or unexpected diagnostics: %+v", tt.want, got)
 			}
 		})
+	}
+}
+
+// beyondScan answers for a vault whose scan does not look under Host/lab,
+// whether because the contract excludes it or because it is hidden.
+type beyondScan struct{ markdownFiles }
+
+func (beyondScan) OutsideScan(p string) bool { return strings.HasPrefix(p, "Host/lab/") }
+
+func TestMarkdownLinkIntoAPlaceTheScanDoesNotLookIsLeftAsWritten(t *testing.T) {
+	t.Parallel()
+	files := beyondScan{markdownFiles{"Host/lab/run.md": true, "Host/other.md": true}}
+	r := render.New(graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Host/other.md"}}, nil), transclusions(nil), noTitles{}, files)
+	got := r.HTML("Host/here.md", "", "[run](lab/run.md) [other](other.md)\n", wording.En)
+	if want := `<a href="lab/run.md">run</a>`; !strings.Contains(got.HTML, want) {
+		t.Errorf("a link beyond the scan was rewritten or faulted; want %q in:\n%s", want, got.HTML)
+	}
+	if want := `<a href="/notes/Host/other.md">other</a>`; !strings.Contains(got.HTML, want) {
+		t.Errorf("a link inside the scan was not rewritten; want %q in:\n%s", want, got.HTML)
+	}
+	if len(got.Diagnostics) != 0 {
+		t.Errorf("diagnostics = %+v, want none", got.Diagnostics)
 	}
 }
 

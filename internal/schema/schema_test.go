@@ -2174,6 +2174,12 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
+		"ScanBoundary": func() string {
+			if c.ScanBoundary().OutsideScan("courses/C1/lab/main.go") {
+				return "ScanBoundary() excludes courses/C1/lab/main.go, want a vault no contract governs to exclude nothing"
+			}
+			return ""
+		},
 		"StageCount": func() string {
 			if got := c.StageCount(); got != 0 {
 				return fmt.Sprintf("StageCount() = %d, want 0", got)

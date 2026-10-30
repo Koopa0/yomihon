@@ -228,6 +228,7 @@ type Rules struct {
 type ScanPolicy struct {
 	KnowledgeDirs        []string `toml:"knowledge_dirs"`
 	SkipBasenames        []string `toml:"skip_basenames"`
+	ExcludeDirs          []string `toml:"exclude_dirs"`
 	NoFrontmatterIsLegal bool     `toml:"no_frontmatter_is_legal"`
 }
 
@@ -799,7 +800,7 @@ func validateContractSemantics(contract *Contract) error {
 	if err := validateRules(&contract.definition.Enums, &contract.definition.Fields, &contract.definition.Rules); err != nil {
 		return err
 	}
-	if err := validateScan(contract.definition.Scan); err != nil {
+	if err := validateScan(&contract.definition.Scan); err != nil {
 		return err
 	}
 	if err := compileLifecycle(contract); err != nil {
@@ -1070,7 +1071,7 @@ func validTopLevelComponent(value string) bool {
 		!strings.ContainsAny(value, `/\`)
 }
 
-func validateScan(scan ScanPolicy) error {
+func validateScan(scan *ScanPolicy) error {
 	if err := validateUniqueStrings("scan.knowledge_dirs", scan.KnowledgeDirs); err != nil {
 		return err
 	}
@@ -1086,6 +1087,15 @@ func validateScan(scan ScanPolicy) error {
 	for _, basename := range scan.SkipBasenames {
 		if !validBasename(basename) {
 			return fmt.Errorf("scan.skip_basenames: invalid basename %q", basename)
+		}
+	}
+
+	if err := validateUniqueStrings("scan.exclude_dirs", scan.ExcludeDirs); err != nil {
+		return err
+	}
+	for _, pattern := range scan.ExcludeDirs {
+		if fault := vault.ValidExcludePattern(pattern); fault != "" {
+			return fmt.Errorf("scan.exclude_dirs: pattern %q %s", pattern, fault)
 		}
 	}
 	return nil
@@ -1395,9 +1405,9 @@ func (c *Contract) Version() string {
 
 // Definition returns a detached copy of the contract's declarative
 // vocabulary and validation policy. The scan declaration is not copied:
-// knowledge-layer membership is [KnowledgeScope], and skip_basenames is
-// [Contract.SkipBasenames]. A vault no contract governs declares an empty
-// vocabulary.
+// knowledge-layer membership is [KnowledgeScope], skip_basenames is
+// [Contract.SkipBasenames], and exclude_dirs is [Contract.ScanBoundary]. A
+// vault no contract governs declares an empty vocabulary.
 func (c *Contract) Definition() Definition {
 	if c == nil {
 		return Definition{}
@@ -1573,6 +1583,16 @@ func (c *Contract) SkipsBasename(relPath string) bool {
 		base = after
 	}
 	return slices.Contains(c.definition.Scan.SkipBasenames, base)
+}
+
+// ScanBoundary returns the directories this vault's scan keeps out, as the
+// scan reads them. An ungoverned vault, or one that declares none, excludes
+// nothing beyond the dot-prefixed names every scan skips.
+func (c *Contract) ScanBoundary() vault.Boundary {
+	if c == nil {
+		return vault.Boundary{}
+	}
+	return vault.NewBoundary(c.definition.Scan.ExcludeDirs)
 }
 
 // ArtifactPolicy returns the contract-derived artifact policy capability.

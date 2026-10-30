@@ -50,8 +50,13 @@ type Titles interface {
 // walks a path with a hidden segment, so a picture under one is not gone, it is
 // somewhere this reader does not look, and marking it missing would report the
 // reader's own boundary as a fault in somebody's note.
+//
+// OutsideScan is the other half of that distinction, asked of a path a link
+// names: whether the scan looks there at all. A link into such a place is left
+// as written rather than rewritten to an address that cannot be served.
 type Files interface {
 	MissingFile(path string) bool
+	OutsideScan(path string) bool
 }
 
 // DiagnosticKind classifies one Diagnostic. All but one are raised by a pass

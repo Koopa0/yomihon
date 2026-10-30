@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -98,6 +99,10 @@ type Reader struct {
 	selectedPath string
 	root         *os.Root
 	token        *readerToken
+	// boundary is what the vault's contract keeps out of the scan. The contract
+	// is itself read through this Reader, so the boundary cannot be known when
+	// the Reader opens and is installed once the contract has been read.
+	boundary atomic.Pointer[Boundary]
 }
 
 // File is an opened regular file selected through a Reader. Its descriptor
@@ -251,6 +256,7 @@ type Scan struct {
 }
 
 type scanState struct {
+	boundary Boundary
 	rootName string
 	rootInfo fs.FileInfo
 	files    []Entry
@@ -283,6 +289,18 @@ func (s Scan) Entry(canonicalPath string) (Entry, bool) {
 	}
 	entry, ok := s.state.entries[canonicalPath]
 	return cloneEntry(entry), ok
+}
+
+// OutsideScan reports whether relPath lies beyond what this scan looked at:
+// beyond the dot-name rule every scan follows and beyond the directories the
+// boundary in force when it ran excluded. It is the question [OutsideScan]
+// answers, put to the scan that actually ran. A zero Scan looked at nothing
+// and applies the dot-name rule alone.
+func (s Scan) OutsideScan(relPath string) bool {
+	if s.state == nil {
+		return OutsideScan(relPath)
+	}
+	return s.state.boundary.OutsideScan(relPath)
 }
 
 // Contains reports whether canonicalPath was observed as a directory or a
@@ -404,6 +422,20 @@ func Open(root string) (*Reader, error) {
 	return &Reader{name: absolute, selectedPath: selected, root: opened, token: &readerToken{}}, nil
 }
 
+// SetBoundary installs the directories the vault's contract keeps out of every
+// later scan. Entries already scanned are unaffected. The Reader scans the
+// whole vault under the dot-name rule until this is called.
+func (r *Reader) SetBoundary(b Boundary) {
+	r.boundary.Store(&b)
+}
+
+func (r *Reader) currentBoundary() Boundary {
+	if b := r.boundary.Load(); b != nil {
+		return *b
+	}
+	return Boundary{}
+}
+
 // RootIdentity compares the originally selected lookup path to the directory
 // object pinned at startup. Same is meaningful only without an observation error.
 type RootIdentity struct {
@@ -468,16 +500,18 @@ func (r *Reader) Close() error {
 	return r.root.Close()
 }
 
-// ScanAvailable observes every usable regular, non-dot entry. Nested paths
-// that cannot be observed are recorded as problems while usable neighbors
-// remain available. Root errors, cancellation, and canonical collisions fail
-// the scan without returning a partial value.
+// ScanAvailable observes every usable regular entry that is neither dot-named
+// nor under a directory the boundary excludes. Nested paths that cannot be
+// observed are recorded as problems while usable neighbors remain available.
+// Root errors, cancellation, and canonical collisions fail the scan without
+// returning a partial value.
 func (r *Reader) ScanAvailable(ctx context.Context) (Scan, error) {
 	return r.scan(ctx, scanAvailable)
 }
 
-// ScanComplete observes every regular, non-dot entry. Any observation error
-// fails the scan without returning a partial value.
+// ScanComplete observes every regular entry that is neither dot-named nor
+// under a directory the boundary excludes. Any observation error fails the scan
+// without returning a partial value.
 func (r *Reader) ScanComplete(ctx context.Context) (Scan, error) {
 	return r.scan(ctx, scanComplete)
 }
@@ -493,8 +527,10 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 	if err != nil {
 		return Scan{}, fmt.Errorf("list pinned vault: %w", err)
 	}
+	boundary := r.currentBoundary()
 	walk := sourceWalk{
 		token:        r.token,
+		boundary:     boundary,
 		completeness: completeness,
 		seen:         make(map[string]string),
 		directories:  make(map[string]fs.FileInfo),
@@ -526,6 +562,7 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 		entries[entry.path] = entry
 	}
 	return Scan{state: &scanState{
+		boundary: boundary,
 		rootName: r.name,
 		rootInfo: rootInfo,
 		files:    walk.entries,
@@ -545,6 +582,7 @@ const (
 
 type sourceWalk struct {
 	token        *readerToken
+	boundary     Boundary
 	completeness scanCompleteness
 	seen         map[string]string
 	directories  map[string]fs.FileInfo
@@ -571,6 +609,9 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 		return nil
 	}
 	canonical := NormalizeNFC(filepath.ToSlash(raw))
+	if d.IsDir() && w.boundary.excludes(canonical) {
+		return fs.SkipDir
+	}
 	if err := recordCanonicalPath(w.seen, raw, canonical); err != nil {
 		return err
 	}

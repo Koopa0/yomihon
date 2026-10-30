@@ -133,6 +133,31 @@ func loadContractWithoutKnowledgeDirs(t *testing.T) *schema.Contract {
 	return contract
 }
 
+// loadContractExcluding is the fixture contract with scan.exclude_dirs naming
+// pattern: a vault that keeps a directory out of its scan.
+func loadContractExcluding(t *testing.T, pattern string) *schema.Contract {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read test contract: %v", err)
+	}
+	const declared = "knowledge_dirs = [\"Writing\"]\n"
+	modified := strings.Replace(string(data), declared, declared+"exclude_dirs = [\""+pattern+"\"]\n", 1)
+	if modified == string(data) {
+		t.Fatal("knowledge_dirs replacement did not apply")
+	}
+	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
+	err = os.WriteFile(contractPath, []byte(modified), 0o600) // #nosec G703 -- contractPath is a fixed basename under this test's TempDir
+	if err != nil {
+		t.Fatalf("write test contract: %v", err)
+	}
+	contract, err := schema.LoadFile(contractPath)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", contractPath, err)
+	}
+	return contract
+}
+
 func newWriter(t *testing.T, root string, contract *schema.Contract) *status.Writer {
 	t.Helper()
 	reader, err := vault.Open(root)
@@ -740,6 +765,53 @@ func TestFlipRefusesNonInstancePaths(t *testing.T) {
 				t.Errorf("bytes changed before the refusal (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+// TestFlipRefusesNotesInAnExcludedDirectory holds the write face to the
+// reading scan's reach for a directory the contract excludes, as it is for a
+// dot-directory: the reading face never shows the note, so it must not be able
+// to receive a transition either. A sibling directory is not refused on that
+// ground.
+func TestFlipRefusesNotesInAnExcludedDirectory(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writer := newWriter(t, root, loadContractExcluding(t, "Writing/*/japanese"))
+
+	original := lessonContent("draft")
+	writeVaultFile(t, root, "Writing/lessons/japanese/L05.md", original)
+	writeVaultFile(t, root, "Writing/lessons/french/L05.md", original)
+
+	err := writer.Flip(t.Context(), "Writing/lessons/japanese/L05.md", "draft", "ready", [sha256.Size]byte{})
+	if !errors.Is(err, status.ErrNonInstance) {
+		t.Fatalf("Flip(excluded) = %v, want %v", err, status.ErrNonInstance)
+	}
+	got, readErr := os.ReadFile(filepath.Join(root, "Writing", "lessons", "japanese", "L05.md")) // #nosec G304 -- a fixed in-test path under this test's TempDir
+	if readErr != nil {
+		t.Fatalf("read excluded note: %v", readErr)
+	}
+	if diff := cmp.Diff(original, string(got)); diff != "" {
+		t.Errorf("bytes changed before the refusal (-want +got):\n%s", diff)
+	}
+
+	// Patterns are matched on the exact spelling, as the walk matches them. A
+	// volume that opens the other spelling must still not let a write through:
+	// the note is then refused as one the vault does not hold under that name.
+	err = writer.Flip(t.Context(), "Writing/lessons/JAPANESE/L05.md", "draft", "ready", [sha256.Size]byte{})
+	if err == nil {
+		t.Error("Flip(excluded directory, other case) = nil, want a refusal")
+	}
+	got, readErr = os.ReadFile(filepath.Join(root, "Writing", "lessons", "japanese", "L05.md")) // #nosec G304 -- a fixed in-test path under this test's TempDir
+	if readErr != nil {
+		t.Fatalf("read excluded note: %v", readErr)
+	}
+	if diff := cmp.Diff(original, string(got)); diff != "" {
+		t.Errorf("bytes changed through the other spelling (-want +got):\n%s", diff)
+	}
+
+	err = writer.Flip(t.Context(), "Writing/lessons/french/L05.md", "draft", "ready", [sha256.Size]byte{})
+	if errors.Is(err, status.ErrNonInstance) {
+		t.Errorf("Flip(sibling) = %v, a directory the contract does not exclude was refused as a resource", err)
 	}
 }
 

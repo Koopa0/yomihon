@@ -680,6 +680,134 @@ func TestCoreSemanticsScan(t *testing.T) {
 	}
 }
 
+func TestScanExcludeDirsValidation(t *testing.T) {
+	t.Parallel()
+
+	const declared = `skip_basenames = ["README.md"]`
+	tests := []struct {
+		name    string
+		to      string
+		wantErr string
+	}{
+		{name: "omitted key is legal", to: declared},
+		{name: "empty list is legal", to: declared + "\nexclude_dirs = []"},
+		{name: "nested glob", to: declared + "\nexclude_dirs = [\"courses/*/lab\"]"},
+		{name: "literal path", to: declared + "\nexclude_dirs = [\"System/templates\"]"},
+		{name: "several patterns", to: declared + "\nexclude_dirs = [\"courses/*/lab\", \"*/tpl\"]"},
+		{
+			name:    "empty element",
+			to:      declared + "\nexclude_dirs = [\"\"]",
+			wantErr: "scan.exclude_dirs: empty value",
+		},
+		{
+			name:    "duplicate",
+			to:      declared + "\nexclude_dirs = [\"lab\", \"lab\"]",
+			wantErr: `scan.exclude_dirs: duplicate value "lab"`,
+		},
+		{
+			name:    "parent segment",
+			to:      declared + "\nexclude_dirs = [\"../lab\"]",
+			wantErr: `scan.exclude_dirs: pattern "../lab" climbs out of the vault`,
+		},
+		{
+			name:    "parent segment in the middle",
+			to:      declared + "\nexclude_dirs = [\"courses/../lab\"]",
+			wantErr: `scan.exclude_dirs: pattern "courses/../lab" is not a clean relative path`,
+		},
+		{
+			name:    "absolute",
+			to:      declared + "\nexclude_dirs = [\"/courses/lab\"]",
+			wantErr: `scan.exclude_dirs: pattern "/courses/lab" is absolute`,
+		},
+		{
+			name:    "trailing slash",
+			to:      declared + "\nexclude_dirs = [\"courses/lab/\"]",
+			wantErr: `scan.exclude_dirs: pattern "courses/lab/" is not a clean relative path`,
+		},
+		{
+			name:    "empty segment",
+			to:      declared + "\nexclude_dirs = [\"courses//lab\"]",
+			wantErr: `scan.exclude_dirs: pattern "courses//lab" is not a clean relative path`,
+		},
+		{
+			name:    "current directory",
+			to:      declared + "\nexclude_dirs = [\".\"]",
+			wantErr: `scan.exclude_dirs: pattern "." is not a clean relative path`,
+		},
+		{
+			name:    "malformed glob",
+			to:      declared + "\nexclude_dirs = [\"courses/[lab\"]",
+			wantErr: `scan.exclude_dirs: pattern "courses/[lab" is not a valid pattern`,
+		},
+		{
+			name:    "NUL",
+			to:      declared + "\nexclude_dirs = [\"a\\u0000b\"]",
+			wantErr: `contains a NUL byte`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			data := replaceContractText(t, semanticallyValidContract, declared, tt.to)
+			_, err := decodeContract([]byte(data), policySource{})
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("decodeContract() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("decodeContract() error = nil, want substring %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("decodeContract() error = %q, want substring %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// TestScanBoundaryFollowsExcludeDirs pins what a contract's exclusion list
+// means once loaded: a directory it names is beyond the scan, a sibling is not,
+// and a contract that declares nothing excludes nothing but the dot names.
+func TestScanBoundaryFollowsExcludeDirs(t *testing.T) {
+	t.Parallel()
+
+	declared := `skip_basenames = ["README.md"]`
+	data := replaceContractText(t, semanticallyValidContract, declared, declared+"\nexclude_dirs = [\"courses/*/lab\"]")
+	contract, err := decodeContract([]byte(data), policySource{})
+	if err != nil {
+		t.Fatalf("decodeContract() error = %v", err)
+	}
+	boundary := contract.ScanBoundary()
+	for relPath, want := range map[string]bool{
+		"courses/C1/lab/main.go":   true,
+		"courses/C1/lab/deep/x.go": true,
+		"courses/C1/modules/a.md":  false,
+		"courses/lab/main.go":      false,
+		"courses/C1/x/lab/main.go": false,
+		"courses/C1/lab":           false,
+		"courses/C1/.hidden/a.md":  true,
+		"Notes/lab/main.go":        false,
+	} {
+		if got := boundary.OutsideScan(relPath); got != want {
+			t.Errorf("OutsideScan(%q) = %v, want %v", relPath, got, want)
+		}
+	}
+
+	plain, err := decodeContract([]byte(semanticallyValidContract), policySource{})
+	if err != nil {
+		t.Fatalf("decodeContract() error = %v", err)
+	}
+	if plain.ScanBoundary().OutsideScan("courses/C1/lab/main.go") {
+		t.Error("a contract without exclude_dirs excludes courses/C1/lab/main.go")
+	}
+	var absent *Contract
+	if absent.ScanBoundary().OutsideScan("courses/C1/lab/main.go") {
+		t.Error("an ungoverned vault excludes courses/C1/lab/main.go")
+	}
+}
+
 func TestCoreSemanticsSupersession(t *testing.T) {
 	t.Parallel()
 

@@ -85,6 +85,19 @@ func (a scanAuthority) validate() error {
 	return nil
 }
 
+// outsideScan reports whether relPath lies where this vault's scan does not
+// look: under a dot-prefixed name or a directory the contract excludes.
+func (a scanAuthority) outsideScan(relPath string) bool {
+	return a.contract.ScanBoundary().OutsideScan(relPath)
+}
+
+// readable reports whether a link may be followed to relPath at all: the
+// privacy policy lets it out and the scan looks there. It is the gate a path
+// passes before its membership is inspected.
+func (a scanAuthority) readable(relPath string) bool {
+	return a.egressAllowed(relPath) && !a.outsideScan(relPath)
+}
+
 func (a scanAuthority) egressAllowed(relPath string) bool {
 	return a.privacy.EgressAllowed(relPath)
 }

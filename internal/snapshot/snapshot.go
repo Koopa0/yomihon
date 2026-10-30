@@ -478,10 +478,19 @@ func (g *Generation) MissingFile(canonicalPath string) bool {
 	// is missing while that route answers 200 for it would be a diagnostic about
 	// this reader's own spelling.
 	canonicalPath = vault.NormalizeNFC(canonicalPath)
-	if vault.OutsideScan(canonicalPath) {
+	if g.scan.OutsideScan(canonicalPath) {
 		return false
 	}
 	return !g.scan.Contains(canonicalPath)
+}
+
+// OutsideScan reports whether canonicalPath lies where this generation's scan
+// did not look: under a dot-prefixed name or a directory the contract excludes.
+func (g *Generation) OutsideScan(canonicalPath string) bool {
+	if g == nil {
+		return vault.OutsideScan(canonicalPath)
+	}
+	return g.scan.OutsideScan(canonicalPath)
 }
 
 // Contains reports whether canonicalPath was a file or directory in this

@@ -269,3 +269,5 @@ func (noTitles) TitledBy(string) []string { return nil }
 type everyFileHeld struct{}
 
 func (everyFileHeld) MissingFile(string) bool { return false }
+
+func (everyFileHeld) OutsideScan(string) bool { return false }
