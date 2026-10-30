@@ -6045,9 +6045,26 @@ samp,
   }
 }
 @media (max-width: 520px) {
+  /* A phone's row holds the menu, the name, and on a page with furigana four
+     controls, and the name is what would give. The icons need no gap of their
+     own: each glyph already sits in a box twice its size, so the space between
+     two glyphs is drawn by the boxes, and the search entrance is one such box
+     rather than a wider frame. The bookmark's box under a thumb stays its own
+     size. */
   .y-header {
-    gap: 5px;
+    gap: 0;
     padding-inline: 8px;
+  }
+
+  .y-searchbtn {
+    justify-content: center;
+    padding: 0;
+    width: 32px;
+  }
+
+  .y-rubybtn {
+    gap: 4px;
+    padding-left: 4px;
   }
 
   .y-article,
