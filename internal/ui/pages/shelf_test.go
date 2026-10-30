@@ -99,6 +99,9 @@ func TestShelfBlockHandsTheReaderTheRestOfTheShelf(t *testing.T) {
 	if strings.Contains(got, shelf.Empty) {
 		t.Errorf("a block with rows spoke its empty sentence:\n%s", got)
 	}
+	if strings.Contains(got, shelf.Lede) {
+		t.Errorf("a block drew the shelf's lede, which belongs to the shelf's own page:\n%s", got)
+	}
 
 	var bare strings.Builder
 	if err := ShelfBlock(Shelf{Title: "路徑", Href: "/paths", Empty: "沒有課程。"}, "paths", 3, wording.ZhHant).Render(t.Context(), &bare); err != nil {

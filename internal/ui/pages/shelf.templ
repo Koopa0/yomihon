@@ -8,9 +8,11 @@ import (
 )
 
 // ShelfBlock is a shelf at its narrowest: what the organisation is called, how
-// much of it there is, its one sentence, and the first few linked or fault
-// rows. It is a way in rather than a fifth listing, so it ends by handing
-// the reader to the shelf's own page instead of going on.
+// much of it there is, and the first few linked or fault rows. It is a way in
+// rather than a fifth listing, so it ends by handing the reader to the shelf's
+// own page instead of going on. The shelf's lede belongs to that page: the
+// heading already says what the block is, and a sentence under it restated the
+// listing's own wording where the two could disagree.
 //
 // What the block shows and what the shelf holds are different questions. A
 // shelf whose rows are all listed without being stops — a course whose lessons
@@ -25,9 +27,6 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
 				<p>{ s.Count }</p>
 			}
 		</header>
-		if s.Lede != "" {
-			<p class="y-homeblock__lede">{ s.Lede }</p>
-		}
 		if len(s.Rows) == 0 {
 			if s.Empty != "" {
 				@nothingToShow(nothingNotice{Kind: "shelf"}) {
