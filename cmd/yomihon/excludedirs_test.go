@@ -12,7 +12,10 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-const excludeDirsSentinel = "excludedirs-lock-sentinel"
+const (
+	excludeDirsSentinel = "excludedirs-lock-sentinel"
+	keptDirsSentinel    = "excludedirs-kept-sentinel"
+)
 
 // TestExcludedDirectoriesAreUnseenLikeHiddenOnes composes the production site
 // over a vault whose contract excludes courses/*/lab and holds the directory
@@ -31,7 +34,7 @@ func TestExcludedDirectoriesAreUnseenLikeHiddenOnes(t *testing.T) {
 		"courses/C1/lab/main.go":           "package main // " + excludeDirsSentinel + "\n",
 		"courses/C2/lab/main.go":           "package main\n",
 		"courses/C1/lab/Inside.md":         "---\ntitle: Inside\ntype: note\nstatus: draft\n---\n" + excludeDirsSentinel + "\n",
-		"courses/C1/modules/Lesson.md":     "---\ntitle: Lesson\ntype: note\nstatus: draft\n---\nLesson body.\n",
+		"courses/C1/modules/Lesson.md":     "---\ntitle: Lesson\ntype: note\nstatus: draft\n---\n" + keptDirsSentinel + "\n",
 		"courses/C1/.hidden/main.go":       "package main\n",
 		"courses/C1/modules/lab/Shown.txt": "shown\n",
 	}
@@ -54,19 +57,27 @@ func TestExcludedDirectoriesAreUnseenLikeHiddenOnes(t *testing.T) {
 		}
 	})
 
-	folders := readingPage(t, site, "/folders")
-	for _, absent := range []string{"courses/C1/lab", "courses/C2/lab", "Inside.md", "main.go"} {
-		if strings.Contains(folders, absent) {
-			t.Errorf("GET /folders shelves %q beneath an excluded directory", absent)
-		}
+	// The folder browser lists one directory per page, so the excluded
+	// directory is looked for in its parent's listing and asked for itself.
+	folders := readingPage(t, site, "/folders/courses/C1")
+	if !strings.Contains(folders, `href="/folders/courses/C1/modules"`) {
+		t.Errorf("GET /folders/courses/C1 lost the sibling modules directory; page = %q", folders)
 	}
-	if !strings.Contains(folders, "Lesson.md") {
-		t.Errorf("GET /folders lost the sibling modules directory; page = %q", folders)
+	if strings.Contains(folders, "/folders/courses/C1/lab") {
+		t.Errorf("GET /folders/courses/C1 lists the excluded directory; page = %q", folders)
+	}
+	hiddenFolderCode, _ := skipBasenameGET(t, site, "/folders/courses/C1/.hidden")
+	if code, _ := skipBasenameGET(t, site, "/folders/courses/C1/lab"); code != hiddenFolderCode {
+		t.Errorf("GET /folders/courses/C1/lab = %d, want %d, the answer for a hidden directory", code, hiddenFolderCode)
 	}
 
 	search := readingPage(t, site, "/search?q="+excludeDirsSentinel)
 	if !strings.Contains(search, `data-result-count="0"`) {
 		t.Errorf("GET /search found text beneath an excluded directory; page = %q", search)
+	}
+
+	if kept := readingPage(t, site, "/search?q="+keptDirsSentinel); strings.Contains(kept, `data-result-count="0"`) {
+		t.Errorf("GET /search lost the sibling modules directory; page = %q", kept)
 	}
 
 	findings, checkErr := judge.Check(t.Context(), root)

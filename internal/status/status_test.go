@@ -794,6 +794,21 @@ func TestFlipRefusesNotesInAnExcludedDirectory(t *testing.T) {
 		t.Errorf("bytes changed before the refusal (-want +got):\n%s", diff)
 	}
 
+	// Patterns are matched on the exact spelling, as the walk matches them. A
+	// volume that opens the other spelling must still not let a write through:
+	// the note is then refused as one the vault does not hold under that name.
+	err = writer.Flip(t.Context(), "Writing/lessons/JAPANESE/L05.md", "draft", "ready", [sha256.Size]byte{})
+	if err == nil {
+		t.Error("Flip(excluded directory, other case) = nil, want a refusal")
+	}
+	got, readErr = os.ReadFile(filepath.Join(root, "Writing", "lessons", "japanese", "L05.md")) // #nosec G304 -- a fixed in-test path under this test's TempDir
+	if readErr != nil {
+		t.Fatalf("read excluded note: %v", readErr)
+	}
+	if diff := cmp.Diff(original, string(got)); diff != "" {
+		t.Errorf("bytes changed through the other spelling (-want +got):\n%s", diff)
+	}
+
 	err = writer.Flip(t.Context(), "Writing/lessons/french/L05.md", "draft", "ready", [sha256.Size]byte{})
 	if errors.Is(err, status.ErrNonInstance) {
 		t.Errorf("Flip(sibling) = %v, a directory the contract does not exclude was refused as a resource", err)

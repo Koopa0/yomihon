@@ -36,9 +36,12 @@ func TestExcludedDirectoriesTakeNoPartInNameCollisions(t *testing.T) {
 			write(t, root, "courses/C4/modules/L10 Two pointers.md", "---\ntitle: Module\ntype: note\n---\n")
 			write(t, root, "Notes/Index.md", "---\ntitle: Index\ntype: note\n---\n\nSee [[L10 Two pointers]].\n")
 
-			findings, err := Check(t.Context(), root)
+			// The default report drops findings that touch nothing in the
+			// knowledge layer, and the colliding files are outside it, so the
+			// whole-vault view is the one that can show them.
+			findings, err := runCheckAction(t.Context(), root, nil, true)
 			if err != nil {
-				t.Fatalf("Check() error = %v", err)
+				t.Fatalf("runCheckAction() error = %v", err)
 			}
 			var collisions []string
 			for i := range findings {
