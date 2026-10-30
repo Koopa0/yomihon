@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -29,9 +30,15 @@ func TestThoughtRouteOffersOrdinaryDocumentsAndLessonsTheSameDoor(t *testing.T) 
 				t.Fatalf("thought route status = %d, body %s", recorder.Code, recorder.Body.String())
 			}
 			markdown := thoughtTemplate(t, recorder.Body.String())
-			const want = "---\ntype: \"writing\"\nstatus: \"draft\"\ndomain: \"japanese\"\nbased_on: \"[[Source#Chapter one]]\"\n---\n"
-			if markdown != want {
-				t.Errorf("offered Markdown = %q, want %q", markdown, want)
+			// The title is the suggested file name, whose minute is the clock's.
+			titleLine, rest, _ := strings.Cut(strings.TrimPrefix(markdown, "---\n"), "\n")
+			title, titled := strings.CutPrefix(titleLine, "title: ")
+			if unquoted, err := strconv.Unquote(title); !titled || err != nil || !thoughtNamePattern.MatchString(unquoted) {
+				t.Errorf("first frontmatter line = %q, want the suggested note name as title", titleLine)
+			}
+			const want = "type: \"writing\"\nstatus: \"draft\"\ndomain: \"japanese\"\nbased_on: \"[[Source#Chapter one]]\"\n---\n"
+			if rest != want {
+				t.Errorf("offered Markdown after the title = %q, want %q", rest, want)
 			}
 			if _, err := os.Stat(filepath.Join(root, "Source-thought.md")); !os.IsNotExist(err) {
 				t.Errorf("opening the door created a thought file: %v", err)
@@ -97,6 +104,9 @@ func TestThoughtRouteOffersObsidianOnlyInAnObsidianVault(t *testing.T) {
 			}
 			if name := query.Get("name"); !thoughtNamePattern.MatchString(name) {
 				t.Errorf("file name %q does not read as a thought on the source", name)
+			}
+			if want := "title: " + strconv.Quote(query.Get("name")) + "\n"; !strings.Contains(query.Get("content"), want) {
+				t.Errorf("content = %q, want the file name as title (%s)", query.Get("content"), want)
 			}
 			if !strings.Contains(query.Get("content"), `based_on: "[[Source]]"`) {
 				t.Errorf("content = %q, want it to cite the source", query.Get("content"))
