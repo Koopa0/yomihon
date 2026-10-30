@@ -493,6 +493,21 @@ func (g *Generation) OutsideScan(canonicalPath string) bool {
 	return g.scan.OutsideScan(canonicalPath)
 }
 
+// IsDirectory reports whether canonicalPath was observed as a directory in
+// this generation: something the scan saw that is not a regular file. The
+// spelling is composed before the look, as MissingFile does, because a link
+// carries whichever form its author typed.
+func (g *Generation) IsDirectory(canonicalPath string) bool {
+	if g == nil {
+		return false
+	}
+	canonicalPath = vault.NormalizeNFC(canonicalPath)
+	if _, file := g.scan.Entry(canonicalPath); file {
+		return false
+	}
+	return g.scan.Contains(canonicalPath)
+}
+
 // Contains reports whether canonicalPath was a file or directory in this
 // generation.
 func (g *Generation) Contains(canonicalPath string) bool {

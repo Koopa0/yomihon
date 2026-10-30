@@ -44,6 +44,8 @@ func (everyFileHeld) MissingFile(string) bool { return false }
 
 func (everyFileHeld) OutsideScan(string) bool { return false }
 
+func (everyFileHeld) IsDirectory(string) bool { return false }
+
 // citationSurface is one body written to disagree: a citation inside a callout,
 // a table cell, a strikethrough run, a footnote definition, a task item, and
 // beside an autolink, each of which only one of the two engines parses; and a

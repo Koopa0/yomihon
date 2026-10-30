@@ -574,6 +574,8 @@ func (landingFiles) MissingFile(string) bool { return false }
 
 func (landingFiles) OutsideScan(string) bool { return false }
 
+func (landingFiles) IsDirectory(string) bool { return false }
+
 // The destination belongs to a source interval, not to an equality comparison
 // between a highlighted excerpt and a separately trimmed directive term.
 func TestSearchSelectsBoundarySafeExcerptDestinations(t *testing.T) {

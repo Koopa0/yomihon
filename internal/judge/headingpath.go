@@ -65,3 +65,5 @@ func (fragmentNotes) TitledBy(string) []string { return nil }
 func (fragmentNotes) MissingFile(string) bool { return false }
 
 func (fragmentNotes) OutsideScan(string) bool { return false }
+
+func (fragmentNotes) IsDirectory(string) bool { return false }
