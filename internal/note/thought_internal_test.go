@@ -1,6 +1,7 @@
 package note
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -36,10 +37,7 @@ func TestThoughtNoteName(t *testing.T) {
 
 func TestThoughtNoteNameBoundsALongTitle(t *testing.T) {
 	t.Parallel()
-	long := ""
-	for range 200 {
-		long += "長"
-	}
+	long := strings.Repeat("長", 200)
 	name := thoughtNoteName(long, wording.ZhHant, time.Date(2026, time.October, 30, 9, 5, 0, 0, time.UTC))
 	// File systems cap a name at 255 bytes, and Obsidian adds ".md".
 	if len(name)+len(".md") > 255 {

@@ -71,7 +71,10 @@ func TestThoughtRouteOffersObsidianOnlyInAnObsidianVault(t *testing.T) {
 				t.Fatalf("thought route status = %d, body %s", recorder.Code, recorder.Body.String())
 			}
 			page := recorder.Body.String()
-			if !strings.Contains(page, "data-thought-copy") {
+			// The section also carries data-thought-copied and data-thought-copyfailed,
+			// so the button is found by its own closing bracket.
+			const copyButton = "data-thought-copy>"
+			if !strings.Contains(page, copyButton) {
 				t.Error("copying is always an action")
 			}
 			link := regexp.MustCompile(`href="(obsidian://new[^"]*)"`).FindStringSubmatch(page)
@@ -98,7 +101,7 @@ func TestThoughtRouteOffersObsidianOnlyInAnObsidianVault(t *testing.T) {
 			if !strings.Contains(query.Get("content"), `based_on: "[[Source]]"`) {
 				t.Errorf("content = %q, want it to cite the source", query.Get("content"))
 			}
-			if strings.Index(page, "data-thought-copy") < strings.Index(page, "obsidian://new") {
+			if strings.Index(page, copyButton) < strings.Index(page, `class="y-xbtn y-xbtn--primary"`) {
 				t.Error("the Obsidian action must come before the copy action")
 			}
 		})
