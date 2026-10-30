@@ -5,6 +5,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -54,4 +55,17 @@ func (v ListenView) marked() string {
 		}
 	}
 	return b.String()
+}
+
+// carriesReadings reports whether any paragraph the page reads aloud holds
+// furigana for the header's switch to show and hide.
+func (v *ListenView) carriesReadings() bool {
+	for _, l := range v.Lessons {
+		for _, p := range l.Paragraphs {
+			if render.CarriesReadings(p) {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -138,3 +138,41 @@ func homeSearchSection(t *testing.T, html string) string {
 	}
 	return html[start : markerAt+end]
 }
+
+// TestTheDeskAlwaysLeadsToTheHealthView holds the desk's last line: a way to
+// the whole-folder view on every desk, the number of findings beside it in
+// words when there are any, and no number at all when there are none, since a
+// bare 0 reads as a count nobody took. The line is the last thing on the desk,
+// below everything that is about reading.
+func TestTheDeskAlwaysLeadsToTheHealthView(t *testing.T) {
+	t.Parallel()
+
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		for _, findings := range []int{0, 1, 3} {
+			var buf bytes.Buffer
+			if err := Home(HomeView{Findings: findings}, layouts.Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render Home: %v", err)
+			}
+			page := buf.String()
+			at := strings.Index(page, `class="y-deskhealth"`)
+			if at < 0 {
+				t.Fatalf("%s desk with %d findings has no way to the health view", lang, findings)
+			}
+			row := page[at:]
+			row = row[:strings.Index(row, "</p>")]
+			if !strings.Contains(row, `href="/health"`) || !strings.Contains(row, wording.HealthTitle.In(lang)) {
+				t.Errorf("%s desk row does not lead to the health view by its name: %q", lang, row)
+			}
+			count := strings.Contains(row, "y-deskhealth__count")
+			if count != (findings > 0) {
+				t.Errorf("%s desk with %d findings draws a count = %v: %q", lang, findings, count, row)
+			}
+			if findings > 0 && !strings.Contains(row, plural(findings, wording.LibraryFindingOne, wording.LibraryFindingMany, lang)) {
+				t.Errorf("%s desk row does not say the number in words: %q", lang, row)
+			}
+			if rest := page[at:]; strings.Contains(rest[strings.Index(rest, "</p>"):], "<p") {
+				t.Errorf("%s desk draws something after the way to the health view, which is meant to be its last line", lang)
+			}
+		}
+	}
+}

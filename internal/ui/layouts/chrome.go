@@ -32,6 +32,11 @@ type Chrome struct {
 	// Ruby is whether furigana are shown: "on" or "off". The root carries it so
 	// the first paint already matches.
 	Ruby string
+	// Readings is whether the page in front of the reader carries furigana,
+	// and so whether the header offers the switch for them. The page decides
+	// it from what it rendered, as it decides Mark; every other page leaves it
+	// false and draws no such switch.
+	Readings bool
 	// TextSize scales the reading column: "m" (the default measure), "l", or
 	// "xl". It tunes presentation only — the charter's bounded reading
 	// preferences — and the chrome around the article keeps its own size.
@@ -46,7 +51,7 @@ type Chrome struct {
 	// already the column the reader left; it has no effect where the column is
 	// a drawer.
 	Rail                      string
-	SingleKeyShortcutsEnabled bool // plain / and [ are enabled
+	SingleKeyShortcutsEnabled bool // plain /, [ and ? are enabled
 	// Lang is the language the interface speaks for this request, and the
 	// language the document declares. The article inside it may declare its
 	// own; that answers what the note is written in, which is a different
@@ -83,45 +88,15 @@ type MarkOffer struct {
 	Kept     bool
 }
 
-// The three answers the header's own controls need in words: the state a
-// checkbox is in, the language the switch leads to, and the measure the
-// reading column is set at. They are here rather than beside the markup
-// because Go written inside a template reaches the compiler only as
-// generated output, which every linter in this repository is told to skip.
-
+// singleKeyShortcutsState is the word the root carries for the single-key
+// preference. It is here rather than beside the markup because Go written
+// inside a template reaches the compiler only as generated output, which every
+// linter in this repository is told to skip.
 func singleKeyShortcutsState(enabled bool) string {
 	if enabled {
 		return "on"
 	}
 	return "off"
-}
-
-// languageMark labels the language control with the language it switches to
-// rather than the one in force. A control that names the current state reads as
-// a status line, and a reader who cannot read the interface they are looking at
-// needs to recognise the way out of it.
-func languageMark(lang wording.Lang) string {
-	if lang.Other() == wording.En {
-		return "EN"
-	}
-	return "中"
-}
-
-// textSizeLabel is the text-size control's accessible name, which carries the
-// size the reader is at rather than the action the press performs. Its two
-// neighbours in the header are two-state and say where they stand through
-// aria-pressed; this one cycles through three, which no boolean carries, so
-// the name is where its state has to live. The script keeps it current on
-// every press, and a reader arriving on a reload finds the same answer.
-func textSizeLabel(size string, lang wording.Lang) string {
-	switch size {
-	case "l":
-		return wording.TextSizeLarge.In(lang)
-	case "xl":
-		return wording.TextSizeExtraLarge.In(lang)
-	default:
-		return wording.TextSizeMedium.In(lang)
-	}
 }
 
 // ChromeFromRequest builds the page chrome from the request: the page title

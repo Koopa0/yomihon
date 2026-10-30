@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/status"
@@ -48,9 +47,6 @@ func TestRootNoticeReachesTheShellWithoutChangingFindingCounts(t *testing.T) {
 	}
 	if found.Total() != 0 {
 		t.Fatalf("root notice counted as %d finding rows", found.Total())
-	}
-	if diff := cmp.Diff(nav.Vault{Name: "vault", Noticed: true}, Project("vault", status.Authority{}, view).Vault); diff != "" {
-		t.Fatalf("standing root cue (-want +got):\n%s", diff)
 	}
 	found.Root.SelectedPath = "caller mutation"
 	if diff := cmp.Diff(want, GatherFindings(status.Authority{}, view).Root); diff != "" {

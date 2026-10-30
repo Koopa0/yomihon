@@ -389,13 +389,13 @@ var drawsNothing = map[string]bool{
 
 // recordedShell is the fixture folder handed over the way a request receives
 // it, carrying a stated vault so the recordings hold the foot of the rail with
-// its three lines filled. The zero shell is recorded too — the rail with no
+// both its lines filled. The zero shell is recorded too — the rail with no
 // current note keeps it — so both the stated and the unstated wording are
 // pinned, and neither can go blank without a recording moving.
 func recordedShell(model *nav.Model) nav.Shell {
 	return nav.Shell{
 		Nav:   model,
-		Vault: nav.Vault{Name: "example-vault", Notes: 12, Findings: 3},
+		Vault: nav.Vault{Name: "example-vault", Notes: 12},
 	}
 }
 

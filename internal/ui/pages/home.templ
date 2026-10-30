@@ -53,6 +53,9 @@ type HomeView struct {
 	// Continue is the way back to the place the reader kept, drawn ahead of
 	// the four ways in. A reader who kept none gets no row.
 	Continue ContinueRow
+	// Findings is how many things the health page has to report about this
+	// folder, counted the way that page counts its own rows.
+	Findings int
 }
 
 // HomeNote is one item in the recently-changed block. Modified is the compact
@@ -174,9 +177,28 @@ templ Home(v HomeView, c layouts.Chrome) {
 						<a href={ templ.URL(notesHref(HomeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
 					</p>
 				}
+				@deskHealth(v.Findings, c.Lang)
 			</div>
 		</main>
 	}
+}
+
+// deskHealth is the way to the whole-folder view, the author's maintenance
+// page rather than part of reading, so it is the desk's last line and a quiet
+// one. It is drawn whether or not anything is found, because a way in that
+// came and went with the findings would be missing exactly when a reader went
+// looking for it to confirm there are none. The count is the ink of the line
+// around it: the colour that says something needs attention belongs to the
+// page it leads to, where the findings are listed and can be acted on.
+templ deskHealth(findings int, lang wording.Lang) {
+	<p class="y-deskhealth" data-home-health data-home-health-findings={ strconv.Itoa(findings) }>
+		<a href="/health">
+			<span>{ wording.HealthTitle.In(lang) }</span>
+			if findings > 0 {
+				<span class="y-deskhealth__count">{ plural(findings, wording.LibraryFindingOne, wording.LibraryFindingMany, lang) }</span>
+			}
+		</a>
+	</p>
 }
 
 templ homeBlockHead(id, title, note string) {

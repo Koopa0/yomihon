@@ -207,6 +207,9 @@ templ Note(v NoteView, c layouts.Chrome) {
 	// this is where it learns it may: only a reading page hands the chrome an
 	// offer, so every other page's header has nothing to draw.
 	{{ c.Mark = v.markOffer() }}
+	// The same holds for the furigana switch: only the page knows whether
+	// what it rendered carries any readings to switch.
+	{{ c.Readings = v.carriesReadings() }}
 	@layouts.Base(c) {
 		// The sheet owns an id outside the authored section namespace.
 		@conceptSheet(v.Concepts, lang)

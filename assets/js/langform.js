@@ -1,28 +1,16 @@
-// Carry the reading position through the round trips that leave a note and
-// come back to it: the language form, and the walk out to the reading choices
-// and back. Both end in a redirect the server builds from an address the page
-// handed it, so the position rides on that address and nothing new is stored.
-// The controls stay a plain POST form and a plain link; this only rewrites the
-// address just before it is followed, and applies the fragment the redirect
-// comes back with. Without script both still carry the bare path and land at
-// the top.
+// Carry the reading position through the round trip that leaves a note for
+// the reading choices and comes back to it. The choices page ends in a
+// redirect the server builds from an address the page handed it, so the
+// position rides on that address and nothing new is stored. The way there
+// stays a plain link; this only rewrites its address just before it is
+// followed, and applies the fragment the redirect comes back with. Without
+// script the link still carries the bare path and the reader lands at the top.
 
 const MARK = 'y-at:';
 
 function pathOnly(address) {
   const hash = address.indexOf('#');
   return hash === -1 ? address : address.slice(0, hash);
-}
-
-function carryPosition(form) {
-  const next = form.querySelector('input[name="next"]');
-  if (!next) return;
-  const address = next.value;
-  if (!address.startsWith('/') || address.startsWith('//')) return;
-  const y = Math.round(window.scrollY);
-  if (y <= 0) return;
-  const path = pathOnly(address);
-  next.value = path + '#' + MARK + y;
 }
 
 function restorePosition() {
@@ -74,9 +62,4 @@ export function initLangForm() {
       carryPositionToLink(link);
     });
   }
-  const form = document.querySelector('.y-langform');
-  if (!form) return;
-  form.addEventListener('submit', () => {
-    carryPosition(form);
-  });
 }

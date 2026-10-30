@@ -58,6 +58,9 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	)
 	privacy := snap.PrivacyPolicy().Claim()
 	privacyFault, privacyRestart := statedAsFaults(lang, faultCause{privacy.Diagnostic(), privacy.Reason()})
+	// Counted by the call the health page lists its rows from, so the number
+	// at the foot of the desk and the table it leads to are one instrument.
+	found := shell.GatherFindings(authority, snap)
 	kept, hasMark := h.sources.Continuation()
 	open, openFault := h.openThoughtShelf(r.Context(), snap, lang, pages.OpenThoughtsHomeRows)
 	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
@@ -76,6 +79,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		Blocks:            blocks,
 		ReadmeMissing:     !hasReadme,
 		Continue:          continueRow(&kept, hasMark, snap, lang),
+		Findings:          found.Total(),
 	}
 	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write home page", "error", err)

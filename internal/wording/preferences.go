@@ -106,13 +106,13 @@ var (
 var (
 	PrefShortcuts     = both("單鍵快捷鍵", "Single-key shortcuts")
 	PrefShortcutsNote = both(
-		"關掉的是 / 與 [；⌘K 與 Esc 不受影響。",
-		"Turns off / and [; ⌘K and Esc keep working.",
+		"關掉的是 /、[ 與 ?；⌘K 與 Esc 不受影響。",
+		"Turns off /, [ and ?; ⌘K and Esc keep working.",
 	)
 )
 
 // PrefKeyboardShortcutsTitle heads the list of every key this interface
-// answers to — the same list the header's own help popover carries under
+// answers to — the same list the help panel the ? key opens carries under
 // KeyboardHelp. It is kept as a variable of its own rather than reused,
 // because a page heading and a popover title are free to part company later
 // without either being renamed by accident; today they happen to read the
@@ -120,8 +120,7 @@ var (
 var PrefKeyboardShortcutsTitle = both("鍵盤快捷鍵", "Keyboard shortcuts")
 
 // The two states every switch on this page is in. They are the words a reader
-// picks, so they are verbs' worth of plain rather than the glyphs the header
-// controls carry.
+// picks, so they are verbs' worth of plain rather than glyphs.
 var (
 	PrefOn  = both("開啟", "On")
 	PrefOff = both("關閉", "Off")

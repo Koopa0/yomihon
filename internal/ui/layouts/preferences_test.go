@@ -253,12 +253,12 @@ func TestPreferencesHrefCarriesWhereTheReaderIs(t *testing.T) {
 	}
 }
 
-// TestKeyboardKeysNamesTheFourKeysTheInterfaceAnswers holds the list to the
+// TestKeyboardKeysNamesTheFiveKeysTheInterfaceAnswers holds the list to the
 // keys that actually do something, written as the literals a reader sees. It
 // then holds the help panel to that same rendering: the panel showing its own
 // copy of the list is how a key comes to be promised in one place after it has
 // moved in the other.
-func TestKeyboardKeysNamesTheFourKeysTheInterfaceAnswers(t *testing.T) {
+func TestKeyboardKeysNamesTheFiveKeysTheInterfaceAnswers(t *testing.T) {
 	t.Parallel()
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		t.Run(string(lang), func(t *testing.T) {
@@ -271,8 +271,8 @@ func TestKeyboardKeysNamesTheFourKeysTheInterfaceAnswers(t *testing.T) {
 			if !strings.HasPrefix(list, `<dl class="y-kbdhelp__list">`) {
 				t.Errorf("the key list is not a description list; list = %q", list)
 			}
-			if got := strings.Count(list, "<dt>"); got != 4 {
-				t.Errorf("the key list names %d keys, want the four the interface answers; list = %q", got, list)
+			if got := strings.Count(list, "<dt>"); got != 5 {
+				t.Errorf("the key list names %d keys, want the five the interface answers; list = %q", got, list)
 			}
 			for _, key := range []string{
 				`<span class="ui-kbd">⌘K</span>`,
@@ -280,6 +280,7 @@ func TestKeyboardKeysNamesTheFourKeysTheInterfaceAnswers(t *testing.T) {
 				`<span class="ui-kbd">Esc</span>`,
 				`<span class="ui-kbd">/</span>`,
 				`<span class="ui-kbd">[</span>`,
+				`<span class="ui-kbd">?</span>`,
 			} {
 				if !strings.Contains(list, key) {
 					t.Errorf("the key list is missing %q; list = %q", key, list)
@@ -287,8 +288,8 @@ func TestKeyboardKeysNamesTheFourKeysTheInterfaceAnswers(t *testing.T) {
 			}
 
 			var head bytes.Buffer
-			if err := header(Chrome{Lang: lang}).Render(t.Context(), &head); err != nil {
-				t.Fatalf("render header: %v", err)
+			if err := keyboardHelp(Chrome{Lang: lang}).Render(t.Context(), &head); err != nil {
+				t.Fatalf("render keyboard help: %v", err)
 			}
 			panel := elementSubtree(t, head.String(), `id="_y-kbd-help"`)
 			if !strings.Contains(panel, list) {

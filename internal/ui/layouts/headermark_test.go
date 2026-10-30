@@ -14,40 +14,36 @@ func offer() *MarkOffer {
 	return &MarkOffer{Path: "Notes/alpha.md", Identity: "abc123", Endpoint: "/marks"}
 }
 
-// TestTheHeaderMarkIsInsideTheFoldedPanelAndLast holds the seam the wide row
-// opens. The panel serves through 1280px; its children
-// become the header row's own items from 1281px, so the mark has to be inside
-// the panel and nowhere else in the header. And it has to come after the six
-// that do move, because the reader who tabs into the panel walks it in the
-// order it is written.
-func TestTheHeaderMarkIsInsideTheFoldedPanelAndLast(t *testing.T) {
+// TestTheHeaderMarkIsOneBookmarkThatSaysWhetherItIsSet holds the row's face of
+// the control: one button, named by the verb rather than drawn as a bare icon,
+// whose pressed state is whether the place already kept is in this note. A
+// press on a pressed bookmark keeps the place again, so the state is the
+// server's answer about the note and nothing the button toggles away.
+func TestTheHeaderMarkIsOneBookmarkThatSaysWhetherItIsSet(t *testing.T) {
 	t.Parallel()
-	var buf bytes.Buffer
-	if err := header(Chrome{Mark: offer()}).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render header: %v", err)
-	}
-	html := buf.String()
-
-	if strings.Count(html, "y-headermark") == 0 {
-		t.Fatalf("the header draws no control for keeping a reading place; html = %q", html)
-	}
-	panel := elementSubtree(t, html, `id="_y-header-fold"`)
-	if !strings.Contains(panel, `class="y-headermark"`) {
-		t.Errorf("the control is somewhere in the header other than the folded panel; panel = %q", panel)
-	}
-	// Outside the panel there is none of it: the row carries the control at no
-	// width, which is what the stylesheet's rule is for and what a stray copy
-	// in the row would quietly undo.
-	if rest := strings.Replace(html, panel, "", 1); strings.Contains(rest, "y-headermark") {
-		t.Errorf("the header row carries a second copy of the control; rest = %q", rest)
-	}
-	theme := strings.Index(panel, "data-theme-toggle")
-	mark := strings.Index(panel, "y-headermark")
-	if theme < 0 {
-		t.Fatalf("the panel carries no theme control to place the mark after; panel = %q", panel)
-	}
-	if mark < theme {
-		t.Errorf("the control is written before the six that move between the row and the panel, so tabbing into the panel meets it first")
+	for _, kept := range []bool{false, true} {
+		mark := offer()
+		mark.Kept = kept
+		var buf bytes.Buffer
+		if err := header(Chrome{Mark: mark}).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render header: %v", err)
+		}
+		html := buf.String()
+		if got := strings.Count(html, "data-mark-button"); got != 1 {
+			t.Fatalf("the header draws %d reading-place buttons, want 1; html = %q", got, html)
+		}
+		at := strings.Index(html, "data-mark-button")
+		button := html[strings.LastIndex(html[:at], "<"):][:strings.Index(html[strings.LastIndex(html[:at], "<"):], ">")]
+		want := `aria-pressed="false"`
+		if kept {
+			want = `aria-pressed="true"`
+		}
+		if !strings.Contains(button, want) {
+			t.Errorf("kept=%v: the bookmark does not carry %s; button = %q", kept, want, button)
+		}
+		if !strings.Contains(button, `aria-label="`+wording.MarkSetControl.In(wording.ZhHant)+`"`) {
+			t.Errorf("kept=%v: the bookmark is not named by its verb; button = %q", kept, button)
+		}
 	}
 }
 

@@ -117,11 +117,13 @@ var (
 
 // The foot of the rail, where it says which folder the reader is in. A folder
 // whose path yields no name to show is still named — as the one the reader is
-// reading — because three blank lines at the end of the rail read as something
+// reading — because blank lines at the end of the rail read as something
 // broken rather than as an answer.
+var ThisLibrary = both("這個書庫", "This library")
+
+// How many things the health page has to report, said on the desk's way to it
+// and at the head of that page's own table.
 var (
-	ThisLibrary        = both("這個書庫", "This library")
 	LibraryFindingOne  = both("%d 項發現", "%d finding")
 	LibraryFindingMany = both("%d 項發現", "%d findings")
-	LibraryNoFindings  = both("沒有發現", "Nothing found")
 )

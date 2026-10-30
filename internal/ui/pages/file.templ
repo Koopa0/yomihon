@@ -3,6 +3,7 @@ package pages
 import (
 	"fmt"
 
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -12,6 +13,7 @@ import (
 // no right rail and no status bar, a file having no contents, no diagnostics
 // and no status.
 templ File(v FileView, c layouts.Chrome) {
+	{{ c.Readings = render.CarriesReadings(v.BodyHTML) }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell y-shell--rail-empty">
