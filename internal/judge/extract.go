@@ -9,6 +9,7 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -57,6 +58,14 @@ type pathRef struct {
 type imageRef struct {
 	destination string
 	line        int
+}
+
+// linkDefinition is one link reference definition, "[label]: destination",
+// that nothing in its note refers to. label is the text between the brackets
+// with its whitespace collapsed.
+type linkDefinition struct {
+	label string
+	line  int
 }
 
 // mdParser is the shared markdown parser. It is plain CommonMark with no
@@ -164,18 +173,24 @@ func extractWikilinksFrom(body string, bodyStartLine int, facts *bodyStructure) 
 	return links
 }
 
-// extractReferencesFrom returns the body's path references and its Markdown
-// images from one parse, each outside the comment zones with its file line.
-func extractReferencesFrom(body string, bodyStartLine int, comments []byteRange) ([]pathRef, []imageRef) {
+// extractReferencesFrom returns the body's path references, its Markdown
+// images and its unused link reference definitions from one parse, each outside
+// the comment zones with its file line.
+func extractReferencesFrom(body string, bodyStartLine int, comments []byteRange) ([]pathRef, []imageRef, []linkDefinition) {
 	src := []byte(body)
 	doc := mdParser.Parse(text.NewReader(src))
 	var refs []pathRef
 	var images []imageRef
+	ledger := definitionLedger{seen: map[string]bool{}, used: map[string]bool{}}
 	walkNodes(doc, func(n ast.Node) {
 		switch node := n.(type) {
+		case *ast.LinkReferenceDefinition:
+			ledger.define(node, body, bodyStartLine, comments)
 		case *ast.Image:
 			images = appendImage(images, node, body, bodyStartLine, comments)
+			ledger.use(node.Reference, node.Pos(), node, comments)
 		case *ast.Link:
+			ledger.use(node.Reference, node.Pos(), node, comments)
 			if target, ok := fileLink(string(node.Destination)); ok {
 				if off, ok := inlineOffset(node); ok && !graph.In(comments, off) {
 					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: false})
@@ -189,7 +204,7 @@ func extractReferencesFrom(body string, bodyStartLine int, comments []byteRange)
 			}
 		}
 	})
-	return refs, images
+	return refs, images, ledger.unused()
 }
 
 // appendImage adds one image occurrence outside the comment zones. It is placed
@@ -207,6 +222,70 @@ func appendImage(images []imageRef, node *ast.Image, body string, bodyStartLine 
 		return images
 	}
 	return append(images, imageRef{destination: string(node.Destination), line: bodyStartLine + strings.Count(body[:off], "\n")})
+}
+
+// definitionLedger is one body's link reference definitions and the labels its
+// links and images resolved through. It keys labels the way the parser does, so
+// full, collapsed and shortcut references and their case and whitespace folding
+// agree with the page.
+type definitionLedger struct {
+	defined []linkDefinition
+	keys    []string
+	seen    map[string]bool
+	used    map[string]bool
+}
+
+// define records a definition outside the comment zones. The parser keeps the
+// first definition of a label and answers every reference from it, so a later
+// one with the same label is never read and is not judged. A footnote's text is
+// a definition to this parser, which has no footnote syntax; it is not a link
+// target.
+func (l *definitionLedger) define(node *ast.LinkReferenceDefinition, body string, bodyStartLine int, comments []byteRange) {
+	key := util.ToLinkReference(node.Label)
+	if l.seen[key] {
+		return
+	}
+	l.seen[key] = true
+	off := node.Pos()
+	if off < 0 || strings.HasPrefix(string(node.Label), "^") || graph.In(comments, off) {
+		return
+	}
+	l.defined = append(l.defined, linkDefinition{
+		label: strings.Join(strings.Fields(string(node.Label)), " "),
+		line:  bodyStartLine + strings.Count(body[:off], "\n"),
+	})
+	l.keys = append(l.keys, key)
+}
+
+// use records the definition a reference-style link or image resolved through.
+// A reference inside a comment is the author's retracted words and uses
+// nothing. One the parser resolved but whose place cannot be found counts as a
+// use, because an unused verdict needs the occurrence to be located.
+func (l *definitionLedger) use(ref *ast.ReferenceLink, pos int, node ast.Node, comments []byteRange) {
+	if ref == nil {
+		return
+	}
+	off := pos
+	if off < 0 {
+		if found, ok := inlineOffset(node); ok {
+			off = found
+		}
+	}
+	if off < 0 || !graph.In(comments, off) {
+		l.used[util.ToLinkReference(ref.Value)] = true
+	}
+}
+
+// unused returns the recorded definitions no reference resolved through, in
+// document order.
+func (l *definitionLedger) unused() []linkDefinition {
+	var out []linkDefinition
+	for i, def := range l.defined {
+		if !l.used[l.keys[i]] {
+			out = append(out, def)
+		}
+	}
+	return out
 }
 
 // extractPlannedNames returns the concept names listed as planned under a gap

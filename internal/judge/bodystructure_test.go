@@ -24,7 +24,7 @@ func TestParseNoteSharesBodyStructure(t *testing.T) {
 	marks := defaultPlannedMarks()
 	want := separateBodyExtractions(data, marks)
 	got := parseNoteWithMarks("Notes/source.md", data, marks)
-	if diff := cmp.Diff(want, got, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{}, imageRef{}, calloutTitle{})); diff != "" {
+	if diff := cmp.Diff(want, got, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{}, imageRef{}, linkDefinition{}, calloutTitle{})); diff != "" {
 		t.Fatalf("parseNoteWithMarks differs from independent harvests (-want +got):\n%s", diff)
 	}
 }
@@ -68,7 +68,7 @@ func separateBodyExtractions(data []byte, marks plannedMarks) note {
 	n.body = body
 	n.wikilinks = extractWikilinksWith(body, block.BodyStartLine, marks.heading)
 	n.pathRefs = extractPathRefs(body, block.BodyStartLine)
-	_, n.images = extractReferencesFrom(body, block.BodyStartLine, inspectBody(body, nil).comments)
+	_, n.images, n.unusedDefinitions = extractReferencesFrom(body, block.BodyStartLine, inspectBody(body, nil).comments)
 	n.plannedNames = extractPlannedNamesWith(body, marks)
 	n.calloutTitles = extractCalloutTitles(body, block.BodyStartLine)
 	n.sequence = sequence.Parse(body, block.BodyStartLine)
@@ -93,7 +93,7 @@ func TestSharedJudgeBodyKeepsIndependentExtractions(t *testing.T) {
 			for _, marks := range []plannedMarks{defaultPlannedMarks(), {heading: []string{"Gap"}, inline: []string{"planned"}}, {}} {
 				want := separateBodyExtractions(data, marks)
 				got := parseNoteWithMarks("Notes/source.md", data, marks)
-				if diff := cmp.Diff(want, got, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{}, imageRef{}, calloutTitle{})); diff != "" {
+				if diff := cmp.Diff(want, got, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{}, imageRef{}, linkDefinition{}, calloutTitle{})); diff != "" {
 					t.Errorf("parseNoteWithMarks(%q) differs from independent harvests (-want +got):\n%s", tt.body, diff)
 				}
 			}
@@ -112,7 +112,7 @@ func FuzzSharedJudgeBodyStructure(f *testing.F) {
 		marks := plannedMarks{heading: []string{"Gap"}, inline: []string{"planned"}}
 		want := separateBodyExtractions(data, marks)
 		got := parseNoteWithMarks("Notes/source.md", data, marks)
-		if diff := cmp.Diff(want, got, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{}, imageRef{}, calloutTitle{})); diff != "" {
+		if diff := cmp.Diff(want, got, cmp.AllowUnexported(note{}, fmValue{}, wikiLink{}, pathRef{}, imageRef{}, linkDefinition{}, calloutTitle{})); diff != "" {
 			t.Errorf("parseNoteWithMarks(%q) differs from independent harvests (-want +got):\n%s", data, diff)
 		}
 	})
@@ -134,7 +134,7 @@ func extractCalloutTitles(body string, bodyStartLine int) []calloutTitle {
 // reference, so it is not checked.
 func extractPathRefs(body string, bodyStartLine int) []pathRef {
 	facts := inspectBody(body, nil)
-	refs, _ := extractReferencesFrom(body, bodyStartLine, facts.comments)
+	refs, _, _ := extractReferencesFrom(body, bodyStartLine, facts.comments)
 	return refs
 }
 
