@@ -281,14 +281,13 @@ try {
     fail('safe-get-navigation', `recovery actions are ${JSON.stringify(recoveryActions)}, want the note link, an obsidian://open link, and home`);
   }
 
-  // The lock's target is a second try at the refused write. The chrome's
-  // language form is the one sanctioned POST on every page — a preference,
-  // not a vault write — so the wide net counts every POST form except it,
+  // The lock's target is a second try at the refused write. The chrome
+  // carries no POST form, so the wide net counts every POST form on the page,
   // and the narrow net still names the status route directly.
   const retryControls = await page.locator('form[action="/status"], button[formaction="/status"]').count();
   if (retryControls !== 0) fail('no-post-retry', `recovery page exposes ${retryControls} status POST controls, want 0`);
-  const foreignPosts = await page.locator('form[method="post"]:not([action="/lang"])').count();
-  if (foreignPosts !== 0) fail('no-post-retry', `recovery page exposes ${foreignPosts} POST forms beyond the language switch, want 0`);
+  const foreignPosts = await page.locator('form[method="post"]').count();
+  if (foreignPosts !== 0) fail('no-post-retry', `recovery page exposes ${foreignPosts} POST forms, want 0`);
 
   const cacheControl = postResponse.headers()['cache-control'] ?? null;
   if (cacheControl !== 'no-store') {

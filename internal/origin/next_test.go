@@ -35,7 +35,7 @@ const siteHost = "127.0.0.1:9610"
 func redirectedTo(t *testing.T, next string) string {
 	t.Helper()
 	w := httptest.NewRecorder()
-	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+siteHost+"/lang", http.NoBody)
+	r := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "http://"+siteHost+"/preferences", http.NoBody)
 	http.Redirect(w, r, LocalNext(next), http.StatusSeeOther)
 	return w.Header().Get("Location")
 }

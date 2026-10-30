@@ -35,6 +35,6 @@ func TestClientReadsTheCookieTheServerWrites(t *testing.T) {
 	// would be a second author for the same fact, and the two could disagree
 	// about the value's shape.
 	if strings.Contains(script, wording.CookieName+"=") {
-		t.Errorf("%s still writes the %q cookie; the language endpoint owns that write", path, wording.CookieName)
+		t.Errorf("%s still writes the %q cookie; the preferences route owns that write", path, wording.CookieName)
 	}
 }

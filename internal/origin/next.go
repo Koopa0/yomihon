@@ -27,9 +27,9 @@ func LocalNext(next string) string {
 	// protocol-relative address. Delete is refused with them. C1 — where U+0085
 	// lives — and the two Unicode separators that end a line without being a
 	// newline are refused as well, though the redirect percent-escapes every
-	// non-ASCII byte and so never writes one raw: the language route refused
-	// them before the two checks were one, both routes do now, and an answer
-	// that holds none can be written anywhere else without a second thought.
+	// non-ASCII byte and so never writes one raw: refusing them anyway means an
+	// answer that holds none can be written anywhere else without a second
+	// thought.
 	// Invalid UTF-8 decodes to the replacement character, which is in none of
 	// these sets and needs no case of its own. No address a page's own form
 	// carries contains any of these, so the fallback refuses no honest request.
