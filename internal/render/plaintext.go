@@ -11,6 +11,7 @@ import (
 	"strings"
 	"unicode"
 
+	cjkfriendly "github.com/tats-u/goldmark-cjk-friendly/v2"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -26,7 +27,9 @@ import (
 // parser's bare-link grammar while retaining the authored display label.
 // Footnotes are on because a definition whose text has no spaces — every CJK one —
 // otherwise parses as a link reference definition and no search could find it.
-var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote, extension.Linkify, taskListExtension{})).Parser()
+// Emphasis takes the page's CJK-friendly flanking, so the asterisks the page
+// hides around **題目：**答案 are absent from the searchable text too.
+var plainParser = goldmark.New(goldmark.WithExtensions(extension.Table, extension.TaskList, extension.Footnote, extension.Linkify, cjkfriendly.CJKFriendlyEmphasis, taskListExtension{})).Parser()
 
 // PlainText returns the searchable plain text of a note body: prose, headings,
 // table cells, task text, code-fence contents and the base and reading of

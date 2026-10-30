@@ -178,8 +178,9 @@ the code is.
 
 Three proposals are worth pricing before you write them:
 
-- **A new dependency.** `go.mod` names ten direct requirements and each earned
-  its place: goldmark and chroma to render, templ for the templates, a TOML
+- **A new dependency.** `go.mod` names eleven direct requirements and each
+  earned its place: goldmark and chroma to render, a goldmark extension that
+  lets emphasis close beside CJK punctuation, templ for the templates, a TOML
   decoder for the vault contract, a YAML decoder for frontmatter, three
   `golang.org/x` libraries for runtime behavior, and go-cmp plus
   `golang.org/x/mod` for the tests. The client side is vanilla

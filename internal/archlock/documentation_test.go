@@ -34,6 +34,7 @@ func TestDependencyAccountMatchesTheModule(t *testing.T) {
 		{path: "github.com/a-h/templ"},
 		{path: "github.com/alecthomas/chroma/v3"},
 		{path: "github.com/google/go-cmp", testOnly: true},
+		{path: "github.com/tats-u/goldmark-cjk-friendly/v2"},
 		{path: "github.com/yuin/goldmark"},
 		{path: "go.yaml.in/yaml/v3"},
 		{path: "golang.org/x/mod", testOnly: true},
@@ -85,7 +86,7 @@ func TestDependencyAccountMatchesTheModule(t *testing.T) {
 	}
 
 	guide := strings.ReplaceAll(string(readOwnedDocument(t, "CONTRIBUTING.md")), "\r\n", "\n")
-	account := "- **A new dependency.** `go.mod` names ten direct requirements and each earned its place: goldmark and chroma to render, templ for the templates, a TOML decoder for the vault contract, a YAML decoder for frontmatter, three `golang.org/x` libraries for runtime behavior, and go-cmp plus `golang.org/x/mod` for the tests."
+	account := "- **A new dependency.** `go.mod` names eleven direct requirements and each earned its place: goldmark and chroma to render, a goldmark extension that lets emphasis close beside CJK punctuation, templ for the templates, a TOML decoder for the vault contract, a YAML decoder for frontmatter, three `golang.org/x` libraries for runtime behavior, and go-cmp plus `golang.org/x/mod` for the tests."
 	var accounts []string
 	for paragraph := range strings.SplitSeq(guide, "\n\n") {
 		paragraph = strings.Join(strings.Fields(paragraph), " ")
