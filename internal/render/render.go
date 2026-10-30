@@ -17,6 +17,7 @@ import (
 	"strings"
 	"sync"
 
+	cjkfriendly "github.com/tats-u/goldmark-cjk-friendly/v2"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -260,10 +261,18 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 
 // pageMarkdown creates each consumer's parser from the page grammar. Parser
 // contexts and delimiter observations belong to that consumer's single parse.
+//
+// Emphasis follows the CJK-friendly amendment to CommonMark's flanking rules.
+// Prose in Chinese and Japanese closes a bold run after full-width punctuation
+// and continues with no space, as in **題目：**答案; plain CommonMark refuses
+// that closer and leaves the asterisks on the page, while Obsidian's reading
+// view shows the bold. Only emphasis takes the amendment: strikethrough stays
+// goldmark's own parser, which the display-effect observation recognises.
 func pageMarkdown() goldmark.Markdown {
 	return goldmark.New(
 		goldmark.WithExtensions(
 			extension.GFM,
+			cjkfriendly.CJKFriendlyEmphasis,
 			// The extension is told only what to prefix the ids with, per body,
 			// so several bodies on one page do not share a first note's id.
 			extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),

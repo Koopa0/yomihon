@@ -13,6 +13,7 @@ require (
 	// gate any future bump.
 	github.com/alecthomas/chroma/v3 v3.0.0-alpha.5
 	github.com/google/go-cmp v0.7.0
+	github.com/tats-u/goldmark-cjk-friendly/v2 v2.0.3
 	github.com/yuin/goldmark v1.8.6
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/mod v0.41.0

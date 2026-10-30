@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 
+	cjkfriendly "github.com/tats-u/goldmark-cjk-friendly/v2"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
@@ -172,8 +173,9 @@ func (c *formattingContainer) markUnpaired() {
 // headingParser reads a heading's words with the inline grammar the page reads
 // them with, so a code span, a backslash escape or an autolink claims the bytes
 // it claims there, and the formatting pairing runs as it does on the page. It
-// keeps nothing between parses.
-var headingParser = goldmark.New(goldmark.WithExtensions(extension.GFM, safeMarkupExtension{})).Parser()
+// keeps nothing between parses. Emphasis takes the page's CJK-friendly
+// flanking, so a pair the page closes is a pair here.
+var headingParser = goldmark.New(goldmark.WithExtensions(extension.GFM, cjkfriendly.CJKFriendlyEmphasis, safeMarkupExtension{})).Parser()
 
 // headingMarkup prepares a heading's words for the allowlist walk the way the
 // page's parse of that heading reads them, and returns the gate that decides
