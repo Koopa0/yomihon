@@ -53,11 +53,13 @@ func (h *Handler) thought(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	markdown := thoughtMarkdown(h.sources.Contract, role, &n, sectionText)
 	// The name carries the minute, so two thoughts on one source differ unless
 	// they start within the same minute. Obsidian owns the folder and what
-	// happens on a clash; this suggestion neither probes nor writes disk.
+	// happens on a clash; this suggestion neither probes nor writes disk. The
+	// note is titled by its own name, so the title a contract may require and
+	// the file the reader saves read the same.
 	name := thoughtNoteName(n.Title, lang, time.Now())
+	markdown := thoughtMarkdown(h.sources.Contract, role, &n, name, sectionText)
 	view := pages.ThoughtView{
 		SourceTitle: label,
 		SourceHref:  pages.ResumeHref(rel, section, 0),
@@ -102,9 +104,10 @@ func thoughtSourceAvailable(snap *snapshot.Generation, rel string) bool {
 }
 
 // thoughtMarkdown omits values that the source and contract cannot determine.
-// sectionText is the section heading as the reader sees it: Obsidian matches a
-// heading link by its text, not by the id this site gives it.
-func thoughtMarkdown(contract *schema.Contract, role string, source *snapshot.Reading, sectionText string) string {
+// title is the new note's own title, written only when the contract knows the
+// field. sectionText is the section heading as the reader sees it: Obsidian
+// matches a heading link by its text, not by the id this site gives it.
+func thoughtMarkdown(contract *schema.Contract, role string, source *snapshot.Reading, title, sectionText string) string {
 	definition := contract.Definition()
 	var b strings.Builder
 	b.WriteString("---\n")
@@ -113,6 +116,7 @@ func thoughtMarkdown(contract *schema.Contract, role string, source *snapshot.Re
 			b.WriteString(field + ": " + strconv.Quote(value) + "\n")
 		}
 	}
+	write("title", title)
 	write("type", role)
 	var initial []string
 	for _, status := range contract.Statuses(role) {
