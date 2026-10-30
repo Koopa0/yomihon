@@ -8,6 +8,12 @@ package judge
 // label is E2. The parser's own resolution says which label each link used, so
 // check and the page agree on what is used. Two definitions of one label are
 // judged as one, because the parser answers every reference from the first.
+//
+// The finding is info, not warn: an unused definition breaks nothing the reader
+// sees, so it is a tidy-up signal. At warn it outnumbered the broken links on a
+// large vault and buried the findings check exists to surface. Because a rule
+// id gates only at warn or above, "--deny link.unused.definition" does not fail
+// on it; "--deny info" does.
 
 // checkUnusedDefinitions reports each note's unused link reference definitions.
 func checkUnusedDefinitions(notes []note, authority scanAuthority) []Finding {
@@ -28,7 +34,7 @@ func checkUnusedDefinitions(notes []note, authority scanAuthority) []Finding {
 func unusedDefinition(n *note, def linkDefinition) Finding {
 	return Finding{
 		RuleID:          "link.unused.definition",
-		Severity:        SeverityWarn,
+		Severity:        SeverityInfo,
 		Path:            n.path,
 		Line:            new(def.line),
 		Message:         "link reference definition [" + def.label + "] is never used",

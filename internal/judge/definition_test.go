@@ -41,10 +41,10 @@ func TestUnusedDefinitionFindings(t *testing.T) {
 		if decodeErr := json.Unmarshal([]byte(line), &wire); decodeErr != nil {
 			t.Fatalf("decode golden: %v", decodeErr)
 		}
-		if wire.Severity != "warn" {
-			t.Fatalf("golden severity %q, want every record at warn", wire.Severity)
+		if wire.Severity != "info" {
+			t.Fatalf("golden severity %q, want every record at info", wire.Severity)
 		}
-		wire.Finding.Severity = SeverityWarn
+		wire.Finding.Severity = SeverityInfo
 		want = append(want, wire.Finding)
 	}
 	if len(want) != 3 {
@@ -64,9 +64,20 @@ func TestUnusedDefinitionFindings(t *testing.T) {
 	if !bytes.Equal(wantBytes, gotBytes) {
 		t.Errorf("RunCheck JSONL:\nwant %s\ngot  %s", wantBytes, gotBytes)
 	}
-	_, exit, err = RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"link.unused.definition"}})
-	if err != nil || exit != 1 {
-		t.Errorf("RunCheck --deny link.unused.definition: exit=%d error=%v, want exit 1", exit, err)
+	// An unused definition is info: a rule id gates only at warn or above, and
+	// a warn threshold does not reach it, so only an info threshold fails.
+	for _, tt := range []struct {
+		deny     string
+		wantExit int
+	}{
+		{deny: "link.unused.definition", wantExit: 0},
+		{deny: "warn", wantExit: 0},
+		{deny: "info", wantExit: 1},
+	} {
+		_, exit, err = RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{tt.deny}})
+		if err != nil || exit != tt.wantExit {
+			t.Errorf("RunCheck --deny %s: exit=%d error=%v, want exit %d", tt.deny, exit, err, tt.wantExit)
+		}
 	}
 }
 
