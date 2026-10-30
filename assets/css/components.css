@@ -7544,6 +7544,14 @@ samp,
   }
 }
 
+/* A thumb is wider than a pointer, so a touch screen gets the full target. */
+@media (pointer: coarse) {
+  .y-headermark__button {
+    height: 44px;
+    width: 44px;
+  }
+}
+
 /* In the row it is a bookmark: an outline while the place kept is elsewhere,
    filled in the reader's accent once it is in this note. The pressed state is
    the one attribute both the eye and a screen reader are told by. */
@@ -7553,14 +7561,6 @@ samp,
 
 .y-headermark__button[aria-pressed='true'] svg {
   fill: currentcolor;
-}
-
-/* A thumb is wider than a pointer, so a touch screen gets the full target. */
-@media (pointer: coarse) {
-  .y-headermark__button {
-    height: 44px;
-    width: 44px;
-  }
 }
 
 /* The sentence the press earns hangs under the row rather than in it, where it
@@ -7581,7 +7581,6 @@ samp,
   box-shadow: var(--shadow-2);
   padding: 6px 10px;
 }
-
 
 /* The reader's own place, in the one accent the interface has: a bookmark. It is
    drawn wherever the place that was kept is shown — beside the lesson that

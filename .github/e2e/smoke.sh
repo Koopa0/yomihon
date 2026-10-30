@@ -30,7 +30,7 @@ fail() {
 
 # One named site per way into the library, plus the search block, one content
 # marker that only the fixture vault's rendered README can supply, and the
-# keyboard preference the layout carries. The live verdict and its self-test
+# quiet row that leads from the desk to the library's health. The live verdict and its self-test
 # share this table, so neither can silently stop checking one of them.
 #
 # The rail is not among them. Home carries the four ways in and no rail: a
@@ -43,12 +43,12 @@ home_markers=(
   'folders|data-home-block="folders"'
   'search|data-home-block="search"'
   'vault-readme|data-home-readme'
-  'kbd-shortcut-pref|data-single-key-shortcuts-toggle'
+  'desk-health|data-home-health'
 )
 
 # This is a set comparison, not an order oracle: deleting a marker from the
 # live table must not also delete its self-test by construction.
-required_home_sites=(paths maps reports folders search vault-readme kbd-shortcut-pref)
+required_home_sites=(paths maps reports folders search vault-readme desk-health)
 
 # The rail, checked where it now lives: beside the thing being read. The map
 # tree marker is what proves a tree rendered rather than an empty group.

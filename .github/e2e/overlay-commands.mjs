@@ -2,10 +2,11 @@
 // browser, because the markup says so, rather than by this site's script.
 //
 // A press that names what it opens is performed by the browser itself, so the
-// palette and the keyboard explanation answer a reader whose browser is
-// running none of our JavaScript. That is the claim, and the only way to ask
-// it is with scripting switched off — a Go test reads markup and cannot tell
-// an attribute the browser acts on from one it ignores.
+// palette answers a reader whose browser is running none of our JavaScript.
+// That is the claim, and the only way to ask it is with scripting switched
+// off — a Go test reads markup and cannot tell an attribute the browser acts
+// on from one it ignores. The keys themselves answer only to script, and a
+// reader without it finds them explained on the settings page.
 //
 // The concept sheet is the other half. Its opening stays with the script, for
 // reasons the module says at the call; its closing does not, and the press
@@ -30,20 +31,23 @@ const MUTATE = process.env.MUTATE || '';
 // found reads as a probe that timed out rather than as the lock it is.
 const SEARCH_OPEN = '[data-search-open]';
 const SEARCH = '[data-search]';
-const HELP_OPEN = '.y-helpbtn';
-const HELP = '#_y-kbd-help';
+const KEYS_EXPLAINED = '.y-prefs__shortcuts .y-kbdhelp__list';
 const SHEET = '[data-concept-sheet]';
 const SHEET_CLOSE = '[data-concept-sheet] .y-conceptsheet__head button';
 const CONCEPT = '[data-concept]';
-const SCRIPT_ONLY = ['.y-rubybtn', '.y-textsizebtn', '.y-themebtn'];
-const SCRIPT_ONLY_RULE = /html:not\(\[data-js\]\)\s+\.y-rubybtn\s*,\s*html:not\(\[data-js\]\)\s+\.y-textsizebtn\s*,\s*html:not\(\[data-js\]\)\s+\.y-themebtn\s*\{\s*display:\s*none;\s*\}/g;
+// The header's two controls that do nothing without script: the furigana
+// switch, behind the capability rule, and the bookmark, which the stylesheet
+// draws only on a page that marks itself as running script.
+const SCRIPT_ONLY = ['.y-rubybtn', '.y-headermark [data-mark-button]'];
+const SCRIPT_ONLY_RULE = /html:not\(\[data-js\]\)\s+\.y-rubybtn\s*\{\s*display:\s*none;\s*\}/g;
+const BOOKMARK_RULE = /^\.y-headermark\s*\{\s*display:\s*none;/gm;
 
 const SITES = [
   'script-only-header-controls-stay-out-of-the-way',
   'scriptless-preferences-remains-a-keyboard-destination',
   'the-palette-opens-with-no-script',
   'search-remains-reachable-with-neither-feature',
-  'the-keyboard-help-opens-with-no-script',
+  'the-keys-are-explained-with-no-script',
   'the-sheet-closes-with-no-listener',
   'an-engine-without-commands-keeps-a-way-in',
 ];
@@ -143,18 +147,30 @@ const rewriteCapabilityRule = (replace) => async (page) => {
     ? `script-only capability rule matched [${perLoad}], want exactly 1 per load` : '';
 };
 
+// Draw the bookmark whatever the page is running, which is the shape the
+// stylesheet would take if it forgot the bookmark depends on script.
+const drawTheBookmarkAlways = async (page) => {
+  const perLoad = [];
+  await page.route('**/app.css{,?*}', async (route) => {
+    const response = await route.fetch();
+    const body = await response.text();
+    const hits = [...body.matchAll(BOOKMARK_RULE)].length;
+    perLoad.push(hits);
+    await route.fulfill({ response, body: hits === 1 ? body.replace(BOOKMARK_RULE, '.y-headermark { display: flex;') : body });
+  });
+  return () => perLoad.length === 0 || perLoad.some((hits) => hits !== 1)
+    ? `bookmark rule matched [${perLoad}], want exactly 1 per load` : '';
+};
+
 const MUTATIONS = {
   'remove-the-script-only-header-gate': {
     target: 'script-only-header-controls-stay-out-of-the-way',
     apply: rewriteCapabilityRule(''),
   },
-  ...Object.fromEntries(SCRIPT_ONLY.map((selector) => [
-    `leave-${selector.slice(1)}-outside-the-gate`,
-    {
-      target: 'script-only-header-controls-stay-out-of-the-way',
-      apply: rewriteCapabilityRule((rule) => rule.replace(selector, '.y-retired-control')),
-    },
-  ])),
+  'draw-the-bookmark-without-script': {
+    target: 'script-only-header-controls-stay-out-of-the-way',
+    apply: drawTheBookmarkAlways,
+  },
   'take-away-the-scriptless-preferences-destination': {
     target: 'scriptless-preferences-remains-a-keyboard-destination',
     apply: rewriteMarkup(
@@ -196,13 +212,14 @@ const MUTATIONS = {
       'the command on the header press',
     ),
   },
-  // The same for the older half of the idea, on the keyboard explanation.
-  'take-the-target-off-the-help-press': {
-    target: 'the-keyboard-help-opens-with-no-script',
+  // The settings page stops listing the keys, so a reader whose browser runs
+  // none of the script that answers them has nowhere to learn they exist.
+  'hide-the-keys-on-the-settings-page': {
+    target: 'the-keys-are-explained-with-no-script',
     apply: rewriteMarkup(
-      'popovertarget="_y-kbd-help"',
-      'data-retired-popovertarget="_y-kbd-help"',
-      'the popover target on the keyboard help press',
+      '<section class="y-prefs__shortcuts">',
+      '<section class="y-prefs__shortcuts" hidden>',
+      'the keys on the settings page',
     ),
   },
   // The sheet's close press stops naming the sheet. Nothing listens for it any
@@ -264,9 +281,8 @@ const isOpen = (page, selector) => page.$eval(selector, (element) => (
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  // Ask the wide row at 1281, where the header is unfolded, and the positively opened native
-  // fold at 1280 and below. A closed fold would hide its children even if their capability
-  // rule had disappeared.
+  // Asked either side of the width the reading rail arrives at, where the
+  // bookmark steps aside for the rail's own, and on a phone.
   for (const width of [1281, 1280, 390]) for (const language of ['zh-Hant', 'en']) for (const theme of ['light', 'dark']) {
     const site = 'script-only-header-controls-stay-out-of-the-way';
     const destinationSite = 'scriptless-preferences-remains-a-keyboard-destination';
@@ -284,10 +300,6 @@ try {
     if (await page.locator('html').getAttribute('data-theme') !== theme) broken(`the capability fixture did not select ${theme}`);
     for (const selector of SCRIPT_ONLY) {
       if (await page.locator(`header ${selector}`).count() !== 1) broken(`the header does not carry exactly one ${selector}`);
-    }
-    if (await page.locator('.y-foldbtn').isVisible()) {
-      await page.locator('.y-foldbtn').click();
-      if (!(await isOpen(page, '#_y-header-fold'))) broken('the native header fold did not open');
     }
     const controls = await page.evaluate((selectors) => selectors.map((selector) => {
       const button = document.querySelector(`header ${selector}`);
@@ -413,22 +425,23 @@ try {
     await context.close();
   }
 
-  // --- The keyboard explanation, the same way ---------------------------
+  // --- The keys, explained where a reader with no script can read them ----
+  //
+  // The panel the ? key opens answers only to script, as the keys do. The
+  // settings page lists the same keys in its own markup, so a reader whose
+  // browser runs none of it can still find out what the keyboard would do.
   {
-    const site = 'the-keyboard-help-opens-with-no-script';
+    const site = 'the-keys-are-explained-with-no-script';
     const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1280, height: 800 } });
     const page = await context.newPage();
     const proof = await applyMutation(page, site);
-    await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
-    if (await page.locator(HELP).count() !== 1) broken(`${PAGE} carries no single keyboard help panel`);
-    if (await isOpen(page, HELP)) broken('the keyboard help is already open before anything was pressed');
-    if (!(await page.locator(HELP_OPEN).isVisible())) {
-      await page.locator('.y-foldbtn').click();
-    }
-    await page.locator(HELP_OPEN).click();
+    await page.goto(BASE + '/preferences', { waitUntil: 'domcontentloaded' });
+    if (await page.$eval('html', (root) => root.hasAttribute('data-js'))) broken('script ran in the no-script fixture');
+    if (await page.locator(KEYS_EXPLAINED).count() !== 1) broken('the settings page carries no single list of keys');
+    const keys = await page.locator(`${KEYS_EXPLAINED} .ui-kbd`).allInnerTexts();
     checkProof(proof);
-    if (!(await isOpen(page, HELP))) {
-      fail(site, 'pressing the keyboard help control on a page with no script left the panel closed');
+    if (!(await page.locator(KEYS_EXPLAINED).isVisible()) || !keys.includes('?')) {
+      fail(site, `the settings page with no script shows the keys ${JSON.stringify(keys)}, want a visible list that names the ? key`);
     }
     await context.close();
   }
@@ -493,7 +506,7 @@ try {
   }
 
   console.log(
-    'PASS overlay-commands: the palette and the keyboard help open from a press on a page running no script,'
+    'PASS overlay-commands: the palette opens from a press on a page running no script, the settings page explains the keys,'
     + ' the concept sheet closes on a press nothing listens for, and an engine without the markup form of a'
     + ' press still has a way into the palette; with neither feature a keyboard link reaches /search'
     + '; script-only header controls stay hidden and unfocusable while native preferences remains keyboard reachable',

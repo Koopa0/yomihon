@@ -193,9 +193,8 @@ var choices = []choice{
 		cookie: "yomihon_textsize",
 		legend: wording.PrefTextSize,
 		note:   wording.PrefTextSizeNote,
-		// The header's control spells the group into its own name because it
-		// cycles and has nowhere else to carry it. Inside the fieldset the
-		// legend carries it, so the choices say only what tells them apart.
+		// The legend carries the group's name, so the choices say only what
+		// tells them apart.
 		labels: map[string]wording.Phrase{
 			"m":  wording.PrefTextSizeMedium,
 			"l":  wording.PrefTextSizeLarge,

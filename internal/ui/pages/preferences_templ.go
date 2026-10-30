@@ -84,7 +84,7 @@ type PreferenceOption struct {
 // Each choice is a column section named by a small heading, not a box cut by a
 // title — the rest of the interface separates a group of controls by space and
 // a label, never a frame, and this page is drawn the same way. The keyboard
-// shortcuts a reader can already open from the header popover get the same
+// shortcuts, which the ? key also lists in a panel over any page, get the same
 // treatment: a heading of their own rather than a list sitting under nothing.
 //
 // Where scripting is running, that same form is the ground rather than the

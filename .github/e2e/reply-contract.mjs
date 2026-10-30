@@ -135,7 +135,6 @@ try {
     const response = await page.goto(BASE + surface.path, { waitUntil: 'load' });
     if (response?.status() !== 200) throw new Error(`${surface.path} did not return 200`);
     prove();
-    if (name === 'header') await page.locator('[popovertarget="_y-header-fold"]').click();
     const control = page.locator(surface.control);
     const reply = control.locator(surface.reply);
     if (await control.count() !== 1 || await reply.count() !== 1) throw new Error(`${name}: fixture needs one control and one reply`);

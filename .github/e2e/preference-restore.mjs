@@ -1,7 +1,9 @@
 // Behavior lock for the cache-restore path in preferences.js. After a
 // back/forward-cache restore the cookies are the truth, and every persisted
-// preference — theme, text size, furigana, and single-key shortcuts — has to
-// agree with them, including both root attributes and both controls.
+// preference — theme, text size, typeface, furigana, and single-key shortcuts
+// — has to agree with them: the root attributes on a reading page, the
+// furigana switch that page draws, and the options the settings page shows in
+// force.
 //
 // A real bfcache restore is not driven here: Chrome refused one under this
 // automation, and the restore branch is the same handler a dispatched
@@ -9,11 +11,14 @@
 // already move on that path; the lock is that furigana and shortcuts move
 // with them, and that only the literal cookie "off" is off.
 //
-// Env: YOMIHON_BASE, PAGE_PATH (any chrome page), and MUTATE.
+// Env: YOMIHON_BASE, PAGE_PATH (a note carrying furigana, so the switch for
+// them is drawn), and MUTATE.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
+const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
+const SETTINGS = '/preferences';
+const CHOICES = ['theme', 'textsize', 'font', 'ruby', 'shortcuts'];
 const MUTATE = process.env.MUTATE || '';
 
 const SITES = [
@@ -76,7 +81,7 @@ const MUTATIONS = {
   'skip-textsize-resync': {
     target: 'restore-textsize',
     apply: rewriteModule(
-      "    const stored = readCookie('yomihon_textsize');\n    const size = stored === 'l' || stored === 'xl' ? stored : 'm';\n    root.dataset.textsize = size;\n    textsizeToggle?.setAttribute('aria-label', textsizeLabel(size));\n",
+      "    const stored = readCookie('yomihon_textsize');\n    root.dataset.textsize = stored === 'l' || stored === 'xl' ? stored : 'm';\n",
       '',
       'textsize restore',
     ),
@@ -92,7 +97,7 @@ const MUTATIONS = {
   'skip-shortcuts-resync': {
     target: 'restore-shortcuts',
     apply: rewriteModule(
-      "    const shortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';\n    root.dataset.singleKeyShortcuts = shortcuts;\n    if (shortcutsToggle) shortcutsToggle.checked = shortcuts === 'on';\n",
+      "    root.dataset.singleKeyShortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';\n",
       '',
       'shortcuts restore',
     ),
@@ -108,8 +113,8 @@ const MUTATIONS = {
   'treat-unknown-shortcuts-as-off': {
     target: 'restore-shortcuts-unknown-is-on',
     apply: rewriteModule(
-      "    const shortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';\n",
-      "    const shortcuts = readCookie('yomihon_shortcuts') !== 'on' ? 'off' : 'on';\n",
+      "    root.dataset.singleKeyShortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';\n",
+      "    root.dataset.singleKeyShortcuts = readCookie('yomihon_shortcuts') !== 'on' ? 'off' : 'on';\n",
       'shortcuts normalisation',
     ),
   },
@@ -137,26 +142,42 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
+// What the page in front of the probe says about each choice: the root's
+// attributes, the furigana switch where the page draws one, and the option the
+// settings page shows in force for each choice where the page is that one.
 const preferenceState = (page) =>
-  page.evaluate(() => {
+  page.evaluate((choices) => {
     const root = document.documentElement;
-    const themeToggle = document.querySelector('[data-theme-toggle]');
-    const textsizeToggle = document.querySelector('[data-textsize-toggle]');
     const rubyToggle = document.querySelector('[data-ruby-toggle]');
-    const shortcutsToggle = document.querySelector('[data-single-key-shortcuts-toggle]');
     return {
       theme: root.dataset.theme ?? '',
       textsize: root.dataset.textsize ?? '',
       ruby: root.dataset.ruby ?? '',
       font: root.dataset.font ?? '',
       shortcuts: root.dataset.singleKeyShortcuts ?? '',
-      themePressed: themeToggle ? themeToggle.getAttribute('aria-pressed') : null,
-      textsizeLabel: textsizeToggle ? textsizeToggle.getAttribute('aria-label') : null,
-      extraLargeLabel: textsizeToggle ? textsizeToggle.dataset.labelXl : null,
       rubyPressed: rubyToggle ? rubyToggle.getAttribute('aria-pressed') : null,
-      shortcutsChecked: shortcutsToggle ? shortcutsToggle.checked : null,
+      shown: Object.fromEntries(choices.map((name) => [
+        name,
+        document.querySelector(`[data-pref-field="${name}"] input:checked`)?.value ?? null,
+      ])),
     };
-  });
+  }, CHOICES);
+
+// Stamps the revived document with what it said before the reader moved on,
+// and stores what they chose since, the way a later page would have.
+const stampStale = (page, stale, cookies) =>
+  page.evaluate(({ stamp, stored }) => {
+    const root = document.documentElement;
+    for (const [name, value] of Object.entries(stamp.root)) root.dataset[name] = value;
+    document.querySelector('[data-ruby-toggle]')?.setAttribute('aria-pressed', stamp.rubyPressed);
+    for (const [name, value] of Object.entries(stamp.shown)) {
+      const option = document.querySelector(`[data-pref-field="${name}"] input[value="${value}"]`);
+      if (option) option.checked = true;
+    }
+    for (const [name, value] of Object.entries(stored)) {
+      document.cookie = `yomihon_${name}=${value};path=/;max-age=31536000;samesite=lax`;
+    }
+  }, { stamp: stale, stored: cookies });
 
 const dispatchRestore = (page) =>
   page.evaluate(() => {
@@ -169,93 +190,82 @@ try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const page = await context.newPage();
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
-  await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
-  if (proof) {
-    const issue = proof();
-    if (issue) notApplied(`${MUTATE}: ${issue}`);
+  for (const [index, path] of [PAGE, SETTINGS].entries()) {
+    const onSettings = path === SETTINGS;
+    await page.goto(BASE + path, { waitUntil: 'domcontentloaded' });
+    if (proof && index === 0) {
+      const issue = proof();
+      if (issue) notApplied(`${MUTATE}: ${issue}`);
+    }
+    const where = onSettings ? 'the settings page' : 'the reading page';
+
+    const onLoad = await preferenceState(page);
+    if (!onSettings && onLoad.rubyPressed === null) {
+      broken(`${PAGE} draws no furigana switch to read; this probe has to be driven against a note that carries furigana`);
+    }
+    if (onSettings && CHOICES.some((name) => onLoad.shown[name] === null)) {
+      broken(`the settings page shows no option in force for some choice: ${JSON.stringify(onLoad.shown)}`);
+    }
+
+    // Cookies say what the reader chose on a later page; the revived document
+    // still carries the older stamp. Dispatching pageshow is the restore path.
+    await stampStale(page, {
+      root: { theme: 'light', textsize: 'm', ruby: 'on', singleKeyShortcuts: 'on', font: 'serif' },
+      rubyPressed: 'true',
+      shown: { theme: 'light', textsize: 'm', font: 'serif', ruby: 'on', shortcuts: 'on' },
+    }, { theme: 'dark', textsize: 'xl', ruby: 'off', shortcuts: 'off', font: 'sans' });
+
+    const before = await preferenceState(page);
+    if (before.theme !== 'light' || before.textsize !== 'm' || before.ruby !== 'on' || before.shortcuts !== 'on') {
+      broken(`stale stamp did not take: theme=${before.theme} textsize=${before.textsize} ruby=${before.ruby} shortcuts=${before.shortcuts}`);
+    }
+
+    await dispatchRestore(page);
+    const after = await preferenceState(page);
+    // Where the settings page is not the one being read, it has no options to
+    // show and the question about them is not asked.
+    const shows = (name, value) => !onSettings || after.shown[name] === value;
+
+    if (after.theme !== 'dark' || !shows('theme', 'dark')) {
+      fail('restore-theme', `${where}: after restore theme=${after.theme} shown=${after.shown.theme}, want dark`);
+    }
+    if (after.textsize !== 'xl' || !shows('textsize', 'xl')) {
+      fail('restore-textsize', `${where}: after restore textsize=${after.textsize} shown=${after.shown.textsize}, want xl`);
+    }
+    if (after.ruby !== 'off' || (!onSettings && after.rubyPressed !== 'false') || !shows('ruby', 'off')) {
+      fail('restore-ruby', `${where}: after restore ruby=${after.ruby} aria-pressed=${after.rubyPressed} shown=${after.shown.ruby}, want off`);
+    }
+    // The typeface is the reading surface itself, and it was the one stamped
+    // choice the restore path walked past: theme and size came back corrected
+    // while the words stayed in the face the reader had already left behind.
+    if (after.font !== 'sans' || !shows('font', 'sans')) {
+      fail('restore-font', `${where}: after restore font=${after.font} shown=${after.shown.font}, want sans`);
+    }
+    if (after.shortcuts !== 'off' || !shows('shortcuts', 'off')) {
+      fail('restore-shortcuts', `${where}: after restore shortcuts=${after.shortcuts} shown=${after.shown.shortcuts}, want off`);
+    }
+
+    // A cookie the server would ignore must not turn the aids off. Stamp the
+    // page off, store a value that is not the literal "off", and the restore
+    // has to put both back on.
+    await stampStale(page, {
+      root: { ruby: 'off', singleKeyShortcuts: 'off' },
+      rubyPressed: 'false',
+      shown: { ruby: 'off', shortcuts: 'off' },
+    }, { ruby: 'maybe', shortcuts: 'disabled' });
+    await dispatchRestore(page);
+    const normalised = await preferenceState(page);
+    if (normalised.ruby !== 'on' || (!onSettings && normalised.rubyPressed !== 'true') || (onSettings && normalised.shown.ruby !== 'on')) {
+      fail('restore-ruby-unknown-is-on', `${where}: unknown ruby cookie left ruby=${normalised.ruby} aria-pressed=${normalised.rubyPressed} shown=${normalised.shown.ruby}, want on`);
+    }
+    if (normalised.shortcuts !== 'on' || (onSettings && normalised.shown.shortcuts !== 'on')) {
+      fail('restore-shortcuts-unknown-is-on', `${where}: unknown shortcuts cookie left shortcuts=${normalised.shortcuts} shown=${normalised.shown.shortcuts}, want on`);
+    }
+    // Nothing the next page is drawn with may be left over from this one.
+    await context.clearCookies();
   }
 
-  const onLoad = await preferenceState(page);
-  if (onLoad.themePressed === null || onLoad.textsizeLabel === null) {
-    broken('the page carries no theme or text-size control to read');
-  }
-  if (onLoad.rubyPressed === null || onLoad.shortcutsChecked === null) {
-    broken('the page carries no furigana or shortcuts control to read');
-  }
-  if (!onLoad.extraLargeLabel) {
-    broken('the text-size control does not carry the extra-large name the restore path rewrites from');
-  }
-
-  // Cookies say what the reader chose on a later page; the revived document
-  // still carries the older stamp. Dispatching pageshow is the restore path.
-  await page.evaluate(() => {
-    const root = document.documentElement;
-    root.dataset.theme = 'light';
-    root.dataset.textsize = 'm';
-    root.dataset.ruby = 'on';
-    root.dataset.singleKeyShortcuts = 'on';
-    root.dataset.font = 'serif';
-    document.querySelector('[data-theme-toggle]')?.setAttribute('aria-pressed', 'false');
-    document.querySelector('[data-ruby-toggle]')?.setAttribute('aria-pressed', 'true');
-    const shortcutsToggle = document.querySelector('[data-single-key-shortcuts-toggle]');
-    if (shortcutsToggle) shortcutsToggle.checked = true;
-    document.cookie = 'yomihon_theme=dark;path=/;max-age=31536000;samesite=lax';
-    document.cookie = 'yomihon_textsize=xl;path=/;max-age=31536000;samesite=lax';
-    document.cookie = 'yomihon_ruby=off;path=/;max-age=31536000;samesite=lax';
-    document.cookie = 'yomihon_shortcuts=off;path=/;max-age=31536000;samesite=lax';
-    document.cookie = 'yomihon_font=sans;path=/;max-age=31536000;samesite=lax';
-  });
-
-  const before = await preferenceState(page);
-  if (before.theme !== 'light' || before.textsize !== 'm' || before.ruby !== 'on' || before.shortcuts !== 'on') {
-    broken(`stale stamp did not take: theme=${before.theme} textsize=${before.textsize} ruby=${before.ruby} shortcuts=${before.shortcuts}`);
-  }
-
-  await dispatchRestore(page);
-  const after = await preferenceState(page);
-
-  if (after.theme !== 'dark' || after.themePressed !== 'true') {
-    fail('restore-theme', `after restore theme=${after.theme} aria-pressed=${after.themePressed}, want dark/true`);
-  }
-  if (after.textsize !== 'xl' || after.textsizeLabel !== after.extraLargeLabel) {
-    fail('restore-textsize', `after restore textsize=${after.textsize} aria-label=${after.textsizeLabel}, want xl/${after.extraLargeLabel}`);
-  }
-  if (after.ruby !== 'off' || after.rubyPressed !== 'false') {
-    fail('restore-ruby', `after restore ruby=${after.ruby} aria-pressed=${after.rubyPressed}, want off/false`);
-  }
-  // The typeface is the reading surface itself, and it was the one stamped
-  // choice the restore path walked past: theme and size came back corrected
-  // while the words stayed in the face the reader had already left behind.
-  if (after.font !== 'sans') {
-    fail('restore-font', `after restore font=${after.font}, want sans`);
-  }
-  if (after.shortcuts !== 'off' || after.shortcutsChecked !== false) {
-    fail('restore-shortcuts', `after restore shortcuts=${after.shortcuts} checked=${after.shortcutsChecked}, want off/false`);
-  }
-
-  // A cookie the server would ignore must not turn the aids off. Stamp the
-  // page off, store a value that is not the literal "off", and the restore
-  // has to put both back on.
-  await page.evaluate(() => {
-    const root = document.documentElement;
-    root.dataset.ruby = 'off';
-    root.dataset.singleKeyShortcuts = 'off';
-    document.querySelector('[data-ruby-toggle]')?.setAttribute('aria-pressed', 'false');
-    const shortcutsToggle = document.querySelector('[data-single-key-shortcuts-toggle]');
-    if (shortcutsToggle) shortcutsToggle.checked = false;
-    document.cookie = 'yomihon_ruby=maybe;path=/;max-age=31536000;samesite=lax';
-    document.cookie = 'yomihon_shortcuts=disabled;path=/;max-age=31536000;samesite=lax';
-  });
-  await dispatchRestore(page);
-  const normalised = await preferenceState(page);
-  if (normalised.ruby !== 'on' || normalised.rubyPressed !== 'true') {
-    fail('restore-ruby-unknown-is-on', `unknown ruby cookie left ruby=${normalised.ruby} aria-pressed=${normalised.rubyPressed}, want on/true`);
-  }
-  if (normalised.shortcuts !== 'on' || normalised.shortcutsChecked !== true) {
-    fail('restore-shortcuts-unknown-is-on', `unknown shortcuts cookie left shortcuts=${normalised.shortcuts} checked=${normalised.shortcutsChecked}, want on/true`);
-  }
-
-  console.log('PASS preference-restore: all four preferences and both controls agree with the cookies after a persisted pageshow, and only the literal off is off');
+  console.log('PASS preference-restore: every persisted preference, the furigana switch and the options the settings page shows agree with the cookies after a persisted pageshow, and only the literal off is off');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

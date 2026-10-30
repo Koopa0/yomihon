@@ -100,11 +100,13 @@ try {
             fail('authored-name', `author metadata became ${JSON.stringify(initial[2])}`);
           }
           const oldIds = await page.locator('.mermaid-diagram > svg').evaluateAll((elements) => elements.map((element) => element.id));
-          const themeControl = page.locator('[data-theme-toggle]');
-          // At a narrow window the same native control lives in the header's
-          // popover, so a reader opens it before choosing a theme.
-          if (!(await themeControl.isVisible())) await page.click('[popovertarget="_y-header-fold"]');
-          await themeControl.click();
+          // The theme is chosen on the settings page, so an open note meets a
+          // new choice when the reader comes back to it from there: the cache
+          // restore reads the cookie the choice left and redraws the diagrams.
+          await page.evaluate((next) => {
+            document.cookie = `yomihon_theme=${next};path=/;max-age=31536000;samesite=lax`;
+            window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+          }, theme === 'dark' ? 'light' : 'dark');
           await page.waitForFunction((previous) => {
             const elements = [...document.querySelectorAll('.mermaid-diagram > svg')];
             return elements.length === previous.length && elements.every((element, index) => element.id !== previous[index]);

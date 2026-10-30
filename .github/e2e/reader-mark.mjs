@@ -29,15 +29,11 @@ const SCROLL_TO = 900;
 // one the reading page draws its right rail: the rail is its own scroll
 // container, so reaching the control does not move the article out from under
 // the position being kept. Below the rail's width there is no rail, and the
-// face is inside the header's folded panel — the header stays put while the
-// note scrolls, which is the same property said a second way.
+// face is a bookmark in the header row — the header stays put while the note
+// scrolls, which is the same property said a second way.
 const VIEWPORT = { width: 1600, height: 900 };
 const NARROW = { width: 390, height: 844 };
 const LANDING_SLACK = 4;
-// The button the folded panel hangs from, and the panel itself: how a reader at
-// the narrow width reaches anything that is in it.
-const FOLD_BUTTON = '[popovertarget="_y-header-fold"]';
-const FOLD_PANEL = '.y-headerfold';
 
 const ANCHOR_SITES = [
   'an-invalid-block-keeps-the-accepted-predecessor',
@@ -226,12 +222,12 @@ const MUTATIONS = {
     target: 'keeping-another-replaces-it',
     apply: dropSecondPost(),
   },
-  'keep-the-panel-face-hidden': {
+  'keep-the-header-face-hidden': {
     target: 'a-narrow-reader-can-keep-a-place',
     apply: rewriteStylesheet(
-      '[data-js] .y-headerfold:popover-open .y-headermark {\n  display: block;\n}',
-      '[data-js] .y-headerfold:popover-open .y-headermark {\n  display: none;\n}',
-      'the rule that draws the control inside the open panel',
+      '[data-js] .y-headermark {\n  display: flex;\n}',
+      '[data-js] .y-headermark {\n  display: none;\n}',
+      'the rule that draws the control in the header row',
     ),
   },
   // What the narrow face exists to prevent, injected: the place kept is no
@@ -300,9 +296,9 @@ const checkProof = (proof) => {
 
 // keepThePlace scrolls the note and presses the control, waiting for the row
 // to have something to offer rather than for a fixed delay. It returns where
-// the window was on either side of opening the panel, which is nothing at the
-// wide width and the whole question at the narrow one.
-const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, anchorDecoys = false } = {}) => {
+// the window was on either side of reaching the control, which is nothing at
+// the wide width and the whole question at the narrow one.
+const keepThePlace = async (page, path, { tamperIdentity = false, narrow = null, anchorDecoys = false } = {}) => {
   await page.goto(BASE + path, { waitUntil: 'domcontentloaded' });
   if (await page.locator('[data-mark-control]').count() === 0) {
     broken(`${path} carries no mark control`);
@@ -338,21 +334,6 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
       prose.append(hidden);
     });
   }
-  if (fold) {
-    // Below the rail's width the face the reader can press is inside the
-    // header's folded panel, and a closed panel draws nothing it holds. It is
-    // opened by its own button, the way a reader opens it, and the window's
-    // position is read on both sides of that press: a control that moved the
-    // page on the way to being reached would keep where it took the reader.
-    const button = page.locator(FOLD_BUTTON);
-    if (await button.count() !== 1) {
-      broken(`${path} carries ${await button.count()} buttons for the folded panel, want exactly 1`);
-    }
-    reached.before = await page.evaluate(() => Math.round(window.scrollY));
-    await button.click();
-    await page.locator(FOLD_PANEL).waitFor({ state: 'visible', timeout: 4000 });
-    reached.after = await page.evaluate(() => Math.round(window.scrollY));
-  }
   // Asking for the visible control rather than the first in document order is
   // what makes the face a measurement instead of an assumption: a face hidden
   // by its own rule reads here as zero rather than passing on a node nobody
@@ -360,11 +341,11 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
   const control = page.locator('[data-mark-control]:visible');
   const drawn = await control.count();
   if (drawn !== 1) {
-    // An opened panel with no control in it is the regression the narrow site
+    // A header row with no control in it is the regression the narrow site
     // exists for, so it is that site firing rather than the probe giving up:
     // the two are different verdicts and only one of them is about the page.
-    if (fold) {
-      fail(fold.site, `${path} shows ${drawn} mark controls inside the opened panel, want exactly 1`);
+    if (narrow) {
+      fail(narrow.site, `${path} shows ${drawn} mark controls in the header row, want exactly 1`);
     }
     broken(`${path} shows ${drawn} mark controls at this width, want exactly 1`);
   }
@@ -377,6 +358,18 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
     });
   }
   const button = control.locator('[data-mark-button]');
+  if (narrow) {
+    // Below the rail's width the face is in the header row, which stays put
+    // while the note scrolls. The window's position is read before the reader
+    // reaches for it and again at the press itself: a control that moved the
+    // page on the way to being reached would keep where it took the reader.
+    reached.before = await page.evaluate(() => Math.round(window.scrollY));
+    await button.evaluate((node) => {
+      node.addEventListener('click', () => {
+        node.dataset.probeScrollAtPress = String(Math.round(window.scrollY));
+      }, { capture: true, once: true });
+    });
+  }
   if (anchorDecoys) {
     // Sample during the actual press, before the module reads the position.
     // A scope mutation is meaningful only when this eligible UI element is
@@ -414,6 +407,7 @@ const keepThePlace = async (page, path, { tamperIdentity = false, fold = null, a
       broken(`${path}: UI anchor decoy was not the nearest eligible candidate at the press: ${JSON.stringify(geometry)}`);
     }
   }
+  if (narrow) reached.after = Number(await button.getAttribute('data-probe-scroll-at-press') ?? 'NaN');
   reached.anchor = new URLSearchParams(response?.request().postData() ?? '').get('anchor');
   // The confirmation is the page's own word that the round trip finished, so
   // the desk is not asked before the file exists. The element itself is in
@@ -505,10 +499,6 @@ try {
       }
       if (index === 2 && expected.preceding.some((node) => node.id !== target)) {
         broken(`${site}: fallback fixture has another ID above the window`);
-      }
-      if (viewport === NARROW) {
-        await page.locator(FOLD_BUTTON).click();
-        await page.locator(FOLD_PANEL).waitFor({ state: 'visible' });
       }
       const control = page.locator('[data-mark-control]:visible');
       if (await control.count() !== 1) broken(`${site}: no unique visible mark control`);
@@ -699,20 +689,20 @@ try {
   // --- A reader on a phone can keep one too ------------------------------
   //
   // The rail is dropped below its own width, so the face the reader reaches
-  // here is the one in the header's folded panel. The whole of it is asked in
-  // the reader's own order: scroll, open the panel, press, and follow the place
-  // back — at this width from beginning to end, which is the round trip a
-  // reader on a phone actually makes.
+  // here is the bookmark in the header row. The whole of it is asked in the
+  // reader's own order: scroll, press, and follow the place back — at this
+  // width from beginning to end, which is the round trip a reader on a phone
+  // actually makes.
   //
   // The reason the control is in the header rather than at the end of the
-  // article is asserted directly: opening the panel leaves the window where it
-  // was, so the place kept is the reader's and not the control's.
+  // article is asserted directly: reaching it leaves the window where it was,
+  // so the place kept is the reader's and not the control's.
   {
     const context = await browser.newContext({ viewport: NARROW });
     const page = await context.newPage();
     const site = 'a-narrow-reader-can-keep-a-place';
     const proof = await applyMutation(page, site);
-    const reached = await keepThePlace(page, PAGE, { fold: { site }, anchorDecoys: true });
+    const reached = await keepThePlace(page, PAGE, { narrow: { site }, anchorDecoys: true });
     checkProof(proof);
     await assertReadingAnchor(page, reached.anchor, site);
     if (reached.before !== SCROLL_TO || reached.after !== SCROLL_TO) {

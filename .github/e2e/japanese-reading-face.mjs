@@ -231,7 +231,7 @@ try {
             controls = document.createElement('div'); controls.dataset.fontProbe = '1';
             const nested = document.createElement('span'); nested.lang = 'zh-Hant'; nested.textContent = '中文'; nested.dataset.nestedLanguage = '1'; p.append(nested);
             const code = document.createElement('code'); code.lang = 'ja'; const span = document.createElement('span'); span.lang = 'ja'; span.textContent = 'fmt.Println'; code.append(span); controls.append(code);
-            const button = document.createElement('button'); button.className = 'y-langbtn'; button.lang = 'ja'; button.textContent = '送信'; controls.append(button);
+            const button = document.createElement('button'); button.lang = 'ja'; button.textContent = '送信'; controls.append(button);
             prose.append(controls);
           }
           const ordinary = getComputedStyle(document.documentElement).getPropertyValue('--font-read').trim();

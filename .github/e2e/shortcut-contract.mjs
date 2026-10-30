@@ -1,7 +1,9 @@
-// Behavior lock for the global shortcut boundary. The two printable-key
+// Behavior lock for the global shortcut boundary. The three printable-key
 // actions are deliberately available without modifiers, while browser and OS
 // chords remain untouched. Escape and the command-palette chord are outside
-// that printable-key guard and keep their native roles.
+// that printable-key guard and keep their native roles. The switch for the
+// printable keys is on the settings page, and the ? key opens the panel that
+// lists them all.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note with a drawer filter), and MUTATE.
 // MUTATE=list prints every watched regression.
@@ -15,23 +17,23 @@ const NAV_TOGGLE = '[data-nav-toggle]';
 const DIALOG = '[data-search]';
 const CONCEPT_SHEET = '[data-concept-sheet]';
 const CONCEPT_TRIGGER = '[data-concept]';
-const SHORTCUT_CONTROL = '[data-single-key-shortcuts-toggle]';
-const SHORTCUT_LABEL = '.y-shortcutpref';
-const SHORTCUT_ON = '.y-shortcutpref__on';
-const SHORTCUT_OFF = '.y-shortcutpref__off';
-const HELP_BUTTON = '[popovertarget="_y-kbd-help"]';
 const HELP_PANEL = '#_y-kbd-help';
-// Where the header keeps the control above, at the widths that have no room
-// for it out on the row.
-const FOLD_BUTTON = '[popovertarget="_y-header-fold"]';
+const SETTINGS = '/preferences';
+const SHORTCUT_FIELD = '[data-pref-field="shortcuts"]';
+const shortcutOption = (value) => `${SHORTCUT_FIELD} input[value="${value}"]`;
 
-// The single-key control is pressed, never driven by a checked-state helper.
-// The page writes this control's state back from the value it kept, so a
-// regression that refuses the new value leaves the box exactly where it was —
-// and a helper that insists the box moved throws there, before the assertion
-// that would say which behaviour broke. Every call site reads the resulting
-// state and names it, which is the check the helper was making and more.
-const pressShortcutControl = (page) => page.locator(SHORTCUT_CONTROL).click();
+// The single-key choice is pressed, never driven by a checked-state helper.
+// The page puts the previous option back when the browser did not keep the
+// new one, so a regression that refuses the new value leaves the choice exactly
+// where it was — and a helper that insists the option moved throws there,
+// before the assertion that would say which behaviour broke. Every call site
+// reads the resulting state and names it, which is the check the helper was
+// making and more.
+const pickShortcuts = async (page, value) => {
+  await page.goto(BASE + SETTINGS, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('html[data-js]');
+  await page.locator(shortcutOption(value)).click();
+};
 
 const SITES = [
   'modified-printables-stay-native',
@@ -43,12 +45,12 @@ const SITES = [
   'escape-dismisses',
   'composing-escape-stays-with-the-input',
   'command-palette-chord',
+  'plain-help-toggles',
   'default-on',
   'disabled-printables-stay-native',
   'disabled-command-and-escape',
   'disabled-persists',
   'reenable-restores',
-  'visible-shortcut-state',
   'shortcut-focus-visible',
   'shortcut-control-reachable',
 ];
@@ -132,6 +134,15 @@ const MUTATIONS = {
   'disable-plain-drawer': {
     target: 'plain-drawer-toggles',
     apply: rewriteScript("    if (event.key === '[') {", '    if (false) {'),
+  },
+  'disable-plain-help': {
+    target: 'plain-help-toggles',
+    apply: rewriteScript("    if (event.key === '?') {", '    if (false) {'),
+  },
+  // The key opens the panel and never puts it away again.
+  'open-help-on-every-press': {
+    target: 'plain-help-toggles',
+    apply: rewriteScript("      if (help.matches(':popover-open')) {", '      if (false) {'),
   },
   // Naming the search dialog by identity, which is how `[` and `/` used to
   // reach the drawer behind the concept sheet — the other showModal().
@@ -217,10 +228,10 @@ const MUTATIONS = {
         requests += 1;
         const response = await route.fetch();
         const original = await response.text();
-        const needle = "    const value = event.currentTarget.checked ? 'on' : 'off';\n";
+        const needle = '    shortcuts: writeShortcuts,\n';
         const count = original.split(needle).length - 1;
         matches += count;
-        await route.fulfill({ response, body: count === 1 ? original.replace(needle, "    const value = 'off';\n") : original });
+        await route.fulfill({ response, body: count === 1 ? original.replace(needle, "    shortcuts: () => writeShortcuts('off'),\n") : original });
       });
       return () => {
         if (requests !== 1) return `preferences runtime was requested ${requests} times, want exactly 1`;
@@ -229,25 +240,21 @@ const MUTATIONS = {
       };
     },
   },
-  'hide-visible-shortcut-state': {
-    target: 'visible-shortcut-state',
-    apply: injectStyle('.y-shortcutpref__on,.y-shortcutpref__off{display:none!important}'),
-  },
   'remove-shortcut-focus-ring': {
     target: 'shortcut-focus-visible',
-    apply: injectStyle('.y-shortcutpref__input:focus-visible{outline:none!important}'),
+    apply: injectStyle('.y-preffield__options input:focus-visible{outline:none!important}'),
   },
-  'push-shortcut-control-off-the-panel': {
+  'push-shortcut-control-off-the-page': {
     target: 'shortcut-control-reachable',
     // Scoped to the narrow viewport the site measures. Pushed off at every
-    // width it would also stop the probe clicking the control earlier on,
+    // width it would also stop the probe pressing the control earlier on,
     // and the run would exit 1 from a timeout instead of from the assertion
     // this aims at — an exit code that proves nothing.
-    apply: injectStyle('@media(max-width:520px){.y-kbdpref{position:fixed!important;left:-10000px!important}}'),
+    apply: injectStyle(`@media(max-width:520px){${SHORTCUT_FIELD}{position:fixed!important;left:-10000px!important}}`),
   },
   'hide-what-the-keys-cost': {
     target: 'shortcut-control-reachable',
-    apply: injectStyle('.y-kbdpref__note{display:none!important}'),
+    apply: injectStyle(`${SHORTCUT_FIELD} .y-preffield__note{display:none!important}`),
   },
 };
 
@@ -285,22 +292,23 @@ const dispatch = (page, type, key, modifiers = {}) => page.evaluate(({ type, key
   return { defaultPrevented: event.defaultPrevented || !accepted };
 }, { type, key, modifiers });
 
-const state = (page) => page.evaluate(({ dialog, filter, shortcutControl, shortcutOn, shortcutOff }) => ({
+const state = (page) => page.evaluate(({ dialog, filter, help }) => ({
   nav: document.documentElement.dataset.nav,
   rail: document.documentElement.dataset.rail,
   shortcuts: document.documentElement.dataset.singleKeyShortcuts,
   dialogOpen: Boolean(document.querySelector(dialog)?.open),
   filterFocused: document.activeElement === document.querySelector(filter),
-  shortcutChecked: document.querySelector(shortcutControl)?.checked,
-  shortcutOnDisplay: document.querySelector(shortcutOn) ? getComputedStyle(document.querySelector(shortcutOn)).display : null,
-  shortcutOffDisplay: document.querySelector(shortcutOff) ? getComputedStyle(document.querySelector(shortcutOff)).display : null,
+  helpOpen: Boolean(document.querySelector(help)?.matches(':popover-open')),
 }), {
   dialog: DIALOG,
   filter: FILTER,
-  shortcutControl: SHORTCUT_CONTROL,
-  shortcutOn: SHORTCUT_ON,
-  shortcutOff: SHORTCUT_OFF,
+  help: HELP_PANEL,
 });
+
+// Which option of the single-key choice the settings page shows in force.
+const shownChoice = (page) => page.evaluate((field) => (
+  document.querySelector(`${field} input:checked`)?.value ?? null
+), SHORTCUT_FIELD);
 
 const press = async (page, key, modifiers = {}) => {
   const result = await dispatch(page, 'keydown', key, modifiers);
@@ -324,44 +332,9 @@ try {
   const initial = await state(page);
   if (await page.locator(FILTER).count() !== 1) broken('the fixture has no single drawer filter');
   if (await page.locator(DIALOG).count() !== 1) broken('the fixture has no single search dialog');
-  if (await page.locator(SHORTCUT_CONTROL).count() !== 1) broken('the page has no single-key-shortcut preference control');
-  // The preference lives in the keyboard help layer, so every question about
-  // what a reader can see or reach is asked with that layer open. Reading it
-  // closed measures a subtree the reader is not looking at.
-  // Opened from the keyboard, because that is how the reader who cares about
-  // this panel arrives at it — and because a mouse click here would put the
-  // browser in pointer modality, so the focus ring asked about below would be
-  // absent for a reason that has nothing to do with the stylesheet.
-  const openHelp = async () => {
-    if (await page.locator(HELP_PANEL).evaluate((el) => el.matches(':popover-open')).catch(() => false)) return;
-    // At the widths where the header row cannot hold everything, the way to
-    // this panel is inside the folded group, so the group is opened first —
-    // from the keyboard for the same reason the panel itself is, and by asking
-    // whether the control is drawn rather than by naming a width, so this
-    // keeps working wherever the fold sits.
-    if (!(await page.locator(HELP_BUTTON).isVisible())) {
-      await page.locator(FOLD_BUTTON).focus();
-      await page.keyboard.press('Enter');
-      await page.locator(HELP_BUTTON).waitFor({ state: 'visible' });
-    }
-    await page.locator(HELP_BUTTON).focus();
-    await page.keyboard.press('Enter');
-    await page.locator(HELP_PANEL).waitFor({ state: 'visible' });
-  };
-  await openHelp();
-  if (initial.shortcuts !== 'on' || initial.shortcutChecked !== true) {
-    fail('default-on', `default rendered shortcuts=${initial.shortcuts}, checked=${initial.shortcutChecked}`);
-  }
-  if (initial.shortcutOnDisplay === 'none' || initial.shortcutOffDisplay !== 'none') {
-    fail('visible-shortcut-state', `enabled state displays on=${initial.shortcutOnDisplay}, off=${initial.shortcutOffDisplay}`);
-  }
-  await page.locator(SHORTCUT_CONTROL).focus();
-  const focusRing = await page.locator(SHORTCUT_CONTROL).evaluate((element) => {
-    const style = getComputedStyle(element);
-    return { style: style.outlineStyle, width: style.outlineWidth, color: style.outlineColor };
-  });
-  if (focusRing.style === 'none' || Number.parseFloat(focusRing.width) <= 0 || focusRing.color === 'rgba(0, 0, 0, 0)') {
-    fail('shortcut-focus-visible', `focused checkbox outline=${JSON.stringify(focusRing)}`);
+  if (await page.locator(HELP_PANEL).count() !== 1) broken('the page has no single keyboard help panel');
+  if (initial.shortcuts !== 'on') {
+    fail('default-on', `default rendered shortcuts=${initial.shortcuts}`);
   }
 
   const modified = [
@@ -407,11 +380,7 @@ try {
   // asking a toggle to close what `/` had just opened.
   if (await page.locator(CONCEPT_SHEET).count() !== 1) broken('the fixture has no single concept sheet');
   if (await page.locator(CONCEPT_TRIGGER).count() < 1) broken('the fixture has no concept trigger');
-  const hideHelp = () => page.locator(HELP_PANEL).evaluate((el) => {
-    if (el.matches(':popover-open')) el.hidePopover();
-  });
   const openConceptSheet = async () => {
-    await hideHelp();
     await page.locator(CONCEPT_TRIGGER).first().click();
     await page.waitForFunction((sel) => Boolean(document.querySelector(sel)?.open), CONCEPT_SHEET);
   };
@@ -495,21 +464,42 @@ try {
     fail('composing-escape-stays-with-the-input', `Escape after a composition left nav=${after.nav}, want closed`);
   }
 
-  await openHelp();
-  await pressShortcutControl(page);
+  // The ? key opens the panel that lists every key, and the same key puts it
+  // away again. Shift is how the key is typed, and is not one of the
+  // modifiers that hand a key back to the browser.
+  const question = await dispatch(page, 'keydown', '?', { shiftKey: true });
   after = await state(page);
-  if (after.shortcuts !== 'off' || after.shortcutChecked !== false) {
-    fail('disabled-printables-stay-native', `disabled state rendered shortcuts=${after.shortcuts}, checked=${after.shortcutChecked}`);
+  await dispatch(page, 'keyup', '?', { shiftKey: true });
+  if (!question.defaultPrevented || !after.helpOpen) {
+    fail('plain-help-toggles', `plain ? left help open=${after.helpOpen}, prevented=${question.defaultPrevented}`);
   }
-  if (after.shortcutOnDisplay !== 'none' || after.shortcutOffDisplay === 'none') {
-    fail('visible-shortcut-state', `disabled state displays on=${after.shortcutOnDisplay}, off=${after.shortcutOffDisplay}`);
+  await press(page, '?', { shiftKey: true });
+  if ((await state(page)).helpOpen) fail('plain-help-toggles', 'the second plain ? left the help open');
+
+  // The settings page shows the choice in force, and on a browser that never
+  // made one that is on.
+  await page.goto(BASE + SETTINGS, { waitUntil: 'domcontentloaded' });
+  if (await page.locator(SHORTCUT_FIELD).count() !== 1) broken('the settings page has no single single-key choice');
+  const shownAtFirst = await shownChoice(page);
+  if (shownAtFirst !== 'on') fail('default-on', `the settings page shows the single keys ${shownAtFirst}, want on`);
+
+  // Turned off on the settings page, the choice is what the next page is
+  // drawn with: the cookie is the only way it reaches a page the server
+  // writes, so a choice that was not kept is a reading page still answering
+  // the keys.
+  await pickShortcuts(page, 'off');
+  await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('html[data-js][data-nav="closed"]');
+  after = await state(page);
+  if (after.shortcuts !== 'off') {
+    fail('disabled-persists', `the reading page after choosing off rendered shortcuts=${after.shortcuts}`);
   }
 
-  for (const key of ['/', '[']) {
-    const result = await dispatch(page, 'keydown', key);
+  for (const [key, modifiers] of [['/', {}], ['[', {}], ['?', { shiftKey: true }]]) {
+    const result = await dispatch(page, 'keydown', key, modifiers);
     const during = await state(page);
-    await dispatch(page, 'keyup', key);
-    if (result.defaultPrevented || during.nav !== 'closed' || during.filterFocused) {
+    await dispatch(page, 'keyup', key, modifiers);
+    if (result.defaultPrevented || during.nav !== 'closed' || during.filterFocused || during.helpOpen) {
       fail('disabled-printables-stay-native', `disabled ${key} was captured`);
     }
   }
@@ -529,23 +519,27 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForSelector('html[data-js][data-nav="closed"]');
   after = await state(page);
-  if (after.shortcuts !== 'off' || after.shortcutChecked !== false) {
-    fail('disabled-persists', `reload rendered shortcuts=${after.shortcuts}, checked=${after.shortcutChecked}`);
+  if (after.shortcuts !== 'off') {
+    fail('disabled-persists', `reload rendered shortcuts=${after.shortcuts}`);
   }
   const secondPage = await context.newPage();
   await secondPage.goto(BASE + '/', { waitUntil: 'domcontentloaded' });
   await secondPage.waitForSelector('html[data-js]');
   const secondState = await state(secondPage);
-  if (secondState.shortcuts !== 'off' || secondState.shortcutChecked !== false) {
-    fail('disabled-persists', `new page rendered shortcuts=${secondState.shortcuts}, checked=${secondState.shortcutChecked}`);
+  if (secondState.shortcuts !== 'off') {
+    fail('disabled-persists', `new page rendered shortcuts=${secondState.shortcuts}`);
   }
+  await secondPage.goto(BASE + SETTINGS, { waitUntil: 'domcontentloaded' });
+  const shownOff = await shownChoice(secondPage);
+  if (shownOff !== 'off') fail('disabled-persists', `the settings page shows the single keys ${shownOff} after they were turned off`);
   await secondPage.close();
 
-  await openHelp();
-  await pressShortcutControl(page);
+  await pickShortcuts(page, 'on');
+  await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('html[data-js][data-nav="closed"]');
   after = await state(page);
-  if (after.shortcuts !== 'on' || after.shortcutChecked !== true) {
-    fail('reenable-restores', `re-enabled state rendered shortcuts=${after.shortcuts}, checked=${after.shortcutChecked}`);
+  if (after.shortcuts !== 'on') {
+    fail('reenable-restores', `re-enabled state rendered shortcuts=${after.shortcuts}`);
   }
   const restoredBracket = await dispatch(page, 'keydown', '[');
   after = await state(page);
@@ -604,11 +598,22 @@ try {
   if (await filterEscapeKeepsFocus('alpha')) {
     fail('wide-filter-escape-moves-nothing', 'Escape on a narrowing filter left focus in the box it had just cleared');
   }
-  // Escape is also how the browser dismisses an open popover, so those presses
-  // shut the keyboard help. It is reopened here, at a width where its button
-  // still has a face: below 520 the button is deliberately absent, and the
-  // measurement that follows needs the panel already open.
-  await openHelp();
+  // The choice itself, reached the way a reader on the keyboard reaches it: a
+  // focus ring the stylesheet took away would leave them pressing blind.
+  await page.goto(BASE + SETTINGS, { waitUntil: 'domcontentloaded' });
+  let reachedChoice = false;
+  for (let step = 0; step < 80 && !reachedChoice; step += 1) {
+    await page.keyboard.press('Tab');
+    reachedChoice = await page.evaluate((field) => Boolean(document.activeElement?.closest(field)), SHORTCUT_FIELD);
+  }
+  if (!reachedChoice) fail('shortcut-control-reachable', 'the keyboard never reached the single-key choice on the settings page');
+  const focusRing = await page.evaluate(() => {
+    const style = getComputedStyle(document.activeElement);
+    return { style: style.outlineStyle, width: style.outlineWidth, color: style.outlineColor };
+  });
+  if (focusRing.style === 'none' || Number.parseFloat(focusRing.width) <= 0 || focusRing.color === 'rgba(0, 0, 0, 0)') {
+    fail('shortcut-focus-visible', `focused single-key option outline=${JSON.stringify(focusRing)}`);
+  }
 
   // 360 has to reach the page as 360 pixels of room to lay out in. Where the
   // scrollbar keeps a column of its own, a 360-wide window leaves the page 345,
@@ -624,17 +629,16 @@ try {
     return window.innerWidth - room;
   });
   if (gutter > 0) await page.setViewportSize({ width: 360 + gutter, height: 800 });
-  await openHelp();
-  const narrow = await page.evaluate(({ shortcutLabel, note }) => {
-    const control = document.querySelector(shortcutLabel);
-    const sentence = document.querySelector(note);
+  const narrow = await page.evaluate((field) => {
+    const control = document.querySelector(field);
+    const sentence = control?.querySelector('.y-preffield__note');
     const box = control ? control.getBoundingClientRect() : null;
     return {
       box: box ? { left: box.left, right: box.right, width: box.width, height: box.height } : null,
       noteText: sentence ? sentence.textContent.trim() : '',
       noteVisible: sentence ? getComputedStyle(sentence).display !== 'none' : false,
     };
-  }, { shortcutLabel: SHORTCUT_LABEL, note: '.y-kbdpref__note' });
+  }, SHORTCUT_FIELD);
   if (
     !narrow.box
     || narrow.box.width <= 0
@@ -642,13 +646,12 @@ try {
     || narrow.box.left < 0
     || narrow.box.right > 360
     || !narrow.noteVisible
-    || !narrow.noteText.includes('/')
-    || !narrow.noteText.includes('[')
+    || !['/', '[', '?'].every((key) => narrow.noteText.includes(key))
   ) {
-    fail('shortcut-control-reachable', `360px help panel: control=${JSON.stringify(narrow.box)}, noteVisible=${narrow.noteVisible}, note=${JSON.stringify(narrow.noteText)}`);
+    fail('shortcut-control-reachable', `360px settings page: control=${JSON.stringify(narrow.box)}, noteVisible=${narrow.noteVisible}, note=${JSON.stringify(narrow.noteText)}`);
   }
 
-  console.log('PASS shortcut-contract: single-key preference is default-on, exact, persisted, reversible, and reachable in the keyboard help layer with the keys it governs named; other keys remain available');
+  console.log('PASS shortcut-contract: the single keys are default-on, exact, and ? toggles the help; the choice on the settings page persists, is reversible, and is reachable with the keys it governs named; other keys remain available');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
