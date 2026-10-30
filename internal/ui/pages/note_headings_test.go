@@ -137,3 +137,5 @@ func (noDeclaredTitles) TitledBy(string) []string { return nil }
 type vaultHolds struct{}
 
 func (vaultHolds) MissingFile(string) bool { return false }
+
+func (vaultHolds) OutsideScan(string) bool { return false }

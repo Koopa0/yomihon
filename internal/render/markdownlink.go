@@ -27,7 +27,7 @@ func (r *Pipeline) resolveMarkdownLinks(doc ast.Node, owner string, col *collect
 			return ast.WalkContinue, nil
 		}
 		written := string(link.Destination)
-		result := graph.ResolveMarkdown(owner, written, func(string) bool { return true }, func(p string) bool { return !r.files.MissingFile(p) })
+		result := graph.ResolveMarkdown(owner, written, func(p string) bool { return !r.files.OutsideScan(p) }, func(p string) bool { return !r.files.MissingFile(p) })
 		if !result.Local || result.Invalid || result.Withheld {
 			return ast.WalkContinue, nil
 		}

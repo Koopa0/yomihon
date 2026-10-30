@@ -30,7 +30,7 @@ func checkImages(notes []note, scan vault.Scan, authority scanAuthority) []Findi
 				continue
 			}
 			canonical := vault.NormalizeNFC(resolved)
-			if !authority.egressAllowed(canonical) || vault.OutsideScan(canonical) || scan.Contains(canonical) {
+			if !authority.egressAllowed(canonical) || authority.outsideScan(canonical) || scan.Contains(canonical) {
 				continue
 			}
 			out = append(out, missingImage(n, image.line, resolved))

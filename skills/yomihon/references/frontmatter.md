@@ -106,6 +106,19 @@ answer 200 — but it is not a note: it answers no `[[link]]` (`[[README]]` in a
 vault that skips `README.md` reports `link.broken`), it is not in the folder
 listing, its words are not in the search index, and `exists` does not know it.
 
+`exclude_dirs` names directories the scan does not enter at all, as a list of
+vault-relative patterns in `path.Match` syntax: `["courses/*/lab"]` excludes
+every course's `lab` directory, and a `*` never crosses a `/`. An excluded
+directory is treated exactly like a dot-directory such as `.git`: nothing below
+it is a note or a resource, so it is not in the folder listing, not searched,
+not judged and cannot collide on a name, and `/notes/` and `/raw/` answer 404 for
+it. A Markdown path link into it is left as written rather than reported broken;
+a `[[wikilink]]` to a name that only exists there is broken, as it is for a
+dot-directory. Use it for generated or copied trees whose file names repeat.
+Omitted, nothing is excluded.
+A pattern must be relative and clean (no leading `/`, no `..`, no trailing `/`)
+and must parse; anything else makes the contract fail to load.
+
 `no_frontmatter_is_legal` has a third state that matters. Omitted, a note
 without frontmatter is fine. Written `true`, fine. Only writing it `false`
 makes a missing frontmatter block a fault. A block that is present and

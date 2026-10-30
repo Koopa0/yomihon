@@ -44,7 +44,7 @@ func classifyCapturedPathRef(n *note, noteDir string, pref pathRef, observation 
 	if !observation.authority.egressAllowed(n.path) {
 		return Finding{}, false
 	}
-	result := graph.ResolveMarkdown(n.path, pref.target, observation.authority.egressAllowed, observation.contains)
+	result := graph.ResolveMarkdown(n.path, pref.target, observation.authority.readable, observation.contains)
 	if !result.Checkable || result.Withheld {
 		return Finding{}, false
 	}
@@ -79,7 +79,7 @@ func classifyCodeRef(
 	if (rootOK && contains(rootRel)) || (noteOK && contains(noteRel)) {
 		return Finding{}, false
 	}
-	if !rootOK || vault.OutsideScan(rootRel) {
+	if !rootOK || authority.outsideScan(rootRel) {
 		return Finding{}, false
 	}
 	return deadInRoot(n, pref, rootRel), true

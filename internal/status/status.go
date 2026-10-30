@@ -744,7 +744,7 @@ func (w *Writer) validateWriteTarget(relSlash string, descend func(*os.Root, str
 	// resource the reading face never shows cannot acquire a transition. It is
 	// asked before the lifecycle's reach is, because whether a file is a note
 	// at all comes before which folder the note sits in.
-	if !vault.IsMarkdown(relSlash) || vault.OutsideScan(relSlash) {
+	if !vault.IsMarkdown(relSlash) || w.contract.ScanBoundary().OutsideScan(relSlash) {
 		return "", "", ErrNonInstance
 	}
 	if err := ungoverned(policy, w.contract.KnowledgeScope(), relSlash); err != nil {

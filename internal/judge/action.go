@@ -108,6 +108,7 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 	if err != nil {
 		return nil, a.abort(err)
 	}
+	reader.SetBoundary(a.authority.contract.ScanBoundary())
 	a.scan, err = reader.ScanComplete(ctx)
 	if err != nil {
 		return nil, a.abort(scanStopped(err, a.authority))

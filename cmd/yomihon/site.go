@@ -111,6 +111,9 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 			"version", contract.Version(), "lifecycle_stages", contract.StageCount())
 		logPolicyFaults(log, contract)
 		governance = contract.Governance()
+		// The contract was read through this reader, so its scan boundary is
+		// known only now, before the first scan.
+		source.SetBoundary(contract.ScanBoundary())
 	}
 
 	writer, err := status.Open(source, contract, governance, log)

@@ -584,8 +584,8 @@ func assertContractDeclaresEverythingItCanRead(t *testing.T, contract *schema.Co
 		}
 		// Scan is the decode target. Definition() does not copy it:
 		// knowledge-layer membership is KnowledgeScope, skip_basenames is
-		// SkipBasenames, and no_frontmatter_is_legal is RequiresFrontmatter,
-		// demanded below.
+		// SkipBasenames, exclude_dirs is ScanBoundary, and
+		// no_frontmatter_is_legal is RequiresFrontmatter, demanded below.
 		if section.Name == "Scan" {
 			continue
 		}
