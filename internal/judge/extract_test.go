@@ -400,6 +400,15 @@ func TestPathRefsSplitNoteFromResourceOnTheExactExtension(t *testing.T) {
 		{name: "a mixed-case spelling is not a ref either", body: "[doc](Concepts/a.Md)", want: nil},
 		{name: "a backticked lowercase path is checkable", body: "see `Concepts/a.md`", want: []string{"Concepts/a.md"}},
 		{name: "a backticked uppercase spelling is not", body: "see `Concepts/a.MD`", want: nil},
+		// A code span that opens with a command name quotes a command line, not a
+		// note path. The folder-with-a-space case is the accepted cost of that
+		// reading: it is no longer judged, where the same span without a space
+		// in its first word still is.
+		{name: "a backticked git command line is not a ref", body: "`git show main:docs/design.md`", want: nil},
+		{name: "a backticked cat command line is not a ref", body: "`cat docs/design.md`", want: nil},
+		{name: "a backticked path with no whitespace is still a ref", body: "`Notes/Missing.md`", want: []string{"Notes/Missing.md"}},
+		{name: "a backticked path with a space after its first folder is still a ref", body: "`Notes/Reading list/a.md`", want: []string{"Notes/Reading list/a.md"}},
+		{name: "a backticked path whose first folder name has a space is not a ref", body: "`Reading list/a.md`", want: nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

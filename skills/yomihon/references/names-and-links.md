@@ -183,7 +183,10 @@ Private source findings are filtered before full or scoped CLI output; target
 authorization and scan exclusions precede membership. An unrelated private
 same-named file does not influence a local reference. Remote destinations are
 never fetched. Backticked `Notes/Some note.md` tokens retain their separate
-root-or-note-relative rule; percent-encoded code tokens remain outside it.
+root-or-note-relative rule; percent-encoded code tokens remain outside it. A
+code span with whitespace whose first word holds no `/` is a quoted command line
+(`git show main:docs/design.md`) and is not judged, so a missing path whose first
+folder name has a space is not reported either.
 
 Spaces matter to whether CommonMark parses a link:
 
