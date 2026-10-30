@@ -47,6 +47,7 @@ const SITES = [
   'row-fits',
   'wordmark-whole',
   'bookmark-says-whether-it-is-set',
+  'drawn-marks-are-named',
   'bookmark-takes-a-thumb',
   'keyboard-walks-the-cluster',
 ];
@@ -207,6 +208,13 @@ const MUTATIONS = {
       "?.setAttribute('aria-pressed', 'true');",
       ';',
     ),
+  },
+  // The settings link loses its name, which on a phone is the only one it
+  // has: its word is not drawn there and the mark it draws instead is not read.
+  'drop-the-settings-name': {
+    target: 'drawn-marks-are-named',
+    on: 'note',
+    apply: (page) => changeOne(page, SETTINGS, { name: 'aria-label', remove: true }),
   },
   // A touch screen gets the pointer's target, too small for a thumb.
   'shrink-the-touch-target': {
@@ -393,6 +401,14 @@ try {
     if (before.count !== 1 || before.tag !== 'BUTTON' || !before.name || !['true', 'false'].includes(before.pressed)) {
       fail('bookmark-says-whether-it-is-set', `${language}: the row's bookmark reads ${JSON.stringify(before)}, want one named button with a pressed state`);
     }
+    // At this width the search and the settings are drawn as marks alone, so
+    // the label each carries is the only name a screen reader can say.
+    const names = await note.evaluate((selectors) => selectors.map((selector) => (
+      (document.querySelector(`header ${selector}`)?.getAttribute('aria-label') || '').trim()
+    )), [SEARCH, SETTINGS]);
+    if (names.some((name) => !name)) {
+      fail('drawn-marks-are-named', `${language}: at 390px the search and the settings are named ${JSON.stringify(names)}, want a name on each`);
+    }
     await note.locator(MARK).click();
     await note.locator('.y-headermark [data-mark-said]:not(:empty)').waitFor({ state: 'attached', timeout: 4000 });
     const after = await note.evaluate((selector) => {
@@ -431,7 +447,7 @@ try {
     await touch.close();
   }
 
-  console.log('PASS header-row: the row carries the furigana switch only where there is furigana, the bookmark below the rail width, the search and the settings, in that order and nothing else; one reading-place control at every width; the row fits with the wordmark whole; the bookmark is a named toggle that turns on when the place is kept, takes a thumb, and is in the keyboard order');
+  console.log('PASS header-row: the row carries the furigana switch only where there is furigana, the bookmark below the rail width, the search and the settings, in that order and nothing else; one reading-place control at every width; the row fits with the wordmark whole; the bookmark is a named toggle that turns on when the place is kept; the search and the settings keep their names when drawn as marks; the bookmark takes a thumb and is in the keyboard order');
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

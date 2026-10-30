@@ -122,6 +122,9 @@ const injectStyle = (css) => async (page) => {
   };
 };
 
+// The help key's branch as it would read if it were moved up past a guard.
+const HELP_FIRST = "    if (event.key === '?') { const help = document.getElementById('_y-kbd-help'); if (help) { event.preventDefault(); help.togglePopover(); } return; }\n";
+
 const MUTATIONS = {
   'remove-modifier-guard': {
     target: 'modified-printables-stay-native',
@@ -134,6 +137,24 @@ const MUTATIONS = {
   'disable-plain-drawer': {
     target: 'plain-drawer-toggles',
     apply: rewriteScript("    if (event.key === '[') {", '    if (false) {'),
+  },
+  // The help key answered before the modifier guard, so a chord the browser
+  // or the system owns opens the panel instead.
+  'answer-help-above-the-modifier-guard': {
+    target: 'modified-printables-stay-native',
+    apply: rewriteScript(
+      '    if (event.metaKey || event.ctrlKey || event.altKey) return;\n',
+      HELP_FIRST + '    if (event.metaKey || event.ctrlKey || event.altKey) return;\n',
+    ),
+  },
+  // The help key answered before the guard that holds the single keys while
+  // a field is being typed in or a dialog is open.
+  'answer-help-above-the-dialog-guard': {
+    target: 'open-sheet-holds-printables',
+    apply: rewriteScript(
+      "    if (typing || document.querySelector('dialog[open]')) return;\n",
+      HELP_FIRST + "    if (typing || document.querySelector('dialog[open]')) return;\n",
+    ),
   },
   'disable-plain-help': {
     target: 'plain-help-toggles',
@@ -343,11 +364,12 @@ try {
     { name: 'Alt', values: { altKey: true } },
   ];
   for (const { name, values } of modified) {
-    for (const key of ['/', '[']) {
-      const result = await dispatch(page, 'keydown', key, values);
+    for (const [key, typed] of [['/', {}], ['[', {}], ['?', { shiftKey: true }]]) {
+      const chord = { ...values, ...typed };
+      const result = await dispatch(page, 'keydown', key, chord);
       const during = await state(page);
-      await dispatch(page, 'keyup', key, values);
-      if (result.defaultPrevented || during.nav !== 'closed' || during.filterFocused) {
+      await dispatch(page, 'keyup', key, chord);
+      if (result.defaultPrevented || during.nav !== 'closed' || during.filterFocused || during.helpOpen) {
         fail('modified-printables-stay-native', `${name}+${key} was captured by a printable shortcut`);
       }
     }
@@ -415,6 +437,15 @@ try {
   // opening is the half that actually fires.
   if (slashMovedFocus || after.nav !== 'closed') {
     fail('open-sheet-holds-printables', `plain / through an open concept sheet left nav=${after.nav}, focusMoved=${slashMovedFocus}`);
+  }
+  await closeConceptSheet();
+
+  await openConceptSheet();
+  await dispatch(page, 'keydown', '?', { shiftKey: true });
+  after = await state(page);
+  await dispatch(page, 'keyup', '?', { shiftKey: true });
+  if (after.helpOpen) {
+    fail('open-sheet-holds-printables', 'plain ? through an open concept sheet opened the keyboard help over it');
   }
   await closeConceptSheet();
 

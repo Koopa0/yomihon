@@ -122,6 +122,12 @@ const MUTATIONS = {
       body.replace(/data-home-health-findings="(\d+)"/, (_, n) => `data-home-health-findings="${Number(n) + 7}"`),
     ),
   },
+  // The desk keeps its way to the health page in the markup but draws it
+  // nowhere, so the count it carries agrees with a page no reader is led to.
+  'hide-the-desk-health': {
+    target: 'desk-count-agrees-with-health',
+    apply: rewritePage(DESK, (body) => body.replace(' data-home-health ', ' hidden data-home-health ')),
+  },
   // The folder name refuses to break, which is what the rail's own width used
   // to mean before the name was allowed to wrap anywhere.
   'name-will-not-wrap': {
