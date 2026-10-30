@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
@@ -15,6 +16,7 @@ import (
 // projection of the same nav.Map data the shared sidebar uses. All styling is
 // shipped y-* / ui-* classes; no inline style.
 templ Syllabus(v PathView, c layouts.Chrome) {
+	{{ c.Readings = render.CarriesReadings(v.OpeningHTML) }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">

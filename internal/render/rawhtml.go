@@ -42,6 +42,15 @@ var (
 // links remain links; a remote image becomes an explicit link, not a request.
 type safeMarkupRenderer struct{}
 
+// CarriesReadings reports whether rendered HTML holds a ruby reading, which is
+// what the reader's furigana switch shows and hides. The subset above is the
+// only way a reading becomes markup: an authored tag outside it, a code span
+// and an attribute value all reach the page escaped, so asking the output
+// asks exactly what the reader will see.
+func CarriesReadings(htmlOut string) bool {
+	return rubyReading.MatchString(htmlOut)
+}
+
 func (safeMarkupRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(ast.KindHTMLBlock, renderSafeHTMLBlock)
 	reg.Register(ast.KindRawHTML, renderSafeRawHTML)

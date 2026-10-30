@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -85,33 +84,6 @@ func waitUntil(t *testing.T, what string, condition func() bool) {
 	}
 }
 
-// railFootClaim is the number the foot of a page's rail states.
-func railFootClaim(t *testing.T, page string) int {
-	t.Helper()
-	claim := railFootFindings.FindStringSubmatch(page)
-	if claim == nil {
-		t.Fatal("the page carries no rail foot")
-	}
-	count, err := strconv.Atoi(claim[1])
-	if err != nil {
-		t.Fatalf("the rail foot claims %q findings, which is no number: %v", claim[1], err)
-	}
-	return count
-}
-
-// railFootState is the state the foot's dot is drawn in, which the stylesheet
-// colours and which is carried on the element beside the words.
-var railFootState = regexp.MustCompile(`data-rail-foot data-health="(\w+)"`)
-
-func railFootDot(t *testing.T, page string) string {
-	t.Helper()
-	state := railFootState.FindStringSubmatch(page)
-	if state == nil {
-		t.Fatal("the page carries no rail foot dot")
-	}
-	return state[1]
-}
-
 // noticeOn cuts the notice a page draws out of it: from the marker to the end of
 // the section that holds it. The rail lists every file, so a name found
 // anywhere on the page proves nothing; what is read here is the notice itself.
@@ -133,15 +105,15 @@ func noticeOn(t *testing.T, page, marker string) string {
 // a note written beside them answered 404 indefinitely, and neither the desk
 // nor the health page said anything. Both now say that the pages have stopped
 // updating, name the two files, and say it in the language the reader chose;
-// the rail's dot stops saying clear on every page; and taking one of the pair
-// away brings the folder back with nothing restarted.
+// the desk's count of findings keeps agreeing with the health table; and
+// taking one of the pair away brings the folder back with nothing restarted.
 func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	for rel, body := range map[string]string{
 		// Two notes that cite each other, so that the folder has no uncited note
-		// and nothing against it: the foot can then read clear, and a freeze is
+		// and nothing against it: the desk can then count none, and a freeze is
 		// the only thing that could change it.
 		"Notes/Existing.md": "---\ntitle: Existing\ntype: concept\n---\nsee [[" + strings.TrimSuffix(path.Base(frozenComposed), ".md") + "]]\n",
 		frozenComposed:      "---\ntitle: Ga\ntype: concept\n---\nsee [[Existing]]\n",
@@ -150,9 +122,8 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 	}
 	srv := runningFolder(t, root)
 	client := srv.Client()
-	quiet := getInLanguage(t, client, srv.URL+"/health", wording.En)
-	if dot, claim := railFootDot(t, quiet), railFootClaim(t, quiet); dot != "clear" || claim != 0 {
-		t.Fatalf("the folder before the pair has a %q dot and %d findings, so a freeze has nothing to change", dot, claim)
+	if claim := deskHealthClaim(t, getInLanguage(t, client, srv.URL+"/", wording.En)); claim != 0 {
+		t.Fatalf("the folder before the pair has %d findings, so a freeze has nothing to change", claim)
 	}
 
 	writeVaultNote(t, root, frozenDecomposed, "---\ntitle: Ga\ntype: concept\n---\nga\n")
@@ -203,9 +174,9 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 			}
 		}
 	}
-	// The rail's foot and the table are one instrument and state one number. A
-	// notice is no row of the table, so the number leaves it out and the two
-	// still agree while the folder is frozen; the dot is what stops saying clear.
+	// The desk and the table are one instrument and state one number. A notice
+	// is no row of the table, so the number leaves it out and the two still
+	// agree while the folder is frozen; the notice itself says the rest.
 	frozen := getInLanguage(t, client, srv.URL+"/health", wording.En)
 	drawn := 0
 	for _, row := range rowCount.FindAllStringSubmatch(frozen, -1) {
@@ -215,16 +186,8 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 		}
 		drawn += count
 	}
-	if claim := railFootClaim(t, frozen); claim != drawn {
-		t.Errorf("the rail foot claims %d findings and the table's lines hold %d", claim, drawn)
-	}
-	for _, p := range []struct{ name, url string }{
-		{"the health page", srv.URL + "/health"},
-		{"a note", srv.URL + "/notes/Notes/Existing.md"},
-	} {
-		if dot := railFootDot(t, getInLanguage(t, client, p.url, wording.En)); dot != "findings" {
-			t.Errorf("the rail foot on %s has a %q dot while the pages have stopped updating, want \"findings\"", p.name, dot)
-		}
+	if claim := deskHealthClaim(t, getInLanguage(t, client, srv.URL+"/", wording.En)); claim != drawn {
+		t.Errorf("the desk claims %d findings and the table's lines hold %d", claim, drawn)
 	}
 
 	removeFile(t, root, frozenDecomposed)

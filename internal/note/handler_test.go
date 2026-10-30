@@ -3621,20 +3621,17 @@ func TestHomeDoesNotSpendItsScreenTalkingAboutItself(t *testing.T) {
 	}
 }
 
-// TestTheFuriganaControlIsOnEveryPage covers the way a reader could get stuck.
-// The preference the control writes is one cookie for the whole site, so a
-// reader who switches readings off while looking at a Japanese note is switching
-// them off everywhere, for good. Showing the control only on pages that already
-// contain readings then hides the single thing that can undo that: every page
-// the reader lands on next has no readings to show — because they turned them
-// off — and so offers no way to turn them back on. The theme and text-size
-// controls beside it are on every page for the same reason, and a reader has to
-// be able to walk back a preference they set.
+// TestTheFuriganaControlFollowsTheReadings holds the header's switch to the
+// pages that carry readings, and the way back to the pages that do not. The
+// preference is one cookie for the whole site, so a reader who switches
+// readings off on a Japanese note has them off everywhere; the switch then
+// lives on the settings page as well, which every page leads to, and that is
+// what lets the header draw it only where it does something.
 //
 // The three pages below differ in whether they contain readings at all, which is
 // what stops this passing for the wrong reason: it would be satisfied by three
 // pages that all happened to carry Japanese.
-func TestTheFuriganaControlIsOnEveryPage(t *testing.T) {
+func TestTheFuriganaControlFollowsTheReadings(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
@@ -3665,11 +3662,14 @@ func TestTheFuriganaControlIsOnEveryPage(t *testing.T) {
 			if code != http.StatusOK {
 				t.Fatalf("GET %s status = %d, want 200", tt.path, code)
 			}
-			if !strings.Contains(body, "data-ruby-toggle") {
-				t.Errorf("GET %s carries no furigana control; a reader who switched readings off elsewhere has nothing here to switch them back on with", tt.path)
-			}
 			if strings.Contains(body, "<ruby") != tt.hasReadings {
-				t.Errorf("GET %s: the fixture does not match what the test assumes", tt.path)
+				t.Fatalf("GET %s: the fixture does not match what the test assumes", tt.path)
+			}
+			if got := strings.Contains(body, "data-ruby-toggle"); got != tt.hasReadings {
+				t.Errorf("GET %s draws the furigana switch = %v, want %v", tt.path, got, tt.hasReadings)
+			}
+			if !strings.Contains(body, `href="/preferences`) {
+				t.Errorf("GET %s has no way to the settings page, where a reader who switched readings off switches them back on", tt.path)
 			}
 		})
 	}

@@ -8,8 +8,9 @@
 // Two things are held. With nothing changed, the next page is served from the
 // prefetch, which is also what shows the browser here fetches ahead at all: a
 // harness that did not would let the second assertion pass for the wrong
-// reason. And after the theme is toggled, the next page arrives in the theme
-// the reader chose and was not served from a prefetch.
+// reason. And after the theme is chosen on the settings page in another tab,
+// the next page arrives in the theme the reader chose and was not served from
+// a prefetch.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note with a next link), and MUTATE.
 import { chromium } from 'playwright-core';
@@ -146,8 +147,14 @@ try {
   }
 
   const toggled = await visit(browser, async (page) => {
-    if (!(await page.locator('[data-theme-toggle]').isVisible())) await page.click('[popovertarget="_y-header-fold"]');
-    await page.click('[data-theme-toggle]');
+    // The theme is chosen where it lives, on the settings page, in a second
+    // tab: the note in the first never sees the press, only the cookie the
+    // choice leaves behind.
+    const settings = await page.context().newPage();
+    await settings.goto(`${BASE}/preferences`, { waitUntil: 'domcontentloaded' });
+    await settings.waitForSelector('html[data-js]');
+    await settings.locator('[data-pref-field="theme"] input[value="dark"]').click();
+    await settings.close();
     await page.waitForFunction(() => !document.querySelector('script[type="speculationrules"]'), null, { timeout: 1500 }).catch(() => {});
   });
   if (toggled.path === start) broken('the click on the next link did not leave the page');

@@ -3,14 +3,14 @@
 // controls' state current, and re-syncs both after a back/forward-cache
 // restore revives HTML older than the cookies.
 //
-// Two places set these choices — the controls in the header, and the page that
-// names each one and says what it does — and both leave through the same
-// doors below, so there is one way a choice reaches this browser rather than
-// one per control. A write is read back before it is believed: storage this
+// Two places set these choices — the furigana switch in the header, and the
+// page that names each one and says what it does — and both leave through the
+// same doors below, so there is one way a choice reaches this browser rather
+// than one per control. A write is read back before it is believed: storage this
 // address may not use is refused silently, and a choice nothing kept must not
 // be left looking chosen.
 //
-// Language is not handled here: its words are the server's, so its control is
+// Language is not handled here: its words are the server's, so its choice is
 // a plain form the server answers with a redirect. This module only checks,
 // after a cache restore, that the revived document still speaks the language
 // the cookie names — and asks for a fresh page when it does not, since no
@@ -39,16 +39,8 @@ export function initPreferences() {
   }
 
   const railToggle = document.querySelector('[data-rail-toggle]');
-  const themeToggle = document.querySelector('[data-theme-toggle]');
-  const textsizeToggle = document.querySelector('[data-textsize-toggle]');
+  // Drawn only on a page that carries furigana, so on most pages there is none.
   const rubyToggle = document.querySelector('[data-ruby-toggle]');
-  const shortcutsToggle = document.querySelector('[data-single-key-shortcuts-toggle]');
-
-  // The size names come from the control itself, where the server wrote them
-  // in the page's language; a copy here would be a second dictionary.
-  function textsizeLabel(size) {
-    return textsizeToggle?.dataset[{ m: 'labelM', l: 'labelL', xl: 'labelXl' }[size]];
-  }
 
   // What the reader currently sees: their stored choice when one is on the
   // root, otherwise whichever theme the system preference painted.
@@ -63,16 +55,6 @@ export function initPreferences() {
   // stylesheet, has to be told when the theme moves. One listener, because one
   // thing is drawn that way.
   let themeChanged = () => {};
-
-  // The server stamps this control's pressed state from the stored choice,
-  // which is all it can see: prefers-color-scheme never reaches it. With no
-  // choice stored and a dark system preference the page paints dark and the
-  // attribute says otherwise. So the control is told from here, from what the
-  // reader is actually looking at — on arrival, after a write, and when the
-  // system moves underneath a reader who stored nothing.
-  function markThemePressed() {
-    themeToggle?.setAttribute('aria-pressed', String(effectiveTheme() === 'dark'));
-  }
 
   // The only place the reader's theme reaches the root element. A choice they
   // made is stored as well; the rewrite from the cookie after a cache restore
@@ -89,7 +71,6 @@ export function initPreferences() {
       delete root.dataset.theme;
     }
     const after = effectiveTheme();
-    markThemePressed();
     // A write that left the theme where it was is not news. The cookie read
     // after a cache restore usually names the theme the page is already
     // showing, and announcing that would redraw every diagram on the page each
@@ -97,35 +78,21 @@ export function initPreferences() {
     if (after !== before) themeChanged();
   }
 
-  // Nothing has moved yet: this is the server's own stamp going through the
-  // same door, so the control agrees with what the reader is looking at from
-  // the first paint rather than only after they touch it.
-  writeTheme(root.dataset.theme || null, false);
-
   // A reader who stored no choice is following the system, and the system can
-  // change while they are reading: the stylesheet repaints on its own, but the
-  // control that reports the theme and anything drawn in the theme's colours
-  // are told here. A stored choice fixes the theme, so the same change moves
-  // nothing and says nothing.
+  // change while they are reading: the stylesheet repaints on its own, but
+  // anything drawn in the theme's colours is told here. A stored choice fixes
+  // the theme, so the same change moves nothing and says nothing.
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if (root.dataset.theme) return;
-    markThemePressed();
     themeChanged();
   });
 
-  // The size reaches the root, the cookie, and the control that reports it
-  // through one door. The control cycles three sizes, so its state lives in its
-  // accessible name rather than in aria-pressed, and a write that moved the
-  // size without renaming it would leave a reader who cannot see the type being
-  // told the wrong thing by the very control that names it.
   function writeTextSize(size) {
     setPreference('textsize', size);
-    textsizeToggle?.setAttribute('aria-label', textsizeLabel(size));
   }
 
-  // Furigana and the single-key keys are switches, and their controls report
-  // which state they are in, so each value and the control saying it move
-  // together for the same reason the size does.
+  // Furigana is a switch, and its control reports which state it is in, so the
+  // value and the control saying it move together.
   function writeRuby(value) {
     setPreference('ruby', value);
     rubyToggle?.setAttribute('aria-pressed', String(value === 'on'));
@@ -133,7 +100,6 @@ export function initPreferences() {
 
   function writeShortcuts(value) {
     setSingleKeyShortcuts(value);
-    if (shortcutsToggle) shortcutsToggle.checked = value === 'on';
     // The fold button advertises a key, and only while that key works.
     syncRailControl();
   }
@@ -173,21 +139,8 @@ export function initPreferences() {
     syncRailControl();
   }
 
-  textsizeToggle?.addEventListener('click', () => {
-    writeTextSize({ m: 'l', l: 'xl', xl: 'm' }[root.dataset.textsize] || 'l');
-  });
-  themeToggle?.addEventListener('click', () => {
-    // The flip starts from what the reader sees: with no stored choice the
-    // page may already be dark from the system, and the first press must then
-    // choose light rather than restate dark.
-    writeTheme(effectiveTheme() === 'dark' ? 'light' : 'dark', true);
-  });
   rubyToggle?.addEventListener('click', () => {
     writeRuby(root.dataset.ruby === 'off' ? 'on' : 'off');
-  });
-  shortcutsToggle?.addEventListener('change', (event) => {
-    const value = event.currentTarget.checked ? 'on' : 'off';
-    writeShortcuts(value);
   });
 
   // The page a reader sets the reading on. Its choices are the same six, so
@@ -330,9 +283,7 @@ export function initPreferences() {
     const theme = readCookie('yomihon_theme');
     writeTheme(theme === 'dark' || theme === 'light' ? theme : null, false);
     const stored = readCookie('yomihon_textsize');
-    const size = stored === 'l' || stored === 'xl' ? stored : 'm';
-    root.dataset.textsize = size;
-    textsizeToggle?.setAttribute('aria-label', textsizeLabel(size));
+    root.dataset.textsize = stored === 'l' || stored === 'xl' ? stored : 'm';
     // Only the literal "off" is off, matching the server's stamp: any other
     // cookie, or none, is the default on. Both the root and the control have
     // to move together or a restored page shows furigana the cookie refused
@@ -349,9 +300,7 @@ export function initPreferences() {
     } else {
       delete root.dataset.font;
     }
-    const shortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';
-    root.dataset.singleKeyShortcuts = shortcuts;
-    if (shortcutsToggle) shortcutsToggle.checked = shortcuts === 'on';
+    root.dataset.singleKeyShortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';
     // The column is put in its stored state at once. The fold answers a
     // reader's press with a transition, and a restore is not a press: the
     // stylesheet is told to hold still for the length of the write, which is

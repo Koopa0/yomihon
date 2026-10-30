@@ -1002,18 +1002,17 @@ try {
     requireAA('light-code-aa', light, 'light mode');
 
     // The reader's own control, not a scripted attribute: what is under test
-    // includes the button reaching the stylesheet at all.
-    await page.goto(BASE + PAGE, { waitUntil: 'networkidle' });
-    if (!(await page.locator('[data-theme-toggle]').isVisible())) await page.click('[popovertarget="_y-header-fold"]');
-    await page.click('[data-theme-toggle]');
+    // includes the choice on the settings page reaching the stylesheet at all.
+    await page.goto(`${BASE}/preferences`, { waitUntil: 'networkidle' });
+    await page.click('[data-pref-field="theme"] input[value="dark"]');
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
 
     const dark = await readCode(page, [PAGE, SOURCE_PAGE]);
     proveApplied('dark-code-aa', 'code');
-    // The cookie the button wrote has to survive two navigations, or the
+    // The cookie the choice wrote has to survive two navigations, or the
     // readings below are of a light page and say nothing about dark.
     if (await themeAttribute(page) !== 'dark') {
-      fail('dark-code-aa', 'the theme the toggle chose did not survive navigation, so no dark reading was taken');
+      fail('dark-code-aa', 'the theme the settings page chose did not survive navigation, so no dark reading was taken');
     }
     if (!dark.some((m) => m.color === DARK_KEYWORD)) {
       fail('dark-code-aa', `no measured token carried the dark palette's keyword colour ${DARK_KEYWORD}; the light palette is still painting this page`);

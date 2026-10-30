@@ -43,6 +43,7 @@ const (
 // beside two notes could not say which of them it spoke for.
 templ Compare(v CompareView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
+	{{ c.Readings = v.A.carriesReadings() || v.B.carriesReadings() || conceptsCarryReadings(v.Concepts) }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-compare-shell">

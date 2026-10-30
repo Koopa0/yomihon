@@ -10,8 +10,8 @@
 // until this file marks the document. What it sends is where the window is,
 // and a browser with no script has no such thing to send.
 //
-// A reading page draws it twice — in the rail, and in the header's folded
-// panel for the widths that have no rail — and never shows both at once. This
+// A reading page draws it twice — in the rail, and in the header row for the
+// widths that have no rail — and never shows both at once. This
 // finds every one of them and reads each one's own words, so a face added to
 // some other part of the page needs nothing here.
 //
@@ -61,11 +61,13 @@ function positionNow() {
 
 // A press that kept the place is also the place now being in this note, so every
 // face of the control draws the bookmark the way the server draws it for a note
-// that already held one.
+// that already held one. A face that is a toggle says so in its pressed state
+// too, which is what a screen reader is told by.
 function say(control, words, kept) {
   if (kept) {
     for (const face of document.querySelectorAll('[data-mark-control]')) {
       face.dataset.markKept = '';
+      face.querySelector('[data-mark-button][aria-pressed]')?.setAttribute('aria-pressed', 'true');
     }
   }
   const said = control.querySelector('[data-mark-said]');

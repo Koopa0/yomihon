@@ -394,8 +394,13 @@ try {
       fail('initial-theme-follows-system', `case 4: a dark system preference with no stored choice drew a node ${systemDarkFill}, want the dark drawing's ${darkFill}`);
     }
 
-    if (!(await systemLight.page.locator('[data-theme-toggle]').isVisible())) await systemLight.page.click('[popovertarget="_y-header-fold"]');
-    await systemLight.page.click('[data-theme-toggle]');
+    // The theme is chosen on the settings page, so an open note meets a new
+    // choice when the reader comes back to it from there: the cache restore
+    // reads the cookie the choice left and has the diagram redrawn.
+    await systemLight.page.evaluate(() => {
+      document.cookie = 'yomihon_theme=dark;path=/;max-age=31536000;samesite=lax';
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    });
     // The claim is where the redraw lands, not that it has begun, so this waits
     // for the drawn colour to move and then reads where it settled.
     await systemLight.page.waitForFunction((previous) => {

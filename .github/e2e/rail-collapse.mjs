@@ -1041,7 +1041,10 @@ try {
   });
 
   // While single keys are off nothing on the button promises one, and turning
-  // them on and off moves it.
+  // them on and off moves it. They are turned on and off on the settings page,
+  // which has no column, so an open page meets the change when the reader
+  // comes back to it from there: the cache restore reads the cookie the choice
+  // left.
   await run('off-shortcuts-do-not-advertise-the-key', async () => {
     const { page, context, checkProof } = await open('off-shortcuts-do-not-advertise-the-key', PAGE, { width: 1281 });
     await context.addCookies([{ name: 'yomihon_shortcuts', value: 'off', url: BASE }]);
@@ -1053,9 +1056,8 @@ try {
       return { title: button.title, keys: button.getAttribute('aria-keyshortcuts') };
     });
     const flip = (on) => page.evaluate((value) => {
-      const box = document.querySelector('[data-single-key-shortcuts-toggle]');
-      box.checked = value;
-      box.dispatchEvent(new Event('change', { bubbles: true }));
+      document.cookie = `yomihon_shortcuts=${value ? 'on' : 'off'};path=/;max-age=31536000;samesite=lax`;
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     }, on);
     let g = await read();
     if (g.title.includes('[') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `with single keys off the button says title=${JSON.stringify(g.title)} keys=${g.keys}`);

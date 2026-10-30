@@ -54,44 +54,8 @@ var (
 	Off = both("關", "Off")
 )
 
-// The chrome's link to the health page carries no name of its own: it is
-// wording.HealthTitle, the heading that page prints, so the word a reader
-// follows and the word they arrive at cannot drift apart.
-
-// InterfaceOptions names the control that gathers the header's remaining
-// choices where the row is too narrow to show them all: the reading choices,
-// the text size, the keyboard explanation, the language and the theme. What
-// they have in common is that none of them is about the note being read, and
-// the name says that rather than saying "more" — a reader looking for the way
-// back to their own language has to recognise the button from the outside.
-// The word for the choices page itself stays with that page; this one names
-// the group the page is reached from, so the two do not answer to the same
-// word.
-var InterfaceOptions = both("介面選項", "Interface options")
-
-// TextSizeMark is the text-size control's glyph. The English side is a letter
-// rather than the character, because the control's whole job is to be legible
-// at a glance to whoever is reading the interface.
-var TextSizeMark = both("字", "A")
-
-// TextSizeCycle says which way the control moves, since it steps rather than
-// toggles and a reader pressing it once cannot tell that from the result.
-var TextSizeCycle = both("字級：中 → 大 → 特大", "Text size: medium → large → extra large")
-
-// The text-size control's accessible name at each step. The name carries the
-// state because a control that cycles three values has nowhere else to put it.
-var (
-	TextSizeMedium     = both("字級：中", "Text size: medium")
-	TextSizeLarge      = both("字級：大", "Text size: large")
-	TextSizeExtraLarge = both("字級：特大", "Text size: extra large")
-)
-
-// KeyboardHelp names the panel of shortcuts and the control that opens it.
+// KeyboardHelp names the panel of shortcuts the ? key opens.
 var KeyboardHelp = both("鍵盤快捷鍵", "Keyboard shortcuts")
-
-// KeyboardHelpControl is that control's accessible name, which says it opens an
-// explanation rather than performing a shortcut.
-var KeyboardHelpControl = both("鍵盤快捷鍵說明", "Keyboard shortcut help")
 
 // The shortcut panel's own rows: what each key does, in the fewest words that
 // still distinguish it from the others.
@@ -100,19 +64,7 @@ var (
 	ShortcutCloseSearchOrFilter = both("關閉搜尋或篩選", "Close search or the filter")
 	ShortcutJumpToFilter        = both("跳到導覽篩選（單鍵開啟時）", "Jump to the navigation filter (when single keys are on)")
 	ShortcutToggleSidebar       = both("收合或展開側欄（單鍵開啟時）", "Collapse or expand the sidebar (when single keys are on)")
-)
-
-// SingleKeyShortcuts names the preference that decides whether a bare key does
-// anything, and the two states it reports beside the checkbox.
-var SingleKeyShortcuts = both("單鍵快捷鍵", "Single-key shortcuts")
-var CurrentlyOn = both("目前開啟", "Currently on")
-var CurrentlyOff = both("目前關閉", "Currently off")
-
-// SingleKeyShortcutsNote says what turning them off costs and what it does not,
-// because the two keys that keep working are the two a reader would most miss.
-var SingleKeyShortcutsNote = both(
-	"關掉之後，/ 和 [ 都只會照瀏覽器原本的方式輸入；⌘K 與 Esc 不受影響。",
-	"With these off, / and [ type the way the browser types them; ⌘K and Esc are unaffected.",
+	ShortcutOpenHelp            = both("開啟這份說明（單鍵開啟時）", "Open this help (when single keys are on)")
 )
 
 // SearchDialogChoose names what the arrow keys do in the dialog's own footer,
@@ -123,16 +75,6 @@ var SearchDialogChoose = both("選擇", "Choose")
 // keys it answers to, shown rather than only announced.
 var SearchDialogEnter = both("搜尋", "Search")
 var SearchDialogEsc = both("關閉", "Close")
-
-// ThemeToggle names the control that switches between the light and dark
-// grounds. It is a label rather than a sentence: what it does is visible the
-// moment it is pressed, so it says what it is and stops.
-var ThemeToggle = both("切換主題", "Switch theme")
-
-// LanguageToggle names the control this package exists for. The label is not
-// translated into the language being left — a reader looking for the way back
-// to their own language wants to recognise it, not to read it.
-var LanguageToggle = both("切換語言：中文 / English", "Switch language: 中文 / English")
 
 // The strip under a listing that runs past one page. It names itself, because
 // a run of bare numbers at the foot of a long page says nothing about what

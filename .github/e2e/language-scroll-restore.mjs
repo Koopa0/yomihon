@@ -1,6 +1,8 @@
-// Behavior lock: switching the chrome's language mid-note returns the reader
-// to the place they were reading. The form posts a path; without a position
-// on that address the reload lands at the top of a long note.
+// Behavior lock: a walk from the middle of a note to the reading choices and
+// back returns the reader to the place they were reading, whether or not they
+// changed the interface's language while they were there. The choices page
+// sends the reader back by an address; without a position on that address the
+// return lands at the top of a long note.
 //
 // The destination note is long on purpose. On a note that fits in one screen,
 // "the reader came back where they were" is already true before anything
@@ -12,7 +14,7 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/Glass%20Tide.md';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['position-survives-switch', 'an-arrival-paints', 'position-survives-preferences'];
+const SITES = ['position-survives-a-visit-to-settings', 'an-arrival-paints', 'position-survives-preferences'];
 const TARGET_Y = 600;
 const SLACK_FLOOR = 700;
 const TOLERANCE = 48;
@@ -33,9 +35,9 @@ const fail = (site, message) => {
 const broken = (message) => { throw new ProbeBroken(`BROKEN language-scroll-restore: ${message}`); };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED language-scroll-restore: ${message}`); };
 
-const rewriteModule = (needle, replacement, label) => async (page) => {
+const rewriteModule = (needle, replacement, label, module = 'langform.js') => async (page) => {
   let matches = 0;
-  await page.route('**/langform.js{,?*}', async (route) => {
+  await page.route(`**/${module}{,?*}`, async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     matches += original.split(needle).length - 1;
@@ -66,25 +68,27 @@ const MUTATIONS = {
     target: 'an-arrival-paints',
     apply: restoreNavigationTransition,
   },
-  // The defect itself: next stays the path alone, so the redirect has no
-  // position to restore and the reader arrives at the top.
-  // The second door: the walk out to the reading choices carries the return
-  // address, and the position rides on it. Stripped, the redirect has nowhere
-  // to put the reader but the top.
+  // The walk out to the reading choices carries the return address, and the
+  // position rides on it. Stripped, the way back has nowhere to put the reader
+  // but the top.
   'leave-the-return-address-bare': {
-    target: 'position-survives-preferences',
+    target: 'position-survives-a-visit-to-settings',
     apply: rewriteModule(
       "  address.searchParams.set('from', pathOnly(from) + '#' + MARK + y);",
       "  address.searchParams.set('from', pathOnly(from));",
       'preferences link return-address rewrite',
     ),
   },
-  'leave-next-as-the-path': {
-    target: 'position-survives-switch',
+  // A language picked on the reading choices is asked of the server, and the
+  // answer comes back to the choices. Sent back to their bare address, it
+  // drops the way home the reader arrived with.
+  'send-the-language-back-to-a-bare-address': {
+    target: 'position-survives-preferences',
     apply: rewriteModule(
-      "  next.value = path + '#' + MARK + y;",
-      '  next.value = path;',
-      'language-form next rewrite',
+      '      if (next) next.value = settingsForm.dataset.prefsSettings;',
+      "      if (next) next.value = '/preferences';",
+      'language choice return address',
+      'preferences.js',
     ),
   },
 };
@@ -187,13 +191,10 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
 
-  const buttons = await page.locator('.y-langform .y-langbtn').count();
-  if (buttons !== 1) broken(`the page carries ${buttons} language controls, want exactly 1`);
-
   const slack = await page.evaluate(() =>
     document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight);
   if (slack < SLACK_FLOOR) {
-    broken(`the document has ${slack}px of slack, want at least ${SLACK_FLOOR} so a mid-note switch has somewhere to fall from`);
+    broken(`the document has ${slack}px of slack, want at least ${SLACK_FLOOR} so a return mid-note has somewhere to fall from`);
   }
 
   await page.evaluate((y) => { window.scrollTo(0, y); }, TARGET_Y);
@@ -203,35 +204,6 @@ try {
   }));
   if (before.y < TARGET_Y - 8) {
     broken(`scrolled to ${before.y}, want near ${TARGET_Y}; the page did not travel`);
-  }
-
-  if (!(await page.locator('.y-langform .y-langbtn').isVisible())) {
-    await page.locator('.y-foldbtn').click();
-  }
-  await page.locator('.y-langform .y-langbtn').click();
-  const switched = await page.waitForFunction(
-    (from) => document.documentElement.getAttribute('lang') !== from,
-    before.lang,
-    { timeout: 10_000 },
-  ).then(() => true, () => false);
-  if (!switched) {
-    broken(`the language stayed ${JSON.stringify(before.lang)} after clicking the language control`);
-  }
-  await page.waitForSelector('html[data-js]');
-  await waitSettled(page);
-
-  const after = await page.evaluate(() => ({
-    y: window.scrollY,
-    lang: document.documentElement.getAttribute('lang'),
-  }));
-  if (after.lang === before.lang) {
-    broken(`the language stayed ${JSON.stringify(after.lang)} after the switch, so this run never left the page`);
-  }
-  if (Math.abs(after.y - before.y) > TOLERANCE) {
-    fail(
-      'position-survives-switch',
-      `after switching ${before.lang} → ${after.lang} the page is at scrollY=${after.y}, want near ${before.y} (within ${TOLERANCE}px)`,
-    );
   }
 
   // A page reached by following a link has to paint. A navigation transition
@@ -246,9 +218,6 @@ try {
   // at all, and reaching the readings below would already be impossible. Left
   // uncaught, that heavier shape kills the run before any assertion speaks,
   // which reads as a broken probe rather than as the page a reader cannot see.
-  if (!(await page.locator('.y-prefslink').isVisible())) {
-    await page.locator('.y-foldbtn').click();
-  }
   try {
     await Promise.all([
       page.waitForURL('**/preferences**'),
@@ -289,6 +258,23 @@ try {
     fail(
       'an-arrival-paints',
       `the page reached by following a link reports painted=${arrival.painted} revealed=${arrival.reveal} arrived-in-a-transition=${arrival.transition} at ${arrival.href}; want a page that was revealed, painted a frame, and came through no transition`,
+    );
+  }
+
+  // And back, by the way the reading choices carry, having changed nothing:
+  // the reader lands where they left.
+  await page.waitForSelector('html[data-js]');
+  await Promise.all([
+    page.waitForURL(`**${PAGE}**`),
+    page.locator('.y-prefs__return').click(),
+  ]);
+  await page.waitForSelector('html[data-js]');
+  await waitSettled(page);
+  const after = await page.evaluate(() => ({ y: window.scrollY, href: location.href }));
+  if (Math.abs(after.y - before.y) > TOLERANCE) {
+    fail(
+      'position-survives-a-visit-to-settings',
+      `after a visit to the reading choices the page is at scrollY=${after.y}, want near ${before.y} (within ${TOLERANCE}px); arrived at ${after.href}`,
     );
   }
 
@@ -340,9 +326,6 @@ try {
 
   const prefsLinks = await prefsPage.locator('.y-prefslink').count();
   if (prefsLinks !== 1) broken(`the page carries ${prefsLinks} links to the reading choices, want exactly 1`);
-  if (!(await prefsPage.locator('.y-prefslink').isVisible())) {
-    await prefsPage.locator('.y-foldbtn').click();
-  }
   await Promise.all([
     prefsPage.waitForURL('**/preferences**'),
     prefsPage.locator('.y-prefslink').click(),
@@ -451,6 +434,9 @@ try {
   }
   // And out again, by the way back the page carries — which is where the
   // address the reader arrived on, position and all, has had to survive to.
+  if (await prefsPage.locator('.y-prefs__return').count() !== 1) {
+    fail('position-survives-preferences', `after choosing a language the reading choices at ${prefsPage.url()} offer no way back to the note`);
+  }
   await Promise.all([
     prefsPage.waitForURL(`**${PAGE}**`),
     prefsPage.locator('.y-prefs__return').click(),
@@ -479,7 +465,7 @@ try {
     );
   }
 
-  console.log(`PASS language-scroll-restore: a mid-note language switch (${before.lang} → ${after.lang}) returned at scrollY=${after.y} from ${before.y}; a page reached by following a link was revealed and painted; the same through the reading choices (${leaving.lang} → ${returned.lang}) returned at scrollY=${returned.y} from ${leaving.y}`);
+  console.log(`PASS language-scroll-restore: a visit to the reading choices returned at scrollY=${after.y} from ${before.y}; a page reached by following a link was revealed and painted; the same through the reading choices (${leaving.lang} → ${returned.lang}) returned at scrollY=${returned.y} from ${leaving.y}`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

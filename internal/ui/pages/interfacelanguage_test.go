@@ -22,7 +22,7 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 	// Without this the whole table is satisfiable by a Phrase that always
 	// answers in one language, which is the failure most worth catching.
 	for name, phrase := range map[string]wording.Phrase{
-		"theme toggle":     wording.ThemeToggle,
+		"settings link":    wording.PreferencesLink,
 		"not-found title":  wording.NothingHere,
 		"freshness notice": wording.FreshnessNewVersion,
 		"raw-file link":    wording.RawFile,
@@ -46,8 +46,8 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 			if !strings.Contains(page, `<html lang="`+lang.Tag()+`"`) {
 				t.Errorf("the document does not declare %q; page = %q", lang.Tag(), page)
 			}
-			if !strings.Contains(page, wording.ThemeToggle.In(lang)) {
-				t.Errorf("the shared chrome is not speaking %q: want %q in the page", lang, wording.ThemeToggle.In(lang))
+			if !strings.Contains(page, wording.PreferencesLink.In(lang)) {
+				t.Errorf("the shared chrome is not speaking %q: want %q in the page", lang, wording.PreferencesLink.In(lang))
 			}
 			if !strings.Contains(page, wording.NothingHere.In(lang)) {
 				t.Errorf("the not-found page is not speaking %q: want %q in the page", lang, wording.NothingHere.In(lang))

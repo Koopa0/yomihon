@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/asset"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -136,16 +138,18 @@ func TestHeaderKeepsWordmarkAsExactAccessibleName(t *testing.T) {
 	}
 }
 
-func TestBaseRendersSingleKeyShortcutPreference(t *testing.T) {
+// TestBaseStampsSingleKeyShortcutPreference holds the root to the stored
+// choice the keyboard module reads, and the chrome to drawing no switch for
+// it: the switch is on the settings page, beside the sentence naming the keys.
+func TestBaseStampsSingleKeyShortcutPreference(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name        string
-		enabled     bool
-		wantState   string
-		wantChecked bool
+		name      string
+		enabled   bool
+		wantState string
 	}{
-		{name: "enabled", enabled: true, wantState: "on", wantChecked: true},
-		{name: "disabled", wantState: "off", wantChecked: false},
+		{name: "enabled", enabled: true, wantState: "on"},
+		{name: "disabled", wantState: "off"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -156,29 +160,11 @@ func TestBaseRendersSingleKeyShortcutPreference(t *testing.T) {
 				t.Fatalf("render base: %v", err)
 			}
 			html := buf.String()
-			for _, want := range []string{
-				`data-single-key-shortcuts="` + tt.wantState + `"`,
-				`data-single-key-shortcuts-toggle`,
-				`aria-describedby="_y-kbd-pref-note"`,
-				`>單鍵快捷鍵<`,
-				`>目前開啟<`,
-				`>目前關閉<`,
-			} {
-				if !strings.Contains(html, want) {
-					t.Errorf("Base() is missing %q; html = %q", want, html)
-				}
+			if want := `data-single-key-shortcuts="` + tt.wantState + `"`; !strings.Contains(html, want) {
+				t.Errorf("Base() is missing %q; html = %q", want, html)
 			}
-			controlStart := strings.Index(html, `data-single-key-shortcuts-toggle`)
-			if controlStart < 0 {
-				t.Fatalf("Base() has no single-key shortcut control; html = %q", html)
-			}
-			controlEnd := strings.IndexByte(html[controlStart:], '>')
-			if controlEnd < 0 {
-				t.Fatalf("single-key shortcut control is not closed; html = %q", html)
-			}
-			control := html[controlStart : controlStart+controlEnd]
-			if got := strings.Contains(control, "checked"); got != tt.wantChecked {
-				t.Errorf("single-key shortcut control checked = %t, want %t; control = %q", got, tt.wantChecked, control)
+			if strings.Contains(html, `type="checkbox"`) {
+				t.Errorf("Base() draws a checkbox; the single-key switch belongs to the settings page; html = %q", html)
 			}
 		})
 	}
@@ -265,29 +251,25 @@ func elementSubtree(t *testing.T, html, attr string) string {
 	return ""
 }
 
-// TestShortcutPreferenceLivesWithTheKeysItGoverns checks the preference is
-// reachable where a reader asks what the keys do, and that the panel answers
-// the three questions a switch has to answer: which keys, which way it is
-// set, and where to change it. The write face has no keyboard shortcut, so
-// the panel names no status key on any folder.
-func TestShortcutPreferenceLivesWithTheKeysItGoverns(t *testing.T) {
+// TestKeyboardHelpNamesItsOwnKeyAndTheWayToTheSwitch checks the panel the ?
+// key opens answers the questions a reader opening it has: that ? is the key
+// that brought it, and where the switch for the single keys is. The write face
+// has no keyboard shortcut, so the panel names no status key on any folder.
+func TestKeyboardHelpNamesItsOwnKeyAndTheWayToTheSwitch(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	if err := header(Chrome{}).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render header: %v", err)
+	if err := keyboardHelp(Chrome{}).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render keyboard help: %v", err)
 	}
-	html := buf.String()
-	panel := elementSubtree(t, html, `id="_y-kbd-help"`)
-	if !strings.Contains(panel, "data-single-key-shortcuts-toggle") {
-		t.Errorf("the preference is not inside the keyboard help panel; panel = %q", panel)
+	panel := elementSubtree(t, buf.String(), `id="_y-kbd-help"`)
+	if row := strings.TrimSpace(shortcutRow(t, panel, "?")); row != wording.ShortcutOpenHelp.In(wording.ZhHant) {
+		t.Errorf("the help key's row = %q, want %q", row, wording.ShortcutOpenHelp.In(wording.ZhHant))
 	}
-	if want := wording.SingleKeyShortcutsNote.In(wording.ZhHant); !strings.Contains(panel, want) {
-		t.Errorf("panel does not say what turning it off costs; want %q; panel = %q", want, panel)
+	if !strings.Contains(panel, `href="/preferences"`) {
+		t.Errorf("panel does not lead to the page holding the single-key switch; panel = %q", panel)
 	}
-	for _, want := range []string{">" + wording.CurrentlyOn.In(wording.ZhHant) + "<", ">" + wording.CurrentlyOff.In(wording.ZhHant) + "<"} {
-		if !strings.Contains(panel, want) {
-			t.Errorf("panel does not state which way the preference is set (%q); panel = %q", want, panel)
-		}
+	if strings.Contains(panel, `type="checkbox"`) {
+		t.Errorf("panel still carries a switch of its own; panel = %q", panel)
 	}
 	for _, gone := range []string{"按住", "認證"} {
 		if strings.Contains(panel, gone) {
@@ -307,8 +289,8 @@ func TestKeyboardHelpDoesNotDisownTheSidebarKey(t *testing.T) {
 		t.Run(string(lang), func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			if err := header(Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
-				t.Fatalf("render header: %v", err)
+			if err := keyboardHelp(Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render keyboard help: %v", err)
 			}
 			panel := elementSubtree(t, buf.String(), `id="_y-kbd-help"`)
 			row := strings.TrimSpace(shortcutRow(t, panel, "["))
@@ -436,72 +418,76 @@ func TestBaseStampsTheColumnStateOnTheRoot(t *testing.T) {
 	}
 }
 
-// TestTextSizeControlNamesTheSizeItIsAt holds the state the cycling control
-// never exposed. Its two neighbours in the same header — the theme and
-// furigana toggles — carry aria-pressed and keep it current on every press, so
-// a reader who cannot see the page can tell what they are at and what a press
-// did. The text-size button is a three-state cycle, which no boolean can
-// carry, and it was left with a fixed name: the type on screen changed and
-// nothing said so, at any of the three sizes or after a reload.
-func TestTextSizeControlNamesTheSizeItIsAt(t *testing.T) {
+// TestHeaderCarriesOnlyWhatReadingNeeds holds the row to the controls a reader
+// uses while reading, in the order that keeps the fixed ones still. The theme,
+// the text size, the language, the whole-folder view and the keyboard help are
+// reached elsewhere, so none of their hooks may come back to the row; the
+// furigana switch and the bookmark are drawn only when the page says so, and
+// stand before the search entry and the way to the choices, so a page that
+// draws neither moves nothing else.
+func TestHeaderCarriesOnlyWhatReadingNeeds(t *testing.T) {
 	t.Parallel()
+	mark := &MarkOffer{Path: "a.md", Identity: "abc", Endpoint: "/marks"}
 	tests := []struct {
-		size string
-		want string
+		name   string
+		chrome Chrome
+		want   []string
 	}{
-		{size: "m", want: wording.TextSizeMedium.In(wording.ZhHant)},
-		{size: "l", want: wording.TextSizeLarge.In(wording.ZhHant)},
-		{size: "xl", want: wording.TextSizeExtraLarge.In(wording.ZhHant)},
-		{size: "", want: wording.TextSizeMedium.In(wording.ZhHant)},
+		{name: "a page with neither", chrome: Chrome{}, want: []string{"y-searchbtn", "y-prefslink"}},
+		{name: "a page with readings", chrome: Chrome{Readings: true}, want: []string{"y-rubybtn", "y-searchbtn", "y-prefslink"}},
+		{name: "a note offering a mark", chrome: Chrome{Mark: mark}, want: []string{"y-headermark", "y-searchbtn", "y-prefslink"}},
+		{name: "a note with both", chrome: Chrome{Readings: true, Mark: mark}, want: []string{"y-rubybtn", "y-headermark", "y-searchbtn", "y-prefslink"}},
 	}
+	controls := []string{"y-rubybtn", "y-headermark", "y-searchbtn", "y-prefslink"}
 	for _, tt := range tests {
-		t.Run(tt.size, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			if err := Base(Chrome{TextSize: tt.size}).Render(t.Context(), &buf); err != nil {
-				t.Fatalf("Base().Render() error = %v", err)
+			if err := header(tt.chrome).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render header: %v", err)
 			}
 			html := buf.String()
-			if !strings.Contains(html, `aria-label="`+tt.want+`"`) {
-				t.Errorf("the text-size control does not name its size %q:\n%s", tt.want, textSizeButton(html))
+			var got []string
+			last := -1
+			for _, control := range controls {
+				at := strings.Index(html, `class="`+control)
+				if at < 0 {
+					at = strings.Index(html, `class="y-iconbtn `+control)
+				}
+				if at < 0 {
+					continue
+				}
+				if at < last {
+					t.Errorf("%s stands before a control the row draws ahead of it; html = %q", control, html)
+				}
+				last = at
+				got = append(got, control)
 			}
-			for _, other := range []string{wording.TextSizeMedium.In(wording.ZhHant), wording.TextSizeLarge.In(wording.ZhHant), wording.TextSizeExtraLarge.In(wording.ZhHant)} {
-				if other != tt.want && strings.Contains(html, `aria-label="`+other+`"`) {
-					t.Errorf("the control also claims to be at %q", other)
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("header controls (-want +got):\n%s", diff)
+			}
+			for _, gone := range []string{"data-theme-toggle", "data-textsize-toggle", `action="/lang"`, `href="/health"`, "popovertarget", "_y-kbd-help", "type=\"checkbox\""} {
+				if strings.Contains(html, gone) {
+					t.Errorf("the header row still carries %q, which is reached elsewhere now; html = %q", gone, html)
 				}
 			}
 		})
 	}
 }
 
-// textSizeButton extracts the control's own markup so a failure shows the tag
-// under test rather than the whole document.
-func textSizeButton(html string) string {
-	at := strings.Index(html, "data-textsize-toggle")
-	if at < 0 {
-		return "the page carries no text-size control at all"
-	}
-	start := strings.LastIndex(html[:at], "<")
-	end := strings.Index(html[at:], ">")
-	return html[start : at+end+1]
-}
-
-// TestHeaderMarksTheDestinationTheReaderIsOn holds the two header links to the
-// interface's own pages. On the page one of them leads to, that link says so,
-// in the one way a reader who listens is told it as well as one who looks; on
-// any other page neither link claims it, the reading choices included, whose
-// address carries the page that led there rather than its own.
+// TestHeaderMarksTheDestinationTheReaderIsOn holds the header's link to the
+// reading choices. On that page it says so, in the one way a reader who listens
+// is told it as well as one who looks; on any other page it does not claim it,
+// since its address carries the page that led there rather than its own.
 func TestHeaderMarksTheDestinationTheReaderIsOn(t *testing.T) {
 	t.Parallel()
-	health := `<a class="y-healthlinkbtn" href="/health"`
 	tests := []struct {
 		name        string
 		chrome      Chrome
-		wantHealth  bool
 		wantSetting bool
 	}{
-		{name: "the health page", chrome: Chrome{Path: "/health", ReturnTo: "/health"}, wantHealth: true},
 		{name: "the reading choices", chrome: Chrome{Path: "/preferences", ReturnTo: "/notes/a.md"}, wantSetting: true},
+		{name: "the health page", chrome: Chrome{Path: "/health", ReturnTo: "/health"}},
 		{name: "a note", chrome: Chrome{Path: "/notes/a.md", ReturnTo: "/notes/a.md"}},
 	}
 	for _, tt := range tests {
@@ -512,17 +498,13 @@ func TestHeaderMarksTheDestinationTheReaderIsOn(t *testing.T) {
 				t.Fatalf("render base: %v", err)
 			}
 			html := buf.String()
-			healthAt := strings.Index(html, health)
 			settingAt := strings.Index(html, `<a class="y-prefslink"`)
-			if healthAt < 0 || settingAt < 0 {
-				t.Fatalf("the header lost a destination: health@%d settings@%d", healthAt, settingAt)
+			if settingAt < 0 {
+				t.Fatal("the header lost the way to the reading choices")
 			}
-			tag := func(at int) string { return html[at : at+strings.Index(html[at:], ">")] }
-			if got := strings.Contains(tag(healthAt), `aria-current="page"`); got != tt.wantHealth {
-				t.Errorf("health link marked current = %v, want %v: %s", got, tt.wantHealth, tag(healthAt))
-			}
-			if got := strings.Contains(tag(settingAt), `aria-current="page"`); got != tt.wantSetting {
-				t.Errorf("settings link marked current = %v, want %v: %s", got, tt.wantSetting, tag(settingAt))
+			tag := html[settingAt : settingAt+strings.Index(html[settingAt:], ">")]
+			if got := strings.Contains(tag, `aria-current="page"`); got != tt.wantSetting {
+				t.Errorf("settings link marked current = %v, want %v: %s", got, tt.wantSetting, tag)
 			}
 		})
 	}

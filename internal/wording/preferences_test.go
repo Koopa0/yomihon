@@ -5,37 +5,21 @@ import (
 	"testing"
 )
 
-// The header's text-size control cycles three values, so its accessible name is
-// the only place its group can be named. Inside the settings fieldset the legend
-// names the group, and a choice that repeats it costs a reader the same words
-// twice. The two sets were one set once, and shortening it in place would have
-// taken the header's only context away.
-func TestTextSizeChoicesAndTheHeaderControlAreNamedApart(t *testing.T) {
+// Inside the settings fieldset the legend names the text-size group, and a
+// choice that repeats it costs a reader the same words twice.
+func TestTextSizeChoicesDoNotRepeatTheirLegend(t *testing.T) {
 	t.Parallel()
 
 	for _, lang := range []Lang{ZhHant, En} {
 		t.Run(string(lang), func(t *testing.T) {
 			t.Parallel()
 			group := PrefTextSize.In(lang)
-			header := []Phrase{TextSizeMedium, TextSizeLarge, TextSizeExtraLarge}
-			choices := []Phrase{PrefTextSizeMedium, PrefTextSizeLarge, PrefTextSizeExtraLarge}
-
-			for _, h := range header {
-				if !strings.Contains(h.In(lang), group) {
-					t.Errorf("the header control reads %q, want it to carry %q: a control that cycles has nowhere else to name its group",
-						h.In(lang), group)
-				}
-			}
-			for _, c := range choices {
+			for _, c := range []Phrase{PrefTextSizeMedium, PrefTextSizeLarge, PrefTextSizeExtraLarge} {
 				if strings.Contains(c.In(lang), group) {
 					t.Errorf("the settings choice reads %q, want it without %q: the fieldset's legend already says it",
 						c.In(lang), group)
 				}
 			}
-			// The two sets cannot collide while both checks above hold: one
-			// requires the group's name, the other forbids it. An equality
-			// check here would never be the one to report a fault, so it is
-			// not written.
 		})
 	}
 }

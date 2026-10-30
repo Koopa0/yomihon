@@ -6,6 +6,7 @@ import (
 
 	"github.com/a-h/templ"
 
+	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -213,7 +214,7 @@ func (v *NoteView) hasAids() bool {
 // inlineAidsShown reports whether the narrow layout draws its folded row of
 // reading aids above the prose. It is every aid hasAids counts except the
 // control for keeping a reading place, which the narrow layout carries in the
-// header's folded panel rather than in the row.
+// header row rather than in this one.
 func (v *NoteView) inlineAidsShown() bool {
 	return len(v.TOC) > 0 || v.diagCount() > 0 || len(v.BasedOn) > 0 || len(v.DeclaredBy) > 0 || v.relatedShown()
 }
@@ -427,4 +428,22 @@ func (v *NoteView) hasSteps() bool {
 	return v.Prev.RelPath != "" || v.Next.RelPath != "" ||
 		v.StepsBack.RelPath != "" || v.StepsOnward.RelPath != "" || v.StepsToContents ||
 		len(v.StepsAsides) > 0
+}
+
+// carriesReadings reports whether this note's page holds furigana for the
+// header's switch to show and hide: in the rendered body, or in a concept
+// sheet the body can open over itself.
+func (v *NoteView) carriesReadings() bool {
+	return render.CarriesReadings(v.BodyHTML) || conceptsCarryReadings(v.Concepts)
+}
+
+// conceptsCarryReadings reports whether any of the concept sheets a page can
+// open holds furigana.
+func conceptsCarryReadings(concepts []lesson.ConceptDoc) bool {
+	for _, c := range concepts {
+		if render.CarriesReadings(c.HTML) {
+			return true
+		}
+	}
+	return false
 }

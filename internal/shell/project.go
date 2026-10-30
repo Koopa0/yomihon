@@ -39,15 +39,12 @@ func VaultName(path string) string {
 func Project(vaultName string, lifecycle status.Authority, snap *snapshot.Generation) nav.Shell {
 	policy := snap.ArtifactPolicy()
 	governed := lifecycle.Governed()
-	found := GatherFindings(lifecycle, snap)
 	projected := nav.Shell{
 		Nav:      snap.Navigation(),
 		Governed: governed,
 		Vault: nav.Vault{
-			Name:     vaultName,
-			Notes:    snap.NoteCount(),
-			Findings: found.Total(),
-			Noticed:  len(found.Collision) > 0 || found.Root != nil,
+			Name:  vaultName,
+			Notes: snap.NoteCount(),
 		},
 	}
 	// Either authority refusing closes the instance-derived navigation and

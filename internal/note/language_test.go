@@ -60,17 +60,9 @@ func TestLanguagePostStoresTheChoiceAndReturnsTheReader(t *testing.T) {
 	}
 	srv := newServer(t, root)
 
-	// The journey starts from the page itself: the form the header offers is
-	// the one submitted, so the action the markup names and the route the
-	// server mounts cannot drift apart behind a hand-typed address.
-	code, page := get(t, srv.Client(), srv.URL+"/notes/README.md")
-	if code != http.StatusOK {
-		t.Fatalf("GET /notes/README.md status = %d, want 200", code)
-	}
-	action, form := languageForm(t, page)
-	answer := postLang(t, srv.Client(), srv.URL+action, form)
+	answer := postLang(t, srv.Client(), srv.URL+"/lang", url.Values{"lang": {"en"}, "next": {"/notes/README.md"}})
 	if answer.status != http.StatusSeeOther {
-		t.Fatalf("POST %s status = %d, want 303", action, answer.status)
+		t.Fatalf("POST /lang status = %d, want 303", answer.status)
 	}
 	if answer.location != "/notes/README.md" {
 		t.Errorf("Location = %q, want the page the form came from", answer.location)
@@ -200,41 +192,4 @@ func TestLanguagePostRefusesALanguageItDoesNotSpeak(t *testing.T) {
 			}
 		})
 	}
-}
-
-// languageForm extracts the header's language form from a rendered page: the
-// action it posts to and the two hidden fields it carries. Submitting these,
-// rather than a hand-typed address, is what couples the markup to the route.
-func languageForm(t *testing.T, page string) (action string, form url.Values) {
-	t.Helper()
-	formAt := strings.Index(page, `class="y-langform"`)
-	if formAt < 0 {
-		t.Fatalf("page carries no language form; body = %q", page[:min(len(page), 400)])
-	}
-	end := strings.Index(page[formAt:], "</form>")
-	if end < 0 {
-		t.Fatalf("language form is not closed")
-	}
-	markup := page[formAt : formAt+end]
-	attr := func(name, source string) string {
-		key := name + `="`
-		at := strings.Index(source, key)
-		if at < 0 {
-			t.Fatalf("language form is missing %s; form = %q", name, source)
-		}
-		rest := source[at+len(key):]
-		return rest[:strings.IndexByte(rest, '"')]
-	}
-	form = url.Values{}
-	for rest := markup; ; {
-		at := strings.Index(rest, "<input")
-		if at < 0 {
-			break
-		}
-		tag := rest[at:]
-		tag = tag[:strings.IndexByte(tag, '>')]
-		form.Set(attr("name", tag), attr("value", tag))
-		rest = rest[at+len(tag):]
-	}
-	return attr("action", markup), form
 }

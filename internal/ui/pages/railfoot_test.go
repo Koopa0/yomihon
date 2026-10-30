@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -60,10 +58,9 @@ func TestEveryLeftRailEndsWithTheFoot(t *testing.T) {
 	}
 }
 
-// TestTheFootAnswersInSentences holds the two states a folder can be in that
-// have no number to show. Both are ordinary — a folder whose path yields no
-// name, and a folder with nothing to answer for — and a face that answered
-// either with a blank or a bare 0 would read as a count nobody had taken.
+// TestTheFootAnswersInSentences holds the state a folder can be in that has
+// no name to show: a folder whose path yields none is still named, because a
+// blank at the end of the rail reads as something broken.
 func TestTheFootAnswersInSentences(t *testing.T) {
 	t.Parallel()
 
@@ -74,91 +71,29 @@ func TestTheFootAnswersInSentences(t *testing.T) {
 		if got := libraryName("example-vault", lang); got != "example-vault" {
 			t.Errorf("libraryName() = %q, want the folder's own name", got)
 		}
-		for _, findings := range []int{0, 1, 2} {
-			got := libraryFindings(findings, false, lang)
-			if got == "" {
-				t.Errorf("libraryFindings(%d, %q) is blank", findings, lang)
-			}
-			if findings == 0 && strings.Contains(got, "0") {
-				t.Errorf("libraryFindings(0, %q) = %q, which states a number rather than saying there is nothing", lang, got)
-			}
-			if findings > 0 && !strings.Contains(got, strconv.Itoa(findings)) {
-				t.Errorf("libraryFindings(%d, %q) = %q and does not carry the number", findings, lang, got)
-			}
-		}
-		if libraryFindings(1, false, lang) == libraryFindings(2, false, lang) {
-			t.Errorf("one finding and two read alike in %q", lang)
-		}
-	}
-	if libraryHealthState(0, false) == libraryHealthState(1, false) {
-		t.Error("a folder with nothing to answer for and one with something carry the same dot")
 	}
 }
 
-// footCount is the words the foot's count carries, read out of the rendered foot.
-var footCount = regexp.MustCompile(`<span class="y-railfoot__count">([^<]*)</span>`)
-
-func renderedFoot(t *testing.T, v nav.Vault, lang wording.Lang) (foot, count string) {
-	t.Helper()
-	var buf bytes.Buffer
-	if err := railFoot(v, lang).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	found := footCount.FindStringSubmatch(buf.String())
-	if found == nil {
-		t.Fatalf("the foot carries no count: %q", buf.String())
-	}
-	return buf.String(), found[1]
-}
-
-// TestTheFootsDotNeverSaysClearOverANotice holds the one case where the number
-// and the state part ways. A standing notice is not in the findings count, so
-// the number stays the table's own; but a folder whose only trouble is that its
-// pages have stopped updating must not read "nothing found" in words with only
-// the dot's colour saying otherwise, which is a state carried by colour alone.
-// The words say it, in each language, and the dot agrees.
-func TestTheFootsDotNeverSaysClearOverANotice(t *testing.T) {
+// TestTheFootLeavesTheHealthViewToTheDesk holds the rail to reading. The
+// whole-folder view is the author's maintenance page, and its way in is on the
+// desk; a rail that pointed at it again would put an author's count beside
+// every note a reader opens.
+func TestTheFootLeavesTheHealthViewToTheDesk(t *testing.T) {
 	t.Parallel()
 
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-		stopped := wording.NoticeNamesCollideTitle.In(lang)
-
-		foot, count := renderedFoot(t, nav.Vault{Name: "example-vault", Noticed: true}, lang)
-		if count != stopped {
-			t.Errorf("the count of a folder whose pages have stopped updating reads %q in %s, want %q", count, lang, stopped)
+		var buf bytes.Buffer
+		if err := railFoot(nav.Vault{Name: "example-vault", Notes: 2}, lang).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render: %v", err)
 		}
-		if strings.Contains(foot, wording.LibraryNoFindings.In(lang)) {
-			t.Errorf("the foot says nothing is found over a notice in %s: %q", lang, foot)
+		foot := buf.String()
+		if !strings.Contains(foot, "example-vault") {
+			t.Fatalf("the foot does not name the folder, so it is not the foot this test means to read: %q", foot)
 		}
-		if !strings.Contains(foot, `data-health="findings"`) {
-			t.Errorf("the foot of a folder with a standing notice does not carry the findings dot in %s: %q", lang, foot)
+		for _, gone := range []string{`href="/health"`, wording.HealthTitle.In(lang), "data-health"} {
+			if strings.Contains(foot, gone) {
+				t.Errorf("the foot in %s still carries %q: %q", lang, gone, foot)
+			}
 		}
-		if !strings.Contains(foot, `data-rail-foot-findings="0"`) {
-			t.Errorf("a notice moved the foot's number in %s, which is the table's and not the notice's: %q", lang, foot)
-		}
-
-		// Beside findings the number is the answer, and the dot already agrees.
-		foot, count = renderedFoot(t, nav.Vault{Name: "example-vault", Findings: 2, Noticed: true}, lang)
-		if want := libraryFindings(2, false, lang); count != want {
-			t.Errorf("the count of a folder with two findings and a notice reads %q in %s, want %q", count, lang, want)
-		}
-		if !strings.Contains(foot, `data-health="findings"`) {
-			t.Errorf("the foot with findings and a notice does not carry the findings dot in %s: %q", lang, foot)
-		}
-
-		// With no notice the foot is what it was.
-		foot, count = renderedFoot(t, nav.Vault{Name: "example-vault"}, lang)
-		if want := wording.LibraryNoFindings.In(lang); count != want {
-			t.Errorf("the count of a clear folder reads %q in %s, want %q", count, lang, want)
-		}
-		if !strings.Contains(foot, `data-health="clear"`) {
-			t.Errorf("the foot of a clear folder does not carry the clear dot in %s: %q", lang, foot)
-		}
-	}
-	if libraryHealthState(0, true) != "findings" || libraryHealthState(2, true) != "findings" {
-		t.Error("a standing notice does not make the dot read findings")
-	}
-	if libraryHealthState(0, false) != "clear" {
-		t.Error("a folder with no findings and no notice does not read clear, so the dot could never say it")
 	}
 }

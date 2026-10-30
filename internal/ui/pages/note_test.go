@@ -911,3 +911,36 @@ func TestAPressNamesAnOverlayThePageAnswersFirst(t *testing.T) {
 		}
 	}
 }
+
+// TestTheFuriganaSwitchIsDrawnOnlyWhereThePageHasFurigana holds the header to
+// the page it sits over. A note whose rendered body carries a reading gets the
+// switch; a note without one does not, and neither does a page that renders no
+// note at all. The switch stays reachable on the settings page either way, so
+// a reader who turned readings off is never left without a way back.
+func TestTheFuriganaSwitchIsDrawnOnlyWhereThePageHasFurigana(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{name: "a note with readings", body: `<p><ruby>漢字<rt>かんじ</rt></ruby></p>`, want: true},
+		{name: "a note with readings in a language", body: `<p><ruby lang="ja">漢字<rp>(</rp><rt lang="ja">かんじ</rt><rp>)</rp></ruby></p>`, want: true},
+		{name: "a note without readings", body: `<p>漢字</p>`},
+		{name: "a note that only writes about the tag", body: `<p><code>&lt;rt&gt;</code></p>`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			view := NoteView{Title: "T", RelPath: "a.md", BodyHTML: tt.body}
+			if err := Note(view, layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render: %v", err)
+			}
+			if got := strings.Contains(buf.String(), "data-ruby-toggle"); got != tt.want {
+				t.Errorf("the header draws the furigana switch = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

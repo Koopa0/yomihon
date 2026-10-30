@@ -56,6 +56,19 @@ export function initShortcuts({ drawer, rail, sidebar, search }) {
         event.preventDefault();
         rail.toggle();
       }
+      return;
+    }
+    if (event.key === '?') {
+      const help = document.getElementById('_y-kbd-help');
+      if (!help) return;
+      event.preventDefault();
+      if (help.matches(':popover-open')) {
+        help.hidePopover();
+        return;
+      }
+      // A key is not a press the markup can point at a surface, so the panel
+      // that lists the keys is opened from here when its own key is pressed.
+      help.showPopover();
     }
   });
 }

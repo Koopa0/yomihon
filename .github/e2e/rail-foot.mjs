@@ -1,16 +1,18 @@
-// Behavior lock for the foot of the left rail: which folder the reader is in,
-// how large it is, and what the health page has to say about it. The rail used
-// to end where its tree ended, and all three were three pages away.
+// Behavior lock for the foot of the left rail — which folder the reader is in
+// and how large it is — and for the desk's way to the health page, which is
+// where what the health page has to say about the folder is offered now that
+// the rail leaves it to the desk.
 //
 // Four things only a browser can answer. That the foot is drawn at reading
 // width. That the same element, which the stylesheet turns into the drawer at
 // phone width, still carries it once the drawer is open — one element, two
 // widths, so a foot that goes missing there went missing for a rule nobody
-// wrote down. That the number beside the dot is the health page's own: the page
-// states the complete findings total, and the foot claims the same number.
-// And that a folder whose name is one long unbroken word wraps inside the rail rather than making
-// the drawer scroll sideways, which is why the name is stamped long before the
-// last measurement rather than measured as the fixture happens to be named.
+// wrote down. That the number on the desk's line is the health page's own: the
+// page states the complete findings total, and the desk claims the same
+// number. And that a folder whose name is one long unbroken word wraps inside
+// the rail rather than making the drawer scroll sideways, which is why the
+// name is stamped long before the last measurement rather than measured as the
+// fixture happens to be named.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (any page carrying a left rail), and MUTATE.
 // MUTATE=list prints every watched regression.
@@ -19,11 +21,12 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const HEALTH = '/health';
+const DESK = '/';
 const MUTATE = process.env.MUTATE || '';
 const SITES = [
   'foot-on-the-rail',
   'foot-in-the-drawer',
-  'count-agrees-with-health',
+  'desk-count-agrees-with-health',
   'foot-does-not-scroll-sideways',
 ];
 
@@ -58,9 +61,9 @@ const notApplied = (message) => {
 // Rewrites the page the rail is read from. The needle is checked rather than
 // assumed: a mutation that matched nothing would let the run below report a
 // lock holding against a regression it never saw.
-const rewritePage = (transform) => async (page) => {
+const rewritePage = (path, transform) => async (page) => {
   let applied = false;
-  await page.route(BASE + PAGE, async (route) => {
+  await page.route(BASE + path, async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     const body = transform(original);
@@ -99,7 +102,7 @@ const MUTATIONS = {
   // The rail ends where its tree ends again.
   'drop-foot': {
     target: 'foot-on-the-rail',
-    apply: rewritePage((body) => body.replace(/<div class="y-railfoot"[\s\S]*?<\/a><\/div>/, '')),
+    apply: rewritePage(PAGE, (body) => body.replace(/<div class="y-railfoot"[\s\S]*?<\/p><\/div>/, '')),
   },
   // The foot survives at reading width and is taken away from the drawer,
   // which is the shape a rule written for one width and not the other has.
@@ -112,12 +115,18 @@ const MUTATIONS = {
       'none',
     ),
   },
-  // The foot states a number of its own rather than the page's.
+  // The desk states a number of its own rather than the health page's.
   'bump-findings': {
-    target: 'count-agrees-with-health',
-    apply: rewritePage((body) =>
-      body.replace(/data-rail-foot-findings="(\d+)"/, (_, n) => `data-rail-foot-findings="${Number(n) + 7}"`),
+    target: 'desk-count-agrees-with-health',
+    apply: rewritePage(DESK, (body) =>
+      body.replace(/data-home-health-findings="(\d+)"/, (_, n) => `data-home-health-findings="${Number(n) + 7}"`),
     ),
+  },
+  // The desk keeps its way to the health page in the markup but draws it
+  // nowhere, so the count it carries agrees with a page no reader is led to.
+  'hide-the-desk-health': {
+    target: 'desk-count-agrees-with-health',
+    apply: rewritePage(DESK, (body) => body.replace(' data-home-health ', ' hidden data-home-health ')),
   },
   // The folder name refuses to break, which is what the rail's own width used
   // to mean before the name was allowed to wrap anywhere.
@@ -161,16 +170,28 @@ const readFoot = (page) =>
     const foot = document.querySelector('[data-rail-foot]');
     if (!foot) return null;
     const text = (selector) => foot.querySelector(selector)?.innerText.trim() ?? '';
-    const link = foot.querySelector('.y-railfoot__health');
     return {
       inRail: Boolean(foot.closest('aside.y-rail-left')),
       last: foot.parentElement?.lastElementChild === foot,
       count: document.querySelectorAll('[data-rail-foot]').length,
       name: text('.y-railfoot__name'),
       size: text('.y-railfoot__size'),
-      findings: text('.y-railfoot__count'),
-      claimed: link?.getAttribute('data-rail-foot-findings') ?? '',
+    };
+  });
+
+// What the desk's way to the health page says, read off the page as the foot is.
+const readDesk = (page) =>
+  page.evaluate(() => {
+    const rows = document.querySelectorAll('[data-home-health]');
+    if (rows.length !== 1) return { count: rows.length };
+    const row = rows[0];
+    const link = row.querySelector('a');
+    return {
+      count: 1,
+      shown: row.checkVisibility(),
+      claimed: row.getAttribute('data-home-health-findings') ?? '',
       href: link?.getAttribute('href') ?? '',
+      words: row.innerText.trim(),
     };
   });
 
@@ -181,11 +202,11 @@ const readHealthTotal = async (page) => {
   const total = page.locator('.y-healthshape__total');
   if (await total.count() === 0 && await page.locator('.y-findings').count() === 0) return 0;
   if (await total.count() !== 1 || !await total.isVisible()) {
-    fail('count-agrees-with-health', 'the health page has no single visible findings total');
+    fail('desk-count-agrees-with-health', 'the health page has no single visible findings total');
   }
   const text = (await total.innerText()).trim();
   const match = /^(\d+) (?:finding|findings|項發現)$/.exec(text);
-  if (!match) fail('count-agrees-with-health', `the health total has no findings unit: ${JSON.stringify(text)}`);
+  if (!match) fail('desk-count-agrees-with-health', `the health total has no findings unit: ${JSON.stringify(text)}`);
   return Number(match[1]);
 };
 
@@ -201,32 +222,38 @@ try {
   if (wide.count !== 1) fail('foot-on-the-rail', `the page draws ${wide.count} rail feet, want exactly 1`);
   if (!wide.inRail) fail('foot-on-the-rail', 'the foot is not inside the left rail');
   if (!wide.last) fail('foot-on-the-rail', 'the foot is not the last thing in the rail, so the rail does not end with it');
-  for (const [line, value] of [['name', wide.name], ['size', wide.size], ['findings', wide.findings]]) {
+  for (const [line, value] of [['name', wide.name], ['size', wide.size]]) {
     if (value === '') fail('foot-on-the-rail', `the foot's ${line} line is blank, and a blank is not a sentence`);
   }
-  if (wide.href !== HEALTH) fail('foot-on-the-rail', `the foot's health line points at ${JSON.stringify(wide.href)}, want ${HEALTH}`);
   if (wide.name !== SERVED_FOLDER) {
     fail('foot-on-the-rail', `the foot calls the folder ${JSON.stringify(wide.name)}, want ${JSON.stringify(SERVED_FOLDER)} — the name of the directory serve.sh serves`);
   }
-  if (!/^\d+$/.test(wide.claimed)) {
-    broken(`the foot claims ${JSON.stringify(wide.claimed)} findings, which is not a number, so nothing below can be compared`);
-  }
 
+  // The desk always offers the way to the health page, and the number on it is
+  // the health page's own.
+  await page.goto(BASE + DESK, { waitUntil: 'domcontentloaded' });
+  const desk = await readDesk(page);
+  if (desk.count !== 1 || !desk.shown || desk.href !== HEALTH) {
+    fail('desk-count-agrees-with-health', `the desk's way to the health page reads ${JSON.stringify(desk)}, want one visible line leading to ${HEALTH}`);
+  }
+  if (!/^\d+$/.test(desk.claimed)) {
+    broken(`the desk claims ${JSON.stringify(desk.claimed)} findings, which is not a number, so nothing below can be compared`);
+  }
   await page.goto(BASE + HEALTH, { waitUntil: 'domcontentloaded' });
   const total = await readHealthTotal(page);
-  if (Number(wide.claimed) !== total) {
+  if (Number(desk.claimed) !== total) {
     fail(
-      'count-agrees-with-health',
-      `the rail's foot claims ${wide.claimed} findings and the health page states ${total}`,
+      'desk-count-agrees-with-health',
+      `the desk claims ${desk.claimed} findings and the health page states ${total}`,
     );
   }
-  // The number the reader sees and the number the foot states have to be the
+  // The number the reader sees and the number the desk states have to be the
   // same number: a count agreeing with the page while the words beside it say
   // something else is the same disagreement one step further along.
-  if (total > 0 && !wide.findings.includes(String(total))) {
+  if (total > 0 && !desk.words.includes(String(total))) {
     fail(
-      'count-agrees-with-health',
-      `the foot shows ${JSON.stringify(wide.findings)} while claiming ${wide.claimed}`,
+      'desk-count-agrees-with-health',
+      `the desk shows ${JSON.stringify(desk.words)} while claiming ${desk.claimed}`,
     );
   }
 
@@ -310,7 +337,7 @@ try {
   }
 
   console.log(
-    `PASS rail-foot: the rail ends with ${JSON.stringify(wide.name)}, ${JSON.stringify(wide.size)} and ${total} findings, at 1280px and inside the opened drawer at 390px`,
+    `PASS rail-foot: the rail ends with ${JSON.stringify(wide.name)} and ${JSON.stringify(wide.size)}, at 1280px and inside the opened drawer at 390px, and the desk leads to the health page with its ${total} findings`,
   );
 } catch (err) {
   if (err instanceof NotApplied) {
