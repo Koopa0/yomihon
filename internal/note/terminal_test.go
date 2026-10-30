@@ -27,6 +27,7 @@ func terminalLessonPage(t *testing.T, noteStatus string) string {
 	if err := os.WriteFile(filepath.Join(dir, "L01.md"), []byte(lessonMD), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
+	markObsidianVault(t, root)
 	srv := newServerWithContract(t, root, loadContract(t))
 	code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
@@ -190,6 +191,7 @@ func TestFlipReceiptNamesTheRecoveryForAOneWayDoor(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
 		writeLesson(t, root, lessonWithStatus("draft"))
+		markObsidianVault(t, root)
 		srv := newServerWithContract(t, root, loadContract(t))
 
 		_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")

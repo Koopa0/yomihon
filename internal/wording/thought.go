@@ -25,6 +25,10 @@ var ThoughtObsidian = both("在 Obsidian 建立筆記", "Create in Obsidian")
 // the reader's own based on one section; the argument is that heading's text.
 var ThoughtSectionFmt = both("留想法：%s", "Leave a thought: %s")
 
+// ThoughtNoteNameFmt is the file name a reader's thought starts with; the
+// arguments are the source note's title and the minute the thought was begun.
+var ThoughtNoteNameFmt = both("%s的想法 %s", "Thought on %s %s")
+
 // DeclaredBy labels reverse source declarations, distinct from body backlinks.
 var DeclaredBy = both("以這篇為來源的筆記", "Notes based on this")
 

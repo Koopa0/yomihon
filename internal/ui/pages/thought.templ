@@ -5,7 +5,8 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// ThoughtView is a copyable stub, never an editor or a saved note.
+// ThoughtView is a copyable stub, never an editor or a saved note. An empty
+// EditorHref leaves copying as the only action.
 type ThoughtView struct {
 	SourceTitle string
 	SourceHref  string
@@ -19,16 +20,17 @@ templ Thought(v ThoughtView, c layouts.Chrome) {
 			<div class="y-home">
 				<h1 class="y-title">{ wording.ThoughtDoor.In(c.Lang) }</h1>
 				<p><a class="ui-navitem" href={ templ.URL(v.SourceHref) }>{ v.SourceTitle }</a></p>
+				<p>{ wording.ThoughtExternal.In(c.Lang) }</p>
 				<section class="y-homeblock" data-thought-stub data-thought-copied={ wording.ThoughtCopied.In(c.Lang) } data-thought-copyfailed={ wording.ThoughtCopyFailed.In(c.Lang) }>
-					<label for="thought-markdown" class="ui-side__label">{ wording.ThoughtMarkdown.In(c.Lang) }</label>
 					<div class="y-thought__field">
-						<textarea id="thought-markdown" readonly rows="8" class="y-thought__markdown" data-thought-markdown>{ v.Markdown }</textarea>
+						<pre class="y-thought__markdown" role="region" tabindex="0" aria-label={ wording.ThoughtMarkdown.In(c.Lang) }><code data-thought-markdown>{ v.Markdown }</code></pre>
 					</div>
-					<p>{ wording.ThoughtExternal.In(c.Lang) }</p>
-					<button type="button" class="y-xbtn" hidden data-thought-copy>{ wording.ThoughtCopy.In(c.Lang) }</button>
-					if v.EditorHref != "" {
-						<a class="y-xbtn" href={ templ.SafeURL(v.EditorHref) }>{ wording.ThoughtObsidian.In(c.Lang) }</a>
-					}
+					<div class="y-thought__actions">
+						if v.EditorHref != "" {
+							<a class="y-xbtn y-xbtn--primary" href={ templ.SafeURL(v.EditorHref) }>{ wording.ThoughtObsidian.In(c.Lang) }</a>
+						}
+						<button type="button" class="y-xbtn" hidden data-thought-copy>{ wording.ThoughtCopy.In(c.Lang) }</button>
+					</div>
 					<p class="y-thought__said" role="status" data-thought-said></p>
 				</section>
 			</div>

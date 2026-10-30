@@ -188,12 +188,18 @@ func ObsidianHref(root, rel string) string {
 	return "obsidian://open?path=" + strings.Join(segments, "/")
 }
 
-// ObsidianNewHref offers a stub to the editor without append or overwrite.
-func ObsidianNewHref(root, rel, content string) string {
-	if root == "" || rel == "" {
+// ObsidianNewHref offers a stub to the editor without append or overwrite. It
+// names the vault and the file only: with no folder given, Obsidian's own
+// setting for where new notes go decides, and the absolute path of the machine
+// stays out of the link. The vault is named by its folder's name, which is how
+// Obsidian lists a vault. Either name empty yields "", and the caller then
+// renders no link.
+func ObsidianNewHref(root, name, content string) string {
+	vaultName := filepath.Base(root)
+	if root == "" || name == "" || vaultName == "." || vaultName == "/" {
 		return ""
 	}
-	query := url.Values{"path": {filepath.ToSlash(root) + "/" + rel}, "content": {content}}
+	query := url.Values{"vault": {vaultName}, "name": {name}, "content": {content}}
 	return "obsidian://new?" + strings.ReplaceAll(query.Encode(), "+", "%20")
 }
 

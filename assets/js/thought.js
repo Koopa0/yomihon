@@ -8,11 +8,14 @@ export function initThought() {
     button.hidden = false;
     button?.addEventListener('click', async () => {
       try {
-        await navigator.clipboard.writeText(markdown.value);
+        await navigator.clipboard.writeText(markdown.textContent);
         said.textContent = stub.dataset.thoughtCopied;
       } catch {
-        markdown.focus();
-        markdown.select();
+        const range = document.createRange();
+        range.selectNodeContents(markdown);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
         said.textContent = stub.dataset.thoughtCopyfailed;
       }
     });

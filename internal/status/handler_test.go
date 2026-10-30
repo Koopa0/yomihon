@@ -373,6 +373,9 @@ func TestHandlerRejectsChangedContractSource(t *testing.T) {
 func TestHandlerStale(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".obsidian"), 0o750); err != nil {
+		t.Fatalf("mkdir .obsidian: %v", err)
+	}
 	writer := newWriter(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("draft"))
@@ -561,6 +564,9 @@ func TestHandlerSymlinkTargetIsRefusedAsUnprocessable(t *testing.T) {
 func TestHandlerIllegalTransition(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".obsidian"), 0o750); err != nil {
+		t.Fatalf("mkdir .obsidian: %v", err)
+	}
 	writer := newWriter(t, root, loadContract(t))
 
 	writeNote(t, root, lessonContent("imported"))

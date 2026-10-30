@@ -6,12 +6,12 @@ import (
 	"testing"
 )
 
-func TestObsidianNewHrefCreatesWithoutAppendOrOverwrite(t *testing.T) {
+func TestObsidianNewHrefNamesTheVaultAndFileOnly(t *testing.T) {
 	t.Parallel()
 	const root = "/Users/reader/A & B+vault"
-	const rel = "Notes/what?# 50%+日.md"
+	const name = "what? # 50%+日 的想法 2026-10-30 1523"
 	const content = "---\nbased_on: \"[[a & b#章節]]\"\n---\n+ ? # % & = </textarea>\n"
-	address := ObsidianNewHref(root, rel, content)
+	address := ObsidianNewHref(root, name, content)
 	parsed, err := url.Parse(address)
 	if err != nil {
 		t.Fatal(err)
@@ -20,25 +20,31 @@ func TestObsidianNewHrefCreatesWithoutAppendOrOverwrite(t *testing.T) {
 		t.Errorf("new-note URI has unexpected action or fragment: %q", address)
 	}
 	query := parsed.Query()
-	if len(query) != 2 || len(query["path"]) != 1 || len(query["content"]) != 1 {
-		t.Fatalf("new-note URI must carry exactly path and content, got %v", query)
+	if len(query) != 3 || len(query["vault"]) != 1 || len(query["name"]) != 1 || len(query["content"]) != 1 {
+		t.Fatalf("new-note URI must carry exactly vault, name and content, got %v", query)
 	}
-	if got := query.Get("path"); got != "/Users/reader/A & B+vault/Notes/what?# 50%+日.md" {
-		t.Errorf("path = %q, want the complete absolute file path", got)
+	if got := query.Get("vault"); got != "A & B+vault" {
+		t.Errorf("vault = %q, want the vault folder's own name", got)
+	}
+	if got := query.Get("name"); got != name {
+		t.Errorf("name = %q, want %q", got, name)
 	}
 	if got := query.Get("content"); got != content {
 		t.Errorf("content = %q, want exact Markdown %q", got, content)
+	}
+	if strings.Contains(address, "/Users/reader") || strings.Contains(address, "%2FUsers") {
+		t.Errorf("the machine's absolute path reached the URI: %q", address)
 	}
 	if strings.Contains(parsed.RawQuery, "+") {
 		t.Error("spaces or literal plus signs are exposed as + in the editor URI")
 	}
 }
 
-func TestObsidianNewHrefNeedsVaultAndDestination(t *testing.T) {
+func TestObsidianNewHrefNeedsVaultAndName(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct{ root, rel string }{{}, {root: "/vault"}, {rel: "thought.md"}} {
-		if got := ObsidianNewHref(tc.root, tc.rel, "content"); got != "" {
-			t.Errorf("ObsidianNewHref(%q, %q) = %q, want no link", tc.root, tc.rel, got)
+	for _, tc := range []struct{ root, name string }{{}, {root: "/vault"}, {name: "thought"}} {
+		if got := ObsidianNewHref(tc.root, tc.name, "content"); got != "" {
+			t.Errorf("ObsidianNewHref(%q, %q) = %q, want no link", tc.root, tc.name, got)
 		}
 	}
 }
