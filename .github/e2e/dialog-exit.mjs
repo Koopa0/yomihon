@@ -230,6 +230,30 @@ const waitSettled = (page, selector) =>
     await Promise.all(el.getAnimations().map((a) => a.finished.catch(() => {})));
   }, selector);
 
+// Puts a link in view and waits for the page to stop moving before the pointer
+// travels to it. Playwright scrolls a link into view on the way to hovering it,
+// and the card closes on any scroll outside it, which also clears the open it
+// has only scheduled. The scroll event arrives a frame after the scroll, so it
+// can land just after the pointer does: the open the hover asked for is
+// cancelled, the pointer rests on the link, and with no second entry nothing
+// asks again. Quiet is judged by that event rather than by a resting position,
+// which cannot see an event still in flight.
+const QUIET = 150;
+const bringIntoView = async (page, locator) => {
+  await locator.evaluate((el) => {
+    window.__probeScrolledAt = performance.now();
+    document.addEventListener(
+      'scroll',
+      () => {
+        window.__probeScrolledAt = performance.now();
+      },
+      { capture: true, passive: true },
+    );
+    el.scrollIntoView({ block: 'center' });
+  });
+  await page.waitForFunction((quiet) => performance.now() - window.__probeScrolledAt > quiet, QUIET, { timeout: 5000 });
+};
+
 const closeAndRead = (page, selector, kind) =>
   page.evaluate(({ sel, kind: closeKind }) => {
     const el = document.querySelector(sel);
@@ -331,7 +355,16 @@ try {
 
   const previewLink = page.locator(PREVIEW_LINK);
   if ((await previewLink.count()) < 1) broken('the lesson paints no Glass Tide wikilink to open a card');
+  // Onto the sticky header first, where nothing scrolls under the pointer, so
+  // no link is entered on the way and the hover below is the one entry.
+  await page.mouse.move(4, 4);
+  await bringIntoView(page, previewLink);
+  const rest = await page.evaluate(() => Math.round(window.scrollY));
   await previewLink.hover();
+  const landed = await page.evaluate(() => Math.round(window.scrollY));
+  if (landed !== rest) {
+    broken(`the page moved ${Math.abs(landed - rest)}px as the pointer reached the Glass Tide link, so an absent card after it would be this probe's own doing rather than the product's answer`);
+  }
   await page.waitForFunction((sel) => document.querySelector(sel)?.matches(':popover-open'), PREVIEW, {
     timeout: 4000,
   });
