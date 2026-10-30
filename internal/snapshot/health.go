@@ -167,7 +167,7 @@ func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index,
 	// different case and keeps its answers.
 	if !policy.Trustworthy() {
 		h.InstanceScopeUnknown = policy.Diagnostic()
-		h.Collisions = collisions(idx)
+		h.Collisions = collisions(idx, links)
 		sortHealth(&h)
 		return h
 	}
@@ -208,18 +208,29 @@ func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index,
 	// note naming it sorted ahead of it, and renaming either file changed the
 	// answer for a folder nobody had edited.
 	islands := slices.DeleteFunc(uncited, func(n nav.NoteRef) bool { return titleReferenced[n.RelPath] })
-	h.Collisions = collisions(idx)
+	h.Collisions = collisions(idx, links)
 	h.Islands = groupByFolder(islands)
 	sortHealth(&h)
 	return h
 }
 
-// collisions lists every name several files claim, asked of the resolution index
-// rather than of the citations anyone happened to write: two files can share a
-// name for years before the first link to it is typed. Which of them count is
-// the resolver's own answer, shared with the judge gating the same folder.
-func collisions(idx *graph.Index) []HealthCollision {
-	byName := idx.DistinctCollisions()
+// collisions lists every name several files claim and some note cites. It asks
+// the resolution index which names collide and the citations which of them
+// matter, with the predicate the judge's name-collision rule applies, so the
+// page and the gate count the same names: two files sharing a name nobody
+// writes a link against break nothing, and a course vault repeats main.go in
+// every lab. Which of them count is the resolver's own answer.
+func collisions(idx *graph.Index, links map[string][]string) []HealthCollision {
+	cited := func(yield func(string) bool) {
+		for _, targets := range links {
+			for _, target := range targets {
+				if !yield(target) {
+					return
+				}
+			}
+		}
+	}
+	byName := graph.WithoutRestatedNames(graph.LinkedNames(idx.Collisions(), cited))
 	out := make([]HealthCollision, 0, len(byName))
 	for name, members := range byName {
 		out = append(out, HealthCollision{Name: name, Candidates: members})

@@ -1,6 +1,7 @@
 package judge
 
 import (
+	"iter"
 	"maps"
 	"slices"
 	"strconv"
@@ -40,7 +41,7 @@ func runGraphRules(a *action, idx *graph.Index) []Finding {
 		linkHealth(notes, idx, titles, planned, authority, a.partialCorpus()),
 		fragmentFindings(notes, a.unreadable, idx),
 		collisionAlias(aliases),
-		collisionName(idx, aliases, authority),
+		collisionName(notes, idx, aliases, authority, a.partialCorpus()),
 		provenanceUnresolved(notes, idx, slugs, authority.contract),
 		mapDiskMismatch(notes, idx, authority.roles(), authority.contract, lessonType),
 		pathFindings(notes, authority.roles()),
@@ -260,13 +261,22 @@ func collisionAlias(byAlias map[string][]string) []Finding {
 	return out
 }
 
-// collisionName reports each resolvable name more than one file answers to,
-// which the resolver refuses to choose between. The alias rule owns the names
-// it already reported, so one repair is not stated twice. It warns rather than
+// collisionName reports each resolvable name more than one file answers to and
+// some link is written against, which the resolver refuses to choose between.
+// Files sharing a name that no link uses break nothing: a course vault repeats
+// main.go and its captured output in every lab, linked by path, and a finding
+// per repeated name would bury the rest. The alias rule owns the names it
+// already reported, so one repair is not stated twice. It warns rather than
 // errors, since a standing condition should not become a red gate by itself.
 // Privacy filters the members before anything is counted, and the restatement
 // question is asked afterwards, so one repair cannot be split into two rows.
-func collisionName(idx *graph.Index, byAlias map[string][]string, authority scanAuthority) []Finding {
+//
+// The links that make a name used are read from describable notes alone, for
+// the reason a withheld note is no source of planned names: whether a finding
+// exists would otherwise say that some withheld note cites the name. A run that
+// could not read a note cannot say no link uses a name, so it reports every
+// shared name, as it did before links mattered.
+func collisionName(notes []note, idx *graph.Index, byAlias map[string][]string, authority scanAuthority, partial bool) []Finding {
 	describable := make(map[string][]string)
 	for name, members := range idx.Collisions() {
 		// The index sorts each name's members, so the kept order is theirs.
@@ -280,6 +290,9 @@ func collisionName(idx *graph.Index, byAlias map[string][]string, authority scan
 			describable[name] = kept
 		}
 	}
+	if !partial {
+		describable = graph.LinkedNames(describable, citedTargets(notes, authority))
+	}
 	distinct := graph.WithoutRestatedNames(describable)
 	out := make([]Finding, 0, len(distinct))
 	for _, name := range slices.Sorted(maps.Keys(distinct)) {
@@ -289,6 +302,24 @@ func collisionName(idx *graph.Index, byAlias map[string][]string, authority scan
 		out = append(out, nameCollisionFinding(name, distinct[name]))
 	}
 	return out
+}
+
+// citedTargets are the wikilink and embed targets written in the notes the
+// contract lets out, in scan order. A name is cited when any of them folds to
+// it.
+func citedTargets(notes []note, authority scanAuthority) iter.Seq[string] {
+	return func(yield func(string) bool) {
+		for i := range notes {
+			if !authority.egressAllowed(notes[i].path) {
+				continue
+			}
+			for l := range notes[i].wikilinks {
+				if !yield(notes[i].wikilinks[l].target) {
+					return
+				}
+			}
+		}
+	}
 }
 
 // nameCollisionFinding builds one name-collision finding. Like the alias rule's,

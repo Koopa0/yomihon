@@ -1,8 +1,10 @@
 package graph_test
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -495,13 +497,13 @@ func TestCollisionsAreEveryNameMoreThanOneFileClaims(t *testing.T) {
 	}
 }
 
-// TestDistinctCollisionsDropsOnlyRestatedNames pins the difference between the
-// two answers. Every surface that counts collisions counts one repair once —
+// TestWithoutRestatedNamesDropsOnlyRestatedNames pins what counts as a
+// restatement. Every surface that counts collisions counts one repair once —
 // two files sharing "Foo.md" necessarily share "Foo", and a page or a gate
 // reporting both would have the reader fix one thing twice — but a name that
 // carries the extension and is claimed by a different set of files is its own
 // repair and survives.
-func TestDistinctCollisionsDropsOnlyRestatedNames(t *testing.T) {
+func TestWithoutRestatedNamesDropsOnlyRestatedNames(t *testing.T) {
 	t.Parallel()
 
 	idx := graph.BuildFromNotes([]graph.NoteInput{
@@ -519,8 +521,51 @@ func TestDistinctCollisionsDropsOnlyRestatedNames(t *testing.T) {
 		"bar":    {"a/Bar.md", "b/Bar.md", "legacy/Bar"},
 		"bar.md": {"a/Bar.md", "b/Bar.md"},
 	}
-	if diff := cmp.Diff(want, idx.DistinctCollisions()); diff != "" {
-		t.Errorf("DistinctCollisions() mismatch (-want +got):\n%s", diff)
+	if diff := cmp.Diff(want, graph.WithoutRestatedNames(idx.Collisions())); diff != "" {
+		t.Errorf("WithoutRestatedNames(Collisions()) mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestLinkedNamesKeepsOnlyTheNamesALinkIsWrittenAgainst pins when a shared name
+// counts: a link written against it, in any spelling the resolver folds to it,
+// and not a path or a name that merely resembles it. The targets include names
+// that collide in no way, so an answer that echoed its input would fail.
+func TestLinkedNamesKeepsOnlyTheNamesALinkIsWrittenAgainst(t *testing.T) {
+	t.Parallel()
+
+	idx := graph.BuildFromNotes([]graph.NoteInput{
+		{RelPath: "golang/Foo.md"},
+		{RelPath: "rust/Foo.md"},
+		{RelPath: "a/Bar.md"},
+		{RelPath: "b/Bar.md"},
+	}, []string{"lab/a/main.go", "lab/b/main.go", "lab/a/out.txt", "lab/b/out.txt"})
+	byName := idx.Collisions()
+
+	tests := []struct {
+		name    string
+		targets []string
+		want    []string
+	}{
+		{name: "no link at all", targets: nil},
+		{name: "links that name nothing shared", targets: []string{"golang/Foo", "lab/a/main.go", "Absent"}},
+		{name: "a resource name", targets: []string{"main.go"}, want: []string{"main.go"}},
+		{name: "folded like the index folds", targets: []string{"  MAIN.GO ", "FOO"}, want: []string{"foo", "main.go"}},
+		{name: "the extension is a different name", targets: []string{"Bar.md"}, want: []string{"bar.md"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := graph.LinkedNames(byName, slices.Values(tt.targets))
+			names := slices.Sorted(maps.Keys(got))
+			if diff := cmp.Diff(tt.want, names); diff != "" {
+				t.Errorf("LinkedNames(%q) names mismatch (-want +got):\n%s", tt.targets, diff)
+			}
+			for _, name := range names {
+				if diff := cmp.Diff(byName[name], got[name]); diff != "" {
+					t.Errorf("LinkedNames(%q)[%q] members mismatch (-want +got):\n%s", tt.targets, name, diff)
+				}
+			}
+		})
 	}
 }
 

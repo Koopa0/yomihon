@@ -7,6 +7,7 @@
 package graph
 
 import (
+	"iter"
 	"slices"
 	"strconv"
 	"strings"
@@ -178,9 +179,21 @@ func (idx *Index) Collisions() map[string][]string {
 	return out
 }
 
-// DistinctCollisions is Collisions with the restated names dropped.
-func (idx *Index) DistinctCollisions() map[string][]string {
-	return WithoutRestatedNames(idx.Collisions())
+// LinkedNames narrows a collision map to the names some target is written as.
+// Two files sharing a name break nothing until a link is written against it, so
+// a caller that reports a collision as a broken link asks this first. A target
+// is folded by NormalizeKey, the fold the index stores its names under, and a
+// target naming no collision contributes nothing. The input is not modified and
+// the result shares its member slices with it.
+func LinkedNames(byName map[string][]string, targets iter.Seq[string]) map[string][]string {
+	out := make(map[string][]string)
+	for target := range targets {
+		key := NormalizeKey(target)
+		if members, ok := byName[key]; ok {
+			out[key] = members
+		}
+	}
+	return out
 }
 
 // WithoutRestatedNames drops from a collision map every name that only restates
