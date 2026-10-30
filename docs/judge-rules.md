@@ -20,6 +20,7 @@ rules and does not define new behavior.
 | `link.broken.path` | `yomihon` | [`internal/judge/diskref.go`](../internal/judge/diskref.go) |
 | `link.section_missing` | `yomihon` | [`internal/judge/fragment.go`](../internal/judge/fragment.go) |
 | `link.title_not_alias` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
+| `link.unused.definition` | `yomihon` | [`internal/judge/definition.go`](../internal/judge/definition.go) |
 | `map.disk_mismatch` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
 | `map.disk_unlisted` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
 | `path.entry_multi_target` | `yomihon` | [`internal/judge/pathrules.go`](../internal/judge/pathrules.go) |

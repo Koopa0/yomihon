@@ -45,11 +45,12 @@ type note struct {
 	basedOn    []string
 	related    []string
 
-	wikilinks     []wikiLink
-	pathRefs      []pathRef
-	images        []imageRef
-	plannedNames  []string
-	calloutTitles []calloutTitle
+	wikilinks         []wikiLink
+	pathRefs          []pathRef
+	images            []imageRef
+	unusedDefinitions []linkDefinition
+	plannedNames      []string
+	calloutTitles     []calloutTitle
 
 	// sectionAnchors, excerptSectionAnchors, and blockAddresses are what this
 	// note's body answers a fragment with: the folded ids of every heading a
@@ -144,7 +145,7 @@ func readNote(rel string, data []byte, marks *plannedMarks) note {
 		n.body = body
 		facts := inspectBody(body, marks.heading)
 		n.wikilinks = extractWikilinksFrom(body, block.BodyStartLine, &facts)
-		n.pathRefs, n.images = extractReferencesFrom(body, block.BodyStartLine, facts.comments)
+		n.pathRefs, n.images, n.unusedDefinitions = extractReferencesFrom(body, block.BodyStartLine, facts.comments)
 		n.plannedNames = extractPlannedNamesFrom(body, *marks, &facts)
 		n.calloutTitles = extractCalloutTitlesFrom(body, block.BodyStartLine, facts.comments)
 		n.sequence = sequence.Parse(body, block.BodyStartLine)
