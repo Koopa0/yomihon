@@ -493,13 +493,13 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 	mapIndex := NewMapIndex(model.Maps(), roles, closure, contract, lang, articleLang)
 	reportIndex := NewReportIndex(model.Reports(), lang, articleLang)
 	folderIndex := NewFolderIndex(model, contract, lang, articleLang)
-	pathBlock := deskBlock(&pathIndex, wording.DeskPathsLede.In(lang))
-	mapBlock := deskBlock(&mapIndex, wording.DeskMapsLede.In(lang))
+	pathBlock := deskBlock(&pathIndex)
+	mapBlock := deskBlock(&mapIndex)
 	if withheld {
 		withhold(&pathBlock.Shelf)
 		withhold(&mapBlock.Shelf)
 	}
-	reportBlock := deskBlock(&reportIndex, wording.DeskReportsLede.In(lang))
+	reportBlock := deskBlock(&reportIndex)
 	// The desk has only three ways in; an attachment-only folder must not
 	// displace a folder with notes. The full index keeps every folder.
 	var readableFolders []nav.Folder
@@ -509,7 +509,7 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 		}
 	}
 	folderIndex.Shelf.Rows = folderRows(model.RootNotes(), readableFolders, lang, true, articleLang)
-	folderBlock := deskBlock(&folderIndex, wording.DeskFoldersLede.In(lang))
+	folderBlock := deskBlock(&folderIndex)
 	// A plain folder already has a way to read. Put it before the modes whose
 	// organisation the reader has not declared; a present contract keeps its
 	// own order and diagnostics even when it could not be loaded.
@@ -543,8 +543,8 @@ func withhold(s *Shelf) {
 }
 
 // deskBlock shows the desk a corner of the shelf a mode's page unfolds. It is
-// the same shelf, with the address of that page and the shorter sentence a
-// block has room for; narrowing it to the rows that fit is the shelf
+// the same shelf, with the address of that page; narrowing it to the rows that
+// fit, and leaving out the sentence that page opens with, is the shelf
 // component's own business.
 //
 // The measure comes across untouched. A block that recomputed it could count
@@ -555,9 +555,8 @@ func withhold(s *Shelf) {
 // which makes the two the same shelf rather than two shelves that agree today.
 // The rows are read-only by the shelf's own contract, and both views are built
 // for one request from a projection the model already handed over as a copy.
-func deskBlock(index *ListIndexView, lede string) DeskBlock {
+func deskBlock(index *ListIndexView) DeskBlock {
 	shelf := index.Shelf
-	shelf.Lede = lede
 	shelf.Href = indexHref(index.Mode)
 	return DeskBlock{Mode: index.Mode, Shelf: shelf}
 }

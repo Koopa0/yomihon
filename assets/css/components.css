@@ -4248,14 +4248,6 @@ a.y-facetrow:hover {
   width: 100%;
 }
 
-.y-homeblock__lede {
-  color: var(--fg-faint);
-  font-family: var(--font-serif);
-  font-size: var(--fs-13);
-  font-style: italic;
-  margin: -8px 0 12px;
-}
-
 /* The sentence under the chip row explaining why some notes state no status:
    the card lede's voice, upright, set below the row rather than under a head. */
 .y-homeblock__note {

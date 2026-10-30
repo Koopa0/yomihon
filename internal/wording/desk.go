@@ -7,27 +7,6 @@ package wording
 // figure describing the same listing is a figure that can disagree with it.
 var ShelfAll = both("全部 →", "All of it →")
 
-// Each mode block on the desk says what it holds, in one line, before its first
-// few items. The heading is the mode's own name, which the rail already had.
-var (
-	DeskPathsLede = both(
-		"照順序讀的課程與書。",
-		"Courses and books, read in the order they lay out.",
-	)
-	DeskMapsLede = both(
-		"一個主題底下有什麼。",
-		"What's under one subject.",
-	)
-	DeskReportsLede = both(
-		"每日簡報與稽核。",
-		"Daily briefings and audits.",
-	)
-	DeskFoldersLede = both(
-		"照檔案存放的位置瀏覽。",
-		"Browse by where the files are stored.",
-	)
-)
-
 // What an empty path or map listing says. Those two shelves are filled by a
 // declaration and by nothing else: a markdown file added to the folder is read,
 // listed and searchable without ever reaching either of them, so the sentence
