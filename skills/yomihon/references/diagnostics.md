@@ -133,9 +133,9 @@ rest of the table is where they were reached from, not who set the bar.
 
 ## Severity
 
-Every `schema.` rule is an `error`; nothing else ever is. One rule is always
-`info` — `callout.title_markup`, a formatting observation. Everything else is a
-`warn`, except that three rules *drop* from `warn` to `info` when the vault has
+Every `schema.` rule is an `error`; nothing else ever is. Two rules are always
+`info` — `callout.title_markup`, a formatting observation, and
+`link.unused.definition`, a tidy-up signal. Everything else is a `warn`, except that three rules *drop* from `warn` to `info` when the vault has
 declared the name owed rather than missing: `link.broken`, `link.broken.path`
 and `map.disk_mismatch`. `link.broken.path` has a second reason to sit at
 `info`: a path that climbs out of the vault root is reported rather than judged,
@@ -195,7 +195,7 @@ that same note is judged here as usual.
 | `link.block_missing` | the note resolved; no line carries the `^address` |
 | `link.broken.image` | a picture the page would show from the vault names no file there: a Markdown image `![](path)`, resolved from the note's own folder, or an `![[file]]` embed of a picture or PDF. `target` is the path or name the page reports. A missing `![[file]]` is reported here and never as `link.broken` |
 | `link.broken.path` | a plain path reference to a file that is not in the vault. Drops to `info` under a planned gap |
-| `link.unused.definition` | a link reference definition `[label]: address` that no link or image in the same note resolves through, so the page shows its address nowhere. `target` is the label. The usual causes are a label renamed on one side only, and two markers written together as `[E1][E2]`, which reads as one link with the text E1 and the label E2: write `[E1] [E2]` |
+| `link.unused.definition` | a link reference definition `[label]: address` that no link or image in the same note resolves through, so the page shows its address nowhere. It is always `info`: it breaks nothing the reader sees, so `--deny warn` and `--deny link.unused.definition` do not catch it and `--deny info` does. `target` is the label. The usual causes are a label renamed on one side only, and two markers written together as `[E1][E2]`, which reads as one link with the text E1 and the label E2: write `[E1] [E2]` |
 | `embed.section_missing` | an `![[…#Heading]]` embed whose heading is not there, so there is no excerpt to cut. Nothing is shown; the block names the address that failed |
 | `embed.block_missing` | the same for `![[…#^id]]` |
 | `collision.name` | two or more files share one resolution name that some `[[link]]` or `![[embed]]` in the vault is written against, so that link is ambiguous and nothing is linked. A shared name no wikilink uses is not reported: a Markdown path link such as `[run](lab/a/main.go)` resolves by path, not by name. `collision_members` lists them all. Rename one, or link each by its full vault-relative path |
