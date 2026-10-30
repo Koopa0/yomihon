@@ -30,8 +30,9 @@ fail() {
 
 # One named site per way into the library, plus the search block, one content
 # marker that only the fixture vault's rendered README can supply, and the
-# quiet row that leads from the desk to the library's health. The live verdict and its self-test
-# share this table, so neither can silently stop checking one of them.
+# quiet row that leads from the desk to the library's health. The live verdict
+# and its self-test share this table, so neither can silently stop checking
+# one of them.
 #
 # The rail is not among them. Home carries the four ways in and no rail: a
 # listing beside a copy of itself is a second organisation of the same notes,

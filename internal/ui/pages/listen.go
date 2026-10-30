@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -59,12 +60,10 @@ func (v ListenView) marked() string {
 
 // carriesReadings reports whether any paragraph the page reads aloud holds
 // furigana for the header's switch to show and hide.
-func (v *ListenView) carriesReadings() bool {
+func (v ListenView) carriesReadings() bool {
 	for _, l := range v.Lessons {
-		for _, p := range l.Paragraphs {
-			if render.CarriesReadings(p) {
-				return true
-			}
+		if slices.ContainsFunc(l.Paragraphs, render.CarriesReadings) {
+			return true
 		}
 	}
 	return false

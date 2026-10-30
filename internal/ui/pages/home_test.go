@@ -154,12 +154,14 @@ func TestTheDeskAlwaysLeadsToTheHealthView(t *testing.T) {
 				t.Fatalf("render Home: %v", err)
 			}
 			page := buf.String()
-			at := strings.Index(page, `class="y-deskhealth"`)
-			if at < 0 {
+			_, rest, ok := strings.Cut(page, `class="y-deskhealth"`)
+			if !ok {
 				t.Fatalf("%s desk with %d findings has no way to the health view", lang, findings)
 			}
-			row := page[at:]
-			row = row[:strings.Index(row, "</p>")]
+			row, after, ok := strings.Cut(rest, "</p>")
+			if !ok {
+				t.Fatalf("%s desk row is not a closed paragraph", lang)
+			}
 			if !strings.Contains(row, `href="/health"`) || !strings.Contains(row, wording.HealthTitle.In(lang)) {
 				t.Errorf("%s desk row does not lead to the health view by its name: %q", lang, row)
 			}
@@ -170,7 +172,7 @@ func TestTheDeskAlwaysLeadsToTheHealthView(t *testing.T) {
 			if findings > 0 && !strings.Contains(row, plural(findings, wording.LibraryFindingOne, wording.LibraryFindingMany, lang)) {
 				t.Errorf("%s desk row does not say the number in words: %q", lang, row)
 			}
-			if rest := page[at:]; strings.Contains(rest[strings.Index(rest, "</p>"):], "<p") {
+			if strings.Contains(after, "<p") {
 				t.Errorf("%s desk draws something after the way to the health view, which is meant to be its last line", lang)
 			}
 		}

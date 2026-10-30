@@ -667,6 +667,13 @@ html:not([data-js]) .y-rubybtn {
     background: var(--wash);
     box-shadow: none;
   }
+
+  /* The word beside the name gives before the name does: on a page with
+     furigana the row carries four controls, and at a phone held sideways the
+     name would otherwise lose letters to them. */
+  .y-brand__tag {
+    display: none;
+  }
 }
 
 .y-hamburger {
@@ -6053,10 +6060,6 @@ samp,
 
   .y-brand {
     gap: 7px;
-  }
-
-  .y-brand__tag {
-    display: none;
   }
 
   /* The state word goes onto its own line so the controls keep one row each;

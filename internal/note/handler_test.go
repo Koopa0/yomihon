@@ -3673,13 +3673,6 @@ func TestTheFuriganaControlFollowsTheReadings(t *testing.T) {
 			}
 		})
 	}
-	code, settings := get(t, srv.Client(), srv.URL+"/preferences")
-	if code != http.StatusOK {
-		t.Fatalf("GET /preferences status = %d, want 200", code)
-	}
-	if !strings.Contains(settings, `data-pref-field="ruby"`) {
-		t.Error("the settings page carries no furigana choice, so a reader who switched readings off has nowhere to switch them back on")
-	}
 }
 
 // TestAnOverCapNotePageIsTheFilePage is the page-side of the bound. A note

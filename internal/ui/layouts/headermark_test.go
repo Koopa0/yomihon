@@ -32,8 +32,8 @@ func TestTheHeaderMarkIsOneBookmarkThatSaysWhetherItIsSet(t *testing.T) {
 		if got := strings.Count(html, "data-mark-button"); got != 1 {
 			t.Fatalf("the header draws %d reading-place buttons, want 1; html = %q", got, html)
 		}
-		at := strings.Index(html, "data-mark-button")
-		button := html[strings.LastIndex(html[:at], "<"):][:strings.Index(html[strings.LastIndex(html[:at], "<"):], ">")]
+		_, button, _ := strings.Cut(html, "data-mark-button")
+		button, _, _ = strings.Cut(button, ">")
 		want := `aria-pressed="false"`
 		if kept {
 			want = `aria-pressed="true"`

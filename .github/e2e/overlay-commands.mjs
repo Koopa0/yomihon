@@ -312,7 +312,9 @@ try {
     }
     const preferences = page.locator('header .y-prefslink');
     checkProof(destinationProof);
-    if (!(await preferences.isVisible()) || !(await preferences.innerText()).trim()
+    // On a phone the link is drawn as its mark alone, so its name is the
+    // label it carries rather than any text on screen.
+    if (!(await preferences.isVisible()) || !((await preferences.getAttribute('aria-label')) ?? '').trim()
         || await preferences.evaluate((link) => new URL(link.href).pathname) !== '/preferences') {
       fail(destinationSite, `${language}/${theme} at ${width}px offers no visible, named native preferences destination`);
     }

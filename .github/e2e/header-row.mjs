@@ -102,7 +102,8 @@ const rewriteScript = async (page, glob, needle, replacement) => {
 };
 
 // Each mutation names the page it is applied on: the note without furigana,
-// or the one with them. A mutation applied on a page whose questions it cannot
+// the one with them, the note with the left column folded, or the note on a
+// touch screen. A mutation applied on a page whose questions it cannot
 // reach would be reported as not caught for the wrong reason.
 const MUTATIONS = {
   // The row's bookmark is drawn from the rail's width too, so a reader there
@@ -118,6 +119,14 @@ const MUTATIONS = {
     target: 'reading-place-reachable',
     on: 'note',
     apply: (page) => injectRule(page, '.y-headermark', `@media (min-width: 1200px) { [data-js] .y-headermark { display: none; } }`),
+  },
+  // Folding the left column takes the reading rail's control with it, so a
+  // reader who folded the column has no way to keep a place at the widths
+  // the row's bookmark steps aside at.
+  'hide-the-rail-mark-under-a-folded-column': {
+    target: 'reading-place-reachable',
+    on: 'folded',
+    apply: (page) => injectRule(page, '.y-rail-right .y-markset', "html[data-rail='collapsed'] .y-rail-right .y-markset { display: none; }"),
   },
   // The cluster's order changes: the search moves to the end of the row.
   'move-search-past-settings': {
@@ -313,6 +322,24 @@ try {
       const reachable = await reachablePlaces(note);
       if (reachable !== 1) fail('reading-place-reachable', `${language} at ${width}px offers ${reachable} reading-place controls, want exactly one`);
     }
+    // The same at the rail's widths with the left column folded: folding the
+    // navigation is not a reason to lose the reading rail's control, and the
+    // row's bookmark does not come back to stand in for it.
+    const foldedContext = await browser.newContext({ viewport: { width: 1440, height: 800 } });
+    await foldedContext.addCookies([
+      { name: 'yomihon_rail', value: 'collapsed', url: BASE },
+      ...(language === 'en' ? [{ name: 'yomihon_lang', value: 'en', url: BASE }] : []),
+    ]);
+    const folded = await open(foldedContext, 'folded', PAGE);
+    if (await folded.evaluate(() => document.documentElement.dataset.rail) !== 'collapsed') {
+      broken('the folded-column context did not fold the left column, so it asks nothing about it');
+    }
+    for (const width of [RAIL, 1440]) {
+      await folded.setViewportSize({ width, height: 800 });
+      const reachable = await reachablePlaces(folded);
+      if (reachable !== 1) fail('reading-place-reachable', `${language} at ${width}px with the left column folded offers ${reachable} reading-place controls, want exactly one`);
+    }
+    await foldedContext.close();
 
     for (const [kind, page] of [['note', note], ['readings', readings]]) {
       const hasSwitch = kind === 'readings';

@@ -115,9 +115,8 @@ var (
 	FilterSearchAll   = both("搜尋全部 →", "Search everything →")
 )
 
-// The foot of the rail, where it says which folder the reader is in. A folder
-// whose path yields no name to show is still named — as the one the reader is
-// reading — because blank lines at the end of the rail read as something
+// ThisLibrary names the folder at the foot of the rail when its path yields no
+// name to show. It is still named — as the one the reader is reading — because blank lines at the end of the rail read as something
 // broken rather than as an answer.
 var ThisLibrary = both("這個書庫", "This library")
 
