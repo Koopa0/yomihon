@@ -60,7 +60,7 @@ decisions, and only the last one is about the course.
 
 ```toml
 [enums]
-type = ["note", "lesson", "study-path", "moc", "concept", "inbox"]
+type = ["note", "lesson", "study-path", "moc", "concept", "inbox", "thought"]
 ```
 
 `lesson` is on that list, so `lesson` is available. Had it not been, the

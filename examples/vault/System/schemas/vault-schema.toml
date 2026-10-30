@@ -7,7 +7,7 @@
 schema_version = "1"
 
 [enums]
-type = ["note", "lesson", "study-path", "moc", "concept", "inbox"]
+type = ["note", "lesson", "study-path", "moc", "concept", "inbox", "thought"]
 # A domain is what a note is about. Keep the list short enough that every value
 # is one you would really file under.
 domain = ["yomihon", "japanese", "go"]
@@ -24,6 +24,8 @@ map_kind = ["topic"]
 [enums.status]
 note = ["draft", "ready", "published", "archived"]
 lesson = ["draft", "ready", "archived"]
+# A reader's thought is never a completed publication, so it has no published.
+thought = ["draft", "ready", "archived"]
 
 [fields]
 required = ["title", "type", "status", "domain"]
@@ -46,6 +48,7 @@ lesson_only = ["slug", "level", "supersedes", "superseded_by"]
 # to declare that group.
 [fields.status_group]
 lesson = ["lesson"]
+thought = ["thought"]
 
 [rules]
 # A note filed under Concepts/<domain>/ has to agree with the folder it is in.
@@ -65,8 +68,10 @@ no_frontmatter_is_legal = true
 path_types = ["study-path"]
 map_types = ["moc"]
 journal_dir = "Diary"
-# The existing note type used for a reader's own source-linked thoughts.
-answer_type = "note"
+# The note type a reader's own source-linked thoughts are filed under. It is
+# its own type so that an authored draft never sits on the open-thoughts shelf
+# beside what a reader wrote.
+answer_type = "thought"
 
 [artifacts]
 non_instance_dirs = ["System/templates"]
@@ -142,7 +147,8 @@ owner = ["author"]
 status = "published"
 # In this starting-point contract, name only types whose status list carries
 # the value. A lesson's list does not, so naming it here would be a row for
-# a status that type cannot hold.
+# a status that type cannot hold. A reader's thought has no such status either,
+# because it is never a completed publication.
 applies_to = ["note", "study-path", "moc", "concept", "inbox"]
 initial = false
 from = ["ready"]
