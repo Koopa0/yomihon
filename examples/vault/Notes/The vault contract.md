@@ -23,7 +23,7 @@ This excerpt declares types and the default status vocabulary:
 
 ```toml
 [enums]
-type = ["note", "lesson", "study-path", "moc", "concept", "inbox"]
+type = ["note", "lesson", "study-path", "moc", "concept", "inbox", "thought"]
 
 [enums.status]
 note = ["draft", "ready", "published", "archived"]
