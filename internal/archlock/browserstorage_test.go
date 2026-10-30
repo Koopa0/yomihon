@@ -61,7 +61,6 @@ const (
 // no type holds; what can be held is where a cookie is written at all, so a
 // write from somewhere new fails and the name it carries gets looked at.
 var cookieWritingFiles = []string{
-	"internal/note/language.go",
 	"internal/preference/handler.go",
 }
 
