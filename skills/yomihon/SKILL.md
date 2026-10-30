@@ -266,10 +266,14 @@ broken are in `references/names-and-links.md`.
 ## What the renderer treats specially
 
 CommonMark and GFM render — tables, task lists, strikethrough, bare-URL
-autolinks — plus footnotes. A page that pulls a second body into itself with an
-embed prefixes that body's footnote ids (`fn:1` in the host, `y1-fn:1` in the
-embedded one), so two notes' footnotes on one page never collide. Beyond
-that:
+autolinks — plus footnotes. A bare URL links only at the start of a line, after
+an ASCII space or one of `* _ ~ (`, or right after another inline element;
+after `：`, `，`, `（`, `「`, CJK text, a tab or a no-break space it stays plain
+text and `check` says nothing, so write `<https://…>` there (the positions are
+tabulated in `references/names-and-links.md`). A page that pulls a second body
+into itself with an embed prefixes that body's footnote ids (`fn:1` in the
+host, `y1-fn:1` in the embedded one), so two notes' footnotes on one page never
+collide. Beyond that:
 
 | Written | Renders as | Miss behaviour |
 |---|---|---|
