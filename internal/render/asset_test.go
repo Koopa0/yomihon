@@ -16,6 +16,8 @@ func (holdsEverything) MissingFile(string) bool { return false }
 
 func (holdsEverything) OutsideScan(string) bool { return false }
 
+func (holdsEverything) IsDirectory(string) bool { return false }
+
 // holdsNothing is the other end: whatever a note reached for, the vault looked
 // and has nothing there.
 type holdsNothing struct{}
@@ -23,6 +25,8 @@ type holdsNothing struct{}
 func (holdsNothing) MissingFile(string) bool { return true }
 
 func (holdsNothing) OutsideScan(string) bool { return false }
+
+func (holdsNothing) IsDirectory(string) bool { return false }
 
 // TestResolveAssetHrefs covers the rewrite and, just as importantly, everything
 // it must leave alone. A markdown image is written relative to its own note,

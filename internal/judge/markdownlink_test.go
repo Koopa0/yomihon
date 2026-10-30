@@ -84,6 +84,27 @@ func TestMarkdownCheckIsRelativeAndExact(t *testing.T) {
 	}
 }
 
+// TestMarkdownLinkToAFolderIsNotAFinding holds that a link to a directory is
+// outside the rule's domain, which is Markdown note paths: a folder link
+// routes to the folder's page, so it raises no finding whether it is written
+// with or without the trailing slash.
+func TestMarkdownLinkToAFolderIsNotAFinding(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write(t, root, "Concepts/golang/Source.md", "[a](lab/)\n[b](lab)\n[c](../golang/lab/code/)\n[d](missing/)\n")
+	write(t, root, "Concepts/golang/lab/code/main.go", "package main\n")
+	writeTestContract(t, root, nil)
+	findings, err := Check(t.Context(), root)
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	for _, f := range findings {
+		if strings.HasPrefix(string(f.RuleID), "link.broken") {
+			t.Errorf("folder link raised a finding: %+v", f)
+		}
+	}
+}
+
 func TestEncodedBacktickReferencesKeepTheirOldDomain(t *testing.T) {
 	t.Parallel()
 	for _, source := range []string{"`Notes/Missing%20note.md`", "[invalid](Bad%2.md)", "[remote](https://host/Remote.md)", "[resource](picture.png)"} {

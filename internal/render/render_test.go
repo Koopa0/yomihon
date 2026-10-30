@@ -2030,3 +2030,5 @@ type vaultHolds struct{}
 func (vaultHolds) MissingFile(string) bool { return false }
 
 func (vaultHolds) OutsideScan(string) bool { return false }
+
+func (vaultHolds) IsDirectory(string) bool { return false }

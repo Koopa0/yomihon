@@ -54,9 +54,14 @@ type Titles interface {
 // OutsideScan is the other half of that distinction, asked of a path a link
 // names: whether the scan looks there at all. A link into such a place is left
 // as written rather than rewritten to an address that cannot be served.
+//
+// IsDirectory is asked of a path the scan observed: whether it is a folder
+// rather than a file, because a link to a folder belongs on the folder's page,
+// and the raw-bytes route answers nothing for one.
 type Files interface {
 	MissingFile(path string) bool
 	OutsideScan(path string) bool
+	IsDirectory(path string) bool
 }
 
 // DiagnosticKind classifies one Diagnostic. All but one are raised by a pass

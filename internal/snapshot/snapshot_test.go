@@ -2165,6 +2165,42 @@ func TestMissingFileTellsAnAbsentPathFromAnUnseenOne(t *testing.T) {
 	}
 }
 
+// TestIsDirectoryTellsAFolderFromAFileAndFromNothing holds the answer a link to
+// a folder is routed by: a directory the scan walked is one, a regular file is
+// not, and a path nothing answers to is not.
+func TestIsDirectoryTellsAFolderFromAFileAndFromNothing(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Concepts/lab/code/main.go", "package main\n")
+	writeNote(t, root, "Concepts/\u00e9/x.txt", "x\n")
+	contract := testContract(t, root)
+	store, _ := newTestStore(t, root, contract)
+	view := store.Current()
+
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{name: "a folder holding a file", path: "Concepts/lab/code", want: true},
+		{name: "a folder holding only a folder", path: "Concepts/lab", want: true},
+		{name: "a regular file", path: "Concepts/lab/code/main.go"},
+		{name: "a note", path: "Concepts/Alpha.md"},
+		{name: "nothing there", path: "Concepts/gone"},
+		{name: "the decomposed spelling of a folder", path: "Concepts/e\u0301", want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := view.IsDirectory(tt.path); got != tt.want {
+				t.Errorf("IsDirectory(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAnswerRoleIsFixedAtStartAcrossRescans(t *testing.T) {
 	root := t.TempDir()
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))

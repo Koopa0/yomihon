@@ -912,6 +912,13 @@ func rawHref(p string) string {
 	return "/raw/" + escapedVaultPath(p)
 }
 
+// foldersHref builds the browse-page URL for a vault-relative folder. It is
+// the address the folder shelf itself links to, so a link written to a folder
+// lands where the shelf would send the reader.
+func foldersHref(dir string) string {
+	return "/folders/" + escapedVaultPath(dir)
+}
+
 // sectionHref is notesHref plus the place inside the destination a link named.
 // What it returns is a URL, which the attribute it goes into escapes on its own.
 // A section's fragment is built by the same call that stamps the destination's

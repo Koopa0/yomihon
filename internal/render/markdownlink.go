@@ -33,7 +33,10 @@ func (r *Pipeline) resolveMarkdownLinks(doc ast.Node, owner string, col *collect
 		}
 		if result.Kind == graph.KindUnique {
 			href := rawHref(result.RelPath)
-			if vault.IsMarkdown(result.RelPath) {
+			switch {
+			case r.files.IsDirectory(result.RelPath):
+				href = foldersHref(result.RelPath)
+			case vault.IsMarkdown(result.RelPath):
 				href = notesHref(result.RelPath)
 			}
 			link.Destination = []byte(href + result.Suffix)

@@ -13,7 +13,21 @@ import (
 
 type markdownFiles map[string]bool
 
-func (f markdownFiles) MissingFile(p string) bool { return !f[p] }
+// markdownFiles holds the files a vault has; every folder above one of them is
+// held too, the way a scan observes the directories it walked through.
+func (f markdownFiles) MissingFile(p string) bool { return !f[p] && !f.IsDirectory(p) }
+
+func (f markdownFiles) IsDirectory(p string) bool {
+	if f[p] {
+		return false
+	}
+	for held := range f {
+		if strings.HasPrefix(held, p+"/") {
+			return true
+		}
+	}
+	return false
+}
 
 func (markdownFiles) OutsideScan(string) bool { return false }
 
@@ -84,6 +98,29 @@ func TestMarkdownLinkIntoAPlaceTheScanDoesNotLookIsLeftAsWritten(t *testing.T) {
 	}
 	if len(got.Diagnostics) != 0 {
 		t.Errorf("diagnostics = %+v, want none", got.Diagnostics)
+	}
+}
+
+func TestMarkdownLinkToAFolderReachesItsPage(t *testing.T) {
+	t.Parallel()
+	r := markdownRenderer(t, []graph.NoteInput{{RelPath: "Host/lab/L2/readme.md"}}, []string{"Host/lab/L2/code/main.go", "Host/lab/L2/中文 目錄/x.txt", "Host/file.txt"}, nil)
+	for _, tt := range []struct{ name, body, want string }{
+		{name: "trailing slash", body: "[x](lab/L2/)", want: `<a href="/folders/Host/lab/L2">x</a>`},
+		{name: "no trailing slash", body: "[y](lab/L2)", want: `<a href="/folders/Host/lab/L2">y</a>`},
+		{name: "parent segments", body: "[z](../Host/lab/L2/code/)", want: `<a href="/folders/Host/lab/L2/code">z</a>`},
+		{name: "spaces and CJK are escaped per segment", body: "[s](lab/L2/%E4%B8%AD%E6%96%87%20%E7%9B%AE%E9%8C%84/)", want: `<a href="/folders/Host/lab/L2/%E4%B8%AD%E6%96%87%20%E7%9B%AE%E9%8C%84">s</a>`},
+		{name: "fragment survives", body: "[f](lab/#top)", want: `<a href="/folders/Host/lab#top">f</a>`},
+		{name: "a file stays raw", body: "[r](file.txt)", want: `<a href="/raw/Host/file.txt">r</a>`},
+		{name: "a note stays a note", body: "[n](lab/L2/readme.md)", want: `<a href="/notes/Host/lab/L2/readme.md">n</a>`},
+		{name: "a missing folder is left as written", body: "[m](nowhere/)", want: `<a href="nowhere/">m</a>`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Host/here.md", "", tt.body, wording.En)
+			if !strings.Contains(got.HTML, tt.want) || len(got.Diagnostics) != 0 {
+				t.Errorf("want %q and no diagnostics; got %+v", tt.want, got)
+			}
+		})
 	}
 }
 
