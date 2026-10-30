@@ -597,12 +597,28 @@ func fileLink(dest string) (string, bool) {
 // backtickPath reports a backticked token that is a relative vault .md path.
 // Unlike a markdown link it must contain a separator, so a bare foo.md in prose
 // is not mistaken for a path.
+//
+// A token with whitespace whose first word holds no separator opens with a
+// command name, as in "git show main:Notes/a.md": the author is quoting a
+// command line, not naming a note, so it is not judged. The cost is that a
+// missing path whose first folder name contains a space goes unreported; one
+// that exists still resolves, so it draws nothing either way.
 func backtickPath(token string) (string, bool) {
 	t := strings.TrimSpace(token)
+	if quotesCommandLine(t) {
+		return "", false
+	}
 	if strings.Contains(t, "/") && isRelativeMdRef(t) {
 		return t, true
 	}
 	return "", false
+}
+
+// quotesCommandLine reports whether a trimmed token has whitespace and its
+// first whitespace-separated word contains no "/".
+func quotesCommandLine(t string) bool {
+	i := strings.IndexFunc(t, unicode.IsSpace)
+	return i >= 0 && !strings.Contains(t[:i], "/")
 }
 
 // isRelativeMdRef reports whether path is a plain relative .md file reference
