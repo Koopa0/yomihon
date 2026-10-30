@@ -450,7 +450,7 @@ func (h *Handler) reading(
 		Updated:            updatedDisplay,
 		UpdatedAt:          updatedMachine,
 		UpdatedFromFile:    updatedFromFile,
-		ObsidianHref:       pages.ObsidianHref(h.sources.Source.Name(), n.RelPath),
+		ObsidianHref:       obsidianOpenHref(h.sources.Source, n.RelPath),
 		Diagnostic:         n.FMDiagnostic,
 		Stale:              n.Stale,
 		ParsePanic:         cause.ParsePanic,

@@ -54,7 +54,7 @@ func TestRegisteredReadingPathSuffix(t *testing.T) {
 	// The thought door emits the full captured identity even when a deeper
 	// suffix candidate exists, so its generated citation still names this note.
 	code, body = get(t, srv.Client(), srv.URL+"/thought/Concepts/Thought/Source.md?section=part")
-	if code != http.StatusOK || !strings.Contains(thoughtTextarea(t, body), `based_on: "[[Concepts/Thought/Source#Part]]"`) {
+	if code != http.StatusOK || !strings.Contains(thoughtTemplate(t, body), `based_on: "[[Concepts/Thought/Source#Part]]"`) {
 		t.Errorf("caught: exact thought source changed: (%d,%q)", code, body)
 	}
 	code, _ = get(t, srv.Client(), srv.URL+"/notes/Nope/Page.md")

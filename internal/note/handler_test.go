@@ -3115,6 +3115,16 @@ func TestFlipReceiptRequiresTheWriteItReports(t *testing.T) {
 
 // writeLesson writes the one lesson fixture these tests read, L01.md under
 // the contract's knowledge directory.
+// markObsidianVault gives root the .obsidian folder that makes it a vault
+// Obsidian has opened, the only evidence the page takes that a link into
+// Obsidian can be answered.
+func markObsidianVault(t *testing.T, root string) {
+	t.Helper()
+	if err := os.Mkdir(filepath.Join(root, ".obsidian"), 0o750); err != nil {
+		t.Fatalf("mkdir .obsidian: %v", err)
+	}
+}
+
 func writeLesson(t *testing.T, root, content string) {
 	t.Helper()
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")
@@ -3900,6 +3910,14 @@ func TestShowOffersAnObsidianDoor(t *testing.T) {
 		t.Fatalf("write: %v", err)
 	}
 	srv := newServerWithContract(t, root, loadContract(t))
+	code, plain := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	if code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if strings.Contains(plain, "obsidian://") {
+		t.Error("a folder without .obsidian was offered a link into Obsidian")
+	}
+	markObsidianVault(t, root)
 	code, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)

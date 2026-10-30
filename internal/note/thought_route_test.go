@@ -5,13 +5,16 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestThoughtRouteOffersOrdinaryDocumentsAndLessonsTheSameDoor(t *testing.T) {
@@ -25,7 +28,7 @@ func TestThoughtRouteOffersOrdinaryDocumentsAndLessonsTheSameDoor(t *testing.T) 
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("thought route status = %d, body %s", recorder.Code, recorder.Body.String())
 			}
-			markdown := thoughtTextarea(t, recorder.Body.String())
+			markdown := thoughtTemplate(t, recorder.Body.String())
 			const want = "---\ntype: \"writing\"\nstatus: \"draft\"\ndomain: \"japanese\"\nbased_on: \"[[Source#Chapter one]]\"\n---\n"
 			if markdown != want {
 				t.Errorf("offered Markdown = %q, want %q", markdown, want)
@@ -37,6 +40,90 @@ func TestThoughtRouteOffersOrdinaryDocumentsAndLessonsTheSameDoor(t *testing.T) 
 				t.Error("source title reached the page as executable HTML")
 			}
 		})
+	}
+}
+
+// thoughtNamePattern is the shape of the suggested file name for the source in
+// thoughtRouteHandler: the title, the word for a thought, and the minute. The
+// minute itself is the clock's, so the test pins its shape and not its value.
+var thoughtNamePattern = regexp.MustCompile(`^img src=x onerror=alert\(1\)的想法 \d{4}-\d{2}-\d{2} \d{4}$`)
+
+func TestThoughtRouteOffersObsidianOnlyInAnObsidianVault(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		obsidian bool
+	}{
+		{name: "an Obsidian vault", obsidian: true},
+		{name: "a plain folder"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			mux, root := thoughtRouteFixture(t, true, "")
+			if tc.obsidian {
+				if err := os.Mkdir(filepath.Join(root, ".obsidian"), 0o750); err != nil {
+					t.Fatal(err)
+				}
+			}
+			recorder := httptest.NewRecorder()
+			mux.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/thought/Source.md", http.NoBody))
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("thought route status = %d, body %s", recorder.Code, recorder.Body.String())
+			}
+			page := recorder.Body.String()
+			// The section also carries data-thought-copied and data-thought-copyfailed,
+			// so the button is found by its own closing bracket.
+			const copyButton = "data-thought-copy>"
+			if !strings.Contains(page, copyButton) {
+				t.Error("copying is always an action")
+			}
+			link := regexp.MustCompile(`href="(obsidian://new[^"]*)"`).FindStringSubmatch(page)
+			if !tc.obsidian {
+				if link != nil {
+					t.Errorf("a vault without .obsidian was offered %q", link[1])
+				}
+				return
+			}
+			if link == nil {
+				t.Fatal("an Obsidian vault was not offered the Obsidian action")
+			}
+			parsed, err := url.Parse(html.UnescapeString(link[1]))
+			if err != nil {
+				t.Fatal(err)
+			}
+			query := parsed.Query()
+			if len(query) != 3 || query.Get("vault") != filepath.Base(root) {
+				t.Errorf("new-note URI carries %v, want exactly the vault %q, a name and the content", query, filepath.Base(root))
+			}
+			if name := query.Get("name"); !thoughtNamePattern.MatchString(name) {
+				t.Errorf("file name %q does not read as a thought on the source", name)
+			}
+			if !strings.Contains(query.Get("content"), `based_on: "[[Source]]"`) {
+				t.Errorf("content = %q, want it to cite the source", query.Get("content"))
+			}
+			if strings.Index(page, copyButton) < strings.Index(page, `class="y-xbtn y-xbtn--primary"`) {
+				t.Error("the Obsidian action must come before the copy action")
+			}
+		})
+	}
+}
+
+func TestThoughtRoutePageLeadsWithIntent(t *testing.T) {
+	t.Parallel()
+	mux, _ := thoughtRouteFixture(t, true, "")
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/thought/Source.md", http.NoBody))
+	page := recorder.Body.String()
+	last := -1
+	for _, part := range []string{"<h1", `href="/notes/Source.md`, wording.ThoughtExternal.In(wording.ZhHant), "<pre", "y-thought__actions"} {
+		at := strings.Index(page, part)
+		if at < 0 || at < last {
+			t.Fatalf("%q is missing or out of order (at %d, after %d); the order is title, source, sentence, template, actions", part, at, last)
+		}
+		last = at
+	}
+	if strings.Contains(page, "<textarea") {
+		t.Error("the template is read-only text and is not drawn as a form field")
 	}
 }
 
@@ -133,19 +220,17 @@ func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (h
 	return handler, root
 }
 
-func thoughtTextarea(t *testing.T, body string) string {
+// thoughtTemplate returns the composed Markdown from the page's reading code
+// block.
+func thoughtTemplate(t *testing.T, body string) string {
 	t.Helper()
-	_, after, ok := strings.Cut(body, "<textarea")
+	_, after, ok := strings.Cut(body, "<code data-thought-markdown>")
 	if !ok {
-		t.Fatal("thought page has no copyable Markdown textarea")
+		t.Fatal("thought page has no code block for the Markdown")
 	}
-	_, after, ok = strings.Cut(after, ">")
+	content, _, ok := strings.Cut(after, "</code></pre>")
 	if !ok {
-		t.Fatal("thought textarea opening tag is incomplete")
-	}
-	content, _, ok := strings.Cut(after, "</textarea>")
-	if !ok {
-		t.Fatal("thought textarea closing tag is missing")
+		t.Fatal("thought code block is not closed")
 	}
 	return html.UnescapeString(content)
 }

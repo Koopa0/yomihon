@@ -20,9 +20,9 @@ import (
 // redirect: there is nothing here to lose by guessing wrong, and a reader who
 // mistyped one is already looking at the calendar they can step from.
 //
-// This is where the clock is read, and the only place: the page is built from
-// the month rather than from the moment, so everything that records or measures
-// it names a month outright and says the same thing tomorrow.
+// This is where the clock is read, and the only place on this page: it is built
+// from the month rather than from the moment, so everything that records or
+// measures it names a month outright and says the same thing tomorrow.
 func (h *Handler) journal(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	authority := h.sources.Status()

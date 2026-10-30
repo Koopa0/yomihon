@@ -510,6 +510,17 @@ func (w *Writer) VaultRoot() string {
 	return w.root.Name()
 }
 
+// HasObsidianFolder reports whether the vault this writer writes into holds an
+// .obsidian directory. It is false on a nil Writer and after Close.
+func (w *Writer) HasObsidianFolder() bool {
+	if w == nil {
+		return false
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return vault.HasObsidianFolder(w.root)
+}
+
 // ObservedStatus reports the status the note carries on disk right now. The
 // reading page's other values come from a scan seconds old, which is right for
 // a body or a link graph; an older status would offer a transition from a

@@ -1656,3 +1656,43 @@ func TestAScanWithNoObservedRootIsNeverTheSameFiles(t *testing.T) {
 		t.Error("an observed scan is not the same files as itself, so this test proves nothing about the empty one")
 	}
 }
+
+func TestReaderHasObsidianFolderNeedsADirectory(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		setup func(t *testing.T, root string)
+		want  bool
+	}{
+		{"no folder", func(*testing.T, string) {}, false},
+		{"the folder", func(t *testing.T, root string) {
+			t.Helper()
+			if err := os.Mkdir(filepath.Join(root, ".obsidian"), 0o750); err != nil {
+				t.Fatal(err)
+			}
+		}, true},
+		{"a file of that name", func(t *testing.T, root string) {
+			t.Helper()
+			writeReaderFixture(t, root, ".obsidian", "not a folder")
+		}, false},
+		{"a folder deeper in", func(t *testing.T, root string) {
+			t.Helper()
+			if err := os.MkdirAll(filepath.Join(root, "Notes", ".obsidian"), 0o750); err != nil {
+				t.Fatal(err)
+			}
+		}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			tc.setup(t, root)
+			if got := openTestReader(t, root).HasObsidianFolder(); got != tc.want {
+				t.Errorf("HasObsidianFolder() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+	var none *Reader
+	if none.HasObsidianFolder() {
+		t.Error("a nil Reader reports an Obsidian vault")
+	}
+}

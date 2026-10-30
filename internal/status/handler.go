@@ -379,7 +379,10 @@ func (h *Handler) respondRecovery(
 	}
 	shell := h.shell()
 	lang := origin.Language(r)
-	door := pages.ObsidianHref(h.writer.VaultRoot(), notePath)
+	door := ""
+	if h.writer.HasObsidianFolder() {
+		door = pages.ObsidianHref(h.writer.VaultRoot(), notePath)
+	}
 	view := pages.StatusRecoveryView{
 		Changed:         failure.changed,
 		Summary:         failure.summary.In(lang),

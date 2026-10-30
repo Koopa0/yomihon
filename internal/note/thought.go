@@ -1,12 +1,13 @@
 package note
 
 import (
-	"crypto/rand"
+	"fmt"
 	"net/http"
-	"path"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/origin"
@@ -53,18 +54,37 @@ func (h *Handler) thought(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	markdown := thoughtMarkdown(h.sources.Contract, role, &n, sectionText)
-	// A second thought must not target the first one's file. The editor owns
-	// the final name; this bounded suggestion neither probes nor writes disk.
-	destination := path.Join(path.Dir(rel), "thought-"+rand.Text()+".md")
+	// The name carries the minute, so two thoughts on one source differ unless
+	// they start within the same minute. Obsidian owns the folder and what
+	// happens on a clash; this suggestion neither probes nor writes disk.
+	name := thoughtNoteName(n.Title, lang, time.Now())
 	view := pages.ThoughtView{
 		SourceTitle: label,
 		SourceHref:  pages.ResumeHref(rel, section, 0),
 		Markdown:    markdown,
-		EditorHref:  pages.ObsidianNewHref(h.sources.Source.Name(), destination, markdown),
+		EditorHref:  obsidianNewHref(h.sources.Source, name, markdown),
 	}
 	if err := pages.Thought(view, layouts.ChromeFromRequest(r, wording.ThoughtDoor.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Error("render thought stub", "error", err)
 	}
+}
+
+// obsidianOpenHref is the link that opens a note in Obsidian, or "" when the
+// vault is not one Obsidian has opened.
+func obsidianOpenHref(source *vault.Reader, rel string) string {
+	if !source.HasObsidianFolder() {
+		return ""
+	}
+	return pages.ObsidianHref(source.Name(), rel)
+}
+
+// obsidianNewHref is the link that starts a note in Obsidian, or "" when the
+// vault is not one Obsidian has opened.
+func obsidianNewHref(source *vault.Reader, name, content string) string {
+	if !source.HasObsidianFolder() {
+		return ""
+	}
+	return pages.ObsidianNewHref(source.Name(), name, content)
 }
 
 // thoughtSourceAvailable requires the generated citation to name this file.
@@ -125,4 +145,38 @@ func headingLinkText(text string) string {
 		return r
 	}, text)
 	return strings.Join(strings.Fields(cleaned), " ")
+}
+
+// maxThoughtTitleRunes bounds the source title inside a thought's file name so
+// the whole name stays well under the 255-byte limit file systems share, even
+// when every character is three bytes wide.
+const maxThoughtTitleRunes = 60
+
+// thoughtNoteName is the readable file name a reader's thought starts with:
+// the source title, a word for what the note is, and the minute it was begun.
+// The name has no folder and no extension; Obsidian places the file by the
+// reader's own setting for new notes and adds the extension itself.
+func thoughtNoteName(sourceTitle string, lang wording.Lang, at time.Time) string {
+	title := fileNameText(sourceTitle)
+	if runes := []rune(title); len(runes) > maxThoughtTitleRunes {
+		title = strings.TrimSpace(string(runes[:maxThoughtTitleRunes]))
+	}
+	name := fmt.Sprintf(wording.ThoughtNoteNameFmt.In(lang), title, at.Format("2006-01-02 1504"))
+	return strings.Join(strings.Fields(name), " ")
+}
+
+// fileNameText makes a title safe as part of a file name. The characters
+// Obsidian refuses in a name on some platform (\ / : * " < > ? |), and those it
+// refuses everywhere because they break links ([ ] # ^ |), become spaces, as do
+// control characters; a leading dot, which would hide the file, is dropped.
+// Obsidian publishes no such list, so this one is the union its own file-name
+// check shows for the three desktop platforms.
+func fileNameText(text string) string {
+	cleaned := strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) || strings.ContainsRune(`\/:*"<>?|[]#^`, r) {
+			return ' '
+		}
+		return r
+	}, text)
+	return strings.TrimLeft(strings.Join(strings.Fields(cleaned), " "), ".")
 }

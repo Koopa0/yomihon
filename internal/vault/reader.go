@@ -471,6 +471,27 @@ func (r *Reader) Name() string {
 	return r.name
 }
 
+// HasObsidianFolder reports whether the vault root holds an .obsidian
+// directory, the mark of a vault Obsidian has opened. The folder is read
+// through the pinned root, never by joining the selected path again.
+func (r *Reader) HasObsidianFolder() bool {
+	if r == nil || r.root == nil {
+		return false
+	}
+	return HasObsidianFolder(r.root)
+}
+
+// HasObsidianFolder reports whether root holds an .obsidian directory. A
+// browser cannot tell whether a URL scheme has a handler, so the folder is the
+// only evidence that a link into Obsidian can be answered at all.
+func HasObsidianFolder(root *os.Root) bool {
+	if root == nil {
+		return false
+	}
+	info, err := root.Stat(".obsidian")
+	return err == nil && info.IsDir()
+}
+
 // SameRoot reports whether other refers to the directory pinned by r. Both
 // identities come from the already-open directory objects; the pathname that
 // originally selected either object is not consulted.
