@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestReturnableAddressRefusesANonGETTarget holds the language form's return
+// TestReturnableAddressRefusesANonGETTarget holds the settings link's return
 // address to places a GET can revisit: a POST-rendered page names a target,
 // not a page, so it falls back to Home.
 func TestReturnableAddressRefusesANonGETTarget(t *testing.T) {

@@ -44,7 +44,7 @@ func TestRoutingRefusalsKeepTheReadingShell(t *testing.T) {
 		{"origin status", "POST", "/status", "origin", "", 403},
 		{"same site status", "POST", "/status", "same-site", "", 403},
 		{"malformed origin", "POST", "/status", "malformed", "", 403},
-		{"fetch language", "POST", "/lang", "fetch", "", 403},
+		{"fetch preferences", "POST", "/preferences", "fetch", "", 403},
 		{"fetch marks", "POST", "/marks", "fetch", "", 403},
 	}
 	for _, language := range []string{"zh-Hant", "en"} {

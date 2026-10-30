@@ -4,9 +4,9 @@
 // maps mode page, the folders mode page, the whole-vault health page, a vault
 // file's raw bytes, the freshness poll a page keeps open on the note it is
 // showing, the excerpt a hover card shows of the note under the reader's
-// pointer, the language switch every page's footer posts to, and the catch-all
-// that answers a path the vault has nothing at. The last is
-// deliberately last: it gives an unknown GET path a page with a way onward.
+// pointer, and the catch-all that
+// answers a path the vault has nothing at. The last is deliberately last: it
+// gives an unknown GET path a page with a way onward.
 // LocalizedRouter handles the mux's separate method refusal.
 //
 // A vault file with no dedicated reader is shown here too, as an honest
@@ -158,7 +158,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// answers with the not-found page.
 	mux.HandleFunc("GET /folders", h.folders)
 	mux.HandleFunc("GET /folders/{path...}", h.folder)
-	mux.HandleFunc("POST /lang", h.language)
 	mux.HandleFunc("GET /", h.notFound)
 }
 

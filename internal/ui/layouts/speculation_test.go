@@ -203,7 +203,6 @@ func TestSpeculationRulesReachOnlyReadingAddresses(t *testing.T) {
 		"/marks",
 		"/uncertainties",
 		"/static/app.css",
-		"/lang",
 		"/status",
 		"/reports/2026-09-03.html/raw",
 		"/notes/Notes/What%20yomihon%20is.md?from=draft",

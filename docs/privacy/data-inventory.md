@@ -118,7 +118,7 @@ the browser or operating system's speech service.
 
 Cookies and session storage hold the reading choices and where the reader had
 the left rail. Six cookies carry the choices, and the server writes
-every one of them — at `/preferences`, and at the language form. Four of the
+every one of them at `/preferences`. Four of the
 six also have a control in the header that the page's own script answers
 directly: the desk, the text size, the furigana and the shortcuts, written
 under the same names and for the same year, so a choice made with script and
