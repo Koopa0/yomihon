@@ -198,7 +198,7 @@ that same note is judged here as usual.
 | `link.unused.definition` | a link reference definition `[label]: address` that no link or image in the same note resolves through, so the page shows its address nowhere. `target` is the label. The usual causes are a label renamed on one side only, and two markers written together as `[E1][E2]`, which reads as one link with the text E1 and the label E2: write `[E1] [E2]` |
 | `embed.section_missing` | an `![[…#Heading]]` embed whose heading is not there, so there is no excerpt to cut. Nothing is shown; the block names the address that failed |
 | `embed.block_missing` | the same for `![[…#^id]]` |
-| `collision.name` | two or more files share one resolution name, so every `[[link]]` to it is ambiguous and nothing is linked. `collision_members` lists them all. Rename one, or link each by its full vault-relative path |
+| `collision.name` | two or more files share one resolution name that some `[[link]]` or `![[embed]]` in the vault is written against, so that link is ambiguous and nothing is linked. A shared name no wikilink uses is not reported: a Markdown path link such as `[run](lab/a/main.go)` resolves by path, not by name. `collision_members` lists them all. Rename one, or link each by its full vault-relative path |
 | `collision.alias` | two notes declare the same alias. Give the alias one owner |
 | `provenance.unresolved` | a frontmatter reference field points at nothing — `based_on` or `related` (`source_rule` `yomihon`), or one of the fields `[supersession]` configures (`#supersession`). A lesson slug counts as resolving |
 

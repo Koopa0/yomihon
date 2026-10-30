@@ -254,7 +254,7 @@ is refused. It is set by hand.
 | Exact lookup | four forms of the note's location — filename stem, filename, vault-relative path stem, that path — plus any `aliases` |
 | Slash target with no exact claimant | complete path suffix at a `/` boundary, such as `[[Atlas/README]]` for `Notes/Projects/Atlas/README.md`; one candidate links, several stay ambiguous |
 | Never resolves against | the frontmatter `title`. A link written against a title finds nothing; `check` names it `link.title_not_alias` and tells you which note you meant |
-| Two files, one name | every `[[link]]` to it is ambiguous and yomihon refuses to guess: nothing links, a span lists the candidates. Original key collisions produce `collision.name`; suffix lookup adds no collision keys. Two notes declaring one alias is `collision.alias` |
+| Two files, one name | every `[[link]]` to it is ambiguous and yomihon refuses to guess: nothing links, a span lists the candidates. Original key collisions produce `collision.name`, but only for a name some `[[link]]` or `![[embed]]` is written against (files that share a name and are linked by path or not at all draw nothing); suffix lookup adds no collision keys. Two notes declaring one alias is `collision.alias` |
 | Normalisation | trimmed, NFC, compared without regard to case, so `[[L01]]` and `[[l01]]` are one key and two files differing only in case collide |
 
 Give a note a name unique in the vault; add an alias when a second spelling

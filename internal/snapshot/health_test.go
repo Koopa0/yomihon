@@ -192,26 +192,29 @@ func TestHealthIgnoresCitationsFromArtifacts(t *testing.T) {
 	}
 }
 
-// Two files can share a name for years before the first link to it is typed,
-// and that link failing is the moment this page exists to prevent. Reading the
-// answer off the citations anyone happened to write found the pair only after
-// the damage: a name nobody had cited yet was invisible, while the page
-// promised to report names two files share.
-func TestHealthReportsSharedNamesNobodyHasLinkedTo(t *testing.T) {
+// Two files can share a name for years without costing anyone a link, and a
+// course vault repeats main.go in every lab by design. The page lists a shared
+// name once a link is written against it, which is when the vault's refusal to
+// guess starts to matter and the same names the judge's collision rule reports.
+// Counting every shared name would answer with one row per repeated file name
+// and bury what is wrong.
+func TestHealthReportsSharedNamesOnlyOnceALinkUsesThem(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		// Nothing anywhere cites "quiet": the pair stays invisible until
-		// somebody writes the link that will not resolve.
+		// Nothing anywhere cites "quiet", so nothing is broken by the pair.
 		parse(t, "A/quiet.md", "---\ntitle: Quiet A\n---\n\none\n"),
 		parse(t, "B/quiet.md", "---\ntitle: Quiet B\n---\n\ntwo\n"),
-		// The control: a shared name a real note does cite, which the old
-		// reading already found. An empty answer cannot pass this test.
+		// The control: a shared name a real note does cite. An empty answer
+		// cannot pass this test.
 		parse(t, "A/cited.md", "---\ntitle: Cited A\n---\n\nthree\n"),
 		parse(t, "B/cited.md", "---\ntitle: Cited B\n---\n\nfour\n"),
-		parse(t, "Concepts/reader.md", "---\ntitle: Reader\n---\n\nsee [[cited]]\n"),
+		// A shared resource name is cited by an embed, and its twin by path
+		// only, which resolves by path and breaks nothing.
+		parse(t, "Concepts/reader.md", "---\ntitle: Reader\n---\n\nsee [[cited]] and ![[shot.png]] and [run](lab/a/out.txt)\n"),
 	}
-	idx := graph.New(notes, nil)
+	resources := []string{"img/shot.png", "old/shot.png", "lab/a/out.txt", "lab/b/out.txt"}
+	idx := graph.New(notes, resources)
 	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
 
 	// The names carrying the extension are absent on purpose: two files sharing
@@ -219,7 +222,7 @@ func TestHealthReportsSharedNamesNobodyHasLinkedTo(t *testing.T) {
 	// as two.
 	want := []HealthCollision{
 		{Name: "cited", Candidates: []string{"A/cited.md", "B/cited.md"}},
-		{Name: "quiet", Candidates: []string{"A/quiet.md", "B/quiet.md"}},
+		{Name: "shot.png", Candidates: []string{"img/shot.png", "old/shot.png"}},
 	}
 	if diff := cmp.Diff(want, h.Collisions); diff != "" {
 		t.Errorf("Collisions mismatch (-want +got):\n%s", diff)
