@@ -12,10 +12,7 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-const (
-	excludeDirsSentinel = "excludedirs-lock-sentinel"
-	keptDirsSentinel    = "excludedirs-kept-sentinel"
-)
+const excludeDirsSentinel = "excludedirs-lock-sentinel"
 
 // TestExcludedDirectoriesAreUnseenLikeHiddenOnes composes the production site
 // over a vault whose contract excludes courses/*/lab and holds the directory
@@ -34,7 +31,7 @@ func TestExcludedDirectoriesAreUnseenLikeHiddenOnes(t *testing.T) {
 		"courses/C1/lab/main.go":           "package main // " + excludeDirsSentinel + "\n",
 		"courses/C2/lab/main.go":           "package main\n",
 		"courses/C1/lab/Inside.md":         "---\ntitle: Inside\ntype: note\nstatus: draft\n---\n" + excludeDirsSentinel + "\n",
-		"courses/C1/modules/Lesson.md":     "---\ntitle: Lesson\ntype: note\nstatus: draft\n---\n" + keptDirsSentinel + "\n",
+		"courses/C1/modules/Lesson.md":     "---\ntitle: Lesson\ntype: note\nstatus: draft\n---\nLesson body.\n",
 		"courses/C1/.hidden/main.go":       "package main\n",
 		"courses/C1/modules/lab/Shown.txt": "shown\n",
 	}
@@ -71,13 +68,14 @@ func TestExcludedDirectoriesAreUnseenLikeHiddenOnes(t *testing.T) {
 		t.Errorf("GET /folders/courses/C1/lab = %d, want %d, the answer for a hidden directory", code, hiddenFolderCode)
 	}
 
-	search := readingPage(t, site, "/search?q="+excludeDirsSentinel)
-	if !strings.Contains(search, `data-result-count="0"`) {
-		t.Errorf("GET /search found text beneath an excluded directory; page = %q", search)
-	}
-
-	if kept := readingPage(t, site, "/search?q="+keptDirsSentinel); strings.Contains(kept, `data-result-count="0"`) {
+	// The search page prints its query back, so what is looked for is a link to
+	// the note, not the words. The sibling lesson is the control: the same
+	// kind of query reaches it.
+	if kept := readingPage(t, site, "/search?q=Lesson"); !strings.Contains(kept, `href="/notes/courses/C1/modules/Lesson.md`) {
 		t.Errorf("GET /search lost the sibling modules directory; page = %q", kept)
+	}
+	if inside := readingPage(t, site, "/search?q=Inside"); strings.Contains(inside, `href="/notes/courses/C1/lab/`) {
+		t.Errorf("GET /search indexed a note beneath an excluded directory; page = %q", inside)
 	}
 
 	findings, checkErr := judge.Check(t.Context(), root)

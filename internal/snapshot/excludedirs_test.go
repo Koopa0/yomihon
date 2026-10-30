@@ -33,10 +33,10 @@ func TestExcludedDirectoryIsUnseenLikeAHiddenOne(t *testing.T) {
 		t.Fatal("the contract fixture does not contain the scan needle")
 	}
 	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
-	if err := os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {
+	if err = os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {
 		t.Fatalf("mkdir contract fixture: %v", err)
 	}
-	if err := os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- the root is this test's own temporary directory
+	if err = os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- the root is this test's own temporary directory
 		t.Fatalf("write contract fixture: %v", err)
 	}
 	contract, err := schema.Load(root)

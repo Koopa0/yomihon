@@ -800,7 +800,7 @@ func validateContractSemantics(contract *Contract) error {
 	if err := validateRules(&contract.definition.Enums, &contract.definition.Fields, &contract.definition.Rules); err != nil {
 		return err
 	}
-	if err := validateScan(contract.definition.Scan); err != nil {
+	if err := validateScan(&contract.definition.Scan); err != nil {
 		return err
 	}
 	if err := compileLifecycle(contract); err != nil {
@@ -1071,7 +1071,7 @@ func validTopLevelComponent(value string) bool {
 		!strings.ContainsAny(value, `/\`)
 }
 
-func validateScan(scan ScanPolicy) error {
+func validateScan(scan *ScanPolicy) error {
 	if err := validateUniqueStrings("scan.knowledge_dirs", scan.KnowledgeDirs); err != nil {
 		return err
 	}
