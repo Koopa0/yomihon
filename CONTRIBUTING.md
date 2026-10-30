@@ -361,7 +361,15 @@ Check that:
 - every behaviour a screenshot shows still happens at that commit, and the
   images were regenerated with `make screenshots`.
 
-After the tag publishes, download one asset and check it against `SHA256SUMS`
+When the release is published, put `.github/release-notes.md` above GitHub's
+generated list:
+
+```sh
+gh release view <tag> --json body -q .body > /tmp/generated.md
+cat .github/release-notes.md /tmp/generated.md | gh release edit <tag> --notes-file -
+```
+
+Then download one asset and check it against `SHA256SUMS`
 and `go version -m`, and confirm `go list -m github.com/koopa0/yomihon@latest`
 reports the new version.
 

@@ -1,4 +1,4 @@
-<!-- The text above GitHub's generated notes on the release page. Edit it for each release; do not append to it. -->
+<!-- Goes above GitHub's generated notes when a release is published (see CONTRIBUTING). Edit it for each release; do not append to it. -->
 
 Since v0.2.0, yomihon has become a reading-first interface: the reading room has a calmer look, pages change without flashing, and the header carries only what reading needs.
 
