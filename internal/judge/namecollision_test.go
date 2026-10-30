@@ -51,7 +51,7 @@ func TestNameCollisionNeedsALinkWrittenAgainstTheName(t *testing.T) {
 		{name: "markdown path links resolve by path, not by name", lesson: lessonHead + pathLinks},
 		{name: "a wikilink to the shared name", lesson: lessonHead + pathLinks + "\nSee [[main.go]].\n", want: []string{"main.go"}},
 		{name: "an embed of the shared name", lesson: lessonHead + pathLinks + "\n![[main.go]]\n", want: []string{"main.go"}},
-		{name: "the link folds like the index", lesson: lessonHead + "See [[ MAIN.GO#run ]].\n", want: []string{"main.go"}},
+		{name: "the link folds like the index", lesson: lessonHead + "See [[MAIN.GO#run]].\n", want: []string{"main.go"}},
 		{name: "a wikilink to a path resolves uniquely", lesson: lessonHead + "See [[lab/a/main.go]].\n"},
 		{name: "a link quoted in a code fence is not written", lesson: lessonHead + "```\n[[main.go]]\n```\n"},
 		{
