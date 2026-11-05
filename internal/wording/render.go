@@ -84,7 +84,7 @@ var (
 	ReadAloudPrevious    = both("上一段", "Previous")
 	ReadAloudNext        = both("下一段", "Next")
 	ReadAloudProgressFmt = both("第 {n} 段，共 {total} 段", "Paragraph {n} of {total}")
-	ReadAloudCellFmt     = both("朗讀「{text}」", "Read “{text}” aloud")
+	ReadAloudCellFmt     = both("朗讀「{text}」", "Read aloud: {text}")
 )
 
 // ReadAloudLimits says what the platform cannot do, where the reader meets the

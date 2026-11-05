@@ -40,7 +40,7 @@ const CELLS = [
 const SAID = CELLS.map(([, said]) => said).filter(Boolean);
 const NAME = {
   'zh-Hant': (said) => `朗讀「${said}」`,
-  en: (said) => `Read “${said}” aloud`,
+  en: (said) => `Read aloud: ${said}`,
 };
 const STOP = { 'zh-Hant': '停止朗讀', en: 'Stop reading aloud' };
 
@@ -236,7 +236,7 @@ try {
     const spoken = SAID.length;
     await speakers.nth(0).click();
     await handoffs(page, spoken + 1);
-    let state = await page.evaluate(() => ({
+    const state = await page.evaluate(() => ({
       speaking: document.querySelectorAll('[data-speaking]').length,
       name: document.querySelector('.y-cellspeak[data-speaking]')?.getAttribute('aria-label'),
       cancels: window.__speechFixture.cancels,

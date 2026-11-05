@@ -42,8 +42,12 @@ const CELL_NOTE = /(?:\s*(?:\[[^\]]*\]|\uFF3B[^\uFF3D]*\uFF3D|\([^)]*\)|\uFF08[^
 // as the space it stands for.
 function cellText(cell, leaveOut) {
   const copy = cell.cloneNode(true);
-  copy.querySelectorAll(leaveOut).forEach((node) => node.remove());
-  copy.querySelectorAll('br').forEach((lineBreak) => lineBreak.replaceWith(' '));
+  copy.querySelectorAll(leaveOut).forEach((node) => {
+    node.remove();
+  });
+  copy.querySelectorAll('br').forEach((lineBreak) => {
+    lineBreak.replaceWith(' ');
+  });
   return copy.textContent.normalize('NFC').replace(CELL_NOTE, '').trim();
 }
 
@@ -465,9 +469,14 @@ export function initLesson(enhanceCodeCopy) {
       .map((button) => button.closest('.y-tablewrap')).filter(Boolean));
     let pendingRoom = 0;
     function makeRoom() {
-      wraps.forEach((wrap) => wrap.classList.remove('y-tablewrap--room'));
-      [...wraps].filter((wrap) => wrap.scrollWidth > wrap.clientWidth)
-        .forEach((wrap) => wrap.classList.add('y-tablewrap--room'));
+      wraps.forEach((wrap) => {
+        wrap.classList.remove('y-tablewrap--room');
+      });
+      [...wraps]
+        .filter((wrap) => wrap.scrollWidth > wrap.clientWidth)
+        .forEach((wrap) => {
+          wrap.classList.add('y-tablewrap--room');
+        });
     }
     makeRoom();
     document.fonts?.ready.then(makeRoom);
