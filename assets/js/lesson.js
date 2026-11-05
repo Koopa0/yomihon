@@ -13,6 +13,57 @@ function speechLanguage(passage) {
   return declared || 'ja-JP';
 }
 
+// Which table cells say Japanese, and what they say. A cell is Japanese when
+// its own characters declare it: kana belong to Japanese alone, so a cell
+// written wholly in kana is spoken with a Japanese voice whatever language the
+// article around it carries. Han characters declare nothing, because Chinese
+// uses the same ones and a bare Han word would be sent to the wrong voice; they
+// count only under the author's furigana, which says that the word is Japanese
+// and how it is read. Everything else stays silent rather than guessed at: a
+// row label that names a kana row, a note, a dash, a cell that mixes Chinese
+// into the Japanese. No single voice reads both. The characters are written as
+// escapes because the words a reader sees belong to the server, and the check
+// that keeps them there allows no kana in a script.
+const KANA = '\\u3041-\\u3096\\u309D\\u309E\\u30A1-\\u30FA\\u30FD\\u30FE\\u31F0-\\u31FF';
+// What may stand between kana words without making the cell anything else: the
+// prolonged-sound mark, Japanese full stops, the middle dot, a slash or arrow
+// between two forms of one word, the tilde-like dash that opens a suffix (in
+// both of its codepoints), and spaces.
+const BETWEEN_KANA = '\\u30FC\\u3001\\u3002\\u30FB/\\uFF0F\\u2192\\u301C\\uFF5E\\s';
+const WHOLLY_KANA = new RegExp(`^[${KANA}${BETWEEN_KANA}]*$`, 'u');
+const ANY_KANA = new RegExp(`[${KANA}]`, 'u');
+const KANA_READING = new RegExp(`^[${KANA}\\u30FC\\s]+$`, 'u');
+// A bracketed tag closing a cell, such as the one that marks a katakana word,
+// annotates the word and is no part of what is said. Square and round brackets,
+// in their ASCII and fullwidth forms.
+const CELL_NOTE = /(?:\s*(?:\[[^\]]*\]|\uFF3B[^\uFF3D]*\uFF3D|\([^)]*\)|\uFF08[^\uFF09]*\uFF09))+\s*$/u;
+
+// A cell's text with the matching descendants left out, and a line break read
+// as the space it stands for.
+function cellText(cell, leaveOut) {
+  const copy = cell.cloneNode(true);
+  copy.querySelectorAll(leaveOut).forEach((node) => node.remove());
+  copy.querySelectorAll('br').forEach((lineBreak) => lineBreak.replaceWith(' '));
+  return copy.textContent.normalize('NFC').replace(CELL_NOTE, '').trim();
+}
+
+// What a Japanese cell says, or '' for a cell that is not one. The base text
+// under furigana is spoken, as in a marked paragraph, and the furigana is only
+// the evidence. A pause stands where an author wrote a slash or an arrow, and
+// the dash before a suffix is not spoken at all.
+function japaneseCellSpeech(cell) {
+  const readings = [...cell.querySelectorAll('rt')];
+  if (!readings.every((reading) => KANA_READING.test(reading.textContent.normalize('NFC')))) return '';
+  const spoken = cellText(cell, 'rt, rp');
+  if (!WHOLLY_KANA.test(cellText(cell, 'ruby'))) return '';
+  if (readings.length === 0 && !ANY_KANA.test(spoken)) return '';
+  return spoken
+    .replace(/\s*[/\uFF0F\u2192]\s*/gu, '\u3001')
+    .replace(/[\u301C\uFF5E]/gu, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
 export function initLesson(enhanceCodeCopy) {
   let speechRate = 0.8;
   let speechGeneration = 0;
@@ -87,6 +138,7 @@ export function initLesson(enhanceCodeCopy) {
   const previousLabel = column?.dataset.readaloudPrevious ?? '';
   const nextLabel = column?.dataset.readaloudNext ?? '';
   const progressTemplate = column?.dataset.readaloudProgress ?? '';
+  const cellTemplate = column?.dataset.readaloudCell ?? '';
   const limitsLabel = column?.dataset.readaloudLimits ?? '';
 
   // Reading a note through: every marked paragraph in document order, the
@@ -376,6 +428,55 @@ export function initLesson(enhanceCodeCopy) {
     });
   }
 
+  // A speaker beside each table cell that says Japanese. It is the same speech
+  // owner as the marked paragraphs, so voice choice, speed, stopping on a second
+  // press and the unavailable message are theirs rather than a second copy. The
+  // buttons carry no data-tts, which keeps them out of the walk through the
+  // marked paragraphs: a table is something to dip into, not something to be
+  // read through. A page offers them only where it already offers speech, since
+  // that is where its words and its status line arrive.
+  function initCellSpeech() {
+    if (!cellTemplate || !('speechSynthesis' in window)) return;
+    // The cell has no way to declare its own language, and the article around it
+    // may be tagged Chinese or not at all, so the voice is asked for through a
+    // passage that is Japanese by construction.
+    const japanese = document.createElement('span');
+    japanese.lang = 'ja';
+    column.querySelectorAll('.y-prose td').forEach((cell) => {
+      const spoken = japaneseCellSpeech(cell);
+      if (!spoken) return;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'y-cellspeak';
+      // The label is interface language wrapped around authored words, so it is
+      // declared in the interface's language and the words ride inside it.
+      button.lang = document.documentElement.lang;
+      button.setAttribute('aria-label', cellTemplate.replace('{text}', spoken));
+      button.addEventListener('click', () => speakText(spoken, button, japanese));
+      cell.append(button);
+    });
+    // A speaker hangs past the end of its words. Between columns the next cell's
+    // padding takes the hang; the last column has none, and the wrapper around
+    // a table clips or scrolls what passes its edge. Only a table that cannot
+    // hold its speakers is given room for them, so a table that can is laid out
+    // exactly as it was. The measure is repeated when the window changes size
+    // and when the page's fonts arrive, since both change how wide the words are.
+    const wraps = new Set([...column.querySelectorAll('.y-cellspeak')]
+      .map((button) => button.closest('.y-tablewrap')).filter(Boolean));
+    let pendingRoom = 0;
+    function makeRoom() {
+      wraps.forEach((wrap) => wrap.classList.remove('y-tablewrap--room'));
+      [...wraps].filter((wrap) => wrap.scrollWidth > wrap.clientWidth)
+        .forEach((wrap) => wrap.classList.add('y-tablewrap--room'));
+    }
+    makeRoom();
+    document.fonts?.ready.then(makeRoom);
+    window.addEventListener('resize', () => {
+      cancelAnimationFrame(pendingRoom);
+      pendingRoom = requestAnimationFrame(makeRoom);
+    });
+  }
+
   function initSlotCard(card) {
     const dataElement = card.querySelector('script.y-slotdata');
     if (!dataElement) return;
@@ -511,6 +612,7 @@ export function initLesson(enhanceCodeCopy) {
   }
 
   initTextToSpeech();
+  initCellSpeech();
   document.querySelectorAll('.y-slotcard').forEach(initSlotCard);
   initConceptSheet();
 }

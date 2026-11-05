@@ -3398,6 +3398,72 @@ a.y-facetrow:hover {
   }
 }
 
+/* A table cell that says Japanese carries a speaker straight after its text.
+   The speaker leaves the flow and keeps the place it would have had, so it
+   takes no width from a column and no height from a row: a table that has room
+   is laid out exactly as it was before the script ran, and the speaker still
+   sits beside the words it speaks rather than at the far edge of a wide cell,
+   where it would read as belonging to the next one. A table without that room
+   is the one exception, handled below. The cell that holds it is the
+   containing block, which is what lets the speaker scroll and clip with the
+   cell inside the wrapper that carries a wide table. The glyph is a mask over
+   the button's own colour, so one colour rule serves it at rest, on hover and
+   while it speaks. The focus ring is drawn inside the box, because that wrapper
+   clips anything drawn outside its edge. */
+.y-prose td:has(> .y-cellspeak) {
+  position: relative;
+}
+
+.y-cellspeak {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: var(--r-sm);
+  color: var(--fg-faint);
+  cursor: pointer;
+  display: inline-flex;
+  height: 24px;
+  justify-content: center;
+  margin-inline-start: 2px;
+  padding: 0;
+  position: absolute;
+  transition: color var(--dur-base) var(--ease-standard), background var(--dur-base) var(--ease-standard);
+  width: 24px;
+}
+
+.y-cellspeak::before {
+  background-color: currentcolor;
+  content: '';
+  height: 14px;
+  mask-image: url(data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%20fill=%27none%27%20stroke=%27black%27%20stroke-width=%271.7%27%20stroke-linecap=%27round%27%20stroke-linejoin=%27round%27%3E%3Cpath%20d=%27M11%205%206%209H2v6h4l5%204z%27/%3E%3Cpath%20d=%27M15.54%208.46a5%205%200%200%201%200%207.07%27/%3E%3Cpath%20d=%27M19.07%204.93a10%2010%200%200%201%200%2014.14%27/%3E%3C/svg%3E);
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+  width: 14px;
+}
+
+/* The last column is the one place a speaker has no neighbouring cell's padding
+   to hang into. When a table cannot hold its speakers the script says so, and
+   that table's last column is given the room, so what hangs past the edge is
+   never clipped or taken for something to scroll sideways. */
+.y-prose .y-tablewrap--room td:last-child:has(> .y-cellspeak) {
+  padding-inline-end: 26px;
+}
+
+.y-cellspeak:hover {
+  background: var(--overlay);
+  color: var(--fg);
+}
+
+.y-cellspeak:focus-visible {
+  outline-offset: -2px;
+}
+
+.y-cellspeak[data-speaking] {
+  background: var(--accent-muted);
+  color: var(--accent);
+}
+
 /* The read-aloud controls are a line of the page rather than a panel on it:
    the moves are ghost buttons like the header's, and the speeds one segmented
    group inside a single hairline, the chosen one on the faint wash in the
@@ -6112,6 +6178,13 @@ samp,
     background-color: CanvasText;
     forced-color-adjust: none;
   }
+
+  /* A cell's speaker is a mask over its background, which forced colours
+     replaces, so the system text colour keeps the glyph drawn. */
+  .y-cellspeak::before {
+    background-color: CanvasText;
+    forced-color-adjust: none;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .y-rail-left {
@@ -6215,6 +6288,7 @@ samp,
   .y-compare__tabs,
   .y-tts,
   .y-ttsbar,
+  .y-cellspeak,
   .y-slotcontrols,
   .y-slotactions,
   .y-facets,
