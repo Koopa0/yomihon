@@ -45,6 +45,7 @@ func TestTheReadAloudBarsWordsTravelWithThePage(t *testing.T) {
 			t.Parallel()
 			attrs := readAloudAttrs(spoken, lang)
 			for name, phrase := range map[string]wording.Phrase{
+				"data-readaloud-cell":        wording.ReadAloudCellFmt,
 				"data-readaloud-controls":    wording.ReadAloudControls,
 				"data-readaloud-speed":       wording.ReadAloudSpeed,
 				"data-readaloud-rate":        wording.ReadAloudRateFmt,
@@ -63,7 +64,7 @@ func TestTheReadAloudBarsWordsTravelWithThePage(t *testing.T) {
 					t.Errorf("%s = %v, want %q", name, got, want)
 				}
 			}
-			if len(attrs) != 13 {
+			if len(attrs) != 14 {
 				t.Errorf("readAloudAttrs() carries %d attributes; every one of them has to be named above", len(attrs))
 			}
 		})
@@ -79,6 +80,16 @@ func TestTheReadAloudBarsWordsTravelWithThePage(t *testing.T) {
 				if !strings.Contains(said, placeholder) {
 					t.Errorf("the %s progress sentence %q does not carry %s", lang, said, placeholder)
 				}
+			}
+		}
+	})
+
+	t.Run("the cell sentence keeps the place the script fills with the cell's words", func(t *testing.T) {
+		t.Parallel()
+		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+			said := wording.ReadAloudCellFmt.In(lang)
+			if !strings.Contains(said, "{text}") {
+				t.Errorf("the %s cell sentence %q does not carry {text}", lang, said)
 			}
 		}
 	})

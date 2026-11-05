@@ -136,10 +136,10 @@ func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 // readAloudAttrs carries the read-aloud bar's words to the page that will grow
 // one. The browser builds the bar, and a sentence built there would be in
 // whichever language the script was written in. They are withheld from a page
-// with nothing to read aloud, on the conditions the script itself uses: either
-// speaker the reader can press reaches the same speech owner, so a lesson that
-// offers only the second one needs these words as much as one that offers the
-// first.
+// with nothing to read aloud, on the conditions the script itself uses: every
+// speaker the reader can press (a paragraph, a practice card, a table cell)
+// reaches the same speech owner, so a lesson that offers only one kind needs
+// these words as much as one that offers another.
 // It takes the rendered body rather than the note, because the bar belongs to
 // any page that carries marked paragraphs and one of them is not a note.
 func readAloudAttrs(bodyHTML string, lang wording.Lang) templ.Attributes {
@@ -148,6 +148,7 @@ func readAloudAttrs(bodyHTML string, lang wording.Lang) templ.Attributes {
 		return nil
 	}
 	return templ.Attributes{
+		"data-readaloud-cell":        wording.ReadAloudCellFmt.In(lang),
 		"data-readaloud-controls":    wording.ReadAloudControls.In(lang),
 		"data-readaloud-speed":       wording.ReadAloudSpeed.In(lang),
 		"data-readaloud-rate":        wording.ReadAloudRateFmt.In(lang),
