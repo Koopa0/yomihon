@@ -151,8 +151,8 @@ type Document struct {
 	// the caller did not know, which treats every hit as prose.
 	FenceRanges [][2]int
 
-	// DisplaySpans describe source characters an excerpt hides, replaces or
-	// draws as deleted; PlainText remains the searchable authority.
+	// DisplaySpans describe source characters an excerpt hides or draws as
+	// deleted; PlainText remains the searchable authority.
 	DisplaySpans []render.DisplaySpan
 
 	// Insertions cut runs where the page adds text absent from PlainText.

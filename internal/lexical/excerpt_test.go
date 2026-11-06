@@ -53,16 +53,6 @@ func TestDisplayNFCAndLanding(t *testing.T) {
 			want:  excerptAnswer{Text: "漢 字 end", Marks: []string{"漢 字"}, Landing: "漢 字", Bare: "漢 字"},
 		},
 		{
-			name: "hidden overlap suppresses whole replacement", text: "needle visible", query: "visible",
-			spans: []render.DisplaySpan{{Start: 0, End: 6, Replacement: "needle"}, {Start: 2, End: 4, Hidden: true}},
-			want:  excerptAnswer{Text: "visible", Marks: []string{"visible"}, Landing: "visible", Bare: "visible"},
-		},
-		{
-			name: "invalid replacement bytes cannot panic", text: "hide needle", query: "needle",
-			spans: []render.DisplaySpan{{Start: 0, End: 4, Replacement: "\xff"}},
-			want:  excerptAnswer{Text: "\xff needle", Marks: []string{"needle"}, Landing: "needle", Bare: "needle"},
-		},
-		{
 			name: "reordered combining prefix maps whole string", text: "a\u0301\u0323 {hidden} needle", query: "needle",
 			spans: []render.DisplaySpan{{Start: 6, End: 14, Hidden: true}},
 			want:  excerptAnswer{Text: "ạ́ needle", Marks: []string{"needle"}, Landing: "needle", Bare: "needle"},
@@ -71,11 +61,6 @@ func TestDisplayNFCAndLanding(t *testing.T) {
 			name: "width-folded visible hit keeps original bytes", text: "hide ＮＥＥＤＬＥ tail", query: "needle",
 			spans: []render.DisplaySpan{{Start: 0, End: 4, Hidden: true}},
 			want:  excerptAnswer{Text: "ＮＥＥＤＬＥ tail", Marks: []string{"ＮＥＥＤＬＥ"}, Landing: "ＮＥＥＤＬＥ", Bare: "ＮＥＥＤＬＥ"},
-		},
-		{
-			name: "overlapping replacement emits once", text: "abcdef needle", query: "needle",
-			spans: []render.DisplaySpan{{Start: 0, End: 4, Replacement: "X"}, {Start: 2, End: 6, Replacement: "Y"}},
-			want:  excerptAnswer{Text: "X needle", Marks: []string{"needle"}, Landing: "needle", Bare: "needle"},
 		},
 	}
 	for _, tt := range tests {
@@ -107,21 +92,6 @@ func TestExcerptWindow(t *testing.T) {
 			name: "retraction opened before cut", text: "~~needle tail~~", start: 4, end: 11,
 			spans: []render.DisplaySpan{{Start: 0, End: 2, Hidden: true}, {Start: 2, End: 13, Deleted: true}, {Start: 13, End: 15, Hidden: true}},
 			want:  []ExcerptRun{{Text: "…"}, {Text: "edle ta", Deleted: true}, {Text: "…"}},
-		},
-		{
-			name: "complete entity at both cut edges", text: "aa &amp; bb", start: 3, end: 8,
-			spans: []render.DisplaySpan{{Start: 3, End: 8, Replacement: "&"}},
-			want:  []ExcerptRun{{Text: "…&…"}},
-		},
-		{
-			name: "partial entity at right cut", text: "aa &amp; bb", start: 3, end: 7,
-			spans: []render.DisplaySpan{{Start: 3, End: 8, Replacement: "&"}},
-			want:  []ExcerptRun{{Text: "……"}},
-		},
-		{
-			name: "partial entity at left cut", text: "aa &amp; bb", start: 4, end: 8,
-			spans: []render.DisplaySpan{{Start: 3, End: 8, Replacement: "&"}},
-			want:  []ExcerptRun{{Text: "……"}},
 		},
 		{
 			name: "hidden span crosses opening", text: "abcXdef", start: 3, end: 6,
@@ -175,21 +145,22 @@ func displayedAnswer(t *testing.T, document *Document, query string) excerptAnsw
 
 func FuzzDisplayRanges(f *testing.F) {
 	for _, seed := range []struct {
-		text, replacement string
-		start, end        int
+		text       string
+		start, end int
+		deleted    bool
 	}{
-		{"hide needle", "\xff", 0, 4},
-		{"e\u0301 needle", "", 0, 1},
-		{"needle", "", -1, 7},
-		{"漢\n字 needle", "&", 0, 4},
+		{"hide \xff needle", 0, 4, false},
+		{"e\u0301 needle", 0, 1, false},
+		{"needle", -1, 7, false},
+		{"漢\n字 needle", 0, 4, true},
 	} {
-		f.Add(seed.text, seed.replacement, seed.start, seed.end)
+		f.Add(seed.text, seed.start, seed.end, seed.deleted)
 	}
-	f.Fuzz(func(t *testing.T, text, replacement string, start, end int) {
-		if len(text)+len(replacement) > 32768 {
+	f.Fuzz(func(t *testing.T, text string, start, end int, deleted bool) {
+		if len(text) > 32768 {
 			t.Skip()
 		}
-		document := Document{RelPath: "fixture.md", PlainText: text, DisplaySpans: []render.DisplaySpan{{Start: start, End: end, Hidden: replacement == "", Replacement: replacement}}}
+		document := Document{RelPath: "fixture.md", PlainText: text, DisplaySpans: []render.DisplaySpan{{Start: start, End: end, Hidden: !deleted, Deleted: deleted}}}
 		index := NewIndex([]Document{document}, schema.ArtifactPolicy{})
 		answer, err := index.Search(Parse("needle"), 1)
 		if err != nil {
@@ -197,7 +168,7 @@ func FuzzDisplayRanges(f *testing.F) {
 		}
 		for i := range answer.Results {
 			result := &answer.Results[i]
-			if utf8.ValidString(text) && utf8.ValidString(replacement) && !utf8.ValidString(result.Snippet) {
+			if utf8.ValidString(text) && !utf8.ValidString(result.Snippet) {
 				t.Fatalf("display corrupted UTF-8: %q", result.Snippet)
 			}
 		}

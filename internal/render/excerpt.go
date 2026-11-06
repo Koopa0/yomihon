@@ -33,12 +33,11 @@ type Projection struct {
 }
 
 // DisplaySpan describes a display effect on a half-open range of corpus bytes.
-// Hidden wins over decoration. An empty Replacement keeps the original bytes.
+// Hidden wins over decoration.
 type DisplaySpan struct {
-	Start, End  int
-	Hidden      bool
-	Deleted     bool
-	Replacement string
+	Start, End int
+	Hidden     bool
+	Deleted    bool
 }
 
 // PlainProjection returns the searchable corpus with note display annotations.
