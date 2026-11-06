@@ -230,4 +230,10 @@ func TestOnlyMarkdownDirectlyInTheFolderIsAReport(t *testing.T) {
 	if diff := cmp.Diff([]string{"System/reports/2026-09-22 review.md"}, got); diff != "" {
 		t.Errorf("reports (-want +got):\n%s", diff)
 	}
+	for _, file := range files {
+		want := file.path == "System/reports/2026-09-22 review.md"
+		if got := InReports(file.path); got != want {
+			t.Errorf("InReports(%q) = %t, want %t", file.path, got, want)
+		}
+	}
 }

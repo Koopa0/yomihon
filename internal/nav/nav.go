@@ -588,8 +588,14 @@ func (m *Model) InJournal(relPath string) bool {
 	return m.journalDir.Contains(relPath)
 }
 
-// InReports reports whether relPath lives among the reports.
-func InReports(relPath string) bool { return strings.HasPrefix(relPath, reportsPrefix) }
+// InReports reports whether relPath is one of the reports: a Markdown file
+// written directly in System/reports/. The shelf, the sidebar and the reading
+// rail all ask this one question, so a file in a folder below, or of another
+// kind, is a report on none of them.
+func InReports(relPath string) bool {
+	rest, ok := strings.CutPrefix(relPath, reportsPrefix)
+	return ok && !strings.Contains(rest, "/") && vault.IsMarkdown(rest)
+}
 
 // buildJournal selects markdown files below the declared journal directory
 // from the scanner's captures. Membership is by location alone, so an entry
@@ -646,19 +652,17 @@ func buildReports(files []capturedFile, dated schema.AuthoredDate) []Report {
 	var reports []Report
 	for _, file := range files {
 		p := file.path
-		rest, ok := strings.CutPrefix(p, reportsPrefix)
-		if !ok {
+		if !InReports(p) {
 			continue
 		}
-		if !strings.Contains(rest, "/") && vault.IsMarkdown(rest) {
-			reports = append(reports, Report{
-				Name:    rest,
-				Title:   writtenReportTitle(file, displayName(rest)),
-				RelPath: p,
-				Date:    noteDay(file, dated),
-				Opening: openingLine(file),
-			})
-		}
+		rest := strings.TrimPrefix(p, reportsPrefix)
+		reports = append(reports, Report{
+			Name:    rest,
+			Title:   writtenReportTitle(file, displayName(rest)),
+			RelPath: p,
+			Date:    noteDay(file, dated),
+			Opening: openingLine(file),
+		})
 	}
 	slices.SortStableFunc(reports, byRecency)
 	qualifySharedTitles(reports)
