@@ -1055,14 +1055,6 @@ html:not([data-js]) .y-rubybtn {
   color: var(--warn);
 }
 
-/* The word on the briefing the vault keeps current. A report is called by its
-   title, which runs longer than a file name does, so the title is what wraps
-   and the word keeps its line: "最新" broken across two lines reads as nothing. */
-.y-navmark--newest {
-  flex: none;
-  white-space: nowrap;
-}
-
 .y-navitem--broken {
   cursor: default;
 }
@@ -4351,18 +4343,17 @@ a.y-facetrow:hover {
 }
 
 /* A row on a shelf read for what each document is called. A report is read for
-   what it answers, so the row opens with its title; the day it is for and the
-   kind it is, where it has one, hold the two fixed columns after it, and the
-   opening runs under the title, clipped to a single line. The columns have a
-   width of their own because the rows are separate grids: left to size
-   themselves, the day would start somewhere different on every row according to
-   how long the kind beside it is spelled, or whether it has one. The hairline,
-   the padding and the hover are the shelf's own. */
+   what it answers, so the row opens with its title; the day it is for holds the
+   fixed column after it, and the opening runs under the title, clipped to a
+   single line. The column has a width of its own because the rows are separate
+   grids: left to size itself, the day would start somewhere different on every
+   row according to how long the title beside it runs. The hairline, the padding
+   and the hover are the shelf's own. */
 .y-row--by-title {
   align-items: baseline;
   column-gap: 18px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 5.5rem 6rem;
+  grid-template-columns: minmax(0, 1fr) 5.5rem;
   row-gap: 3px;
 }
 
@@ -4376,24 +4367,17 @@ a.y-facetrow:hover {
   grid-row: 1;
 }
 
-.y-row--by-title .y-row__measure {
-  grid-column: 3;
-  grid-row: 1;
-  text-align: right;
-}
-
 .y-row--by-title .y-row__opening {
   grid-column: 1;
   grid-row: 2;
 }
 
-/* A phone has no room for three columns. The title takes the full width and
-   wraps instead of being squeezed into what the day and the kind leave, the
-   opening runs under it, and the day and the kind, where there is one, share the
-   line below. */
+/* A phone has no room for two columns. The title takes the full width and
+   wraps instead of being squeezed into what the day leaves, the opening runs
+   under it, and the day takes the line below. */
 @media (max-width: 720px) {
   .y-row--by-title {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     row-gap: 0;
   }
 
@@ -4408,12 +4392,6 @@ a.y-facetrow:hover {
 
   .y-row--by-title .y-row__when {
     grid-column: 1;
-    grid-row: 3;
-    margin-top: 6px;
-  }
-
-  .y-row--by-title .y-row__measure {
-    grid-column: 2;
     grid-row: 3;
     margin-top: 6px;
   }
@@ -4539,70 +4517,6 @@ a.y-facetrow:hover {
    month is open rather than falling off every one of them. */
 .y-journalundated {
   margin-top: 34px;
-}
-
-/* Reports — the sandboxed briefing shell. Not a note: a title, then an iframe
-   that fills the reading column. The briefing HTML is served verbatim from
-   /reports/<name>/raw and sandboxed (allow-scripts, never allow-same-origin);
-   yomihon styles only the frame, never the content inside it. The column is no
-   wider than the room the shell left beside the rail before the rail went to
-   the window's edge, and stands in the middle of what is left, so a wide window
-   puts space around the briefing instead of making the page wider. */
-.y-reportmain {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  justify-self: center;
-  max-width: calc(var(--shell-max) - var(--rail-open));
-  overflow: hidden;
-  padding: 22px 26px;
-  width: 100%;
-}
-
-.y-reporthead {
-  align-items: baseline;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-}
-
-.y-reporttitle {
-  color: var(--fg);
-  flex: 1 0 100%;
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-20);
-  font-weight: 600;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-/* The file the report is kept in, under what it calls itself: a fact about
-   where it lives, kept quiet so the title is what the head says. */
-.y-reportfile {
-  color: var(--fg-subtle);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.y-reportraw {
-  color: var(--link);
-  font-family: var(--font-sans);
-  font-size: var(--fs-13);
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-}
-
-.y-reportframe {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  flex: 1 1 auto;
-  height: min(78vh, 900px);
-  min-height: 0;
-  width: 100%;
 }
 
 /* File views — a vault file that is not a note. Source and pictures borrow the

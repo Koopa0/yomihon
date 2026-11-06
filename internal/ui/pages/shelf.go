@@ -95,7 +95,7 @@ type Row struct {
 	// why the day leads there.
 	ByTitle bool
 	// Mark is what this organisation measures a row by, already in words — a
-	// course's extent, a report's kind. An organisation that needs two writes
+	// course's extent, say. An organisation that needs two writes
 	// them as one; where a row sits in time is not one of them, having a face
 	// of its own above.
 	Mark string

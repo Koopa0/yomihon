@@ -53,7 +53,7 @@ A scanner checks the vault about every two seconds. Unchanged file identities an
 
 A rebuild captures the required source bytes, parses notes and their common products, and derives the link graph, navigation, lexical index, lesson indexes, backlinks, and health findings. It publishes the result by swapping an `atomic.Pointer[Generation]`. Requests load a generation once and derive their reading views from it. Rendering an embedded note uses the captured body and resolver from that generation, not a fresh disk read. See [generation construction and publication][snapshot].
 
-This is consistency between projections, not a point-in-time filesystem snapshot. Files are read in sequence, and a degraded generation may deliberately carry an older copy of an unreadable source. [Raw files][file-serving] and [HTML briefings][report] are reopened for each request; the generation does not version every attachment.
+This is consistency between projections, not a point-in-time filesystem snapshot. Files are read in sequence, and a degraded generation may deliberately carry an older copy of an unreadable source. [Raw files][file-serving] are reopened for each request; the generation does not version every attachment.
 
 ### Incomplete reads
 
@@ -157,7 +157,7 @@ Machine output is JSON Lines for `check` and JSON for `coverage` and `exists`; t
 
 The HTTP listener binds to `127.0.0.1`; `YOMIHON_PORT` changes only its port. A Host check rejects non-loopback names, and origin protection guards form submissions. Response policy is applied at the final header commit, including error and streaming paths. CSP, same-origin resource policy, and restricted browser permissions contain the reading interface. See [startup][main] and [origin policy][origin].
 
-HTML briefings use a separate sandboxed response. Scripts, connections, forms, and nested frames are disabled; inline styles and embedded data resources can render. The policy is attached to the raw response as well as the containing iframe, so opening the raw URL does not remove it. Ordinary files also pass through rooted selection and an appropriate raw-file policy. See [briefing handling][report] and [file serving][file-serving].
+Vault files that are not notes, HTML included, pass through rooted selection. A text file reads as escaped source on its file page. Its raw bytes carry a sandbox policy that disables scripts, connections, forms, nested frames, and every external or embedded resource, leaving only inline style, and a markup document is delivered as a download rather than opened as a page. See [file serving][file-serving].
 
 Loopback and browser-origin defenses do not authenticate a local actor. Exposing this process through a public reverse proxy would require a different access and isolation design. Likewise, CLI output privacy is an application boundary, not an operating-system restriction on other programs reading the vault.
 
@@ -187,7 +187,7 @@ Useful end-to-end experiments are:
 | Introduce NFC filename collisions and ambiguous aliases | A scan refusal and a link ambiguity remain distinct diagnoses. |
 | Race an editor with a status write on different filesystems | The selected install strategy and outcome accurately describe preserved, visible, or uncertain bytes. |
 | Change the contract during a command | Output is withheld when its source authority no longer holds. |
-| Load hostile Markdown or an HTML briefing | Authored content cannot acquire the reading application's script or form authority. |
+| Load hostile Markdown or an HTML file | Authored content cannot acquire the reading application's script or form authority. |
 | Grow the vault and alternate edits with queries | Measure distributions for build time, visibility lag, search latency, and peak memory, not just note count. |
 
 Shutdown closes request admission, stops the scanner, and waits for accepted handlers before releasing the rooted reader and writer. Finishing a file installation takes precedence over abandoning it at the HTTP shutdown deadline. See [site lifetime][site].
@@ -224,7 +224,6 @@ Shutdown closes request admission, stops the scanner, and waits for accepted han
 [adjudicate]: cmd/yomihon/adjudicate.go
 [judge-rules]: docs/judge-rules.md
 [origin]: internal/origin/origin.go
-[report]: internal/report/handler.go
 [file-serving]: internal/note/file.go
 [archlock]: internal/archlock
 [contributing]: CONTRIBUTING.md

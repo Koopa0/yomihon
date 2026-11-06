@@ -135,11 +135,10 @@ var (
 	ParenClose = both("）", ")")
 )
 
-// AssetNotFound, ReportNotFound and PathNotFound are what the three
-// address-shaped routes say when they answer with nothing. Each names what was
-// looked for, because the address alone does not say which route refused it.
+// AssetNotFound and PathNotFound are what the two address-shaped routes say
+// when they answer with nothing. Each names what was looked for, because the
+// address alone does not say which route refused it.
 var (
-	AssetNotFound  = both("找不到指定的資產", "That asset was not found")
-	ReportNotFound = both("找不到指定的報告", "That report was not found")
-	PathNotFound   = both("找不到指定的學習路徑", "That study path was not found")
+	AssetNotFound = both("找不到指定的資產", "That asset was not found")
+	PathNotFound  = both("找不到指定的學習路徑", "That study path was not found")
 )

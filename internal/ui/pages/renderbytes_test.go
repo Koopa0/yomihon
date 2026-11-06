@@ -179,7 +179,6 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"search-page-paged-english", Search(recordedPagedSearchView(model, wording.En), recordedEnglishChrome())},
 		{"health-page-paged", Health(recordedPagedHealthView(model), recordedChrome())},
 		{"health-page-paged-english", Health(recordedPagedHealthView(model), recordedEnglishChrome())},
-		{"report-page", Report(ReportView{Name: "2026-07-10.html", Title: "接收者離開後 — Go 並行回顧", Label: "接收者離開後 — Go 並行回顧", ReadingRail: NewReportReadingRail(recordedShell(model), "System/reports/daily-briefing/2026-07-10.html"), NeedsScript: true}, recordedChrome())},
 		{"preferences-page", Preferences(recordedPreferencesView(wording.ZhHant), recordedChrome())},
 		// The field legends are drawn in the label face now rather than sitting
 		// inside a bordered box, and that face is where an untranslated legend
@@ -190,10 +189,9 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
 		{"report-index-page", ListIndex(recordedReportIndexView(recordedChrome().Lang), recordedChrome())},
 		// The same shelf in the other language it is read in. The day is the
-		// vault's own either way; the two answers that are not a day — the
-		// briefing kept current, and the report that wrote none — are the
-		// interface's words, and only a recording in both languages shows
-		// neither was left behind in one of them.
+		// vault's own either way; the answer that is not a day — the report
+		// that wrote none — is the interface's words, and only a recording in
+		// both languages shows it was not left behind in one of them.
 		{"report-index-page-english", ListIndex(recordedReportIndexView(recordedEnglishChrome().Lang), recordedEnglishChrome())},
 		// The journal at a month, in both languages it is read in. The days are
 		// the vault's own either way; the month's name, the weekday headings,
@@ -702,21 +700,13 @@ func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDist
 }
 
 // recordedReportIndexView carries every answer a report row can give in the
-// column a reader scans, none of which the shared fixture vault has: a written
-// report with a day of its own and the line it opens with, a briefing named
-// for the day it covers, the briefing the vault keeps current, a report that
-// wrote no day at all, and two briefings that share a title and a day, which
-// only their file names can tell apart. They are already in the order the shelf
-// puts them, newest first, so the recording shows the row and not the sort.
+// column a reader scans, none of which the shared fixture vault has: a report
+// with a day of its own and the line it opens with, a report that wrote no day
+// at all, and two reports that share a title and a day, which only their file
+// names can tell apart. They are already in the order the shelf puts them,
+// newest first, so the recording shows the row and not the sort.
 func recordedReportIndexView(lang wording.Lang) ListIndexView {
 	return NewReportIndex([]nav.Report{
-		{
-			Name:     "latest.html",
-			Title:    "接收者離開後 — Go 並行回顧",
-			RelPath:  "System/reports/daily-briefing/latest.html",
-			Briefing: true,
-			Latest:   true,
-		},
 		{
 			Name:    "2026-07-10 vault audit.md",
 			Title:   "Vault audit",
@@ -725,19 +715,17 @@ func recordedReportIndexView(lang wording.Lang) ListIndexView {
 			Opening: "Four notes went from draft to ready. Nothing was archived.",
 		},
 		{
-			Name:      "2026-07-02 briefing.html",
-			Title:     "Daily briefing",
-			Qualifier: "2026-07-02 briefing.html",
-			RelPath:   "System/reports/daily-briefing/2026-07-02 briefing.html",
-			Briefing:  true,
+			Name:      "2026-07-02 morning.md",
+			Title:     "Scan review",
+			Qualifier: "2026-07-02 morning.md",
+			RelPath:   "System/reports/2026-07-02 morning.md",
 			Date:      "2026-07-02",
 		},
 		{
-			Name:      "2026-07-02 evening.html",
-			Title:     "Daily briefing",
-			Qualifier: "2026-07-02 evening.html",
-			RelPath:   "System/reports/daily-briefing/2026-07-02 evening.html",
-			Briefing:  true,
+			Name:      "2026-07-02 evening.md",
+			Title:     "Scan review",
+			Qualifier: "2026-07-02 evening.md",
+			RelPath:   "System/reports/2026-07-02 evening.md",
 			Date:      "2026-07-02",
 		},
 		{Name: "notes on the scan.md", Title: "Notes on the scan", RelPath: "System/reports/notes on the scan.md"},

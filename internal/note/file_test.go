@@ -233,8 +233,7 @@ func TestRawServesBytesUnderASandbox(t *testing.T) {
 			t.Errorf("GET /raw/icon.svg %s = %q, want %q", h.name, got, h.want)
 		}
 	}
-	// The report route allows a briefing its own scripts; a vault file has no
-	// such claim on this origin.
+	// A vault file has no claim to run script on this origin.
 	if strings.Contains(header.Get("Content-Security-Policy"), "allow-scripts") {
 		t.Error("the raw sandbox allows scripts; vault bytes must never execute")
 	}

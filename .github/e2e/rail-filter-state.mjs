@@ -324,7 +324,7 @@ try {
     control(await page.locator(FILTER).inputValue() === 'C0', 'BFCache restoration resynchronized retained DOM from newer tab-session storage');
     await context.close();
   }
-  for (const path of ['/notes/Notes/alpha.md', '/reports/browser-boundary.html', '/search']) {
+  for (const path of ['/notes/Notes/alpha.md', '/notes/System/reports/audit%20run.md', '/search']) {
     const { page, context } = await open('', { path, remembered: 'missing-token' });
     control(await page.locator(FILTER).inputValue() === 'missing-token' && !(await page.locator('[data-filter-empty]').evaluate((element) => element.hidden)), `${path} entry did not use the same parsed filter owner`);
     await fill(page, '');

@@ -76,37 +76,22 @@ func TestDisplayedExcerpts(t *testing.T) {
 	}
 }
 
-func TestDisplayedExcerptsBriefing(t *testing.T) {
+// TestDisplayedExcerptsHTMLIsSource pins that an HTML file is searched as the
+// characters it holds, wherever it sits: one left in the daily-briefing folder
+// a generator once wrote to is source like any other, its tags shown as text.
+func TestDisplayedExcerptsHTMLIsSource(t *testing.T) {
 	t.Parallel()
 
 	const source = `<p a="attribute-only > x">取消 &amp; &lt;x&gt;</p><!--hidden--><SCRIPT>scripthide</SCRIPT><style>stylehide</style>`
-	tests := []struct {
-		name    string
-		relPath string
-		query   string
-		want    excerptView
-	}{
-		{
-			name:    "registered briefing",
-			relPath: "System/reports/daily-briefing/fixture.html",
-			query:   "取消",
-			want:    excerptView{Text: "取消 & <x>", Marks: []excerptMark{{Text: "取消"}}},
-		},
-		{
-			name:    "hidden attribute remains findable",
-			relPath: "System/reports/daily-briefing/fixture.html",
-			query:   "attribute-only",
-			want:    excerptView{Text: "取消 & <x>"},
-		},
-		{name: "nested source", relPath: "System/reports/daily-briefing/nested/fixture.html", query: "取消", want: excerptView{Text: source, Marks: []excerptMark{{Text: "取消"}}}},
-		{name: "ordinary source", relPath: "Notes/go/fixture.html", query: "取消", want: excerptView{Text: source, Marks: []excerptMark{{Text: "取消"}}}},
-		{name: "case sensitive extension", relPath: "System/reports/daily-briefing/fixture.HTML", query: "取消", want: excerptView{Text: source, Marks: []excerptMark{{Text: "取消"}}}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, relPath := range []string{
+		"System/reports/daily-briefing/fixture.html",
+		"System/reports/fixture.html",
+		"Notes/go/fixture.html",
+	} {
+		t.Run(relPath, func(t *testing.T) {
 			t.Parallel()
-			mux := excerptMux(t, tt.relPath, source)
-			checkDisplayedExcerpt(t, mux, tt.query, &tt.want)
+			mux := excerptMux(t, relPath, source)
+			checkDisplayedExcerpt(t, mux, "取消", &excerptView{Text: source, Marks: []excerptMark{{Text: "取消"}}})
 		})
 	}
 }
@@ -249,54 +234,6 @@ func excerptText(n *html.Node) string {
 	}
 	visit(n)
 	return b.String()
-}
-
-func TestFirstShownExcerptWindow(t *testing.T) {
-	t.Parallel()
-	hidden := "<style>.claim{" + strings.Repeat("padding:0;", 80) + "}</style>"
-	tests := []struct {
-		name, source, query, shown, href string
-		marks                            []string
-	}{
-		{"first shown", hidden + "<p>Our claim survives.</p>", "claim", "Our claim survives.", "/reports/fixture.html#:~:text=claim", []string{"claim"}},
-		{"hidden only opening", hidden + "<p>The shown opening survives.</p>", "claim", "The shown opening survives.", "/reports/fixture.html", nil},
-		{"NFC prefix", hidden + "<p>cafe\u0301 claim survives.</p>", "claim", "café claim survives.", "/reports/fixture.html#:~:text=claim", []string{"claim"}},
-		{"CJK softwrap", "<style>漢字{" + strings.Repeat("padding:0;", 80) + "}</style><p>前言 漢\n字 後記。</p>", "漢字", "前言 漢 字 後記。", "/reports/fixture.html#:~:text=%E6%BC%A2%20%E5%AD%97", []string{"漢 字"}},
-		{"width folded", hidden + "<p>Our ＣＬＡＩＭ survives.</p>", "claim", "Our ＣＬＡＩＭ survives.", "/reports/fixture.html#:~:text=%EF%BC%A3%EF%BC%AC%EF%BC%A1%EF%BC%A9%EF%BC%AD", []string{"ＣＬＡＩＭ"}},
-		{"visible decoy", "<p>Opening decoy.</p>" + hidden + "<p>Our claim survives.</p>", "claim", "Our claim survives.", "/reports/fixture.html#:~:text=claim", []string{"claim"}},
-		{"replacement cannot borrow landing", hidden + "<p>&amp; & later</p>", "&", "& & later", "/reports/fixture.html", []string{"&", "&"}},
-		{"source-only replacement", hidden + "<p>&amp; later</p>", "amp", "& later", "/reports/fixture.html", nil},
-		{"joined display has no evidence", "<style>ab" + strings.Repeat("x", 800) + "</style><p>a<i>b</i> tail</p>", "ab", "ab tail", "/reports/fixture.html", nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			mux := excerptMux(t, "System/reports/daily-briefing/fixture.html", tt.source)
-			for _, route := range []string{"/search?", "/search/results?facets=0&", "/search/results?facets=1&"} {
-				rr := httptest.NewRecorder()
-				mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, route+"q="+url.QueryEscape(tt.query+" folder:System/reports/daily-briefing"), http.NoBody))
-				if rr.Code != http.StatusOK {
-					t.Fatalf("GET %s status = %d, want 200", route, rr.Code)
-				}
-				got := readExcerpt(t, rr.Body.String())
-				var marks []string
-				for _, mark := range got.Marks {
-					marks = append(marks, mark.Text)
-				}
-				href := resultHref(t, rr.Body.String())
-				t.Logf("invoked: first-shown HTTP route=%s text=%q marks=%q href=%q", route, got.Text, marks, href)
-				if !strings.Contains(got.Text, tt.shown) {
-					t.Errorf("caught: first shown text absent: got %q, want contains %q", got.Text, tt.shown)
-				}
-				if diff := cmp.Diff(tt.marks, marks); diff != "" {
-					t.Errorf("caught: source-backed marks (-want +got):\n%s", diff)
-				}
-				if href != tt.href {
-					t.Errorf("caught: selected occurrence href = %q, want %q", href, tt.href)
-				}
-			}
-		})
-	}
 }
 
 func TestFirstShownNoteExcerptWindow(t *testing.T) {

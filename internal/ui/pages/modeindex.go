@@ -282,24 +282,16 @@ func countBranches(branches []nav.Branch) int {
 // NewReportIndex builds the report index. A report is read for what it
 // answers, so the row opens with its title — what the report calls itself,
 // not the name of its file — then the day it is for, then the line the report
-// opens with. A briefing alone says what it is: it is a program's output,
-// shown as bytes inside an isolated frame, and the mark tells a reader which
-// link they are about to follow. A written report is what every row on this
-// shelf is, so it is left unmarked. The day and the opening arrive already
-// read; nothing here goes looking for either.
+// opens with. The day and the opening arrive already read; nothing here goes
+// looking for either.
 func NewReportIndex(reports []nav.Report, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(reports))
 	for _, report := range reports {
-		href, kind := notesHref(report.RelPath), ""
-		if report.Briefing {
-			href, kind = reportHref(report.Name), wording.DailyBriefing.In(lang)
-		}
 		rows = append(rows, Row{
 			When:     reportWhen(&report, lang),
 			Text:     reportRowTitle(&report),
 			Opening:  report.Opening,
-			Href:     href,
-			Mark:     kind,
+			Href:     notesHref(report.RelPath),
 			ByTitle:  true,
 			Language: rowLanguage(articleLang, report.RelPath),
 		})
@@ -309,11 +301,11 @@ func NewReportIndex(reports []nav.Report, lang wording.Lang, articleLang Article
 		wording.ReportIndexLede.In(lang), wording.ReportIndexEmpty.In(lang), rows)
 }
 
-// ReportLabel is what a report is called where its title stands with nothing
-// beside it to tell it from another: the rail, the tab, the frame's accessible
-// name. A title another report shares arrives with the words that tell the two
-// apart, and a title that is its own is only itself.
-func ReportLabel(report *nav.Report) string {
+// reportLabel is what a report is called where its title stands with nothing
+// beside it to tell it from another: the rail and the sidebar. A title another
+// report shares arrives with the words that tell the two apart, and a title
+// that is its own is only itself.
+func reportLabel(report *nav.Report) string {
 	return joinMarks(report.Title, report.Qualifier)
 }
 
@@ -325,24 +317,18 @@ func reportRowTitle(report *nav.Report) string {
 	if report.Qualifier == report.Date {
 		return report.Title
 	}
-	return ReportLabel(report)
+	return reportLabel(report)
 }
 
 // reportWhen is the one answer a report's date face gives, and it always gives
-// one. A report carrying a day shows it. The briefing the vault keeps current
-// is named for being the latest rather than for a day, so it says that instead
-// — which is also where the shelf puts it. A report with neither says it wrote
-// no day, because a row left blank in the column every other row answers reads
-// as something the page failed to look up.
+// one. A report carrying a day shows it. A report without one says it wrote no
+// day, because a row left blank in the column every other row answers reads as
+// something the page failed to look up.
 func reportWhen(report *nav.Report, lang wording.Lang) string {
-	switch {
-	case report.Date != "":
+	if report.Date != "" {
 		return report.Date
-	case report.Latest:
-		return wording.Newest.In(lang)
-	default:
-		return wording.ReportUndated.In(lang)
 	}
+	return wording.ReportUndated.In(lang)
 }
 
 // ArticleLanguageFor returns a note's declared article language by path, or
