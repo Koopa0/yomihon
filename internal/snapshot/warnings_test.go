@@ -416,6 +416,27 @@ func TestSnapshotWarningVerdict(t *testing.T) {
 	assertWarningCount(t, f, "schema verdict unavailable for a note", 2, "recovered verdict was not rearmed")
 }
 
+// TestSnapshotWarningKindIsPartOfTheKey pins that two warnings about the same
+// note revision with the same message stay distinct when their kinds differ:
+// a read failure does not silence a verdict failure that happens to share its
+// words.
+func TestSnapshotWarningKindIsPartOfTheKey(t *testing.T) {
+	root := t.TempDir()
+	writeNote(t, root, "note.md", "ordinary body\n")
+	f := newWarningFixture(t, root, nil)
+	entry, ok := f.store.Current().Entry("note.md")
+	if !ok {
+		t.Fatal("captured note entry unavailable")
+	}
+	logger := slog.New(slog.NewJSONHandler(f.logs, nil))
+	g := newGeneration(1)
+	g.warnings = newWarningAttempt(make(map[warningKey]struct{}))
+	g.warnSourceUnavailable(entry, errors.New("same failure"), logger)
+	g.recordVerdict(entry, nil, errors.New("same failure"), logger)
+	assertWarningCount(t, f, "vault source unavailable in snapshot generation", 1, "read warning was not reported")
+	assertWarningCount(t, f, "schema verdict unavailable for a note", 1, "warning kinds were collapsed")
+}
+
 func TestSnapshotWarningsCanceled(t *testing.T) {
 	const message = "vault source unavailable in snapshot generation"
 	for _, name := range []string{"new report", "partial recovery"} {
