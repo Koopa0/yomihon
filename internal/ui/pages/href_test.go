@@ -7,12 +7,11 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// TestNotesHrefSendsABriefingToTheReportSurface is the address half of the
-// canonical-report lock: a daily-briefing HTML must not be offered as a /notes/
-// source dump. Written reports, unregistered HTML, and a nested file under
-// daily-briefing/ keep the notes address, which is how an unregistered file
-// still opens as source.
-func TestNotesHrefSendsABriefingToTheReportSurface(t *testing.T) {
+// TestNotesHrefIsTheVaultPath pins that every vault file, a written report and
+// an HTML file alike, is offered at its /notes/ address, escaped one segment
+// at a time. An HTML file left in the daily-briefing folder a generator once
+// wrote to has no address of its own either.
+func TestNotesHrefIsTheVaultPath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -21,9 +20,9 @@ func TestNotesHrefSendsABriefingToTheReportSurface(t *testing.T) {
 		want string
 	}{
 		{
-			name: "a registered briefing opens at the report surface",
+			name: "html in the old briefing folder is a vault file",
 			path: "System/reports/daily-briefing/browser-boundary.html",
-			want: "/reports/browser-boundary.html",
+			want: "/notes/System/reports/daily-briefing/browser-boundary.html",
 		},
 		{
 			name: "a written markdown report stays a note",
@@ -31,14 +30,9 @@ func TestNotesHrefSendsABriefingToTheReportSurface(t *testing.T) {
 			want: "/notes/System/reports/Week%20of%202026-08-31.md",
 		},
 		{
-			name: "unregistered html elsewhere stays a file page",
+			name: "html elsewhere is a vault file",
 			path: "Notes/page.html",
 			want: "/notes/Notes/page.html",
-		},
-		{
-			name: "a nested file under daily-briefing is not a briefing",
-			path: "System/reports/daily-briefing/sub/x.html",
-			want: "/notes/System/reports/daily-briefing/sub/x.html",
 		},
 	}
 	for _, tt := range tests {

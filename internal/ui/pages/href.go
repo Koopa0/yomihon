@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/lexical"
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -33,16 +32,8 @@ func VaultHref(prefix, p string) string {
 	return prefix + strings.Join(segments, "/")
 }
 
-// notesHref builds the reading-page URL for a vault-relative path. A
-// daily-briefing HTML opens at the report surface rather than as a /notes/
-// source dump, so a folder row, a rail twin and a search hit land where the
-// shelf already sends the reader.
-func notesHref(p string) string {
-	if name, ok := nav.BriefingName(p); ok {
-		return reportHref(name)
-	}
-	return VaultHref("/notes/", p)
-}
+// notesHref builds the reading-page URL for a vault-relative path.
+func notesHref(p string) string { return VaultHref("/notes/", p) }
 
 // rawHref builds the unchanged-bytes URL for a vault-relative path. It is its
 // own route rather than a suffix on the note URL, which a vault directory named
@@ -333,19 +324,6 @@ func searchHref(q string) string {
 // address every other search link is written with.
 func SearchPageHref(q string, n PageNumber) string {
 	return "/search?" + url.Values{"q": {q}, "page": {n.String()}}.Encode()
-}
-
-// reportHref builds the report shell URL for a briefing's bare filename, never a
-// vault path: the handler resolves the name against the snapshot's report
-// allowlist, so request input never reaches a filesystem join.
-func reportHref(name string) string {
-	return "/reports/" + url.PathEscape(name)
-}
-
-// reportRawHref builds the endpoint the report iframe points at: reportHref's
-// allowlist lookup plus the suffix that writes the briefing HTML unchanged.
-func reportRawHref(name string) string {
-	return "/reports/" + url.PathEscape(name) + "/raw"
 }
 
 // LifecycleItem is one row of the folder index's status distribution: a status

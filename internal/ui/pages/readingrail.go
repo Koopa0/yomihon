@@ -88,16 +88,6 @@ func NewReadingRail(shell nav.Shell, currentPath, noteDomain string) ReadingRail
 	return rr
 }
 
-// NewReportReadingRail resolves the reports list for a sandboxed briefing page.
-func NewReportReadingRail(shell nav.Shell, briefingRelPath string) ReadingRail {
-	return ReadingRail{
-		Model:       shell.Nav,
-		CurrentPath: vault.NormalizeNFC(briefingRelPath),
-		Kind:        ReadingRailReports,
-		Vault:       shell.Vault,
-	}
-}
-
 // HereShelf is the folder the reader is in, as a shelf at rail width.
 func (r *ReadingRail) HereShelf(lang wording.Lang) Shelf {
 	rows := make([]Row, 0, len(r.here))

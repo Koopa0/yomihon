@@ -12,7 +12,6 @@ const (
 	warningSize    = "size"
 	warningPanic   = "panic"
 	warningVerdict = "verdict"
-	warningHead    = "head"
 )
 
 type sidecarSource string

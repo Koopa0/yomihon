@@ -180,7 +180,6 @@ func TestSpeculationRulesReachOnlyReadingAddresses(t *testing.T) {
 		"/folders",
 		"/folders/Concepts",
 		"/reports",
-		"/reports/2026-09-03.html",
 	}
 	// Everything else a reader's page links to or the server answers, named so
 	// that a route added under an allowed prefix has to be added here to be
@@ -204,7 +203,7 @@ func TestSpeculationRulesReachOnlyReadingAddresses(t *testing.T) {
 		"/uncertainties",
 		"/static/app.css",
 		"/status",
-		"/reports/2026-09-03.html/raw",
+		"/reports/2026-09-03.html",
 		"/notes/Notes/What%20yomihon%20is.md?from=draft",
 		"/notes/Notes/What%20yomihon%20is.md?q=read&from=draft",
 	}

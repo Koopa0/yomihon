@@ -1,7 +1,6 @@
 package lexical
 
 import (
-	"strings"
 	"testing"
 	"unicode/utf8"
 
@@ -10,109 +9,6 @@ import (
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 )
-
-func TestBriefingExcerpts(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name, source, query, text, landing string
-		marks                              []string
-	}{
-		{"quoted tags", `<P a="quoted > needle">visible</P>`, "needle", "visible", "", nil},
-		{"raw text", `<script>needle</scripture>still hidden</SCRIPT ><STYLE>hidden</style><p>visible</p>`, "needle", "visible", "", nil},
-		{"comments", `<p>visible</p><!--needle-->`, "needle", "visible", "", nil},
-		{"unclosed comment", `visible<!--needle`, "needle", "visible", "", nil},
-		{"unclosed script", `visible<script>needle`, "needle", "visible", "", nil},
-		{"entities", `<p>needle &amp; &lt;x&gt; &#65; &#x42;</p>`, "needle", "needle & <x> A B", "needle", []string{"needle"}},
-		{"source-only entity hit", `<p>needle &amp;</p>`, "amp", "needle &", "", nil},
-		{"visible entity hit", `<p>needle &amp;</p>`, "&", "needle &", "", []string{"&"}},
-		{"semicolon-less entity", `<p>needle &notit &amp text</p>`, "needle", "needle ¬it & text", "needle", []string{"needle"}},
-		{"inline and block boundaries", `<p>nee<b>dle</b></p><p>next</p>`, "next", "needle next", "next", []string{"next"}},
-		{"pre code text", `<pre><code>needle &lt;tag&gt; ==literal== ~~literal~~</code></pre>`, "needle", "needle <tag> ==literal== ~~literal~~", "needle", []string{"needle"}},
-		{"unfinished tag is literal", `needle <p a="unfinished`, "needle", `needle <p a="unfinished`, "needle", []string{"needle"}},
-		{"short numeric context", `<p>needle&#09x &#65tail &#x41tail</p>`, "needle", "needle x Atail Atail", "needle", []string{"needle"}},
-		{"one digit decoder control", `<p>needle&#9x &#9;</p>`, "needle", "needle&#9x", "needle", []string{"needle"}},
-		{"digit start is displayed text", `needle <3>`, "needle", "needle <3>", "needle", []string{"needle"}},
-		{"punctuation start is displayed text", `needle <-p> <:p>`, "needle", "needle <-p> <:p>", "needle", []string{"needle"}},
-		{"bogus end tag is hidden", `needle </3>`, "needle", "needle", "needle", []string{"needle"}},
-		{"unclosed quoted markup stays literal", `needle <p a="unfinished <b>literal`, "needle", `needle <p a="unfinished <b>literal`, "needle", []string{"needle"}},
-		{"decoded occurrence needs its own source evidence", `<p>&NotEqualTilde; ≂</p>`, "≂", "≂̸ ≂", "≂", []string{"≂"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			document := DocumentFromBriefing("System/reports/daily-briefing/fixture.html", []byte(tt.source))
-			got := displayedAnswer(t, &document, tt.query)
-			want := excerptAnswer{Text: tt.text, Marks: tt.marks, Landing: tt.landing, Bare: tt.landing}
-			if diff := cmp.Diff(want, got); diff != "" {
-				t.Errorf("briefing excerpt (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-func TestBriefingRawClosingCandidates(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name, source, element string
-		want                  bool
-	}{
-		{"opening tag", "<script>", "script", false},
-		{"own name at opening offset", "<xscript>", "script", false},
-		{"foreign opening with unfinished quote", "<p a='", "script", false},
-		{"foreign closing with unfinished quote", "</other a='", "script", false},
-		{"foreign equal width closing name", "</foobar>", "script", false},
-		{"name prefix", "</scripture>", "script", false},
-		{"name suffix", "</script-other>", "script", false},
-		{"spaced slash", "< /script>", "script", false},
-		{"missing name", "</", "script", false},
-		{"invalid name boundary", "</script!>", "script", false},
-		{"case folded close", "</SCRIPT>", "script", true},
-		{"whitespace boundary", "</script \t>", "script", true},
-		{"slash boundary", "</style/>", "style", true},
-		{"quoted greater than", "</script a='>'>", "script", true},
-		{"unfinished own closing quote", "</script a='", "script", true},
-		{"own name at eof", "</style", "style", true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := briefingOwnClose(tt.source, 0, tt.element); got != tt.want {
-				t.Errorf("briefingOwnClose(%q, %q) = %t, want %t", tt.source, tt.element, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestBriefingRawTextSourceCeiling(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name, source, text string
-	}{
-		{
-			name: "foreign openings", source: "<script>" + strings.Repeat("<p a='", (render.MaxSourceBytes-64)/len("<p a='")) + "</SCRIPT a='>'><p>visible</p>",
-			text: "…visible",
-		},
-		{
-			name: "foreign closings", source: "<script>" + strings.Repeat("</other a='", (render.MaxSourceBytes-64)/len("</other a='")) + "</SCRIPT a='>'><p>visible</p>",
-			text: "…visible",
-		},
-		{
-			name: "unfinished own closings", source: "visible<script>" + strings.Repeat("</script a='", (render.MaxSourceBytes-32)/len("</script a='")),
-			text: "visible…",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			document := DocumentFromBriefing("System/reports/daily-briefing/fixture.html", []byte(tt.source))
-			got := displayedAnswer(t, &document, "visible")
-			want := excerptAnswer{Text: tt.text, Marks: []string{"visible"}, Landing: "visible", Bare: "visible"}
-			if diff := cmp.Diff(want, got); diff != "" {
-				t.Errorf("raw text ceiling excerpt (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
 
 func TestDisplayNFCAndLanding(t *testing.T) {
 	t.Parallel()
@@ -277,26 +173,6 @@ func displayedAnswer(t *testing.T, document *Document, query string) excerptAnsw
 	return got
 }
 
-func FuzzBriefingDisplay(f *testing.F) {
-	for _, source := range []string{`<p title="a > b">needle &amp;</p>`, `<!--`, `<script>needle</SCRIPT>`, `&#x31;`, "e\u0301 &#65;", strings.Repeat("<p a='", 100)} {
-		f.Add(source)
-	}
-	f.Fuzz(func(t *testing.T, source string) {
-		document := DocumentFromBriefing("fixture.html", []byte(source))
-		index := NewIndex([]Document{document}, schema.ArtifactPolicy{})
-		answer, err := index.Search(Parse("needle"), 1)
-		if err != nil {
-			t.Fatalf("Search: %v", err)
-		}
-		for i := range answer.Results {
-			result := &answer.Results[i]
-			if utf8.ValidString(source) && !utf8.ValidString(result.Snippet) {
-				t.Fatalf("display corrupted UTF-8: %q", result.Snippet)
-			}
-		}
-	})
-}
-
 func FuzzDisplayRanges(f *testing.F) {
 	for _, seed := range []struct {
 		text, replacement string
@@ -326,40 +202,4 @@ func FuzzDisplayRanges(f *testing.F) {
 			}
 		}
 	})
-}
-
-func TestShownExcerptSelection(t *testing.T) {
-	t.Parallel()
-	hidden := "<style>.claim{" + strings.Repeat("padding:0;", 80) + "}</style>"
-	tests := []struct {
-		name, source, query, shown, landing string
-		marks                               []string
-	}{
-		{"visible decoy before hidden hit", "<p>Opening decoy.</p>" + hidden + "<p>Our claim survives.</p>", "claim", "Our claim survives.", "claim", []string{"claim"}},
-		{"first replacement cannot borrow later landing", hidden + "<p>&amp; & later</p>", "&", "& & later", "", []string{"&", "&"}},
-		{"source-only replacement spelling", hidden + "<p>&amp; later</p>", "amp", "& later", "", nil},
-		{"decoded value has no source evidence", "<style>≂" + strings.Repeat("x", 800) + "</style><p>&NotEqualTilde; later</p>", "≂", "≂̸ later", "", nil},
-		{"hidden evidence does not mark joined letters", "<style>ab" + strings.Repeat("x", 800) + "</style><p>a<i>b</i> tail</p>", "ab", "ab tail", "", nil},
-		{"hidden-only near ceiling", "<style>claim" + strings.Repeat("x", render.MaxSourceBytes-100) + "</style><p>The shown opening survives.</p>", "claim", "The shown opening survives.", "", nil},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			document := DocumentFromBriefing("System/reports/daily-briefing/fixture.html", []byte(tt.source))
-			got := displayedAnswer(t, &document, tt.query)
-			t.Logf("invoked: shown-selection case=%s query=%q text=%q landing=%q", tt.name, tt.query, got.Text, got.Landing)
-			if !strings.Contains(got.Text, tt.shown) {
-				t.Errorf("caught: shown excerpt = %q, want contains %q", got.Text, tt.shown)
-			}
-			if diff := cmp.Diff(tt.marks, got.Marks); diff != "" {
-				t.Errorf("caught: source-backed marks (-want +got):\n%s", diff)
-			}
-			if got.Landing != tt.landing {
-				t.Errorf("caught: selected landing = %q, want %q", got.Landing, tt.landing)
-			}
-			if tt.landing == "" && (got.Bare != "" || got.Prefix != "") {
-				t.Errorf("caught: ineligible selected occurrence borrowed landing context: %+v", got)
-			}
-		})
-	}
 }

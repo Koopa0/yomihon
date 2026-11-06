@@ -90,7 +90,7 @@ func capturedModelWithJournal(
 	if resolver == nil {
 		resolver = graph.New(noteList, resources)
 	}
-	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang, dated, settlement, nil)
+	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang, dated, settlement)
 }
 
 func testContract(t *testing.T) *schema.Contract {
@@ -194,7 +194,6 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		testContract(t).ArticleLanguage(),
 		testContract(t).AuthoredDate(),
 		testContract(t).Settlement(),
-		nil,
 	)
 
 	modified := make(map[string]time.Time)
@@ -278,7 +277,6 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		testContract(t).ArticleLanguage(),
 		testContract(t).AuthoredDate(),
 		testContract(t).Settlement(),
-		nil,
 	)
 	want := []NoteSummary{{
 		Title: "Channels", RelPath: relPath, Type: "concept", Status: "growing", Modified: captured,
@@ -1691,7 +1689,6 @@ func TestFolderTreeKeepsEveryFileTheDeskCanOpen(t *testing.T) {
 		testContract(t).ArticleLanguage(),
 		testContract(t).AuthoredDate(),
 		testContract(t).Settlement(),
-		nil,
 	)
 
 	gotRoot := fileRelPaths(model.RootNotes())
@@ -2156,10 +2153,10 @@ func TestModelConcurrentProjectionMutationDoesNotChangePublishedData(t *testing.
 	})
 }
 
-// TestBuildReports checks the shelf holds both kinds on one list, newest
-// first, with the briefing the vault keeps current leading and an undated
-// report last; and that a daily-briefing README.md, a stray .txt, and files
-// outside System/reports/ are all excluded.
+// TestBuildReports checks the shelf holds the Markdown reports written directly
+// in System/reports/, newest first, with an undated report last; and that a
+// Markdown file or HTML in a folder below, a stray .txt, and files outside
+// System/reports/ are all excluded.
 //
 // The captured order the files arrive in is the reverse of the order they are
 // wanted in, so a build that skipped the sort could not pass by accident.
@@ -2169,18 +2166,17 @@ func TestBuildReports(t *testing.T) {
 	titled := vault.Parse("System/reports/Run-Report.md", []byte("---\ntitle: Run report\ncreated: 2026-07-04\n---\nbody\n"))
 	files := []capturedFile{
 		{path: "Concepts/foo.md"},
-		{path: "System/reports/Run-Report.md", note: titled},
-		{path: "System/reports/daily-briefing/README.md"},
-		{path: "System/reports/daily-briefing/2026-07-02 briefing.html"},
-		{path: "System/reports/daily-briefing/latest.html"},
 		{path: "System/reports/vault-check.md"},
+		{path: "System/reports/daily-briefing/README.md"},
+		{path: "System/reports/2026-07-02 audit.md"},
+		{path: "System/reports/daily-briefing/latest.html"},
+		{path: "System/reports/Run-Report.md", note: titled},
 		{path: "System/reports/notes.txt"},
 	}
 
 	want := []Report{
-		{Name: "latest.html", Title: "latest.html", RelPath: "System/reports/daily-briefing/latest.html", Briefing: true, Latest: true},
 		{Name: "Run-Report.md", Title: "Run report", RelPath: "System/reports/Run-Report.md", Date: "2026-07-04", Opening: "body"},
-		{Name: "2026-07-02 briefing.html", Title: "2026-07-02 briefing.html", RelPath: "System/reports/daily-briefing/2026-07-02 briefing.html", Briefing: true, Date: "2026-07-02"},
+		{Name: "2026-07-02 audit.md", Title: "2026-07-02 audit", RelPath: "System/reports/2026-07-02 audit.md", Date: "2026-07-02"},
 		{Name: "vault-check.md", Title: "vault-check", RelPath: "System/reports/vault-check.md"},
 	}
 
@@ -2352,8 +2348,8 @@ func TestOpeningLine(t *testing.T) {
 		})
 	}
 
-	if got := openingLine(capturedFile{path: "System/reports/daily-briefing/latest.html"}); got != "" {
-		t.Errorf("openingLine of a briefing = %q, want nothing: its bytes are never opened here", got)
+	if got := openingLine(capturedFile{path: "System/reports/unreadable.md"}); got != "" {
+		t.Errorf("openingLine of a report with no parsed note = %q, want nothing: its bytes are never opened here", got)
 	}
 }
 

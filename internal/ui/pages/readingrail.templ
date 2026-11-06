@@ -131,26 +131,13 @@ templ bookRailEntry(c layouts.Chrome, entry PathEntryView) {
 templ reportsRail(rr ReadingRail, c layouts.Chrome) {
 	<nav class="y-railreports" aria-label={ wording.Reports.In(c.Lang) } data-reading-reports>
 		for _, rep := range rr.Model.Reports() {
-			if rep.Briefing {
-				<a
-					class={ "ui-navitem", templ.KV("is-active", rr.current(rep.RelPath)) }
-					href={ templ.URL(reportHref(rep.Name)) }
-					{ currentAttr(rr.current(rep.RelPath))... }
-				>
-					{ ReportLabel(&rep) }
-					if rep.Latest {
-						<span class="y-navmark y-navmark--newest">{ wording.Newest.In(c.Lang) }</span>
-					}
-				</a>
-			} else {
-				<a
-					class={ "ui-navitem", templ.KV("is-active", rr.current(rep.RelPath)) }
-					href={ templ.URL(notesHref(rep.RelPath)) }
-					{ currentAttr(rr.current(rep.RelPath))... }
-				>
-					{ ReportLabel(&rep) }
-				</a>
-			}
+			<a
+				class={ "ui-navitem", templ.KV("is-active", rr.current(rep.RelPath)) }
+				href={ templ.URL(notesHref(rep.RelPath)) }
+				{ currentAttr(rr.current(rep.RelPath))... }
+			>
+				{ reportLabel(&rep) }
+			</a>
 		}
 	</nav>
 }

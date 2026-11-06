@@ -10,16 +10,12 @@ import (
 // fetch its page ahead of a click. It is an allowlist of reading addresses,
 // so a route added later is left alone until it is named here.
 //
-// Every address named is a plain read, and the two exclusions cover what the
-// allowlist's own patterns would otherwise reach:
-//
-//   - a report's raw body sits under the same prefix as the report page and is
-//     served as a file rather than read as a page;
-//   - a note address carrying "from" is where the redirect after a status
-//     change lands, and reading it spends the one-time receipt the landing page
-//     states. Fetching it ahead of the reader would leave the arrival with
-//     nothing to say. No link on any page carries it, so this closes a door
-//     that is shut rather than one that is open.
+// Every address named is a plain read, and the one exclusion covers what the
+// allowlist's own patterns would otherwise reach: a note address carrying
+// "from" is where the redirect after a status change lands, and reading it
+// spends the one-time receipt the landing page states. Fetching it ahead of
+// the reader would leave the arrival with nothing to say. No link on any page
+// carries it, so this closes a door that is shut rather than one that is open.
 //
 // Left out on purpose: the raw, compare, freshness and preview endpoints,
 // search, read-aloud, the preferences page, thought composition, and the
@@ -32,12 +28,10 @@ const speculationReads = `{"or":[` +
 	`{"href_matches":"/folders"},` +
 	`{"href_matches":"/folders/*"},` +
 	`{"href_matches":"/reports"},` +
-	`{"href_matches":"/reports/*"},` +
 	`{"href_matches":"/paths"},` +
 	`{"href_matches":"/maps"},` +
 	`{"href_matches":"/journal"}` +
 	`]},` +
-	`{"not":{"href_matches":"/reports/*/raw"}},` +
 	`{"not":{"href_matches":{"pathname":"/notes/*","search":"*from=*"}}}`
 
 // speculationSteps picks out the previous and next links at the foot of a

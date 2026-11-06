@@ -8,13 +8,13 @@ import (
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
-// index lists every report the vault holds: the written ones, then the daily
-// briefings. Names and paths are all navigation captured, and nothing here
-// opens a file — what a report says is the author's, and a summary yomihon
-// wrote would be a description of it rather than the thing itself.
+// index lists every report the vault holds. Names and paths are all
+// navigation captured, and nothing here opens a file — what a report says is
+// the author's, and a summary yomihon wrote would be a description of it
+// rather than the thing itself.
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	snap := h.snapshot().Generation
+	snap := h.snapshot()
 	view := pages.NewReportIndex(snap.Navigation().Reports(), lang, pages.ArticleLanguageFromSnapshot(snap))
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write report index", "error", err)

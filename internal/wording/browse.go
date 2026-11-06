@@ -28,10 +28,6 @@ var (
 		"這篇筆記的大小是 %s，超過 %s 的閱讀上限；原始檔仍可下載。",
 		"This note is %s, over the %s reading limit; the original file can still be downloaded.",
 	)
-	ReportOverReadingLimit = both(
-		"這份簡報的大小是 %s，超過 %s 的閱讀上限；原始檔仍可下載。",
-		"This briefing is %s, over the %s reading limit; the original file can still be downloaded.",
-	)
 	// A Markdown file the contract leaves out of the library is a document,
 	// not a note, even when its size is what keeps it from being read.
 	DocumentOverReadingLimit = both(
@@ -56,16 +52,6 @@ var (
 		"這份文件不在書庫的索引與診斷範圍內。",
 		"This document is outside the library's index and diagnostics.",
 	)
-)
-
-// OpenReportAsWritten is the visible door to the iframe's own address: the
-// report as authored, outside the sandboxed shell.
-var OpenReportAsWritten = both("以原樣開啟", "Open as written")
-
-// ReportAsIs says what a report loses by being shown here rather than run.
-var ReportAsIs = both(
-	"有一部分要靠程式繪製，這裡不執行程式，那些部分不會出現。",
-	"Parts of it are drawn by code; code does not run here, so those parts are absent.",
 )
 
 // The page for an address that named nothing, and for a file that exists and
@@ -111,9 +97,9 @@ var (
 
 // What the raw-bytes routes say when they cannot answer. These reach a reader
 // as a plain-text body rather than a page, so they are one line each.
-// SandboxUnavailable is the refusal both of those routes share: the file read
-// perfectly well and the isolation its bytes are served under could not be
-// established, so the bytes were withheld instead.
+// SandboxUnavailable is the refusal when the file read perfectly well and the
+// isolation its bytes are served under could not be established, so the bytes
+// were withheld instead.
 var (
 	FileNotFound       = both("找不到指定的檔案", "That file was not found")
 	FileUnreadable     = both("無法讀取檔案", "That file could not be read")

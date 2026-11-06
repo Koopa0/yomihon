@@ -144,10 +144,6 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		snap := store.Current().Capture()
 		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority, snap), Status: authority}
 	}
-	reportProvider := func() report.RequestSnapshot {
-		snap := store.Current().Capture()
-		return report.RequestSnapshot{Generation: snap, Shell: shell.Project(vaultName, writer.Authority(), snap)}
-	}
 	// The marks a reader leaves are kept for the root the vault capability was
 	// actually taken on, which is the resolved absolute path rather than the
 	// one typed on the line: two spellings of one folder are one vault and
@@ -216,7 +212,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(pathProvider, log).Register(mux)
-	report.New(source, reportProvider, log).Register(mux)
+	report.New(func() *snapshot.Generation { return store.Current().Capture() }, log).Register(mux)
 	asset.Register(mux)
 
 	crossOrigin := http.NewCrossOriginProtection()

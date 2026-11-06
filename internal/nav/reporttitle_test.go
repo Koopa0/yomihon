@@ -8,21 +8,15 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// reportFile is one captured file under System/reports/ with the bytes a
-// scan would have handed navigation: a parsed note for Markdown, and the title
-// the file's own HTML gave for a briefing.
-func reportFile(path, markdown, htmlTitle string) capturedFile {
-	file := capturedFile{path: path, htmlTitle: htmlTitle}
-	if markdown != "" {
-		file.note = vault.Parse(path, []byte(markdown))
-	}
-	return file
+// reportFile is one captured Markdown file under System/reports/ with the
+// parsed note a scan would have handed navigation.
+func reportFile(path, markdown string) capturedFile {
+	return capturedFile{path: path, note: vault.Parse(path, []byte(markdown))}
 }
 
-// TestAReportIsCalledByWhatItSays pins the order a report is named in. A
-// briefing is called by what its own HTML says, and a written report by its
-// frontmatter title first, then by the first level-one heading its body opens
-// on, and only then by its file; a report that says nothing still has words.
+// TestAReportIsCalledByWhatItSays pins the order a report is named in: its
+// frontmatter title first, then the first level-one heading its body opens on,
+// and only then its file; a report that says nothing still has words.
 func TestAReportIsCalledByWhatItSays(t *testing.T) {
 	t.Parallel()
 
@@ -33,58 +27,48 @@ func TestAReportIsCalledByWhatItSays(t *testing.T) {
 		want string
 	}{
 		{
-			name: "a briefing is called by the title its HTML gave",
-			file: reportFile(dir+"daily-briefing/latest.html", "", "接收者離開後 — Go 並行回顧"),
-			want: "接收者離開後 — Go 並行回顧",
-		},
-		{
-			name: "a briefing that gave none is called by its file",
-			file: reportFile(dir+"daily-briefing/2026-07-02 briefing.html", "", ""),
-			want: "2026-07-02 briefing.html",
-		},
-		{
 			name: "a frontmatter title is what a written report is called",
-			file: reportFile(dir+"audit.md", "---\ntitle: Vault audit\n---\n# A different heading\n", ""),
+			file: reportFile(dir+"audit.md", "---\ntitle: Vault audit\n---\n# A different heading\n"),
 			want: "Vault audit",
 		},
 		{
 			name: "with no title the first level-one heading is the name",
-			file: reportFile(dir+"2026-09-22 review.md", "# What the receiver leaves behind\n\nBody.\n", ""),
+			file: reportFile(dir+"2026-09-22 review.md", "# What the receiver leaves behind\n\nBody.\n"),
 			want: "What the receiver leaves behind",
 		},
 		{
 			name: "a heading after frontmatter without a title still names it",
-			file: reportFile(dir+"review.md", "---\ncreated: 2026-09-22\n---\n\n# After the frontmatter\n", ""),
+			file: reportFile(dir+"review.md", "---\ncreated: 2026-09-22\n---\n\n# After the frontmatter\n"),
 			want: "After the frontmatter",
 		},
 		{
 			name: "lesser headings before it do not stand in for it",
-			file: reportFile(dir+"review.md", "## Summary\n\ntext\n\n# The title\n", ""),
+			file: reportFile(dir+"review.md", "## Summary\n\ntext\n\n# The title\n"),
 			want: "The title",
 		},
 		{
 			name: "a heading inside a code fence is code, not a title",
-			file: reportFile(dir+"review.md", "```sh\n# not a title\n```\n\n# The real one\n", ""),
+			file: reportFile(dir+"review.md", "```sh\n# not a title\n```\n\n# The real one\n"),
 			want: "The real one",
 		},
 		{
 			name: "an underlined heading is a level-one heading",
-			file: reportFile(dir+"review.md", "Underlined title\n================\n\nBody.\n", ""),
+			file: reportFile(dir+"review.md", "Underlined title\n================\n\nBody.\n"),
 			want: "Underlined title",
 		},
 		{
 			name: "a heading's words travel as typed, closing marks aside",
-			file: reportFile(dir+"review.md", "#   Spaced   **words**   ##\n", ""),
+			file: reportFile(dir+"review.md", "#   Spaced   **words**   ##\n"),
 			want: "Spaced **words**",
 		},
 		{
 			name: "a heading with no words is passed over",
-			file: reportFile(dir+"review.md", "# \n\n# Second\n", ""),
+			file: reportFile(dir+"review.md", "# \n\n# Second\n"),
 			want: "Second",
 		},
 		{
 			name: "a report with no title and no heading is called by its file",
-			file: reportFile(dir+"vault-check.md", "Just prose.\n", ""),
+			file: reportFile(dir+"vault-check.md", "Just prose.\n"),
 			want: "vault-check",
 		},
 		{
@@ -123,15 +107,11 @@ func TestNoteTitleStaysTheFrontmatterTitleOrTheFile(t *testing.T) {
 // TestSharedReportTitlesAreToldApart pins what keeps two reports that carry
 // one title from reading alike. Both stay on the shelf; each gets a qualifier,
 // which is its day when that day is its own among the reports sharing the
-// title and its file name when it is not, and the latest briefing needs none
-// because it is a copy of the newest and wears its own mark.
+// title and its file name when it is not.
 func TestSharedReportTitlesAreToldApart(t *testing.T) {
 	t.Parallel()
 
-	const (
-		briefings = "System/reports/daily-briefing/"
-		reports   = "System/reports/"
-	)
+	const dir = "System/reports/"
 	tests := []struct {
 		name  string
 		files []capturedFile
@@ -139,65 +119,57 @@ func TestSharedReportTitlesAreToldApart(t *testing.T) {
 		want map[string]string
 	}{
 		{
-			name: "the latest briefing and its dated twin",
-			files: []capturedFile{
-				reportFile(briefings+"latest.html", "", "Daily briefing"),
-				reportFile(briefings+"2026-09-22.html", "", "Daily briefing"),
-			},
-			want: map[string]string{"latest.html": "", "2026-09-22.html": "2026-09-22"},
-		},
-		{
 			name: "two reports on one day are told apart by their files",
 			files: []capturedFile{
-				reportFile(briefings+"2026-09-22-am.html", "", "Daily briefing"),
-				reportFile(briefings+"2026-09-22-pm.html", "", "Daily briefing"),
+				reportFile(dir+"2026-09-22 am.md", "# Review\n"),
+				reportFile(dir+"2026-09-22 pm.md", "# Review\n"),
 			},
-			want: map[string]string{"2026-09-22-am.html": "2026-09-22-am.html", "2026-09-22-pm.html": "2026-09-22-pm.html"},
+			want: map[string]string{"2026-09-22 am.md": "2026-09-22 am.md", "2026-09-22 pm.md": "2026-09-22 pm.md"},
 		},
 		{
 			name: "two reports with no day are told apart by their files",
 			files: []capturedFile{
-				reportFile(briefings+"alpha.html", "", "Daily briefing"),
-				reportFile(reports+"beta.md", "# Daily briefing\n", ""),
+				reportFile(dir+"alpha.md", "# Review\n"),
+				reportFile(dir+"beta.md", "---\ntitle: Review\n---\n"),
 			},
-			want: map[string]string{"alpha.html": "alpha.html", "beta.md": "beta.md"},
+			want: map[string]string{"alpha.md": "alpha.md", "beta.md": "beta.md"},
 		},
 		{
 			name: "a day that is unique among the title's reports is enough",
 			files: []capturedFile{
-				reportFile(briefings+"2026-07-01.html", "", "Daily briefing"),
-				reportFile(briefings+"2026-07-02-am.html", "", "Daily briefing"),
-				reportFile(briefings+"2026-07-02-pm.html", "", "Daily briefing"),
+				reportFile(dir+"2026-07-01.md", "# Review\n"),
+				reportFile(dir+"2026-07-02 am.md", "# Review\n"),
+				reportFile(dir+"2026-07-02 pm.md", "# Review\n"),
 			},
 			want: map[string]string{
-				"2026-07-01.html":    "2026-07-01",
-				"2026-07-02-am.html": "2026-07-02-am.html",
-				"2026-07-02-pm.html": "2026-07-02-pm.html",
+				"2026-07-01.md":    "2026-07-01",
+				"2026-07-02 am.md": "2026-07-02 am.md",
+				"2026-07-02 pm.md": "2026-07-02 pm.md",
 			},
 		},
 		{
 			name: "a title no other report carries has no qualifier",
 			files: []capturedFile{
-				reportFile(briefings+"2026-07-01.html", "", "One"),
-				reportFile(briefings+"2026-07-02.html", "", "Two"),
+				reportFile(dir+"2026-07-01.md", "# One\n"),
+				reportFile(dir+"2026-07-02.md", "# Two\n"),
 			},
-			want: map[string]string{"2026-07-01.html": "", "2026-07-02.html": ""},
+			want: map[string]string{"2026-07-01.md": "", "2026-07-02.md": ""},
 		},
 		{
 			name: "titles that differ only in how a letter is composed are one title",
 			files: []capturedFile{
-				reportFile(briefings+"2026-07-01.html", "", "Café"),
-				reportFile(briefings+"2026-07-02.html", "", "Café"),
+				reportFile(dir+"2026-07-01.md", "# Caf\u00e9\n"),
+				reportFile(dir+"2026-07-02.md", "# Cafe\u0301\n"),
 			},
-			want: map[string]string{"2026-07-01.html": "2026-07-01", "2026-07-02.html": "2026-07-02"},
+			want: map[string]string{"2026-07-01.md": "2026-07-01", "2026-07-02.md": "2026-07-02"},
 		},
 		{
 			name: "titles that differ in case are two titles",
 			files: []capturedFile{
-				reportFile(briefings+"2026-07-01.html", "", "Review"),
-				reportFile(briefings+"2026-07-02.html", "", "review"),
+				reportFile(dir+"2026-07-01.md", "# Review\n"),
+				reportFile(dir+"2026-07-02.md", "# review\n"),
 			},
-			want: map[string]string{"2026-07-01.html": "", "2026-07-02.html": ""},
+			want: map[string]string{"2026-07-01.md": "", "2026-07-02.md": ""},
 		},
 	}
 	for _, tt := range tests {
@@ -221,65 +193,41 @@ func TestSharedReportTitlesStayOnTheShelf(t *testing.T) {
 	t.Parallel()
 
 	files := []capturedFile{
-		reportFile("System/reports/daily-briefing/latest.html", "", "Daily briefing"),
-		reportFile("System/reports/daily-briefing/2026-09-22.html", "", "Daily briefing"),
+		reportFile("System/reports/2026-09-21.md", "# Review\n"),
+		reportFile("System/reports/2026-09-22.md", "# Review\n"),
 	}
 	got := buildReports(files, testContract(t).AuthoredDate())
 	if len(got) != 2 {
 		t.Fatalf("buildReports() = %d reports, want both", len(got))
 	}
 	for _, report := range got {
-		if report.Title != "Daily briefing" {
+		if report.Title != "Review" {
 			t.Errorf("%s: Title = %q, want the title it carries", report.Name, report.Title)
 		}
 	}
 }
 
-// TestNewNamesABriefingByTheTitleItsCallerRead pins that the title read from a
-// briefing's head reaches the shelf through New, keyed by the briefing's path,
-// and that a briefing the caller read nothing for keeps its file name.
-func TestNewNamesABriefingByTheTitleItsCallerRead(t *testing.T) {
+// TestOnlyMarkdownDirectlyInTheFolderIsAReport pins the shelf's whole
+// membership rule. An HTML file — one left in the daily-briefing folder a
+// generator once wrote to included — a file in any folder below, and a file of
+// any other kind stay in the folder tree and are not reports.
+func TestOnlyMarkdownDirectlyInTheFolderIsAReport(t *testing.T) {
 	t.Parallel()
 
-	root := t.TempDir()
-	const (
-		titled = "System/reports/daily-briefing/2026-09-22.html"
-		bare   = "System/reports/daily-briefing/2026-09-21.html"
-	)
-	writeNavFixture(t, root, titled, "<title>ignored here</title>")
-	writeNavFixture(t, root, bare, "<p>no name</p>")
-
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open: %v", err)
+	files := []capturedFile{
+		reportFile("System/reports/2026-09-22 review.md", "# Review\n"),
+		{path: "System/reports/daily-briefing/latest.html"},
+		{path: "System/reports/daily-briefing/2026-09-22.html"},
+		{path: "System/reports/stray.html"},
+		reportFile("System/reports/archive/2026-01-01.md", "# Old\n"),
+		{path: "System/reports/notes.txt"},
+		reportFile("System/not-reports/2026-09-22.md", "# Elsewhere\n"),
 	}
-	t.Cleanup(func() {
-		if closeErr := reader.Close(); closeErr != nil {
-			t.Errorf("Reader.Close: %v", closeErr)
-		}
-	})
-	scan, err := reader.ScanComplete(t.Context())
-	if err != nil {
-		t.Fatalf("ScanComplete: %v", err)
+	var got []string
+	for _, report := range buildReports(files, testContract(t).AuthoredDate()) {
+		got = append(got, report.RelPath)
 	}
-	roles, policy := testCapabilities(t)
-	contract := testContract(t)
-	model := New(
-		scan.Files(), nil, resolver(t),
-		roles, contract.KnowledgeScope(), policy, contract.JournalDir(),
-		contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement(),
-		map[string]string{titled: "What the receiver leaves behind"},
-	)
-
-	got := map[string]string{}
-	for _, report := range model.Reports() {
-		got[report.RelPath] = report.Title
-	}
-	want := map[string]string{
-		titled: "What the receiver leaves behind",
-		bare:   "2026-09-21.html",
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("report titles (-want +got):\n%s", diff)
+	if diff := cmp.Diff([]string{"System/reports/2026-09-22 review.md"}, got); diff != "" {
+		t.Errorf("reports (-want +got):\n%s", diff)
 	}
 }

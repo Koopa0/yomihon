@@ -51,7 +51,6 @@ var (
 	Journal      = both("日誌", "Journal")
 	Reports      = both("報告", "Reports")
 	Folders      = both("資料夾", "Folders")
-	Newest       = both("最新", "Newest")
 )
 
 // OpenMap is the link from a rail branch to the whole map it is a branch of.

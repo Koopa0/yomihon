@@ -179,20 +179,17 @@ func sourceLimitFinding(snap *snapshot.Generation, rel string) bool {
 	return false
 }
 
-// raw serves a vault file's bytes unchanged, under the containment the report
-// briefings established. Every response states its content type outright and
-// forbids browser sniffing. Document types that could execute in yomihon's
-// origin also receive a Content-Security-Policy sandbox; PDF keeps the narrower
-// confinement described by sandboxFor. A markup document is also marked as a
-// download, so opening its address saves the file instead of rendering it.
+// raw serves a vault file's bytes unchanged. Every response states its content
+// type outright and forbids browser sniffing. Document types that could execute
+// in yomihon's origin also receive a Content-Security-Policy sandbox; PDF keeps
+// the narrower confinement described by sandboxFor. A markup document is also
+// marked as a download, so opening its address saves the file instead of
+// rendering it.
 //
-// The sandbox here is tighter than the report route's in one respect: both
-// policies refuse scripts, but the report policy admits data: fonts, images,
-// and media so a self-contained briefing can render its embedded resources,
-// while a vault file gets no sources at all. A vault file has no reason ever to
-// execute against yomihon's origin, so a bare sandbox is what a same-origin SVG
-// or HTML document meets. Without it, opening one top-level would give it read
-// of the whole reading surface.
+// The sandbox refuses scripts and every source, data: included. A vault file
+// has no reason ever to execute against yomihon's origin, so a bare sandbox is
+// what a same-origin SVG or HTML document meets. Without it, opening one
+// top-level would give it read of the whole reading surface.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
@@ -274,9 +271,8 @@ func serveRaw(
 		return fmt.Errorf("%w: %s", errSandboxUnavailable, rel)
 	}
 	// Cross-origin embedding is refused one layer up, in the server's own
-	// header seam, so every response — this one, the report bytes, and any
-	// future endpoint — carries the same refusal without each having to
-	// remember it.
+	// header seam, so every response — this one and any future endpoint —
+	// carries the same refusal without each having to remember it.
 	// ServeContent answers range requests, which a PDF viewer relies on, and
 	// leaves the content type alone because it is already set.
 	http.ServeContent(w, r, "", modTime, content)
