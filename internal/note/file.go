@@ -186,9 +186,10 @@ func sourceLimitFinding(snap *snapshot.Generation, rel string) bool {
 // marked as a download, so opening its address saves the file instead of
 // rendering it.
 //
-// The sandbox refuses scripts and every source, data: included. A vault file
-// has no reason ever to execute against yomihon's origin, so a bare sandbox is
-// what a same-origin SVG or HTML document meets. Without it, opening one
+// The sandbox refuses scripts and every fetched or embedded resource, data:
+// included; only inline style is admitted. A vault file has no reason ever to
+// execute against yomihon's origin, so a bare sandbox is what a same-origin
+// SVG or HTML document meets. Without it, opening one
 // top-level would give it read of the whole reading surface.
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)

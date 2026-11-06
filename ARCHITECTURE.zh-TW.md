@@ -157,7 +157,7 @@ Writer 實際探測檔案系統行為，不只相信操作回傳成功。這些�
 
 HTTP listener 綁定 `127.0.0.1`，`YOMIHON_PORT` 只改變連接埠。Host 檢查拒絕非 loopback 名稱，origin protection 保護表單提交。回應政策在最後送出 header 時套用，包含錯誤與串流路徑；CSP、同源資源政策及受限的瀏覽器權限共同約束閱讀介面。參見[啟動][main]與[origin 政策][origin]。
 
-不是筆記的 vault 檔案（包含 HTML）都經受限的根目錄選取提供。文字檔在檔案頁以跳脫後的原始碼呈現；raw 位元組附帶 sandbox 政策，禁用腳本、連線、表單、巢狀 frame 以及所有外部或內嵌資源，標記文件以下載交付，不以頁面開啟。參見[檔案服務][file-serving]。
+不是筆記的 vault 檔案（包含 HTML）都經受限的根目錄選取提供。文字檔在檔案頁以跳脫後的原始碼呈現；raw 位元組附帶 sandbox 政策，禁用腳本、連線、表單、巢狀 frame 以及所有外部或內嵌資源，只留 inline style，標記文件以下載交付，不以頁面開啟。參見[檔案服務][file-serving]。
 
 Loopback 與瀏覽器來源保護不會驗證本機操作者的身分。透過公開 reverse proxy 暴露這個程式，需要另一套存取與隔離設計。同樣地，CLI 輸出隱私是應用程式邊界，不是限制其他程式讀取 vault 的作業系統權限。
 

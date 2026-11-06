@@ -157,7 +157,7 @@ Machine output is JSON Lines for `check` and JSON for `coverage` and `exists`; t
 
 The HTTP listener binds to `127.0.0.1`; `YOMIHON_PORT` changes only its port. A Host check rejects non-loopback names, and origin protection guards form submissions. Response policy is applied at the final header commit, including error and streaming paths. CSP, same-origin resource policy, and restricted browser permissions contain the reading interface. See [startup][main] and [origin policy][origin].
 
-Vault files that are not notes, HTML included, pass through rooted selection. A text file reads as escaped source on its file page. Its raw bytes carry a sandbox policy that disables scripts, connections, forms, nested frames, and every external or embedded resource, and a markup document is delivered as a download rather than opened as a page. See [file serving][file-serving].
+Vault files that are not notes, HTML included, pass through rooted selection. A text file reads as escaped source on its file page. Its raw bytes carry a sandbox policy that disables scripts, connections, forms, nested frames, and every external or embedded resource, leaving only inline style, and a markup document is delivered as a download rather than opened as a page. See [file serving][file-serving].
 
 Loopback and browser-origin defenses do not authenticate a local actor. Exposing this process through a public reverse proxy would require a different access and isolation design. Likewise, CLI output privacy is an application boundary, not an operating-system restriction on other programs reading the vault.
 
