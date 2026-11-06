@@ -105,7 +105,6 @@ func emittedDisplaySpans(intervals []DisplaySpan, emissions []sourceEmission, si
 }
 
 // displayIntervals merges each independently cumulative display flag.
-// These private effects carry only Hidden or Deleted, never replacements.
 func displayIntervals(effects []DisplaySpan, hidden bool) []DisplaySpan {
 	var intervals []DisplaySpan
 	for _, effect := range effects {
