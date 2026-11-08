@@ -65,6 +65,11 @@ var ReadAloud = both("朗讀這段文字", "Read this aloud")
 // paragraph the voice reaches on its own, and each press of previous or next —
 // so skipping and carrying on sound alike. Speech synthesis reports no reliable
 // duration, so a paragraph is the only honest unit to count in.
+//
+// ReadAloudCellFmt names the speaker the browser puts beside a table cell that
+// holds Japanese. It carries the words the cell would say, because a table has
+// dozens of identical controls and the cell itself is the only thing telling
+// them apart.
 var (
 	ReadAloudStop        = both("停止", "Stop")
 	ReadAloudStopThis    = both("停止朗讀", "Stop reading aloud")
@@ -79,6 +84,7 @@ var (
 	ReadAloudPrevious    = both("上一段", "Previous")
 	ReadAloudNext        = both("下一段", "Next")
 	ReadAloudProgressFmt = both("第 {n} 段，共 {total} 段", "Paragraph {n} of {total}")
+	ReadAloudCellFmt     = both("朗讀「{text}」", "Read aloud: {text}")
 )
 
 // ReadAloudLimits says what the platform cannot do, where the reader meets the

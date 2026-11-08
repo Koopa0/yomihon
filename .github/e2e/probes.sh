@@ -88,6 +88,7 @@ probes=(
   "read-aloud-status.mjs|/notes/Writing/lessons/japanese/Practice%20only.md"
   "read-aloud-languages.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "read-aloud-local-voices.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
+  "speak-cells.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "listen-course.mjs|/listen/Maps/listen.md"
   "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
   "branch-title-wrap.mjs|/syllabus/Maps/branches.md"
