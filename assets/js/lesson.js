@@ -51,13 +51,23 @@ function cellText(cell, leaveOut) {
   return copy.textContent.normalize('NFC').replace(CELL_NOTE, '').trim();
 }
 
+// A reading that vouches for its base text: kana, and at least one of them. A
+// reading of spaces alone says nothing about how the base is read.
+function isKanaReading(reading) {
+  const text = reading.textContent.normalize('NFC');
+  return KANA_READING.test(text) && ANY_KANA.test(text);
+}
+
 // What a Japanese cell says, or '' for a cell that is not one. The base text
 // under furigana is spoken, as in a marked paragraph, and the furigana is only
 // the evidence. A pause stands where an author wrote a slash or an arrow, and
 // the dash before a suffix is not spoken at all.
 function japaneseCellSpeech(cell) {
   const readings = [...cell.querySelectorAll('rt')];
-  if (!readings.every((reading) => KANA_READING.test(reading.textContent.normalize('NFC')))) return '';
+  if (!readings.every(isKanaReading)) return '';
+  // A ruby with no reading at all leaves its base text unvouched for, and an
+  // empty list of readings would pass the check above.
+  if (![...cell.querySelectorAll('ruby')].every((ruby) => ruby.querySelector('rt'))) return '';
   const spoken = cellText(cell, 'rt, rp');
   if (!WHOLLY_KANA.test(cellText(cell, 'ruby'))) return '';
   if (readings.length === 0 && !ANY_KANA.test(spoken)) return '';

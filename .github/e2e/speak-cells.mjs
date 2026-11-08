@@ -36,6 +36,7 @@ const CELLS = [
   ['き行', null], ['きゃ', 'きゃ'], ['今天', null], ['濁音+拗音', null],
   ['撥音', null], ['か / かん', 'か、かん'], ['—', null], ['〜さん', 'さん'],
   ['外來語', null], ['バス [片]', 'バス'], ['巴士', null], ['今日きょう', '今日'],
+  ['かな今天', null], ['今天 (blank reading)', null], ['今天ㄐㄧㄣ', null], ['・', null],
 ];
 const SAID = CELLS.map(([, said]) => said).filter(Boolean);
 const NAME = {
@@ -100,6 +101,27 @@ const MUTATIONS = {
   'furigana-ignored': {
     target: 'cells-classified',
     apply: script("  const readings = [...cell.querySelectorAll('rt')];\n", '  const readings = [];\n'),
+  },
+  // A ruby with no reading is taken as Japanese because the kana beside it is,
+  // so the Chinese base text under it is sent to the Japanese voice.
+  'bare-ruby-counts': {
+    target: 'cells-classified',
+    apply: script("  if (![...cell.querySelectorAll('ruby')].every((ruby) => ruby.querySelector('rt'))) return '';\n", ''),
+  },
+  // A reading of spaces counts as evidence, so Chinese text under it is spoken.
+  'blank-reading-counts': {
+    target: 'cells-classified',
+    apply: script('  return KANA_READING.test(text) && ANY_KANA.test(text);\n', '  return KANA_READING.test(text);\n'),
+  },
+  // A reading that is not kana, such as a bopomofo one, counts as evidence.
+  'non-kana-reading-counts': {
+    target: 'cells-classified',
+    apply: script("  if (!readings.every(isKanaReading)) return '';\n", ''),
+  },
+  // A cell of nothing but a middle dot is a Japanese cell with nothing to say.
+  'punctuation-only-counts': {
+    target: 'cells-classified',
+    apply: script("  if (readings.length === 0 && !ANY_KANA.test(spoken)) return '';\n", ''),
   },
   // The tag closing a katakana word is kept in the cell's words, so the word
   // fails the kana test and goes silent.
