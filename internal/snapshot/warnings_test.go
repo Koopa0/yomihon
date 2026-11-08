@@ -117,7 +117,6 @@ func warningRecords(t *testing.T, data []byte, message string) []map[string]any 
 type warningSource struct {
 	reader      *vault.Reader
 	refuse      map[string]error
-	refuseHead  map[string]error
 	beforeRead  func(context.Context, vault.Entry)
 	reads       map[string]int
 	rootRefusal error
@@ -149,13 +148,6 @@ func (s *warningSource) ReadFile(ctx context.Context, entry vault.Entry) ([]byte
 	return s.reader.ReadFile(ctx, entry)
 }
 
-func (s *warningSource) ReadPrefix(ctx context.Context, entry vault.Entry, n int64) ([]byte, error) {
-	if err := s.refuseHead[entry.Path()]; err != nil {
-		return nil, err
-	}
-	return s.reader.ReadPrefix(ctx, entry, n)
-}
-
 type warningFixture struct {
 	root   string
 	store  *Store
@@ -173,7 +165,7 @@ func newWarningFixture(t *testing.T, root string, configure func(*warningSource)
 		t.Fatalf("vault.Open: %v", err)
 	}
 	t.Cleanup(func() { closeReader(t, reader) })
-	source := &warningSource{reader: reader, refuse: map[string]error{}, refuseHead: map[string]error{}, reads: map[string]int{}}
+	source := &warningSource{reader: reader, refuse: map[string]error{}, reads: map[string]int{}}
 	if configure != nil {
 		configure(source)
 	}
@@ -214,14 +206,10 @@ func setWarningTime(t *testing.T, root, path string, modified time.Time) {
 
 func TestSnapshotWarningIdentity(t *testing.T) {
 	const message = "vault source unavailable in snapshot generation"
-	const briefing = "System/reports/daily-briefing/2026-10-06.html"
-	for _, name := range []string{"path", "size", "mtime", "message", "kind"} {
+	for _, name := range []string{"path", "size", "mtime", "message"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
 			path := "fault.txt"
-			if name == "kind" {
-				path = briefing
-			}
 			writeNote(t, root, path, "first body\n")
 			modified := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
 			setWarningTime(t, root, path, modified)
@@ -233,9 +221,6 @@ func TestSnapshotWarningIdentity(t *testing.T) {
 				s.refuse[path] = errors.New("same failure")
 				if name == "path" {
 					s.refuse["other.txt"] = errors.New("same failure")
-				}
-				if name == "kind" {
-					s.refuseHead[path] = errors.New("same failure")
 				}
 			})
 			if !f.store.Current().Freshness().Complete {
@@ -258,11 +243,6 @@ func TestSnapshotWarningIdentity(t *testing.T) {
 				t.Fatalf("healthy body after refusal = %+v", got)
 			}
 			t.Log("producer-hit: actual source refusal retained independent publication")
-			if name == "kind" {
-				assertWarningCount(t, f, "briefing head unreadable; it is shown under its file name", 1, "warning kinds were collapsed")
-				assertWarningCount(t, f, message, 1, "warning kinds were collapsed")
-				return
-			}
 			assertWarningCount(t, f, message, 2, "warning "+name+" was collapsed")
 			f.rescan(t)
 			assertWarningCount(t, f, message, 2, "unchanged identity was reported again")
@@ -330,8 +310,7 @@ func TestSnapshotWarningRecovery(t *testing.T) {
 }
 
 func TestSnapshotWarningProducers(t *testing.T) {
-	const head = "System/reports/daily-briefing/2026-10-06.html"
-	for _, name := range []string{"source", "head", "sidecar"} {
+	for _, name := range []string{"source", "sidecar"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
 			writeNote(t, root, "healthy.md", "healthybody\n")
@@ -341,9 +320,6 @@ func TestSnapshotWarningProducers(t *testing.T) {
 			case "source":
 				writeNote(t, root, "fault.txt", "unreadablefilebody\n")
 				message = "vault source unavailable in snapshot generation"
-			case "head":
-				writeNote(t, root, head, "<title>Readable title</title>")
-				message = "briefing head unreadable; it is shown under its file name"
 			case "sidecar":
 				writeNote(t, root, "System/slots/bad.yaml", "slug: bad\npatterns:\n  - id: p\n    template: '{A}'\n    gloss_zh: '{B}'\n")
 				writeNote(t, root, "System/slots/good.yaml", "slug: good\n")
@@ -353,9 +329,6 @@ func TestSnapshotWarningProducers(t *testing.T) {
 			f := newWarningFixture(t, root, func(s *warningSource) {
 				if name == "source" {
 					s.refuse["fault.txt"] = errors.New("refused source")
-				}
-				if name == "head" {
-					s.refuseHead[head] = errors.New("refused head")
 				}
 			})
 			for generation := range 3 {
@@ -376,11 +349,6 @@ func TestSnapshotWarningProducers(t *testing.T) {
 					}
 					if got := snapshotSearch(t, gen.Search(), "unreadablefilebody"); len(got) != 0 {
 						t.Fatalf("unread source reached search: %+v", got)
-					}
-				case "head":
-					reports := gen.Navigation().Reports()
-					if len(reports) != 1 || reports[0].Title != "2026-10-06.html" {
-						t.Fatalf("briefing fallback = %+v", reports)
 					}
 				case "sidecar":
 					if _, ok := gen.Slots().Lookup("bad"); ok {
@@ -404,11 +372,7 @@ func TestSnapshotWarningProducers(t *testing.T) {
 				}
 				return
 			}
-			path, detail := "fault.txt", "refused source"
-			if name == "head" {
-				path, detail = head, "refused head"
-			}
-			wantRecords := []map[string]any{{"level": "WARN", "msg": message, "path": path, "error": detail}}
+			wantRecords := []map[string]any{{"level": "WARN", "msg": message, "path": "fault.txt", "error": "refused source"}}
 			if diff := cmp.Diff(wantRecords, warningRecords(t, f.logs.Bytes(), message)); diff != "" {
 				t.Fatalf("original source diagnostic attrs (-want +got):\n%s", diff)
 			}
@@ -450,6 +414,27 @@ func TestSnapshotWarningVerdict(t *testing.T) {
 	g.warnings = newWarningAttempt(reported)
 	g.recordVerdict(entry, nil, errors.New("unavailable pattern"), logger)
 	assertWarningCount(t, f, "schema verdict unavailable for a note", 2, "recovered verdict was not rearmed")
+}
+
+// TestSnapshotWarningKindIsPartOfTheKey pins that two warnings about the same
+// note revision with the same message stay distinct when their kinds differ:
+// a read failure does not silence a verdict failure that happens to share its
+// words.
+func TestSnapshotWarningKindIsPartOfTheKey(t *testing.T) {
+	root := t.TempDir()
+	writeNote(t, root, "note.md", "ordinary body\n")
+	f := newWarningFixture(t, root, nil)
+	entry, ok := f.store.Current().Entry("note.md")
+	if !ok {
+		t.Fatal("captured note entry unavailable")
+	}
+	logger := slog.New(slog.NewJSONHandler(f.logs, nil))
+	g := newGeneration(1)
+	g.warnings = newWarningAttempt(make(map[warningKey]struct{}))
+	g.warnSourceUnavailable(entry, errors.New("same failure"), logger)
+	g.recordVerdict(entry, nil, errors.New("same failure"), logger)
+	assertWarningCount(t, f, "vault source unavailable in snapshot generation", 1, "read warning was not reported")
+	assertWarningCount(t, f, "schema verdict unavailable for a note", 1, "warning kinds were collapsed")
 }
 
 func TestSnapshotWarningsCanceled(t *testing.T) {
@@ -623,15 +608,11 @@ func assertWarningPanicError(t *testing.T, data []byte, want int) {
 }
 
 func TestSnapshotWarningProducerRecovery(t *testing.T) {
-	const head = "System/reports/daily-briefing/2026-10-06.html"
-	for _, name := range []string{"source", "head", "sidecar"} {
+	for _, name := range []string{"source", "sidecar"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
 			path, body, message := "fault.txt", "ordinarybody\n", "vault source unavailable in snapshot generation"
 			wantChanged, wantRelapsed := 2, 3
-			if name == "head" {
-				path, body, message = head, "<title>Readable title</title>", "briefing head unreadable; it is shown under its file name"
-			}
 			if name == "sidecar" {
 				path, body, message = "System/slots/bad.yaml", "slug: bad\npatterns:\n  - id: p\n    template: '{A}'\n    gloss_zh: '{B}'\n", "slot sidecar unusable in snapshot generation"
 				wantChanged, wantRelapsed = 4, 6
@@ -643,15 +624,10 @@ func TestSnapshotWarningProducerRecovery(t *testing.T) {
 				if name == "source" {
 					s.refuse[path] = errors.New("first refusal")
 				}
-				if name == "head" {
-					s.refuseHead[path] = errors.New("first refusal")
-				}
 			})
 			switch name {
 			case "source":
 				f.source.refuse[path] = errors.New("second refusal")
-			case "head":
-				f.source.refuseHead[path] = errors.New("second refusal")
 			case "sidecar":
 				writeNote(t, root, path, strings.Replace(body, "id: p", "id: q", 1))
 				setWarningTime(t, root, path, modified)
@@ -659,7 +635,6 @@ func TestSnapshotWarningProducerRecovery(t *testing.T) {
 			f.rescan(t)
 			assertWarningCount(t, f, message, wantChanged, name+" changed message was suppressed")
 			delete(f.source.refuse, path)
-			delete(f.source.refuseHead, path)
 			if name == "sidecar" {
 				writeNote(t, root, path, "slug: bad\n")
 			}
@@ -673,11 +648,6 @@ func TestSnapshotWarningProducerRecovery(t *testing.T) {
 				if got := snapshotSearch(t, gen.Search(), "ordinarybody"); len(got) != 1 || got[0].RelPath != path {
 					t.Fatalf("recovered source search = %+v", got)
 				}
-			case "head":
-				reports := gen.Navigation().Reports()
-				if len(reports) != 1 || reports[0].Title != "Readable title" {
-					t.Fatalf("recovered briefing title = %+v", reports)
-				}
 			case "sidecar":
 				if _, ok := gen.Slots().Lookup("bad"); !ok {
 					t.Fatal("recovered sidecar remained unavailable")
@@ -686,8 +656,6 @@ func TestSnapshotWarningProducerRecovery(t *testing.T) {
 			switch name {
 			case "source":
 				f.source.refuse[path] = errors.New("first refusal")
-			case "head":
-				f.source.refuseHead[path] = errors.New("first refusal")
 			case "sidecar":
 				writeNote(t, root, path, body)
 				setWarningTime(t, root, path, modified)

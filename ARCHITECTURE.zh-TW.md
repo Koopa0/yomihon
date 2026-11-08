@@ -53,7 +53,7 @@ Wikilink 表示引用，`based_on` 宣告來源，學習路徑則安排課程順
 
 重建會擷取所需來源內容，解析筆記及共用的解析產物，再建立連結圖、導覽、文字索引、課程索引、反向連結與健康檢查結果。完成後交換 `atomic.Pointer[Generation]`，整組發布。請求只取得一次世代，從中組成閱讀視圖；嵌入其他筆記時，也使用同一世代的內容與解析器，不重新讀取磁碟。參見[世代建構與發布][snapshot]。
 
-這保證各視圖使用同一組內容，不代表檔案系統在某個瞬間的完整快照。檔案仍依序讀取；降級世代也可能刻意保留某個無法讀取來源的舊副本。[Raw 檔案][file-serving]與 [HTML briefing][report] 每次請求仍會重新開啟，不由世代保存所有附件的版本。
+這保證各視圖使用同一組內容，不代表檔案系統在某個瞬間的完整快照。檔案仍依序讀取；降級世代也可能刻意保留某個無法讀取來源的舊副本。[Raw 檔案][file-serving]每次請求仍會重新開啟，不由世代保存所有附件的版本。
 
 ### 讀取不完整
 
@@ -157,7 +157,7 @@ Writer 實際探測檔案系統行為，不只相信操作回傳成功。這些�
 
 HTTP listener 綁定 `127.0.0.1`，`YOMIHON_PORT` 只改變連接埠。Host 檢查拒絕非 loopback 名稱，origin protection 保護表單提交。回應政策在最後送出 header 時套用，包含錯誤與串流路徑；CSP、同源資源政策及受限的瀏覽器權限共同約束閱讀介面。參見[啟動][main]與[origin 政策][origin]。
 
-HTML briefing 使用獨立的 sandbox 回應，禁用腳本、連線、表單與巢狀 frame，允許 inline style 及以 data 內嵌的資源。政策同時附在 raw response 與外層 iframe，直接開啟 raw URL 也不會移除限制。一般檔案則經受限的根目錄選取與對應的 raw-file 政策提供。參見[briefing 處理][report]與[檔案服務][file-serving]。
+不是筆記的 vault 檔案（包含 HTML）都經受限的根目錄選取提供。文字檔在檔案頁以跳脫後的原始碼呈現；raw 位元組附帶 sandbox 政策，禁用腳本、連線、表單、巢狀 frame 以及所有外部或內嵌資源，只留 inline style，標記文件以下載交付，不以頁面開啟。參見[檔案服務][file-serving]。
 
 Loopback 與瀏覽器來源保護不會驗證本機操作者的身分。透過公開 reverse proxy 暴露這個程式，需要另一套存取與隔離設計。同樣地，CLI 輸出隱私是應用程式邊界，不是限制其他程式讀取 vault 的作業系統權限。
 
@@ -187,7 +187,7 @@ Loopback 與瀏覽器來源保護不會驗證本機操作者的身分。透過�
 | 製造 NFC 檔名衝突與重複 alias | 掃描拒絕與連結歧義仍是不同診斷。 |
 | 在不同檔案系統上讓編輯器與狀態寫入競爭 | 安裝策略與結果正確描述保留、已可見或未確認的內容。 |
 | 命令執行中修改契約 | 來源依據不再有效時，不交付輸出。 |
-| 載入惡意 Markdown 或 HTML briefing | 原文不能取得閱讀應用的腳本或表單權限。 |
+| 載入惡意 Markdown 或 HTML 檔案 | 原文不能取得閱讀應用的腳本或表單權限。 |
 | 增加文件庫大小，交錯編輯與查詢 | 量測建構時間、可見延遲、搜尋延遲分布與記憶體峰值，不只計算筆記數量。 |
 
 關閉時先停止接收請求與掃描，等待已接受的 handler 完成，再釋放受限的 reader 與 writer。即使 HTTP shutdown 已到期限，也優先完成已開始的檔案安裝。參見[程式生命週期][site]。
@@ -224,7 +224,6 @@ Loopback 與瀏覽器來源保護不會驗證本機操作者的身分。透過�
 [adjudicate]: cmd/yomihon/adjudicate.go
 [judge-rules]: docs/judge-rules.md
 [origin]: internal/origin/origin.go
-[report]: internal/report/handler.go
 [file-serving]: internal/note/file.go
 [archlock]: internal/archlock
 [contributing]: CONTRIBUTING.md

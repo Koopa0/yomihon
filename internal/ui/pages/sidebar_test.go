@@ -128,13 +128,6 @@ func buildVault(t *testing.T) (root string, model *nav.Model) {
 // with the navigation model built from it.
 func modelOf(t *testing.T, root string) *nav.Model {
 	t.Helper()
-	return modelOfWithTitles(t, root, nil)
-}
-
-// modelOfWithTitles is modelOf for a folder whose briefings have told the
-// generation what their own HTML calls them, by path.
-func modelOfWithTitles(t *testing.T, root string, htmlTitles map[string]string) *nav.Model {
-	t.Helper()
 	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatalf("vault.Open() error = %v", err)
@@ -178,7 +171,6 @@ func modelOfWithTitles(t *testing.T, root string, htmlTitles map[string]string) 
 		contract.JournalDir(),
 		contract.ArticleLanguage(), contract.AuthoredDate(),
 		contract.Settlement(),
-		htmlTitles,
 	)
 }
 
@@ -449,7 +441,6 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 		contract.JournalDir(),
 		contract.ArticleLanguage(), contract.AuthoredDate(),
 		contract.Settlement(),
-		nil,
 	)
 	if model.NavigationClosure().Diagnostic() == "" || model.ArtifactClosure().Diagnostic() == "" {
 		t.Fatalf("fixture produced no capability fault: navigation %q artifact %q",
@@ -493,7 +484,6 @@ func TestSidebarRendersRejectedJournalDirDiagnostic(t *testing.T) {
 		contract.JournalDir(),
 		contract.ArticleLanguage(), contract.AuthoredDate(),
 		contract.Settlement(),
-		nil,
 	)
 	if !model.JournalClosure().Closed() || model.JournalClosure().Diagnostic() == "" {
 		t.Fatalf("fixture produced no journal fault: closed=%t diagnostic=%q",
@@ -530,7 +520,6 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 		schema.ArticleLanguage{},
 		schema.AuthoredDate{},
 		schema.Settlement{},
-		nil,
 	)
 	var buf bytes.Buffer
 	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
@@ -792,7 +781,7 @@ func TestAProseMapListsItsBodyLinksOnTheRail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement(), nil)
+	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement())
 
 	view := NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 	if len(view.Shelf.Rows) != 1 || view.Shelf.Rows[0].Mark != "5 枝" {
@@ -841,7 +830,7 @@ func detailsTagByKey(t *testing.T, html, key string) string {
 	return html[start : markerAt+endFromMarker+1]
 }
 
-// TestNewSidebarNoCurrentNote is the report-page shape: with no current note,
+// TestNewSidebarNoCurrentNote is the index-page shape: with no current note,
 // every branch stays closed and unmarked, and the "here" block is empty.
 func TestNewSidebarNoCurrentNote(t *testing.T) {
 	t.Parallel()
@@ -940,22 +929,21 @@ func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
 }
 
 // TestTheRailsListAReportByWhatItCallsItself pins the reports group in both
-// rails, the one beside a note and the one beside a briefing. A briefing is
-// listed by the title its HTML gave and a written report by its heading, never
-// by file name; a title two reports share arrives with the day that tells them
-// apart, and the briefing the vault keeps current keeps its own mark instead.
+// rails, the sidebar and the one beside a report. A report is listed by its
+// heading, never by file name, and a title two reports share arrives with the
+// day that tells them apart.
 func TestTheRailsListAReportByWhatItCallsItself(t *testing.T) {
 	t.Parallel()
 
 	const (
-		latest  = "System/reports/daily-briefing/latest.html"
-		dated   = "System/reports/daily-briefing/2026-09-22.html"
+		newer   = "System/reports/2026-09-22 review.md"
+		older   = "System/reports/2026-09-21 review.md"
 		written = "System/reports/audit-run.md"
 	)
 	root := t.TempDir()
 	for rel, content := range map[string]string{
-		latest:  "<title>Daily briefing</title>",
-		dated:   "<title>Daily briefing</title>",
+		newer:   "# Weekly review\n\nbody\n",
+		older:   "# Weekly review\n\nbody\n",
 		written: "# What the audit found\n\nbody\n",
 	} {
 		p := filepath.Join(root, filepath.FromSlash(rel))
@@ -966,22 +954,21 @@ func TestTheRailsListAReportByWhatItCallsItself(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	model := modelOfWithTitles(t, root, map[string]string{latest: "Daily briefing", dated: "Daily briefing"})
+	model := modelOf(t, root)
 	shell := nav.Shell{Nav: model}
 
 	var side, reading bytes.Buffer
 	if err := sidebar(NewSidebar(shell, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &side); err != nil {
 		t.Fatalf("render sidebar: %v", err)
 	}
-	view := ReportView{Name: "latest.html", Title: "Daily briefing", Label: "Daily briefing", ReadingRail: NewReportReadingRail(shell, latest)}
-	if err := Report(view, layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &reading); err != nil {
-		t.Fatalf("render report page: %v", err)
+	if err := readingRail(NewReadingRail(shell, written, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &reading); err != nil {
+		t.Fatalf("render reading rail: %v", err)
 	}
 
 	// Each rail's reports are read off the links themselves, as text, in the
-	// order the shelf puts them: the file names are in the addresses and in the
-	// frame's own file line, so only what a reader sees in the rail is asked.
-	want := []string{"Daily briefing 最新", "Daily briefing · 2026-09-22", "What the audit found"}
+	// order the shelf puts them: the file names are in the addresses, so only
+	// what a reader sees in the rail is asked.
+	want := []string{"Weekly review · 2026-09-22", "Weekly review · 2026-09-21", "What the audit found"}
 	for _, rail := range []struct {
 		name, html, from, to string
 	}{

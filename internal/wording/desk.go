@@ -62,8 +62,8 @@ var (
 		"Restart yomihon.",
 	)
 	ReportIndexLede = both(
-		"每日簡報與寫下的報告。",
-		"Daily briefings and written reports.",
+		"寫下的報告。",
+		"Written reports.",
 	)
 	ReportIndexEmpty = both(
 		"這個書庫裡沒有報告。",
@@ -91,12 +91,6 @@ var (
 	BranchCountOne  = both("%d 枝", "%d branch")
 	BranchCountMany = both("%d 枝", "%d branches")
 )
-
-// DailyBriefing is the mark on a briefing's row. A briefing is drawn by a
-// program and shown here as bytes inside an isolated frame, which is not how the
-// written reports beside it open. A written report is what every row on the
-// shelf is, so its row carries no mark of its own.
-var DailyBriefing = both("每日簡報", "Daily briefing")
 
 // ReportUndated is what leads a report that carries no day, where the others
 // lead with one. A shelf read by date needs an answer in that column from every

@@ -43,7 +43,7 @@ To turn your notes into a course, follow [Make a course](docs/authoring.md). It 
 - **Read.** Wikilinks, callouts, footnotes, tables, Mermaid diagrams, code and ruby render as written. Settings offer light, dark or the system's appearance, three text sizes, and serif, sans serif or Kaiti type. "Leave off here" keeps your place on this device. The home page links back to it.
 - **Learn.** A course lists its parts, marks the lesson you are on and links the lessons before and after it. A side branch is optional reading. Furigana can be hidden. A Japanese passage the author marks in a lesson can be read aloud. The example library has [a Go concurrency course](examples/vault/Notes/Books/Go%20並行入門.md) and [two Japanese dialogue lessons](examples/vault/Notes/Books/在圖書館讀日文.md).
 - **Find.** Search works in English, Chinese and Japanese. A note shows its sections and the notes that cite it beside the text. A map lists the notes under one subject.
-- **Reports.** Daily briefings (HTML) and written reports (Markdown) under `System/reports/` are listed together. A briefing opens in a sandbox.
+- **Reports.** Markdown reports written directly in `System/reports/` are listed newest first, each by its title.
 - **Check.** The health page lists wikilinks that point at nothing and notes no other note links to. `yomihon check` lists broken links and frontmatter problems in a terminal.
 
 The interface is available in English and Traditional Chinese. A note keeps the language it was written in.

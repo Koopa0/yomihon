@@ -38,7 +38,6 @@ func remapDisplaySpans(raw string, spans []render.DisplaySpan) []render.DisplayS
 			continue
 		}
 		span.Start, span.End = start, end
-		span.Replacement = norm.NFC.String(span.Replacement)
 		mapped = append(mapped, span)
 	}
 	return mapped
@@ -92,7 +91,6 @@ type excerptAtom struct {
 	start, end int
 	hit        bool
 	deleted    bool
-	replaced   bool
 }
 
 // excerptSourceHits marks the original window before whitespace is collapsed.
@@ -133,23 +131,8 @@ func (e *entry) excerptAtoms(start, end int, tokens []string) []excerptAtom {
 	for at := start; at < end; {
 		_, size := utf8.DecodeRuneInString(e.PlainText[at:end])
 		stop := at + size
-		hidden, deleted, replacement := e.excerptEffects(at, stop)
-		if replacement != nil {
-			stop = min(end, replacement.End)
-			for _, span := range e.displaySpans {
-				if span.Start < replacement.End && span.End > replacement.Start {
-					hidden = hidden || span.Hidden
-					deleted = deleted || span.Deleted
-				}
-			}
-			// An atomic entity/tag crossing a cut contributes no fragment of
-			// its source or decoded value. The original window never expands.
-			// An earlier replacement owns any overlap. A later atomic value
-			// cannot repeat source whose opening was already consumed.
-			if !hidden && replacement.Start == at && replacement.Start >= start && replacement.End <= end {
-				atoms = append(atoms, e.replacementAtoms(replacement, tokens, deleted)...)
-			}
-		} else if !hidden {
+		hidden, deleted := e.excerptEffects(at, stop)
+		if !hidden {
 			atoms = append(atoms, excerptAtom{text: e.PlainText[at:stop], start: at, end: stop, hit: anyExcerptHit(covered, at-start, stop-start), deleted: deleted})
 		}
 		at = stop
@@ -157,7 +140,7 @@ func (e *entry) excerptAtoms(start, end int, tokens []string) []excerptAtom {
 	return atoms
 }
 
-func (e *entry) excerptEffects(at, stop int) (hidden, deleted bool, replacement *render.DisplaySpan) {
+func (e *entry) excerptEffects(at, stop int) (hidden, deleted bool) {
 	for i := range e.displaySpans {
 		span := &e.displaySpans[i]
 		if span.Start >= stop || span.End <= at {
@@ -165,19 +148,16 @@ func (e *entry) excerptEffects(at, stop int) (hidden, deleted bool, replacement 
 		}
 		hidden = hidden || span.Hidden
 		deleted = deleted || span.Deleted
-		if span.Replacement != "" && (replacement == nil || span.Start < replacement.Start) {
-			replacement = span
-		}
 	}
-	return hidden, deleted, replacement
+	return hidden, deleted
 }
 
 func firstExcerptHit(atoms []excerptAtom) (first, last int) {
 	first, last = -1, -1
 	for _, atom := range atoms {
-		if !atom.hit || atom.replaced {
+		if !atom.hit {
 			if first >= 0 {
-				// Unmarked text or a replacement ends the first shown occurrence.
+				// Unmarked text ends the first shown occurrence.
 				break
 			}
 			continue
@@ -204,34 +184,6 @@ func anyExcerptHit(covered []bool, start, end int) bool {
 		}
 	}
 	return false
-}
-
-func (e *entry) replacementAtoms(span *render.DisplaySpan, tokens []string, deleted bool) []excerptAtom {
-	covered := make([]bool, len(span.Replacement))
-	for _, token := range tokens {
-		// Only a token with evidence in this very source range may mark
-		// its decoded value. Another token matching elsewhere is no proof.
-		if len(MarkHits(e.PlainText[span.Start:span.End], []string{token})) == 0 {
-			continue
-		}
-		at := 0
-		for _, run := range MarkHits(span.Replacement, []string{token}) {
-			if run.Hit {
-				for i := range len(run.Text) {
-					covered[at+i] = true
-				}
-			}
-			at += len(run.Text)
-		}
-	}
-	var atoms []excerptAtom
-	for at := 0; at < len(span.Replacement); {
-		_, size := utf8.DecodeRuneInString(span.Replacement[at:])
-		stop := at + size
-		atoms = append(atoms, excerptAtom{text: span.Replacement[at:stop], start: span.Start, end: span.End, hit: anyExcerptHit(covered, at, stop), deleted: deleted, replaced: true})
-		at = stop
-	}
-	return atoms
 }
 
 func collapseExcerptAtoms(atoms []excerptAtom) []excerptAtom {
@@ -262,7 +214,6 @@ func mergeExcerptSpace(space *excerptAtom, atom excerptAtom) *excerptAtom {
 	}
 	space.end, space.hit = atom.end, space.hit || atom.hit
 	space.deleted = space.deleted && atom.deleted
-	space.replaced = space.replaced || atom.replaced
 	return space
 }
 
@@ -277,46 +228,25 @@ func appendExcerptRun(runs *[]ExcerptRun, text string, hit, deleted bool) {
 	*runs = append(*runs, ExcerptRun{Text: text, Hit: hit, Deleted: deleted})
 }
 
-// shownOccurrence keeps a display centre and its landing eligibility together.
-// Decoded atoms may choose a window, but never name original page coordinates.
+// shownOccurrence keeps a display centre and where it was found together.
 type shownOccurrence struct {
 	start, end int
-	replaced   bool
 	found      bool
 	fromFence  bool
 }
 
 type excerptDisplayIndex struct {
-	hidden       [][2]int
-	replacements []render.DisplaySpan
+	hidden [][2]int
 }
 
-// displayIndex merges only visibility intervals. Replacement order retains the
-// first owner's atomic semantics; an overlapping tail cannot emit a new atom.
+// displayIndex merges the hidden intervals, so a scan can jump each one whole.
 func (e *entry) displayIndex() excerptDisplayIndex {
 	var index excerptDisplayIndex
 	for _, span := range e.displaySpans {
 		if span.Hidden {
 			index.hidden = append(index.hidden, [2]int{span.Start, span.End})
 		}
-		if span.Replacement != "" {
-			index.replacements = append(index.replacements, span)
-		}
 	}
-	slices.SortStableFunc(index.replacements, func(a, b render.DisplaySpan) int { return cmp.Compare(a.Start, b.Start) })
-	atomic := index.replacements[:0]
-	consumed := 0
-	for _, span := range index.replacements {
-		if span.Start < consumed {
-			if span.End > consumed {
-				index.hidden = append(index.hidden, [2]int{consumed, span.End})
-			}
-		} else {
-			atomic = append(atomic, span)
-		}
-		consumed = max(consumed, span.End)
-	}
-	index.replacements = atomic
 	slices.SortFunc(index.hidden, func(a, b [2]int) int { return cmp.Compare(a[0], b[0]) })
 	merged := index.hidden[:0]
 	for _, span := range index.hidden {
@@ -338,22 +268,6 @@ func (index *excerptDisplayIndex) hiddenAt(start, end int) (stop int, hidden boo
 	return 0, false
 }
 
-func (index *excerptDisplayIndex) replacementAt(start, end int) *render.DisplaySpan {
-	i := sort.Search(len(index.replacements), func(i int) bool { return index.replacements[i].End > start })
-	if i < len(index.replacements) && index.replacements[i].Start < end {
-		return &index.replacements[i]
-	}
-	return nil
-}
-
-func (e *entry) shownReplacement(span *render.DisplaySpan, token string, index *excerptDisplayIndex) bool {
-	_, hidden := index.hiddenAt(span.Start, span.End)
-	if hidden || strings.TrimSpace(span.Replacement) == "" {
-		return false
-	}
-	return token == "" || len(MarkHits(e.PlainText[span.Start:span.End], []string{token})) > 0 && len(MarkHits(span.Replacement, []string{token})) > 0
-}
-
 // firstShown inspects original evidence, jumping hidden ranges instead of
 // projecting every byte. Only the bounded excerpt later allocates text atoms.
 func (e *entry) firstShown(start, end int, token string, index *excerptDisplayIndex) shownOccurrence {
@@ -361,13 +275,6 @@ func (e *entry) firstShown(start, end int, token string, index *excerptDisplayIn
 		_, size := utf8.DecodeRuneInString(e.PlainText[at:end])
 		if stop, hidden := index.hiddenAt(at, at+size); hidden {
 			at = min(end, stop)
-			continue
-		}
-		if span := index.replacementAt(at, at+size); span != nil {
-			if e.shownReplacement(span, token, index) {
-				return shownOccurrence{start: span.Start, end: span.End, replaced: true, found: true}
-			}
-			at = min(end, span.End)
 			continue
 		}
 		if strings.TrimSpace(e.PlainText[at:at+size]) == "" {
@@ -378,10 +285,6 @@ func (e *entry) firstShown(start, end int, token string, index *excerptDisplayIn
 		i := sort.Search(len(index.hidden), func(i int) bool { return index.hidden[i][1] > at })
 		if i < len(index.hidden) {
 			stop = min(stop, index.hidden[i][0])
-		}
-		i = sort.Search(len(index.replacements), func(i int) bool { return index.replacements[i].End > at })
-		if i < len(index.replacements) {
-			stop = min(stop, index.replacements[i].Start)
 		}
 		if token == "" {
 			stop = at + size

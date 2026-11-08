@@ -187,11 +187,7 @@ func BenchmarkShownExcerptCentre(b *testing.B) {
 	for _, size := range []int{4096, 1 << 20} {
 		for _, shape := range []string{"hidden-prefix", "dense-spans"} {
 			b.Run(fmt.Sprintf("%s/%d", shape, size), func(b *testing.B) {
-				body := "<style>claim" + strings.Repeat("x", size-64) + "</style><p>Our claim survives.</p>"
-				if shape == "dense-spans" {
-					body = strings.Repeat("<b>x</b>", (size-64)/8) + "<p>Our claim survives.</p>"
-				}
-				doc := DocumentFromBriefing("System/reports/daily-briefing/fixture.html", []byte(body))
+				doc := shownExcerptFixture(shape, size)
 				index := NewIndex([]Document{doc}, validArtifactPolicy(b))
 				entry := index.entries[0]
 				centre := entry.shownExcerptCentre([]string{"claim"})
@@ -204,5 +200,30 @@ func BenchmarkShownExcerptCentre(b *testing.B) {
 				}
 			})
 		}
+	}
+}
+
+// shownExcerptFixture is a document of about size bytes whose only shown
+// "claim" sits at its end. A hidden prefix is one span over a hidden "claim"
+// and the filler after it; dense spans hide every tag of a long run of short
+// formatted words, so the selection has thousands of spans to walk.
+func shownExcerptFixture(shape string, size int) Document {
+	const shown = " Our claim survives."
+	if shape == "dense-spans" {
+		var text strings.Builder
+		var spans []render.DisplaySpan
+		for range (size - 64) / 8 {
+			at := text.Len()
+			text.WriteString("<b>x</b>")
+			spans = append(spans, render.DisplaySpan{Start: at, End: at + 3, Hidden: true}, render.DisplaySpan{Start: at + 4, End: at + 8, Hidden: true})
+		}
+		text.WriteString(shown)
+		return Document{RelPath: "fixture.md", PlainText: text.String(), DisplaySpans: spans}
+	}
+	hidden := "claim" + strings.Repeat("x", size-64)
+	return Document{
+		RelPath:      "fixture.md",
+		PlainText:    hidden + shown,
+		DisplaySpans: []render.DisplaySpan{{Start: 0, End: len(hidden), Hidden: true}},
 	}
 }

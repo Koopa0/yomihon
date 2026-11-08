@@ -640,7 +640,7 @@ func (e *entry) bodyExcerpt(tokens []string) (bodySnippet string, bodyRuns []Exc
 		for _, run := range bodyRuns {
 			display.WriteString(run.Text)
 		}
-		if centre.found && !centre.replaced && first < last {
+		if centre.found && first < last {
 			terms = e.landingAtSource(centre.start, centre.end)
 		}
 		return display.String(), bodyRuns, terms, centre.fromFence

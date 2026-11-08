@@ -22,8 +22,7 @@ import (
 // TestEveryReadingAddressAnswers drives the production composition over every
 // address a reader can reach from the desk. Route patterns are spread across
 // four packages and a mode index sits beside a subtree pattern that already
-// owns its prefix ("/reports" beside "/reports/{name}", "/folders" beside
-// "/folders/{path...}"), which is exactly the shape that yields a redirect or a
+// owns its prefix ("/folders" beside "/folders/{path...}"), which is exactly the shape that yields a redirect or a
 // not-found page instead of a page while every package's own tests stay green.
 // One table over the assembled mux is the only thing that sees that.
 func TestEveryReadingAddressAnswers(t *testing.T) {
@@ -58,7 +57,10 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 		{"one study path", "/syllabus/Maps/study.md"},
 		{"one study path to listen to", "/listen/Maps/study.md"},
 		{"one map", "/notes/Maps/reading.md"},
-		{"one briefing", "/reports/2026-09-03.html"},
+		{"one report", "/notes/System/reports/2026-09-02.md"},
+		// An HTML file left where a retired generator wrote its briefings is a
+		// vault file like any other and opens on the file page.
+		{"a file in the old briefing folder", "/notes/System/reports/daily-briefing/2026-09-03.html"},
 		{"one folder", "/folders/Concepts"},
 		{"one note", "/notes/Concepts/alpha.md"},
 		{"two notes side by side", "/compare/Concepts/alpha.md?with=Concepts/beta.md"},
@@ -85,7 +87,8 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 
 // writeDeskFixture writes the smallest vault that holds one of everything the
 // desk offers: a contract, a study path, a general map, a note under a
-// lifecycle folder, a written report and a briefing.
+// lifecycle folder, a written report, and an HTML file left in the folder a
+// retired generator wrote its briefings to.
 func writeDeskFixture(t *testing.T, root string) {
 	t.Helper()
 
@@ -553,7 +556,7 @@ func TestEveryFaceRefusesAMissingNameTheSameWay(t *testing.T) {
 		target string
 	}{
 		{"a note nobody wrote", "/notes/Concepts/nothing-here.md"},
-		{"a report never published", "/reports/1999-01-01.html"},
+		{"an address below the report shelf", "/reports/1999-01-01.html"},
 		{"a study path that is not there", "/syllabus/Maps/nothing-here.md"},
 		{"a study path to listen to that is not there", "/listen/Maps/nothing-here.md"},
 	}

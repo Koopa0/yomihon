@@ -1,21 +1,17 @@
-// Browser containment lock for authored Markdown HTML, the first-party reading
-// shell, and verbatim report HTML. It starts a controlled second origin rather
-// than inferring privacy from DOM shape: a green run means the hostile fixtures
-// caused zero requests there while the application module still ran and
-// agent-authored report scripts and automatic navigation stayed inert.
+// Browser containment lock for authored Markdown HTML and the first-party
+// reading shell. It starts a controlled second origin rather than inferring
+// privacy from DOM shape: a green run means the hostile fixtures caused zero
+// requests there while the application module still ran.
 //
 // Env: YOMIHON_BASE and MUTATE. MUTATE=list prints the watched-red modes.
-import { createSocket } from "node:dgram";
 import { createServer } from "node:http";
 
 import { chromium } from "playwright-core";
 
 const BASE = process.env.YOMIHON_BASE || "http://127.0.0.1:9610";
 const READING_PATH = "/notes/Notes/browser-boundary.md";
-const REPORT_PATH = "/reports/browser-boundary.html/raw";
 const MUTATE = process.env.MUTATE || "";
 const ATTACKER_TOKEN = "BROWSER_BOUNDARY_ATTACKER";
-const STUN_TOKEN = "BROWSER_BOUNDARY_STUN";
 
 const SITES = [
 	"authored-markup-inert",
@@ -23,12 +19,6 @@ const SITES = [
 	"response-nonce-bound",
 	"application-runtime-survives",
 	"reading-csp-defense-in-depth",
-	"report-static-content-preserved",
-	"report-script-inert",
-	"report-refresh-inert",
-	"report-link-inert",
-	"report-resource-zero-network",
-	"report-webrtc-zero-network",
 ];
 
 const MUTATIONS = {
@@ -56,22 +46,6 @@ const MUTATIONS = {
 	"weaken-reading-csp": {
 		target: "reading-csp-defense-in-depth",
 		phase: "bypass",
-	},
-	"strip-report-static-content": {
-		target: "report-static-content-preserved",
-		phase: "report",
-	},
-	"enable-report-script": { target: "report-script-inert", phase: "report" },
-	"enable-report-refresh": { target: "report-refresh-inert", phase: "report" },
-	"restore-report-link-rel": { target: "report-link-inert", phase: "report" },
-	"open-report-link-rel": { target: "report-link-inert", phase: "report" },
-	"weaken-report-resource-policy": {
-		target: "report-resource-zero-network",
-		phase: "report",
-	},
-	"enable-report-webrtc": {
-		target: "report-webrtc-zero-network",
-		phase: "report",
 	},
 };
 
@@ -127,7 +101,6 @@ const mutationFor = (phase) => MUTATE && MUTATIONS[MUTATE].phase === phase;
 
 const startAttacker = async () => {
 	const requests = [];
-	const stunPackets = [];
 	const server = createServer((request, response) => {
 		requests.push(request.url || "/");
 		response.setHeader("Access-Control-Allow-Origin", "*");
@@ -146,40 +119,16 @@ const startAttacker = async () => {
 		response.statusCode = 204;
 		response.end();
 	});
-	const stun = createSocket("udp4");
-	stun.on("message", (packet) => stunPackets.push(packet.length));
-	let stunBound = false;
 	const close = async () => {
-		const closers = [];
-		if (server.listening) {
-			closers.push(
-				new Promise((resolve, reject) =>
-					server.close((error) => (error ? reject(error) : resolve())),
-				),
-			);
-		}
-		if (stunBound) {
-			closers.push(new Promise((resolve) => stun.close(resolve)));
-		}
-		const results = await Promise.allSettled(closers);
-		const errors = results
-			.filter((result) => result.status === "rejected")
-			.map((result) => result.reason);
-		if (errors.length !== 0) {
-			throw new AggregateError(errors, "close controlled attacker resources");
-		}
+		if (!server.listening) return;
+		await new Promise((resolve, reject) =>
+			server.close((error) => (error ? reject(error) : resolve())),
+		);
 	};
 	try {
 		await new Promise((resolve, reject) => {
 			server.once("error", reject);
 			server.listen(0, "127.0.0.1", resolve);
-		});
-		await new Promise((resolve, reject) => {
-			stun.once("error", reject);
-			stun.bind(0, "127.0.0.1", () => {
-				stunBound = true;
-				resolve();
-			});
 		});
 	} catch (error) {
 		await close();
@@ -190,19 +139,11 @@ const startAttacker = async () => {
 		await close();
 		broken("controlled second origin has no TCP address");
 	}
-	const stunAddress = stun.address();
-	if (!stunAddress || typeof stunAddress === "string") {
-		await close();
-		broken("controlled STUN sink has no UDP address");
-	}
 	return {
 		authority: `127.0.0.1:${address.port}`,
-		stunAuthority: `127.0.0.1:${stunAddress.port}`,
 		requests,
-		stunPackets,
 		reset() {
 			requests.length = 0;
-			stunPackets.length = 0;
 		},
 		close,
 	};
@@ -212,20 +153,6 @@ const weakenedReadingPolicy = () =>
 	`default-src * data: blob: 'unsafe-inline'; base-uri *; connect-src *; font-src * data:; ` +
 	`form-action *; frame-ancestors 'none'; frame-src *; img-src * data: blob:; media-src *; ` +
 	`object-src *; script-src * 'unsafe-inline'; style-src * 'unsafe-inline'; worker-src *`;
-
-const executableReportPolicy =
-	"sandbox allow-scripts; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
-	"font-src data:; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
-	"img-src data:; media-src data:; object-src 'none'; " +
-	"script-src 'unsafe-inline'; script-src-attr 'unsafe-inline'; " +
-	"style-src 'unsafe-inline'; worker-src 'none'";
-
-const weakenedReportResourcePolicy =
-	"default-src 'none'; base-uri 'none'; connect-src 'none'; " +
-	"font-src data:; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
-	`img-src ${BASE} data:; media-src data:; object-src 'none'; ` +
-	"script-src 'none'; script-src-attr 'none'; " +
-	"style-src 'unsafe-inline'; worker-src 'none'";
 
 const installReadingResponse = async (page, attacker, phase) => {
 	const proof = { requests: 0, attackerTokens: 0, mutationMatches: 0, csp: "" };
@@ -329,131 +256,6 @@ const installReadingResponse = async (page, attacker, phase) => {
 	return proof;
 };
 
-const installReportResponse = async (page, attacker) => {
-	const proof = {
-		requests: 0,
-		attackerTokens: 0,
-		mutationMatches: 0,
-		csp: "",
-		deliveredCsp: "",
-		stimuli: {},
-	};
-	await page.route(BASE + REPORT_PATH, async (route) => {
-		proof.requests += 1;
-		const response = await route.fetch();
-		const original = await response.text();
-		proof.csp = response.headers()["content-security-policy"] || "";
-		proof.attackerTokens =
-			occurrences(original, ATTACKER_TOKEN) + occurrences(original, STUN_TOKEN);
-		proof.stimuli = {
-			script: occurrences(original, "dataset.inlineReport = 'ran'"),
-			refresh: occurrences(original, `${ATTACKER_TOKEN}/report-refresh`),
-			style: occurrences(original, `${ATTACKER_TOKEN}/report-style`),
-			prefetch: occurrences(original, `${ATTACKER_TOKEN}/report-prefetch`),
-			prerender: occurrences(original, `${ATTACKER_TOKEN}/report-prerender`),
-			referencePrerender: occurrences(
-				original,
-				`${ATTACKER_TOKEN}/report-reference-prerender`,
-			),
-			image: occurrences(original, `${ATTACKER_TOKEN}/report-image`),
-			fetch: occurrences(original, `${ATTACKER_TOKEN}/report-fetch`),
-			webrtc: occurrences(original, STUN_TOKEN),
-		};
-		let body = original
-			.replaceAll(ATTACKER_TOKEN, attacker.authority)
-			.replaceAll(STUN_TOKEN, attacker.stunAuthority);
-		if (mutationFor("report")) {
-			const headers = response.headers();
-			let expectedCsp = reportPolicy;
-			let bodyMatches = 0;
-			switch (MUTATE) {
-				case "strip-report-static-content": {
-					const needle =
-						'<p id="self-contained-report">Self-contained report</p>';
-					bodyMatches = occurrences(body, needle);
-					body = body.replace(needle, "");
-					break;
-				}
-				case "enable-report-script":
-					expectedCsp = executableReportPolicy;
-					headers["content-security-policy"] = executableReportPolicy;
-					body =
-						"<!doctype html><html data-report-mutation=\"enable-report-script\"><script>document.documentElement.dataset.inlineReport='ran'</script></html>";
-					bodyMatches = occurrences(
-						body,
-						'data-report-mutation="enable-report-script"',
-					);
-					break;
-				case "enable-report-refresh":
-					expectedCsp = executableReportPolicy;
-					headers["content-security-policy"] = executableReportPolicy;
-					body = `<!doctype html><html data-report-mutation="enable-report-refresh"><meta http-equiv="refresh" content="0;url=http://${attacker.authority}/report-refresh"></html>`;
-					bodyMatches = occurrences(
-						body,
-						'data-report-mutation="enable-report-refresh"',
-					);
-					break;
-				case "weaken-report-resource-policy":
-					expectedCsp = weakenedReportResourcePolicy;
-					headers["content-security-policy"] = weakenedReportResourcePolicy;
-					body = `<!doctype html><html data-report-mutation="weaken-report-resource-policy"><img data-report-resource-mutation src="${BASE}/browser-boundary-report-image" alt=""></html>`;
-					bodyMatches = occurrences(
-						body,
-						'data-report-mutation="weaken-report-resource-policy"',
-					);
-					break;
-				case "restore-report-link-rel": {
-					// The route's one rewrite, undone at its single site: the
-					// prerender link keeps the rel its author wrote.
-					const needle = '<link rel=_  rel="prerender"';
-					bodyMatches = occurrences(body, needle);
-					body = body.replace(needle, '<link rel="prerender"');
-					break;
-				}
-				case "open-report-link-rel": {
-					// The inserted relation without the space that closes it:
-					// the unquoted value runs on through the author's "/" and
-					// picks up the reference that decodes to a space and a
-					// relation of the author's own.
-					const needle = "<link rel=_ /&#32;prerender";
-					bodyMatches = occurrences(body, needle);
-					body = body.replace(needle, "<link rel=_/&#32;prerender");
-					break;
-				}
-				case "enable-report-webrtc":
-					expectedCsp = executableReportPolicy;
-					headers["content-security-policy"] = executableReportPolicy;
-					body = `<!doctype html><html data-report-mutation="enable-report-webrtc"><script>
-const peer = new RTCPeerConnection({iceServers: [{urls: "stun:${attacker.stunAuthority}"}]});
-peer.createDataChannel("probe");
-peer.createOffer().then((offer) => peer.setLocalDescription(offer));
-</script></html>`;
-					bodyMatches = occurrences(
-						body,
-						'data-report-mutation="enable-report-webrtc"',
-					);
-					break;
-				default:
-					broken(`missing report mutation body for ${MUTATE}`);
-			}
-			proof.deliveredCsp = headers["content-security-policy"] || "";
-			proof.mutationMatches =
-				proof.csp === reportPolicy &&
-				proof.deliveredCsp === expectedCsp &&
-				bodyMatches === 1
-					? 1
-					: 0;
-			delete headers["content-length"];
-			delete headers["content-encoding"];
-			await route.fulfill({ response, body, headers });
-			return;
-		}
-		proof.deliveredCsp = proof.csp;
-		await route.fulfill({ response, body });
-	});
-	return proof;
-};
-
 const proveResponseRoute = (proof, phase) => {
 	if (proof.requests !== 1)
 		broken(
@@ -467,13 +269,6 @@ const proveResponseRoute = (proof, phase) => {
 		);
 	}
 };
-
-const reportPolicy =
-	"sandbox; default-src 'none'; base-uri 'none'; connect-src 'none'; " +
-	"font-src data:; form-action 'none'; frame-ancestors 'self'; frame-src 'none'; " +
-	"img-src data:; media-src data:; object-src 'none'; " +
-	"script-src 'none'; script-src-attr 'none'; " +
-	"style-src 'unsafe-inline'; worker-src 'none'";
 
 let browser;
 let attacker;
@@ -669,125 +464,8 @@ try {
 		await context.close();
 	}
 
-	// Case 3: verbatim report bytes render as static HTML/CSS/SVG, while authored
-	// scripts, automatic navigation, ordinary remote resources, and WebRTC stay
-	// inert. This is the report contract, not the reading renderer's allowlist.
-	{
-		attacker.reset();
-		const context = await browser.newContext({
-			viewport: { width: 1280, height: 800 },
-		});
-		const page = await context.newPage();
-		const reportResourceRequests = [];
-		page.on("request", (request) => {
-			if (request.url() === BASE + "/browser-boundary-report-image") {
-				reportResourceRequests.push(request.url());
-			}
-		});
-		const proof = await installReportResponse(page, attacker);
-		await page.goto(BASE + REPORT_PATH, { waitUntil: "domcontentloaded" });
-		proveResponseRoute(proof, "report");
-		for (const [stimulus, count] of Object.entries(proof.stimuli)) {
-			if (count !== 1) {
-				broken(
-					`report fixture ${stimulus} stimulus occurs ${count} times, want exactly 1`,
-				);
-			}
-		}
-		if (proof.csp !== reportPolicy) {
-			fail(
-				"report-script-inert",
-				`report CSP=${JSON.stringify(proof.csp)}, want=${JSON.stringify(reportPolicy)}`,
-			);
-		}
-		// A link element can have a page fetched ahead of a visit outside the
-		// report policy, so every one the report holds must carry only the
-		// relation the route inserts, which no browser acts on.
-		// This is read from the document rather than waited for on the wire:
-		// the rel the parser kept is there at any moment, while the request a
-		// live rel starts has no deadline a probe could honestly wait out.
-		// Only the fixture's own body carries its three link elements; the
-		// mutations that stand in a one-line document of their own carry none.
-		if (
-			!MUTATE ||
-			MUTATE === "strip-report-static-content" ||
-			MUTATE === "restore-report-link-rel" ||
-			MUTATE === "open-report-link-rel"
-		) {
-			const linkRels = await page.evaluate(() =>
-				[...document.querySelectorAll("link")].map((link) =>
-					link.getAttribute("rel"),
-				),
-			);
-			if (linkRels.length !== 3 || linkRels.some((rel) => rel !== "_")) {
-				fail(
-					"report-link-inert",
-					`report link elements carry rel=${JSON.stringify(linkRels)}, want three "_"`,
-				);
-			}
-		}
-		await page.waitForTimeout(700);
-		if (!MUTATE || MUTATE === "strip-report-static-content") {
-			const staticReport = await page.evaluate(() => ({
-				text: document.querySelector("#self-contained-report")?.textContent,
-				color: getComputedStyle(document.body).color,
-				circle: document.querySelectorAll("#self-contained-svg circle").length,
-				dataImageWidth: document.querySelector("#self-contained-data-image")
-					?.naturalWidth,
-			}));
-			if (
-				staticReport.text !== "Self-contained report" ||
-				staticReport.color !== "rgb(12, 34, 56)" ||
-				staticReport.circle !== 1 ||
-				staticReport.dataImageWidth !== 1
-			) {
-				fail(
-					"report-static-content-preserved",
-					`static report state=${JSON.stringify(staticReport)}`,
-				);
-			}
-		}
-		if (
-			MUTATE === "weaken-report-resource-policy" &&
-			(await page.locator("[data-report-resource-mutation]").count()) !== 1
-		) {
-			notApplied("the isolated remote-resource mutation body did not render");
-		}
-		const inlineRan = await page.evaluate(
-			() => document.documentElement.dataset.inlineReport === "ran",
-		);
-		if (inlineRan) {
-			fail(
-				"report-script-inert",
-				`authored report script ran under ${JSON.stringify(proof.deliveredCsp)}`,
-			);
-		}
-		const refreshes = attacker.requests.filter(
-			(request) => request === "/report-refresh",
-		);
-		if (refreshes.length !== 0) {
-			fail(
-				"report-refresh-inert",
-				`authored refresh navigated to ${JSON.stringify(refreshes)}`,
-			);
-		}
-		if (attacker.requests.length !== 0 || reportResourceRequests.length !== 0) {
-			fail(
-				"report-resource-zero-network",
-				`report made HTTP requests: second-origin=${JSON.stringify(attacker.requests)}, same-origin=${JSON.stringify(reportResourceRequests)}`,
-			);
-		}
-		if (attacker.stunPackets.length !== 0) {
-			fail(
-				"report-webrtc-zero-network",
-				`report emitted STUN packet lengths ${JSON.stringify(attacker.stunPackets)}`,
-			);
-		}
-		await context.close();
-	}
-
 	console.log(
-		"PASS browser-boundary: authored markup is inert, app nonces work, and reading/report surfaces made zero second-origin requests",
+		"PASS browser-boundary: authored markup is inert, app nonces work, and the reading surface made zero second-origin requests",
 	);
 } catch (error) {
 	if (error instanceof NotApplied) {
