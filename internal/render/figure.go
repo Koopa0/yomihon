@@ -107,6 +107,9 @@ func figureEmbed(relPath string, link graph.Wikilink, state *FigureState, col *c
 	}
 	standIn := fmt.Sprintf(wording.FigureStandInFmt.In(lang),
 		`<a href="`+attributeEscaper.Replace(notesHref(relPath))+`">`+html.EscapeString(title)+`</a>`)
+	if col.page.figureStandIns {
+		return `<div class="figure-embed figure-embed--stand-in"><p class="embed-media">` + standIn + `</p></div>`
+	}
 
 	if state.Read && state.Inspection.Refusal != figure.Served {
 		finding := FigureFinding(&state.Inspection, state.Size)

@@ -26,7 +26,8 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/figures.md';
 const MUTATE = process.env.MUTATE || '';
 const FIGURES = 'Notes/figures';
-const APPROVED = ['moving-figure.html', 'leaving-figure.html'];
+const APPROVED = ['moving-figure.html', 'leaving-figure.html', 'hover-figure.html'];
+const HOVER_NOTE = '/notes/Notes/figure-hover.md';
 
 // The ways out an approved figure still has, measured and accepted for
 // approved figures only: a WebRTC peer sends UDP to its STUN address, and a
@@ -54,6 +55,7 @@ const SITES = [
   'approved-runs-its-own-text',
   'only-known-residuals',
   'height-from-the-figure-only',
+  'hover-card-runs-nothing',
 ];
 
 const MUTATIONS = {
@@ -73,6 +75,8 @@ const MUTATIONS = {
   'widen-page-frame-src': 'only-known-residuals',
   // The page takes a height from any window.
   'height-from-any-window': 'height-from-the-figure-only',
+  // A hover card frames the approved figure of the note it shows.
+  'frame-in-hover-card': 'hover-card-runs-nothing',
 };
 
 class LockFired extends Error {
@@ -200,12 +204,14 @@ try {
   const idle = await listenTCP('idle');
   const refused = await listenTCP('refused');
   const leave = await listenTCP('leave');
+  const hover = await listenUDP('hover');
   const map = Object.entries(outside).map(([channel, at]) => `${channel}=${at}`).join(';');
   const tokens = [
     ['FIGURE_OUTSIDE_STILL', still],
     ['FIGURE_OUTSIDE_IDLE', idle],
     ['FIGURE_OUTSIDE_REFUSED', refused],
     ['FIGURE_OUTSIDE_LEAVE', leave],
+    ['FIGURE_OUTSIDE_HOVER', hover],
     ['FIGURE_OUTSIDE_MAP', map],
   ];
   const withOutside = (body) => tokens.reduce((text, [token, value]) => text.replaceAll(token, value), body);
@@ -255,6 +261,14 @@ try {
           headers['content-security-policy'] = once(headers['content-security-policy'], "frame-src 'self'", 'frame-src *', MUTATE);
         }
         return route.fulfill({ response, body, headers });
+      }
+      if (url.pathname === `/preview${HOVER_NOTE.slice('/notes'.length)}` && MUTATE === 'frame-in-hover-card') {
+        const response = await route.fetch();
+        let body = await response.text();
+        const stand = body.match(/<div class="figure-embed figure-embed--stand-in">[\s\S]*?<\/div>/g) || [];
+        body = once(body, stand[0] ?? '<no stand-in in the card>',
+          `<iframe class="figure-embed__frame" src="/embed/${FIGURES}/hover-figure.html" title="hover" sandbox="allow-scripts" height="100" data-figure-scripts></iframe>`, MUTATE);
+        return route.fulfill({ response, body });
       }
       if (url.pathname === '/static/diagrams.js' && MUTATE === 'height-from-any-window') {
         const response = await route.fetch();
@@ -375,7 +389,7 @@ try {
   if (!told || told.data.value !== theme) fail('approved-runs-its-own-text', `the approved figure was told theme ${JSON.stringify(told?.data.value)}, want ${theme}`);
 
   // only-known-residuals
-  const fresh = events.filter((e) => !['still', 'idle', 'refused'].includes(e.channel));
+  const fresh = events.filter((e) => !['still', 'idle', 'refused', 'hover'].includes(e.channel));
   const unexpected = fresh.filter((e) => e.kind === 'http' || KNOWN_RESIDUALS[e.channel] !== e.kind);
   if (unexpected.length) fail('only-known-residuals', `an approved figure reached the outside by a new channel: ${JSON.stringify(unexpected)}`);
   const residual = Object.fromEntries(Object.entries(KNOWN_RESIDUALS).map(([channel, kind]) => [
@@ -390,6 +404,30 @@ try {
   await page.waitForTimeout(200);
   const after = await page.evaluate((src) => document.querySelector(`iframe[src="${src}"]`).getAttribute('height'), moving);
   if (after !== '333') fail('height-from-the-figure-only', `a message from the page itself set a figure's height to ${after}`);
+
+  // hover-card-runs-nothing: a card shows a note the reader has not opened,
+  // so its approved figure is a stand-in. Passing over the link fetches
+  // nothing of the figure and sends nothing anywhere.
+  const link = page.locator(`.y-prose a[href="${HOVER_NOTE}"]`);
+  if ((await link.count()) !== 1) throw new ProbeBroken(`BROKEN figure-boundary: no single link to ${HOVER_NOTE}`);
+  // The card answers a pointer that comes to rest on a link, not one the
+  // page scrolled under, so the link is brought into view and left to settle
+  // before the pointer arrives from outside it.
+  await link.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+  await page.waitForTimeout(800);
+  await page.mouse.move(4, 4);
+  await page.waitForTimeout(300);
+  await link.hover();
+  await page.waitForSelector('.y-preview :is(.figure-embed, iframe)', { timeout: 5000 }).catch(() => {
+    throw new ProbeBroken('BROKEN figure-boundary: hovering the link opened no card holding the figure');
+  });
+  await page.waitForTimeout(4000);
+  const cardFrames = await page.locator('.y-preview iframe').count();
+  const hovered = events.filter((e) => e.channel === 'hover');
+  const ranInCard = said(await messages(), 'hover-ran');
+  if (cardFrames || hovered.length || ranInCard) {
+    fail('hover-card-runs-nothing', `a hover card framed ${cardFrames} figure(s), ran its script: ${ranInCard}, and reached the outside: ${JSON.stringify(hovered)}`);
+  }
 
   if (MUTATE && !applied.has(MUTATE)) throw new NotApplied(`NOT-APPLIED figure-boundary: ${MUTATE} never applied`);
   console.log('figure-boundary: ok');

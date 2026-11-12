@@ -285,3 +285,33 @@ func TestTheReadingPageFramesEachFigure(t *testing.T) {
 		t.Error("a lapsed approval is not said, or its frame still admits scripts")
 	}
 }
+
+// TestAHoverCardNeverFramesAFigure: a card shows a note the reader has not
+// opened, so an approved figure in it is a stand-in and not a frame — nothing
+// of the figure is fetched, and none of its scripts runs, because a link to
+// its note was passed over.
+func TestAHoverCardNeverFramesAFigure(t *testing.T) {
+	t.Parallel()
+	root := figureVault(t)
+	marks := approvalsFor(t)
+	if err := marks.ApproveFigure("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure)), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	srv := newFigureServer(t, root, marks)
+	_, _, page := fetch(t, srv.Client(), srv.URL+"/notes/host.md")
+	if !strings.Contains(page, `sandbox="allow-scripts"`) {
+		t.Fatal("the opened note does not frame its approved figure, so this test proves nothing about the card")
+	}
+	code, _, card := fetch(t, srv.Client(), srv.URL+"/preview/host.md")
+	if code != http.StatusOK {
+		t.Fatalf("GET /preview/host.md = %d, want 200", code)
+	}
+	for _, refused := range []string{"<iframe", "figure-embed__frame", "/embed/", "allow-scripts"} {
+		if strings.Contains(card, refused) {
+			t.Errorf("the hover card holds %q:\n%s", refused, card)
+		}
+	}
+	if strings.Count(card, "這裡無法顯示") != 4 {
+		t.Errorf("the hover card shows %d figure stand-ins, want one for each of the four embeds:\n%s", strings.Count(card, "這裡無法顯示"), card)
+	}
+}

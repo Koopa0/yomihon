@@ -336,7 +336,20 @@ func (r *Pipeline) HTML(relPath, title, body string, lang wording.Lang) Result {
 // derived from the page rather than a running process, so two readers of one
 // lesson receive the same bytes.
 func (r *Pipeline) HTMLIn(region, relPath, title, body string, lang wording.Lang) Result {
-	page := &composition{base: region, lang: lang}
+	return r.htmlIn(region, relPath, title, body, &composition{base: region, lang: lang})
+}
+
+// ExcerptHTMLIn is HTMLIn for a note shown inside another page — a hover
+// card, a course's opening — rather than opened. Every figure in it becomes
+// its stand-in: no frame, so nothing of the figure is fetched and none of its
+// scripts runs. An approval means the owner's figure runs where its note is
+// read, not wherever a link to that note is passed over.
+func (r *Pipeline) ExcerptHTMLIn(region, relPath, title, body string, lang wording.Lang) Result {
+	return r.htmlIn(region, relPath, title, body, &composition{base: region, lang: lang, figureStandIns: true})
+}
+
+func (r *Pipeline) htmlIn(region, relPath, title, body string, page *composition) Result {
+	lang := page.lang
 	stripped, comments := stripBody(body)
 	source, titleAnchor, dropped := removeBodyFirstH1(title, stripped.text)
 	address := stripped.address
@@ -389,6 +402,9 @@ type composition struct {
 	// here rather than on the pipeline, which belongs to a scan and serves readers
 	// who may each have chosen differently.
 	lang wording.Lang
+	// figureStandIns draws every figure as its stand-in, for an excerpt shown
+	// inside another page.
+	figureStandIns bool
 }
 
 // The two absences a page shows where an excerpt would have stood: nobody has

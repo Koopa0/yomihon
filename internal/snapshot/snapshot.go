@@ -588,6 +588,15 @@ func (g *Generation) Figure(canonicalPath string) render.FigureState {
 	return state
 }
 
+// RenderExcerptIn is RenderIn for a note shown inside another page rather
+// than opened: a figure in it is drawn as its stand-in, never as a frame.
+func (g *Generation) RenderExcerptIn(region, relPath, body string, lang wording.Lang) render.Result {
+	if g == nil || g.markdown == nil {
+		return render.Result{}
+	}
+	return g.markdown.ExcerptHTMLIn(region, relPath, g.notes[relPath].Title, body, lang)
+}
+
 // Transclusion returns the immutable body captured for canonicalPath, exposing
 // no parsed note and no mutable map.
 func (g *Generation) Transclusion(canonicalPath string) (string, bool) {

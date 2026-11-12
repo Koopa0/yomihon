@@ -103,7 +103,7 @@ func (h *Handler) previewOf(rel, section string, lang wording.Lang) (pages.Previ
 		// The places inside it come off afterwards: the excerpt shares a
 		// document with the page that opened it, and every name it brought
 		// would be a second place answering to one the page already has.
-		BodyHTML: render.StripAnchors(snap.RenderIn(previewRegion, rel, source, lang).HTML),
+		BodyHTML: render.StripAnchors(snap.RenderExcerptIn(previewRegion, rel, source, lang).HTML),
 	}
 	// The notice fires when either the byte cap or the empty-fragment cut left
 	// words behind. A lede is far under the budget, so the cut has to say so

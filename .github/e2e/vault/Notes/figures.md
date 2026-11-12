@@ -20,4 +20,6 @@ A figure that frames another page, which the route refuses.
 
 ![[refused-figure.html]]
 
+A note whose approved figure a hover card must show only as a stand-in: [[figure-hover]].
+
 FIGURES-END
