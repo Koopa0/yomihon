@@ -252,7 +252,9 @@ only whether a marks file was found for the folder as its path was spelled; it
 does not say why a file that was found lists nothing. It refuses rather than
 hand over a partial list: an unreadable marks file, a note outside withheld
 ground that could not be read or whose frontmatter could not be read, or no
-configuration directory to find the marks in. It also refuses without a
+configuration directory to find the marks in. Any note outside withheld ground
+whose frontmatter cannot be read stops it, whatever that note's type, and the
+refusal names the note; mend that note and run it again. It also refuses without a
 contract that declares `[privacy]`, and nothing under a directory that
 declaration withholds is listed, counted or hinted at, including a thought
 whose title or `based_on` points there and a location whose heading or note

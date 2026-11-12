@@ -172,6 +172,8 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"A list that leaves out what could not be read would read as complete, so an\n" +
 			"unreadable marks file stops this command, and so does a note outside\n" +
 			"withheld ground that could not be read or whose frontmatter could not be.\n" +
+			"That is any such note, whatever its type: the command names it, and once\n" +
+			"it is mended the command runs again.\n" +
 			"\n" +
 			"Exits 0 with the list, an empty one included, and 2 when the command itself\n" +
 			"could not run, an unreadable marks file or note included.\n",

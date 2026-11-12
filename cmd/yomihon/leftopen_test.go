@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	"log"
@@ -198,6 +199,7 @@ func leftOpenItems(t *testing.T, stdout string) []map[string]any {
 // point into it from outside, beside one plainly allowed thought and mark.
 func leftOpenPrivateVault(t *testing.T) (root, configDir string) {
 	t.Helper()
+	var marks []mark.Uncertainty
 	root, configDir = t.TempDir(), t.TempDir()
 	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
@@ -212,19 +214,39 @@ func leftOpenPrivateVault(t *testing.T) (root, configDir string) {
 	putOpenThoughtFile(t, root, "Inside/Titled cite.md",
 		"---\ntitle: \"On [[Private/Secret plan]]\"\ntype: reflection\nstatus: started\nupdated: 2026-09-07\n---\nA thought.\n")
 	putOpenThoughtFile(t, root, "Retitled.md", "---\ntitle: \"Re [[Private/Secret plan]]\"\n---\n# Re\n\n## Sec\n\nwords\n")
+	// A title is never rendered, so Markdown that would hide a link on a page
+	// — a code span, a backslash — hides nothing in the list, and a Markdown
+	// link names its destination as plainly as a wikilink does.
+	for i, title := range leftOpenRawTitles {
+		putOpenThoughtFile(t, root, fmt.Sprintf("Inside/Raw %d.md", i),
+			"---\ntitle: '"+title+"'\ntype: reflection\nstatus: started\nupdated: 2026-09-07\n---\nA thought.\n")
+		putOpenThoughtFile(t, root, fmt.Sprintf("Raw %d.md", i), "---\ntitle: '"+title+"'\n---\n# Raw\n\n## Sec\n\nwords\n")
+		marks = append(marks, mark.Uncertainty{RelPath: fmt.Sprintf("Raw %d.md", i), Anchor: "sec", At: leftOpenDay(7)})
+	}
 	// The heading the anchor was made from has been rewritten since; the
 	// anchor still spells the withheld note it once cited.
 	putOpenThoughtFile(t, root, "Renamed.md", "# Renamed\n\n## Other\n\nwords\n")
 	// The note is gone, and with it any way to tell what its anchor's words cited.
-	leftOpenMarks(t, root, configDir,
+	leftOpenMarks(t, root, configDir, append(marks,
 		mark.Uncertainty{RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(4)},
 		mark.Uncertainty{RelPath: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(5)},
 		mark.Uncertainty{RelPath: "Public.md", Anchor: "about-private-secret-plan", At: leftOpenDay(6)},
 		mark.Uncertainty{RelPath: "Retitled.md", Anchor: "sec", At: leftOpenDay(7)},
 		mark.Uncertainty{RelPath: "Renamed.md", Anchor: "about-private-secret-plan", At: leftOpenDay(8)},
 		mark.Uncertainty{RelPath: "Deleted.md", Anchor: "about-private-secret-plan", At: leftOpenDay(9)},
-	)
+	)...)
 	return root, configDir
+}
+
+// leftOpenRawTitles are titles, written as YAML single-quoted text, that cite
+// withheld ground in a way a Markdown reading of the title would not see.
+var leftOpenRawTitles = []string{
+	"On `[[Private/Secret plan]]`",
+	`On \[[Private/Secret plan]]`,
+	"On [x](Private/Secret plan.md)",
+	"On [x](../Private/Secret%20plan.md)",
+	"On [x](Pri%76ate/Secret%20plan.md)",
+	"On `[[Secret plan#Hidden heading|the plan]]`",
 }
 
 // The words that would describe withheld ground: its directory, its file
@@ -617,6 +639,8 @@ func TestLeftOpenRefusesANoteWhoseFrontmatterCannotBeRead(t *testing.T) {
 		{name: "unclosed status list", content: "---\ntitle: Broken\ntype: reflection\nstatus: [started\n---\nA thought.\n"},
 		{name: "unclosed fence", content: "---\ntitle: Broken\ntype: reflection\nstatus: started\nA thought.\n"},
 		{name: "status not text", content: "---\ntitle: Broken\ntype: reflection\nstatus: [started]\n---\nA thought.\n"},
+		{name: "type a list", content: "---\ntitle: Broken\ntype: [reflection]\nstatus: started\n---\nA thought.\n"},
+		{name: "type a number", content: "---\ntitle: Broken\ntype: 1\nstatus: started\n---\nA thought.\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -648,12 +672,12 @@ func TestLeftOpenHumanViewEscapesControlCharacters(t *testing.T) {
 	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n")
 	putOpenThoughtFile(t, root, "Inside/Loud.md",
-		"---\ntitle: \"\\e]0;pwned\\a \\e[2J\\u202Eevil\\x85\"\ntype: reflection\nstatus: started\nupdated: 2026-09-02\n---\nA thought.\n")
+		"---\ntitle: \"\\e]0;pwned\\a \\e[2J\\u202Eevil\\x85\\u200E\\u200F\\u061C\"\ntype: reflection\nstatus: started\nupdated: 2026-09-02\n---\nA thought.\n")
 	putOpenThoughtFile(t, root, "Inside/a\n2099-01-01  thought   Inside/Forged.md  Forged (started).md",
 		openThoughtNote("Two lines", "reflection", "started", "2026-09-01"))
 	got := leftOpen(t, root, configDir, "--format", "human")
 	want := leftOpenResult{
-		stdout: "2026-09-02  thought   Inside/Loud.md  \\u001b]0;pwned\\u0007 \\u001b[2J\\u202eevil\\u0085  (started)\n" +
+		stdout: "2026-09-02  thought   Inside/Loud.md  \\u001b]0;pwned\\u0007 \\u001b[2J\\u202eevil\\u0085\\u200e\\u200f\\u061c  (started)\n" +
 			"2026-09-01  thought   Inside/a\\n2099-01-01  thought   Inside/Forged.md  Forged (started).md  Two lines  (started)\n",
 		stderr: "yomihon: no location is listed; there is no \"Not sure yet\" marks file for this folder as spelled\n",
 	}

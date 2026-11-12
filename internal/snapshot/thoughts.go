@@ -51,14 +51,15 @@ func (g *Generation) DeclaredTitle(rel string) string {
 	return title
 }
 
-// StatusUnread reports whether rel's frontmatter writes a status that is not
-// text, a list or a mapping included, so that no status can be read from it.
-// An absent or empty status wrote nothing to misread and answers false.
-func (g *Generation) StatusUnread(rel string) bool {
+// NotText reports whether rel's frontmatter writes key with a value that is
+// not text — a list, a mapping, a number or a date — so that nothing can be
+// read from it as that field. An absent or empty key wrote nothing to misread
+// and answers false.
+func (g *Generation) NotText(rel, key string) bool {
 	if g == nil || g.parsed[rel] == nil {
 		return false
 	}
-	value, present := g.parsed[rel].Frontmatter["status"]
+	value, present := g.parsed[rel].Frontmatter[key]
 	if !present || value == nil {
 		return false
 	}

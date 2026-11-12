@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -314,8 +315,10 @@ func openUnreadable(snap *snapshot.Generation, allowed func(string) bool) error 
 		if !ok || !allowed(rel) || policy.IsNonInstance(rel) {
 			continue
 		}
-		statusUnread := schema.NormalizeWord(reading.Type) == answerType && snap.StatusUnread(rel)
-		if reading.FMDiagnostic != "" || reading.FrontmatterUnclosed || statusUnread {
+		// A type that is not text leaves whether the note is a thought unknown;
+		// a status that is not text on a thought leaves whether it is open so.
+		unread := snap.NotText(rel, "type") || (schema.NormalizeWord(reading.Type) == answerType && snap.NotText(rel, "status"))
+		if reading.FMDiagnostic != "" || reading.FrontmatterUnclosed || unread {
 			return fmt.Errorf("%s has frontmatter that could not be read, so whether it is a thought still open is unknown; nothing was listed", escapeTerminal(rel))
 		}
 	}
@@ -434,10 +437,9 @@ func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allow
 // frontmatter, not body, so the links it writes are read from the title
 // itself; a heading's words arrive rendered, so its links are found in body.
 func namesWithheld(snap *snapshot.Generation, text, body string, allowed func(string) bool) bool {
-	for _, target := range judge.LinkTargets(text) {
-		if !snap.NameWithin(target, allowed) {
-			return true
-		}
+	targets := slices.Concat(judge.LinkTargets(text), rawLinkTargets(text))
+	if slices.ContainsFunc(targets, func(target string) bool { return !snap.NameWithin(target, allowed) }) {
+		return true
 	}
 	folded := graph.FoldFragment(text)
 	for _, target := range judge.LinkTargets(body) {
@@ -482,6 +484,58 @@ func encodeOpen(entries []openEntry, format judge.Format) ([]byte, error) {
 	}
 }
 
+// rawLinkTargets is every name text spells as a link, read as plain text
+// rather than as Markdown: a title is written out as it stands, so a code span
+// or a backslash that keeps a page from rendering a link keeps nothing out of
+// the list. It takes the target of each [[…]], with any alias, heading or
+// block part cut away, and the destination of each ](…), as written and
+// percent-decoded. A destination that climbs out of its folder needs no
+// resolving here: NameWithin's gate refuses any path that climbs.
+func rawLinkTargets(text string) []string {
+	var targets []string
+	for rest := text; ; {
+		_, after, found := strings.Cut(rest, "[[")
+		if !found {
+			break
+		}
+		rest = after
+		inner, _, closed := strings.Cut(after, "]]")
+		if !closed {
+			break
+		}
+		if i := strings.LastIndex(inner, "[["); i >= 0 {
+			inner = inner[i+len("[["):]
+		}
+		name, _, _ := strings.Cut(inner, "|")
+		name, _, _ = strings.Cut(name, "#")
+		name, _, _ = strings.Cut(name, "^")
+		targets = append(targets, name)
+	}
+	for rest := text; ; {
+		_, after, found := strings.Cut(rest, "](")
+		if !found {
+			break
+		}
+		rest = after
+		destination, _, closed := strings.Cut(after, ")")
+		if !closed {
+			break
+		}
+		destination = strings.TrimSpace(destination)
+		if quoted := strings.IndexAny(destination, ` "'`); quoted > 0 {
+			destination = destination[:quoted]
+		}
+		destination = strings.Trim(destination, "<>")
+		destination, _, _ = strings.Cut(destination, "#")
+		destination, _, _ = strings.Cut(destination, "?")
+		targets = append(targets, destination)
+		if decoded, err := url.PathUnescape(destination); err == nil {
+			targets = append(targets, decoded)
+		}
+	}
+	return targets
+}
+
 // The terminal view's own words. A thought that declares no date shows a run
 // as wide as a date, so the columns still line up; a location whose note, or
 // whose location in the note, is gone says which.
@@ -522,8 +576,8 @@ func humanThoughtLine(e *openThought) string {
 }
 
 // escapeTerminal makes text one line a terminal shows as written: a C0 or C1
-// control, DELETE, a Unicode line or paragraph separator, or a direction
-// embedding, override or isolate is written as a visible escape — \n, \r and
+// control, DELETE, a Unicode line or paragraph separator, a direction mark
+// (LRM, RLM, ALM), or a direction embedding, override or isolate is written as a visible escape — \n, \r and
 // \t by name, any other as \u and four hex digits, as JSON writes them —
 // rather than handed to the terminal to act on. A path, a title and a heading
 // are the vault's words, and the view must not let them forge a line or send
@@ -551,5 +605,6 @@ func escapeTerminal(text string) string {
 }
 
 func actsOnTerminal(r rune) bool {
-	return origin.EndsALine(r) || (r >= 0x202a && r <= 0x202e) || (r >= 0x2066 && r <= 0x2069)
+	return origin.EndsALine(r) || r == 0x200e || r == 0x200f || r == 0x061c ||
+		(r >= 0x202a && r <= 0x202e) || (r >= 0x2066 && r <= 0x2069)
 }
