@@ -44,7 +44,7 @@ func runApproval(t *testing.T, root, configDir string, interactive bool, typed s
 	return exit, stdout.String(), stderr.String()
 }
 
-func approvedHere(t *testing.T, root, configDir, data string) bool {
+func approvedHere(t *testing.T, root, configDir string) bool {
 	t.Helper()
 	resolved, err := filepath.EvalSymlinks(root)
 	if err != nil {
@@ -54,7 +54,7 @@ func approvedHere(t *testing.T, root, configDir, data string) bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ok, _, err := marks.FigureApproved("Figures/moving.html", sha256.Sum256([]byte(data)))
+	ok, _, err := marks.FigureApproved("Figures/moving.html", sha256.Sum256([]byte(approvalFigure)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestApprovalNeedsAPersonAtATerminal(t *testing.T) {
 	if exit != 2 || !strings.Contains(errOut, "needs a person at a terminal") || out != "" {
 		t.Errorf("approve without a terminal = %d, %q, %q; want 2 and the refusal alone", exit, out, errOut)
 	}
-	if approvedHere(t, root, configDir, approvalFigure) {
+	if approvedHere(t, root, configDir) {
 		t.Fatal("a figure was approved without a terminal")
 	}
 	for _, flag := range []string{"--yes", "-y", "--force"} {
@@ -97,7 +97,7 @@ func TestApprovalPinsTheBytesShown(t *testing.T) {
 	if exit != 1 || !strings.Contains(out, "nothing was approved") {
 		t.Errorf("approve with the wrong digits = %d, %q; want 1 and nothing was approved", exit, out)
 	}
-	if approvedHere(t, root, configDir, approvalFigure) {
+	if approvedHere(t, root, configDir) {
 		t.Fatal("the wrong digits approved the figure")
 	}
 
@@ -110,14 +110,14 @@ func TestApprovalPinsTheBytesShown(t *testing.T) {
 			t.Errorf("the report does not say %q:\n%s", want, out)
 		}
 	}
-	if !approvedHere(t, root, configDir, approvalFigure) {
+	if !approvedHere(t, root, configDir) {
 		t.Fatal("the right digits did not approve the figure")
 	}
 
 	if exit, out, _ := runApproval(t, root, configDir, false, "", revokeFigureCommand, "Figures/moving.html"); exit != 0 || !strings.Contains(out, "Revoked the approval") {
 		t.Errorf("revoke = %d, %q", exit, out)
 	}
-	if approvedHere(t, root, configDir, approvalFigure) {
+	if approvedHere(t, root, configDir) {
 		t.Fatal("a revoked figure is still approved")
 	}
 	if exit, out, _ := runApproval(t, root, configDir, false, "", revokeFigureCommand, "Figures/moving.html"); exit != 0 || !strings.Contains(out, "had no approval") {
