@@ -6,11 +6,7 @@ toolchain go1.27.4
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	// templ is deliberately held at v0.3.1020: v0.3.1100 emits a space for a
-	// newline between a component call or expression and text, which changes
-	// the rendered HTML of the sidebar and the health shape line. Bump it
-	// together with the render goldens, not as a routine upgrade.
-	github.com/a-h/templ v0.3.1020
+	github.com/a-h/templ v0.3.1100
 	// chroma has no stable v3 tag yet; this is deliberately the newest v3
 	// prerelease, and the pin moves to v3.0.0 when it exists. Dropping to the
 	// stable v2 line would be an API rework without cause; the render goldens

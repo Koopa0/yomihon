@@ -257,7 +257,7 @@ templ healthShapeLine(shape healthShape, lang wording.Lang) {
 				<span aria-hidden="true">·</span>
 				<a class="y-healthshape__weight" href={ templ.URL(HealthBySeverity.href()) }>
 					@healthSeverityBadge(weight.Severity)
-					{ " " }{ strconv.Itoa(weight.Count) }
+					{ strconv.Itoa(weight.Count) }
 				</a>
 			}
 			<span aria-hidden="true">·</span>
