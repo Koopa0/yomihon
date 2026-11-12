@@ -7,13 +7,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/url"
 	"os"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
+
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
@@ -355,29 +361,30 @@ type openEntry struct {
 // in withheld ground and then hiding the heading would still have said it.
 func openEntries(snap *snapshot.Generation, contract *schema.Contract, kept []mark.Uncertainty, allowed func(string) bool) []openEntry {
 	var entries []openEntry
+	withheldDirs := contract.PrivacyPolicy().WithheldDirs()
 	for _, item := range snap.OpenItems(contract, note.OpenMarks(kept)) {
 		if !allowed(item.Path()) {
 			continue
 		}
 		if item.Note != nil {
-			if thought, ok := openThoughtEntry(snap, item.Note, allowed); ok {
+			if thought, ok := openThoughtEntry(snap, item.Note, allowed, withheldDirs); ok {
 				entries = append(entries, openEntry{thought: &thought})
 			}
 			continue
 		}
-		if location, ok := openLocationEntry(snap, item.Mark, allowed); ok {
+		if location, ok := openLocationEntry(snap, item.Mark, allowed, withheldDirs); ok {
 			entries = append(entries, openEntry{location: &location})
 		}
 	}
 	return entries
 }
 
-func openThoughtEntry(snap *snapshot.Generation, reading *snapshot.Reading, allowed func(string) bool) (openThought, bool) {
+func openThoughtEntry(snap *snapshot.Generation, reading *snapshot.Reading, allowed func(string) bool, withheldDirs []string) (openThought, bool) {
 	// A thought citing withheld ground is withheld whole: the citation is the
 	// shelf's own row text, and leaving it out would still list a thought whose
 	// title is often its source's name.
 	title := snap.DeclaredTitle(reading.RelPath)
-	if !snap.BasedOnWithin(reading.RelPath, allowed) || namesWithheld(snap, title, reading.Body, allowed) {
+	if !snap.BasedOnWithin(reading.RelPath, allowed) || namesWithheld(snap, title, reading.Body, allowed, withheldDirs) {
 		return openThought{}, false
 	}
 	entry := openThought{
@@ -390,7 +397,7 @@ func openThoughtEntry(snap *snapshot.Generation, reading *snapshot.Reading, allo
 	return entry, true
 }
 
-func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allowed func(string) bool) (openLocation, bool) {
+func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allowed func(string) bool, withheldDirs []string) (openLocation, bool) {
 	// The command speaks English, so a card with no pattern of its own is named
 	// in the English the page would use.
 	located := note.LocateMark(snap, kept.RelPath, kept.Anchor, wording.En)
@@ -400,7 +407,7 @@ func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allow
 		title = snap.DeclaredTitle(kept.RelPath)
 	}
 	for _, words := range []string{title, located.AnchorText} {
-		if words != "" && namesWithheld(snap, words, reading.Body, allowed) {
+		if words != "" && namesWithheld(snap, words, reading.Body, allowed, withheldDirs) {
 			return openLocation{}, false
 		}
 	}
@@ -436,7 +443,10 @@ func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allow
 // and its anchor, made from the same words, would say it again. A title is
 // frontmatter, not body, so the links it writes are read from the title
 // itself; a heading's words arrive rendered, so its links are found in body.
-func namesWithheld(snap *snapshot.Generation, text, body string, allowed func(string) bool) bool {
+func namesWithheld(snap *snapshot.Generation, text, body string, allowed func(string) bool, withheldDirs []string) bool {
+	if spellsWithheldDir(text, withheldDirs) {
+		return true
+	}
 	targets := slices.Concat(judge.LinkTargets(text), rawLinkTargets(text))
 	if slices.ContainsFunc(targets, func(target string) bool { return !snap.NameWithin(target, allowed) }) {
 		return true
@@ -488,9 +498,11 @@ func encodeOpen(entries []openEntry, format judge.Format) ([]byte, error) {
 // rather than as Markdown: a title is written out as it stands, so a code span
 // or a backslash that keeps a page from rendering a link keeps nothing out of
 // the list. It takes the target of each [[…]], with any alias, heading or
-// block part cut away, and the destination of each ](…), as written and
-// percent-decoded. A destination that climbs out of its folder needs no
-// resolving here: NameWithin's gate refuses any path that climbs.
+// block part cut away; the destination of each inline link ](…) and of each
+// reference definition [label]: …, read by CommonMark's rule for a link
+// destination; and each HTML href. A destination is taken as written and
+// percent-decoded. One that climbs out of its folder needs no resolving here:
+// NameWithin's gate refuses any path that climbs.
 func rawLinkTargets(text string) []string {
 	var targets []string
 	for rest := text; ; {
@@ -511,21 +523,22 @@ func rawLinkTargets(text string) []string {
 		name, _, _ = strings.Cut(name, "^")
 		targets = append(targets, name)
 	}
+	var destinations []string
 	for rest := text; ; {
 		_, after, found := strings.Cut(rest, "](")
 		if !found {
 			break
 		}
 		rest = after
-		destination, _, closed := strings.Cut(after, ")")
-		if !closed {
-			break
-		}
-		destination = strings.TrimSpace(destination)
-		if quoted := strings.IndexAny(destination, ` "'`); quoted > 0 {
-			destination = destination[:quoted]
-		}
-		destination = strings.Trim(destination, "<>")
+		destinations = append(destinations, linkDestination(after))
+	}
+	for _, definition := range referenceDefinition.FindAllStringSubmatch(text, -1) {
+		destinations = append(destinations, linkDestination(definition[1]))
+	}
+	for _, href := range htmlHref.FindAllStringSubmatch(text, -1) {
+		destinations = append(destinations, href[1]+href[2]+href[3])
+	}
+	for _, destination := range destinations {
 		destination, _, _ = strings.Cut(destination, "#")
 		destination, _, _ = strings.Cut(destination, "?")
 		targets = append(targets, destination)
@@ -534,6 +547,131 @@ func rawLinkTargets(text string) []string {
 		}
 	}
 	return targets
+}
+
+var (
+	// referenceDefinition is a line [label]: destination, up to three spaces in.
+	referenceDefinition = regexp.MustCompile(`(?m)^ {0,3}\[[^\]]+\]:[ \t]*(.*)$`)
+	// htmlHref is an href attribute's value, double-, single- or unquoted.
+	htmlHref = regexp.MustCompile(`(?i)\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))`)
+)
+
+// linkDestination is the link destination that starts text, by CommonMark's
+// rule: after any leading space, a destination opened by < runs to the >
+// that closes it, spaces included; any other runs to the first space or
+// control character, or to a ) that closes no ( it opened. A backslash escapes
+// the character after it.
+func linkDestination(text string) string {
+	text = strings.TrimLeft(text, " \t\n")
+	var b strings.Builder
+	if rest, angled := strings.CutPrefix(text, "<"); angled {
+		for i := 0; i < len(rest); i++ {
+			switch c := rest[i]; {
+			case c == '\\' && i+1 < len(rest):
+				i++
+				b.WriteByte(rest[i])
+			case c == '>' || c == '\n':
+				return b.String()
+			default:
+				b.WriteByte(c)
+			}
+		}
+		return b.String()
+	}
+	depth := 0
+	for i := 0; i < len(text); i++ {
+		switch c := text[i]; {
+		case c == '\\' && i+1 < len(text):
+			i++
+			b.WriteByte(text[i])
+		case c <= ' ' || c == 0x7f:
+			return b.String()
+		case c == '(':
+			depth++
+			b.WriteByte(c)
+		case c == ')':
+			if depth == 0 {
+				return b.String()
+			}
+			depth--
+			b.WriteByte(c)
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+// spellsWithheldDir reports whether text, read past the ways it can be
+// disguised, spells a withheld directory followed by a slash. This holds
+// whatever syntax the text is written in, so a title naming withheld ground
+// in plain words is withheld with the rest. A withheld note's full path
+// contains its directory and a slash, so this covers every such path too. A
+// note's bare file name is not matched: the author's own words that happen
+// to share one are listed as written.
+func spellsWithheldDir(text string, withheldDirs []string) bool {
+	folded := foldDisguises(text)
+	for _, dir := range withheldDirs {
+		if strings.Contains(folded, foldDisguises(dir)+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// foldDisguises reads text past what would hide a word from a comparison:
+// HTML character references and percent-escapes, decoded until nothing more
+// decodes; invisible characters dropped; compatibility forms, such as
+// fullwidth letters, made plain; a backslash read as a slash; and case
+// folded.
+func foldDisguises(text string) string {
+	for range 4 {
+		decoded := percentDecode(html.UnescapeString(text))
+		if decoded == text {
+			break
+		}
+		text = decoded
+	}
+	text = strings.Map(func(r rune) rune {
+		switch r {
+		case 0x00ad, 0x200b, 0x200c, 0x200d, 0x2060, 0xfeff:
+			return -1
+		case '\\':
+			return '/'
+		}
+		return r
+	}, norm.NFKC.String(text))
+	return strings.Map(foldRune, text)
+}
+
+// percentDecode replaces each %XX escape in text with the byte it names,
+// leaving any % that does not begin one as it stands.
+func percentDecode(text string) string {
+	if !strings.Contains(text, "%") {
+		return text
+	}
+	var b strings.Builder
+	for i := 0; i < len(text); i++ {
+		if text[i] == '%' && i+2 < len(text) {
+			if value, err := strconv.ParseUint(text[i+1:i+3], 16, 8); err == nil {
+				b.WriteByte(byte(value))
+				i += 2
+				continue
+			}
+		}
+		b.WriteByte(text[i])
+	}
+	return b.String()
+}
+
+// foldRune is the smallest rune of r's case-folding orbit, so two strings
+// strings.EqualFold calls equal map to the same runes.
+func foldRune(r rune) rune {
+	smallest := r
+	for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
+		smallest = min(smallest, f)
+	}
+	return smallest
 }
 
 // The terminal view's own words. A thought that declares no date shows a run

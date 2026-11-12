@@ -3,6 +3,7 @@ package schema
 import (
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 	"sync/atomic"
 
@@ -98,6 +99,16 @@ func (p PrivacyPolicy) EgressAllowed(rel string) bool {
 		}
 	}
 	return true
+}
+
+// WithheldDirs is the declared never_egress_dirs, normalized as EgressAllowed
+// compares them, or nil while the declaration is not held. The slice is the
+// caller's own.
+func (p PrivacyPolicy) WithheldDirs() []string {
+	if !p.Available() {
+		return nil
+	}
+	return slices.Clone(p.state.neverEgressDirs)
 }
 
 // SameDirName reports whether two path components name the same directory. It

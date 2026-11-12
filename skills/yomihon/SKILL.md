@@ -258,7 +258,11 @@ refusal names the note; mend that note and run it again. It also refuses without
 contract that declares `[privacy]`, and nothing under a directory that
 declaration withholds is listed, counted or hinted at, including a thought
 whose title or `based_on` points there and a location whose heading or note
-title does.
+title does. A title or heading points there when it links there in any link
+syntax — a wikilink, an inline or reference link, an HTML `href` — or spells a
+withheld directory followed by a slash, however it is encoded or disguised.
+Plain words that merely share a withheld note's file name are the author's own
+and are listed as written.
 
 ## Frontmatter: the contract decides, and you may not invent a field
 

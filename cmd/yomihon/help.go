@@ -120,9 +120,12 @@ var commandHelp = map[string]string{
 		"falls back to the human view.\n" +
 		"\n" +
 		"Nothing under a directory the contract withholds from agent-facing output\n" +
-		"is listed, and nothing says how much was left out. When no location is\n" +
-		"listed, one line on stderr says only whether a marks file was found. The\n" +
-		"contract has to declare [privacy] before anything is listed at all.\n" +
+		"is listed, nor an item whose title or heading links there in any link\n" +
+		"syntax or spells a withheld directory and a slash, however encoded. Plain\n" +
+		"words that only share a withheld note's file name are listed as written.\n" +
+		"Nothing says how much was left out. When no location is listed, one line\n" +
+		"on stderr says only whether a marks file was found. The contract has to\n" +
+		"declare [privacy] before anything is listed at all.\n" +
 		"\n" +
 		"A list that leaves out what could not be read would read as complete, so an\n" +
 		"unreadable marks file stops this command, and so does a note outside\n" +

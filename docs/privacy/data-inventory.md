@@ -56,7 +56,14 @@ About those rows:
   ground included, as every command scans it; an item whose path is under the
   contract's `never_egress_dirs` is left out before anything about it is
   resolved into the output, and so is a location whose heading or note title,
-  or a thought whose title or `based_on`, names withheld ground. A location
+  or a thought whose title or `based_on`, names withheld ground. Words name
+  withheld ground when they link there in any link syntax — a wikilink, an
+  inline or reference link, an HTML `href`, read as plain text so that a code
+  span or an escape hides nothing — or when, with character references and
+  percent-escapes decoded, invisible characters dropped, compatibility forms
+  and case folded, they spell a withheld directory followed by a slash. Plain
+  words that only share a withheld note's file name are the author's own and
+  are listed as written. A location
   whose note or heading is gone is listed with its anchor left empty, since
   nothing is left to check the heading's words against; its path is the
   string recorded when the mark was made, which can name a note since renamed

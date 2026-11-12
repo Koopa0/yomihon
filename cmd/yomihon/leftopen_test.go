@@ -217,10 +217,12 @@ func leftOpenPrivateVault(t *testing.T) (root, configDir string) {
 	// A title is never rendered, so Markdown that would hide a link on a page
 	// — a code span, a backslash — hides nothing in the list, and a Markdown
 	// link names its destination as plainly as a wikilink does.
+	putOpenThoughtFile(t, root, "Private/Caf\u00e9.md", "# Caf\u00e9\n")
 	for i, title := range leftOpenRawTitles {
+		// %q writes a YAML double-quoted scalar: Go's escapes are YAML's.
 		putOpenThoughtFile(t, root, fmt.Sprintf("Inside/Raw %d.md", i),
-			"---\ntitle: '"+title+"'\ntype: reflection\nstatus: started\nupdated: 2026-09-07\n---\nA thought.\n")
-		putOpenThoughtFile(t, root, fmt.Sprintf("Raw %d.md", i), "---\ntitle: '"+title+"'\n---\n# Raw\n\n## Sec\n\nwords\n")
+			fmt.Sprintf("---\ntitle: %q\ntype: reflection\nstatus: started\nupdated: 2026-09-07\n---\nA thought.\n", title))
+		putOpenThoughtFile(t, root, fmt.Sprintf("Raw %d.md", i), fmt.Sprintf("---\ntitle: %q\n---\n# Raw\n\n## Sec\n\nwords\n", title))
 		marks = append(marks, mark.Uncertainty{RelPath: fmt.Sprintf("Raw %d.md", i), Anchor: "sec", At: leftOpenDay(7)})
 	}
 	// The heading the anchor was made from has been rewritten since; the
@@ -238,20 +240,60 @@ func leftOpenPrivateVault(t *testing.T) (root, configDir string) {
 	return root, configDir
 }
 
-// leftOpenRawTitles are titles, written as YAML single-quoted text, that cite
-// withheld ground in a way a Markdown reading of the title would not see.
+// leftOpenRawTitles are titles that cite withheld ground, each written once
+// as a thought's title and once as a marked location's note title. A title is
+// written out as it stands, so none of them may reach the list however a
+// Markdown reading of it would treat it. The first group names withheld ground
+// through link syntax and holds the destination to CommonMark's own rules;
+// the second spells a withheld directory followed by a slash, which no link
+// syntax is needed for, through encodings and invisible characters.
 var leftOpenRawTitles = []string{
+	// Link syntax: wikilinks, inline links, reference definitions and HTML.
 	"On `[[Private/Secret plan]]`",
 	`On \[[Private/Secret plan]]`,
 	"On [x](Private/Secret plan.md)",
 	"On [x](../Private/Secret%20plan.md)",
 	"On [x](Pri%76ate/Secret%20plan.md)",
 	"On `[[Secret plan#Hidden heading|the plan]]`",
+	"On [[private/secret plan]]",
+	"On [[Secret plan]]",
+	"On [[secret plan]]",
+	"On [x](Private%2FSecret%20plan.md)",
+	"On [x](Secret%20plan.md)",
+	"On [[Cafe\u0301]]",
+	"On [[Private/Cafe\u0301]]",
+	"On `[[Private/Secret plan|alias]]`",
+	"On [[Private/Se\ncret plan]]",
+	"On [[ Private/Secret plan ]]",
+	`On [x](Private/Secret%20plan.md "t")`,
+	"On [x](Private/(a)/Secret plan.md)",
+	`On [[Private\Secret plan]]`,
+	"On [x](<Secret plan.md>)",
+	"On [x](<Private/Secret plan.md>)",
+	"On [x][r]\n\n[r]: Private/Secret plan.md",
+	"On [x][r]\n\n[r]: <Secret plan.md>",
+	"On [r]\n\n[r]: Secret%20plan.md \"t\"",
+	`On <a href="Private/Secret plan.md">x</a>`,
+	`On <a href="Secret plan.md">x</a>`,
+	`On <a href='Secret%20plan.md'>x</a>`,
+	// A withheld directory and a slash, spelled through what hides it.
+	"On Private/Secret plan.md",
+	"On <Private/Secret plan.md>",
+	"On [[Private%2FSecret plan]]",
+	"On &#91;&#91;Private/Secret plan&#93;&#93;",
+	"On &#80;rivate&#x2F;Secret plan",
+	"On \uff3b\uff3bPrivate/Secret plan\uff3d\uff3d",
+	"On [[Pri\u200bvate/Secret plan]]",
+	"On Pri\u200dvate\ufeff/Secret plan",
+	"On PRIVATE/Secret plan",
+	"On Pri%2576ate/Secret plan",
+	"On \uff30\uff52\uff49\uff56\uff41\uff54\uff45\uff0fSecret plan",
+	`On Private\Secret plan`,
 }
 
 // The words that would describe withheld ground: its directory, its file
 // names, its headings and the anchors made from them.
-var leftOpenPrivateWords = []string{"Private", "Secret", "secret", "Hidden", "hidden", "Cites"}
+var leftOpenPrivateWords = []string{"Private", "PRIVATE", "Pri", "Secret", "secret", "Hidden", "hidden", "Cites", "Caf"}
 
 func TestLeftOpenSaysNothingOfWithheldGround(t *testing.T) {
 	t.Parallel()
@@ -695,5 +737,38 @@ func TestLeftOpenRefusesAnUnopenableRootWithoutNamingIt(t *testing.T) {
 	want := leftOpenResult{exit: 2, stderr: "yomihon: this folder cannot be opened as a vault; nothing was listed\n"}
 	if diff := cmp.Diff(want, got, cmp.AllowUnexported(leftOpenResult{})); diff != "" {
 		t.Errorf("caught: an unopenable root (-want +got):\n%s", diff)
+	}
+}
+
+// Words an author writes without link syntax are the author's own and are
+// listed as written, a withheld note's bare file name included: filtering
+// every title that happens to share a word with a withheld note would empty
+// lists for reasons nobody could see. These are the boundary the
+// documentation states, so a change to it shows here.
+func TestLeftOpenListsAnAuthorsPlainWordsAsWritten(t *testing.T) {
+	t.Parallel()
+	root, configDir := t.TempDir(), t.TempDir()
+	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
+	putOpenThoughtFile(t, root, "Private/Secret plan.md", "# Secret plan\n")
+	plain := []string{
+		"Secret plan",
+		"On [x](Secret plan.md)",
+		"On Priv\nate/Secret plan",
+		"On Private\t/Secret plan",
+		"Private matters",
+	}
+	for i, title := range plain {
+		putOpenThoughtFile(t, root, fmt.Sprintf("Inside/Plain %d.md", i),
+			fmt.Sprintf("---\ntitle: %q\ntype: reflection\nstatus: started\nupdated: 2026-09-0%d\n---\nA thought.\n", title, i+1))
+	}
+	got := leftOpen(t, root, configDir, "--format", "json")
+	var titles []string
+	for _, item := range leftOpenItems(t, got.stdout) {
+		title, _ := item["title"].(string) //nolint:errcheck // a missing title shows in the diff
+		titles = append(titles, title)
+	}
+	slices.Reverse(titles)
+	if diff := cmp.Diff(plain, titles); diff != "" {
+		t.Errorf("caught: an author's plain words were filtered (-want +got):\n%s", diff)
 	}
 }
