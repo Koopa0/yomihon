@@ -83,21 +83,29 @@ func TestToolInstallationStopsOnFailure(t *testing.T) {
 // executable and its build metadata. Installation directories contain spaces
 // so splitting the first buildinfo line on its second field cannot pass.
 func TestToolRefusalsNameTheInstalledIdentity(t *testing.T) {
+	// A row with no pin installs the version the Makefile declares, so raising
+	// DEADCODE_VERSION needs no edit here. wrongPin is a version no Makefile
+	// pin will ever be, which is what the one refusal on identity relies on.
+	const wrongPin = "v0.0.1"
 	for _, tc := range []struct {
 		name, build, pin, fail string
 		wantError              bool
 	}{
-		{name: "accepted equal", build: "go1.27.0", pin: "v0.50.0", fail: "", wantError: false},
-		{name: "accepted newer", build: "go1.27.1", pin: "v0.50.0", fail: "", wantError: false},
-		{name: "older prerelease build", build: "go1.27rc1", pin: "v0.50.0", fail: "", wantError: true},
-		{name: "older build", build: "go1.26.8", pin: "v0.50.0", fail: "", wantError: true},
-		{name: "wrong pin", build: "go1.27.0", pin: "v0.49.0", fail: "", wantError: true},
-		{name: "unreadable buildinfo", build: "go1.27.0", pin: "v0.50.0", fail: "metadata", wantError: true},
+		{name: "accepted equal", build: "go1.27.0", fail: "", wantError: false},
+		{name: "accepted newer", build: "go1.27.1", fail: "", wantError: false},
+		{name: "older prerelease build", build: "go1.27rc1", fail: "", wantError: true},
+		{name: "older build", build: "go1.26.8", fail: "", wantError: true},
+		{name: "wrong pin", build: "go1.27.0", pin: wrongPin, fail: "", wantError: true},
+		{name: "unreadable buildinfo", build: "go1.27.0", fail: "metadata", wantError: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newToolRecipeHarness(t)
 			h.addExecutable("deadcode")
-			out, err := h.run("tool-identity-check", "TEST_BUILD_GO="+tc.build, "TEST_PIN="+tc.pin, "TEST_FAIL="+tc.fail)
+			pin := tc.pin
+			if pin == "" {
+				pin = h.pin
+			}
+			out, err := h.run("tool-identity-check", "TEST_BUILD_GO="+tc.build, "TEST_PIN="+pin, "TEST_FAIL="+tc.fail)
 			if tc.wantError {
 				if err == nil || strings.Contains(out, "TOOL_ACCEPTED") || !strings.Contains(out, filepath.Join(h.bin, "deadcode")) {
 					t.Fatalf("caught: refusal lost installed path or permitted tool: error=%v, output=%s", err, out)
@@ -144,6 +152,17 @@ func TestToolInstallDirectoryQueryFailureStopsTheGate(t *testing.T) {
 	}
 }
 
+// makefileVariable is the value a top-level `NAME := value` line gives name, so
+// a test can follow the pin it exercises instead of repeating its number.
+func makefileVariable(t *testing.T, makefile []byte, name string) string {
+	t.Helper()
+	match := regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(name) + ` := (\S+)$`).FindSubmatch(makefile)
+	if match == nil {
+		t.Fatalf("makefileVariable(%q): the Makefile declares no such variable", name)
+	}
+	return string(match[1])
+}
+
 func pinnedInstalls(t *testing.T, makefile []byte) []string {
 	t.Helper()
 	versions := make(map[string]string)
@@ -181,6 +200,7 @@ type toolRecipeHarness struct {
 	log   string
 	make  string
 	tools []string
+	pin   string
 }
 
 func newToolRecipeHarness(t *testing.T) *toolRecipeHarness {
@@ -200,6 +220,7 @@ func newToolRecipeHarness(t *testing.T) *toolRecipeHarness {
 		t.Fatal(err)
 	}
 	h.tools = pinnedInstalls(t, makefile)
+	h.pin = makefileVariable(t, makefile, "DEADCODE_VERSION")
 	makefile = append(makefile, []byte("\ntool-identity-check:\n\t@$(call require-go-tool,deadcode,golang.org/x/tools,$(DEADCODE_VERSION))\n\t@echo TOOL_ACCEPTED\n")...)
 	for path, contents := range map[string][]byte{
 		"Makefile": makefile,
@@ -246,7 +267,7 @@ func (h *toolRecipeHarness) run(target string, overrides ...string) (string, err
 		"TEST_INSTALL_LOG=" + h.log,
 		"TEST_LOCAL_GO=go1.24.7",
 		"TEST_BUILD_GO=go1.27.0",
-		"TEST_PIN=v0.50.0",
+		"TEST_PIN=" + h.pin,
 		"GOTOOLCHAIN=auto",
 	}
 	for _, override := range overrides {
