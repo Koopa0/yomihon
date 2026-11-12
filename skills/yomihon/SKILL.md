@@ -384,6 +384,15 @@ Not everything is asked. A term to look up, knowledge the lesson assumes the
 reader already brought, a table they will return to and read one row of: those
 are read, not answered, and folding one is a door in front of a reference.
 
+## Writing for the reader
+
+A lesson is learned from and a report is checked, so they are written in
+opposite orders: a lesson's headings are situations or questions and its answers
+are folded; a report opens with its answer and its headings are conclusions.
+`references/writing-for-the-reader.md` holds the rules for each, the few that
+apply to every note, and what not to write. yomihon does not check them; a
+second reader does.
+
 ## Being findable
 
 Six filter keys:
@@ -530,7 +539,10 @@ below is not something `check` will do for you.**
 5. If you added a branch, it carries a `{sequence=…}` declaration.
 6. Every `[[link]]` resolves, or is deliberately a planned gap under a gap
    heading.
-7. **Look at the projection, because no command reports it.** Open the course
+7. Someone who did not write it — a person, or another agent — has read it
+   against `references/writing-for-the-reader.md`, because nothing else checks
+   those rules.
+8. **Look at the projection, because no command reports it.** Open the course
    at `/syllabus/<the path's path>` and the count is what you meant; a map you
    wrote is at `/maps` with the branches you expected. A 404 or a number one
    short is the only sign of the quietest fault there is — a note whose type
