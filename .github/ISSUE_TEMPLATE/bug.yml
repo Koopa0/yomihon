@@ -73,7 +73,7 @@ body:
         Whichever of these you have: the name of the release file you
         downloaded, the commit you built from, or the `mod` line from
         `go version -m "$(command -v yomihon)"`.
-      placeholder: yomihon_v0.2.0_darwin_arm64
+      placeholder: yomihon_v0.3.0_darwin_arm64
 
   - type: textarea
     id: contract

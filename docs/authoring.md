@@ -6,7 +6,7 @@ You need a text editor and the [yomihon binary](https://github.com/koopa0/yomiho
 
 ## Get the starter
 
-Open the release page for the binary you installed and download its **Source code** archive. Extract `examples/vault/System/schemas/vault-schema.toml` and copy it to `System/schemas/vault-schema.toml` inside your notes folder. You need neither Go nor a Git clone. For example, [the v0.2.0 starter](https://raw.githubusercontent.com/koopa0/yomihon/v0.2.0/examples/vault/System/schemas/vault-schema.toml) belongs to v0.2.0; use your own release's tag when it differs. When building from source, use [the starter in that checkout](../examples/vault/System/schemas/vault-schema.toml).
+Open the release page for the binary you installed and download its **Source code** archive. Extract `examples/vault/System/schemas/vault-schema.toml` and copy it to `System/schemas/vault-schema.toml` inside your notes folder. You need neither Go nor a Git clone. For example, [the v0.3.0 starter](https://raw.githubusercontent.com/koopa0/yomihon/v0.3.0/examples/vault/System/schemas/vault-schema.toml) belongs to v0.3.0; use your own release's tag when it differs. When building from source, use [the starter in that checkout](../examples/vault/System/schemas/vault-schema.toml).
 
 The starter is a decision to adapt, not a rule for every vault. Review its note types, fields, lifecycle transitions, scanned directories and privacy directories against your notes. In particular, `privacy.never_egress_dirs` withholds those directories from command output; it does not hide them from the local reader. yomihon reads this file and never writes it.
 

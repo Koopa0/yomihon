@@ -6,7 +6,7 @@
 
 ## 取得入門契約
 
-開啟你安裝的執行檔所屬版本的發佈頁，下載 **Source code** 壓縮檔。取出 `examples/vault/System/schemas/vault-schema.toml`，複製到筆記資料夾裡的 `System/schemas/vault-schema.toml`。不必安裝 Go，也不必 clone Git repo。例如 [v0.2.0 的入門契約](https://raw.githubusercontent.com/koopa0/yomihon/v0.2.0/examples/vault/System/schemas/vault-schema.toml) 適用於 v0.2.0；若你的版本不同，請改用該版本的 tag。從原始碼編譯時，使用[同一份 checkout 的入門契約](../examples/vault/System/schemas/vault-schema.toml)。
+開啟你安裝的執行檔所屬版本的發佈頁，下載 **Source code** 壓縮檔。取出 `examples/vault/System/schemas/vault-schema.toml`，複製到筆記資料夾裡的 `System/schemas/vault-schema.toml`。不必安裝 Go，也不必 clone Git repo。例如 [v0.3.0 的入門契約](https://raw.githubusercontent.com/koopa0/yomihon/v0.3.0/examples/vault/System/schemas/vault-schema.toml) 適用於 v0.3.0；若你的版本不同，請改用該版本的 tag。從原始碼編譯時，使用[同一份 checkout 的入門契約](../examples/vault/System/schemas/vault-schema.toml)。
 
 入門契約是讓你調整的起點。請逐一核對筆記類型、欄位、生命週期轉換、掃描目錄與隱私目錄是否符合你的筆記。尤其 `privacy.never_egress_dirs` 會讓那些目錄不出現在指令輸出裡，但不會把它們從本機閱讀介面隱藏。yomihon 只讀取契約，不寫入它。
 
