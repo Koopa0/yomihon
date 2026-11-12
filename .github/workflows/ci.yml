@@ -30,17 +30,17 @@ concurrency:
 # drift, and the exact bytes are verified before either binary runs. Each
 # checksum matches the Linux x86-64 artifact published with that release.
 env:
-  GOLANGCI_LINT_VERSION: v2.14.0
-  GOLANGCI_LINT_SHA256: ab90aeb7b066f92a33415b638a50fe5344bbb75a0d32ad30cc248d88f81032ab
+  GOLANGCI_LINT_VERSION: v2.15.0
+  GOLANGCI_LINT_SHA256: 9b7fe6a6bf6334b98decf8d86b11415ea7889afdabdd1959fdce23af2a9ebcea
   GOSEC_VERSION: v2.30.0
   STATICCHECK_VERSION: v0.8.2
   ACTIONLINT_VERSION: v1.7.12
-  GOVULNCHECK_VERSION: v1.8.0
-  DEADCODE_VERSION: v0.50.0
-  BENCHSTAT_VERSION: v0.0.0-20260709024250-82a0b07e230d
+  GOVULNCHECK_VERSION: v1.9.0
+  DEADCODE_VERSION: v0.52.0
+  BENCHSTAT_VERSION: v0.0.0-20261009192801-be2c69fb417e
   SHELLCHECK_VERSION: v0.11.0
   SHELLCHECK_SHA256: 8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198
-  NODE_VERSION: 22.23.3
+  NODE_VERSION: 22.23.5
 
 jobs:
   # Refuses attribution trailers on the branch's own commits. The check needs
