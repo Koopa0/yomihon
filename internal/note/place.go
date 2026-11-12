@@ -134,9 +134,9 @@ const (
 	// LostNote is a location whose note this generation does not let a reader
 	// open.
 	LostNote
-	// LostPlace is a location whose note is there and renders no place the
+	// LostLocation is a location whose note is there and renders no place the
 	// anchor names.
-	LostPlace
+	LostLocation
 )
 
 // String names a loss for a log line or a panic.
@@ -146,8 +146,8 @@ func (l Loss) String() string {
 		return "nothing"
 	case LostNote:
 		return "note"
-	case LostPlace:
-		return "place"
+	case LostLocation:
+		return "location"
 	default:
 		panic("note: unknown Loss: " + strconv.Itoa(int(l)))
 	}
@@ -163,7 +163,7 @@ func LocateMark(snap *snapshot.Generation, rel, anchor string, lang wording.Lang
 		return MarkedLocation{Lost: LostNote}
 	}
 	if !places.hasPlace(rel, anchor) {
-		return MarkedLocation{Lost: LostPlace}
+		return MarkedLocation{Lost: LostLocation}
 	}
 	var located MarkedLocation
 	cites := thoughtSourceAvailable(snap, rel)

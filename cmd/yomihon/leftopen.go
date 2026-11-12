@@ -385,7 +385,7 @@ func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allow
 		entry.Wikilink = located.Wikilink
 	case note.LostNote:
 		entry.Lost = openLostNote
-	case note.LostPlace:
+	case note.LostLocation:
 		entry.Lost = openLostLocation
 	default:
 		panic("main: unknown Loss: " + located.Lost.String())
