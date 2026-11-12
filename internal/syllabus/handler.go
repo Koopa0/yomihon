@@ -168,7 +168,7 @@ func (h *Handler) opening(snap *snapshot.Generation, rel string, lang wording.La
 	if source == "" {
 		return "", ""
 	}
-	return render.StripAnchors(snap.RenderIn(openingRegion, rel, source, lang).HTML), note.Language
+	return render.StripAnchors(snap.RenderExcerptIn(openingRegion, rel, source, lang).HTML), note.Language
 }
 
 // openingRegion names the cover's opening among the separately rendered bodies

@@ -194,25 +194,8 @@ func sourceLimitFinding(snap *snapshot.Generation, rel string) bool {
 func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
-	if !servable(rel) {
-		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
-		return
-	}
-	snap := h.sources.Snapshot().Capture()
-	entry, ok := snap.Entry(rel)
+	file, entry, ok := h.openVaultFile(w, r, rel, lang)
 	if !ok {
-		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
-		return
-	}
-	entry, err := h.sources.Source.Refresh(entry)
-	if err != nil {
-		h.sources.Log.Warn("refresh vault file", "path", rel, "error", err)
-		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
-		return
-	}
-	file, err := h.sources.Source.OpenFile(r.Context(), entry)
-	if err != nil {
-		h.respondFileReadError(w, rel, "open vault file", err, lang)
 		return
 	}
 	defer func() {
@@ -228,6 +211,38 @@ func (h *Handler) raw(w http.ResponseWriter, r *http.Request) {
 		}
 		h.respondFileReadError(w, rel, "prepare raw vault file", err, lang)
 	}
+}
+
+// openVaultFile selects the file a raw or a figure request names and opens it,
+// answering the request itself when it cannot: a path outside what a reader
+// may open, a file this generation never saw, and one that has since vanished
+// or been replaced by something the vault root refuses all answer not found.
+// Both routes come through here so that what one of them serves, the other
+// would select the same way; the handle it returns is stable against a later
+// rename of the path.
+func (h *Handler) openVaultFile(w http.ResponseWriter, r *http.Request, rel string, lang wording.Lang) (*vault.File, vault.Entry, bool) {
+	if !servable(rel) {
+		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
+		return nil, vault.Entry{}, false
+	}
+	snap := h.sources.Snapshot().Capture()
+	entry, ok := snap.Entry(rel)
+	if !ok {
+		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
+		return nil, vault.Entry{}, false
+	}
+	entry, err := h.sources.Source.Refresh(entry)
+	if err != nil {
+		h.sources.Log.Warn("refresh vault file", "path", rel, "error", err)
+		http.Error(w, wording.FileNotFound.In(lang), http.StatusNotFound)
+		return nil, vault.Entry{}, false
+	}
+	file, err := h.sources.Source.OpenFile(r.Context(), entry)
+	if err != nil {
+		h.respondFileReadError(w, rel, "open vault file", err, lang)
+		return nil, vault.Entry{}, false
+	}
+	return file, entry, true
 }
 
 // errSandboxUnavailable means the response's own sandbox could not be

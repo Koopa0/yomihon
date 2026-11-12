@@ -9,8 +9,13 @@ you. Fixes land on `main`; earlier releases are not maintained.
 
 Report privately through [GitHub's private advisory form](https://github.com/koopa0/yomihon/security/advisories/new), never a public issue, and attach no vault content.
 yomihon is a single-user local reader: it listens only on `127.0.0.1`, makes no
-outbound network call, and writes one frontmatter field, so anything that
-writes outside `status`, or leaves the machine, is worth reporting.
+outbound network call itself, and writes one frontmatter field, so anything that
+writes outside `status`, or leaves the machine, is worth reporting. One thing
+leaves the machine by design: a figure whose exact bytes the owner approved runs
+its scripts in the browser, and those can reach the network through the
+residual channels the threat model lists. A figure nobody approved that makes
+the browser connect anywhere, or an approved one that does so by any channel
+not listed there, is worth reporting.
 [The data inventory](../docs/privacy/data-inventory.md) lists what it keeps, on
 disk and in your browser, and [the threat model](../docs/security/threat-model.md)
 says what the boundary is and is not meant to hold.

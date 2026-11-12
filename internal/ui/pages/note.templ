@@ -946,7 +946,7 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 					<div class="y-diag">
 						<div class="y-diag__label">{ diagKindLabel(d.Kind, lang) }</div>
 						<p class="y-diag__body">
-							{ renderDiagnosticSummary(d.Kind, lang) }
+							{ diagnosticSummary(&d, lang) }
 							if d.Target != "" {
 								<code class="y-diag__target">{ diagnosticAddress(&d) }</code>
 							}

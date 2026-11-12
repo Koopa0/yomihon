@@ -343,6 +343,7 @@ collide. Beyond that:
 | ` ```go ` | highlighted code | an unrecognised language falls back to plain text **silently, with no diagnostic** |
 | TeX math (`$…$`, `$$…$$`) | not rendered as math | read as ordinary Markdown, so backslash escapes apply. Use a fenced code block to preserve TeX source |
 | `<ruby>漢<rt>かん</rt></ruby>` | ruby text | bare `ruby`, `rt`, `rp`, `br`, `kbd`, `sub`, `sup`, `mark` and `u` are the allowlist; only the first three accept `lang=`. The last five need their closer in the same paragraph, cell, heading or HTML block, so an unclosed or self-closing one stays visible as text. Any other tag or attribute is escaped and stays visible |
+| `![[name.html]]` | a **figure**: the file in a frame of its own | see "Figures" below; a figure whose markup reaches outside it is not shown, and a stand-in names why. `![alt](name.html)` stays an ordinary link |
 | `![alt](pic.png)` | an image | a remote destination becomes an explicit link, never a request; a destination that is neither local nor http shows the alt text alone |
 | `## 標題` | a heading with an anchor | letters and digits, with the marks written on them, survive; other characters collapse to `-`, and a repeated slug bumps `-2`, `-3` until it is free |
 | `<!-- read-aloud: zh-Hant -->` | a speech control on the next paragraph | accepts any well-formed BCP 47 tag, such as `ja`, `zh-Hant`, `en` or `fr`, and gives the paragraph its canonical language. Write `zh-Hant` for Traditional Chinese passages; `zh` alone selects Simplified-script voices through likely subtags. A malformed value is **deleted from the page**, not escaped or visible. Controls appear only on a `type: lesson` note outside `[artifacts] non_instance_dirs`; elsewhere a valid marker remains an invisible HTML comment. A device without a local voice for the passage's language uses the existing unavailable message; `und` requires a local default voice. Locality rests on the browser's report |
@@ -366,6 +367,66 @@ remain reachable, and the same type-derived default title applies.
 `info` `note` `tip` `important` `hint` `abstract` `tldr` `summary` `todo`
 · `success` `check` `done` · `question` `help` `faq` · `example` · `quote` `cite`
 · `warning` `caution` `attention` · `danger` `error` `bug` `fail` `failure` `missing`
+
+### Figures
+
+A figure is one self-contained `.html` file, embedded with `![[name.html]]`
+(the extension in any case, never inferred from the bytes). It is shown in a
+sandboxed frame. The rules an author writes to:
+
+- **One file, nothing outside it.** Styles go in a `<style>` element, drawings
+  in inline `<svg>` (a `<use href="#id">` inside the same file works), script in
+  `<script>` elements. Nothing is loaded from any address: pictures, fonts,
+  stylesheets and scripts named by address are blocked by the frame's policy,
+  so they never arrive. Ordinary `<a href>` links are allowed.
+- **Refused outright, so nothing of the figure is shown:** a nested frame
+  (`iframe`, `frame`, `frameset`, `embed`, `object`, `fencedframe`, `portal`),
+  `<link>`, `<base>`, a `<meta http-equiv>` other than `content-type`,
+  `content-language` or `content-security-policy`, a `ping` or
+  `attributionsrc` attribute, `<script src>`, an `on…` event attribute, a
+  `javascript:` address anywhere in an attribute, a `<script type>` other than a
+  classic or module script (no import maps, no speculation rules), a file over
+  1 MiB, and bytes that are not UTF-8 (a UTF-16 byte order mark included). These
+  hold inside `<noscript>`, `<template>`, `<svg>` and `<math>` too: the file is
+  parsed the way a browser builds it, with script off and with script on.
+- **Size.** `![[name.html|640x400]]` sets the width and a **fixed** height in
+  pixels; the height is not a ratio, because text that reflows makes a figure
+  taller as it narrows. Without a size the frame is as wide as the column and
+  480 pixels high, never wider than the column. Leave headroom: wrapping
+  depends on the reader's fonts. Any other text after `|` is the frame's title,
+  which assistive technology reads; without one the title is the file name.
+- **Without approval, no script runs.** CSS does the interaction: `:checked`,
+  `:has()`, `<details>`, `light-dark()` with `color-scheme: light dark`. The
+  frame follows the operating system's light or dark setting, not yomihon's own
+  theme choice. A figure with scripts that nobody approved is shown without
+  them, and a quiet line under it says so.
+- **Approval is the owner's, at a terminal.** `yomihon approve-figure
+  [--root <dir>] <path>` reads the file once, shows its size, SHA-256, every
+  inline script in full, and the addresses and browser facilities its text
+  names, and asks for the first 8 characters of the SHA-256. Any change to the
+  file lapses the approval; `yomihon revoke-figure` withdraws it. Only inline
+  script whose exact text was approved runs: no `eval`, no `new Function`, no
+  script built at run time.
+- **An agent never approves.** Do not run `approve-figure`, by any means (a
+  pseudo-terminal included), and do not write or edit the approvals file it keeps outside the vault. Nothing
+  stops a program running as the owner from doing either; this is a rule you
+  keep, not a wall you meet. Tell the owner the path and let them read the
+  scripts and decide.
+- **An approved figure can reach the network** in the reader's browser, even
+  though it loads nothing: the frame's policy closes every request the
+  measured browsers could be made to send, but not a WebRTC peer, and not the
+  connection a navigation or a created frame opens before its request is
+  refused (see the threat model). Approve only what you would run.
+- **Talking to the page (approved figures only).** The page sends
+  `{type: 'yomihon-theme', theme: 'light' | 'dark'}` when the frame loads and
+  whenever the reader changes the theme. A figure may report its height with
+  `parent.postMessage({type: 'yomihon-figure-height', height: <pixels>}, '*')`;
+  answer each theme message with it too, since the page may not have been
+  listening when the figure first ran. The page takes a height only from the
+  figure's own frame and keeps it between 48 and 8000 pixels.
+- **Print** shows a stand-in with the figure's title and a link to its file,
+  never the frame. There is no automatic fallback to a same-named `.svg`; embed
+  a static drawing beside the figure if the printed page needs one.
 
 ## What a lesson asks its reader
 

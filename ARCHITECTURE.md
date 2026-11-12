@@ -160,6 +160,8 @@ The HTTP listener binds to `127.0.0.1`; `YOMIHON_PORT` changes only its port. A 
 
 Vault files that are not notes, HTML included, pass through rooted selection. A text file reads as escaped source on its file page. Its raw bytes carry a sandbox policy that disables scripts, connections, forms, nested frames, and every external or embedded resource, leaving only inline style, and a markup document is delivered as a download rather than opened as a page. See [file serving][file-serving].
 
+A figure — an `.html` file a note embeds with `![[name.html]]` — is the one vault document opened as a page, inside a frame with an opaque origin. Its route selects the file the way the raw route does, reads it once, and decides everything from those bytes: markup that would make the browser frame, fetch, or connect on its own is refused and none of the file is sent, and the rest is served under the same scriptless sandbox policy. Only a figure whose exact bytes the owner approved at a terminal gets a sandbox that admits scripts, with a `script-src` listing the hash of each inline script and no host. yomihon itself still makes no network request; an approved figure's scripts can reach the network in the browser through the residual channels the [threat model][threat-model] lists. See [figure inspection][figure] and [the approval record][marks].
+
 Loopback and browser-origin defenses do not authenticate a local actor. Exposing this process through a public reverse proxy would require a different access and isolation design. Likewise, CLI output privacy is an application boundary, not an operating-system restriction on other programs reading the vault.
 
 ## 10. Resources and verification
@@ -228,4 +230,6 @@ Shutdown closes request admission, stops the scanner, and waits for accepted han
 [origin]: internal/origin/origin.go
 [file-serving]: internal/note/file.go
 [archlock]: internal/archlock
+[figure]: internal/figure/inspect.go
+[threat-model]: docs/security/threat-model.md
 [contributing]: CONTRIBUTING.md

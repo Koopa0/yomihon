@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>hover figure</title><meta name="figure-outside" content="FIGURE_OUTSIDE_HOVER"></head>
+<body>
+<p>An approved figure that a hover card must never run.</p>
+<script>
+top.postMessage({ probe: 'hover-ran' }, '*');
+const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:' + document.querySelector('meta[name=figure-outside]').content }] });
+peer.createDataChannel('probe');
+peer.createOffer().then((offer) => peer.setLocalDescription(offer));
+</script>
+</body>
+</html>

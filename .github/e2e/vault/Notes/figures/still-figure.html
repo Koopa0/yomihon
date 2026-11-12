@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>still figure</title>
+<style>
+  @import url("http://FIGURE_OUTSIDE_STILL/import.css");
+  :root { color-scheme: light dark }
+  body { font: 14px sans-serif; background: url("http://FIGURE_OUTSIDE_STILL/background") }
+  @font-face { font-family: Far; src: url("http://FIGURE_OUTSIDE_STILL/font") }
+  .far { font-family: Far; cursor: url("http://FIGURE_OUTSIDE_STILL/cursor"), auto }
+  .set { background-image: image-set("http://FIGURE_OUTSIDE_STILL/image-set" 1x) }
+  ul { list-style-image: url("http://FIGURE_OUTSIDE_STILL/list") }
+  #more:checked ~ .shown { display: block }
+  .shown { display: none }
+</style>
+</head>
+<body>
+<p class="far set">Static markup that names addresses outside the figure.</p>
+<ul><li>an item</li></ul>
+<img src="http://FIGURE_OUTSIDE_STILL/img" alt="">
+<picture><source srcset="http://FIGURE_OUTSIDE_STILL/srcset 1x"><img alt=""></picture>
+<video poster="http://FIGURE_OUTSIDE_STILL/poster" src="http://FIGURE_OUTSIDE_STILL/video" preload="auto"></video>
+<audio src="http://FIGURE_OUTSIDE_STILL/audio" preload="auto"></audio>
+<svg width="10" height="10"><image href="http://FIGURE_OUTSIDE_STILL/svg-image" width="10" height="10"/><use href="http://FIGURE_OUTSIDE_STILL/use.svg#a"/></svg>
+<form action="http://FIGURE_OUTSIDE_STILL/form"><input type="image" src="http://FIGURE_OUTSIDE_STILL/input-image" alt="send"></form>
+<a href="http://FIGURE_OUTSIDE_STILL/link">a link nobody follows</a>
+<input type="checkbox" id="more"><label for="more">More</label>
+<p class="shown">Shown by a checkbox, with no script.</p>
+</body>
+</html>

@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/figure"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lesson"
@@ -189,6 +190,15 @@ type Generation struct {
 	// because the contract named their basename under scan.skip_basenames.
 	// They stay in the scan so /raw/ and a wikilink can still reach the file.
 	skippedNotes map[string]struct{}
+
+	// figures is what this generation's read of each figure found, by path.
+	// A figure it could not read is absent, and its frame is drawn without
+	// script for the document route to decide on a read of its own.
+	figures map[string]figure.Inspection
+	// figureApprovals points at the owning Store's approval check. Like
+	// freshness it is live rather than frozen: an approval given or revoked
+	// at the terminal reaches the next page without a rebuild.
+	figureApprovals *atomic.Pointer[FigureApprovals]
 
 	// built is this generation's own account of itself, fixed when it was
 	// published, so it stays true beside the content a response captured.
@@ -551,6 +561,42 @@ func (g *Generation) RenderIn(region, relPath, body string, lang wording.Lang) r
 	return g.markdown.HTMLIn(region, relPath, g.notes[relPath].Title, body, lang)
 }
 
+// Figure is what this generation's read of the figure at canonicalPath found,
+// with the owner's approval of those bytes asked now rather than at build
+// time. A check that fails is no approval, and the state says so.
+func (g *Generation) Figure(canonicalPath string) render.FigureState {
+	if g == nil {
+		return render.FigureState{}
+	}
+	inspection, read := g.figures[canonicalPath]
+	state := render.FigureState{Inspection: inspection, Read: read}
+	if entry, ok := g.scan.Entry(canonicalPath); ok {
+		state.Size = entry.Size()
+	}
+	if !read || !inspection.Scripted() || g.figureApprovals == nil {
+		return state
+	}
+	approved := g.figureApprovals.Load()
+	if approved == nil || *approved == nil {
+		return state
+	}
+	approval, err := (*approved)(canonicalPath, inspection.Sum)
+	state.ApprovalsUnreadable = err != nil
+	if err == nil {
+		state.Approval = approval
+	}
+	return state
+}
+
+// RenderExcerptIn is RenderIn for a note shown inside another page rather
+// than opened: a figure in it is drawn as its stand-in, never as a frame.
+func (g *Generation) RenderExcerptIn(region, relPath, body string, lang wording.Lang) render.Result {
+	if g == nil || g.markdown == nil {
+		return render.Result{}
+	}
+	return g.markdown.ExcerptHTMLIn(region, relPath, g.notes[relPath].Title, body, lang)
+}
+
 // Transclusion returns the immutable body captured for canonicalPath, exposing
 // no parsed note and no mutable map.
 func (g *Generation) Transclusion(canonicalPath string) (string, bool) {
@@ -569,6 +615,10 @@ type Store struct {
 	// build facts — those belong to a generation. The reconciliation loop is its
 	// only writer.
 	fresh atomic.Pointer[liveAttempt]
+
+	// figureApprovals is how a page asks whether a figure's bytes are
+	// approved. Empty until ApproveFiguresBy is called, which is no approval.
+	figureApprovals atomic.Pointer[FigureApprovals]
 
 	source       Source
 	rootObserver RootObserver
@@ -618,6 +668,16 @@ type Store struct {
 	// fields above are that loop's alone and carry no synchronization, so a
 	// second Run is refused rather than left to advance them beside the first.
 	running atomic.Bool
+}
+
+// FigureApprovals reports where the owner's approval of the figure at relPath
+// with digest sum stands.
+type FigureApprovals func(relPath string, sum [sha256.Size]byte) (render.Approval, error)
+
+// ApproveFiguresBy installs the approval check every generation's pages ask.
+// Without one, no figure is approved.
+func (s *Store) ApproveFiguresBy(approved FigureApprovals) {
+	s.figureApprovals.Store(&approved)
 }
 
 // New captures and builds the initial generation synchronously. source and log
@@ -683,6 +743,7 @@ func New(
 	store.fresh.Store(&liveAttempt{blocked: blocked})
 	store.observeRoot(ctx)
 	gen.freshness = &store.fresh
+	gen.figureApprovals = &store.figureApprovals
 	store.ptr.Store(gen)
 	store.logBuild("vault snapshot built", gen, scan)
 	return store, nil
@@ -806,6 +867,7 @@ func (s *Store) rescan(ctx context.Context) {
 	builtAt := s.now()
 	candidate.built = buildFacts{builtAt: builtAt, complete: true, lastComplete: builtAt}
 	candidate.freshness = &s.fresh
+	candidate.figureApprovals = &s.figureApprovals
 	s.ptr.Store(candidate)
 	s.prev = scan
 	s.retry = false
@@ -893,6 +955,7 @@ func (s *Store) publishOnceDegraded(candidate *Generation, scan vault.Scan, bloc
 		lastComplete: s.lastComplete,
 	}
 	candidate.freshness = &s.fresh
+	candidate.figureApprovals = &s.figureApprovals
 	s.ptr.Store(candidate)
 	s.prev = scan
 	s.logBuild("vault snapshot published without its unreadable sources", candidate, scan)
@@ -1050,10 +1113,11 @@ func buildGeneration(
 		products:       g.products,
 		sidecars:       g.sidecars,
 		skippedNotes:   g.skippedNotes,
+		figures:        g.figures,
 		sizeSkipped:    slices.Clone(g.sizeSkipped),
 		noteCount:      noteCount,
 	}
-	gen.markdown = render.New(graphIndex, gen, gen, gen)
+	gen.markdown = render.New(graphIndex, gen, gen, gen).WithFigures(gen)
 	if ctx.Err() == nil {
 		g.warnings.complete()
 	}
@@ -1097,6 +1161,8 @@ type generation struct {
 	findings map[string][]judge.Finding
 	// skippedNotes are paths left out of the note map by skip_basenames.
 	skippedNotes map[string]struct{}
+	// figures are the inspections of the figures read, by path.
+	figures map[string]figure.Inspection
 	// sizeSkipped are notes this reading refused for size, recorded here so
 	// the published generation can name them in Skipped().
 	sizeSkipped []Skipped
@@ -1125,6 +1191,7 @@ func newGeneration(entries int) *generation {
 		resources:    make([]string, 0, entries),
 		findings:     make(map[string][]judge.Finding),
 		skippedNotes: make(map[string]struct{}),
+		figures:      make(map[string]figure.Inspection),
 		products:     make(map[string]noteProducts, entries),
 	}
 }
@@ -1173,6 +1240,10 @@ func (g *generation) omitDeclaredBasenames(entries []vault.Entry, contract *sche
 // was not wanted is simply absent, as before.
 func (g *generation) skipUnread(entry vault.Entry, note bool, log *slog.Logger) {
 	if !note {
+		if figure.Is(entry.Path()) && !withinSourceCap(entry) {
+			// A figure over the bound is never read: its size alone refuses it.
+			g.figures[entry.Path()] = figure.Inspection{Refusal: figure.TooLarge}
+		}
 		return
 	}
 	relPath, size := entry.Path(), entry.Size()
@@ -1470,6 +1541,9 @@ func blockedFromProblems(problems []vault.Diagnostic) []BlockedSource {
 func (g *generation) captureFile(relPath string, data []byte, indexable bool) {
 	if lesson.IsSlotSidecar(relPath) {
 		g.sidecars[relPath] = data
+	}
+	if figure.Is(relPath) {
+		g.figures[relPath] = figure.Inspect(data)
 	}
 	// indexable carries the decision the entry itself was judged by; deciding again
 	// here would index a file whose own page says it is not searched.

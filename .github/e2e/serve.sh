@@ -289,6 +289,10 @@ export YOMIHON_FIXTURE_ROOT="$vault"
 export YOMIHON_BASE="$base" YOMIHON_PORT="$port"
 # Only developer probes receive the disposable fixture path, never the server.
 export YOMIHON_FIXTURE_ROOT="$vault"
+# The server's own disposable home, so a probe can place the one record the
+# server reads and no route writes: a figure approval, which in use only a
+# person at a terminal gives.
+export YOMIHON_FIXTURE_HOME="$home"
 if "$@"; then
   status=0
 else

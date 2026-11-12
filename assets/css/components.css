@@ -2096,6 +2096,36 @@ button.y-freshness__action {
   padding: 10px 14px;
 }
 
+/* A figure is a vault's interactive HTML in a frame of its own. The frame is
+   as wide as the column unless the embed names a width, never wider, and as
+   tall as the embed says: without script a figure cannot measure itself. */
+.y-prose .figure-embed {
+  margin: var(--sp-block) 0 0;
+}
+
+.y-prose .figure-embed__frame {
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-md);
+  display: block;
+  max-width: 100%;
+}
+
+.y-prose .figure-embed__frame:not([width]) {
+  width: 100%;
+}
+
+/* What prints in place of the frame, which paper cannot run. */
+.y-prose .figure-embed__print {
+  display: none;
+}
+
+/* The note under a figure is the page's own small print, so it is the
+   embed note's role, faces included; only its place below the frame differs. */
+.y-prose .figure-embed__note {
+  margin: 6px 0 0;
+}
+
 /* callouts — renderer emits .callout / .callout-note / .callout-warning + title/icon/body */
 .y-prose .callout {
   background: var(--wash);
@@ -6161,6 +6191,17 @@ samp,
   .y-nothing--fault {
     border: 0;
     padding: 0;
+  }
+
+  /* A figure runs in a browser and nowhere else; on paper its title and the
+     way to its file stand where the frame was. */
+  .y-prose .figure-embed__frame,
+  .y-prose .figure-embed__note {
+    display: none;
+  }
+
+  .y-prose .figure-embed__print {
+    display: block;
   }
 
   /* Paper takes no click and a folded callout prints open, so the chevron that

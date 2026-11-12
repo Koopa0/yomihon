@@ -31,6 +31,8 @@ A vault's own words belong to that vault, not to this page: the note types and s
 | The note page's own findings panel | Note health | 筆記狀況 | | | |
 | A picture shown inline | picture | 圖片 | | | `IsPicture` |
 | Placing a file inside a note | embed | 嵌入 | | 內嵌 | |
+| An interactive HTML file a note embeds | figure | 圖解 | One self-contained `.html` file in the vault, embedded with `![[name.html]]` and shown in a frame of its own. Without approval it runs no script. | | `figure`, `internal/figure`; the frame's document is served at `/embed/…` |
+| Letting one figure run its scripts | approve | 核可 | The owner's word, given at a terminal, that a figure's exact bytes may run their inline scripts. Taking it back is to revoke it (撤銷核可); a change to the file lapses it (核可已失效). | | `approve-figure`, `revoke-figure`, `mark.FigureApproval` |
 | Any file in the vault | file | 檔案 (counted 個) | A file of any kind: a note, a picture, a PDF. | | |
 | A Markdown file yomihon reads as one | note | 筆記 (counted 篇) | A Markdown file in the index: rendered, searched, linked to and checked. | | |
 | A Markdown file the contract leaves out | document | 文件 (counted 份) | A Markdown file the contract leaves out of the index. It still opens and renders; it is not searched or checked. | | `FileDocument`, `SkipsNote` |

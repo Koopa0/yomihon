@@ -5,6 +5,16 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
+// diagnosticSummary is the sentence the findings rail gives one finding. A
+// figure finding's sentence names what was found, so it is read off the
+// finding rather than its kind alone.
+func diagnosticSummary(d *render.Diagnostic, lang wording.Lang) string {
+	if render.IsFigureFinding(d.Kind) {
+		return render.FigureFindingNote(d.Kind, d.Detail, lang)
+	}
+	return renderDiagnosticSummary(d.Kind, lang)
+}
+
 // renderDiagnosticSummary says what one rendering fault means and what the page
 // did about it, in the reader's language. A kind with no sentence here still
 // says something rather than going quiet about a fault.

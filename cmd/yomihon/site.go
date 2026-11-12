@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/preference"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/report"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/search"
@@ -71,11 +73,13 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 }
 
 // newReadingSite composes the reading server. configDir is where this
-// platform keeps a program's own files: the marks a reader leaves live under
-// it, in a directory of this vault's own, and nowhere in the vault itself.
-// Only serving builds one. The adjudication commands answer about the vault,
-// never about the reader, and never open this; left-open answers about the
-// reader without it, reading the uncertainty marks through mark.File.
+// platform keeps a program's own files: the marks a reader leaves and the
+// figures the owner approved live under it, in a directory of this vault's
+// own, and nowhere in the vault itself. Only serving builds one. The
+// adjudication commands answer about the vault, never about the reader, and
+// never open this; left-open answers about the reader without it, reading the
+// uncertainty marks through mark.File, and the two figure commands open it to
+// approve and revoke.
 func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logger) (_ *readingSite, resultErr error) {
 	source, err := vault.Open(root)
 	if err != nil {
@@ -159,6 +163,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	markAddress := ""
 	uncertaintyAddress := ""
 	var uncertainties func() ([]mark.Uncertainty, error)
+	var figureApproved func(string, [sha256.Size]byte) (render.Approval, error)
 	var marks *mark.File
 	if configDir != "" {
 		if marks, err = mark.New(configDir, source.Name()); err != nil {
@@ -168,6 +173,11 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		markAddress = mark.Address
 		uncertaintyAddress = mark.UncertaintyAddress
 		uncertainties = marks.Uncertainties
+		// Approvals are read, never written, by the reading server: only the
+		// approval command at a terminal writes them. A page and a frame ask
+		// on every request, so an approval or a revocation needs no restart.
+		figureApproved = figureApprovalFrom(marks)
+		store.ApproveFiguresBy(figureApproved)
 	} else {
 		log.Warn("no reading place can be kept; the reading room is unaffected",
 			"reason", "the environment named no configuration directory")
@@ -202,6 +212,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		MarkAddress:        markAddress,
 		UncertaintyAddress: uncertaintyAddress,
 		Uncertainties:      uncertainties,
+		FigureApproved:     figureApproved,
 		Log:                log,
 	})
 	readers.Register(mux)
@@ -229,6 +240,23 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	}
 	site.watchers.Go(func() { site.snapshots.Run(watchCtx) })
 	return site, nil
+}
+
+// figureApprovalFrom reads where an approval stands from the marks directory.
+func figureApprovalFrom(marks *mark.File) func(string, [sha256.Size]byte) (render.Approval, error) {
+	return func(rel string, sum [sha256.Size]byte) (render.Approval, error) {
+		approved, lapsed, err := marks.FigureApproved(rel, sum)
+		switch {
+		case err != nil:
+			return render.Unapproved, err
+		case approved:
+			return render.Approved, nil
+		case lapsed:
+			return render.Lapsed, nil
+		default:
+			return render.Unapproved, nil
+		}
+	}
 }
 
 func (site *readingSite) ServeHTTP(w http.ResponseWriter, r *http.Request) {

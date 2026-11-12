@@ -55,6 +55,7 @@ probes=(
   "browser-boundary.mjs|/notes/Notes/browser-boundary.md"
   "asset-identity.mjs|/notes/Notes/alpha.md"
   "image-size.mjs|/notes/Notes/image-sizes.md"
+  "figure-boundary.mjs|/notes/Notes/figures.md"
   "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
   "article-language-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "language-scroll-restore.mjs|/notes/Notes/Glass%20Tide.md"

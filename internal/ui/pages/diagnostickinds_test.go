@@ -71,14 +71,14 @@ func TestEveryDiagnosticKindHasWordsOnThePage(t *testing.T) {
 	}
 
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-		unknown := renderDiagnosticSummary(render.DiagnosticKind("a-kind-nothing-declares"), lang)
+		unknown := diagnosticSummary(&render.Diagnostic{Kind: "a-kind-nothing-declares"}, lang)
 		for name, value := range kinds {
 			kind := render.DiagnosticKind(value)
 
 			if label := diagKindLabel(kind, lang); label == value {
 				t.Errorf("%s (%q) has no label in %s: the page would show its internal name", name, value, lang)
 			}
-			if summary := renderDiagnosticSummary(kind, lang); summary == unknown {
+			if summary := diagnosticSummary(&render.Diagnostic{Kind: kind}, lang); summary == unknown {
 				t.Errorf("%s (%q) has no summary in %s: the page would call it unrecognised", name, value, lang)
 			}
 		}

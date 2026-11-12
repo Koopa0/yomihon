@@ -17,8 +17,9 @@ import (
 // number at two.
 //
 // One is the status field inside a note, which internal/status alone rewrites.
-// The other is the reader's own marks, which internal/mark alone writes, in a
-// file of yomihon's own outside the vault. Everything else this program does
+// The other is the reader's own records — the marks a reader keeps and the
+// figures the owner approved — which internal/mark alone writes, in files of
+// yomihon's own outside the vault. Everything else this program does
 // is reading. The sentence the privacy inventory and the threat model both
 // make to a stranger rests on that being true of the code rather than of
 // anyone's memory of it, so the syntax tree is asked directly.

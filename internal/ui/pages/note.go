@@ -15,6 +15,14 @@ import (
 // diagKindLabel names a rendering diagnostic in the reader's language. A kind
 // without a name here arrives as its raw slug rather than a dead page.
 func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
+	if render.IsFigureFinding(kind) {
+		return figureDiagLabel(kind, lang)
+	}
+	return renderDiagLabel(kind, lang)
+}
+
+// renderDiagLabel names every rendering finding that is not about a figure.
+func renderDiagLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	switch kind {
 	case render.DiagImageMissing:
 		return wording.DiagImageMissing.In(lang)
@@ -46,6 +54,22 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 		return commentDiagLabel(kind, lang)
 	default:
 		return string(kind)
+	}
+}
+
+// figureDiagLabel names the five reasons a figure is not shown.
+func figureDiagLabel(kind render.DiagnosticKind, lang wording.Lang) string {
+	switch kind {
+	case render.DiagFigureTooLarge:
+		return wording.DiagFigureTooLarge.In(lang)
+	case render.DiagFigureEncoding:
+		return wording.DiagFigureEncoding.In(lang)
+	case render.DiagFigureNestedFrame:
+		return wording.DiagFigureNestedFrame.In(lang)
+	case render.DiagFigureLoadsElsewhere:
+		return wording.DiagFigureLoadsElsewhere.In(lang)
+	default:
+		return wording.DiagFigureScriptOutside.In(lang)
 	}
 }
 

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>moving figure</title>
+<meta name="figure-outside" content="FIGURE_OUTSIDE_MAP">
+<style>
+  :root { color-scheme: light dark }
+  body { font: 14px sans-serif; margin: 8px }
+</style>
+</head>
+<body>
+<p id="state">An approved figure that tries every way out it has.</p>
+<script>
+const say = (probe, value) => top.postMessage({ probe, value }, '*');
+const outside = Object.fromEntries(document.querySelector('meta[name=figure-outside]').content.split(';').map((pair) => pair.split('=')));
+const at = (channel) => 'http://' + outside[channel] + '/' + channel;
+const attempt = (channel, act) => { try { act(); } catch (error) { say('threw', channel + ':' + error.name); } };
+say('first-ran');
+attempt('parent', () => { void parent.document.title; say('parent-readable'); });
+attempt('fetch', () => { fetch(at('fetch')).catch(() => {}); });
+attempt('xhr', () => { const request = new XMLHttpRequest(); request.open('GET', at('xhr')); request.send(); });
+attempt('beacon', () => { navigator.sendBeacon(at('beacon'), 'x'); });
+attempt('image', () => { new Image().src = at('image'); });
+attempt('websocket', () => { new WebSocket('ws://' + outside.websocket + '/websocket'); });
+attempt('eventsource', () => { new EventSource(at('eventsource')); });
+attempt('worker', () => { new Worker(at('worker')); });
+attempt('frame', () => { const frame = document.createElement('iframe'); frame.src = at('frame'); document.body.append(frame); });
+attempt('preconnect', () => { const link = document.createElement('link'); link.rel = 'preconnect'; link.href = at('preconnect'); document.head.append(link); });
+attempt('prefetch', () => { const link = document.createElement('link'); link.rel = 'prefetch'; link.href = at('prefetch'); document.head.append(link); });
+attempt('script', () => { const script = document.createElement('script'); script.src = at('script'); document.head.append(script); });
+attempt('import', () => { import(at('import')).catch(() => {}); });
+attempt('style', () => { const style = document.createElement('style'); style.textContent = 'body { background: url("' + at('style') + '") }'; document.head.append(style); });
+attempt('open', () => { window.open(at('open')); });
+attempt('form', () => { const form = document.createElement('form'); form.action = at('form'); form.method = 'post'; document.body.append(form); form.submit(); });
+attempt('ping', () => { const link = document.createElement('a'); link.href = '#here'; link.ping = at('ping'); document.body.append(link); link.click(); });
+attempt('eval', () => { eval("say('eval-ran')"); });
+attempt('injected', () => { const script = document.createElement('script'); script.textContent = "top.postMessage({ probe: 'injected-ran' }, '*')"; document.head.append(script); });
+attempt('srcdoc', () => { const frame = document.createElement('iframe'); frame.srcdoc = "<script>top.postMessage({ probe: 'srcdoc-ran' }, '*')<\/script>"; document.body.append(frame); });
+attempt('webrtc', () => {
+  const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:' + outside.webrtc }] });
+  peer.createDataChannel('probe');
+  peer.createOffer().then((offer) => peer.setLocalDescription(offer));
+});
+// The page says the theme when the frame loads and whenever it changes; the
+// figure answers with its height then, since the page may not have been
+// listening when the figure first ran.
+window.addEventListener('message', (event) => {
+  if (!event.data || event.data.type !== 'yomihon-theme') return;
+  say('theme', event.data.theme);
+  parent.postMessage({ type: 'yomihon-figure-height', height: 333 }, '*');
+});
+parent.postMessage({ type: 'yomihon-figure-height', height: 333 }, '*');
+</script>
+<script>top.postMessage({ probe: 'second-ran' }, '*');</script>
+</body>
+</html>

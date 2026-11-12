@@ -60,7 +60,9 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 		"  yomihon coverage [options]\n" +
 		"  yomihon exists [options] <name>\n\n" +
 		"About the reader:\n" +
-		"  yomihon left-open [options]\n\n" +
+		"  yomihon left-open [options]\n" +
+		"  yomihon approve-figure [--root <dir>] <path>   let a figure's scripts run\n" +
+		"  yomihon revoke-figure [--root <dir>] <path>    withdraw that\n\n" +
 		"Use \"yomihon <command> --help\" for command help.\n"
 	command := map[string]string{
 		"serve": "Usage: yomihon [<dir>]  —  or  yomihon serve [<dir>]\n" +
@@ -183,6 +185,31 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"\n" +
 			"Exits 0 with the list, an empty one included, and 2 when the command itself\n" +
 			"could not run, an unreadable marks file or note included.\n",
+		"approve-figure": "Usage: yomihon approve-figure [--root <dir>] <path>\n" +
+			"\n" +
+			"Approves one figure, by its exact bytes, to run its scripts on the reading\n" +
+			"page. <path> is the .html file as the vault spells it, relative to its root,\n" +
+			"such as \"Notes/figures/replication.html\".\n" +
+			"\n" +
+			"Shows what it is about to approve, then asks you to type the first 8\n" +
+			"characters of its SHA-256. The record is kept on this machine, outside the\n" +
+			"vault. Any change to the file, one byte included, lapses the approval, and the\n" +
+			"figure goes back to running without its scripts.\n" +
+			"\n" +
+			"An approved figure's scripts run in your browser and can reach the network;\n" +
+			"yomihon itself still makes no network request.\n" +
+			"\n" +
+			"Needs a person at a terminal: when standard input or output is not a\n" +
+			"terminal it approves nothing. Exits 0 when the figure was approved, 1 when\n" +
+			"you did not confirm or there is nothing to approve, and 2 when the command\n" +
+			"itself could not run.\n",
+		"revoke-figure": "Usage: yomihon revoke-figure [--root <dir>] <path>\n" +
+			"\n" +
+			"Removes the approval for one figure, so its scripts stop running the next\n" +
+			"time its page is loaded. The file itself is not touched. A figure with no\n" +
+			"approval is reported as such, and the command still exits 0.\n" +
+			"\n" +
+			"Exits 0, and 2 when the command itself could not run.\n",
 	}
 
 	for _, args := range [][]string{{"--help"}, {"-h"}, {"help"}} {

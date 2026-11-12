@@ -167,3 +167,36 @@ var FootnoteBacklinkFmt = both("返回第 %d 次引用", "Back to citation %d")
 // TaskWithoutText names a task whose first inline block contributes no words.
 // It is the interface's sentence, not a guess at what the author intended.
 var TaskWithoutText = both("沒有文字的待辦項目", "Task without text")
+
+// What the page says about an embedded figure: an interactive .html file shown
+// in a frame of its own. The figure is the author's; these sentences are the
+// page's, so the stand-in is bracketed like any other embed's.
+
+// FigureStandInFmt stands where a figure's frame would be when it cannot be:
+// on screen for a refused figure, and on paper for every figure. The
+// placeholder is a link to the file, named by the embed's title or the file's
+// own name; the sentence holds in both places, so it is written once.
+var FigureStandInFmt = both("［圖解：%s —— 這裡無法顯示］", "[Figure: %s — it cannot be shown here]")
+
+// FigureScriptsIdle sits quietly under a figure whose scripts nobody approved.
+// It says who can approve and where, not the command: a page cannot tell its
+// owner's machine from a public one, and a visitor told to run a command
+// would be told to run it on a machine that is not theirs.
+var FigureScriptsIdle = both(
+	"這個圖解有腳本，目前沒有執行：腳本要等書庫的擁有者在終端機核可這個檔案的確切內容後才會執行。在那之前，圖解只顯示不靠腳本的部分。",
+	"This figure has scripts, and they are not running: they run only once the vault's owner approves this file's exact contents in a terminal. Until then, the figure shows what works without them.",
+)
+
+// FigureApprovalLapsed is FigureScriptsIdle's sentence for a figure that was
+// approved and has changed since: the approval names bytes that are gone.
+var FigureApprovalLapsed = both(
+	"這個圖解在核可之後改過了，核可已失效，腳本沒有執行。",
+	"This figure changed after it was approved, so the approval no longer applies and its scripts are not running.",
+)
+
+// FigureApprovalsUnreadable sits under a figure with scripts when the record
+// of approvals could not be read: no approval is honoured until it can be.
+var FigureApprovalsUnreadable = both(
+	"核可紀錄無法讀取，所以這個圖解的腳本沒有執行。",
+	"The approval record could not be read, so this figure's scripts are not running.",
+)

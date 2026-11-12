@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>leaving figure</title><meta name="figure-outside" content="FIGURE_OUTSIDE_LEAVE"></head>
+<body>
+<p>A figure that sends itself to another address.</p>
+<script>
+top.postMessage({ probe: 'leaving-ran' }, '*');
+setTimeout(() => { location.href = 'http://' + document.querySelector('meta[name=figure-outside]').content + '/leave'; }, 300);
+</script>
+</body>
+</html>
