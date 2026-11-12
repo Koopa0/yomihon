@@ -139,19 +139,20 @@ Writer 實際探測檔案系統行為，不只相信操作回傳成功。這些�
 
 ![Vault 契約提供閱讀與生命週期宣告；命令輸出另外經過隱私與來源檢查。](docs/architecture/05-contract-and-commands.png)
 
-[`check`、`coverage` 與 `exists`][commands] 各自開啟 vault，執行獨立的唯讀操作。它們共用解析、連結與契約語意，不呼叫 HTTP server，也不建立閱讀標記。
+[`check`、`coverage` 與 `exists`][commands] 各自開啟 vault，執行獨立的唯讀操作。它們共用解析、連結與契約語意，不呼叫 HTTP server，也不建立閱讀標記。[`left-open`][left-open] 是唯一談讀者的命令：它建立與 server 相同的讀取世代，只讀不寫地讀取「還不確定」標記，列出「還沒說清楚的」書架所列的同一份選取結果。
 
 | 命令 | 回答的問題 |
 | --- | --- |
 | `check` | Frontmatter、連結、路徑、來源與課程結構的診斷，由指定的 deny 規則決定是否失敗。 |
 | `coverage` | 包含概念覆蓋情況的文件庫摘要，只報告，不作為失敗門檻。 |
 | `exists` | 可讀且允許輸出的內容中，是否有符合名稱的筆記。 |
+| `left-open` | 標記為還不確定的位置，以及處於初始狀態的想法，新的在前。 |
 
 指定範圍的 `check` 仍先建立整個根目錄的連結圖，再篩選診斷。輸入不完整不代表不存在：`exists` 可以回報已找到的筆記，但若無法讀取的來源可能改變答案，就拒絕回報不存在；`coverage` 也不會把局部資料當完整統計。存在性結果是一項觀察，不會保留檔名，阻止編輯器隨後建立檔案。[規則清單][judge-rules]列出各項診斷及其依據。
 
-契約中的 [`privacy.never_egress_dirs`][privacy] 控制這些命令的輸出，**不會**對本機閱讀介面隱藏目錄。命令需要有效的契約與隱私宣告，先準備輸出，再驗證來源仍然有效，才交付結果。無法確立依據時，拒絕操作，不將受保護的契約內容引述到輸出通道。[命令邊界][adjudicate]區分結果內容與工具失敗。
+契約中的 [`privacy.never_egress_dirs`][privacy] 控制這些命令的輸出（`left-open` 在解析任何內容之前就丟掉被扣住的項目，因為錨點就是標題文字），**不會**對本機閱讀介面隱藏目錄。命令需要有效的契約與隱私宣告，先準備輸出，再驗證來源仍然有效，才交付結果。無法確立依據時，拒絕操作，不將受保護的契約內容引述到輸出通道。[命令邊界][adjudicate]區分結果內容與工具失敗。
 
-機器格式中，`check` 使用 JSON Lines，`coverage` 與 `exists` 使用 JSON；終端機預設顯示人讀格式。Exit `1` 代表命中指定門檻或查無筆記，`2` 代表呼叫方式錯誤或工具失敗。沒有符合的 deny 政策時，出現診斷本身不等於 exit `1`。Golden fixtures 固定輸出欄位與原因字串，供呼叫端依賴。外部 agent 可以使用這些命令，再透過自己的工具編輯；yomihon 不執行模型，也不自動修復它們產生的內容。
+機器格式中，`check` 與 `left-open` 使用 JSON Lines，`coverage` 與 `exists` 使用 JSON；終端機預設顯示人讀格式。Exit `1` 代表命中指定門檻或查無筆記，`2` 代表呼叫方式錯誤或工具失敗；`left-open` 不使用 `1`，標記檔或筆記讀不到時以 `2` 拒絕，不交出殘缺清單。沒有符合的 deny 政策時，出現診斷本身不等於 exit `1`。Golden fixtures 固定輸出欄位與原因字串，供呼叫端依賴。外部 agent 可以使用這些命令，再透過自己的工具編輯；yomihon 不執行模型，也不自動修復它們產生的內容。
 
 ## 9. 瀏覽器邊界
 
@@ -222,6 +223,7 @@ Loopback 與瀏覽器來源保護不會驗證本機操作者的身分。透過�
 [note]: internal/note/handler.go
 [commands]: internal/judge/command.go
 [adjudicate]: cmd/yomihon/adjudicate.go
+[left-open]: cmd/yomihon/leftopen.go
 [judge-rules]: docs/judge-rules.md
 [origin]: internal/origin/origin.go
 [file-serving]: internal/note/file.go

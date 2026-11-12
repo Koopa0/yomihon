@@ -73,8 +73,9 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 // newReadingSite composes the reading server. configDir is where this
 // platform keeps a program's own files: the marks a reader leaves live under
 // it, in a directory of this vault's own, and nowhere in the vault itself.
-// Only serving builds one — the adjudication commands answer about the vault,
-// never about the reader, and never open this.
+// Only serving builds one. The adjudication commands answer about the vault,
+// never about the reader, and never open this; left-open answers about the
+// reader without it, reading the uncertainty marks through mark.File.
 func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logger) (_ *readingSite, resultErr error) {
 	source, err := vault.Open(root)
 	if err != nil {

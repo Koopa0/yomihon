@@ -54,10 +54,13 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 
 	top := "Usage:\n" +
 		"  yomihon [<dir>]                       read a folder (default: this one)\n" +
-		"  yomihon serve [<dir>]                 read a folder (or --root <dir>)\n" +
-		"  yomihon check [options] [path...]      judge a vault (--root <vault>; path narrows)\n" +
+		"  yomihon serve [<dir>]                 read a folder (or --root <dir>)\n\n" +
+		"About the vault:\n" +
+		"  yomihon check [options] [path...]      check a vault (--root <dir>; path narrows)\n" +
 		"  yomihon coverage [options]\n" +
 		"  yomihon exists [options] <name>\n\n" +
+		"About the reader:\n" +
+		"  yomihon left-open [options]\n\n" +
 		"Use \"yomihon <command> --help\" for command help.\n"
 	command := map[string]string{
 		"serve": "Usage: yomihon [<dir>]  —  or  yomihon serve [<dir>]\n" +
@@ -73,7 +76,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"bytes and search leaves it out. An in-place rewrite that keeps the same\n" +
 			"inode, mode, size and mtime can stay stale for about an hour; an ordinary\n" +
 			"save that changes size or mtime rebuilds at once.\n",
-		"check": "Usage: yomihon check [--root <vault>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
+		"check": "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
 			"\n" +
 			"--root is the vault to judge; without it, the folder you are standing in is\n" +
 			"the vault. A [path...] is not a second way to say that: each one narrows the\n" +
@@ -145,6 +148,29 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"is never described here — no path, no matched field. It still answers:\n" +
 			"the exit stays 0, so a write-if-absent gated on it does not create a\n" +
 			"second note under a withheld note's own name.\n",
+		"left-open": "Usage: yomihon left-open [--root <dir>] [--format json|human|md]\n" +
+			"\n" +
+			"Lists what you left open in a vault: the locations you marked \"Not sure\n" +
+			"yet\", and the notes of the contract's answer type that are still in an\n" +
+			"initial status — newest first, as the reading desk shows them.\n" +
+			"\n" +
+			"Marks are kept on this machine, one set per folder: this reads the set that\n" +
+			"yomihon serve kept for the same folder. A mark whose note or heading is gone\n" +
+			"is still listed, with lost saying which; nothing here removes it.\n" +
+			"\n" +
+			"Writes one JSON object per line when the output is not a terminal, and a\n" +
+			"human list when it is; --format decides instead of the terminal, and md\n" +
+			"falls back to the human view.\n" +
+			"\n" +
+			"Nothing under a directory the contract withholds from agent-facing output\n" +
+			"is listed, and nothing says how much was left out. The contract has to\n" +
+			"declare [privacy] before anything is listed at all.\n" +
+			"\n" +
+			"A list that leaves out what could not be read would read as complete, so a\n" +
+			"marks file or a note status that could not be read stops this command.\n" +
+			"\n" +
+			"Exits 0 with the list, an empty one included, and 2 when the command itself\n" +
+			"could not run, an unreadable marks file or note included.\n",
 	}
 
 	for _, args := range [][]string{{"--help"}, {"-h"}, {"help"}} {

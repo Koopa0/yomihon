@@ -90,7 +90,7 @@ Set `YOMIHON_PORT` to serve on another port. To read two folders at once, run
 two yomihon processes on two ports; the folder is fixed for the life of a
 process.
 
-The command line has four commands. `yomihon --help` lists them, and
+The command line has five commands. `yomihon --help` lists them, and
 `yomihon check --help` documents the flags, the output shapes, and the exit
 codes:
 

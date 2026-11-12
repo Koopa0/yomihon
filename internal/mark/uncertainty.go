@@ -41,38 +41,45 @@ func (f *File) UncertaintyPath() string {
 // an empty list; an unreadable or malformed file is an error, not an empty list.
 // Each call reads the file again so deleting it clears the marks.
 func (f *File) Uncertainties() ([]Uncertainty, error) {
+	held, _, err := f.StoredUncertainties()
+	return held, err
+}
+
+// StoredUncertainties is Uncertainties, also reporting whether the file exists
+// at all: a reader who never marked anything and one who cleared every mark
+// both hold no marks, and only the file tells them apart.
+func (f *File) StoredUncertainties() (held []Uncertainty, stored bool, err error) {
 	data, err := os.ReadFile(f.UncertaintyPath())
 	if errors.Is(err, os.ErrNotExist) {
-		return []Uncertainty{}, nil
+		return []Uncertainty{}, false, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUnreadableUncertainties, err)
+		return nil, true, fmt.Errorf("%w: %w", ErrUnreadableUncertainties, err)
 	}
-	var held []Uncertainty
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err = decoder.Decode(&held); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrUnreadableUncertainties, err)
+		return nil, true, fmt.Errorf("%w: %w", ErrUnreadableUncertainties, err)
 	}
 	// Valid checks the entire document, including trailing bytes. A null value
 	// is not the array written here and must not silently become an empty file.
 	if !json.Valid(data) || held == nil {
-		return nil, fmt.Errorf("%w: expected an array of marks", ErrUnreadableUncertainties)
+		return nil, true, fmt.Errorf("%w: expected an array of marks", ErrUnreadableUncertainties)
 	}
 	seen := make(map[[2]string]bool, len(held))
 	for i := range held {
 		if err = validateUncertainty(&held[i]); err != nil {
 			// The stored entry's fault stays text: wrapping it would let the
 			// route read a corrupt file as a refused request.
-			return nil, fmt.Errorf("%w: %s", ErrUnreadableUncertainties, err.Error())
+			return nil, true, fmt.Errorf("%w: %s", ErrUnreadableUncertainties, err.Error())
 		}
 		key := [2]string{held[i].RelPath, held[i].Anchor}
 		if seen[key] {
-			return nil, fmt.Errorf("%w: duplicate path and anchor", ErrUnreadableUncertainties)
+			return nil, true, fmt.Errorf("%w: duplicate path and anchor", ErrUnreadableUncertainties)
 		}
 		seen[key] = true
 	}
-	return held, nil
+	return held, true, nil
 }
 
 // ToggleUncertainty adds a new path and anchor, or removes the existing pair.

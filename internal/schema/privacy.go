@@ -26,11 +26,11 @@ type privacySection struct {
 // capability where an unclaimed declaration and a rejected one behave alike;
 // only the reporting differs.
 //
-// What it binds is the agent-facing output — the check, coverage and exists
-// commands, which are its only consumers. The reading pages serve every note
-// the folder holds and never ask this question, so a note withheld from a
-// command is still served to the reader at the keyboard. Binding the pages too
-// would be a different decision, not a repair to this one.
+// What it binds is the agent-facing output — the check, coverage, exists and
+// open-thoughts commands, which are its only consumers. The reading pages serve
+// every note the folder holds and never ask this question, so a note withheld
+// from a command is still served to the reader at the keyboard. Binding the
+// pages too would be a different decision, not a repair to this one.
 type PrivacyPolicy struct {
 	state *privacyPolicyState
 }
@@ -39,7 +39,11 @@ type privacyPolicyState struct {
 	neverEgressDirs []string
 	source          policySource
 	claim           Claim
-	stale           atomic.Bool
+	// undeclared marks the one rejection whose repair can be named without
+	// quoting the contract: the section is missing, so there is nothing of the
+	// vault's own to quote.
+	undeclared bool
+	stale      atomic.Bool
 }
 
 // Claim reports how far the privacy declaration got.
@@ -56,6 +60,13 @@ func (p PrivacyPolicy) Claim() Claim {
 // Available reports whether the contract declared a valid privacy policy.
 func (p PrivacyPolicy) Available() bool {
 	return p.Claim().held()
+}
+
+// Undeclared reports whether the contract exists and left the [privacy]
+// section out. It is the one refusal a command may explain in full, since the
+// repair — declaring the section — quotes nothing the vault wrote.
+func (p PrivacyPolicy) Undeclared() bool {
+	return p.state != nil && p.state.undeclared && !p.state.stale.Load()
 }
 
 // Trustworthy reports whether the never-egress set may be reasoned over.
@@ -144,7 +155,7 @@ func derivePrivacyPolicy(section *privacySection, dirsDefined bool, source polic
 	// An existing contract that omits the section left an input out; a folder
 	// with no contract yields the silent zero value.
 	if section == nil {
-		return PrivacyPolicy{state: &privacyPolicyState{claim: Rejected(undeclaredPrivacyDiagnostic)}}
+		return PrivacyPolicy{state: &privacyPolicyState{claim: Rejected(undeclaredPrivacyDiagnostic), undeclared: true}}
 	}
 	if !dirsDefined {
 		return PrivacyPolicy{state: &privacyPolicyState{claim: Rejected(`invalid privacy policy: missing required key "never_egress_dirs"`)}}

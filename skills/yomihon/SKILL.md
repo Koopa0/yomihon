@@ -25,8 +25,9 @@ wording, list punctuation, or indentation. When it cannot determine a
 projection it keeps the prose, stops, and reports. It never guesses and never
 flattens, and the one field it ever writes into your vault is `status` — the
 section below says what that means and what it refuses. Where a reader keeps a
-reading place, that goes in a file of yomihon's own outside the vault, and no
-command-line face reads it.
+reading place, or marks a location "Not sure yet", that goes in a file of
+yomihon's own outside the vault. No command reads the kept place; one command,
+`left-open`, reads the marked locations, and only to list them.
 
 Everything below assumes a `yomihon` on your `PATH`. There is no `--version`
 to ask; this page's probe is how you find out what the one you have can see.
@@ -163,6 +164,39 @@ title: Probe
 type: probe
 status: draft
 ---
+
+## What the reader left open
+
+```bash
+yomihon left-open --root <vault> --format json
+```
+
+One JSON object per line, newest first: each location the reader marked "Not
+sure yet" (`"kind":"location"`) and each note of the contract's answer type
+still in a status the contract declares initial (`"kind":"thought"`). It is the
+"What you left open" shelf, read by the same selection. A location carries
+`path`, `anchor`, `anchor_text`, `title`, `wikilink` and `create_time`; a
+thought carries `path`, `title`, `status`, `wikilink` and `update_date`. A
+field with no value is left out. `wikilink` is written with its brackets, the
+form a `based_on` takes, and is left out wherever it could point somewhere
+else — a heading another heading of the note shares, or a path a link cannot
+spell back. A location whose note or place is gone is still listed, with
+`lost` saying `note` or `location`. No note text is in the output; read the
+note through its path when you need it.
+
+Use it to pick up where the reader stopped understanding, not to decide for
+them: a marked location is a question the reader has not asked yet, and
+whether a thought is finished is theirs to say through its `status`. The
+command changes nothing — it sets and clears no mark and writes no file.
+
+Exit codes: `0` with the list, an empty one included · `2` the command could
+not run. stdout is the list alone; stderr says whether an empty set of marks
+means none was ever made or every one was cleared. It refuses rather than hand
+over a partial list: an unreadable marks file, a note that could not be read,
+or no configuration directory to find the marks in. It also refuses without a
+contract that declares `[privacy]`, and nothing under a directory that
+declaration withholds is listed, counted or hinted at, including a thought
+whose `based_on` points there.
 
 ## Undeclared
 

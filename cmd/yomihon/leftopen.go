@@ -1,0 +1,495 @@
+package main
+
+import (
+	"bytes"
+	"cmp"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/note"
+	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// The command that hands a program what the reader has left open: the
+// locations they marked "Not sure yet" and the thoughts still in an initial
+// status, the same selection the "What you left open" shelf shows. Its name,
+// and the names and values of its output fields, are gathered here so that
+// renaming any of them is one edit: the command line's own words are decided
+// when the command that needs them is.
+//
+// It is the one command that is about the reader rather than the vault. It
+// reads the reader's marks file, read-only, and writes nothing anywhere.
+const (
+	openCommand = "left-open"
+
+	openKindLocation = "location"
+	openKindThought  = "thought"
+
+	// The values of a location's lost field: its note is gone, or the note is
+	// there and the place the anchor named is not.
+	openLostNote     = "note"
+	openLostLocation = "location"
+)
+
+// openLocation is one marked location as the output carries it. The JSON keys
+// are this command's wire words, declared once here beside the kinds above.
+type openLocation struct {
+	Kind string `json:"kind"`
+	Path string `json:"path"`
+	// Anchor is empty, and left out, for a mark on the whole note.
+	Anchor     string `json:"anchor,omitempty"`
+	AnchorText string `json:"anchor_text,omitempty"`
+	Title      string `json:"title,omitempty"`
+	Wikilink   string `json:"wikilink,omitempty"`
+	Lost       string `json:"lost,omitempty"`
+	// CreateTime is when the reader marked it, in RFC 3339.
+	CreateTime string `json:"create_time"`
+}
+
+// openThought is one thought note as the output carries it. Its based_on is
+// deliberately absent: the source it cites is a second path, and the list
+// answers about the thought alone.
+type openThought struct {
+	Kind     string `json:"kind"`
+	Path     string `json:"path"`
+	Title    string `json:"title,omitempty"`
+	Status   string `json:"status"`
+	Wikilink string `json:"wikilink,omitempty"`
+	// UpdateDate is the date the note's own frontmatter declares, never a
+	// moment yomihon observed.
+	UpdateDate string `json:"update_date,omitempty"`
+}
+
+var (
+	// errOpenNoContract is the refusal for a folder with no contract. The
+	// command answers a program, and without the contract's privacy
+	// declaration nothing grants it a path to say.
+	errOpenNoContract = errors.New(
+		"this folder has no vault contract, " + schema.ContractRelPath + ", and " + openCommand +
+			" lists nothing for a program to read until one declares [privacy]")
+
+	// errOpenUndeclaredPrivacy is the refusal for a contract that leaves the
+	// privacy section out. The repair is named in full because it quotes
+	// nothing the vault wrote: the section is simply missing.
+	errOpenUndeclaredPrivacy = errors.New(
+		"the vault contract declares no privacy policy, so " + openCommand + " lists nothing for a program to read; add a [privacy] table with never_egress_dirs = [] to " +
+			schema.ContractRelPath + ", naming in that list any directory whose notes must never leave this machine")
+
+	// errOpenMarksUnreadable is the whole answer about a marks file that
+	// exists and cannot be read. The machine's own error names the file's
+	// absolute path, which spells the home directory, so it is not repeated.
+	errOpenMarksUnreadable = errors.New(
+		`the "Not sure yet" marks for this folder cannot be read; nothing was listed`)
+
+	// errOpenScan is what a scan that could not complete answers with. The
+	// scan's own error can name two colliding files, either of which may lie
+	// in withheld ground, so it is not repeated.
+	errOpenScan = errors.New("vault scan failed")
+)
+
+// The lines that say why the list holds no marked location. They go to
+// stderr, so stdout stays the data alone, and they let a caller tell a reader
+// who never marked anything from one who cleared every mark.
+const (
+	openNoMarksFileNotice = `no location in this folder has been marked "Not sure yet" on this machine; there is no marks file yet`
+	openNoMarksNotice     = `the "Not sure yet" marks file for this folder holds no location; every mark has been cleared`
+)
+
+// openRequest is one resolved invocation of the command.
+type openRequest struct {
+	root      string
+	configDir string
+	// noConfigDir is why no configuration directory was resolved, when none
+	// was: the marks cannot be found, and a list without them is incomplete.
+	noConfigDir string
+	format      judge.Format
+	// afterAssemble runs once the output is assembled and before the authority
+	// it was assembled under is checked again. Nothing in production sets it;
+	// a test drives a contract change through that moment with it.
+	afterAssemble func()
+}
+
+// runOpenThoughts parses and runs the command, writing the list to stdout and
+// anything said about it to stderr. It exits 0 with a list, even an empty one,
+// and 2 when it refuses; it never exits 1, which another command spends on a
+// gate.
+func runOpenThoughts(ctx context.Context, args []string, cfg config, stdout, stderr io.Writer, stdoutIsTerminal bool) int {
+	request, err := parseOpenArgs(args, stdoutIsTerminal)
+	if err != nil {
+		return commandError(stderr, err)
+	}
+	request.configDir, request.noConfigDir = cfg.configDir, cfg.noConfigDir
+	return request.run(ctx, stdout, stderr)
+}
+
+func parseOpenArgs(args []string, stdoutIsTerminal bool) (openRequest, error) {
+	parsed, err := parseCommandArgs(args)
+	if err != nil {
+		return openRequest{}, err
+	}
+	switch {
+	case parsed.all:
+		return openRequest{}, errors.New(openCommand + " does not accept --all")
+	case len(parsed.deny) > 0:
+		return openRequest{}, errors.New(openCommand + " does not accept --deny")
+	case parsed.baseline != "":
+		return openRequest{}, errors.New(openCommand + " does not accept --baseline")
+	case len(parsed.positionals) > 0:
+		return openRequest{}, errors.New(openCommand + " takes no positional arguments")
+	}
+	if parsed.root == "" {
+		if parsed.root, err = os.Getwd(); err != nil {
+			return openRequest{}, fmt.Errorf("resolve working directory: %w", err)
+		}
+	}
+	format := judge.ResolveFormat(parsed.format, stdoutIsTerminal)
+	if format == judge.FormatMarkdown {
+		// As coverage and exists do, md falls back to the human view: a list
+		// has no report body of its own.
+		format = judge.FormatHuman
+	}
+	return openRequest{root: parsed.root, format: format}, nil
+}
+
+func (r *openRequest) run(ctx context.Context, stdout, stderr io.Writer) int {
+	payload, notice, err := r.list(ctx)
+	if err != nil {
+		return commandError(stderr, err)
+	}
+	if _, err := stdout.Write(payload); err != nil {
+		return commandError(stderr, fmt.Errorf("write output: %w", err))
+	}
+	if notice != "" {
+		_, _ = fmt.Fprintf(stderr, "yomihon: %s\n", notice) //nolint:errcheck // the list is already written; a failing stderr has no second channel
+	}
+	return 0
+}
+
+// list builds the payload under the contract's privacy authority and checks
+// that authority again before handing it over. notice is the one line that
+// says why no marked location is listed, when that is so.
+func (r *openRequest) list(ctx context.Context) (payload []byte, notice string, err error) {
+	source, err := vault.Open(r.root)
+	if err != nil {
+		return nil, "", fmt.Errorf("%w: %w", errOpenScan, err)
+	}
+	defer func() {
+		if closeErr := source.Close(); closeErr != nil && err == nil {
+			payload, notice, err = nil, "", errOpenScan
+		}
+	}()
+	contract, err := schema.LoadReader(ctx, source)
+	if err != nil {
+		if schema.ContractAbsent(err) {
+			return nil, "", errOpenNoContract
+		}
+		// The loader's words name the contract's keys, which is vault content
+		// this face has no authority yet to repeat.
+		return nil, "", judge.ErrPrivacyAuthorityUnavailable
+	}
+	if refused := openAuthority(contract); refused != nil {
+		return nil, "", refused
+	}
+	source.SetBoundary(contract.ScanBoundary())
+	// The generation logs what it reads by path, private ground included, and
+	// this face's stderr goes to the program that called it. Nothing it would
+	// say is this command's answer, so it says it to no one.
+	store, err := snapshot.New(ctx, source, slog.New(slog.DiscardHandler), contract, contract.Governance())
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, "", ctxErr
+		}
+		return nil, "", errOpenScan
+	}
+	snap := store.Current().Capture()
+	allowed := openAllowed(contract)
+	if missing := openUnreadable(snap, allowed); missing != nil {
+		return nil, "", missing
+	}
+	kept, notice, err := r.marks(source.Name())
+	if err != nil {
+		return nil, "", err
+	}
+	entries := openEntries(snap, contract, kept, allowed)
+	if r.afterAssemble != nil {
+		r.afterAssemble()
+	}
+	// The list was assembled under the authority read at the start. If the
+	// contract changed since, what it withholds may have changed with it, so
+	// the list is handed over only while that same source still stands.
+	if refused := openAuthority(contract); refused != nil {
+		return nil, "", refused
+	}
+	entries = withinAuthority(entries, openAllowed(contract))
+	payload, err = encodeOpen(entries, r.format)
+	if err != nil {
+		return nil, "", err
+	}
+	return payload, notice, nil
+}
+
+// openAuthority is the contract state this command needs before it may say a
+// path to a program: a privacy declaration that loaded and whose source is
+// unchanged. Only the missing section is explained; any other fault would be
+// explained by quoting the contract back out.
+func openAuthority(contract *schema.Contract) error {
+	privacy := contract.PrivacyPolicy().ValidateSource()
+	switch {
+	case privacy.Available():
+		return nil
+	case privacy.Undeclared():
+		return errOpenUndeclaredPrivacy
+	default:
+		return judge.ErrPrivacyAuthorityUnavailable
+	}
+}
+
+// openAllowed is the gate every item's path passes before anything else is
+// read about it: the privacy declaration lets it out and the scan looks there.
+func openAllowed(contract *schema.Contract) func(string) bool {
+	privacy := contract.PrivacyPolicy()
+	boundary := contract.ScanBoundary()
+	return func(rel string) bool {
+		return privacy.EgressAllowed(rel) && !boundary.OutsideScan(rel)
+	}
+}
+
+// openUnreadable refuses a list that could be missing a thought: a note the
+// scan saw and could not read may be one, and an empty answer would read as
+// nothing left open. A note in withheld ground is passed over in silence, so
+// whether it could be read changes neither the answer nor the exit.
+func openUnreadable(snap *snapshot.Generation, allowed func(string) bool) error {
+	for _, blocked := range snap.Freshness().Blocked {
+		if vault.IsMarkdown(blocked.Path) && allowed(blocked.Path) {
+			return fmt.Errorf("%s could not be read, so whether it is a thought still open is unknown; nothing was listed", blocked.Path)
+		}
+	}
+	return nil
+}
+
+// marks reads the reader's marked locations for this vault, never writing
+// the file. The notice tells no marks file from an empty one.
+func (r *openRequest) marks(vaultRoot string) ([]mark.Uncertainty, string, error) {
+	if r.configDir == "" {
+		reason := cmp.Or(r.noConfigDir, "the environment names none")
+		return nil, "", fmt.Errorf(`no configuration directory, so the "Not sure yet" marks for this folder cannot be found: %s; nothing was listed`, reason)
+	}
+	file, err := mark.New(r.configDir, vaultRoot)
+	if err != nil {
+		return nil, "", errOpenMarksUnreadable
+	}
+	kept, stored, err := file.StoredUncertainties()
+	switch {
+	case err != nil:
+		return nil, "", errOpenMarksUnreadable
+	case len(kept) > 0:
+		return kept, "", nil
+	case !stored:
+		return kept, openNoMarksFileNotice, nil
+	default:
+		return kept, openNoMarksNotice, nil
+	}
+}
+
+// openEntry is one listed item: exactly one of its two fields is set.
+type openEntry struct {
+	location *openLocation
+	thought  *openThought
+}
+
+func (e openEntry) path() string {
+	if e.location != nil {
+		return e.location.Path
+	}
+	return e.thought.Path
+}
+
+// openEntries is the shelf's own selection, each item kept only when its path
+// is allowed. That gate runs before the item is resolved any further: a
+// location's anchor is its heading's words made into an id, so resolving one
+// in withheld ground and then hiding the heading would still have said it.
+func openEntries(snap *snapshot.Generation, contract *schema.Contract, kept []mark.Uncertainty, allowed func(string) bool) []openEntry {
+	var entries []openEntry
+	for _, item := range snap.OpenItems(contract, note.OpenMarks(kept)) {
+		if !allowed(item.Path()) {
+			continue
+		}
+		if item.Note != nil {
+			if thought, ok := openThoughtEntry(snap, item.Note, allowed); ok {
+				entries = append(entries, openEntry{thought: &thought})
+			}
+			continue
+		}
+		if location, ok := openLocationEntry(snap, item.Mark, allowed); ok {
+			entries = append(entries, openEntry{location: &location})
+		}
+	}
+	return entries
+}
+
+func openThoughtEntry(snap *snapshot.Generation, reading *snapshot.Reading, allowed func(string) bool) (openThought, bool) {
+	// A thought citing withheld ground is withheld whole: the citation is the
+	// shelf's own row text, and leaving it out would still list a thought whose
+	// title is often its source's name.
+	title := snap.DeclaredTitle(reading.RelPath)
+	if !snap.BasedOnWithin(reading.RelPath, allowed) || namesWithheld(snap, title, reading.Body, allowed) {
+		return openThought{}, false
+	}
+	entry := openThought{
+		Kind: openKindThought, Path: reading.RelPath, Title: title, Status: reading.Status,
+		Wikilink: note.NoteWikilink(snap, reading.RelPath),
+	}
+	if !reading.Updated.IsZero() {
+		entry.UpdateDate = reading.Updated.Format(time.DateOnly)
+	}
+	return entry, true
+}
+
+func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allowed func(string) bool) (openLocation, bool) {
+	// The command speaks English, so a card with no pattern of its own is named
+	// in the English the page would use.
+	located := note.LocateMark(snap, kept.RelPath, kept.Anchor, wording.En)
+	reading, _ := snap.Note(kept.RelPath)
+	title := ""
+	if located.Lost != note.LostNote {
+		title = snap.DeclaredTitle(kept.RelPath)
+	}
+	for _, words := range []string{title, located.AnchorText} {
+		if words != "" && namesWithheld(snap, words, reading.Body, allowed) {
+			return openLocation{}, false
+		}
+	}
+	entry := openLocation{
+		Kind:       openKindLocation,
+		Path:       kept.RelPath,
+		Anchor:     kept.Anchor,
+		Title:      title,
+		CreateTime: kept.At.UTC().Format(time.RFC3339),
+	}
+	switch located.Lost {
+	case note.LostNothing:
+		entry.AnchorText = located.AnchorText
+		entry.Wikilink = located.Wikilink
+	case note.LostNote:
+		entry.Lost = openLostNote
+	case note.LostPlace:
+		entry.Lost = openLostLocation
+	default:
+		panic("main: unknown Loss: " + located.Lost.String())
+	}
+	return entry, true
+}
+
+// namesWithheld reports whether text spells a link name body cites that could
+// reach withheld ground. A heading or a title is the author's words, and a
+// wikilink inside one is shown as the name it was written with, so a heading
+// citing a withheld note would say that note's path in the list — and its
+// anchor, made from the same words, would say it again.
+func namesWithheld(snap *snapshot.Generation, text, body string, allowed func(string) bool) bool {
+	folded := graph.FoldFragment(text)
+	for _, target := range judge.LinkTargets(body) {
+		name := graph.FoldFragment(strings.TrimSpace(target))
+		if name != "" && strings.Contains(folded, name) && !snap.NameWithin(target, allowed) {
+			return true
+		}
+	}
+	return false
+}
+
+// withinAuthority keeps the entries whose path the authority read after
+// assembly still allows. Each one already passed the same gate, so this drops
+// nothing unless that gate and this one disagree.
+func withinAuthority(entries []openEntry, allowed func(string) bool) []openEntry {
+	kept := entries[:0]
+	for _, entry := range entries {
+		if allowed(entry.path()) {
+			kept = append(kept, entry)
+		}
+	}
+	return kept
+}
+
+func encodeOpen(entries []openEntry, format judge.Format) ([]byte, error) {
+	switch format {
+	case judge.FormatJSON:
+		var buf bytes.Buffer
+		enc := json.NewEncoder(&buf)
+		enc.SetEscapeHTML(false)
+		for _, entry := range entries {
+			var err error
+			if entry.location != nil {
+				err = enc.Encode(entry.location)
+			} else {
+				err = enc.Encode(entry.thought)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("encode the list: %w", err)
+			}
+		}
+		return buf.Bytes(), nil
+	case judge.FormatHuman, judge.FormatMarkdown:
+		var b strings.Builder
+		for _, entry := range entries {
+			if entry.location != nil {
+				b.WriteString(humanLocationLine(entry.location))
+			} else {
+				b.WriteString(humanThoughtLine(entry.thought))
+			}
+		}
+		return []byte(b.String()), nil
+	default:
+		panic("main: unknown Format: " + format.String())
+	}
+}
+
+// The terminal view's own words. A thought that declares no date shows a run
+// as wide as a date, so the columns still line up; a location whose note, or
+// whose place in the note, is gone says which.
+const (
+	humanOpenDateless  = "----------"
+	humanOpenNoteLost  = "(note not found)"
+	humanOpenPlaceLost = "(location not found)"
+)
+
+// humanLocationLine is one location as a person at a terminal reads it: the
+// day it was marked, the kind, the path, then what names the place.
+func humanLocationLine(e *openLocation) string {
+	line := fmt.Sprintf("%s  %-8s  %s", e.CreateTime[:len(time.DateOnly)], e.Kind, e.Path)
+	switch {
+	case e.AnchorText != "":
+		line += "  " + e.AnchorText
+	case e.Anchor != "":
+		line += "  #" + e.Anchor
+	}
+	switch e.Lost {
+	case openLostNote:
+		line += "  " + humanOpenNoteLost
+	case openLostLocation:
+		line += "  " + humanOpenPlaceLost
+	}
+	return line + "\n"
+}
+
+// humanThoughtLine is one thought as a person at a terminal reads it: its
+// declared date, the kind, the path, its title and its status.
+func humanThoughtLine(e *openThought) string {
+	date := cmp.Or(e.UpdateDate, humanOpenDateless)
+	line := fmt.Sprintf("%s  %-8s  %s", date, e.Kind, e.Path)
+	if e.Title != "" {
+		line += "  " + e.Title
+	}
+	return line + "  (" + e.Status + ")\n"
+}
