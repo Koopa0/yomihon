@@ -114,6 +114,15 @@ const (
 	// DiagEmbedNotExpanded means an embed written inside a transcluded body was
 	// rendered as an ordinary link, since transclusion stops one level down.
 	DiagEmbedNotExpanded DiagnosticKind = "embed-not-expanded"
+	// The five reasons an embedded figure is not shown; FigureFinding maps a
+	// figure.Refusal onto them. A placeholder stands where the frame would,
+	// with the same note the findings rail carries, and none of the figure is
+	// served. Detail holds what the note names.
+	DiagFigureTooLarge       DiagnosticKind = "figure-too-large"
+	DiagFigureEncoding       DiagnosticKind = "figure-encoding"
+	DiagFigureNestedFrame    DiagnosticKind = "figure-nested-frame"
+	DiagFigureLoadsElsewhere DiagnosticKind = "figure-loads-elsewhere"
+	DiagFigureScriptOutside  DiagnosticKind = "figure-script-outside"
 	// DiagLinkFragmentMissing means a plain link named a block its target's
 	// captured body does not carry. The link is left leading to the note itself,
 	// since an address the destination stamps no anchor for would promise a block
@@ -169,6 +178,10 @@ type Diagnostic struct {
 	// after "#" is a section name.
 	Section string
 	Block   string
+
+	// Detail is what a figure finding's note names: the markup found, or the
+	// file's size. Empty for every other kind.
+	Detail string
 }
 
 // TOCEntry is one heading in document order, with the id assigned to it
@@ -230,6 +243,7 @@ type Pipeline struct {
 	transclusions Transclusions
 	titles        Titles
 	files         Files
+	figures       Figures
 	md            goldmark.Markdown
 	// outlines holds each captured note's displayed headings by path, drawn
 	// the first time a heading path names that note.
@@ -262,6 +276,23 @@ func New(idx *graph.Index, transclusions Transclusions, titles Titles, files Fil
 		files:         files,
 		md:            pageMarkdown(),
 	}
+}
+
+// WithFigures gives the pipeline the generation's reads of the figures its
+// pages embed, and returns it. A pipeline without one draws every figure as
+// a frame without script, which is what a figure nobody approved gets, and
+// leaves the document route to refuse what it must on its own read.
+func (r *Pipeline) WithFigures(figures Figures) *Pipeline {
+	r.figures = figures
+	return r
+}
+
+// figure is what the pipeline knows about one embedded figure.
+func (r *Pipeline) figure(relPath string) FigureState {
+	if r.figures == nil {
+		return FigureState{}
+	}
+	return r.figures.Figure(relPath)
 }
 
 // pageMarkdown creates each consumer's parser from the page grammar. Parser

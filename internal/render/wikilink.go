@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/figure"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -1112,6 +1113,10 @@ func (r *Pipeline) renderEmbed(link graph.Wikilink, source string, allowEmbed em
 	case graph.KindUnique:
 		if IsPicture(res.RelPath) {
 			return pictureEmbed(res.RelPath, link)
+		}
+		if figure.Is(res.RelPath) {
+			state := r.figure(res.RelPath)
+			return figureEmbed(res.RelPath, link, &state, col)
 		}
 		if !vault.IsMarkdown(res.RelPath) {
 			return mediaStub(res.RelPath, col.page.lang)

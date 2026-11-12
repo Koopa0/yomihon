@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>idle figure</title><meta name="figure-outside" content="FIGURE_OUTSIDE_IDLE"></head>
+<body>
+<p>A figure whose script nobody approved.</p>
+<script>
+top.postMessage({ probe: 'idle-ran' }, '*');
+fetch('http://' + document.querySelector('meta[name=figure-outside]').content + '/idle').catch(() => {});
+</script>
+</body>
+</html>

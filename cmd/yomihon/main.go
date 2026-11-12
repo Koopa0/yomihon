@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -68,8 +69,26 @@ func main() {
 		exit := runOpenThoughts(ctx, args, cfg, os.Stdout, os.Stderr, stdoutIsTerminal())
 		stop()
 		os.Exit(exit)
+	case approveFigureCommand, revokeFigureCommand:
+		// These two speak about the reader, so they open the reader's own
+		// directory, resolved here like the server's: the one place this
+		// process asks the environment where that is.
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			configDir = ""
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		exit := runFigureCommand(ctx, command, args, figureIO{
+			in:          os.Stdin,
+			out:         os.Stdout,
+			errOut:      os.Stderr,
+			interactive: isTerminal(os.Stdin) && isTerminal(os.Stdout),
+		}, configDir, time.Now)
+		stop()
+		os.Exit(exit)
 	default:
-		fmt.Fprintf(os.Stderr, "yomihon: %q is neither a command nor a folder; commands are serve, check, coverage, exists, and %s\n", command, openCommand)
+		fmt.Fprintf(os.Stderr, "yomihon: %q is neither a command nor a folder; commands are serve, check, coverage, exists, %s, %s, and %s\n",
+			command, openCommand, approveFigureCommand, revokeFigureCommand)
 		os.Exit(2)
 	}
 }
@@ -83,7 +102,7 @@ func dispatch(argv []string) (command string, args []string) {
 		return "serve", nil
 	}
 	switch argv[0] {
-	case "serve", "check", "coverage", "exists", openCommand:
+	case "serve", "check", "coverage", "exists", openCommand, approveFigureCommand, revokeFigureCommand:
 		return argv[0], argv[1:]
 	}
 	// #nosec G703 -- the operator's own shell argument, asked only whether it

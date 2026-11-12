@@ -60,3 +60,35 @@ var (
 
 // DiagCommentContainerNote explains that later containers remain readable.
 var DiagCommentContainerNote = both("這個註解記號沒有找到配對，所在 Markdown 區塊剩下的內容被藏了起來。", "This comment marker has no partner, and the rest of its Markdown container is hidden.")
+
+// The five reasons a figure is not shown: a label for the findings rail, and
+// the note said both there and where the figure would have stood. Each note
+// says what was found, why the whole figure is withheld, and what the author
+// can write instead.
+var (
+	DiagFigureTooLarge     = both("圖解檔超過大小上限", "Figure over the size limit")
+	DiagFigureTooLargeNote = both(
+		"這個圖解檔的大小是 %s，超過 %s 的上限，所以沒有顯示。把檔案縮小，或拆成幾個圖解。yomihon 只陳述，不修復。",
+		"This figure's file is %s, over the %s limit, so it is not shown. Make the file smaller, or split it into several figures. yomihon reports and never repairs.",
+	)
+	DiagFigureEncoding     = both("圖解檔不是 UTF-8", "Figure not saved as UTF-8")
+	DiagFigureEncodingNote = both(
+		"這個圖解檔不是有效的 UTF-8，或以 UTF-16 的位元組順序記號（BOM）開頭；遇到這個記號，瀏覽器會不管檔案宣告的編碼，所以沒有顯示。請用編輯器以 UTF-8（不含 BOM）重新存檔。yomihon 只陳述，不修復。",
+		"This figure's file is not valid UTF-8, or it starts with a UTF-16 byte-order mark, which makes a browser ignore the encoding the file declares; it is not shown. Save it again as UTF-8 without a byte-order mark. yomihon reports and never repairs.",
+	)
+	DiagFigureNestedFrame     = both("圖解裡有嵌入的框架", "Figure holds a nested frame")
+	DiagFigureNestedFrameNote = both(
+		"這個圖解含有 %s。這類元素在圖解打開時就可能連到這台機器以外，所以整個圖解沒有顯示。請把內容直接寫成圖解檔裡的 HTML 與 SVG。yomihon 只陳述，不修復。",
+		"This figure contains %s. An element like that can reach outside this machine as soon as the figure opens, so the figure is not shown. Write the content as HTML and SVG inside the figure's own file. yomihon reports and never repairs.",
+	)
+	DiagFigureLoadsElsewhere     = both("圖解會向外連線或自行跳轉", "Figure connects out or moves on its own")
+	DiagFigureLoadsElsewhereNote = both(
+		"這個圖解含有 %s。這類元素會讓瀏覽器預先連線、改變網址的解析基準，或自動跳到別的頁面，所以整個圖解沒有顯示。樣式請寫在檔案內的 <style>；要指向別處，用一般連結即可。yomihon 只陳述，不修復。",
+		"This figure contains %s. An element like that makes the browser connect ahead, changes what addresses resolve against, or moves to another page on its own, so the figure is not shown. Put styles in a <style> element inside the file; to point somewhere else, an ordinary link is fine. yomihon reports and never repairs.",
+	)
+	DiagFigureScriptOutside     = both("圖解的腳本不在檔案內的 <script> 裡", "Figure script outside an inline <script>")
+	DiagFigureScriptOutsideNote = both(
+		"這個圖解有 %s。只有直接寫在檔案內 <script> 元素裡的腳本，才能依確切內容核可；外部腳本檔、事件屬性和 javascript 網址都無法釘住，所以整個圖解沒有顯示。請把腳本移進檔案內的 <script>，用 addEventListener 綁定事件。yomihon 只陳述，不修復。",
+		"This figure has %s. Only script written inside a <script> element in the file can be approved by its exact contents; a script file, an event attribute or a javascript: address cannot be pinned, so the figure is not shown. Move the script into a <script> element in the file and attach events with addEventListener. yomihon reports and never repairs.",
+	)
+)

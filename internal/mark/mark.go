@@ -23,10 +23,19 @@
 // Unlike continuation storage, unreadable uncertainty storage is preserved
 // and reported rather than replaced by the next mark.
 //
-// The reading server writes both files. The adjudication commands read
-// neither: what they answer is about the vault, and this is about the reader.
-// The left-open command, which answers about the reader, reads the
-// uncertainty file and never writes either.
+// The reading server writes both files. The left-open command, which answers
+// about the reader, reads the uncertainty file and never writes either.
+//
+// A third file in the same directory holds the figures the owner approved to
+// run their scripts: each a path and the SHA-256 of the exact bytes approved.
+// It is a record about the reader's own browser rather than about the vault,
+// which is why it lives here and not in the vault: the reading server only
+// reads it, and only the approve-figure and revoke-figure commands write it.
+// No HTTP route writes it.
+//
+// The adjudication commands — check, coverage, exists — never read any of
+// these files: what they answer is about the vault, and this is about the
+// reader.
 package mark
 
 import (

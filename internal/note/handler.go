@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -90,7 +91,11 @@ type Sources struct {
 	// keep something that has nowhere to go.
 	MarkAddress        string
 	UncertaintyAddress string
-	Log                *slog.Logger
+	// FigureApproved reports whether the owner approved a figure's exact
+	// bytes to run their inline scripts. Nil means this process keeps no
+	// approvals, and every figure is served without script.
+	FigureApproved func(rel string, sum [sha256.Size]byte) (render.Approval, error)
+	Log            *slog.Logger
 }
 
 // Handler serves reading pages from one rooted vault capability and its
@@ -145,6 +150,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+openThoughtsAddress, h.openThoughts)
 	mux.HandleFunc("GET /compare/{path...}", h.compare)
 	mux.HandleFunc("GET /raw/{path...}", h.raw)
+	mux.HandleFunc("GET /embed/{path...}", h.figureDocument)
 	mux.HandleFunc("GET /freshness/{path...}", h.freshness)
 	mux.HandleFunc("GET /preview/{path...}", h.preview)
 	mux.HandleFunc("GET /{$}", h.home)

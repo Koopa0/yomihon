@@ -36,6 +36,9 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 		return wording.DiagEmbedFragmentRepeated.In(lang)
 	case render.DiagEmbedNotExpanded:
 		return wording.DiagEmbedNotExpanded.In(lang)
+	case render.DiagFigureTooLarge, render.DiagFigureEncoding, render.DiagFigureNestedFrame,
+		render.DiagFigureLoadsElsewhere, render.DiagFigureScriptOutside:
+		return figureDiagLabel(kind, lang)
 	case render.DiagRenderFailed:
 		return wording.DiagRenderFailed.In(lang)
 	case render.DiagLinkFragmentMissing:
@@ -46,6 +49,22 @@ func diagKindLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 		return commentDiagLabel(kind, lang)
 	default:
 		return string(kind)
+	}
+}
+
+// figureDiagLabel names the five reasons a figure is not shown.
+func figureDiagLabel(kind render.DiagnosticKind, lang wording.Lang) string {
+	switch kind {
+	case render.DiagFigureTooLarge:
+		return wording.DiagFigureTooLarge.In(lang)
+	case render.DiagFigureEncoding:
+		return wording.DiagFigureEncoding.In(lang)
+	case render.DiagFigureNestedFrame:
+		return wording.DiagFigureNestedFrame.In(lang)
+	case render.DiagFigureLoadsElsewhere:
+		return wording.DiagFigureLoadsElsewhere.In(lang)
+	default:
+		return wording.DiagFigureScriptOutside.In(lang)
 	}
 }
 
