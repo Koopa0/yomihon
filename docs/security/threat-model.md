@@ -93,13 +93,18 @@ file once: the digest, the tier, the script hashes and the bytes sent all come
 from that one read. The figure handler itself never redirects. The router in
 front of it answers a path that is not clean — a `..` segment or a doubled
 slash — with a 307 to the clean path on the same origin; no address tried
-(`..//evil.com`, a backslash, `///evil.com`) produced a redirect off it.
+(`..//evil.com`, a backslash, `///evil.com`) produced a redirect off it. The
+browser applies the narrower of the frame attribute and the response policy,
+so a page drawn before a file changed can only err towards running less.
 
-A note shown inside another page — a hover card, a course's opening — draws
-every figure as its stand-in, with no frame: an approval runs a figure where
-its note is read, never on a page whose reader only passed over a link to it. The browser
-applies the narrower of the frame attribute and the response policy, so a page
-drawn before a file changed can only err towards running less.
+A figure is framed only on its own note's page. Every other page that shows a
+note's words — a hover card, a course's opening, the concept sheets a lesson
+carries, the compare page, the listening page — draws each figure as its
+stand-in, with no frame, so an approval runs a figure where its note is read
+and never where its reader only passed a link to it or read another note. A
+note embedded in another with `![[…]]` shows its own embeds as links, so a
+figure in it is not framed either. Search results, backlinks and source cards
+carry text, not a note's rendered body.
 
 **Refused at serve time.** The bytes are parsed with a spec tree builder twice,
 with scripting off (so `<noscript>` content is markup, as the scriptless frame
@@ -151,7 +156,8 @@ UDP packets:
 **The residuals are accepted** (owner's ruling, 2026-11-12). Chrome 157 does
 not recognise a CSP `webrtc` directive and offers no permission to switch
 WebRTC off, so an approved figure's script can send arbitrary data to any host
-and port over WebRTC, and, with an endpoint of its own, read replies. The TCP
+and port over WebRTC, and — inferred, not measured — with an endpoint of its
+own it could read replies as well. The TCP
 residuals carry less: a connection opens and no request follows, so what leaves
 is a host name, a port and a timing, and nothing comes back. Closing them would
 leave what an approved figure can do unchanged while WebRTC stays open. So an
@@ -166,8 +172,11 @@ throwaway harness that is not in this repository; a Safari change is not
 caught.
 
 **Approval.** `yomihon approve-figure` reads the file once, prints every inline
-script in full from that read — with control and text-direction characters
-shown as escapes, so the terminal draws the code that runs — and pins the
+script in full from that read — with control (Unicode Cc) and format (Cf,
+zero-width and text-direction characters among them) characters and line and
+paragraph separators (Zl, Zp) shown as escapes, and a new line started after
+each character JavaScript ends a line at, so the terminal draws the code that
+runs, line for line — and pins the
 digest of exactly those bytes once the person types its first 8 characters
 back. What the owner reads is what is approved; a change after the read lapses
 the approval. The 8 characters confirm attention; they are not a lock.
