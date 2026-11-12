@@ -105,7 +105,7 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 			if strings.Index(all, "Alternative initial") > strings.Index(all, `href="/notes/Source.md#chapter"`) || strings.Index(all, `href="/notes/Source.md#chapter"`) > strings.Index(all, "Thought 6") {
 				t.Error("marks and notes are not interleaved newest first")
 			}
-			if lang == "en" && !strings.Contains(block, "What you left open") || lang == "zh-Hant" && !strings.Contains(block, "還沒說清楚的") {
+			if lang == "en" && !strings.Contains(block, "What you left open") || lang == "zh-Hant" && !strings.Contains(block, "還沒想通的") {
 				t.Error("open shelf title is not translated")
 			}
 		})

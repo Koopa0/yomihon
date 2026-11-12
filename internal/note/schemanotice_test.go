@@ -461,7 +461,7 @@ func TestFrontmatterSchemaNoticeDistinguishesMissingAndUnclosedBlocks(t *testing
 			lang    wording.Lang
 			missing string
 		}{
-			{wording.ZhHant, "這份筆記需要 frontmatter，但沒有 frontmatter 區塊。"},
+			{wording.ZhHant, "這篇筆記需要 frontmatter，但沒有 frontmatter 區塊。"},
 			{wording.En, "This note requires frontmatter, but no frontmatter block is present."},
 		} {
 			t.Run(tc.name+"/"+string(chrome.lang), func(t *testing.T) {

@@ -8,19 +8,54 @@ A vault's own words belong to that vault, not to this page: the note types and s
 
 | Idea | Screen word | 畫面用語 | Means | Retired | In code |
 | --- | --- | --- | --- | --- | --- |
-| The folder of Markdown yomihon reads | vault | 書庫 | The folder yomihon is pointed at. A directory inside it is a *folder*. | library | `vault`, `internal/vault` |
-| An ordered run of lessons | course | 課程 | Lessons grouped in parts along a main line, with optional side branches of extra reading. | study path, syllabus, 學習路徑 | `Course`. The course page is `Syllabus` and its address `/syllabus/…`; both are to be renamed, with a redirect. |
-| Where a file lives | path | 路徑 | A file's location in the vault, such as `Notes/Books/Go.md`. It never names a course. | | `path` |
-| Where the reader stopped | place | 待續位置 | What "Leave off here" keeps. | | `Continuation` |
-| A spot the reader is unsure of | location | 位置 | A spot in a note marked "Not sure yet". The thing marked is a location; the act is to *mark* it. | place, in this sense | `Uncertainty`. The code that resolves one calls it `Place`; to be renamed `Location`. |
-| One problem the check reports | finding | 發現 | A problem that `yomihon check` and the Health page report about a note or the vault. | diagnostic, 診斷 | `Diagnostic` |
-| A written report | report | 報告 | A Markdown report the vault keeps under its reports directory, listed at `/reports`. | health report, 健康報告 | |
+| The folder of Markdown yomihon reads | vault | 書庫 | The folder yomihon is pointed at. A directory inside it is a *folder*; the vault's own root is a folder only when the subject is the disk. | library, 知識庫 | `vault`, `internal/vault` |
+| An ordered run of lessons | course | 課程 | Lessons grouped in parts along a main line, with optional side branches of extra reading. | study path, syllabus, 學習路徑 | `nav.Path` (with `PathView`, `PathGroup`, `IsPathType` and the contract key `path_types`), `Syllabus*`, `internal/syllabus`, `Course*`. They keep their names. The course page's address `/syllabus/…` and `/paths` are to be renamed, with a redirect, on the owner's ruling. |
+| Where a file sits in the vault | path | 路徑 | The route from the vault's root to a file, such as `Notes/Books/Go.md`. It never names a course. | | `path`. In code `nav.Path` and the contract key `path_types` name a course; this is the one place the code says path for a course. |
+| Where the reader stopped | place | 待續位置 | What "Leave off here" keeps. Written with 待續 in full, not as 位置 alone. | | `Continuation`. `nav.Place` is a third, unrelated sense (where a note sits in a course) and is to be renamed; `isContinuation` in `sequence` is a course row's continuation paragraph, not this. |
+| A spot the reader is unsure of | location | 位置 | A spot in a note marked "Not sure yet". The thing marked is a location; the act is to *mark* it. | place, in this sense | `Uncertainty`. Only the wording names `UncertaintyPlace*` move to `Location`: `mark.Places` and `HasPlace` serve both marks and name an anchor a note renders, so they keep their names. |
+| One problem the check reports | finding | 發現 | A problem that `yomihon check` and the Health page report about a note or the vault, and what the note page's Note health panel shows about one note. | diagnostic, 診斷 | `judge.Finding`. `Diagnostic` in code means five other things (render, sequence, vault, schema, status); the Note health panel shows `render.Diagnostic`. |
+| A written report | report | 報告 | A Markdown report the vault keeps under its reports directory, listed at `/reports`. | health report, 健康報告, adjudication report, 判讀報告 | |
 | The page that lists findings | Health page | 整體狀況 | The page at `/health`. It is a page, not a report. | | `Health` |
-| Looking for findings | check | 檢查 | The act, and the command `yomihon check`. | judge, as the name of this act | `internal/judge` |
+| Looking for findings | check | 檢查 | The act, and the command `yomihon check`. | judge, as the name of this act; adjudication | `internal/judge`, `adjudicate` |
 | The reader's own writing | thought | 想法 | A note of the reader's own that cites a source, of the type the contract names as its answer type. | | `thought`, `/thought/…` |
-| What the reader has not settled | What you left open | 還沒說清楚的 | The shelf of locations marked "Not sure yet" and thoughts not yet finished, newest first. | | `open-thoughts`, `/open-thoughts` |
+| What the reader has not settled | What you left open | 還沒想通的 | The shelf of locations marked "Not sure yet" and thoughts not yet finished, newest first. The command `yomihon left-open` lists the same things. | | `open-thoughts`, `/open-thoughts` |
+| The home page | reading desk | 閱讀桌 | The page at `/`, where the reader returns. | | `Desk`, `HomeView` |
+| The column beside the page | sidebar | 側欄 | The navigation column. | rail | `ReadingRail`, `Rail*` |
+| A list of rows on the desk | shelf | 書架 | One organisation's listing of documents. | | `Shelf` |
+| A heading's part of a note | section | 小節 | The part of a note under one heading, as `#Heading` addresses it. | | |
+| A paragraph | paragraph | 段 | One paragraph; the unit read-aloud moves by. | | |
+| A `^id` target | block | 區塊 | A paragraph or item named with `^id`. | | |
+| One unit of a course | lesson | 課 | | 課文, 課次 | |
+| The vault's rule file | contract | 契約 | `System/schemas/vault-schema.toml`. The Chinese screen text does not write `vault contract`. | | |
+| The contract's field and status rules | schema | schema | | | |
+| The note page's own findings panel | Note health | 筆記狀況 | | | |
+| A picture shown inline | picture | 圖片 | | | `IsPicture` |
+| Placing a file inside a note | embed | 嵌入 | | 內嵌 | |
+| Any file in the vault | file | 檔案 (counted 個) | A file of any kind: a note, a picture, a PDF. | | |
+| A Markdown file yomihon reads as one | note | 筆記 (counted 篇) | A Markdown file in the index: rendered, searched, linked to and checked. | | |
+| A Markdown file the contract leaves out | document | 文件 (counted 份) | A Markdown file the contract leaves out of the index. It still opens and renders; it is not searched or checked. | | `FileDocument`, `SkipsNote` |
+| A directory | folder | 資料夾 | A directory inside the vault. | | |
 
-Two things are deliberately not here yet. The words *note*, *document*, *file* and *folder* mean different things on purpose and are kept apart; their definitions are still to be written. The command line's own words, its command and field names, are decided when the command that needs them is.
+A written report is counted 份 as well. Not counting by the right word reads as careless in Chinese: 篇 for a note, 份 for a document or a report, 個 for a file.
+
+Two things are deliberately not here yet. The command line's own field names are decided with the command that needs them. The word for *status*, its rules and its transitions is still to be settled.
+
+## Frozen outputs
+
+`yomihon check` keeps some of the retired words (*syllabus*, *study-path*, *judge*) in its rule messages and in the golden files under `internal/judge/testdata/`. They are not debt. External pipelines read them byte for byte, and they change only with the owner's ruling. A vocabulary change does not touch the strings in `internal/judge`.
+
+## Known debt the test cannot see
+
+The test below compares whole words, so it cannot tell a retired sense of a word from a sound one. These are known, found by reading, and replaced in the redesign. Confirm each before changing it.
+
+- *path* for a course: `desk.go:85,86`; `sidebar.go:48,62,66`; `syllabus.go:14,55,88,96,109`.
+- 位置 for something other than a location or a place: a storage place at `desk.go:72` and `freshness.go:18`.
+- Section written three ways in Chinese (段落, 小節, 章節): `diagnostic.go:20,21,26,44,45,47,48`; `render.go:15,20,144`; `note.go:178,180`.
+- Lesson written three ways (課, 課文, 課次): `syllabus.go:88,124,127`; `preferences.go:84`.
+- The home page called *home page* or 首頁: `recovery.go:64,188,291`.
+- *Image* where *picture* is meant: `slotmachine.go:23`.
+- English written inside Chinese text: `vault contract` at `health.go:128,129` and `recovery.go:71,75`.
+- The Note health panel called "the note's conditions" in English: `render.go:113`.
 
 ## Enforcement
 
@@ -33,10 +68,15 @@ study path => course
 syllabus => course
 diagnostic => finding
 health report => Health page
+adjudication => check
+rail => sidebar
 ```
 
 ```retired-zh
 學習路徑 => 課程
 診斷 => 發現
 健康報告 => 整體狀況
+判讀報告 => 檢查結果
+知識庫 => 書庫
+內嵌 => 嵌入
 ```

@@ -52,7 +52,7 @@ var ContinueReading = both("繼續閱讀", "Continue reading")
 // pointer, and nothing else knows better where they were — and this sentence
 // is why the sentence they stopped at may have moved.
 var MarkNoteChanged = both(
-	"這篇筆記在你留下位置之後改過了。",
+	"這篇筆記在你留下待續位置之後改過了。",
 	"This note has changed since you left off.",
 )
 
@@ -60,6 +60,6 @@ var MarkNoteChanged = both(
 // vault. Nothing is cleared: the reader did not ask for that, and the next
 // place they keep replaces this one.
 var MarkNoteGone = both(
-	"你留下位置的那篇筆記已經不在了。",
+	"你留下待續位置的那篇筆記已經不在了。",
 	"The note you left off in is no longer here.",
 )

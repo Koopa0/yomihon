@@ -79,10 +79,10 @@ var (
 	NothingHere    = both("這裡沒有東西", "Nothing is here")
 	NotFoundKicker = both("找不到", "Not found")
 	NotFoundLede   = both(
-		"這個位置沒有筆記或檔案。可能是網址打錯了，也可能這一篇還沒有寫。",
+		"這個網址沒有筆記或檔案。可能是網址打錯了，也可能這一篇還沒有寫。",
 		"There is no note and no file at this address. The address may be a typo, or the note may be one nobody has written yet.",
 	)
-	AddressAsked = both("你要找的位置", "The address you asked for")
+	AddressAsked = both("你要找的網址", "The address you asked for")
 	WhatNext     = both("下一步", "What next")
 	NotFoundNext = both(
 		"從閱讀桌的資料夾往下找，或用上方的搜尋。",

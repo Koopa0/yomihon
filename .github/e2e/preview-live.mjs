@@ -221,7 +221,7 @@ try {
             await open(page, link);
             if (!(await cardText(page)).includes(before)) throw new Broken('first card lacks the initial server marker');
             await dismiss(page);
-            const refusal = lang === 'en' ? 'There is no note to preview at that address.' : '這個位置沒有可以預覽的筆記。';
+            const refusal = lang === 'en' ? 'There is no note to preview at that address.' : '這個網址沒有可以預覽的筆記。';
             if (site === 'updated') {
               await writeFile(targetFile, source(after));
               await published(context, targetPath, 200, after);
