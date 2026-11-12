@@ -100,7 +100,7 @@ var (
 // translating a heading cannot change what a link asks for.
 var (
 	HealthColumnFile     = both("檔案", "File")
-	HealthColumnFinding  = both("發現", "Finding")
+	HealthColumnFinding  = both("發現事項", "Finding")
 	HealthColumnSeverity = both("嚴重度", "Severity")
 	HealthColumnCount    = both("次數", "Count")
 )

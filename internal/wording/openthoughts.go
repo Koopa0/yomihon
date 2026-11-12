@@ -1,7 +1,7 @@
 package wording
 
 // OpenThoughtsTitle names a return to the reader's own unfinished material.
-var OpenThoughtsTitle = both("還沒說清楚的", "What you left open")
+var OpenThoughtsTitle = both("還沒想通的", "What you left open")
 
 // OpenThoughtsCount formats the combined number of notes and marked locations.
 var OpenThoughtsCount = both("%d 筆", "%d items")

@@ -213,6 +213,6 @@ var (
 // is the link out, so what the card could not show, the line naming it still
 // reaches.
 var (
-	PreviewNoNote = both("這個位置沒有可以預覽的筆記。", "There is no note to preview at that address.")
+	PreviewNoNote = both("這個網址沒有可以預覽的筆記。", "There is no note to preview at that address.")
 	PreviewMore   = both("預覽到此為止，筆記後面還有。", "The preview stops here; the note goes on.")
 )

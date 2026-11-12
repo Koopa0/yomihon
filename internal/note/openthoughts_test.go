@@ -36,7 +36,7 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 	}{
 		{name: "english note gone", lang: "en", noteGone: true, missing: "Note not found", remove: "Remove mark", count: "1 item"},
 		{name: "chinese note gone", lang: "zh-Hant", noteGone: true, missing: "找不到這篇筆記", remove: "移除標記", count: "1 筆"},
-		{name: "english place gone", lang: "en", missing: "Place not found", remove: "Remove mark", count: "1 item"},
+		{name: "english location gone", lang: "en", missing: "Location not found", remove: "Remove mark", count: "1 item"},
 		{name: "chinese place gone", lang: "zh-Hant", missing: "找不到這個位置", remove: "移除標記", count: "1 筆"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -236,7 +236,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 					CapturedTitle, CapturedLink, LaterTitle, Missing bool
 				}{
 					CapturedTitle: strings.Contains(page, "Captured title — <span>Chapter</span>"), CapturedLink: strings.Contains(page, `href="/notes/Source.md#chapter"`),
-					LaterTitle: strings.Contains(page, "Later title"), Missing: strings.Contains(page, "Place not found"),
+					LaterTitle: strings.Contains(page, "Later title"), Missing: strings.Contains(page, "Location not found"),
 				}
 				want := struct {
 					CapturedTitle, CapturedLink, LaterTitle, Missing bool

@@ -117,7 +117,7 @@ func unsupportedFrontmatter(diagnostic string) bool {
 // fragment still has to read as part of one sentence in both languages.
 var (
 	schemaFrontmatterMissing = both(
-		"這份筆記需要 frontmatter，但沒有 frontmatter 區塊。",
+		"這篇筆記需要 frontmatter，但沒有 frontmatter 區塊。",
 		"This note requires frontmatter, but no frontmatter block is present.")
 	schemaFrontmatterInvalid = both(
 		"frontmatter 不是有效的 YAML。解析器指出：",

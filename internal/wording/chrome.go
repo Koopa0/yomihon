@@ -12,17 +12,13 @@ var SkipToContent = both("跳至主要內容", "Skip to content")
 // column above them.
 var ToggleNavigation = both("切換導覽", "Toggle navigation")
 
-// BrandTag sits beside the name and says what this is: a place to read what is
-// already written, not a place to file it.
-var BrandTag = both("書庫", "Library")
-
 // SearchNotes labels the way into search, both as the control's accessible name
-// and as the dialog's. The library is what you search.
-var SearchNotes = both("搜尋書庫", "Search the library")
+// and as the dialog's.
+var SearchNotes = both("搜尋", "Search")
 
 // SearchNotesPrompt is the search invitation with the ellipsis a placeholder
 // carries — header button label, dialog field, and desk field alike.
-var SearchNotesPrompt = both("搜尋書庫…", "Search the library…")
+var SearchNotesPrompt = both("搜尋…", "Search…")
 
 // ToggleFurigana names the control for the reading aids over Japanese text.
 // Both sides say the plain thing rather than the term for it: 振假名 and

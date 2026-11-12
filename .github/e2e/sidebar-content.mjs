@@ -94,8 +94,8 @@ const MUTATIONS = {
   'autofocus-home-search': {
     target: 'home-start-top',
     apply: rewritePath(HOME, (body) => body.replaceAll(
-      'placeholder="搜尋書庫…" aria-label="搜尋書庫">',
-      'placeholder="搜尋書庫…" aria-label="搜尋書庫" autofocus>',
+      'placeholder="搜尋…" aria-label="搜尋">',
+      'placeholder="搜尋…" aria-label="搜尋" autofocus>',
     )),
   },
 };

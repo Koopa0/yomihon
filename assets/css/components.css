@@ -493,12 +493,6 @@ samp {
   width: 24px;
 }
 
-.y-brand__tag {
-  color: var(--fg-subtle);
-  font-family: var(--font-sans);
-  font-size: var(--fs-14);
-}
-
 .y-searchbtn {
   align-items: center;
   background: transparent;
@@ -668,12 +662,6 @@ html:not([data-js]) .y-rubybtn {
     box-shadow: none;
   }
 
-  /* The word beside the name gives before the name does: on a page with
-     furigana the row carries four controls, and at a phone held sideways the
-     name would otherwise lose letters to them. */
-  .y-brand__tag {
-    display: none;
-  }
 }
 
 .y-hamburger {
