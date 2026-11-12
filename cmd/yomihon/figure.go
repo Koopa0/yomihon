@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/figure"
@@ -280,24 +281,40 @@ func (stdio *figureIO) scripts(scripts []string) {
 	stdio.sayf(figureScriptsFooterFmt+"\n\n", len(scripts), total)
 }
 
-// visibleScript escapes what a terminal would act on or reorder rather than
-// draw: C0 and C1 control characters other than a tab and a line break,
-// DEL, and the bidirectional formatting characters.
+// visibleScript escapes what a terminal would act on, reorder or not draw:
+// control characters (Unicode category Cc) other than a tab and a line feed,
+// format characters (Cf: zero-width and text-direction characters among them),
+// and the line and paragraph separators (Zl, Zp). JavaScript ends a line at a
+// carriage return and at either separator as well as at a line feed, so after
+// those the shown text breaks too: a line the report shows as a comment is one
+// line of the script, and what follows the break is shown as the code it is.
 func visibleScript(script string) string {
 	var b strings.Builder
 	for _, r := range script {
 		switch {
 		case r == '\n' || r == '\t':
 			b.WriteRune(r)
-		case r < 0x20 || r == 0x7F || (r >= 0x80 && r <= 0x9F):
-			fmt.Fprintf(&b, "\\x%02x", r)
-		case r == 0x061C || r == 0x200E || r == 0x200F || (r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069):
-			fmt.Fprintf(&b, "\\u%04x", r)
+		case r == '\r' || unicode.In(r, unicode.Zl, unicode.Zp):
+			b.WriteString(escapedRune(r))
+			b.WriteByte('\n')
+		case unicode.In(r, unicode.Cc, unicode.Cf):
+			b.WriteString(escapedRune(r))
 		default:
 			b.WriteRune(r)
 		}
 	}
 	return b.String()
+}
+
+// escapedRune writes a character as the JavaScript escape that names it.
+func escapedRune(r rune) string {
+	if r <= 0xFF {
+		return fmt.Sprintf(`\x%02x`, r)
+	}
+	if r <= 0xFFFF {
+		return fmt.Sprintf(`\u%04x`, r)
+	}
+	return fmt.Sprintf(`\u{%x}`, r)
 }
 
 // list writes one heading of the report and its items.
