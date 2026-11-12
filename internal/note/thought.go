@@ -130,12 +130,20 @@ func thoughtMarkdown(contract *schema.Contract, role string, source *snapshot.Re
 	if slices.Contains(definition.Enums.Domain, source.Domain) && !slices.Contains(definition.Fields.DomainExempt, role) {
 		write("domain", source.Domain)
 	}
-	target := strings.TrimSuffix(source.RelPath, ".md")
+	b.WriteString("based_on: " + strconv.Quote("[["+thoughtCitation(source.RelPath, sectionText)+"]]") + "\n---\n")
+	return b.String()
+}
+
+// thoughtCitation is the link target, without its brackets, that names rel and
+// the section whose heading reads sectionText: the vault's own path without the
+// note extension, then the heading as Obsidian matches it. An empty section
+// names the whole note.
+func thoughtCitation(rel, sectionText string) string {
+	target := strings.TrimSuffix(rel, ".md")
 	if heading := headingLinkText(sectionText); heading != "" {
 		target += "#" + heading
 	}
-	b.WriteString("based_on: " + strconv.Quote("[["+target+"]]") + "\n---\n")
-	return b.String()
+	return target
 }
 
 // headingLinkText makes heading text safe inside a wikilink. Characters that

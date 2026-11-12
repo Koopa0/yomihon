@@ -18,7 +18,7 @@ this document.
 | A rewritten note and its adjacent `.yomihon-status-*.tmp` | The vault directory | Until the rename; a crash can strand the temporary file | The filesystem and the requester |
 | `slog` records: address, vault root, contract state, scan and render failures, selected status paths; a marks file's own absolute path when reading or writing it fails, and the note path the caller submitted when a continuation mark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
 | The reader's continuation — `reader.json` and its adjacent `.reader-*.json`, under `os.UserConfigDir()`/`yomihon`/one directory per vault, holding that vault's absolute path and one continuation point: a note path, an anchor id, a distance below it, the content identity of the bytes that were on screen, and when it was set | The platform's configuration directory, never the vault | Until the reader keeps another place or deletes the file; yomihon never expires one. A crash between the temporary file being created and renamed into place can strand the temporary file, holding that same content, and nothing removes it | The same OS account |
-| The reader's uncertainty marks — `uncertainty.json` and its adjacent `.uncertainty-*.json` in the same per-vault directory. Each array entry contains only `path`, `anchor`, and `time`; no body, chosen sentence, content identity, or source version is saved | The platform's configuration directory, never the vault | Until the reader toggles that location off or deletes the file; no expiry or automatic recovery. A crash can strand a temporary file containing the same location records | The same OS account; the local reading client receives them from `GET /uncertainties` |
+| The reader's uncertainty marks — `uncertainty.json` and its adjacent `.uncertainty-*.json` in the same per-vault directory. Each array entry contains only `path`, `anchor`, and `time`; no body, chosen sentence, content identity, or source version is saved | The platform's configuration directory, never the vault | Until the reader toggles that location off or deletes the file; no expiry or automatic recovery. A crash can strand a temporary file containing the same location records | The same OS account; the local reading client receives them from `GET /uncertainties`; `yomihon left-open` writes the ones outside withheld ground to its caller |
 | A proposed thought note's frontmatter and `based_on` link | The response's read-only text field; the OS clipboard when the reader copies it; the `obsidian://new` URI when the reader chooses that handoff | The page lifetime; clipboard and external-editor policies own their copies | The local browser, clipboard, and selected editor |
 
 - **The hover card sends a link's own fragment to the server.** A browser never puts a
@@ -41,9 +41,49 @@ About those rows:
   is a digest of the resolved absolute vault root, so two vaults keep separate
   files and the directory name spells no path. `reader.json`, when present,
   also names the vault's absolute path; `uncertainty.json` contains only its
-  three-field entries. Nothing syncs or expires these marks. `yomihon check`
-  and every other command-line face never read either file. Deleting one file
-  clears that kind of mark; deleting the per-vault directory clears both.
+  three-field entries. Nothing syncs or expires these marks. No command-line
+  face reads `reader.json`. One reads `uncertainty.json`: `yomihon left-open`
+  opens it read-only and never writes it or the vault; `check`, `coverage`
+  and `exists` read neither file. Deleting one file clears that kind of mark;
+  deleting the per-vault directory clears both.
+- **`yomihon left-open` hands the reader's marks to whoever runs it.** It lists
+  each marked location — the note's path, the anchor and the words of the
+  heading or practice card it names, the note's declared title, a wikilink,
+  and the time the mark was made, in UTC — and each thought still in a status
+  the contract declares initial, with its path, declared title, status and
+  declared date. No body text is included beyond the words of a heading or
+  practice card and the declared title. The vault is scanned whole, withheld
+  ground included, as every command scans it; an item whose path is under the
+  contract's `never_egress_dirs` is left out before anything about it is
+  resolved into the output, and so is a location whose heading or note title,
+  or a thought whose title or `based_on`, names withheld ground. Words name
+  withheld ground when they link there in any link syntax — a wikilink, an
+  inline or reference link, an HTML `href`, read as plain text so that a code
+  span or an escape hides nothing — or when they spell a withheld directory as
+  a name followed by a slash: at the start or after a character that is not a
+  letter or digit, once HTML character references and percent-escapes are
+  decoded (repeatedly), format characters, variation selectors, other
+  default-ignorable characters and combining marks are dropped, compatibility
+  forms such as fullwidth letters and case are folded, and a backslash or a
+  look-alike of the solidus is read as a slash. A letter of another script that
+  only looks like a Latin one, such as Cyrillic `Р`, is not recognised. Plain
+  words that only share a withheld note's file name are the author's own and
+  are listed as written. A location
+  whose note or heading is gone is listed with its anchor left empty, since
+  nothing is left to check the heading's words against; its path is the
+  string recorded when the mark was made, which can name a note since renamed
+  or one reached another way. Nothing says how much was left out: when no
+  location is listed, stderr says only whether a marks file exists for the
+  folder as its path was spelled. There is no separate sensitivity level for marks:
+  the contract's privacy declaration is the whole of the filter, and without
+  one the command refuses. What it writes is handled by the program that
+  called it, usually an agent, and from there it can leave this machine
+  through that agent's model provider — including when the reader was unsure
+  of what. That is the caller's egress, not a request yomihon makes.
+- **`GET /uncertainties` is not filtered.** The reading server hands the whole
+  marks file, withheld paths included, to any local client that asks, as it
+  hands every note to the reading room; the privacy declaration binds the
+  command line, not the loopback port.
 - **Uncertainty marks promise a location, not recovery.** A renamed source,
   changed heading, or new sentence from an interactive control may leave the
   saved location unavailable or pointing at different content. There is no

@@ -5,9 +5,14 @@ import "fmt"
 const topLevelHelp = `Usage:
   yomihon [<dir>]                       read a folder (default: this one)
   yomihon serve [<dir>]                 read a folder (or --root <dir>)
-  yomihon check [options] [path...]      judge a vault (--root <vault>; path narrows)
+
+About the vault:
+  yomihon check [options] [path...]      check a vault (--root <dir>; path narrows)
   yomihon coverage [options]
   yomihon exists [options] <name>
+
+About the reader:
+  yomihon ` + openCommand + ` [options]
 
 Use "yomihon <command> --help" for command help.
 `
@@ -26,7 +31,7 @@ var commandHelp = map[string]string{
 		"bytes and search leaves it out. An in-place rewrite that keeps the same\n" +
 		"inode, mode, size and mtime can stay stale for about an hour; an ordinary\n" +
 		"save that changes size or mtime rebuilds at once.\n",
-	"check": "Usage: yomihon check [--root <vault>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
+	"check": "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
 		"\n" +
 		"--root is the vault to judge; without it, the folder you are standing in is\n" +
 		"the vault. A [path...] is not a second way to say that: each one narrows the\n" +
@@ -98,6 +103,41 @@ var commandHelp = map[string]string{
 		"is never described here — no path, no matched field. It still answers:\n" +
 		"the exit stays 0, so a write-if-absent gated on it does not create a\n" +
 		"second note under a withheld note's own name.\n",
+	openCommand: "Usage: yomihon " + openCommand + " [--root <dir>] [--format json|human|md]\n" +
+		"\n" +
+		"Lists what you left open in a vault: the locations you marked \"Not sure\n" +
+		"yet\", and the notes of the contract's answer type that are still in an\n" +
+		"initial status — newest first, as the reading desk shows them.\n" +
+		"\n" +
+		"Marks are kept on this machine, one set per folder, found by the folder's\n" +
+		"path as it is spelled: this reads the set that yomihon serve kept for the\n" +
+		"same folder. A mark whose note or heading is gone is still listed, with lost\n" +
+		"saying which and its anchor left empty; nothing here removes it. A mark in a\n" +
+		"folder the contract leaves out of the scan is not listed.\n" +
+		"\n" +
+		"Writes one JSON object per line when the output is not a terminal, and a\n" +
+		"human list when it is; --format decides instead of the terminal, and md\n" +
+		"falls back to the human view.\n" +
+		"\n" +
+		"Nothing under a directory the contract withholds from agent-facing output\n" +
+		"is listed, nor an item whose title or heading links there in any link\n" +
+		"syntax or spells a withheld directory's name and a slash, read past case,\n" +
+		"fullwidth forms, character references, percent-escapes, and characters\n" +
+		"that draw nothing or only mark another. A look-alike letter of another\n" +
+		"script is not recognised. Plain words that only share a withheld note's\n" +
+		"file name are listed as written.\n" +
+		"Nothing says how much was left out. When no location is listed, one line\n" +
+		"on stderr says only whether a marks file was found. The contract has to\n" +
+		"declare [privacy] before anything is listed at all.\n" +
+		"\n" +
+		"A list that leaves out what could not be read would read as complete, so an\n" +
+		"unreadable marks file stops this command, and so does a note outside\n" +
+		"withheld ground that could not be read or whose frontmatter could not be.\n" +
+		"That is any such note, whatever its type: the command names it, and once\n" +
+		"it is mended the command runs again.\n" +
+		"\n" +
+		"Exits 0 with the list, an empty one included, and 2 when the command itself\n" +
+		"could not run, an unreadable marks file or note included.\n",
 }
 
 func helpRequest(args []string) (text string, handled bool, err error) {

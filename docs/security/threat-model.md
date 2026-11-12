@@ -15,7 +15,7 @@ literally true of the vault directory.
 | Vault files, contract-private paths included | Confidential outside the local reader; never silently repaired. |
 | `System/schemas/vault-schema.toml` | Sole machine authority for lifecycle, instance, artifact and privacy capability; missing, invalid or stale authority fails closed. |
 | The status write | Exactly one legal `status` line changes, the source is not stale, and the replacement is durable before the success response. |
-| The reader's own marks | Kept outside the vault, replaced whole or not at all, and read by no command-line face. Continuation and uncertainty marks occupy independent files. Unreadable uncertainty storage is preserved. Marks have no backup or recovery guarantee and are not held to the status write's durability. |
+| The reader's own marks | Kept outside the vault and replaced whole or not at all. No command-line face reads the continuation; `left-open` reads the uncertainty marks without writing them and answers under the same privacy declaration as the other agent-facing commands. Continuation and uncertainty marks occupy independent files. Unreadable uncertainty storage is preserved. Marks have no backup or recovery guarantee and are not held to the status write's durability. |
 | Agent-facing results | Contract-private paths neither appear in nor influence results, with one exception: `exists` answers whether a caller-supplied name, including a vault path or path suffix, is taken, disclosing that bit and nothing else. |
 | Browser authority | Authored vault bytes stay display input, never first-party script, navigation, form, frame, or automatic remote-resource authority. |
 
@@ -62,7 +62,7 @@ bytes and reject control characters. Go dependencies are pinned by
 `go.mod`/`go.sum`; redistributed assets carry their LICENSE files inside `assets/` (fonts/LICENSE.txt, js/mermaid/LICENSE).
 
 `[privacy] never_egress_dirs` binds the agent-facing output contract — `check`,
-`coverage`, `exists` — and not the reading room. Measured on `examples/vault`'s
+`coverage`, `exists`, `left-open` — and not the reading room. Measured on `examples/vault`'s
 `Diary`: the CLI withholds even the name (`{"matches":[],"withheld":true}`),
 while over HTTP the note's body reaches `/raw`, `/notes` and `/preview` and its
 name reaches six doors; only Home, `/paths` and `/reports` are clean. The

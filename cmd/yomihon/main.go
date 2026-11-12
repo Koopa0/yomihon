@@ -54,8 +54,22 @@ func main() {
 		exit := runCommand(ctx, command, args, os.Stdout, os.Stderr, stdoutIsTerminal())
 		stop()
 		os.Exit(exit)
+	case openCommand:
+		// The reader's marks live under the platform's configuration directory,
+		// which is resolved here and only here. Without one the marks cannot be
+		// found, and the command says so rather than list thoughts alone.
+		var cfg config
+		if configDir, err := os.UserConfigDir(); err != nil {
+			cfg.noConfigDir = err.Error()
+		} else {
+			cfg.configDir = configDir
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		exit := runOpenThoughts(ctx, args, cfg, os.Stdout, os.Stderr, stdoutIsTerminal())
+		stop()
+		os.Exit(exit)
 	default:
-		fmt.Fprintf(os.Stderr, "yomihon: %q is neither a command nor a folder; commands are serve, check, coverage, and exists\n", command)
+		fmt.Fprintf(os.Stderr, "yomihon: %q is neither a command nor a folder; commands are serve, check, coverage, exists, and %s\n", command, openCommand)
 		os.Exit(2)
 	}
 }
@@ -69,7 +83,7 @@ func dispatch(argv []string) (command string, args []string) {
 		return "serve", nil
 	}
 	switch argv[0] {
-	case "serve", "check", "coverage", "exists":
+	case "serve", "check", "coverage", "exists", openCommand:
 		return argv[0], argv[1:]
 	}
 	// #nosec G703 -- the operator's own shell argument, asked only whether it

@@ -23,8 +23,10 @@
 // Unlike continuation storage, unreadable uncertainty storage is preserved
 // and reported rather than replaced by the next mark.
 //
-// Only the reading server builds one. The adjudication commands never read it:
-// what they answer is about the vault, and this is about the reader.
+// The reading server writes both files. The adjudication commands read
+// neither: what they answer is about the vault, and this is about the reader.
+// The left-open command, which answers about the reader, reads the
+// uncertainty file and never writes either.
 package mark
 
 import (

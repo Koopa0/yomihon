@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
-	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -40,10 +38,8 @@ func (h *Handler) openThoughts(w http.ResponseWriter, r *http.Request) {
 type openThoughtCandidate struct {
 	openThoughtRow
 
-	rel    string
-	kept   *mark.Uncertainty
-	path   string
-	anchor string
+	rel  string
+	kept *snapshot.OpenMark
 }
 
 // openThoughtShelf interleaves marks with notes in the declared role's initial
@@ -70,10 +66,7 @@ func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generatio
 		shelf.Lede = fmt.Sprintf(wording.OpenThoughtsLedeFmt.In(lang), role, stages)
 		shelf.Empty = fmt.Sprintf(wording.OpenThoughtsEmptyFmt.In(lang), role, stages)
 	}
-	candidates, fault := h.openCandidates(snap, role, lang)
-	slices.SortStableFunc(candidates, func(a, b openThoughtCandidate) int {
-		return cmp.Or(b.at.Compare(a.at), vault.ComparePaths(a.path, b.path), strings.Compare(a.anchor, b.anchor))
-	})
+	candidates, fault := h.openCandidates(snap, lang)
 	rows, total, readFault := h.confirmOpenRows(ctx, candidates, role, limit, lang, newPlaceResolver(snap))
 	shelf.Rows = rows
 	fault = cmp.Or(readFault, fault)
@@ -90,34 +83,40 @@ func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generatio
 	return shelf, fault
 }
 
-// openCandidates reads the snapshot's notes of the role in an initial status
-// and every stored mark. Mark identities remain candidates even when their
-// note or place is gone. The fault is set when the mark file cannot be read.
+// openCandidates reads every stored mark and asks the snapshot for the one
+// selection of open items, already in shelf order. Mark identities remain
+// candidates even when their note or place is gone. The fault is set when the
+// mark file cannot be read.
 //
 // A note's snapshot status selects it, so a note moved back to an initial
 // status reappears only after the next scan (at most one scan interval); a
 // move out of one removes it at once through the live read.
-func (h *Handler) openCandidates(snap *snapshot.Generation, role string, lang wording.Lang) (candidates []openThoughtCandidate, fault string) {
-	notes := snap.NotesOfType(role)
-	for i := range notes {
-		if h.sources.Contract.DeclaresInitial(role, notes[i].Status) {
-			candidates = append(candidates, openThoughtCandidate{openThoughtRow: openNoteRow(&notes[i], snap), rel: notes[i].RelPath, path: notes[i].RelPath})
+func (h *Handler) openCandidates(snap *snapshot.Generation, lang wording.Lang) (candidates []openThoughtCandidate, fault string) {
+	var marks []snapshot.OpenMark
+	if h.sources.Uncertainties != nil {
+		kept, err := h.sources.Uncertainties()
+		if err != nil {
+			fault = wording.UncertaintyUnavailable.In(lang)
 		}
+		marks = OpenMarks(kept)
 	}
-	if h.sources.Uncertainties == nil {
-		return candidates, ""
+	for _, item := range snap.OpenItems(h.sources.Contract, marks) {
+		if item.Mark != nil {
+			candidates = append(candidates, openThoughtCandidate{at: item.At, kept: item.Mark})
+			continue
+		}
+		candidates = append(candidates, openThoughtCandidate{openThoughtRow: openNoteRow(item.Note, snap), rel: item.Note.RelPath})
 	}
-	marks, err := h.sources.Uncertainties()
-	if err != nil {
-		return candidates, wording.UncertaintyUnavailable.In(lang)
+	return candidates, fault
+}
+
+// OpenMarks is the copy of the reader's stored marks the open selection reads.
+func OpenMarks(kept []mark.Uncertainty) []snapshot.OpenMark {
+	marks := make([]snapshot.OpenMark, 0, len(kept))
+	for i := range kept {
+		marks = append(marks, snapshot.OpenMark{RelPath: kept[i].RelPath, Anchor: kept[i].Anchor, At: kept[i].At})
 	}
-	for i := range marks {
-		candidates = append(candidates, openThoughtCandidate{
-			at:   marks[i].At,
-			kept: &marks[i], path: marks[i].RelPath, anchor: marks[i].Anchor,
-		})
-	}
-	return candidates, ""
+	return marks
 }
 
 // confirmOpenRows walks the sorted candidates and returns up to limit rows
@@ -164,7 +163,7 @@ func openNoteRow(reading *snapshot.Reading, snap *snapshot.Generation) openThoug
 }
 
 // openMarkRow projects a stored identity without moving or deleting it.
-func openMarkRow(kept *mark.Uncertainty, places *placeResolver, lang wording.Lang) openThoughtRow {
+func openMarkRow(kept *snapshot.OpenMark, places *placeResolver, lang wording.Lang) openThoughtRow {
 	resolved := places.note(kept.RelPath)
 	row := pages.Row{Text: kept.RelPath, Wrap: true, When: kept.At.Format(time.DateOnly)}
 	if resolved.readable {
