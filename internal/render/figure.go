@@ -32,6 +32,20 @@ const (
 	Lapsed
 )
 
+// String names an approval's standing for a log line or a crash.
+func (a Approval) String() string {
+	switch a {
+	case Unapproved:
+		return "unapproved"
+	case Approved:
+		return "approved"
+	case Lapsed:
+		return "lapsed"
+	default:
+		return "approval(" + strconv.Itoa(int(a)) + ")"
+	}
+}
+
 // FigureState is one figure as a page is about to draw it.
 //
 // It decides the frame's sandbox attribute and the words beside it, not what
@@ -114,7 +128,6 @@ func figureEmbed(relPath string, link graph.Wikilink, state *FigureState, col *c
 	}
 	var b strings.Builder
 	b.WriteString(`<div class="figure-embed">`)
-	//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax; the source is URL-escaped and attribute-escaped, the title is HTML-escaped, and the size admits only digits.
 	fmt.Fprintf(&b, `<iframe class="figure-embed__frame" src="%s" title="%s" sandbox="%s" referrerpolicy="no-referrer" allow=""%s%s></iframe>`,
 		attributeEscaper.Replace(figureHref(relPath)), html.EscapeString(title), sandbox, sized, marker)
 	b.WriteString(`<p class="figure-embed__print">` + standIn + `</p>`)
@@ -154,7 +167,7 @@ func FigureFinding(in *figure.Inspection, size int64) Diagnostic {
 	case figure.ScriptOutsideText:
 		return Diagnostic{Kind: DiagFigureScriptOutside, Detail: in.Detail, Message: "figure has " + in.Detail}
 	default:
-		panic(fmt.Sprintf("render: figure.Refusal %d is not a refusal", in.Refusal))
+		panic("render: unknown figure.Refusal: " + in.Refusal.String())
 	}
 }
 
@@ -173,7 +186,7 @@ func FigureFindingNote(kind DiagnosticKind, detail string, lang wording.Lang) st
 	case DiagFigureScriptOutside:
 		return fmt.Sprintf(wording.DiagFigureScriptOutsideNote.In(lang), detail)
 	default:
-		panic("render: not a figure finding: " + string(kind))
+		panic("render: unknown figure DiagnosticKind: " + string(kind))
 	}
 }
 
@@ -182,8 +195,9 @@ func IsFigureFinding(kind DiagnosticKind) bool {
 	switch kind {
 	case DiagFigureTooLarge, DiagFigureEncoding, DiagFigureNestedFrame, DiagFigureLoadsElsewhere, DiagFigureScriptOutside:
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 // figureByteSize writes a size in MiB with one decimal, the unit the figure

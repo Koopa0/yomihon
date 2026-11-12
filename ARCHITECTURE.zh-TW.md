@@ -160,6 +160,8 @@ HTTP listener 綁定 `127.0.0.1`，`YOMIHON_PORT` 只改變連接埠。Host 檢�
 
 不是筆記的 vault 檔案（包含 HTML）都經受限的根目錄選取提供。文字檔在檔案頁以跳脫後的原始碼呈現；raw 位元組附帶 sandbox 政策，禁用腳本、連線、表單、巢狀 frame 以及所有外部或內嵌資源，只留 inline style，標記文件以下載交付，不以頁面開啟。參見[檔案服務][file-serving]。
 
+圖解（筆記以 `![[name.html]]` 嵌入的 `.html` 檔）是唯一以頁面開啟的 vault 文件，放在 origin 不透明的框裡。它的路由與 raw 路由用同樣的方式選取檔案，只讀一次，所有決定都根據那一份位元組：會讓瀏覽器自行框入、抓取或連線的標記一律拒絕，檔案內容一個位元組都不送；其餘以同一個無腳本的 sandbox 政策提供。只有擁有者在終端機核可過確切位元組的圖解，才會拿到允許腳本的 sandbox，`script-src` 只列出每個行內腳本的雜湊，不含任何網域。yomihon 本身仍不發出任何網路請求；核可過的圖解的腳本可以在瀏覽器裡經由[威脅模型][threat-model]列出的殘餘通道對外連線。參見[圖解檢查][figure]與[核可紀錄][marks]。
+
 Loopback 與瀏覽器來源保護不會驗證本機操作者的身分。透過公開 reverse proxy 暴露這個程式，需要另一套存取與隔離設計。同樣地，CLI 輸出隱私是應用程式邊界，不是限制其他程式讀取 vault 的作業系統權限。
 
 ## 10. 資源與驗證
@@ -228,4 +230,6 @@ Loopback 與瀏覽器來源保護不會驗證本機操作者的身分。透過�
 [origin]: internal/origin/origin.go
 [file-serving]: internal/note/file.go
 [archlock]: internal/archlock
+[figure]: internal/figure/inspect.go
+[threat-model]: docs/security/threat-model.md
 [contributing]: CONTRIBUTING.md

@@ -561,16 +561,6 @@ func (g *Generation) RenderIn(region, relPath, body string, lang wording.Lang) r
 	return g.markdown.HTMLIn(region, relPath, g.notes[relPath].Title, body, lang)
 }
 
-// FigureApprovals reports where the owner's approval of the figure at relPath
-// with digest sum stands.
-type FigureApprovals func(relPath string, sum [sha256.Size]byte) (render.Approval, error)
-
-// ApproveFiguresBy installs the approval check every generation's pages ask.
-// Without one, no figure is approved.
-func (s *Store) ApproveFiguresBy(approved FigureApprovals) {
-	s.figureApprovals.Store(&approved)
-}
-
 // Figure is what this generation's read of the figure at canonicalPath found,
 // with the owner's approval of those bytes asked now rather than at build
 // time. A check that fails is no approval, and the state says so.
@@ -669,6 +659,16 @@ type Store struct {
 	// fields above are that loop's alone and carry no synchronization, so a
 	// second Run is refused rather than left to advance them beside the first.
 	running atomic.Bool
+}
+
+// FigureApprovals reports where the owner's approval of the figure at relPath
+// with digest sum stands.
+type FigureApprovals func(relPath string, sum [sha256.Size]byte) (render.Approval, error)
+
+// ApproveFiguresBy installs the approval check every generation's pages ask.
+// Without one, no figure is approved.
+func (s *Store) ApproveFiguresBy(approved FigureApprovals) {
+	s.figureApprovals.Store(&approved)
 }
 
 // New captures and builds the initial generation synchronously. source and log
@@ -1034,10 +1034,6 @@ func buildGeneration(
 			g.resources = append(g.resources, relPath)
 		}
 		if !want.read {
-			if figure.Is(relPath) && !withinSourceCap(entry) {
-				// Over the bound, so never read: its size alone refuses it.
-				g.figures[relPath] = figure.Inspection{Refusal: figure.TooLarge}
-			}
 			g.skipUnread(entry, note, log)
 			continue
 		}
@@ -1235,6 +1231,10 @@ func (g *generation) omitDeclaredBasenames(entries []vault.Entry, contract *sche
 // was not wanted is simply absent, as before.
 func (g *generation) skipUnread(entry vault.Entry, note bool, log *slog.Logger) {
 	if !note {
+		if figure.Is(entry.Path()) && !withinSourceCap(entry) {
+			// A figure over the bound is never read: its size alone refuses it.
+			g.figures[entry.Path()] = figure.Inspection{Refusal: figure.TooLarge}
+		}
 		return
 	}
 	relPath, size := entry.Path(), entry.Size()

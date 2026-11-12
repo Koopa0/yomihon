@@ -73,43 +73,59 @@ type figureIO struct {
 	out         io.Writer
 	errOut      io.Writer
 	interactive bool
+	// shown is the first failure to write to out. Nothing is approved once
+	// the person may not have seen what they are approving.
+	shown error
+}
+
+// sayf writes to out and remembers whether the person could read it.
+func (stdio *figureIO) sayf(format string, args ...any) {
+	if stdio.shown == nil {
+		_, stdio.shown = fmt.Fprintf(stdio.out, format, args...)
+	}
+}
+
+// faultf reports on errOut. A command that is already failing has no second
+// channel to report a failure of this one on.
+func (stdio *figureIO) faultf(format string, args ...any) {
+	_, _ = fmt.Fprintf(stdio.errOut, "yomihon: "+format+"\n", args...) //nolint:errcheck // an already-failing command has no second channel for a stderr failure
 }
 
 // runFigureCommand answers approve-figure and revoke-figure. It exits 0 when
 // it did what was asked, 1 when it declined — a refused figure, one with
 // nothing to approve, a confirmation that did not match — and 2 when it could
 // not run: bad arguments, no terminal, an unreadable vault or record.
-func runFigureCommand(ctx context.Context, command string, args []string, stdio figureIO, configDir string, now func() time.Time) int {
+func runFigureCommand(ctx context.Context, command string, args []string, stdio *figureIO, configDir string, now func() time.Time) int {
 	root, rel, err := figureArgs(command, args)
 	if err != nil {
-		fmt.Fprintf(stdio.errOut, "yomihon: %v\n", err)
+		stdio.faultf("%v", err)
 		return 2
 	}
 	// Asked before anything is opened or read, so a program that is not a
 	// person learns nothing about the figure by trying.
 	if command == approveFigureCommand && !stdio.interactive {
-		fmt.Fprintf(stdio.errOut, "yomihon: %s\n", figureNeedsTerminal)
+		stdio.faultf("%s", figureNeedsTerminal)
 		return 2
 	}
 	if configDir == "" {
-		fmt.Fprintf(stdio.errOut, "yomihon: %s\n", figureNoConfigDir)
+		stdio.faultf("%s", figureNoConfigDir)
 		return 2
 	}
 	source, err := vault.Open(root)
 	if err != nil {
-		fmt.Fprintf(stdio.errOut, "yomihon: %v\n", err)
+		stdio.faultf("%v", err)
 		return 2
 	}
 	defer func() {
 		if closeErr := source.Close(); closeErr != nil {
-			fmt.Fprintf(stdio.errOut, "yomihon: close vault: %v\n", closeErr)
+			stdio.faultf("close vault: %v", closeErr)
 		}
 	}()
 	// The same namespace the reading server keeps its marks under: the
 	// resolved root, so two spellings of one folder are one vault.
 	marks, err := mark.New(configDir, source.Name())
 	if err != nil {
-		fmt.Fprintf(stdio.errOut, "yomihon: %v\n", err)
+		stdio.faultf("%v", err)
 		return 2
 	}
 	if command == revokeFigureCommand {
@@ -123,37 +139,30 @@ func runFigureCommand(ctx context.Context, command string, args []string, stdio 
 // address it is asked for.
 func figureArgs(command string, args []string) (root, rel string, err error) {
 	usage := fmt.Errorf(figureUsageFmt, command)
-	var positionals []string
-	rootSeen := false
+	var positionals, roots []string
 	for i := 0; i < len(args); i++ {
-		switch arg := args[i]; {
-		case arg == "--root":
-			if rootSeen || i+1 >= len(args) {
-				return "", "", usage
-			}
-			rootSeen = true
-			root = args[i+1]
+		arg := args[i]
+		switch {
+		case arg == "--root" && i+1 < len(args):
+			roots = append(roots, args[i+1])
 			i++
 		case strings.HasPrefix(arg, "--root="):
-			if rootSeen {
-				return "", "", usage
-			}
-			rootSeen = true
-			root = strings.TrimPrefix(arg, "--root=")
-		case strings.HasPrefix(arg, "-") && arg != "-":
+			roots = append(roots, strings.TrimPrefix(arg, "--root="))
+		case strings.HasPrefix(arg, "-"):
 			return "", "", usage
 		default:
 			positionals = append(positionals, arg)
 		}
 	}
-	if len(positionals) != 1 || (rootSeen && root == "") {
+	root = "."
+	if len(roots) > 0 {
+		root = roots[0]
+	}
+	if len(positionals) != 1 || len(roots) > 1 || root == "" {
 		return "", "", usage
 	}
-	if !rootSeen {
-		root = "."
-	}
 	rel = vault.NormalizeNFC(filepath.ToSlash(positionals[0]))
-	if !fs.ValidPath(rel) || rel == "." || !figure.Is(rel) {
+	if !fs.ValidPath(rel) || !figure.Is(rel) {
 		return "", "", fmt.Errorf(figureNotAFigure, positionals[0])
 	}
 	return root, rel, nil
@@ -164,55 +173,59 @@ func figureArgs(command string, args []string) (root, rel string, err error) {
 // the person types its opening digits back. The digest recorded is the digest
 // of the bytes shown, so a file changed after the read is not what was
 // approved and does not run.
-func approveFigure(ctx context.Context, source *vault.Reader, marks *mark.File, rel string, stdio figureIO, now func() time.Time) int {
+func approveFigure(ctx context.Context, source *vault.Reader, marks *mark.File, rel string, stdio *figureIO, now func() time.Time) int {
 	data, err := readServedFigure(ctx, source, rel)
 	if err != nil {
-		fmt.Fprintf(stdio.errOut, "yomihon: %v\n", err)
+		stdio.faultf("%v", err)
 		return 2
 	}
 	inspection := figure.Inspect(data)
 	if inspection.Refusal != figure.Served {
-		fmt.Fprintf(stdio.errOut, "yomihon: "+figureRefusedFmt+"\n", rel, figureRefusalReason(&inspection))
+		stdio.faultf(figureRefusedFmt, rel, figureRefusalReason(&inspection))
 		return 1
 	}
 	if !inspection.Scripted() {
-		fmt.Fprintf(stdio.out, figureNoScriptFmt+"\n", rel)
+		stdio.sayf(figureNoScriptFmt+"\n", rel)
 		return 1
 	}
 	digest := hex.EncodeToString(inspection.Sum[:])
 	report := figure.Describe(data, &inspection)
-	fmt.Fprintf(stdio.out, figureReportFmt, rel, report.Size, digest, report.Scripts)
-	printList(stdio.out, figureReportAddresses, report.Addresses)
-	printList(stdio.out, figureReportNames, report.Names)
-	fmt.Fprintf(stdio.out, "%s\n\n", figureReportDisclaimer)
-	fmt.Fprintf(stdio.out, figureConfirmPromptFmt, confirmDigits)
+	stdio.sayf(figureReportFmt, rel, report.Size, digest, report.Scripts)
+	stdio.list(figureReportAddresses, report.Addresses)
+	stdio.list(figureReportNames, report.Names)
+	stdio.sayf("%s\n\n", figureReportDisclaimer)
+	stdio.sayf(figureConfirmPromptFmt, confirmDigits)
+	if stdio.shown != nil {
+		stdio.faultf("show the figure to approve: %v; nothing was approved", stdio.shown)
+		return 2
+	}
 	answer, err := bufio.NewReader(stdio.in).ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
-		fmt.Fprintf(stdio.errOut, "yomihon: read the confirmation: %v\n", err)
+		stdio.faultf("read the confirmation: %v", err)
 		return 2
 	}
 	if !strings.EqualFold(strings.TrimSpace(answer), digest[:confirmDigits]) {
-		fmt.Fprintln(stdio.out, figureNotApproved)
+		stdio.sayf("%s\n", figureNotApproved)
 		return 1
 	}
 	if err := marks.ApproveFigure(rel, inspection.Sum, now()); err != nil {
-		fmt.Fprintf(stdio.errOut, "yomihon: %v\n", err)
+		stdio.faultf("%v", err)
 		return 2
 	}
-	fmt.Fprintf(stdio.out, figureApprovedFmt+"\n", rel, digest[:confirmDigits])
+	stdio.sayf(figureApprovedFmt+"\n", rel, digest[:confirmDigits])
 	return 0
 }
 
-func revokeFigure(marks *mark.File, rel string, stdio figureIO) int {
+func revokeFigure(marks *mark.File, rel string, stdio *figureIO) int {
 	revoked, err := marks.RevokeFigure(rel)
 	if err != nil {
-		fmt.Fprintf(stdio.errOut, "yomihon: %v\n", err)
+		stdio.faultf("%v", err)
 		return 2
 	}
 	if revoked {
-		fmt.Fprintf(stdio.out, figureRevokedFmt+"\n", rel)
+		stdio.sayf(figureRevokedFmt+"\n", rel)
 	} else {
-		fmt.Fprintf(stdio.out, figureNothingToRevoke+"\n", rel)
+		stdio.sayf(figureNothingToRevoke+"\n", rel)
 	}
 	return 0
 }
@@ -222,12 +235,9 @@ func revokeFigure(marks *mark.File, rel string, stdio figureIO) int {
 // through the pinned root so a symlink or a replaced directory is refused —
 // and reads up to one byte past the ceiling, so a file over it is known to be.
 func readServedFigure(ctx context.Context, source *vault.Reader, rel string) ([]byte, error) {
-	contract, err := schema.LoadReader(ctx, source)
-	switch {
-	case schema.ContractAbsent(err):
-	case err != nil:
-		return nil, fmt.Errorf("load the vault contract: %w", err)
-	default:
+	// The reading server sets the contract's scan boundary only when the
+	// contract loads, and reads on without one when it does not; so does this.
+	if contract, err := schema.LoadReader(ctx, source); err == nil {
 		source.SetBoundary(contract.ScanBoundary())
 	}
 	scan, err := source.ScanAvailable(ctx)
@@ -249,13 +259,14 @@ func readServedFigure(ctx context.Context, source *vault.Reader, rel string) ([]
 	return data, nil
 }
 
-func printList(out io.Writer, heading string, items []string) {
-	fmt.Fprintln(out, heading)
+// list writes one heading of the report and its items.
+func (stdio *figureIO) list(heading string, items []string) {
+	stdio.sayf("%s\n", heading)
 	if len(items) == 0 {
-		fmt.Fprintln(out, figureReportNone)
+		stdio.sayf("%s\n", figureReportNone)
 		return
 	}
 	for _, item := range items {
-		fmt.Fprintf(out, "    %s\n", item)
+		stdio.sayf("    %s\n", item)
 	}
 }

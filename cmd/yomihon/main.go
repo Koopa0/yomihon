@@ -78,7 +78,7 @@ func main() {
 			configDir = ""
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		exit := runFigureCommand(ctx, command, args, figureIO{
+		exit := runFigureCommand(ctx, command, args, &figureIO{
 			in:          os.Stdin,
 			out:         os.Stdout,
 			errOut:      os.Stderr,

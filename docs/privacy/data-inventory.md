@@ -2,8 +2,10 @@
 
 What yomihon holds, derives, and emits. The product is a single-user local
 process: it reads a vault, serves `127.0.0.1`, writes one frontmatter field
-into a note and two reader-state files of its own outside any vault, and makes
-no network call of any kind. There is no telemetry, analytics, metrics or trace exporter,
+into a note and three files of its own outside any vault — two reader-state
+files and a record of approved figures — and makes no network call of any
+kind. A figure the owner approved runs its scripts in the browser, where they
+can reach the network; the threat model says through which channels. There is no telemetry, analytics, metrics or trace exporter,
 crash reporter, account, or remote log sink, and no application-level
 encryption at rest, backup, or secure erasure. Host disk encryption, vault
 sync, and any repository remote are external, and must not be inferred from
@@ -19,6 +21,7 @@ this document.
 | `slog` records: address, vault root, contract state, scan and render failures, selected status paths; a marks file's own absolute path when reading or writing it fails, and the note path the caller submitted when a continuation mark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
 | The reader's continuation — `reader.json` and its adjacent `.reader-*.json`, under `os.UserConfigDir()`/`yomihon`/one directory per vault, holding that vault's absolute path and one continuation point: a note path, an anchor id, a distance below it, the content identity of the bytes that were on screen, and when it was set | The platform's configuration directory, never the vault | Until the reader keeps another place or deletes the file; yomihon never expires one. A crash between the temporary file being created and renamed into place can strand the temporary file, holding that same content, and nothing removes it | The same OS account |
 | The reader's uncertainty marks — `uncertainty.json` and its adjacent `.uncertainty-*.json` in the same per-vault directory. Each array entry contains only `path`, `anchor`, and `time`; no body, chosen sentence, content identity, or source version is saved | The platform's configuration directory, never the vault | Until the reader toggles that location off or deletes the file; no expiry or automatic recovery. A crash can strand a temporary file containing the same location records | The same OS account; the local reading client receives them from `GET /uncertainties`; `yomihon left-open` writes the ones outside withheld ground to its caller |
+| The figure approvals — `figures.json` and its adjacent `.figures-*.json` in the same per-vault directory. Each entry is a figure's vault path, the SHA-256 of the bytes approved, and when; the file also names the vault's absolute path. No figure content is copied | The platform's configuration directory, never the vault | Until `yomihon revoke-figure` removes an entry or the file is deleted; an approval stops applying, without being removed, the moment the figure's bytes change | The same OS account. The reading server reads it on each page and each frame request and never writes it; `approve-figure` and `revoke-figure` write it, owner-only, by sibling-file rename. `check`, `coverage` and `exists` never read it |
 | A proposed thought note's frontmatter and `based_on` link | The response's read-only text field; the OS clipboard when the reader copies it; the `obsidian://new` URI when the reader chooses that handoff | The page lifetime; clipboard and external-editor policies own their copies | The local browser, clipboard, and selected editor |
 
 - **The hover card sends a link's own fragment to the server.** A browser never puts a
@@ -37,6 +40,9 @@ About those rows:
   This honors the owner's intent; it is not an effective ACL/group-access
   check or protection against a malicious process running as the same user.
 
+- **An unreadable approvals file approves nothing.** A missing file is no
+  approval; one that cannot be read or carries an unknown shape is reported,
+  every figure is served without script, and no later approval replaces it.
 - **The two reader-state files stay outside the vault.** Their directory name
   is a digest of the resolved absolute vault root, so two vaults keep separate
   files and the directory name spells no path. `reader.json`, when present,

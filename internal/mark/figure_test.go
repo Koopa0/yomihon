@@ -55,7 +55,7 @@ func TestAnApprovalNamesExactBytes(t *testing.T) {
 	if err := file.ApproveFigure("Figures/a.html", edited, approvedAt.Add(time.Hour)); err != nil {
 		t.Fatalf("ApproveFigure(edited) = %v", err)
 	}
-	if ok, _, _ := file.FigureApproved("Figures/a.html", approved); ok {
+	if ok, _, err := file.FigureApproved("Figures/a.html", approved); err != nil || ok {
 		t.Error("the earlier bytes are still approved after the path was approved for new ones")
 	}
 	held, err := file.FigureApprovals()
@@ -70,7 +70,7 @@ func TestAnApprovalNamesExactBytes(t *testing.T) {
 	if err != nil || !revoked {
 		t.Fatalf("RevokeFigure = %v, %v; want true, nil", revoked, err)
 	}
-	if ok, _, _ := file.FigureApproved("Figures/a.html", edited); ok {
+	if ok, _, err := file.FigureApproved("Figures/a.html", edited); err != nil || ok {
 		t.Error("a revoked figure is still approved")
 	}
 	if again, err := file.RevokeFigure("Figures/a.html"); err != nil || again {
@@ -109,8 +109,8 @@ func TestUnreadableApprovalsFailClosed(t *testing.T) {
 			if ok || !errors.Is(err, mark.ErrUnreadableApprovals) {
 				t.Errorf("FigureApproved over %s = %v, %v; want false, ErrUnreadableApprovals", tc.name, ok, err)
 			}
-			if err := file.ApproveFigure("a.html", sum, approvedAt); !errors.Is(err, mark.ErrUnreadableApprovals) {
-				t.Errorf("ApproveFigure over %s = %v; want ErrUnreadableApprovals", tc.name, err)
+			if approveErr := file.ApproveFigure("a.html", sum, approvedAt); !errors.Is(approveErr, mark.ErrUnreadableApprovals) {
+				t.Errorf("ApproveFigure over %s = %v; want ErrUnreadableApprovals", tc.name, approveErr)
 			}
 			after, err := os.ReadFile(file.ApprovalsPath())
 			if err != nil {

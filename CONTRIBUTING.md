@@ -25,7 +25,9 @@ rather than take it:
   production code reads. A test in `cmd/yomihon` parses every file the binary is
   built from, on each supported platform, and fails on any other reach for the
   environment. yomihon makes no outbound request of any kind. Egress is a
-  decision for the maintainer, not a pull request.
+  decision for the maintainer, not a pull request. A figure the owner approved
+  runs scripts in the browser that can reach the network; that is the one
+  browser-side exception, decided on 2026-11-12, and the threat model bounds it.
 - **The vault contract is the only schema.** A vault's
   `System/schemas/vault-schema.toml` is the single source of what a note type
   is and which status transitions exist. `internal/schema` is the only package
@@ -90,7 +92,7 @@ Set `YOMIHON_PORT` to serve on another port. To read two folders at once, run
 two yomihon processes on two ports; the folder is fixed for the life of a
 process.
 
-The command line has five commands. `yomihon --help` lists them, and
+The command line has seven commands. `yomihon --help` lists them, and
 `yomihon check --help` documents the flags, the output shapes, and the exit
 codes:
 

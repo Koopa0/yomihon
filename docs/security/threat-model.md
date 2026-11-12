@@ -17,7 +17,8 @@ literally true of the vault directory.
 | The status write | Exactly one legal `status` line changes, the source is not stale, and the replacement is durable before the success response. |
 | The reader's own marks | Kept outside the vault and replaced whole or not at all. No command-line face reads the continuation; `left-open` reads the uncertainty marks without writing them and answers under the same privacy declaration as the other agent-facing commands. Continuation and uncertainty marks occupy independent files. Unreadable uncertainty storage is preserved. Marks have no backup or recovery guarantee and are not held to the status write's durability. |
 | Agent-facing results | Contract-private paths neither appear in nor influence results, with one exception: `exists` answers whether a caller-supplied name, including a vault path or path suffix, is taken, disclosing that bit and nothing else. |
-| Browser authority | Authored vault bytes stay display input, never first-party script, navigation, form, frame, or automatic remote-resource authority. |
+| Browser authority | Authored vault bytes stay display input, never first-party script, navigation, form, frame, or automatic remote-resource authority. A figure runs in an opaque-origin frame: unapproved, it runs no script and the browser loads nothing it names; approved, it runs exactly its approved inline scripts and still holds no first-party authority. |
+| Figure approvals | Kept outside the vault, owner-only, replaced whole; written only by the approval commands at a terminal, never over HTTP. Unreadable or malformed approvals are no approval. An approval names exact bytes and lapses on any change. |
 
 ## Who is trusted
 
@@ -35,7 +36,7 @@ process that can already read the vault. OS, browser and filesystem are trusted.
 | Boundary | Enforcement |
 |---|---|
 | Network | `cmd/yomihon` creates only `127.0.0.1:<port>`. Requests are bounded in header size and read/write/idle time; final responses carry same-origin CORP, a nonce-bound CSP, `nosniff`, `no-referrer`, and DNS-prefetch refusal. |
-| Rendered vault data | Only bare `ruby`, `rt`, `rp`, `br`, `kbd`, `sub`, `sup`, `mark` and `u` are admitted as authored HTML; only `ruby`, `rt` and `rp` may carry `lang=`. Other tags or attributes remain escaped text. Raw markup uses scriptless sandbox or escaped-source boundaries, and is served as a download rather than opened as a page, because a link element can ask the browser for a page outside the sandbox's reach; remote Markdown images become user-activated links. |
+| Rendered vault data | Only bare `ruby`, `rt`, `rp`, `br`, `kbd`, `sub`, `sup`, `mark` and `u` are admitted as authored HTML; only `ruby`, `rt` and `rp` may carry `lang=`. Other tags or attributes remain escaped text. Raw markup uses scriptless sandbox or escaped-source boundaries, and is served as a download rather than opened as a page, because a link element can ask the browser for a page outside the sandbox's reach; remote Markdown images become user-activated links. A figure is the one markup document opened as a page; see the figures section below. |
 | Process to vault | `vault.Reader` and `os.Root` pin the selected root. Paths are vault-relative and normalized before privileged use; the write path refuses symlinked traversal and rechecks file and parent identity. |
 | Contract to privileged action | `internal/schema` derives capability from the exact contract source. Agent output and status writes both fail closed without valid authority. |
 | Status mutation | `internal/status` alone writes. `POST /status` is capped at 4 KiB; a captured note without owner-write permission is refused before any temporary file or replacement, even in a writable directory. Otherwise it writes a synchronized sibling temporary file, revalidates, renames atomically, then synchronizes the directory. macOS and Linux only. |
@@ -70,6 +71,89 @@ declaration therefore governs what yomihon says to a program, not what a
 process on this machine can read; loopback cannot tell a person's browser from
 an agent's `curl`, and a local agent reads the files directly anyway. Binding
 the reading room too would be a separate decision (2026-09-04, #149).
+
+## Figures
+
+A figure is an `.html` file a note embeds with `![[name.html]]`, shown in a
+frame. It exists because the owner ruled on 2026-11-12 to allow two tiers of
+interactive figure, with security held as follows. No domain is trusted and
+nothing is loaded from any domain, so a domain that changes hands, is
+compromised, or redirects elsewhere has nothing to act on.
+
+| Tier | When | Frame | Response policy |
+|---|---|---|---|
+| Scriptless | Every figure, unless the next row holds | `sandbox=""`, `referrerpolicy="no-referrer"`, `allow=""` | The raw-file sandbox, unchanged: `default-src 'none'`, no script, no connection, no frame, no image, font or media, inline style only |
+| Scripted | The figure has inline script **and** the SHA-256 of the bytes just read is in the owner's approvals | `sandbox="allow-scripts"`, never `allow-same-origin`, `allow-forms`, `allow-popups*`, `allow-modals` or `allow-top-navigation*` | The same policy with `sandbox allow-scripts` and `script-src` listing one `'sha256-…'` per inline script, computed by the server from the parse; no host, no `'unsafe-inline'`, no `'unsafe-eval'`, no `'strict-dynamic'` |
+
+The reading page's own policy keeps `frame-src 'self'`, and the frame's
+document route answers GET only, never redirects, sends no
+`Content-Disposition`, and reads the file once: the digest, the tier, the
+script hashes and the bytes sent all come from that one read. The browser
+applies the narrower of the frame attribute and the response policy, so a page
+drawn before a file changed can only err towards running less.
+
+**Refused at serve time.** The bytes are parsed with a spec tree builder twice,
+with scripting off (so `<noscript>` content is markup, as the scriptless frame
+builds it) and on, and every node is visited, `template`, `svg` and `math`
+content included. A figure is refused, and none of it sent, for a nested frame
+(`iframe`, `frame`, `frameset`, `embed`, `object`, `fencedframe`, `portal`),
+`<link>`, `<base>`, a `<meta http-equiv>` other than `content-type`,
+`content-language` or `content-security-policy`, a `ping` or `attributionsrc`
+attribute, a script with `src` or `href`, a script type other than classic or
+module, an `on…` attribute, `javascript:` in any attribute, more than 1 MiB, or
+bytes that are not UTF-8 text. Measured with the raw policy and no refusal,
+Chrome 157 opened a TCP connection for a static `<iframe src>` and for one
+inside `<noscript>`, and Safari 27.2 opened one for a static
+`<link rel=preconnect>`; with the refusal, neither browser saw any traffic.
+
+**Measured.** Chrome 157.0.8103.78 (headless, with its local-network checks
+off so the loopback stand-in behaves as a remote host would) and Safari 27.2
+(windowed, driven by a page of its own), both on macOS 27.2, against the real
+route, with a listener per channel logging HTTP requests, TCP connections and
+UDP packets:
+
+- *Scriptless figures:* no request, no connection and no packet in either
+  browser, for pictures, `srcset`, posters, media, `<input type=image>`, SVG
+  `image` and external `use`, CSS `@import`, `url()`, `@font-face`, cursors,
+  `image-set()` and list images, and an unclicked link and form. A figure with
+  scripts and no approval ran none of them, framed either way.
+- *Approved figures, closed in both browsers:* `fetch`, XHR, `sendBeacon`,
+  `Image`, WebSocket, EventSource, workers, script by address, `import()`, CSS
+  by script, `FontFace`, `window.open`, form submission, `ping`, media and
+  `object`/`embed` by script, and a same-origin address that redirects outside.
+  `eval`, `new Function`, `setTimeout` with a string, injected inline script,
+  `javascript:` addresses, event attributes, `data:` scripts, and a `srcdoc`
+  child's script of any other text did not run. Dropping one hash from the
+  policy stopped exactly that script.
+- *Approved figures, residual (accepted for approved figures only; the weaker
+  browser holds for both):* a WebRTC peer sends UDP to its STUN address (both
+  browsers); a navigation the figure starts — by `location`, a refresh it
+  inserts, or a link it clicks — opens a TCP connection with no HTTP request
+  (Chrome; Safari opened none); a frame the figure creates opens one (Chrome);
+  a `<link rel=preconnect>` the figure inserts opens one, and so does a link
+  with `target=_blank` it clicks (Safari). A connection to a host name is
+  preceded by a DNS lookup; that is inferred, since the measurement used IP
+  literals. Widening the page's `frame-src` to `*` let each navigation's
+  request through in both browsers, which is the control that shows
+  `frame-src 'self'` is what closes it.
+- A `srcdoc` child the figure creates inherits the frame's policy, so it runs a
+  script only when its text is byte for byte one the owner approved.
+
+The standing browser probe `.github/e2e/figure-boundary.mjs` repeats this in
+Chrome on every run and turns red on any HTTP request, and on any connection
+or packet outside the residuals it names. Safari has no standing probe; the
+Safari row above is one measurement, and a Safari change is not caught.
+
+**Approval.** `yomihon approve-figure` needs a character device that is not
+the null device on both its input and its output, and asks for the first 8
+characters of the digest; no flag or variable skips that. It stops a program
+from approving by piping an answer in. It does not stop a program that
+allocates a terminal of its own (the `script` command does), nor one that
+writes the approvals file directly — as the probe does. Such a process runs as
+the owner and is inside the trust base like any same-UID process; what keeps a
+vault-writing agent from approving its own figure is that it is not given that
+reach. The public instance holds
+no approvals, so it serves only scriptless figures.
 
 ## The one public instance
 
@@ -120,6 +204,17 @@ the note content is already public. A second instance, or one over any vault
 that is not `examples/vault`, is a new decision.
 
 ## What is not defended
+
+- An approved figure's residual channels above: a figure can send data to a
+  WebRTC peer, and open connections that a network observer sees. Approval is
+  of the bytes, not of what they intend; the report the approval command prints
+  is a reading aid, not a boundary.
+- A link the reader clicks inside a scriptless figure opens a TCP connection
+  to its address before the page's `frame-src` refuses the request (measured
+  in Chrome; not measured in Safari). Links are not refused: a reader's click
+  is the reader's act.
+- Keyboard operation of a figure and screen-reader behaviour inside one were
+  not measured in Safari.
 
 - No rate limit, connection quota, or handler concurrency limit, and no
   whole-vault ceiling: repeated requests consume CPU and descriptors, and a

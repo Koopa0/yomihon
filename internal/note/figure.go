@@ -66,6 +66,8 @@ func (h *Handler) serveFigure(w http.ResponseWriter, r *http.Request, rel string
 		finding := render.FigureFinding(&inspection, size)
 		w.Header().Set("Content-Type", textContentType)
 		w.WriteHeader(http.StatusUnprocessableEntity)
+		// #nosec G705 -- the note is yomihon's own sentence, sent as text/plain
+		// with nosniff under a sandbox that runs nothing.
 		if _, err := io.WriteString(w, render.FigureFindingNote(finding.Kind, finding.Detail, lang)); err != nil {
 			h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write figure refusal", "path", rel, "error", err)
 		}
@@ -81,6 +83,9 @@ func (h *Handler) serveFigure(w http.ResponseWriter, r *http.Request, rel string
 	}
 	w.Header().Set("Content-Type", figureContentType)
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+	// #nosec G705 -- these are the figure's own bytes, sent as a document on
+	// purpose: the policy set above is what confines them, and nothing was
+	// written before it was known to reach the reader.
 	if _, err := w.Write(data); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write figure", "path", rel, "error", err)
 	}
@@ -130,8 +135,11 @@ func scriptedSandbox(hashes []string) string {
 			changed++
 		}
 	}
+	// A base that no longer names both directives once each cannot be
+	// widened safely, so the figure is served without script. The route's
+	// tests pin the scripted policy to a literal and turn red here.
 	if changed != 2 {
-		panic("note: vaultFileSandbox no longer names sandbox and script-src once each")
+		return vaultFileSandbox
 	}
 	return strings.Join(directives, "; ")
 }

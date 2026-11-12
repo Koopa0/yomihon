@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -46,6 +47,28 @@ const (
 	// names it.
 	ScriptOutsideText
 )
+
+// String names a refusal for a log line or a crash.
+func (r Refusal) String() string {
+	switch r {
+	case Served:
+		return "served"
+	case TooLarge:
+		return "too-large"
+	case NotText:
+		return "not-text"
+	case UTF16:
+		return "utf-16"
+	case NestedFrame:
+		return "nested-frame"
+	case LoadsElsewhere:
+		return "loads-elsewhere"
+	case ScriptOutsideText:
+		return "script-outside-text"
+	default:
+		return "refusal(" + strconv.Itoa(int(r)) + ")"
+	}
+}
 
 // Inspection is what one read of a figure's bytes says about it. Everything
 // in it describes those bytes and nothing else, so the digest, the verdict
@@ -159,52 +182,72 @@ var scriptTypes = []string{
 
 // refuse walks every node of one parse and names the first markup a figure
 // may not carry.
-func refuse(doc *html.Node) (Refusal, string) {
+func refuse(doc *html.Node) (refusal Refusal, detail string) {
 	for n := range doc.Descendants() {
 		if n.Type != html.ElementNode {
 			continue
 		}
-		name := strings.ToLower(n.Data)
-		if slices.Contains(nestedFrames, name) {
-			return NestedFrame, "<" + name + ">"
-		}
-		if slices.Contains(fetching, name) {
-			return LoadsElsewhere, "<" + name + ">"
-		}
-		switch name {
-		case "meta":
-			if equiv, ok := attribute(n, "http-equiv"); ok {
-				value := strings.ToLower(strings.TrimSpace(equiv))
-				if !slices.Contains(harmlessEquivalents, value) {
-					return LoadsElsewhere, `<meta http-equiv="` + value + `">`
-				}
-			}
-		case "script":
-			for _, key := range []string{"src", "href", "xlink:href"} {
-				if _, ok := attribute(n, key); ok {
-					return ScriptOutsideText, "<script " + key + ">"
-				}
-			}
-			if kind, ok := attribute(n, "type"); ok {
-				kind = strings.ToLower(strings.TrimSpace(kind))
-				if !slices.Contains(scriptTypes, kind) {
-					return ScriptOutsideText, `<script type="` + kind + `">`
-				}
-			}
+		if refusal, detail = refuseElement(n); refusal != Served {
+			return refusal, detail
 		}
 		for _, attr := range n.Attr {
-			key := strings.ToLower(attr.Key)
-			switch {
-			case key == "ping" || key == "attributionsrc":
-				// Both send a request of their own beside the one the element
-				// makes, which is the request a content policy governs.
-				return LoadsElsewhere, key
-			case strings.HasPrefix(key, "on"):
-				return ScriptOutsideText, key
-			case scriptAddress(attr.Val):
-				return ScriptOutsideText, "javascript:"
+			if refusal, detail = refuseAttribute(attr); refusal != Served {
+				return refusal, detail
 			}
 		}
+	}
+	return Served, ""
+}
+
+// refuseElement judges one element by its name and, for meta and script, by
+// the attributes that decide what the browser does with it.
+func refuseElement(n *html.Node) (refusal Refusal, detail string) {
+	name := strings.ToLower(n.Data)
+	switch {
+	case slices.Contains(nestedFrames, name):
+		return NestedFrame, "<" + name + ">"
+	case slices.Contains(fetching, name):
+		return LoadsElsewhere, "<" + name + ">"
+	case name == "meta":
+		equiv, ok := attribute(n, "http-equiv")
+		value := strings.ToLower(strings.TrimSpace(equiv))
+		if ok && !slices.Contains(harmlessEquivalents, value) {
+			return LoadsElsewhere, `<meta http-equiv="` + value + `">`
+		}
+	case name == "script":
+		return refuseScript(n)
+	}
+	return Served, ""
+}
+
+// refuseScript admits only an inline classic or module script.
+func refuseScript(n *html.Node) (refusal Refusal, detail string) {
+	for _, key := range []string{"src", "href", "xlink:href"} {
+		if _, ok := attribute(n, key); ok {
+			return ScriptOutsideText, "<script " + key + ">"
+		}
+	}
+	if kind, ok := attribute(n, "type"); ok {
+		kind = strings.ToLower(strings.TrimSpace(kind))
+		if !slices.Contains(scriptTypes, kind) {
+			return ScriptOutsideText, `<script type="` + kind + `">`
+		}
+	}
+	return Served, ""
+}
+
+// refuseAttribute judges one attribute of any element.
+func refuseAttribute(attr html.Attribute) (refusal Refusal, detail string) {
+	key := strings.ToLower(attr.Key)
+	switch {
+	case key == "ping" || key == "attributionsrc":
+		// Both send a request of their own beside the one the element makes,
+		// which is the request a content policy governs.
+		return LoadsElsewhere, key
+	case strings.HasPrefix(key, "on"):
+		return ScriptOutsideText, key
+	case scriptAddress(attr.Val):
+		return ScriptOutsideText, "javascript:"
 	}
 	return Served, ""
 }
@@ -231,7 +274,7 @@ func scriptAddress(value string) bool {
 func inlineScripts(doc *html.Node) []string {
 	var scripts []string
 	for n := range doc.Descendants() {
-		if n.Type != html.ElementNode || strings.ToLower(n.Data) != "script" {
+		if n.Type != html.ElementNode || !strings.EqualFold(n.Data, "script") {
 			continue
 		}
 		var text strings.Builder
