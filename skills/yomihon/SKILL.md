@@ -260,7 +260,10 @@ declaration withholds is listed, counted or hinted at, including a thought
 whose title or `based_on` points there and a location whose heading or note
 title does. A title or heading points there when it links there in any link
 syntax — a wikilink, an inline or reference link, an HTML `href` — or spells a
-withheld directory followed by a slash, however it is encoded or disguised.
+withheld directory as a name followed by a slash, read past case, fullwidth
+forms, HTML character references, percent-escapes (repeated ones included),
+characters that draw nothing, and combining marks. A letter of another script
+that only looks like a Latin one, such as Cyrillic `Р`, is not recognised.
 Plain words that merely share a withheld note's file name are the author's own
 and are listed as written.
 

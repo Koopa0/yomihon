@@ -289,6 +289,20 @@ var leftOpenRawTitles = []string{
 	"On Pri%2576ate/Secret plan",
 	"On \uff30\uff52\uff49\uff56\uff41\uff54\uff45\uff0fSecret plan",
 	`On Private\Secret plan`,
+	// Characters that draw nothing, or draw over another, inside the name:
+	// format characters, a variation selector, a default-ignorable letter and
+	// combining marks; and the solidus's look-alikes in place of the slash.
+	"On Pri\u200evate/Secret plan",
+	"On Pri\u2062vate/Secret plan",
+	"On Pri\U000e0041vate/Secret plan",
+	"On Pri\ufe0fvate/Secret plan",
+	"On Pri\u034fvate/Secret plan",
+	"On Pri\u115fvate/Secret plan",
+	"On Pri\u0307vate/Secret plan",
+	"On Private\u2215Secret plan",
+	"On Private\u2044Secret plan",
+	"On Private\u29f8Secret plan",
+	"On semi-Private/public",
 }
 
 // The words that would describe withheld ground: its directory, its file
@@ -770,5 +784,41 @@ func TestLeftOpenListsAnAuthorsPlainWordsAsWritten(t *testing.T) {
 	slices.Reverse(titles)
 	if diff := cmp.Diff(plain, titles); diff != "" {
 		t.Errorf("caught: an author's plain words were filtered (-want +got):\n%s", diff)
+	}
+}
+
+// A withheld directory is matched as a name, not as letters inside another
+// word: it counts only at the start of the text or after a character that is
+// neither a letter nor a digit, judged once what draws nothing is gone.
+func TestLeftOpenMatchesAWithheldDirectoryOnlyAsAName(t *testing.T) {
+	t.Parallel()
+	root, configDir := t.TempDir(), t.TempDir()
+	putOpenThoughtFile(t, root, schema.ContractRelPath, strings.Replace(openThoughtContract, "never_egress_dirs = []", `never_egress_dirs = ["AI", "Caf\u00e9"]`, 1))
+	for i, title := range []string{
+		"OpenAI/GPT notes",
+		"MAI/x",
+		"AI/models",
+		"On semi-ai/public",
+		"On (AI/x)",
+		// A filler letter draws nothing, so it puts no letter before the name;
+		// a space that draws nothing leaves the name inside the word it joins.
+		"On \u3164AI/models",
+		"On x\u200bAI/models",
+		// A variation selector between a letter and its accent would keep the
+		// two from composing into the letter the directory's name is spelled with.
+		"On Cafe\ufe0f\u0301/menu",
+	} {
+		putOpenThoughtFile(t, root, fmt.Sprintf("Inside/Named %d.md", i),
+			fmt.Sprintf("---\ntitle: %q\ntype: reflection\nstatus: started\nupdated: 2026-09-%02d\n---\nA thought.\n", title, i+1))
+	}
+	got := leftOpen(t, root, configDir, "--format", "json")
+	var titles []string
+	for _, item := range leftOpenItems(t, got.stdout) {
+		title, _ := item["title"].(string) //nolint:errcheck // a missing title shows in the diff
+		titles = append(titles, title)
+	}
+	slices.Reverse(titles)
+	if diff := cmp.Diff([]string{"OpenAI/GPT notes", "MAI/x", "On x\u200bAI/models"}, titles); diff != "" {
+		t.Errorf("caught: a withheld directory was matched inside a word, or missed as a name (-want +got):\n%s", diff)
 	}
 }

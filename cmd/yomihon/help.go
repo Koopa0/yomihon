@@ -121,8 +121,11 @@ var commandHelp = map[string]string{
 		"\n" +
 		"Nothing under a directory the contract withholds from agent-facing output\n" +
 		"is listed, nor an item whose title or heading links there in any link\n" +
-		"syntax or spells a withheld directory and a slash, however encoded. Plain\n" +
-		"words that only share a withheld note's file name are listed as written.\n" +
+		"syntax or spells a withheld directory's name and a slash, read past case,\n" +
+		"fullwidth forms, character references, percent-escapes, and characters\n" +
+		"that draw nothing or only mark another. A look-alike letter of another\n" +
+		"script is not recognised. Plain words that only share a withheld note's\n" +
+		"file name are listed as written.\n" +
 		"Nothing says how much was left out. When no location is listed, one line\n" +
 		"on stderr says only whether a marks file was found. The contract has to\n" +
 		"declare [privacy] before anything is listed at all.\n" +

@@ -59,9 +59,14 @@ About those rows:
   or a thought whose title or `based_on`, names withheld ground. Words name
   withheld ground when they link there in any link syntax — a wikilink, an
   inline or reference link, an HTML `href`, read as plain text so that a code
-  span or an escape hides nothing — or when, with character references and
-  percent-escapes decoded, invisible characters dropped, compatibility forms
-  and case folded, they spell a withheld directory followed by a slash. Plain
+  span or an escape hides nothing — or when they spell a withheld directory as
+  a name followed by a slash: at the start or after a character that is not a
+  letter or digit, once HTML character references and percent-escapes are
+  decoded (repeatedly), format characters, variation selectors, other
+  default-ignorable characters and combining marks are dropped, compatibility
+  forms such as fullwidth letters and case are folded, and a backslash or a
+  look-alike of the solidus is read as a slash. A letter of another script that
+  only looks like a Latin one, such as Cyrillic `Р`, is not recognised. Plain
   words that only share a withheld note's file name are the author's own and
   are listed as written. A location
   whose note or heading is gone is listed with its anchor left empty, since

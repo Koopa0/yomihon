@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
 
@@ -603,17 +604,31 @@ func linkDestination(text string) string {
 }
 
 // spellsWithheldDir reports whether text, read past the ways it can be
-// disguised, spells a withheld directory followed by a slash. This holds
-// whatever syntax the text is written in, so a title naming withheld ground
-// in plain words is withheld with the rest. A withheld note's full path
-// contains its directory and a slash, so this covers every such path too. A
-// note's bare file name is not matched: the author's own words that happen
-// to share one are listed as written.
+// disguised, spells a withheld directory as a name followed by a slash: at
+// the start of the text or after a character that is neither a letter nor a
+// digit, so that "AI/" is matched and "OpenAI/" is not. This holds whatever
+// syntax the text is written in, so a title naming withheld ground in plain
+// words is withheld with the rest. A withheld note's full path contains its
+// directory and a slash, so this covers every such path too. A note's bare
+// file name is not matched: the author's own words that happen to share one
+// are listed as written. The boundary is judged on the folded text, after
+// what draws nothing is gone, so an invisible letter cannot stand in front of
+// the name.
 func spellsWithheldDir(text string, withheldDirs []string) bool {
 	folded := foldDisguises(text)
 	for _, dir := range withheldDirs {
-		if strings.Contains(folded, foldDisguises(dir)+"/") {
-			return true
+		name := foldDisguises(dir) + "/"
+		for from := 0; ; {
+			at := strings.Index(folded[from:], name)
+			if at < 0 {
+				break
+			}
+			at += from
+			before, _ := utf8.DecodeLastRuneInString(folded[:at])
+			if at == 0 || !unicode.IsLetter(before) && !unicode.IsNumber(before) {
+				return true
+			}
+			from = at + 1
 		}
 	}
 	return false
@@ -621,9 +636,12 @@ func spellsWithheldDir(text string, withheldDirs []string) bool {
 
 // foldDisguises reads text past what would hide a word from a comparison:
 // HTML character references and percent-escapes, decoded until nothing more
-// decodes; invisible characters dropped; compatibility forms, such as
-// fullwidth letters, made plain; a backslash read as a slash; and case
-// folded.
+// decodes; characters that draw nothing — format characters, variation
+// selectors, other default-ignorable code points — dropped before the text
+// is composed and again after; compatibility forms, such as fullwidth letters,
+// made plain by NFKC; combining marks left after that dropped; a backslash
+// and the solidus's look-alikes read as a slash; and case folded. A letter of
+// another script that only looks like a Latin one is not read as that letter.
 func foldDisguises(text string) string {
 	for range 4 {
 		decoded := percentDecode(html.UnescapeString(text))
@@ -632,16 +650,24 @@ func foldDisguises(text string) string {
 		}
 		text = decoded
 	}
-	text = strings.Map(func(r rune) rune {
-		switch r {
-		case 0x00ad, 0x200b, 0x200c, 0x200d, 0x2060, 0xfeff:
+	text = norm.NFKC.String(strings.Map(dropDrawsNothing, text))
+	return strings.Map(func(r rune) rune {
+		switch {
+		case unicode.Is(unicode.Mn, r):
 			return -1
-		case '\\':
+		case r == '\\', r == 0x2044, r == 0x2215, r == 0x2571, r == 0x29f8:
 			return '/'
 		}
-		return r
-	}, norm.NFKC.String(text))
-	return strings.Map(foldRune, text)
+		return foldRune(dropDrawsNothing(r))
+	}, text)
+}
+
+// dropDrawsNothing drops a character that draws nothing where it stands.
+func dropDrawsNothing(r rune) rune {
+	if r < 0 || unicode.In(r, unicode.Cf, unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point) {
+		return -1
+	}
+	return r
 }
 
 // percentDecode replaces each %XX escape in text with the byte it names,
