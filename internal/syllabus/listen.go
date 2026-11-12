@@ -89,7 +89,7 @@ func (s *RequestSnapshot) markedIn(entry *nav.PathEntry, region string, lang wor
 	if !ok || !s.isLesson(note.Type) || !render.MayMarkReadAloud(note.Body) {
 		return nil
 	}
-	return render.MarkedParagraphs(s.Generation.RenderIn(region, entry.RelPath, note.Body, lang).HTML, lang)
+	return render.MarkedParagraphs(s.Generation.RenderExcerptIn(region, entry.RelPath, note.Body, lang).HTML, lang)
 }
 
 // taught walks the course in the order it is read and returns the rows it

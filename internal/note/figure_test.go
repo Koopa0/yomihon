@@ -315,3 +315,86 @@ func TestAHoverCardNeverFramesAFigure(t *testing.T) {
 		t.Errorf("the hover card shows %d figure stand-ins, want one for each of the four embeds:\n%s", strings.Count(card, "這裡無法顯示"), card)
 	}
 }
+
+// newApproveAllServer serves root with every figure approved, the worst case
+// for a page that shows one note inside another.
+func newApproveAllServer(t *testing.T, root string, contract *schema.Contract) *httptest.Server {
+	t.Helper()
+	log := slog.New(slog.DiscardHandler)
+	governance := schema.Ungoverned()
+	if contract != nil {
+		governance = contract.Governance()
+	}
+	store, source := newSnapshotStore(t, root, log, contract, governance)
+	writer := openStatusWriter(t, source, contract, governance)
+	approveAll := func(string, [sha256.Size]byte) (render.Approval, error) { return render.Approved, nil }
+	store.ApproveFiguresBy(approveAll)
+	mux := http.NewServeMux()
+	note.New(&note.Sources{
+		Source:         source,
+		Contract:       contract,
+		VaultName:      shell.VaultName(source.Name()),
+		Status:         writer.Authority,
+		Snapshot:       store.Current,
+		ObservedStatus: writer.ObservedStatus,
+		ConsumeReceipt: writer.ConsumeReceipt,
+		Continuation:   noMark,
+		FigureApproved: approveAll,
+		Log:            log,
+	}).Register(mux)
+	srv := httptest.NewServer(origin.Protect(mux))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// framesNoFigure fails when page frames a figure at all.
+func framesNoFigure(t *testing.T, where, page string) {
+	t.Helper()
+	for _, refused := range []string{"figure-embed__frame", "/embed/", "allow-scripts"} {
+		if strings.Contains(page, refused) {
+			t.Errorf("%s holds %q: a figure is framed outside its own note's page", where, refused)
+		}
+	}
+	if !strings.Contains(page, "這裡無法顯示") {
+		t.Errorf("%s shows no figure stand-in, so the figure was not reached and this proves nothing", where)
+	}
+}
+
+// TestAConceptSheetNeverFramesAFigure: a lesson carries the sheets of the
+// concepts it cites, drawn into the lesson's own page; a figure in one is the
+// concept note's, so on the lesson's page it is a stand-in.
+func TestAConceptSheetNeverFramesAFigure(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	mkdir(t, filepath.Join(root, "Concepts", "japanese"))
+	mkdir(t, filepath.Join(root, "Writing", "lessons", "japanese"))
+	write(t, filepath.Join(root, "Concepts", "japanese", "は.md"),
+		[]byte("---\ntitle: は (主題助詞)\ntype: concept\n---\n\nMarks the topic.\n\n![[moving.html]]\n"))
+	write(t, filepath.Join(root, "Concepts", "japanese", "moving.html"), []byte(scriptedFigure))
+	write(t, filepath.Join(root, "Writing", "lessons", "japanese", "L01.md"),
+		[]byte("---\ntitle: L01\ntype: lesson\nstatus: draft\n---\n\nThe particle [[は]] marks the topic.\n"))
+	srv := newApproveAllServer(t, root, loadContract(t))
+	_, _, concept := fetch(t, srv.Client(), srv.URL+"/notes/Concepts/japanese/%E3%81%AF.md")
+	if !strings.Contains(concept, `sandbox="allow-scripts"`) {
+		t.Fatal("the concept's own page does not frame its approved figure, so this test proves nothing")
+	}
+	code, _, page := fetch(t, srv.Client(), srv.URL+"/notes/Writing/lessons/japanese/L01.md")
+	if code != http.StatusOK || !strings.Contains(page, "data-concept-sheet") {
+		t.Fatalf("GET the lesson = %d without a concept sheet", code)
+	}
+	framesNoFigure(t, "the lesson's concept sheet", page)
+}
+
+// TestTheComparePageNeverFramesAFigure: two notes side by side are read on a
+// page that is neither note's own.
+func TestTheComparePageNeverFramesAFigure(t *testing.T) {
+	t.Parallel()
+	root := figureVault(t)
+	write(t, filepath.Join(root, "other.md"), []byte("# Other\n\nplain\n"))
+	srv := newApproveAllServer(t, root, nil)
+	code, _, page := fetch(t, srv.Client(), srv.URL+"/compare/host.md?with=other.md")
+	if code != http.StatusOK || !strings.Contains(page, "plain") {
+		t.Fatalf("GET /compare/host.md?with=other.md = %d without both notes", code)
+	}
+	framesNoFigure(t, "the compare page", page)
+}

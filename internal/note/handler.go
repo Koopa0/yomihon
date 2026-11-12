@@ -378,7 +378,14 @@ func (h *Handler) reading(
 	state := h.governance(r.Context(), n, snap, authority, lang)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
-	result := snap.Render(rel, n.Body, lang)
+	// On the compare page, which is neither note's own, a figure is its
+	// stand-in; an approval runs a figure only where its note is read alone.
+	var result render.Result
+	if idPrefix == "" {
+		result = snap.Render(rel, n.Body, lang)
+	} else {
+		result = snap.RenderExcerptIn("", rel, n.Body, lang)
+	}
 	declaredSources, sourceDiagnostics := snap.DeclaredSources(rel, lang)
 	result.Diagnostics = append(result.Diagnostics, sourceDiagnostics...)
 
@@ -898,7 +905,9 @@ func loadConcepts(
 		// concepts — the same for every reader of the page, and derived from
 		// the page rather than from anything the process is counting.
 		region := "c" + strconv.Itoa(ordinal+1) + "-"
-		renderBody := func(rel, body string) string { return snap.RenderIn(region, rel, body, lang).HTML }
+		// The sheet is the concept note's words inside the lesson's page, so a
+		// figure in it is its stand-in.
+		renderBody := func(rel, body string) string { return snap.RenderExcerptIn(region, rel, body, lang).HTML }
 		if d, ok := snap.Concepts().Document(renderBody, rel); ok {
 			docs = append(docs, d)
 		}
