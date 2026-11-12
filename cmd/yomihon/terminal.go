@@ -18,6 +18,8 @@ func isTerminal(f *os.File) bool {
 	if err != nil || info.Mode()&os.ModeCharDevice == 0 {
 		return false
 	}
+	// A null device that cannot be looked at cannot be told apart, so the
+	// answer is no.
 	null, err := os.Stat(os.DevNull)
-	return err != nil || !os.SameFile(info, null)
+	return err == nil && !os.SameFile(info, null)
 }

@@ -144,16 +144,24 @@ Chrome on every run and turns red on any HTTP request, and on any connection
 or packet outside the residuals it names. Safari has no standing probe; the
 Safari row above is one measurement, and a Safari change is not caught.
 
-**Approval.** `yomihon approve-figure` needs a character device that is not
-the null device on both its input and its output, and asks for the first 8
-characters of the digest; no flag or variable skips that. It stops a program
-from approving by piping an answer in. It does not stop a program that
-allocates a terminal of its own (the `script` command does), nor one that
-writes the approvals file directly — as the probe does. Such a process runs as
-the owner and is inside the trust base like any same-UID process; what keeps a
-vault-writing agent from approving its own figure is that it is not given that
-reach. The public instance holds
-no approvals, so it serves only scriptless figures.
+**Approval.** `yomihon approve-figure` reads the file once, prints every inline
+script in full from that read — with control and text-direction characters
+shown as escapes, so the terminal draws the code that runs — and pins the
+digest of exactly those bytes once the person types its first 8 characters
+back. What the owner reads is what is approved; a change after the read lapses
+the approval. The 8 characters confirm attention; they are not a lock.
+
+What approval does **not** defend against is a program running as the owner.
+The command asks for a character device other than the null device on its
+input and output, which stops an answer piped in and nothing more: any program
+with the owner's shell — a coding agent included — can approve, by allocating
+a terminal of its own (the `script` command does) or by writing `figures.json`
+directly, as the probe does. That is outside this model, like any same-UID
+process. What is defended: HTML nobody approved runs no script, and an approval
+binds the exact bytes it was given. The authoring skill tells agents never to
+run `approve-figure` or write `figures.json` for the owner; that is a rule of
+conduct, not a boundary. The public instance holds no approvals, so it serves
+only scriptless figures.
 
 ## The one public instance
 

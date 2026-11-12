@@ -105,7 +105,10 @@ func TestApprovalPinsTheBytesShown(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("approve with the right digits = %d, %q, %q", exit, out, errOut)
 	}
-	for _, want := range []string{hexDigest, "Scripts  1 inline", "https://outside.test/a", "fetch", "not a security boundary"} {
+	for _, want := range []string{
+		hexDigest, "Scripts  1 inline", "https://outside.test/a", "fetch", "not a security boundary",
+		"Script 1 of 1, 31 characters, exactly as approved:\n    | fetch('https://outside.test/a')\n",
+	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("the report does not say %q:\n%s", want, out)
 		}
@@ -144,5 +147,30 @@ func TestApprovalDeclinesWhatItCannotPin(t *testing.T) {
 		if exit != tc.exit || !strings.Contains(out+errOut, tc.say) {
 			t.Errorf("approve %s = %d, %q; want %d and %q", tc.path, exit, out+errOut, tc.exit, tc.say)
 		}
+	}
+}
+
+// TestTheReportShowsEveryScriptAsItRuns: what a person approves is the text
+// they were shown, so the report prints each script whole, and a terminal is
+// never handed a character that would redraw or reorder what it shows.
+func TestTheReportShowsEveryScriptAsItRuns(t *testing.T) {
+	t.Parallel()
+	root, configDir := approvalVault(t)
+	hidden := "<p>x</p><script>ok()\x1b[2K\x1b[1Ahidden()</script><script>a = '\u202e' + b</script>"
+	if err := os.WriteFile(filepath.Join(root, "Figures", "hidden.html"), []byte(hidden), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, out, _ := runApproval(t, root, configDir, true, "no\n", approveFigureCommand, "Figures/hidden.html")
+	for _, want := range []string{
+		"Script 1 of 2, 20 characters, exactly as approved:\n    | ok()\\x1b[2K\\x1b[1Ahidden()\n",
+		"Script 2 of 2, 11 characters, exactly as approved:\n    | a = '\\u202e' + b\n",
+		"The 2 script(s) above, 31 characters in all",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the report does not hold %q:\n%s", want, out)
+		}
+	}
+	if strings.ContainsAny(out, "\x1b\u202e") {
+		t.Errorf("the report hands the terminal a control or direction character:\n%q", out)
 	}
 }

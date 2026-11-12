@@ -401,13 +401,17 @@ sandboxed frame. The rules an author writes to:
   theme choice. A figure with scripts that nobody approved is shown without
   them, and a quiet line under it says so.
 - **Approval is the owner's, at a terminal.** `yomihon approve-figure
-  [--root <dir>] <path>` reads the file once, shows its size, SHA-256, script
-  count and the addresses and browser facilities its text names, and asks for
-  the first 8 characters of the SHA-256. It refuses without a terminal on both
-  ends and has no flag that skips the question, so an agent writing the vault
-  cannot approve its own figure. Any change to the file lapses the approval.
-  `yomihon revoke-figure` withdraws it. Only inline script whose exact text was
-  approved runs: no `eval`, no `new Function`, no script built at run time.
+  [--root <dir>] <path>` reads the file once, shows its size, SHA-256, every
+  inline script in full, and the addresses and browser facilities its text
+  names, and asks for the first 8 characters of the SHA-256. Any change to the
+  file lapses the approval; `yomihon revoke-figure` withdraws it. Only inline
+  script whose exact text was approved runs: no `eval`, no `new Function`, no
+  script built at run time.
+- **An agent never approves.** Do not run `approve-figure`, by any means (a
+  pseudo-terminal included), and do not write or edit the approvals file it keeps outside the vault. Nothing
+  stops a program running as the owner from doing either; this is a rule you
+  keep, not a wall you meet. Tell the owner the path and let them read the
+  scripts and decide.
 - **An approved figure can reach the network** in the reader's browser, even
   though it loads nothing: the frame's policy closes every request the
   measured browsers could be made to send, but not a WebRTC peer, and not the

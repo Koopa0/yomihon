@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/figure"
 	"github.com/koopa0/yomihon/internal/mark"
@@ -47,6 +48,8 @@ const (
 	figureReportNames      = "  Names in the text that reach outside the frame or run text as script:"
 	figureReportNone       = "    (none found)"
 	figureReportDisclaimer = "This summary is for reference, not a security boundary: a script can do more than what is listed here."
+	figureScriptHeaderFmt  = "  Script %d of %d, %d characters, exactly as approved:"
+	figureScriptsFooterFmt = "The %d script(s) above, %d characters in all, are everything in this file that can run. They are printed from the same read that is hashed, with control and direction characters shown as \\x or \\u escapes. Approve only what you have read; to read a long one in a pager, open the file in less or an editor, and approve here only if it matches."
 	figureConfirmPromptFmt = "To approve, type the first %d characters of the SHA-256 above: "
 	figureNotApproved      = "That does not match; nothing was approved."
 	figureApprovedFmt      = "Approved %s (sha256 %s…). Reload its page to run its scripts."
@@ -194,6 +197,7 @@ func approveFigure(ctx context.Context, source *vault.Reader, marks *mark.File, 
 	stdio.list(figureReportAddresses, report.Addresses)
 	stdio.list(figureReportNames, report.Names)
 	stdio.sayf("%s\n\n", figureReportDisclaimer)
+	stdio.scripts(inspection.Scripts)
 	stdio.sayf(figureConfirmPromptFmt, confirmDigits)
 	if stdio.shown != nil {
 		stdio.faultf("show the figure to approve: %v; nothing was approved", stdio.shown)
@@ -257,6 +261,43 @@ func readServedFigure(ctx context.Context, source *vault.Reader, rel string) ([]
 		return nil, fmt.Errorf("read %s: %w", rel, err)
 	}
 	return data, nil
+}
+
+// scripts prints every inline script in full, from the bytes being hashed,
+// so what the person reads is what the approval pins. A script is shown with
+// its control characters and its text-direction overrides as escapes: either
+// could make a terminal draw something other than the code that runs.
+func (stdio *figureIO) scripts(scripts []string) {
+	total := 0
+	for i, script := range scripts {
+		length := utf8.RuneCountInString(script)
+		total += length
+		stdio.sayf(figureScriptHeaderFmt+"\n", i+1, len(scripts), length)
+		for line := range strings.SplitSeq(visibleScript(script), "\n") {
+			stdio.sayf("    | %s\n", line)
+		}
+	}
+	stdio.sayf(figureScriptsFooterFmt+"\n\n", len(scripts), total)
+}
+
+// visibleScript escapes what a terminal would act on or reorder rather than
+// draw: C0 and C1 control characters other than a tab and a line break,
+// DEL, and the bidirectional formatting characters.
+func visibleScript(script string) string {
+	var b strings.Builder
+	for _, r := range script {
+		switch {
+		case r == '\n' || r == '\t':
+			b.WriteRune(r)
+		case r < 0x20 || r == 0x7F || (r >= 0x80 && r <= 0x9F):
+			fmt.Fprintf(&b, "\\x%02x", r)
+		case r == 0x061C || r == 0x200E || r == 0x200F || (r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069):
+			fmt.Fprintf(&b, "\\u%04x", r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 // list writes one heading of the report and its items.
