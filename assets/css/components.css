@@ -2120,10 +2120,9 @@ button.y-freshness__action {
   display: none;
 }
 
+/* The note under a figure is the page's own small print, so it is the
+   embed note's role, faces included; only its place below the frame differs. */
 .y-prose .figure-embed__note {
-  color: var(--fg-subtle);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
   margin: 6px 0 0;
 }
 

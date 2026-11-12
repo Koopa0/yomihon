@@ -113,7 +113,7 @@ func figureEmbed(relPath string, link graph.Wikilink, state *FigureState, col *c
 		finding.Target = link.Target
 		col.report(&finding)
 		return `<div class="figure-embed figure-embed--refused"><p class="embed-media">` + standIn + `</p>` +
-			`<p class="figure-embed__note">` + html.EscapeString(FigureFindingNote(finding.Kind, finding.Detail, lang)) + `</p></div>`
+			`<p class="embed__note figure-embed__note">` + html.EscapeString(FigureFindingNote(finding.Kind, finding.Detail, lang)) + `</p></div>`
 	}
 
 	scripted := state.Read && state.Inspection.Scripted()
@@ -132,7 +132,7 @@ func figureEmbed(relPath string, link graph.Wikilink, state *FigureState, col *c
 		attributeEscaper.Replace(figureHref(relPath)), html.EscapeString(title), sandbox, sized, marker)
 	b.WriteString(`<p class="figure-embed__print">` + standIn + `</p>`)
 	if scripted && !runs {
-		b.WriteString(`<p class="figure-embed__note">` + html.EscapeString(idleSentence(state).In(lang)) + `</p>`)
+		b.WriteString(`<p class="embed__note figure-embed__note">` + html.EscapeString(idleSentence(state).In(lang)) + `</p>`)
 	}
 	b.WriteString(`</div>`)
 	return b.String()

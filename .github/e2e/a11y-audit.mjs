@@ -8,7 +8,15 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const MUTATE = process.env.MUTATE || '';
 const MODE = 'drop-task-label';
 const NOTE = '/notes/Notes/reading-fidelity.md';
-const PAGES = ['/', NOTE, '/syllabus/Maps/branches.md'];
+const FIGURES = '/notes/Notes/figures.md';
+const PAGES = ['/', NOTE, '/syllabus/Maps/branches.md', FIGURES];
+// A figure's frame runs with scripting off, so axe cannot run inside it: its
+// timers never fire there, and the per-frame runner injected into one never
+// finishes. The single-pass runner audits the page and every frame element
+// (title, uniqueness) and stops waiting for a frame after this long; the
+// frame's own content, the author's, is not audited. On the pages without a
+// figure it reports the same findings, node for node, as the per-frame one.
+const FRAME_WAIT_MS = 1000;
 const THEMES = ['light', 'dark'];
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 const LABEL = '<label class="y-task"><input disabled="" type="checkbox"> Unfinished task</label>';
@@ -53,7 +61,8 @@ const audit = async (browser, path, theme, canary = false) => {
       if (requests !== 1 || matches !== 1 || !applied) throw new NotApplied(`label requests=${requests} matches=${matches} applied=${applied}`);
     }
     console.log(`INVOCATION-HIT a11y-audit page=${path} theme=${theme} canary=${canary}`);
-    const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+    // options() replaces the whole option object, so the tags follow it.
+    const result = await new AxeBuilder({ page }).options({ frameWaitTime: FRAME_WAIT_MS }).withTags(TAGS).setLegacyMode().analyze();
     for (const [kind, findings] of [['VIOLATION', result.violations], ['INCOMPLETE', result.incomplete]]) {
       for (const finding of findings) {
         console.log(`${kind} a11y-audit page=${path} theme=${theme} rule=${finding.id} impact=${finding.impact ?? 'none'}`);
@@ -97,7 +106,7 @@ try {
         versions.add(result.version);
       }
     }
-    if (violations) throw new LockFired(`${violations} violations across six page/theme audits`);
+    if (violations) throw new LockFired(`${violations} violations across ${PAGES.length * THEMES.length} page/theme audits`);
     await audit(browser, NOTE, 'light', true);
     console.log(`PASS a11y-audit routes=${JSON.stringify(PAGES)} themes=${JSON.stringify(THEMES)} viewport=1280x900 version=${[...versions].join(',')} runtime-ms=${Math.round(performance.now() - started)} violations=0 incomplete=${incomplete} canary=label`);
   }
