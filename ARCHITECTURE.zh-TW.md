@@ -139,7 +139,7 @@ Writer 實際探測檔案系統行為，不只相信操作回傳成功。這些�
 
 ![Vault 契約提供閱讀與生命週期宣告；命令輸出另外經過隱私與來源檢查。](docs/architecture/05-contract-and-commands.png)
 
-[`check`、`coverage` 與 `exists`][commands] 各自開啟 vault，執行獨立的唯讀操作。它們共用解析、連結與契約語意，不呼叫 HTTP server，也不建立閱讀標記。[`left-open`][left-open] 是唯一談讀者的命令：它建立與 server 相同的讀取世代，只讀不寫地讀取「還不確定」標記，列出「還沒說清楚的」書架所列的同一份選取結果。
+[`check`、`coverage` 與 `exists`][commands] 各自開啟 vault，執行獨立的唯讀操作。它們共用解析、連結與契約語意，不呼叫 HTTP server，也不建立閱讀標記。[`left-open`][left-open] 是唯一談讀者的命令：它建立與 server 相同的讀取世代，只讀不寫地讀取「還不確定」標記，列出「還沒想通的」書架所列的同一份選取結果。
 
 | 命令 | 回答的問題 |
 | --- | --- |
