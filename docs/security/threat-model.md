@@ -17,7 +17,7 @@ literally true of the vault directory.
 | The status write | Exactly one legal `status` line changes, the source is not stale, and the replacement is durable before the success response. |
 | The reader's own marks | Kept outside the vault and replaced whole or not at all. No command-line face reads the continuation; `left-open` reads the uncertainty marks without writing them and answers under the same privacy declaration as the other agent-facing commands. Continuation and uncertainty marks occupy independent files. Unreadable uncertainty storage is preserved. Marks have no backup or recovery guarantee and are not held to the status write's durability. |
 | Agent-facing results | Contract-private paths neither appear in nor influence results, with one exception: `exists` answers whether a caller-supplied name, including a vault path or path suffix, is taken, disclosing that bit and nothing else. |
-| Browser authority | Authored vault bytes stay display input, never first-party script, navigation, form, frame, or automatic remote-resource authority. A figure runs in an opaque-origin frame: unapproved, it runs no script and the browser loads nothing it names; approved, it runs exactly its approved inline scripts and still holds no first-party authority. |
+| Browser authority | Authored vault bytes stay display input, never first-party script, navigation, form, frame, or automatic remote-resource authority. A figure runs in an opaque-origin frame: unapproved, it runs no script and the browser fetches nothing it names on its own; approved, it runs exactly its approved inline scripts and still holds no first-party authority. |
 | Figure approvals | Kept outside the vault, owner-only, replaced whole; written only by the approval commands at a terminal, never over HTTP. Unreadable or malformed approvals are no approval. An approval names exact bytes and lapses on any change. |
 
 ## Who is trusted
@@ -77,8 +77,10 @@ the reading room too would be a separate decision (2026-09-04, #149).
 A figure is an `.html` file a note embeds with `![[name.html]]`, shown in a
 frame. It exists because the owner ruled on 2026-11-12 to allow two tiers of
 interactive figure, with security held as follows. No domain is trusted and
-nothing is loaded from any domain, so a domain that changes hands, is
-compromised, or redirects elsewhere has nothing to act on.
+no figure loads anything from any domain, so a domain that changes hands, is
+compromised, or redirects elsewhere has nothing to load into a figure. That is
+about what comes in. An approved figure can still send data out, to any host,
+through the residual channels below.
 
 | Tier | When | Frame | Response policy |
 |---|---|---|---|
@@ -86,9 +88,16 @@ compromised, or redirects elsewhere has nothing to act on.
 | Scripted | The figure has inline script **and** the SHA-256 of the bytes just read is in the owner's approvals | `sandbox="allow-scripts"`, never `allow-same-origin`, `allow-forms`, `allow-popups*`, `allow-modals` or `allow-top-navigation*` | The same policy with `sandbox allow-scripts` and `script-src` listing one `'sha256-…'` per inline script, computed by the server from the parse; no host, no `'unsafe-inline'`, no `'unsafe-eval'`, no `'strict-dynamic'` |
 
 The reading page's own policy keeps `frame-src 'self'`, and the frame's
-document route answers GET only, never redirects, sends no
-`Content-Disposition`, and reads the file once: the digest, the tier, the
-script hashes and the bytes sent all come from that one read. The browser
+document route answers GET only, sends no `Content-Disposition`, and reads the
+file once: the digest, the tier, the script hashes and the bytes sent all come
+from that one read. The figure handler itself never redirects. The router in
+front of it answers a path that is not clean — a `..` segment or a doubled
+slash — with a 307 to the clean path on the same origin; no address tried
+(`..//evil.com`, a backslash, `///evil.com`) produced a redirect off it.
+
+A note shown inside another page — a hover card, a course's opening — draws
+every figure as its stand-in, with no frame: an approval runs a figure where
+its note is read, never on a page whose reader only passed over a link to it. The browser
 applies the narrower of the frame attribute and the response policy, so a page
 drawn before a file changed can only err towards running less.
 
@@ -125,24 +134,36 @@ UDP packets:
   `javascript:` addresses, event attributes, `data:` scripts, and a `srcdoc`
   child's script of any other text did not run. Dropping one hash from the
   policy stopped exactly that script.
-- *Approved figures, residual (accepted for approved figures only; the weaker
-  browser holds for both):* a WebRTC peer sends UDP to its STUN address (both
+- *Approved figures, residual (accepted for approved figures only — the owner's
+  ruling of 2026-11-12, below; the weaker browser holds for both):* a WebRTC peer sends UDP to its STUN address (both
   browsers); a navigation the figure starts — by `location`, a refresh it
   inserts, or a link it clicks — opens a TCP connection with no HTTP request
   (Chrome; Safari opened none); a frame the figure creates opens one (Chrome);
   a `<link rel=preconnect>` the figure inserts opens one, and so does a link
   with `target=_blank` it clicks (Safari). A connection to a host name is
-  preceded by a DNS lookup; that is inferred, since the measurement used IP
-  literals. Widening the page's `frame-src` to `*` let each navigation's
+  preceded by a DNS lookup that names the host to whoever resolves it; that is
+  inferred and not measured, since the measurement used IP literals. Widening the page's `frame-src` to `*` let each navigation's
   request through in both browsers, which is the control that shows
   `frame-src 'self'` is what closes it.
 - A `srcdoc` child the figure creates inherits the frame's policy, so it runs a
   script only when its text is byte for byte one the owner approved.
 
-The standing browser probe `.github/e2e/figure-boundary.mjs` repeats this in
-Chrome on every run and turns red on any HTTP request, and on any connection
-or packet outside the residuals it names. Safari has no standing probe; the
-Safari row above is one measurement, and a Safari change is not caught.
+**The residuals are accepted** (owner's ruling, 2026-11-12). Chrome 157 does
+not recognise a CSP `webrtc` directive and offers no permission to switch
+WebRTC off, so an approved figure's script can send arbitrary data to any host
+and port over WebRTC, and, with an endpoint of its own, read replies. The TCP
+residuals carry less: a connection opens and no request follows, so what leaves
+is a host name, a port and a timing, and nothing comes back. Closing them would
+leave what an approved figure can do unchanged while WebRTC stays open. So an
+approved figure is treated as able to send anything anywhere, and approving one
+means trusting its exact bytes with that.
+
+The standing browser probe `.github/e2e/figure-boundary.mjs` repeats the
+Chrome rows on every run and turns red on any HTTP request, and on any
+connection or packet outside the residuals it names. Safari has no standing
+probe. Its rows come from two runs, on two builds of this change, of a
+throwaway harness that is not in this repository; a Safari change is not
+caught.
 
 **Approval.** `yomihon approve-figure` reads the file once, prints every inline
 script in full from that read — with control and text-direction characters

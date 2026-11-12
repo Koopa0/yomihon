@@ -10,7 +10,7 @@ English | [繁體中文](README.zh-TW.md)
 
 [![A lesson in a study path: the course on the left with the current lesson marked, the lesson in the centre, and on the right the notes it cites and a button to leave off here](.github/media/reading-en.png)](.github/media/reading-en.png)
 
-A study path is a course, with its parts and the lesson you are on. Search, backlinks and reports are built in. yomihon runs on your machine and never edits your text. yomihon itself makes no network request. A figure — an interactive HTML file a note embeds — runs no script unless you approve its exact bytes, and the browser loads nothing it names; a figure you approved runs its scripts in your browser and can reach the network.
+A study path is a course, with its parts and the lesson you are on. Search, backlinks and reports are built in. yomihon runs on your machine and never edits your text. yomihon itself makes no network request. A figure — an interactive HTML file a note embeds — runs no script unless you approve its exact bytes, and the browser fetches nothing it names on its own (a link in it that you click opens a connection before the page refuses the request); a figure you approved runs its scripts in your browser and can send data anywhere.
 
 ## Try it
 
