@@ -25,10 +25,11 @@ nothing here repeats it.
   dialect the renderer treats specially, the command that settles any
   disagreement, and the shape of taking one note from prose into a course. It
   names every decision; it does not carry every subject.
-- [`yomihon/references/`](yomihon/references/) — six files, one per subject,
+- [`yomihon/references/`](yomihon/references/) — seven files, one per subject,
   each the authority for what it covers: the frontmatter contract, how a name
-  resolves, the study-path grammar, how a map works, the diagnostics, and the
-  worked example at length. Each opens by saying which question it answers.
+  resolves, the study-path grammar, how a map works, the diagnostics, how to
+  write for the person who reads the note, and the worked example at length.
+  Each opens by saying which question it answers.
 
 Every rule has exactly one file that states it in full, and the others point
 there instead of restating it. That is not the same as saying nothing appears
