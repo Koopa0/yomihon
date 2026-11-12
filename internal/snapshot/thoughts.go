@@ -51,6 +51,21 @@ func (g *Generation) DeclaredTitle(rel string) string {
 	return title
 }
 
+// StatusUnread reports whether rel's frontmatter writes a status that is not
+// text, a list or a mapping included, so that no status can be read from it.
+// An absent or empty status wrote nothing to misread and answers false.
+func (g *Generation) StatusUnread(rel string) bool {
+	if g == nil || g.parsed[rel] == nil {
+		return false
+	}
+	value, present := g.parsed[rel].Frontmatter["status"]
+	if !present || value == nil {
+		return false
+	}
+	_, text := value.(string)
+	return !text
+}
+
 // OpenMark is one location the reader marked "Not sure yet", as the selection
 // of what the reader left open needs it: where, and when it was marked. The
 // marks themselves are kept by the reading face; this is the copy it hands in.
@@ -83,7 +98,7 @@ func (o *OpenItem) Path() string {
 // status the contract explicitly declares initial, interleaved with every mark
 // handed in, newest first. A note with no declared date sorts after every dated
 // item; ties fall to path order, then anchor. A mark is kept even when its note
-// or its place is gone, because the stored identity is the reader's own record.
+// or its location is gone, because the stored identity is the reader's own record.
 //
 // It grants nothing about who may see an item: a caller writing for a program
 // filters by its own authority before it resolves any item further.

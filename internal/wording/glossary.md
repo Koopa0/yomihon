@@ -42,20 +42,20 @@ One thing is deliberately not here yet: the word for *status*, its rules and its
 
 ## The command line's words
 
-The command line speaks English only. These are the words `yomihon left-open` writes, one JSON object per item. A field with no value is left out.
+The command line speaks English only. These are the words `yomihon left-open` writes, one JSON object per item. A field with no value is left out, except a lost location's `anchor`.
 
 | Word | Means | In code |
 | --- | --- | --- |
 | `left-open` | The command that lists what the reader left open: the same items, in the same order, as the What you left open shelf. | `openCommand` |
 | `kind` | `location` for a location marked "Not sure yet", `thought` for a thought in an initial status. | `openKindLocation`, `openKindThought` |
 | `path` | The item's path. | |
-| `anchor` | The id the page gives the location inside its note. Left out for a mark on the whole note. | |
+| `anchor` | The id the page gives the location inside its note. Left out for a mark on the whole note. Present and empty when `lost` is set: the id is made from a heading's words, and with the heading gone they cannot be checked against withheld ground. | |
 | `anchor_text` | The words the page shows for that location: a heading, the title, or a practice card's pattern. | `MarkedLocation.AnchorText` |
 | `title` | The title the note's frontmatter declares. Left out when it declares none; the file name never stands in. | `DeclaredTitle` |
 | `status` | A thought's status, as the vault's contract spells it. | |
 | `wikilink` | The vault's own link to the item, brackets included, as a thought's `based_on` writes it. Left out where it could reach somewhere else. | `NoteWikilink`, `MarkedLocation.Wikilink` |
-| `lost` | What a location no longer finds: `note`, or `location` when the note is there and the place is not. | `note.Loss`, `openLostNote`, `openLostLocation` |
-| `create_time` | When the location was marked, in RFC 3339. | |
+| `lost` | What a location no longer finds: `note`, or `location` when the note is there and the location is not. | `note.Loss`, `openLostNote`, `openLostLocation` |
+| `create_time` | When the location was marked, in RFC 3339 and in UTC. | |
 | `update_date` | The date a thought's frontmatter declares. | |
 
 ## Frozen outputs

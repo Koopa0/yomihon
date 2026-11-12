@@ -109,20 +109,24 @@ var commandHelp = map[string]string{
 		"yet\", and the notes of the contract's answer type that are still in an\n" +
 		"initial status — newest first, as the reading desk shows them.\n" +
 		"\n" +
-		"Marks are kept on this machine, one set per folder: this reads the set that\n" +
-		"yomihon serve kept for the same folder. A mark whose note or heading is gone\n" +
-		"is still listed, with lost saying which; nothing here removes it.\n" +
+		"Marks are kept on this machine, one set per folder, found by the folder's\n" +
+		"path as it is spelled: this reads the set that yomihon serve kept for the\n" +
+		"same folder. A mark whose note or heading is gone is still listed, with lost\n" +
+		"saying which and its anchor left empty; nothing here removes it. A mark in a\n" +
+		"folder the contract leaves out of the scan is not listed.\n" +
 		"\n" +
 		"Writes one JSON object per line when the output is not a terminal, and a\n" +
 		"human list when it is; --format decides instead of the terminal, and md\n" +
 		"falls back to the human view.\n" +
 		"\n" +
 		"Nothing under a directory the contract withholds from agent-facing output\n" +
-		"is listed, and nothing says how much was left out. The contract has to\n" +
-		"declare [privacy] before anything is listed at all.\n" +
+		"is listed, and nothing says how much was left out. When no location is\n" +
+		"listed, one line on stderr says only whether a marks file was found. The\n" +
+		"contract has to declare [privacy] before anything is listed at all.\n" +
 		"\n" +
-		"A list that leaves out what could not be read would read as complete, so a\n" +
-		"marks file or a note status that could not be read stops this command.\n" +
+		"A list that leaves out what could not be read would read as complete, so an\n" +
+		"unreadable marks file stops this command, and so does a note outside\n" +
+		"withheld ground that could not be read or whose frontmatter could not be.\n" +
 		"\n" +
 		"Exits 0 with the list, an empty one included, and 2 when the command itself\n" +
 		"could not run, an unreadable marks file or note included.\n",

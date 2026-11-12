@@ -120,6 +120,8 @@ func TestCorruptUncertaintiesAreNeverReplaced(t *testing.T) {
 		`[{"path":"Notes/source.md","anchor":"one","time":"invalid"}]`,
 		`[{"path":"Notes/source.md","anchor":"one","time":"2026-09-22T10:00:00Z","content":"private"}]`,
 		"[" + entry + "," + entry + "]",
+		`[{"path":"Source.md\n2026-12-31  thought   Fake.md  Forged  (started)","anchor":"","time":"2026-09-22T10:00:00Z"}]`,
+		`[{"path":"Notes/\u001b]0;pwned\u0007.md","anchor":"","time":"2026-09-22T10:00:00Z"}]`,
 	} {
 		t.Run(damaged, func(t *testing.T) {
 			t.Parallel()
@@ -176,6 +178,8 @@ func TestInvalidUncertaintyIsRefusedBeforeReadingStorage(t *testing.T) {
 		{"long anchor", func(u *mark.Uncertainty) { u.Anchor = strings.Repeat("a", 257) }},
 		{"fragment in anchor", func(u *mark.Uncertainty) { u.Anchor = "one#two" }},
 		{"control in anchor", func(u *mark.Uncertainty) { u.Anchor = "one\ntwo" }},
+		{"line break in path", func(u *mark.Uncertainty) { u.RelPath = "Notes/a\nb.md" }},
+		{"escape in path", func(u *mark.Uncertainty) { u.RelPath = "Notes/\x1b[2J.md" }},
 		{"no time", func(u *mark.Uncertainty) { u.At = time.Time{} }},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -292,6 +296,48 @@ func TestToggleUncertaintyRefusesBeyondTheCapButStillClears(t *testing.T) {
 	}
 	if added, err := file.ToggleUncertainty(over, admitAny); err != nil || !added {
 		t.Fatalf("adding after room was made = %v, %v", added, err)
+	}
+}
+
+// The writer never keeps more than MaxUncertainties, so a file that holds more,
+// or more bytes than that many marks can take, was not written by it and is
+// read as damaged rather than handed on whole.
+func TestStoredUncertaintiesBeyondTheCapAreDamaged(t *testing.T) {
+	t.Parallel()
+	entries := make([]string, mark.MaxUncertainties+1)
+	for i := range entries {
+		entries[i] = `{"path":"Notes/source.md","anchor":"a` + strconv.Itoa(i) + `","time":"2026-09-22T10:00:00Z"}`
+	}
+	for _, tt := range []struct {
+		name, data string
+	}{
+		{name: "one mark past the cap", data: "[" + strings.Join(entries, ",") + "]"},
+		{name: "more bytes than the cap can take", data: "[" + strings.Repeat(" ", 8<<20) + "]"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			file := newFile(t)
+			if err := os.MkdirAll(filepath.Dir(file.UncertaintyPath()), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(file.UncertaintyPath(), []byte(tt.data), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if held, err := file.Uncertainties(); !errors.Is(err, mark.ErrUnreadableUncertainties) {
+				t.Errorf("caught: %s read as %d marks, %v; want unreadable", tt.name, len(held), err)
+			}
+		})
+	}
+	// The cap itself is still a file the writer could have written.
+	file := newFile(t)
+	if err := os.MkdirAll(filepath.Dir(file.UncertaintyPath()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(file.UncertaintyPath(), []byte("["+strings.Join(entries[:mark.MaxUncertainties], ",")+"]"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if held, err := file.Uncertainties(); err != nil || len(held) != mark.MaxUncertainties {
+		t.Errorf("a file at the cap read as %d marks, %v", len(held), err)
 	}
 }
 

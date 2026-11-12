@@ -49,12 +49,20 @@ About those rows:
 - **`yomihon left-open` hands the reader's marks to whoever runs it.** It lists
   each marked location — the note's path, the anchor and the words of the
   heading or practice card it names, the note's declared title, a wikilink,
-  and the time the mark was made — and each thought still in an initial
-  status, with its path, title, status and declared date. No note text is
-  included. A path under the contract's `never_egress_dirs` is left out
-  before anything else about it is read, and so is a location whose heading
-  or title, or a thought whose `based_on`, names withheld ground; nothing says
-  how much was left out. There is no separate sensitivity level for marks:
+  and the time the mark was made, in UTC — and each thought still in a status
+  the contract declares initial, with its path, declared title, status and
+  declared date. No body text is included beyond the words of a heading or
+  practice card and the declared title. The vault is scanned whole, withheld
+  ground included, as every command scans it; an item whose path is under the
+  contract's `never_egress_dirs` is left out before anything about it is
+  resolved into the output, and so is a location whose heading or note title,
+  or a thought whose title or `based_on`, names withheld ground. A location
+  whose note or heading is gone is listed with its anchor left empty, since
+  nothing is left to check the heading's words against; its path is the
+  string recorded when the mark was made, which can name a note since renamed
+  or one reached another way. Nothing says how much was left out: when no
+  location is listed, stderr says only whether a marks file exists for the
+  folder as its path was spelled. There is no separate sensitivity level for marks:
   the contract's privacy declaration is the whole of the filter, and without
   one the command refuses. What it writes is handled by the program that
   called it, usually an agent, and from there it can leave this machine

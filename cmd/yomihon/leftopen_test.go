@@ -41,7 +41,7 @@ func leftOpen(t *testing.T, root, configDir string, args ...string) leftOpenResu
 }
 
 // leftOpenMarks keeps marks for root under configDir, as the reading room
-// would, admitting any place so a lost one can be stored too.
+// would, admitting any location so a lost one can be stored too.
 func leftOpenMarks(t *testing.T, root, configDir string, marks ...mark.Uncertainty) *mark.File {
 	t.Helper()
 	source, err := vault.Open(root)
@@ -80,11 +80,14 @@ func leftOpenVault(t *testing.T) (root, configDir string) {
 	putOpenThoughtFile(t, root, "Inside/Undated.md", "---\ntitle: Undated\ntype: reflection\nstatus: started\n---\nA thought.\n")
 	leftOpenMarks(t, root, configDir,
 		mark.Uncertainty{RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(7)},
-		mark.Uncertainty{RelPath: "Source.md", At: leftOpenDay(5)},
+		// Marked west of UTC on the evening before: the list says the moment in
+		// UTC, and so the day UTC gives it, never the zone the reader was in.
+		mark.Uncertainty{RelPath: "Source.md", At: time.Date(2026, 9, 4, 20, 4, 5, 0, time.FixedZone("", -7*60*60))},
 		mark.Uncertainty{RelPath: "Source.md", Anchor: "vanished", At: leftOpenDay(4)},
 		mark.Uncertainty{RelPath: "Source.md", Anchor: "twice", At: leftOpenDay(3)},
 		mark.Uncertainty{RelPath: "Gone.md", Anchor: "x", At: leftOpenDay(2)},
 		mark.Uncertainty{RelPath: "Titled.md", Anchor: "titled", At: leftOpenDay(1)},
+		mark.Uncertainty{RelPath: "Titled.md", Anchor: "gone-heading", At: leftOpenDay(0)},
 	)
 	return root, configDir
 }
@@ -204,10 +207,22 @@ func leftOpenPrivateVault(t *testing.T) (root, configDir string) {
 	putOpenThoughtFile(t, root, "Inside/Cites private.md",
 		"---\ntitle: Cites quietly\ntype: reflection\nstatus: started\nupdated: 2026-09-03\nbased_on: '[[Private/Secret plan#Hidden heading]]'\n---\nA thought.\n")
 	putOpenThoughtFile(t, root, "Public.md", "# Public\n\n## About [[Private/Secret plan]]\n\nwords\n")
+	// A title is frontmatter, not body: the link it writes is its own, and no
+	// link in the body says it.
+	putOpenThoughtFile(t, root, "Inside/Titled cite.md",
+		"---\ntitle: \"On [[Private/Secret plan]]\"\ntype: reflection\nstatus: started\nupdated: 2026-09-07\n---\nA thought.\n")
+	putOpenThoughtFile(t, root, "Retitled.md", "---\ntitle: \"Re [[Private/Secret plan]]\"\n---\n# Re\n\n## Sec\n\nwords\n")
+	// The heading the anchor was made from has been rewritten since; the
+	// anchor still spells the withheld note it once cited.
+	putOpenThoughtFile(t, root, "Renamed.md", "# Renamed\n\n## Other\n\nwords\n")
+	// The note is gone, and with it any way to tell what its anchor's words cited.
 	leftOpenMarks(t, root, configDir,
 		mark.Uncertainty{RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(4)},
 		mark.Uncertainty{RelPath: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(5)},
 		mark.Uncertainty{RelPath: "Public.md", Anchor: "about-private-secret-plan", At: leftOpenDay(6)},
+		mark.Uncertainty{RelPath: "Retitled.md", Anchor: "sec", At: leftOpenDay(7)},
+		mark.Uncertainty{RelPath: "Renamed.md", Anchor: "about-private-secret-plan", At: leftOpenDay(8)},
+		mark.Uncertainty{RelPath: "Deleted.md", Anchor: "about-private-secret-plan", At: leftOpenDay(9)},
 	)
 	return root, configDir
 }
@@ -229,7 +244,7 @@ func TestLeftOpenSaysNothingOfWithheldGround(t *testing.T) {
 				t.Errorf("caught: --format %s says %q about withheld ground:\nstdout %s\nstderr %s", format, word, got.stdout, got.stderr)
 			}
 		}
-		for _, want := range []string{"Inside/Visible.md", "Source.md"} {
+		for _, want := range []string{"Inside/Visible.md", "Source.md", "Renamed.md", "Deleted.md"} {
 			if !strings.Contains(got.stdout, want) {
 				t.Errorf("--format %s lost the allowed item %s:\n%s", format, want, got.stdout)
 			}
@@ -411,9 +426,13 @@ func TestLeftOpenRefusesWithoutPrivacyAuthority(t *testing.T) {
 	}
 }
 
-// No marks file and an emptied one both list nothing; stderr says which. A
-// damaged one is refused without naming where it lives, since that path
-// spells the home directory.
+// leftOpenNoLocationListed is the one line for a marks file that lists no
+// location, whatever the reason: cleared marks and withheld ones read alike.
+const leftOpenNoLocationListed = "yomihon: no location is listed from the \"Not sure yet\" marks file for this folder\n"
+
+// No marks file and one that lists nothing both list nothing; stderr says
+// which, and only that. A damaged one is refused without naming where it
+// lives, since that path spells the home directory.
 func TestLeftOpenTellsTheStatesOfTheMarksFileApart(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -426,6 +445,12 @@ func TestLeftOpenTellsTheStatesOfTheMarksFileApart(t *testing.T) {
 	if _, err := file.ToggleUncertainty(&mark.Uncertainty{RelPath: "Source.md", At: leftOpenDay(1)}, admitMark); err != nil {
 		t.Fatal(err)
 	}
+	// Marks that all lie in withheld ground list nothing, and must say exactly
+	// what a file whose marks were all cleared says.
+	withheld := t.TempDir()
+	leftOpenMarks(t, root, withheld,
+		mark.Uncertainty{RelPath: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(1)},
+		mark.Uncertainty{RelPath: "Private/Gone.md", At: leftOpenDay(2)})
 	damaged := t.TempDir()
 	broken := leftOpenMarks(t, root, damaged)
 	if err := os.MkdirAll(filepath.Dir(broken.UncertaintyPath()), 0o700); err != nil {
@@ -449,8 +474,9 @@ func TestLeftOpenTellsTheStatesOfTheMarksFileApart(t *testing.T) {
 		configDir string
 		want      leftOpenResult
 	}{
-		{name: "no marks file", configDir: missing, want: leftOpenResult{stderr: "yomihon: no location in this folder has been marked \"Not sure yet\" on this machine; there is no marks file yet\n"}},
-		{name: "every mark cleared", configDir: cleared, want: leftOpenResult{stderr: "yomihon: the \"Not sure yet\" marks file for this folder holds no location; every mark has been cleared\n"}},
+		{name: "no marks file", configDir: missing, want: leftOpenResult{stderr: "yomihon: no location is listed; there is no \"Not sure yet\" marks file for this folder as spelled\n"}},
+		{name: "every mark cleared", configDir: cleared, want: leftOpenResult{stderr: leftOpenNoLocationListed}},
+		{name: "only withheld marks", configDir: withheld, want: leftOpenResult{stderr: leftOpenNoLocationListed}},
 		{name: "damaged marks file", configDir: damaged, want: leftOpenResult{exit: 2, stderr: "yomihon: the \"Not sure yet\" marks for this folder cannot be read; nothing was listed\n"}},
 		{name: "unopenable marks file", configDir: locked, want: leftOpenResult{exit: 2, stderr: "yomihon: the \"Not sure yet\" marks for this folder cannot be read; nothing was listed\n"}},
 	} {
@@ -577,4 +603,73 @@ func FuzzParseOpenArgs(f *testing.F) {
 			t.Errorf("parseOpenArgs(%q) left the root unresolved", args)
 		}
 	})
+}
+
+// A note in allowed ground whose frontmatter cannot be read might be a thought
+// still open, so the list is refused as it is for a note that cannot be read
+// at all. The same note in withheld ground changes nothing.
+func TestLeftOpenRefusesANoteWhoseFrontmatterCannotBeRead(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, content string
+	}{
+		{name: "unclosed quotation", content: "---\ntitle: \"Broken\ntype: reflection\nstatus: started\n---\nA thought.\n"},
+		{name: "unclosed status list", content: "---\ntitle: Broken\ntype: reflection\nstatus: [started\n---\nA thought.\n"},
+		{name: "unclosed fence", content: "---\ntitle: Broken\ntype: reflection\nstatus: started\nA thought.\n"},
+		{name: "status not text", content: "---\ntitle: Broken\ntype: reflection\nstatus: [started]\n---\nA thought.\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root, configDir := leftOpenPrivateVault(t)
+			before := leftOpen(t, root, configDir, "--format", "json")
+			putOpenThoughtFile(t, root, "Private/Broken.md", tt.content)
+			if got := leftOpen(t, root, configDir, "--format", "json"); !cmp.Equal(before, got, cmp.AllowUnexported(leftOpenResult{})) {
+				t.Errorf("caught: a withheld note changed the answer:\n%s", cmp.Diff(before, got, cmp.AllowUnexported(leftOpenResult{})))
+			}
+			putOpenThoughtFile(t, root, "Inside/Broken.md", tt.content)
+			got := leftOpen(t, root, configDir, "--format", "json")
+			want := leftOpenResult{
+				exit:   2,
+				stderr: "yomihon: Inside/Broken.md has frontmatter that could not be read, so whether it is a thought still open is unknown; nothing was listed\n",
+			}
+			if diff := cmp.Diff(want, got, cmp.AllowUnexported(leftOpenResult{})); diff != "" {
+				t.Errorf("caught: %s (-want +got):\n%s", tt.name, diff)
+			}
+		})
+	}
+}
+
+// The terminal view is one line per item whatever the vault's names and
+// titles hold: a line break, an escape sequence or a direction override is
+// shown as an escape, never written to the terminal as itself.
+func TestLeftOpenHumanViewEscapesControlCharacters(t *testing.T) {
+	t.Parallel()
+	root, configDir := t.TempDir(), t.TempDir()
+	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
+	putOpenThoughtFile(t, root, "Source.md", "# Source\n")
+	putOpenThoughtFile(t, root, "Inside/Loud.md",
+		"---\ntitle: \"\\e]0;pwned\\a \\e[2J\\u202Eevil\\x85\"\ntype: reflection\nstatus: started\nupdated: 2026-09-02\n---\nA thought.\n")
+	putOpenThoughtFile(t, root, "Inside/a\n2099-01-01  thought   Inside/Forged.md  Forged (started).md",
+		openThoughtNote("Two lines", "reflection", "started", "2026-09-01"))
+	got := leftOpen(t, root, configDir, "--format", "human")
+	want := leftOpenResult{
+		stdout: "2026-09-02  thought   Inside/Loud.md  \\u001b]0;pwned\\u0007 \\u001b[2J\\u202eevil\\u0085  (started)\n" +
+			"2026-09-01  thought   Inside/a\\n2099-01-01  thought   Inside/Forged.md  Forged (started).md  Two lines  (started)\n",
+		stderr: "yomihon: no location is listed; there is no \"Not sure yet\" marks file for this folder as spelled\n",
+	}
+	if diff := cmp.Diff(want, got, cmp.AllowUnexported(leftOpenResult{})); diff != "" {
+		t.Errorf("caught: the terminal view wrote a control character as itself (-want +got):\n%s", diff)
+	}
+}
+
+// A root that cannot be opened is refused without repeating the path the
+// machine's error spells.
+func TestLeftOpenRefusesAnUnopenableRootWithoutNamingIt(t *testing.T) {
+	t.Parallel()
+	missing := filepath.Join(t.TempDir(), "nobody-here")
+	got := leftOpen(t, missing, t.TempDir(), "--format", "json")
+	want := leftOpenResult{exit: 2, stderr: "yomihon: this folder cannot be opened as a vault; nothing was listed\n"}
+	if diff := cmp.Diff(want, got, cmp.AllowUnexported(leftOpenResult{})); diff != "" {
+		t.Errorf("caught: an unopenable root (-want +got):\n%s", diff)
+	}
 }
