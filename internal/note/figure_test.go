@@ -285,6 +285,37 @@ func TestTheReadingPageFramesEachFigure(t *testing.T) {
 	}
 }
 
+// TestEveryFramedFigureSitsOnAMat holds the markup the figure's mat needs. The
+// mat is the element that scrolls when a figure is wider than the screen, so a
+// frame outside one has nothing to scroll in, and the figure shrinks until its
+// words cannot be read. A figure that is not framed has no drawing to set down,
+// so a refused figure's stand-in has no mat, and paper prints the stand-in
+// where the mat was.
+func TestEveryFramedFigureSitsOnAMat(t *testing.T) {
+	t.Parallel()
+	srv := newFigureServer(t, figureVault(t), approvalsFor(t))
+	_, _, page := fetch(t, srv.Client(), srv.URL+"/notes/host.md")
+
+	frames := strings.Count(page, "<iframe ")
+	if frames != 3 {
+		t.Fatalf("the page frames %d figures, want the 3 the host note embeds", frames)
+	}
+	if mats := strings.Count(page, `<div class="mat">`); mats != frames {
+		t.Errorf("the page has %d mats for %d frames, want one each", mats, frames)
+	}
+	if got := strings.Count(page, `<div class="figure-embed"><div class="mat"><iframe class="figure-embed__frame" `); got != frames {
+		t.Errorf("%d frames are the first thing on their mat, inside their figure, want %d", got, frames)
+	}
+	if got := strings.Count(page, `</iframe></div><p class="figure-embed__print">`); got != frames {
+		t.Errorf("%d mats close right after their frame and before the printed stand-in, want %d", got, frames)
+	}
+	refused := page[strings.Index(page, `figure-embed--refused`):]
+	refused = refused[:strings.Index(refused, "</div>")]
+	if strings.Contains(refused, "mat") {
+		t.Errorf("a refused figure's stand-in is on a mat:\n%s", refused)
+	}
+}
+
 // TestAHoverCardNeverFramesAFigure: a card shows a note the reader has not
 // opened, so an approved figure in it is a stand-in and not a frame — nothing
 // of the figure is fetched, and none of its scripts runs, because a link to

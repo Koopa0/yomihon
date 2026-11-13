@@ -359,7 +359,7 @@ func (r *Pipeline) htmlIn(region, relPath, title, body string, page *composition
 	// A container row's {sequence=…} is the same grammar a heading already
 	// loses; the source is left as the author wrote it.
 	htmlOut = stripListRowRoles(htmlOut)
-	res.HTML = resolveAssetHrefs(htmlOut, relPath, r.files, lang, &res.Diagnostics)
+	res.HTML = matLonePictures(resolveAssetHrefs(htmlOut, relPath, r.files, lang, &res.Diagnostics))
 	res.TOC = toc
 	res.TitleAnchor = titleAnchor
 	res.TranscludedIdentity = transcludedIdentity(page.transcluded)

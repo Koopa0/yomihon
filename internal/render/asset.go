@@ -69,6 +69,22 @@ func resolveAssetHrefs(htmlOut, noteRelPath string, files Files, lang wording.La
 	})
 }
 
+// lonePicture matches a paragraph that holds one picture the vault serves and
+// nothing else, which is how the renderer writes a picture on a line of its own
+// whether the author wrote ![](…) or ![[…]]. It reads what this package wrote,
+// as localImageSrc does, so it relies on the same two facts: the tag is emitted
+// with src first, and no ">" appears inside an attribute value.
+var lonePicture = regexp.MustCompile(`<p>(<img src="/raw/[^"]*"[^>]*>)</p>`)
+
+// matLonePictures sets every picture that stands alone in its paragraph on a
+// mat, the ground an author's drawing sits on. A picture inside a sentence is
+// part of the sentence and is left as it is. A picture the vault does not hold
+// arrives wrapped in its own marker by resolveAssetHrefs and is not matched:
+// there is no drawing to set down.
+func matLonePictures(htmlOut string) string {
+	return lonePicture.ReplaceAllString(htmlOut, `<p class="mat">$1</p>`)
+}
+
 // missingImage marks a picture whose file the vault does not hold. The tag is
 // kept exactly as it was resolved — the address is what the author wrote and
 // the browser's own broken-image mark is part of what the reader sees — and the

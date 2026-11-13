@@ -1772,10 +1772,13 @@ details.y-metarow {
   margin: 32px 0;
 }
 
+/* A picture is never wider than its column, except on a mat: a mat scrolls
+   sideways, so it holds a picture at the floor it names instead of shrinking it
+   until its words cannot be read. Outside a mat there is no floor. */
 .y-prose img {
   border-radius: 0;
   height: auto;
-  max-width: 100%;
+  max-width: max(100%, var(--mat-floor, 0%));
 }
 
 /* A link is the author's voice, blue, and underlined, so it is findable
@@ -2210,23 +2213,57 @@ button.y-freshness__action {
   padding: 10px 14px;
 }
 
+/* What an author drew sits on a mat: a picture alone in its paragraph, or a
+   figure's frame. The mat is tone and 8px with no frame line, and it is the one
+   place that inset is written. It takes the system's light or dark rather than
+   the page's, because what it holds can only know the system's: a picture's own
+   stylesheet, and a figure that is not running script, ask the browser for
+   prefers-color-scheme and the browser answers with the system. A figure the
+   owner approved is told the page's theme instead, so its mat follows the page.
+   Narrower than its floor a mat scrolls sideways rather than shrinking what it
+   holds; the floor is set by the drawing's own width, which the browser knows
+   and a stylesheet does not. */
+.y-prose .mat {
+  --mat-floor: 560px;
+  background: var(--mat);
+  color-scheme: light dark;
+  overflow-x: auto;
+  padding: 8px;
+}
+
+.y-prose .mat:has(> .figure-embed__frame[data-figure-scripts]) {
+  background: var(--panel);
+  color-scheme: inherit;
+}
+
+.y-prose .mat > img {
+  display: block;
+}
+
+/* A hover card is a glance at another note, not a place to scroll: what it
+   shows is fitted to the card. */
+.y-preview .y-prose .mat {
+  --mat-floor: 0%;
+}
+
 /* A figure is a vault's interactive HTML in a frame of its own. The frame is
-   as wide as the column unless the embed names a width, never wider, and as
-   tall as the embed says: without script a figure cannot measure itself. */
+   as wide as the column unless the embed names a width, never wider than the
+   column or the mat's floor, and as tall as the embed says: without script a
+   figure cannot measure itself. */
 .y-prose .figure-embed {
   margin: var(--sp-block) 0 0;
 }
 
 .y-prose .figure-embed__frame {
-  background: var(--bg);
-  border: 1px solid var(--line-strong);
+  background: transparent;
+  border: 0;
   border-radius: 0;
   display: block;
-  max-width: 100%;
+  max-width: max(100%, var(--mat-floor));
 }
 
 .y-prose .figure-embed__frame:not([width]) {
-  width: 100%;
+  width: max(100%, var(--mat-floor));
 }
 
 /* What prints in place of the frame, which paper cannot run. */
@@ -6021,6 +6058,12 @@ samp,
     outline-offset: -1px;
   }
 
+  /* A mat is a tonal ground, which forced colours flattens, so the edge it
+     gave what it holds is drawn as a frame in the system's text colour. */
+  .y-prose .mat {
+    border: 1px solid CanvasText;
+  }
+
   /* A callout's fold chevron is a mask over its background, and the background
      is what forced colours replaces, leaving no shape. The system text colour
      keeps it drawn. */
@@ -6125,9 +6168,19 @@ samp,
 
   /* A figure runs in a browser and nowhere else; on paper its title and the
      way to its file stand where the frame was. */
+  .y-prose .figure-embed .mat,
   .y-prose .figure-embed__frame,
   .y-prose .figure-embed__note {
     display: none;
+  }
+
+  /* Paper is white and as wide as it is: a picture's mat loses its tone and
+     its scroll, and the picture shrinks to the sheet. */
+  .y-prose .mat {
+    --mat-floor: 0%;
+    background: none;
+    color-scheme: light;
+    overflow-x: visible;
   }
 
   .y-prose .figure-embed__print {

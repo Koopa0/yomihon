@@ -130,10 +130,10 @@ func figureEmbed(relPath string, link graph.Wikilink, state *FigureState, col *c
 		sized = ` width="` + width + `"` + sized
 	}
 	var b strings.Builder
-	b.WriteString(`<div class="figure-embed">`)
+	b.WriteString(`<div class="figure-embed"><div class="mat">`)
 	fmt.Fprintf(&b, `<iframe class="figure-embed__frame" src="%s" title="%s" sandbox="%s" referrerpolicy="no-referrer" allow=""%s%s></iframe>`,
 		attributeEscaper.Replace(figureHref(relPath)), html.EscapeString(title), sandbox, sized, marker)
-	b.WriteString(`<p class="figure-embed__print">` + standIn + `</p>`)
+	b.WriteString(`</div><p class="figure-embed__print">` + standIn + `</p>`)
 	if scripted && !runs {
 		b.WriteString(`<p class="embed__note figure-embed__note">` + html.EscapeString(idleSentence(state).In(lang)) + `</p>`)
 	}
