@@ -835,6 +835,16 @@ html:not([data-js]) .y-rubybtn {
   margin: 0;
 }
 
+/* The group's name is where the rail's words begin, on the header's own line,
+   and the mark that says it folds stands at the far end. A chevron ahead of the
+   name moved the first words of every page whose rail opens on a group — the
+   search and the findings — a chevron's width in from the line the header's
+   first control stands on. */
+.y-railsummary > .y-chevron {
+  margin-inline-start: auto;
+  order: 1;
+}
+
 /* The head of a book rail: the course's name, then how much of it there is.
    The name is the one strong line in the rail; the extent is meta beneath it,
    and a hairline closes the head before the parts begin. The text sits on the
@@ -2850,6 +2860,28 @@ button.y-freshness__action {
   width: auto;
 }
 
+/* What a reader came to look at is what they are looking for, so the query is
+   the largest text on the page: 28px in the reading face, which a phone does
+   not zoom for. The field grows to hold it, and a phone's width takes it down
+   a step so the button is still reached without scrolling sideways. */
+.y-searchpage__form {
+  height: auto;
+  min-height: 56px;
+  padding-block: 4px;
+}
+
+.y-searchpage__form input {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  line-height: 1.3;
+}
+
+@media (max-width: 600px) {
+  .y-searchpage__form input {
+    font-size: 1.375rem;
+  }
+}
+
 /* ============================================================
    ⌘K search dialog (native <dialog>)
    ============================================================ */
@@ -2958,13 +2990,6 @@ button.y-freshness__action {
   margin: 0 auto;
   max-width: calc(var(--measure-answer) + 2 * var(--gutter-answer));
   padding: 40px var(--gutter-answer) 96px;
-}
-
-/* The page names itself, then offers the field, then answers: three steps a
-   measured distance apart, so the count is not read as part of the field's
-   frame and the field is not read as the title's underline. */
-.y-searchpage > .y-title {
-  margin-bottom: 24px;
 }
 
 /* The divisions beside the results. The page's own column is a reading
@@ -3173,12 +3198,11 @@ a.y-facetrow:hover {
   font-size: var(--fs-12);
   margin-top: 14px;
 }
-/* An answer is a shelf of its own, so its rows are the shelf's rows: a hairline
-   between them, the same inset, and nothing drawn around any one of them. What
-   a list of findings needs is a place for the eye to stop between one and the
-   next, and a line does that where two pixels of air did not — twenty-odd hits
-   ran together. The row is taller than a shelf row because it carries a
-   sentence under its title as well as a path. */
+/* An answer is a shelf of its own, so its rows are the shelf's rows: the same
+   inset, and nothing drawn around any one of them and no line between them.
+   What a list of findings needs is a place for the eye to stop between one and
+   the next, and the room each hit is given does that. The row is taller than a
+   shelf row because it carries a sentence under its title as well as a path. */
 .y-results {
   display: flex;
   flex-direction: column;
@@ -3188,7 +3212,6 @@ a.y-facetrow:hover {
 /* A hit's words start under the field's own edge, and the wash a pointer
    brings reaches past it, as a shelf row's does. */
 .y-result {
-  border-bottom: 1px solid var(--border-faint);
   border-radius: var(--r-sm);
   display: flex;
   flex-direction: column;
@@ -3212,6 +3235,10 @@ a.y-facetrow:hover {
 
 .y-result__sep {
   margin: 0 6px;
+}
+
+.y-result__meta .ui-status {
+  margin-inline-start: 8px;
 }
 
 .y-result__kind {
