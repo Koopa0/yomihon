@@ -356,6 +356,18 @@ func recordedPreferencesView(lang wording.Lang) PreferencesView {
 					{Value: "off", Label: wording.PrefOff.In(lang), Stores: true},
 				},
 			},
+			// A choice with no sentence of its own: the recording keeps the
+			// heading and the options with nothing under the heading and no
+			// description for the options to point at.
+			{
+				Name:    "sectionbuttons",
+				Legend:  wording.PrefSectionButtons.In(lang),
+				Refused: wording.PrefSaveRefused.In(lang),
+				Options: []PreferenceOption{
+					{Value: "always", Label: wording.PrefSectionButtonsAlways.In(lang), Checked: true, Stores: true, Unset: true},
+					{Value: "hover", Label: wording.PrefSectionButtonsHover.In(lang), Stores: true},
+				},
+			},
 		},
 	}
 }
@@ -400,6 +412,7 @@ func recordedChrome() layouts.Chrome {
 		Ruby:                      "on",
 		TextSize:                  "m",
 		Rail:                      "open",
+		SectionButtons:            "always",
 		SingleKeyShortcutsEnabled: true,
 		Lang:                      wording.ZhHant,
 	}

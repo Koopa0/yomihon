@@ -1,7 +1,7 @@
 // Behavior lock for the cache-restore path in preferences.js. After a
 // back/forward-cache restore the cookies are the truth, and every persisted
-// preference — theme, text size, typeface, furigana, and single-key shortcuts
-// — has to agree with them: the root attributes on a reading page, the
+// preference — theme, text size, typeface, furigana, single-key shortcuts, and
+// the buttons beside sections — has to agree with them: the root attributes on a reading page, the
 // furigana switch that page draws, and the options the settings page shows in
 // force.
 //
@@ -9,7 +9,8 @@
 // automation, and the restore branch is the same handler a dispatched
 // PageTransitionEvent({ persisted: true }) reaches. Theme and text size
 // already move on that path; the lock is that furigana and shortcuts move
-// with them, and that only the literal cookie "off" is off.
+// with them, and that only the literal cookie "off" is off and only the literal
+// "hover" holds the buttons back.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note carrying furigana, so the switch for
 // them is drawn), and MUTATE.
@@ -18,7 +19,7 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const SETTINGS = '/preferences';
-const CHOICES = ['theme', 'textsize', 'font', 'ruby', 'shortcuts'];
+const CHOICES = ['theme', 'textsize', 'font', 'ruby', 'shortcuts', 'sectionbuttons'];
 const MUTATE = process.env.MUTATE || '';
 
 const SITES = [
@@ -29,6 +30,8 @@ const SITES = [
   'restore-font',
   'restore-ruby-unknown-is-on',
   'restore-shortcuts-unknown-is-on',
+  'restore-sectionbuttons',
+  'restore-sectionbuttons-unknown-is-always',
 ];
 
 class LockFired extends Error {
@@ -102,6 +105,22 @@ const MUTATIONS = {
       'shortcuts restore',
     ),
   },
+  'skip-sectionbuttons-resync': {
+    target: 'restore-sectionbuttons',
+    apply: rewriteModule(
+      "    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') === 'hover' ? 'hover' : 'always';\n",
+      '',
+      'section buttons restore',
+    ),
+  },
+  'treat-unknown-sectionbuttons-as-hover': {
+    target: 'restore-sectionbuttons-unknown-is-always',
+    apply: rewriteModule(
+      "    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') === 'hover' ? 'hover' : 'always';\n",
+      "    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') !== 'always' ? 'hover' : 'always';\n",
+      'section buttons normalisation',
+    ),
+  },
   'treat-unknown-ruby-as-off': {
     target: 'restore-ruby-unknown-is-on',
     apply: rewriteModule(
@@ -155,6 +174,7 @@ const preferenceState = (page) =>
       ruby: root.dataset.ruby ?? '',
       font: root.dataset.font ?? '',
       shortcuts: root.dataset.singleKeyShortcuts ?? '',
+      sectionbuttons: root.dataset.sectionbuttons ?? '',
       rubyPressed: rubyToggle ? rubyToggle.getAttribute('aria-pressed') : null,
       shown: Object.fromEntries(choices.map((name) => [
         name,
@@ -210,14 +230,14 @@ try {
     // Cookies say what the reader chose on a later page; the revived document
     // still carries the older stamp. Dispatching pageshow is the restore path.
     await stampStale(page, {
-      root: { theme: 'light', textsize: 'm', ruby: 'on', singleKeyShortcuts: 'on', font: 'serif' },
+      root: { theme: 'light', textsize: 'm', ruby: 'on', singleKeyShortcuts: 'on', font: 'serif', sectionbuttons: 'always' },
       rubyPressed: 'true',
-      shown: { theme: 'light', textsize: 'm', font: 'serif', ruby: 'on', shortcuts: 'on' },
-    }, { theme: 'dark', textsize: 'xl', ruby: 'off', shortcuts: 'off', font: 'sans' });
+      shown: { theme: 'light', textsize: 'm', font: 'serif', ruby: 'on', shortcuts: 'on', sectionbuttons: 'always' },
+    }, { theme: 'dark', textsize: 'xl', ruby: 'off', shortcuts: 'off', font: 'sans', sectionbuttons: 'hover' });
 
     const before = await preferenceState(page);
-    if (before.theme !== 'light' || before.textsize !== 'm' || before.ruby !== 'on' || before.shortcuts !== 'on') {
-      broken(`stale stamp did not take: theme=${before.theme} textsize=${before.textsize} ruby=${before.ruby} shortcuts=${before.shortcuts}`);
+    if (before.theme !== 'light' || before.textsize !== 'm' || before.ruby !== 'on' || before.shortcuts !== 'on' || before.sectionbuttons !== 'always') {
+      broken(`stale stamp did not take: theme=${before.theme} textsize=${before.textsize} ruby=${before.ruby} shortcuts=${before.shortcuts} sectionbuttons=${before.sectionbuttons}`);
     }
 
     await dispatchRestore(page);
@@ -245,14 +265,18 @@ try {
       fail('restore-shortcuts', `${where}: after restore shortcuts=${after.shortcuts} shown=${after.shown.shortcuts}, want off`);
     }
 
+    if (after.sectionbuttons !== 'hover' || !shows('sectionbuttons', 'hover')) {
+      fail('restore-sectionbuttons', `${where}: after restore sectionbuttons=${after.sectionbuttons} shown=${after.shown.sectionbuttons}, want hover`);
+    }
+
     // A cookie the server would ignore must not turn the aids off. Stamp the
     // page off, store a value that is not the literal "off", and the restore
     // has to put both back on.
     await stampStale(page, {
-      root: { ruby: 'off', singleKeyShortcuts: 'off' },
+      root: { ruby: 'off', singleKeyShortcuts: 'off', sectionbuttons: 'hover' },
       rubyPressed: 'false',
-      shown: { ruby: 'off', shortcuts: 'off' },
-    }, { ruby: 'maybe', shortcuts: 'disabled' });
+      shown: { ruby: 'off', shortcuts: 'off', sectionbuttons: 'hover' },
+    }, { ruby: 'maybe', shortcuts: 'disabled', sectionbuttons: 'sometimes' });
     await dispatchRestore(page);
     const normalised = await preferenceState(page);
     if (normalised.ruby !== 'on' || (!onSettings && normalised.rubyPressed !== 'true') || (onSettings && normalised.shown.ruby !== 'on')) {
@@ -260,6 +284,9 @@ try {
     }
     if (normalised.shortcuts !== 'on' || (onSettings && normalised.shown.shortcuts !== 'on')) {
       fail('restore-shortcuts-unknown-is-on', `${where}: unknown shortcuts cookie left shortcuts=${normalised.shortcuts} shown=${normalised.shown.shortcuts}, want on`);
+    }
+    if (normalised.sectionbuttons !== 'always' || (onSettings && normalised.shown.sectionbuttons !== 'always')) {
+      fail('restore-sectionbuttons-unknown-is-always', `${where}: unknown sectionbuttons cookie left sectionbuttons=${normalised.sectionbuttons} shown=${normalised.shown.sectionbuttons}, want always`);
     }
     // Nothing the next page is drawn with may be left over from this one.
     await context.clearCookies();

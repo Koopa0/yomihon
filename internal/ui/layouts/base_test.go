@@ -426,6 +426,25 @@ func TestBaseStampsTheColumnStateOnTheRoot(t *testing.T) {
 	}
 }
 
+// The buttons beside a section are shown or held back by a stylesheet rule that
+// asks the root, so the answer has to be in the markup the server sends: a rule
+// that waited for a script to set it would paint the buttons one way and then
+// the other on every load of a reader who chose to have them held back.
+func TestBaseStampsTheSectionButtonsOnTheRoot(t *testing.T) {
+	t.Parallel()
+	for _, when := range []string{"always", "hover"} {
+		var buf bytes.Buffer
+		if err := Base(Chrome{SectionButtons: when}).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("Base().Render() error = %v", err)
+		}
+		_, afterDoctype, _ := strings.Cut(buf.String(), "<html")
+		root, _, _ := strings.Cut(afterDoctype, ">")
+		if !strings.Contains(root, `data-sectionbuttons="`+when+`"`) {
+			t.Errorf("Base() root is missing data-sectionbuttons=%q; root = %q", when, root)
+		}
+	}
+}
+
 // TestHeaderCarriesOnlyWhatReadingNeeds holds the row to the controls a reader
 // uses while reading, in the order that keeps the fixed ones still. The theme,
 // the text size, the language, the whole-folder view and the keyboard help are

@@ -32,7 +32,8 @@ type PreferencesView struct {
 // heading it sits behind, the sentence that says what it does and what it
 // leaves alone, the sentence it says when a choice cannot be kept, and the
 // options a reader picks between. Options is never empty, and exactly one of
-// them is marked.
+// them is marked. Note may be empty: a row whose options say all there is to
+// say draws no sentence, and its options then carry no description to point at.
 type PreferenceField struct {
 	Name    string
 	Legend  string
@@ -133,16 +134,35 @@ templ Preferences(v PreferencesView, c layouts.Chrome) {
 templ preferenceField(f PreferenceField) {
 	<fieldset class="y-preffield" data-pref-field={ f.Name }>
 		<legend>{ f.Legend }</legend>
-		<p class="y-preffield__note" id={ "pref-note-" + f.Name }>{ f.Note }</p>
+		@preferenceNote(f)
 		<div class="y-preffield__options">
 			for _, option := range f.Options {
 				<label>
-					<input type="radio" name={ f.Name } value={ option.Value } checked?={ option.Checked } data-pref-stores?={ option.Stores } data-pref-unset?={ option.Unset } aria-describedby={ "pref-note-" + f.Name }/><span>{ option.Label }</span>
+					<input
+						type="radio"
+						name={ f.Name }
+						value={ option.Value }
+						checked?={ option.Checked }
+						data-pref-stores?={ option.Stores }
+						data-pref-unset?={ option.Unset }
+						if f.Note != "" {
+							aria-describedby={ "pref-note-" + f.Name }
+						}
+					/><span>{ option.Label }</span>
 				</label>
 			}
 		</div>
 		@layouts.Reply("y-preffield__status", templ.Attributes{"data-pref-status": true, "data-pref-refused": f.Refused, "data-reply-tone": "refused"})
 	</fieldset>
+}
+
+// preferenceNote is the sentence under a choice's heading, drawn only where the
+// choice has one. It is a component of its own so that leaving it out changes
+// nothing else in the bytes of the row.
+templ preferenceNote(f PreferenceField) {
+	if f.Note != "" {
+		<p class="y-preffield__note" id={ "pref-note-" + f.Name }>{ f.Note }</p>
+	}
 }
 
 // preferenceReset clears everything the page above it can set. It stays a form

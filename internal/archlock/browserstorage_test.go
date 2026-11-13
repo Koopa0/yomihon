@@ -29,7 +29,7 @@ const inventoryPath = "docs/privacy/data-inventory.md"
 const inventoryTableHeader = "| Kept in the browser | What it holds | How long |"
 
 // cookiePrefix is what every cookie yomihon writes is named with. The name is a
-// Go string literal in every case, because the server writes all six, so the Go
+// Go string literal in every case, because the server writes every one, so the Go
 // declarations are the authority for the set; a name the browser spells out for
 // itself is held against that set rather than trusted.
 const cookiePrefix = "yomihon_"
