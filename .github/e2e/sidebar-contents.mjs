@@ -40,11 +40,11 @@ const MODES = {
   'hide-the-end-block-when-narrow': { css: '@media (max-width:1279px){.y-related{display:none}}', site: ENDS },
   'put-the-cited-by-block-first': { css: '.y-related{flex-direction:column-reverse}', site: ORDER },
   'restore-the-right-rail': { document: ['</main>', '</main><aside class="y-rail-right"></aside>'], site: NO_RAIL },
-  // A row that stacks its children puts the door under the heading link: the
-  // doubled list the door was folded into the row to end.
   // A sidebar that is as tall as its contents and sticks to the window has
   // nothing to scroll with: the rows past the window's bottom are out of reach.
   'let-the-sidebar-outgrow-the-window': { css: '.y-rail-left{height:auto !important;overflow:visible !important}', site: REACH },
+  // A row that stacks its children puts the door under the heading link: the
+  // doubled list the door was folded into the row to end.
   'restore-the-separate-door-row': { css: '.y-toc__row:has(.y-toc__door){display:block}.y-toc__list .y-toc__door{position:static;width:100%}', site: DOORS },
   // Gives the door its own strip again beside the heading, drawn or not.
   'reserve-the-door-strip': { css: '.y-toc__list .y-toc__door{flex:none;min-width:28px;position:static}', site: DOORS },
