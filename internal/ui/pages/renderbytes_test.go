@@ -829,6 +829,8 @@ func recordedHealthView(model *nav.Model) HealthView {
 		Skipped:               []HealthSkippedSource{{Path: "Notes/Linked note.md", Reason: "symbolic link"}},
 		FrontmatterUnreadable: []HealthNoteFindings{{Note: ref, Severity: judge.SeverityError, Count: 1}},
 		SchemaFaults:          []HealthNoteFindings{{Note: ref, Severity: judge.SeverityError, Count: 3}},
+		UnmappedConcepts:      []nav.NoteRef{{Name: "C02", RelPath: "Concepts/go/C02.md"}},
+		EmptyBranches:         []snapshot.HealthEmptyBranch{{Map: nav.NoteRef{Name: "Reading map", RelPath: "Maps/Reading map.md"}, Heading: "Waiting", Level: 2}},
 		// The ordering a request that named none resolves to, which is what a
 		// reader arriving at the page is holding.
 		Sort:    HealthByFinding,

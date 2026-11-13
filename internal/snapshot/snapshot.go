@@ -1088,7 +1088,12 @@ func buildGeneration(
 	// view, because every page's rail now states how many findings stand
 	// against the folder and a walk over every note is not a thing to do on
 	// every page.
-	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titles, capabilities.Navigation)
+	conceptType, hasConceptType := contract.ConceptType()
+	coverage := mapCoverage{maps: navigation.Maps(), knowledge: capabilities.Knowledge}
+	if hasConceptType {
+		coverage.conceptType = schema.NormalizeWord(conceptType)
+	}
+	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titles, capabilities.Navigation, coverage)
 	health.NavigationFaults = navigation.CoreFaults()
 	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(g.ordered, g.findings, g.readings)
 	gen := &Generation{

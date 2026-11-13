@@ -19,8 +19,8 @@ var HealthAllClearAfterCommand = both("。", ".")
 
 // HealthReportsOnly is the promise the whole page rests on.
 var HealthReportsOnly = both(
-	"這裡只回報，不會動你的檔案。",
-	"This page reports and never touches your files.",
+	"這一頁只回報，不會修改你的檔案。",
+	"This page reports and never changes your files.",
 )
 
 // The lede over unreadable files, which changes with whether a complete read
@@ -103,12 +103,17 @@ var (
 	HealthShapeFilesMany = both("%d 個檔案", "%d files")
 )
 
-// HealthGuideTitle opens what each kind of finding in the table means. The
-// explanations sit under the table rather than over it: a reader who came to
-// decide what to repair first wants the rows, and a reader who does not know
-// what a row is claiming wants the sentence — and only the second is reading
-// prose.
-var HealthGuideTitle = both("每一種發現是什麼意思", "What each kind of finding means")
+// HealthAbout is the fold over each group's explanation. What the fold holds
+// says what a kind of finding means; the findings themselves, and how many,
+// are never behind it.
+var HealthAbout = both("說明", "About this")
+
+// The two groups that say how the folder's maps cover it. They appear only when
+// something is in them, and neither is a finding.
+var (
+	HealthUnmappedConceptsTitle = both("還沒連到地圖的概念", "Concepts no map links to")
+	HealthEmptyBranchesTitle    = both("沒有筆記的地圖分支", "Map branches with no notes")
+)
 
 // ContractUnreadable is the one loud sentence for a vault whose contract file
 // exists and could not be loaded: without it, a folder with a broken contract

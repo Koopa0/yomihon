@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
-	"strings"
 	"testing"
 )
 
@@ -35,16 +34,12 @@ func TestOneNoteWithSeveralSchemaFaultsCountsThemAll(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("health status = %d, want 200", code)
 	}
-	rows := findingsRow.FindAllString(page, -1)
-	if len(rows) == 0 {
+	if len(findingsRow.FindAllString(page, -1)) == 0 {
 		t.Fatal("the health page has no findings table at all, so nothing below reads what it says")
 	}
 	counted := 0
 	seen := 0
-	for _, row := range rows {
-		if !strings.Contains(row, "schema 有話說的筆記") {
-			continue
-		}
+	for _, row := range findingsRow.FindAllString(healthSectionBody(t, page, "不符合 schema 的筆記"), -1) {
 		seen++
 		match := rowCount.FindStringSubmatch(row)
 		if match == nil {

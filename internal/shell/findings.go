@@ -37,6 +37,11 @@ type Findings struct {
 	// while the folder was read.
 	FrontmatterUnreadable []snapshot.HealthNoteFindings
 	SchemaFaults          []snapshot.HealthNoteFindings
+	// UnmappedConcepts are the concepts no map links to, and EmptyBranches the
+	// map headings no note stands under. They say how the folder's maps cover
+	// it; neither is a finding, so neither is in Total.
+	UnmappedConcepts []nav.NoteRef
+	EmptyBranches    []snapshot.HealthEmptyBranch
 	// InstanceScopeUnknown is why the citation and island lists could not be
 	// worked out, empty where they could.
 	InstanceScopeUnknown string
@@ -92,6 +97,8 @@ func GatherFindings(snap *snapshot.Generation) Findings {
 		Skipped:               snap.Skipped(),
 		FrontmatterUnreadable: health.FrontmatterUnreadable,
 		SchemaFaults:          health.SchemaFaults,
+		UnmappedConcepts:      health.UnmappedConcepts,
+		EmptyBranches:         health.EmptyBranches,
 		InstanceScopeUnknown:  health.InstanceScopeUnknown,
 		LastComplete:          fresh.LastComplete,
 		Collision:             fresh.Collision,

@@ -6439,7 +6439,7 @@ samp,
      and the person holding the paper cannot click the fold open. The arrows
      that offer another ordering go, for the same reason the rest of the
      pointer machinery does. */
-  .y-findingsguide::details-content {
+  .y-healthabout::details-content {
     content-visibility: visible;
   }
 
@@ -6720,14 +6720,34 @@ samp,
   color: var(--fg);
 }
 
-/* The findings, as one table. A hairline under the header and one between rows
-   is the whole frame: a box around a ledger adds a line for every line it
-   already has. */
+/* The findings, a table to each kind. The one rule is the one under the
+   header, and nothing is ruled between rows or drawn round the table: a box
+   round a ledger adds a line for every line it already has, and the room a row
+   is given does what a hairline did. Every table on the page stands its four
+   columns at the same widths, so the file, the finding, the weight and the
+   count line up from one kind to the next down the whole page. */
 .y-findings {
   border-collapse: collapse;
-  margin: 26px 0 0;
+  margin: 12px 0 0;
+  table-layout: fixed;
   text-align: left;
   width: 100%;
+}
+
+.y-findings__col--file {
+  width: 44%;
+}
+
+.y-findings__col--finding {
+  width: 38%;
+}
+
+.y-findings__col--severity {
+  width: 10%;
+}
+
+.y-findings__col--count {
+  width: 8%;
 }
 
 .y-findings__target {
@@ -6796,7 +6816,7 @@ samp,
 }
 
 .y-findings tbody td {
-  border-top: 1px solid var(--border-faint);
+  overflow-wrap: anywhere;
   padding: 11px 12px 11px 0;
   vertical-align: baseline;
 }
@@ -6812,12 +6832,6 @@ samp,
   font-family: var(--font-mono);
   font-size: var(--fs-12);
   overflow-wrap: anywhere;
-}
-
-.y-findings__kind {
-  color: var(--fg);
-  font-family: var(--font-sans);
-  font-size: var(--fs-13);
 }
 
 .y-findings__detail {
@@ -6836,6 +6850,7 @@ samp,
   color: var(--fg-faint);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
   padding-right: 0;
   text-align: right;
 }
@@ -6843,8 +6858,8 @@ samp,
 /* The weight the judging face gives a finding, in that face's own word. Error
    and warn used to share one ink and differ only by a border, which reads as
    one colour at a glance. On screen they are pulled further apart by two more
-   channels: the marker's shape — squared for error, round for warn — and
-   error's ink, a hue of its own rather than a darker warning, never the same
+   channels: the marker's shape — a filled square for error, a ring for warn, a
+   small dot for info — and error's ink, a hue of its own rather than a darker warning, never the same
    colour. Neither borrows the vermilion, which marks the reader's own place
    and nothing else. The border is what a
    printed page keeps no matter how a reader's printer treats background
@@ -6870,8 +6885,8 @@ samp,
   border-radius: 50%;
   content: '';
   flex: none;
-  height: 6px;
-  width: 6px;
+  height: 5px;
+  width: 5px;
 }
 
 .y-severity--error {
@@ -6882,11 +6897,20 @@ samp,
 
 .y-severity--error::before {
   border-radius: 1px;
+  height: 7px;
+  width: 7px;
 }
 
 .y-severity--warn {
   background: var(--warn-bg);
   color: var(--warn);
+}
+
+.y-severity--warn::before {
+  background: transparent;
+  border: 2px solid currentcolor;
+  height: 8px;
+  width: 8px;
 }
 
 .y-severity--info {
@@ -6895,48 +6919,80 @@ samp,
   color: var(--fg-faint);
 }
 
-/* What each kind of finding means, under the table rather than over it. A
-   reader who knows what a row claims came for the rows; the sentences are here
-   for the one who does not, and they are the same sentences the page used to
-   open every list with. */
-.y-findingsguide {
-  margin: 30px 0 0;
+/* A kind of finding: its name, then the fold holding what it means, then the
+   table. The name is a step below the page's own, which stays the largest text
+   here; nothing on the page is set larger than it. */
+.y-healthgroup {
+  margin: 40px 0 0;
 }
 
-.y-findingsguide__head {
+.y-healthgroup__title {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-18);
+  font-weight: var(--fw-semibold);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* What a kind means, folded: a reader who knows what a row claims came for the
+   rows. The fold holds explanation and nothing else; a fact about the group
+   stands below it, and every row is in the table. */
+.y-healthabout {
+  margin: 2px 0 0;
+}
+
+.y-healthabout__head {
   align-items: center;
   color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  gap: 7px;
-}
-
-.y-findingsguide__head:hover {
-  color: var(--fg);
-}
-
-.y-findingsguide__list {
-  margin: 14px 0 0;
-}
-
-.y-findingsguide__term {
-  align-items: baseline;
-  color: var(--fg);
-  display: flex;
-  font-family: var(--font-sans);
   font-size: var(--fs-13);
-  gap: 10px;
-  margin: 16px 0 0;
+  gap: 4px;
+  min-height: 28px;
 }
 
-.y-findingsguide__meaning {
+.y-healthabout__head:hover {
+  color: var(--fg);
+}
+
+.y-healthabout__text {
   color: var(--fg-subtle);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--fs-13);
   line-height: 1.7;
   margin: 4px 0 0;
+  max-width: 46em;
+}
+
+.y-healthgroup__standing {
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  margin: 6px 0 0;
+}
+
+/* The two groups that say how the maps cover the folder are plain lists: there
+   is no weight and no count to line up, only a name and where it is. */
+.y-healthlist {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.y-healthlist li {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  padding: 6px 0;
+}
+
+.y-healthlist__branch {
+  color: var(--fg-subtle);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-15);
 }
 
 /* Which rows of the report are on this page, set in the same label face as the
@@ -7048,6 +7104,10 @@ samp,
     display: block;
   }
 
+  .y-findings colgroup {
+    display: none;
+  }
+
   .y-findings thead tr {
     border-bottom: 1px solid var(--border-strong);
     display: flex;
@@ -7066,12 +7126,10 @@ samp,
   }
 
   .y-findings tbody tr {
-    border-top: 1px solid var(--border-faint);
     padding: 10px 0;
   }
 
   .y-findings tbody td {
-    border-top: none;
     display: grid;
     gap: 2px 12px;
     grid-template-columns: minmax(0, 5.5em) minmax(0, 1fr);

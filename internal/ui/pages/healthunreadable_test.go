@@ -57,33 +57,43 @@ func TestTheFileNothingCouldReadIsWeighed(t *testing.T) {
 	}
 }
 
-// TestOrderingByWeightPlacesTheFileNothingCouldRead is the other half of being
-// weighed. A reader ordering this page by weight is asking what is worst first,
-// and a file nothing could be read from is the gravest thing the judging face
-// has to say — so it sorts above a lighter finding, and above the one kind that
-// carries no weight at all.
-func TestOrderingByWeightPlacesTheFileNothingCouldRead(t *testing.T) {
+// TestTheFileNothingCouldReadStaysFirstWhateverTheTablesAreOrderedBy holds what
+// remains of the other half of being weighed now that the report is read by
+// kind. The kinds stand in the order they are declared in, the file nothing
+// could be read from first among them, and ordering moves rows inside
+// a kind and never a kind past another: there is no order of the whole report by
+// weight, which is what a table to each kind gives up for being able to say
+// what each kind is.
+func TestTheFileNothingCouldReadStaysFirstWhateverTheTablesAreOrderedBy(t *testing.T) {
 	t.Parallel()
 	blocked := sealedVaultBlocked(t)
-	// A second finding of the same weight sits below a lighter one in the
-	// page's own order, so ordering by weight has something to move and the
-	// comparison below is not satisfied by rows that were already in place.
 	view := HealthView{
 		Blocked:      blocked,
 		Skipped:      []HealthSkippedSource{{Path: "Notes/Linked note.md", Reason: "symbolic link"}},
 		Islands:      []HealthIslandGroup{{Dir: "Notes", Name: "Notes", Notes: []nav.NoteRef{{Name: "Alone", RelPath: "Notes/Alone.md"}}}},
 		IslandCount:  1,
 		SchemaFaults: []HealthNoteFindings{{Note: healthTestNote, Severity: judge.SeverityError, Count: 1}},
-		Sort:         HealthBySeverity,
 	}
-	want := []string{blocked[0].Path, healthTestNote.Name, "Notes/Linked note.md", "Alone"}
-	if diff := cmp.Diff(want, healthRowFiles(t, &view)); diff != "" {
-		t.Errorf("ordered by weight, the rows do not put the unreadable file among the heaviest, above the lighter finding and the unweighed one (-want +got):\n%s", diff)
-	}
-	unordered := view
-	unordered.Sort = HealthByFinding
-	if got := healthRowFiles(t, &unordered); slices.Equal(got, want) {
-		t.Errorf("the rows are already in weight order before anything sorts them: %v", got)
+	for _, column := range healthColumns {
+		view.Sort = column
+		tables := healthTables(t, &view)
+		if len(tables) != 4 {
+			t.Fatalf("ordered by %s the report draws %d tables, want 4", column, len(tables))
+		}
+		if tables[0].title != healthBlocked.title(wording.ZhHant) || tables[0].files[0] != blocked[0].Path {
+			t.Errorf("ordered by %s the first table is %q over %v, want the file nothing could read", column, tables[0].title, tables[0].files)
+		}
+		if tables[0].weights[0] != int(judge.SeverityError) {
+			t.Errorf("ordered by %s the file nothing could read is weighed %d, want error", column, tables[0].weights[0])
+		}
+		var titles []string
+		for _, table := range tables {
+			titles = append(titles, table.title)
+		}
+		wantTitles := []string{healthBlocked.title(wording.ZhHant), healthSkipped.title(wording.ZhHant), healthIsland.title(wording.ZhHant), healthSchemaFault.title(wording.ZhHant)}
+		if diff := cmp.Diff(wantTitles, titles); diff != "" {
+			t.Errorf("ordered by %s the kinds are not in the order they are declared in (-want +got):\n%s", column, diff)
+		}
 	}
 }
 

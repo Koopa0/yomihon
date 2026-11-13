@@ -1,7 +1,9 @@
 // Behavior lock for what each page is about being the largest text on it. The
 // search page is about what the reader is looking for, so the query they type
 // is set larger than anything else there and is 28px; the answers under it
-// are rows with no line between them. The size is what the browser computed,
+// are rows with no line between them. The whole-folder page is about what the
+// folder has to say, so its name is the largest text on it and no figure or
+// group name is set above that. The size is what the browser computed,
 // read off every piece of visible text on the page and compared, so a heading
 // restored to its old size or a result title enlarged is read as the loss it is
 // whatever class it wears.
@@ -15,7 +17,8 @@ const MUTATE = process.env.MUTATE || '';
 
 const QUERY_SITE = 'the-query-is-the-largest-text-on-the-search-page';
 const RULES_SITE = 'results-have-no-line-between-them';
-const SITES = [QUERY_SITE, RULES_SITE];
+const HEALTH_SITE = 'the-page-name-is-the-largest-text-on-the-health-page';
+const SITES = [QUERY_SITE, RULES_SITE, HEALTH_SITE];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -48,6 +51,8 @@ const MUTATIONS = {
   'enlarge-a-result-title': { target: QUERY_SITE, apply: appendStyle('.y-result__title{font-size:3rem}') },
   // The query put back at the size of body text.
   'shrink-the-query': { target: QUERY_SITE, apply: appendStyle('.y-searchpage__form input{font-size:1rem}') },
+  // A group's name set at a figure's size: the page's own name is outshouted.
+  'enlarge-a-group-name': { target: HEALTH_SITE, apply: appendStyle('.y-healthgroup__title{font-size:3rem}') },
   // A hairline under every hit, which is the line the answer was drawn with.
   'rule-between-results': { target: RULES_SITE, apply: appendStyle('.y-result{border-bottom:1px solid #000}') },
 };
@@ -136,8 +141,20 @@ try {
     fail(RULES_SITE, `${drawn.length} of ${hits} hits are drawn with a line: ${JSON.stringify(drawn[0])}`);
   }
 
+  const health = await page.goto(`${BASE}/health`, { waitUntil: 'load' });
+  if (health?.status() !== 200) broken(`/health answered ${health?.status()}, want 200`);
+  await arrived(page);
+  await page.evaluate(() => document.fonts.ready);
+  const name = await page.locator('h1').first().evaluate((heading) => Number.parseFloat(getComputedStyle(heading).fontSize));
+  const healthSizes = (await readSizes(page)).filter((text) => !text.what.startsWith('h1'));
+  if (healthSizes.length < 5) broken(`the health page draws ${healthSizes.length} pieces of text besides its name, too few to compare with`);
+  const outsized = healthSizes.filter((text) => text.size >= name).sort((a, b) => b.size - a.size);
+  if (outsized.length > 0) {
+    fail(HEALTH_SITE, `${outsized[0].what} (${JSON.stringify(outsized[0].words)}) is set at ${outsized[0].size}px, not smaller than the ${name}px name of the page`);
+  }
+
   await context.close();
-  console.log(`PASS largest-text: the query is 28px, the largest text on the search page, over ${hits} hits drawn with no line between them`);
+  console.log(`PASS largest-text: the query is 28px, the largest text on the search page, over ${hits} hits drawn with no line between them; the name of the health page, ${name}px, is larger than every group name and figure under it`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
