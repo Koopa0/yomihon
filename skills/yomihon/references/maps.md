@@ -17,18 +17,20 @@ quoted ones as the shape of the answer.
 
 ## A map is declared, not recognised
 
-A note becomes a map when its `type` is listed under the contract's
-`[navigation] map_types`. This is the same silent gate that stands in front of
-study paths: a note whose type is not listed is read, linked and searched like
-any other note, and is not a map, however map-shaped its body is. Nothing
-reports it, because nothing is wrong with it.
+A note becomes a map when its `type` holds the `map` role in the contract
+(`[types.<name>] role = "map"`). This is the same silent gate that stands in
+front of study paths: a note whose type holds no such role is read, linked and
+searched like any other note, and is not a map, however map-shaped its body is.
+Nothing reports it, because nothing is wrong with it.
 
 In this repository's `examples/vault` the contract says:
 
 ```toml
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
+[types.study-path]
+role = "course"
+
+[types.moc]
+role = "map"
 ```
 
 so a map is a note carrying `type: moc`. See the tally for yourself:
@@ -41,20 +43,18 @@ The first lines it logs name the counts, and the maps are listed at
 <http://127.0.0.1:9610/maps>:
 
 ```
-level=INFO msg="vault snapshot built" files=56 ... paths=4 maps=3 ...
+level=INFO msg="vault snapshot built" files=53 ... paths=4 maps=3 ...
 level=INFO msg="yomihon serving" addr=127.0.0.1:9610 vault=…
 ```
 
-Delete the whole `[navigation]` table and the same command logs `paths=0
-maps=0`: the table is all-or-nothing, and a fault in either key closes both.
-[`frontmatter.md`](frontmatter.md) owns that table.
+Take both `role` lines out and the same command logs `paths=0 maps=0`: with no
+type holding either role there are no courses and no maps, and a role that is
+none of the four closes both. [`frontmatter.md`](frontmatter.md) owns the type
+tables.
 
-A map usually spans subjects, so a map type normally belongs on
-`[fields] domain_exempt_types` — otherwise every map has to claim one domain.
-The example contract lists `["study-path", "moc"]` there for that reason, and
-you can watch the exemption do its work: `Maps/yomihon.md` carries no `domain`
-and `check` is quiet about it, but drop `moc` from that list and the same note
-reports `schema.required` saying `domain is required`.
+A map usually spans subjects, and it needs no domain. A note's domain is the
+folder it sits in below a `[folders] domain_from` root, and `Maps/` is not one,
+so `Maps/yomihon.md` has none and `check` has nothing to say about it.
 
 ## A map is not a study path
 
@@ -63,9 +63,9 @@ reports `schema.required` saying `domain is required`.
 - **The `{sequence=…}` marker declares nothing here** — and does not show up
   either. [`study-paths.md`](study-paths.md) owns exactly which headings and
   rows it is stripped from, and the one place it survives.
-- **Both are gated by the same table, and a type may not be on both lists.**
-  Add `study-path` to `map_types` and the vault loses both: the same startup
-  line then reads `paths=0 maps=0`.
+- **Both are gated by a type's role, and a type holds one role.** A type cannot
+  be a course and a map at once, and a role that is none of the four closes
+  both: the startup line then reads `paths=0 maps=0`.
 
 ## What becomes a branch, and what becomes an entry
 
@@ -74,9 +74,9 @@ A map's tree is read out of the body alone:
 | | |
 |---|---|
 | A branch | a heading from H2 to H6. An H1 is treated as the note's title and opens nothing |
-| An entry | a `[[link]]` under the open heading that resolves to exactly one note under the vault's lifecycle — in a list row, a checkbox row, prose, a table cell, or the heading itself |
+| An entry | a `[[link]]` under the open heading that resolves to exactly one note — in a list row, a checkbox row, prose, a table cell, or the heading itself |
 | Never an entry | a link inside a code fence, a code span, a block of raw HTML tags, or `%%…%%`; and a link written before the first heading, which no branch is open to hold. Raw HTML is the surprising one: a `[[link]]` between `<div>` tags still renders as a link and is still judged by `link.broken`, and is still not a map entry |
-| Dropped from the tree | a name that resolves to nothing, a name two files answer to, and a target inside a directory `[artifacts] non_instance_dirs` names |
+| Dropped from the tree | a name that resolves to nothing, a name two files answer to, and a target inside a directory `[folders] templates` names |
 | Dropped from the page | a heading with no entry of its own and no descendant carrying one — a heading of pure prose never appears |
 
 Two of those differ from a study path and are worth holding on to. A checkbox
@@ -99,9 +99,7 @@ maplab=$(mktemp -d)
 cp -R examples/vault/. "$maplab/"
 cat > "$maplab/Maps/Map counting.md" <<'MD'
 ---
-title: Map counting
 type: moc
-status: ready
 ---
 
 ## Only an unresolved name
@@ -124,23 +122,6 @@ yomihon serve --root "$maplab"       # runs until you stop it
 The index reads **2 branches** for that map: the unresolved name leaves its
 heading empty and prunes it, the prose heading never had an entry, and the
 parent survives only because its child carries one.
-
-## `map_kind` buys exactly one thing
-
-`[enums] map_kind` declares the legal values, and a note writing one outside
-that list gets `schema.enum`, an error, the same as any other enum. Temporarily
-add `map_kind: shelf` to the map above and check it:
-
-```
-{"rule_id":"schema.enum","severity":"error","path":"Maps/Map counting.md","field":"map_kind","message":"map_kind \"shelf\" is not an allowed value","source_rule":"vault-schema.toml","target":"shelf", ...}
-```
-
-Remove that line before continuing with the map below.
-
-That is the whole of it. Nothing else in yomihon reads the value — no page, no
-count, no command behaves differently for `map_kind: topic` than for any other
-declared word. It is a vocabulary your vault keeps for itself, and the contract
-is what holds you to it.
 
 ## Nothing reports a map's shape
 
@@ -202,7 +183,7 @@ yomihon coverage --root "$coverage_lab" --format json
 The `yomihon` row now has **0 mounted and 1 pending-mount**: Frontmatter still
 has incoming links, but no map inside the knowledge layer reaches it. The Go
 and Japanese concepts stay mounted through their own maps. A map outside
-`[scan] knowledge_dirs` cannot mount a concept, and neither can a note the
+`[folders] checked` cannot mount a concept, and neither can a note the
 privacy contract withholds.
 
 Two limits worth knowing before you read a number here. `concept` is yomihon's
@@ -219,7 +200,7 @@ could not run.
 
 ## Before calling a map done
 
-1. The note's `type` is one the contract lists under `[navigation] map_types`.
+1. The note's `type` is one the contract gives the `map` role.
 2. The map appears at `/maps`, with the branch count you expected. A heading
    you meant to be a branch and cannot find there carries no resolved entry.
 3. `yomihon check --root <vault> --format json <the map>` is quiet — which

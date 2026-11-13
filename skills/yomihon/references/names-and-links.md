@@ -11,7 +11,7 @@ down, so it is worth reading rather than assuming.
 The entry point states the rule. Here is the experiment that shows it, which
 you can run in a minute against `examples/vault`. Put these nine links in a new
 note under `Notes/` **with no frontmatter block at all** — that vault's contract
-writes `no_frontmatter_is_legal = true`, so an unframed note draws nothing and
+writes `frontmatter_optional = true`, so an unframed note draws nothing and
 the only findings left are about the links — and run `check` over it:
 
 ```markdown
@@ -27,20 +27,22 @@ the only findings left are about the links — and run `check` over it:
 ```
 
 `check` prints exactly one finding, for the ninth link. (Give that note
-frontmatter instead and you will also collect a `schema.required` for each key
-`[fields] required` names, which is a true answer to a different question.) Eight resolve: lines 1–4 are
-the four forms of the note's location; 5–7 are the same key after the fold —
-trimmed, NFC, compared without regard to case; 8 is one of the two aliases that
-note declares in its frontmatter (`aliases: [contract, vault-schema]`). Only the
-ninth is a name no file answers to.
+frontmatter that leaves out `type` instead and you will also collect a
+`schema.required` for it, which is a true answer to a different question.) Eight
+resolve: lines 1–4 are the four forms of the note's location; 5–7 are the same
+key after the fold — trimmed, NFC, compared without regard to case; 8 is one of
+the aliases that note declares in its frontmatter (`aliases: [contract,
+vault-schema, An older approach]`; the last is the name of a note that was
+deleted and replaced by this one). Only the ninth is a name no file answers to.
 
 Two consequences are easy to miss. Because the fold happens before the
 comparison, two files whose names differ only in case collide with each other
-on any filesystem, not only on a case-insensitive one. And every note in this
-example vault happens to be titled exactly what it is filed under, which is why
-nothing here shows the title trap — write a note whose `title` and filename
-differ, link it by the title, and you get `link.title_not_alias`, a finding
-that names the note you meant and offers the two repairs.
+on any filesystem, not only on a case-insensitive one. And nearly every note in
+this example vault is titled exactly what it is filed under, which is why
+nothing above shows the title trap. A note's title is its first `#` heading, so
+link `Maps/Japanese here.md` by its heading, `[[日文閱讀]]`, and you get
+`link.title_not_alias`, a finding that names the note you meant and offers the
+two repairs.
 
 ## Parent folders can distinguish a filename
 
@@ -61,8 +63,9 @@ This does not clean `..`, collapse doubled slashes, decode percent escapes,
 convert backslashes or fold fullwidth letters. A title remains outside link
 resolution. A suffix is a lookup fallback, not a new alias or collision key.
 
-`yomihon exists` keeps its wider metadata answers: filename, title, aliases and
-declared English title. A slash query also uses the shared location resolver;
+`yomihon exists` keeps its wider metadata answers: filename, title (the first
+`#` heading, never the file name standing in for one) and aliases. A slash
+query also uses the shared location resolver;
 a readable public note with no existing exact field row gets `field: "path"`,
 with both `path` and `value` holding its canonical full captured path. An
 existing alias row stays an alias. Resources and unreadable paths participate

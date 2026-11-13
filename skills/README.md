@@ -50,8 +50,8 @@ renderer answers to; the other holds every rule id named anywhere in this
 folder to the set the checks emit, in both directions, so a rule cannot be
 renamed without the mention going stale, and cannot be added without a reader
 being left with nowhere to look it up. It does not describe any particular
-vault: the types, the statuses, the fields and the directory layout are declared
-per vault in a contract file, and the skill's steady refrain is that the
+vault: the types and their roles, which fields each may write, the values some
+may take and the directory layout are declared per vault in a contract file, and the skill's steady refrain is that the
 contract decides and the code never guesses.
 
 ## Installing it
@@ -137,15 +137,15 @@ pasted the answer:
 An agent that has loaded the skill answers the first with *primary, local and
 none*, read on a heading from H2 to H6 and on a list row that has a child list
 beneath it; and the second with the note's filename and path forms plus any
-declared aliases, never the frontmatter title.
+declared aliases, never the title, which is the note's first heading.
 
 For the third, any two of these are right, and the third of them is the one the
 skill calls the fault most worth fearing when you are adding a lesson:
 
-- **the study path's own type is not on `[navigation] path_types`** — note that
-  it is the *path's* type that has to be listed, never the lesson's, so "the
-  lesson's type is not on the list" is a wrong answer that sounds like a right
-  one;
+- **the study path's own type does not hold the `course` role** — note that
+  it is the *path's* type that has to hold it, never the lesson's, so "the
+  lesson's type does not hold the role" is a wrong answer that sounds like a
+  right one;
 - the branch the row sits on declares no `{sequence=…}`, so nothing is
   classified and nothing projects;
 - the row does not open with its `[[link]]` — put anything visible in front of
