@@ -3,6 +3,7 @@ title: Schema notice probe
 type: lesson
 domain: japanese
 status: draft
+draft: true
 slug: schema-notice-probe
 mystery_key: fictional
 ---

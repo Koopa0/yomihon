@@ -1,7 +1,6 @@
 ---
 title: Frontmatter
 type: concept
-status: ready
 domain: yomihon
 topics: [contract, metadata]
 based_on: ["The vault contract"]
@@ -10,6 +9,6 @@ updated: 2026-09-22
 lang: en
 ---
 
-Frontmatter is the YAML block between two `---` lines at the start of a note. It holds fields such as `title`, `type`, `status` and `domain`.
+Frontmatter is the YAML block between two `---` lines at the start of a note. It holds fields such as `title`, `type`, `domain` and `draft`.
 
-The contract declares permitted fields and values. Within its knowledge scope, an undeclared field is a diagnostic. The status control rewrites only the `status` value, preserving the rest of the file.
+The contract declares permitted fields and values. Within its knowledge scope, an undeclared field is a diagnostic. yomihon never writes it: `draft: true`, the one mark of an unfinished note, is the author's to write and remove in their editor.

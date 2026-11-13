@@ -637,7 +637,7 @@ func assertEveryDeclarationIsUsed(t *testing.T, loaded *exampleVault) {
 	definition := loaded.contract.Definition()
 	written := loaded.frontmatterKeys()
 	for _, key := range slices.Concat(definition.Fields.Known, definition.Fields.LessonOnly) {
-		if !written[key] {
+		if !written[key] && key != "status" {
 			t.Errorf("the contract allows the frontmatter key %q and no note in examples/vault writes it", key)
 		}
 	}
@@ -647,9 +647,19 @@ func assertEveryDeclarationIsUsed(t *testing.T, loaded *exampleVault) {
 	// a declared value nobody has ever written is exactly that. Which
 	// frontmatter key an enum governs is the enum's own toml name, so the
 	// pairing is read off the decoder's tags rather than kept in a list here.
+	//
+	// The status list is the one exception, here and for the key above. No
+	// note here writes a status any more — a note says it is unfinished with
+	// draft: true — while the contract loader still refuses a contract without
+	// a status vocabulary and the lifecycle rows that use it, and a starter
+	// note written from the authoring guide still carries the key, so the
+	// example keeps declaring both until the contract format drops them.
 	enums := reflect.ValueOf(definition.Enums)
 	for _, enum := range reflect.VisibleFields(enums.Type()) {
 		key := enum.Tag.Get("toml")
+		if key == "status" {
+			continue
+		}
 		written := loaded.frontmatterValues(key)
 		for _, value := range declaredEnumValues(t, key, enums.FieldByIndex(enum.Index)) {
 			if !written[value] {
@@ -755,9 +765,7 @@ func assertEveryFaceHasSomethingOnIt(t *testing.T, loaded *exampleVault) {
 		loaded.contract.KnowledgeScope(),
 		loaded.contract.ArtifactPolicy(),
 		loaded.contract.JournalDir(),
-		loaded.contract.ArticleLanguage(), loaded.contract.AuthoredDate(),
-		loaded.contract.Settlement(),
-	)
+		loaded.contract.ArticleLanguage(), loaded.contract.AuthoredDate())
 	for _, face := range []struct {
 		name string
 		rows int

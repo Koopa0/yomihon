@@ -1,7 +1,7 @@
 ---
 title: A speak control for Chinese
 type: inbox
-status: draft
+draft: true
 created: 2026-09-22
 ---
 

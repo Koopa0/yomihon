@@ -1,7 +1,6 @@
-// The three in-place action replies share the flip receipt's presentation.
-// The real flip receipt is covered by flip-receipt-contract.mjs. Here marks
+// The three in-place action replies share one presentation. Here marks
 // receive mocked HTTP outcomes and preferences use the existing cookie-refusal
-// stand-in: no mark or status write reaches the fixture server.
+// stand-in: no mark write reaches the fixture server.
 // These declarations are stable after arrival; no assertion samples a frame
 // during the entrance, or claims to measure a screen reader announcement.
 import { chromium } from 'playwright-core';

@@ -8,13 +8,13 @@ import (
 	"unicode/utf8"
 )
 
-// Result is one search hit: the note's path, display title, optional status
-// badge, and a snippet centered on the earliest matched-token offset. Status is
-// empty when the hit is not metadata-capable.
+// Result is one search hit: the note's path, display title, whether it is a
+// draft, and a snippet centered on the earliest matched-token offset. Draft is
+// false when the hit is not metadata-capable.
 type Result struct {
 	RelPath string
 	Title   string
-	Status  string
+	Draft   bool
 	Snippet string
 	// SnippetRuns carries display effects and original query evidence when
 	// the corpus includes syntax the destination consumes.
@@ -34,11 +34,6 @@ type Result struct {
 	// Tag is the frontmatter tag that answered when stronger evidence did not,
 	// in the author's spelling. Tag-only hits have no body excerpt or landing.
 	Tag string
-
-	// NoteType is the note's own declared type, carried beside Status because a
-	// status value is declared per type. It is blanked with Status when the entry
-	// may not answer metadata projections.
-	NoteType string
 
 	// File marks a hit that is not a note but a vault file read as characters.
 	// It carries no lifecycle state and never will, so a surface that dresses a
@@ -168,14 +163,6 @@ type Facet struct {
 type FacetValue struct {
 	Value string
 	Count int
-
-	// Carriers are the note types the hits at this value declared, sorted and
-	// without repeats. A status is legal per note type, so whether this value
-	// is one the contract declares is a question no tally keyed on the value
-	// alone can answer — the same reason the type and the status travel
-	// together in TypeStatus. A surface that rules on the value asks about
-	// each of these; one that only counts ignores them.
-	Carriers []string
 }
 
 // Search runs a parsed query against the index and returns results in the final
@@ -539,8 +526,8 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 	return true
 }
 
-// matchesFilter reports whether e satisfies one filter. type/status/domain/slug
-// compare the folded copies; topic is folded membership of TopicFolds; folder is
+// matchesFilter reports whether e satisfies one filter. type/domain/slug
+// compare the folded copies; draft asks the flag, true or false; topic is folded membership of TopicFolds; folder is
 // a rel_path prefix taken one directory name at a time, so "folder:Writing"
 // matches "Writing" and "Writing/x.md" and "writing/x.md", but never
 // "Writing-old/x.md".
@@ -548,8 +535,8 @@ func (e *entry) matchesFilter(f Filter) bool {
 	switch f.Key {
 	case "type":
 		return e.NoteTypeFold == f.Value
-	case "status":
-		return e.StatusFold == f.Value
+	case DraftFilterKey:
+		return (f.Value == "true" && e.Draft) || (f.Value == "false" && !e.Draft)
 	case "domain":
 		return e.DomainFold == f.Value
 	case "slug":
@@ -593,10 +580,7 @@ func withinFolder(relPath, folder string) bool {
 // result builds a Result for e, with a snippet centered on the earliest
 // matched-token offset.
 func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias, topic, tag string) Result {
-	status, noteType := e.Status, e.NoteType
-	if !metadataAvailable || !e.metadataCapable {
-		status, noteType = "", ""
-	}
+	draft := e.Draft && metadataAvailable && e.metadataCapable
 	var bodySnippet string
 	var bodyRuns []ExcerptRun
 	var terms landingTerms
@@ -607,13 +591,12 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 	return Result{
 		RelPath:       e.RelPath,
 		Title:         e.Title,
-		Status:        status,
+		Draft:         draft,
 		Snippet:       bodySnippet,
 		SnippetRuns:   bodyRuns,
 		Alias:         alias,
 		Topic:         topic,
 		Tag:           tag,
-		NoteType:      noteType,
 		File:          e.isFile,
 		Landing:       terms.first,
 		LandingBare:   terms.bare,

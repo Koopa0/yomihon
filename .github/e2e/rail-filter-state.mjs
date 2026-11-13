@@ -180,7 +180,7 @@ try {
     check(value === 'C02' && await page.locator('#_y-nav-rail a[href="/notes/Course/C01.md"]').evaluate((row) => row.hidden), 'early-owner', `remembered narrowing depends on the deferred entry: input=${JSON.stringify(value)}, want "C02" with the other lesson hidden`);
     await page.waitForFunction(() => window.railFrames.length >= 3);
     const frames = await page.evaluate(() => ({ frames: window.railFrames, shifts: window.railShifts, paints: performance.getEntriesByType('paint').map((entry) => ({ name: entry.name, startTime: entry.startTime })) }));
-    check(frames.frames.every((frame) => frame.value === 'C02' && JSON.stringify(frame.visible) === JSON.stringify(['C02 draft'])), 'early-owner', `a sampled rail frame was unfiltered: ${JSON.stringify(frames)}`);
+    check(frames.frames.every((frame) => frame.value === 'C02' && JSON.stringify(frame.visible) === JSON.stringify(['C02 \u8349\u7a3f'])), 'early-owner', `a sampled rail frame was unfiltered: ${JSON.stringify(frames)}`);
     control(frames.paints.some((paint) => paint.name === 'first-contentful-paint'), 'fixture did not positively paint');
     console.log(`FRAME-EVIDENCE: ${JSON.stringify(frames)}`);
     await context.close();
@@ -228,7 +228,7 @@ try {
       const state = await snapshot(page);
       const visible = state.rows.filter((row) => !row.hidden).map((row) => row.text);
       const expected = {
-        ' c02 ': ['C02 draft'], C02: ['C02 draft'], c0: ['C01 draft', 'C02 draft', 'C03 draft', '! C04 Unwritten \u672a\u89e3\u6790'],
+        ' c02 ': ['C02 \u8349\u7a3f'], C02: ['C02 \u8349\u7a3f'], c0: ['C01 \u8349\u7a3f', 'C02 \u8349\u7a3f', 'C03 \u8349\u7a3f', '! C04 Unwritten \u672a\u89e3\u6790'],
         '\u661f\u7a7a': ['\u661f\u7a7a \u00c4ther'], '\u00e4THER': ['\u661f\u7a7a \u00c4ther'], 'missing-token': [],
       }[query];
       check(expected ? JSON.stringify(visible) === JSON.stringify(expected) && state.empty === (expected.length > 0) : JSON.stringify(state.rows) === JSON.stringify(original.rows) && state.groups.every((group) => !group.hidden), 'filter-behavior', `${JSON.stringify(query)} rendered unexpected original rows: ${JSON.stringify(visible)}`);

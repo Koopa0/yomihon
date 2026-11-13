@@ -15,9 +15,7 @@ import (
 
 // NoteView is everything the reading page needs. Diagnostic and
 // RenderDiagnostics are display-only: yomihon reports what it found, and a
-// human edits the file. Transitions, WriteDiagnostic, NonInstance,
-// OutsideKnowledgeScope, NoFrontmatter and FrontmatterUnclosed drive the two
-// status faces.
+// human edits the file.
 type NoteView struct {
 	// NestedTitle places this note under a page heading rather than making
 	// it the page heading itself. Its body must already occupy that level.
@@ -29,7 +27,9 @@ type NoteView struct {
 	// page cannot hold two answers to it.
 	Language string
 	Type     string
-	Status   string
+	// Draft is whether the note declares itself unfinished, which the head
+	// says in one quiet word and nothing else on the page acts on.
+	Draft bool
 	// ObsidianHref is the obsidian://open URI for this note, already built
 	// and escaped by ObsidianHref. Empty renders no editor link.
 	ObsidianHref string
@@ -114,15 +114,8 @@ type NoteView struct {
 	// ReadingRail is the one map this page carries in the left rail.
 	ReadingRail ReadingRail
 
-	// Governed says whether anything claimed authority over this vault. Both
-	// status faces are absent where it is false, a folder with no contract
-	// having no lifecycle, and every field below is meaningful only under it.
-	Governed bool
-
-	Transitions []Transition
 	// ContentIdentity is the hex identity of the source bytes this page
-	// rendered, carried in every transition form so the write face can refuse
-	// a ruling that was read against content the disk no longer holds.
+	// rendered, which the freshness watch and a kept place both bind to.
 	ContentIdentity string
 	// MarkAddress is where the control for keeping a reading place posts to.
 	// Empty where this process keeps no marks, and the control is then absent
@@ -136,48 +129,14 @@ type NoteView struct {
 	ThoughtDoor        bool
 	// TranscludedIdentity is the render's digest over what every embed here came
 	// to — the excerpt pulled in, or the absence shown in its place — and is
-	// empty where the page carries none. It rides the freshness watch alone: a
-	// ruling binds the note's own bytes, and an embedded source is not among them.
+	// empty where the page carries none. It rides the freshness watch beside
+	// ContentIdentity, which covers the note's own bytes and no embedded source.
 	TranscludedIdentity string
-	NonInstance         bool
-	WriteDiagnostic     string
-	NoFrontmatter       bool
 	// FrontmatterUnclosed is set where the note opened a frontmatter fence and
 	// nothing closed it. Every reader took such a note for body text with no
-	// block, so NoFrontmatter is true of it as far as they are concerned, and
-	// this is what says the block was meant: the page states the fence never
-	// closes, and the status face does not call the note frontmatter-free.
+	// block, and this is what says the block was meant: the page states the
+	// fence never closes.
 	FrontmatterUnclosed bool
-	// FrontmatterRequired says the governing schema explicitly requires a
-	// frontmatter block; it changes only the truthfulness of the absent-block
-	// status sentence, not the face state itself.
-	FrontmatterRequired bool
-	// OutsideKnowledgeScope is set for a note the write face reaches no further
-	// than reading: it sits outside the layer scan.knowledge_dirs declares, so
-	// its transition set is empty for that reason rather than because the
-	// schema defines nothing onward.
-	OutsideKnowledgeScope bool
-	// FlippedFrom is the status a successful flip left, on the reading that
-	// flip redirected to. The address carries only the name: the handler
-	// legalises the move against the contract and then spends the one-time
-	// receipt the write minted, so a bookmarked or reloaded address finds that
-	// receipt spent and gets no sentence.
-	FlippedFrom string
-	// FlipNoReturn is set where the offered controls cannot walk the stated
-	// change back, so the receipt also says how recovery happens.
-	FlipNoReturn bool
-
-	// StatusUnknown is set where the note's non-empty status is not in the
-	// contract's declared list for its type, which both faces flag rather than
-	// implying the contract defines nothing onward.
-	StatusUnknown bool
-	// AllowedStatuses is the captured contract vocabulary for this note type.
-	AllowedStatuses []string
-	// StatusNotText is set where the note wrote a status the reader did not
-	// take as text, so Status is empty for a reason the page can name rather
-	// than reporting the field as one nobody wrote.
-	StatusNotText bool
-
 	// SchemaNotices is what the schema said about this note's frontmatter, one
 	// sentence per fault, already in the reader's language and already split
 	// into the words and the note's own text they sit around.
@@ -188,18 +147,8 @@ type NoteView struct {
 	Concepts []lesson.ConceptDoc
 }
 
-// Transition is one offered lifecycle target and how its control behaves. A
-// no-return target — one the write face could not walk the note back from —
-// submits only behind a second interaction; every other target is a single
-// press.
-type Transition struct {
-	To       string
-	NoReturn bool
-}
-
 // Note is the reading page: the article in the shared shell, with the
-// navigation sidebar, whatever aids the note earns on the right, and the status
-// face. Everything it shows is either the note's own bytes rendered faithfully
+// navigation sidebar and whatever aids the note earns on the right. Everything it shows is either the note's own bytes rendered faithfully
 // or a diagnostic about them; it repairs nothing.
 templ Note(v NoteView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
@@ -217,10 +166,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
 			@readingRail(v.ReadingRail, c)
 			<main id="_y-main" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(v.BodyHTML, lang)... } data-preview-endpoint="/preview/">
-				@flipReceipt(v, lang)
-				@noteArticle(v, lang) {
-					@statusBar(v, lang)
-				}
+				@noteArticle(v, lang)
 			</main>
 			@rightRail(v, lang)
 		</div>
@@ -234,10 +180,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 // showing two notes beside one another draws the same thing twice, and a second
 // copy of this would be free to drift from the one a reader sees on the note's
 // own page.
-//
-// The write face differs structurally: the note's own page passes it in, a
-// column beside another note passes nothing. A nested title and body occupy
-// one level below their enclosing page heading.
+// A nested title and body occupy one level below their enclosing page heading.
 templ noteArticle(v NoteView, lang wording.Lang) {
 	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { uncertaintyAttrs(&v, lang)... }>
 		@articleHead(v, lang)
@@ -256,7 +199,6 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 		</div>
 		@relatedAids(v, lang)
 		@sequenceSteps(v, lang)
-		{ children... }
 	</article>
 }
 
@@ -342,6 +284,7 @@ templ articleHead(v NoteView, lang wording.Lang) {
 				if v.Type != "" {
 					<span class="ui-type">{ v.Type }</span>
 				}
+				@draftMark(v, lang)
 				// The date is a fact about the note like its type, so the two
 				// stand together on the line that stays.
 				if v.Updated != "" {
@@ -355,6 +298,7 @@ templ articleHead(v NoteView, lang wording.Lang) {
 			</div>
 		</details>
 		<div class="y-headmeta">
+			@draftMark(v, lang)
 			@noteFacts(v, lang)
 			@obsidianDoor(v, lang)
 			@thoughtDoor(v, lang)
@@ -367,16 +311,24 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	}
 }
 
+// draftMark is the one word a note that declared draft: true carries under its
+// title, in the interface's language. It is a fact about the note, not a
+// control: the flag is the author's, written and removed in their editor. A
+// finished note carries none, being the ordinary state.
+templ draftMark(v NoteView, lang wording.Lang) {
+	if v.Draft {
+		<span class="ui-status" lang={ lang.Tag() } data-note-draft>{ wording.Draft.In(lang) }</span>
+	}
+}
+
 // noteFacts is the note's own facts, read as a description list: one dt/dd
 // pair per fact the note declared, in the same order every time. The terms are
 // kept for a reader who listens and left unseen for one who looks: the line
-// reads as date, type, language and the file's own address, and the status is
-// not among them because the status face states it, live, wherever it can be
-// changed. It is one
+// reads as date, type, language and the file's own address. It is one
 // component rendered from two places — the narrow disclosure and the wide-open
 // placement beside the title — so the two can never drift into naming a fact
 // differently. Every term carries the interface's language and every value the
-// note's own: a status word, a type, a BCP 47 tag and a path are the contract's
+// note's own: a type, a BCP 47 tag and a path are the contract's
 // own spelling, never translated, so only the label beside each is.
 templ noteFacts(v NoteView, lang wording.Lang) {
 	<dl class="y-notefacts">
@@ -433,11 +385,7 @@ templ thoughtDoor(v NoteView, lang wording.Lang) {
 
 // ============================ RIGHT RAIL ============================
 // Reading leads and the ruling closes: the note's own shape, then the sources
-// it declared, then what leads to it from the text of other notes, then the
-// status panel. The panel used to open the rail so a long outline could not
-// push it past the bottom of the window, which put the page's smallest verb
-// above both of the things the reader came to the rail for. It is reached by
-// scrolling the rail, like everything else in it.
+// it declared, then what leads to it from the text of other notes.
 templ rightRail(v NoteView, lang wording.Lang) {
 	<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(lang) }>
 		if len(v.TOC) > 0 {
@@ -452,7 +400,6 @@ templ rightRail(v NoteView, lang wording.Lang) {
 		@citedBy(v, lang)
 		@diagnostics(v, lang)
 		@markControl(v, lang)
-		@statusPanel(v, lang)
 	</aside>
 }
 
@@ -759,68 +706,13 @@ templ relatedAids(v NoteView, lang wording.Lang) {
 	}
 }
 
-// statusPanel is the rail status face: one plain POST form per legal
-// transition, needing no script — a single press for a target the reader can
-// walk back from, a two-step confirm for a no-return one. The legal set is only
-// what the contract returns, never a fabricated key, and an empty set is stated
-// by its reason: the knowledge layer that withheld it, or the schema that
-// defines nothing onward.
-templ statusPanel(v NoteView, lang wording.Lang) {
-	if v.showsStatusFace() {
-		{{ face := statusFace(&v) }}
-		<section class="y-statuspanel" aria-labelledby={ v.IDPrefix + "_y-status-panel-label" } data-status-state={ face.token() }>
-			<div class="y-statuspanel__head">
-				<div class="y-statuspanel__row">
-					<span class="ui-side__label" id={ v.IDPrefix + "_y-status-panel-label" }>{ wording.StatusBar.In(lang) }</span>
-				</div>
-				if face != faceNonInstance && v.Status != "" {
-					<span class="ui-status">{ v.Status }</span>
-				}
-			</div>
-			if face == faceNonInstance {
-				<p class="y-statuspanel__notice">{ wording.NonInstanceReason.In(lang) }</p>
-			} else {
-				switch face {
-					case faceWriteUnavailable:
-						<p class="y-statuspanel__notice">
-							@browserDiagnostic(wording.WriteFaceUnavailable.In(lang), v.WriteDiagnostic)
-						</p>
-					case faceFrontmatterUnclosed:
-						@statusFrontmatterUnclosedFlag(v, "y-statuspanel__notice", lang)
-					case faceNoFrontmatter:
-						<p class="y-statuspanel__notice">{ noFrontmatterLine(&v, lang) }</p>
-					case faceStatusUnknown:
-						@statusUnknownFlag(v, "y-statuspanel__notice", lang)
-					case faceStatusNotText:
-						@statusNotTextFlag(v, "y-statuspanel__notice", lang)
-					case faceStatusUnreadable:
-						@statusUnreadableFlag(v, "y-statuspanel__notice", lang)
-					case faceOutsideScope:
-						<p class="y-statuspanel__notice">{ wording.OutsideKnowledgeScope.In(lang) }</p>
-					case faceNoTransitions:
-						<p class="y-statuspanel__notice">{ wording.NoLegalTransitions.In(lang) }</p>
-						<p class="y-statuspanel__notice">{ frontmatterDoorLine(&v, lang) }</p>
-					default:
-						<div class="y-statuspanel__forms">
-							@legalTransitionForms(v, lang)
-						</div>
-				}
-			}
-		</section>
-	}
-}
-
-// schemaNotices states what the schema made of this note's frontmatter. A
-// schema fault is not an alternative to the status notice above — a note can
-// carry both at once — so these are said alongside, each naming its own field.
-// The block carries the id the transition submits describe themselves by and
-// renders only where there is a finding, so id and references appear together.
-// It lives in the reading column rather than the rail so the notice stays
+// schemaNotices states what the schema made of this note's frontmatter, each
+// sentence naming its own field. It lives in the reading column rather than the rail so the notice stays
 // visible at every width; the rail is hidden on narrow viewports and dropped
 // when a note has no reading aids.
 templ schemaNotices(v NoteView, lang wording.Lang) {
 	if len(v.SchemaNotices) > 0 {
-		<div id={ v.schemaNoticesID() } lang={ lang.Tag() }>
+		<div lang={ lang.Tag() }>
 			for _, notice := range v.SchemaNotices {
 				<p class="y-statuspanel__notice y-statusflag">
 					@schemaParts(notice)
@@ -841,73 +733,6 @@ templ frontmatterUnclosedNotice(v NoteView, lang wording.Lang) {
 		<div lang={ lang.Tag() }>
 			<p class="y-statuspanel__notice y-statusflag">{ wording.FrontmatterNeverCloses.In(lang) }</p>
 		</div>
-	}
-}
-
-// statusFrontmatterUnclosedFlag is the status face for a note whose frontmatter
-// fence never closes: no status was read because no block was, and the way out
-// is the same hand edit the other no-status faces name.
-templ statusFrontmatterUnclosedFlag(v NoteView, noticeClass string, lang wording.Lang) {
-	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusFrontmatterNeverCloses.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
-}
-
-// statusUnknownFlag states that the note's status value is outside the
-// contract's declared list. It replaces the empty-transitions notice, which
-// would imply the contract defines nothing onward from a value it never
-// defined.
-templ statusUnknownFlag(v NoteView, noticeClass string, lang wording.Lang) {
-	<p class={ noticeClass, "y-statusflag" }>
-		{ wording.StatusValuePrefix.In(lang) }<code>{ v.Status }</code> { wording.StatusOutsideList.In(lang) }@schemaParts(wording.AllowedEnumValues(lang, "status", v.AllowedStatuses))
-	</p>
-}
-
-// statusUnreadableFlag states that this note's frontmatter yielded no status to
-// govern by, and that the note wrote nothing there to misread: the key is
-// absent, or holds an empty or null value.
-templ statusUnreadableFlag(v NoteView, noticeClass string, lang wording.Lang) {
-	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusUnreadable.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
-}
-
-// statusNotTextFlag states the other way a status reads as nothing: the note
-// wrote one and YAML handed back a date, a number or another shape instead of
-// text. The value itself is not repeated here — this side never saw the
-// characters the author typed — and the schema findings under it quote them.
-templ statusNotTextFlag(v NoteView, noticeClass string, lang wording.Lang) {
-	<p class={ noticeClass, "y-statusflag" }>{ wording.StatusNotText.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
-}
-
-// transitionForm is one transition control: a plain POST form whose re-rendered
-// status chip after the redirect is the whole confirmation. The hidden content
-// identity states which version of the note the reader saw, so the write face
-// can refuse a press that outlived the content.
-//
-// A target the reader can walk back from is a quiet single press; a no-return
-// one keeps its submit behind a closed native disclosure, whose first
-// interaction states what is lost and whose second submits. No script is
-// involved, so a reader without JavaScript walks the same two steps.
-templ transitionForm(v NoteView, t Transition, lang wording.Lang) {
-	<form class="y-statusform" method="post" action="/status">
-		<input type="hidden" name="path" value={ v.RelPath }/>
-		<input type="hidden" name="from" value={ v.Status }/>
-		<input type="hidden" name="to" value={ t.To }/>
-		<input type="hidden" name="content_identity" value={ v.ContentIdentity }/>
-		if t.NoReturn {
-			<details class="y-statusconfirm">
-				<summary class="y-xbtn y-statusconfirm__summary">{ wording.NoReturnSummaryBefore.In(lang) }{ t.To }</summary>
-				<p class="y-statusconfirm__note">{ wording.NoReturnTargetBefore.In(lang) }{ t.To }{ wording.NoReturnTargetAfter.In(lang) }</p>
-				<button class="y-xbtn y-statusconfirm__submit" type="submit" { schemaNoticesRef(&v)... }>{ wording.ConfirmSetBefore.In(lang) }{ t.To }{ wording.ConfirmSetAfter.In(lang) }</button>
-			</details>
-		} else {
-			<button class="y-xbtn" type="submit" { schemaNoticesRef(&v)... }>{ wording.NoReturnSummaryBefore.In(lang) }{ t.To }</button>
-		}
-	</form>
-}
-
-// legalTransitionForms renders the complete schema-provided set for either
-// status face.
-templ legalTransitionForms(v NoteView, lang wording.Lang) {
-	for _, t := range v.Transitions {
-		@transitionForm(v, t, lang)
 	}
 }
 
@@ -961,74 +786,6 @@ templ diagnostics(v NoteView, lang wording.Lang) {
 				}
 			</div>
 		</section>
-	}
-}
-
-// statusBar is the status face at the end of the article wherever the right
-// rail is absent: narrow viewports hide the rail, and a note with no reading
-// aids drops its column. The write face belongs after reading, not pinned to
-// the viewport bottom. It mirrors the status panel's states. A frontmatter
-// diagnostic suppresses governance state, no status having been parsed; a
-// non-instance stays named, that classification coming from its path.
-templ statusBar(v NoteView, lang wording.Lang) {
-	if v.showsStatusFace() {
-		{{ face := statusFace(&v) }}
-		<section class="y-sealbar" lang={ lang.Tag() } aria-labelledby={ v.IDPrefix + "_y-status-bar-label" } data-status-state={ face.token() }>
-			<span class="ui-side__label" id={ v.IDPrefix + "_y-status-bar-label" }>{ wording.StatusBar.In(lang) }</span>
-			switch face {
-				case faceNonInstance:
-					<p class="y-sealbar__notice">{ wording.NonInstanceReason.In(lang) }</p>
-				case faceWriteUnavailable:
-					<p class="y-sealbar__notice">
-						@browserDiagnostic(wording.WriteFaceUnavailable.In(lang), v.WriteDiagnostic)
-					</p>
-				case faceFrontmatterUnclosed:
-					@statusFrontmatterUnclosedFlag(v, "y-sealbar__notice", lang)
-				case faceNoFrontmatter:
-					<p class="y-sealbar__notice">{ noFrontmatterLine(&v, lang) }</p>
-				case faceStatusUnknown:
-					<span class="ui-status">{ v.Status }</span>
-					<span class="y-sealbar__spacer"></span>
-					@statusUnknownFlag(v, "y-sealbar__notice", lang)
-				case faceStatusNotText:
-					@statusNotTextFlag(v, "y-sealbar__notice", lang)
-				case faceStatusUnreadable:
-					@statusUnreadableFlag(v, "y-sealbar__notice", lang)
-				case faceOutsideScope:
-					<span class="ui-status">{ v.Status }</span>
-					<span class="y-sealbar__spacer"></span>
-					<p class="y-sealbar__notice">{ wording.OutsideKnowledgeScope.In(lang) }</p>
-				case faceNoTransitions:
-					<span class="ui-status">{ v.Status }</span>
-					<span class="y-sealbar__spacer"></span>
-					<p class="y-sealbar__notice">{ wording.NoLegalTransitions.In(lang) }{ frontmatterDoorLine(&v, lang) }</p>
-				default:
-					if v.Status != "" {
-						<span class="ui-status">{ v.Status }</span>
-					}
-					<span class="y-sealbar__spacer"></span>
-					@legalTransitionForms(v, lang)
-			}
-		</section>
-	}
-}
-
-// flipReceipt states the transition this reading arrived from, in words rather
-// than by a recoloured chip a reader may not see at all. It is a live region,
-// and the first thing in the main column, so it reaches a reader on arrival.
-//
-// The sentence is doubly gated before it reaches this template: the reported
-// move is one the contract legalises from the status the note carries now, and
-// the write face held an unspent receipt for it, spent by this render. So it
-// appears once, and reaching the same address again states nothing.
-templ flipReceipt(v NoteView, lang wording.Lang) {
-	if v.showsFlipReceipt() {
-		@layouts.Reply("y-flipreceipt", templ.Attributes{"data-reply-tone": "kept"}) {
-			{ wording.FlipReceiptBefore.In(lang) }<code lang="en">{ v.FlippedFrom }</code>{ wording.FlipReceiptBetween.In(lang) }<code lang="en">{ v.Status }</code>{ wording.FlipReceiptAfter.In(lang) }
-			if v.FlipNoReturn {
-				{ frontmatterDoorLine(&v, lang) }
-			}
-		}
 	}
 }
 

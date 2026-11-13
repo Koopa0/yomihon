@@ -14,8 +14,6 @@ health.go	library	2
 home.go	diagnostic	1
 home.go	library	1
 home.go	診斷	1
-note.go	diagnostic	1
-note.go	診斷	1
 preferences.go	rail	1
 render.go	內嵌	1
 sidebar.go	library	3

@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/note"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 )
 
@@ -20,11 +21,11 @@ func TestOpenThoughtsNamesShownPlacesInTheirOwnLanguage(t *testing.T) {
 	contract := loadHomeContract(t)
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
-	writer := openStatusWriter(t, source, contract, contract.Governance())
+	authority := func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) }
 	handler := note.New(&note.Sources{
-		Source: source, Contract: contract, Status: writer.Authority,
-		Snapshot:       func() *snapshot.Generation { return store.Current() },
-		ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+		Source: source, Contract: contract, Authority: authority,
+		Snapshot: func() *snapshot.Generation { return store.Current() },
+
 		Continuation: noMark, Log: log,
 		Uncertainties: func() ([]mark.Uncertainty, error) {
 			return []mark.Uncertainty{

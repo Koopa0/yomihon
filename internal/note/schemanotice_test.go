@@ -38,18 +38,12 @@ func TestNotePageNamesTheFieldAtFault(t *testing.T) {
 			rel:      "Concepts/golang/Memo.md",
 			body:     "---\ntitle: Memo\ntype: memorandum\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n",
 			wantSaid: []string{"<code>type</code>", "memorandum"},
-			// The status is legal for every type the schema declares, and the
-			// schema declares no statuses at all for a type it does not know —
-			// so nothing here can rule on it. Saying it is outside the list
-			// points the reader at the one field that is fine, and it used to
-			// be said twice, beside the sentence that names the real fault.
-			wantNot: []string{wording.StatusOutsideList.In(wording.ZhHant)},
 		},
 		{
 			name:     "a declared type with a status outside its list still says so",
 			rel:      "Concepts/golang/Off.md",
 			body:     "---\ntitle: Off\ntype: concept\ndomain: golang\nstatus: nonesuch\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n",
-			wantSaid: []string{wording.StatusOutsideList.In(wording.ZhHant), "nonesuch"},
+			wantSaid: []string{"<code>status</code>", "nonesuch"},
 		},
 		{
 			name:     "a slug the schema's shape rejects is reported against slug",
@@ -121,11 +115,11 @@ func TestNotePageShowsTheFolderTheDomainRuleCompared(t *testing.T) {
 			writeDomainNoticeNote(t, root, tt.rel)
 			log := slog.New(slog.DiscardHandler)
 			store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
-			writer := openStatusWriter(t, source, contract, contract.Governance())
+			authority := func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) }
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				Source: source, Status: writer.Authority, Snapshot: store.Current,
-				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log,
+				Source: source, Authority: authority, Snapshot: store.Current,
+				Continuation: noMark, Log: log,
 			}).Register(mux)
 
 			for _, language := range []struct {
@@ -161,7 +155,7 @@ func TestNotePageKeepsCapturedDomainRoots(t *testing.T) {
 	firstContract := domainNoticeContract(t, firstRoot, "Writing/lessons")
 	writeDomainNoticeNote(t, firstRoot, rel)
 	firstStore, source := newSnapshotStore(t, firstRoot, log, firstContract, firstContract.Governance())
-	writer := openStatusWriter(t, source, firstContract, firstContract.Governance())
+	authority := func() schema.Authority { return schema.CaptureAuthority(firstContract, firstContract.Governance()) }
 	secondRoot := t.TempDir()
 	secondContract := domainNoticeContract(t, secondRoot, "Writing")
 	writeDomainNoticeNote(t, secondRoot, rel)
@@ -185,13 +179,13 @@ func TestNotePageKeepsCapturedDomainRoots(t *testing.T) {
 			current := firstStore.Current()
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				Source: source, Status: writer.Authority,
+				Source: source, Authority: authority,
 				Snapshot: func() *snapshot.Generation {
 					captured := current
 					current = secondStore.Current()
 					return captured
 				},
-				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log,
+				Continuation: noMark, Log: log,
 			}).Register(mux)
 			for i, want := range tt.want {
 				rr := httptest.NewRecorder()
@@ -288,14 +282,10 @@ func TestNotePageEscapesTheNotesOwnTextInANotice(t *testing.T) {
 	}
 }
 
-// TestNotePageReadsTogetherForAStatusThatIsNotText holds the two sentences a
-// non-text status draws, because they are said side by side and a reader has
-// to be able to act on the pair. One explains why no status could be read; the
-// other names what was written. Before the first was completed it said the
-// value was missing or not single, which is false of 123 — a number is both
-// present and single — leaving the two sentences disagreeing about whether
-// there was a value at all.
-func TestNotePageReadsTogetherForAStatusThatIsNotText(t *testing.T) {
+// TestNotePageNamesWhatANonTextStatusWrote holds the schema notice for a
+// status the YAML reader takes as a number: the judge quotes the characters the
+// author typed, and the page passes them on.
+func TestNotePageNamesWhatANonTextStatusWrote(t *testing.T) {
 	t.Parallel()
 
 	const rel = "Concepts/golang/Numeric.md"
@@ -314,9 +304,6 @@ func TestNotePageReadsTogetherForAStatusThatIsNotText(t *testing.T) {
 	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
 	if code != http.StatusOK {
 		t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
-	}
-	if !strings.Contains(page, "不是文字") {
-		t.Error("the page does not say the value is not text, so its account of why nothing could be read omits this note's actual cause")
 	}
 	if !strings.Contains(page, "<code>123</code>") {
 		t.Error("the page does not name what was written")
@@ -423,13 +410,9 @@ func TestFrontmatterSchemaNoticesQuoteTheCapturedParser(t *testing.T) {
 				root := writeNotes(t, map[string]string{"Writing/Bad.md": tc.body})
 				server := newServerWithContract(t, root, loadContract(t))
 				page := frontmatterNoticePage(t, server, chrome.lang)
-				_, notice, ok := strings.Cut(page, `id="_y-schema-notices"`)
+				notice, ok := schemaNoticeMarkup(page)
 				if !ok {
-					t.Fatal("invalid YAML has no _y-schema-notices panel")
-				}
-				notice, _, ok = strings.Cut(notice, "</div>")
-				if !ok {
-					t.Fatal("_y-schema-notices panel has no closing tag")
+					t.Fatal("invalid YAML has no schema notice block")
 				}
 				for _, want := range []string{chrome.want, "<code>" + html.EscapeString(tc.diagnostic) + "</code>"} {
 					if !strings.Contains(notice, want) {
@@ -469,12 +452,11 @@ func TestFrontmatterSchemaNoticeDistinguishesMissingAndUnclosedBlocks(t *testing
 				root := writeNotes(t, map[string]string{"Writing/Bad.md": tc.body})
 				server := newServerWithContract(t, root, tc.contract(t))
 				page := frontmatterNoticePage(t, server, chrome.lang)
-				_, notice, hasNotice := strings.Cut(page, `id="_y-schema-notices"`)
+				notice, hasNotice := schemaNoticeMarkup(page)
 				if hasNotice != tc.hasNotice {
-					t.Fatalf("_y-schema-notices present=%v, want %v", hasNotice, tc.hasNotice)
+					t.Fatalf("schema notice block present=%v, want %v", hasNotice, tc.hasNotice)
 				}
 				if hasNotice {
-					notice, _, _ = strings.Cut(notice, "</div>")
 					if !strings.Contains(notice, chrome.missing) {
 						t.Errorf("missing block notice lacks truthful explanation %q: %s", chrome.missing, notice)
 					}
@@ -489,6 +471,29 @@ func TestFrontmatterSchemaNoticeDistinguishesMissingAndUnclosedBlocks(t *testing
 				}
 			})
 		}
+	}
+}
+
+// schemaNoticeMarkup cuts the block of schema notices out of a reading page:
+// a block of notice paragraphs other than the one that says a frontmatter
+// fence never closes. ok is false where the page draws none.
+func schemaNoticeMarkup(page string) (notice string, ok bool) {
+	const opening = `<p class="y-statuspanel__notice y-statusflag">`
+	for rest := page; ; {
+		at := strings.Index(rest, opening)
+		if at < 0 {
+			return "", false
+		}
+		block, _, closed := strings.Cut(rest[at:], "</div>")
+		if !closed {
+			return "", false
+		}
+		unclosed := strings.Contains(block, wording.FrontmatterNeverCloses.In(wording.ZhHant)) ||
+			strings.Contains(block, wording.FrontmatterNeverCloses.In(wording.En))
+		if !unclosed {
+			return block, true
+		}
+		rest = rest[at+len(block):]
 	}
 }
 

@@ -22,7 +22,6 @@ func TestPageMainRegionsAreSkipTargets(t *testing.T) {
 		{name: "side by side", page: Compare(CompareView{}, layouts.Chrome{})},
 		{name: "file", page: File(FileView{}, layouts.Chrome{})},
 		{name: "syllabus", page: Syllabus(PathView{}, layouts.Chrome{})},
-		{name: "status recovery", page: StatusRecovery(StatusRecoveryView{}, layouts.Chrome{})},
 		{name: "preferences", page: Preferences(PreferencesView{}, layouts.Chrome{})},
 	}
 	for _, tt := range tests {

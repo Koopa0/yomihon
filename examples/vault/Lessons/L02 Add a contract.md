@@ -1,7 +1,6 @@
 ---
 title: L02 Add a contract
 type: lesson
-status: ready
 domain: yomihon
 slug: l02-add-a-contract
 level: fundamental
@@ -25,18 +24,18 @@ If your notes already carry statuses, which section should you check first?
 > first avoids revisiting transitions after each edit. If you are keeping the
 > existing vocabulary, you can work on the lifecycle immediately.
 
-An invalid contract disables status changes. Reading, folders and search
+An invalid contract turns off courses and maps. Reading, folders and search
 remain available.
 
 ## What each section opens
 
 | Section | What it opens |
 | --- | --- |
-| `[enums]`, `[[lifecycle]]` | The vocabulary, and the status control that moves a note through it. Without either, the contract is refused whole and the folder is read as though it carried none. |
+| `[enums]`, `[[lifecycle]]` | The vocabulary, and the statuses `yomihon check` holds notes to. Without either, the contract is refused whole and the folder is read as though it carried none. |
 | `[fields]` | The frontmatter keys a note may write. Leave it out and every key you have written is reported as one nothing declares. |
 | `[scan]` | Which directories hold knowledge. What lies outside them is still read, and is not judged. |
 | `[navigation]` | Study paths and maps. |
-| `[artifacts]` | The directories holding shapes to copy rather than notes under a lifecycle. Leave it out and no note anywhere gets a status control. |
+| `[artifacts]` | The directories holding shapes to copy rather than notes. Leave it out and a template is read and judged like any other note. |
 | `[privacy]` | Directories withheld from agent-facing output. The command line refuses to report until this section exists. |
 | `[rules]` | The checks on a slug, on a domain against its folder, and on a tag. |
 | `[supersession]` | Fields recording which note replaced which. |

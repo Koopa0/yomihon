@@ -101,7 +101,7 @@ func loadModel(t *testing.T, root string) *nav.Model {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(scan.Files(), notes, idx, contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement())
+	model := nav.New(scan.Files(), notes, idx, contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate())
 	return model
 }
 
@@ -142,7 +142,7 @@ func writeVault(t *testing.T, root string) {
 	if err := os.WriteFile(filepath.Join(lessonDir, "Slices.md"), []byte(lesson), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
-	after := "---\ntitle: After\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+	after := "---\ntitle: After\ntype: lesson\ndomain: golang\ndraft: true\n---\n\nbody\n"
 	if err := os.WriteFile(filepath.Join(lessonDir, "After.md"), []byte(after), 0o600); err != nil {
 		t.Fatalf("write trailing lesson: %v", err)
 	}
@@ -449,12 +449,12 @@ func TestShowMarksTheLessonTheReaderCameFrom(t *testing.T) {
 			if got := marksHere(t, body); got != tc.want {
 				t.Errorf("%d rows marked, want %d; body = %q", got, tc.want, body)
 			}
-			// The words beside every point stay the contract's whatever the
-			// mark does, so arriving from a lesson cannot turn the author's
-			// judgement of the material into a reading of the reader.
-			word := `<span class="ui-status">ready</span>`
-			if !strings.Contains(syllabusMain(t, body), word) {
-				t.Errorf("the course stopped printing the contract's own word beside a lesson; body = %q", body)
+			// The draft mark beside a lesson stays the author's whatever the
+			// here mark does, so arriving from a lesson cannot turn the
+			// author's judgement of the material into a reading of the reader.
+			word := `<span class="ui-status">` + wording.Draft.In(wording.ZhHant) + `</span>`
+			if strings.Count(syllabusMain(t, body), word) != 1 {
+				t.Errorf("the course stopped marking its one draft lesson; body = %q", body)
 			}
 		})
 	}

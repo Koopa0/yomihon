@@ -81,8 +81,7 @@ func TestAnOpeningFenceNothingClosesIsRecognised(t *testing.T) {
 // that make detecting beside the split safe. It never calls a block unclosed
 // that the split closed, so the notice a page draws cannot contradict the
 // frontmatter the same page was read from. And asking the question changes
-// nothing the split or the status write path answer: the same bytes still have
-// no block and no status line to rewrite.
+// nothing the split answers: the same bytes still have no block.
 func TestTheUnclosedFenceIsTheSplitsOwnVerdictAndNothingMore(t *testing.T) {
 	t.Parallel()
 
@@ -101,10 +100,6 @@ func TestTheUnclosedFenceIsTheSplitsOwnVerdictAndNothingMore(t *testing.T) {
 			t.Errorf("OpensUnclosedFrontmatter(%q) = true for a block SplitFrontmatter closed", content)
 		}
 
-		_, _, hasStatusLine := vault.StatusLineSpan(data)
-		if unclosed && hasStatusLine {
-			t.Errorf("StatusLineSpan(%q) found a status line in a block that never closes; the write path must keep reading it as body text", content)
-		}
 		if unclosed && vault.Parse("note.md", data).HasFrontmatter {
 			t.Errorf("Parse(%q) read a frontmatter block from a fence that never closes", content)
 		}

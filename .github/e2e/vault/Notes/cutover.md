@@ -3,6 +3,7 @@ title: Cutover
 type: lesson
 domain: golang
 status: draft
+draft: true
 slug: cutover
 lang: en
 ---

@@ -9,7 +9,7 @@
 // drives at all.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note whose head carries every fact — type,
-// status, updated, language, raw path), and MUTATE. MUTATE=list prints every
+// updated, language, raw path), and MUTATE. MUTATE=list prints every
 // watched regression.
 import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';

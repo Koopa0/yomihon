@@ -397,7 +397,7 @@ func TestSearchResultSaysWhenACrossingMatchCannotBeLocated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
-	view := viewResults(answer.Results, true, nil, q.Tokens())
+	view := viewResults(answer.Results, q.Tokens())
 	if len(view) != 1 {
 		t.Fatalf("viewResults = %+v, want one row", view)
 	}

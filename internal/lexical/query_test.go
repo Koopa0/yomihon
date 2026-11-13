@@ -45,7 +45,7 @@ func TestParse(t *testing.T) {
 		{name: "12 slug splits on first colon", input: "slug:a:b", want: &Query{filters: []Filter{{Key: "slug", Value: "a:b"}}}},
 		{name: "13 unknown key is bare token and is remembered as one", input: "foo:bar", want: &Query{tokens: []string{"foo:bar"}, unknownKeys: []string{"foo"}}},
 		{name: "14 classify before fold", input: "Type:lesson", want: &Query{tokens: []string{"type:lesson"}, unknownKeys: []string{"Type"}}},
-		{name: "15 empty filter value", input: "status:", want: &Query{filters: []Filter{{Key: "status", Value: ""}}}},
+		{name: "15 empty filter value", input: "draft:", want: &Query{filters: []Filter{{Key: "draft", Value: ""}}}},
 		{name: "16 literal percent", input: "%", want: &Query{tokens: []string{"%"}}},
 		{name: "17 percent inside token", input: "100%", want: &Query{tokens: []string{"100%"}}},
 		{name: "18 domain nfc value", input: "domain:日本語", want: &Query{filters: []Filter{{Key: "domain", Value: "日本語"}}}},
@@ -191,7 +191,7 @@ func TestFilterCapabilityClassification(t *testing.T) {
 		wantFilter bool
 	}{
 		{name: "type metadata", key: "type", wantKind: filterMetadata, wantFilter: true},
-		{name: "status metadata", key: "status", wantKind: filterMetadata, wantFilter: true},
+		{name: "draft metadata", key: "draft", wantKind: filterMetadata, wantFilter: true},
 		{name: "domain metadata", key: "domain", wantKind: filterMetadata, wantFilter: true},
 		{name: "topic metadata", key: "topic", wantKind: filterMetadata, wantFilter: true},
 		{name: "slug metadata", key: "slug", wantKind: filterMetadata, wantFilter: true},

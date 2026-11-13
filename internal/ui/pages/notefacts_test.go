@@ -32,7 +32,7 @@ func TestNoteHeadFactsAreAllDtDdPairs(t *testing.T) {
 		RelPath:      "Writing/lessons/go/L01.md",
 		Language:     "ja",
 		Type:         "lesson",
-		Status:       "draft",
+		Draft:        true,
 		Updated:      "2026-07-10",
 		UpdatedAt:    "2026-07-10",
 		ObsidianHref: "obsidian://open?path=x",
@@ -80,7 +80,7 @@ func TestNoteHeadFactValues(t *testing.T) {
 		RelPath:   "Writing/lessons/go/L01.md",
 		Language:  "ja",
 		Type:      "lesson",
-		Status:    "draft",
+		Draft:     true,
 		Updated:   "2026-07-10",
 		UpdatedAt: "2026-07-10",
 	}
@@ -101,13 +101,13 @@ func TestNoteHeadFactValues(t *testing.T) {
 			t.Errorf("want %q exactly twice (narrow and wide copies), found %d", want, strings.Count(html, want))
 		}
 	}
-	// The status is not a fact of the head: the status face states it, live,
-	// wherever it can be changed. A status row, or a control, inside the facts
-	// would be a second place that states it or a second door to changing it.
+	// The draft flag is not a fact of the list: it is one quiet word beside it,
+	// and no control. A draft row, or a control, inside the facts would be a
+	// second place that states it or a door to changing it.
 	for i, block := range dlBlock.FindAllString(html, -1) {
-		for _, banned := range []string{"狀態", "draft", "<form", "<button"} {
+		for _, banned := range []string{wording.Draft.In(wording.ZhHant), "draft", "<form", "<button"} {
 			if strings.Contains(block, banned) {
-				t.Errorf("copy %d of the head facts carries %q; the status is stated by the status face alone", i, banned)
+				t.Errorf("copy %d of the head facts carries %q; the draft mark stands beside the list", i, banned)
 			}
 		}
 	}
@@ -116,13 +116,13 @@ func TestNoteHeadFactValues(t *testing.T) {
 // TestNoteHeadWithNoFactsDrawsNeitherCopy is the other side of headFactsShown:
 // a note with none of the four facts draws no disclosure and no open list,
 // rather than an empty dl either reader would have to open to learn is empty.
-// A status alone is not a fact of the head, so a note declaring only that is
-// bare too.
+// A draft flag alone is not a fact of the list, so a view carrying only that
+// is bare too.
 func TestNoteHeadWithNoFactsDrawsNeitherCopy(t *testing.T) {
 	t.Parallel()
 	for name, view := range map[string]NoteView{
-		"nothing declared": {Title: "Bare"},
-		"a status alone":   {Title: "Bare", Status: "draft"},
+		"nothing declared":   {Title: "Bare"},
+		"a draft flag alone": {Title: "Bare", Draft: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

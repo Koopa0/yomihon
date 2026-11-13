@@ -1,7 +1,6 @@
 // Package vault is the vault on disk: path identity, the note model, and the
 // read capability that pins one directory. It splits frontmatter from body,
-// reads frontmatter values, locates the spans the status write face replaces,
-// and holds the one order vault paths sort by. The read face answers what is
+// reads frontmatter values, and holds the one order vault paths sort by. The read face answers what is
 // under the pin, what each file was when observed, and what its bytes are now;
 // it never writes. Every read descends the recorded path component by
 // component and refuses the moment an object stops being the one observed, so
@@ -108,46 +107,6 @@ func (n *Note) Status() string {
 	return s
 }
 
-// StatusNotText reports that the note wrote a single status value and the YAML
-// reader did not hand it back as text: an unquoted date, number or boolean.
-// Status is empty in that case, the same as for a note that wrote none, and the
-// two are not the same thing to tell a reader — one has nothing to fix and the
-// other has a value that needs quoting.
-//
-// A list or a mapping is deliberately not one of these. The judging side quotes
-// a scalar and says nothing about either of those shapes, so a page claiming
-// they carry a value the diagnostic below would name is a page contradicting the
-// panel under it. They read as no single value, which is what they are.
-//
-// The judging commands read the same file through their own reader, which
-// takes a scalar as the characters the author typed, so they name a value this
-// side cannot. A page that says the status could not be read while the panel
-// under it quotes the status back is describing one field twice, and this is
-// what lets it say which of the two happened instead.
-func (n *Note) StatusNotText() bool {
-	return n.wroteNonText("status")
-}
-
-// wroteNonText reports that key holds one value and that value is not text.
-//
-// Three shapes answer false, each for its own reason. An absent key wrote
-// nothing to misread. An empty one — "status:" with nothing after it — reads as
-// null, which is the same nothing, and a reader told to add quotation marks
-// there would have nothing to put them around. A list or a mapping did write
-// something, but it is not one value, and the sentence this feeds is about a
-// value a reader can put quotes around.
-func (n *Note) wroteNonText(key string) bool {
-	value, present := n.Frontmatter[key]
-	if !present || value == nil {
-		return false
-	}
-	switch value.(type) {
-	case string, []any, map[string]any:
-		return false
-	}
-	return true
-}
-
 // Type is the frontmatter type, empty when absent.
 func (n *Note) Type() string {
 	t, _ := n.Text("type")
@@ -198,7 +157,7 @@ func IsMarkdown(relPath string) bool {
 
 // FrontmatterSplit is the byte-level split of one note. Content is the YAML
 // between the fence lines; ContentStart locates it in the original input so a
-// status write replaces one line without rebuilding a delimiter or a newline.
+// diagnostic cites the file's own line.
 type FrontmatterSplit struct {
 	Content       []byte
 	Body          []byte
@@ -211,7 +170,7 @@ type FrontmatterSplit struct {
 // LF and CRLF are accepted, as is a closing fence at EOF, and an unterminated
 // opening fence is body text. One leading byte-order mark belongs to the file,
 // so both readers step over it. The input stays untouched and offsets stay
-// measured against its original bytes, so a status write disturbs nothing else.
+// measured against its original bytes.
 func SplitFrontmatter(data []byte) (FrontmatterSplit, bool) {
 	opening, _ := bytes.CutPrefix(data, []byte("\xef\xbb\xbf"))
 	block := FrontmatterSplit{Body: opening, BodyStartLine: 1}
@@ -242,144 +201,4 @@ func SplitFrontmatter(data []byte) (FrontmatterSplit, bool) {
 		offset += advance
 	}
 	return block, false
-}
-
-// StatusLineSpan locates the single line beginning with "status:" inside data's
-// frontmatter block and returns the byte range of the line's text — its
-// trailing newline excluded, a carriage return before that newline included. It
-// reports false when data has no frontmatter block, or when the block holds any
-// number of such lines other than one.
-func StatusLineSpan(data []byte) (start, end int, ok bool) {
-	block, found := SplitFrontmatter(data)
-	if !found {
-		return 0, 0, false
-	}
-	offset := 0
-	for line := range bytes.SplitSeq(block.Content, []byte("\n")) {
-		if bytes.HasPrefix(line, []byte("status:")) {
-			if ok {
-				return 0, 0, false
-			}
-			start = block.ContentStart + offset
-			end = start + len(line)
-			ok = true
-		}
-		offset += len(line) + 1
-	}
-	return start, end, ok
-}
-
-// StatusValueSpan locates the scalar value inside the frontmatter status line
-// and returns the byte range of the value's own text — the quotes around a
-// quoted value excluded, so the quoting style is not part of it. It is the one
-// definition of where a note's status lives, narrower than the line so that
-// everything else its author wrote there, a trailing comment included, stays
-// content. It reports false when data has no single status line, or the value
-// is a shape a byte replacement cannot preserve: absent, a sequence or mapping,
-// an anchor, an alias, a tag, a multi-line block scalar, an unclosed quote, or
-// a value carrying a character the reader ends the line at.
-func StatusValueSpan(data []byte) (start, end int, ok bool) {
-	lineStart, lineEnd, ok := StatusLineSpan(data)
-	if !ok {
-		return 0, 0, false
-	}
-	line := bytes.TrimSuffix(data[lineStart:lineEnd], []byte("\r"))
-	rest := line[len("status:"):]
-
-	// A tab separates a key from its value in YAML as readily as a space, and
-	// a colon with nothing after it opens no mapping.
-	spaces := 0
-	for spaces < len(rest) && (rest[spaces] == ' ' || rest[spaces] == '\t') {
-		spaces++
-	}
-	if spaces == 0 || spaces == len(rest) {
-		return 0, 0, false
-	}
-	offset, width, ok := scalarValue(rest[spaces:])
-	if !ok {
-		return 0, 0, false
-	}
-	valueStart := lineStart + len("status:") + spaces + offset
-	return valueStart, valueStart + width, true
-}
-
-// scalarValue reports where a status value's own text starts within the bytes
-// following the separator and how long it is.
-func scalarValue(value []byte) (offset, width int, ok bool) {
-	switch quote := value[0]; {
-	case quote == '"' || quote == '\'':
-		offset, width, ok = quotedScalar(value, quote)
-	case isYAMLIndicator(quote):
-		return 0, 0, false
-	default:
-		width, ok = plainScalar(value)
-	}
-	if !ok {
-		return 0, 0, false
-	}
-	// A line break inside the run is one the YAML reader honours and this line
-	// scan does not. The reader ends a line at more than the control bytes:
-	// U+0085, U+2028 and U+2029 end one too. In an unquoted value that is a
-	// disagreement about where the value stops, and a replacement would reach
-	// into what the reader reads as the next line, deleting a key or a comment
-	// line of the author's own. Inside quotes the reader ends no line and this
-	// refuses anyway: it folds U+0085 to a space there, so the value it reports
-	// is not the bytes on the line, and none of the three shows in an editor or
-	// a review. A value nobody can check by looking is one to leave alone
-	// rather than to rewrite on a guess about which reading was meant.
-	for _, r := range string(value[offset : offset+width]) {
-		if r < 0x20 || r == '\u0085' || r == '\u2028' || r == '\u2029' {
-			return 0, 0, false
-		}
-	}
-	return offset, width, true
-}
-
-// quotedScalar measures the text between a value's quotes. An escape inside
-// them means those bytes are not the value, so the line is refused.
-func quotedScalar(value []byte, quote byte) (offset, width int, ok bool) {
-	closing := bytes.IndexByte(value[1:], quote)
-	if closing < 0 || !onlyCommentFollows(value[1+closing+1:]) {
-		return 0, 0, false
-	}
-	if bytes.ContainsRune(value[1:1+closing], '\\') {
-		return 0, 0, false
-	}
-	return 1, closing, true
-}
-
-// plainScalar measures an unquoted value: from the separator up to a comment
-// or the end of the line, trailing spaces left outside it.
-func plainScalar(value []byte) (width int, ok bool) {
-	plain := value
-	// A comment opens at a "#" that follows white space, tab included.
-	if at := bytes.IndexAny(plain, " \t"); at >= 0 {
-		for i := at; i < len(plain)-1; i++ {
-			if (plain[i] == ' ' || plain[i] == '\t') && plain[i+1] == '#' {
-				plain = plain[:i]
-				break
-			}
-		}
-	}
-	plain = bytes.TrimRight(plain, " \t")
-	if len(plain) == 0 || bytes.Contains(plain, []byte(": ")) {
-		return 0, false
-	}
-	return len(plain), true
-}
-
-// onlyCommentFollows reports whether the tail after a closing quote is nothing,
-// white space, or white space then a comment.
-func onlyCommentFollows(tail []byte) bool {
-	trimmed := bytes.TrimLeft(tail, " \t")
-	if len(trimmed) == 0 {
-		return true
-	}
-	return len(trimmed) < len(tail) && trimmed[0] == '#'
-}
-
-// isYAMLIndicator reports whether c opens something other than a plain scalar.
-// A status word never begins with one, so refusing them all costs nothing.
-func isYAMLIndicator(c byte) bool {
-	return bytes.IndexByte([]byte("-?:,[]{}#&*!|>%@`\"'"), c) >= 0
 }

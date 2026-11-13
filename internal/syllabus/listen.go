@@ -120,7 +120,7 @@ func taught(current *nav.Path) []*nav.PathEntry {
 
 // isLesson asks the contract whether a note's declared type is the one this
 // vault files course members as. A face reading a generation that carries no
-// status authority teaches nothing rather than guessing at the name.
+// contract authority teaches nothing rather than guessing at the name.
 func (s *RequestSnapshot) isLesson(noteType string) bool {
-	return s.Status != nil && s.Status.IsLessonType(noteType)
+	return s.Authority != nil && s.Authority.IsLessonType(noteType)
 }

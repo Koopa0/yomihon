@@ -588,19 +588,19 @@ func TestTheRailDrawsASideBranchAfterTheLessonItHangsFrom(t *testing.T) {
 	}
 }
 
-// TestTheHeadNamesWhatIsUnsettledInTheNounThePathIsReadIn holds the exception
+// TestTheHeadNamesTheDraftsInTheNounThePathIsReadIn holds the exception
 // the head states after the extent. It is the one place the interface says a
 // count of entries in a sentence of its own, so it is the place a noun left
 // behind in one language would show.
-func TestTheHeadNamesWhatIsUnsettledInTheNounThePathIsReadIn(t *testing.T) {
+func TestTheHeadNamesTheDraftsInTheNounThePathIsReadIn(t *testing.T) {
 	t.Parallel()
 
-	contract := settledTestContract(t, "ready")
+	contract := loadTestContract(t)
 	lessons := buildPathUnder(t, contract, "## Data {sequence=primary}\n\n- [[Slices]]\n- [[Arrays]]\n- [[GC]]\n")
 	items := buildPathUnder(t, contract, "## Data {sequence=primary}\n\n- [[Queue]]\n- [[Worker]]\n- [[Gate]]\n", map[string]string{
-		"Writing/Queue.md":  "---\ntitle: Queue\ntype: concept\nstatus: draft\n---\nbody\n",
-		"Writing/Worker.md": "---\ntitle: Worker\ntype: concept\nstatus: ready\n---\nbody\n",
-		"Writing/Gate.md":   "---\ntitle: Gate\ntype: concept\nstatus: draft\n---\nbody\n",
+		"Writing/Queue.md":  "---\ntitle: Queue\ntype: concept\ndraft: true\n---\nbody\n",
+		"Writing/Worker.md": "---\ntitle: Worker\ntype: concept\n---\nbody\n",
+		"Writing/Gate.md":   "---\ntitle: Gate\ntype: concept\ndraft: true\n---\nbody\n",
 	})
 	settled := buildPathUnder(t, contract, "## Data {sequence=primary}\n\n- [[Slices]]\n- [[GC]]\n")
 
@@ -620,11 +620,11 @@ func TestTheHeadNamesWhatIsUnsettledInTheNounThePathIsReadIn(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			view := BuildPathView(tt.path, []nav.Path{*tt.path}, &CourseCover{})
-			if got := view.UnsettledNote(tt.lang); got != tt.want {
-				t.Errorf("UnsettledNote() = %q, want %q", got, tt.want)
+			if got := view.DraftsNote(tt.lang); got != tt.want {
+				t.Errorf("DraftsNote() = %q, want %q", got, tt.want)
 			}
-			if got := strings.Contains(renderCover(t, &view, tt.lang), `data-course-unsettled`); got != (tt.want != "") {
-				t.Errorf("the head draws the unsettled figure = %t, want %t", got, tt.want != "")
+			if got := strings.Contains(renderCover(t, &view, tt.lang), `data-course-drafts`); got != (tt.want != "") {
+				t.Errorf("the head draws the drafts figure = %t, want %t", got, tt.want != "")
 			}
 		})
 	}

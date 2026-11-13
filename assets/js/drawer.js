@@ -13,15 +13,11 @@ export function initDrawer() {
   // the visible way back out, so it stays reachable. The skip link is here for
   // the opposite reason: it also paints above the scrim, but its destination is
   // in this list, so an open drawer would leave it offering a jump to somewhere
-  // nobody can go. The status bar is under the scrim and is a control surface,
-  // and it is a sibling of the shell rather than part of the article, so it is
-  // named here rather than covered by the main region. The right rail needs no
-  // entry: it is display:none at every width the drawer exists, which is
+  // nobody can go. The right rail needs no entry: it is display:none at every width the drawer exists, which is
   // already out of the tree.
   const background = [
     document.querySelector('#_y-main'),
     document.querySelector('.y-skiplink'),
-    document.querySelector('.y-sealbar'),
   ].filter(Boolean);
 
   function isOpen() {

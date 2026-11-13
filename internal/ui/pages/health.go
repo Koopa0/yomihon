@@ -120,16 +120,13 @@ const (
 	healthIsland
 	healthUnreadableFrontmatter
 	healthSchemaFault
-	healthStatusOutsideEnum
-	healthStatusUnreachable
 	healthCollision
 )
 
 // healthKinds is every kind, in that order.
 var healthKinds = []healthKind{
 	healthBlocked, healthSkipped, healthNavigationFault, healthUnwritten, healthTitleOnly, healthIsland,
-	healthUnreadableFrontmatter, healthSchemaFault, healthStatusOutsideEnum,
-	healthStatusUnreachable, healthCollision,
+	healthUnreadableFrontmatter, healthSchemaFault, healthCollision,
 }
 
 // title is what the finding column calls this kind, and what the guide lists it
@@ -152,10 +149,6 @@ func (k healthKind) title(lang wording.Lang) string {
 		return wording.HealthFrontmatterTitle.In(lang)
 	case healthSchemaFault:
 		return wording.HealthSchemaTitle.In(lang)
-	case healthStatusOutsideEnum:
-		return wording.StatusOutsideEnumTitle.In(lang)
-	case healthStatusUnreachable:
-		return wording.StatusUnreachableTitle.In(lang)
 	case healthCollision:
 		return wording.CollisionsTitle.In(lang)
 	}
@@ -190,17 +183,15 @@ type healthRule struct {
 // the planned ledger is tracked, is weighed lighter, and never reaches a row
 // here.
 var healthRules = map[healthKind]healthRule{
-	healthBlocked:           {"scan.unreadable", judge.SeverityError},
-	healthSkipped:           {"scan.skipped", judge.SeverityWarn},
-	healthUnwritten:         {"link.broken", judge.SeverityWarn},
-	healthTitleOnly:         {"link.title_not_alias", judge.SeverityWarn},
-	healthStatusOutsideEnum: {"schema.enum", judge.SeverityError},
-	healthStatusUnreachable: {"schema.status_unreachable", judge.SeverityError},
-	healthCollision:         {"collision.name", judge.SeverityWarn},
+	healthBlocked:   {"scan.unreadable", judge.SeverityError},
+	healthSkipped:   {"scan.skipped", judge.SeverityWarn},
+	healthUnwritten: {"link.broken", judge.SeverityWarn},
+	healthTitleOnly: {"link.title_not_alias", judge.SeverityWarn},
+	healthCollision: {"collision.name", judge.SeverityWarn},
 }
 
 // healthDetail is one piece of a finding's evidence: words whose author wrote
-// them — a link target, a status value, the error a read returned — and the
+// them — a link target, the error a read returned — and the
 // note they point at where there is one.
 type healthDetail struct {
 	// Parts separates declared values from localized enum guidance.
@@ -326,7 +317,6 @@ func (v *HealthView) gather(lang wording.Lang) []healthRow {
 		v.navigationRows(),
 		v.citationRows(lang),
 		v.schemaRows(),
-		v.statusRows(lang),
 		v.collisionRows(lang),
 	)
 	// The weight a kind carries is the same on every row of it, so it is put
@@ -417,30 +407,6 @@ func (v *HealthView) schemaRows() []healthRow {
 			row.Detail = append(row.Detail, healthDetail{Parts: parts})
 		}
 		out = append(out, row)
-	}
-	return out
-}
-
-// statusRows are the notes carrying a status their type cannot be in. The value
-// and the type travel together: the value is the word the reader edits and the
-// type is why it failed.
-func (v *HealthView) statusRows(lang wording.Lang) []healthRow {
-	out := make([]healthRow, 0, len(v.StatusOutsideEnum)+len(v.StatusUnreachable))
-	for _, kind := range []struct {
-		kind  healthKind
-		found []HealthStatusNote
-	}{
-		{healthStatusOutsideEnum, v.StatusOutsideEnum},
-		{healthStatusUnreachable, v.StatusUnreachable},
-	} {
-		for _, found := range kind.found {
-			detail := healthDetail{Text: fmt.Sprintf(wording.StatusAndTypeFmt.In(lang), found.Status, found.Type)}
-			row := healthRow{Kind: kind.kind, File: found.Note, Detail: []healthDetail{detail}, Count: 1}
-			if parts := wording.AllowedEnumValues(lang, "status", found.AllowedStatuses); len(parts) > 0 {
-				row.Detail = append(row.Detail, healthDetail{Parts: parts})
-			}
-			out = append(out, row)
-		}
 	}
 	return out
 }
@@ -575,10 +541,6 @@ func (v *HealthView) kindLede(kind healthKind, lang wording.Lang) string {
 		return wording.HealthFrontmatterLede.In(lang)
 	case healthSchemaFault:
 		return wording.HealthSchemaLede.In(lang)
-	case healthStatusOutsideEnum:
-		return wording.StatusOutsideEnumLede.In(lang)
-	case healthStatusUnreachable:
-		return wording.StatusUnreachableLede.In(lang)
 	case healthCollision:
 		return wording.CollisionsLede.In(lang)
 	}
@@ -589,8 +551,6 @@ func (v *HealthView) kindLede(kind healthKind, lang wording.Lang) string {
 func (v *HealthView) clean() bool {
 	return len(v.NavigationFaults) == 0 && len(v.Unwritten) == 0 && len(v.TitleOnly) == 0 && v.IslandCount == 0 &&
 		len(v.Collisions) == 0 && len(v.Blocked) == 0 && len(v.Skipped) == 0 &&
-		len(v.StatusOutsideEnum) == 0 &&
-		len(v.StatusUnreachable) == 0 &&
 		len(v.FrontmatterUnreadable) == 0 && len(v.SchemaFaults) == 0 &&
 		len(v.Notices) == 0 &&
 		v.InstanceScopeUnknown == "" && v.SchemaScopeUnknown == ""

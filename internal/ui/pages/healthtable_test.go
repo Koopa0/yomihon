@@ -74,12 +74,6 @@ var healthFindingFields = map[string]healthFindingField{
 	"SchemaFaults": {rows: 1, findings: 4, fill: func(v *HealthView) {
 		v.SchemaFaults = []HealthNoteFindings{{Note: healthTestNote, Severity: judge.SeverityError, Count: 4}}
 	}},
-	"StatusOutsideEnum": {rows: 1, findings: 1, fill: func(v *HealthView) {
-		v.StatusOutsideEnum = []HealthStatusNote{{Note: healthTestNote, Type: "lesson", Status: "seed"}}
-	}},
-	"StatusUnreachable": {rows: 1, findings: 1, fill: func(v *HealthView) {
-		v.StatusUnreachable = []HealthStatusNote{{Note: healthTestNote, Type: "concept", Status: "published"}}
-	}},
 	"Collisions": {rows: 1, findings: 1, fill: func(v *HealthView) {
 		v.Collisions = []HealthCollision{{Name: "Repeat", Candidates: []nav.NoteRef{
 			{Name: "A/Repeat.md", RelPath: "A/Repeat.md"},
@@ -186,7 +180,7 @@ func TestTheTableCountsEveryFindingTheViewHolds(t *testing.T) {
 	t.Parallel()
 	view := recordedHealthView(buildModel(t))
 	held := len(view.Blocked) + len(view.Skipped) + len(view.Unwritten) + len(view.TitleOnly) +
-		view.IslandCount + len(view.StatusOutsideEnum) + len(view.StatusUnreachable) + len(view.Collisions)
+		view.IslandCount + len(view.Collisions)
 	for _, found := range slices.Concat(view.FrontmatterUnreadable, view.SchemaFaults) {
 		held += found.Count
 	}

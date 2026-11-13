@@ -64,17 +64,11 @@ type HomeNote struct {
 	Title   string
 	RelPath string
 	Type    string
-	Status  string
-	// Settled is whether the contract declares Status settled, the resting
-	// state of a finished note, so the row prints no status for it.
-	Settled    bool
+	// Draft is whether the note declares itself unfinished, the one note the
+	// row marks.
+	Draft      bool
 	Modified   string
 	ModifiedAt string
-
-	// StatusOutsideEnum marks a note whose status value the contract does not
-	// declare for its type — the per-note question the reading page and the
-	// search row ask, not the distribution chip's aggregated one.
-	StatusOutsideEnum bool
 
 	// Language is the note's own declared BCP 47 tag when the contract gave
 	// the field authority and the frontmatter carried a valid value. Empty
@@ -208,27 +202,4 @@ templ homeBlockHead(id, title, note string) {
 			<p>{ note }</p>
 		}
 	</header>
-}
-
-// lifecycleChipBody is what every chip shows, link or not, so a chip that is
-// not a link cannot drift into looking different from one that is.
-templ lifecycleChipBody(it LifecycleItem, lang wording.Lang) {
-	<span class="y-navdot" aria-hidden="true"></span>
-	<span>{ statusChipLabel(it.Name, lang) }</span>
-	if it.Unknown {
-		@statusOutsideEnumMark(lang)
-	}
-	<span class="y-homechip__count">{ strconv.Itoa(it.Count) }<span class="y-offscreen">{ countUnit(it.Count, wording.NoteCountOne, wording.NoteCountMany, lang) }</span></span>
-}
-
-// unstatedChipBody is what a cell shows when it stands for notes carrying no
-// status. It has no status dot, there being no status for one to mark, and its
-// words come from where a blank status has always taken them.
-templ unstatedChipBody(it LifecycleItem, lang wording.Lang) {
-	if it.Label != "" {
-		<span>{ it.Label }</span>
-	} else {
-		<span>{ statusChipLabel(it.Name, lang) }</span>
-	}
-	<span class="y-homechip__count">{ strconv.Itoa(it.Count) }<span class="y-offscreen">{ countUnit(it.Count, wording.NoteCountOne, wording.NoteCountMany, lang) }</span></span>
 }

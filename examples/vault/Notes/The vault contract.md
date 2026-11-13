@@ -2,7 +2,6 @@
 title: The vault contract
 aliases: [contract, vault-schema]
 type: note
-status: ready
 domain: yomihon
 topics: [contract]
 replaces: ["An older approach"]
@@ -33,4 +32,4 @@ note = ["draft", "ready", "published", "archived"]
 
 ## When it cannot be read
 
-An unreadable or invalid contract produces a page notice and disables the status control, courses and maps. Reading, folder navigation and search remain available. The `check`, `coverage` and `exists` commands refuse to run without a usable contract and privacy declaration.
+An unreadable or invalid contract produces a page notice and turns off courses and maps. Reading, folder navigation and search remain available. The `check`, `coverage` and `exists` commands refuse to run without a usable contract and privacy declaration.

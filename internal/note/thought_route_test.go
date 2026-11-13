@@ -36,7 +36,7 @@ func TestThoughtRouteOffersOrdinaryDocumentsAndLessonsTheSameDoor(t *testing.T) 
 			if unquoted, err := strconv.Unquote(title); !titled || err != nil || !thoughtNamePattern.MatchString(unquoted) {
 				t.Errorf("first frontmatter line = %q, want the suggested note name as title", titleLine)
 			}
-			const want = "type: \"writing\"\nstatus: \"draft\"\ndomain: \"japanese\"\nbased_on: \"[[Source#Chapter one]]\"\n---\n"
+			const want = "type: \"writing\"\ndraft: true\ndomain: \"japanese\"\nbased_on: \"[[Source#Chapter one]]\"\n---\n"
 			if rest != want {
 				t.Errorf("offered Markdown after the title = %q, want %q", rest, want)
 			}
@@ -207,7 +207,9 @@ func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (h
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(data)
+	// The draft flag is known to this contract, so the door's stub starts the
+	// thought unfinished.
+	text := strings.Replace(string(data), "known = [", "known = [\"draft\", ", 1)
 	if declareAnswer {
 		text = strings.Replace(text, "[navigation]\n", "[navigation]\nanswer_type = \"writing\"\n", 1)
 	}
@@ -221,10 +223,10 @@ func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (h
 	}
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
-	writer := openStatusWriter(t, source, contract, contract.Governance())
+	authority := func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) }
 	handler = note.New(&note.Sources{
-		Source: source, Contract: contract, Snapshot: store.Current, Status: writer.Authority,
-		ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+		Source: source, Contract: contract, Snapshot: store.Current, Authority: authority,
+
 		Continuation: noMark, Log: log,
 	})
 	return handler, root

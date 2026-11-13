@@ -29,10 +29,8 @@ func TestTheMarkControlSurvivesANoteWithNoOtherAids(t *testing.T) {
 	// A note in a folder that has no links yet: no outline, no diagnostics, no
 	// declared sources, and nothing cites anything, so citedByShown is false.
 	bare := NoteView{
-		Governed:        true,
 		Title:           "T",
 		RelPath:         "a.md",
-		Status:          "draft",
 		ContentIdentity: "abc123",
 		MarkAddress:     "/marks",
 		VaultHasLinks:   false,
@@ -73,7 +71,7 @@ func TestTheMarkControlSurvivesANoteWithNoOtherAids(t *testing.T) {
 func TestANoteThatCannotOfferAMarkStillCollapsesItsRail(t *testing.T) {
 	t.Parallel()
 
-	stale := NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", MarkAddress: "/marks"}
+	stale := NoteView{Title: "T", RelPath: "a.md", MarkAddress: "/marks"}
 	if stale.offersMark() {
 		t.Fatal("this fixture was meant to have no identity to bind a mark to")
 	}

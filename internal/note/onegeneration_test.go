@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/note"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 )
 
@@ -61,7 +62,7 @@ func TestTheMapIndexReadsOneGeneration(t *testing.T) {
 	contract := loadHomeContract(t)
 	storeA, sourceA := newSnapshotStore(t, mapVault(t, "Japanese title", "ja"), log, contract, contract.Governance())
 	storeB, _ := newSnapshotStore(t, mapVault(t, "English title", "en"), log, contract, contract.Governance())
-	writer := openStatusWriter(t, sourceA, contract, contract.Governance())
+	authority := func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) }
 
 	for _, tt := range []struct {
 		name string
@@ -97,13 +98,12 @@ func TestTheMapIndexReadsOneGeneration(t *testing.T) {
 			t.Parallel()
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				Source:         sourceA,
-				Status:         writer.Authority,
-				Snapshot:       tt.published(),
-				ObservedStatus: writer.ObservedStatus,
-				ConsumeReceipt: writer.ConsumeReceipt,
-				Continuation:   noMark,
-				Log:            log,
+				Source:    sourceA,
+				Authority: authority,
+				Snapshot:  tt.published(),
+
+				Continuation: noMark,
+				Log:          log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)

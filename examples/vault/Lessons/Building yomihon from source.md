@@ -1,7 +1,6 @@
 ---
 title: Building yomihon from source
 type: lesson
-status: archived
 domain: yomihon
 slug: building-from-source
 level: fundamental

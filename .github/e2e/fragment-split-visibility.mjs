@@ -1,30 +1,22 @@
-// Behavior lock: two facts yomihon already knew are legible where a reader
-// actually looks. A search hit whose status the contract does not declare for
-// its type says so in painted words on the row, and a link whose section
-// address was split off a name nothing answers to says how it was read inside
-// 筆記狀況. Both used to be a colour, a hover, or nothing at all, and the
-// reader who could act on either is the one least likely to open every note.
+// Behavior lock: a fact yomihon already knew is legible where a reader
+// actually looks. A link whose section address was split off a name nothing
+// answers to says how it was read inside 筆記狀況. It used to be a colour, a
+// hover, or nothing at all, and the reader who could act on it is the one
+// least likely to open every note.
 //
 // Markup alone is not the contract here — text present in the DOM but clipped
-// out of sight reads to a Go test exactly like text on screen, so every
+// out of sight reads to a Go test exactly like text on screen, so the
 // assertion below ends at a hit test against real geometry.
 //
 // Env: YOMIHON_BASE, PAGE_PATH, and MUTATE.
 import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
-import { readFile } from 'node:fs/promises';
 
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/search?q=status%3Adraft';
-const NOTE_PAGE = '/notes/Writing/lessons/japanese/L01.md';
+const NOTE_PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['search-flag-painted', 'fragment-split-painted'];
-
-// These fixture notes were independently checked to carry invalid statuses.
-// An enum finding on another field does not establish that warning contract.
-const WARNING_PATHS = ['Notes/mark-anchors.md', 'Notes/out-of-contract.md'];
-const WARNING_WORDS = '不在 schema 允許清單中';
+const SITES = ['fragment-split-painted'];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -36,11 +28,11 @@ class ProbeBroken extends Error {}
 class NotApplied extends Error {}
 
 const fail = (site, message) => {
-  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN status-and-fragment-visibility: unknown assertion site ${site}`);
-  throw new LockFired(site, `FAIL status-and-fragment-visibility: ${message}`);
+  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN fragment-split-visibility: unknown assertion site ${site}`);
+  throw new LockFired(site, `FAIL fragment-split-visibility: ${message}`);
 };
-const broken = (message) => { throw new ProbeBroken(`BROKEN status-and-fragment-visibility: ${message}`); };
-const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED status-and-fragment-visibility: ${message}`); };
+const broken = (message) => { throw new ProbeBroken(`BROKEN fragment-split-visibility: ${message}`); };
+const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED fragment-split-visibility: ${message}`); };
 
 // rewritePath proves it applied by counting, so a needle that rots against a
 // rewritten template turns this run red rather than quietly mutating nothing.
@@ -69,97 +61,7 @@ const hideVia = (path, selector, label) => rewritePath(
   label,
 );
 
-// A row fault must change exactly one declared fixture row. Record the
-// application before removing a node, so disappearance cannot prove its own
-// application and a missing fixture refuses the mutation instead.
-const changeWarningRow = (path, fault) => async (page) => {
-  await page.addInitScript(({ wanted, change }) => {
-    document.addEventListener('DOMContentLoaded', () => {
-      if (location.pathname !== '/search') return;
-      const links = [...document.querySelectorAll('a.y-result[href]')].filter((link) =>
-        decodeURIComponent(new URL(link.href).pathname) === `/notes/${wanted}`);
-      const record = { rows: links.length, flags: 0, changed: false };
-      window.__warningRowMutation = record;
-      if (links.length !== 1) return;
-      const link = links[0];
-      const flags = link.querySelectorAll('.y-outofenum');
-      record.flags = flags.length;
-      if (change === 'false-warning') {
-        const original = document.querySelector('.y-outofenum');
-        if (flags.length !== 0 || !original) return;
-        link.append(original.cloneNode(true));
-        record.changed = link.querySelectorAll('.y-outofenum').length === 1;
-        return;
-      }
-      if (flags.length !== 1) return;
-      const flag = flags[0];
-      if (change === 'hide') {
-        flag.style.setProperty('display', 'none', 'important');
-        record.changed = getComputedStyle(flag).display === 'none';
-      } else if (change === 'drop') {
-        flag.remove();
-        record.changed = !flag.isConnected;
-      } else if (change === 'remove-row') {
-        const row = link.closest('ol.y-results > li');
-        if (!row) return;
-        row.remove();
-        record.changed = !row.isConnected;
-      } else if (change === 'accessible-name') {
-        link.setAttribute('aria-label', 'fixture result without its warning');
-        record.changed = link.getAttribute('aria-label') === 'fixture result without its warning';
-      } else if (change === 'duplicate') {
-        link.append(flag.cloneNode(true));
-        record.changed = link.querySelectorAll('.y-outofenum').length === 2;
-      }
-    }, { once: true });
-  }, { wanted: path, change: fault });
-  let applied = false;
-  return async () => {
-    if (applied) return '';
-    const record = await page.evaluate(() => window.__warningRowMutation ?? null);
-    if (!record || record.rows !== 1 || !record.changed) {
-      return `${path}/${fault} did not change exactly one fixture row: ${JSON.stringify(record)}`;
-    }
-    applied = true;
-    return '';
-  };
-};
-
-// The out-of-enum mark is one component and one class wherever it is worn — a
-// search hit, a recent-list row, a distribution chip. These mutations suppress
-// the class itself, so they answer for every surface that renders it, and the
-// search page is simply where the assertion is made. Which surfaces render it
-// at all is settled in Go, where a fixture can be built for each.
 const MUTATIONS = {
-  'hide-search-flag': {
-    target: 'search-flag-painted',
-    apply: hideVia(PAGE, '.y-outofenum', 'search-flag hide style'),
-  },
-  // The warning used to live in text carried out of sight. Reinstating exactly
-  // that treatment must be caught, or this probe would bless the state the
-  // change was made to leave.
-  'clip-search-flag-out-of-sight': {
-    target: 'search-flag-painted',
-    apply: rewritePath(
-      PAGE,
-      '</head>',
-      '<style>.y-outofenum{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important}</style></head>',
-      1,
-      'search-flag clip style',
-    ),
-  },
-  // Ink and fade change no box and no hit test, so without their own checks
-  // the oracle above would call an unreadable warning painted.
-  'write-the-search-flag-in-transparent-ink': {
-    target: 'search-flag-painted',
-    apply: rewritePath(
-      PAGE,
-      '</head>',
-      '<style>.y-outofenum{color:transparent!important}</style></head>',
-      1,
-      'search-flag ink style',
-    ),
-  },
   'fade-the-fragment-split-away': {
     target: 'fragment-split-painted',
     apply: rewritePath(
@@ -182,29 +84,15 @@ const MUTATIONS = {
   },
 };
 
-for (const [index, path] of WARNING_PATHS.entries()) {
-  for (const fault of ['hide', 'drop', 'remove-row', 'accessible-name']) {
-    MUTATIONS[`${fault}-warning-row-${index + 1}`] = {
-      target: 'search-flag-painted', at: 'search', apply: changeWarningRow(path, fault),
-    };
-  }
-}
-MUTATIONS['duplicate-a-warning'] = {
-  target: 'search-flag-painted', at: 'search', apply: changeWarningRow(WARNING_PATHS[0], 'duplicate'),
-};
-MUTATIONS['warn-on-a-declared-row'] = {
-  target: 'search-flag-painted', at: 'search', apply: changeWarningRow('Notes/cutover.md', 'false-warning'),
-};
-
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
   if (!SITES.includes(mutation.target)) {
-    console.error(`status-and-fragment-visibility: mutation ${name} aims at unknown site ${mutation.target}`);
+    console.error(`fragment-split-visibility: mutation ${name} aims at unknown site ${mutation.target}`);
     process.exit(2);
   }
 }
 for (const site of SITES) {
   if (!Object.values(MUTATIONS).some((mutation) => mutation.target === site)) {
-    console.error(`status-and-fragment-visibility: assertion site ${site} has no mutation`);
+    console.error(`fragment-split-visibility: assertion site ${site} has no mutation`);
     process.exit(2);
   }
 }
@@ -214,11 +102,11 @@ if (MUTATE === 'list') {
   process.exit(0);
 }
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
-  console.error(`status-and-fragment-visibility: unknown MUTATE mode ${MUTATE}`);
+  console.error(`fragment-split-visibility: unknown MUTATE mode ${MUTATE}`);
   process.exit(2);
 }
 
-// painted answers the only question that matters for both sites: is this
+// painted answers the only question that matters here: is this
 // element's own text on the screen, in ink, at a place the pointer lands on it.
 //
 // Text can be present in the document and unreadable in several unrelated ways,
@@ -305,53 +193,6 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
 
-  // --- the search row -----------------------------------------------------
-  await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
-
-  const canonical = await readFile(new URL('../../tools/check-fixtures.e2e-vault.expected', import.meta.url), 'utf8');
-  const enumPaths = canonical.split('\n').filter((line) => line.startsWith('schema.enum\t'))
-    .map((line) => line.slice('schema.enum\t'.length)).sort();
-  if (JSON.stringify(enumPaths) !== JSON.stringify(WARNING_PATHS)) {
-    broken(`the canonical enum-fixture set changed: ${JSON.stringify(enumPaths)}; requalify which notes carry invalid statuses`);
-  }
-  if (proof && MUTATIONS[MUTATE].at === 'search') {
-    const issue = await proof();
-    if (issue) notApplied(`${MUTATE}: ${issue}`);
-  }
-  const rows = page.locator('ol.y-results > li');
-  const paths = await rows.evaluateAll((elements) => elements.map((row) => {
-    const links = row.querySelectorAll('a.y-result[href]');
-    if (links.length !== 1) return null;
-    const pathname = new URL(links[0].href).pathname;
-    return pathname.startsWith('/notes/') ? decodeURIComponent(pathname.slice('/notes/'.length)) : null;
-  }));
-  if (paths.length < 2 || paths.includes(null)) broken(`the result rows do not each identify one fixture note: ${JSON.stringify(paths)}`);
-  for (const path of WARNING_PATHS) {
-    const count = paths.filter((seen) => seen === path).length;
-    if (count !== 1) fail('search-flag-painted', `the results include ${count} rows for warning note ${path}, want exactly 1`);
-  }
-  const flagged = [];
-  let declared = 0;
-  for (const [index, path] of paths.entries()) {
-    const row = rows.nth(index);
-    const flags = row.locator('.y-outofenum');
-    const count = await flags.count();
-    const wanted = WARNING_PATHS.includes(path) ? 1 : 0;
-    if (count !== wanted) fail('search-flag-painted', `${path} carries ${count} out-of-enum warnings, want ${wanted}`);
-    if (wanted === 0) { declared += 1; continue; }
-    flagged.push(path);
-    const seen = await painted(flags);
-    if (!onScreen(seen)) fail('search-flag-painted', `${path}: the warning is not painted: ${JSON.stringify(seen)}`);
-    if (!seen.text.includes(WARNING_WORDS)) fail('search-flag-painted', `${path}: the warning omits what is wrong: ${JSON.stringify(seen.text)}`);
-    const named = row.getByRole('link', { name: new RegExp(WARNING_WORDS) });
-    if (await named.count() !== 1) fail('search-flag-painted', `${path}: the result link's accessible name omits the warning`);
-  }
-  if (declared === 0) broken('the search contains no declared-status row to reject a spurious warning');
-  if (JSON.stringify(flagged.sort()) !== JSON.stringify(WARNING_PATHS)) {
-    fail('search-flag-painted', `the flagged rows are ${JSON.stringify(flagged)}, want ${JSON.stringify(WARNING_PATHS)}`);
-  }
-
-  // --- the note's 筆記狀況 -------------------------------------------------
   // Below the width where the right rail is drawn: from 1280 up the rail holds
   // the panel and the folded copy is not drawn at all.
   await page.setViewportSize({ width: 1024, height: 800 });
@@ -393,12 +234,12 @@ try {
     const issue = await proof();
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
-  console.log('PASS status-and-fragment-visibility: the out-of-enum warning and the link reading are both painted where a reader looks');
+  console.log('PASS fragment-split-visibility: the link reading is painted where a reader looks');
 } catch (err) {
   if (proof && !(err instanceof NotApplied)) {
     const issue = await proof();
     if (issue) {
-      console.error(`NOT-APPLIED status-and-fragment-visibility: ${MUTATE}: ${issue}`);
+      console.error(`NOT-APPLIED fragment-split-visibility: ${MUTATE}: ${issue}`);
       console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
       process.exitCode = 2;
       await browser.close();

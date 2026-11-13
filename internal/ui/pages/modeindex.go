@@ -61,8 +61,7 @@ type RecentBlock struct {
 // clone stamps every file with one moment: where the recorded times separate
 // nothing, the block says so instead of promising recency. Where the contract
 // declares a knowledge layer the list covers that layer and the sentence names
-// it, because the distribution beside it counts every indexed note, and two
-// true figures over unnamed sets read as a contradiction.
+// it, so the list does not read as the whole folder.
 func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) RecentBlock {
 	block := RecentBlock{Title: wording.FolderTiedTitle.In(lang), Notes: notes}
 	switch {
@@ -76,31 +75,6 @@ func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) R
 		block.Lede = wording.FolderTiedLede.In(lang)
 	}
 	return block
-}
-
-// StatusDistribution is where every indexed note sits: one cell per status the
-// notes carry, and beside them the cells for notes carrying none, kept apart so
-// the markup cannot dress those as statuses. A distribution holding no status
-// draws nothing — a vault whose vocabulary could not be read leaves it empty,
-// and the reason is stated once for the page rather than inside the block that
-// would have shown it.
-type StatusDistribution struct {
-	Lede     string
-	Statuses []LifecycleItem
-	Unstated []LifecycleItem
-}
-
-// NewStatusDistribution builds the block with the sentence it can stand
-// behind. The distribution counts every indexed note whatever the shelf shows,
-// so beside a shelf narrowed to the declared knowledge layer the sentence says
-// the count reaches past the shelf; an unscoped shelf carries no sentence,
-// because the heading already says what the block is.
-func NewStatusDistribution(statuses, unstated []LifecycleItem, scoped bool, lang wording.Lang) StatusDistribution {
-	lede := ""
-	if scoped {
-		lede = wording.FolderLifecycleLedeScoped.In(lang)
-	}
-	return StatusDistribution{Lede: lede, Statuses: statuses, Unstated: unstated}
 }
 
 // NewPathIndex builds the study-path index. The measure is the course's extent

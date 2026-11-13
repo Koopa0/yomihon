@@ -1,7 +1,6 @@
 ---
 title: G03 關閉 channel
 type: lesson
-status: ready
 domain: go
 slug: go-close-channel
 level: fundamental

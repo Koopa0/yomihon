@@ -9,7 +9,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -74,7 +73,7 @@ func TestHealthCarriesDeclaredArticleLanguage(t *testing.T) {
 			name: "healthNoteFindings",
 			got: func(t *testing.T) string {
 				t.Helper()
-				gathered := shell.GatherFindings(status.Authority{}, healthLanguageSchemaSnapshot(t))
+				gathered := shell.GatherFindings(healthLanguageSchemaSnapshot(t))
 				faults := healthNoteFindings(gathered.SchemaFaults, articleLang)
 				if len(faults) != 1 {
 					t.Fatalf("healthNoteFindings() faults = %d, want 1", len(faults))

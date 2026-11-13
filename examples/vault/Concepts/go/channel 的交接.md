@@ -2,7 +2,6 @@
 title: channel 的交接
 aliases: [channel send and receive]
 type: concept
-status: ready
 domain: go
 topics: [channel, 同步]
 based_on: ["G02 channel 的交接", "G03 關閉 channel"]

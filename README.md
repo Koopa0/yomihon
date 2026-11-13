@@ -45,7 +45,7 @@ To turn your notes into a course, follow [Make a course](docs/authoring.md). It 
 - **Find.** Search works in English, Chinese and Japanese. A note shows its sections and the notes that cite it beside the text. A map lists the notes under one subject.
 - **Reports.** Markdown reports written directly in `System/reports/` are listed newest first, each by its title.
 - **Check.** The Health page lists wikilinks that point at nothing and notes no other note links to. `yomihon check` lists broken links and frontmatter problems in a terminal.
-- **Pick up what you left open.** `yomihon left-open` lists the locations you marked "Not sure yet" and your thoughts still in a status your contract declares initial, newest first, so an agent can read them. Nothing under a directory your contract withholds is listed.
+- **Pick up what you left open.** `yomihon left-open` lists the locations you marked "Not sure yet" and your thoughts that still declare `draft: true`, newest first, so an agent can read them. Nothing under a directory your contract withholds is listed.
 
 The interface is available in English and Traditional Chinese. A note keeps the language it was written in.
 

@@ -1,7 +1,7 @@
 ---
 title: Lesson template
 type: lesson
-status: draft
+draft: true
 domain: go
 level: fundamental
 slug: lesson-template

@@ -98,7 +98,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 
 	root, model := buildVault(t)
 	current := "Writing/lessons/go/L01.md"
-	shelfIndex, shelfRecent, shelfStatuses := recordedShelfView(model)
+	shelfIndex, shelfRecent := recordedShelfView(model)
 	course := newRecordedCourse(t, root, model)
 	branchModel := footVault(t)
 
@@ -167,7 +167,6 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"file-page", File(recordedFileView(model), recordedChrome())},
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
 		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedChrome())},
-		{"recovery-page", StatusRecovery(recordedRecoveryView(model), recordedChrome())},
 		{"search-page", Search(recordedSearchView(model, recordedChrome().Lang), recordedChrome())},
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model, wording.En), wording.En)},
@@ -204,8 +203,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
 		{"folder-index-fault-head", ListIndex(recordedFaultedModeIndexView(model), recordedChrome())},
 		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
-		{"folder-index-page", FolderIndex(NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), RecentBlock{}, StatusDistribution{}, recordedChrome())},
-		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, shelfStatuses, recordedChrome())},
+		{"folder-index-page", FolderIndex(NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), RecentBlock{}, recordedChrome())},
+		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, recordedChrome())},
 		// The surfaces that have nothing to show, in both languages. Each of
 		// them is a branch the recordings above never reach — the search fixture
 		// finds notes, the health fixture has faults, and the desk fixture fills
@@ -221,12 +220,6 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"health-page-clear-english", Health(recordedClearHealthView(model), recordedEnglishChrome())},
 		{"home-page-empty", Home(recordedNothingHomeView(wording.ZhHant), recordedChrome())},
 		{"home-page-empty-english", Home(recordedNothingHomeView(wording.En), recordedEnglishChrome())},
-	}
-	for _, state := range recordedStatusStates() {
-		cases = append(cases,
-			surface{"statuspanel-" + state.name, statusPanel(state.view, wording.ZhHant)},
-			surface{"statusbar-" + state.name, statusBar(state.view, wording.ZhHant)},
-		)
 	}
 	if len(cases) < 32 {
 		t.Fatalf("only %d surfaces are recorded, so this test locks almost nothing", len(cases))
@@ -268,14 +261,13 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 }
 
 // recordedNothingFoundView is a search that matched nothing. It carries the
-// loosened searches and the lifecycle advice, which is everything the page has
+// loosened searches and the scope advice, which is everything the page has
 // to offer at that moment and the part a narrower fixture leaves unwritten.
 func recordedNothingFoundView(model *nav.Model) SearchView {
 	return SearchView{
 		Query:      "kafka",
 		FilterKeys: lexical.FilterKeys(),
 		StepBacks:  []SearchStepBack{{Query: "kaf", Count: 2}},
-		Governed:   true,
 		Sidebar:    NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
@@ -467,7 +459,7 @@ func renderedNoteView(t *testing.T, model *nav.Model, current, body string) Note
 		RelPath:         current,
 		Language:        "ja",
 		Type:            "lesson",
-		Status:          "draft",
+		Draft:           true,
 		ObsidianHref:    ObsidianHref("/vault", current),
 		Updated:         "2026-07-10",
 		UpdatedAt:       "2026-07-10",
@@ -494,13 +486,9 @@ func renderedNoteView(t *testing.T, model *nav.Model, current, body string) Note
 		},
 		TOC:                 []render.TOCEntry{{ID: "h1", Level: 2, Text: "第一節"}},
 		ReadingRail:         NewReadingRail(recordedShell(model), current, "golang"),
-		Governed:            true,
-		Transitions:         []Transition{{To: "ready"}, {To: "archived", NoReturn: true}},
 		ContentIdentity:     "abc123",
 		MarkAddress:         "/marks",
 		TranscludedIdentity: "def456",
-		FlippedFrom:         "seed",
-		FlipNoReturn:        true,
 		SchemaNotices: [][]wording.SchemaPart{
 			wording.SchemaSentence(wording.ZhHant, "schema.enum", "status", "seed", "Writing"),
 		},
@@ -609,47 +597,6 @@ func (c recordedCourse) view(lang wording.Lang, kept string) PathView {
 // and the bytes reading cannot be taken of two different notes.
 const courseRelPath = "Maps/Go path.md"
 
-// recordedStatusStates names every state the write face can be in. The two
-// faces draw the same set, which is the thing worth recording: a change that
-// moves one of them and not the other shows up as a difference between two
-// files here.
-func recordedStatusStates() []struct {
-	name string
-	view NoteView
-} {
-	base := NoteView{RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123", MarkAddress: "/marks"}
-	with := func(mutate func(v *NoteView)) NoteView {
-		v := base
-		mutate(&v)
-		return v
-	}
-	return []struct {
-		name string
-		view NoteView
-	}{
-		{"non-instance", with(func(v *NoteView) { v.NonInstance = true })},
-		{"write-diagnostic", with(func(v *NoteView) { v.WriteDiagnostic = "contract unreadable"; v.Status = "draft" })},
-		{"no-frontmatter", with(func(v *NoteView) { v.NoFrontmatter = true })},
-		{"status-unknown", with(func(v *NoteView) { v.Status = "seed"; v.StatusUnknown = true })},
-		{"status-unreadable", with(func(v *NoteView) { v.ObsidianHref = "obsidian://open?path=x" })},
-		{"status-not-text", with(func(v *NoteView) { v.StatusNotText = true; v.ObsidianHref = "obsidian://open?path=x" })},
-		{"no-transitions", with(func(v *NoteView) { v.Status = "published" })},
-		{"transitions", with(func(v *NoteView) {
-			v.Status = "draft"
-			v.Transitions = []Transition{{To: "ready"}, {To: "archived", NoReturn: true}}
-		})},
-		{"ungoverned", with(func(v *NoteView) { v.Governed = false; v.Status = "draft" })},
-		{"frontmatter-diagnostic", with(func(v *NoteView) { v.Diagnostic = "yaml: line 2"; v.Status = "draft" })},
-		{"schema-notices", with(func(v *NoteView) {
-			v.Status = "draft"
-			v.Transitions = []Transition{{To: "ready"}}
-			v.SchemaNotices = [][]wording.SchemaPart{
-				wording.SchemaSentence(wording.ZhHant, "schema.required", "slug", "", ""),
-			}
-		})},
-	}
-}
-
 // The remaining page entry points, each carrying enough to reach the blocks it
 // draws conditionally. They are recorded for the same reason the reading page
 // is: their own helpers moved out of their templates.
@@ -682,21 +629,15 @@ func recordedWithheldHomeView(model *nav.Model) HomeView {
 	return view
 }
 
-// recordedShelfView is the folder index carrying the two shelf blocks, which
-// only a governed vault with a readable distribution fills.
-func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDistribution) {
+// recordedShelfView is the folder index carrying its recent-notes block, one
+// row a draft and one finished, so the recording shows the mark and its
+// absence side by side.
+func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock) {
 	recent := NewRecentBlock([]HomeNote{
-		{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Status: "draft", Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
-		{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Status: "seed", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
+		{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Draft: true, Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
+		{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
 	}, true, true, recordedChrome().Lang)
-	return NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), recent, NewStatusDistribution(
-		[]LifecycleItem{
-			{Name: "draft", Count: 2, Href: statusHref("draft")},
-			{Name: "ready", Count: 1, Href: statusHref("ready")},
-		},
-		[]LifecycleItem{{Count: 1, Unknown: true, Label: "沒有寫狀態"}},
-		model.KnowledgeScoped(), recordedChrome().Lang,
-	)
+	return NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), recent
 }
 
 // recordedReportIndexView carries every answer a report row can give in the
@@ -811,8 +752,6 @@ func recordedHealthView(model *nav.Model) HealthView {
 		Collisions:            []HealthCollision{{Name: "Repeat", Candidates: []nav.NoteRef{{Name: "A/Repeat.md", RelPath: "A/Repeat.md"}, {Name: "B/Repeat.md", RelPath: "B/Repeat.md"}}}},
 		Blocked:               []HealthBlockedSource{{Path: "Sources/articles/Raw.md", Reason: "permission denied"}},
 		Skipped:               []HealthSkippedSource{{Path: "Notes/Linked note.md", Reason: "symbolic link"}},
-		StatusOutsideEnum:     []HealthStatusNote{{Note: ref, Type: "lesson", Status: "seed"}},
-		StatusUnreachable:     []HealthStatusNote{{Note: ref, Type: "concept", Status: "published"}},
 		FrontmatterUnreadable: []HealthNoteFindings{{Note: ref, Severity: judge.SeverityError, Count: 1}},
 		SchemaFaults:          []HealthNoteFindings{{Note: ref, Severity: judge.SeverityError, Count: 3}},
 		// The ordering a request that named none resolves to, which is what a
@@ -923,22 +862,9 @@ func recordedFolderView(*nav.Model) FolderView {
 		recordedChrome().Lang, nil)
 }
 
-func recordedRecoveryView(model *nav.Model) StatusRecoveryView {
-	return StatusRecoveryView{
-		Changed:         true,
-		Summary:         "摘要",
-		NextAction:      "下一步",
-		TechnicalDetail: "rename: file exists",
-		NotePath:        "Writing/lessons/go/L01.md",
-		NoteIdentity:    "abc123",
-		ObsidianHref:    ObsidianHref("/vault", "Writing/lessons/go/L01.md"),
-		Sidebar:         NewSidebar(nav.Shell{Nav: model}, "Writing/lessons/go/L01.md"),
-	}
-}
-
 // recordedSearchView takes the language because the column's headings and
-// its not-stated cell are written before the view leaves the handler, the
-// way a result's own status is: everything else on this page is translated
+// its not-stated cell are written before the view leaves the handler:
+// everything else on this page is translated
 // inside the template, so without this the English recording would show a
 // Traditional Chinese column.
 func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
@@ -947,7 +873,7 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 		Results: []SearchResult{{
 			RelPath:     "Writing/lessons/go/L01.md",
 			Title:       "L01",
-			Status:      "draft",
+			Draft:       true,
 			LandingBare: "kafka",
 			SnippetRuns: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " after"}},
 			PathRuns:    []SnippetRun{{Text: "Writing/"}, {Text: "lessons", Hit: true}},
@@ -958,7 +884,6 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 			// match at the end of a path cannot show.
 			RelPath:     "Writing/lessons/go/Reading kafka from source.md",
 			Title:       "Reading kafka from source",
-			Status:      "ready",
 			LandingBare: "kafka",
 			SnippetRuns: []SnippetRun{{Text: "the "}, {Text: "kafka", Hit: true}, {Text: " reader keeps its offsets"}},
 			PathRuns:    []SnippetRun{{Text: "Writing/lessons/go/Reading "}, {Text: "kafka", Hit: true}, {Text: " from source.md"}},
@@ -968,7 +893,6 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 		FilterKeys:        lexical.FilterKeys(),
 		StepBacks:         []SearchStepBack{{Query: "kafka", Count: 2}},
 		Facets:            recordedSearchFacets(lang),
-		Governed:          true,
 		Sidebar:           NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
@@ -1009,24 +933,17 @@ func recordedPagedHealthView(model *nav.Model) HealthView {
 }
 
 // recordedSearchFacets is one of each row the column can draw: a plain value,
-// a value already in the query whose row leads back out of it, a value no
-// carrier declares, a value the grammar cannot spell and so cannot offer, and
-// the cell standing for the hits that declared nothing. A recording that held
-// only the first would leave the other four unrecorded and free to change.
+// a value already in the query whose row leads back out of it, a value the
+// grammar cannot spell and so cannot offer, and the cell standing for the hits
+// that declared nothing. A recording that held only the first would leave the
+// other three unrecorded and free to change.
 func recordedSearchFacets(lang wording.Lang) []SearchFacet {
 	return []SearchFacet{{
-		Key:     "status",
-		Heading: wording.FacetHeading("status", lang),
-		Rows: []SearchFacetRow{
-			{Label: "draft", Count: 2, Query: "kafka", Active: true},
-			{Label: "ready", Count: 1, Query: "kafka status:ready"},
-			{Label: "seedling", Count: 1, Query: "kafka status:seedling", OutsideEnum: true},
-		},
-	}, {
 		Key:     "type",
 		Heading: wording.FacetHeading("type", lang),
 		Rows: []SearchFacetRow{
-			{Label: "lesson", Count: 2, Query: "kafka type:lesson"},
+			{Label: "lesson", Count: 2, Query: "kafka", Active: true},
+			{Label: "concept", Count: 1, Query: "kafka type:concept"},
 			{Label: wording.FacetUnstated.In(lang), Count: 1, Unstated: true},
 		},
 	}, {

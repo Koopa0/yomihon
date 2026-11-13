@@ -27,8 +27,8 @@ import (
 // answer because a page that took them from two readings of the published
 // pointer can state a course's names from one version of the vault and its
 // declared languages from another. Deriving the shell here instead is not open
-// to this package: the projection also needs the write authority, which the
-// study-path face has no other reason to hold.
+// to this package: the projection also needs the contract authority, which
+// the study-path face has no other reason to hold.
 type RequestSnapshot struct {
 	Shell      nav.Shell
 	Generation *snapshot.Generation
@@ -39,15 +39,14 @@ type RequestSnapshot struct {
 	Kept   mark.Continuation
 	Marked bool
 
-	// Status answers which note type this vault files its course members as.
-	// It may be absent, and the listening page then teaches nothing rather
+	// Authority answers which note type this vault files its course members
+	// as. It may be absent, and the listening page then teaches nothing rather
 	// than guessing at the name.
-	Status LessonTypes
+	Authority LessonTypes
 }
 
-// LessonTypes is the read-only sliver of the status projection this face
-// needs, declared at the consumer so a page that only reads does not put the
-// component able to change the vault inside its import closure.
+// LessonTypes is the sliver of the contract authority this face needs,
+// declared at the consumer.
 type LessonTypes interface {
 	// IsLessonType reports whether noteType is the type the vault files its
 	// course members as.

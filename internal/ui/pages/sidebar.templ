@@ -9,7 +9,7 @@ import (
 )
 
 // sidebar is the left navigation rail the reading surfaces mount: the note,
-// folder, file, search, report, health, not-found and status-recovery pages.
+// folder, file, search, report, health and not-found pages.
 // The desk and the mode pages carry no rail at all, and the course page draws
 // its own. It is ordered for a daily reader: a filter box shipped hidden, the
 // "here" list of the current note's siblings, Paths and Maps, recent Journal
@@ -206,15 +206,13 @@ templ pathGroupItems(sb Sidebar, c layouts.Chrome, pathRel string, chain []strin
 // names its lessons before they are written, so a row for an unwritten one is
 // the ordinary state of a course being taught rather than a fault in it.
 //
-// Neither this row nor a map's shows a status badge for the note being read.
-// The page already states that status twice from a live read of the note's own
-// line, and the generation republishes on its own cadence, so a third copy
-// would disagree with both right after a transition. The badge is still drawn,
-// hidden, wherever the row would otherwise print one, because a row without it
-// is wider for its name: the name wrapped in a different place on the note being
-// read than on the lessons beside it, and the rows moved by a line each time the
-// reader went from one to the next. A note at a settled status prints no badge
-// at all, being the ordinary state.
+// A row marks only a draft: a finished note prints no badge at all, being the
+// ordinary state. Neither this row nor a map's shows the badge for the note
+// being read, whose own page already says it is a draft. The badge is still
+// drawn, hidden, wherever the row would otherwise print one, because a row
+// without it is wider for its name: the name wrapped in a different place on
+// the note being read than on the lessons beside it, and the rows moved by a
+// line each time the reader went from one to the next.
 templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
 	if entry.Kind == nav.EntryResolved {
 		<a
@@ -224,8 +222,8 @@ templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
 			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
-			if entry.Status != "" && !entry.Settled {
-				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ entry.Status }</span>
+			if entry.Draft {
+				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ wording.Draft.In(c.Lang) }</span>
 			}
 		</a>
 	} else {
@@ -275,8 +273,8 @@ templ entryLink(sb Sidebar, c layouts.Chrome, entry nav.MapEntry) {
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
 			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
-			if entry.Status != "" && !entry.Settled {
-				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ entry.Status }</span>
+			if entry.Draft {
+				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ wording.Draft.In(c.Lang) }</span>
 			}
 		</a>
 	} else {

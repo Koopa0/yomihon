@@ -34,20 +34,19 @@ func newFreshnessLogFixture(t *testing.T, root string) *freshnessLogFixture {
 	quiet := slog.New(slog.DiscardHandler)
 	governance := schema.Ungoverned()
 	store, source := newSnapshotStore(t, root, quiet, nil, governance)
-	writer := openStatusWriter(t, source, nil, governance)
+	authority := func() schema.Authority { return schema.CaptureAuthority(nil, governance) }
 	f := &freshnessLogFixture{
 		mux:       http.NewServeMux(),
 		source:    source,
 		published: store.Current(),
 	}
 	note.New(&note.Sources{
-		Source:         source,
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Log:            slog.New(slog.NewJSONHandler(&f.written, nil)),
+		Source:    source,
+		Authority: authority,
+		Snapshot:  store.Current,
+
+		Continuation: noMark,
+		Log:          slog.New(slog.NewJSONHandler(&f.written, nil)),
 	}).Register(f.mux)
 	return f
 }

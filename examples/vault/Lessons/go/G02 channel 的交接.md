@@ -1,7 +1,6 @@
 ---
 title: G02 channel 的交接
 type: lesson
-status: ready
 domain: go
 slug: go-channel-handoff
 level: fundamental

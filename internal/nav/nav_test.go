@@ -41,7 +41,7 @@ func capturedModel(
 	resolver *graph.Index,
 ) *Model {
 	t.Helper()
-	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir(), testContract(t).ArticleLanguage(), testContract(t).AuthoredDate(), testContract(t).Settlement())
+	return capturedModelWithJournal(t, root, roles, scope, policy, resolver, testContract(t).JournalDir(), testContract(t).ArticleLanguage(), testContract(t).AuthoredDate())
 }
 
 func capturedModelWithJournal(
@@ -54,7 +54,6 @@ func capturedModelWithJournal(
 	journal schema.JournalDir,
 	articleLang schema.ArticleLanguage,
 	dated schema.AuthoredDate,
-	settlement schema.Settlement,
 ) *Model {
 	t.Helper()
 	reader, err := vault.Open(root)
@@ -90,7 +89,7 @@ func capturedModelWithJournal(
 	if resolver == nil {
 		resolver = graph.New(noteList, resources)
 	}
-	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang, dated, settlement)
+	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang, dated)
 }
 
 func testContract(t *testing.T) *schema.Contract {
@@ -192,9 +191,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		policy,
 		testContract(t).JournalDir(),
 		testContract(t).ArticleLanguage(),
-		testContract(t).AuthoredDate(),
-		testContract(t).Settlement(),
-	)
+		testContract(t).AuthoredDate())
 
 	modified := make(map[string]time.Time)
 	for _, entry := range scan.Files() {
@@ -202,7 +199,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 	}
 	wantNotes := []NoteSummary{
 		{
-			Title: "Target", RelPath: targetPath, Type: "concept", Status: "growing",
+			Title: "Target", RelPath: targetPath, Type: "concept",
 			Modified: modified[targetPath],
 		},
 		{
@@ -218,7 +215,7 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 		Groups: []groupShape{{
 			Name: "Shelf", Level: 2, Role: "primary", Projectable: true, Planned: 1,
 			Entries: []entryShape{{
-				Text: "Target", Target: "Target", RelPath: targetPath, Status: "growing", Kind: EntryResolved,
+				Text: "Target", Target: "Target", RelPath: targetPath, Kind: EntryResolved,
 			}},
 		}},
 	}}
@@ -275,11 +272,9 @@ func TestNewUsesEntryModTime(t *testing.T) {
 		policy,
 		testContract(t).JournalDir(),
 		testContract(t).ArticleLanguage(),
-		testContract(t).AuthoredDate(),
-		testContract(t).Settlement(),
-	)
+		testContract(t).AuthoredDate())
 	want := []NoteSummary{{
-		Title: "Channels", RelPath: relPath, Type: "concept", Status: "growing", Modified: captured,
+		Title: "Channels", RelPath: relPath, Type: "concept", Modified: captured,
 	}}
 	if diff := cmp.Diff(want, model.KnowledgeNotes()); diff != "" {
 		t.Errorf("New KnowledgeNotes mismatch (-want +got):\n%s", diff)
@@ -315,14 +310,14 @@ func TestNewBuildsMapTypesAndReversePlacements(t *testing.T) {
 	resolvedBranches := []Branch{{
 		Heading: "Shelf",
 		Level:   2,
-		Entries: []MapEntry{{Name: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved}},
+		Entries: []MapEntry{{Name: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Kind: EntryResolved}},
 	}}
 	wantPaths := []pathShape{{
 		Title: "Course", RelPath: "Maps/Course.md", Domain: "golang", Type: "study-path", Planned: 3,
 		Groups: []groupShape{{
 			Name: "Shelf", Level: 2, Role: "primary", Projectable: true, Planned: 3,
 			Entries: []entryShape{
-				{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Status: "growing", Kind: EntryResolved},
+				{Text: "Target", Target: "Target", RelPath: "Concepts/go/Target.md", Kind: EntryResolved},
 				{Text: "Ghost", Target: "Ghost", Kind: EntryUnresolved},
 				{Text: "Dup", Target: "Dup", Kind: EntryAmbiguous, Candidates: []string{"A/Dup.md", "B/Dup.md"}},
 			},
@@ -378,7 +373,7 @@ func TestNewRetainsNonInstanceStudyPathRowsAsWarnings(t *testing.T) {
 	}
 	wantEntries := []entryShape{
 		{Text: "Template target", Target: "Template target", Kind: EntryNonInstance},
-		{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved},
+		{Text: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Kind: EntryResolved},
 	}
 	if diff := cmp.Diff(wantEntries, got[0].Groups[0].Entries); diff != "" {
 		t.Errorf("New path entries mismatch (-want +got):\n%s", diff)
@@ -414,7 +409,7 @@ func TestNewOmitsNonInstanceTargetsFromGeneralMaps(t *testing.T) {
 	if len(model.Maps()) != 1 || len(model.Maps()[0].Branches) != 1 {
 		t.Fatalf("New Maps = %+v, want one general-map branch", model.Maps())
 	}
-	wantEntries := []MapEntry{{Name: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Status: "draft", Kind: EntryResolved}}
+	wantEntries := []MapEntry{{Name: "Instance", Target: "Instance", RelPath: "Concepts/Instance.md", Kind: EntryResolved}}
 	if diff := cmp.Diff(wantEntries, model.Maps()[0].Branches[0].Entries); diff != "" {
 		t.Errorf("New general-map entries mismatch (-want +got):\n%s", diff)
 	}
@@ -722,7 +717,7 @@ func TestJournalShelfFollowsTheDeclaredDirectory(t *testing.T) {
 
 	t.Run("undeclared", func(t *testing.T) {
 		t.Parallel()
-		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{}, schema.ArticleLanguage{}, schema.AuthoredDate{}, schema.Settlement{})
+		model := capturedModelWithJournal(t, root, roles, schema.KnowledgeScope{}, policy, nil, schema.JournalDir{}, schema.ArticleLanguage{}, schema.AuthoredDate{})
 		if len(model.Journal()) != 0 {
 			t.Errorf("undeclared Journal = %v, want empty", model.Journal())
 		}
@@ -813,7 +808,6 @@ func TestNewCarriesScannerMtimes(t *testing.T) {
 		Title:    "Channels",
 		RelPath:  rel,
 		Type:     "concept",
-		Status:   "growing",
 		Modified: captured,
 	}}
 	if diff := cmp.Diff(want, model.KnowledgeNotes()); diff != "" {
@@ -843,11 +837,8 @@ func TestParseBranchesGoShape(t *testing.T) {
 	t.Parallel()
 
 	idx := resolver(t, "L/Entry A.md", "L/Entry B.md", "L/Entry C.md")
-	statusByPath := map[string]string{
-		"L/Entry A.md": "draft",
-		"L/Entry B.md": "ready",
-		// Entry C intentionally absent -> empty status badge.
-	}
+	// Entry A alone is a draft; B and C carry no badge.
+	drafts := draftFacts("L/Entry A.md")
 
 	body := "> intro blockquote citing [[Entry A]] — a quote, not a bullet\n" +
 		"\n" +
@@ -874,15 +865,15 @@ func TestParseBranchesGoShape(t *testing.T) {
 			Heading: "Data and the Hardware",
 			Level:   2,
 			Entries: []MapEntry{
-				{Name: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: "ready"},
+				{Name: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md"},
 			},
 			Subbranches: []Branch{
 				{
 					Heading: "Text as Bytes",
 					Level:   3,
 					Entries: []MapEntry{
-						{Name: "Entry A", Target: "Entry A", RelPath: "L/Entry A.md", Status: "draft"},
-						{Name: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md", Status: "ready"},
+						{Name: "Entry A", Target: "Entry A", RelPath: "L/Entry A.md", Draft: true},
+						{Name: "Entry B", Target: "Entry B", RelPath: "L/Entry B.md"},
 					},
 				},
 				{
@@ -896,7 +887,7 @@ func TestParseBranchesGoShape(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, statusFacts(statusByPath), testArtifactPolicy(t))
+	got := parseBranches(body, idx, drafts, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (Go shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -920,12 +911,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		"Some Guide.md",
 		"Another Guide.md",
 	)
-	statusByPath := map[string]string{
-		"jp/P01 Kana.md":  "draft",
-		"jp/L01 Intro.md": "draft",
-		"jp/L02 Next.md":  "draft",
-		"jp/L03 Verbs.md": "ready",
-	}
+	drafts := draftFacts("jp/P01 Kana.md", "jp/L01 Intro.md", "jp/L02 Next.md")
 
 	body := "# Doc Title (an H1, ignored)\n" +
 		"\n" +
@@ -968,7 +954,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 			Heading: "Kana warm-up (order = lines)",
 			Level:   2,
 			Entries: []MapEntry{
-				{Name: "P01 Kana", Target: "P01 Kana", RelPath: "jp/P01 Kana.md", Status: "draft"},
+				{Name: "P01 Kana", Target: "P01 Kana", RelPath: "jp/P01 Kana.md", Draft: true},
 			},
 		},
 		{
@@ -986,15 +972,15 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 					Heading: "Decode",
 					Level:   3,
 					Entries: []MapEntry{
-						{Name: "L01 Intro", Target: "L01 Intro", RelPath: "jp/L01 Intro.md", Status: "draft"},
-						{Name: "L02 Next", Target: "L02 Next", RelPath: "jp/L02 Next.md", Status: "draft"},
+						{Name: "L01 Intro", Target: "L01 Intro", RelPath: "jp/L01 Intro.md", Draft: true},
+						{Name: "L02 Next", Target: "L02 Next", RelPath: "jp/L02 Next.md", Draft: true},
 					},
 				},
 				{
 					Heading: "Verbs",
 					Level:   3,
 					Entries: []MapEntry{
-						{Name: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md", Status: "ready"},
+						{Name: "L03 Verbs", Target: "L03 Verbs", RelPath: "jp/L03 Verbs.md"},
 					},
 				},
 			},
@@ -1009,7 +995,7 @@ func TestParseBranchesMinnaShape(t *testing.T) {
 		},
 	}
 
-	got := parseBranches(body, idx, statusFacts(statusByPath), testArtifactPolicy(t))
+	got := parseBranches(body, idx, drafts, testArtifactPolicy(t))
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("parseBranches (大家 shape) mismatch (-want +got):\n%s", diff)
 	}
@@ -1426,7 +1412,7 @@ func TestNewCountsAMapWrittenInEitherHeadingForm(t *testing.T) {
 		Heading: "References",
 		Level:   2,
 		Entries: []MapEntry{{
-			Name: "Alpha", Target: "Alpha", RelPath: "Concepts/Alpha.md", Status: "growing", Kind: EntryResolved,
+			Name: "Alpha", Target: "Alpha", RelPath: "Concepts/Alpha.md", Kind: EntryResolved,
 		}},
 	}}
 	want := []Map{
@@ -1687,9 +1673,7 @@ func TestFolderTreeKeepsEveryFileTheDeskCanOpen(t *testing.T) {
 		policy,
 		schema.JournalDir{},
 		testContract(t).ArticleLanguage(),
-		testContract(t).AuthoredDate(),
-		testContract(t).Settlement(),
-	)
+		testContract(t).AuthoredDate())
 
 	gotRoot := fileRelPaths(model.RootNotes())
 	if diff := cmp.Diff([]string{"Makefile", "README.md"}, gotRoot); diff != "" {
@@ -2454,7 +2438,7 @@ type entryShape struct {
 	Text       string
 	Target     string
 	RelPath    string
-	Status     string
+	Draft      bool
 	Kind       EntryKind
 	Candidates []string
 }
@@ -2494,7 +2478,7 @@ func groupShapes(groups []*PathGroup) []groupShape {
 					Text:       e.Name,
 					Target:     e.Target,
 					RelPath:    e.RelPath,
-					Status:     e.Status,
+					Draft:      e.Draft,
 					Kind:       e.Kind,
 					Candidates: e.Candidates,
 				})

@@ -2,12 +2,11 @@ package note
 
 import (
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/status"
 )
 
 // enumContract withholds vocabulary after the captured authority has closed;
 // an old declaration must not read as advice about a changed contract.
-func (h *Handler) enumContract(authority status.Authority) *schema.Contract {
+func (h *Handler) enumContract(authority schema.Authority) *schema.Contract {
 	if authority.Closed() {
 		return nil
 	}

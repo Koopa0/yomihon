@@ -1,10 +1,9 @@
 # Data inventory
 
 What yomihon holds, derives, and emits. The product is a single-user local
-process: it reads a vault, serves `127.0.0.1`, writes one frontmatter field
-into a note and three files of its own outside any vault — two reader-state
-files and a record of approved figures — and makes no network call of any
-kind. A figure the owner approved runs its scripts in the browser, where they
+process: it reads a vault and writes nothing into it, serves `127.0.0.1`,
+writes three files of its own outside any vault — two reader-state files and a
+record of approved figures — and makes no network call of any kind. A figure the owner approved runs its scripts in the browser, where they
 can reach the network; the threat model says through which channels. There is no telemetry, analytics, metrics or trace exporter,
 crash reporter, account, or remote log sink, and no application-level
 encryption at rest, backup, or secure erasure. Host disk encryption, vault
@@ -13,12 +12,11 @@ this document.
 
 | Data | Where it lives | How long | Who can reach it |
 |---|---|---|---|
-| Vault files — body, frontmatter, path, attachments, contract-private content | The vault, which stays the truth; yomihon never deletes one | Vault and sync policy own it | The same OS account, and any client that can open the loopback port |
+| Vault files — body, frontmatter, path, attachments, contract-private content | The vault, which stays the truth; yomihon never writes, renames or deletes one | Vault and sync policy own it | The same OS account, and any client that can open the loopback port |
 | `System/schemas/vault-schema.toml`, the machine authority | The vault; `internal/schema` is its only reader | Vault policy | As above |
 | Parsed notes, rendered HTML, diagnostics, graph, search index | Process memory, rebuilt from the vault | Until the snapshot is replaced or the process exits | The process and the request being served |
-| HTTP method, path, query, headers, status and mark forms; CLI flags and arguments | Request and output buffers | The request or action | The local caller |
-| A rewritten note and its adjacent `.yomihon-status-*.tmp` | The vault directory | Until the rename; a crash can strand the temporary file | The filesystem and the requester |
-| `slog` records: address, vault root, contract state, scan and render failures, selected status paths; a marks file's own absolute path when reading or writing it fails, and the note path the caller submitted when a continuation mark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
+| HTTP method, path, query, headers, mark forms; CLI flags and arguments | Request and output buffers | The request or action | The local caller |
+| `slog` records: address, vault root, contract state, scan and render failures; a marks file's own absolute path when reading or writing it fails, and the note path the caller submitted when a continuation mark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
 | The reader's continuation — `reader.json` and its adjacent `.reader-*.json`, under `os.UserConfigDir()`/`yomihon`/one directory per vault, holding that vault's absolute path and one continuation point: a note path, an anchor id, a distance below it, the content identity of the bytes that were on screen, and when it was set | The platform's configuration directory, never the vault | Until the reader keeps another place or deletes the file; yomihon never expires one. A crash between the temporary file being created and renamed into place can strand the temporary file, holding that same content, and nothing removes it | The same OS account |
 | The reader's uncertainty marks — `uncertainty.json` and its adjacent `.uncertainty-*.json` in the same per-vault directory. Each array entry contains only `path`, `anchor`, and `time`; no body, chosen sentence, content identity, or source version is saved | The platform's configuration directory, never the vault | Until the reader toggles that location off or deletes the file; no expiry or automatic recovery. A crash can strand a temporary file containing the same location records | The same OS account; the local reading client receives them from `GET /uncertainties`; `yomihon left-open` writes the ones outside withheld ground to its caller |
 | The figure approvals — `figures.json` and its adjacent `.figures-*.json` in the same per-vault directory. Each entry is a figure's vault path, the SHA-256 of the bytes approved, and when; the file also names the vault's absolute path. No figure content is copied | The platform's configuration directory, never the vault | Until `yomihon revoke-figure` removes an entry or the file is deleted; an approval stops applying, without being removed, the moment the figure's bytes change | The same OS account. The reading server reads it on each page and each frame request and never writes it; `approve-figure` and `revoke-figure` write it, owner-only, by sibling-file rename. `check`, `coverage` and `exists` never read it |
@@ -30,15 +28,6 @@ this document.
   request buffers as any other query and reaches no process yomihon starts.
 
 About those rows:
-
-- **A read-only note is not replaced.** A status flip checks the captured
-  file's owner-write bit after the existing note and transition validation.
-  If that bit is clear, the note and its siblings stay unchanged: no status
-  temporary file is prepared and no success receipt is minted, even when the
-  directory is writable. Readable notes still show their current status.
-  Change permissions outside yomihon and reload before choosing a transition.
-  This honors the owner's intent; it is not an effective ACL/group-access
-  check or protection against a malicious process running as the same user.
 
 - **An unreadable approvals file approves nothing.** A missing file is no
   approval; one that cannot be read or carries an unknown shape is reported,
@@ -55,9 +44,8 @@ About those rows:
 - **`yomihon left-open` hands the reader's marks to whoever runs it.** It lists
   each marked location — the note's path, the anchor and the words of the
   heading or practice card it names, the note's declared title, a wikilink,
-  and the time the mark was made, in UTC — and each thought still in a status
-  the contract declares initial, with its path, declared title, status and
-  declared date. No body text is included beyond the words of a heading or
+  and the time the mark was made, in UTC — and each thought that still
+  declares `draft: true`, with its path, declared title and declared date. No body text is included beyond the words of a heading or
   practice card and the declared title. The vault is scanned whole, withheld
   ground included, as every command scans it; an item whose path is under the
   contract's `never_egress_dirs` is left out before anything about it is
@@ -99,8 +87,7 @@ About those rows:
   by the next toggle. The independent file also survives older versions
   replacing `reader.json`.
 - **Nothing is request-logged.** Note bodies and raw search queries never reach
-  a log. A failed query records its byte count and filter keys; a failed status
-  write records its path, from, to, and error.
+  a log. A failed query records its byte count and filter keys.
 - **A local reader may see any vault file, private paths included**, because
   local reading is the product. Agent output is filtered instead: the
   contract's `[privacy]` never-egress directories are scanned so links resolve,
@@ -142,9 +129,10 @@ add a new note type. The vault owner makes this opt-in edit.
 
 The proposed Markdown contains only fields whose values can be derived from
 the existing contract and source, plus a `based_on: "[[source#section]]"` link
-when opened for a section, or a source-only link for a whole document. If the
-role has no initial lifecycle state or more than one, the status line is
-omitted. Unknown required values are omitted too; the existing judge reports missing
+when opened for a section, or a source-only link for a whole document. A
+thought starts as `draft: true` where the contract lists `draft` among its known
+fields, so it stays on the shelf of what the reader left open until they remove
+the flag. Unknown required values are omitted too; the existing judge reports missing
 fields after the reader saves the note. There are no prompt excerpts,
 before/after templates, or required-field pickers. The reader's editor owns
 the template, words, remaining fields, and save operation.

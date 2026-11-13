@@ -46,10 +46,9 @@ type MapEntry struct {
 	Name    string
 	Target  string
 	RelPath string
-	Status  string
-	// Settled is whether the contract declares Status settled, the resting
-	// state of a finished note, so a row shows no label for it.
-	Settled    bool
+	// Draft is whether the note the row reaches declares itself unfinished,
+	// the one note a row marks.
+	Draft      bool
 	Language   string
 	Kind       EntryKind
 	Candidates []string
@@ -232,8 +231,7 @@ func resolveEntry(link sequence.Link, idx *graph.Index, facts map[string]noteFac
 	if entry.Kind == EntryResolved {
 		entry.RelPath = res.RelPath
 		known := facts[res.RelPath]
-		entry.Status = known.status
-		entry.Settled = known.settled
+		entry.Draft = known.draft
 		entry.Language = known.language
 		entry.Name = rowName(link, known.title)
 	}

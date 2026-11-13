@@ -79,7 +79,6 @@ probes=(
   "study-path-branches.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
   "note-head-facts.mjs|/notes/Writing/lessons/japanese/L01.md"
-  "status-recovery-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "shortcut-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "rail-collapse.mjs|/notes/Notes/alpha.md"
   "rail-initial-target.mjs|/notes/Writing/lessons/long-rail/Rail%20lesson%2030.md"
@@ -114,10 +113,8 @@ probes=(
   # A month named outright rather than whichever one it is today, so what this
   # probe measures is the same measurement next month.
   "journal-month.mjs|/journal?month=2026-07"
-  "flip-receipt-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reply-contract.mjs|/notes/Notes/reading-fidelity.md"
-  "sealbar-flow-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
-  "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
+  "fragment-split-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "result-landing-visibility.mjs|/search?q=%22alpha%20beta%20gamma%22"
   "result-landing-cjk.mjs|/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8"
   "midword-landing.mjs|/search?q=lybdenum"

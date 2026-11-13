@@ -188,9 +188,9 @@ func TestABranchBuildsNothingIntoTheMainLinesStepsOrCounts(t *testing.T) {
 	if prev := branched.PathNeighbors("Writing/G05.md")[0].Prev; prev != lesson("G04") {
 		t.Errorf("the lesson after the branch steps back to %v, want G04", prev)
 	}
-	if barePath.Planned != branchedPath.Planned || barePath.Unsettled != branchedPath.Unsettled {
-		t.Errorf("a branch moved the course's counts: planned %d and %d, unsettled %d and %d",
-			barePath.Planned, branchedPath.Planned, barePath.Unsettled, branchedPath.Unsettled)
+	if barePath.Planned != branchedPath.Planned || barePath.Drafts != branchedPath.Drafts {
+		t.Errorf("a branch moved the course's counts: planned %d and %d, drafts %d and %d",
+			barePath.Planned, branchedPath.Planned, barePath.Drafts, branchedPath.Drafts)
 	}
 	if branchedPath.Branched != 1 || barePath.Branched != 0 {
 		t.Errorf("Branched = %d with the branch and %d without, want 1 and 0", branchedPath.Branched, barePath.Branched)

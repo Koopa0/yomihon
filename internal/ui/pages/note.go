@@ -1,7 +1,6 @@
 package pages
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -103,8 +102,8 @@ func noteDateLabel(v *NoteView, lang wording.Lang) string {
 
 // headFactsShown reports whether the head has any fact to draw as a
 // description list: the same four fields noteFacts gates row by row, so a
-// note with none of them draws neither the disclosure nor the open copy. The
-// status is not among them; the status face states it.
+// note with none of them draws neither the disclosure nor the open copy. A
+// draft always has a path, so its mark is drawn whenever it is owed.
 func (v *NoteView) headFactsShown() bool {
 	return v.Type != "" || v.Updated != "" || v.Language != "" || v.RelPath != ""
 }
@@ -125,8 +124,7 @@ func authoredLanguageAttrs(tag string) templ.Attributes {
 }
 
 // freshnessAttrs marks the reading column as one the client may watch: the path
-// to ask about, the identity of the bytes printed inside it, and the status
-// beside the title, which the identity leaves out. They are withheld from a page
+// to ask about and the identity of the bytes printed inside it. They are withheld from a page
 // already saying its words may be behind the file, and from one with no identity
 // to compare against; absent, the client finds nothing to watch.
 func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
@@ -138,16 +136,11 @@ func freshnessAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 	attrs := templ.Attributes{
 		"data-freshness-path":        v.RelPath,
 		"data-freshness-identity":    v.ContentIdentity,
-		"data-freshness-status":      v.Status,
 		"data-freshness-newversion":  wording.FreshnessNewVersion.In(lang),
 		"data-freshness-reload":      wording.FreshnessReload.In(lang),
 		"data-freshness-preparing":   wording.FreshnessPreparing.In(lang),
 		"data-freshness-gone":        wording.FreshnessGone.In(lang),
 		"data-freshness-searchtitle": wording.FreshnessSearchTitle.In(lang),
-		"data-freshness-holdtitle":   wording.FreshnessHoldPreparingTitle.In(lang),
-		"data-freshness-holddetail":  wording.FreshnessHoldPreparingDetail.In(lang),
-		"data-freshness-gonetitle":   wording.FreshnessHoldGoneTitle.In(lang),
-		"data-freshness-writehold":   wording.FreshnessWriteHold.In(lang),
 	}
 	// Absent rather than empty for a page that reads no embed, which keeps that
 	// page's polling ask as narrow as it was before the stamp existed.
@@ -222,8 +215,7 @@ func (v *NoteView) diagCount() int {
 }
 
 // hasAids reports whether this note carries reading aids. With none, the right
-// rail's column is dropped and the write face moves to the bottom bar, so no
-// reader sits beside a tall gutter holding a lone status card.
+// rail's column is dropped, so no reader sits beside an empty gutter.
 //
 // The control for keeping a reading place counts among them, because the rail
 // is where it lives and this predicate is what decides the rail exists at all.
@@ -302,24 +294,6 @@ func (v *NoteView) citedByShown() bool {
 	return len(v.CitedBy) > 0 || v.VaultHasLinks
 }
 
-// noFrontmatterLine is the absent-block sentence, which says whether the
-// folder's contract allows a note without a frontmatter block.
-func noFrontmatterLine(v *NoteView, lang wording.Lang) string {
-	if v.FrontmatterRequired {
-		return wording.NoFrontmatterRequired.In(lang)
-	}
-	return wording.NoFrontmatter.In(lang)
-}
-
-// frontmatterDoorLine is the empty state's escape hatch: recovery is a hand edit
-// of the frontmatter, through the editor link the page carries when it has one.
-func frontmatterDoorLine(v *NoteView, lang wording.Lang) string {
-	if v.ObsidianHref == "" {
-		return wording.EditFrontmatterToRecover.In(lang)
-	}
-	return wording.EditFrontmatterToRecoverWithLink.In(lang)
-}
-
 // diagnosticAddress spells an address the way its author wrote it. The
 // diagnostic keeps the note name and the part after "#" apart, so rejoining
 // them is a decision about display, made here so every panel shows the same.
@@ -332,107 +306,6 @@ func diagnosticAddress(d *render.Diagnostic) string {
 	default:
 		return d.Target
 	}
-}
-
-// faceState is which state one note puts the write face in. The rail panel and
-// the bottom bar offer the same states in the same order and read this one
-// answer, so neither keeps rules of its own. The states are ordered by which
-// fact overrides which: ungoverned first, then a face that could not be opened,
-// then the ways a status can fail to be readable, then the two readings of an
-// empty set, then a readable status with moves to offer.
-type faceState uint8
-
-const (
-	faceNonInstance faceState = iota
-	faceWriteUnavailable
-	faceFrontmatterUnclosed
-	faceNoFrontmatter
-	faceStatusUnknown
-	faceStatusNotText
-	faceStatusUnreadable
-	faceOutsideScope
-	faceNoTransitions
-	faceTransitions
-)
-
-// statusFace decides which state a note puts the write face in. An empty set
-// has two readings and they stay apart: the declared knowledge layer withheld
-// the moves, or the schema defines none onward from this status.
-func statusFace(v *NoteView) faceState {
-	switch {
-	case v.NonInstance:
-		return faceNonInstance
-	case v.WriteDiagnostic != "":
-		return faceWriteUnavailable
-	case v.FrontmatterUnclosed:
-		return faceFrontmatterUnclosed
-	case v.NoFrontmatter:
-		return faceNoFrontmatter
-	case v.StatusUnknown:
-		return faceStatusUnknown
-	case v.Status == "" && v.StatusNotText:
-		return faceStatusNotText
-	case v.Status == "":
-		return faceStatusUnreadable
-	case v.OutsideKnowledgeScope && len(v.Transitions) == 0:
-		return faceOutsideScope
-	case len(v.Transitions) == 0:
-		return faceNoTransitions
-	default:
-		return faceTransitions
-	}
-}
-
-// token is the value both faces stamp on themselves for the client and the
-// stylesheet. It is coarser than the state it comes from: the outside asks only
-// whether the folder governs this note and whether the face opened.
-func (f faceState) token() string {
-	switch f {
-	case faceNonInstance:
-		return "non-instance"
-	case faceWriteUnavailable:
-		return "unavailable"
-	case faceFrontmatterUnclosed, faceNoFrontmatter, faceStatusUnknown, faceStatusNotText, faceStatusUnreadable,
-		faceOutsideScope, faceNoTransitions, faceTransitions:
-		return "instance"
-	}
-	panic("pages: unknown write-face state: " + strconv.Itoa(int(f)))
-}
-
-// showsStatusFace reports whether the write face has anything to show about this
-// note. Both faces ask it themselves rather than trusting whoever draws them. A
-// folder that governs nothing has no lifecycle; a frontmatter fault leaves no
-// status to report. A note outside the governed set stays named through both,
-// that classification coming from its path rather than its frontmatter.
-func (v *NoteView) showsStatusFace() bool {
-	return v.Governed && (v.Diagnostic == "" || v.NonInstance)
-}
-
-// showsFlipReceipt reports whether this reading has a change to state.
-func (v *NoteView) showsFlipReceipt() bool {
-	return v.Governed && v.FlippedFrom != "" && v.Status != "" && v.FlippedFrom != v.Status
-}
-
-// schemaNoticesName is what a note's block of schema findings is called. One
-// note renders at most one such block, so the name needs nothing to tell it
-// from a second.
-const schemaNoticesName = "_y-schema-notices"
-
-// schemaNoticesID is where this note's block of findings answers: the fixed
-// name, inside the id space this article occupies. A page showing two notes
-// gives each article a space of its own, so the two blocks stay two elements
-// and each transition control describes itself by its own note's findings.
-func (v *NoteView) schemaNoticesID() string { return v.IDPrefix + schemaNoticesName }
-
-// schemaNoticesRef is the description a transition submit carries beside the
-// findings, so a control announced on its own still says what the amber notices
-// say to a sighted reader. The attribute is absent on a page with no findings,
-// so no control describes itself by an element that is not in the document.
-func schemaNoticesRef(v *NoteView) templ.Attributes {
-	if len(v.SchemaNotices) == 0 {
-		return nil
-	}
-	return templ.Attributes{"aria-describedby": v.schemaNoticesID()}
 }
 
 // conceptSheetTitle is the words the sheet is named by. The sheet takes its

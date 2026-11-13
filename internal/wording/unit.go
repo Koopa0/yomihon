@@ -12,10 +12,10 @@ type UnitWords struct {
 	CountOne, CountMany Phrase
 	// BranchedFmt takes the number of entries the path's side branches list.
 	BranchedFmt Phrase
-	// UnsettledFmt takes how many of the counted entries are not at a status
-	// the contract settles. It says what is still to be finished and never how
-	// far a reader has come, and a page draws nothing at all when none is left.
-	UnsettledFmt Phrase
+	// DraftsFmt takes how many of the counted entries declare draft: true. It
+	// says what is still to be finished and never how far a reader has come,
+	// and a page draws nothing at all when none is left.
+	DraftsFmt Phrase
 	// Previous and Next are the step words at the foot of the article, and
 	// RailPrevious and RailNext the same steps in the sidebar, which carry their
 	// own separator because the name follows immediately.
@@ -28,7 +28,7 @@ var LessonWords = UnitWords{
 	CountOne:     both("%d 課", "%d lesson"),
 	CountMany:    both("%d 課", "%d lessons"),
 	BranchedFmt:  both("支線 %d 課", "%d in a branch"),
-	UnsettledFmt: both("其中 %d 課尚未定案", "%d not yet settled"),
+	DraftsFmt:    both("其中 %d 課尚未定案", "%d not yet settled"),
 	Previous:     both("上一課", "Previous lesson"),
 	Next:         both("下一課", "Next lesson"),
 	RailPrevious: both("上一課：", "Previous lesson: "),
@@ -40,7 +40,7 @@ var ItemWords = UnitWords{
 	CountOne:     both("%d 篇", "%d item"),
 	CountMany:    both("%d 篇", "%d items"),
 	BranchedFmt:  both("支線 %d 篇", "%d in a branch"),
-	UnsettledFmt: both("其中 %d 篇尚未定案", "%d not yet settled"),
+	DraftsFmt:    both("其中 %d 篇尚未定案", "%d not yet settled"),
 	Previous:     both("上一篇", "Previous"),
 	Next:         both("下一篇", "Next"),
 	RailPrevious: both("上一篇：", "Previous: "),

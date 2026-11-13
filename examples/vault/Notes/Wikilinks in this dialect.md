@@ -1,7 +1,6 @@
 ---
 title: Wikilinks in this dialect
 type: note
-status: ready
 domain: yomihon
 topics: [links, resolution]
 created: 2026-09-22

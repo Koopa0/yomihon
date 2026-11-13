@@ -19,13 +19,13 @@ import (
 func topicServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Sources/reading/Stoner.md", Title: "Stoner", NoteType: "writing", Status: "draft",
+		{RelPath: "Sources/reading/Stoner.md", Title: "Stoner", NoteType: "writing", Draft: true,
 			Topics: []string{"kindness"}, PlainText: "a novel about a quiet life"},
-		{RelPath: "Sources/reading/Stoner-zh.md", Title: "史托納", NoteType: "writing", Status: "draft",
+		{RelPath: "Sources/reading/Stoner-zh.md", Title: "史托納", NoteType: "writing", Draft: true,
 			Topics: []string{"善良"}, PlainText: "一本安靜的小說"},
-		{RelPath: "Concepts/Several.md", Title: "Several", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Several.md", Title: "Several", NoteType: "concept", Draft: true,
 			Topics: []string{"first-subject", "second-subject"}, PlainText: "unrelated"},
-		{RelPath: "Concepts/Plain.md", Title: "Plain", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Plain.md", Title: "Plain", NoteType: "concept", Draft: true,
 			PlainText: "no topic at all"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
@@ -125,7 +125,7 @@ func TestATopicHitSaysWhichSubjectAnsweredTheQuery(t *testing.T) {
 func TestATopicLabelKeepsTheAuthorsSpelling(t *testing.T) {
 	t.Parallel()
 	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Notes/Palette.md", Title: "Palette", NoteType: "concept", Status: "draft",
+		{RelPath: "Notes/Palette.md", Title: "Palette", NoteType: "concept", Draft: true,
 			Topics: []string{"Colour Theory"}, PlainText: "unrelated prose"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()

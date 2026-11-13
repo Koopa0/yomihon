@@ -182,8 +182,8 @@ var (
 		"Notes whose frontmatter could not be read")
 
 	HealthFrontmatterLede = both(
-		"這些筆記的 frontmatter 讀不出來：不是合法的 YAML，或是第一行的 --- 之後一直沒有結尾的 ---。內文照常閱讀、連結照常解析，但它們宣告的每一項都無法判斷。YAML 不合法的筆記，在依狀態分組裡只出現在「讀不出來」一格。",
-		"These notes' frontmatter could not be read: it is not valid YAML, or it opens with --- on line 1 and the closing --- never comes. The body still reads and the links still resolve, but nothing they declare could be judged. A note whose YAML is not valid appears in the grouping by status only in the cell for what could not be read.")
+		"這些筆記的 frontmatter 讀不出來：不是合法的 YAML，或是第一行的 --- 之後一直沒有結尾的 ---。內文照常閱讀、連結照常解析，但它們宣告的每一項都無法判斷。",
+		"These notes' frontmatter could not be read: it is not valid YAML, or it opens with --- on line 1 and the closing --- never comes. The body still reads and the links still resolve, but nothing they declare could be judged.")
 
 	HealthSchemaTitle = both(
 		"schema 有話說的筆記",

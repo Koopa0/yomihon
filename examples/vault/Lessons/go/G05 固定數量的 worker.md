@@ -1,7 +1,6 @@
 ---
 title: G05 固定數量的 worker
 type: lesson
-status: ready
 domain: go
 slug: go-worker-pool
 level: intermediate

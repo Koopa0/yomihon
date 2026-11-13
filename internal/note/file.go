@@ -13,9 +13,9 @@ import (
 
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -88,9 +88,8 @@ func servable(rel string) bool {
 // comfortably, including a markdown file over that bound — becomes an honest
 // information page pointing at the raw endpoint.
 //
-// No status face, no ready accent, no diagnostics: a source file is not a
-// note, and the write face has no opinion about it.
-func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, authority status.Authority, snap *snapshot.Generation) {
+// No draft mark and no diagnostics: a source file is not a note.
+func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, authority schema.Authority, snap *snapshot.Generation) {
 	lang := origin.Language(r)
 	entry, ok := snap.Entry(rel)
 	if !ok {

@@ -64,7 +64,7 @@ func newFigureServer(t *testing.T, root string, marks *mark.File) *httptest.Serv
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
+	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 	var approved func(string, [sha256.Size]byte) (render.Approval, error)
 	if marks != nil {
 		approved = func(rel string, sum [sha256.Size]byte) (render.Approval, error) {
@@ -83,12 +83,11 @@ func newFigureServer(t *testing.T, root string, marks *mark.File) *httptest.Serv
 	}
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source:         source,
-		VaultName:      shell.VaultName(source.Name()),
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
+		Source:    source,
+		VaultName: shell.VaultName(source.Name()),
+		Authority: authority,
+		Snapshot:  store.Current,
+
 		Continuation:   noMark,
 		FigureApproved: approved,
 		Log:            log,
@@ -326,18 +325,17 @@ func newApproveAllServer(t *testing.T, root string, contract *schema.Contract) *
 		governance = contract.Governance()
 	}
 	store, source := newSnapshotStore(t, root, log, contract, governance)
-	writer := openStatusWriter(t, source, contract, governance)
+	authority := func() schema.Authority { return schema.CaptureAuthority(contract, governance) }
 	approveAll := func(string, [sha256.Size]byte) (render.Approval, error) { return render.Approved, nil }
 	store.ApproveFiguresBy(approveAll)
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source:         source,
-		Contract:       contract,
-		VaultName:      shell.VaultName(source.Name()),
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
+		Source:    source,
+		Contract:  contract,
+		VaultName: shell.VaultName(source.Name()),
+		Authority: authority,
+		Snapshot:  store.Current,
+
 		Continuation:   noMark,
 		FigureApproved: approveAll,
 		Log:            log,
