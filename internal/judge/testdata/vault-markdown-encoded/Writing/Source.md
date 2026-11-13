@@ -1,7 +1,7 @@
 ---
-title: Source
+
 type: lesson
-status: draft
+
 slug: source
 ---
 

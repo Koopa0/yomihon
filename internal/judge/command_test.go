@@ -297,18 +297,13 @@ func TestJudgeUsesConfiguredPrivacyBoundary(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	contract, err := os.ReadFile("testdata/vault-supersession/System/schemas/vault-schema.toml")
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
-	contract = bytes.Replace(contract, []byte("never_egress_dirs = []"), []byte(`never_egress_dirs = ["Private"]`), 1)
-	write(t, root, schema.ContractRelPath, string(contract))
-	write(t, root, "Private/Hidden.md", "---\ntitle: Hidden\ntype: concept\nstatus: ready\n---\n\n[[Private Missing]]\n")
-	write(t, root, "Private/Brief.md", "---\ntitle: Brief\ntype: research-brief\nstatus: ready\n---\n")
-	write(t, root, "Private/Old Lesson.md", "---\ntitle: Old Lesson\ntype: lesson\nstatus: ready\nsuccessors: [new]\n---\n")
-	write(t, root, "Private/Private Archived.md", "---\ntitle: Private Archived\ntype: lesson\nstatus: archived\n---\n")
-	write(t, root, "Concepts/Public.md", "---\ntitle: Public\ntype: concept\nstatus: ready\n---\n\n[[Public Missing]]\n")
-	write(t, root, "Maps/Private Link.md", "---\ntitle: Private Link\ntype: study-path\nstatus: ready\n---\n\n[[Private Archived]]\n")
+	write(t, root, schema.ContractRelPath, contractFixture(t, []string{"Private"}))
+	write(t, root, "Private/Hidden.md", "---\ntype: note\ncreated: 2026-01-01\n---\n# Hidden\n\n[[Private Missing]]\n")
+	write(t, root, "Private/Brief.md", "---\ntype: research-brief\ncreated: 2026-01-01\n---\n# Brief\n")
+	write(t, root, "Private/Old Lesson.md", "---\ntype: lesson\ncreated: 2026-01-01\nslug: old-lesson\nsuccessors: [new]\n---\n# Old Lesson\n")
+	write(t, root, "Private/Private Lesson.md", "---\ntype: lesson\ncreated: 2026-01-01\nslug: private-lesson\n---\n# Private Lesson\n")
+	write(t, root, "Concepts/Public.md", "---\ntype: concept\ncreated: 2026-01-01\n---\n# Public\n\n[[Public Missing]]\n")
+	write(t, root, "Maps/Private Link.md", "---\ntype: study-path\ncreated: 2026-01-01\n---\n# Private Link\n\n[[Private Lesson]]\n")
 
 	for _, format := range []Format{FormatJSON, FormatHuman, FormatMarkdown} {
 		checkOutput, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: format})
@@ -418,7 +413,7 @@ func TestCronPayloads(t *testing.T) {
 			t.Fatalf("RunCheck: %v", err)
 		}
 		first, _, _ := bytes.Cut(out, []byte("\n"))
-		want := "9 findings: 3 error, 6 warn, 0 hidden (0 planned forward-refs, 0 external paths)"
+		want := "7 findings: 1 error, 6 warn, 0 hidden (0 planned forward-refs, 0 external paths)"
 		if string(first) != want {
 			t.Errorf("human first line = %q, want %q", first, want)
 		}
@@ -483,25 +478,27 @@ func TestRunCheckRejectsUnknownDeny(t *testing.T) {
 	}
 }
 
-func TestRunCheckDenySupersessionRules(t *testing.T) {
+func TestRunCheckDenyAliasResolvedRule(t *testing.T) {
 	t.Parallel()
 
-	for _, ruleID := range []string{predecessorNotArchivedRule, archivedNavigationRule} {
-		t.Run(ruleID, func(t *testing.T) {
-			t.Parallel()
-
-			_, exit, err := RunCheck(t.Context(), &CheckOptions{
-				Root:   "testdata/vault-supersession",
-				Format: FormatJSON,
-				Deny:   []string{ruleID},
-			})
-			if err != nil {
-				t.Fatalf("RunCheck(--deny %q) error = %v", ruleID, err)
-			}
-			if exit != 1 {
-				t.Errorf("RunCheck(--deny %q) exit = %d, want 1", ruleID, exit)
-			}
+	for _, tt := range []struct {
+		deny []string
+		want int
+	}{
+		{deny: nil, want: 0},
+		{deny: []string{"provenance.alias_resolved"}, want: 1},
+	} {
+		_, exit, err := RunCheck(t.Context(), &CheckOptions{
+			Root:   "testdata/vault-alias-based-on",
+			Format: FormatJSON,
+			Deny:   tt.deny,
 		})
+		if err != nil {
+			t.Fatalf("RunCheck(--deny %q) error = %v", tt.deny, err)
+		}
+		if exit != tt.want {
+			t.Errorf("RunCheck(--deny %q) exit = %d, want %d", tt.deny, exit, tt.want)
+		}
 	}
 }
 

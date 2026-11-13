@@ -95,7 +95,7 @@ self_test() {
     fi
   done
 
-  if ! contract_log_error 'time=2026-07-17T00:00:00Z level=INFO msg="vault contract loaded" version=1 lifecycle_stages=2'; then
+  if ! contract_log_error 'time=2026-07-17T00:00:00Z level=INFO msg="vault contract loaded" version=2'; then
     echo "  SELF-TEST FAIL: one successful contract load was refused" >&2
     failures=1
   else

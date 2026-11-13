@@ -1,5 +1,5 @@
 ---
-title: Nested
+
 type: study-path
 ---
 

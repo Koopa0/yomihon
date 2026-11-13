@@ -11,9 +11,9 @@ import (
 // against it.
 func ambiguousVault(t *testing.T) string {
 	t.Helper()
-	body := "---\ntitle: %s\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n"
+	body := "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n# %s\n\nbody\n"
 	return writeNotes(t, map[string]string{
-		"Concepts/golang/Citing.md":     "---\ntitle: Citing\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\n見 [[Repeated]]。\n",
+		"Concepts/golang/Citing.md":     "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n# Citing\n\n見 [[Repeated]]。\n",
 		"Concepts/golang/A/Repeated.md": strings.Replace(body, "%s", "One", 1),
 		"Concepts/golang/B/Repeated.md": strings.Replace(body, "%s", "Two", 1),
 	})

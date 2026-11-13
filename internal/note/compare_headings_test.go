@@ -20,8 +20,8 @@ func TestCompareHasOnePageHeadingAboveBothNoteOutlines(t *testing.T) {
 	t.Parallel()
 	body := "Opening prose.\n\n# Alpha\n\n## Beta\n\n### Gamma\n\n#### Delta\n\n##### Epsilon\n\n###### Zeta\n\nSetext\n------\n\n> ## Quoted\n\n- ## Listed\n\n`<h2>literal</h2>`\n"
 	fixtures := map[string]string{
-		"Writing/Original.md":    "---\ntitle: Original\ntype: lesson\nstatus: draft\nlang: en\n---\n\n# Original\n\n" + body,
-		"Writing/Translation.md": "---\ntitle: Translation\ntype: lesson\nstatus: draft\nlang: zh-Hant\n---\n\n# Translation\n\n" + body,
+		"Writing/Original.md":    "---\ntype: lesson\nlang: en\n---\n\n# Original\n\n" + body,
+		"Writing/Translation.md": "---\ntype: lesson\nlang: zh-Hant\n---\n\n# Translation\n\n" + body,
 	}
 	srv := newServerWithContract(t, writeNotes(t, fixtures), loadHomeContract(t))
 	for _, tt := range []struct {

@@ -21,24 +21,24 @@ import (
 func suffixExistsVault(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	write(t, root, "Notes/Projects/Atlas/README.md", "---\ntitle: Atlas page\n---\nbody\n")
-	write(t, root, "Notes/Other/README.md", "---\ntitle: Other page\n---\nbody\n")
-	write(t, root, "README.md", "---\ntitle: Root page\n---\nbody\n")
-	write(t, root, "Diary/Private/Secret.md", "---\ntitle: Kept private\n---\nbody\n")
-	write(t, root, schema.ContractRelPath, contractFixture(t, []string{"Diary"}, [2]string{`skip_basenames = ["README.md"]`, "skip_basenames = []"}))
+	write(t, root, "Notes/Projects/Atlas/README.md", "---\n---\n# Atlas page\nbody\n")
+	write(t, root, "Notes/Other/README.md", "---\n---\n# Other page\nbody\n")
+	write(t, root, "README.md", "---\n---\n# Root page\nbody\n")
+	write(t, root, "Diary/Private/Secret.md", "---\n---\n# Kept private\nbody\n")
+	write(t, root, schema.ContractRelPath, contractFixture(t, []string{"Diary"}, [2]string{`skipped_files = ["README.md"]`, "skipped_files = []"}))
 	return root
 }
 
 func TestRunExistsPathSuffixKeepsMetadataAndPrivacy(t *testing.T) {
 	t.Parallel()
 	root := suffixExistsVault(t)
-	write(t, root, "Notes/Alias.md", "---\ntitle: Alias holder\naliases: [Atlas/README]\n---\nbody\n")
-	write(t, root, "Notes/Title.md", "---\ntitle: Atlas/README\n---\nbody\n")
-	write(t, root, "Notes/Mixed/Secret.md", "---\ntitle: Public secret\n---\nbody\n")
-	write(t, root, "Diary/Mixed/Secret.md", "---\ntitle: Private secret\n---\nbody\n")
-	write(t, root, "Notes/Near.md", "---\ntitle: Ｗｉｄｅ/Ｎａｍｅ\n---\nbody\n")
-	write(t, root, "Diary/Ｗｉｄｅ/Ｎａｍｅ.md", "---\ntitle: Hidden width\n---\nbody\n")
-	write(t, root, "Writing/English.md", "---\ntype: lesson\ntitle: English page\ntitle_en: Lessons/English\n---\nbody\n")
+	write(t, root, "Notes/Alias.md", "---\naliases: [Atlas/README]\n---\n# Alias holder\nbody\n")
+	write(t, root, "Notes/Title.md", "---\n---\n# Atlas/README\nbody\n")
+	write(t, root, "Notes/Mixed/Secret.md", "---\n---\n# Public secret\nbody\n")
+	write(t, root, "Diary/Mixed/Secret.md", "---\n---\n# Private secret\nbody\n")
+	write(t, root, "Notes/Near.md", "---\n---\n# Ｗｉｄｅ/Ｎａｍｅ\nbody\n")
+	write(t, root, "Diary/Ｗｉｄｅ/Ｎａｍｅ.md", "---\n---\n# Hidden width\nbody\n")
+	write(t, root, "Writing/English.md", "---\ntype: lesson\ntitle_en: Lessons/English\n---\n# English page\nbody\n")
 	tests := []struct {
 		query, want string
 		exit        int
@@ -46,7 +46,7 @@ func TestRunExistsPathSuffixKeepsMetadataAndPrivacy(t *testing.T) {
 		{query: "Atlas/README", want: `{"query":"Atlas/README","matches":[{"path":"Notes/Alias.md","field":"alias","value":"Atlas/README"},{"path":"Notes/Title.md","field":"title","value":"Atlas/README"}]}`, exit: 0},
 		{query: "Mixed/Secret", want: `{"query":"Mixed/Secret","matches":[{"path":"Notes/Mixed/Secret.md","field":"path","value":"Notes/Mixed/Secret.md"}],"withheld":true}`, exit: 0},
 		{query: "wide/name", want: `{"query":"wide/name","matches":[],"near_matches":[{"path":"Notes/Near.md","field":"title","value":"Ｗｉｄｅ/Ｎａｍｅ"}]}`, exit: 1},
-		{query: "Lessons/English", want: `{"query":"Lessons/English","matches":[{"path":"Writing/English.md","field":"title_en","value":"Lessons/English"}]}`, exit: 0},
+		{query: "Lessons/English", want: `{"query":"Lessons/English","matches":[]}`, exit: 1},
 	}
 	// A width-fold-only location is not an exact name; it may not create the
 	// private-name bit even though lexical matching finds another public title.
@@ -78,13 +78,13 @@ func TestRunExistsPathSuffixSelectionIncludesUnprojectableIdentities(t *testing.
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
-			write(t, root, "Notes/Atlas/README.md", "---\ntitle: Exact claimant\n---\nbody\n")
-			write(t, root, "Extra/Notes/Atlas/README.md", "---\ntitle: Deeper claimant\n---\nbody\n")
-			replacements := [][2]string{{`skip_basenames = ["README.md"]`, "skip_basenames = []"}}
+			write(t, root, "Notes/Atlas/README.md", "---\n---\n# Exact claimant\nbody\n")
+			write(t, root, "Extra/Notes/Atlas/README.md", "---\n---\n# Deeper claimant\nbody\n")
+			replacements := [][2]string{{`skipped_files = ["README.md"]`, "skipped_files = []"}}
 			if tt.skipped {
 				// The basename skip removes both README notes from the readable
 				// set; the ordinary note keeps a readable corpus alongside them.
-				write(t, root, "Notes/Public.md", "---\ntitle: Public\n---\nbody\n")
+				write(t, root, "Notes/Public.md", "---\n---\n# Public\nbody\n")
 				replacements = nil
 			}
 			write(t, root, schema.ContractRelPath, contractFixture(t, nil, replacements...))
@@ -152,7 +152,7 @@ func TestRunExistsPathSuffixFinalAuthorityAndCancellation(t *testing.T) {
 	t.Run("cancelled public read", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
-		write(t, root, "Notes/Atlas/A.md", "---\ntitle: Public\n---\nbody\n")
+		write(t, root, "Notes/Atlas/A.md", "---\n---\n# Public\nbody\n")
 		write(t, root, schema.ContractRelPath, contractFixture(t, nil))
 		ctx, cancel := context.WithCancel(t.Context())
 		defer cancel()
@@ -164,7 +164,7 @@ func TestRunExistsPathSuffixFinalAuthorityAndCancellation(t *testing.T) {
 	t.Run("deadline during public read", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()
-		write(t, root, "Notes/Atlas/A.md", "---\ntitle: Public\n---\nbody\n")
+		write(t, root, "Notes/Atlas/A.md", "---\n---\n# Public\nbody\n")
 		write(t, root, schema.ContractRelPath, contractFixture(t, nil))
 		synctest.Test(t, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
@@ -225,7 +225,7 @@ func TestRunExistsPathSuffixResourcePriority(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	write(t, root, "Assets/chart.svg", "resource")
-	write(t, root, "Notes/Assets/chart.svg.md", "---\ntitle: Competing note\n---\nbody\n")
+	write(t, root, "Notes/Assets/chart.svg.md", "---\n---\n# Competing note\nbody\n")
 	write(t, root, schema.ContractRelPath, contractFixture(t, nil))
 	got, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "Assets/chart.svg", Format: FormatJSON})
 	if err != nil {
@@ -300,10 +300,10 @@ func TestRunCoveragePathSuffix(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, atlasContract)
-	write(t, root, "Concepts/Atlas/Page.md", "---\ntitle: Page\ntype: concept\n---\nbody\n")
-	write(t, root, "Atlases/Map.md", "---\ntitle: Map\ntype: atlas\nbased_on: '[[Atlas/Page]]'\n---\n[[Shared/Twin]]\n")
-	write(t, root, "Concepts/A/Shared/Twin.md", "---\ntitle: A\ntype: concept\n---\nbody\n")
-	write(t, root, "Concepts/B/Shared/Twin.md", "---\ntitle: B\ntype: concept\n---\nbody\n")
+	write(t, root, "Concepts/Atlas/Page.md", "---\ntype: concept\n---\n# Page\nbody\n")
+	write(t, root, "Atlases/Map.md", "---\ntype: atlas\nbased_on: '[[Atlas/Page]]'\n---\n# Map\n[[Shared/Twin]]\n")
+	write(t, root, "Concepts/A/Shared/Twin.md", "---\ntype: concept\n---\n# A\nbody\n")
+	write(t, root, "Concepts/B/Shared/Twin.md", "---\ntype: concept\n---\n# B\nbody\n")
 	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatal(err)
@@ -315,38 +315,12 @@ func TestRunCoveragePathSuffix(t *testing.T) {
 	}
 }
 
-func TestRunCheckPathSuffixSupersession(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	data, err := os.ReadFile(filepath.Join("testdata", "vault-supersession", filepath.FromSlash(schema.ContractRelPath)))
-	if err != nil {
-		t.Fatal(err)
-	}
-	write(t, root, schema.ContractRelPath, string(data))
-	write(t, root, "Writing/Atlas/Old.md", "---\ntitle: Old\ntype: lesson\nstatus: archived\nslug: old\n---\nbody\n")
-	write(t, root, "Maps/Map.md", "---\ntitle: Map\ntype: topic-map\nstatus: ready\n---\n[[Atlas/Old]]\n")
-	findings, err := Check(t.Context(), root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var targets []string
-	for _, f := range findings {
-		if f.RuleID == archivedNavigationRule && f.Target != nil && f.ResolvedTo != nil {
-			targets = append(targets, f.Path+"@"+*f.Target+"->"+*f.ResolvedTo)
-		}
-	}
-	t.Log("invoked: actual suffix resolution contract")
-	if diff := cmp.Diff([]string{"Maps/Map.md@Atlas/Old->Writing/Atlas/Old.md"}, targets); diff != "" {
-		t.Errorf("caught: suffix supersession missing: %s", diff)
-	}
-}
-
 func TestRunCheckPathSuffixCourseDisk(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, contractFixture(t, nil))
-	write(t, root, "Writing/Atlas/Lesson.md", "---\ntitle: Lesson\ntype: lesson\nstatus: ready\ndomain: golang\nslug: lesson\n---\nbody\n")
-	write(t, root, "Maps/Course.md", "---\ntitle: Course\ntype: study-path\nstatus: ready\ndomain: golang\n---\n## Main {sequence=primary}\n- [[Atlas/Lesson]]\n- [[Nope/Lesson]]\n")
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil, [2]string{`domain_from = ["Concepts"]`, `domain_from = ["Writing/lessons"]`}))
+	write(t, root, "Writing/lessons/golang/Atlas/Lesson.md", "---\ntype: lesson\ncreated: 2026-01-01\nslug: lesson\n---\nbody\n")
+	write(t, root, "Writing/lessons/golang/Course.md", "---\ntype: study-path\ncreated: 2026-01-01\n---\n## Main {sequence=primary}\n- [[Atlas/Lesson]]\n- [[Nope/Lesson]]\n")
 	findings, err := Check(t.Context(), root)
 	if err != nil {
 		t.Fatal(err)

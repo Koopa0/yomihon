@@ -89,7 +89,6 @@ var filterKeys = map[string]filterKind{
 	"type":         filterMetadata,
 	DraftFilterKey: filterMetadata,
 	"domain":       filterMetadata,
-	"topic":        filterMetadata,
 	"slug":         filterMetadata,
 	"folder":       filterPath,
 }
@@ -98,9 +97,9 @@ var filterKeys = map[string]filterKind{
 // meets them. It stands beside the grammar table because a key can only be
 // offered as a division of an answer if the grammar accepts it as a filter,
 // and because what keeps the list this short is size rather than any property
-// of the vocabulary: a note declares one type and one domain,
-// while it may declare many topics and lives at one of hundreds of addresses,
-// and a column of two hundred subjects narrows nothing. A test holds this set
+// of the vocabulary: a note declares one type and sits in one domain,
+// while it lives at one of hundreds of addresses, and a column of two hundred
+// subjects narrows nothing. A test holds this set
 // inside the grammar's own.
 var facetKeys = []string{"type", "domain"}
 

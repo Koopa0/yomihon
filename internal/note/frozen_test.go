@@ -111,8 +111,8 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 		// Two notes that cite each other, so that the folder has no uncited note
 		// and nothing against it: the desk can then count none, and a freeze is
 		// the only thing that could change it.
-		"Notes/Existing.md": "---\ntitle: Existing\ntype: concept\n---\nsee [[" + strings.TrimSuffix(path.Base(frozenComposed), ".md") + "]]\n",
-		frozenComposed:      "---\ntitle: Ga\ntype: concept\n---\nsee [[Existing]]\n",
+		"Notes/Existing.md": "---\ntype: concept\n---\n# Existing\n\nsee [[" + strings.TrimSuffix(path.Base(frozenComposed), ".md") + "]]\n",
+		frozenComposed:      "---\ntype: concept\n---\n# Ga\n\nsee [[Existing]]\n",
 	} {
 		writeVaultNote(t, root, rel, body)
 	}
@@ -122,7 +122,7 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 		t.Fatalf("the folder before the pair has %d findings, so a freeze has nothing to change", claim)
 	}
 
-	writeVaultNote(t, root, frozenDecomposed, "---\ntitle: Ga\ntype: concept\n---\nga\n")
+	writeVaultNote(t, root, frozenDecomposed, "---\ntype: concept\n---\n# Ga\n\nga\n")
 	entries, err := os.ReadDir(filepath.Join(root, "Notes"))
 	if err != nil {
 		t.Fatalf("ReadDir(Notes): %v", err)
@@ -134,7 +134,7 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 	if !slices.Contains(listed, path.Base(frozenComposed)) || !slices.Contains(listed, path.Base(frozenDecomposed)) {
 		t.Skip("this filesystem folds the two spellings into one file, so there is no pair to refuse")
 	}
-	writeVaultNote(t, root, frozenFresh, "---\ntitle: Fresh\ntype: concept\n---\nfresh\n")
+	writeVaultNote(t, root, frozenFresh, "---\ntype: concept\n---\n# Fresh\n\nfresh\n")
 
 	waitUntil(t, "the health page says the folder is frozen", func() bool {
 		return strings.Contains(getInLanguage(t, client, srv.URL+"/health", wording.En), "data-health-notice")

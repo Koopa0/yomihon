@@ -56,6 +56,25 @@ func capturedModelWithJournal(
 	dated schema.AuthoredDate,
 ) *Model {
 	t.Helper()
+	return capturedModelInDomains(t, root, roles, scope, policy, resolver, journal, articleLang, dated, nil)
+}
+
+// capturedModelInDomains is capturedModelWithJournal over notes given the
+// domains a contract would derive for them, keyed by path, as the snapshot
+// fills them in before navigation reads a note.
+func capturedModelInDomains(
+	t *testing.T,
+	root string,
+	roles schema.NavigationRoles,
+	scope schema.KnowledgeScope,
+	policy schema.ArtifactPolicy,
+	resolver *graph.Index,
+	journal schema.JournalDir,
+	articleLang schema.ArticleLanguage,
+	dated schema.AuthoredDate,
+	domains map[string]string,
+) *Model {
+	t.Helper()
 	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatalf("vault.Open() error = %v", err)
@@ -83,6 +102,7 @@ func capturedModelWithJournal(
 			t.Fatalf("ReadFile() error = %v", readErr)
 		}
 		note := vault.Parse(entry.Path(), data)
+		note.Domain = domains[entry.Path()]
 		notes[entry.Path()] = note
 		noteList = append(noteList, note)
 	}
@@ -90,6 +110,14 @@ func capturedModelWithJournal(
 		resolver = graph.New(noteList, resources)
 	}
 	return New(scan.Files(), notes, resolver, roles, scope, policy, journal, articleLang, dated)
+}
+
+// capturedModelWithDomains is capturedModel over notes given their domains.
+func capturedModelWithDomains(t *testing.T, root string, domains map[string]string) *Model {
+	t.Helper()
+	roles, policy := testCapabilities(t)
+	contract := testContract(t)
+	return capturedModelInDomains(t, root, roles, schema.KnowledgeScope{}, policy, nil, contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), domains)
 }
 
 func testContract(t *testing.T) *schema.Contract {
@@ -113,32 +141,37 @@ func testArtifactPolicy(t *testing.T) schema.ArtifactPolicy {
 	return policy
 }
 
-func loadCapabilityContract(t *testing.T, navigation, artifacts string) *schema.Contract {
+// capabilityRoles is the role declaration loadCapabilityContract writes when a
+// test leaves its own out: one course type and one map type.
+const capabilityRoles = `
+[types.concept]
+
+[types.study-path]
+role = "course"
+
+[types.moc]
+role = "map"
+`
+
+// loadCapabilityContract writes a contract whose [types.*] tables are types
+// (capabilityRoles when empty) and whose [folders] table also holds folders.
+func loadCapabilityContract(t *testing.T, types, folders string) *schema.Contract {
 	t.Helper()
+	if types == "" {
+		types = capabilityRoles
+	}
 	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := `schema_version = "1"
+	text := `schema_version = "2"
 
-[enums]
-type = ["concept", "moc", "study-path"]
-
-[enums.status]
-note = ["draft"]
-
+[folders]
+checked = ["Concepts", "Maps"]
+` + folders + `
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "based_on"]
-
+common = ["type", "based_on"]
+required = ["type"]
+` + types + `
 [rules]
 concept_requires_provenance = ["based_on"]
-
-[scan]
-knowledge_dirs = ["Concepts", "Maps"]
-` + navigation + artifacts + `
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
 `
 	if err := os.WriteFile(contractPath, []byte(text), 0o600); err != nil {
 		t.Fatalf("write capability contract: %v", err)
@@ -156,8 +189,8 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 	root := t.TempDir()
 	targetPath := "Concepts/go/Target.md"
 	mapPath := "Maps/Course.md"
-	targetBytes := []byte("---\ntitle: Target\ntype: concept\ndomain: golang\nstatus: growing\n---\nbody\n")
-	mapBytes := []byte("---\ntitle: Course\ntype: study-path\ndomain: golang\n---\n## Shelf {sequence=primary}\n- [[Target]]\n")
+	targetBytes := []byte("---\ntype: concept\n---\n# Target\n\nbody\n")
+	mapBytes := []byte("---\ntype: study-path\n---\n# Course\n\n## Shelf {sequence=primary}\n- [[Target]]\n")
 	writeNavFixture(t, root, targetPath, string(targetBytes))
 	writeNavFixture(t, root, "Concepts/go/Unreadable.md", "not captured\n")
 	writeNavFixture(t, root, mapPath, string(mapBytes))
@@ -179,11 +212,13 @@ func TestNewBuildsFromCapturedProjectionAfterSourceDisappears(t *testing.T) {
 	}
 
 	roles, policy := testCapabilities(t)
+	courseNote := vault.Parse(mapPath, mapBytes)
+	courseNote.Domain = "golang"
 	model := New(
 		scan.Files(),
 		map[string]*vault.Note{
 			targetPath: vault.Parse(targetPath, targetBytes),
-			mapPath:    vault.Parse(mapPath, mapBytes),
+			mapPath:    courseNote,
 		},
 		resolver(t, targetPath, mapPath),
 		roles,
@@ -236,7 +271,7 @@ func TestNewUsesEntryModTime(t *testing.T) {
 
 	root := t.TempDir()
 	relPath := "Concepts/go/Channels.md"
-	noteBytes := []byte("---\ntitle: Channels\ntype: concept\nstatus: growing\n---\nbody\n")
+	noteBytes := []byte("---\ntype: concept\n---\n# Channels\n\nbody\n")
 	writeNavFixture(t, root, relPath, string(noteBytes))
 	fullPath := filepath.Join(root, filepath.FromSlash(relPath))
 	captured := time.Date(2026, time.July, 9, 14, 30, 0, 0, time.UTC)
@@ -284,10 +319,11 @@ func TestNewUsesEntryModTime(t *testing.T) {
 func TestNewBuildsMapTypesAndReversePlacements(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNavFixture(t, root, "Concepts/go/Target.md", "---\ntitle: Target\ntype: concept\ndomain: golang\nstatus: growing\n---\nbody\n")
+	writeNavFixture(t, root, "Concepts/go/Target.md", "---\ntype: concept\n---\n# Target\n\nbody\n")
 	writeNavFixture(t, root, "A/Dup.md", "body\n")
 	writeNavFixture(t, root, "B/Dup.md", "body\n")
 
+	domains := map[string]string{}
 	fixtures := []struct {
 		rel, title, noteType, domain string
 		// heading carries the sequence declaration only on the study path: a
@@ -301,11 +337,11 @@ func TestNewBuildsMapTypesAndReversePlacements(t *testing.T) {
 		{rel: "Maps/Z-alpha.md", title: "Alpha", noteType: "source-map", domain: "golang", heading: "## Shelf"},
 	}
 	for _, f := range fixtures {
-		writeNavFixture(t, root, f.rel, fmt.Sprintf("---\ntitle: %s\ntype: %s\ndomain: %s\n---\n%s\n- [[Target]]\n- [[Ghost]]\n- [[Dup]]\n", f.title, f.noteType, f.domain, f.heading))
+		writeNavFixture(t, root, f.rel, fmt.Sprintf("---\ntype: %s\n---\n# %s\n\n%s\n- [[Target]]\n- [[Ghost]]\n- [[Dup]]\n", f.noteType, f.title, f.heading))
+		domains[f.rel] = f.domain
 	}
 
-	roles, policy := testCapabilities(t)
-	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+	model := capturedModelWithDomains(t, root, domains)
 
 	resolvedBranches := []Branch{{
 		Heading: "Shelf",
@@ -356,10 +392,10 @@ func TestNewRetainsNonInstanceStudyPathRowsAsWarnings(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNavFixture(t, root, "Concepts/Instance.md", "---\ntitle: Instance\ntype: concept\nstatus: draft\n---\nbody\n")
-	writeNavFixture(t, root, "System/templates/Template target.md", "---\ntitle: Template target\ntype: concept\nstatus: ready\n---\nbody\n")
-	writeNavFixture(t, root, "System/templates/Template map.md", "---\ntitle: Template map\ntype: moc\n---\n## Shelf\n- [[Instance]]\n")
-	writeNavFixture(t, root, "Maps/Course.md", "---\ntitle: Course\ntype: study-path\n---\n## Shelf {sequence=primary}\n- [[Template target]]\n- [[Instance]]\n")
+	writeNavFixture(t, root, "Concepts/Instance.md", "---\ntype: concept\n---\n# Instance\n\nbody\n")
+	writeNavFixture(t, root, "System/templates/Template target.md", "---\ntype: concept\n---\n# Template target\n\nbody\n")
+	writeNavFixture(t, root, "System/templates/Template map.md", "---\ntype: moc\n---\n# Template map\n\n## Shelf\n- [[Instance]]\n")
+	writeNavFixture(t, root, "Maps/Course.md", "---\ntype: study-path\n---\n# Course\n\n## Shelf {sequence=primary}\n- [[Template target]]\n- [[Instance]]\n")
 
 	roles, policy := testCapabilities(t)
 	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
@@ -399,9 +435,9 @@ func TestNewOmitsNonInstanceTargetsFromGeneralMaps(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNavFixture(t, root, "Concepts/Instance.md", "---\ntitle: Instance\ntype: concept\nstatus: draft\n---\nbody\n")
-	writeNavFixture(t, root, "System/templates/Template target.md", "---\ntitle: Template target\ntype: concept\nstatus: ready\n---\nbody\n")
-	writeNavFixture(t, root, "Maps/General.md", "---\ntitle: General\ntype: moc\n---\n## Shelf\n- [[Template target]]\n- [[Instance]]\n")
+	writeNavFixture(t, root, "Concepts/Instance.md", "---\ntype: concept\n---\n# Instance\n\nbody\n")
+	writeNavFixture(t, root, "System/templates/Template target.md", "---\ntype: concept\n---\n# Template target\n\nbody\n")
+	writeNavFixture(t, root, "Maps/General.md", "---\ntype: moc\n---\n# General\n\n## Shelf\n- [[Template target]]\n- [[Instance]]\n")
 
 	roles, policy := testCapabilities(t)
 	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
@@ -422,52 +458,34 @@ func TestNewReportsIndependentCapabilityDiagnostics(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: draft\n---\nbody\n")
-	writeNavFixture(t, root, "Maps/Map.md", "---\ntitle: Map\ntype: moc\n---\n## Shelf\n- [[Target]]\n")
+	writeNavFixture(t, root, "Concepts/Target.md", "---\ntype: concept\n---\n# Target\n\nbody\n")
+	writeNavFixture(t, root, "Maps/Map.md", "---\ntype: moc\n---\n# Map\n\n## Shelf\n- [[Target]]\n")
 	validRoles, validPolicy := testCapabilities(t)
 	invalidNavigation := loadCapabilityContract(t, `
-[navigation]
-path_types = ["missing-type"]
-map_types = ["moc"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
+[types.concept]
+
+[types.study-path]
+role = "missing-role"
+
+[types.moc]
+role = "map"
+`, `templates = ["System/templates"]
 `)
-	incompleteNavigation := loadCapabilityContract(t, `
-[navigation]
-path_types = ["study-path"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
+	sharedNavigation := loadCapabilityContract(t, `
+[types.concept]
+role = "thought"
+
+[types.study-path]
+role = "course"
+
+[types.moc]
+role = "thought"
+`, `templates = ["System/templates"]
 `)
-	invalidArtifact := loadCapabilityContract(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-`, `
-[artifacts]
-non_instance_dirs = ["../templates"]
+	invalidArtifact := loadCapabilityContract(t, "", `templates = ["../templates"]
 `)
-	incompleteArtifact := loadCapabilityContract(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-`, `
-[artifacts]
+	blankArtifact := loadCapabilityContract(t, "", `templates = [""]
 `)
-	// A contract that exists and omits the section entirely. Before the grant
-	// split this was the zero-value capability, which a folder carrying no
-	// contract also produced — the two folders rendered the same page, and the
-	// operator's actual mistake was indistinguishable from having made none.
-	undeclaredNavigation := loadCapabilityContract(t, ``, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
-	undeclaredArtifact := loadCapabilityContract(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-`, ``)
 
 	tests := []struct {
 		name               string
@@ -478,36 +496,22 @@ map_types = ["moc"]
 		wantKnowledgeNotes int
 	}{
 		{
-			name:               "undeclared navigation",
-			roles:              undeclaredNavigation.NavigationRoles(),
-			policy:             validPolicy,
-			wantNavigation:     "contract declares no navigation roles",
-			wantKnowledgeNotes: 2,
-		},
-		{
 			name:               "invalid navigation",
 			roles:              invalidNavigation.NavigationRoles(),
 			policy:             validPolicy,
-			wantNavigation:     `missing-type`,
+			wantNavigation:     `missing-role`,
 			wantKnowledgeNotes: 2,
 		},
 		{
-			name:               "incomplete navigation",
-			roles:              incompleteNavigation.NavigationRoles(),
+			name:               "one role held twice",
+			roles:              sharedNavigation.NavigationRoles(),
 			policy:             validPolicy,
-			wantNavigation:     `missing required key "map_types"`,
+			wantNavigation:     `both hold the thought role`,
 			wantKnowledgeNotes: 2,
 		},
 		// The artifact rows keep their knowledge notes: the summary is plain
 		// reading, and a policy that cannot be honoured excludes nothing
 		// rather than hiding everything.
-		{
-			name:               "undeclared artifact policy",
-			roles:              validRoles,
-			policy:             undeclaredArtifact.ArtifactPolicy(),
-			wantArtifact:       "contract declares no artifact policy",
-			wantKnowledgeNotes: 2,
-		},
 		{
 			name:               "invalid artifact policy",
 			roles:              validRoles,
@@ -516,10 +520,10 @@ map_types = ["moc"]
 			wantKnowledgeNotes: 2,
 		},
 		{
-			name:               "incomplete artifact policy",
+			name:               "blank artifact policy",
 			roles:              validRoles,
-			policy:             incompleteArtifact.ArtifactPolicy(),
-			wantArtifact:       `missing required key "non_instance_dirs"`,
+			policy:             blankArtifact.ArtifactPolicy(),
+			wantArtifact:       `templates contains ""`,
 			wantKnowledgeNotes: 2,
 		},
 	}
@@ -559,8 +563,8 @@ func TestUngovernedFolderProjectsOverTheEmptyDeclaredSet(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: draft\n---\nbody\n")
-	writeNavFixture(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNavFixture(t, root, "Concepts/Target.md", "---\ntype: concept\n---\n# Target\n\nbody\n")
+	writeNavFixture(t, root, "System/templates/Card.md", "---\ntype: concept\n---\n# Card\n\nbody\n")
 
 	capabilities := (*schema.Contract)(nil).Capabilities(schema.Ungoverned())
 	model := capturedModel(t, root, capabilities.Navigation, schema.KnowledgeScope{}, capabilities.Artifacts, nil)
@@ -600,7 +604,7 @@ func TestUnreadableContractClosesEveryProjectionWithOneSentence(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNavFixture(t, root, "Concepts/Target.md", "---\ntype: concept\n---\n# Target\n\nbody\n")
 
 	// The capabilities a folder gets when its contract claimed authority and
 	// could not be read: unresolved, not zero. Deriving them here rather than
@@ -640,7 +644,7 @@ func TestNewKeepsZeroEntryMap(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNavFixture(t, root, "Maps/Empty.md", "---\ntitle: Empty map\ntype: moc\n---\n## Shelf\n- [[Unwritten]]\n")
+	writeNavFixture(t, root, "Maps/Empty.md", "---\ntype: moc\n---\n# Empty map\n\n## Shelf\n- [[Unwritten]]\n")
 	roles, policy := testCapabilities(t)
 	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
 	want := []Map{{Title: "Empty map", RelPath: "Maps/Empty.md", Type: "moc"}}
@@ -793,7 +797,7 @@ func TestNewCarriesScannerMtimes(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	content := "---\ntitle: Channels\ntype: concept\nstatus: growing\n---\n\nbody\n"
+	content := "---\ntype: concept\n---\n# Channels\n\n\nbody\n"
 	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
@@ -1399,14 +1403,13 @@ func TestNewCountsAMapWrittenInEitherHeadingForm(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNavFixture(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\ndomain: golang\nstatus: growing\n---\nbody\n")
+	writeNavFixture(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\n# Alpha\n\nbody\n")
 	writeNavFixture(t, root, "Maps/Indented.md",
-		"---\ntitle: Indented\ntype: moc\ndomain: golang\n---\n  ## References\n\nSee [[Alpha]].\n")
+		"---\ntype: moc\n---\n# Indented\n\n  ## References\n\nSee [[Alpha]].\n")
 	writeNavFixture(t, root, "Maps/Underlined.md",
-		"---\ntitle: Underlined\ntype: moc\ndomain: golang\n---\nReferences\n----------\n\nSee [[Alpha]].\n")
+		"---\ntype: moc\n---\n# Underlined\n\nReferences\n----------\n\nSee [[Alpha]].\n")
 
-	roles, policy := testCapabilities(t)
-	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+	model := capturedModelWithDomains(t, root, map[string]string{"Maps/Indented.md": "golang", "Maps/Underlined.md": "golang"})
 
 	branches := []Branch{{
 		Heading: "References",
@@ -1643,7 +1646,7 @@ func TestFolderTreeKeepsEveryFileTheDeskCanOpen(t *testing.T) {
 
 	root := t.TempDir()
 	notePath := "Notes/idea.md"
-	writeNavFixture(t, root, notePath, "---\ntitle: Idea\n---\nbody\n")
+	writeNavFixture(t, root, notePath, "---\n---\n# Idea\n\nbody\n")
 	writeNavFixture(t, root, "Notes/diagram.png", "\x89PNG\r\n\x1a\n")
 	writeNavFixture(t, root, "Notes/config.yaml", "k: v\n")
 	writeNavFixture(t, root, "Makefile", "all:\n")
@@ -1662,7 +1665,7 @@ func TestFolderTreeKeepsEveryFileTheDeskCanOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ScanComplete() error = %v", err)
 	}
-	note := vault.Parse(notePath, []byte("---\ntitle: Idea\n---\nbody\n"))
+	note := vault.Parse(notePath, []byte("---\n---\n# Idea\n\nbody\n"))
 	roles, policy := testCapabilities(t)
 	model := New(
 		scan.Files(),
@@ -2147,7 +2150,7 @@ func TestModelConcurrentProjectionMutationDoesNotChangePublishedData(t *testing.
 func TestBuildReports(t *testing.T) {
 	t.Parallel()
 
-	titled := vault.Parse("System/reports/Run-Report.md", []byte("---\ntitle: Run report\ncreated: 2026-07-04\n---\nbody\n"))
+	titled := vault.Parse("System/reports/Run-Report.md", []byte("---\ncreated: 2026-07-04\n---\n# Run report\n\nbody\n"))
 	files := []capturedFile{
 		{path: "Concepts/foo.md"},
 		{path: "System/reports/vault-check.md"},
@@ -2365,9 +2368,9 @@ func TestRecentNotesFollowTheVaultsOwnScopeNotTheTypeField(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNavFixture(t, root, "Concepts/typed.md", "---\ntitle: Typed\ntype: concept\n---\nbody\n")
+	writeNavFixture(t, root, "Concepts/typed.md", "---\ntype: concept\n---\n# Typed\n\nbody\n")
 	writeNavFixture(t, root, "Concepts/untyped.md", "# Untyped\n\nbody\n")
-	writeNavFixture(t, root, "System/reports/machine.md", "---\ntitle: Machine\ntype: report\n---\nbody\n")
+	writeNavFixture(t, root, "System/reports/machine.md", "---\ntype: report\n---\n# Machine\n\nbody\n")
 
 	t.Run("a folder that declares nothing keeps every note", func(t *testing.T) {
 		t.Parallel()

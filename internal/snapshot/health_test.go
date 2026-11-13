@@ -45,17 +45,17 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		parse(t, "Concepts/written.md", "---\ntitle: A Written Note\n---\n\nI exist\n"),
-		parse(t, "Concepts/cites title.md", "---\ntitle: Cites Title\n---\n\nsee [[A Written Note]]\n"),
-		parse(t, "Concepts/cites nothing.md", "---\ntitle: Cites Nothing\n---\n\nsee [[no such name]]\n"),
-		parse(t, "Concepts/cites owed.md", "---\ntitle: Cites Owed\n---\n\nsee [[Owed Concept]]\n"),
-		parse(t, "Maps/ledger.md", "---\ntitle: Ledger\n---\n\n## 缺口帳\n\n- Owed Concept\n"),
+		parse(t, "Concepts/written.md", "# A Written Note\n\nI exist\n"),
+		parse(t, "Concepts/cites title.md", "# Cites Title\n\nsee [[A Written Note]]\n"),
+		parse(t, "Concepts/cites nothing.md", "# Cites Nothing\n\nsee [[no such name]]\n"),
+		parse(t, "Concepts/cites owed.md", "# Cites Owed\n\nsee [[Owed Concept]]\n"),
+		parse(t, "Maps/ledger.md", "# Ledger\n\n## 缺口帳\n\n- Owed Concept\n"),
 		// Two notes declaring one title: naming either of them would be the
 		// guess the resolver refuses to make, so this citation stays unwritten
 		// rather than being pointed at one of them.
-		parse(t, "A/twin.md", "---\ntitle: Shared Title\n---\n\none\n"),
-		parse(t, "B/twin.md", "---\ntitle: Shared Title\n---\n\ntwo\n"),
-		parse(t, "Concepts/cites shared.md", "---\ntitle: Cites Shared\n---\n\nsee [[Shared Title]]\n"),
+		parse(t, "A/twin.md", "# Shared Title\n\none\n"),
+		parse(t, "B/twin.md", "# Shared Title\n\ntwo\n"),
+		parse(t, "Concepts/cites shared.md", "# Cites Shared\n\nsee [[Shared Title]]\n"),
 	}
 	idx := graph.New(notes, nil)
 	planned := judge.NewPlanned(noteBodies(notes), nil)
@@ -141,8 +141,8 @@ func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			target := parse(t, tt.targetPath, "---\ntitle: Target Note\n---\n\nbody\n")
-			citer := parse(t, tt.citerPath, "---\ntitle: Citer\n---\n\nsee [[Target Note]]\n")
+			target := parse(t, tt.targetPath, "# Target Note\n\nbody\n")
+			citer := parse(t, tt.citerPath, "# Citer\n\nsee [[Target Note]]\n")
 			notes := []*vault.Note{citer, target}
 			if tt.targetFirst {
 				notes = []*vault.Note{target, citer}
@@ -171,8 +171,8 @@ func TestHealthIgnoresCitationsFromArtifacts(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nsee [[No Such Note]]\n")
-	writeNote(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\nstatus: ready\n---\nsee [[{{concept_a}}]]\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nsee [[No Such Note]]\n")
+	writeNote(t, root, "System/templates/Card.md", "---\ntype: concept\n---\nsee [[{{concept_a}}]]\n")
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)
 
@@ -203,15 +203,15 @@ func TestHealthReportsSharedNamesOnlyOnceALinkUsesThem(t *testing.T) {
 
 	notes := []*vault.Note{
 		// Nothing anywhere cites "quiet", so nothing is broken by the pair.
-		parse(t, "A/quiet.md", "---\ntitle: Quiet A\n---\n\none\n"),
-		parse(t, "B/quiet.md", "---\ntitle: Quiet B\n---\n\ntwo\n"),
+		parse(t, "A/quiet.md", "# Quiet A\n\none\n"),
+		parse(t, "B/quiet.md", "# Quiet B\n\ntwo\n"),
 		// The control: a shared name a real note does cite. An empty answer
 		// cannot pass this test.
-		parse(t, "A/cited.md", "---\ntitle: Cited A\n---\n\nthree\n"),
-		parse(t, "B/cited.md", "---\ntitle: Cited B\n---\n\nfour\n"),
+		parse(t, "A/cited.md", "# Cited A\n\nthree\n"),
+		parse(t, "B/cited.md", "# Cited B\n\nfour\n"),
 		// A shared resource name is cited by an embed, and its twin by path
 		// only, which resolves by path and breaks nothing.
-		parse(t, "Concepts/reader.md", "---\ntitle: Reader\n---\n\nsee [[cited]] and ![[shot.png]] and [run](lab/a/out.txt)\n"),
+		parse(t, "Concepts/reader.md", "# Reader\n\nsee [[cited]] and ![[shot.png]] and [run](lab/a/out.txt)\n"),
 	}
 	resources := []string{"img/shot.png", "old/shot.png", "lab/a/out.txt", "lab/b/out.txt"}
 	idx := graph.New(notes, resources)
@@ -238,8 +238,8 @@ func TestDeclaredNonDefaultGapMarkKeepsHarvestedNameOffUnwritten(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Maps/ledger.md", "---\ntitle: Ledger\n---\n\n## Gaps\n- Ghost\n")
-	writeNote(t, root, "Concepts/citer.md", "---\ntitle: Citer\n---\n\nSee [[Ghost]] and [[Nowhere]].\n")
+	writeNote(t, root, "Maps/ledger.md", "# Ledger\n\n## Gaps\n- Ghost\n")
+	writeNote(t, root, "Concepts/citer.md", "# Citer\n\nSee [[Ghost]] and [[Nowhere]].\n")
 	contract := testContractWithRules(t, root, "planned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []")
 	store, _ := newTestStore(t, root, contract)
 	h := store.Current().health

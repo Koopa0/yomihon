@@ -26,8 +26,6 @@ func renderDiagnosticSummary(kind render.DiagnosticKind, lang wording.Lang) stri
 		return pathDiagnosticSummary(kind, lang)
 	case render.DiagWikilinkTitleOnly:
 		return wording.DiagTitleOnlyNote.In(lang)
-	case render.DiagTitleTruncatedAtHash:
-		return wording.DiagTitleCutNote.In(lang)
 	case render.DiagWikilinkAmbiguous:
 		return pathDiagnosticSummary(kind, lang)
 	case render.DiagUnknownCallout:

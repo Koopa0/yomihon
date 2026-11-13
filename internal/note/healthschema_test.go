@@ -39,13 +39,13 @@ func TestHealthIsNotCleanWhileTheSchemaHasSomethingToSay(t *testing.T) {
 		{
 			name:        "frontmatter that cannot be read",
 			rel:         "Concepts/golang/Broken.md",
-			body:        "---\ntitle: Broken\ntype: concept\ndomain: golang\nstatus: draft\nstatus: ready\n---\n\nbody\n",
+			body:        "---\ntype: concept\ncreated: 2026-06-01\ncreated: 2026-06-02\n---\n# Broken\n\nbody\n",
 			wantSection: "frontmatter 讀不出來的筆記",
 		},
 		{
 			name:        "frontmatter that reads and the schema rejects",
 			rel:         "Concepts/golang/Bad.md",
-			body:        "---\ntitle: Bad\ntype: memorandum\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n",
+			body:        "---\ntype: memorandum\ncreated: 2026-06-01\n---\n# Bad\n\nbody\n",
 			wantSection: "schema 有話說的筆記",
 		},
 	} {
@@ -73,7 +73,7 @@ func TestHealthIsNotCleanWhileTheSchemaHasSomethingToSay(t *testing.T) {
 func TestHealthStillSaysAllClearForAFolderWithNothingToAnswer(t *testing.T) {
 	t.Parallel()
 
-	const body = "---\ntitle: Fine\ntype: concept\ndomain: golang\nstatus: seedling\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Fine]]\"\n---\n\nbody\n"
+	const body = "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[Fine]]\"\n---\n# Fine\n\nbody\n"
 	srv := newServerWithContract(t, writeOneNote(t, "Concepts/golang/Fine.md", body), loadHomeContract(t))
 
 	code, page := get(t, srv.Client(), srv.URL+"/health")

@@ -1,12 +1,12 @@
 ---
-title: Cutover
 type: lesson
-domain: golang
-status: draft
+
+
 draft: true
 slug: cutover
 lang: en
 ---
+# Cutover
 
 The original half of a translated pair, so the reading surface has two notes
 that belong beside one another. Its partner declares this note as the source it

@@ -1,11 +1,8 @@
 ---
-title: 把 yomihon 指向你的資料夾
 type: lesson
-domain: yomihon
 slug: point-at-your-own-folder
 level: fundamental
 created: 2026-09-22
-updated: 2026-09-22
 lang: zh-Hant
 ---
 

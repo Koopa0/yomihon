@@ -15,7 +15,7 @@
 | --- | --- | --- |
 | 課程與支線：`internal/sequence`、`internal/nav`、`internal/syllabus` | Go 五課主線；G04 下掛 G06 選讀；日文兩課 | G04 下一課為 G05；G06 不插入主線 |
 | 概念與地圖：`internal/lesson/concept.go`、`internal/render/concept.go`、`internal/nav/map.go` | goroutine 生命週期、channel 交接、取消收尾；日文地點助詞 | 課文連結開啟概念頁；五個概念都有地圖掛載 |
-| 別名與搜尋：`internal/graph`、`internal/lexical`、`internal/search` | Go 課文的標題、別名與 topics；阻塞及修復兩份程式 | `取消 domain:go` 可找回材料；加 `draft:true` 找到阻塞版本 |
+| 別名與搜尋：`internal/graph`、`internal/lexical`、`internal/search` | Go 課文的標題、別名與由資料夾推導的領域；阻塞及修復兩份程式 | `取消 domain:go` 找回課文與概念；`取消 draft:true` 找到阻塞版本 |
 | 來源與比較：`internal/snapshot/basedon.go`、`internal/note/compare.go` | [提早返回的管線](vault/Notes/go/提早返回的管線.md)宣告修復版本為來源 | 從草稿開啟並排比較，核對 send 的退出方式 |
 | 章節、區塊與節錄：`internal/render` | G04 引用取消筆記的具體段落 | heading/block 連結與 embed 有效；不把正文引用當成精確 declared-source 支援 |
 | 圖解、程式碼、註腳：`internal/render`、`internal/asset` | 本機 [Go 管線圖](vault/System/assets/go-pipeline.svg)、完整程式、官方文件來源 | 本機圖不依賴網路；完整程式可執行 |
@@ -23,9 +23,9 @@
 | 句型練習：`internal/lesson/slot.go`、`internal/note/handler.go` | 找書位置九種組合、閱讀場所六種組合 | 以 slug 對應，日文與譯文同步更新 |
 | 日記與報告：`internal/nav/nav.go`、`internal/report` | 9/22 的取消案例日記、Markdown 回顧、HTML 案例 | 當日內容可開啟；HTML 自含 CSS、無 script 或外部資源 |
 | 待續、更新與偏好：`internal/mark`、`internal/note/freshness.go`、`internal/preference` | 可返回的完整課文與長程式 | 保存位置後由首頁返回；副本外部修改出現提示；窄幅與大字可讀 |
-| 契約、診斷、替代與隱私：`internal/schema`、`internal/judge` | 中英手冊、刻意故障、舊／新啟動說明 | 保留診斷清單、supersession 關係與 Diary 隱私範圍 |
+| 契約、診斷、取代與隱私：`internal/schema`、`internal/judge` | 中英手冊、刻意故障、接手已刪課文名稱的啟動課 | 保留診斷清單、已刪名稱經 `aliases` 仍可解析、Diary 隱私範圍 |
 
-Go 教材在範例契約的 domain 清單新增 `go`。欄位、狀態與生命週期規則不變。
+Go 教材在範例契約的 domain 清單新增 `go`，由 `Concepts/go/` 與 `Lessons/go/` 資料夾推導。筆記不寫標題、領域或進度：還沒寫完的寫 `draft: true`。
 
 ## 刻意保留的診斷
 

@@ -13,7 +13,7 @@ import (
 
 func TestByteOrderMarkBeforeTheFirstHeadingRendersAsAHeading(t *testing.T) {
 	t.Parallel()
-	for _, prefix := range []string{"", "---\ntitle: Metadata title\n---\n", "---\r\ntitle: Metadata title\r\n---\r\n"} {
+	for _, prefix := range []string{"", "---\ntype: metadata-type\n---\n", "---\r\ntype: metadata-type\r\n---\r\n"} {
 		t.Run(prefix, func(t *testing.T) {
 			t.Parallel()
 			note := vault.Parse("note.md", []byte("\xef\xbb\xbf"+prefix+"# BOM heading\n\nbody\n"))
@@ -29,8 +29,8 @@ func TestByteOrderMarkBeforeTheFirstHeadingRendersAsAHeading(t *testing.T) {
 			if withTitle.TitleAnchor != "bom-heading" || strings.Contains(withTitle.HTML, "BOM heading") {
 				t.Errorf("HTML(Parse(BOM heading), matching title) anchor/body = %q/%q, want title anchor without a repeated heading", withTitle.TitleAnchor, withTitle.HTML)
 			}
-			if prefix != "" && (note.Title() != "Metadata title" || note.FMDiagnostic != "") {
-				t.Errorf("Parse(BOM frontmatter) title/diagnostic = %q/%q, want Metadata title and no diagnostic", note.Title(), note.FMDiagnostic)
+			if prefix != "" && (note.Type() != "metadata-type" || note.FMDiagnostic != "") {
+				t.Errorf("Parse(BOM frontmatter) type/diagnostic = %q/%q, want metadata-type and no diagnostic", note.Type(), note.FMDiagnostic)
 			}
 		})
 	}

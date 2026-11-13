@@ -10,13 +10,13 @@ func TestArticleLanguageDeclared(t *testing.T) {
 	if (&Contract{}).ArticleLanguage().Declared() {
 		t.Error("ArticleLanguage().Declared() = true without a contract, want false")
 	}
-	known := &Contract{definition: Definition{Fields: Fields{Known: []string{"title", "lang"}}}}
-	if !known.ArticleLanguage().Declared() {
-		t.Error("ArticleLanguage().Declared() = false when fields.known lists lang, want true")
+	common := &Contract{common: []string{"type", "lang"}}
+	if !common.ArticleLanguage().Declared() {
+		t.Error("ArticleLanguage().Declared() = false when fields.common lists lang, want true")
 	}
-	lessonOnly := &Contract{definition: Definition{Fields: Fields{LessonOnly: []string{"lang"}}}}
-	if lessonOnly.ArticleLanguage().Declared() {
-		t.Error("ArticleLanguage().Declared() = true when only lesson fields list lang, want false")
+	oneType := &Contract{types: []typeDefinition{{name: "lesson", fields: []string{"lang"}}}}
+	if oneType.ArticleLanguage().Declared() {
+		t.Error("ArticleLanguage().Declared() = true when only one type lists lang, want false")
 	}
 }
 
@@ -32,21 +32,21 @@ func TestArticleLanguageRequiresContractAuthority(t *testing.T) {
 	}
 }
 
-func TestArticleLanguageRejectsLessonOnlyAuthority(t *testing.T) {
+func TestArticleLanguageRejectsOneTypeAuthority(t *testing.T) {
 	t.Parallel()
-	contract := &Contract{definition: Definition{Fields: Fields{LessonOnly: []string{"lang"}}}}
+	contract := &Contract{types: []typeDefinition{{name: "lesson", fields: []string{"lang"}}}}
 	got, err := contract.ArticleLanguage().Resolve(map[string]any{"lang": "ja"})
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
 	if got != "" {
-		t.Errorf("Resolve() = %q, want no tag when only lesson fields declare lang", got)
+		t.Errorf("Resolve() = %q, want no tag when only one type declares lang", got)
 	}
 }
 
 func TestArticleLanguageResolve(t *testing.T) {
 	t.Parallel()
-	contract := &Contract{definition: Definition{Fields: Fields{Known: []string{"title", "lang"}}}}
+	contract := &Contract{common: []string{"type", "lang"}}
 	resolver := contract.ArticleLanguage()
 	tests := []struct {
 		name        string

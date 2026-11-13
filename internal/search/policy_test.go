@@ -23,37 +23,32 @@ func validArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 
 func invalidArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 	tb.Helper()
-	return artifactPolicyFromSection(tb, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
+	return artifactPolicyFromSection(tb, "[folders]\ntemplates = [\".\"]\n")
 }
 
-func incompleteArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
+// escapingArtifactPolicy declares a templates folder above the vault root, so
+// the contract loaded and the policy it meant cannot be honoured.
+func escapingArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 	tb.Helper()
-	return artifactPolicyFromSection(tb, "[artifacts]\n")
+	return artifactPolicyFromSection(tb, "[folders]\ntemplates = [\"../outside\"]\n")
+}
+
+// blankArtifactPolicy declares a templates folder with no name.
+func blankArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
+	tb.Helper()
+	return artifactPolicyFromSection(tb, "[folders]\ntemplates = [\"\"]\n")
 }
 
 func artifactPolicyFromSection(tb testing.TB, section string) schema.ArtifactPolicy {
 	tb.Helper()
 	path := filepath.Join(tb.TempDir(), "vault-schema.toml")
-	contract := `schema_version = "1"
+	contract := `schema_version = "2"
 
-[enums]
-type = ["concept"]
-
-[enums.status]
-note = ["draft"]
-
-[fields]
-known = ["based_on"]
+` + section + `
+[types.concept]
 
 [rules]
 concept_requires_provenance = ["based_on"]
-
-` + section + `
-[[lifecycle]]
-status = "draft"
-applies_to = ["concept"]
-from = []
-owner = ["koopa"]
 `
 	if err := os.WriteFile(path, []byte(contract), 0o600); err != nil {
 		tb.Fatalf("os.WriteFile: %v", err)
@@ -63,13 +58,4 @@ owner = ["koopa"]
 		tb.Fatalf("schema.LoadFile: %v", err)
 	}
 	return loaded.ArtifactPolicy()
-}
-
-// undeclaredArtifactPolicy is a contract that loaded and left [artifacts] out
-// altogether. It is not the zero value: the zero value belongs to a folder that
-// carries no contract, which excluded nothing on purpose, while this one meant
-// to exclude directories yomihon cannot name.
-func undeclaredArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
-	tb.Helper()
-	return artifactPolicyFromSection(tb, "")
 }

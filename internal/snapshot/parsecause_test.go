@@ -96,7 +96,7 @@ func TestRetainedReadingNamesTheFailedParseAttempt(t *testing.T) {
 	}
 	whole := store.Current()
 	breakStage(t, 0)
-	writeNote(t, root, panicPoisoned, "---\ntitle: Poison\n---\npoisoned newly saved content\n")
+	writeNote(t, root, panicPoisoned, "---\n---\npoisoned newly saved content\n")
 	base := time.Now()
 	clock := base
 	store.now = func() time.Time { return clock }

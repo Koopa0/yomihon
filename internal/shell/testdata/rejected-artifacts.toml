@@ -1,64 +1,22 @@
-# Loader fixture for the shell projection. The named transition after ready
-# makes the seal non-terminal, so it still has a named onward step like any
-# other contract-owned state.
-schema_version = "1"
+# Loader fixture for the shell projection: the same contract with a
+# template directory that climbs out of the vault, so the artifact policy
+# is rejected while the contract still loads.
+schema_version = "2"
+
+[folders]
+checked = ["Writing"]
+templates = ["../escape"]
+skipped_files = ["README.md"]
+frontmatter_optional = true
 
 [enums]
-type = ["lesson"]
 domain = ["japanese"]
 
-[enums.status]
-note = []
-lesson = ["imported", "draft", "ready", "beyond", "archived"]
-
 [fields]
-required = ["title", "type", "domain", "status", "created", "updated"]
-known = ["title", "type", "domain", "status", "created", "updated", "lang"]
+common = ["type", "draft", "lang", "created"]
+required = ["type", "created"]
 
-[fields.status_group]
-lesson = ["lesson"]
-
-[rules]
-slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
-
-[scan]
-knowledge_dirs = ["Writing"]
-skip_basenames = ["README.md"]
-no_frontmatter_is_legal = true
-
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = ["../escape"]
-
-[[lifecycle]]
-status = "imported"
-applies_to = ["lesson"]
-from = []
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["lesson"]
-from = ["imported"]
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "ready"
-applies_to = ["lesson"]
-from = ["draft"]
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "beyond"
-applies_to = ["lesson"]
-from = ["ready"]
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "archived"
-applies_to = ["*"]
-from = ["*"]
-owner = ["koopa"]
+[types.lesson]
+role = "lesson"
+fields = ["slug"]
+slug_pattern = '^[a-z0-9]+(-[a-z0-9]+)*$'

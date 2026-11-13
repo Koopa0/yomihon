@@ -65,7 +65,7 @@ func TestDecodeRefusesAContractNestedPastTheBound(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := decodeContract([]byte(validContractV1+"\n"+tc.extra), policySource{})
+			_, err := decodeContract([]byte(validContract+"\n"+tc.extra), policySource{})
 			if err == nil {
 				t.Fatal("decodeContract() error = nil, want the depth refusal")
 			}
@@ -86,13 +86,13 @@ func TestDecodeKeepsAContractWithinTheBound(t *testing.T) {
 		name     string
 		contract string
 	}{
-		{"brackets in a string", strings.Replace(validContractV1,
-			`aligned_with = "Note-Contract.md"`,
-			`aligned_with = "`+nested("[{", "x", "}]", 200)+`"`, 1)},
-		{"dots in a string", strings.Replace(validContractV1,
-			`aligned_with = "Note-Contract.md"`,
-			`aligned_with = "`+strings.Repeat("a.", 200)+`md"`, 1)},
-		{"brackets and dots in a comment", "# " + nested("[{", strings.Repeat("a.", 200), "}]", 200) + "\n" + validContractV1},
+		{"brackets in a string", strings.Replace(validContract,
+			`skipped_files = ["README.md"]`,
+			`skipped_files = ["`+nested("[{", "x", "}]", 200)+`"]`, 1)},
+		{"dots in a string", strings.Replace(validContract,
+			`skipped_files = ["README.md"]`,
+			`skipped_files = ["`+strings.Repeat("a.", 200)+`md"]`, 1)},
+		{"brackets and dots in a comment", "# " + nested("[{", strings.Repeat("a.", 200), "}]", 200) + "\n" + validContract},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -162,7 +162,7 @@ func TestDecodeKeepsAContractWithinTheBound(t *testing.T) {
 func TestDecodeRefusesAContractPastTheSizeBound(t *testing.T) {
 	t.Parallel()
 	padding := strings.Repeat("# a comment line that only takes up room\n", maxContractBytes/40)
-	_, err := decodeContract([]byte(validContractV1+padding), policySource{})
+	_, err := decodeContract([]byte(validContract+padding), policySource{})
 	if err == nil {
 		t.Fatal("decodeContract() error = nil, want the size refusal")
 	}

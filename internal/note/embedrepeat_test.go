@@ -24,9 +24,9 @@ func repeatedHeadingVault(t *testing.T) string {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("Concepts/劑量.md", "---\ntitle: 劑量\ntype: concept\ndomain: golang\nstatus: draft\n---\n\n## 用量\n\nFIRSTTEXT\n\n## 其他\n\nx\n\n## 用量\n\nSECONDTEXT\n")
-	write("Concepts/入口.md", "---\ntitle: 入口\ntype: concept\ndomain: golang\nstatus: draft\n---\n\n![[劑量#用量]]\n\n![[巢狀]]\n")
-	write("Concepts/巢狀.md", "---\ntitle: 巢狀\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nOUTERTEXT\n\n![[劑量]]\n")
+	write("Concepts/劑量.md", "---\ntype: concept\n---\n# 劑量\n\n## 用量\n\nFIRSTTEXT\n\n## 其他\n\nx\n\n## 用量\n\nSECONDTEXT\n")
+	write("Concepts/入口.md", "---\ntype: concept\n---\n# 入口\n\n![[劑量#用量]]\n\n![[巢狀]]\n")
+	write("Concepts/巢狀.md", "---\ntype: concept\n---\n# 巢狀\n\nOUTERTEXT\n\n![[劑量]]\n")
 	return root
 }
 

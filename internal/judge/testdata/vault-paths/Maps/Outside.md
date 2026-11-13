@@ -1,5 +1,5 @@
 ---
-title: Outside
+
 type: study-path
 ---
 - [[L01]]

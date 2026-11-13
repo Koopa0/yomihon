@@ -16,44 +16,42 @@ func TestParse(t *testing.T) {
 	tests := []struct {
 		name       string
 		content    string
-		wantTitle  string
-		wantStatus string
+		wantType   string
+		wantDraft  any
 		wantSlug   string
 		wantDiag   bool
 		wantInBody string
 	}{
 		{
 			name:       "lesson slug is read as the join key",
-			content:    "---\ntitle: L01\ntype: lesson\nstatus: draft\nslug: jp-minna-l01\n---\n\nbody\n",
-			wantTitle:  "L01",
-			wantStatus: "draft",
+			content:    "---\ntype: lesson\ndraft: true\nslug: jp-minna-l01\n---\n\nbody\n",
+			wantType:   "lesson",
+			wantDraft:  true,
 			wantSlug:   "jp-minna-l01",
 			wantInBody: "body",
 		},
 		{
 			name:       "frontmatter and body",
-			content:    "---\ntitle: 數量詞の位置\ntype: concept\nstatus: seedling\n---\n\n# 本文\n",
-			wantTitle:  "數量詞の位置",
-			wantStatus: "seedling",
+			content:    "---\ntype: concept\ndraft: false\n---\n\n# 本文\n",
+			wantType:   "concept",
+			wantDraft:  false,
 			wantInBody: "# 本文",
 		},
 		{
 			name:       "no frontmatter is legal",
 			content:    "# 假名 quiz\n",
-			wantTitle:  "note",
 			wantInBody: "# 假名 quiz",
 		},
 		{
 			name:       "broken yaml yields diagnostic not error",
-			content:    "---\ntitle: [broken\n---\nbody\n",
-			wantTitle:  "note",
+			content:    "---\ntype: [broken\n---\nbody\n",
 			wantDiag:   true,
 			wantInBody: "body",
 		},
 		{
 			name:       "wikilink value survives the split",
-			content:    "---\ntitle: t\nbased_on: \"[[大家的日本語 第11課]]\"\n---\nbody\n",
-			wantTitle:  "t",
+			content:    "---\ntype: t\nbased_on: \"[[大家的日本語 第11課]]\"\n---\nbody\n",
+			wantType:   "t",
 			wantInBody: "body",
 		},
 		{
@@ -62,12 +60,12 @@ func TestParse(t *testing.T) {
 			// [[wikilinks]]; because the split happens here, before any body
 			// preprocessing, a later concept resolver rewriting [[...]] to a
 			// trigger can never reach the YAML and empty the meta (which would
-			// drop status:ready and hide the lesson). The status must survive
-			// intact alongside the wikilink-valued field.
-			name:       "concept resolver cannot corrupt frontmatter status",
-			content:    "---\ntitle: L00 テスト課\ntype: lesson\nstatus: ready\nbased_on: \"[[大家的日本語 第1課]]\"\nslug: jp-minna-l00\n---\n\nSee [[は]] and [[です]].\n",
-			wantTitle:  "L00 テスト課",
-			wantStatus: "ready",
+			// drop the draft flag and the slug and hide the lesson). Both must
+			// survive intact alongside the wikilink-valued field.
+			name:       "concept resolver cannot corrupt frontmatter fields",
+			content:    "---\ntype: lesson\ndraft: false\nbased_on: \"[[大家的日本語 第1課]]\"\nslug: jp-minna-l00\n---\n\nSee [[は]] and [[です]].\n",
+			wantType:   "lesson",
+			wantDraft:  false,
 			wantSlug:   "jp-minna-l00",
 			wantInBody: "[[は]]",
 		},
@@ -76,11 +74,11 @@ func TestParse(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			n := vault.Parse("Concepts/note.md", []byte(tt.content))
-			if got := n.Title(); got != tt.wantTitle {
-				t.Errorf("Title() = %q, want %q", got, tt.wantTitle)
+			if got := n.Type(); got != tt.wantType {
+				t.Errorf("Type() = %q, want %q", got, tt.wantType)
 			}
-			if got := n.Status(); got != tt.wantStatus {
-				t.Errorf("Status() = %q, want %q", got, tt.wantStatus)
+			if got := n.Frontmatter["draft"]; got != tt.wantDraft {
+				t.Errorf("Frontmatter[draft] = %#v, want %#v", got, tt.wantDraft)
 			}
 			if got := n.Slug(); got != tt.wantSlug {
 				t.Errorf("Slug() = %q, want %q", got, tt.wantSlug)
@@ -98,27 +96,27 @@ func TestParse(t *testing.T) {
 func TestParseFrontmatterBoundary(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name       string
-		content    string
-		wantTitle  string
-		wantStatus string
-		wantBody   string
+		name     string
+		content  string
+		wantType string
+		wantLang string
+		wantBody string
 	}{
-		{name: "LF dash closer", content: "---\ntitle: LF\nstatus: draft\n---\nbody\n", wantTitle: "LF", wantStatus: "draft", wantBody: "body\n"},
-		{name: "CRLF dash closer", content: "---\r\ntitle: CRLF\r\nstatus: ready\r\n---\r\nbody\r\n", wantTitle: "CRLF", wantStatus: "ready", wantBody: "body\r\n"},
-		{name: "YAML document closer", content: "---\ntitle: Dots\nstatus: draft\n...\nbody\n", wantTitle: "Dots", wantStatus: "draft", wantBody: "body\n"},
-		{name: "closer at EOF", content: "---\ntitle: EOF\nstatus: ready\n---", wantTitle: "EOF", wantStatus: "ready", wantBody: ""},
-		{name: "unterminated is body", content: "---\ntitle: Open\nstatus: draft\nbody\n", wantTitle: "note", wantStatus: "", wantBody: "---\ntitle: Open\nstatus: draft\nbody\n"},
+		{name: "LF dash closer", content: "---\ntype: LF\nlang: ja\n---\nbody\n", wantType: "LF", wantLang: "ja", wantBody: "body\n"},
+		{name: "CRLF dash closer", content: "---\r\ntype: CRLF\r\nlang: en\r\n---\r\nbody\r\n", wantType: "CRLF", wantLang: "en", wantBody: "body\r\n"},
+		{name: "YAML document closer", content: "---\ntype: Dots\nlang: ja\n...\nbody\n", wantType: "Dots", wantLang: "ja", wantBody: "body\n"},
+		{name: "closer at EOF", content: "---\ntype: EOF\nlang: en\n---", wantType: "EOF", wantLang: "en", wantBody: ""},
+		{name: "unterminated is body", content: "---\ntype: Open\nlang: ja\nbody\n", wantType: "", wantLang: "", wantBody: "---\ntype: Open\nlang: ja\nbody\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			n := vault.Parse("note.md", []byte(tt.content))
-			if got := n.Title(); got != tt.wantTitle {
-				t.Errorf("Title() = %q, want %q", got, tt.wantTitle)
+			if got := n.Type(); got != tt.wantType {
+				t.Errorf("Type() = %q, want %q", got, tt.wantType)
 			}
-			if got := n.Status(); got != tt.wantStatus {
-				t.Errorf("Status() = %q, want %q", got, tt.wantStatus)
+			if got, _ := n.Text("lang"); got != tt.wantLang {
+				t.Errorf("Text(lang) = %q, want %q", got, tt.wantLang)
 			}
 			if n.Body != tt.wantBody {
 				t.Errorf("Body = %q, want %q", n.Body, tt.wantBody)
@@ -146,8 +144,8 @@ func TestACarriageReturnOnlyFileHasNoFrontmatter(t *testing.T) {
 	if n.BodyLine != 1 {
 		t.Errorf("Parse() body line = %d, want 1", n.BodyLine)
 	}
-	if got := n.Title(); got != "note" {
-		t.Errorf("Title() = %q, want the filename stem", got)
+	if got := n.Type(); got != "" {
+		t.Errorf("Type() = %q, want none", got)
 	}
 }
 
@@ -302,8 +300,8 @@ func TestAnEmptyFrontmatterBlockIsPresentWithoutFields(t *testing.T) {
 	if n.BodyLine != 3 {
 		t.Errorf("Parse() body line = %d, want 3 — the empty block still occupies two file lines", n.BodyLine)
 	}
-	if got := n.Title(); got != "note" {
-		t.Errorf("Title() = %q, want the filename stem", got)
+	if got := n.Type(); got != "" {
+		t.Errorf("Type() = %q, want none", got)
 	}
 }
 
@@ -330,31 +328,6 @@ func TestParseReportsWhetherAFrontmatterBlockWasThere(t *testing.T) {
 			n := vault.Parse("note.md", []byte(tt.data))
 			if n.HasFrontmatter != tt.want {
 				t.Errorf("Parse(%q) HasFrontmatter = %v, want %v", tt.data, n.HasFrontmatter, tt.want)
-			}
-		})
-	}
-}
-
-// TestTitleStripsOnlyTheFinalExtension pins the fallback title of a note
-// with a dotted name: exactly one extension comes off the stem, so a
-// language-tagged name keeps its tag.
-func TestTitleStripsOnlyTheFinalExtension(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		relPath string
-		want    string
-	}{
-		{relPath: "Writing/note.ja.md", want: "note.ja"},
-		{relPath: "Writing/note.md", want: "note"},
-		{relPath: "Writing/archive.tar.gz", want: "archive.tar"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.relPath, func(t *testing.T) {
-			t.Parallel()
-			n := vault.Parse(tt.relPath, []byte("body\n"))
-			if got := n.Title(); got != tt.want {
-				t.Errorf("Title() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -505,12 +478,12 @@ func TestIsMarkdownAcceptsOnlyTheExactLowercaseFinalExtension(t *testing.T) {
 	}
 }
 
-// TestUpdated pins the charitable reading of the declared update date. YAML
+// TestCreated pins the charitable reading of the declared creation date. YAML
 // hands an unquoted date over as a time and a quoted one as text; both read,
 // as does a full timestamp in either shape. Everything else — absence, prose,
-// a shape that is not a scalar — is the zero time, so the caller falls back
-// to the file's own recorded change rather than showing a guess.
-func TestUpdated(t *testing.T) {
+// a shape that is not a scalar, a date written under another key — is the zero
+// time, so no caller shows a guess.
+func TestCreated(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -519,35 +492,43 @@ func TestUpdated(t *testing.T) {
 	}{
 		{
 			name: "unquoted date",
-			raw:  "---\nupdated: 2026-07-12\n---\nbody\n",
+			raw:  "---\ncreated: 2026-07-12\n---\nbody\n",
 			want: time.Date(2026, time.July, 12, 0, 0, 0, 0, time.UTC),
 		},
 		{
 			name: "quoted date",
-			raw:  "---\nupdated: \"2026-07-12\"\n---\nbody\n",
+			raw:  "---\ncreated: \"2026-07-12\"\n---\nbody\n",
 			want: time.Date(2026, time.July, 12, 0, 0, 0, 0, time.UTC),
 		},
 		{
 			name: "unquoted timestamp keeps its clock",
-			raw:  "---\nupdated: 2026-07-12T10:30:00Z\n---\nbody\n",
+			raw:  "---\ncreated: 2026-07-12T10:30:00Z\n---\nbody\n",
 			want: time.Date(2026, time.July, 12, 10, 30, 0, 0, time.UTC),
 		},
 		{
 			name: "quoted timestamp keeps its clock",
-			raw:  "---\nupdated: \"2026-07-12T10:30:00Z\"\n---\nbody\n",
+			raw:  "---\ncreated: \"2026-07-12T10:30:00Z\"\n---\nbody\n",
 			want: time.Date(2026, time.July, 12, 10, 30, 0, 0, time.UTC),
 		},
 		{
 			name: "absent is the zero time",
-			raw:  "---\ntitle: A\n---\nbody\n",
+			raw:  "---\ntype: concept\n---\nbody\n",
+		},
+		{
+			name: "an update date is not a creation date",
+			raw:  "---\nupdated: 2026-07-12\n---\nbody\n",
 		},
 		{
 			name: "prose is the zero time",
-			raw:  "---\nupdated: last week\n---\nbody\n",
+			raw:  "---\ncreated: last week\n---\nbody\n",
+		},
+		{
+			name: "a number is the zero time",
+			raw:  "---\ncreated: 20260712\n---\nbody\n",
 		},
 		{
 			name: "a list is the zero time",
-			raw:  "---\nupdated:\n  - 2026-07-12\n---\nbody\n",
+			raw:  "---\ncreated:\n  - 2026-07-12\n---\nbody\n",
 		},
 		{
 			name: "no frontmatter is the zero time",
@@ -557,11 +538,24 @@ func TestUpdated(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := vault.Parse("A.md", []byte(tt.raw)).Updated()
+			got := vault.Parse("A.md", []byte(tt.raw)).Created()
 			if !got.Equal(tt.want) {
-				t.Errorf("Updated() = %v, want %v", got, tt.want)
+				t.Errorf("Created() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestParseLeavesTheDomainEmpty pins that a domain is never read off the note:
+// a frontmatter domain key and a folder that looks like a domain both leave it
+// empty, because only a reader holding the contract knows which folders name
+// domains.
+func TestParseLeavesTheDomainEmpty(t *testing.T) {
+	t.Parallel()
+
+	n := vault.Parse("Concepts/golang/slices.md", []byte("---\ntype: concept\ndomain: golang\n---\n# Slices\n"))
+	if n.Domain != "" {
+		t.Errorf("Parse().Domain = %q, want empty", n.Domain)
 	}
 }
 

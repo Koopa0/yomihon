@@ -1,9 +1,6 @@
 ---
-title: Two languages
 type: note
-domain: yomihon
 created: 2026-09-22
-updated: 2026-09-22
 lang: en
 ---
 

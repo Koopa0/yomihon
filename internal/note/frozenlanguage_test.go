@@ -50,7 +50,7 @@ func rootIslandVault(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	const rel = "orphan.md"
-	body := "---\ntitle: Orphan\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	body := "---\ntype: concept\ncreated: 2026-06-01\n---\n# Orphan\n\nbody\n"
 	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(rel)), []byte(body), 0o600); err != nil {
 		t.Fatalf("write %s: %v", rel, err)
 	}

@@ -29,7 +29,7 @@ func TestAuthoredReadAloudLanguagesStayWithinLessonInstances(t *testing.T) {
 			if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 				t.Fatal(err)
 			}
-			body := "---\ntitle: Marked prose\ntype: " + tt.kind + "\ndomain: golang\nstatus: ready\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n" + paragraphs
+			body := "---\ntitle: Marked prose\ntype: " + tt.kind + "\ncreated: 2026-06-01\n---\n\n" + paragraphs
 			if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
 				t.Fatal(err)
 			}

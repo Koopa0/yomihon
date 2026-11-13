@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -32,9 +33,9 @@ type Reading struct {
 	// is the one fact that tells it from a note that never wrote one, and it is
 	// what keeps a page from calling it frontmatter-free.
 	FrontmatterUnclosed bool
-	// Updated is the note's own declared update date, zero when the frontmatter
-	// carries none; the page then falls back to the recorded change time.
-	Updated time.Time
+	// Created is the note's own declared creation date, zero when the
+	// frontmatter carries none.
+	Created time.Time
 	// ContentIdentity is vault.ContentIdentity over the source bytes this
 	// projection was captured from, so a page can tell whether the disk still
 	// carries what it shows.
@@ -55,17 +56,17 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 	}
 	return Reading{
 		RelPath:            parsed.RelPath,
-		Title:              parsed.Title(),
+		Title:              graph.TitleOf(parsed.RelPath, parsed.Body),
 		Body:               parsed.Body,
 		Type:               parsed.Type(),
-		Domain:             parsed.Domain(),
+		Domain:             parsed.Domain,
 		Draft:              schema.Draft(parsed.Frontmatter),
 		Slug:               parsed.Slug(),
 		FMDiagnostic:       parsed.FMDiagnostic,
 		Language:           language,
 		LanguageDiagnostic: diagnostic,
 		HasFrontmatter:     parsed.HasFrontmatter,
-		Updated:            parsed.Updated(),
+		Created:            parsed.Created(),
 		ContentIdentity:    vault.ContentIdentity(data),
 		// Asked only of a note with no block, where the answer can be yes, so a
 		// note that did parse is not scanned a second time for it.

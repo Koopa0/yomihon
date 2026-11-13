@@ -160,7 +160,7 @@ func panicSource(tb testing.TB, root string) *recordingSource {
 const (
 	panicPoisoned = "Concepts/Poison.md"
 	panicValue    = "injected parser panic"
-	panicFirst    = "---\ntitle: Poison\ntype: concept\n---\npoisoned as first read\n"
+	panicFirst    = "---\ntype: concept\n---\npoisoned as first read\n"
 )
 
 // writePanicVault writes the notes the panic tests share. Alpha cites Beta, and
@@ -169,9 +169,9 @@ const (
 // then breaks.
 func writePanicVault(t *testing.T, root string) {
 	t.Helper()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha, see [[Beta]] and [[Owed Concept]]\n")
-	writeNote(t, root, "Concepts/Beta.md", "---\ntitle: Beta\ntype: concept\n---\nbeta\n")
-	writeNote(t, root, "Maps/ledger.md", "---\ntitle: Ledger\ntype: concept\n---\n\n## 缺口帳\n\n- Owed Concept\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha, see [[Beta]] and [[Owed Concept]]\n")
+	writeNote(t, root, "Concepts/Beta.md", "---\ntype: concept\n---\nbeta\n")
+	writeNote(t, root, "Maps/ledger.md", "---\ntype: concept\n---\n\n## 缺口帳\n\n- Owed Concept\n")
 	writeNote(t, root, panicPoisoned, panicFirst)
 }
 
@@ -303,9 +303,9 @@ func TestAPanicInOneNotesParseDuringARebuildCostsThatNoteNotTheServer(t *testing
 			// is written beside it, so what the containment costs the reader is
 			// visible. The size change is what makes the next rescan rebuild.
 			restore := breakStage(t, stage)
-			writeNote(t, root, panicPoisoned, "---\ntitle: Poison\ntype: concept\n---\npoisoned, saved into a state that panics\n")
+			writeNote(t, root, panicPoisoned, "---\ntype: concept\n---\npoisoned, saved into a state that panics\n")
 			const added = "Concepts/Gamma.md"
-			writeNote(t, root, added, "---\ntitle: Gamma\ntype: concept\n---\ngamma\n")
+			writeNote(t, root, added, "---\ntype: concept\n---\ngamma\n")
 
 			// One rescan per scan interval, as the ticker drives it. The first three
 			// attempts land on ticks 0, 1 and 3, and the third is where retention ends.
@@ -391,7 +391,7 @@ func TestAPanicIsLoggedInFullOnceForTheBytesThatCauseIt(t *testing.T) {
 	}
 
 	restore := breakStage(t, 1)
-	writeNote(t, root, panicPoisoned, "---\ntitle: Poison\ntype: concept\n---\npoisoned, edited once\n")
+	writeNote(t, root, panicPoisoned, "---\ntype: concept\n---\npoisoned, edited once\n")
 	rescan()
 	if errs, warns := counts(); errs != 1 || warns != 0 {
 		t.Fatalf("first panic: %d ERROR and %d WARN records, want 1 and 0", errs, warns)
@@ -401,7 +401,7 @@ func TestAPanicIsLoggedInFullOnceForTheBytesThatCauseIt(t *testing.T) {
 		t.Errorf("same bytes again: %d ERROR and %d WARN records, want 1 and 1", errs, warns)
 	}
 
-	writeNote(t, root, panicPoisoned, "---\ntitle: Poison\ntype: concept\n---\npoisoned, edited twice\n")
+	writeNote(t, root, panicPoisoned, "---\ntype: concept\n---\npoisoned, edited twice\n")
 	rescan()
 	if errs, _ := counts(); errs != 2 {
 		t.Errorf("different bytes that still panic: %d ERROR records, want 2: a new set of bytes is a new report", errs)

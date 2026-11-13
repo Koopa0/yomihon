@@ -84,9 +84,9 @@ func parseMap(
 	policy schema.ArtifactPolicy,
 ) Map {
 	return Map{
-		Title:    n.Title(),
+		Title:    graph.TitleOf(n.RelPath, n.Body),
 		RelPath:  n.RelPath,
-		Domain:   n.Domain(),
+		Domain:   n.Domain,
 		Type:     n.Type(),
 		Branches: parseBranches(n.Body, idx, facts, policy),
 	}

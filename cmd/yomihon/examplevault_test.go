@@ -18,30 +18,43 @@ import (
 // language; the chrome and the course the reader follows change with the
 // cookie.
 type exampleReader struct {
-	lang      wording.Lang
-	course    string
-	lifecycle string
-	search    string
-	// explanation is what the lifecycle note has to say about how a status
-	// changes and what marks an unfinished note.
+	lang   wording.Lang
+	course string
+	drafts string
+	search string
+	// query is what a reader types to find the drafts note.
+	query string
+	// explanation is what the drafts note has to say about what marks an
+	// unfinished note and who changes it.
 	explanation []string
+	// edges are the transitions the note's diagram has to draw: both ways
+	// between a note that writes the flag and one that does not.
+	edges []string
 }
 
 var exampleReaders = []exampleReader{
 	{
-		lang: wording.En, course: "Reading yomihon", lifecycle: "The status lifecycle", search: "Search",
+		lang: wording.En, course: "Reading yomihon", drafts: "Drafts", search: "Search", query: "drafts",
 		explanation: []string{
-			"The diagram shows transitions the contract allows, including ready → published.",
-			"yomihon sets no status, published or any other: it never writes into the vault, and a status changes only in the author's editor.",
-			"A note that writes draft: true is marked as a draft on its own page, in the sidebar and on its course.",
+			"A note with no draft field is finished.",
+			"It sets no field, draft or any other, and offers no button that would: the flag changes only in the author's editor.",
+			"A note that writes draft: true is marked as a draft, quietly, on its own page, in the sidebar and on its course.",
+		},
+		edges: []string{
+			"started[draft: true] -->|the author deletes the line| finished",
+			"finished -->|the author writes it again| started",
 		},
 	},
 	{
-		lang: wording.ZhHant, course: "讀懂 yomihon", lifecycle: "status 的生命週期", search: "搜尋",
+		lang: wording.ZhHant, course: "讀懂 yomihon", drafts: "草稿", search: "搜尋", query: "草稿",
 		explanation: []string{
-			"上圖呈現契約允許的轉換，包含 ready → published。",
-			"yomihon 不設定任何狀態，published 或其他都一樣：它從不寫入書庫，狀態只在作者的編輯器裡改動。",
-			"寫了 draft: true 的筆記，會在自己的頁面、側欄與課程上標為草稿。",
+			"沒有 draft 欄位的筆記就是寫完了。",
+			"它不設定任何欄位，draft 也一樣，也沒有任何按鈕會這麼做：這個旗標只在作者的編輯器裡改動。",
+			"寫了 draft: true 的筆記，會在自己的頁面、側欄與課程上安靜地標為草稿。",
+		},
+		edges: []string{
+			"started[draft: true] -->|作者刪掉這一行| finished",
+			"finished -->|作者再寫回去| started",
 		},
 	},
 }
@@ -216,10 +229,10 @@ func requireArticle(t *testing.T, where, page, title, lang string) {
 	}
 }
 
-// TestExampleVaultExplainsTheLifecycleOnTheCourseRoute follows the public
-// route a first-time reader takes, from Home through the complete path index
-// into the course and its lifecycle note. Both interface languages walk it.
-func TestExampleVaultExplainsTheLifecycleOnTheCourseRoute(t *testing.T) {
+// TestExampleVaultExplainsDraftsOnTheCourseRoute follows the public route a
+// first-time reader takes, from Home through the complete path index into the
+// course and its note on drafts. Both interface languages walk it.
+func TestExampleVaultExplainsDraftsOnTheCourseRoute(t *testing.T) {
 	t.Parallel()
 	site := exampleSite(t)
 	for _, reader := range exampleReaders {
@@ -240,17 +253,17 @@ func TestExampleVaultExplainsTheLifecycleOnTheCourseRoute(t *testing.T) {
 				t.Fatalf("the index opens %q, want a course under /syllabus/", courseHref)
 			}
 			course := readingPageIn(t, site, courseHref, reader.lang)
-			lifecycleHref := onlyLink(t, "course", course, "y-lesson", reader.lifecycle)
-			lifecycle := readingPageIn(t, site, lifecycleHref, reader.lang)
+			draftsHref := onlyLink(t, "course", course, "y-lesson", reader.drafts)
+			drafts := readingPageIn(t, site, draftsHref, reader.lang)
 
-			where := "lifecycle note in " + string(reader.lang)
-			requireArticle(t, where, lifecycle, reader.lifecycle, string(reader.lang))
-			requirePhrases(t, where+" prose", elementInner(t, lifecycle, `<div class="y-prose"`), reader.explanation)
-			requireNoStatusControl(t, where, lifecycle)
+			where := "drafts note in " + string(reader.lang)
+			requireArticle(t, where, drafts, reader.drafts, string(reader.lang))
+			requirePhrases(t, where+" prose", elementInner(t, drafts, `<div class="y-prose"`), reader.explanation)
+			requireNoStatusControl(t, where, drafts)
 
-			// The diagram is the contract the prose explains: it has to draw the
-			// target and the onward transition the sentences name.
-			code, ok := attr(elementStart(t, lifecycle, `<div class="mermaid-diagram"`), "data-mermaid-code")
+			// The diagram is what the prose explains: it has to draw the flag
+			// being taken out and written back, both by the author.
+			code, ok := attr(elementStart(t, drafts, `<div class="mermaid-diagram"`), "data-mermaid-code")
 			if !ok {
 				t.Fatalf("%s: the diagram has no authored source", where)
 			}
@@ -258,7 +271,7 @@ func TestExampleVaultExplainsTheLifecycleOnTheCourseRoute(t *testing.T) {
 			if err != nil {
 				t.Fatalf("%s: diagram source does not decode: %v", where, err)
 			}
-			for _, edge := range []string{"ready --> published", "published --> archived"} {
+			for _, edge := range reader.edges {
 				if !strings.Contains(source, edge) {
 					t.Errorf("%s: the diagram lost %q, which the prose explains; source = %q", where, edge, source)
 				}
@@ -267,9 +280,9 @@ func TestExampleVaultExplainsTheLifecycleOnTheCourseRoute(t *testing.T) {
 	}
 }
 
-// TestExampleVaultSearchReachesTheLifecycleNote submits the same native GET
-// form Home draws and follows the result to the lifecycle note.
-func TestExampleVaultSearchReachesTheLifecycleNote(t *testing.T) {
+// TestExampleVaultSearchReachesTheDraftsNote submits the same native GET form
+// Home draws and follows the result to the note on drafts.
+func TestExampleVaultSearchReachesTheDraftsNote(t *testing.T) {
 	t.Parallel()
 	site := exampleSite(t)
 	for _, reader := range exampleReaders {
@@ -291,26 +304,26 @@ func TestExampleVaultSearchReachesTheLifecycleNote(t *testing.T) {
 				t.Errorf("Home search button does not say %q; form text = %q", reader.search, words(formBody))
 			}
 
-			results := readingPageIn(t, site, "/search?q=published", reader.lang)
+			results := readingPageIn(t, site, "/search?q="+url.QueryEscape(reader.query), reader.lang)
 			list := elementInner(t, results, `<ol class="y-results"`)
 			var row string
 			rows := 0
 			for _, chunk := range strings.Split(list, `<a class="y-result"`)[1:] {
 				body, _, _ := strings.Cut(chunk, "</a>")
-				if strings.Contains(body, `class="y-result__title" lang="`+string(reader.lang)+`">`+reader.lifecycle+"</") {
+				if strings.Contains(body, `class="y-result__title" lang="`+string(reader.lang)+`">`+reader.drafts+"</") {
 					rows++
 					row = `<a class="y-result"` + body + "</a>"
 				}
 			}
 			if rows != 1 {
-				t.Fatalf("the search page offers %s %d times, want exactly once", reader.lifecycle, rows)
+				t.Fatalf("the search page offers %s %d times, want exactly once", reader.drafts, rows)
 			}
 
 			href, _ := attr(row, "href")
 			path, _, _ := strings.Cut(href, "#")
-			where := "lifecycle note in " + string(reader.lang)
+			where := "drafts note in " + string(reader.lang)
 			note := readingPageIn(t, site, path, reader.lang)
-			requireArticle(t, where, note, reader.lifecycle, string(reader.lang))
+			requireArticle(t, where, note, reader.drafts, string(reader.lang))
 			requirePhrases(t, where+" prose", elementInner(t, note, `<div class="y-prose"`), reader.explanation)
 			requireNoStatusControl(t, where, note)
 		})

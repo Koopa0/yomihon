@@ -19,11 +19,11 @@ func writeDegradedFixture(t *testing.T) (root string) {
 	t.Helper()
 	root = t.TempDir()
 	okPath := filepath.Join(root, "note-ok.md")
-	if err := os.WriteFile(okPath, []byte("---\ntitle: OK\ntype: concept\n---\nsee [[note-locked]]\n"), 0o600); err != nil {
+	if err := os.WriteFile(okPath, []byte("---\ntype: concept\n---\n# OK\n\nsee [[note-locked]]\n"), 0o600); err != nil {
 		t.Fatalf("write note-ok.md: %v", err)
 	}
 	lockedPath := filepath.Join(root, "note-locked.md")
-	if err := os.WriteFile(lockedPath, []byte("---\ntitle: Locked\ntype: concept\n---\nlocked body\n"), 0o600); err != nil {
+	if err := os.WriteFile(lockedPath, []byte("---\ntype: concept\n---\n# Locked\n\nlocked body\n"), 0o600); err != nil {
 		t.Fatalf("write note-locked.md: %v", err)
 	}
 	lockNote(t, lockedPath)
@@ -114,7 +114,7 @@ func TestFolderNamedLikeANoteGetsThePlainNotFoundPage(t *testing.T) {
 		t.Fatalf("mkdir Folder.md: %v", err)
 	}
 	inner := filepath.Join(root, "Folder.md", "inner.md")
-	if err := os.WriteFile(inner, []byte("---\ntitle: Inner\ntype: concept\n---\ninner body\n"), 0o600); err != nil {
+	if err := os.WriteFile(inner, []byte("---\ntype: concept\n---\n# Inner\n\ninner body\n"), 0o600); err != nil {
 		t.Fatalf("write inner note: %v", err)
 	}
 	srv := newServer(t, root)
@@ -145,12 +145,12 @@ func TestDegradedSurfacesNameEveryFileTheFolderCouldNotRead(t *testing.T) {
 		second = "note-locked-two.md"
 	)
 	if err := os.WriteFile(filepath.Join(root, "note-ok.md"),
-		[]byte("---\ntitle: OK\ntype: concept\n---\nreadable body\n"), 0o600); err != nil {
+		[]byte("---\ntype: concept\n---\n# OK\n\nreadable body\n"), 0o600); err != nil {
 		t.Fatalf("write note-ok.md: %v", err)
 	}
 	for _, name := range []string{first, second} {
 		path := filepath.Join(root, name)
-		if err := os.WriteFile(path, []byte("---\ntitle: Locked\ntype: concept\n---\nlocked body\n"), 0o600); err != nil {
+		if err := os.WriteFile(path, []byte("---\ntype: concept\n---\n# Locked\n\nlocked body\n"), 0o600); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
 		lockNote(t, path)

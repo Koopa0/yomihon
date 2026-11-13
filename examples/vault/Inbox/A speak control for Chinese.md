@@ -1,5 +1,4 @@
 ---
-title: A speak control for Chinese
 type: inbox
 draft: true
 created: 2026-09-22

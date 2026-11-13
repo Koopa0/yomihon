@@ -146,7 +146,7 @@ func writeLoudLessonFixture(t *testing.T, root, rel string) {
 	if err := os.MkdirAll(conceptDir, 0o750); err != nil {
 		t.Fatalf("mkdir concepts: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"), []byte("---\ntitle: は\ntype: writing\n---\n\nConcept body.\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"), []byte("---\ntype: writing\n---\n# は\n\nConcept body.\n"), 0o600); err != nil {
 		t.Fatalf("write concept: %v", err)
 	}
 
@@ -154,7 +154,7 @@ func writeLoudLessonFixture(t *testing.T, root, rel string) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("mkdir lesson directory: %v", err)
 	}
-	body := "---\ntitle: Loud lesson template\ntype: lesson\nstatus: ready\nslug: " + loudLessonSlug + "\n---\n\n" +
+	body := "---\ntype: lesson\nslug: " + loudLessonSlug + "\n---\n\n" +
 		"| A | B |\n|---|---|\n| x | y |\n\n" +
 		"<ruby>今日<rt>きょう</rt></ruby>は晴れ。 [[は]] " + loudLessonSentinel + "\n"
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
@@ -368,12 +368,12 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 func TestShowCarriesTheNavigationFaultOnANotePage(t *testing.T) {
 	t.Parallel()
 
-	const rejectedNavigation = "[navigation]\npath_types = [\"missing-type\"]\nmap_types = []\n"
-	const validArtifact = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
+	const rejectedNavigation = "[types.study-path]\nrole = \"missing-role\"\n"
+	const validArtifact = "templates = [\"System/templates\"]\n"
 	contract := loadHomeContractWithSections(t, rejectedNavigation, validArtifact)
 
 	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntitle: Note\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "Note.md"), []byte("---\ntype: writing\n---\n# Note\n\nbody\n"), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
 	srv := newServerWithContract(t, root, contract)
@@ -390,7 +390,7 @@ func TestShowCarriesTheNavigationFaultOnANotePage(t *testing.T) {
 	if rail == "" {
 		t.Fatalf("the note page carries no capability fault at all; page = %q", page)
 	}
-	if !strings.Contains(rail, "missing-type") {
+	if !strings.Contains(rail, "missing-role") {
 		t.Errorf("the rail does not name the rejected declaration: %q", rail)
 	}
 	if strings.Contains(rail, "artifact policy") {
@@ -439,9 +439,8 @@ func TestShowUnavailableArtifactPolicyDoesNotAssumeLessonInstance(t *testing.T) 
 		section string
 		want    string
 	}{
-		{name: "missing", section: "", want: "contract declares no artifact policy; instance projections disabled until it does"},
-		{name: "invalid", section: "[artifacts]\nnon_instance_dirs = [\".\"]\n", want: `invalid artifact policy: non_instance_dirs contains "."`},
-		{name: "incomplete", section: "[artifacts]\n", want: `invalid artifact policy: missing required key "non_instance_dirs"`},
+		{name: "invalid", section: "templates = [\".\"]\n", want: `invalid artifact policy: templates contains "."`},
+		{name: "blank", section: "templates = [\"\"]\n", want: `invalid artifact policy: templates contains ""`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -526,7 +525,7 @@ func loadHomeContractWithArtifactSection(t *testing.T, artifactSection string) *
 	if err != nil {
 		t.Fatalf("read schema test contract: %v", err)
 	}
-	const validSection = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
+	const validSection = "templates = [\"System/templates\"]\n"
 	contractText := strings.Replace(string(base), validSection, artifactSection, 1)
 	if contractText == string(base) {
 		t.Fatal("schema test contract artifact section was not replaced")
@@ -543,14 +542,16 @@ func loadHomeContractWithArtifactSection(t *testing.T, artifactSection string) *
 	return contract
 }
 
+// loadHomeContractWithSections is the shared contract with the course role's
+// table replaced by navigationSection and its templates line by artifactSection.
 func loadHomeContractWithSections(t *testing.T, navigationSection, artifactSection string) *schema.Contract {
 	t.Helper()
 	base, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		t.Fatalf("read schema test contract: %v", err)
 	}
-	const validNavigation = "[navigation]\npath_types = [\"study-path\"]\nmap_types = [\"moc\", \"source-map\", \"topic-map\"]\njournal_dir = \"Diary\"\n"
-	const validArtifact = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
+	const validNavigation = "[types.study-path]\nrole = \"course\"\n"
+	const validArtifact = "templates = [\"System/templates\"]\n"
 	contractText := strings.Replace(string(base), validNavigation, navigationSection, 1)
 	contractText = strings.Replace(contractText, validArtifact, artifactSection, 1)
 	if contractText == string(base) {
@@ -624,7 +625,7 @@ func TestShowUsesContractDeclaredArticleLanguage(t *testing.T) {
 			if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 				t.Fatalf("mkdir note: %v", err)
 			}
-			body := "---\ntitle: 日本語\ntype: writing\ndomain: japanese\nstatus: draft\n" + tt.langLine + "---\n\n本文\n"
+			body := "---\ntype: writing\n" + tt.langLine + "---\n\n本文\n"
 			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 				t.Fatalf("write note: %v", err)
 			}
@@ -650,8 +651,8 @@ func loadContractWithoutArticleLanguage(t *testing.T) *schema.Contract {
 	if err != nil {
 		t.Fatalf("read test contract: %v", err)
 	}
-	const declared = `, "lang"]`
-	without := strings.Replace(string(data), declared, `]`, 1)
+	const declared = `"draft", "lang", "created"`
+	without := strings.Replace(string(data), declared, `"draft", "created"`, 1)
 	if without == string(data) || strings.Contains(without, declared) {
 		t.Fatal("test contract language declaration was not removed exactly once")
 	}
@@ -726,7 +727,7 @@ func TestReadingPageRejectsPathTraversal(t *testing.T) {
 func TestShow(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lessonMD := "---\ntitle: L00 テスト課\ntype: lesson\nstatus: draft\n---\n\n<ruby>今日<rt>きょう</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ。\n"
+	lessonMD := "---\ntype: lesson\n---\n# L00 テスト課\n\n<ruby>今日<rt>きょう</rt></ruby>は<ruby>晴<rt>は</rt></ruby>れ。\n"
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -773,7 +774,7 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 		t.Fatalf("mkdir lesson: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(lessonDir, "L00.md"),
-		[]byte("---\ntitle: L00\ntype: lesson\nstatus: draft\n---\n\n"+body), 0o600); err != nil {
+		[]byte("---\ntype: lesson\n---\n# L00\n\n"+body), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
 
@@ -782,7 +783,7 @@ func TestShowTTSGatedToLessons(t *testing.T) {
 		t.Fatalf("mkdir source: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(srcDir, "S00.md"),
-		[]byte("---\ntitle: S00\ntype: source-note\nstatus: draft\n---\n\n"+body), 0o600); err != nil {
+		[]byte("---\ntype: source-note\n---\n# S00\n\n"+body), 0o600); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
 
@@ -871,7 +872,7 @@ func TestShowSlotMachine(t *testing.T) {
 		t.Fatalf("mkdir lesson: %v", err)
 	}
 	// A lesson with a table (the splice anchor) and a paragraph after it.
-	body := "---\ntitle: L01\ntype: lesson\nstatus: draft\nslug: jp-test-l01\n---\n\n" +
+	body := "---\ntype: lesson\nslug: jp-test-l01\n---\n# L01\n\n" +
 		"| pattern | meaning |\n|---|---|\n| AはBです | A is B |\n\nAFTERTABLEBODY\n"
 	if err := os.WriteFile(filepath.Join(lessonDir, "L01.md"), []byte(body), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
@@ -922,7 +923,7 @@ func TestShowLessonWithoutSidecarHasNoMachine(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	// A lesson with a slug but no System/slots dir at all (Slots stays empty).
-	body := "---\ntitle: L02\ntype: lesson\nstatus: draft\nslug: jp-orphan\n---\n\nbody\n"
+	body := "---\ntype: lesson\nslug: jp-orphan\n---\n# L02\n\nbody\n"
 	if err := os.WriteFile(filepath.Join(dir, "L02.md"), []byte(body), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -947,7 +948,7 @@ func TestShowConceptSheet(t *testing.T) {
 		t.Fatalf("mkdir concepts: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(conceptDir, "は.md"),
-		[]byte("---\ntitle: は (主題助詞)\ntype: concept\n---\n\nMarks the topic of the sentence.\n"), 0o600); err != nil {
+		[]byte("---\ntype: concept\n---\n# は (主題助詞)\n\nMarks the topic of the sentence.\n"), 0o600); err != nil {
 		t.Fatalf("write concept: %v", err)
 	}
 
@@ -956,7 +957,7 @@ func TestShowConceptSheet(t *testing.T) {
 		t.Fatalf("mkdir lesson: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(lessonDir, "L01.md"),
-		[]byte("---\ntitle: L01\ntype: lesson\nstatus: draft\n---\n\nThe particle [[は]] marks the topic.\n"), 0o600); err != nil {
+		[]byte("---\ntype: lesson\n---\n# L01\n\nThe particle [[は]] marks the topic.\n"), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
 
@@ -998,7 +999,7 @@ func TestShowNonLessonNoConceptTriggers(t *testing.T) {
 		t.Fatalf("mkdir source: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(srcDir, "S.md"),
-		[]byte("---\ntitle: S\ntype: source-note\nstatus: draft\n---\n\nMentions [[は]] in passing.\n"), 0o600); err != nil {
+		[]byte("---\ntype: source-note\n---\n# S\n\nMentions [[は]] in passing.\n"), 0o600); err != nil {
 		t.Fatalf("write source: %v", err)
 	}
 
@@ -1436,7 +1437,7 @@ func TestEveryBlockIsBuiltFromTheSnapshot(t *testing.T) {
 	for i := range 8 {
 		name := fmt.Sprintf("Note %d", i)
 		full := filepath.Join(conceptDir, fmt.Sprintf("note-%d.md", i))
-		content := fmt.Sprintf("---\ntitle: %s\ntype: concept\nstatus: draft\n---\n\nbody\n", name)
+		content := fmt.Sprintf("---\ntype: concept\n---\n# %s\n\nbody\n", name)
 		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
@@ -1450,8 +1451,8 @@ func TestEveryBlockIsBuiltFromTheSnapshot(t *testing.T) {
 	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
 		t.Fatalf("mkdir lessons: %v", err)
 	}
-	for name, statusName := range map[string]string{"Open": "draft", "Sealed": "ready"} {
-		content := fmt.Sprintf("---\ntitle: %s\ntype: lesson\nstatus: %s\n---\n\nbody\n", name, statusName)
+	for _, name := range []string{"Open", "Sealed"} {
+		content := fmt.Sprintf("---\ntype: lesson\n---\n# %s\n\nbody\n", name)
 		full := filepath.Join(lessonDir, name+".md")
 		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 			t.Fatalf("write lesson %s: %v", name, err)
@@ -1464,7 +1465,7 @@ func TestEveryBlockIsBuiltFromTheSnapshot(t *testing.T) {
 	if err := os.MkdirAll(mapDir, 0o750); err != nil {
 		t.Fatalf("mkdir maps: %v", err)
 	}
-	pathBody := "---\ntitle: Test path\ntype: study-path\n---\n\n## Part {sequence=primary}\n\n- [[Open]]\n- [[Sealed]]\n"
+	pathBody := "---\ntype: study-path\n---\n# Test path\n\n## Part {sequence=primary}\n\n- [[Open]]\n- [[Sealed]]\n"
 	pathFile := filepath.Join(mapDir, "path.md")
 	if err := os.WriteFile(pathFile, []byte(pathBody), 0o600); err != nil {
 		t.Fatalf("write study path: %v", err)
@@ -1537,14 +1538,12 @@ func TestTheFolderIndexUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *
 		t.Fatalf("mkdir note parent: %v", err)
 	}
 	const noteText = `---
-title: A
 type: concept
-domain: golang
 draft: true
 created: 2026-07-16
-updated: 2026-07-16
 based_on: source
 ---
+# A
 
 body
 `
@@ -1637,9 +1636,8 @@ func TestTheArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 		contract *schema.Contract
 		want     string
 	}{
-		{name: "missing", contract: loadHomeContractWithArtifactSection(t, ""), want: "contract declares no artifact policy; instance projections disabled until it does"},
-		{name: "invalid", contract: loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\".\"]\n"), want: `invalid artifact policy: non_instance_dirs contains "."`},
-		{name: "incomplete", contract: loadHomeContractWithArtifactSection(t, "[artifacts]\n"), want: `invalid artifact policy: missing required key "non_instance_dirs"`},
+		{name: "invalid", contract: loadHomeContractWithArtifactSection(t, "templates = [\".\"]\n"), want: `invalid artifact policy: templates contains "."`},
+		{name: "blank", contract: loadHomeContractWithArtifactSection(t, "templates = [\"\"]\n"), want: `invalid artifact policy: templates contains ""`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1651,7 +1649,7 @@ func TestTheArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(root, "Writing"), 0o750); err != nil {
 				t.Fatalf("mkdir Writing: %v", err)
 			}
-			if err := os.WriteFile(filepath.Join(root, "Writing", "Draft.md"), []byte("---\ntitle: Draft\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+			if err := os.WriteFile(filepath.Join(root, "Writing", "Draft.md"), []byte("---\ntype: writing\n---\n# Draft\n\nbody\n"), 0o600); err != nil {
 				t.Fatalf("write note: %v", err)
 			}
 			srv := newServerWithContract(t, root, tt.contract)
@@ -1690,8 +1688,8 @@ func TestTheArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 
 func TestANavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) {
 	t.Parallel()
-	const invalidNavigation = "[navigation]\npath_types = [\"missing-type\"]\nmap_types = []\n"
-	const validArtifact = "[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n"
+	const invalidNavigation = "[types.study-path]\nrole = \"missing-role\"\n"
+	const validArtifact = "templates = [\"System/templates\"]\n"
 	contract := loadHomeContractWithSections(t, invalidNavigation, validArtifact)
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
@@ -1700,7 +1698,7 @@ func TestANavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "Writing"), 0o750); err != nil {
 		t.Fatalf("mkdir Writing: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, "Writing", "Draft.md"), []byte("---\ntitle: Aggregate sentinel\ntype: writing\nstatus: draft\n---\n\nbody\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "Writing", "Draft.md"), []byte("---\ntype: writing\n---\n# Aggregate sentinel\n\nbody\n"), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
 	srv := newServerWithContract(t, root, contract)
@@ -1725,7 +1723,7 @@ func TestANavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) {
 	// states it, so a cause that never reached the desk would drop a way in
 	// with no explanation anywhere.
 	assertCauseStatedOnce(t, body,
-		`invalid navigation roles: path type "missing-type" is not declared in enums.type`)
+		`invalid navigation roles: type "study-path" has the unknown role "missing-role"; Paths and Maps disabled`)
 	if strings.Contains(body, "contract declares no artifact policy; instance projections disabled until it does") {
 		t.Errorf("Home falsely reports an artifact failure: %q", body)
 	}
@@ -1733,8 +1731,8 @@ func TestANavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) {
 
 func TestHomeStudyPathsReportsBothCapabilityFailures(t *testing.T) {
 	t.Parallel()
-	const invalidNavigation = "[navigation]\npath_types = [\"missing-type\"]\nmap_types = []\n"
-	const invalidArtifact = "[artifacts]\nnon_instance_dirs = [\".\"]\n"
+	const invalidNavigation = "[types.study-path]\nrole = \"missing-role\"\n"
+	const invalidArtifact = "templates = [\".\"]\n"
 	contract := loadHomeContractWithSections(t, invalidNavigation, invalidArtifact)
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
@@ -1751,8 +1749,8 @@ func TestHomeStudyPathsReportsBothCapabilityFailures(t *testing.T) {
 	// closed paths and maps. Both have to reach the reader, in the one region
 	// that states a capability fault, and neither may be repeated there.
 	content := pageSection(body, `data-home-block="faults"`)
-	const artifactCause = `invalid artifact policy: non_instance_dirs contains "."`
-	for _, cause := range []string{"missing-type", artifactCause} {
+	const artifactCause = `invalid artifact policy: templates contains "."`
+	for _, cause := range []string{"missing-role", artifactCause} {
 		if got := strings.Count(content, cause); got != 1 {
 			t.Errorf("the fault block states %q %d times, want once: %q", cause, got, content)
 		}
@@ -1779,7 +1777,7 @@ func TestAValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			t.Fatalf("mkdir %s: %v", rel, err)
 		}
-		content := fmt.Sprintf("---\ntitle: %s\ntype: writing\nstatus: draft\n---\n\nbody\n", title)
+		content := fmt.Sprintf("---\ntype: writing\n---\n# %s\n\nbody\n", title)
 		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			t.Fatalf("write %s: %v", rel, err)
 		}
@@ -1982,8 +1980,8 @@ func loadContractRequiringFrontmatter(t *testing.T) *schema.Contract {
 	if err != nil {
 		t.Fatalf("read test contract: %v", err)
 	}
-	const legal = "no_frontmatter_is_legal = true"
-	modified := strings.Replace(string(data), legal, "no_frontmatter_is_legal = false", 1)
+	const legal = "frontmatter_optional = true"
+	modified := strings.Replace(string(data), legal, "frontmatter_optional = false", 1)
 	if modified == string(data) {
 		t.Fatal("frontmatter declaration replacement did not apply")
 	}
@@ -2204,7 +2202,7 @@ func TestShowIncludesSidebar(t *testing.T) {
 	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	lessonMD := "---\ntitle: Slices\ntype: lesson\ndomain: golang\ndraft: true\n---\n\nbody\n"
+	lessonMD := "---\ntype: lesson\ndraft: true\n---\n# Slices\n\nbody\n"
 	if err := os.WriteFile(filepath.Join(lessonDir, "Slices.md"), []byte(lessonMD), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
@@ -2213,7 +2211,7 @@ func TestShowIncludesSidebar(t *testing.T) {
 	if err := os.MkdirAll(mapsDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	syllabus := "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n" +
+	syllabus := "---\ntype: study-path\n---\n# Go path\n\n" +
 		"## data | Data | 資料\n\n### text | Text | 文字 {sequence=primary}\n\n- [[Slices]]\n"
 	if err := os.WriteFile(filepath.Join(mapsDir, "Go path.md"), []byte(syllabus), 0o600); err != nil {
 		t.Fatalf("write syllabus: %v", err)
@@ -2247,7 +2245,7 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 	if err := os.MkdirAll(mapDir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	mapNote := "---\ntitle: Reading map\ntype: topic-map\ndomain: humanities\n---\n\n## Themes\n\n- [[Ghost Essay]]\n"
+	mapNote := "---\ntype: topic-map\n---\n# Reading map\n\n## Themes\n\n- [[Ghost Essay]]\n"
 	if err := os.WriteFile(filepath.Join(mapDir, "Reading map.md"), []byte(mapNote), 0o600); err != nil {
 		t.Fatalf("write map: %v", err)
 	}
@@ -2554,7 +2552,7 @@ func assertOverCapNoteFilePage(t *testing.T, code int, page, rel, body string) {
 func TestShowOffersAnObsidianDoor(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	lessonMD := "---\ntype: lesson\ncreated: 2026-06-01\n---\n# L01\n\nbody\n"
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -2586,36 +2584,29 @@ func TestShowOffersAnObsidianDoor(t *testing.T) {
 	}
 }
 
-// TestNoteMetarowCarriesADate holds the reading page's one date: the author's
-// declared update when the frontmatter carries a readable one, and the file's
-// own recorded change time when it does not. The two are different claims and
-// each carries its own label — a fresh checkout stamps every file with one
-// moment, and calling that moment the author's update would put words in their
-// mouth. The declared date renders as the date it is; the file time keeps its
-// clock in the machine-readable value, because that is what was observed.
+// TestNoteMetarowCarriesADate pins the one date the reading page shows: the
+// file's own recorded change time, labelled as that, with its clock kept in the
+// machine-readable value because that is what was observed. A note writes no
+// update date of its own, so a created or updated key in the frontmatter does
+// not stand in for it.
 func TestNoteMetarowCarriesADate(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	for rel, content := range map[string]string{
-		"Writing/Declared.md":   "---\ntitle: Declared\ntype: writing\nstatus: draft\nupdated: 2026-07-12\n---\n\nbody\n",
-		"Writing/Undeclared.md": "---\ntitle: Undeclared\ntype: writing\nstatus: draft\n---\n\nbody\n",
-	} {
-		full := filepath.Join(root, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-			t.Fatalf("mkdir for %s: %v", rel, err)
-		}
-		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", rel, err)
-		}
+	full := filepath.Join(root, "Writing", "Declared.md")
+	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+		t.Fatalf("mkdir: %v", err)
 	}
-	undeclared := filepath.Join(root, "Writing", "Undeclared.md")
+	content := "---\ntype: writing\ncreated: 2026-07-12\nupdated: 2026-07-12\n---\n# Declared\n\nbody\n"
+	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+		t.Fatalf("write note: %v", err)
+	}
 	stamp := time.Date(2026, time.June, 3, 8, 30, 0, 0, time.UTC)
-	if err := os.Chtimes(undeclared, stamp, stamp); err != nil {
+	if err := os.Chtimes(full, stamp, stamp); err != nil {
 		t.Fatalf("set mtime: %v", err)
 	}
 	// The recorded time is read back rather than trusted: a filesystem may
 	// round what it was handed, and the page prints what the scan observed.
-	info, err := os.Stat(undeclared)
+	info, err := os.Stat(full)
 	if err != nil {
 		t.Fatalf("stat: %v", err)
 	}
@@ -2623,26 +2614,15 @@ func TestNoteMetarowCarriesADate(t *testing.T) {
 
 	code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/Declared.md")
 	if code != http.StatusOK {
-		t.Fatalf("GET declared note status = %d, want 200", code)
-	}
-	if want := `更新於 <time datetime="2026-07-12">2026-07-12</time>`; !strings.Contains(body, want) {
-		t.Errorf("a note declaring its update does not show it; want %q in page", want)
-	}
-	if strings.Contains(body, "檔案變更於") {
-		t.Error("a note declaring its update is dated by the file as well")
-	}
-
-	code, body = get(t, srv.Client(), srv.URL+"/notes/Writing/Undeclared.md")
-	if code != http.StatusOK {
-		t.Fatalf("GET undeclared note status = %d, want 200", code)
+		t.Fatalf("GET note status = %d, want 200", code)
 	}
 	mod := info.ModTime()
 	want := `檔案變更於 <time datetime="` + mod.Format(time.RFC3339) + `">` + mod.Format(time.DateOnly) + `</time>`
 	if !strings.Contains(body, want) {
-		t.Errorf("a note declaring no update is not dated by the file; want %q in page", want)
+		t.Errorf("the note is not dated by its file; want %q in page", want)
 	}
-	if strings.Contains(body, "更新於 <time") {
-		t.Error("a note declaring no update still claims an authored one")
+	if strings.Contains(body, "更新於 <time") || strings.Contains(body, "2026-07-12") {
+		t.Error("a date the frontmatter writes reached the page as the note's date")
 	}
 }
 
@@ -2656,7 +2636,7 @@ func TestNoteMetarowDateSpeaksTheInterfaceLanguage(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	content := "---\ntitle: Declared\ntype: writing\nstatus: draft\nupdated: 2026-07-12\n---\n\nbody\n"
+	content := "---\ntype: writing\n---\n# Declared\n\nbody\n"
 	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
@@ -2681,10 +2661,10 @@ func TestNoteMetarowDateSpeaksTheInterfaceLanguage(t *testing.T) {
 		t.Fatalf("read body: %v", err)
 	}
 	body := string(raw)
-	if want := `Updated <time datetime="2026-07-12">2026-07-12</time>`; !strings.Contains(body, want) {
+	if want := `File changed <time datetime="`; !strings.Contains(body, want) {
 		t.Errorf("the English page does not label the date in English; want %q", want)
 	}
-	if strings.Contains(body, "更新於") {
+	if strings.Contains(body, "檔案變更於") {
 		t.Error("the English page carries the default-language date label")
 	}
 }
@@ -2705,7 +2685,7 @@ func TestTheRecentListStatesItsKnowledgeScope(t *testing.T) {
 			t.Fatalf("mkdir for %s: %v", rel, err)
 		}
 		title := strings.TrimSuffix(filepath.Base(rel), ".md")
-		content := "---\ntitle: " + title + "\ntype: writing\nstatus: draft\n---\n\nbody\n"
+		content := "---\ntype: writing\n---\n# " + title + "\n\nbody\n"
 		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 			t.Fatalf("write %s: %v", rel, err)
 		}
@@ -2743,7 +2723,7 @@ func TestTheRecentListStatesItsKnowledgeScope(t *testing.T) {
 func TestASingleNoteClaimsNoTimestampTie(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	content := "---\ntitle: Only\ntype: writing\nstatus: draft\n---\n\nbody\n"
+	content := "---\ntype: writing\n---\n# Only\n\nbody\n"
 	if err := os.WriteFile(filepath.Join(root, "Only.md"), []byte(content), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
@@ -2775,7 +2755,7 @@ func TestTiedTimesStillSaySoWithinTheirScope(t *testing.T) {
 			t.Fatalf("mkdir for %s: %v", rel, err)
 		}
 		title := strings.TrimSuffix(filepath.Base(rel), ".md")
-		content := "---\ntitle: " + title + "\ntype: writing\nstatus: draft\n---\n\nbody\n"
+		content := "---\ntype: writing\n---\n# " + title + "\n\nbody\n"
 		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 			t.Fatalf("write %s: %v", rel, err)
 		}
@@ -2805,7 +2785,7 @@ func TestAnUnscopedVaultClaimsNoKnowledgeLayer(t *testing.T) {
 	root := t.TempDir()
 	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
 	for rel, at := range map[string]time.Time{"A.md": base, "B.md": base.Add(time.Hour)} {
-		content := "---\ntitle: " + strings.TrimSuffix(rel, ".md") + "\ntype: writing\n---\n\nbody\n"
+		content := "---\ntype: writing\n---\n# " + strings.TrimSuffix(rel, ".md") + "\n\nbody\n"
 		full := filepath.Join(root, rel)
 		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 			t.Fatalf("write %s: %v", rel, err)
@@ -2842,10 +2822,10 @@ func TestHomeStudyPathCardSeparatesTheTwoZeroes(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	files := map[string]string{
-		"Maps/broken.md":  "---\ntitle: Broken course\ntype: study-path\n---\n\n## Part\n\n- [[Open]]\n",
-		"Maps/prose.md":   "---\ntitle: Prose only\ntype: study-path\n---\n\nNothing here lists a lesson.\n",
-		"Maps/working.md": "---\ntitle: Working course\ntype: study-path\n---\n\n## Part {sequence=primary}\n\n- [[Open]]\n",
-		"Writing/Open.md": "---\ntitle: Open\ntype: lesson\nstatus: draft\n---\n\nbody\n",
+		"Maps/broken.md":  "---\ntype: study-path\n---\n# Broken course\n\n## Part\n\n- [[Open]]\n",
+		"Maps/prose.md":   "---\ntype: study-path\n---\n# Prose only\n\nNothing here lists a lesson.\n",
+		"Maps/working.md": "---\ntype: study-path\n---\n# Working course\n\n## Part {sequence=primary}\n\n- [[Open]]\n",
+		"Writing/Open.md": "---\ntype: lesson\n---\n# Open\n\nbody\n",
 	}
 	for rel, content := range files {
 		full := filepath.Join(root, filepath.FromSlash(rel))
@@ -2909,7 +2889,7 @@ func TestAnUnscopedTieKeepsThePlainNotice(t *testing.T) {
 	root := t.TempDir()
 	stamp := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
 	for _, rel := range []string{"A.md", "B.md"} {
-		content := "---\ntitle: " + strings.TrimSuffix(rel, ".md") + "\ntype: writing\n---\n\nbody\n"
+		content := "---\ntype: writing\n---\n# " + strings.TrimSuffix(rel, ".md") + "\n\nbody\n"
 		full := filepath.Join(root, rel)
 		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
 			t.Fatalf("write %s: %v", rel, err)
@@ -2951,8 +2931,8 @@ func TestAnUnreadableContractKeepsTheRecentListUnscoped(t *testing.T) {
 		at      time.Time
 	}{
 		"README.md":                    {content: "# Vault\n", at: base},
-		"Concepts/Legal.md":            {content: "---\ntitle: Legal concept\ntype: concept\ndraft: true\n---\n\nbody\n", at: base.Add(2 * time.Hour)},
-		"System/templates/Template.md": {content: "---\ntitle: Template note\ntype: concept\nstatus: draft\n---\n\nbody\n", at: base.Add(time.Hour)},
+		"Concepts/Legal.md":            {content: "---\ntype: concept\ndraft: true\n---\n# Legal concept\n\nbody\n", at: base.Add(2 * time.Hour)},
+		"System/templates/Template.md": {content: "---\ntype: concept\n---\n# Template note\n\nbody\n", at: base.Add(time.Hour)},
 	}
 	for rel, file := range files {
 		full := filepath.Join(root, filepath.FromSlash(rel))
@@ -3089,7 +3069,7 @@ func deskBlockMarkup(t *testing.T, page, mode string) string {
 func TestTheContentsListOmitsAClosedCalloutsHeadings(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	lessonMD := "---\ntitle: L01\ntype: lesson\ndomain: japanese\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n" +
+	lessonMD := "---\ntype: lesson\ncreated: 2026-06-01\n---\n# L01\n\n" +
 		"\n## Before\n\ntext\n\n> [!question]-\n> ## Hidden Answer\n> the answer\n\n> [!tip]+\n> ## Open Answer\n> shown\n\n## After\n\ntext\n"
 	rel := "Writing/lessons/japanese/L01.md"
 	dir := filepath.Join(root, "Writing", "lessons", "japanese")

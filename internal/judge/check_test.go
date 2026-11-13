@@ -59,8 +59,9 @@ var checkGoldens = []struct {
 	{name: "name collisions", fixture: "testdata/vault-namecollision", golden: "testdata/golden/namecollision.jsonl"},
 	{name: "report surface", fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
 	{name: "hidden report surface", fixture: "testdata/vault-report-hidden", golden: "testdata/golden/report-hidden.jsonl"},
-	// This fixture covers the local vault contract's configured fields.
-	{name: "configured supersession", fixture: "testdata/vault-supersession", golden: "testdata/golden/supersession.jsonl"},
+	// A thought citing a replaced note by the name its successor now carries
+	// as an alias, beside the citations that resolve by a file's own name.
+	{name: "a citation resolved through an alias", fixture: "testdata/vault-alias-based-on", golden: "testdata/golden/alias-based-on.jsonl"},
 	// A note reached only through a symbolic link. The scan reads nothing
 	// out of it, so without this finding the vault loses the note and the
 	// command says the folder is clean.
@@ -74,9 +75,8 @@ var checkGoldens = []struct {
 // graph rules, the disk-reference rule, and the frontmatter checks — over
 // fixture vaults and asserts the emitted bytes equal each golden. The inherited
 // rule goldens are copied from the predecessor's sorted output over the same
-// fixture. The configured-supersession golden covers fields defined only by
-// this repository's vault contract extension, so its bytes come from the frozen
-// local wire contract. Deliberate inherited divergences live in dedicated tests
+// fixture. The alias-resolved golden covers a rule only this repository
+// defines, so its bytes come from the frozen local wire contract. Deliberate inherited divergences live in dedicated tests
 // below rather than being mislabelled as predecessor output.
 func TestCheckGolden(t *testing.T) {
 	t.Parallel()
@@ -140,12 +140,12 @@ func TestNameCollisionLeavesTheAliasRuleItsOwnRepairs(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	const complete = "created: 2026-01-01\nupdated: 2026-01-01\n---\n"
-	write(t, root, "Lessons/dup.md", "---\ntitle: Lessons 的 dup\ntype: lesson\ndomain: golang\nstatus: draft\nslug: lessons-dup\n"+complete+"The other one.\n")
-	write(t, root, "Notes/dup.md", "---\ntitle: Notes 的 dup\ntype: writing\ndomain: golang\nstatus: draft\n"+complete+"One of two files answering to the same name.\n")
-	write(t, root, "Notes/alias-a.md", "---\ntitle: Alias A\naliases: [shared]\ntype: writing\ndomain: golang\nstatus: draft\n"+complete+"One alias owner.\n")
-	write(t, root, "Notes/alias-b.md", "---\ntitle: Alias B\naliases: [shared]\ntype: writing\ndomain: golang\nstatus: draft\n"+complete+"The other alias owner.\n")
-	write(t, root, "Notes/cite.md", "---\ntitle: 引用者\ntype: writing\ndomain: golang\nstatus: draft\n"+complete+"The link nobody can resolve: [[dup]].\n")
+	const complete = "created: 2026-01-01\n---\n"
+	write(t, root, "Lessons/dup.md", "---\ntype: lesson\nslug: lessons-dup\n"+complete+"# Lessons 的 dup\n\nThe other one.\n")
+	write(t, root, "Notes/dup.md", "---\ntype: writing\n"+complete+"# Notes 的 dup\n\nOne of two files answering to the same name.\n")
+	write(t, root, "Notes/alias-a.md", "---\naliases: [shared]\ntype: writing\n"+complete+"# Alias A\n\nOne alias owner.\n")
+	write(t, root, "Notes/alias-b.md", "---\naliases: [shared]\ntype: writing\n"+complete+"# Alias B\n\nThe other alias owner.\n")
+	write(t, root, "Notes/cite.md", "---\ntype: writing\n"+complete+"# 引用者\n\nThe link nobody can resolve: [[dup]].\n")
 	writeTestContract(t, root, nil)
 
 	findings, err := Check(t.Context(), root)
@@ -263,10 +263,10 @@ func TestCheckAllRestoresSystemOnlyFindings(t *testing.T) {
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
 		[2]string{
-			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			`knowledge_dirs = ["Notes"]`,
+			`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			`checked = ["Notes"]`,
 		}))
-	write(t, root, "Notes/keep.md", "---\ntitle: Keep\ntype: writing\ndomain: golang\nstatus: draft\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\n")
+	write(t, root, "Notes/keep.md", "---\ntype: writing\ncreated: 2026-01-01\n---\n# Keep\n")
 	write(t, root, "System/reference.md", "# Reference\n\n[[Missing System Target]]\n")
 
 	defaultFindings, err := runCheckAction(t.Context(), root, nil, false)

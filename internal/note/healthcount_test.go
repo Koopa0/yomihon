@@ -28,7 +28,7 @@ func TestOneNoteWithSeveralSchemaFaultsCountsThemAll(t *testing.T) {
 	t.Parallel()
 
 	const rel = "Concepts/golang/Faulty.md"
-	const body = "---\ntitle: Faulty\ntype: memorandum\ndomain: golang\nstatus: draft\nslug: Not Kebab\nnot_a_field: 1\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	const body = "---\ntype: memorandum\nslug: Not Kebab\nnot_a_field: 1\ncreated: 2026-06-01\n---\n# Faulty\n\nbody\n"
 	srv := newServerWithContract(t, writeOneNote(t, rel, body), loadHomeContract(t))
 
 	code, page := get(t, srv.Client(), srv.URL+"/health")

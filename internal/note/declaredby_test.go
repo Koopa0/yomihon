@@ -15,7 +15,7 @@ import (
 func TestDeclaredByKeepsNotesAndSourceLocationsSeparate(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNote(t, root, "Sources/Book.md", "---\ntitle: Book\n---\n# Book\n\n## First & second\n\nThe quotation. ^Q&\"\n\nA supported quotation. ^Q-1\n\n## Later\n")
+	writeNote(t, root, "Sources/Book.md", "---\n---\n# Book\n\n# Book\n\n## First & second\n\nThe quotation. ^Q&\"\n\nA supported quotation. ^Q-1\n\n## Later\n")
 	writeNote(t, root, "Thoughts/Apple.md", `---
 based_on:
   - '[[Book#First & second]]'

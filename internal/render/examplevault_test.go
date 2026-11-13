@@ -325,7 +325,7 @@ func loadExampleVault(t *testing.T) *exampleVault {
 	pipeline := New(graph.New(notes, resources), transcluded(bodies), noDeclaredTitles{}, holdsEverything{})
 	var pages strings.Builder
 	for _, note := range notes {
-		result := pipeline.HTML(note.RelPath, note.Title(), note.Body, wording.En)
+		result := pipeline.HTML(note.RelPath, graph.TitleOf(note.RelPath, note.Body), note.Body, wording.En)
 		pages.WriteString(result.HTML)
 		// Read-aloud reaches a reader on a governed lesson and nowhere else,
 		// so the marker only counts where the note page would honour it.
@@ -345,10 +345,28 @@ func (v *exampleVault) text(where surface) string {
 	return v.reading
 }
 
-// frontmatterKeys is every key any note in the vault writes down.
-func (v *exampleVault) frontmatterKeys() map[string]bool {
-	keys := map[string]bool{}
+// instances is every note in the vault that is a note rather than a shape to
+// copy. A template writes a field to show where it goes, which is not a note
+// using it, so nothing here counts one as a demonstration.
+func (v *exampleVault) instances() []*vault.Note {
+	policy := v.contract.ArtifactPolicy()
+	out := make([]*vault.Note, 0, len(v.notes))
 	for _, note := range v.notes {
+		if !policy.IsNonInstance(note.RelPath) {
+			out = append(out, note)
+		}
+	}
+	return out
+}
+
+// frontmatterKeys is every key a note of noteType writes down, or every key
+// any note writes when noteType is empty.
+func (v *exampleVault) frontmatterKeys(noteType string) map[string]bool {
+	keys := map[string]bool{}
+	for _, note := range v.instances() {
+		if noteType != "" && note.Type() != noteType {
+			continue
+		}
 		for key := range note.Frontmatter {
 			keys[key] = true
 		}
@@ -356,51 +374,41 @@ func (v *exampleVault) frontmatterKeys() map[string]bool {
 	return keys
 }
 
-// frontmatterValues gathers every value any note writes under one frontmatter
-// key, reading a scalar and a list alike so an enum governing either shape is
-// answered the same way.
-func (v *exampleVault) frontmatterValues(key string) map[string]bool {
+// enumValues gathers every value the notes give one enum. A field's values
+// are read as a scalar and as a list alike, so an enum governing either shape
+// is answered the same way; the domain is no field at all, and is read off the
+// folder each note sits in, the way the contract derives it.
+func (v *exampleVault) enumValues(field string) map[string]bool {
 	values := map[string]bool{}
-	for _, note := range v.notes {
-		if value, ok := note.Text(key); ok {
+	domains := v.contract.Domains()
+	for _, note := range v.instances() {
+		if field == "domain" {
+			if domain := domains.Of(note.RelPath); domain != "" {
+				values[domain] = true
+			}
+			continue
+		}
+		if value, ok := note.Text(field); ok {
 			values[value] = true
 		}
-		for _, value := range note.Strings(key) {
+		for _, value := range note.Strings(field) {
 			values[value] = true
 		}
 	}
 	return values
 }
 
-// declaredEnumValues flattens one enum declaration. A type-conditional enum
-// arrives as a map of groups, and every group's values are equally declared.
-// A shape it has no reading for stops the test: returning nothing would make
-// that enum demand nothing, and an enum silently exempted from the rule every
-// other enum is held to is the failure this whole check exists to prevent.
-func declaredEnumValues(t *testing.T, key string, enum reflect.Value) []string {
-	t.Helper()
-	switch declared := enum.Interface().(type) {
-	case []string:
-		return declared
-	case map[string][]string:
-		var out []string
-		for _, group := range declared {
-			out = append(out, group...)
-		}
-		return out
-	default:
-		t.Fatalf("the contract's %s enum is declared as %s, which this check has no reading for; "+
-			"give it one, because as it stands that enum is asked for nothing at all", key, enum.Type())
-		return nil
-	}
-}
-
 func (v *exampleVault) noteTypes() map[string]bool {
 	types := map[string]bool{}
-	for _, note := range v.notes {
+	for _, note := range v.instances() {
 		types[note.Type()] = true
 	}
 	return types
+}
+
+// holdsFileUnder reports whether the scan found a file below dir.
+func (v *exampleVault) holdsFileUnder(dir string) bool {
+	return slices.ContainsFunc(v.entries, func(e vault.Entry) bool { return strings.HasPrefix(e.Path(), dir+"/") })
 }
 
 type transcluded map[string]string
@@ -507,7 +515,7 @@ func TestTheShippedHaikuQuoteTitleIsPlainText(t *testing.T) {
 	}
 
 	got := New(graph.New(nil, nil), transcluded{}, noDeclaredTitles{}, holdsEverything{}).
-		HTML(note.RelPath, note.Title(), note.Body, wording.En).HTML
+		HTML(note.RelPath, graph.TitleOf(note.RelPath, note.Body), note.Body, wording.En).HTML
 	title, body, ok := calloutTitleAndBody(got)
 	if !ok {
 		t.Fatalf("the haiku note no longer opens with a quote callout:\n%s", got)
@@ -556,75 +564,106 @@ func calloutTitleAndBody(page string) (title, body string, ok bool) {
 	return title, body, ok
 }
 
-// assertContractDeclaresEverythingItCanRead walks the decoded contract's
-// struct fields, so a key added to [enums], [fields] or [rules] is demanded
-// here without this test being edited. [scan] is not copied onto
-// Definition(); knowledge_dirs and skip_basenames are demanded through their
-// accessors. Anything the example contract leaves at its zero value is a
-// capability the vault cannot exercise whatever its notes contain.
+// assertContractDeclaresEverythingItCanRead walks the contract's Definition
+// field by field, so a key added to the contract is demanded here without this
+// test being edited. Anything the example contract leaves at its zero value is
+// a capability the vault cannot exercise whatever its notes contain. A list of
+// tables — the types, the enums — is asked the same question per key across
+// its rows: some type has to state a role, some type a slug pattern.
 //
-// The reach stops at that struct, which is less than it looks. [navigation],
-// [artifacts], [privacy], [supersession] and the lifecycle rows are decoded
-// beside it rather than as fields of it, and reach a caller only through
-// accessors, so each is named one at a time below — and a section added the
-// same way would go undemanded until somebody adds it here too.
+// folders.ignored is the one key passed over, by name. An ignored directory is
+// one the scan never reads, so the only demonstration the vault could hold is a
+// folder of files written to be hidden from its reader; that would teach
+// nothing a reader can see, and the starting-point contract is better off not
+// handing an ignore rule to everyone who copies it.
+//
+// The reach stops at Definition. [privacy] and the capabilities derived from
+// the folders and types reach a caller only through accessors, so each is
+// asked one at a time below — and a section added the same way would go
+// undemanded until somebody adds it here too.
 //
 // A bool key is the one shape the zero-value question cannot ask properly: a
-// key written "false" and a key left out decode alike. Both bools this
-// contract carries are written true, which is the value that opens the
-// capability behind them, so the walk is right about them; a contract that
-// deliberately wrote false would need a different question.
+// key written false and a key left out decode alike. The one bool this
+// contract carries, folders.frontmatter_optional, is written true, which is
+// the value that opens the capability behind it, so the walk is right about
+// it; a contract that deliberately wrote false would need a different
+// question.
 func assertContractDeclaresEverythingItCanRead(t *testing.T, contract *schema.Contract) {
 	t.Helper()
 
+	passedOver := map[string]bool{"folders.ignored": true}
 	definition := reflect.ValueOf(contract.Definition())
 	for _, section := range reflect.VisibleFields(definition.Type()) {
-		if len(section.Index) != 1 {
-			continue
-		}
-		// Scan is the decode target. Definition() does not copy it:
-		// knowledge-layer membership is KnowledgeScope, skip_basenames is
-		// SkipBasenames, exclude_dirs is ScanBoundary, and
-		// no_frontmatter_is_legal is RequiresFrontmatter, demanded below.
-		if section.Name == "Scan" {
-			continue
-		}
-		sectionValue := definition.FieldByIndex(section.Index)
-		for _, key := range reflect.VisibleFields(sectionValue.Type()) {
-			if sectionValue.FieldByIndex(key.Index).IsZero() {
-				t.Errorf("the example contract declares no %s.%s, so no note in the vault can exercise it",
-					strings.ToLower(section.Name), key.Tag.Get("toml"))
+		name := snakeCase(section.Name)
+		value := definition.FieldByIndex(section.Index)
+		switch value.Kind() {
+		case reflect.Struct:
+			for _, key := range reflect.VisibleFields(value.Type()) {
+				declared := name + "." + snakeCase(key.Name)
+				if !passedOver[declared] && value.FieldByIndex(key.Index).IsZero() {
+					t.Errorf("the example contract declares no %s, so no note in the vault can exercise it", declared)
+				}
 			}
+		case reflect.Slice:
+			if value.Len() == 0 {
+				t.Errorf("the example contract declares no %s, so no note in the vault can exercise them", name)
+				continue
+			}
+			row := value.Type().Elem()
+			if row.Kind() != reflect.Struct {
+				t.Fatalf("the contract's %s is a list of %s, which this check has no reading for; give it one, "+
+					"because as it stands nothing in it is asked for", name, row)
+			}
+			for _, key := range reflect.VisibleFields(row) {
+				stated := false
+				for i := range value.Len() {
+					if !value.Index(i).FieldByIndex(key.Index).IsZero() {
+						stated = true
+						break
+					}
+				}
+				if !stated {
+					t.Errorf("no entry in the example contract's %s states a %s, so no note in the vault can exercise it",
+						name, snakeCase(key.Name))
+				}
+			}
+		default:
+			t.Fatalf("the contract's %s is a %s, which this check has no reading for; give it one, "+
+				"because as it stands it is asked for nothing at all", name, value.Kind())
 		}
-	}
-	if dirs := contract.KnowledgeScope().Declared(); len(dirs) == 0 {
-		t.Error("the example contract declares no knowledge_dirs, so the knowledge layer is not a declared set")
-	}
-	if skips := contract.SkipBasenames(); len(skips) == 0 {
-		t.Error("the example contract declares no skip_basenames, so no filename is exercised as skipped")
-	}
-	if contract.RequiresFrontmatter() {
-		t.Error("the example contract faults a note that carries no frontmatter, so no_frontmatter_is_legal is not exercised as legal")
 	}
 
-	if _, declared := contract.Supersession(); !declared {
-		t.Error("the example contract declares no [supersession], so the replacement ledger stays shut")
-	}
-	for _, section := range []struct {
+	for _, capability := range []struct {
 		name      string
 		available bool
 	}{
-		{"[navigation]", contract.NavigationRoles().Available()},
-		{"[artifacts]", contract.ArtifactPolicy().Available()},
+		{"navigation roles from [types]", contract.NavigationRoles().Available()},
+		{"knowledge layer from folders.checked", contract.KnowledgeScope().Available()},
+		{"template policy from folders.templates", contract.ArtifactPolicy().Available()},
+		{"journal from folders.journal", contract.JournalDir().Available()},
 		{"[privacy]", contract.PrivacyPolicy().Available()},
 	} {
-		if !section.available {
-			t.Errorf("the example contract's %s is unusable, so the capability behind it is off", section.name)
+		if !capability.available {
+			t.Errorf("the example contract's %s is unusable, so the capability behind it is off", capability.name)
 		}
 	}
-	if contract.StageCount() == 0 {
-		t.Error("the example contract declares no [[lifecycle]] rows, so no status can be written")
+}
+
+// snakeCase spells a Definition field the way the contract file writes its
+// key, so a failure names what the author would look for: DomainFrom is
+// domain_from.
+func snakeCase(name string) string {
+	var out strings.Builder
+	for i, r := range name {
+		if 'A' <= r && r <= 'Z' {
+			if i > 0 {
+				out.WriteByte('_')
+			}
+			r += 'a' - 'A'
+		}
+		out.WriteRune(r)
 	}
+	return out.String()
 }
 
 // assertEveryDeclarationIsUsed is the other half of the ruling this vault is
@@ -635,78 +674,87 @@ func assertEveryDeclarationIsUsed(t *testing.T, loaded *exampleVault) {
 	t.Helper()
 
 	definition := loaded.contract.Definition()
-	written := loaded.frontmatterKeys()
-	for _, key := range slices.Concat(definition.Fields.Known, definition.Fields.LessonOnly) {
-		if !written[key] && key != "status" {
-			t.Errorf("the contract allows the frontmatter key %q and no note in examples/vault writes it", key)
+	written := loaded.frontmatterKeys("")
+	for _, key := range definition.Fields.Common {
+		if !written[key] {
+			t.Errorf("the contract lets every note write %q and no note in examples/vault writes it", key)
 		}
 	}
 
-	// Every value of every enum, not merely every enum. The ruling this vault
-	// is held to is that a contract may not name vocabulary no note writes, and
-	// a declared value nobody has ever written is exactly that. Which
-	// frontmatter key an enum governs is the enum's own toml name, so the
-	// pairing is read off the decoder's tags rather than kept in a list here.
-	//
-	// The status list is the one exception, here and for the key above. No
-	// note here writes a status any more — a note says it is unfinished with
-	// draft: true — while the contract loader still refuses a contract without
-	// a status vocabulary and the lifecycle rows that use it, and a starter
-	// note written from the authoring guide still carries the key, so the
-	// example keeps declaring both until the contract format drops them.
-	enums := reflect.ValueOf(definition.Enums)
-	for _, enum := range reflect.VisibleFields(enums.Type()) {
-		key := enum.Tag.Get("toml")
-		if key == "status" {
+	// A type is asked for by the notes that carry it: a field one type lists
+	// and only another type's notes write is still a declaration nobody uses.
+	types := loaded.noteTypes()
+	for _, def := range definition.Types {
+		if !types[def.Name] {
+			t.Errorf("the contract declares the type %q and examples/vault holds no note of it", def.Name)
 			continue
 		}
-		written := loaded.frontmatterValues(key)
-		for _, value := range declaredEnumValues(t, key, enums.FieldByIndex(enum.Index)) {
-			if !written[value] {
-				t.Errorf("the contract lists %q among the values a note's %s may take, "+
-					"and no note in examples/vault takes it", value, key)
+		written := loaded.frontmatterKeys(def.Name)
+		for _, key := range def.Fields {
+			if !written[key] {
+				t.Errorf("the contract lets a %q note write %q and no such note in examples/vault writes it", def.Name, key)
+			}
+		}
+	}
+	if conceptType, declared := loaded.contract.ConceptType(); declared {
+		written := loaded.frontmatterKeys(conceptType)
+		for _, key := range definition.Rules.ConceptRequiresProvenance {
+			if !written[key] {
+				t.Errorf("the contract asks a %q note for provenance in %q and no such note in examples/vault "+
+					"writes it", conceptType, key)
 			}
 		}
 	}
 
-	// [privacy] and [artifacts] hand out no list, so each is asked what its
-	// policy says about the paths this vault actually holds. That is all this
-	// observes: whether the policy answers about a real file, not what any
-	// page or response then does with the answer. A directory named in the
-	// contract and absent from the vault fails here; a directory that is
-	// present but wired into nothing would not.
+	// Every value of every enum, not merely every enum. A declared value nobody
+	// has ever written is vocabulary no note uses. The domain's values are
+	// asked of the folders, because that is where a note's domain comes from.
+	for _, enum := range definition.Enums {
+		used := loaded.enumValues(enum.Field)
+		for _, value := range enum.Values {
+			if !used[value] {
+				t.Errorf("the contract lists %q among the values a note's %s may take, "+
+					"and no note in examples/vault takes it", value, enum.Field)
+			}
+		}
+	}
+
+	// Each folder the contract names has to hold something, or the
+	// declaration is about a directory this vault does not have.
+	for _, dir := range slices.Concat(definition.Folders.Checked, definition.Folders.Templates) {
+		if !loaded.holdsFileUnder(dir) {
+			t.Errorf("the contract names the folder %q and examples/vault holds no file under it", dir)
+		}
+	}
+	for _, root := range definition.Folders.DomainFrom {
+		if !slices.ContainsFunc(loaded.instances(), func(n *vault.Note) bool {
+			return loaded.contract.Domains().Of(n.RelPath) != "" && strings.HasPrefix(n.RelPath, root+"/")
+		}) {
+			t.Errorf("the contract reads a note's domain from the folders under %q and examples/vault "+
+				"files no note in a folder there", root)
+		}
+	}
+	for _, name := range definition.Folders.SkippedFiles {
+		if !slices.ContainsFunc(loaded.entries, func(e vault.Entry) bool { return path.Base(e.Path()) == name }) {
+			t.Errorf("the contract skips files named %q and examples/vault holds none", name)
+		}
+	}
+
+	// [privacy] hands out no list, so it is asked what its policy says about
+	// the paths this vault actually holds. That is all this observes: whether
+	// the policy answers about a real file, not what any page or response then
+	// does with the answer. A directory named in the contract and absent from
+	// the vault fails here; a directory that is present but wired into nothing
+	// would not.
 	privacy := loaded.contract.PrivacyPolicy()
 	if !slices.ContainsFunc(loaded.entries, func(e vault.Entry) bool { return !privacy.EgressAllowed(e.Path()) }) {
 		t.Error("the privacy policy denies egress to no path in examples/vault: every file the scan " +
 			"found is allowed out, so never_egress_dirs names directories this vault does not have")
 	}
-	artifacts := loaded.contract.ArtifactPolicy()
-	if !slices.ContainsFunc(loaded.entries, func(e vault.Entry) bool { return artifacts.IsNonInstance(e.Path()) }) {
-		t.Error("the artifact policy claims no path in examples/vault: no file the scan found sits " +
-			"under non_instance_dirs, so it names a directory this vault does not have")
-	}
 
-	types := loaded.noteTypes()
-	for _, exempt := range definition.Fields.DomainExempt {
-		if !types[exempt] {
-			t.Errorf("the contract exempts type %q from a domain and examples/vault holds no such note", exempt)
-		}
-	}
 	if conceptType, declared := loaded.contract.ConceptType(); declared && !types[conceptType] {
 		t.Errorf("the contract declares the type %q, which opens the concept sheets, "+
 			"and examples/vault holds no note of that type", conceptType)
-	}
-	if inboxType, _, declared := loaded.contract.InboxRequiredFields(); declared && !types[inboxType] {
-		t.Errorf("the contract states what a %q note must carry and examples/vault holds none", inboxType)
-	}
-
-	for _, root := range definition.Rules.DomainEqualsFolderUnder {
-		if !slices.ContainsFunc(loaded.entries, func(e vault.Entry) bool {
-			return strings.HasPrefix(e.Path(), root+"/") && strings.Contains(strings.TrimPrefix(e.Path(), root+"/"), "/")
-		}) {
-			t.Errorf("the contract ties a note's domain to its folder under %q and examples/vault "+
-				"files nothing in a folder there", root)
-		}
 	}
 }
 
