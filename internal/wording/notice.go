@@ -8,10 +8,10 @@ import "fmt"
 // sentence exactly as they were reported, so neither phrase carries a value.
 //
 // The title says the pages have stopped updating rather than that changes are
-// not published: 發布 and "published" are what this product already calls a
-// note's lifecycle status, and a vault that declares that status could read the
-// title as a statement about it. The sentence says "names" rather than "files",
-// because the pair can as well be two folders.
+// not published: 發布 and "published" are words a note's own frontmatter may
+// use for itself, and a title that used them could be read as a statement about
+// one. The sentence says "names" rather than "files", because the pair can as
+// well be two folders.
 var (
 	NoticeRootChangedTitle = both("讀取的是啟動時的資料夾", "Reading the startup folder")
 	NoticeRootChanged      = both(

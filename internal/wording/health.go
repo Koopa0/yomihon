@@ -114,8 +114,8 @@ var HealthGuideTitle = both("每一種發現是什麼意思", "What each kind of
 // exists and could not be loaded: without it, a folder with a broken contract
 // is indistinguishable from a folder with none.
 var (
-	ContractUnreadable       = both("vault contract 無法讀取；生命週期與治理投影已關閉。", "The vault contract could not be read; lifecycle and governance projections are closed.")
-	ContractUnreadablePrefix = both("vault contract 無法讀取：", "The vault contract could not be read: ")
+	ContractUnreadable       = both("契約無法讀取，這個書庫的結構與隱私規則沒有套用。", "The contract could not be read; its rules for structure and privacy are not applied.")
+	ContractUnreadablePrefix = both("契約無法讀取：", "The contract could not be read: ")
 )
 
 // ContractChanged is what a reader is told when the contract's bytes moved

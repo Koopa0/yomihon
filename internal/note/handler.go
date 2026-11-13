@@ -359,7 +359,7 @@ func (h *Handler) reading(
 	// governed lesson with a slot sidecar also gets its sentence-pattern machine,
 	// and its concept wikilinks become in-app sheet triggers. This happens only
 	// after the request's captured authority has classified the note, so every
-	// projection in this response uses one coherent lifecycle view.
+	// projection in this response uses one coherent view of the contract.
 	// The lesson type is the one type this page enriches with lesson-body
 	// interactions. What the contract layer supplies is the spelling, not yet a
 	// vault's own choice of word: it is still one fixed name, so a folder

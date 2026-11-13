@@ -73,7 +73,6 @@ The test below compares whole words, so it cannot tell a retired sense of a word
 - Section written three ways in Chinese (段落, 小節, 章節): `diagnostic.go:17,18,23,41,42,44,45`; `render.go:15,20,135`; `note.go:97,99`.
 - Lesson written three ways (課, 課文, 課次): `syllabus.go:124,127`; `preferences.go:84`.
 - *Image* where *picture* is meant: `slotmachine.go:23`.
-- English written inside Chinese text: `vault contract` at `health.go:117,118`.
 - The Note health panel called "the note's conditions" in English: `render.go:113`.
 
 ## Enforcement

@@ -13,7 +13,7 @@ import (
 
 // NotesOfType returns captured readable notes of one declared type, including
 // notes outside the knowledge layer but never a declared non-instance, such as
-// a template. It grants no role or lifecycle meaning; the caller supplies the
+// a template. It grants no role meaning; the caller supplies the
 // type obtained from its contract authority.
 func (g *Generation) NotesOfType(noteType string) []Reading {
 	if g == nil || noteType == "" {
