@@ -1,9 +1,9 @@
-// Browser lock for the selected Yomihon identity. One passive, multicolour SVG
+// Browser lock for the selected Yomihon identity. One passive, two-colour SVG
 // is the geometry authority for the favicon and header. What matters most is
-// checked by rendering it rather than by reading coordinates: the cover's
-// paper stays one unbroken face, four separate stitches run down the bound
-// edge — the binding the book is named for — and the title slip is pasted on
-// the paper, never off it.
+// checked by rendering it rather than by reading coordinates: the page stays
+// one unbroken face, and the ribbon keeps clear of the page's curved cut
+// instead of running into it. The header mark keeps its page shape legible on
+// whatever ground each theme gives it, and the light theme gives it none.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -16,13 +16,13 @@ const SITES = [
   'decorative-mark',
   'accessible-name',
   'local-only',
-  'cover-render',
-  'pages-render',
-  'obi-render',
-  'paper-is-one-face',
-  'four-stitches',
-  'slip-sits-on-the-paper',
+  'page-render',
+  'ribbon-render',
+  'page-is-one-face',
+  'ribbon-clears-the-page',
   'theme-mark',
+  'light-mark-bare',
+  'mark-ground',
   'forced-colors-name',
   'header-fit',
 ];
@@ -73,6 +73,30 @@ const rewriteSVGPart = (part, replacement, target) => ({
   },
 });
 
+// Rewrites one rule of the served stylesheet. The needle must match exactly
+// once, or the mutation is reported as not applied rather than guessed at.
+const rewriteStylesheet = (needle, replacement, target) => ({
+  target,
+  before: async (page) => {
+    let calls = 0;
+    let matches = 0;
+    await page.route('**/static/app.css{,?*}', async (route) => {
+      if (new URL(route.request().url()).pathname !== '/static/app.css') return route.continue();
+      const response = await route.fetch();
+      const original = await response.text();
+      const found = [...original.matchAll(needle)].length;
+      calls += 1;
+      matches += found;
+      await route.fulfill({ response, body: found === 1 ? original.replace(needle, replacement) : original });
+    });
+    return () => {
+      if (calls === 0) return 'the stylesheet was never requested';
+      if (matches !== calls) return `the stylesheet needle matched ${matches} times across ${calls} responses`;
+      return '';
+    };
+  },
+});
+
 const changeOne = async (page, selector, change) => {
   const changed = await page.evaluate(({ selector: selected, change: operation }) => {
     const elements = [...document.querySelectorAll(selected)];
@@ -93,15 +117,12 @@ const injectRule = async (page, selector, declarations) => {
 };
 
 const MUTATIONS = {
-  // The slip moved onto the bound edge, where no paper lies under it.
-  'slip-off-the-paper': rewriteSVGPart('obi', 'M22.4 8h2.4v8.2h-2.4Z', 'slip-sits-on-the-paper'),
-  // The four stitches run together into one bar down the binding.
-  'merge-the-stitches': rewriteSVGPart('pages', 'M7.9 5.6h13.5v20.8H7.9Zm15.1 2.2h1v16.4h-1Z', 'four-stitches'),
-  // A cut across the cover's paper, which must read as one unbroken face.
-  'split-the-paper': rewriteSVGPart('pages', 'M7.9 5.6h13.5v7H7.9Zm0 9h13.5v11.8H7.9Zm15.1-6.8h1v2.4h-1Zm0 4.6h1v2.4h-1Zm0 4.6h1v2.4h-1Zm0 4.6h1v2.4h-1Z', 'paper-is-one-face'),
-  'collapse-cover': rewriteSVGPart('cover', 'M0 0Z', 'cover-render'),
-  'collapse-pages': rewriteSVGPart('pages', 'M0 0Z', 'pages-render'),
-  'collapse-obi': rewriteSVGPart('obi', 'M0 0Z', 'obi-render'),
+  // The ribbon moved up into the page's curved cut, where it runs into the page.
+  'ribbon-onto-the-page': rewriteSVGPart('ribbon', 'M26 49C34 32 40 27 49 28V49Z', 'ribbon-clears-the-page'),
+  // A cut across the page, which must read as one unbroken face.
+  'split-the-page': rewriteSVGPart('page', 'M10 10H51V20H10ZM10 24H51V25C40 24 34 30 26 49H10Z', 'page-is-one-face'),
+  'collapse-page': rewriteSVGPart('page', 'M0 0Z', 'page-render'),
+  'collapse-ribbon': rewriteSVGPart('ribbon', 'M0 0Z', 'ribbon-render'),
   'drift-header-source': {
     target: 'projection-source',
     after: (page) => changeOne(page, '.y-brand__mark', { kind: 'attribute', name: 'src', value: '/static/app.css' }),
@@ -155,6 +176,38 @@ const MUTATIONS = {
       await page.addStyleTag({ content: '@media (forced-colors: active) { .y-brand__name > span { display: none !important; } }' });
     },
   },
+  'tile-in-light': {
+    target: 'light-mark-bare',
+    after: async (page) => {
+      if (await page.locator('.y-brand__mark').count() !== 1) notApplied('the header mark is not unique');
+      await page.addStyleTag({ content: ':root[data-theme="light"] .y-brand__mark { background: #F5F1E6 !important; }' });
+    },
+  },
+  // The system-dark rule loses its guard, so a stored light on a dark desk
+  // gets the tile too.
+  'widen-system-dark-tile': rewriteStylesheet(
+    /:root:not\(\[data-theme='light'\]\) \.y-brand__mark \{/g,
+    ':root .y-brand__mark {',
+    'light-mark-bare',
+  ),
+  // The system-dark rule loses its media query, so a reader with no stored
+  // choice on a light desk gets the tile too.
+  'unscope-system-dark-tile': rewriteStylesheet(
+    /@media \(prefers-color-scheme: dark\) \{(\s*:root:not\(\[data-theme='light'\]\) \.y-brand__mark \{)/g,
+    '@media all {$1',
+    'light-mark-bare',
+  ),
+  'drop-dark-tile': {
+    target: 'mark-ground',
+    after: (page) => injectRule(page, '.y-brand__mark', 'background: transparent !important;'),
+  },
+  'drop-system-dark-tile': {
+    target: 'mark-ground',
+    after: async (page) => {
+      if (await page.locator('.y-brand__mark').count() !== 1) notApplied('the header mark is not unique');
+      await page.addStyleTag({ content: '@media (prefers-color-scheme: dark) { :root:not([data-theme]) .y-brand__mark { background: transparent !important; } }' });
+    },
+  },
   'overflow-header': {
     target: 'header-fit',
     after: (page) => injectRule(page, '.y-header', 'min-width: 500px !important;'),
@@ -200,11 +253,11 @@ const analyseSVG = async (source) => {
   if (svgDocument.querySelector('parsererror')) return { issue: 'the served SVG cannot be parsed' };
   const root = svgDocument.documentElement;
   const paths = [...root.children];
-  if (paths.length !== 3 || paths.some((element) => element.localName !== 'path')) {
-    return { issue: `the served SVG has ${paths.length} direct children, want three paths` };
+  if (paths.length !== 2 || paths.some((element) => element.localName !== 'path')) {
+    return { issue: `the served SVG has ${paths.length} direct children, want two paths` };
   }
   const byPart = Object.fromEntries(paths.map((path) => [path.getAttribute('data-brand-part'), path]));
-  for (const part of ['cover', 'pages', 'obi']) {
+  for (const part of ['page', 'ribbon']) {
     if (!byPart[part]) return { issue: `the served SVG has no ${part} path` };
   }
 
@@ -228,46 +281,74 @@ const analyseSVG = async (source) => {
   });
   const color = (hex) => [1, 3, 5].map((offset) => Number.parseInt(hex.slice(offset, offset + 2), 16));
   const palettes = {
-    cover: color('#0F0F0F'),
-    pages: color('#F5F1E6'),
-    obi: color('#D62A0F'),
+    page: color('#282A2D'),
+    ribbon: color('#536D85'),
   };
-  const near = (pixels, wanted) => {
-    let count = 0;
+  // The two fills are about 119 apart, so a fixed distance alone would credit
+  // page pixels to the ribbon: each opaque pixel goes to whichever approved
+  // colour it is nearest, and only when that colour is within 120 of it, so
+  // a pixel of neither colour counts for neither part. The source palette is
+  // locked exactly by the SVG grammar test; this rendered lock asks whether
+  // each part still leaves a perceptually attributable pixel after real
+  // browser antialiasing.
+  const attribute = (pixels) => {
+    const counts = Object.fromEntries(Object.keys(palettes).map((part) => [part, 0]));
     for (let i = 0; i < pixels.length; i += 4) {
       if (pixels[i + 3] < 128) continue;
-      const distance = Math.hypot(pixels[i] - wanted[0], pixels[i + 1] - wanted[1], pixels[i + 2] - wanted[2]);
-      // At 16px the one-pixel diagonal fore-edge is necessarily blended with
-      // the surrounding ink. The source palette is locked exactly by the SVG
-      // grammar test; this rendered lock asks whether each part still leaves a
-      // perceptually attributable pixel after real browser antialiasing.
-      if (distance <= 120) count += 1;
+      let nearest = '';
+      let best = Infinity;
+      for (const [part, wanted] of Object.entries(palettes)) {
+        const distance = Math.hypot(pixels[i] - wanted[0], pixels[i + 1] - wanted[1], pixels[i + 2] - wanted[2]);
+        if (distance < best) {
+          best = distance;
+          nearest = part;
+        }
+      }
+      if (best <= 120) counts[nearest] += 1;
     }
-    return count;
+    return counts;
   };
 
   const rendered = {};
   for (const size of [16, 24, 32, 180]) {
     const result = await loadPixels(source, size);
     if (result.issue) return result;
-    rendered[size] = Object.fromEntries(Object.entries(palettes).map(([part, wanted]) => [part, near(result.pixels, wanted)]));
+    rendered[size] = attribute(result.pixels);
   }
 
-  const partSVG = (part) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path fill="${byPart[part].getAttribute('fill')}" d="${byPart[part].getAttribute('d')}"/></svg>`;
-  const pageLayer = await loadPixels(partSVG('pages'), 256);
-  const obiLayer = await loadPixels(partSVG('obi'), 256);
+  const partSVG = (part) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path fill="${byPart[part].getAttribute('fill')}" d="${byPart[part].getAttribute('d')}"/></svg>`;
+  const pageLayer = await loadPixels(partSVG('page'), 256);
+  const ribbonLayer = await loadPixels(partSVG('ribbon'), 256);
   if (pageLayer.issue) return pageLayer;
-  if (obiLayer.issue) return obiLayer;
+  if (ribbonLayer.issue) return ribbonLayer;
 
   const threshold = (pixels, index) => pixels[index * 4 + 3] >= 128;
   const pageMask = new Uint8Array(256 * 256);
-  // The title slip is pasted onto the cover's paper, so every one of its
-  // pixels has paper under it. A slip that has wandered onto the bound edge,
-  // or off the book altogether, shows up here as pixels with nothing beneath.
-  let slipOutside = 0;
+  const ribbonIndexes = [];
   for (let index = 0; index < pageMask.length; index += 1) {
     if (threshold(pageLayer.pixels, index)) pageMask[index] = 1;
-    if (threshold(obiLayer.pixels, index) && !threshold(pageLayer.pixels, index)) slipOutside += 1;
+    if (threshold(ribbonLayer.pixels, index)) ribbonIndexes.push(index);
+  }
+  // The ribbon lies along the page's curved cut with a channel of ground
+  // between them. The narrowest distance from any ribbon pixel to the page,
+  // in 256px pixels, is that channel; a ribbon run into the cut closes it.
+  const pageEdge = [];
+  for (let index = 0; index < pageMask.length; index += 1) {
+    if (pageMask[index] !== 1) continue;
+    const x = index % 256;
+    const y = Math.floor(index / 256);
+    const inside = (nx, ny) => nx >= 0 && nx < 256 && ny >= 0 && ny < 256 && pageMask[ny * 256 + nx] === 1;
+    if (!inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1)) pageEdge.push([x, y]);
+  }
+  let channel = Infinity;
+  for (const index of ribbonIndexes) {
+    const x = index % 256;
+    const y = Math.floor(index / 256);
+    if (pageMask[index] === 1) {
+      channel = 0;
+      break;
+    }
+    for (const [ex, ey] of pageEdge) channel = Math.min(channel, Math.hypot(x - ex, y - ey));
   }
 
   let components = 0;
@@ -315,7 +396,7 @@ const analyseSVG = async (source) => {
 
   return {
     rendered,
-    slipOutside,
+    channel: Number.isFinite(channel) ? Math.round(channel * 10) / 10 : -1,
     page: {
       components,
       sizes: componentSizes,
@@ -389,42 +470,101 @@ try {
 
   const analysis = await page.evaluate(analyseSVG, state.servedSVG);
   if (analysis.issue) broken(analysis.issue);
-  for (const [part, site] of Object.entries({ cover: 'cover-render', pages: 'pages-render', obi: 'obi-render' })) {
+  for (const [part, site] of Object.entries({ page: 'page-render', ribbon: 'ribbon-render' })) {
     for (const size of [16, 24, 32, 180]) {
       if (analysis.rendered[size][part] < 1) {
         fail(site, `${part} has no approved-colour pixel at ${size}px; counts = ${JSON.stringify(analysis.rendered[size])}`);
       }
     }
   }
-  // The warm ink draws two things: the cover's paper, which is one unbroken
-  // face, and the four stitches down the bound edge. So the mask holds one
-  // large region and four small ones — and the four are the whole point, since
-  // a book bound this way is named for them.
-  const [face, ...stitches] = analysis.page.sizes;
-  // Nearly all of the warm ink is the face; the stitches are a rounding error
-  // beside it. Measured as a share rather than a count, a face cut in two
-  // reports here — where the damage is — instead of surfacing downstream as a
-  // miscount of stitches.
-  if (analysis.page.pixels < 100 || analysis.page.height < 150 || analysis.page.width < 120 || !(face / analysis.page.pixels > 0.85)) {
-    fail('paper-is-one-face', `page mask = ${JSON.stringify(analysis.page)}, want one paper face spanning the cover`);
+  if (analysis.page.components !== 1 || analysis.page.height < 150 || analysis.page.width < 120) {
+    fail('page-is-one-face', `page mask = ${JSON.stringify(analysis.page)}, want one face spanning the mark`);
   }
-  if (stitches.length !== 4 || !stitches.every((size) => size > 20 && size < face / 10)) {
-    fail('four-stitches', `page mask = ${JSON.stringify(analysis.page)}, want four separate stitches beside the face`);
-  }
-  if (analysis.slipOutside !== 0) {
-    fail('slip-sits-on-the-paper', `the slip has ${analysis.slipOutside} pixels with no paper under them at 256px`);
+  // The drawn channel is about thirty pixels at 256px, three in the 24px
+  // header. Below sixteen it shrinks under a pixel and a half there and stops
+  // reading as ground between the two shapes.
+  if (analysis.channel < 16) {
+    fail('ribbon-clears-the-page', `the narrowest ground between ribbon and page is ${analysis.channel}px at 256px, want at least 16`);
   }
 
   await page.emulateMedia({ forcedColors: 'none' });
-  for (const theme of ['light', 'dark']) {
-    await page.evaluate((selected) => { document.documentElement.dataset.theme = selected; }, theme);
-    const visible = await page.locator('.y-brand__mark').evaluate((element) => {
+  // Each way a theme arrives: a stored choice on either desk, and no stored
+  // choice, which leaves <html> without data-theme, on either desk.
+  const themes = [
+    { name: 'light', theme: 'light', scheme: 'light', light: true },
+    { name: 'light on a dark desk', theme: 'light', scheme: 'dark', light: true },
+    { name: 'system light', theme: null, scheme: 'light', light: true },
+    { name: 'dark', theme: 'dark', scheme: 'light', light: false },
+    { name: 'dark on a dark desk', theme: 'dark', scheme: 'dark', light: false },
+    { name: 'system dark', theme: null, scheme: 'dark', light: false },
+  ];
+  const grounds = {};
+  for (const { name, theme, scheme, light } of themes) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.evaluate((selected) => {
+      if (selected === null) delete document.documentElement.dataset.theme;
+      else document.documentElement.dataset.theme = selected;
+    }, theme);
+    const mark = await page.locator('.y-brand__mark').evaluate((element) => {
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
-      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && rect.width === 24 && rect.height === 24;
+      // The ground the page shape is seen against: the mark's own background
+      // over the header's over the document's, composited the way they paint.
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      const header = element.closest('.y-header');
+      for (const layer of [document.documentElement, document.body, header, element]) {
+        if (!layer) continue;
+        context.fillStyle = getComputedStyle(layer).backgroundColor;
+        context.fillRect(0, 0, 1, 1);
+      }
+      const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+      context.clearRect(0, 0, 1, 1);
+      for (const layer of [document.documentElement, document.body, header]) {
+        if (!layer) continue;
+        context.fillStyle = getComputedStyle(layer).backgroundColor;
+        context.fillRect(0, 0, 1, 1);
+      }
+      const [hr, hg, hb] = context.getImageData(0, 0, 1, 1).data;
+      return {
+        visible: style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && rect.width === 24 && rect.height === 24,
+        background: style.backgroundColor,
+        ground: [r, g, b],
+        header: [hr, hg, hb],
+      };
     });
-    if (!visible) fail('theme-mark', `header mark is not a visible 24px projection in ${theme} theme`);
+    if (!mark.visible) fail('theme-mark', `header mark is not a visible 24px projection in ${name} theme`);
+    if (light && mark.background !== 'rgba(0, 0, 0, 0)') {
+      fail('light-mark-bare', `header mark background in the ${name} theme = ${mark.background}, want none`);
+    }
+    const luminance = (rgb) => {
+      const [r, g, b] = rgb.map((value) => {
+        const channel = value / 255;
+        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const contrast = (a, b) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const pageInk = [0x28, 0x2a, 0x2d];
+    const ribbonInk = [0x53, 0x6d, 0x85];
+    grounds[name] = {
+      page: Math.round(contrast(pageInk, mark.ground) * 100) / 100,
+      ribbon: Math.round(contrast(ribbonInk, mark.ground) * 100) / 100,
+      header: Math.round(contrast(mark.ground, mark.header) * 100) / 100,
+    };
+    // The page shape is the mark's silhouette; as a graphic it needs 3:1
+    // against what it is seen on.
+    if (grounds[name].page < 3) {
+      fail('mark-ground', `header mark page shape contrast in ${name} theme = ${grounds[name].page}:1 on rgb(${mark.ground}), want at least 3:1`);
+    }
   }
+  console.log(`brand-contract channel: ${analysis.channel}px at 256px; grounds: ${JSON.stringify(grounds)}`);
+  await page.emulateMedia({ colorScheme: 'light' });
 
   await page.emulateMedia({ forcedColors: 'active' });
   const forced = await page.evaluate(() => {
@@ -468,7 +608,7 @@ try {
     fail('header-fit', `360px header geometry = ${JSON.stringify(fit)}`);
   }
 
-  console.log(`PASS brand-contract: one canonical mark keeps its paper whole, its four stitches apart, and its slip on the paper, with an accessible projection, both themes, and a 360px fit`);
+  console.log(`PASS brand-contract: one canonical mark keeps its page whole and its ribbon clear of the page, with an accessible projection, a legible ground in every theme, and a 360px fit`);
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);
