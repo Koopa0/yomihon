@@ -1903,9 +1903,9 @@ func TestTheDeskOffersTheFilesAFolderHoldsWhenNoneIsANote(t *testing.T) {
 
 // TestTheRailHeadingOfARootNoteAnswers covers the one way out the rail offers a
 // reader who is in the vault root. The root is not a folder under the tree —
-// the route for one level refuses an empty path — so a heading that pointed
-// there sent the reader to a page that does not exist, and since the rail
-// stopped carrying the whole vault that heading is the only way out it has.
+// the route for one level refuses an empty path — so a path that pointed there
+// sent the reader to a page that does not exist, and since the rail stopped
+// carrying the whole vault that path is the only way out it has.
 func TestTheRailHeadingOfARootNoteAnswers(t *testing.T) {
 	t.Parallel()
 
@@ -1918,17 +1918,17 @@ func TestTheRailHeadingOfARootNoteAnswers(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET /notes/README.md status = %d, want 200", code)
 	}
-	const opener = `<a class="y-here__label" href="`
+	const opener = `<a class="y-where__path" href="`
 	_, rest, found := strings.Cut(body, opener)
 	if !found {
-		t.Fatal("the rail of a root note carries no heading for the folder it is in")
+		t.Fatal("the rail of a root note carries no path for the folder it is in")
 	}
 	href, _, closed := strings.Cut(rest, `"`)
 	if !closed {
-		t.Fatal("the rail heading's address is never closed")
+		t.Fatal("the rail path's address is never closed")
 	}
 	if code, _ = get(t, srv.Client(), srv.URL+href); code != http.StatusOK {
-		t.Errorf("the rail heading of a root note leads to %s, which answers %d, want %d", href, code, http.StatusOK)
+		t.Errorf("the rail path of a root note leads to %s, which answers %d, want %d", href, code, http.StatusOK)
 	}
 }
 

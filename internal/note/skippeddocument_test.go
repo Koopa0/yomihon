@@ -117,8 +117,8 @@ func TestSkippedMarkdownOpensAsADocument(t *testing.T) {
 				t.Error("the frontmatter block is read as part of the document")
 			}
 
-			// None of a note's furniture: no aids rail, no contents.
-			for _, absent := range []string{"y-rail-right", "y-toc"} {
+			// None of a note's furniture: no contents, no end block of aids.
+			for _, absent := range []string{"y-railtoc", "y-toc", "y-related"} {
 				if strings.Contains(body, absent) {
 					t.Errorf("the document carries note furniture: found %q", absent)
 				}
@@ -164,7 +164,7 @@ func TestSkippedMarkdownChangesNothingElse(t *testing.T) {
 	srv := newServerWithContract(t, skippedDocumentVault(t), loadContract(t))
 
 	_, noteBody := pageIn(t, srv, "/notes/Writing/guide.md", wording.En)
-	for _, want := range []string{"y-rail-right", "y-toc"} {
+	for _, want := range []string{"y-railtoc", "y-toc"} {
 		if !strings.Contains(noteBody, want) {
 			t.Errorf("the note page lost %q", want)
 		}

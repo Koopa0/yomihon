@@ -75,14 +75,10 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 	}
 
 	branch := page(dir + "Extra.md")
-	for _, want := range []string{
-		// The line above the title: the book, its part, and the word for a branch,
-		// as one link to the contents with this lesson marked.
-		`<div class="y-crumbs y-crumbs--course"><a class="y-crumbs__link" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FExtra.md">Go course · Start · 支線</a></div>`,
-	} {
-		if !strings.Contains(branch, want) {
-			t.Errorf("the branch lesson's head does not carry %q", want)
-		}
+	// Nothing stands above the title: the sidebar says which course and which
+	// part, so the line that used to name them is gone.
+	if strings.Contains(branch, "y-crumbs") {
+		t.Errorf("the branch lesson's head still draws a running head or a path above its title")
 	}
 	branchFoot := foot(branch)
 	for _, want := range []string{
