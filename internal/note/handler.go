@@ -392,12 +392,6 @@ func (h *Handler) reading(
 		readingRail.KeptNote = kept.RelPath
 	}
 	foot := pages.FooterSequence(&readingRail, lang)
-	// The line above the title names the book the note is a page of, where the
-	// rail resolved one; a note in no path keeps the folder's breadcrumb.
-	var running *pages.RunningHead
-	if head, ok := pages.RunningHeadOf(&readingRail); ok {
-		running = &head
-	}
 	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(snap, rel)
 	contract := h.enumContract(authority)
 	cause := blockedSource(snap, rel)
@@ -431,7 +425,6 @@ func (h *Handler) reading(
 		StepsOnward:        foot.Onward,
 		StepsToContents:    foot.ToContents,
 		StepsAsides:        foot.Asides,
-		Running:            running,
 		TOC:                result.Outline(),
 		BodyHTML:           result.HTML,
 		TitleAnchor:        result.TitleAnchor,

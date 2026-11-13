@@ -333,44 +333,6 @@ func FooterSequence(rail *ReadingRail, lang wording.Lang) Foot {
 	return Foot{Prev: prev, Next: next, Label: wording.FolderAdjacency.In(lang)}
 }
 
-// RunningHead is the line above the title of a note the reading rail resolved a
-// book for, the way a printed page carries the book's name at its top: the
-// path's own title, the part the note sits in, and for a lesson of a side branch
-// the word saying so. The whole line leads to the path's contents, with the
-// note marked on it.
-type RunningHead struct {
-	Title string
-	Href  string
-	// Part is empty where the note sits in no named part.
-	Part   string
-	Branch bool
-}
-
-// Text is the line as it reads, its parts joined by the middle dot the interface
-// puts between facts.
-func (h RunningHead) Text(lang wording.Lang) string {
-	branch := ""
-	if h.Branch {
-		branch = wording.BranchTag.In(lang)
-	}
-	return joinMarks(h.Title, h.Part, branch)
-}
-
-// RunningHeadOf answers the running head of the note the rail is for. ok is
-// false for a note the resolved book does not walk, and the page then keeps the
-// folder's breadcrumb: a note in no path has no book to be a page of.
-func RunningHeadOf(rail *ReadingRail) (head RunningHead, ok bool) {
-	if rail == nil || rail.neighbors.PathRelPath == "" {
-		return RunningHead{}, false
-	}
-	return RunningHead{
-		Title:  rail.neighbors.PathTitle,
-		Href:   courseHrefFrom(rail.neighbors.PathRelPath, rail.CurrentPath),
-		Part:   rail.place.Part,
-		Branch: rail.place.OnBranch,
-	}, true
-}
-
 // stepWordPrev and stepWordNext name a footer step for the order it walks: a
 // course hands over what it is made of, a folder merely the file beside this
 // one.

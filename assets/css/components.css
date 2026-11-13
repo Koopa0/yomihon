@@ -5305,14 +5305,16 @@ samp,
    note. The eye arrives the moment the jump does, so the echo plays at once;
    it used to be held back while the viewport was still travelling, which is a
    wait that no longer describes anything and would now simply delay the one
-   signal saying where the reader ended up. */
+   signal saying where the reader ended up. The wash is the ink's, as every
+   other state the interface is in is: vermilion belongs to the reader's own
+   marks, and a jump is not one. */
 .y-prose :target {
   animation: y-arrive var(--dur-dwell) var(--ease-standard);
 }
 @keyframes y-arrive {
   from {
-    background: var(--accent-muted);
-    box-shadow: 0 0 0 6px var(--accent-muted);
+    background: var(--wash-strong);
+    box-shadow: 0 0 0 6px var(--wash-strong);
   }
 
   to {
@@ -5987,7 +5989,6 @@ samp,
     --selected: transparent;
     --on-selected: #000;
     --accent: #000;
-    --accent-muted: transparent;
     --link: #000;
     --warn: #000;
     --warn-bg: transparent;

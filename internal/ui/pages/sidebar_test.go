@@ -859,7 +859,7 @@ func TestSidebarLeavesTheCurrentNotesDraftMarkToThePage(t *testing.T) {
 			t.Helper()
 			var buf bytes.Buffer
 			entry := PathEntryView{Kind: nav.EntryResolved, RelPath: rel, Href: "/notes/" + rel, Name: "L", Draft: true, Here: rel == current}
-			if err := bookRailEntry(layouts.Chrome{}, entry).Render(t.Context(), &buf); err != nil {
+			if err := bookRailEntry(layouts.Chrome{}, entry, nil).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render %s: %v", rel, err)
 			}
 			return buf.String()

@@ -53,7 +53,6 @@
      what they are not sure of yet. It marks no status, since a status is the
      author's word and not the reader's. ---- */
   --accent: light-dark(#a93a1f, #ee7b5b);
-  --accent-muted: light-dark(color-mix(in srgb, #a93a1f 12%, transparent), color-mix(in srgb, #ee7b5b 16%, transparent));
 
   /* ---- Links and focus: the author's voice, blue. ---- */
   --link: light-dark(#2b4c7e, #afc5ee);

@@ -139,8 +139,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"steps-branch-single-english", footOf(t, branchModel, "Writing/B1.md", wording.En)},
 		{"steps-branch-contents", footOf(t, branchModel, "Writing/E1.md", wording.ZhHant)},
 		{"steps-branch-anchor", footOf(t, branchModel, "Writing/C02.md", wording.ZhHant)},
-		{"articlehead-running", headOf(t, branchModel, "Writing/L1.md", wording.ZhHant)},
-		{"articlehead-running-english", headOf(t, branchModel, "Writing/L1.md", wording.En)},
+		{"articlehead-course-lesson", headOf(t, branchModel, "Writing/L1.md", wording.ZhHant)},
+		{"articlehead-course-lesson-english", headOf(t, branchModel, "Writing/L1.md", wording.En)},
 		// A course annotated the way its author writes one: a sentence beside each
 		// lesson, a side branch hanging from a lesson, an appendix after the
 		// last part, and something marked to be heard. The course above has
@@ -975,8 +975,8 @@ func recordedCompareView() CompareView {
 	}
 }
 
-// footOf and headOf are the foot and the running head of one lesson of the
-// branch course, drawn from the same calls the page makes.
+// footOf and headOf are the foot and the head of one lesson of the branch
+// course, drawn from the same calls the page makes.
 func footOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) templ.Component {
 	t.Helper()
 	_, view := footView(model, current, lang)
@@ -986,9 +986,6 @@ func footOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) t
 func headOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) templ.Component {
 	t.Helper()
 	_, view := footView(model, current, lang)
-	if view.Running == nil {
-		t.Fatalf("%s has no running head, so the recording would hold the folder's breadcrumb", current)
-	}
 	return articleHead(view, lang)
 }
 

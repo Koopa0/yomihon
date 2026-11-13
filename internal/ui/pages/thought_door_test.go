@@ -48,11 +48,13 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 			}
 			page := buf.String()
 
-			rows := regexp.MustCompile(`(?s)<div class="y-toc__row">(.*?)</div>`).FindAllStringSubmatch(page, -1)
-			// The list is drawn twice (rail and inline fold); each copy has one
-			// row per heading, never a second row for the door.
-			if len(rows) != 2*len(headings) {
-				t.Fatalf("contents rows = %d, want %d: two copies of %d rows", len(rows), 2*len(headings), len(headings))
+			// The contents hang under the row that is the note in the sidebar,
+			// which is where the list is drawn; one row per heading, never a
+			// second row for the door.
+			contents := renderedHTML(t, railContents(&view, tc.lang))
+			rows := regexp.MustCompile(`(?s)<div class="y-toc__row">(.*?)</div>`).FindAllStringSubmatch(contents, -1)
+			if len(rows) != len(headings) {
+				t.Fatalf("contents rows = %d, want %d: one per heading", len(rows), len(headings))
 			}
 			for i, row := range rows {
 				heading := headings[i%len(headings)]
@@ -72,8 +74,11 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 					t.Errorf("row %d door does not open the section handoff:\n%s", i, row[1])
 				}
 			}
-			if got := strings.Count(page, `class="y-toc__door"`); got != len(rows) {
+			if got := strings.Count(contents, `class="y-toc__door"`); got != len(rows) {
 				t.Errorf("section doors = %d, rows = %d; a door outside a row makes a second row", got, len(rows))
+			}
+			if strings.Contains(page, `class="y-toc__door"`) {
+				t.Errorf("the page draws section doors outside the sidebar's contents")
 			}
 
 			// The head ends where the prose begins, so the prose's own opening is

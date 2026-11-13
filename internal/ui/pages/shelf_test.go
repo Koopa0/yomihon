@@ -254,7 +254,7 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 	model := buildModel(t)
 	lang := wording.ZhHant
 	pages := map[string]ListIndexView{
-		courseMode:   NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
+		courseMode: NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
 		mapMode:    NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
 		reportMode: NewReportIndex(model.Reports(), lang, nil),
 		folderMode: NewFolderIndex(model, ContractGoverning, lang, nil),

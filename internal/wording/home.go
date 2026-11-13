@@ -38,14 +38,6 @@ var (
 	)
 )
 
-// The count of notes a folder holds. A study path's own count is UnitWords'.
-// Chinese does not inflect a noun for number and English does, so each count
-// is a pair. A tally that reads "1 notes" is the first thing a reader notices.
-var (
-	NoteCountOne  = both("%d 篇筆記", "%d note")
-	NoteCountMany = both("%d 篇筆記", "%d notes")
-)
-
 // NoStructureRead marks a study-path card whose zero is a fault rather than
 // an answer: the note lists things the grammar could not read as a course.
 // A path that genuinely plans nothing carries no mark, so the two zeroes

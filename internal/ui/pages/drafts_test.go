@@ -137,7 +137,7 @@ func TestTheBookRailMarksDraftsAndBookmarkByTheSameRules(t *testing.T) {
 		entry.Kind = nav.EntryResolved
 		entry.Href = "/notes/L.md"
 		entry.Name = "L"
-		return renderComponent(t, bookRailEntry(layouts.Chrome{Lang: lang}, entry))
+		return renderComponent(t, bookRailEntry(layouts.Chrome{Lang: lang}, entry, nil))
 	}
 
 	if html := row(PathEntryView{}, wording.En); strings.Contains(html, "ui-navitem__count") {
@@ -225,27 +225,21 @@ func TestTheNoteHeadMarksADraftInEachOfItsCopies(t *testing.T) {
 	}
 }
 
-// TestTheKeepControlWearsTheBookmarkOnlyWhereThePlaceIsInThisNote holds both
-// faces of the control: the rail's and the header's draw the reader's bookmark
-// through one attribute, with the sentence for a reader who cannot see it, and a
-// note that holds no kept place draws neither.
+// TestTheKeepControlWearsTheBookmarkOnlyWhereThePlaceIsInThisNote holds the
+// header's control: it draws the reader's bookmark through one attribute, and a
+// note that holds no kept place draws none. It is the page's only control for
+// the verb, so nothing else on the page can disagree with it about where the
+// place is.
 func TestTheKeepControlWearsTheBookmarkOnlyWhereThePlaceIsInThisNote(t *testing.T) {
 	t.Parallel()
-
-	view := NoteView{RelPath: "a.md", ContentIdentity: "abc", MarkAddress: "/mark"}
-	if html := renderComponent(t, markControl(view, wording.En)); strings.Contains(html, " data-mark-kept") || strings.Contains(html, "y-offscreen") {
-		t.Errorf("a note that holds no kept place draws the bookmark or says it does: %s", html)
-	}
-	view.PlaceKept = true
-	rail := renderComponent(t, markControl(view, wording.En))
-	if !strings.Contains(rail, " data-mark-kept") || !strings.Contains(rail, `<span class="y-offscreen">Your place is kept.</span>`) {
-		t.Errorf("the rail's control does not wear the bookmark where the note holds the place: %s", rail)
-	}
 
 	for kept, want := range map[bool]bool{true: true, false: false} {
 		header := renderComponent(t, layouts.Base(layouts.Chrome{Lang: wording.En, Mark: &layouts.MarkOffer{Path: "a.md", Identity: "abc", Endpoint: "/mark", Kept: kept}}))
 		if got := strings.Contains(header, " data-mark-kept"); got != want {
 			t.Errorf("header control with Kept=%v draws data-mark-kept = %v, want %v", kept, got, want)
+		}
+		if got := strings.Count(header, "data-mark-control"); got != 1 {
+			t.Errorf("header control with Kept=%v is drawn %d times, want 1", kept, got)
 		}
 	}
 }

@@ -351,3 +351,25 @@ func TestTheReducedMotionBlanketReachesThePageContent(t *testing.T) {
 		t.Errorf("page content at %d is not inside the root element at %d, so the blanket would not reach it; html = %q", child, root, html)
 	}
 }
+
+// TestTheJumpedToHeadingEchoIsInkNotVermilion holds the wash a jump leaves on
+// the heading it lands on to the ink the interface's other states use. Vermilion
+// belongs to the reader's own marks, the bookmark and the diamond, and a jump
+// is not one: a heading that flashed red said "you marked this" about a place
+// the reader had only arrived at. The keyframes are read for what they name, so
+// a different color token spelled for the same wash is caught too.
+func TestTheJumpedToHeadingEchoIsInkNotVermilion(t *testing.T) {
+	t.Parallel()
+	css := readSheet(t, "components.css")
+	frames := regexp.MustCompile(`(?s)@keyframes y-arrive \{(.*?)\n\}`).FindAllStringSubmatch(css, -1)
+	if len(frames) != 1 {
+		t.Fatalf("components.css writes %d @keyframes y-arrive blocks, want 1", len(frames))
+	}
+	body := frames[0][1]
+	if strings.Contains(body, "--accent") {
+		t.Errorf("the jumped-to heading's echo names a vermilion token: %q; vermilion is the reader's own marks and nothing else", squeeze(body))
+	}
+	if !strings.Contains(body, "var(--wash-strong)") {
+		t.Errorf("the jumped-to heading's echo = %q, want the ink wash --wash-strong the interface's other states use", squeeze(body))
+	}
+}

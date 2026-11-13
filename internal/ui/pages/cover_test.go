@@ -498,10 +498,10 @@ func TestAPathOfNotesThatAreNotLessonsNamesNoLessonAnywhere(t *testing.T) {
 	}
 }
 
-// TestNoKickerEndsInASeparator holds the line above a path's title on both pages
-// that carry it. The line is the whole of what it says, so there is nothing
-// after it for a separator to join to, and a mark left at its end reads as a
-// sentence that stopped.
+// TestNoKickerEndsInASeparator holds the line above a course's title on the page
+// that carries one, the listening page. The line is the whole of what it says,
+// so there is nothing after it for a separator to join to, and a mark left at
+// its end reads as a sentence that stopped.
 func TestNoKickerEndsInASeparator(t *testing.T) {
 	t.Parallel()
 
@@ -513,22 +513,17 @@ func TestNoKickerEndsInASeparator(t *testing.T) {
 		{wording.ZhHant, "課程"},
 		{wording.En, "Course"},
 	} {
-		pages := map[string]string{
-			"cover":  renderedHTML(t, Syllabus(PathView{Title: "Path"}, layouts.Chrome{Lang: tt.lang})),
-			"listen": renderedHTML(t, Listen(ListenView{Title: "Path"}, layouts.Chrome{Lang: tt.lang})),
+		html := renderedHTML(t, Listen(ListenView{Title: "Path"}, layouts.Chrome{Lang: tt.lang}))
+		found := kicker.FindStringSubmatch(html)
+		if found == nil {
+			t.Errorf("the listen page in %s carries no kicker; the check below proves nothing", tt.lang)
+			continue
 		}
-		for name, html := range pages {
-			found := kicker.FindStringSubmatch(html)
-			if found == nil {
-				t.Errorf("the %s in %s carries no kicker; the check below proves nothing", name, tt.lang)
-				continue
-			}
-			if found[1] != tt.want {
-				t.Errorf("the %s kicker in %s reads %q, want %q", name, tt.lang, found[1], tt.want)
-			}
-			if strings.HasSuffix(strings.TrimSpace(found[1]), "·") {
-				t.Errorf("the %s kicker in %s ends in a separator: %q", name, tt.lang, found[1])
-			}
+		if found[1] != tt.want {
+			t.Errorf("the listen kicker in %s reads %q, want %q", tt.lang, found[1], tt.want)
+		}
+		if strings.HasSuffix(strings.TrimSpace(found[1]), "·") {
+			t.Errorf("the listen kicker in %s ends in a separator: %q", tt.lang, found[1])
 		}
 	}
 }
