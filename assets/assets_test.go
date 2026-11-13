@@ -122,7 +122,7 @@ func TestReadmesStartWithTheBrandHeading(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			readme, err := os.ReadFile("../" + name)
+			readme, err := os.ReadFile("../" + name) // #nosec G304 -- one of the two README names this test lists
 			if err != nil {
 				t.Fatalf("read repository %s: %v", name, err)
 			}
