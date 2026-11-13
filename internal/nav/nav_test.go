@@ -647,9 +647,44 @@ func TestNewKeepsZeroEntryMap(t *testing.T) {
 	writeNavFixture(t, root, "Maps/Empty.md", "---\ntype: moc\n---\n# Empty map\n\n## Shelf\n- [[Unwritten]]\n")
 	roles, policy := testCapabilities(t)
 	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
-	want := []Map{{Title: "Empty map", RelPath: "Maps/Empty.md", Type: "moc"}}
+	want := []Map{{Title: "Empty map", RelPath: "Maps/Empty.md", Type: "moc", Empty: []EmptyBranch{{Heading: "Shelf", Level: 2}}}}
 	if diff := cmp.Diff(want, model.Maps()); diff != "" {
 		t.Errorf("New zero-entry Maps mismatch (-want +got):\n%s", diff)
+	}
+}
+
+// TestAMapNamesTheHeadingsNoNoteStandsUnder holds what the tree leaves out and
+// the whole-folder page says: a heading is empty when no note stands under it
+// or under any heading beneath it, at any depth, in document order. A heading
+// whose child holds a note is not empty, and a link that resolves to nothing, or
+// that sits inside a fence, puts no note under anything.
+func TestAMapNamesTheHeadingsNoNoteStandsUnder(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Notes/A.md", "---\ntype: note\n---\n# A\n")
+	writeNavFixture(t, root, "Maps/Subject.md", "---\ntype: moc\n---\n# Subject\n\n"+
+		"## Parent\n\nProse only.\n\n### Held\n- [[A]]\n\n### Waiting\n\nNothing yet.\n\n"+
+		"## Fenced\n\n```\n- [[A]]\n```\n\n## Dead link\n- [[Nobody wrote this]]\n\n## Outer\n\n### Inner\n\n#### Innermost\n")
+	roles, policy := testCapabilities(t)
+	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+	maps := model.Maps()
+	if len(maps) != 1 {
+		t.Fatalf("the model holds %d maps, want 1", len(maps))
+	}
+	want := []EmptyBranch{
+		{Heading: "Waiting", Level: 3},
+		{Heading: "Fenced", Level: 2},
+		{Heading: "Dead link", Level: 2},
+		{Heading: "Outer", Level: 2},
+		{Heading: "Inner", Level: 3},
+		{Heading: "Innermost", Level: 4},
+	}
+	if diff := cmp.Diff(want, maps[0].Empty); diff != "" {
+		t.Errorf("the headings no note stands under (-want +got):\n%s", diff)
+	}
+	if len(maps[0].Branches) != 1 || maps[0].Branches[0].Heading != "Parent" {
+		t.Errorf("the tree is no longer the one holding a note: %+v", maps[0].Branches)
 	}
 }
 

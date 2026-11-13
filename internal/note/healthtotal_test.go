@@ -10,34 +10,34 @@ import (
 	"testing"
 )
 
-// deskHealthFindings is the number the desk's way to the health page states,
-// carried on the element beside the words so a reader of this file does not
-// have to parse a sentence in two languages to learn what the desk claims.
-var deskHealthFindings = regexp.MustCompile(`data-home-health-findings="(\d+)"`)
+// statedTotal is the number the health page's shape line states for the whole
+// report, which is zero where the page draws no shape line because it has
+// nothing to tabulate.
+var statedTotal = regexp.MustCompile(`<span class="y-healthshape__total">(\d+) `)
 
-// deskHealthClaim is the number the desk states.
-func deskHealthClaim(t *testing.T, page string) int {
+// healthClaim is the number the page states.
+func healthClaim(t *testing.T, page string) int {
 	t.Helper()
-	claim := deskHealthFindings.FindStringSubmatch(page)
+	claim := statedTotal.FindStringSubmatch(page)
 	if claim == nil {
-		t.Fatal("the page carries no way to the health page from the desk")
+		return 0
 	}
 	count, err := strconv.Atoi(claim[1])
 	if err != nil {
-		t.Fatalf("the desk claims %q findings, which is no number: %v", claim[1], err)
+		t.Fatalf("the page states %q findings, which is no number: %v", claim[1], err)
 	}
 	return count
 }
 
-// TestTheDeskStatesWhatTheHealthTableHolds is the one instrument standing
-// between two faces of the same number. The desk says how many things the
-// folder has to answer for, and the health page lists them with a count on
-// each line; if those two are ever worked out separately, they disagree the day
-// one of them learns about a kind of finding the other does not.
+// TestTheHealthPageStatesWhatItsTableHolds is the one instrument standing
+// between two faces of the same number. The page says how many things the
+// folder has to answer for above its table and lists them with a count on each
+// line; if those two are ever worked out separately, they disagree the day one
+// of them learns about a kind of finding the other does not.
 //
-// The comparison is made on bytes a reader could have read: the desk's claim,
+// The comparison is made on bytes a reader could have read: the stated total,
 // and the sum of the lines the table actually drew.
-func TestTheDeskStatesWhatTheHealthTableHolds(t *testing.T) {
+func TestTheHealthPageStatesWhatItsTableHolds(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -59,15 +59,11 @@ func TestTheDeskStatesWhatTheHealthTableHolds(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
-	code, desk := get(t, srv.Client(), srv.URL+"/")
-	if code != http.StatusOK {
-		t.Fatalf("desk status = %d, want 200", code)
-	}
-	claimed := deskHealthClaim(t, desk)
 	code, page := get(t, srv.Client(), srv.URL+"/health")
 	if code != http.StatusOK {
 		t.Fatalf("health status = %d, want 200", code)
 	}
+	claimed := healthClaim(t, page)
 
 	drawn := 0
 	rows := rowCount.FindAllStringSubmatch(page, -1)
@@ -85,11 +81,11 @@ func TestTheDeskStatesWhatTheHealthTableHolds(t *testing.T) {
 		t.Fatal("the table's lines add up to nothing, so this fixture states nothing for the desk to agree with")
 	}
 	if claimed != drawn {
-		t.Errorf("the desk claims %d findings and the table's %d lines hold %d", claimed, len(rows), drawn)
+		t.Errorf("the page states %d findings and the table's %d lines hold %d", claimed, len(rows), drawn)
 	}
 }
 
-func TestHealthAndDeskDoNotCountNavigationEntriesAsIslands(t *testing.T) {
+func TestHealthDoesNotCountNavigationEntriesAsIslands(t *testing.T) {
 	t.Parallel()
 	for _, unlisted := range []bool{false, true} {
 		name := "complete course"
@@ -109,16 +105,12 @@ func TestHealthAndDeskDoNotCountNavigationEntriesAsIslands(t *testing.T) {
 				notes["Writing/Unlisted.md"] = "---\nslug: unlisted\ntype: lesson\ncreated: 2026-06-01\n---\n# Unlisted\n\nLesson text.\n"
 			}
 			srv := newServerWithContract(t, writeNotes(t, notes), loadHomeContract(t))
-			code, desk := get(t, srv.Client(), srv.URL+"/")
-			if code != http.StatusOK {
-				t.Fatalf("GET / status = %d, want 200", code)
-			}
-			if got := deskHealthClaim(t, desk); got != want {
-				t.Errorf("caught: desk count = %d, want %d", got, want)
-			}
 			code, page := get(t, srv.Client(), srv.URL+"/health?page=all")
 			if code != http.StatusOK {
 				t.Fatalf("GET /health status = %d, want 200", code)
+			}
+			if got := healthClaim(t, page); got != want {
+				t.Errorf("caught: stated total = %d, want %d", got, want)
 			}
 			rows := rowCount.FindAllStringSubmatch(page, -1)
 			if len(rows) != want {

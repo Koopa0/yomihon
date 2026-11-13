@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -63,8 +64,8 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 			if got := strings.Count(block, "data-desk-item"); got != 5 {
 				t.Errorf("open desk rows = %d, want exactly five", got)
 			}
-			if got := strings.Count(block, "ui-navitem--wrap"); got != 5 {
-				t.Errorf("open desk rows preserving their source location = %d, want five", got)
+			if got := strings.Count(block, "data-open-kind"); got != 5 {
+				t.Errorf("open desk rows drawn as open rows = %d, want five", got)
 			}
 			if !strings.Contains(block, `href="/open-thoughts"`) || !strings.Contains(block, `class="ui-navitem y-shelfall"`) {
 				t.Error("open desk does not expose the existing All shelf link")
@@ -73,7 +74,7 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 			if got := strings.Count(all, "data-index-row"); got != 8 {
 				t.Errorf("complete open shelf rows = %d, want eight", got)
 			}
-			for _, want := range []string{"Outside the layer", "Thought 1", "[[Source#Chapter]]", `href="/notes/Source.md#chapter"`} {
+			for _, want := range []string{"Outside the layer", "Thought 1", "Source › Chapter", `href="/notes/Source.md#chapter"`} {
 				if !strings.Contains(all, want) {
 					t.Errorf("complete open shelf is missing %q", want)
 				}
@@ -148,8 +149,8 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 }
 
 // TestOpenThoughtsEmptySaysWhatTheShelfHolds pins the empty shelf of a vault
-// that declares a thought type: the lede names both sources, the count says
-// none, and the marks-only sentence — which would leave the thoughts out — is
+// that declares a thought type: the lede names both sources, no count is
+// stated, and the marks-only sentence — which would leave the thoughts out — is
 // not said.
 func TestOpenThoughtsEmptySaysWhatTheShelfHolds(t *testing.T) {
 	t.Parallel()
@@ -161,8 +162,9 @@ func TestOpenThoughtsEmptySaysWhatTheShelfHolds(t *testing.T) {
 		if !strings.Contains(page, wording.OpenThoughtsLede.In(lang)) {
 			t.Errorf("%s: the lede does not say the shelf holds marks and unfinished thoughts", lang.Tag())
 		}
-		if !strings.Contains(page, fmt.Sprintf(wording.OpenThoughtsCount.In(lang), 0)) {
-			t.Errorf("%s: the empty shelf does not count none", lang.Tag())
+		main, _, _ := strings.Cut(page[strings.Index(page, "<main"):], "</main>")
+		if digits := regexp.MustCompile(`[0-9]+`).FindString(regexp.MustCompile(`<[^>]*>`).ReplaceAllString(main, " ")); digits != "" {
+			t.Errorf("%s: the empty shelf states a number, and the shelf counts nothing: %q", lang.Tag(), digits)
 		}
 		if strings.Contains(page, wording.OpenThoughtsMarksEmpty.In(lang)) {
 			t.Errorf("%s: the empty shelf speaks of marks alone in a vault that declares thoughts", lang.Tag())
@@ -186,8 +188,8 @@ func TestOpenThoughtsSkipsDeclaredNonInstances(t *testing.T) {
 			t.Errorf("GET %s lists a declared non-instance as an open thought", address)
 		}
 	}
-	if !strings.Contains(openThoughtPage(t, site, "/open-thoughts", "en"), "1 item") {
-		t.Error("the count includes the non-instance")
+	if got := strings.Count(openThoughtPage(t, site, "/open-thoughts", "en"), "data-open-kind"); got != 1 {
+		t.Errorf("the shelf lists %d rows, want 1: the non-instance is not an open thought", got)
 	}
 }
 
@@ -235,7 +237,7 @@ func TestOpenThoughtsKeepsAMarkWhoseNoteIsNotInTheSnapshot(t *testing.T) {
 				want := struct {
 					Rows                                            int
 					StoredPath, Missing, Count, RealMark, FalseLink bool
-				}{Rows: 2, StoredPath: true, Missing: true, Count: true, RealMark: true}
+				}{Rows: 2, StoredPath: true, Missing: true, RealMark: true}
 				if diff := cmp.Diff(want, got); diff != "" {
 					t.Errorf("caught: GET %s lost-mark projection mismatch (-want +got):\n%s", address, diff)
 				}
@@ -244,10 +246,10 @@ func TestOpenThoughtsKeepsAMarkWhoseNoteIsNotInTheSnapshot(t *testing.T) {
 	}
 }
 
-// TestOpenThoughtsHomeShowsFiveAndCountsEveryOne pins that the desk's block is
+// TestOpenThoughtsHomeShowsFiveAndStatesNoCount pins that the desk's block is
 // a window onto the shelf rather than a second selection: it draws the five
-// rows it has room for and counts every thought the shelf holds.
-func TestOpenThoughtsHomeShowsFiveAndCountsEveryOne(t *testing.T) {
+// rows it has room for, and states no number for the seven the shelf holds.
+func TestOpenThoughtsHomeShowsFiveAndStatesNoCount(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	putOpenThoughtFile(t, root, schema.ContractRelPath, openThoughtContract)
@@ -259,8 +261,10 @@ func TestOpenThoughtsHomeShowsFiveAndCountsEveryOne(t *testing.T) {
 	if got := strings.Count(openThoughtBlock(t, home), "data-desk-item"); got != 5 {
 		t.Errorf("Home rows = %d, want five", got)
 	}
-	if !strings.Contains(openThoughtBlock(t, home), "7 items") {
-		t.Error("Home's count is not the shelf's whole count")
+	// The head of the block is its name and nothing beside it: a figure would
+	// stand in a paragraph there.
+	if _, head, _ := strings.Cut(openThoughtBlock(t, home), `<header class="y-homeblock__head">`); !strings.HasPrefix(head, "<h2") || strings.Contains(strings.SplitN(head, "</header>", 2)[0], "<p>") {
+		t.Errorf("Home states something beside the name of the block: %q", strings.SplitN(head, "</header>", 2)[0])
 	}
 	if got := strings.Count(openThoughtPage(t, site, "/open-thoughts", "en"), "data-index-row"); got != 7 {
 		t.Errorf("complete shelf rows = %d, want seven", got)

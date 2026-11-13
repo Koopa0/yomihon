@@ -176,7 +176,7 @@ func Folder(v FolderView, c layouts.Chrome) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = ShelfPage(v.Shelf).Render(ctx, templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = ShelfPage(v.Shelf, c.Lang).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

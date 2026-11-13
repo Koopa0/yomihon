@@ -19,8 +19,12 @@ import (
 // are none of them written yet — shows no rows here and is not empty, so it
 // still says how much it holds and still offers the way on. limit is how many
 // rows there is room for; a negative one is read as none.
-templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
-	<section class="y-homeblock y-modeblock" data-home-block={ id } aria-labelledby={ "home-" + id + "-title" }>
+//
+// A shelf that leads the desk is the one a reader came for, so its rows are the
+// largest text on the page: the desk of a reader who kept no place opens on the
+// courses, one to a line, at the size a page's own title is set at.
+templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang, lead bool) {
+	<section class={ "y-homeblock y-modeblock", templ.KV("y-modeblock--lead", lead) } data-home-block={ id } aria-labelledby={ "home-" + id + "-title" }>
 		<header class="y-homeblock__head">
 			<h2 id={ "home-" + id + "-title" }><a href={ templ.URL(s.Href) }>{ s.Title }</a></h2>
 			if s.Count != "" {
@@ -35,7 +39,11 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
 			}
 		} else {
 			for _, row := range shelfRows(&s, limit) {
-				@shelfRowLink(row)
+				if s.Open {
+					@openRow(row, lang, true)
+				} else {
+					@shelfRowLink(row)
+				}
 			}
 			<a class="ui-navitem y-shelfall" href={ templ.URL(s.Href) }>{ wording.ShelfAll.In(lang) }</a>
 		}
@@ -86,11 +94,11 @@ templ ShelfRail(s Shelf, limit int, dir, more string) {
 // full width, a block being a corner of the shelf rather than a listing.
 templ shelfRowLink(row Row) {
 	if row.Href == "" {
-		<span class={ "ui-navitem", templ.KV("ui-navitem--wrap", row.Wrap), templ.KV("ui-navitem--by-title", row.ByTitle) } data-desk-item>
+		<span class={ "ui-navitem", templ.KV("ui-navitem--by-title", row.ByTitle) } data-desk-item>
 			@shelfNarrowBody(row)
 		</span>
 	} else {
-		<a class={ "ui-navitem", templ.KV("ui-navitem--wrap", row.Wrap), templ.KV("ui-navitem--by-title", row.ByTitle) } href={ templ.URL(row.Href) } data-desk-item>
+		<a class={ "ui-navitem", templ.KV("ui-navitem--by-title", row.ByTitle) } href={ templ.URL(row.Href) } data-desk-item>
 			@shelfNarrowBody(row)
 		</a>
 	}
@@ -139,13 +147,89 @@ templ shelfRemoval(row Row) {
 // desk shows a corner of, which is what keeps a block from ever listing
 // something its page does not. The name, the measure and the sentence belong to
 // the page's own header, which states them once above this.
-templ ShelfPage(s Shelf) {
+templ ShelfPage(s Shelf, lang wording.Lang) {
 	if len(s.Rows) > 0 {
-		<div class="y-list">
+		<div class={ "y-list", templ.KV("y-list--open", s.Open) }>
 			for _, row := range s.Rows {
-				@shelfPageRow(row)
+				if s.Open {
+					@openRow(row, lang, false)
+				} else {
+					@shelfPageRow(row)
+				}
 			}
 		</div>
+	}
+}
+
+// openRow is one thing the reader left open, on the desk and on the shelf: what
+// kind of thing it is and the day, then its name and the place in it that was
+// marked, then the sentence found there as the note reads now, then the notes a
+// thought says it came from. The name is the one link; the sentence and the
+// sources are what a reader scans to remember what the row was about, so they
+// are not inside it, and a row can offer a way back into the source of a
+// thought without nesting one link in another.
+//
+// A row that leads nowhere is still listed when it is itself a fault — a mark
+// whose note or place is gone — and is written as text rather than as a link,
+// with the one removal the reader has for it.
+templ openRow(row Row, lang wording.Lang, onDesk bool) {
+	<div class="y-openitem" { openRowAttrs(row, onDesk)... }>
+		<p class="y-openitem__meta">
+			if row.Mark != "" {
+				<span class={ "y-openitem__tag", templ.KV("y-openitem__tag--thought", row.Thought), templ.KV("y-openitem__tag--fault", row.Fault) }>{ row.Mark }</span>
+			}
+			if row.Draft {
+				<span class="ui-status">{ wording.Draft.In(lang) }</span>
+			}
+			if row.When != "" {
+				<time datetime={ row.When }>{ row.When }</time>
+			}
+		</p>
+		if row.Href == "" {
+			<span class="y-openitem__name" { authoredLanguageAttrs(row.Language)... }>@openRowName(row)</span>
+		} else {
+			<a class="y-openitem__name" href={ templ.URL(row.Href) } { authoredLanguageAttrs(row.Language)... }>@openRowName(row)</a>
+		}
+		if row.Opening != "" {
+			<p class="y-openitem__opening" { authoredLanguageAttrs(row.Language)... }>{ row.Opening }</p>
+		}
+		if len(row.Sources) > 0 {
+			<p class="y-openitem__sources">
+				<span>{ wording.BasedOn.In(lang) }</span>
+				for _, source := range row.Sources {
+					if source.Href == "" {
+						<span { authoredLanguageAttrs(source.Language)... }>{ source.Text }</span>
+					} else {
+						<a href={ templ.URL(source.Href) } { authoredLanguageAttrs(source.Language)... }>{ source.Text }</a>
+					}
+				}
+			</p>
+		}
+		@shelfRemoval(row)
+	</div>
+}
+
+// openRowName is the name of a thing left open and, joined to it by the
+// course-to-section sign, the place in it the reader marked.
+templ openRowName(row Row) {
+	<span class="y-openitem__title">{ row.Text }</span>
+	if row.Place.Text != "" {
+		<span class="y-openitem__sign" aria-hidden="true">›</span>
+		<span class="y-openitem__place" { authoredLanguageAttrs(row.Place.Language)... }>{ row.Place.Text }</span>
+	}
+}
+
+// shelfOrder is the group of buttons that reorders a shelf. Each submits the
+// page's own address with the order it names, so it is a plain GET with no
+// script, and the one the shelf is in is marked pressed.
+templ shelfOrder(o ShelfOrder, action string) {
+	if len(o.Choices) > 0 {
+		<form class="y-order" method="get" action={ templ.URL(action) } role="group" aria-labelledby="shelf-order-label" data-shelf-order>
+			<span class="y-order__label" id="shelf-order-label">{ o.Label }</span>
+			for _, choice := range o.Choices {
+				<button type="submit" name="order" value={ choice.Value } aria-pressed={ strconv.FormatBool(choice.Pressed) }>{ choice.Text }</button>
+			}
+		</form>
 	}
 }
 

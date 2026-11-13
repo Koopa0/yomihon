@@ -269,13 +269,19 @@ func enumReadingSurfaces(t *testing.T, rel, body string, contract *schema.Contra
 			if sink == "note" {
 				nodes = enumSchemaNotices(page)
 			} else {
-				nodes = enumElements(page, func(n *html.Node) bool {
-					return n.Data == "tr" && len(enumElements(n, func(link *html.Node) bool {
-						return link.Data == "a" && enumAttribute(link, "href") == href
-					})) == 1 && len(enumElements(n, func(label *html.Node) bool {
-						return enumHasClass(label, "y-findings__kind") && enumText(label) == wording.HealthSchemaTitle.In(lang)
+				// The row stands in the group named for notes that do not meet
+				// the schema: the kind is the group's heading, not a word in the row.
+				for _, group := range enumElements(page, func(n *html.Node) bool {
+					return n.Data == "section" && enumHasClass(n, "y-healthgroup") && len(enumElements(n, func(title *html.Node) bool {
+						return enumHasClass(title, "y-healthgroup__title") && enumText(title) == wording.HealthSchemaTitle.In(lang)
 					})) == 1
-				})
+				}) {
+					nodes = append(nodes, enumElements(group, func(n *html.Node) bool {
+						return n.Data == "tr" && len(enumElements(n, func(link *html.Node) bool {
+							return link.Data == "a" && enumAttribute(link, "href") == href
+						})) == 1
+					})...)
+				}
 			}
 			if invalid && len(nodes) != 1 {
 				t.Errorf("caught: "+marker+" field=%s type=%s sink=%s lang=%s target-container got=%d want=1", field, kind, sink, lang, len(nodes))

@@ -3,6 +3,7 @@ package pages
 import (
 	"bytes"
 	"encoding/json"
+	"html"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -88,8 +89,12 @@ var healthFindingFields = map[string]healthFindingField{
 // standing notices that say the reading is not the folder as it is now — drawn
 // above the table, where sorting and paging cannot move them — how the table
 // is ordered, which stretch of it is on screen, and the navigation beside it.
+//
+// Two more are not findings by their nature: how the folder's maps cover it,
+// said in two groups of their own that appear only when something is in them.
 var healthUnfoundFields = []string{
 	"IslandCount", "InstanceScopeUnknown", "SchemaScopeUnknown", "LastComplete", "Notices", "Sort", "Page", "Sidebar",
+	"UnmappedConcepts", "EmptyBranches",
 }
 
 var healthTestNote = nav.NoteRef{Name: "L01", RelPath: "Writing/lessons/go/L01.md"}
@@ -234,38 +239,294 @@ func TestAnUnreadableOrderingLeavesTheDefault(t *testing.T) {
 	}
 }
 
-// TestOrderingByAColumnReordersTheRows is what the header links promise. Each
-// ordering is checked by the property it claims rather than against a written
-// sequence, so a fixture grown by one row does not have to be re-typed here.
-func TestOrderingByAColumnReordersTheRows(t *testing.T) {
-	t.Parallel()
-	view := recordedHealthView(buildModel(t))
+// groupTables is one page's tables, in the order they stand: the heading each is
+// drawn under and what its rows say, read off the page.
+type groupTable struct {
+	title    string
+	files    []string
+	weights  []int
+	counts   []int
+	hasAbout bool
+}
 
+var groupTitle = regexp.MustCompile(`(?s)<h2 class="y-healthgroup__title"[^>]*>(.*?)</h2>`)
+
+// healthTables reads the findings groups of a rendered view: a table to each
+// kind, under that kind's own heading.
+func healthTables(t *testing.T, view *HealthView) []groupTable {
+	t.Helper()
+	var out []groupTable
+	for _, chunk := range strings.Split(renderHealth(t, view), `<section class="y-healthgroup"`)[1:] {
+		if !strings.Contains(chunk, `class="y-findings"`) {
+			continue
+		}
+		table := groupTable{hasAbout: strings.Contains(chunk, `class="y-healthabout"`)}
+		if m := groupTitle.FindStringSubmatch(chunk); m != nil {
+			table.title = html.UnescapeString(strings.TrimSpace(tagOrSpace.ReplaceAllString(m[1], " ")))
+		}
+		for _, m := range fileCell.FindAllStringSubmatch(chunk, -1) {
+			table.files = append(table.files, strings.TrimSpace(tagOrSpace.ReplaceAllString(m[1], " ")))
+		}
+		for _, m := range countCell.FindAllStringSubmatch(chunk, -1) {
+			count, err := strconv.Atoi(m[1])
+			if err != nil {
+				t.Fatalf("a row counted %q, which is no number: %v", m[1], err)
+			}
+			table.counts = append(table.counts, count)
+		}
+		for _, m := range severityCell.FindAllStringSubmatch(chunk, -1) {
+			switch word := strings.TrimSpace(tagOrSpace.ReplaceAllString(m[1], " ")); word {
+			case "":
+				table.weights = append(table.weights, -1)
+			case judge.SeverityWarn.String():
+				table.weights = append(table.weights, int(judge.SeverityWarn))
+			case judge.SeverityError.String():
+				table.weights = append(table.weights, int(judge.SeverityError))
+			default:
+				t.Fatalf("a row shows %q as a weight, which is no word the judging face uses", word)
+			}
+		}
+		out = append(out, table)
+	}
+	return out
+}
+
+// orderedView is a report whose two multi-row kinds are in neither file order,
+// weight order nor count order as they are gathered, so that each ordering has
+// something to move and what it moved is not what it found.
+func orderedView() HealthView {
+	note := func(name string) nav.NoteRef { return nav.NoteRef{Name: name, RelPath: "Notes/" + name + ".md"} }
+	return HealthView{
+		Unwritten: []snapshot.HealthLink{
+			{From: note("Zed"), Target: "a"}, {From: note("Zed"), Target: "b"},
+			{From: note("Alpha"), Target: "c"},
+			{From: note("Mid"), Target: "d"}, {From: note("Mid"), Target: "e"}, {From: note("Mid"), Target: "f"},
+		},
+		SchemaFaults: []HealthNoteFindings{
+			{Note: note("Zed"), Severity: judge.SeverityWarn, Count: 1},
+			{Note: note("Alpha"), Severity: judge.SeverityError, Count: 2},
+			{Note: note("Mid"), Severity: judge.SeverityError, Count: 5},
+		},
+		Sort: HealthByFinding,
+	}
+}
+
+// TestOrderingByAColumnReordersTheRowsOfEachKindAndNeverMixesTheKinds is what
+// the header links promise now that the report is read by kind. Each ordering is
+// checked by the property it claims, inside each table, rather than against a
+// written sequence; and the tables themselves, which are the kinds, stand in
+// the same order whatever the rows are ordered by.
+func TestOrderingByAColumnReordersTheRowsOfEachKindAndNeverMixesTheKinds(t *testing.T) {
+	t.Parallel()
+	view := orderedView()
 	view.Sort = HealthByFinding
-	byFinding := healthRowFiles(t, &view)
+	byFinding := healthTables(t, &view)
+	if len(byFinding) != 2 {
+		t.Fatalf("the fixture draws %d tables, want the unwritten links and the schema faults", len(byFinding))
+	}
+	titles := func(tables []groupTable) []string {
+		var out []string
+		for _, table := range tables {
+			out = append(out, table.title)
+		}
+		return out
+	}
 
 	view.Sort = HealthByFile
-	byFile := healthRowFiles(t, &view)
-	if slices.Equal(byFinding, byFile) {
-		t.Errorf("ordering by file left the rows exactly as they were: %v", byFile)
-	}
-	if !slices.IsSorted(byFile) {
-		t.Errorf("ordering by file did not put the files in order: %v", byFile)
-	}
-
+	byFile := healthTables(t, &view)
 	view.Sort = HealthBySeverity
-	weights := healthRowWeights(t, &view)
-	if slices.Equal(weights, healthRowWeightsUnsorted(t, &view)) {
-		t.Error("the fixture's rows are already in weight order, so ordering by weight proves nothing here")
-	}
-	if !slices.IsSortedFunc(weights, func(a, b int) int { return b - a }) {
-		t.Errorf("ordering by weight did not put the heaviest first: %v", weights)
-	}
-
+	byWeight := healthTables(t, &view)
 	view.Sort = HealthByCount
-	counts := healthRowCounts(t, &view)
-	if !slices.IsSortedFunc(counts, func(a, b int) int { return b - a }) {
-		t.Errorf("ordering by count did not put the fullest first: %v", counts)
+	byCount := healthTables(t, &view)
+
+	for name, tables := range map[string][]groupTable{"file": byFile, "weight": byWeight, "count": byCount} {
+		if diff := cmp.Diff(titles(byFinding), titles(tables)); diff != "" {
+			t.Errorf("ordering by %s moved a kind: the tables are no longer in the order the kinds are declared in (-default +got):\n%s", name, diff)
+		}
+	}
+	for i, table := range byFile {
+		if !slices.IsSorted(table.files) {
+			t.Errorf("ordering by file did not put the files of %q in order: %v", table.title, table.files)
+		}
+		if slices.Equal(table.files, byFinding[i].files) {
+			t.Errorf("ordering by file left the rows of %q exactly as they were: %v", table.title, table.files)
+		}
+	}
+	for i, table := range byWeight {
+		if !slices.IsSortedFunc(table.weights, func(a, b int) int { return b - a }) {
+			t.Errorf("ordering by weight did not put the heaviest of %q first: %v", table.title, table.weights)
+		}
+		if i == 1 && slices.Equal(table.weights, byFinding[i].weights) {
+			t.Errorf("the fixture's schema faults are already in weight order, so ordering by weight proves nothing here: %v", table.weights)
+		}
+	}
+	for i, table := range byCount {
+		if !slices.IsSortedFunc(table.counts, func(a, b int) int { return b - a }) {
+			t.Errorf("ordering by count did not put the fullest of %q first: %v", table.title, table.counts)
+		}
+		if slices.Equal(table.counts, byFinding[i].counts) {
+			t.Errorf("the rows of %q are already in count order, so ordering by count proves nothing here: %v", table.title, table.counts)
+		}
+	}
+}
+
+// TestEveryKindIsATableUnderItsOwnNameWithOnlyItsExplanationFolded holds what
+// the fold may hold. Each kind of finding is a section with its own name, a fold
+// that starts closed and carries the sentence saying what the kind means, and a
+// table; the sentence is in the fold and nowhere else, and everything found —
+// the file, the evidence, the weight, the count — is in the table, outside it.
+func TestEveryKindIsATableUnderItsOwnNameWithOnlyItsExplanationFolded(t *testing.T) {
+	t.Parallel()
+	for name, field := range healthFindingFields {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+				var view HealthView
+				field.fill(&view)
+				var buf bytes.Buffer
+				if err := Health(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
+					t.Fatal(err)
+				}
+				page := buf.String()
+				sections := strings.Split(page, `<section class="y-healthgroup"`)[1:]
+				if len(sections) != 1 {
+					t.Fatalf("%s: %d groups drawn for one filled field, want 1", lang, len(sections))
+				}
+				section := sections[0]
+				kind := healthRows(&view, lang)[0].Kind
+				if m := groupTitle.FindStringSubmatch(section); m == nil || html.UnescapeString(strings.TrimSpace(tagOrSpace.ReplaceAllString(m[1], " "))) != kind.title(lang) {
+					t.Errorf("%s: the group is not named %q: %s", lang, kind.title(lang), section)
+				}
+				fold, table, found := strings.Cut(section, "</details>")
+				if !found || !strings.Contains(fold, `<details class="y-healthabout">`) || strings.Contains(fold, "<details class=\"y-healthabout\" open") {
+					t.Fatalf("%s: the group has no closed fold: %s", lang, section)
+				}
+				if !strings.Contains(fold, `>`+wording.HealthAbout.In(lang)+`</summary>`) && !strings.Contains(fold, wording.HealthAbout.In(lang)) {
+					t.Errorf("%s: the fold is not named %q: %s", lang, wording.HealthAbout.In(lang), fold)
+				}
+				lede := html.EscapeString(view.kindLede(kind, lang))
+				if !strings.Contains(fold, lede) {
+					t.Errorf("%s: the fold does not hold the explanation %q: %s", lang, lede, fold)
+				}
+				if strings.Contains(table, lede) {
+					t.Errorf("%s: the explanation is drawn outside the fold too", lang)
+				}
+				for _, cell := range []string{`class="y-findings__file"`, `class="y-findings__count"`} {
+					if strings.Contains(fold, cell) || !strings.Contains(table, cell) {
+						t.Errorf("%s: %s is not drawn in the table outside the fold", lang, cell)
+					}
+				}
+			}
+		})
+	}
+}
+
+// healthRows is the rows a view gathers, for a test that needs to know what
+// kind a filled field produced.
+func healthRows(view *HealthView, lang wording.Lang) []healthRow {
+	return view.rows(lang)
+}
+
+// TestTheStandingOfUnreadableFilesIsNotFoldedAway holds the one fact a group
+// states about itself: how old the rest of the page is when files could not be
+// read. It is a diagnosis and not an explanation, so it is in the group's own
+// line, outside the fold, whether or not a read has ever been complete.
+func TestTheStandingOfUnreadableFilesIsNotFoldedAway(t *testing.T) {
+	t.Parallel()
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		for _, last := range []string{"", "2026-07-10 09:30"} {
+			view := HealthView{Blocked: []HealthBlockedSource{{Path: "A.md", Reason: "permission denied"}}, LastComplete: last}
+			var buf bytes.Buffer
+			if err := Health(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
+				t.Fatal(err)
+			}
+			fold, outside, _ := strings.Cut(buf.String(), "</details>")
+			want := view.kindStanding(healthBlocked, lang)
+			if want == "" || (last != "" && !strings.Contains(want, last)) {
+				t.Fatalf("%s: the standing of the unreadable files is %q for a last complete read of %q", lang, want, last)
+			}
+			if !strings.Contains(outside, `<p class="y-healthgroup__standing">`+html.EscapeString(want)+`</p>`) {
+				t.Errorf("%s: the standing %q is not drawn in the group's own line", lang, want)
+			}
+			if strings.Contains(fold, html.EscapeString(want)) {
+				t.Errorf("%s: the standing %q is behind the fold", lang, want)
+			}
+		}
+	}
+}
+
+// TestTheCoverageGroupsAppearOnlyWhenTheyHoldSomethingAndAreNoFindings holds the
+// two groups that say how the maps cover the folder. Each draws only when it has
+// something in it; neither is a table, a weight or a count; and neither makes a
+// folder with nothing wrong with it less than clear, so the all-clear is still
+// said above them.
+func TestTheCoverageGroupsAppearOnlyWhenTheyHoldSomethingAndAreNoFindings(t *testing.T) {
+	t.Parallel()
+	concept := nav.NoteRef{Name: "Idea", RelPath: "Concepts/Idea.md", Language: "en"}
+	branch := snapshot.HealthEmptyBranch{Map: nav.NoteRef{Name: "Go", RelPath: "Maps/Go.md"}, Heading: "Waiting", Level: 2}
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		concepts, branches := wording.HealthUnmappedConceptsTitle.In(lang), wording.HealthEmptyBranchesTitle.In(lang)
+		for _, tt := range []struct {
+			name             string
+			view             HealthView
+			wantConcepts     bool
+			wantBranches     bool
+			wantInsideBranch string
+		}{
+			{name: "neither", view: HealthView{}},
+			{name: "concepts only", view: HealthView{UnmappedConcepts: []nav.NoteRef{concept}}, wantConcepts: true},
+			{name: "branches only", view: HealthView{EmptyBranches: []snapshot.HealthEmptyBranch{branch}}, wantBranches: true, wantInsideBranch: "Waiting"},
+			{name: "both", view: HealthView{UnmappedConcepts: []nav.NoteRef{concept}, EmptyBranches: []snapshot.HealthEmptyBranch{branch}}, wantConcepts: true, wantBranches: true, wantInsideBranch: "Waiting"},
+		} {
+			var buf bytes.Buffer
+			if err := Health(tt.view, layouts.Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
+				t.Fatal(err)
+			}
+			page := buf.String()
+			if got := strings.Contains(page, `>`+concepts+`</h2>`); got != tt.wantConcepts {
+				t.Errorf("%s %s: unmapped-concept group drawn = %v, want %v", lang, tt.name, got, tt.wantConcepts)
+			}
+			if got := strings.Contains(page, `>`+branches+`</h2>`); got != tt.wantBranches {
+				t.Errorf("%s %s: empty-branch group drawn = %v, want %v", lang, tt.name, got, tt.wantBranches)
+			}
+			if got := strings.Contains(page, `data-health-coverage="concepts"`); got != tt.wantConcepts {
+				t.Errorf("%s %s: the concept group's marker = %v, want %v", lang, tt.name, got, tt.wantConcepts)
+			}
+			if tt.wantInsideBranch != "" && !strings.Contains(page, `>`+tt.wantInsideBranch+`</span>`) {
+				t.Errorf("%s %s: the empty heading %q is not named", lang, tt.name, tt.wantInsideBranch)
+			}
+			for _, drawn := range []string{"<table", `class="y-severity`, `class="y-healthshape`} {
+				if strings.Contains(page, drawn) {
+					t.Errorf("%s %s: a coverage group draws %q: a table, a weight or a total", lang, tt.name, drawn)
+				}
+			}
+			if !strings.Contains(page, `data-nothing="health"`) {
+				t.Errorf("%s %s: the coverage groups took the all-clear away from a folder with nothing wrong", lang, tt.name)
+			}
+		}
+	}
+}
+
+// TestTheCoverageGroupsStandAfterTheLastTableOfTheReport holds where they are
+// drawn when there are findings too: after every table, and on the last page of
+// a report that runs to several, so a reader stepping through the report meets
+// them once and not on every page.
+func TestTheCoverageGroupsStandAfterTheLastTableOfTheReport(t *testing.T) {
+	t.Parallel()
+	branch := snapshot.HealthEmptyBranch{Map: nav.NoteRef{Name: "Go", RelPath: "Maps/Go.md"}, Heading: "Waiting", Level: 2}
+	view := pagedHealthView(pagedReport)
+	view.EmptyBranches = []snapshot.HealthEmptyBranch{branch}
+	lastPage := (pagedReport + healthPageSize - 1) / healthPageSize
+	for _, asked := range []PageNumber{1, 2, PageNumber(lastPage), AllPages} {
+		view.Page = asked
+		page := renderHealth(t, &view)
+		drawn := strings.Contains(page, `data-health-coverage="branches"`)
+		if want := asked == PageNumber(lastPage) || asked == AllPages; drawn != want {
+			t.Errorf("page %v draws the coverage groups = %v, want %v", asked, drawn, want)
+		}
+		if drawn && strings.Index(page, `data-health-coverage="branches"`) < strings.LastIndex(page, `<table class="y-findings">`) {
+			t.Errorf("page %v draws the coverage groups before a table of findings", asked)
+		}
 	}
 }
 
@@ -347,15 +608,6 @@ func healthRowWeights(t *testing.T, view *HealthView) []int {
 		t.Fatal("no row of the findings table has a weight cell")
 	}
 	return out
-}
-
-// healthRowWeightsUnsorted is the same list in the page's default order, which
-// is what ordering by weight has to be shown to have changed.
-func healthRowWeightsUnsorted(t *testing.T, view *HealthView) []int {
-	t.Helper()
-	unordered := *view
-	unordered.Sort = HealthByFinding
-	return healthRowWeights(t, &unordered)
 }
 
 // readRecording is one recorded page, read back as text.

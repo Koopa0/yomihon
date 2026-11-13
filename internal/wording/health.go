@@ -10,8 +10,8 @@ var HealthTitle = both("整體狀況", "Health")
 // otherwise indistinguishable from a page that checked nothing. It also names
 // what this page does not cover, and where that is checked instead.
 var HealthAllClear = both(
-	"這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有正文連過來，沒有名字被兩個檔案同時使用，status 值都在 schema 的清單裡。frontmatter 少了必填欄位不歸這一頁管——那些請跑 ",
-	"Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, no name is claimed by two files, and every status is in the schema's list. Frontmatter missing a required field is not this page's business — for those, run ",
+	"這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有正文連過來，沒有名字被兩個檔案同時使用。frontmatter 少了必填欄位不歸這一頁管——那些請跑 ",
+	"Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, and no name is claimed by two files. Frontmatter missing a required field is not this page's business — for those, run ",
 )
 
 // HealthAllClearAfterCommand closes that sentence after the command it names.
@@ -19,8 +19,8 @@ var HealthAllClearAfterCommand = both("。", ".")
 
 // HealthReportsOnly is the promise the whole page rests on.
 var HealthReportsOnly = both(
-	"這裡只回報，不會動你的檔案。",
-	"This page reports and never touches your files.",
+	"這一頁只回報，不會修改你的檔案。",
+	"This page reports and never changes your files.",
 )
 
 // The lede over unreadable files, which changes with whether a complete read
@@ -103,12 +103,17 @@ var (
 	HealthShapeFilesMany = both("%d 個檔案", "%d files")
 )
 
-// HealthGuideTitle opens what each kind of finding in the table means. The
-// explanations sit under the table rather than over it: a reader who came to
-// decide what to repair first wants the rows, and a reader who does not know
-// what a row is claiming wants the sentence — and only the second is reading
-// prose.
-var HealthGuideTitle = both("每一種發現是什麼意思", "What each kind of finding means")
+// HealthAbout is the fold over each group's explanation. What the fold holds
+// says what a kind of finding means; the findings themselves, and how many,
+// are never behind it.
+var HealthAbout = both("說明", "About this")
+
+// The two groups that say how the folder's maps cover it. They appear only when
+// something is in them, and neither is a finding.
+var (
+	HealthUnmappedConceptsTitle = both("還沒連到地圖的概念", "Concepts no map links to")
+	HealthEmptyBranchesTitle    = both("沒有筆記的地圖分支", "Map branches with no notes")
+)
 
 // ContractUnreadable is the one loud sentence for a vault whose contract file
 // exists and could not be loaded: without it, a folder with a broken contract
