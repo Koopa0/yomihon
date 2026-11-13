@@ -89,7 +89,7 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 			for _, address := range []string{"/", "/open-thoughts"} {
 				page := lostMarkRequest(t, mux, http.MethodGet, address, "", tt.lang)
 				assertLostMarksUnchanged(t, mux, tt.lang, before)
-				marker, warning := "data-index-row", "y-row__measure--warn"
+				marker, warning := "data-index-row", "y-openitem__tag--fault"
 				if address == "/" {
 					_, block, ok := strings.Cut(page, `data-home-block="open-thoughts"`)
 					if !ok {
@@ -99,9 +99,9 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 					if !ok {
 						t.Fatal("Home block is not closed")
 					}
-					marker, warning = "data-desk-item", "ui-navitem__count--warn"
+					marker = "data-desk-item"
 				}
-				texts := []string{"Own title — <span", ">#chapter</span>"}
+				texts := []string{">Own title</span>", ">#chapter</span>"}
 				if tt.noteGone {
 					texts = []string{"Lost &lt;note&gt;.md"}
 				}
@@ -126,19 +126,19 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 				classes, _, closedClasses := strings.Cut(classes, `"`)
 				gatedRemove := hasClasses && closedClasses && slices.Contains(strings.Fields(classes), "y-markset")
 				got := struct {
-					Rows                                                                                                  int
-					Text, Missing, Fault, Count, Link, DeadFragment, Remove, Pair, NativeRemove, OutsideLink, GatedRemove bool
+					Rows                                                                                                    int
+					Text, Missing, Fault, Counted, Link, DeadFragment, Remove, Pair, NativeRemove, OutsideLink, GatedRemove bool
 				}{
-					Rows: strings.Count(page, marker), Text: hasText, Missing: strings.Contains(page, tt.missing), Fault: strings.Contains(page, warning), Count: strings.Contains(page, tt.count),
+					Rows: strings.Count(page, marker), Text: hasText, Missing: strings.Contains(page, tt.missing), Fault: strings.Contains(page, warning), Counted: strings.Contains(inMain(page), tt.count),
 					Link: strings.Contains(page, `href="/notes/Lost%20%3Cnote%3E.md"`), DeadFragment: strings.Contains(page, `href="/notes/Lost%20%3Cnote%3E.md#chapter"`),
 					Remove:       strings.Contains(page, "data-uncertainty-remove") && strings.Contains(page, tt.remove),
 					NativeRemove: strings.Contains(button, `type="button"`) && strings.Contains(button, "disabled"), OutsideLink: outsideLink, GatedRemove: gatedRemove,
 					Pair: strings.Contains(page, `data-uncertainty-endpoint="/uncertainties"`) && strings.Contains(page, `data-uncertainty-path="Lost &lt;note&gt;.md"`) && strings.Contains(page, `data-uncertainty-anchor="chapter"`),
 				}
 				want := struct {
-					Rows                                                                                                  int
-					Text, Missing, Fault, Count, Link, DeadFragment, Remove, Pair, NativeRemove, OutsideLink, GatedRemove bool
-				}{Rows: 1, Text: true, Missing: true, Fault: true, Count: true, Link: !tt.noteGone, Remove: true, Pair: true, NativeRemove: true, OutsideLink: true, GatedRemove: true}
+					Rows                                                                                                    int
+					Text, Missing, Fault, Counted, Link, DeadFragment, Remove, Pair, NativeRemove, OutsideLink, GatedRemove bool
+				}{Rows: 1, Text: true, Missing: true, Fault: true, Counted: false, Link: !tt.noteGone, Remove: true, Pair: true, NativeRemove: true, OutsideLink: true, GatedRemove: true}
 				if diff := cmp.Diff(want, got); diff != "" {
 					t.Errorf("caught: GET %s lost mark mismatch (-want +got):\n%s", address, diff)
 				}
@@ -153,6 +153,15 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 			}
 		})
 	}
+}
+
+// inMain is the page's own region: the header and the palette carry sentences
+// of their own, a count among them, and are not what is asked about.
+func inMain(page string) string {
+	if _, main, ok := strings.Cut(page, "<main"); ok {
+		return main
+	}
+	return page
 }
 
 func lostMarkRequest(t *testing.T, mux http.Handler, method, address, body, lang string) string {
@@ -235,7 +244,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 				got := struct {
 					CapturedTitle, CapturedLink, LaterTitle, Missing bool
 				}{
-					CapturedTitle: strings.Contains(page, "Captured title — <span>Chapter</span>"), CapturedLink: strings.Contains(page, `href="/notes/Source.md#chapter"`),
+					CapturedTitle: strings.Contains(page, ">Captured title</span>") && strings.Contains(page, ">Chapter</span>"), CapturedLink: strings.Contains(page, `href="/notes/Source.md#chapter"`),
 					LaterTitle: strings.Contains(page, "Later title"), Missing: strings.Contains(page, "Location not found"),
 				}
 				want := struct {
@@ -268,7 +277,8 @@ func assertLostMarkPair(t *testing.T, mux http.Handler, lang, rel, anchor string
 }
 
 // Catches sorting after lost-row classification: the lost path must occupy its
-// stored position before Home cuts to five, and the total still includes six.
+// stored position before Home cuts to five, while the shelf still lists all six
+// and neither says how many there are.
 func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	root := t.TempDir()
 	for _, fixture := range []struct {
@@ -360,35 +370,14 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 			if !ok {
 				t.Fatal("Home block is not closed")
 			}
-			var titles []string
-			for _, fragment := range strings.Split(block, "data-desk-item")[1:] {
-				// The dated row leads with the date span, then the authored title.
-				_, afterDate, ok := strings.Cut(fragment, "</span>")
-				if !ok {
-					t.Fatal("dated desk row has no date span")
-				}
-				_, titleElement, ok := strings.Cut(afterDate, "<span")
-				if !ok {
-					t.Fatal("dated desk row has no title span")
-				}
-				_, titleText, ok := strings.Cut(titleElement, ">")
-				if !ok {
-					t.Fatal("desk title span has no opening end")
-				}
-				title, _, ok := strings.Cut(titleText, "</span>")
-				if !ok {
-					t.Fatal("desk title span has no closing end")
-				}
-				titles = append(titles, shelfText(t, title))
-			}
 			got := struct {
-				Titles    []string
-				FullCount bool
-			}{Titles: titles, FullCount: strings.Contains(block, tt.count)}
+				Titles  []string
+				Counted bool
+			}{Titles: openNames(t, block), Counted: strings.Contains(block, tt.count)}
 			want := struct {
-				Titles    []string
-				FullCount bool
-			}{Titles: []string{"Newest", "Z title — Alpha", "Z title — Beta", "A title", "Missing.md"}, FullCount: true}
+				Titles  []string
+				Counted bool
+			}{Titles: []string{"Newest", "Z title › Alpha", "Z title › Beta", "A title", "Missing.md"}}
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("caught: stored-field Home ordering mismatch (-want +got):\n%s", diff)
 			}
@@ -418,22 +407,38 @@ func assertLostMarksUnchanged(t *testing.T, mux http.Handler, lang string, want 
 	}
 }
 
-func shelfText(t *testing.T, fragment string) string {
+// openNames is the name each open row draws, in the order the rows stand: the
+// words of the one element that carries them, with the place joined by the sign.
+func openNames(t *testing.T, fragment string) []string {
 	t.Helper()
 	root, err := html.Parse(strings.NewReader(fragment))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var text strings.Builder
+	var names []string
+	var text func(*html.Node, *strings.Builder)
+	text = func(node *html.Node, out *strings.Builder) {
+		if node.Type == html.TextNode {
+			out.WriteString(node.Data)
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			text(child, out)
+		}
+	}
 	var walk func(*html.Node)
 	walk = func(node *html.Node) {
-		if node.Type == html.TextNode {
-			text.WriteString(node.Data)
+		if node.Type == html.ElementNode && slices.ContainsFunc(node.Attr, func(a html.Attribute) bool {
+			return a.Key == "class" && slices.Contains(strings.Fields(a.Val), "y-openitem__name")
+		}) {
+			var out strings.Builder
+			text(node, &out)
+			names = append(names, strings.Join(strings.Fields(out.String()), " "))
+			return
 		}
 		for child := node.FirstChild; child != nil; child = child.NextSibling {
 			walk(child)
 		}
 	}
 	walk(root)
-	return text.String()
+	return names
 }

@@ -1,6 +1,10 @@
 package pages
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/a-h/templ"
+)
 
 // OpenThoughtsHomeRows is how many open-thought rows the desk has room for.
 const OpenThoughtsHomeRows = 5
@@ -43,6 +47,18 @@ type Shelf struct {
 	// listing means differs by organisation and only the owner knows it.
 	Empty string
 	Rows  []Row
+	// Open says the rows are things the reader left open rather than documents
+	// the vault lists: each is drawn as what kind of thing it is, the day, the
+	// place it names and the sentence found there, not as a name and a measure.
+	Open bool
+}
+
+// RowSource is a note a row declares as the one it came from, and the place in
+// it when the declaration names one.
+type RowSource struct {
+	Text     string
+	Href     string
+	Language string
 }
 
 // UncertaintyRemoval identifies the original stored mark a reader may remove.
@@ -72,9 +88,14 @@ type Row struct {
 	Place RowPlace
 	// Removal is present only for a lost uncertainty mark.
 	Removal *UncertaintyRemoval
-	// Wrap preserves a location or declaration that must stay readable even
-	// on the narrow desk, rather than shortening the dated row with ellipsis.
-	Wrap bool
+	// Thought says the row is a note of the reader's own, and not a place they
+	// marked. Draft says it declares itself unfinished, which a thought on the
+	// shelf of what was left open always does.
+	Thought bool
+	Draft   bool
+	// Sources are the notes this row declares it came from, in the order the
+	// author wrote them.
+	Sources []RowSource
 	// Href is where the row leads, and is empty for a row that is listed
 	// without being a stop: a lesson nobody has written yet is still part of
 	// the course, and saying so is not the same as offering to open it.
@@ -88,6 +109,8 @@ type Row struct {
 	// Opening is the document's own first line, lent to the listing so a row
 	// says what is inside it without being opened. It is empty where the
 	// document has none to lend, and a width with no room for it leaves it out.
+	// On a shelf of what was left open it is the first sentence of the place
+	// the row names, read from the note as it is now.
 	Opening string
 	// ByTitle says the row is read for what the document is called, so the name
 	// opens it and the day follows. A shelf of reports is read for what each
@@ -160,4 +183,71 @@ func shelfRows(s *Shelf, limit int) []Row {
 		rows = append(rows, *row)
 	}
 	return rows
+}
+
+// ShelfOrder is the choice of how a shelf is ordered, offered as a group of
+// buttons that submit the page's own address, so it works with no script and
+// remembers nothing: a shelf opens in its default order every time. A shelf
+// with one order draws none, and the zero value is that.
+type ShelfOrder struct {
+	// Label names the group and Choices are its members, each carrying the
+	// value the page's query takes.
+	Label   string
+	Choices []ShelfOrderChoice
+}
+
+// ShelfOrderChoice is one way to order a shelf, and whether the shelf is
+// ordered that way now.
+type ShelfOrderChoice struct {
+	Value   string
+	Text    string
+	Pressed bool
+}
+
+// openRowAttrs states what kind of thing an open row is, so a check names the
+// kind by what it is rather than by the words, which change with the language,
+// and marks the row as the desk's or the shelf's own, as every other row is.
+func openRowAttrs(row Row, onDesk bool) templ.Attributes {
+	attrs := templ.Attributes{"data-open-kind": "mark"}
+	switch {
+	case row.Fault:
+		attrs["data-open-kind"] = "lost"
+	case row.Thought:
+		attrs["data-open-kind"] = "thought"
+	}
+	if onDesk {
+		attrs["data-desk-item"] = true
+	} else {
+		attrs["data-index-row"] = true
+	}
+	return attrs
+}
+
+// OpenOrder is how the shelf of what the reader left open is ordered, and the
+// closed set a request may name. It is never remembered: the shelf opens
+// newest first every time.
+type OpenOrder string
+
+const (
+	// OpenNewest puts the most recently marked or written first. It is the
+	// order the shelf opens in.
+	OpenNewest OpenOrder = "newest"
+	// OpenBySource keeps together everything that came from one note: the
+	// places marked in it and the thoughts written from it.
+	OpenBySource OpenOrder = "source"
+	// OpenOldest puts the longest-standing first.
+	OpenOldest OpenOrder = "oldest"
+)
+
+// OpenOrders is every order, in the order the choices are drawn.
+var OpenOrders = []OpenOrder{OpenNewest, OpenBySource, OpenOldest}
+
+// ParseOpenOrder reads the order a request asked for. A word outside the set
+// leaves the shelf in the order it opens in, because the reader asked for the
+// shelf and how it is ordered is how it is laid out.
+func ParseOpenOrder(value string) OpenOrder {
+	if slices.Contains(OpenOrders, OpenOrder(value)) {
+		return OpenOrder(value)
+	}
+	return OpenNewest
 }

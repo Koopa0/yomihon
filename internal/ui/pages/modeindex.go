@@ -42,6 +42,9 @@ type ListIndexView struct {
 	// such as the reader's own marks. It carries its complete translated words.
 	Notice string
 	Shelf  Shelf
+	// Order is how the reader may reorder the rows; empty where there is one
+	// order.
+	Order ShelfOrder
 }
 
 // RecentBlock is what changed last, and the words the list is entitled to. It

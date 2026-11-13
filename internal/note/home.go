@@ -61,7 +61,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	privacy := snap.PrivacyPolicy().Claim()
 	privacyFault, privacyRestart := statedAsFaults(lang, faultCause{privacy.Diagnostic(), privacy.Reason()})
 	kept, hasMark := h.sources.Continuation()
-	open, openFault := h.openThoughtShelf(snap, lang, pages.OpenThoughtsHomeRows)
+	open, openFault := h.openThoughtShelf(snap, lang, pages.OpenThoughtsHomeRows, pages.OpenNewest)
 	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
 		open = pages.Shelf{}
 	}
