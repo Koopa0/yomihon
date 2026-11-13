@@ -12,45 +12,117 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-// TestSystemDarkPreferenceGetsTheWholeDarkPalette holds the stylesheet's two
-// dark entrances together. A reader who chose dark enters through the
-// [data-theme="dark"] attribute the server stamps; a reader who chose nothing
-// on a dark system enters through the prefers-color-scheme media block. Both
-// must land in the same room: the media block is a second copy of the dark
-// declarations, and a value edited in one and not the other would give the
-// unchosen dark a subtly different palette nobody designed. The comparison is
-// declaration-for-declaration so any drift names the exact token.
+// TestEveryColourTokenIsOnePairDeclaredOnce holds the palette to the shape that
+// keeps the two themes from drifting apart. Each colour token is written once,
+// on the root, as light-dark(light, dark), so a value cannot be edited for one
+// theme and forgotten in the other. The theme itself is the root's
+// color-scheme, and the ways into it — a stored choice on the attribute, a
+// dark system for a reader who stored none — set that and nothing else: a
+// token declared again inside one of them would be the second copy this shape
+// exists to remove.
 //
-// The media rule excludes only an explicit light choice, because a stored
-// choice must keep beating the system either way — dark-on-dark repeats the
-// same values, light-on-dark escapes the block entirely.
-func TestSystemDarkPreferenceGetsTheWholeDarkPalette(t *testing.T) {
+// A colour literal outside light-dark() is a colour chosen for one theme only.
+// The overlay mask is the one such value: a fixed black wash that reads over
+// either theme's surfaces, so it has no dark twin to keep in step.
+func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 	t.Parallel()
 	const path = "../../../assets/css/tokens.css"
 	source, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error = %v", path, err)
 	}
-	css := string(source)
 
-	chosen := cssDeclarations(t, ruleBody(t, css, `[data-theme='dark'] {`))
+	pairs := map[string][]string{}
+	schemes := map[string]string{}
+	singleTheme := 0
+	for _, rule := range parseRules(t, withoutComments(string(source)), nil) {
+		where := strings.Join(append(slices.Clone(rule.within), rule.selector), " ")
+		declarations := cssDeclarations(t, rule.body)
+		if strings.Contains(rule.selector, "data-theme") || slices.ContainsFunc(rule.within, func(at string) bool {
+			return strings.Contains(at, "prefers-color-scheme")
+		}) {
+			if names := slices.Sorted(maps.Keys(declarations)); !slices.Equal(names, []string{"color-scheme"}) {
+				t.Errorf("%s declares %v; a way into a theme sets color-scheme and nothing else, and the tokens answer it", where, names)
+			}
+		}
+		if scheme, ok := declarations["color-scheme"]; ok {
+			schemes[where] = scheme
+		}
+		for property, value := range declarations {
+			if !strings.HasPrefix(property, "--") {
+				continue
+			}
+			if strings.Contains(value, "light-dark(") {
+				pairs[property] = append(pairs[property], where)
+			}
+			if property == overlayMask {
+				singleTheme++
+				continue
+			}
+			if literal := oneThemeColour.FindString(withoutLightDark(value)); literal != "" {
+				t.Errorf("%s in %s carries %q outside light-dark(), a colour for one theme only", property, where, literal)
+			}
+		}
+	}
 
-	mediaAt := strings.Index(css, "@media (prefers-color-scheme: dark)")
-	if mediaAt < 0 {
-		t.Fatalf("%s has no prefers-color-scheme dark block; a reader who chose nothing gets light on a dark system", path)
+	// A parse that found too little would pass every check above.
+	for _, token := range []string{"--bg", "--panel", "--fg", "--fg-muted", "--accent", "--link", "--outline"} {
+		if pairs[token] == nil {
+			t.Errorf("%s is not declared as a light-dark() pair in %s; the scan is reading the wrong text or the palette lost a token", token, path)
+		}
 	}
-	media := css[mediaAt:]
-	const guard = `:root:not([data-theme='light']) {`
-	if !strings.Contains(media[:strings.Index(media, "{")+200], guard) {
-		t.Fatalf("the media block does not guard on %q; an explicit light choice must escape it", guard)
+	if singleTheme != 1 {
+		t.Errorf("%s is declared %d times in %s, want 1; the one exemption above names a token that is not there", overlayMask, singleTheme, path)
 	}
-	system := cssDeclarations(t, ruleBody(t, media, guard))
+	for _, token := range slices.Sorted(maps.Keys(pairs)) {
+		if places := pairs[token]; !slices.Equal(places, []string{":root"}) {
+			t.Errorf("%s is declared at %v, want once, at :root", token, places)
+		}
+	}
 
-	if len(chosen) < 10 || chosen["--bg"] == "" || chosen["color-scheme"] != "dark" {
-		t.Fatalf("the chosen-dark block parsed implausibly (%d declarations); the comparison below would prove nothing", len(chosen))
+	want := map[string]string{
+		":root":                "light",
+		"[data-theme='light']": "light",
+		"[data-theme='dark']":  "dark",
+		systemDarkMedia + " " + systemDarkSelector: "dark",
 	}
-	if diff := cmp.Diff(chosen, system); diff != "" {
-		t.Errorf("the two dark entrances disagree (-chosen +system):\n%s", diff)
+	if diff := cmp.Diff(want, schemes); diff != "" {
+		t.Errorf("the theme entrances set color-scheme differently (-want +got):\n%s", diff)
+	}
+}
+
+const overlayMask = "--overlay-mask"
+
+// oneThemeColour matches a colour written as a value rather than through a
+// token: a hex colour or a colour function. color-mix() is not one; it mixes
+// what it is given.
+var oneThemeColour = regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(`)
+
+// withoutLightDark removes every light-dark(...) call from a value, counting
+// the parentheses inside it, so what is left is what was written outside one.
+func withoutLightDark(value string) string {
+	const opener = "light-dark("
+	for {
+		at := strings.Index(value, opener)
+		if at < 0 {
+			return value
+		}
+		depth, end := 1, -1
+		for i := at + len(opener); i < len(value) && end < 0; i++ {
+			switch value[i] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+				if depth == 0 {
+					end = i
+				}
+			}
+		}
+		if end < 0 {
+			return value
+		}
+		value = value[:at] + value[end+1:]
 	}
 }
 
