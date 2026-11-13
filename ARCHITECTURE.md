@@ -13,12 +13,12 @@ The files remain authoritative. Derived views can be rebuilt, while the author's
 | Data | Owner and lifetime |
 | --- | --- |
 | Markdown, frontmatter, attachments, and lesson sidecars | The vault. Edited only outside yomihon; `draft: true` is the author's word that a note is unfinished. |
-| `System/schemas/vault-schema.toml` | The vault's declarations: note types, fields, lifecycle, navigation roles, and output policies. |
+| `System/schemas/vault-schema.toml` | The vault's declarations: folders, note types and the role each plays, the fields a note may write, and output policies. |
 | Reading generation | In-memory note bodies, link resolution, navigation, search, and diagnostics, replaced together. |
 | Continuation and uncertainty marks | Application files in the local user's configuration directory, scoped to the vault. |
 | Appearance and language preferences | Browser cookies; they change the interface, not the authored language or note contents. |
 
-A wikilink cites a note, `based_on` declares a source, and a study path orders lessons. These relationships are projected separately: a citation does not put a lesson into a course, and a reading mark does not change a note's lifecycle. The [site][site] combines these [generation projections][snapshot].
+A wikilink cites a note, `based_on` declares a source, and a study path orders lessons. These relationships are projected separately: a citation does not put a lesson into a course, and a reading mark never changes a note. The [site][site] combines these [generation projections][snapshot].
 
 `cmd/yomihon` composes feature packages around `vault.Reader`, `snapshot.Store`, and a per-request `schema.Authority`. HTTP handlers render `templ` views. Assets are embedded; native JavaScript modules add browser interactions and use the vendored Mermaid renderer. Serving needs no database or asset build pipeline. [Dependencies][modules] and [assets][assets] define what the binary carries.
 
@@ -34,7 +34,7 @@ A selected descriptor survives a rename, but does not freeze bytes another progr
 
 ### Declared capabilities
 
-`internal/schema` reads the TOML contract and exposes the declarations used by navigation and validation. Features consume those declarations instead of maintaining independent lists of note types and lifecycle states. Artifact policy distinguishes readable material from governed note instances; `scan.knowledge_dirs` limits what is judged without hiding other files from browsing.
+`internal/schema` reads the TOML contract and exposes the declarations used by navigation and validation. Features consume those declarations instead of maintaining independent lists of note types and fields. The template directories distinguish readable material from governed note instances; `folders.checked` limits what is judged without hiding other files from browsing.
 
 | Contract condition | Reading behavior |
 | --- | --- |
@@ -43,7 +43,7 @@ A selected descriptor survives a rename, but does not freeze bytes another progr
 | Contract loads, but a policy is invalid | The affected capability is withheld rather than treating missing authority as permission. |
 | Contract bytes change after loading | Source-bound artifact and privacy authorities are revoked; restart loads the new declarations. |
 
-The contract is loaded at startup, not hot-reloaded alongside notes. Policy checks can refuse a transiently unreadable source for one operation; observing changed bytes latches the old authority closed. This avoids combining old lifecycle rules with a newly edited policy. See [startup][site], [artifact authority][artifact-policy], and [privacy authority][privacy].
+The contract is loaded at startup, not hot-reloaded alongside notes. Policy checks can refuse a transiently unreadable source for one operation; observing changed bytes latches the old authority closed. This avoids combining old rules with a newly edited policy. See [startup][site], [artifact authority][artifact-policy], and [privacy authority][privacy].
 
 ## 3. Reading generations
 
@@ -107,7 +107,7 @@ Explicit roles prevent the reader from guessing whether a nested list is require
 
 No endpoint and no command writes into the vault. Notes, the contract, and attachments are written, renamed, and removed only by the author's own tools. The author's claims about a note stay in its frontmatter; the reader's reactions stay outside the vault (section 7).
 
-The one per-note progress signal is the optional boolean `draft`. A note that writes `draft: true` is marked as a draft on its own page, in the sidebar, on its course, in the recent list, and in search, where `draft:true` filters by it; a note that leaves it out or writes `draft: false` is finished and unmarked. A course head counts its main-line drafts. The "What you left open" shelf reads the same field, and a thought opened through the editor handoff starts with `draft: true`. The status value a contract declares is still judged by `check`, and no page prints it.
+The one per-note progress signal is the optional boolean `draft`. A note that writes `draft: true` is marked as a draft on its own page, in the sidebar, on its course, in the recent list, and in search, where `draft:true` filters by it; a note that leaves it out or writes `draft: false` is finished and unmarked. A course head counts its main-line drafts. The "What you left open" shelf reads the same field, and a thought opened through the editor handoff starts with `draft: true`. yomihon never writes the flag: it changes only in the author's editor.
 
 [`internal/mark`][marks] is the only package that writes, and only under the platform's configuration directory. An [architecture check][archlock] reads every shipped Go file for a spelling that changes the filesystem and fails on one anywhere else, so a code path that opened a vault file for writing would fail the build.
 

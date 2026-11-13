@@ -23,7 +23,7 @@ yomihon check --root <vault> [--format json|human|md] [--all]
 | `[path...]` | narrows the judging to part of that vault. Written the way the vault spells it, relative to the root — `Notes`, or `Notes/topic.md`. An absolute path is not a second way to say `--root`, and is refused |
 | `--format` | `json` is one compact object per line, the machine format. `human` is a terminal summary grouped by domain. `md` is a fileable report body — it opens by saying whether this vault's contract would accept it as a note. Without the flag, a pipe gets `json` and a terminal gets `human` |
 | `--deny` | a severity (`error`, `warn`, `info`) or an exact rule id, repeatable. A severity is a **threshold**, not a match: `--deny warn` fails on warnings and on errors, and `--deny info` fails on anything at all. A value that is neither is refused rather than ignored |
-| `--all` | restores findings that touch nothing inside `[scan] knowledge_dirs`. It changes what is **reported**, never what is judged — see below |
+| `--all` | restores findings that touch nothing inside `[folders] checked`. It changes what is **reported**, never what is judged — see below |
 | `--baseline` | a previous run's JSONL, subtracted by `fingerprint`, so only new findings are reported and gated. You write one by keeping a `--format json` run: `yomihon check --root <vault> --format json > baseline.jsonl`. It is version-locked; see the refusals below |
 
 Exit codes: **0** nothing named by `--deny` was found · **1** a `--deny` gate
@@ -40,11 +40,11 @@ verdict about the vault entire.
 The knowledge layer cuts twice, and the two cuts are not the same:
 
 - **The frontmatter rules — every `schema.` rule — judge only files inside
-  `[scan] knowledge_dirs.`** A note outside it is never judged by them, and
-  `--all` restores nothing, because nothing ran. Put an invented key, a status
-  its type cannot hold and a missing `slug` on one lesson, file it under
+  `[folders] checked.`** A note outside it is never judged by them, and
+  `--all` restores nothing, because nothing ran. Put an invented key, a `level`
+  its contract does not list and a missing `slug` on one lesson, file it under
   `Archive/`, and `check` prints nothing about it with or without `--all`; move
-  the same bytes into `Notes/` and four errors appear. There is no flag for
+  the same bytes into `Notes/` and three errors appear. There is no flag for
   this. The repair is to file the note where the rules reach.
 - **The link, collision and course rules run over the whole vault**, and it is
   only their *reporting* that the layer gates. A dead `[[link]]` or an
@@ -79,8 +79,8 @@ yomihon: privacy authority unavailable; agent-facing output disabled
 ```
 
 for **any** contract that did not load — a missing `[privacy]` section is
-merely the commonest, and a `[fields] required` naming a key outside
-`[fields] known` reads exactly the same. It deliberately says no more, because
+merely the commonest, and a `[fields] required` naming a key that
+`[fields] common` does not list reads exactly the same. It deliberately says no more, because
 the reason would quote the contract back out under the very policy that is
 missing. One command tells you which:
 
@@ -92,7 +92,7 @@ The reason is on the page, and in a startup log line that names it outright:
 
 ```
 level=WARN msg="vault contract unavailable"
-  error="decode vault contract: fields.required: value \"nosuchkey\" is not listed in fields.known"
+  error="decode vault contract: fields.required: \"slug\" is not listed in fields.common"
 ```
 
 ## The shape of one finding
@@ -162,7 +162,7 @@ so silence there is not a verdict.
 | `schema.frontmatter` | the frontmatter is not valid YAML, or it opens on line 1 with a `key:` line and never closes (a lost closing `---`). Everything else about the note is unjudgeable until this is fixed | contract |
 | `schema.language` | `lang` is not a valid BCP 47 tag | contract |
 | `schema.slug` | the slug does not match the `slug_pattern` of the note's type | `#types` |
-| `schema.provenance` | a note of the `concept` type carries none of the provenance fields `[rules] concept_requires_provenance` names. Its message is a frozen sentence, `frontmatter concept has neither based_on nor source_locator`, and those two words are in the message rather than in your contract: the fields actually demanded are whichever your contract lists, and `source_locator` is not even a legal key in the vault this repository ships. The list may name fields beside the ones yomihon defines, but not a built-in, derived or removed one (`type`, `draft`, `tags`, `aliases`, `cssclasses`, `title`, `domain`, `status`, `updated` and the other removed names): the contract is refused at load. Read the contract, not the message | `#rules` |
+| `schema.provenance` | a note of the `concept` type carries none of the provenance fields `[rules] concept_requires_provenance` names. Its message is a frozen sentence, `frontmatter concept has neither based_on nor source_locator`, and those two words are in the message rather than in your contract: the fields actually demanded are whichever your contract lists, and `source_locator` is not even a legal key in the vault this repository ships. The list may name fields beside the ones yomihon defines, but not a built-in, derived or removed one (`type`, `draft`, `tags`, `aliases`, `cssclasses`, `title`, `domain`, or a name earlier contracts allowed that yomihon has dropped): the contract is refused at load. Read the contract, not the message | `#rules` |
 | `schema.reference_nested_sequence` | an item in a recognized reference list is itself a YAML list, including an alias to a list. One finding names each affected `field` | `yomihon` |
 | `schema.navigation_unavailable` | a type role in the contract could not be used (a role that is none of `lesson`, `course`, `map`, `thought`, or a second type holding the `lesson` or the `thought` role), so no note type is a course or a map and the course and map rules, including every study-path rule, skipped every note. Its `path` is the contract file, and it does not quote the contract; denying any of the rules it silenced fails the gate through it | contract |
 | `schema.unmatched_knowledge_dir` | `[folders] checked` names a directory this vault does not have, so the frontmatter rules reach nothing there. The fault is in the contract, not in a note | `#folders` |
@@ -170,7 +170,8 @@ so silence there is not a verdict.
 For `schema.reference_nested_sequence`, quote the reference: write
 `based_on: ["[[Note]]"]` or `based_on: ["Note"]`. YAML reads the unquoted
 `based_on: [[Note]]` as nested lists. The rule shares reference selection with
-`provenance.unresolved`: the reference fields are `based_on` and `related`.
+`provenance.unresolved`: the reference field is `based_on`, and a `related`
+key is read the same way even though it is not on the closed field list.
 `source_locator` and additional provenance requirements do not declare
 reference fields. The reading page explains the same finding; neither surface
 rewrites the note.
@@ -196,7 +197,7 @@ that same note is judged here as usual.
 | `embed.block_missing` | the same for `![[…#^id]]` |
 | `collision.name` | two or more files share one resolution name that some `[[link]]` or `![[embed]]` in the vault is written against, so that link is ambiguous and nothing is linked. A shared name no wikilink uses is not reported: a Markdown path link such as `[run](lab/a/main.go)` resolves by path, not by name. `collision_members` lists them all. Rename one, or link each by its full vault-relative path |
 | `collision.alias` | two notes declare the same alias. Give the alias one owner |
-| `provenance.unresolved` | a frontmatter reference field points at nothing — `based_on` or `related` (`source_rule` `yomihon`). A lesson slug counts as resolving |
+| `provenance.unresolved` | a frontmatter reference field points at nothing — `based_on`, and a `related` key, which is not on the closed field list and so draws `schema.unknown_key` as well (`source_rule` `yomihon`). A lesson slug counts as resolving |
 | `provenance.alias_resolved` | a reader's thought (the type holding the `thought` role) cites a note in `based_on` by a name that is only an alias of another note, so the note it reaches may have replaced the one the thought was written about. `resolved_to` names the note the alias leads to. Read it, then cite it by its own name or rewrite the thought. A note a thought cites by its file name is not reported, and neither is any note that is not a thought |
 
 ## The course rules
