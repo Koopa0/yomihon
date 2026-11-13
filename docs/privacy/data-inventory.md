@@ -43,10 +43,12 @@ About those rows:
   deleting the per-vault directory clears both.
 - **`yomihon left-open` hands the reader's marks to whoever runs it.** It lists
   each marked location — the note's path, the anchor and the words of the
-  heading or practice card it names, the note's declared title, a wikilink,
+  heading or practice card it names, the note's title, a wikilink,
   and the time the mark was made, in UTC — and each thought that still
-  declares `draft: true`, with its path, declared title and declared date. No body text is included beyond the words of a heading or
-  practice card and the declared title. The vault is scanned whole, withheld
+  declares `draft: true`, with its path, title and the day its `created` field
+  declares. A title is the note's first `#` heading, and is left out when there
+  is none. No body text is included beyond the words of a heading or
+  practice card and the title. The vault is scanned whole, withheld
   ground included, as every command scans it; an item whose path is under the
   contract's `never_egress_dirs` is left out before anything about it is
   resolved into the output, and so is a location whose heading or note title,
@@ -114,28 +116,32 @@ The withholding applies to the agent-facing commands only: the HTTP reading room
 ## Optional thought notes
 
 The "Leave a thought" handoff requires an explicit role in the vault's own
-`System/schemas/vault-schema.toml`. Add `answer_type` to its existing
-`[navigation]` table, using a member already declared in `[enums].type`.
-For a vault that already declares the type `note`, the added line is:
+`System/schemas/vault-schema.toml`. Give one of its note types the `thought`
+role, and list `based_on` among that type's fields, which the role requires.
+For a vault that declares a type named `thought`, the table is:
 
 ```toml
-answer_type = "note"
+[types.thought]
+role = "thought"
+fields = ["based_on"]
 ```
 
-This setting is optional and has no default. Missing or invalid authority
-keeps the handoff unavailable; an ordinary document and a lesson use the same
-mechanism. Installing yomihon does not modify the reader's private contract or
-add a new note type. The vault owner makes this opt-in edit.
+This setting is optional and has no default. A contract that gives no type the
+role, or one that cannot be used, keeps the handoff unavailable; an ordinary
+document and a lesson use the same mechanism. Installing yomihon does not
+modify the reader's private contract or add a new note type. The vault owner
+makes this opt-in edit.
 
-The proposed Markdown contains only fields whose values can be derived from
-the existing contract and source, plus a `based_on: "[[source#section]]"` link
-when opened for a section, or a source-only link for a whole document. A
-thought starts as `draft: true` where the contract lists `draft` among its known
-fields, so it stays on the shelf of what the reader left open until they remove
-the flag. Unknown required values are omitted too; the existing judge reports missing
-fields after the reader saves the note. There are no prompt excerpts,
-before/after templates, or required-field pickers. The reader's editor owns
-the template, words, remaining fields, and save operation.
+The proposed Markdown is frontmatter of three fields and nothing else: `type`,
+the type that holds the role; `draft: true`; and a `based_on:
+"[[source#section]]"` link when opened for a section, or a source-only link for
+a whole document. It carries no title, because a note's title is its first
+heading and the file name it is saved under. The thought stays on the shelf of
+what the reader left open until they remove `draft: true` in their editor. A
+field the contract also requires of the type is not proposed; `yomihon check`
+reports it missing after the reader saves the note. There are no prompt
+excerpts, before/after templates, or required-field pickers. The reader's
+editor owns the template, words, remaining fields, and save operation.
 
 ## Read-aloud
 
