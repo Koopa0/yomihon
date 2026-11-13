@@ -39,7 +39,7 @@ type Findings struct {
 	SchemaFaults          []snapshot.HealthNoteFindings
 	// UnmappedConcepts are the concepts no map links to, and EmptyBranches the
 	// map headings no note stands under. They say how the folder's maps cover
-	// it; neither is a finding, so neither is in Total.
+	// it; neither is a finding.
 	UnmappedConcepts []nav.NoteRef
 	EmptyBranches    []snapshot.HealthEmptyBranch
 	// InstanceScopeUnknown is why the citation and island lists could not be
@@ -50,33 +50,11 @@ type Findings struct {
 	LastComplete time.Time
 	// Collision is the two files whose names fold to one path, as the
 	// filesystem spells them, or nil. It says whether the findings are current
-	// rather than being one, so it is not in Total; the health page draws it
-	// above its table rather than as a row in it.
+	// rather than being one, so it is not a list of findings; the health page
+	// draws it above its tables rather than as a row in one.
 	Collision []string
 	// Root reports selected-path identity trouble without adding a finding row.
 	Root *snapshot.RootNotice
-}
-
-// Total is how many findings this folder has against it, counted the way the
-// health table counts its own rows: several citations out of one note fold into
-// that note's row and are tallied there, so the fold cancels and every list
-// contributes the things found in it rather than the lines they are drawn on.
-// A note the schema said nine things about counts nine. A collision is not
-// counted: it is not a row of the table.
-func (f *Findings) Total() int {
-	total := len(f.Blocked) + len(f.Skipped) +
-		len(f.Unwritten) + len(f.TitleOnly) +
-		len(f.Collisions) + len(f.NavigationFaults)
-	for _, group := range f.Islands {
-		total += len(group.Notes)
-	}
-	for _, found := range f.FrontmatterUnreadable {
-		total += found.Count
-	}
-	for _, found := range f.SchemaFaults {
-		total += found.Count
-	}
-	return total
 }
 
 // GatherFindings collects what the folder has to answer for from one captured

@@ -10,8 +10,8 @@ var HealthTitle = both("整體狀況", "Health")
 // otherwise indistinguishable from a page that checked nothing. It also names
 // what this page does not cover, and where that is checked instead.
 var HealthAllClear = both(
-	"這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有正文連過來，沒有名字被兩個檔案同時使用，status 值都在 schema 的清單裡。frontmatter 少了必填欄位不歸這一頁管——那些請跑 ",
-	"Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, no name is claimed by two files, and every status is in the schema's list. Frontmatter missing a required field is not this page's business — for those, run ",
+	"這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有正文連過來，沒有名字被兩個檔案同時使用。frontmatter 少了必填欄位不歸這一頁管——那些請跑 ",
+	"Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, and no name is claimed by two files. Frontmatter missing a required field is not this page's business — for those, run ",
 )
 
 // HealthAllClearAfterCommand closes that sentence after the command it names.
