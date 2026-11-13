@@ -6,7 +6,7 @@
 
 ## 取得入門契約
 
-開啟你安裝的執行檔所屬版本的發佈頁，下載 **Source code** 壓縮檔。取出 `examples/vault/System/schemas/vault-schema.toml`，複製到筆記資料夾裡的 `System/schemas/vault-schema.toml`。不必安裝 Go，也不必 clone Git repo。例如 [v0.3.0 的入門契約](https://raw.githubusercontent.com/koopa0/yomihon/v0.3.0/examples/vault/System/schemas/vault-schema.toml) 適用於 v0.3.0；若你的版本不同，請改用該版本的 tag。從原始碼編譯時，使用[同一份 checkout 的入門契約](../examples/vault/System/schemas/vault-schema.toml)。
+開啟你安裝的執行檔所屬版本的發佈頁，下載 **Source code** 壓縮檔。取出 `examples/vault/System/schemas/vault-schema.toml`，複製到筆記資料夾裡的 `System/schemas/vault-schema.toml`。不必安裝 Go，也不必 clone Git repo。入門契約要和執行檔取自同一個版本：不同版本的契約與執行檔不一定讀得懂彼此，契約第一行的 `schema_version` 就是用來說這件事。某個版本的原始檔網址是 `https://raw.githubusercontent.com/koopa0/yomihon/<tag>/examples/vault/System/schemas/vault-schema.toml`，把 `<tag>` 換成該版本的 tag。從原始碼編譯時，使用[同一份 checkout 的入門契約](../examples/vault/System/schemas/vault-schema.toml)。
 
 入門契約是讓你調整的起點。請逐一核對資料夾、筆記類型、欄位清單與隱私目錄是否符合你的筆記。尤其 `privacy.never_egress_dirs` 會讓那些目錄不出現在指令輸出裡，但不會把它們從本機閱讀介面隱藏。yomihon 只讀取契約，不寫入它。
 
@@ -84,6 +84,18 @@ An optional explanation for readers who want more detail.
 ```
 
 這些值由入門契約宣告。換成自己的課程時，請選你調整後的契約允許的值。每課的 slug 要獨一且保持穩定，`lang` 則寫課文的語言。
+
+## 認識欄位
+
+筆記能寫的欄位是 yomihon 定義的封閉清單：`type`、`aliases`、`draft`、`based_on`、`lang`、`created`、`slug`、`level`、`prerequisites`、`verified_on` 與 `verified_with`；Obsidian 自己的 `tags` 與 `cssclasses` 也放行。契約決定每一種筆記能寫其中哪些，清單以外的鍵，`yomihon check` 一律以 `schema.unknown_key` 回報。[frontmatter 參考](../skills/yomihon/references/frontmatter.md)說明每個欄位的作用。
+
+筆記不寫標題，也不寫領域。標題是內文第一個 `#` 標題，沒有就用檔名；領域是筆記所在的資料夾，取契約在 `folders.domain_from` 指名的根目錄底下那一層。
+
+還沒寫完的筆記寫 `draft: true`，寫完就刪掉這一行；沒有 `draft` 就是完成。yomihon 只會安靜地標出草稿，絕不改你的筆記，所以這個變更要你在編輯器裡自己做。
+
+## 取代一篇筆記
+
+一篇筆記取代另一篇時，刪掉舊的，並把舊檔名加進新筆記的 `aliases`，這樣指向舊名稱的連結仍然到得了。只有在下列情況才這樣做：新筆記談的是同一件事、你的筆記放在 Git 倉庫裡、你寫的想法沒有在 `based_on` 引用舊筆記，而且每一篇連到舊筆記的筆記你都看過。`yomihon check` 會回報斷掉的連結，但不會回報仍然連得到、讀起來意思卻已經不同的連結。完整規則見[寫作規則](../skills/yomihon/references/writing-for-the-reader.md)。
 
 ## 閱讀與檢查
 

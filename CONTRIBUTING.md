@@ -28,14 +28,14 @@ rather than take it:
   browser-side exception, decided on 2026-11-12, and the threat model bounds it.
 - **The vault contract is the only schema.** A vault's
   `System/schemas/vault-schema.toml` is the single source of what a note type
-  is and which status transitions exist. `internal/schema` is the only package
+  is and which values its fields may take. `internal/schema` is the only package
   that reads it, and the only importer of a TOML decoder. A test in
   `internal/archlock` fails when a word the contract owns — `lesson`,
   `concept`, `inbox`, `draft`, `ready`, `published` — stands as a whole string
   literal in the Go source this repository ships, outside `internal/schema`. It
   reaches no further, and says so: a word inside a longer sentence, inside a
   test, or inside the Go in a `.templ` file goes past it. When you feel the urge
-  to write `if status == "ready"`, the answer is already in `internal/schema`.
+  to write `if noteType == "lesson"`, the answer is already in `internal/schema`.
 - **It reports; it does not repair.** The renderer reads fault-tolerantly and
   surfaces what is wrong where it is wrong: broken frontmatter, a link with no
   target, and one name two files answer to. `yomihon check` says the same thing
@@ -270,7 +270,7 @@ planning vocabulary, or documents that a clean clone does not have.
 
 ### One owner per closed set
 
-When you want to write a list of statuses, note types, or marks, it is already
+When you want to write a list of note types, domains, or marks, it is already
 declared somewhere — usually in `internal/schema`, from the vault contract.
 Restating it in a second package compiles, passes every gate, and diverges
 silently a month later.
@@ -379,5 +379,5 @@ reports the new version.
 Report privately through
 [GitHub's private advisory form](https://github.com/koopa0/yomihon/security/advisories/new),
 never in a public issue, and attach no vault content. Anything that writes
-outside the `status` field, or leaves the machine, is worth reporting. See
+into the vault, or leaves the machine, is worth reporting. See
 [the security policy](.github/SECURITY.md) for what is supported.
