@@ -156,7 +156,7 @@ const MUTATIONS = {
   'give-the-opening-heading-its-margin-back': {
     target: 'opening-heading-sits-flush',
     provePath: () => openingPath,
-    apply: weakenStylesheet('.y-prose > [data-level]:first-child{margin-top:48px}'),
+    apply: weakenStylesheet('.y-prose > :is([data-level], .y-sect):first-child{margin-top:48px}'),
   },
   // Every separately rendered body numbers its footnotes from one, and on this
   // page the second such body is the note the source quotes: its footnotes are
@@ -378,18 +378,23 @@ try {
     const opening = await page.evaluate(() => {
       const first = document.querySelector('.y-prose > :first-child');
       if (!first) return null;
+      // A section with a margin beside it is wrapped, and the wrapper carries the
+      // spacing the heading would have: it is the opening box, so it is the one
+      // that has to sit flush.
+      const heading = first.classList.contains('y-sect') ? first.firstElementChild : first;
       const style = getComputedStyle(first);
       return {
-        tag: first.tagName,
-        level: first.getAttribute('data-level'),
-        isHeading: /^H[1-6]$/.test(first.tagName),
+        tag: heading.tagName,
+        level: heading.getAttribute('data-level'),
+        isHeading: /^H[1-6]$/.test(heading.tagName),
         marginTop: style.marginTop,
+        headingMarginTop: getComputedStyle(heading).marginTop,
       };
     });
     if (!opening || !opening.isHeading) {
       broken('the opening-heading fixture does not start .y-prose with a heading');
     }
-    if (opening.marginTop !== '0px') {
+    if (opening.marginTop !== '0px' || opening.headingMarginTop !== '0px') {
       fail('opening-heading-sits-flush', `the opening ${opening.tag} data-level=${JSON.stringify(opening.level)} has margin-top ${JSON.stringify(opening.marginTop)}, want "0px"`);
     }
     await page.close();

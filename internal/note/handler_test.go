@@ -2538,7 +2538,7 @@ func assertOverCapNoteFilePage(t *testing.T, code int, page, rel, body string) {
 }
 
 // TestShowOffersAnObsidianDoor locks the reading page's hand-off to the
-// editor: the metarow beside the note's path carries an obsidian://open link
+// editor: the facts at the end of the note carry, beside its path, an obsidian://open link
 // whose query names the note's absolute path, segment-escaped. Every repair
 // yomihon reports is a hand edit, so the page offers the one-click way to
 // where editing happens.
@@ -2577,72 +2577,96 @@ func TestShowOffersAnObsidianDoor(t *testing.T) {
 	}
 }
 
-// TestNoteMetarowCarriesADate pins the one date the reading page shows: the
-// file's own recorded change time, labelled as that, with its clock kept in the
-// machine-readable value because that is what was observed. A note writes no
-// update date of its own, so a created or updated key in the frontmatter does
-// not stand in for it.
-func TestNoteMetarowCarriesADate(t *testing.T) {
+// TestTheFactsDateIsTheAuthorsCheckedDayAndNeverTheFilesTime pins the one date
+// the reading page shows: the day the author wrote as the one they checked the
+// note, labelled as theirs. The file's own change time, which a checkout stamps
+// on every file at once, and the other dates the frontmatter holds do not stand
+// in for it, and a note that wrote none shows no date at all.
+func TestTheFactsDateIsTheAuthorsCheckedDayAndNeverTheFilesTime(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	full := filepath.Join(root, "Writing", "Declared.md")
-	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
+	write := func(rel, content string) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+		stamp := time.Date(2026, time.June, 3, 8, 30, 0, 0, time.UTC)
+		if err := os.Chtimes(full, stamp, stamp); err != nil {
+			t.Fatalf("set mtime: %v", err)
+		}
 	}
-	content := "---\ntype: writing\ncreated: 2026-07-12\nupdated: 2026-07-12\n---\n# Declared\n\nbody\n"
-	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
-	}
-	stamp := time.Date(2026, time.June, 3, 8, 30, 0, 0, time.UTC)
-	if err := os.Chtimes(full, stamp, stamp); err != nil {
-		t.Fatalf("set mtime: %v", err)
-	}
-	// The recorded time is read back rather than trusted: a filesystem may
-	// round what it was handed, and the page prints what the scan observed.
-	info, err := os.Stat(full)
-	if err != nil {
-		t.Fatalf("stat: %v", err)
-	}
+	write("Writing/Checked.md", "---\ntype: writing\ncreated: 2026-07-01\nupdated: 2026-07-12\nverified_on: 2026-07-20\n---\n# Checked\n\nbody\n")
+	write("Writing/Quoted.md", "---\ntype: writing\nverified_on: \"2026-08-02\"\n---\n# Quoted\n\nbody\n")
+	write("Writing/Silent.md", "---\ntype: writing\ncreated: 2026-07-01\n---\n# Silent\n\nbody\n")
 	srv := newServer(t, root)
 
-	code, body := get(t, srv.Client(), srv.URL+"/notes/Writing/Declared.md")
-	if code != http.StatusOK {
-		t.Fatalf("GET note status = %d, want 200", code)
-	}
-	mod := info.ModTime()
-	want := `檔案變更於 <time datetime="` + mod.Format(time.RFC3339) + `">` + mod.Format(time.DateOnly) + `</time>`
-	if !strings.Contains(body, want) {
-		t.Errorf("the note is not dated by its file; want %q in page", want)
-	}
-	if strings.Contains(body, "更新於 <time") || strings.Contains(body, "2026-07-12") {
-		t.Error("a date the frontmatter writes reached the page as the note's date")
+	for _, tc := range []struct {
+		lang  wording.Lang
+		label string
+	}{
+		{wording.ZhHant, `<dt lang="zh-Hant">作者寫的查證日</dt>`},
+		{wording.En, `<dt lang="en">Checked on, as the author wrote it</dt>`},
+	} {
+		page := fetchAs(t, srv, "/notes/Writing/Checked.md", tc.lang)
+		if want := tc.label + `<dd><time datetime="2026-07-20">2026-07-20</time></dd>`; !strings.Contains(page, want) {
+			t.Errorf("%s: the facts do not carry the author's day as %q", tc.lang.Tag(), want)
+		}
+		for _, other := range []string{"2026-06-03", "2026-07-01", "2026-07-12", "檔案變更於", "File changed"} {
+			if strings.Contains(page, other) {
+				t.Errorf("%s: %q reached the page, though only the author's checked day is the note's date", tc.lang.Tag(), other)
+			}
+		}
+		if quoted := fetchAs(t, srv, "/notes/Writing/Quoted.md", tc.lang); !strings.Contains(quoted, `<time datetime="2026-08-02">2026-08-02</time>`) {
+			t.Errorf("%s: a day written as quoted text is not read as a day", tc.lang.Tag())
+		}
+		if silent := fetchAs(t, srv, "/notes/Writing/Silent.md", tc.lang); strings.Contains(silent, "<time") || strings.Contains(silent, "2026-06-03") {
+			t.Errorf("%s: a note that wrote no checked day is still dated:\n%s", tc.lang.Tag(), silent)
+		}
 	}
 }
 
-// TestNoteMetarowDateSpeaksTheInterfaceLanguage holds the date's label in the
-// second language the chrome speaks. The words come from the dictionary, so an
-// English page must not fall back to the default half of the pair.
-func TestNoteMetarowDateSpeaksTheInterfaceLanguage(t *testing.T) {
+// TestPrerequisitesAreLinksToTheNotesTheyNameAndTextWhereTheyNameNone holds the
+// reading of prerequisites the way based_on is read: a value that places exactly
+// one note is that note's name and a link to it, and anything else stays the
+// author's own words with no address.
+func TestPrerequisitesAreLinksToTheNotesTheyNameAndTextWhereTheyNameNone(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	full := filepath.Join(root, "Writing", "Declared.md")
-	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	content := "---\ntype: writing\n---\n# Declared\n\nbody\n"
-	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
+	for rel, content := range map[string]string{
+		"Writing/Needs.md":  "---\ntype: writing\nprerequisites:\n  - \"[[Writing/Basics]]\"\n  - \"[[Writing/Basics|again]]\"\n  - \"not written yet\"\n---\n# Needs\n\nbody\n",
+		"Writing/Basics.md": "---\ntype: writing\nlang: ja\n---\n# Basics\n\nbody\n",
+	} {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
 	}
 	srv := newServer(t, root)
 
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/notes/Writing/Declared.md", http.NoBody)
+	page := fetchAs(t, srv, "/notes/Writing/Needs.md", wording.ZhHant)
+	if want := `<dt lang="zh-Hant">先備知識</dt><dd><ul class="y-notefacts__links" role="list"><li><a href="/notes/Writing/Basics.md">Basics</a></li><li><span>not written yet</span></li></ul></dd>`; !strings.Contains(page, want) {
+		t.Errorf("the prerequisites are not one link to the note they name, once, and the unwritten one as text; want %q", want)
+	}
+}
+
+// fetchAs reads one page in the interface language a reader chose.
+func fetchAs(t *testing.T, srv *httptest.Server, path string, lang wording.Lang) string {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+path, http.NoBody)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
 	}
-	req.Header.Set("Cookie", wording.CookieName+"="+string(wording.En))
+	req.Header.Set("Cookie", wording.CookieName+"="+string(lang))
 	resp, err := srv.Client().Do(req)
 	if err != nil {
-		t.Fatalf("GET note: %v", err)
+		t.Fatalf("GET %s: %v", path, err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -2653,13 +2677,7 @@ func TestNoteMetarowDateSpeaksTheInterfaceLanguage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read body: %v", err)
 	}
-	body := string(raw)
-	if want := `File changed <time datetime="`; !strings.Contains(body, want) {
-		t.Errorf("the English page does not label the date in English; want %q", want)
-	}
-	if strings.Contains(body, "檔案變更於") {
-		t.Error("the English page carries the default-language date label")
-	}
+	return string(raw)
 }
 
 // TestTheRecentListStatesItsKnowledgeScope holds the folder index's recent

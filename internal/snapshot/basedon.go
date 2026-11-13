@@ -152,6 +152,39 @@ func projectBasedOn(n *vault.Note, idx *graph.Index) []nav.NoteRef {
 	return out
 }
 
+// Prerequisites are the notes the author named in prerequisites as ones to know
+// before this one, in declaration order. A value that placed exactly one note is
+// that note's name and path; anything else stays the author's own text with no
+// path, never a guessed address. A repeat of a note or of a text already listed
+// is kept only the first time.
+func (g *Generation) Prerequisites(relPath string) []nav.NoteRef {
+	if g == nil {
+		return nil
+	}
+	n := g.parsed[relPath]
+	if n == nil {
+		return nil
+	}
+	values := n.Strings("prerequisites")
+	if values == nil {
+		if s, ok := n.Text("prerequisites"); ok {
+			values = []string{s}
+		}
+	}
+	var out []nav.NoteRef
+	seen := make(map[string]bool)
+	for _, value := range values {
+		ref, ok := declaredSource(g.graph, value)
+		key := declaredSourceKey(ref)
+		if !ok || seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, ref)
+	}
+	return out
+}
+
 // basedOnValues reads based_on the way the reading path is allowed to: the
 // list form first, then a lone string. Strings does not take a scalar, and
 // authors write both shapes.

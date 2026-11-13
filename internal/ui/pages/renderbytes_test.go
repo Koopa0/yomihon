@@ -471,15 +471,15 @@ func renderedNoteView(t *testing.T, model *nav.Model, current, body string) Note
 		t.Fatalf("snapshot.New: %v", err)
 	}
 	return NoteView{
-		Title:           "L01",
-		RelPath:         current,
-		Language:        "ja",
-		Type:            "lesson",
-		Draft:           true,
-		ObsidianHref:    ObsidianHref("/vault", current),
-		Updated:         "2026-07-10",
-		UpdatedAt:       "2026-07-10",
-		UpdatedFromFile: true,
+		Title:         "L01",
+		RelPath:       current,
+		Language:      "ja",
+		Type:          "lesson",
+		Draft:         true,
+		ObsidianHref:  ObsidianHref("/vault", current),
+		VerifiedOn:    "2026-07-10",
+		VerifiedAt:    "2026-07-10",
+		Prerequisites: []nav.NoteRef{{Name: "L00", RelPath: "Writing/lessons/go/L00.md", Language: "ja"}, {Name: "[[not written yet]]"}},
 		// Render both a resolved link and a missing section, so the recording
 		// follows the renderer's address, tooltip, and offscreen explanation.
 		BodyHTML:    store.Current().Render(current, body, recordedChrome().Lang).HTML,

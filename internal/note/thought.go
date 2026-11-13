@@ -33,8 +33,8 @@ func (h *Handler) thought(w http.ResponseWriter, r *http.Request) {
 	section := r.URL.Query().Get("section")
 	label := n.Title
 	sectionText := ""
+	result := snap.Render(rel, n.Body, lang)
 	if section != "" {
-		result := snap.Render(rel, n.Body, lang)
 		found := section == result.TitleAnchor
 		if found {
 			sectionText = n.Title
@@ -58,7 +58,11 @@ func (h *Handler) thought(w http.ResponseWriter, r *http.Request) {
 	// note is titled by its own name, so the title a contract may require and
 	// the file the reader saves read the same.
 	name := thoughtNoteName(n.Title, lang, time.Now())
-	markdown := thoughtMarkdown(role, &n, sectionText)
+	// Only a thought about one section says it comes before an answer: the title's
+	// own anchor and no section at all name the note as a whole, which is not the
+	// answer to any one question in it.
+	beforeAnswer := section != "" && section != result.TitleAnchor && pages.HoldsClosedQuestion(result.HTML, section)
+	markdown := thoughtMarkdown(role, &n, sectionText, lang, beforeAnswer)
 	view := pages.ThoughtView{
 		SourceTitle: label,
 		SourceHref:  pages.ResumeHref(rel, section, 0),
@@ -107,7 +111,11 @@ func thoughtSourceAvailable(snap *snapshot.Generation, rel string) bool {
 // written: it is the name the file is saved under, and the heading the reader
 // writes under it. sectionText is the section heading as the reader sees it:
 // Obsidian matches a heading link by its text, not by the id this site gives it.
-func thoughtMarkdown(role string, source *snapshot.Reading, sectionText string) string {
+//
+// Where the source holds a question that starts closed, a line follows the
+// frontmatter saying what is written under it, so the guess made before the
+// answer is read has its place and is told apart from what comes after.
+func thoughtMarkdown(role string, source *snapshot.Reading, sectionText string, lang wording.Lang, beforeAnswer bool) string {
 	var b strings.Builder
 	b.WriteString("---\n")
 	b.WriteString("type: " + strconv.Quote(role) + "\n")
@@ -116,6 +124,9 @@ func thoughtMarkdown(role string, source *snapshot.Reading, sectionText string) 
 	// lists it.
 	b.WriteString(schema.DraftField + ": true\n")
 	b.WriteString("based_on: " + strconv.Quote("[["+thoughtCitation(source.RelPath, sectionText)+"]]") + "\n---\n")
+	if beforeAnswer {
+		b.WriteString("\n" + wording.ThoughtBeforeAnswer.In(lang) + "\n")
+	}
 	return b.String()
 }
 

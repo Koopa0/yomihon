@@ -41,15 +41,21 @@ type NoteView struct {
 	// while this reading is retained before a stale generation is published.
 	ParsePanic  bool
 	ParseReason string
-	// Updated is the display date the metarow carries and UpdatedAt its
-	// machine-readable value: the author's declared update where the
-	// frontmatter has a readable one, the file's recorded change time
-	// otherwise, with UpdatedFromFile picking the label. Both empty renders no
-	// date, a blank being better than a claim.
-	Updated         string
-	UpdatedAt       string
-	UpdatedFromFile bool
-	BodyHTML        string
+	// VerifiedOn is the day the author wrote down as the one they last checked
+	// the note on, as the facts at its end print it, and VerifiedAt its
+	// machine-readable value. It is their word, said as theirs. A note that
+	// declares none shows no date: a blank is better than a claim, and the
+	// file's own change time is the checkout's, not the author's.
+	VerifiedOn string
+	VerifiedAt string
+	// Prerequisites are the notes the author named as ones to know first, in
+	// the order they wrote them. A name that placed one note is a link; any
+	// other stays the author's own text.
+	Prerequisites []nav.NoteRef
+	// TitleThoughts are the reader's own thoughts whose source is the note as
+	// a whole, listed beside its title.
+	TitleThoughts []ThoughtLine
+	BodyHTML      string
 	// TitleAnchor is the id the title carries, set where the renderer dropped a
 	// duplicate opening heading, so a link written at that section still lands.
 	// Empty where the note wrote no such heading: an anchor there would answer
@@ -228,19 +234,34 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	}
 }
 
-// articleHead is the title and the file row above the rendered body, which
-// follows it after a space rather than a rule. Nothing stands above the title:
-// the sidebar already says which course the note is in and which part, or which
-// folder, so a line over the heading would say it a second time.
+// articleHead is the title above the rendered body, which follows it after a
+// space rather than a rule. Nothing stands above the title: the sidebar already
+// says which course the note is in and which part, or which folder, so a line
+// over the heading would say it a second time. Nothing stands under it either:
+// the note's facts, the file it is and the way to its editor wait at the end of
+// the text, where a reader who has finished looks for them.
 //
-// The article around it speaks the note's own language, so the words here that
-// are yomihon's rather than the author's declare the interface language again.
-// They do it one element at a time rather than from the file row's root,
-// because that row also prints the note's address, and a path a reader wrote in
-// Japanese is not the interface's to relabel.
+// A title with thoughts of the reader's own about the note as a whole stands in
+// a row with them, as a heading stands with its section's margin.
 templ articleHead(v NoteView, lang wording.Lang) {
-	// A jump has to land on the words it named, so the anchor goes on the
-	// visible heading rather than a hidden marker beside it.
+	if len(v.TitleThoughts) > 0 {
+		<div class="y-sect y-sect--title">
+			@noteTitle(v)
+			@titleMargin(v.TitleThoughts, lang)
+		</div>
+	} else {
+		@noteTitle(v)
+	}
+	if v.ParsePanic {
+		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteParseStale.In(lang) } <code lang="en">{ v.ParseReason }</code></p>
+	} else if v.Stale {
+		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
+	}
+}
+
+// noteTitle is the heading itself. A jump has to land on the words it named, so
+// the anchor goes on the visible heading rather than a hidden marker beside it.
+templ noteTitle(v NoteView) {
 	if v.NestedTitle {
 		if v.TitleAnchor != "" {
 			<h2 id={ v.TitleAnchor } class="y-title">{ v.Title }</h2>
@@ -252,116 +273,109 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	} else {
 		<h1 class="y-title">{ v.Title }</h1>
 	}
-	// The eye should land on the title and then on the prose, so on a narrow
-	// screen the facts fold: what stays visible at a glance is the type and the
-	// date, and the rest waits one click away inside the browser's own
-	// disclosure, with no script between it and the reader. A wide screen has
-	// the width a page heading with a meta row is for, so the same facts stand
-	// open beside the title instead — one dl, drawn twice, CSS choosing which
-	// copy a given width shows (never both: see the print rule beside .y-metarow).
-	if v.headFactsShown() {
-		<details class="y-metarow">
-			<summary class="y-metarow__summary">
-				@chevron()
-				if v.Type != "" {
-					<span class="ui-type">{ v.Type }</span>
-				}
-				@draftMark(v, lang)
-				// The date is a fact about the note like its type, so the two
-				// stand together on the line that stays.
-				if v.Updated != "" {
-					<span lang={ lang.Tag() }>{ noteDateLabel(&v, lang) } <time datetime={ v.UpdatedAt }>{ v.Updated }</time></span>
-				}
-			</summary>
-			<div class="y-metarow__detail">
-				@noteFacts(v, lang)
-				@obsidianDoor(v, lang)
-				@thoughtDoor(v, lang)
-			</div>
-		</details>
-		<div class="y-headmeta">
-			@draftMark(v, lang)
-			@noteFacts(v, lang)
-			@obsidianDoor(v, lang)
-			@thoughtDoor(v, lang)
-		</div>
-	}
-	if v.ParsePanic {
-		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteParseStale.In(lang) } <code lang="en">{ v.ParseReason }</code></p>
-	} else if v.Stale {
-		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
-	}
 }
 
-// draftMark is the one word a note that declared draft: true carries under its
-// title, in the interface's language. It is a fact about the note, not a
+// draftMark is the one word a note that declared draft: true carries among its
+// facts, in the interface's language. It is a fact about the note, not a
 // control: the flag is the author's, written and removed in their editor. A
 // finished note carries none, being the ordinary state.
 templ draftMark(v NoteView, lang wording.Lang) {
 	if v.Draft {
-		<span class="ui-status" lang={ lang.Tag() } data-note-draft>{ wording.Draft.In(lang) }</span>
+		<p class="y-facts__draft"><span class="ui-status" lang={ lang.Tag() } data-note-draft>{ wording.Draft.In(lang) }</span></p>
 	}
 }
 
 // noteFacts is the note's own facts, read as a description list: one dt/dd
-// pair per fact the note declared, in the same order every time. The terms are
-// kept for a reader who listens and left unseen for one who looks: the line
-// reads as date, type, language and the file's own address. It is one
-// component rendered from two places — the narrow disclosure and the wide-open
-// placement beside the title — so the two can never drift into naming a fact
-// differently. Every term carries the interface's language and every value the
-// note's own: a type, a BCP 47 tag and a path are the contract's
+// pair per fact the note declared, in the same order every time. They stand at
+// the end of the text with what stands beside the note, so there is one place
+// to look for what the note is. Every term carries the interface's language and
+// every value the note's own: a type, a BCP 47 tag and a path are the contract's
 // own spelling, never translated, so only the label beside each is.
+//
+// The day is the author's: the one they wrote as the day they checked the note,
+// never the file's change time, which a checkout stamps on every file at once. A
+// note that wrote none shows no day. The two doors out of the page, to the file
+// in its editor and to a thought of the reader's own about the whole note, stand
+// with the file they leave from.
 templ noteFacts(v NoteView, lang wording.Lang) {
-	<dl class="y-notefacts">
-		if v.Updated != "" {
-			<div>
-				<dt lang={ lang.Tag() }>{ noteDateLabel(&v, lang) }</dt>
-				<dd><time datetime={ v.UpdatedAt }>{ v.Updated }</time></dd>
-			</div>
-		}
-		if v.Type != "" {
-			<div>
-				<dt lang={ lang.Tag() }>{ wording.FileType.In(lang) }</dt>
-				<dd>{ v.Type }</dd>
-			</div>
-		}
-		// A note that declared no lang shows no row for one: the absence is the
-		// answer, not a blank waiting to be filled in.
-		if v.Language != "" {
-			<div>
-				<dt lang={ lang.Tag() }>{ wording.NoteLanguage.In(lang) }</dt>
-				<dd>{ v.Language }</dd>
-			</div>
-		}
-		if v.RelPath != "" {
-			<div>
-				<dt lang={ lang.Tag() }>{ wording.RawFile.In(lang) }</dt>
-				<dd><a href={ templ.URL(rawHref(v.RelPath)) }>{ v.RelPath }</a></dd>
-			</div>
-		}
-	</dl>
-}
-
-// obsidianDoor is the way to where a repair actually happens. It is not a fact
-// about the note, so it sits beside the dl rather than inside it: every
-// repair yomihon's diagnostics report is a hand edit, and this is the page's
-// one door to where that edit is made. The href is already built and escaped
-// server-side, so it bypasses the sanitizer that would reject its custom
-// scheme.
-templ obsidianDoor(v NoteView, lang wording.Lang) {
-	if v.ObsidianHref != "" {
-		<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
+	if v.factsShown() {
+		<div class="y-facts">
+			@draftMark(v, lang)
+			if v.factRows() {
+				<dl class="y-notefacts">
+					if v.Type != "" {
+						<div>
+							<dt lang={ lang.Tag() }>{ wording.FileType.In(lang) }</dt>
+							<dd>{ v.Type }</dd>
+						</div>
+					}
+					// A note that declared no lang shows no row for one: the absence is
+					// the answer, not a blank waiting to be filled in.
+					if v.Language != "" {
+						<div>
+							<dt lang={ lang.Tag() }>{ wording.NoteLanguage.In(lang) }</dt>
+							<dd>{ v.Language }</dd>
+						</div>
+					}
+					if v.VerifiedOn != "" {
+						<div>
+							<dt lang={ lang.Tag() }>{ wording.VerifiedOn.In(lang) }</dt>
+							<dd><time datetime={ v.VerifiedAt }>{ v.VerifiedOn }</time></dd>
+						</div>
+					}
+					if len(v.Prerequisites) > 0 {
+						<div>
+							<dt lang={ lang.Tag() }>{ wording.Prerequisites.In(lang) }</dt>
+							<dd>
+								<ul class="y-notefacts__links" role="list">
+									for _, ref := range v.Prerequisites {
+										<li>
+											if ref.RelPath != "" {
+												<a href={ templ.URL(notesHref(ref.RelPath)) } { authoredLanguageAttrs(ref.Language)... }>{ ref.Name }</a>
+											} else {
+												<span>{ ref.Name }</span>
+											}
+										</li>
+									}
+								</ul>
+							</dd>
+						</div>
+					}
+					if v.RelPath != "" {
+						<div>
+							<dt lang={ lang.Tag() }>{ wording.RawFile.In(lang) }</dt>
+							<dd>
+								<a class="y-notefacts__path" href={ templ.URL(rawHref(v.RelPath)) }>{ v.RelPath }</a>
+								@obsidianDoor(v, lang)
+								@thoughtDoor(v, lang)
+							</dd>
+						</div>
+					}
+				</dl>
+			}
+		</div>
 	}
 }
 
-// thoughtDoor is the page-level way to leave a thought about this note. It
-// stands in the head's actions beside the Obsidian door, in the same link
-// style, so it reads as something the reader can do with the note rather than
-// as a stray line of the article.
+// obsidianDoor is the way to where a repair actually happens. It is not a fact
+// about the note, so it sits beside the path rather than being a row of its
+// own: every repair yomihon's diagnostics report is a hand edit, and this is
+// the page's one door to where that edit is made. The href is already built and
+// escaped server-side, so it bypasses the sanitizer that would reject its custom
+// scheme.
+templ obsidianDoor(v NoteView, lang wording.Lang) {
+	if v.ObsidianHref != "" {
+		<a class="y-notefacts__door" lang={ lang.Tag() } href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
+	}
+}
+
+// thoughtDoor is the page-level way to leave a thought about the note as a
+// whole. It stands beside the Obsidian door, in the same link style, so it reads
+// as something the reader can do with the note rather than as a stray line of the
+// article. A section has its own beside its heading.
 templ thoughtDoor(v NoteView, lang wording.Lang) {
 	if v.ThoughtDoor {
-		<a class="y-metarow__raw" lang={ lang.Tag() } href={ templ.URL(thoughtHref(v.RelPath, "")) }>{ wording.ThoughtDoor.In(lang) }</a>
+		<a class="y-notefacts__door" lang={ lang.Tag() } href={ templ.URL(thoughtHref(v.RelPath, "")) } aria-label={ fmt.Sprintf(wording.ThoughtSectionFmt.In(lang), v.Title) }>{ wording.ThoughtDoor.In(lang) }</a>
 	}
 }
 
@@ -540,9 +554,8 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 // sidebar to carry it, draws it in its folded row. Both are this one list, so
 // the two surfaces read as one.
 //
-// Every heading is the note's own text, so the list carries its language;
-// the optional thought doors declare the interface language separately. It needs saying
-// on the list because neither copy would otherwise inherit the right answer:
+// Every heading is the note's own text, so the list carries its language. It
+// needs saying on the list because neither copy would otherwise inherit the right answer:
 // the folded one sits inside a block that declares the language the interface
 // speaks, and the sidebar one sits outside the article entirely, where the
 // document's language is all there is. A note that declared no language stamps
@@ -557,7 +570,6 @@ templ tocList(v NoteView, lang wording.Lang) {
 		for _, h := range v.TOC {
 			<div class="y-toc__row">
 				<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
-				@thoughtSectionLink(v, h, lang)
 			</div>
 		}
 		if v.endShown() {
@@ -566,17 +578,6 @@ templ tocList(v NoteView, lang wording.Lang) {
 			</div>
 		}
 	</div>
-}
-
-// thoughtSectionLink is the trailing icon of a contents row: the section's own
-// way to leave a thought. It has no visible words, so its name says which
-// section it is for, in the interface's language.
-templ thoughtSectionLink(v NoteView, h render.TOCEntry, lang wording.Lang) {
-	if v.ThoughtDoor {
-		<a class="y-toc__door" href={ templ.URL(thoughtHref(v.RelPath, strings.TrimPrefix(h.ID, v.IDPrefix))) } lang={ lang.Tag() } aria-label={ fmt.Sprintf(wording.ThoughtSectionFmt.In(lang), h.Text) }>
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-		</a>
-	}
 }
 
 // inlineAids is the folded contents row of a note that stands in a column of a
@@ -605,22 +606,27 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 	}
 }
 
-// relatedAids closes the article with what stands beside the note: the note to
-// read beside it, the sources it declared, the notes declared on it, the notes
-// whose text links here, and what the check found in it. They are what a reader
-// who has finished looks for next, so they wait at the end of the text, at
-// every width, rather than between the title and the first sentence or in a
-// column of their own, and the sidebar's last contents row leads down to them.
-// The block is the target of that row, so it can be focused without being a
-// stop of its own.
+// relatedAids closes the article with what stands beside the note and what the
+// note is: the note to read beside it, the sources it declared, the notes
+// declared on it, the notes whose text links here, what the check found in it,
+// and its facts. They are what a reader who has finished looks for next, so they
+// wait at the end of the text, at every width, in one block rather than between
+// the title and the first sentence or in a column of their own, and the
+// sidebar's last contents row leads down to them. Nothing in the block writes
+// anywhere: the facts are the author's words, shown.
+//
+// The block is the target of that row, so it can be focused without being a stop
+// of its own. A note with only facts has no row leading to it, and so no name to
+// be led to by.
 templ relatedAids(v NoteView, lang wording.Lang) {
-	if v.endShown() {
-		<div class="y-related" id={ v.endID() } tabindex="-1" lang={ lang.Tag() }>
+	if v.endShown() || v.factsShown() {
+		<div class="y-related" { v.endAttrs()... } lang={ lang.Tag() }>
 			@pairOffer(v, lang)
 			@basedOn(v, lang)
 			@declaredByBlock(v, lang)
 			@citedBy(v, lang)
 			@diagnostics(v, lang)
+			@noteFacts(v, lang)
 		</div>
 	}
 }

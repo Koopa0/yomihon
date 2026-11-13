@@ -380,19 +380,27 @@ func (h *Handler) reading(
 	render.Qualify(idPrefix, &result)
 	result.HTML = annotateMarkAnchors(result.HTML)
 
+	// The one place the reader kept, if any. Both the book beside this note, the
+	// control for keeping a place and the margin of the section that holds it read
+	// it from here, so they cannot disagree about where it is.
+	kept, marked := h.sources.Continuation()
+	var heldHere *mark.Continuation
+	if marked && kept.RelPath == n.RelPath {
+		heldHere = &kept
+	}
+	door := snap.NavigationRoles().AnswerType() != "" && thoughtSourceAvailable(snap, rel)
+	var titleThoughts []pages.ThoughtLine
+	result.HTML, titleThoughts = h.sectionsIn(r.Context(), snap, n, &result, idPrefix, lang, door, heldHere)
+
 	// One resolved rail answers both the navigation and the article's own way
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
 	readingRail := pages.NewReadingRail(state.shell, n.RelPath, n.Domain)
-	// The one place the reader kept, if any. Both the book beside this note and
-	// the control for keeping a place read it from here, so the two cannot
-	// disagree about where it is.
-	kept, marked := h.sources.Continuation()
 	if marked {
 		readingRail.KeptNote = kept.RelPath
 	}
 	foot := pages.FooterSequence(&readingRail, lang)
-	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(snap, rel)
+	verifiedOn, verifiedAt := verifiedDay(n)
 	contract := h.enumContract(authority)
 	cause := blockedSource(snap, rel)
 	view = pages.NoteView{
@@ -401,9 +409,9 @@ func (h *Handler) reading(
 		Language:           n.Language,
 		Type:               n.Type,
 		Draft:              n.Draft,
-		Updated:            updatedDisplay,
-		UpdatedAt:          updatedMachine,
-		UpdatedFromFile:    updatedFromFile,
+		VerifiedOn:         verifiedOn,
+		VerifiedAt:         verifiedAt,
+		Prerequisites:      prerequisites(snap, rel),
 		ObsidianHref:       obsidianOpenHref(h.sources.Source, n.RelPath),
 		Diagnostic:         n.FMDiagnostic,
 		Stale:              n.Stale,
@@ -434,7 +442,8 @@ func (h *Handler) reading(
 		MarkAddress:        h.sources.MarkAddress,
 		PlaceKept:          marked && kept.RelPath == n.RelPath,
 		UncertaintyAddress: h.sources.UncertaintyAddress,
-		ThoughtDoor:        snap.NavigationRoles().AnswerType() != "" && thoughtSourceAvailable(snap, rel),
+		ThoughtDoor:        door,
+		TitleThoughts:      titleThoughts,
 		// The identity above covers the note's own bytes; what the render
 		// pulled in from other notes is bound by its own stamp, so an edit to
 		// an embedded source can reach this page while it is open.
@@ -447,22 +456,32 @@ func (h *Handler) reading(
 	return view, conceptRefs
 }
 
-// metarowDate picks the one date the reading page shows and the strings the
-// time element carries: the file's recorded change time, kept with its clock in
-// the machine-readable value because a clock is what was observed. A note
-// writes no update date of its own, so fromFile is always the answer and the
-// label names that claim.
-//
-// Every note this page serves was observed by the generation's scan, so the
-// date is expected to answer; should the scan hold no identity for the path
-// anyway, the page goes dateless rather than dated by invention.
-func metarowDate(snap *snapshot.Generation, rel string) (display, machine string, fromFile bool) {
-	entry, ok := snap.Entry(rel)
-	if !ok || entry.ModTime().IsZero() {
-		return "", "", false
+// verifiedDay is the one date the note's facts print and the machine-readable
+// value its time element carries: the day the author wrote down as the one they
+// last checked the note. It is theirs and is said as theirs; a note that wrote
+// none, or wrote something no date reads from, has no date, because the file's
+// own change time is the checkout's moment and not a claim anyone made.
+func verifiedDay(n *snapshot.Reading) (display, machine string) {
+	if n.VerifiedOn.IsZero() {
+		return "", ""
 	}
-	mod := entry.ModTime()
-	return mod.Format(time.DateOnly), mod.Format(time.RFC3339), true
+	day := n.VerifiedOn.Format(time.DateOnly)
+	return day, day
+}
+
+// prerequisites are the notes the author named as ones to know first, each with
+// the language it declares so its name is read in it.
+func prerequisites(snap *snapshot.Generation, rel string) []nav.NoteRef {
+	refs := snap.Prerequisites(rel)
+	for i := range refs {
+		if refs[i].RelPath == "" {
+			continue
+		}
+		if named, ok := snap.Note(refs[i].RelPath); ok {
+			refs[i].Language = named.Language
+		}
+	}
+	return refs
 }
 
 // schemaNotices turns what the schema said about a note into sentences a

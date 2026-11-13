@@ -1416,36 +1416,72 @@ func TestCalloutTypeTable(t *testing.T) {
 	t.Parallel()
 	r := newRenderer(t, nil, nil, nil)
 
+	const (
+		warning = "注意"
+		note    = "備註"
+		quote   = "引用"
+		none    = ""
+	)
+	// title is what stands after the label: the type's own name, except where the
+	// label already says it (warning, note, quote) and a title beside it would
+	// say it twice.
 	tests := []struct {
-		typ, bucketClass, title string
+		typ, bucketClass, label, title string
 	}{
-		{"info", "note", "Info"}, {"note", "note", "Note"}, {"tip", "note", "Tip"},
-		{"hint", "note", "Hint"}, {"abstract", "note", "Abstract"}, {"summary", "note", "Summary"},
-		{"todo", "note", "Todo"},
-		{"important", "note", "Important"}, {"tldr", "note", "Tldr"},
-		{"success", "note", "Success"}, {"check", "note", "Check"}, {"done", "note", "Done"},
-		{"question", "note", "Question"}, {"help", "note", "Help"}, {"faq", "note", "Faq"},
-		{"example", "note", "Example"}, {"quote", "quote", "Quote"}, {"cite", "quote", "Cite"},
-		{"warning", "warning", "Warning"}, {"caution", "warning", "Caution"}, {"attention", "warning", "Attention"},
-		{"danger", "warning", "Danger"}, {"error", "warning", "Error"}, {"bug", "warning", "Bug"},
-		{"fail", "warning", "Fail"}, {"failure", "warning", "Failure"}, {"missing", "warning", "Missing"},
+		{"info", "note", note, "Info"}, {"note", "note", note, ""}, {"tip", "note", note, "Tip"},
+		{"hint", "note", note, "Hint"}, {"abstract", "note", note, "Abstract"}, {"summary", "note", note, "Summary"},
+		{"todo", "note", note, "Todo"},
+		{"important", "note", note, "Important"}, {"tldr", "note", note, "Tldr"},
+		{"success", "note", note, "Success"}, {"check", "note", note, "Check"}, {"done", "note", note, "Done"},
+		{"question", "note", none, "Question"}, {"help", "note", none, "Help"}, {"faq", "note", none, "Faq"},
+		{"example", "note", note, "Example"}, {"quote", "quote", quote, ""}, {"cite", "quote", quote, "Cite"},
+		{"warning", "warning", warning, ""}, {"caution", "warning", warning, "Caution"}, {"attention", "warning", warning, "Attention"},
+		{"danger", "warning", warning, "Danger"}, {"error", "warning", warning, "Error"}, {"bug", "warning", warning, "Bug"},
+		{"fail", "warning", warning, "Fail"}, {"failure", "warning", warning, "Failure"}, {"missing", "warning", warning, "Missing"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.typ, func(t *testing.T) {
 			t.Parallel()
 			body := "> [!" + tt.typ + "]\n> body text\n"
 			got := r.HTML("note.md", "", body, wording.ZhHant)
-			wantClass := `class="callout callout-` + tt.bucketClass + `"`
+			wantClass := `class="callout callout-` + tt.bucketClass + `" data-callout="` + tt.typ + `"`
 			if !strings.Contains(got.HTML, wantClass) {
 				t.Errorf("[!%s] HTML missing %q:\n%s", tt.typ, wantClass, got.HTML)
 			}
-			if !strings.Contains(got.HTML, ">"+tt.title+"</p>") {
-				t.Errorf("[!%s] HTML missing default title %q:\n%s", tt.typ, tt.title, got.HTML)
+			wantRow := `<p class="callout-title">` + tt.title + `</p>`
+			if tt.label != none {
+				wantRow = `<p class="callout-title"><span class="callout-type" lang="zh-Hant">` + tt.label + `</span>` + tt.title + `</p>`
+			}
+			if !strings.Contains(got.HTML, wantRow) {
+				t.Errorf("[!%s] HTML missing the title row %q:\n%s", tt.typ, wantRow, got.HTML)
+			}
+			if tt.label == none && strings.Contains(got.HTML, "callout-type") {
+				t.Errorf("[!%s] prints a type word, which a question's title makes redundant:\n%s", tt.typ, got.HTML)
 			}
 			if len(got.Diagnostics) != 0 {
 				t.Errorf("[!%s] Diagnostics = %+v, want none — a known type is not a diagnostic", tt.typ, got.Diagnostics)
 			}
 		})
+	}
+}
+
+// TestACalloutLabelIsWrittenInTheInterfaceLanguage holds that the word naming a
+// callout's type is the interface's, not the note's: an English interface prints
+// Warning, Note and Quote, and each says which language it is in, because the
+// article around it declares the note's own.
+func TestACalloutLabelIsWrittenInTheInterfaceLanguage(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	for _, tt := range []struct{ typ, want string }{
+		{"danger", `<span class="callout-type" lang="en">Warning</span>`},
+		{"tip", `<span class="callout-type" lang="en">Note</span>`},
+		{"cite", `<span class="callout-type" lang="en">Quote</span>`},
+		{"nonesuch", `<span class="callout-type" lang="en">Note</span>`},
+	} {
+		got := r.HTML("note.md", "", "> [!"+tt.typ+"]\n> body\n", wording.En)
+		if !strings.Contains(got.HTML, tt.want) {
+			t.Errorf("[!%s] in English: missing %q:\n%s", tt.typ, tt.want, got.HTML)
+		}
 	}
 }
 
@@ -1456,7 +1492,7 @@ func TestCalloutFoldSuffixes(t *testing.T) {
 	t.Run("closed by default (-)", func(t *testing.T) {
 		t.Parallel()
 		got := r.HTML("note.md", "", "> [!note]-\n> hidden\n", wording.ZhHant)
-		if !strings.Contains(got.HTML, `<details class="callout callout-note">`) {
+		if !strings.Contains(got.HTML, `<details class="callout callout-note" data-callout="note">`) {
 			t.Errorf("HTML().HTML missing closed <details>:\n%s", got.HTML)
 		}
 	})
@@ -1464,7 +1500,7 @@ func TestCalloutFoldSuffixes(t *testing.T) {
 	t.Run("open by default (+)", func(t *testing.T) {
 		t.Parallel()
 		got := r.HTML("note.md", "", "> [!note]+\n> shown\n", wording.ZhHant)
-		if !strings.Contains(got.HTML, `<details class="callout callout-note" open>`) {
+		if !strings.Contains(got.HTML, `<details class="callout callout-note" data-callout="note" open>`) {
 			t.Errorf("HTML().HTML missing open <details>:\n%s", got.HTML)
 		}
 	})
@@ -1475,7 +1511,7 @@ func TestCalloutFoldSuffixes(t *testing.T) {
 		if strings.Contains(got.HTML, "<details") {
 			t.Errorf("a static (no-suffix) callout must not render <details>:\n%s", got.HTML)
 		}
-		if !strings.Contains(got.HTML, `<div class="callout callout-note">`) {
+		if !strings.Contains(got.HTML, `<div class="callout callout-note" data-callout="note">`) {
 			t.Errorf("HTML().HTML missing static callout div:\n%s", got.HTML)
 		}
 	})
@@ -1485,7 +1521,7 @@ func TestCalloutFoldSuffixes(t *testing.T) {
 // serialization byte-exact for one fixed body, the way the heading and table
 // surfaces are already locked. The class-fragment assertions above prove the
 // pieces exist; only an exact string proves there is exactly one body
-// wrapper, that attributes keep their order, and that the icon precedes the
+// wrapper, that attributes keep their order, and that the label precedes the
 // title — the drifts a substring check waves through.
 //
 // The newline between the body wrapper and the first paragraph is the callout's
@@ -1503,40 +1539,40 @@ func TestCalloutSerializationLocks(t *testing.T) {
 		{
 			name: "static callout",
 			body: "> [!note]\n> body text\n",
-			want: `<div class="callout callout-note"><p class="callout-title">` +
-				`<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg>Note</p>` +
+			want: `<div class="callout callout-note" data-callout="note"><p class="callout-title">` +
+				`<span class="callout-type" lang="zh-Hant">備註</span></p>` +
 				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></div>\n",
 		},
 		{
 			name: "foldable callout closed by default",
 			body: "> [!note]-\n> body text\n",
-			want: `<details class="callout callout-note"><summary class="callout-title">` +
-				`<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg>Note</summary>` +
+			want: `<details class="callout callout-note" data-callout="note"><summary class="callout-title">` +
+				`<span class="callout-type" lang="zh-Hant">備註</span></summary>` +
 				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></details>\n",
 		},
 		{
 			name: "foldable callout open by default",
 			body: "> [!note]+\n> body text\n",
-			want: `<details class="callout callout-note" open><summary class="callout-title">` +
-				`<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg>Note</summary>` +
+			want: `<details class="callout callout-note" data-callout="note" open><summary class="callout-title">` +
+				`<span class="callout-type" lang="zh-Hant">備註</span></summary>` +
 				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></details>\n",
 		},
 		{
 			name: "static warning callout with an authored title",
 			body: "> [!warning] 自訂標題\n> body text\n",
-			want: `<div class="callout callout-warning"><p class="callout-title">` +
-				`<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5 2.5 20h19z"></path><path d="M12 10v4"></path><path d="M12 17h.01"></path></svg>自訂標題</p>` +
+			want: `<div class="callout callout-warning" data-callout="warning"><p class="callout-title">` +
+				`<span class="callout-type" lang="zh-Hant">注意</span>自訂標題</p>` +
 				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></div>\n",
 		},
 		{
 			// A quotation is not an aside about the text — it is someone's
-			// words. It keeps its own class and a quotation mark for an icon,
-			// the reading Obsidian gives the same type, so a spoken record
-			// stops arriving dressed as an information note.
+			// words. It keeps its own class and its own label, the reading
+			// Obsidian gives the same type, so a spoken record stops arriving
+			// dressed as an information note.
 			name: "static quote callout with an authored title",
 			body: "> [!quote] 口述紀錄\n> body text\n",
-			want: `<div class="callout callout-quote"><p class="callout-title">` +
-				`<svg class="callout-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 17v-3.5C6 10 7.5 8 10 7"></path><path d="M6 13.5h3.5V17H6"></path><path d="M14 17v-3.5c0-3.5 1.5-5.5 4-6.5"></path><path d="M14 13.5h3.5V17H14"></path></svg>口述紀錄</p>` +
+			want: `<div class="callout callout-quote" data-callout="quote"><p class="callout-title">` +
+				`<span class="callout-type" lang="zh-Hant">引用</span>口述紀錄</p>` +
 				`<div class="callout-body">` + "\n" + `<p>body text</p>` + "\n</div></div>\n",
 		},
 	}

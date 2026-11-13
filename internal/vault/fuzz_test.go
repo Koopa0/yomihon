@@ -71,6 +71,7 @@ func FuzzParse(f *testing.F) {
 		// when YAML decoded a non-map or malformed frontmatter.
 		_ = first.Type()
 		_ = first.Created()
+		_ = first.VerifiedOn()
 		_ = first.Slug()
 	})
 }
