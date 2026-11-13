@@ -123,7 +123,7 @@ const MUTATIONS = {
   // Words as text between a heading and the paragraph after it.
   'put-the-words-in-text-beside-the-heading': {
     target: 'a-landing-on-a-heading-survives',
-    apply: rewriteDocument(`data-text="${NAME}" disabled></button>`, `data-text="${NAME}" disabled>${NAME}</button>`),
+    apply: rewriteDocument('data-text="留下自己的想法"></a>', 'data-text="留下自己的想法">留下自己的想法</a>'),
   },
 };
 
@@ -284,18 +284,10 @@ try {
   // A search result lands on a heading by the text that follows it.
   {
     const landing = await open();
-    await landing.page.goto(`${BASE}/`, { waitUntil: 'load' });
-    // The last section, so a landing has somewhere to scroll to.
-    const href = `${PAGE}#:~:text=The%20third%20mechanism,-Sentence%200%20of%20the%20third`;
-    await landing.page.evaluate((address) => {
-      const link = document.createElement('a');
-      link.id = 'probe-landing';
-      link.href = address;
-      link.textContent = 'landing';
-      document.body.prepend(link);
-    }, href);
-    await landing.page.click('#probe-landing');
-    await landing.page.waitForLoadState('load');
+    // The last section, so a landing has somewhere to scroll to. The address is
+    // opened as a reader opens one they were handed, not through a link on a page
+    // that has prefetched it, which would never pass through what is planted.
+    await landing.page.goto(`${BASE}${PAGE}#:~:text=The%20third%20mechanism,-Sentence%200%20of%20the%20third`, { waitUntil: 'load' });
     await landing.page.waitForTimeout(700);
     const placed = await landing.page.evaluate(() => {
       const heading = document.getElementById('the-third-mechanism').getBoundingClientRect();
