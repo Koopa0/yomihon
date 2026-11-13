@@ -1,43 +1,6 @@
 package pages
 
-import (
-	"github.com/koopa0/yomihon/internal/ui/layouts"
-	"github.com/koopa0/yomihon/internal/wording"
-)
-
-// markControl is the reader's own verb on a reading page: keep this place, so
-// the desk can offer it back. It closes the rail because it is a verb and the
-// rest of the rail is reading matter.
-//
-// Where the place already kept is in this note, the button is drawn with the
-// reader's bookmark — the stylesheet reads data-mark-kept for it — and the
-// sentence the press answers with is there for a reader who cannot see it.
-//
-// It renders only where a script is running. The gate is not a missing
-// fallback: what the control sends is where the window is, and a browser with
-// no script has no such thing to send. Everything else on this page works
-// without one.
-templ markControl(v NoteView, lang wording.Lang) {
-	if v.offersMark() {
-		<section
-			class="y-markset"
-			data-mark-control
-			data-mark-path={ v.RelPath }
-			data-mark-identity={ v.ContentIdentity }
-			data-mark-endpoint={ v.MarkAddress }
-			data-mark-saved={ wording.MarkSaved.In(lang) }
-			data-mark-failed={ wording.MarkNotStored.In(lang) }
-			data-mark-kept?={ v.PlaceKept }
-		>
-			<button type="button" class="y-xbtn" data-mark-button>{ wording.MarkSetControl.In(lang) }</button>
-			if v.PlaceKept {
-				<span class="y-offscreen">{ wording.MarkSaved.In(lang) }</span>
-			}
-			<p class="y-markset__note">{ wording.MarkPerDevice.In(lang) }</p>
-			@layouts.Reply("y-markset__said", templ.Attributes{"data-mark-said": true})
-		</section>
-	}
-}
+import "github.com/koopa0/yomihon/internal/wording"
 
 // continueRow returns the reader to the place they kept. It is one row rather
 // than a block: there is one mark, and a list of one is a list the reader has

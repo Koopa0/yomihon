@@ -33,7 +33,7 @@ const SITES = [
   'contract-declares-lang',
   'declared-shell-language',
   'declared-article-language',
-  'inline-aids-chrome-language',
+  'end-block-chrome-language',
   'toc-authored-language',
   'slot-machine-chrome-language',
   'slot-output-authored-language',
@@ -118,10 +118,9 @@ const rewriteFolderTitles = async (page) => {
 // selectors for the same question.
 //
 // A contents entry is one of the note's own headings reprinted, and it is
-// reprinted outside the article: once inside the aids block, which speaks the
-// interface's language, and once in the rail, which is not inside the article
-// at all. So an entry cannot be read by its own attribute — it usually has
-// none. What decides how it is announced is the nearest declaration above it,
+// reprinted outside the article, in the sidebar, which is not inside the
+// article at all. So an entry cannot be read by its own attribute — it usually
+// has none. What decides how it is announced is the nearest declaration above it,
 // which is what this collects.
 const readListingLanguages = () => ({
   searchTitles: Array.from(document.querySelectorAll('.y-result'), (element) => ({
@@ -138,13 +137,13 @@ const readListingLanguages = () => ({
 const readLanguages = () => ({
   shellLanguage: document.documentElement.getAttribute('lang'),
   articleLanguages: Array.from(document.querySelectorAll('article.y-article'), (article) => article.getAttribute('lang')),
-  inlineAidsLanguages: Array.from(document.querySelectorAll('.y-inlineaids'), (element) => element.getAttribute('lang')),
+  endLanguages: Array.from(document.querySelectorAll('.y-related'), (element) => element.getAttribute('lang')),
   slotMachineLanguages: Array.from(document.querySelectorAll('.y-slotmachine'), (element) => element.getAttribute('lang')),
   slotOutputLanguages: Array.from(document.querySelectorAll('.y-slotoutput'), (element) => element.getAttribute('lang')),
   ttsLanguages: Array.from(document.querySelectorAll('.y-tts'), (element) => element.getAttribute('lang')),
   readingLanguages: Array.from(document.querySelectorAll('.y-reading'), (element) => element.getAttribute('lang')),
-  contentsEntries: Array.from(document.querySelectorAll('.y-toc__list a'), (entry) => ({
-    where: entry.closest('.y-inlineaids') ? 'the folded contents' : entry.closest('.y-rail-right') ? 'the rail contents' : 'a contents list in neither known place',
+  contentsEntries: Array.from(document.querySelectorAll('.y-toc__list .y-toc__row:not(.y-toc__row--end) a'), (entry) => ({
+    where: entry.closest('.y-railtoc') ? 'the sidebar contents' : 'a contents list in no known place',
     inherits: entry.closest('[lang]')?.getAttribute('lang') ?? null,
   })),
 });
@@ -166,16 +165,15 @@ const MUTATIONS = {
     target: 'declared-article-language',
     apply: rewritePath(DECLARED_PAGE, '<article class="y-article" lang="ja"', '<article class="y-article" lang="und"', 'declared note article language'),
   },
-  'drop-inline-aids-chrome-lang': {
-    target: 'inline-aids-chrome-language',
-    apply: rewritePath(DECLARED_PAGE, '<div class="y-inlineaids" lang="zh-Hant">', '<div class="y-inlineaids">', 'inline reading aids language'),
+  'drop-end-block-chrome-lang': {
+    target: 'end-block-chrome-language',
+    apply: rewritePath(DECLARED_PAGE, '<div class="y-related" id="_y-end" tabindex="-1" lang="zh-Hant">', '<div class="y-related" id="_y-end" tabindex="-1">', 'end block language'),
   },
-  // The contents list is one component drawn twice — folded into the article
-  // and open in the right rail — so both copies carry the needle and both have
-  // to lose it, or the surviving copy would answer for the mutated one.
+  // The contents list is drawn once, in the sidebar under the row that is the
+  // note.
   'drop-toc-authored-lang': {
     target: 'toc-authored-language',
-    apply: rewritePath(DECLARED_PAGE, '<div class="y-toc__list" lang="ja">', '<div class="y-toc__list">', 'contents-list authored language', 2),
+    apply: rewritePath(DECLARED_PAGE, '<div class="y-toc__list" lang="ja">', '<div class="y-toc__list">', 'contents-list authored language'),
   },
   'drop-slot-machine-chrome-lang': {
     target: 'slot-machine-chrome-language',
@@ -211,7 +209,7 @@ const MUTATIONS = {
   'switched-chrome-stays-default': {
     target: 'switched-chrome-language',
     on: 'switched',
-    apply: rewritePath(DECLARED_PAGE, '<div class="y-inlineaids" lang="en">', '<div class="y-inlineaids" lang="zh-Hant">', 'switched inline reading aids language'),
+    apply: rewritePath(DECLARED_PAGE, '<div class="y-related" id="_y-end" tabindex="-1" lang="en">', '<div class="y-related" id="_y-end" tabindex="-1" lang="zh-Hant">', 'switched end block language'),
   },
   'switched-article-follows-chrome': {
     target: 'switched-authored-language',
@@ -221,7 +219,7 @@ const MUTATIONS = {
   'switched-toc-follows-chrome': {
     target: 'switched-authored-language',
     on: 'switched',
-    apply: rewritePath(DECLARED_PAGE, '<div class="y-toc__list" lang="ja">', '<div class="y-toc__list" lang="en">', 'switched contents-list language', 2),
+    apply: rewritePath(DECLARED_PAGE, '<div class="y-toc__list" lang="ja">', '<div class="y-toc__list" lang="en">', 'switched contents-list language'),
   },
   'drop-search-listing-lang': {
     target: 'listing-search-declared-language',
@@ -345,16 +343,17 @@ try {
   if (declaredDOM.articleLanguages.length !== 1 || declaredDOM.articleLanguages[0] !== 'ja') {
     fail('declared-article-language', `L01 article langs are ${JSON.stringify(declaredDOM.articleLanguages)}, want exactly ["ja"]`);
   }
-  if (declaredDOM.inlineAidsLanguages.length !== 1 || declaredDOM.inlineAidsLanguages[0] !== 'zh-Hant') {
-    fail('inline-aids-chrome-language', `inline reading-aids langs are ${JSON.stringify(declaredDOM.inlineAidsLanguages)}, want exactly ["zh-Hant"]`);
+  if (declaredDOM.endLanguages.length !== 1 || declaredDOM.endLanguages[0] !== 'zh-Hant') {
+    fail('end-block-chrome-language', `the end block's langs are ${JSON.stringify(declaredDOM.endLanguages)}, want exactly ["zh-Hant"]`);
   }
   // The label above the list is the interface's word for the list; the entries
-  // under it are the author's words for their own sections. The aids block
-  // declares the first, and it must not be left declaring the second — a
+  // under it are the author's words for their own sections. The list declares
+  // the author's language for them, and the sidebar they sit in, outside the
+  // article entirely, would otherwise read them in the document's language: a
   // Japanese heading announced in the reader's interface language is announced
-  // wrong, and the rail's copy, outside the article entirely, would be read in
-  // the document's language for the same reason.
-  const contentsPlaces = ['the folded contents', 'the rail contents'];
+  // wrong. The row that leads to the end of the note is the interface's word
+  // and is not an entry.
+  const contentsPlaces = ['the sidebar contents'];
   for (const [pass, entries] of [['reading it', declaredDOM.contentsEntries], ['reading it in English', switchedDOM.contentsEntries]]) {
     for (const place of contentsPlaces) {
       if (!entries.some((entry) => entry.where === place)) {
@@ -362,7 +361,7 @@ try {
       }
     }
     const stray = entries.find((entry) => !contentsPlaces.includes(entry.where));
-    if (stray) broken(`${pass}, a contents list appeared outside both known places, so this run cannot say where its entries are announced`);
+    if (stray) broken(`${pass}, a contents list appeared outside its known place, so this run cannot say where its entries are announced`);
   }
   for (const place of contentsPlaces) {
     const inherited = Array.from(new Set(declaredDOM.contentsEntries.filter((entry) => entry.where === place).map((entry) => entry.inherits)));
@@ -427,7 +426,7 @@ try {
     fail('switched-shell-language', `with the language set to English the document lang is ${JSON.stringify(switchedDOM.shellLanguage)}, want "en": the chrome did not follow the reader`);
   }
   for (const [what, langs] of [
-    ['inline reading aids', switchedDOM.inlineAidsLanguages],
+    ['the end block', switchedDOM.endLanguages],
     ['the slot machine', switchedDOM.slotMachineLanguages],
   ]) {
     if (langs.length !== 1 || langs[0] !== 'en') {

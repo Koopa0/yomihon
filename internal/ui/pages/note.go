@@ -212,66 +212,71 @@ func (v *NoteView) diagCount() int {
 	return n
 }
 
-// hasAids reports whether this note carries reading aids. With none, the right
-// rail's column is dropped, so no reader sits beside an empty gutter.
-//
-// The control for keeping a reading place counts among them, because the rail
-// is where it lives and this predicate is what decides the rail exists at all.
-// Left out, it took the control with it on every note in a folder that has no
-// links yet — the cited-by block is what most notes earn their rail with, and
-// it appears only once some note cites another — which is the ordinary state of
-// a new folder rather than an edge of one.
-func (v *NoteView) hasAids() bool {
-	return len(v.TOC) > 0 || v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 ||
-		v.citedByShown() || len(v.BasedOn) > 0 || len(v.DeclaredBy) > 0 || v.Pair.RelPath != "" || v.offersMark()
+// endShown reports whether the article ends on a block of what stands beside
+// it: a note to read beside it, the sources it declared, the notes declared on
+// it, the answer about which notes link here, or what the check found in it. A
+// note with none of them ends on its text, and the sidebar draws no row that
+// leads to an end it does not have.
+func (v *NoteView) endShown() bool {
+	return v.Pair.RelPath != "" || len(v.BasedOn) > 0 || len(v.DeclaredBy) > 0 || v.citedByShown() || v.diagCount() > 0
 }
 
-// inlineAidsShown reports whether the narrow layout draws its folded row of
-// reading aids above the prose. It is every aid hasAids counts except the
-// control for keeping a reading place, which the narrow layout carries in the
-// header row rather than in this one.
-func (v *NoteView) inlineAidsShown() bool {
-	return len(v.TOC) > 0 || v.diagCount() > 0 || len(v.BasedOn) > 0 || len(v.DeclaredBy) > 0 || v.relatedShown()
+// endName is the end block's id, which the sidebar's last contents row leads
+// to. Authored section ids never contain an underscore, so it cannot collide
+// with a heading the note itself carries, and the article's id space keeps two
+// notes on one page apart.
+const endName = "_y-end"
+
+func (v *NoteView) endID() string { return v.IDPrefix + endName }
+
+// endLabel is the words the sidebar's last contents row carries: the first
+// heading the end block itself draws, in the order it draws them, so the row
+// and the block it leads to say the same thing. Every one of them is a string
+// the block already prints; an end with none to name has no row, so the empty
+// answer is never read.
+func (v *NoteView) endLabel(lang wording.Lang) string {
+	switch {
+	case v.Pair.RelPath != "":
+		return wording.CompareOffer.In(lang)
+	case len(v.BasedOn) > 0:
+		return wording.BasedOn.In(lang)
+	case len(v.DeclaredBy) > 0:
+		return wording.DeclaredBy.In(lang)
+	case v.citedByShown():
+		return wording.CitedBy.In(lang)
+	case v.diagCount() > 0:
+		return wording.NoteHealth.In(lang)
+	default:
+		return ""
+	}
 }
 
-// relatedShown reports whether the article closes, at the widths without the
-// right rail, on the notes that stand beside this one: a note to read beside
-// it, or the answer about which notes link here.
-func (v *NoteView) relatedShown() bool {
-	return v.Pair.RelPath != "" || v.citedByShown()
+// railWithContents is the reading rail this page draws: the one the handler
+// resolved, with the note's own contents to hang under the row that is the
+// note. The rail is built before the page's words are, so what it needs of the
+// note arrives here rather than being resolved a second time.
+func (v *NoteView) railWithContents() ReadingRail {
+	rail := v.ReadingRail
+	rail.note = v
+	return rail
 }
-
-// The two blocks at the end of the text are named so the folded row above the
-// prose can lead down to them. Authored section ids never contain an
-// underscore, so these cannot collide with a heading the note itself carries,
-// and the article's id space keeps two notes on one page apart.
-const (
-	relatedPairName  = "_y-pair"
-	relatedCitedName = "_y-cited"
-)
-
-func (v *NoteView) relatedPairID() string  { return v.IDPrefix + relatedPairName }
-func (v *NoteView) relatedCitedID() string { return v.IDPrefix + relatedCitedName }
 
 // offersMark reports whether this page can offer to keep the reader's place.
 // It needs the note's own address and the identity of the bytes being shown,
 // because the mark is both of those and a page missing either would store a
 // place that points at nothing in particular.
 //
-// The control it gates has two faces, and neither of them moves the page on
-// the way to being reached: the right rail, which scrolls separately from the
-// article, and the header's folded panel at the widths that have no rail. A
-// copy among the inline aids, which sit between the title and the first
-// sentence, would be reached by scrolling back to the top and would keep that
-// place instead of the reader's.
+// The control it gates is in the header, which stays put while the note
+// scrolls: a copy the reader had to travel to would record where travelling to
+// it left them, not where they were reading.
 func (v *NoteView) offersMark() bool {
 	return v.RelPath != "" && v.ContentIdentity != "" && v.MarkAddress != ""
 }
 
-// markOffer is what the header needs to draw the second face: the note's
-// address, the identity of the bytes on the page, and where the control posts.
-// It answers from the predicate above rather than repeating its three tests, so
-// a page offers both faces or neither and nil is the whole of "neither".
+// markOffer is what the header needs to draw the control: the note's address,
+// the identity of the bytes on the page, and where the control posts. It
+// answers from the predicate above rather than repeating its three tests, so a
+// page offers the control or does not and nil is the whole of "does not".
 func (v *NoteView) markOffer() *layouts.MarkOffer {
 	if !v.offersMark() {
 		return nil

@@ -13,12 +13,12 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-func lifecycleView(t *testing.T, contract *schema.Contract) schema.Authority {
+func authorityOf(t *testing.T, contract *schema.Contract) schema.Authority {
 	t.Helper()
-	return governedLifecycleView(t, contract, contract.Governance())
+	return governedAuthority(t, contract, contract.Governance())
 }
 
-func governedLifecycleView(t *testing.T, contract *schema.Contract, governance schema.Governance) schema.Authority {
+func governedAuthority(t *testing.T, contract *schema.Contract, governance schema.Governance) schema.Authority {
 	t.Helper()
 	return schema.CaptureAuthority(contract, governance)
 }
@@ -61,12 +61,12 @@ func governedSnapshotView(
 	return store.Current()
 }
 
-// TestProjectOpensInstanceStateOnAGovernedLifecycle is the positive case the
+// TestProjectOpensInstanceStateOnAGovernedContract is the positive case the
 // two closure tests below are measured against: a folder whose contract loads
 // and whose notes are ordinary instances keeps both its governed answer and
 // its instance projections. The notes are written across several statuses so
 // the projection is exercised on a populated vault rather than an empty one.
-func TestProjectOpensInstanceStateOnAGovernedLifecycle(t *testing.T) {
+func TestProjectOpensInstanceStateOnAGovernedContract(t *testing.T) {
 	t.Parallel()
 
 	contract, err := schema.LoadFile(filepath.Join("testdata", "contract.toml"))
@@ -88,12 +88,12 @@ func TestProjectOpensInstanceStateOnAGovernedLifecycle(t *testing.T) {
 	}
 	snap := snapshotView(t, contract, notes)
 
-	got := Project("example-vault", lifecycleView(t, contract), snap)
+	got := Project("example-vault", authorityOf(t, contract), snap)
 	if got.Nav.ArtifactClosure().Closed() {
-		t.Error("Project() closed instance projections on an open lifecycle")
+		t.Error("Project() closed instance projections on an open authority")
 	}
 	if !got.Governed {
-		t.Error("Project() reports an open governed lifecycle as ungoverned")
+		t.Error("Project() reports an open governed authority as ungoverned")
 	}
 }
 
@@ -109,27 +109,27 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 		t.Fatalf("LoadFile(rejected-artifacts.toml) error = %v", err)
 	}
 	notes := map[string]string{"Writing/A.md": "---\ntitle: A\ntype: lesson\nstatus: draft\n---\n"}
-	open := lifecycleView(t, contract)
+	open := authorityOf(t, contract)
 	// Two ways an authority refuses, sampled independently: a contract that
 	// exists and cannot be read, and one that loaded with an artifact policy
 	// yomihon had to reject.
-	unreadable := governedLifecycleView(t, nil, schema.Unreadable(errors.New("toml: line 42: expected a key separator")))
+	unreadable := governedAuthority(t, nil, schema.Unreadable(errors.New("toml: line 42: expected a key separator")))
 	openSnapshot := snapshotView(t, contract, notes)
 	rejectedSnapshot := snapshotView(t, rejected, notes)
 
 	tests := []struct {
 		name      string
-		lifecycle schema.Authority
+		authority schema.Authority
 		snap      *snapshot.Generation
 	}{
-		{name: "lifecycle", lifecycle: unreadable, snap: openSnapshot},
-		{name: "artifact policy", lifecycle: open, snap: rejectedSnapshot},
+		{name: "authority", authority: unreadable, snap: openSnapshot},
+		{name: "artifact policy", authority: open, snap: rejectedSnapshot},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := Project("example-vault", tt.lifecycle, tt.snap)
+			got := Project("example-vault", tt.authority, tt.snap)
 			// The recent-notes summary is plain reading and survives the
 			// refusal; what the refusal removes is the knowledge-layer
 			// citation, which is the refused contract's own claim.
@@ -157,13 +157,13 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 // TestProjectKeepsProjectionsOpenForAnUngovernedFolder is the case the old
 // closure conflated with a failure. Nothing declared an exclusion here, so the
 // instance projections are answerable and stay open; what is absent is the
-// lifecycle vocabulary, so nothing is offered from it and no fault is
+// authority vocabulary, so nothing is offered from it and no fault is
 // reported.
 func TestProjectKeepsProjectionsOpenForAnUngovernedFolder(t *testing.T) {
 	t.Parallel()
 
 	notes := map[string]string{"Writing/A.md": "---\ntitle: A\ntype: lesson\nstatus: draft\n---\n"}
-	view := governedLifecycleView(t, nil, schema.Ungoverned())
+	view := governedAuthority(t, nil, schema.Ungoverned())
 	snap := governedSnapshotView(t, nil, schema.Ungoverned(), notes)
 
 	got := Project("example-vault", view, snap)

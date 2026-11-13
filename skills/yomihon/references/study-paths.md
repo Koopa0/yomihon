@@ -6,7 +6,7 @@ counts, a main line and prev/next — and why is mine projecting nothing?
 One tangle of words first, because it is unavoidable and nothing else
 reconciles it. The thing is a **study path**: that is a note `type` the
 contract gives the `course` role. The page that renders it is served under
-`/syllabus/`, its rules are named `path.*`, and the prose here calls the result
+`/courses/`, its rules are named `path.*`, and the prose here calls the result
 a **course**. Confusingly, two rules named `map.*` — `map.disk_mismatch` and
 `map.disk_unlisted` — also judge study paths rather than maps; they are about
 the course's relationship with the files on disk. One thing, four names.
@@ -24,7 +24,7 @@ them are worth seeing concretely, because they decide what you observe when a
 course does not appear.
 
 **The failure is a 404, not a bad page.** A note whose type holds no `course`
-role answers nothing at `/syllabus/<its path>`. Give no type the `course` or
+role answers nothing at `/courses/<its path>`. Give no type the `course` or
 `map` role and the whole vault has no study paths and no maps — the server
 reports `paths=0 maps=0` at startup and `check` says nothing at all, because
 none of this is a fault in any note.

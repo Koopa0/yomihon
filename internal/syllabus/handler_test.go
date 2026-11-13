@@ -174,15 +174,15 @@ func TestShow(t *testing.T) {
 	writeVault(t, root)
 	srv := newServer(t, root)
 
-	code, body := get(t, srv.Client(), srv.URL+"/syllabus/Maps/Go path.md")
+	code, body := get(t, srv.Client(), srv.URL+"/courses/Maps/Go path.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	main := syllabusMain(t, body)
 	for _, want := range []string{
 		`class="y-shell2"`,                    // the study-path shell rendered
-		wording.StudyPaths.In(wording.ZhHant), // the switcher label outside main
-		wording.ThisPath.In(wording.ZhHant),   // the part jump-nav outside main
+		wording.Courses.In(wording.ZhHant),    // the switcher label outside main
+		wording.ThisCourse.In(wording.ZhHant), // the part jump-nav outside main
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("study-path shell missing %q; body = %q", want, body)
@@ -256,7 +256,7 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model, Governed: true}, Generation: snap}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	rr := httptest.NewRecorder()
-	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/syllabus/Maps/Go%20path.md", http.NoBody))
+	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/courses/Maps/Go%20path.md", http.NoBody))
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rr.Code)
 	}
@@ -287,8 +287,8 @@ func TestShowNotFound(t *testing.T) {
 	}{
 		// A real note path, but not a study-path: this route serves only
 		// study-paths, and the note itself lives under /notes/.
-		{name: "a note that is not a course", target: "/syllabus/Writing/lessons/golang/Slices.md"},
-		{name: "an address nothing is at", target: "/syllabus/Maps/Nope.md"},
+		{name: "a note that is not a course", target: "/courses/Writing/lessons/golang/Slices.md"},
+		{name: "an address nothing is at", target: "/courses/Maps/Nope.md"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -334,7 +334,7 @@ func TestShowReportsSizeNotCompletion(t *testing.T) {
 	writeVault(t, root)
 	srv := newServer(t, root)
 
-	code, body := get(t, srv.Client(), srv.URL+"/syllabus/Maps/Go path.md")
+	code, body := get(t, srv.Client(), srv.URL+"/courses/Maps/Go path.md")
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
@@ -391,7 +391,7 @@ func TestShowResolvesADecomposedPath(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			code, page := get(t, srv.Client(), srv.URL+"/syllabus/Maps/"+tc.rel)
+			code, page := get(t, srv.Client(), srv.URL+"/courses/Maps/"+tc.rel)
 			if code != http.StatusOK {
 				t.Fatalf("status = %d, want 200", code)
 			}
@@ -438,9 +438,9 @@ func TestShowMarksTheLessonTheReaderCameFrom(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			address := srv.URL + "/syllabus/Maps/Go path.md"
+			address := srv.URL + "/courses/Maps/Go path.md"
 			if tc.from != "" {
-				address += "?" + url.Values{pages.SyllabusFromParam: {tc.from}}.Encode()
+				address += "?" + url.Values{pages.CourseFromParam: {tc.from}}.Encode()
 			}
 			code, body := get(t, srv.Client(), address)
 			if code != http.StatusOK {
@@ -499,7 +499,7 @@ func TestShowComposesTheNameTheReaderCameFrom(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			address := srv.URL + "/syllabus/Maps/Cafe course.md?" + url.Values{pages.SyllabusFromParam: {tc.rel}}.Encode()
+			address := srv.URL + "/courses/Maps/Cafe course.md?" + url.Values{pages.CourseFromParam: {tc.rel}}.Encode()
 			code, body := get(t, srv.Client(), address)
 			if code != http.StatusOK {
 				t.Fatalf("status = %d, want 200", code)

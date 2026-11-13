@@ -907,29 +907,29 @@ func TestTheKickerAboveACourseTitleEndsOnItsLastWord(t *testing.T) {
 	t.Parallel()
 
 	kicker := regexp.MustCompile(`<div class="y-syl-kicker">([^<]*)</div>`)
-	pages := map[string]func(wording.Lang) templ.Component{
-		"syllabus": func(lang wording.Lang) templ.Component {
-			return Syllabus(PathView{Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md"}, layouts.Chrome{Lang: lang})
-		},
-		"listen": func(lang wording.Lang) templ.Component {
-			return Listen(ListenView{Title: "Path", PathHref: "/syllabus/Maps/Path.md"}, layouts.Chrome{Lang: lang})
-		},
-	}
-	want := map[wording.Lang]string{wording.ZhHant: "學習路徑", wording.En: "Study path"}
+	want := map[wording.Lang]string{wording.ZhHant: "課程", wording.En: "Course"}
 
-	for name, page := range pages {
-		for lang, words := range want {
-			var out bytes.Buffer
-			if err := page(lang).Render(t.Context(), &out); err != nil {
-				t.Fatalf("render the %s page in %s: %v", name, lang, err)
-			}
-			found := kicker.FindAllStringSubmatch(out.String(), -1)
-			if len(found) != 1 {
-				t.Fatalf("the %s page in %s carries %d kickers, want 1; html = %q", name, lang, len(found), out.String())
-			}
-			if got := found[0][1]; got != words {
-				t.Errorf("the %s page in %s opens on %q, want %q", name, lang, got, words)
-			}
+	// The course page carries none: its sidebar names the course, and a line
+	// over the title would say so a second time. The page that reads a course
+	// aloud has no sidebar, so it keeps the one.
+	for lang, words := range want {
+		var out bytes.Buffer
+		if err := Listen(ListenView{Title: "Path", PathHref: "/courses/Maps/Path.md"}, layouts.Chrome{Lang: lang}).Render(t.Context(), &out); err != nil {
+			t.Fatalf("render the listen page in %s: %v", lang, err)
+		}
+		found := kicker.FindAllStringSubmatch(out.String(), -1)
+		if len(found) != 1 {
+			t.Fatalf("the listen page in %s carries %d kickers, want 1; html = %q", lang, len(found), out.String())
+		}
+		if got := found[0][1]; got != words {
+			t.Errorf("the listen page in %s opens on %q, want %q", lang, got, words)
+		}
+		var cover bytes.Buffer
+		if err := Syllabus(PathView{Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md"}, layouts.Chrome{Lang: lang}).Render(t.Context(), &cover); err != nil {
+			t.Fatalf("render the course page in %s: %v", lang, err)
+		}
+		if got := kicker.FindAllString(cover.String(), -1); len(got) != 0 {
+			t.Errorf("the course page in %s carries a kicker over its title, which the sidebar has already said: %v", lang, got)
 		}
 	}
 }
@@ -963,7 +963,7 @@ func TestACourseActionSpacesItsArrowFromItsWords(t *testing.T) {
 		{
 			name: "listen",
 			page: func(lang wording.Lang) templ.Component {
-				return Listen(ListenView{Title: "Path", PathHref: "/syllabus/Maps/Path.md"}, layouts.Chrome{Lang: lang})
+				return Listen(ListenView{Title: "Path", PathHref: "/courses/Maps/Path.md"}, layouts.Chrome{Lang: lang})
 			},
 			want: map[wording.Lang][]string{
 				wording.ZhHant: {"目錄 "},

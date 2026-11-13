@@ -159,7 +159,7 @@ const measure = (page) =>
       sansFace: getComputedStyle(document.documentElement).getPropertyValue('--font-sans'),
       titleFits: title.scrollWidth <= title.clientWidth,
       documentFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-      steps: document.querySelectorAll('.y-railbook nav, #_y-nav-rail .y-lessonsteps').length,
+      steps: document.querySelectorAll('.y-railbook nav:not(.y-railtoc), #_y-nav-rail .y-lessonsteps').length,
     };
   }, LONG_NAME);
 

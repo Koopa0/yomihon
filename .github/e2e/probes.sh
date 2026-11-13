@@ -41,7 +41,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # probe file | the page path it must be driven against
 probes=(
-  "arrival-readiness.mjs|/"
+  "page-change.mjs|/"
   "brand-contract.mjs|/"
   "palette.mjs|/"
   "search-behavior.mjs|/"
@@ -59,8 +59,8 @@ probes=(
   "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
   "article-language-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "language-scroll-restore.mjs|/notes/Notes/Glass%20Tide.md"
-  "right-rail-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
-  "narrow-aids.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "sidebar-contents.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "left-edge.mjs|/"
   "skip-link-contract.mjs|/notes/Notes/alpha.md"
   "contrast-contract.mjs|/notes/Notes/reading-fidelity.md"
   "print-librarian-chrome.mjs|/notes/Notes/reading-fidelity.md"
@@ -90,8 +90,8 @@ probes=(
   "read-aloud-local-voices.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "speak-cells.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "listen-course.mjs|/listen/Maps/listen.md"
-  "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
-  "branch-title-wrap.mjs|/syllabus/Maps/branches.md"
+  "lesson-title-wrap.mjs|/courses/Maps/study.md"
+  "branch-title-wrap.mjs|/courses/Maps/branches.md"
   "course-line.mjs|/notes/Course/C01.md"
   "book-rail-head.mjs|/notes/Course/C02.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -141,7 +141,7 @@ probes=(
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads
   # either would meet a page the fixture alone does not explain.
-  "course-cover.mjs|/syllabus/Maps/branches.md"
+  "course-cover.mjs|/courses/Maps/branches.md"
   "reader-mark.mjs|/notes/Notes/reading-fidelity.md"
 )
 

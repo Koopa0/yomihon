@@ -30,8 +30,8 @@ type Result struct {
 	Tag string
 
 	// File marks a hit that is not a note but a vault file read as characters.
-	// It carries no lifecycle state and never will, so a surface that dresses a
-	// hit in note furniture can tell the two apart.
+	// It has no frontmatter, so it carries no draft flag and never will, and a
+	// surface that dresses a hit in note furniture can tell the two apart.
 	File bool
 
 	// Landing is the selected first-block stretch, with its tail grown to

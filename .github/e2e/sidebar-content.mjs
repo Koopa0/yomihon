@@ -8,7 +8,7 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const HOME = '/';
 const MAP_PAGE = '/notes/Maps/reading.md';
-const STUDY_PAGE = '/syllabus/Maps/study.md';
+const STUDY_PAGE = '/courses/Maps/study.md';
 const MUTATE = process.env.MUTATE || '';
 const SITES = [
   'reading-rail-book',

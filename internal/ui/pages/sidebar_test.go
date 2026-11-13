@@ -449,7 +449,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	html := buf.String()
 	for _, want := range []string{
 		`data-sidebar-group="navigation-diagnostics"`,
-		"路徑與地圖",
+		"課程與地圖",
 		"筆記清單目前無法使用",
 		// The sentences themselves, HTML-escaped exactly as the page writes them.
 		htmlEscape(model.NavigationClosure().Diagnostic()),
@@ -522,7 +522,7 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 	for _, unwanted := range []string{
 		`data-sidebar-group="navigation-diagnostics"`,
 		`data-sidebar-group="journal"`,
-		"路徑與地圖目前無法使用",
+		"課程與地圖目前無法使用",
 		"筆記清單目前無法使用",
 		"日誌目前無法使用",
 	} {
@@ -859,7 +859,7 @@ func TestSidebarLeavesTheCurrentNotesDraftMarkToThePage(t *testing.T) {
 			t.Helper()
 			var buf bytes.Buffer
 			entry := PathEntryView{Kind: nav.EntryResolved, RelPath: rel, Href: "/notes/" + rel, Name: "L", Draft: true, Here: rel == current}
-			if err := bookRailEntry(layouts.Chrome{}, entry).Render(t.Context(), &buf); err != nil {
+			if err := bookRailEntry(layouts.Chrome{}, entry, nil).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render %s: %v", rel, err)
 			}
 			return buf.String()

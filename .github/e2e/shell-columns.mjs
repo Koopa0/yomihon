@@ -1,7 +1,8 @@
 // A two-column page ends with its content, including its own bottom padding.
-// An empty reading-aids rail must not become another window-height grid row.
-// The Go catalog covers every template using this shell; this lock measures
-// the health page's real CSS layout after its arrival animation has finished.
+// A spare window-tall item beside the column must not become another grid row
+// the document grows to hold. The Go catalog covers every template using this
+// shell; this lock measures the health page's real CSS layout once it has been
+// laid out.
 import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
@@ -9,7 +10,7 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/health';
 const MUTATE = process.env.MUTATE || '';
 const SITE = 'content-ends-the-document';
-const MODE = 'restore-empty-right-rail';
+const MODE = 'add-a-window-tall-spare-row';
 const MAIN = '.y-shell2 > main.y-main';
 
 class LockFired extends Error {}
@@ -45,12 +46,13 @@ try {
           if (count !== 1) throw new NotApplied(`NOT-APPLIED shell-columns: ${MAIN} matched ${count} nodes, want exactly 1`);
           if (MUTATE) {
             const applied = await page.locator(MAIN).evaluate((main) => {
-              const rail = document.createElement('aside');
-              rail.className = 'y-rail-right';
-              main.after(rail);
-              return rail.parentElement === main.parentElement && rail.previousElementSibling === main && main.parentElement.querySelectorAll(':scope > aside.y-rail-right').length === 1;
+              const spare = document.createElement('aside');
+              spare.className = 'y-spare-row';
+              spare.style.height = '100vh';
+              main.after(spare);
+              return spare.parentElement === main.parentElement && spare.previousElementSibling === main && main.parentElement.querySelectorAll(':scope > aside.y-spare-row').length === 1;
             });
-            if (!applied) throw new NotApplied(`NOT-APPLIED shell-columns: ${MODE} did not insert exactly one empty rail after main`);
+            if (!applied) throw new NotApplied(`NOT-APPLIED shell-columns: ${MODE} did not insert exactly one spare item after main`);
             console.log(`MUTATION_APPLIED: ${MODE} at exactly one ${MAIN}`);
           }
           await page.evaluate(() => document.fonts.ready);

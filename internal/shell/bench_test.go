@@ -39,11 +39,11 @@ func BenchmarkGatherFindings(b *testing.B) {
 // one process so the comparison survives a machine doing other work: what the
 // foot costs a page is the difference between them, not either number alone.
 func BenchmarkProject(b *testing.B) {
-	lifecycle, snap := benchFolder(b)
+	authority, snap := benchFolder(b)
 	b.Run("with-the-foot", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			projected := Project("bench-vault", lifecycle, snap)
+			projected := Project("bench-vault", authority, snap)
 			if projected.Vault.Notes == 0 {
 				b.Fatal("the projection counted no notes")
 			}
@@ -58,8 +58,8 @@ func BenchmarkProject(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
 			policy := snap.ArtifactPolicy()
-			claim := lifecycle.Claim()
-			projected := nav.Shell{Nav: snap.Navigation(), Governed: lifecycle.Governed()}
+			claim := authority.Claim()
+			projected := nav.Shell{Nav: snap.Navigation(), Governed: authority.Governed()}
 			if !claim.Trustworthy() || !policy.Trustworthy() || projected.Nav == nil {
 				b.Fatal("the stand-in took a different path from the projection it stands in for")
 			}
@@ -67,7 +67,7 @@ func BenchmarkProject(b *testing.B) {
 	})
 }
 
-// benchFolder builds one folder of benchNoteCount notes and the lifecycle view
+// benchFolder builds one folder of benchNoteCount notes and the contract authority
 // a request would hold beside it. Every note declares a type and a domain the
 // contract knows, which is the ordinary shape of a folder somebody
 // keeps; every fourth cites a name nothing answers to, so the gathering reports

@@ -1,6 +1,9 @@
 package pages
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -8,9 +11,12 @@ import (
 
 // readingRail is the narrow left navigation on a reading surface: one map
 // chosen by what is being read, never by the address the reader arrived from.
+// Under the row that is the note it carries the note's own contents, so the
+// reader's place in the map and in the note are one list.
 templ readingRail(rr ReadingRail, c layouts.Chrome) {
-	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) } data-reading-rail={ string(rr.Kind) }>
+	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.VaultNavigation.In(c.Lang) } data-reading-rail={ string(rr.Kind) }>
 		@railHead(c, true)
+		@railSpine(rr.spine(c.Lang))
 		<div class="y-railbody" id="_y-nav-rail-body">
 			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
 			<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
@@ -18,7 +24,7 @@ templ readingRail(rr ReadingRail, c layouts.Chrome) {
 				if faults := rr.CapabilityFaults(c.Lang); len(faults) > 0 {
 					<div class="y-railsep" aria-hidden="true"></div>
 					<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="_y-sidebar-navigation-diagnostics-title">
-						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
+						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.CoursesAndMaps.In(c.Lang) }</h2>
 						for _, fault := range faults {
 							<p>
 								@browserDiagnostic(fault.Summary, fault.Detail)
@@ -32,7 +38,7 @@ templ readingRail(rr ReadingRail, c layouts.Chrome) {
 					@bookRail(rr, c)
 				case ReadingRailFolder:
 					if rr.Model != nil {
-						@ShelfRail(rr.HereShelf(c.Lang), railWindow, rr.hereDir, wording.MoreInFolder.In(c.Lang))
+						@folderRail(rr, c)
 					}
 				case ReadingRailReports:
 					if rr.Model != nil {
@@ -49,7 +55,7 @@ templ bookRail(rr ReadingRail, c layouts.Chrome) {
 	if rr.book != nil {
 		{{ view := rr.bookView() }}
 		<div class="y-railbook" data-book-path={ rr.book.RelPath }>
-			<a class="y-railbook__title" href={ templ.URL(syllabusHrefFrom(rr.book.RelPath, rr.CurrentPath)) }>{ rr.book.Title }</a>
+			<a class="y-railbook__title" href={ templ.URL(courseHrefFrom(rr.book.RelPath, rr.CurrentPath)) }>{ rr.book.Title }</a>
 			<p class="y-railbook__span">{ joinMarks(view.Extent(c.Lang)...) }</p>
 			for _, sec := range view.Branches {
 				@bookRailBranch(rr, c, rr.book.RelPath, nil, sec)
@@ -80,7 +86,7 @@ templ bookRailItems(rr ReadingRail, c layouts.Chrome, pathRel string, chain []st
 			if row.branch != nil {
 				@bookRailBranch(rr, c, pathRel, chain, *row.branch)
 			} else {
-				@bookRailEntry(c, *row.entry)
+				@bookRailEntry(c, *row.entry, rr.note)
 			}
 		}
 	}
@@ -99,7 +105,10 @@ templ bookRailItems(rr ReadingRail, c layouts.Chrome, pathRel string, chain []st
 // itself, but where it would print one it still draws the chip hidden so its
 // name wraps where it does on the rows beside it. A finished lesson prints
 // none, and the bookmark marks the one lesson the reader left off in.
-templ bookRailEntry(c layouts.Chrome, entry PathEntryView) {
+//
+// The row that is the note carries the note's contents beneath it, as the list
+// the row opens into.
+templ bookRailEntry(c layouts.Chrome, entry PathEntryView, note *NoteView) {
 	if entry.Kind == nav.EntryResolved {
 		<a
 			class={ "ui-navitem", templ.KV("is-active", entry.Here) }
@@ -115,6 +124,9 @@ templ bookRailEntry(c layouts.Chrome, entry PathEntryView) {
 				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", entry.Here) }>{ wording.Draft.In(c.Lang) }</span>
 			}
 		</a>
+		if entry.Here {
+			@railContents(note, c.Lang)
+		}
 	} else {
 		<span
 			class="ui-navitem y-navitem--broken"
@@ -138,6 +150,65 @@ templ reportsRail(rr ReadingRail, c layouts.Chrome) {
 			>
 				{ reportLabel(&rep) }
 			</a>
+			if rr.current(rep.RelPath) {
+				@railContents(rr.note, c.Lang)
+			}
 		}
 	</nav>
+}
+
+// folderRail is the rail of a note that is in no course: where it is, as the
+// word for the kind of place and the path itself, in the face a path is set in,
+// and then the files around it. The path is the one thing in this rail that a
+// course's own name would be, so it is led by what it is.
+//
+// The window and its tail are the shelf's own, so this lists exactly what the
+// rail of a page with no contents lists; only the label above it and the
+// contents under the row that is the note are this rail's.
+templ folderRail(rr ReadingRail, c layouts.Chrome) {
+	{{ shelf := rr.HereShelf(c.Lang) }}
+	if len(shelf.Rows) > 0 {
+		{{ shown, trimmed := railRows(&shelf, railWindow) }}
+		<nav class="y-here" aria-label={ shelf.Title }>
+			<div class="y-where">
+				<span class="y-where__label">{ wording.Folders.In(c.Lang) }</span>
+				<a class="y-where__path" href={ templ.URL(shelf.Href) }>{ rr.where(c.Lang) }</a>
+			</div>
+			for _, row := range shown {
+				<a
+					class={ "ui-navitem", templ.KV("is-active", row.Current) }
+					href={ templ.URL(row.Href) }
+					{ currentAttr(row.Current)... }
+				><span { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span></a>
+				if row.Current {
+					@railContents(rr.note, c.Lang)
+				}
+			}
+			if trimmed > 0 {
+				<a class="y-here__more" href={ templ.URL(shelf.Href) } data-rail-trimmed={ strconv.Itoa(trimmed) } data-rail-dir={ rr.hereDir }>{ fmt.Sprintf(wording.MoreInFolder.In(c.Lang), trimmed) }</a>
+			}
+		</nav>
+	}
+}
+
+// railContents is the note's own contents, under the row that is the note: its
+// headings, and last the row that leads down to what the note ends on. It draws
+// nothing for a note with neither, and for a rail built with no note to speak
+// for.
+templ railContents(note *NoteView, lang wording.Lang) {
+	if note != nil && (len(note.TOC) > 0 || note.endShown()) {
+		<nav class="y-railtoc" aria-label={ wording.OnThisPage.In(lang) }>
+			@tocList(*note, lang)
+		</nav>
+	}
+}
+
+// railSpine is the name the rail keeps on its folded edge, set along the strip
+// the way the spine of a book is: with the column folded it is what says which
+// course, folder or shelf the page is in. It is drawn into every rail that has
+// a name to give and shown only while the column is folded.
+templ railSpine(s railSpineView) {
+	if s.Title != "" {
+		<a class="y-railspine" href={ templ.URL(s.Href) } title={ s.Title }><span class="y-railspine__name">{ s.Title }</span></a>
+	}
 }

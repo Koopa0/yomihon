@@ -41,8 +41,13 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // the stylesheet reads to hold its transitions still for that one write, the
 // moment the rail's remembered filter is being applied, for which the
 // stylesheet holds the folds still too, and the length of a fold, for which the
-// stylesheet holds the panel's width.
+// stylesheet holds the panel's width, and whether the document is a return to a
+// kept place, which the head script marks before the first style so the
+// stylesheet holds the column back, and the module that scrolls to the place
+// removes, and the moment a sentence the reader's press earned is fading out
+// before it is emptied, which the stylesheet reads to draw the fade.
 var clientOwned = []string{
+	"data-arrival",
 	"data-freshness",
 	"data-mermaid-error",
 	"data-nav",
@@ -52,6 +57,7 @@ var clientOwned = []string{
 	"data-rail-settling",
 	"data-readaloud-idle",
 	"data-reading",
+	"data-reply-fading",
 	"data-speaking",
 	"data-speech",
 	"data-speech-rate",

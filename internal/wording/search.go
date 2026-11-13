@@ -70,8 +70,6 @@ func LiteralOperatorSentence(lang Lang, terms []string) string {
 }
 
 // What search covers, said where a reader has just been told it found nothing.
-// The second form is for a library with no lifecycle to filter by, where the
-// status hint would name a facility that is not there.
 var (
 	SearchScopeHint = both(
 		"圖片、PDF 這類檔案只列出，不讀內容。請試較少或不同的詞。",

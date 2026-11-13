@@ -40,15 +40,15 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 	}
 }
 
-// syllabusHead is the cover: the path kicker, the title, the note's own
-// preface, the derived metarow (how large the course is, how much of it hangs
-// in side branches, how many of its entries are still drafts), and the one
-// verb that opens the course with, where something is marked, the way to hear
-// it. No path dek (subtitle) is rendered: there is no backing field for it, and
-// no data means no render — the same treatment the reading page gives a note's
-// subtitle.
+// syllabusHead is the cover: the title, the note's own preface, the derived
+// metarow (how large the course is, how much of it hangs in side branches, how
+// many of its entries are still drafts), and the one verb that opens the course
+// with, where something is marked, the way to hear it. Nothing stands above the
+// title: the sidebar already names the course, so a kicker over it would say so
+// twice. No path dek (subtitle) is rendered: there is no backing field for it,
+// and no data means no render — the same treatment the reading page gives a
+// note's subtitle.
 templ syllabusHead(v PathView, lang wording.Lang) {
-	<div class="y-syl-kicker">{ wording.SyllabusKicker.In(lang) }</div>
 	<h1 class="y-title">{ v.Title }</h1>
 	// The author's own words about the course: what a note that opens on its
 	// title keeps under it, or what stands above the first heading of one that
@@ -90,6 +90,12 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 					data-course-action={ v.Action.Token() }
 					href={ templ.URL(v.Action.Href) }
 				>
+					// The reader's own bookmark leads the verb that returns them to
+					// their place, on the desk's way back as here. Starting a course
+					// has no place to return to, so it carries none.
+					if v.Action.Continuing {
+						<span class="y-keptmark" aria-hidden="true"></span>
+					}
 					<span class="y-cover__verb">{ v.Action.Verb(lang) }</span>
 					if v.Action.Lesson != "" {
 						<span class="y-cover__lesson" { authoredLanguageAttrs(v.Action.LessonLanguage)... }>{ v.Action.Lesson }</span>
@@ -329,15 +335,16 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 // progress bar.
 templ syllabusRail(v PathView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
-	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.StudyPathNav.In(lang) }>
+	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.CourseNav.In(lang) }>
 		@railHead(c, false)
+		@railSpine(railSpineView{Title: v.Title, Href: courseHref(v.RelPath)})
 		<div class="y-railbody" id="_y-nav-rail-body">
-			<div class="ui-side__label y-syl-raillabel">{ wording.StudyPaths.In(lang) }</div>
+			<div class="ui-side__label y-syl-raillabel">{ wording.Courses.In(lang) }</div>
 			for _, p := range v.Paths {
 				@pathSwitch(p)
 			}
 			if len(v.Branches) > 0 {
-				<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">{ wording.ThisPath.In(lang) }</div>
+				<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">{ wording.ThisCourse.In(lang) }</div>
 				for _, sec := range v.Branches {
 					<a class="ui-navitem" href={ templ.URL("#" + sec.Anchor) }>
 						<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
@@ -361,7 +368,7 @@ templ pathSwitch(p PathLink) {
 			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>
 		</span>
 	} else {
-		<a class="ui-navitem" href={ templ.URL(syllabusHref(p.RelPath)) }>
+		<a class="ui-navitem" href={ templ.URL(courseHref(p.RelPath)) }>
 			@pathIcon()
 			<span class="y-pathitem__name">{ p.Title }</span>
 			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>

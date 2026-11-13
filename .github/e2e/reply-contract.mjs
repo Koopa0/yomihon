@@ -9,12 +9,11 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const MUTATE = process.env.MUTATE || '';
 const NOTE = '/notes/Notes/reading-fidelity.md';
 const SURFACES = [
-  { name: 'rail', path: NOTE, width: 1600, control: '.y-markset', reply: '.y-markset__said' },
   { name: 'header', path: NOTE, width: 390, control: '.y-headermark', reply: '.y-headermark__said' },
   { name: 'preference', path: '/preferences', width: 1280, control: '[data-pref-field="theme"]', reply: '.y-preffield__status' },
 ];
 const SITES = SURFACES.flatMap(({ name }) => ['empty', 'entrance', 'refused', 'reduce'].map((claim) => `${name}-${claim}`));
-SITES.push('rail-kept', 'header-kept', 'mark-scoped');
+SITES.push('header-kept');
 
 class LockFired extends Error {
   constructor(site, message) { super(`FAIL reply-contract: ${message}`); this.site = site; }
@@ -46,11 +45,6 @@ for (const { name } of SURFACES) {
     };
   }
 }
-MUTATIONS['broadcast-mark-reply'] = {
-  target: 'mark-scoped', asset: '**/mark.js{,?*}',
-  needle: /said\.textContent = words \?\? '';/g,
-  replacement: "document.querySelectorAll('[data-mark-said]').forEach((line) => { line.textContent = words ?? ''; });",
-};
 for (const [name, mode] of Object.entries(MUTATIONS)) {
   if (!SITES.includes(mode.target)) throw new Error(`unknown site for ${name}`);
 }
@@ -68,7 +62,7 @@ async function arm(page, surface) {
   proof = null;
   if (!MUTATE) return;
   const mode = MUTATIONS[MUTATE];
-  if (!mode.target.startsWith(`${surface}-`) && !(surface === 'rail' && mode.target === 'mark-scoped')) return;
+  if (!mode.target.startsWith(`${surface}-`)) return;
   const counts = [];
   await page.route(mode.asset, async (route) => {
     const response = await route.fetch();
@@ -157,10 +151,6 @@ try {
       if (posts !== 1) throw new Error(`${name}: expected one intercepted mark request, got ${posts}`);
       const saved = await read(reply);
       check(saved.tone === 'kept' && saved.color === saved.muted, `${name}-kept`, `${name}: kept mark has tone=${saved.tone}, color=${saved.color}`);
-      if (name === 'rail') {
-        const untouched = await page.locator('.y-headermark__said').textContent();
-        check(untouched === '', 'mark-scoped', 'the rail action also filled the untouched header reply');
-      }
     }
     const arrival = await read(reply);
     check(arrival.animation === 'y-reply-in' && arrival.duration > 0,
@@ -183,7 +173,7 @@ try {
     check(reduced.duration <= 0.001, `${name}-reduce`, `${name}: entrance lasts ${reduced.duration}s under reduced motion`);
     await context.close();
   }
-  console.log('PASS reply-contract: rail, header and preference replies share entrance, tone and reduced motion; empty regions remain and mark updates stay local');
+  console.log('PASS reply-contract: header and preference replies share entrance, tone and reduced motion; empty regions remain and mark updates stay local');
 } catch (error) {
   console.error(error);
   if (error instanceof NotApplied || (error instanceof LockFired && proof && !proof())) {

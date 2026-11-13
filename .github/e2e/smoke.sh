@@ -38,7 +38,7 @@ fail() {
 # listing beside a copy of itself is a second organisation of the same notes,
 # so what the rail used to promise here is promised on the note page below.
 home_markers=(
-  'paths|data-home-block="paths"'
+  'courses|data-home-block="courses"'
   'maps|data-home-block="maps"'
   'reports|data-home-block="reports"'
   'folders|data-home-block="folders"'
@@ -49,7 +49,7 @@ home_markers=(
 
 # This is a set comparison, not an order oracle: deleting a marker from the
 # live table must not also delete its self-test by construction.
-required_home_sites=(paths maps reports folders search vault-readme desk-health)
+required_home_sites=(courses maps reports folders search vault-readme desk-health)
 
 # The rail, checked where it now lives: beside the thing being read. The map
 # tree marker is what proves a tree rendered rather than an empty group.
@@ -377,6 +377,16 @@ assert_face() {
   echo "ok: ${path}"
 }
 
+# The retired addresses of a course answer with a redirect to its own, carrying
+# the rest of the address and the query: fetched without following, so a page
+# still served at the old address cannot pass for the redirect.
+assert_redirect() {
+  local path="$1" want="$2" result
+  result="$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "${base}${path}")" || fail "GET ${path} did not return"
+  [ "$result" = "301 ${base}${want}" ] || fail "GET ${path} answered ${result}, want 301 ${base}${want}"
+  echo "ok: ${path} moved to ${want}"
+}
+
 # Home is fetched without redirect following: a retired 302 must not borrow the
 # README page's 200 and markers. Its body then proves every block on Home and
 # the fixture vault README are both present.
@@ -392,7 +402,10 @@ if ! reason="$(note_body_error "$(<"$body")")"; then
 fi
 echo "ok: the rail on /notes/Notes/alpha.md"
 assert_face "/notes/Notes/out-of-contract.md" "out-of-contract reading sentinel"
-assert_face "/syllabus/Maps/study.md" "<title>Study Path"
+assert_face "/courses/Maps/study.md" "<title>Study Path"
+assert_face "/courses" 'data-index="courses"'
+assert_redirect "/syllabus/Maps/study.md?from=Notes%2Falpha.md" "/courses/Maps/study.md?from=Notes%2Falpha.md"
+assert_redirect "/paths" "/courses"
 assert_face "/search?q=tortoise" 'href="/notes/Notes/alpha.md"'
 assert_face "/search/results?q=tortoise" 'data-live-search-results'
 

@@ -45,7 +45,7 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 		target string
 	}{
 		{"the desk", "/"},
-		{"the study-path index", "/paths"},
+		{"the study-path index", "/courses"},
 		{"the map index", "/maps"},
 		{"the report index", "/reports"},
 		{"the folder index", "/folders"},
@@ -54,7 +54,7 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 		// A month that is not one falls back to the month the reader is in, so
 		// this answers rather than redirecting or refusing.
 		{"the journal at a month that is not one", "/journal?month=banana"},
-		{"one study path", "/syllabus/Maps/study.md"},
+		{"one study path", "/courses/Maps/study.md"},
 		{"one study path to listen to", "/listen/Maps/study.md"},
 		{"one map", "/notes/Maps/reading.md"},
 		{"one report", "/notes/System/reports/2026-09-02.md"},
@@ -162,9 +162,9 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 		// the model answers with no courses and no maps either way.
 		silent []string
 	}{
-		{target: "/paths", absent: []string{"data-index-row", "data-index-empty"}},
+		{target: "/courses", absent: []string{"data-index-row", "data-index-empty"}},
 		{target: "/maps", absent: []string{"data-index-row", "data-index-empty"}},
-		{target: "/", silent: []string{"paths", "maps"}},
+		{target: "/", silent: []string{"courses", "maps"}},
 	}
 	for _, tt := range tests {
 		target := tt.target
@@ -281,7 +281,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 				{
 					name: "desk paths",
 					fetch: func() string {
-						return deskBlockMarkup(t, readingPage(t, site, "/"), "paths")
+						return deskBlockMarkup(t, readingPage(t, site, "/"), "courses")
 					},
 					want: tt.path,
 				},
@@ -294,7 +294,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 				},
 				{
 					name:  "path index",
-					fetch: func() string { return readingPage(t, site, "/paths") },
+					fetch: func() string { return readingPage(t, site, "/courses") },
 					want:  tt.path,
 				},
 				{
@@ -417,7 +417,7 @@ func TestTheDeskStatesWhatEveryModePageStates(t *testing.T) {
 			// contracts. What it must never mean is that this case compared
 			// the desk's line against nothing at all.
 			compared := 0
-			for _, target := range []string{"/paths", "/maps", "/folders"} {
+			for _, target := range []string{"/courses", "/maps", "/folders"} {
 				causes := faultCauses(t, site, target)
 				if len(causes) == 0 {
 					continue
@@ -557,7 +557,7 @@ func TestEveryFaceRefusesAMissingNameTheSameWay(t *testing.T) {
 	}{
 		{"a note nobody wrote", "/notes/Concepts/nothing-here.md"},
 		{"an address below the report shelf", "/reports/1999-01-01.html"},
-		{"a study path that is not there", "/syllabus/Maps/nothing-here.md"},
+		{"a study path that is not there", "/courses/Maps/nothing-here.md"},
 		{"a study path to listen to that is not there", "/listen/Maps/nothing-here.md"},
 	}
 	for _, tt := range tests {
@@ -966,7 +966,7 @@ func TestAnEmptyDeskNamesTheDeclarationThatFillsIt(t *testing.T) {
 				// order a reader is shown it.
 				declared []string
 			}{
-				{target: "/paths", declared: []string{tt.pathType}},
+				{target: "/courses", declared: []string{tt.pathType}},
 				{target: "/maps", declared: tt.named},
 			} {
 				said := make(map[wording.Lang]string, 2)

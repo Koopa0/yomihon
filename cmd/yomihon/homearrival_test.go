@@ -18,7 +18,7 @@ const readingClubNote = "# Reading club\n\nBring a notebook.\n\nUmbrellaRule: If
 
 // homeBlockMarker matches the ways in the desk draws. The search row carries
 // the same attribute but is not a way in, so it is left out.
-var homeBlockMarker = regexp.MustCompile(`data-home-block="(folders|paths|maps|reports)"`)
+var homeBlockMarker = regexp.MustCompile(`data-home-block="(folders|courses|maps|reports)"`)
 
 // homeBlockOrder is the order the desk draws its ways in.
 func homeBlockOrder(page string) []string {
@@ -65,7 +65,7 @@ func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 	})
 	home := readingPage(t, site, "/")
 
-	if got, want := homeBlockOrder(home), []string{"folders", "paths", "maps", "reports"}; !slices.Equal(got, want) {
+	if got, want := homeBlockOrder(home), []string{"folders", "courses", "maps", "reports"}; !slices.Equal(got, want) {
 		t.Errorf("plain folder Home blocks = %v, want %v", got, want)
 	}
 
@@ -86,7 +86,7 @@ func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 		t.Errorf("searching Home's term does not reach %s", noteHref)
 	}
 
-	for _, mode := range []string{"paths", "maps", "reports"} {
+	for _, mode := range []string{"courses", "maps", "reports"} {
 		if !strings.Contains(deskBlockMarkup(t, home, mode), `href="/`+mode+`"`) {
 			t.Errorf("the %s block does not link to /%s", mode, mode)
 		}
@@ -127,7 +127,7 @@ func TestGovernedHomeKeepsItsOrder(t *testing.T) {
 		schema.ContractRelPath: string(contract),
 		"Reading club.md":      readingClubNote,
 	})
-	if got, want := homeBlockOrder(readingPage(t, site, "/")), []string{"paths", "maps", "reports", "folders"}; !slices.Equal(got, want) {
+	if got, want := homeBlockOrder(readingPage(t, site, "/")), []string{"courses", "maps", "reports", "folders"}; !slices.Equal(got, want) {
 		t.Errorf("governed Home blocks = %v, want %v", got, want)
 	}
 }

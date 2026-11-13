@@ -139,8 +139,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"steps-branch-single-english", footOf(t, branchModel, "Writing/B1.md", wording.En)},
 		{"steps-branch-contents", footOf(t, branchModel, "Writing/E1.md", wording.ZhHant)},
 		{"steps-branch-anchor", footOf(t, branchModel, "Writing/C02.md", wording.ZhHant)},
-		{"articlehead-running", headOf(t, branchModel, "Writing/L1.md", wording.ZhHant)},
-		{"articlehead-running-english", headOf(t, branchModel, "Writing/L1.md", wording.En)},
+		{"articlehead-course-lesson", headOf(t, branchModel, "Writing/L1.md", wording.ZhHant)},
+		{"articlehead-course-lesson-english", headOf(t, branchModel, "Writing/L1.md", wording.En)},
 		// A course annotated the way its author writes one: a sentence beside each
 		// lesson, a side branch hanging from a lesson, an appendix after the
 		// last part, and something marked to be heard. The course above has
@@ -157,7 +157,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"listen-page", Listen(recordedListenView(), recordedChrome())},
 		{"listen-page-english", Listen(recordedListenView(), recordedEnglishChrome())},
 		// A course whose lessons mark nothing says so, and grows no bar.
-		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/syllabus/Maps/Go%20path.md"}, recordedChrome())},
+		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/courses/Maps/Go%20path.md"}, recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
@@ -301,7 +301,7 @@ func recordedNothingHomeView(lang wording.Lang) HomeView {
 		Degraded:       fmt.Sprintf(wording.DegradedNoticeOne.In(lang), 1),
 		DegradedDetail: "Sources/articles/Raw.md: permission denied",
 		Blocks: []DeskBlock{
-			unfilled(pathMode, wording.Paths.In(lang), "/paths",
+			unfilled(courseMode, wording.Courses.In(lang), "/courses",
 				plural(0, wording.PathCountOne, wording.PathCountMany, lang),
 				fmt.Sprintf(wording.NoDeclaredTypeEmptyFmt.In(lang), "lesson")),
 			unfilled(mapMode, wording.Maps.In(lang), "/maps",
@@ -520,7 +520,7 @@ func recordedListenView() ListenView {
 	}
 	return ListenView{
 		Title:    "朗讀《Go path》",
-		PathHref: "/syllabus/Maps/Go%20path.md",
+		PathHref: "/courses/Maps/Go%20path.md",
 		Lessons: []ListenLesson{
 			{
 				Title: "L01 わたしは学生です",
@@ -975,8 +975,8 @@ func recordedCompareView() CompareView {
 	}
 }
 
-// footOf and headOf are the foot and the running head of one lesson of the
-// branch course, drawn from the same calls the page makes.
+// footOf and headOf are the foot and the head of one lesson of the branch
+// course, drawn from the same calls the page makes.
 func footOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) templ.Component {
 	t.Helper()
 	_, view := footView(model, current, lang)
@@ -986,9 +986,6 @@ func footOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) t
 func headOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) templ.Component {
 	t.Helper()
 	_, view := footView(model, current, lang)
-	if view.Running == nil {
-		t.Fatalf("%s has no running head, so the recording would hold the folder's breadcrumb", current)
-	}
 	return articleHead(view, lang)
 }
 

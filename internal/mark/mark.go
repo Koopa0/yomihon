@@ -108,11 +108,9 @@ type Continuation struct {
 	// Landing scrolls to Anchor and adds it.
 	Offset int
 	// Identity is the content identity of the bytes the reader was looking at,
-	// as lowercase hex. The note's own status is spliced out of that identity,
-	// so the author moving a note through its lifecycle does not make every
-	// mark look stale. A mark whose identity no longer matches still points at
-	// the note — it is the reader's best pointer — and the row that offers it
-	// says the note has changed.
+	// as lowercase hex: the SHA-256 of every byte of the file. A mark whose
+	// identity no longer matches still points at the note — it is the reader's
+	// best pointer — and the row that offers it says the note has changed.
 	Identity string
 	// At is when the mark was set.
 	At time.Time

@@ -52,7 +52,7 @@ func TestNoteArticleLanguageComesOnlyFromAuthority(t *testing.T) {
 	}
 }
 
-func TestInlineReadingAidsUseChromeLanguage(t *testing.T) {
+func TestTheEndOfTheTextUsesChromeLanguage(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	view := NoteView{
@@ -62,14 +62,13 @@ func TestInlineReadingAidsUseChromeLanguage(t *testing.T) {
 	if err := Note(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
-	if html := buf.String(); !strings.Contains(html, `<div class="y-inlineaids" lang="zh-Hant">`) {
-		t.Errorf("inline reading aids do not restore the chrome language inside a Japanese article: %q", html)
+	if html := buf.String(); !strings.Contains(html, `<div class="y-related" id="_y-end" tabindex="-1" lang="zh-Hant">`) {
+		t.Errorf("the end of the text does not restore the chrome language inside a Japanese article: %q", html)
 	}
 }
 
 // TestSchemaNoticesStandInReadingColumn pins where unknown-field guidance
-// renders: once, above the prose. Hiding it inside the right rail made it
-// vanish at the widths where that rail is gone.
+// renders: once, above the prose, in the reading column, at every width.
 func TestSchemaNoticesStandInReadingColumn(t *testing.T) {
 	t.Parallel()
 
@@ -102,12 +101,8 @@ func TestSchemaNoticesStandInReadingColumn(t *testing.T) {
 	if !strings.Contains(article, notice) {
 		t.Fatalf("the schema notices block is not in the reading column:\n%s", article)
 	}
-	if strings.Contains(article, `aside class="y-rail-right"`) {
-		t.Fatal("the reading column should not contain the right rail")
-	}
-	railStart := strings.Index(html, `<aside class="y-rail-right"`)
-	if railStart >= 0 && strings.Contains(html[railStart:], notice) {
-		t.Errorf("the schema notices block still renders inside the right rail")
+	if strings.Contains(html, "y-rail-right") {
+		t.Fatal("the page draws a right rail, which is gone")
 	}
 	proseStart := strings.Index(article, `<div class="y-prose">`)
 	noticeStart := strings.Index(article, notice)
@@ -116,13 +111,13 @@ func TestSchemaNoticesStandInReadingColumn(t *testing.T) {
 	}
 }
 
-// TestInlineDiagnosticsFoldAboveTheProse pins the placement, not the contents.
-// At widths where the right rail is gone this block sits between the title and
-// the first sentence, so an open list of findings was the last thing the page
-// said before the prose it was about — worst on the notes that have the most of
-// them. It folds like the contents above it, so the count is still stated and
-// nothing is hidden from a reader who wants it.
-func TestInlineDiagnosticsFoldAboveTheProse(t *testing.T) {
+// TestDiagnosticsStandAtTheEndOfTheText pins the placement, not the contents.
+// The check's findings about a note are what a reader who wants them goes to
+// look for, and a list of them above the prose was the last thing the page said
+// before the text it was about, worst on the notes that have the most of them.
+// They wait at the end of the text with the other aids, at every width, with
+// their count stated, and the page's first screen is the title and the text.
+func TestDiagnosticsStandAtTheEndOfTheText(t *testing.T) {
 	t.Parallel()
 
 	view := NoteView{
@@ -132,37 +127,41 @@ func TestInlineDiagnosticsFoldAboveTheProse(t *testing.T) {
 			{Kind: render.DiagWikilinkBroken, Target: "Relational Model", Message: "does not resolve"},
 			{Kind: render.DiagWikilinkBroken, Target: "Leader Election", Message: "does not resolve"},
 		},
+		BodyHTML: "<p>body</p>",
 	}
 	var buf bytes.Buffer
-	if err := inlineAids(view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render inlineAids: %v", err)
+	if err := noteArticle(view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render noteArticle: %v", err)
 	}
 	got := buf.String()
 
-	if !strings.Contains(got, "y-diaglist") {
-		t.Fatalf("the diagnostics did not render at all:\n%s", got)
+	prose := strings.Index(got, `<div class="y-prose">`)
+	related := strings.Index(got, `<div class="y-related"`)
+	list := strings.Index(got, "y-diaglist")
+	if prose < 0 || related < 0 || list < 0 {
+		t.Fatalf("prose@%d related@%d diaglist@%d; every one of them has to render:\n%s", prose, related, list, got)
 	}
-	before, _, _ := strings.Cut(got, "y-diaglist")
-	if !strings.Contains(before, "<summary") {
-		t.Errorf("the diagnostics are not inside a disclosure; they open above the prose:\n%s", got)
+	if prose >= related || related >= list {
+		t.Errorf("prose@%d related@%d diaglist@%d; want the findings inside the block that ends the text", prose, related, list)
+	}
+	if above := got[:prose]; strings.Contains(above, "y-diaglist") || strings.Contains(above, "y-inlineaids") {
+		t.Errorf("a list of findings or a folded row of aids stands above the prose:\n%s", above)
 	}
 	if !strings.Contains(got, "筆記狀況") {
-		t.Errorf("the disclosure does not name what it holds:\n%s", got)
+		t.Errorf("the block does not name what it holds:\n%s", got)
 	}
 	if !strings.Contains(got, ">2<") {
-		t.Errorf("the count is not stated on the closed disclosure:\n%s", got)
+		t.Errorf("the count is not stated:\n%s", got)
 	}
 }
 
-// TestNarrowAidsAreOneClosedRowAndTheNotesBesideFollowTheText holds the shape
-// the reading aids take where the right rail is hidden. Four folds stacked
-// between the title and the first sentence pushed the prose a third of a screen
-// down, so every aid is named in one closed row and the two a reader looks for
-// once finished — the note to read beside this one and the notes citing it —
-// stand after the text instead, where the row leads down to them. The rail
-// carries the same blocks at the widths that show it, so they are not added to
-// the article twice there; that half is held by the stylesheet and the browser.
-func TestNarrowAidsAreOneClosedRowAndTheNotesBesideFollowTheText(t *testing.T) {
+// TestTheEndOfTheTextHoldsEveryAidAndNothingStandsAboveTheProse holds the shape
+// of a note that has them all. The contents are in the sidebar and everything
+// else waits after the text, in one block, in one order: the note to read
+// beside this one, the sources it declared, the notes declared on it, the notes
+// whose text links here, what the check found. Nothing is folded between the
+// title and the first sentence, and the block comes before the way onward.
+func TestTheEndOfTheTextHoldsEveryAidAndNothingStandsAboveTheProse(t *testing.T) {
 	t.Parallel()
 
 	view := NoteView{
@@ -184,45 +183,88 @@ func TestNarrowAidsAreOneClosedRowAndTheNotesBesideFollowTheText(t *testing.T) {
 	}
 	article := buf.String()
 
-	rowStart := strings.Index(article, `<div class="y-inlineaids"`)
 	prose := strings.Index(article, `<div class="y-prose">`)
-	related := strings.Index(article, `<div class="y-related"`)
+	related := strings.Index(article, `<div class="y-related" id="_y-end"`)
 	steps := strings.Index(article, `<nav class="y-steps`)
-	if rowStart < 0 || prose < 0 || related < 0 || steps < 0 {
-		t.Fatalf("row@%d prose@%d related@%d steps@%d; every one of them has to render:\n%s", rowStart, prose, related, steps, article)
+	if prose < 0 || related < 0 || steps < 0 {
+		t.Fatalf("prose@%d related@%d steps@%d; every one of them has to render:\n%s", prose, related, steps, article)
 	}
-	if rowStart >= prose || prose >= related || related >= steps {
-		t.Fatalf("row@%d prose@%d related@%d steps@%d; want the row, the text, the notes beside it, then the way onward", rowStart, prose, related, steps)
+	if prose >= related || related >= steps {
+		t.Fatalf("prose@%d related@%d steps@%d; want the text, the block that ends it, then the way onward", prose, related, steps)
 	}
-	row := article[rowStart:prose]
-	if n := strings.Count(row, "<details"); n != 1 {
-		t.Errorf("the aids above the prose are %d disclosures, want one row:\n%s", n, row)
-	}
-	if strings.Contains(row, "<details open") || strings.Contains(row, " open>") {
-		t.Errorf("the row of aids is drawn open, so it stands between the title and the text:\n%s", row)
-	}
-	summary, _, _ := strings.Cut(row, "</summary>")
-	for _, name := range []string{wording.OnThisPage.In(wording.En), wording.NoteHealth.In(wording.En), wording.BasedOn.In(wording.En), wording.DeclaredBy.In(wording.En), wording.CompareOffer.In(wording.En), wording.CitedBy.In(wording.En)} {
-		if !strings.Contains(summary, name) {
-			t.Errorf("the closed row does not name %q:\n%s", name, summary)
-		}
-	}
-	if strings.Contains(row, `class="y-pair"`) || strings.Contains(row, `class="y-citedby"`) {
-		t.Errorf("the note beside this one or the notes citing it still stand above the text:\n%s", row)
+	if above := article[:prose]; strings.Contains(above, "y-inlineaids") || strings.Contains(above, "y-toc-inline") || strings.Contains(above, "y-toc__list") {
+		t.Errorf("an aid stands above the prose of a note that has its own page:\n%s", above)
 	}
 	after := article[related:steps]
-	for _, block := range []string{`class="y-pair"`, `class="y-citedby"`} {
-		if !strings.Contains(after, block) {
-			t.Errorf("%s is not between the text and the way onward:\n%s", block, after)
+	last := -1
+	for _, block := range []string{`class="y-pair"`, `class="y-basedon"`, `declared-by`, `class="y-citedby"`, `y-diaglist`} {
+		at := strings.Index(after, block)
+		if at < 0 {
+			t.Errorf("%s is not in the block that ends the text:\n%s", block, after)
+			continue
+		}
+		if at < last {
+			t.Errorf("%s comes before the block that should precede it", block)
+		}
+		last = at
+	}
+}
+
+// TestTheContentsRowThatLeadsDownIsNamedByWhatItLeadsTo holds the sidebar's last
+// contents row to the heading the end block itself opens with, whichever of its
+// blocks that is, and holds it absent where the note has no end block. A row
+// named with words the block does not print, or leading to an id nothing
+// answers to, is a promise the page does not keep.
+func TestTheContentsRowThatLeadsDownIsNamedByWhatItLeadsTo(t *testing.T) {
+	t.Parallel()
+
+	toc := []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}}
+	cited := []nav.NoteRef{{Name: "C01", RelPath: "C01.md"}}
+	tests := []struct {
+		name string
+		view NoteView
+		want func(wording.Lang) string
+	}{
+		{"a note to read beside", NoteView{Pair: nav.NoteRef{Name: "O", RelPath: "O.md"}, CitedBy: cited}, func(l wording.Lang) string { return wording.CompareOffer.In(l) }},
+		{"declared sources", NoteView{BasedOn: []snapshot.DeclaredSource{{Name: "B", RelPath: "B.md"}}, CitedBy: cited}, func(l wording.Lang) string { return wording.BasedOn.In(l) }},
+		{"notes declared on it", NoteView{DeclaredBy: []DeclaringNoteView{{Note: nav.NoteRef{Name: "E", RelPath: "E.md"}}}, CitedBy: cited}, func(l wording.Lang) string { return wording.DeclaredBy.In(l) }},
+		{"notes linking here", NoteView{CitedBy: cited}, func(l wording.Lang) string { return wording.CitedBy.In(l) }},
+		{"only the findings", NoteView{Diagnostic: "bad"}, func(l wording.Lang) string { return wording.NoteHealth.In(l) }},
+	}
+	for _, tt := range tests {
+		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+			t.Run(tt.name+" "+lang.Tag(), func(t *testing.T) {
+				t.Parallel()
+				view := tt.view
+				view.RelPath, view.TOC, view.BodyHTML = "Notes/T.md", toc, "<p>body</p>"
+				contents := renderedHTML(t, railContents(&view, lang))
+				want := `<a href="#_y-end" lang="` + lang.Tag() + `" data-level="2">` + tt.want(lang) + `</a>`
+				if !strings.Contains(contents, want) {
+					t.Fatalf("the contents do not end on %q:\n%s", want, contents)
+				}
+				if strings.Index(contents, `href="#h"`) > strings.Index(contents, `href="#_y-end"`) {
+					t.Errorf("the row that leads down comes before the headings:\n%s", contents)
+				}
+				page := renderedHTML(t, noteArticle(view, lang))
+				_, end, found := strings.Cut(page, `id="_y-end"`)
+				if !found || !strings.Contains(end, tt.want(lang)) {
+					t.Errorf("the end of the text does not answer to the row, or does not print its name %q:\n%s", tt.want(lang), page)
+				}
+			})
 		}
 	}
-	for _, id := range []string{view.relatedPairID(), view.relatedCitedID()} {
-		if !strings.Contains(row, `href="#`+id+`"`) {
-			t.Errorf("the row does not lead down to #%s:\n%s", id, row)
-		}
-		if !strings.Contains(after, `id="`+id+`"`) {
-			t.Errorf("nothing after the text answers to #%s:\n%s", id, after)
-		}
+
+	// A note with no aids ends on its text and the contents have no row to lead
+	// to it.
+	bare := NoteView{RelPath: "Notes/T.md", TOC: toc, BodyHTML: "<p>body</p>"}
+	if bare.endShown() {
+		t.Fatal("this fixture was meant to end on its text")
+	}
+	if contents := renderedHTML(t, railContents(&bare, wording.En)); strings.Contains(contents, "_y-end") {
+		t.Errorf("the contents lead to an end the note does not have:\n%s", contents)
+	}
+	if page := renderedHTML(t, noteArticle(bare, wording.En)); strings.Contains(page, "y-related") {
+		t.Errorf("a note with no aids ends on a block anyway:\n%s", page)
 	}
 }
 

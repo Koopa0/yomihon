@@ -41,7 +41,7 @@ func (h *Handler) listen(w http.ResponseWriter, r *http.Request) {
 func listenView(current *nav.Path, snap *RequestSnapshot, lang wording.Lang) pages.ListenView {
 	view := pages.ListenView{
 		Title:    fmt.Sprintf(wording.ListenTitleFmt.In(lang), current.Title),
-		PathHref: pages.VaultHref("/syllabus/", current.RelPath),
+		PathHref: pages.VaultHref("/courses/", current.RelPath),
 	}
 	for _, entry := range taught(current) {
 		// One region per lesson, taken from where the lesson stands in the

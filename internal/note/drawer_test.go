@@ -331,7 +331,7 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 		t.Errorf("GET a folder that does not exist status = %d, want 404", code)
 	}
 
-	// The breadcrumb on a note now leads somewhere.
+	// The note's rail names the folder it is in, and the name leads there.
 	code, body = get(t, srv.Client(), srv.URL+"/notes/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A/%E7%AC%AC%E4%BA%8C%E8%AA%B2%20%E7%A9%BA%E6%B0%A3.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET the note status = %d, want 200", code)
@@ -339,13 +339,9 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 	// The href must be the folder the crumb names, not merely folder-shaped:
 	// a crumb carrying no path still renders "/folders/" and would pass a
 	// prefix check while leading the reader nowhere.
-	for _, want := range []string{
-		`href="/folders/%E6%95%99%E6%A1%88"`,
-		`href="/folders/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A"`,
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("the note's breadcrumb does not link to %s; body = %q", want, body)
-		}
+	const folder = `<a class="y-where__path" href="/folders/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A">教案/國一上</a>`
+	if !strings.Contains(body, folder) {
+		t.Errorf("the note's rail does not name its folder with a link to it, %s; body = %q", folder, body)
 	}
 }
 
@@ -542,19 +538,25 @@ func TestCitedBySurvivesWithoutTheRail(t *testing.T) {
 	if !strings.Contains(citedByBlock(t, body), `href="/notes/Concepts/source.md"`) {
 		t.Fatalf("the cited-by block does not name the citing note; body = %q", body)
 	}
-	if strings.Contains(body, "y-shell--rail-empty") {
-		t.Error("the rail is called empty while it holds the only aid this note has")
+	// The note has no outline, so what links here is the only thing it ends on:
+	// it is the block that ends the text, at every width, and the sidebar's one
+	// contents row leads down to it.
+	endAt := strings.Index(body, `<div class="y-related" id="_y-end"`)
+	if endAt < 0 {
+		t.Fatalf("the end of the text is absent; body = %q", body)
 	}
-	aids := strings.Index(body, `class="y-inlineaids"`)
-	if aids < 0 {
-		t.Fatalf("the narrow projection is absent; body = %q", body)
+	endOf := strings.Index(body[endAt:], "</main>")
+	if endOf < 0 {
+		t.Fatal("the end of the text is not followed by the end of main")
 	}
-	end := strings.Index(body[aids:], "</main>")
-	if end < 0 {
-		t.Fatal("the narrow projection is not followed by the end of main")
+	if !strings.Contains(body[endAt:endAt+endOf], "連到這篇") {
+		t.Errorf("the end of the text drops what links here; block = %q", body[endAt:endAt+endOf])
 	}
-	if !strings.Contains(body[aids:aids+end], "連到這篇") {
-		t.Errorf("the narrow projection drops what links here; block = %q", body[aids:aids+end])
+	if !strings.Contains(body, `<a href="#_y-end" lang="zh-Hant" data-level="2">正文連到這篇</a>`) {
+		t.Errorf("the sidebar has no contents row that leads down to what links here; body = %q", body)
+	}
+	if strings.Contains(body, "y-inlineaids") || strings.Contains(body, "y-rail-right") {
+		t.Error("the page still carries a folded row of aids or a right rail")
 	}
 }
 
@@ -626,7 +628,7 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 		// The foot names the course with a link to its contents, which marks
 		// the lesson the reader is on; the landmark's own name is the step
 		// onward, so the printed words are the title alone.
-		`<p class="y-steps__source"><a class="y-steps__path" href="/syllabus/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FSetup.md">Go course</a></p>`,
+		`<p class="y-steps__source"><a class="y-steps__path" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FSetup.md">Go course</a></p>`,
 		nextCourseRole,
 	} {
 		if !strings.Contains(body, want) {

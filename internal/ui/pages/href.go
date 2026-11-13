@@ -215,15 +215,15 @@ func compareHref(a, b string) string {
 	return VaultHref("/compare/", a) + "?" + url.Values{CompareWithParam: {b}}.Encode()
 }
 
-// syllabusHref builds the study-path page URL for a vault-relative path.
-func syllabusHref(p string) string { return VaultHref("/syllabus/", p) }
+// courseHref builds the course page URL for a vault-relative path.
+func courseHref(p string) string { return VaultHref("/courses/", p) }
 
-// SyllabusFromParam names the note a reader opened a course from. The link is
+// CourseFromParam names the note a reader opened a course from. The link is
 // written here and read by the route that answers it, so the two ends share one
 // spelling rather than agreeing by hand.
-const SyllabusFromParam = "from"
+const CourseFromParam = "from"
 
-// syllabusHrefFrom is the way into a course from a note being read, naming that
+// courseHrefFrom is the way into a course from a note being read, naming that
 // note so the course can mark where in it the reader is standing. "from" is
 // already this interface's word for the value a reader arrived with, and the
 // note is named by its vault path rather than by its reading address: the page
@@ -234,11 +234,11 @@ const SyllabusFromParam = "from"
 // Nothing follows the value: it is compared with what the course already holds
 // and is never rendered as a link or an address, so a value naming anything
 // else falls through to marking no row at all.
-func syllabusHrefFrom(pathRel, noteRel string) string {
+func courseHrefFrom(pathRel, noteRel string) string {
 	if noteRel == "" {
-		return syllabusHref(pathRel)
+		return courseHref(pathRel)
 	}
-	return syllabusHref(pathRel) + "?" + url.Values{SyllabusFromParam: {noteRel}}.Encode()
+	return courseHref(pathRel) + "?" + url.Values{CourseFromParam: {noteRel}}.Encode()
 }
 
 // plural picks the phrase that agrees with n. Chinese does not inflect a noun

@@ -4,7 +4,7 @@ package wording
 
 // HomeReadmeTitle names the note the vault may keep to explain itself, which
 // home shows in place of anything yomihon would have had to invent.
-var HomeReadmeTitle = both("這個書庫的說明", "About this library")
+var HomeReadmeTitle = both("這個書庫的說明", "About this vault")
 
 // HomeTitle is the desk's own heading. The arrival surface carries no kicker:
 // the H1 is the name, and a line above it would only repeat it.
@@ -36,14 +36,6 @@ var (
 		"知識層資料夾中",
 		"In the declared knowledge folders",
 	)
-)
-
-// The count of notes a folder holds. A study path's own count is UnitWords'.
-// Chinese does not inflect a noun for number and English does, so each count
-// is a pair. A tally that reads "1 notes" is the first thing a reader notices.
-var (
-	NoteCountOne  = both("%d 篇筆記", "%d note")
-	NoteCountMany = both("%d 篇筆記", "%d notes")
 )
 
 // NoStructureRead marks a study-path card whose zero is a fault rather than

@@ -163,7 +163,7 @@ six also have a control in the header that the page's own script answers
 directly: the desk, the text size, the furigana and the shortcuts, written
 under the same names and for the same year, so a choice made with script and
 one made without expire together. The typeface and the language have no header
-control, and nothing but the server writes them. Two `sessionStorage` keys
+control, and nothing but the server writes them. Three `sessionStorage` keys
 carry the rail.
 
 | Kept in the browser | What it holds | How long |
@@ -177,6 +177,7 @@ carry the rail.
 | `yomihon_shortcuts` | Whether single-key shortcuts answer, `on` or `off` | A year from the last write |
 | `yomihon.nav` | Which folders of the left rail the reader opened or closed, one true-or-false each | Until the tab closes |
 | `yomihon.nav.filter` | The text the reader typed into the rail's filter box, kept as typed so a narrowing survives opening a note | Until the tab closes |
+| `yomihon.railTop` | How far the left rail was scrolled when a page was left, and which rail it was scrolled in — a course's own vault path, or the kind of rail — so the next page of the same rail starts where it was | Until the tab closes |
 
 - **The cookies go to the loopback listener and nowhere else.** Each carries
   `Path=/` and `SameSite=Lax`, and is deliberately neither `Secure` nor
@@ -186,16 +187,18 @@ carry the rail.
   can therefore read them. A cookie is scoped by host rather than by port, so
   anything else served from `127.0.0.1` to the same browser can read them too —
   the same local surface the threat model already accepts.
-- **The two session keys are sent nowhere at all.** `sessionStorage` is never
-  attached to a request: the rail's state and the filter text stay in the tab
-  holding them and go when it closes.
+- **The three session keys are sent nowhere at all.** `sessionStorage` is never
+  attached to a request: the rail's state, its scroll position and the filter
+  text stay in the tab holding them and go when it closes.
 - **`yomihon.nav.filter` holds the reader's own words.** Every other entry in
   the table is a value yomihon offered and the reader picked; the filter box
   keeps what they typed, as they typed it, which is usually part of the name of
-  a note or folder they were looking for. That is the only vault-shaped text in
-  browser storage: yomihon itself writes no note path, title, or body there.
-  All of it clears — the settings page's return to defaults drops the six
-  cookies, and the browser's own controls drop all eight.
+  a note or folder they were looking for. That is the only text the reader
+  typed that browser storage holds: yomihon itself writes no note title or body
+  there, and the only vault names it keeps are the paths that say which course
+  or folder a rail's open or scrolled state belongs to. All of it clears — the
+  settings page's return to defaults drops the six cookies, and the browser's
+  own controls drop all nine.
 
 No hosted reader exists for a user's own vault; a vault stays on the machine
 that reads it. One public instance exists over this repository's own sample

@@ -54,12 +54,12 @@ var (
 	UnwrittenTitle = both("連到不存在的目標", "Links to something that is not there")
 	UnwrittenLede  = both(
 		"這些連結的目標不存在，而且沒有任何缺口帳列出它們。目標是作者寫下的名字：可能是一篇還沒寫的筆記，也可能是一個不在書庫裡的檔案——兩者要修的東西不一樣。",
-		"These links point at something that does not exist, and no gap ledger lists it. The target is the name the author wrote: it may be a note nobody has written, or a file that is not in the library at all — and those are different repairs.",
+		"These links point at something that does not exist, and no gap ledger lists it. The target is the name the author wrote: it may be a note nobody has written, or a file that is not in the vault at all — and those are different repairs.",
 	)
 	TitleOnlyTitle = both("連結寫的是筆記的標題", "Links written to a note's title")
 	TitleOnlyLede  = both(
 		"這些筆記都存在。連結指不到它們，是因為寫的是標題，而標題不是這個書庫解析連結用的名字——檔名和 aliases 才是。要修的是那篇筆記的 aliases，不是再寫一篇。",
-		"These notes exist. The links miss them because they name a title, and a title is not what this library resolves a link by — a filename and its aliases are. The repair is that note's aliases, not another note.",
+		"These notes exist. The links miss them because they name a title, and a title is not what this vault resolves a link by — a filename and its aliases are. The repair is that note's aliases, not another note.",
 	)
 	IslandsTitle = both("沒有正文 [[…]] 連結連過來的筆記", "Notes with no incoming body [[…]] links")
 	IslandsLede  = both(
@@ -114,8 +114,8 @@ var HealthGuideTitle = both("每一種發現是什麼意思", "What each kind of
 // exists and could not be loaded: without it, a folder with a broken contract
 // is indistinguishable from a folder with none.
 var (
-	ContractUnreadable       = both("vault contract 無法讀取；生命週期與治理投影已關閉。", "The vault contract could not be read; lifecycle and governance projections are closed.")
-	ContractUnreadablePrefix = both("vault contract 無法讀取：", "The vault contract could not be read: ")
+	ContractUnreadable       = both("契約無法讀取，這個書庫的結構與隱私規則沒有套用。", "The contract could not be read; its rules for structure and privacy are not applied.")
+	ContractUnreadablePrefix = both("契約無法讀取：", "The contract could not be read: ")
 )
 
 // ContractChanged is what a reader is told when the contract's bytes moved

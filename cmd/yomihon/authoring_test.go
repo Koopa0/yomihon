@@ -114,7 +114,7 @@ func TestAuthorGuideBuildsTheCourseItPromises(t *testing.T) {
 				t.Fatalf("caught: pasted author guide does not yield exactly two main lessons and one side lesson: %+v", pathsModel)
 			}
 			for _, lang := range []wording.Lang{wording.En, wording.ZhHant} {
-				index := authorPage(t, server, "/paths", lang)
+				index := authorPage(t, server, "/courses", lang)
 				courseURL := onlyLink(t, "author course index", index, "data-index-row", "First course")
 				course := authorPage(t, server, courseURL, lang)
 				startURL := onlyLink(t, "author course", course, "y-lesson", "Start")

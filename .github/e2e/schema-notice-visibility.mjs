@@ -153,9 +153,9 @@ const assertNoticeVisible = async (page, site, width) => {
   if (!seen.text.includes('mystery_key') || !seen.text.includes('不是 schema 認得的欄位')) {
     fail(site, `at ${width}px the notice does not name the unknown key in words: ${JSON.stringify(seen.text)}`);
   }
-  const rail = page.locator(`aside.y-rail-right ${NOTICE}`);
-  if (await rail.count() !== 0) {
-    fail(site, `at ${width}px the notice still renders inside the right rail`);
+  const aside = page.locator(`aside ${NOTICE}`);
+  if (await aside.count() !== 0) {
+    fail(site, `at ${width}px the notice renders inside a sidebar instead of the reading column`);
   }
 };
 

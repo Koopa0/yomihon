@@ -17,7 +17,7 @@ import (
 // expanded. It takes one resolved Sidebar, so a report builds it with no
 // current note and every branch renders closed. A nil model renders nothing.
 templ sidebar(sb Sidebar, c layouts.Chrome) {
-	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) }>
+	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.VaultNavigation.In(c.Lang) }>
 		@railHead(c, true)
 		<div class="y-railbody" id="_y-nav-rail-body">
 			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
@@ -33,7 +33,7 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 				if faults := sb.CapabilityFaults(c.Lang); len(faults) > 0 {
 					<div class="y-railsep" aria-hidden="true"></div>
 					<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="_y-sidebar-navigation-diagnostics-title">
-						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
+						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.CoursesAndMaps.In(c.Lang) }</h2>
 						for _, fault := range faults {
 							<p>
 								@browserDiagnostic(fault.Summary, fault.Detail)
@@ -46,7 +46,7 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 					<details open?={ sb.pathsChainOpen() } data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
 						<summary class="y-railsummary">
 							@chevron()
-							{ wording.Paths.In(c.Lang) }
+							{ wording.Courses.In(c.Lang) }
 						</summary>
 						<div class="y-railgroup">
 							for _, step := range sb.Steps {
@@ -160,7 +160,7 @@ templ pathTree(sb Sidebar, c layouts.Chrome, p nav.Path) {
 			<span class="y-railitem__name">{ p.Title }</span>
 		</summary>
 		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(syllabusHref(p.RelPath)) }>{ wording.ContentsLink.In(c.Lang) }</a>
+			<a class="y-railitem__full" href={ templ.URL(courseHref(p.RelPath)) }>{ wording.ContentsLink.In(c.Lang) }</a>
 			for _, g := range p.Groups {
 				@pathGroupNode(sb, c, p.RelPath, childChain(nil, g.Name), g)
 			}

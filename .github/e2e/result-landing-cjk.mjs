@@ -40,11 +40,15 @@ const BLOCK_RUN = '那本咖啡色封皮的舊冊子在星期四早晨被翻開�
 const NAMED_RUN = BLOCK_RUN.slice(BLOCK_RUN.indexOf('，') + 1);
 const CUT_RUN = BLOCK_RUN.slice(BLOCK_RUN.length - 30);
 const WIDTH = 1600;
+// How far from the middle of the space below the header the browser may leave a
+// heading it was sent to. It is a spec'd alignment, so the slack only covers
+// the heading's own height and the rounding of a scroll position.
+const CENTRE_TOLERANCE = 120;
 
 // A hit inside a heading names the heading through its end and then the
-// section's first words. The contents list repeats the heading and, at the
-// narrow width, stands above the prose; its copy is followed by the next
-// entry's name, so without those words the browser lands on the list.
+// section's first words. The sidebar's contents repeat the heading ahead of
+// the prose; that copy is followed by the next entry's name, so without those
+// words the browser answers with the sidebar's copy.
 const HEADING_SECTION_OPENING = '這一節只談收尾的順序。';
 const ENGLISH_SECTION_OPENING = 'The shelf keeps';
 
@@ -259,6 +263,18 @@ try {
         const match = copies[0];
         if (match.top + scroll <= 900) broken('the context fixture is inside the first screen, so a top-of-note landing proves nothing');
         if (!match.inView) fail(testCase.site, `context result missed the prose: ${JSON.stringify({ width, lang, theme, href, scrollY: scroll, match })}`);
+        if (testCase.site !== 'strike-in-view') {
+          // The sidebar's contents repeat the heading ahead of the prose, so a
+          // directive without its context is answered by that copy, and the
+          // page then moves for the sidebar's sake: far enough that the
+          // heading is often still on screen, but not where the browser puts
+          // a match it was asked to show, the middle of the space below the
+          // header. Where the heading stands is what tells the two apart.
+          const space = await page.evaluate(() => ({ top: document.querySelector('.y-header')?.getBoundingClientRect().bottom ?? 0, bottom: innerHeight }));
+          const away = Math.abs((match.top + match.bottom) / 2 - (space.top + space.bottom) / 2);
+          if (process.env.DEBUG_CENTRE) console.log(`centre ${testCase.site} ${width} ${lang} ${theme}: ${Math.round(away)}px from the middle`);
+          if (away > CENTRE_TOLERANCE) fail(testCase.site, `context result put the heading ${Math.round(away)}px from the middle of the space below the header, want within ${CENTRE_TOLERANCE}px, so the page moved for some other copy of it: ${JSON.stringify({ width, lang, theme, href, scrollY: scroll, match, space })}`);
+        }
         if (proof) {
           const issue = proof();
           if (issue) notApplied(`${MUTATE}: ${issue}`);

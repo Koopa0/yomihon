@@ -78,10 +78,6 @@ type NoteView struct {
 	StepsOnward     nav.NoteRef
 	StepsToContents bool
 	StepsAsides     []nav.NoteRef
-	// Running is the line above the title of a note the path walks, naming the
-	// path and the part; it is nil for a note in no path, which keeps the
-	// folder's breadcrumb.
-	Running *RunningHead
 	// VaultHasLinks says some note in this folder cites another. Where none
 	// does, an empty cited-by block on every page is furniture; where the
 	// folder does use links, an empty block is a finding and stays.
@@ -148,8 +144,9 @@ type NoteView struct {
 }
 
 // Note is the reading page: the article in the shared shell, with the
-// navigation sidebar and whatever aids the note earns on the right. Everything it shows is either the note's own bytes rendered faithfully
-// or a diagnostic about them; it repairs nothing.
+// navigation sidebar beside it, which carries the note's contents under the row
+// that is the note. Everything it shows is either the note's own bytes rendered
+// faithfully or a diagnostic about them; it repairs nothing.
 templ Note(v NoteView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
 	// The header carries the same control at the widths that have no rail, and
@@ -163,20 +160,18 @@ templ Note(v NoteView, c layouts.Chrome) {
 		// The sheet owns an id outside the authored section namespace.
 		@conceptSheet(v.Concepts, lang)
 		<div class="y-nav-scrim" data-nav-close></div>
-		<div class={ "y-shell", templ.KV("y-shell--rail-empty", !v.hasAids()) }>
-			@readingRail(v.ReadingRail, c)
+		<div class="y-shell">
+			@readingRail(v.railWithContents(), c)
 			<main id="_y-main" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(v.BodyHTML, lang)... } data-preview-endpoint="/preview/">
 				@noteArticle(v, lang)
 			</main>
-			@rightRail(v, lang)
 		</div>
 		@previewCard()
 	}
 }
 
 // noteArticle is one note as it reads: its head, whatever the schema said about
-// it, the aids the narrow layout folds inline, the rendered body, and the way
-// onward. It is a component rather than markup inside the page because a page
+// it, the rendered body, the notes that stand beside it, and the way onward. It is a component rather than markup inside the page because a page
 // showing two notes beside one another draws the same thing twice, and a second
 // copy of this would be free to drift from the one a reader sees on the note's
 // own page.
@@ -233,9 +228,10 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 	}
 }
 
-// articleHead is the line above the title — the running head of a note a path
-// walks, the folder's breadcrumb for any other — then the title and the file row
-// above the rendered body, which follows it after a space rather than a rule.
+// articleHead is the title and the file row above the rendered body, which
+// follows it after a space rather than a rule. Nothing stands above the title:
+// the sidebar already says which course the note is in and which part, or which
+// folder, so a line over the heading would say it a second time.
 //
 // The article around it speaks the note's own language, so the words here that
 // are yomihon's rather than the author's declare the interface language again.
@@ -243,20 +239,6 @@ templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
 // because that row also prints the note's address, and a path a reader wrote in
 // Japanese is not the interface's to relabel.
 templ articleHead(v NoteView, lang wording.Lang) {
-	if v.Running != nil {
-		<div class="y-crumbs y-crumbs--course">
-			<a class="y-crumbs__link" href={ templ.URL(v.Running.Href) }>{ v.Running.Text(lang) }</a>
-		</div>
-	} else if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
-		<div class="y-crumbs">
-			for i, seg := range crumbs {
-				if i > 0 {
-					<span class="y-crumbs__sep" aria-hidden="true">/</span>
-				}
-				<a class="y-crumbs__link" href={ templ.URL(folderHref(seg.RelPath)) }>{ seg.Name }</a>
-			}
-		</div>
-	}
 	// A jump has to land on the words it named, so the anchor goes on the
 	// visible heading rather than a hidden marker beside it.
 	if v.NestedTitle {
@@ -383,26 +365,6 @@ templ thoughtDoor(v NoteView, lang wording.Lang) {
 	}
 }
 
-// ============================ RIGHT RAIL ============================
-// Reading leads and the ruling closes: the note's own shape, then the sources
-// it declared, then what leads to it from the text of other notes.
-templ rightRail(v NoteView, lang wording.Lang) {
-	<aside class="y-rail-right" aria-label={ wording.ReadingAids.In(lang) }>
-		if len(v.TOC) > 0 {
-			<nav aria-label={ wording.OnThisPage.In(lang) }>
-				<div class="ui-side__label">{ wording.OnThisPage.In(lang) }</div>
-				@tocList(v, lang)
-			</nav>
-		}
-		@pairOffer(v, lang)
-		@basedOn(v, lang)
-		@declaredByBlock(v, lang)
-		@citedBy(v, lang)
-		@diagnostics(v, lang)
-		@markControl(v, lang)
-	</aside>
-}
-
 // pairOffer is the way to the page that holds this note and one other at once.
 // It is absent where no other note belongs beside this one, which is the
 // ordinary case: a note with no translation and no declared source has no pair
@@ -526,7 +488,7 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 			// folder's order is only named. The landmark's own name stays the
 			// step onward from this note, so it is not the link's words twice.
 			if v.StepsCourse && v.StepsPath.RelPath != "" {
-				<p class="y-steps__source"><a class="y-steps__path" href={ templ.URL(syllabusHrefFrom(v.StepsPath.RelPath, v.RelPath)) } { authoredLanguageAttrs(v.StepsPath.Language)... }>{ v.StepsPath.Name }</a></p>
+				<p class="y-steps__source"><a class="y-steps__path" href={ templ.URL(courseHrefFrom(v.StepsPath.RelPath, v.RelPath)) } { authoredLanguageAttrs(v.StepsPath.Language)... }>{ v.StepsPath.Name }</a></p>
 			} else {
 				<p class="y-steps__source">{ v.StepsLabel }</p>
 			}
@@ -557,7 +519,7 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 					<span class="y-steps__name" { authoredLanguageAttrs(v.StepsOnward.Language)... }>{ v.StepsOnward.Name } <span class="y-steps__dir" aria-hidden="true">→</span></span>
 				</a>
 			} else if v.StepsToContents && v.StepsPath.RelPath != "" {
-				<a class="y-steps__link y-steps__link--next y-steps__link--onward" href={ templ.URL(syllabusHrefFrom(v.StepsPath.RelPath, v.RelPath)) }>
+				<a class="y-steps__link y-steps__link--next y-steps__link--onward" href={ templ.URL(courseHrefFrom(v.StepsPath.RelPath, v.RelPath)) }>
 					<span class="y-steps__role">{ wording.BranchToContents.In(lang) }</span>
 				</a>
 			}
@@ -573,23 +535,34 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 	}
 }
 
-// tocList is the table-of-contents link list, shared by the right rail and the
-// inline disclosure so the two render one surface.
+// tocList is the table-of-contents link list: the sidebar draws it under the
+// row that is the note, and a column of a page holding two notes, which has no
+// sidebar to carry it, draws it in its folded row. Both are this one list, so
+// the two surfaces read as one.
 //
 // Every heading is the note's own text, so the list carries its language;
 // the optional thought doors declare the interface language separately. It needs saying
 // on the list because neither copy would otherwise inherit the right answer:
 // the folded one sits inside a block that declares the language the interface
-// speaks, and the rail one sits outside the article entirely, where the
+// speaks, and the sidebar one sits outside the article entirely, where the
 // document's language is all there is. A note that declared no language stamps
 // nothing here either, and both copies inherit the same page language the
 // article does.
+//
+// The last row, where the note has an end block, leads down to it. It is named
+// with the end block's own first heading, so the row and what it leads to say
+// the same words.
 templ tocList(v NoteView, lang wording.Lang) {
 	<div class="y-toc__list" { authoredLanguageAttrs(v.Language)... }>
 		for _, h := range v.TOC {
 			<div class="y-toc__row">
 				<a href={ templ.URL("#" + h.ID) } data-level={ strconv.Itoa(h.Level) }>{ h.Text }</a>
 				@thoughtSectionLink(v, h, lang)
+			</div>
+		}
+		if v.endShown() {
+			<div class="y-toc__row y-toc__row--end">
+				<a href={ templ.URL("#" + v.endID()) } lang={ lang.Tag() } data-level="2">{ v.endLabel(lang) }</a>
 			</div>
 		}
 	</div>
@@ -606,102 +579,48 @@ templ thoughtSectionLink(v NoteView, h render.TOCEntry, lang wording.Lang) {
 	}
 }
 
-// inlineAids keeps the reading aids reachable at widths where the right rail is
-// hidden, as one closed row between the head and the first sentence. A stack of
-// four folds there pushed the prose a screen's third down on every note that had
-// them. The summary names every aid the page carries, with the length of each
-// list, and opening it gives the ones a reader reaches for before reading — the
-// contents, what is wrong with the note, the sources it declared and the notes
-// declared on it — and a way down to the two that wait at the end of the text.
-// Wide viewports hide this block and show the rail instead.
+// inlineAids is the folded contents row of a note that stands in a column of a
+// page holding two. Such a column has no sidebar beside it, and the contents
+// are what a reader reaches for before reading; every other aid waits at the
+// end of the text, in the same block a note's own page ends on.
 templ inlineAids(v NoteView, lang wording.Lang) {
-	if v.inlineAidsShown() {
+	if v.NestedTitle && len(v.TOC) > 0 {
 		<div class="y-inlineaids" lang={ lang.Tag() }>
 			<details class="y-toc-inline">
 				<summary class="y-toc-inline__summary">
 					@chevron()
 					<span class="y-toc-inline__parts">
-						if len(v.TOC) > 0 {
-							<span class="y-toc-inline__part">{ wording.OnThisPage.In(lang) }</span>
-						}
-						if v.diagCount() > 0 {
-							<span class="y-toc-inline__part">
-								{ wording.NoteHealth.In(lang) }
-								<span class="y-diagcount">{ strconv.Itoa(v.diagCount()) }</span>
-							</span>
-						}
-						if len(v.BasedOn) > 0 {
-							<span class="y-toc-inline__part">
-								{ wording.BasedOn.In(lang) }
-								<span class="ui-navitem__count">{ strconv.Itoa(len(v.BasedOn)) }</span>
-							</span>
-						}
-						if len(v.DeclaredBy) > 0 {
-							<span class="y-toc-inline__part">
-								{ wording.DeclaredBy.In(lang) }
-								<span class="ui-navitem__count">{ strconv.Itoa(len(v.DeclaredBy)) }</span>
-							</span>
-						}
-						if v.Pair.RelPath != "" {
-							<span class="y-toc-inline__part">
-								{ wording.CompareOffer.In(lang) }
-								<span class="ui-navitem__count">1</span>
-							</span>
-						}
-						if v.citedByShown() {
-							<span class="y-toc-inline__part">
-								{ wording.CitedBy.In(lang) }
-								<span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span>
-							</span>
-						}
+						<span class="y-toc-inline__part">{ wording.OnThisPage.In(lang) }</span>
 					</span>
 				</summary>
 				<div class="y-toc-inline__body">
 					// The summary opens on the contents' own name, so the list
 					// follows it without saying the name a second time.
-					if len(v.TOC) > 0 {
-						<nav aria-label={ wording.OnThisPage.In(lang) }>
-							@tocList(v, lang)
-						</nav>
-					}
-					@diagnostics(v, lang)
-					@basedOn(v, lang)
-					@declaredByBlock(v, lang)
-					if v.relatedShown() {
-						<p class="y-toc-inline__jump">
-							if v.Pair.RelPath != "" {
-								<a href={ templ.URL("#" + v.relatedPairID()) }>{ wording.CompareOffer.In(lang) } <span aria-hidden="true">↓</span></a>
-							}
-							if v.citedByShown() {
-								<a href={ templ.URL("#" + v.relatedCitedID()) }>{ wording.CitedBy.In(lang) } <span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span> <span aria-hidden="true">↓</span></a>
-							}
-						</p>
-					}
+					<nav aria-label={ wording.OnThisPage.In(lang) }>
+						@tocList(v, lang)
+					</nav>
 				</div>
 			</details>
 		</div>
 	}
 }
 
-// relatedAids closes the article, at widths where the right rail is hidden,
-// with the notes that stand beside this one: the note to read beside it and the
-// notes whose text links here. They are what a reader who has finished looks
-// for next, so they wait at the end of the text rather than between the title
-// and the first sentence, and the folded row above the prose names them and
-// leads down to them.
+// relatedAids closes the article with what stands beside the note: the note to
+// read beside it, the sources it declared, the notes declared on it, the notes
+// whose text links here, and what the check found in it. They are what a reader
+// who has finished looks for next, so they wait at the end of the text, at
+// every width, rather than between the title and the first sentence or in a
+// column of their own, and the sidebar's last contents row leads down to them.
+// The block is the target of that row, so it can be focused without being a
+// stop of its own.
 templ relatedAids(v NoteView, lang wording.Lang) {
-	if v.relatedShown() {
-		<div class="y-related" lang={ lang.Tag() }>
-			if v.Pair.RelPath != "" {
-				<div id={ v.relatedPairID() } class="y-related__block">
-					@pairOffer(v, lang)
-				</div>
-			}
-			if v.citedByShown() {
-				<div id={ v.relatedCitedID() } class="y-related__block">
-					@citedByBlock(v, lang)
-				</div>
-			}
+	if v.endShown() {
+		<div class="y-related" id={ v.endID() } tabindex="-1" lang={ lang.Tag() }>
+			@pairOffer(v, lang)
+			@basedOn(v, lang)
+			@declaredByBlock(v, lang)
+			@citedBy(v, lang)
+			@diagnostics(v, lang)
 		</div>
 	}
 }

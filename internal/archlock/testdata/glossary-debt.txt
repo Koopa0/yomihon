@@ -4,23 +4,12 @@
 # same change, and delete the line when the last use is gone.
 browse.go	diagnostic	1
 browse.go	health report	1
-browse.go	library	1
 browse.go	健康報告	1
 browse.go	診斷	1
 diagnostic.go	diagnostic	1
 diagnostic.go	診斷	1
 health.go	adjudication	1
-health.go	library	2
 home.go	diagnostic	1
-home.go	library	1
 home.go	診斷	1
 preferences.go	rail	1
 render.go	內嵌	1
-sidebar.go	library	3
-sidebar.go	rail	2
-sidebar.go	study path	1
-sidebar.go	學習路徑	1
-syllabus.go	adjudication	1
-syllabus.go	study path	5
-syllabus.go	判讀報告	1
-syllabus.go	學習路徑	5

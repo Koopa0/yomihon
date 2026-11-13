@@ -243,14 +243,14 @@ func TestExampleVaultExplainsDraftsOnTheCourseRoute(t *testing.T) {
 				t.Errorf("Home is not drawn in %s", reader.lang)
 			}
 			// Home previews a few paths; the index is the complete public route.
-			heading := elementInner(t, deskBlockMarkup(t, home, "paths"), "<h2")
-			if got := onlyLink(t, "Home paths heading", heading, "", ""); got != "/paths" {
-				t.Fatalf("Home paths heading links to %q, want /paths", got)
+			heading := elementInner(t, deskBlockMarkup(t, home, "courses"), "<h2")
+			if got := onlyLink(t, "Home paths heading", heading, "", ""); got != "/courses" {
+				t.Fatalf("Home paths heading links to %q, want /courses", got)
 			}
-			index := readingPageIn(t, site, "/paths", reader.lang)
+			index := readingPageIn(t, site, "/courses", reader.lang)
 			courseHref := onlyLink(t, "path index", index, "data-index-row", reader.course)
-			if !strings.HasPrefix(courseHref, "/syllabus/") {
-				t.Fatalf("the index opens %q, want a course under /syllabus/", courseHref)
+			if !strings.HasPrefix(courseHref, "/courses/") {
+				t.Fatalf("the index opens %q, want a course under /courses/", courseHref)
 			}
 			course := readingPageIn(t, site, courseHref, reader.lang)
 			draftsHref := onlyLink(t, "course", course, "y-lesson", reader.drafts)

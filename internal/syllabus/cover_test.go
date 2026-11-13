@@ -50,7 +50,7 @@ func writeCourse(t *testing.T, root, opening string, rows ...string) {
 	}
 }
 
-const coursePage = "/syllabus/Maps/Go path.md"
+const coursePage = "/courses/Maps/Go path.md"
 
 // TestTheCoverPrintsTheCourseNotesOwnOpening holds the two halves of one rule:
 // a course prints the words its author wrote above the first heading, and a
