@@ -10,7 +10,7 @@ import (
 // carrying the reader's own presentation choices, the head, the shared header,
 // the search dialog, and the script that enhances all of it. A page supplies
 // its own body as children; nothing above that body varies by page, which is
-// what lets the chrome hold still while a navigation transition runs.
+// what lets the chrome stay where it is from one page to the next.
 templ Base(c Chrome) {
 	<!DOCTYPE html>
 	<html
@@ -37,36 +37,23 @@ templ Base(c Chrome) {
 			// stay. A browser with scripting off never runs this and keeps the
 			// unscripted layout.
 			//
-			// The same lines say when this document is not the answer to a press,
-			// so the content's arrival is not played for it: a page the browser
-			// prepared before anyone asked for it, until the reader does ask, one
-			// reached by going back or forward, one reloaded, and one opened at a
-			// place in it: by a heading's address, by a stretch of text, which no
-			// script can read from the location but the navigation can, or by the
-			// distance below an anchor that a kept place carries in its query. A
-			// reload brings back the page already being read, at the place it was
-			// read, so nothing new arrives, and the arrival is a scale that would
-			// move the text the reader is looking at, as it would at any place.
-			// They are written once, as data attributes for the stylesheet, which
-			// is where the arrival lives; a condition the stylesheet worked out for
-			// itself would stop and start matching as the reader moved about the
-			// page, and play the arrival again each time. The way in is not called
-			// nav: the drawer already keeps that name on the root, and its first
-			// write would overwrite this one.
+			// A page change plays no animation, so there is nothing else to tell
+			// a document apart by: the one other mark is for a reader returning
+			// to a kept place. That place is a distance below an anchor, carried
+			// in the query, and only script can apply it once the anchor has been
+			// measured. The mark holds the column out of sight until the page's
+			// module has scrolled to the place and removed it, so the first frame
+			// painted is the final one; the stylesheet reveals the column on a
+			// timer if the module never runs. It is written once, as a data
+			// attribute, because a condition the stylesheet worked out for itself
+			// would stop and start matching as the reader moved about the page.
+			// The way in is not called nav: the drawer already keeps that name on
+			// the root, and its first write would overwrite this one.
 			<script nonce={ c.Nonce }>
 				{
 					const d = document.documentElement;
 					d.dataset.js = "on";
-					const entry = performance.getEntriesByType("navigation")[0];
-					const kept = new URLSearchParams(location.search).has("at");
-					if (entry?.type === "back_forward") d.dataset.arrival = "traverse";
-					else if (entry?.type === "reload") d.dataset.arrival = "reload";
-					else if (kept || entry?.name.includes("#"))
-						d.dataset.arrival = "place";
-					if (document.prerendering) {
-						d.dataset.prerender = "";
-						document.onprerenderingchange = () => delete d.dataset.prerender;
-					}
+					if (new URLSearchParams(location.search).has("at")) d.dataset.arrival = "kept";
 				}
 			</script>
 			// Every page change is a whole new document, so the wait between a

@@ -19,7 +19,7 @@ import (
 // carrying the reader's own presentation choices, the head, the shared header,
 // the search dialog, and the script that enhances all of it. A page supplies
 // its own body as children; nothing above that body varies by page, which is
-// what lets the chrome hold still while a navigation transition runs.
+// what lets the chrome stay where it is from one page to the next.
 func Base(c Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -156,13 +156,13 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 56, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 52, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tconst entry = performance.getEntriesByType(\"navigation\")[0];\n\t\t\t\t\tconst kept = new URLSearchParams(location.search).has(\"at\");\n\t\t\t\t\tif (entry?.type === \"back_forward\") d.dataset.arrival = \"traverse\";\n\t\t\t\t\telse if (entry?.type === \"reload\") d.dataset.arrival = \"reload\";\n\t\t\t\t\telse if (kept || entry?.name.includes(\"#\"))\n\t\t\t\t\t\td.dataset.arrival = \"place\";\n\t\t\t\t\tif (document.prerendering) {\n\t\t\t\t\t\td.dataset.prerender = \"\";\n\t\t\t\t\t\tdocument.onprerenderingchange = () => delete d.dataset.prerender;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tif (new URLSearchParams(location.search).has(\"at\")) d.dataset.arrival = \"kept\";\n\t\t\t\t}\n\t\t\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -177,7 +177,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var10 string
 		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(c.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 87, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 74, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -190,7 +190,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(c.Assets.URL("yomihon-mark.svg"))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 88, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 75, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {
@@ -203,7 +203,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(c.Assets.URL("fonts/Geist-Variable.woff2"))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 89, Col: 111}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 76, Col: 111}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
 		if templ_7745c5c3_Err != nil {
@@ -216,7 +216,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(c.Assets.URL("fonts/GeistMono-Variable.woff2"))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 90, Col: 115}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 77, Col: 115}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 		if templ_7745c5c3_Err != nil {
@@ -229,7 +229,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(c.Assets.URL("fonts/Newsreader-Latin-Variable.woff2"))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 91, Col: 122}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 78, Col: 122}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
@@ -242,7 +242,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(c.Assets.URL("app.css"))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 92, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 79, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
@@ -255,7 +255,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(c.Assets.URL("chroma.css"))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 93, Col: 70}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 80, Col: 70}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var16)
 		if templ_7745c5c3_Err != nil {
@@ -276,7 +276,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(wording.SkipToContent.In(c.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 97, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 84, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -309,7 +309,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 105, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 92, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var18)
 		if templ_7745c5c3_Err != nil {
@@ -322,7 +322,7 @@ func Base(c Chrome) templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(c.Assets.URL("yomihon.js"))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 105, Col: 86}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 92, Col: 86}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var19)
 		if templ_7745c5c3_Err != nil {
@@ -384,7 +384,7 @@ func header(c Chrome) templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.ToggleNavigation.In(c.Lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 136, Col: 118}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 123, Col: 118}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var21)
 		if templ_7745c5c3_Err != nil {
@@ -397,7 +397,7 @@ func header(c Chrome) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(c.Assets.URL("yomihon-mark.svg"))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 140, Col: 113}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 127, Col: 113}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 		if templ_7745c5c3_Err != nil {
@@ -415,7 +415,7 @@ func header(c Chrome) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.ToggleFurigana.In(c.Lang)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 151, Col: 116}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 138, Col: 116}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var23)
 			if templ_7745c5c3_Err != nil {
@@ -428,7 +428,7 @@ func header(c Chrome) templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.FormatBool(c.Ruby == "on")).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 151, Col: 168}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 138, Col: 168}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var24)
 			if templ_7745c5c3_Err != nil {
@@ -441,7 +441,7 @@ func header(c Chrome) templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(wording.FuriganaLabel.In(c.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 152, Col: 111}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 139, Col: 111}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -454,7 +454,7 @@ func header(c Chrome) templ.Component {
 			var templ_7745c5c3_Var26 string
 			templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(wording.FuriganaLabelShort.In(c.Lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 153, Col: 117}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 140, Col: 117}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 			if templ_7745c5c3_Err != nil {
@@ -478,7 +478,7 @@ func header(c Chrome) templ.Component {
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.SearchNotes.In(c.Lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 167, Col: 155}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 154, Col: 155}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var27)
 		if templ_7745c5c3_Err != nil {
@@ -491,7 +491,7 @@ func header(c Chrome) templ.Component {
 		var templ_7745c5c3_Var28 string
 		templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(wording.SearchNotesPrompt.In(c.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 169, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 156, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 		if templ_7745c5c3_Err != nil {
@@ -504,7 +504,7 @@ func header(c Chrome) templ.Component {
 		var templ_7745c5c3_Var29 string
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(wording.SearchTitle.In(c.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 172, Col: 87}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 159, Col: 87}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
@@ -525,7 +525,7 @@ func header(c Chrome) templ.Component {
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(preferencesHref(c.ReturnTo))).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 178, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 165, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var30)
 			if templ_7745c5c3_Err != nil {
@@ -538,7 +538,7 @@ func header(c Chrome) templ.Component {
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.PreferencesLink.In(c.Lang)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 178, Col: 120}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 165, Col: 120}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 			if templ_7745c5c3_Err != nil {
@@ -569,7 +569,7 @@ func header(c Chrome) templ.Component {
 		var templ_7745c5c3_Var32 string
 		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(wording.PreferencesLink.In(c.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 180, Col: 91}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 167, Col: 91}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 		if templ_7745c5c3_Err != nil {
@@ -622,7 +622,7 @@ func headerMark(mark *MarkOffer, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templruntime.NewAttributeExpression(mark.Path).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 205, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 192, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var34)
 		if templ_7745c5c3_Err != nil {
@@ -635,7 +635,7 @@ func headerMark(mark *MarkOffer, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var35 string
 		templ_7745c5c3_Var35, templ_7745c5c3_Err = templruntime.NewAttributeExpression(mark.Identity).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 206, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 193, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var35)
 		if templ_7745c5c3_Err != nil {
@@ -648,7 +648,7 @@ func headerMark(mark *MarkOffer, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var36 string
 		templ_7745c5c3_Var36, templ_7745c5c3_Err = templruntime.NewAttributeExpression(mark.Endpoint).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 207, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 194, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var36)
 		if templ_7745c5c3_Err != nil {
@@ -661,7 +661,7 @@ func headerMark(mark *MarkOffer, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var37 string
 		templ_7745c5c3_Var37, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.MarkSaved.In(lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 208, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 195, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var37)
 		if templ_7745c5c3_Err != nil {
@@ -674,7 +674,7 @@ func headerMark(mark *MarkOffer, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var38 string
 		templ_7745c5c3_Var38, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.MarkNotStored.In(lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 209, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 196, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var38)
 		if templ_7745c5c3_Err != nil {
@@ -697,7 +697,7 @@ func headerMark(mark *MarkOffer, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var39 string
 		templ_7745c5c3_Var39, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.FormatBool(mark.Kept)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 212, Col: 124}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 199, Col: 124}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var39)
 		if templ_7745c5c3_Err != nil {
@@ -710,7 +710,7 @@ func headerMark(mark *MarkOffer, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var40 string
 		templ_7745c5c3_Var40, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.MarkSetControl.In(lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 212, Col: 171}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 199, Col: 171}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var40)
 		if templ_7745c5c3_Err != nil {
@@ -723,7 +723,7 @@ func headerMark(mark *MarkOffer, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var41 string
 		templ_7745c5c3_Var41, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.MarkSetControl.In(lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 212, Col: 213}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 199, Col: 213}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var41)
 		if templ_7745c5c3_Err != nil {
@@ -774,7 +774,7 @@ func keyboardHelp(c Chrome) templ.Component {
 		var templ_7745c5c3_Var43 string
 		templ_7745c5c3_Var43, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.KeyboardHelp.In(c.Lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 225, Col: 93}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 212, Col: 93}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var43)
 		if templ_7745c5c3_Err != nil {
@@ -787,7 +787,7 @@ func keyboardHelp(c Chrome) templ.Component {
 		var templ_7745c5c3_Var44 string
 		templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(wording.KeyboardHelp.In(c.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 226, Col: 64}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 213, Col: 64}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 		if templ_7745c5c3_Err != nil {
@@ -808,7 +808,7 @@ func keyboardHelp(c Chrome) templ.Component {
 		var templ_7745c5c3_Var45 string
 		templ_7745c5c3_Var45, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(preferencesHref(c.ReturnTo))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 231, Col: 75}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 218, Col: 75}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var45)
 		if templ_7745c5c3_Err != nil {
@@ -821,7 +821,7 @@ func keyboardHelp(c Chrome) templ.Component {
 		var templ_7745c5c3_Var46 string
 		templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(wording.PreferencesLink.In(c.Lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 231, Col: 134}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 218, Col: 134}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 		if templ_7745c5c3_Err != nil {
@@ -864,7 +864,7 @@ func KeyboardKeys(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var48 string
 		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ShortcutSearch.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 243, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 230, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 		if templ_7745c5c3_Err != nil {
@@ -877,7 +877,7 @@ func KeyboardKeys(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var49 string
 		templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ShortcutCloseSearchOrFilter.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 245, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 232, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 		if templ_7745c5c3_Err != nil {
@@ -890,7 +890,7 @@ func KeyboardKeys(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var50 string
 		templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ShortcutJumpToFilter.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 247, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 234, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 		if templ_7745c5c3_Err != nil {
@@ -903,7 +903,7 @@ func KeyboardKeys(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var51 string
 		templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ShortcutToggleSidebar.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 249, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 236, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 		if templ_7745c5c3_Err != nil {
@@ -916,7 +916,7 @@ func KeyboardKeys(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var52 string
 		templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ShortcutOpenHelp.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 251, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 238, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 		if templ_7745c5c3_Err != nil {
@@ -962,7 +962,7 @@ func searchDialog(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var54 string
 		templ_7745c5c3_Var54, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.SearchNotes.In(lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 264, Col: 193}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 251, Col: 193}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var54)
 		if templ_7745c5c3_Err != nil {
@@ -975,7 +975,7 @@ func searchDialog(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var55 string
 		templ_7745c5c3_Var55, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.SearchNotesPrompt.In(lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 272, Col: 112}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 259, Col: 112}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var55)
 		if templ_7745c5c3_Err != nil {
@@ -988,7 +988,7 @@ func searchDialog(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var56 string
 		templ_7745c5c3_Var56, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.SearchNotes.In(lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 272, Col: 156}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 259, Col: 156}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var56)
 		if templ_7745c5c3_Err != nil {
@@ -1009,7 +1009,7 @@ func searchDialog(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var57 string
 		templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(wording.SearchDialogChoose.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 279, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 266, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 		if templ_7745c5c3_Err != nil {
@@ -1022,7 +1022,7 @@ func searchDialog(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var58 string
 		templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(wording.SearchDialogEnter.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 280, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 267, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 		if templ_7745c5c3_Err != nil {
@@ -1035,7 +1035,7 @@ func searchDialog(lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var59 string
 		templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(wording.SearchDialogEsc.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 281, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `layouts/base.templ`, Line: 268, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 		if templ_7745c5c3_Err != nil {

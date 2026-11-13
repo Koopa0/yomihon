@@ -98,21 +98,38 @@ async function keep(control) {
   say(control, kept ? control.dataset.markSaved : control.dataset.markFailed, kept);
 }
 
-// land finishes an arrival the address asked for. The browser has already gone
-// to the fragment; what is left is the distance below it, measured from the
-// same anchor the mark was taken against.
+// land finishes the return to a kept place the address asked for. The browser
+// has already gone to the fragment; what is left is the distance below it,
+// measured from the same anchor the mark was taken against.
+//
+// The head script held the column out of sight for this document, so every way
+// out of here reveals it, and it is revealed as soon as the page has been
+// placed once: the first frame the reader sees is then already at the place.
+// The two later placements stay because the page can still change height after
+// that, and they correct the place without anything having been seen at the
+// wrong one.
 //
 // The query is spent whatever happens to the number in it, so a reload after
-// landing is an ordinary reading of the note rather than a second arrival.
+// landing is an ordinary reading of the note rather than a second return.
 function land() {
+  const root = document.documentElement;
+  const reveal = () => {
+    delete root.dataset.arrival;
+  };
   const address = new URL(location.href);
   const carried = address.searchParams.get(OFFSET_PARAM);
-  if (carried === null) return;
+  if (carried === null) {
+    reveal();
+    return;
+  }
   address.searchParams.delete(OFFSET_PARAM);
   history.replaceState(null, '', address.pathname + address.search + address.hash);
 
   const offset = Number(carried);
-  if (!Number.isInteger(offset) || offset < 0) return;
+  if (!Number.isInteger(offset) || offset < 0) {
+    reveal();
+    return;
+  }
 
   let anchor = null;
   if (address.hash.length > 1) {
@@ -127,12 +144,16 @@ function land() {
     // the distance below it measures from nothing and would drop the reader at
     // an unrelated depth. A browser running none of this is left at the top of
     // the document by the same address; this leaves them there too.
-    if (!anchor) return;
+    if (!anchor) {
+      reveal();
+      return;
+    }
   }
   const apply = () => {
     window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);
   };
   apply();
+  reveal();
   // The column's own measurements settle a frame or two after this file first
   // runs — a web font arrives, a diagram takes its height — and a position
   // applied before that lands against a page that has since moved.

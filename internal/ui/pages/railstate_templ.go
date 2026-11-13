@@ -241,6 +241,23 @@ func settleRail(c layouts.Chrome, filter bool) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<script nonce=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var13 string
+		templ_7745c5c3_Var13, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 119, Col: 24}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\">\n\t\t(() => {\n\t\t\t\"use strict\";\n\t\t\tconst rail = document.querySelector(\".y-rail-left\");\n\t\t\tif (!rail) return;\n\t\t\tconst id =\n\t\t\t\trail.querySelector(\"[data-book-path]\")?.dataset.bookPath ??\n\t\t\t\trail.dataset.readingRail ??\n\t\t\t\trail.getAttribute(\"aria-label\") ??\n\t\t\t\t\"\";\n\t\t\tlet kept = null;\n\t\t\ttry {\n\t\t\t\tkept = JSON.parse(sessionStorage.getItem(\"yomihon.railTop\") || \"null\");\n\t\t\t} catch {\n\t\t\t\tkept = null;\n\t\t\t}\n\t\t\tconst reloaded =\n\t\t\t\tperformance.getEntriesByType(\"navigation\")[0]?.type === \"reload\";\n\t\t\tconst same =\n\t\t\t\t!reloaded && kept !== null && kept.id === id && Number.isFinite(kept.top);\n\t\t\tif (same) rail.scrollTop = kept.top;\n\t\t\tconst row = [...rail.querySelectorAll(\".ui-navitem[aria-current='page']\")].find(\n\t\t\t\t(item) => item.getClientRects().length > 0,\n\t\t\t);\n\t\t\tif (row) {\n\t\t\t\tconst box = rail.getBoundingClientRect();\n\t\t\t\tconst top =\n\t\t\t\t\tbox.top +\n\t\t\t\t\trail.clientTop +\n\t\t\t\t\t(Number.parseFloat(getComputedStyle(rail).scrollPaddingTop) || 0);\n\t\t\t\tconst bottom = box.top + rail.clientTop + rail.clientHeight;\n\t\t\t\tconst place = row.getBoundingClientRect();\n\t\t\t\tif (place.top < top) rail.scrollTop += place.top - top;\n\t\t\t\telse if (place.bottom > bottom && same) rail.scrollTop += place.bottom - bottom;\n\t\t\t\telse if (place.bottom > bottom) rail.scrollTop += place.top - top;\n\t\t\t}\n\t\t\t// A folded column has no height to read a position from, and what it\n\t\t\t// would store is the top; the position kept is the one from before.\n\t\t\taddEventListener(\"pagehide\", () => {\n\t\t\t\tif (rail.querySelector(\".y-railbody\")?.getClientRects().length === 0) return;\n\t\t\t\ttry {\n\t\t\t\t\tsessionStorage.setItem(\n\t\t\t\t\t\t\"yomihon.railTop\",\n\t\t\t\t\t\tJSON.stringify({ id, top: rail.scrollTop }),\n\t\t\t\t\t);\n\t\t\t\t} catch {\n\t\t\t\t\t// A page without storage keeps nothing; the next one starts at the top.\n\t\t\t\t}\n\t\t\t});\n\t\t})();\n\t</script>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
 		return nil
 	})
 }
