@@ -59,6 +59,20 @@ func TestOpenThoughtsNamesShownPlacesInTheirOwnLanguage(t *testing.T) {
 			if strings.Contains(page, "Cutoverzh #") {
 				t.Errorf("caught: %s in %s names a place by raw anchor", path, lang)
 			}
+			if path != "/open-thoughts" {
+				continue
+			}
+			// A heading lends its sentence; a practice card lends none, because
+			// the sentence on a card is a combination made when the page opens.
+			for name, opening := range openingsOf(t, page) {
+				isCard := strings.HasSuffix(name, "› A") || strings.HasSuffix(name, "practice card 2") || strings.HasSuffix(name, "第 2 張練習卡")
+				switch {
+				case isCard && opening != "":
+					t.Errorf("caught: the practice card row %q in %s prints the sentence %q", name, lang, opening)
+				case strings.HasSuffix(name, "› Ledger") && opening != "The heading both halves keep.":
+					t.Errorf("caught: the row %q in %s says %q under it", name, lang, opening)
+				}
+			}
 		}
 	}
 }

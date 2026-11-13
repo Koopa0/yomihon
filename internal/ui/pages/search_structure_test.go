@@ -45,7 +45,7 @@ func TestSearchPageHeadingAndResultList(t *testing.T) {
 			}
 			html := buf.String()
 
-			if !strings.Contains(html, `<h1 class="y-title">搜尋</h1>`) {
+			if !strings.Contains(html, `<h1 class="y-offscreen y-offscreen--block">搜尋</h1>`) {
 				t.Errorf("the page has no heading to arrive on; html = %q", html)
 			}
 			if got := strings.Contains(html, `<ol class="y-results"`); got != tt.wantList {
@@ -307,4 +307,34 @@ func cutElement(html, open, closer string) (string, bool) {
 		return "", false
 	}
 	return open + inner + closer, true
+}
+
+// TestASearchResultMarksOnlyItsDrafts holds the one thing a hit says about the
+// state of its note: that the author has not finished it. A finished note says
+// nothing, so a page of results carries the word only on the rows that earn it,
+// drawn as the mark every other list draws it in.
+func TestASearchResultMarksOnlyItsDrafts(t *testing.T) {
+	t.Parallel()
+
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		var buf bytes.Buffer
+		view := SearchView{Query: "a", Total: 2, Results: []SearchResult{
+			{Title: "Unfinished", RelPath: "a.md", Draft: true},
+			{Title: "Finished", RelPath: "b.md"},
+		}}
+		if err := Search(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render search page: %v", err)
+		}
+		rows := strings.Split(buf.String(), `<a class="y-result"`)[1:]
+		if len(rows) != 2 {
+			t.Fatalf("%s page draws %d hits, want 2", lang, len(rows))
+		}
+		mark := `<span class="ui-status">` + wording.Draft.In(lang) + `</span>`
+		if !strings.Contains(rows[0], mark) {
+			t.Errorf("%s: the draft hit does not carry %q: %s", lang, mark, rows[0])
+		}
+		if strings.Contains(rows[1], "ui-status") || strings.Contains(rows[1], wording.Draft.In(lang)) {
+			t.Errorf("%s: a finished hit says something about its state: %s", lang, rows[1])
+		}
+	}
 }

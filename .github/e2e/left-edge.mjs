@@ -1,17 +1,19 @@
 // Behavior lock for the shared left edge. The text of every page that has a
 // sidebar starts at one place, the reading column's, and the text of every page
 // that has none starts at one place, the desk's. It is measured where the
-// heading's first glyph is, at the widths a window is opened at and with the
+// heading's first glyph is (the query field's box, on the page that has no
+// heading to see), at the widths a window is opened at and with the
 // sidebar open and folded, so a page whose box was centred on its own measure,
 // as every page used to be, starts somewhere else and the lock reads it.
 //
 // It also holds the sidebar to the window's side. In a window wider than the
 // two columns want, the sidebar still starts at the window's left side, and on
-// the pages whose sidebar opens on a title, a book's or a folder's, or on a
-// course's label, those words stand as far in from there as the header's first
-// control does, so the two read as one line down the page. A shell capped and
-// centred on its own measure would stand well in from the side at that width,
-// and a sidebar padded on its own would drift off the header's line.
+// the pages whose sidebar opens on a title, a book's or a folder's, on a
+// course's label, or on the name of a group, those first words stand as far in
+// from there as the header's first control does, so the two read as one line
+// down the page. A shell capped and centred on its own measure would stand well
+// in from the side at that width, and a sidebar padded on its own would drift
+// off the header's line.
 //
 // Env: YOMIHON_BASE and MUTATE.
 import { chromium } from 'playwright-core';
@@ -23,14 +25,17 @@ const WITH_SIDEBAR = [
   ['a lesson', '/notes/Course/C02.md', '.y-article h1.y-title'],
   ['a course', '/courses/Maps/study.md', '.y-syl h1.y-title'],
   ['the findings', '/health', '.y-healthpage h1.y-title'],
-  ['a search', '/search?q=alpha', '.y-searchpage h1.y-title'],
+  ['a search', '/search?q=alpha', '.y-searchpage__form'],
   ['a file', '/notes/Notes/plain.txt', '.y-article h1.y-title'],
 ];
-// The pages whose sidebar opens on a title, or on the label a course's does,
-// set at the header's inset. The others open on a part head or a summary, which
-// stands a chevron further in.
+// The pages whose sidebar opens on a title, a book's or a folder's, or on the
+// label a course's does, or on the name of a group of the vault's own — the
+// findings and the search have no current note, so theirs opens on the courses —
+// set the first words at the header's inset.
 const OPENS_ON_A_TITLE = new Set(['a lesson', 'a course', 'a file']);
+const OPENS_ON_A_GROUP = new Set(['the findings', 'a search']);
 const TITLES = '.y-railbook__title, .y-here__label, .y-syl-raillabel';
+const GROUPS = '.y-railsummary';
 const WITHOUT_SIDEBAR = [
   ['the desk', '/', '.y-home h1.y-title'],
   ['a shelf', '/courses', '.y-home h1.y-title'],
@@ -48,6 +53,7 @@ const MODES = {
   'crowd-the-sidebar-against-the-edge': { css: ':root{--rail-pad-start:6px}', group: 'window-edge' },
   'pad-the-sidebar-past-the-header': { css: '.y-rail-left{padding-left:44px}', group: 'window-edge' },
   'indent-the-course-label': { css: '.y-syl-raillabel{padding-left:8px !important}', group: 'window-edge' },
+  'put-the-chevron-ahead-of-the-name': { css: '.y-railsummary > .y-chevron{margin-inline-start:0;order:-1}', group: 'window-edge' },
 };
 
 if (MUTATE === 'list') {
@@ -96,7 +102,7 @@ try {
       const response = await page.goto(BASE + path, { waitUntil: 'load' });
       if (response?.status() !== 200) throw new Error(`BROKEN left-edge: ${path} answered ${response?.status()}, want 200`);
       await page.evaluate(() => document.fonts.ready);
-      const edge = await page.evaluate((titles) => {
+      const edge = await page.evaluate(([titles, groups]) => {
         const sidebar = document.querySelector('.y-rail-left');
         const body = sidebar?.querySelector('.y-railbody');
         if (!sidebar || !body || getComputedStyle(sidebar).display === 'none') return null;
@@ -117,16 +123,23 @@ try {
           words = [...range.getClientRects()].find((rect) => rect.width > 1 && rect.height > 1) ?? null;
           if (words) wordsIn = node.parentElement;
         }
-        return { sidebarStart: sidebar.getBoundingClientRect().left, wordsStart: words?.left ?? null, wordsAreATitle: Boolean(wordsIn?.matches(titles)), headerStart: Math.min(...controls) };
-      }, TITLES);
+        return {
+          sidebarStart: sidebar.getBoundingClientRect().left,
+          wordsStart: words?.left ?? null,
+          wordsAreATitle: Boolean(wordsIn?.matches(titles)),
+          wordsAreAGroup: Boolean(wordsIn?.closest(groups)),
+          headerStart: Math.min(...controls),
+        };
+      }, [TITLES, GROUPS]);
       if (!edge) throw new Error(`BROKEN left-edge: ${path} draws no sidebar at 1920 wide`);
       if (edge.wordsStart === null) throw new Error(`BROKEN left-edge: ${path} draws no words in the sidebar, so where they start proves nothing`);
       console.log(`left-edge: at 1920px, ${name}: the sidebar starts at ${edge.sidebarStart}, its words at ${edge.wordsStart}, the header's first control at ${edge.headerStart}`);
       if (Math.abs(edge.sidebarStart) > 0.5) {
         throw new LockFired('window-edge', `${name} at 1920px: the sidebar starts ${edge.sidebarStart}px from the window's left side, want 0: ${JSON.stringify(edge)}`);
       }
-      if (!OPENS_ON_A_TITLE.has(name)) continue;
-      if (!edge.wordsAreATitle) throw new Error(`BROKEN left-edge: ${name} no longer opens its sidebar on a title (${TITLES}), so the header's line is not what its first words are measured against`);
+      if (!OPENS_ON_A_TITLE.has(name) && !OPENS_ON_A_GROUP.has(name)) continue;
+      if (OPENS_ON_A_TITLE.has(name) && !edge.wordsAreATitle) throw new Error(`BROKEN left-edge: ${name} no longer opens its sidebar on a title (${TITLES}), so the header's line is not what its first words are measured against`);
+      if (OPENS_ON_A_GROUP.has(name) && !edge.wordsAreAGroup) throw new Error(`BROKEN left-edge: ${name} no longer opens its sidebar on the name of a group (${GROUPS}), so the header's line is not what its first words are measured against`);
       if (Math.abs(edge.wordsStart - edge.headerStart) > 0.5) {
         throw new LockFired('window-edge', `${name} at 1920px: the sidebar's words start ${edge.wordsStart}px from the window's left side and the header's first control ${edge.headerStart}px: ${JSON.stringify(edge)}`);
       }

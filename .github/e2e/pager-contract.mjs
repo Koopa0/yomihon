@@ -171,8 +171,9 @@ const readStrip = (page) => page.evaluate(() => {
 const readResults = (page) => page.evaluate(() =>
   [...document.querySelectorAll('.y-searchpage a.y-result')].map((hit) => hit.getAttribute('href')));
 
-// readFindings identifies each row of the table: the file it is about, read as
-// an address rather than as display text, and the kind of finding it reports.
+// readFindings identifies each row of the tables: the file it is about, read as
+// an address rather than as display text, and the kind of finding it reports,
+// which is the name of the group its table stands under.
 // One file can draw several rows — a note with a broken link and a value its
 // contract does not accept is two of them — so the file alone would read as a
 // repeat the moment two of its rows fell either side of a page break.
@@ -181,7 +182,7 @@ const readFindings = (page) => page.evaluate(() =>
     const cell = row.querySelector('.y-findings__file');
     const link = cell?.querySelector('a.y-healthlink');
     const file = link ? `note:${link.getAttribute('href')}` : `path:${cell?.textContent.trim() ?? ''}`;
-    return `${file}|${row.querySelector('.y-findings__kind')?.textContent.trim() ?? ''}`;
+    return `${file}|${row.closest('.y-healthgroup')?.querySelector('.y-healthgroup__title')?.textContent.trim() ?? ''}`;
   }));
 
 // readDivisions is every division of the answer as the column states it, keyed
@@ -201,9 +202,13 @@ const readDivisions = (page) => page.evaluate(() => {
 const answerTotal = (page) => page.evaluate(() =>
   Number(document.querySelector('.y-searchpage [data-live-search-results]')?.dataset.resultCount));
 
-const orderedColumn = (page) => page.evaluate(() =>
-  [...document.querySelectorAll('.y-findings thead th[aria-sort]')]
-    .map((head) => head.querySelector('a')?.getAttribute('href') ?? ''));
+// The ordering in force as every table marks it: one column to a table, and a
+// table to each kind on the page.
+const orderedColumn = (page) => page.evaluate(() => ({
+  marked: [...document.querySelectorAll('.y-findings thead th[aria-sort]')]
+    .map((head) => head.querySelector('a')?.getAttribute('href') ?? ''),
+  tables: document.querySelectorAll('.y-findings').length,
+}));
 
 const queryInBox = (page) => page.locator('.y-searchpage [data-live-search-input]').inputValue();
 
@@ -300,7 +305,7 @@ try {
   await page.goto(BASE + HEALTH, { waitUntil: 'domcontentloaded' });
   await arrived(page);
   const ordered = await orderedColumn(page);
-  if (ordered.length !== 1) broken(`the table marks ${ordered.length} columns as the ordering in force, want 1`);
+  if (ordered.tables < 1 || ordered.marked.length !== ordered.tables) broken(`the ${ordered.tables} tables mark ${ordered.marked.length} columns as the ordering in force, want one each`);
   const tableStrip = await readStrip(page);
   if (!tableStrip) broken(`${HEALTH} holds one page of findings, so there is no strip to drive`);
   for (const link of tableStrip.links) {
@@ -319,8 +324,8 @@ try {
     fail(NEXT_SITE, `${repeatedRows.length} finding(s) are on both pages of the report, starting with ${repeatedRows[0]}`);
   }
   const stillOrdered = await orderedColumn(page);
-  if (stillOrdered.length !== 1 || !stillOrdered[0].endsWith('=severity')) {
-    fail(SORT_SITE, `after the step the table marks ${JSON.stringify(stillOrdered)} as the ordering, want the weight column alone`);
+  if (stillOrdered.marked.length !== stillOrdered.tables || stillOrdered.marked.some((href) => !href.endsWith('=severity'))) {
+    fail(SORT_SITE, `after the step the tables mark ${JSON.stringify(stillOrdered.marked)} as the ordering, want the weight column of every table`);
   }
 
   // --- a phone's width ------------------------------------------------------

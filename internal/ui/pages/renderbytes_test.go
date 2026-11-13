@@ -160,6 +160,9 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/courses/Maps/Go%20path.md"}, recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
+		{"home-page-kept", Home(recordedKeptHomeView(model), recordedChrome())},
+		{"open-thoughts-page", ListIndex(recordedOpenThoughtsView(wording.ZhHant), recordedChrome())},
+		{"open-thoughts-page-english", ListIndex(recordedOpenThoughtsView(wording.En), recordedEnglishChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
 		{"health-page-english", Health(recordedHealthView(model), recordedEnglishChrome())},
 		{"health-page-unreadable", Health(recordedUnreadableHealthView(t, model), recordedChrome())},
@@ -625,6 +628,65 @@ func recordedHomeView(model *nav.Model) HomeView {
 	}
 }
 
+// recordedKeptHomeView is the desk of a reader who left off somewhere: the
+// place is the first thing on it, and the courses stand with the other ways in
+// rather than above them.
+func recordedKeptHomeView(model *nav.Model) HomeView {
+	view := recordedHomeView(model)
+	view.OpenThoughts = recordedOpenShelf(recordedChrome().Lang)
+	view.Continue = ContinueRow{
+		Show: true, Title: "L01", Language: "en", Kicker: "Go path · Part one",
+		Section: RowPlace{Text: "A second look", Language: "en"},
+		Href:    ResumeHref("Writing/lessons/go/L01.md", "a-second-look", 640),
+	}
+	return view
+}
+
+// recordedOpenShelf is what a reader left open, one row of each kind the shelf
+// draws: a marked place with the sentence found there, a thought with the notes
+// it declares, a place whose heading is gone, and a mark on a whole note.
+func recordedOpenShelf(lang wording.Lang) Shelf {
+	mark, thought := wording.UncertaintyControl.In(lang), wording.OpenThoughtKind.In(lang)
+	return Shelf{
+		Title: wording.OpenThoughtsTitle.In(lang), Href: "/open-thoughts", Open: true, Lede: wording.OpenThoughtsLede.In(lang),
+		Rows: []Row{
+			{
+				Text: "L01", Language: "en", Href: ResumeHref("Writing/lessons/go/L01.md", "a-second-look", 0), Mark: mark, When: "2026-11-10",
+				Place: RowPlace{Text: "A second look", Language: "en"}, Opening: "The second pass reads what the first one skipped.",
+			},
+			{
+				Text: "A thought on L01", Href: ResumeHref("Notes/thought.md", "", 0), Mark: thought, Thought: true, Draft: true, When: "2026-10-31",
+				Opening: "I thought the first pass had read everything.",
+				Sources: []RowSource{{Text: "L01 › A second look", Href: ResumeHref("Writing/lessons/go/L01.md", "a-second-look", 0), Language: "en"}, {Text: "A note nobody wrote"}},
+			},
+			{
+				Text: "L01", Language: "en", Mark: wording.UncertaintyPlaceNotFound.In(lang), Fault: true, When: "2026-10-20",
+				Place: RowPlace{Text: "#renamed", Language: "en"}, Href: ResumeHref("Writing/lessons/go/L01.md", "", 0),
+				Removal: &UncertaintyRemoval{
+					Label: wording.UncertaintyClearControl.In(lang), Unavailable: wording.UncertaintyUnavailable.In(lang),
+					Failed: wording.UncertaintyNotStored.In(lang), Cleared: wording.UncertaintyCleared.In(lang), Language: string(lang),
+					Endpoint: "/uncertainties", Path: "Writing/lessons/go/L01.md", Anchor: "renamed",
+				},
+			},
+			{Text: "C01", Href: ResumeHref("Concepts/go/C01.md", "", 0), Mark: mark, When: "2026-10-01"},
+		},
+	}
+}
+
+// recordedOpenThoughtsView is the shelf of what was left open with its choice of
+// order, the one it opens in pressed.
+func recordedOpenThoughtsView(lang wording.Lang) ListIndexView {
+	shelf := recordedOpenShelf(lang)
+	order := ShelfOrder{Label: wording.OpenOrderLabel.In(lang)}
+	for _, choice := range []struct {
+		value OpenOrder
+		text  wording.Phrase
+	}{{OpenNewest, wording.OpenOrderNewest}, {OpenBySource, wording.OpenOrderSource}, {OpenOldest, wording.OpenOrderOldest}} {
+		order.Choices = append(order.Choices, ShelfOrderChoice{Value: string(choice.value), Text: choice.text.In(lang), Pressed: choice.value == OpenNewest})
+	}
+	return ListIndexView{Mode: "open-thoughts", Shelf: shelf, Order: order}
+}
+
 // recordedWithheldHomeView is the desk over a vault whose contract could not be
 // read. The builder's own lock is the withheld check in the command's route
 // tests, which drives the real site over a real broken contract; this records
@@ -767,6 +829,8 @@ func recordedHealthView(model *nav.Model) HealthView {
 		Skipped:               []HealthSkippedSource{{Path: "Notes/Linked note.md", Reason: "symbolic link"}},
 		FrontmatterUnreadable: []HealthNoteFindings{{Note: ref, Severity: judge.SeverityError, Count: 1}},
 		SchemaFaults:          []HealthNoteFindings{{Note: ref, Severity: judge.SeverityError, Count: 3}},
+		UnmappedConcepts:      []nav.NoteRef{{Name: "C02", RelPath: "Concepts/go/C02.md"}},
+		EmptyBranches:         []snapshot.HealthEmptyBranch{{Map: nav.NoteRef{Name: "Reading map", RelPath: "Maps/Reading map.md"}, Heading: "Waiting", Level: 2}},
 		// The ordering a request that named none resolves to, which is what a
 		// reader arriving at the page is holding.
 		Sort:    HealthByFinding,

@@ -1069,7 +1069,6 @@ func TestHome(t *testing.T) {
 	}
 	pageHTML := string(body)
 	for name, marker := range map[string]string{
-		"search":                            `data-home-block="search"`,
 		"link to the folder's introduction": `data-home-readme`,
 		"topbar":                            `class="y-header"`,
 		"command palette":                   `data-search`,
@@ -1176,9 +1175,9 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 			t.Errorf("the %s block lists items under an unreadable contract; block = %q", mode, block)
 		}
 	}
-	// Plain reading stays beside the fault: the folder tree, the search box
-	// and the README link never depended on a contract.
-	for _, want := range []string{`data-home-block="folders"`, `data-home-block="search"`, "data-home-readme"} {
+	// Plain reading stays beside the fault: the folder tree and the README link
+	// never depended on a contract.
+	for _, want := range []string{`data-home-block="folders"`, "data-home-readme"} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the desk lost %q to a contract failure; reading never depends on one", want)
 		}
@@ -1679,9 +1678,6 @@ func TestTheArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 			if strings.Contains(recent, "知識層") {
 				t.Errorf("the recent block cites a knowledge layer beside a refused declaration; section = %q", recent)
 			}
-			if !strings.Contains(body, `data-home-block="search"`) {
-				t.Error("Home search block disappeared during artifact degradation")
-			}
 		})
 	}
 }
@@ -1813,9 +1809,6 @@ func TestHomeWithoutAnIntroductionStaysReadOnly(t *testing.T) {
 	code, body := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
 		t.Fatalf("GET / without README status = %d, want %d", code, http.StatusOK)
-	}
-	if !strings.Contains(body, `data-home-block="search"`) {
-		t.Error(`GET / without README is missing the search block`)
 	}
 	// The four ways in stay on the page even when every one of them is empty.
 	// They are the only route to the mode pages — no header or rail carries
