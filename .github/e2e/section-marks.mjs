@@ -187,6 +187,12 @@ try {
   };
   if (MUTATE && MUTATE !== 'send-the-mark-only-to-a-script') applied();
   await settled(page, first, false);
+  // By default the buttons are drawn and can be pressed, before anything has been done.
+  const atRest = await page.evaluate(() => {
+    const button = document.querySelector('[data-section-mark][aria-pressed="false"]');
+    return { opacity: Number(getComputedStyle(button).opacity), events: getComputedStyle(button).pointerEvents };
+  });
+  if (atRest.opacity < 1 || atRest.events === 'none') fail('the-buttons-follow-the-setting', `by default an unmarked button rests at ${JSON.stringify(atRest)}, want drawn and pressable`);
   const buttons = page.getByRole('button', { name: NAME, exact: true });
   const before = await buttons.count();
   if (before < 3) broken(`${PAGE} has ${before} section buttons, want at least three`);
@@ -224,18 +230,12 @@ try {
   if (found.dateTime !== today() || found.day !== `"${today()}"`) fail('a-mark-and-its-day-are-in-the-page', `the day beside the mark is ${JSON.stringify(found)}, want ${today()}`);
   await next.context.close();
 
-  // Buttons: quiet and drawn by default; on hover only where the reader chose it.
+  // On hover only, where the reader chose it.
   const resting = async (page) => page.evaluate(() => {
     const button = document.querySelector('[data-section-mark][aria-pressed="false"]');
     return { opacity: Number(getComputedStyle(button).opacity), events: getComputedStyle(button).pointerEvents };
   });
   {
-    const always = await open();
-    await always.page.goto(BASE + PAGE, { waitUntil: 'load' });
-    const state = await resting(always.page);
-    if (state.opacity < 1 || state.events === 'none') fail('the-buttons-follow-the-setting', `by default an unmarked button rests at ${JSON.stringify(state)}, want drawn and pressable`);
-    await always.context.close();
-
     const hover = await open();
     await hover.context.addCookies([{ name: 'yomihon_sectionbuttons', value: 'hover', url: BASE }]);
     const hoverPage = hover.page;
@@ -243,8 +243,9 @@ try {
     await hoverPage.evaluate(() => document.querySelector('.y-prose .y-sect').scrollIntoView({ block: 'center' }));
     const rest = await resting(hoverPage);
     if (rest.opacity !== 0 || rest.events !== 'none') fail('the-buttons-follow-the-setting', `with the setting on hover an unmarked button rests at ${JSON.stringify(rest)}, want hidden and not pressable`);
-    const target = hoverPage.locator('.y-prose .y-sect').first();
-    const opacityOf = () => hoverPage.evaluate(() => Number(getComputedStyle(document.querySelector('[data-section-mark][aria-pressed="false"]')).opacity));
+    // The second section: the first holds the mark this probe pressed, which stays drawn.
+    const target = hoverPage.locator('.y-prose .y-sect').nth(1);
+    const opacityOf = () => hoverPage.evaluate(() => Number(getComputedStyle(document.querySelectorAll('.y-prose .y-sect [data-section-mark]')[1]).opacity));
     await target.locator('h3').hover();
     await hoverPage.waitForTimeout(150);
     const early = await opacityOf();
@@ -265,11 +266,17 @@ try {
       drawn = Math.max(drawn, await hoverPage.evaluate(() => Math.max(...[...document.querySelectorAll('[data-section-mark][aria-pressed="false"]')].map((button) => Number(getComputedStyle(button).opacity)))));
     }
     if (drawn > 0.05) fail('the-buttons-follow-the-setting', `scrolling under a resting pointer drew the buttons to ${drawn}`);
-    // A keyboard reaches one at once, with no dwell.
-    await hoverPage.locator('[data-section-mark][aria-pressed="false"]').first().focus();
+    // A keyboard reaches one at once, with no dwell and no pointer to draw it.
+    await hoverPage.mouse.move(5, 5);
+    await hoverPage.evaluate(() => document.querySelectorAll('.y-prose .y-sect')[1].scrollIntoView({ block: 'center' }));
+    await hoverPage.waitForTimeout(400);
+    if ((await opacityOf()) > 0.05) fail('the-buttons-follow-the-setting', 'a button is drawn with no pointer on its row and no focus in it');
+    await hoverPage.locator('.y-prose .y-sect [data-section-mark]').nth(1).focus();
     await hoverPage.keyboard.press('Shift+Tab');
     await hoverPage.keyboard.press('Tab');
-    await hoverPage.waitForTimeout(60);
+    // Longer than its fade and shorter than the pointer's dwell: drawn already
+    // means no dwell was asked of the keyboard.
+    await hoverPage.waitForTimeout(220);
     if ((await opacityOf()) < 0.99) fail('the-buttons-follow-the-setting', 'a button the keyboard reached is not drawn at once');
     await hover.context.close();
   }
@@ -278,7 +285,8 @@ try {
   {
     const landing = await open();
     await landing.page.goto(`${BASE}/`, { waitUntil: 'load' });
-    const href = `${PAGE}#:~:text=The%20first%20mechanism,-Sentence%200%20of%20the%20first`;
+    // The last section, so a landing has somewhere to scroll to.
+    const href = `${PAGE}#:~:text=The%20third%20mechanism,-Sentence%200%20of%20the%20third`;
     await landing.page.evaluate((address) => {
       const link = document.createElement('a');
       link.id = 'probe-landing';
@@ -290,7 +298,7 @@ try {
     await landing.page.waitForLoadState('load');
     await landing.page.waitForTimeout(700);
     const placed = await landing.page.evaluate(() => {
-      const heading = document.getElementById('the-first-mechanism').getBoundingClientRect();
+      const heading = document.getElementById('the-third-mechanism').getBoundingClientRect();
       return { scrollY: Math.round(scrollY), top: Math.round(heading.top), height: innerHeight };
     });
     if (placed.scrollY < 100 || placed.top < 0 || placed.top > placed.height) fail('a-landing-on-a-heading-survives', `following a result that names the heading left the page at ${JSON.stringify(placed)}, the heading out of the window`);

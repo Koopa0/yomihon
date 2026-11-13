@@ -37,6 +37,8 @@ func probePlan(lang wording.Lang) *SectionPlan {
 	}
 }
 
+var closesBehindAHeading = regexp.MustCompile(`(</h[1-6][^>]*>)</div>`)
+
 func inject(t *testing.T, body string, plan *SectionPlan) string {
 	t.Helper()
 	got, err := InjectSections(t.Context(), body, plan)
@@ -292,4 +294,49 @@ func TestASectionHoldsAClosedQuestionOnlyUnderItsOwnHeading(t *testing.T) {
 			t.Errorf("HoldsClosedQuestion(body, %q) = %v, want %v", tc.section, got, tc.want)
 		}
 	}
+}
+
+// FuzzInjectSections holds that laying a plan over any markup never panics, that
+// a plan with nothing to draw hands the markup back byte for byte, and that a
+// plan with sections leaves every byte of the markup in place and in order: the
+// output with what the plan adds taken out is the input.
+func FuzzInjectSections(f *testing.F) {
+	for _, seed := range []string{
+		sectionBody,
+		`<h3 id="first" data-level="2">First`,
+		`</h3><h3 id="first" data-level="2"></h4>`,
+		`<details data-callout="question"><h3 id="second" data-level="2">x</h3>`,
+		"<<>>&amp;<h3 id=first data-level=2>\x00</h3>",
+		"",
+	} {
+		f.Add(seed)
+	}
+	added := []*regexp.Regexp{
+		regexp.MustCompile(`<div class="y-sect">`),
+		regexp.MustCompile(`(?s)<div class="y-margin".*?</div>`),
+		regexp.MustCompile(`(?s)<p class="y-predict".*?</p>`),
+	}
+	f.Fuzz(func(t *testing.T, body string) {
+		bare := probePlan(wording.ZhHant)
+		bare.Marks, bare.Door = false, false
+		if got, err := InjectSections(t.Context(), body, bare); err != nil || got != body {
+			t.Fatalf("a plan with nothing to draw changed the markup (err %v)", err)
+		}
+		got, err := InjectSections(t.Context(), body, probePlan(wording.ZhHant))
+		if err != nil {
+			t.Fatalf("InjectSections: %v", err)
+		}
+		for _, drawn := range added {
+			got = drawn.ReplaceAllString(got, "")
+		}
+		// Each wrapper that opened closes behind its heading: the close the plan adds.
+		got = closesBehindAHeading.ReplaceAllString(got, "$1")
+		if got != body {
+			// A body that already held the plan's own words is not the plan's to undo.
+			if strings.Contains(body, "y-sect") || strings.Contains(body, "y-margin") || strings.Contains(body, "y-predict") || strings.Contains(body, "</div>") {
+				t.Skip()
+			}
+			t.Fatalf("the plan changed bytes it did not add:\nin  %q\nout %q", body, got)
+		}
+	})
 }

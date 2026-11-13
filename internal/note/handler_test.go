@@ -2545,7 +2545,7 @@ func assertOverCapNoteFilePage(t *testing.T, code int, page, rel, body string) {
 }
 
 // TestShowOffersAnObsidianDoor locks the reading page's hand-off to the
-// editor: the metarow beside the note's path carries an obsidian://open link
+// editor: the facts at the end of the note carry, beside its path, an obsidian://open link
 // whose query names the note's absolute path, segment-escaped. Every repair
 // yomihon reports is a hand edit, so the page offers the one-click way to
 // where editing happens.
