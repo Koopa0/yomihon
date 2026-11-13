@@ -1,4 +1,4 @@
-<h1><img src="assets/brand/yomihon-mark.svg" width="36" height="36" alt="" aria-hidden="true"> yomihon</h1>
+<h1><picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/yomihon-mark-on-paper.svg"><img src="assets/brand/yomihon-mark.svg" width="36" height="36" alt="" aria-hidden="true"></picture> yomihon</h1>
 
 English | [繁體中文](README.zh-TW.md)
 

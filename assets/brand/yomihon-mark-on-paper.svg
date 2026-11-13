@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <path data-brand-part="tile" fill="#F5F1E6" d="M11 0H53A11 11 0 0 1 64 11V53A11 11 0 0 1 53 64H11A11 11 0 0 1 0 53V11A11 11 0 0 1 11 0Z"/>
+  <path data-brand-part="page" fill="#282A2D" d="M10 10H51V25C40 24 34 30 26 49H10Z"/>
+  <path data-brand-part="ribbon" fill="#536D85" d="M32 54C40 37 46 32 55 33V54Z"/>
+</svg>

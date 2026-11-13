@@ -86,20 +86,28 @@ func TestBrandSVGRegistryIsExact(t *testing.T) {
 		}
 	}
 	slices.Sort(got)
-	want := []string{"yomihon-mark.svg"}
+	want := []string{"yomihon-mark-on-paper.svg", "yomihon-mark.svg"}
 	if !slices.Equal(got, want) {
 		t.Errorf("registered SVG assets = %q, want exact closed set %q", got, want)
 	}
-	registered, ok := registry["yomihon-mark.svg"]
-	if !ok {
-		t.Fatal("canonical brand mark is absent from the registry")
+	for _, name := range want {
+		registered, ok := registry[name]
+		if !ok {
+			t.Fatalf("brand file %s is absent from the registry", name)
+		}
+		embedded, err := projectassets.Files.ReadFile("brand/" + name)
+		if err != nil {
+			t.Fatalf("read embedded brand file %s: %v", name, err)
+		}
+		if !bytes.Equal(registered.body, embedded) {
+			t.Errorf("registered brand file %s body differs from the embedded bytes", name)
+		}
+		if registered.contentType != svgContentType {
+			t.Errorf("registered brand file %s content type = %q, want %q", name, registered.contentType, svgContentType)
+		}
 	}
-	embedded, err := projectassets.Files.ReadFile("brand/yomihon-mark.svg")
-	if err != nil {
-		t.Fatalf("read embedded brand mark: %v", err)
-	}
-	if !bytes.Equal(registered.body, embedded) {
-		t.Error("registered brand mark body differs from the canonical embedded bytes")
+	if a, b := registry["yomihon-mark.svg"].etag, registry["yomihon-mark-on-paper.svg"].etag; a == b {
+		t.Errorf("the two brand files share the byte identity %s, so a versioned address could not tell them apart", a)
 	}
 }
 
