@@ -17,10 +17,9 @@ type SchemaPart struct {
 }
 
 // SchemaSentence is what a page says about one schema finding, given the rule
-// that fired and whatever that rule named: the frontmatter field at fault, the
-// value it carried, and the domain folder selected by the declared root. For
-// schema.frontmatter, target is the captured parser diagnostic; empty means
-// the required frontmatter block is absent.
+// that fired and whatever that rule named: the frontmatter field at fault and
+// the value it carried. For schema.frontmatter, target is the captured parser
+// diagnostic; empty means the required frontmatter block is absent.
 //
 // The finding carries a sentence of its own, and this is deliberately not it.
 // That one is written once, in one language, for a format other programs read;
@@ -32,7 +31,7 @@ type SchemaPart struct {
 // A rule this does not know still says something, and says which rule it was,
 // because a page that goes quiet about a fault is the fault this whole surface
 // exists to end.
-func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPart {
+func SchemaSentence(lang Lang, ruleID, field, target string) []SchemaPart {
 	code := func(s string) SchemaPart { return SchemaPart{Text: s, Code: true} }
 	text := func(p Phrase) SchemaPart { return SchemaPart{Text: p.In(lang)} }
 
@@ -45,19 +44,12 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 			return []SchemaPart{text(FrontmatterUnsupportedYAML)}
 		}
 		return []SchemaPart{text(schemaFrontmatterInvalid), code(target)}
-	case "schema.enum":
+	case "schema.enum", "schema.draft":
 		return []SchemaPart{code(field), text(schemaWrittenAs), code(target), text(schemaNotInList)}
 	case "schema.language":
 		return []SchemaPart{code(field), text(schemaWrittenAs), code(target), text(schemaNotALanguageTag)}
 	case "schema.slug":
 		return []SchemaPart{code(field), text(schemaWrittenAs), code(target), text(schemaNotASlug)}
-	case "schema.domain_folder":
-		return []SchemaPart{
-			code(field), text(schemaWrittenAs), code(target),
-			text(schemaFolderMismatch), code(folder), text(schemaFolderMismatchEnd),
-		}
-	case "schema.legacy_tag":
-		return []SchemaPart{code(target), text(schemaLegacyTagIn), code(field), text(schemaLegacyTagEnd)}
 	case "schema.required":
 		return []SchemaPart{text(schemaRequiredStart), code(field), text(schemaRequiredEnd)}
 	case "schema.reference_nested_sequence":
@@ -70,11 +62,6 @@ func SchemaSentence(lang Lang, ruleID, field, target, folder string) []SchemaPar
 		return []SchemaPart{
 			text(schemaProvenanceStart), code("based_on"),
 			text(schemaProvenanceMiddle), code("source_locator"), text(schemaProvenanceEnd),
-		}
-	case "schema.status_unreachable":
-		return []SchemaPart{
-			code(field), text(schemaWrittenAs), code(target),
-			text(schemaStatusUnreachableForType), code(folder), text(schemaStatusUnreachableEnd),
 		}
 	}
 	return []SchemaPart{text(schemaUnknownRuleStart), code(ruleID), text(schemaUnknownRuleEnd)}
@@ -135,12 +122,6 @@ var (
 		"不符合 schema 給 slug 的格式。",
 		", which is not the shape the schema gives a slug.")
 
-	schemaFolderMismatch    = both("與依宣告的根目錄判定的領域資料夾 ", ", which does not match the domain folder selected by the declared root, ")
-	schemaFolderMismatchEnd = both(" 不一致。", ".")
-
-	schemaLegacyTagIn  = both(" 寫在 ", " in ")
-	schemaLegacyTagEnd = both(" 裡，是舊式標籤，schema 要的是一個欄位。", " is a legacy tag; the schema asks for a field.")
-
 	schemaRequiredStart = both("schema 要求這種筆記寫 ", "The schema requires ")
 	schemaRequiredEnd   = both("，這篇沒有。", " on a note of this kind, and this one has none.")
 
@@ -160,11 +141,6 @@ var (
 	schemaProvenanceMiddle = both(" 也沒寫 ", " nor ")
 	schemaProvenanceEnd    = both("。", ".")
 
-	schemaStatusUnreachableForType = both(
-		"在它的類型所屬清單裡，但沒有任何 lifecycle 列套用到 ",
-		" is in its type's list, but no lifecycle row applies to type ")
-	schemaStatusUnreachableEnd = both("。", ".")
-
 	schemaUnknownRuleStart = both("schema 對這篇報了一項 ", "The schema reported ")
 	schemaUnknownRuleEnd   = both("，而這個頁面還沒有它的說法。", " about this note, and this page has no words for it yet.")
 )
@@ -182,12 +158,12 @@ var (
 		"Notes whose frontmatter could not be read")
 
 	HealthFrontmatterLede = both(
-		"這些筆記的 frontmatter 讀不出來：不是合法的 YAML，或是第一行的 --- 之後一直沒有結尾的 ---。內文照常閱讀、連結照常解析，但它們宣告的每一項都無法判斷。YAML 不合法的筆記，在依狀態分組裡只出現在「讀不出來」一格。",
-		"These notes' frontmatter could not be read: it is not valid YAML, or it opens with --- on line 1 and the closing --- never comes. The body still reads and the links still resolve, but nothing they declare could be judged. A note whose YAML is not valid appears in the grouping by status only in the cell for what could not be read.")
+		"這些筆記的 frontmatter 讀不出來：不是合法的 YAML，或是第一行的 --- 之後一直沒有結尾的 ---。內文照常閱讀、連結照常解析，但它們宣告的每一項都無法判斷。",
+		"These notes' frontmatter could not be read: it is not valid YAML, or it opens with --- on line 1 and the closing --- never comes. The body still reads and the links still resolve, but nothing they declare could be judged.")
 
 	HealthSchemaTitle = both(
-		"schema 有話說的筆記",
-		"Notes the schema has something to say about")
+		"不符合 schema 的筆記",
+		"Notes that don't meet the schema")
 
 	HealthSchemaLede = both(
 		"這些筆記的 frontmatter 讀得出來，但有 schema 不接受的地方。每一篇的細節在它自己的頁面上。",

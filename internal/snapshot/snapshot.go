@@ -187,7 +187,7 @@ type Generation struct {
 	sidecars map[string][]byte
 
 	// skippedNotes are markdown paths this generation left out of the note map
-	// because the contract named their basename under scan.skip_basenames.
+	// because the contract named their basename under folders.skipped_files.
 	// They stay in the scan so /raw/ and a wikilink can still reach the file.
 	skippedNotes map[string]struct{}
 
@@ -534,7 +534,7 @@ func (g *Generation) Note(canonicalPath string) (Reading, bool) {
 
 // SkipsNote reports that this generation observed canonicalPath and left it
 // out of the note map because the contract named its basename under
-// scan.skip_basenames. A skipped path is a file, not a note.
+// folders.skipped_files. A skipped path is a file, not a note.
 func (g *Generation) SkipsNote(canonicalPath string) bool {
 	if g == nil {
 		return false
@@ -1029,7 +1029,7 @@ func buildGeneration(
 	// One contract judges every note of this build, so it is resolved once here
 	// rather than once per note. It is only built here: the verdict itself is
 	// drawn inside deriveNote, under the guard that contains a note's parse panic.
-	lint, lintErr := judge.NewFrontmatterLinter(contract)
+	lint := judge.NewFrontmatterLinter(contract)
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
@@ -1059,7 +1059,7 @@ func buildGeneration(
 			g.captureFile(relPath, data, want.indexable)
 			continue
 		}
-		if reason := g.readNote(entry, data, capabilities.Language, contract, lint, lintErr, log); reason != "" {
+		if reason := g.readNote(entry, data, capabilities.Language, contract, lint, log); reason != "" {
 			// The bytes opened and the parse panicked: the note is recorded the
 			// way one the read could not open is, so the rest of the folder is
 			// still read and served.
@@ -1069,7 +1069,7 @@ func buildGeneration(
 
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
-	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated, capabilities.Settlement)
+	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated)
 	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.products, g.files, capabilities.Knowledge, capabilities.Language), projectionPolicy)
 
 	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
@@ -1088,7 +1088,12 @@ func buildGeneration(
 	// view, because every page's rail now states how many findings stand
 	// against the folder and a walk over every note is not a thing to do on
 	// every page.
-	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titles, capabilities.Navigation)
+	conceptType, hasConceptType := contract.ConceptType()
+	coverage := mapCoverage{maps: navigation.Maps(), knowledge: capabilities.Knowledge}
+	if hasConceptType {
+		coverage.conceptType = schema.NormalizeWord(conceptType)
+	}
+	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titles, capabilities.Navigation, coverage)
 	health.NavigationFaults = navigation.CoreFaults()
 	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(g.ordered, g.findings, g.readings)
 	gen := &Generation{
@@ -1107,7 +1112,7 @@ func buildGeneration(
 		scan:           scan,
 		notes:          g.readings,
 		schemaFindings: g.findings,
-		domainRoots:    contract.Definition().Rules.DomainEqualsFolderUnder,
+		domainRoots:    contract.Domains().Roots(),
 		titles:         titles,
 		parsed:         g.parsed,
 		products:       g.products,
@@ -1159,7 +1164,7 @@ type generation struct {
 	resources []string
 	// findings are the schema's verdicts, kept only for notes that drew one.
 	findings map[string][]judge.Finding
-	// skippedNotes are paths left out of the note map by skip_basenames.
+	// skippedNotes are paths left out of the note map by folders.skipped_files.
 	skippedNotes map[string]struct{}
 	// figures are the inspections of the figures read, by path.
 	figures map[string]figure.Inspection
@@ -1216,7 +1221,7 @@ func (g *generation) warnSlotProblems(scan vault.Scan, problems []lesson.Problem
 	}
 }
 
-// omitDeclaredBasenames leaves scan.skip_basenames out of the note map.
+// omitDeclaredBasenames leaves folders.skipped_files out of the note map.
 // Each omitted path is still a resource, so /raw/ and wikilinks reach it;
 // the shelf, the index, and exists do not.
 func (g *generation) omitDeclaredBasenames(entries []vault.Entry, contract *schema.Contract) []vault.Entry {
@@ -1305,11 +1310,10 @@ type noteProducts struct {
 // noteRead is one note read whole, held apart from the generation until every
 // part of it exists.
 type noteRead struct {
-	parsed     *vault.Note
-	reading    Reading
-	findings   []judge.Finding
-	verdictErr error
-	products   noteProducts
+	parsed   *vault.Note
+	reading  Reading
+	findings []judge.Finding
+	products noteProducts
 }
 
 // notePanic is what a recovered panic left behind: the value, and where it was.
@@ -1325,17 +1329,13 @@ type notePanic struct {
 // Every panic is contained, runtime errors included: an unhashable map key or a
 // nil dereference inside a parser is exactly what this guards.
 //
-// lint and lintErr are the build's one frontmatter linter, resolved once for
-// every note, and the fault that resolving the contract met, if any. A linter
-// that could not be built says nothing, and lintErr travels with the note so
-// the verdict can be reported unavailable.
+// lint is the build's one frontmatter linter, resolved once for every note.
 func deriveNote(
 	relPath string,
 	data []byte,
 	languages schema.ArticleLanguage,
 	contract *schema.Contract,
 	lint judge.FrontmatterLinter,
-	lintErr error,
 ) (read noteRead, fault *notePanic) {
 	defer func() {
 		if rec := recover(); rec != nil {
@@ -1343,8 +1343,9 @@ func deriveNote(
 		}
 	}()
 	read.parsed = parsers.note(relPath, data)
+	read.parsed.Domain = contract.Domains().Of(relPath)
 	read.reading = newReading(read.parsed, data, languages)
-	read.findings, read.verdictErr = lint.Lint(relPath, data), lintErr
+	read.findings = lint.Lint(relPath, data)
 	read.products = noteProducts{
 		document: parsers.document(read.parsed),
 		planned:  parsers.planned(read.parsed.Body, contract),
@@ -1363,11 +1364,10 @@ func (g *generation) readNote(
 	languages schema.ArticleLanguage,
 	contract *schema.Contract,
 	lint judge.FrontmatterLinter,
-	lintErr error,
 	log *slog.Logger,
 ) (panicked string) {
 	relPath := entry.Path()
-	read, fault := deriveNote(relPath, data, languages, contract, lint, lintErr)
+	read, fault := deriveNote(relPath, data, languages, contract, lint)
 	if fault != nil {
 		g.reportPanic(entry, data, fault, log)
 		return "panic while parsing this note: " + fault.value
@@ -1379,7 +1379,7 @@ func (g *generation) readNote(
 	g.ordered = append(g.ordered, read.parsed)
 	g.readings[relPath] = read.reading
 	g.products[relPath] = read.products
-	g.recordVerdict(entry, read.findings, read.verdictErr, log)
+	g.recordVerdict(relPath, read.findings)
 	return ""
 }
 
@@ -1426,17 +1426,8 @@ func (g *generation) linkTargets() map[string][]string {
 
 // recordVerdict keeps the schema's verdict for one note when there is one. A
 // note the schema is content with is left out rather than stored empty; absent
-// and clean read the same at the accessor. The only fault it can meet is a slug
-// pattern nothing can compile, which is said once and leaves that note without
-// a verdict rather than the folder without a generation.
-func (g *generation) recordVerdict(entry vault.Entry, findings []judge.Finding, err error, log *slog.Logger) {
-	relPath := entry.Path()
-	if err != nil {
-		if g.warnings.record(entry, warningVerdict, err.Error()) {
-			log.Warn("schema verdict unavailable for a note", "path", relPath, "error", err)
-		}
-		return
-	}
+// and clean read the same at the accessor.
+func (g *generation) recordVerdict(relPath string, findings []judge.Finding) {
 	if len(findings) > 0 {
 		g.findings[relPath] = findings
 	}

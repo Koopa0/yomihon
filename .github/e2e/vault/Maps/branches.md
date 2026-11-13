@@ -1,7 +1,7 @@
 ---
 type: study-path
-title: Branch Course
-domain: golang
+
+
 ---
 這門課從頭走到尾是三課，中間掛著一條可以繞開的支線。
 

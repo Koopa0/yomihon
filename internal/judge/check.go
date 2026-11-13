@@ -52,11 +52,7 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 	findings = append(findings, checkDiskRefs(a.notes, a.scan, a.authority)...)
 	findings = append(findings, checkImages(a.notes, a.scan, a.authority)...)
 	findings = append(findings, checkUnusedDefinitions(a.notes, a.authority)...)
-	schemaFindings, err := checkSchema(a.notes, a.authority.contract)
-	if err != nil {
-		return nil, err
-	}
-	findings = append(findings, schemaFindings...)
+	findings = append(findings, checkSchema(a.notes, a.authority.contract)...)
 	findings = append(findings, checkKnowledgeScope(a.scan, a.authority.contract)...)
 	findings = append(findings, checkSkipped(a.scan)...)
 	findings = append(findings, calloutTitleFindings(a.notes)...)

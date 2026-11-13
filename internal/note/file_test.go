@@ -111,7 +111,7 @@ func fetch(t *testing.T, client *http.Client, url string) (code int, header http
 
 // TestFileRouteRendersEachKind pins the dispatch: the extension picks a viewer
 // for the kinds a browser draws, and the bytes decide everything else. The
-// markdown route is unchanged, and no file page grows a write face.
+// markdown route is unchanged.
 func TestFileRouteRendersEachKind(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, fileVault(t))
@@ -188,12 +188,6 @@ func TestFileRouteRendersEachKind(t *testing.T) {
 			for _, notWant := range tt.notWant {
 				if strings.Contains(body, notWant) {
 					t.Errorf("GET /notes/%s body contains %q, which it must not", tt.path, notWant)
-				}
-			}
-			// A file is not a note: the write face reaches only a note's status.
-			for _, face := range []string{"data-seal", "y-statuspanel", "y-sealbar"} {
-				if strings.Contains(body, face) {
-					t.Errorf("GET /notes/%s carries %q, but a file has no write face", tt.path, face)
 				}
 			}
 		})
@@ -440,7 +434,7 @@ func TestFileRoutesRefuseWhatTheTreeDoesNotList(t *testing.T) {
 }
 
 // TestMarkdownStillTakesTheNotePage guards the widening against overreach: a
-// note keeps the reading page, with the write face the file pages lack.
+// note keeps the reading page the file pages lack.
 func TestMarkdownStillTakesTheNotePage(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t, fileVault(t))

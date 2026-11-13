@@ -70,15 +70,8 @@ func LiteralOperatorSentence(lang Lang, terms []string) string {
 }
 
 // What search covers, said where a reader has just been told it found nothing.
-// The second form is for a library with no lifecycle to filter by, where the
-// status hint would name a facility that is not there.
 var (
-	SearchScopeHintWithStatus = both(
-		"圖片、PDF 這類檔案只列出，不讀內容。請試較少或不同的詞，或用 ",
-		"Search covers notes and any file that can be shown as text. Images, PDFs and other binary files are listed in the navigation but never read. Try fewer or different words, or narrow by lifecycle with ",
-	)
-	SearchScopeHintAfterCommand = both(" 依生命週期縮小範圍。", ".")
-	SearchScopeHint             = both(
+	SearchScopeHint = both(
 		"圖片、PDF 這類檔案只列出，不讀內容。請試較少或不同的詞。",
 		"Search covers notes and any file that can be shown as text. Images, PDFs and other binary files are listed in the navigation but never read. Try fewer or different words.",
 	)
@@ -134,17 +127,12 @@ var SearchEmptyLede = both(
 // rather than one a template happened to keep.
 var ResultAliasLabel = both("又稱 ", "also called ")
 
-// ResultTopicLabel introduces the subject a result answered to when it was
-// not in the title or the body. Without the word, a topic-only hit would sit
-// on the row with nothing the reader typed.
-var ResultTopicLabel = both("主題： ", "topic: ")
-
 // ResultTagLabel names the frontmatter tag that explains a tag-only result.
 var ResultTagLabel = both("標籤： ", "tag: ")
 
 // ResultSourceLabel names a hit whose deciding excerpt is fenced source
 // rather than a sentence the note wrote. The word sits on the row with
-// the alias and the topic, so the excerpt itself stays the fence's own
+// the alias, so the excerpt itself stays the fence's own
 // lines and MarkHits never sees a label yomihon wrote.
 var ResultSourceLabel = both("原始碼", "source")
 
@@ -198,7 +186,6 @@ var (
 // the grammar's, and it is unexported so the names cannot be rewritten from
 // outside the package that owns them.
 var facetHeadings = map[string]Phrase{
-	"status": both("狀態", "Status"),
 	"type":   both("類型", "Type"),
 	"domain": both("領域", "Domain"),
 }

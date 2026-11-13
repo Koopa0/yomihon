@@ -36,12 +36,11 @@ func TestFreshnessSourceSizeBoundary(t *testing.T) {
 			governance := schema.Ungoverned()
 			store, source := newSnapshotStore(t, root, log, nil, governance)
 			published := store.Current()
-			writer := openStatusWriter(t, source, nil, governance)
+			authority := func() schema.Authority { return schema.CaptureAuthority(nil, governance) }
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
 				Source: source, Snapshot: func() *snapshot.Generation { return published },
-				Status: writer.Authority, ObservedStatus: writer.ObservedStatus,
-				ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log,
+				Authority: authority, Continuation: noMark, Log: log,
 			}).Register(mux)
 
 			page := httptest.NewRecorder()

@@ -35,9 +35,8 @@ const (
 )
 
 // Compare is two notes read beside one another: each column the ordinary
-// reading rendering of its note, with its status word shown and no control to
-// change it. Adjudication happens on a note's own page, which each column links
-// back to.
+// reading rendering of its note, each column linking back to that note's own
+// page.
 //
 // Neither rail is drawn. Two reading columns need the width, and one rail
 // beside two notes could not say which of them it spoke for.
@@ -66,14 +65,14 @@ templ Compare(v CompareView, c layouts.Chrome) {
 	}
 }
 
-// compareColumn is one note in its column: the way back to its own page and the
-// status it carries now, then the note exactly as its own page renders it.
+// compareColumn is one note in its column: the way back to its own page, then
+// the note exactly as its own page renders it.
 //
 // The head sits outside the article on purpose. Everything inside is the note's
 // own, so a reader can trust that what they are reading here is what they would
-// read alone, with its headings one level below the comparison. The two things
-// this page adds are stated above it, where they belong to the page rather than
-// to the note.
+// read alone, with its headings one level below the comparison. What this page
+// adds is stated above it, where it belongs to the page rather than to the
+// note.
 // data-note-column marks one of the notes a page holds more than one of. The
 // contents tracking inside a column then answers for that note's headings
 // alone, and the control that keeps the columns level moves one against the
@@ -86,9 +85,6 @@ templ compareColumn(v NoteView, anchor string, lang wording.Lang) {
 	<section id={ anchor } class="y-compare__column" data-note-column>
 		<div class="y-compare__head" lang={ lang.Tag() }>
 			<a class="y-compare__alone" href={ templ.URL(notesHref(v.RelPath)) }>{ wording.CompareOpenAlone.In(lang) }</a>
-			if v.Status != "" {
-				<span class="ui-status">{ v.Status }</span>
-			}
 		</div>
 		@noteArticle(nested, lang)
 	</section>

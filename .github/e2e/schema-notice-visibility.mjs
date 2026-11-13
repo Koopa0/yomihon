@@ -1,7 +1,6 @@
 // Behavior lock: unknown frontmatter field guidance is painted in the reading
-// column at every width, and the transition controls still name that block as
-// their accessible description. The notice used to live only in the right rail,
-// which is hidden at ≤1280 and dropped when a note has no reading aids.
+// column at every width. The notice used to live only in the right rail, which
+// is hidden at ≤1280 and dropped when a note has no reading aids.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the schema-notice probe fixture), and MUTATE.
 import { arrived } from './support/arrival.mjs';
@@ -11,7 +10,10 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/schema-notice-probe.md';
 const MUTATE = process.env.MUTATE || '';
-const SITES = ['notice-painted', 'notice-describedby'];
+const SITES = ['notice-painted'];
+// The schema notice is one sentence per finding, in the class the reading
+// column draws findings in; the fixture's one finding names mystery_key.
+const NOTICE = '.y-statusflag';
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -57,14 +59,14 @@ const hideVia = (path, selector, label) => rewritePath(
 const MUTATIONS = {
   'hide-notice': {
     target: 'notice-painted',
-    apply: hideVia(PAGE, '#_y-schema-notices', 'schema-notice hide style'),
+    apply: hideVia(PAGE, NOTICE, 'schema-notice hide style'),
   },
   'clip-notice-out-of-sight': {
     target: 'notice-painted',
     apply: rewritePath(
       PAGE,
       '</head>',
-      '<style>#_y-schema-notices{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important}</style></head>',
+      '<style>.y-statusflag{position:absolute!important;width:1px!important;height:1px!important;overflow:hidden!important;clip-path:inset(50%)!important}</style></head>',
       1,
       'schema-notice clip style',
     ),
@@ -74,14 +76,10 @@ const MUTATIONS = {
     apply: rewritePath(
       PAGE,
       '</head>',
-      '<style>@media (max-width:600px){#_y-schema-notices{display:none!important}}</style></head>',
+      '<style>@media (max-width:600px){.y-statusflag{display:none!important}}</style></head>',
       1,
       'schema-notice phone-width hide style',
     ),
-  },
-  'drop-describedby': {
-    target: 'notice-describedby',
-    apply: rewritePath(PAGE, ' aria-describedby="_y-schema-notices"', '', 2, 'schema-notice describedby'),
   },
 };
 
@@ -144,9 +142,9 @@ const onScreen = (seen) => seen.width > 1 && seen.height > 1 && seen.inViewport
 // two iterations is a phone and a failure that does not name which window it
 // was read in is a failure a reader has to reproduce to understand.
 const assertNoticeVisible = async (page, site, width) => {
-  const block = page.locator('#_y-schema-notices');
+  const block = page.locator(`.y-article ${NOTICE}`);
   if (await block.count() !== 1) {
-    fail(site, `at ${width}px the page carries ${await block.count()} #_y-schema-notices blocks, want exactly 1`);
+    fail(site, `at ${width}px the article carries ${await block.count()} ${NOTICE} notices, want exactly 1`);
   }
   const seen = await painted(block);
   if (!onScreen(seen)) {
@@ -155,24 +153,9 @@ const assertNoticeVisible = async (page, site, width) => {
   if (!seen.text.includes('mystery_key') || !seen.text.includes('不是 schema 認得的欄位')) {
     fail(site, `at ${width}px the notice does not name the unknown key in words: ${JSON.stringify(seen.text)}`);
   }
-  const rail = page.locator('aside.y-rail-right #_y-schema-notices');
-  if (await rail.count() !== 0) {
-    fail(site, `at ${width}px the notice still renders inside the right rail`);
-  }
-};
-
-const assertDescribedBy = async (page) => {
-  const submit = page.locator('.y-sealbar button[type="submit"][aria-describedby="_y-schema-notices"]').first();
-  if (await submit.count() !== 1) {
-    fail('notice-describedby', `the sealbar carries ${await submit.count()} described submits, want exactly 1`);
-  }
-  const description = await submit.evaluate((button) => {
-    const id = button.getAttribute('aria-describedby');
-    const target = id ? document.getElementById(id) : null;
-    return target?.textContent.replace(/\s+/g, ' ').trim() ?? '';
-  });
-  if (!description.includes('mystery_key') || !description.includes('不是 schema 認得的欄位')) {
-    fail('notice-describedby', `the submit's described-by text is wrong: ${JSON.stringify(description)}`);
+  const aside = page.locator(`aside ${NOTICE}`);
+  if (await aside.count() !== 0) {
+    fail(site, `at ${width}px the notice renders inside a sidebar instead of the reading column`);
   }
 };
 
@@ -205,15 +188,11 @@ try {
     }
     await assertNoticeVisible(page, 'notice-painted', width);
     proveApplied('notice-painted');
-    if (width === 1280) {
-      await assertDescribedBy(page);
-      proveApplied('notice-describedby');
-    }
     await page.close();
   }
 
   await context.close();
-  console.log('PASS schema-notice-visibility: the unknown-field notice is painted in the reading column and still describes the sealbar submit');
+  console.log('PASS schema-notice-visibility: the unknown-field notice is painted in the reading column');
 } catch (err) {
   if (proof && !(err instanceof NotApplied)) {
     const issue = proof();

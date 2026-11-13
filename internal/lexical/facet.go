@@ -2,7 +2,6 @@ package lexical
 
 import (
 	"cmp"
-	"maps"
 	"slices"
 )
 
@@ -21,16 +20,15 @@ type facetTally struct {
 }
 
 // facetCount is one value met while walking: how many hits are at it, the
-// spelling the first note to carry it gave it, the folded form the index
-// compares, and the note types that carried it. The folded form is kept
+// spelling the first note to carry it gave it, and the folded form the index
+// compares. The folded form is kept
 // because it, and not the spelling, is what decides two notes are at the same
 // value — and because it orders values that share a count without letting the
 // answer depend on which spelling arrived first.
 type facetCount struct {
-	written  string
-	folded   string
-	count    int
-	carriers map[string]bool
+	written string
+	folded  string
+	count   int
 }
 
 // add tallies one hit. An entry the artifact policy places outside instance
@@ -56,11 +54,10 @@ func (t *facetTally) add(e *entry) {
 		}
 		cell := t.stated[i][folded]
 		if cell == nil {
-			cell = &facetCount{written: written, folded: folded, carriers: make(map[string]bool)}
+			cell = &facetCount{written: written, folded: folded}
 			t.stated[i][folded] = cell
 		}
 		cell.count++
-		cell.carriers[e.NoteType] = true
 	}
 }
 
@@ -88,11 +85,7 @@ func (t *facetTally) facets() []Facet {
 		})
 		division.Values = make([]FacetValue, len(cells))
 		for at, cell := range cells {
-			division.Values[at] = FacetValue{
-				Value:    cell.written,
-				Count:    cell.count,
-				Carriers: slices.Sorted(maps.Keys(cell.carriers)),
-			}
+			division.Values[at] = FacetValue{Value: cell.written, Count: cell.count}
 		}
 		out = append(out, division)
 	}
@@ -101,13 +94,11 @@ func (t *facetTally) facets() []Facet {
 
 // facetValue returns what this entry declared for one key, as written and
 // folded. A key outside the divisions answers with neither, which is what
-// keeps this from quietly growing a fourth division: a key added to facetKeys
+// keeps this from quietly growing a third division: a key added to facetKeys
 // with no arm here would tally every hit as stating nothing, and the test that
 // asks each key for its own field is where that shows up.
 func (e *entry) facetValue(key string) (written, folded string) {
 	switch key {
-	case StatusFilterKey:
-		return e.Status, e.StatusFold
 	case "type":
 		return e.NoteType, e.NoteTypeFold
 	case "domain":

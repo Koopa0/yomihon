@@ -17,7 +17,7 @@ func conceptNote(domain, name, body string) *vault.Note {
 func TestNewConceptIndexKeysByPath(t *testing.T) {
 	t.Parallel()
 	idx, err := lesson.NewConceptIndex([]*vault.Note{
-		conceptNote("japanese", "は (主題助詞).md", "---\ntitle: は\n---\n\nThe topic particle.\n"),
+		conceptNote("japanese", "は (主題助詞).md", "# は\n\nThe topic particle.\n"),
 		conceptNote("japanese", "です.md", "the copula"),
 	})
 	if err != nil {
@@ -149,7 +149,7 @@ func TestNewConceptIndexEmptyInput(t *testing.T) {
 func TestConceptIndexDocumentRendersBody(t *testing.T) {
 	t.Parallel()
 	idx, err := lesson.NewConceptIndex([]*vault.Note{
-		conceptNote("japanese", "は.md", "---\ntitle: は (主題助詞)\n---\n\nMarks the topic.\n"),
+		conceptNote("japanese", "は.md", "# は (主題助詞)\n\nMarks the topic.\n"),
 	})
 	if err != nil {
 		t.Fatalf("NewConceptIndex() error = %v", err)
@@ -162,7 +162,7 @@ func TestConceptIndexDocumentRendersBody(t *testing.T) {
 		t.Fatal("Document(は) not ok; expected the concept to load")
 	}
 	if doc.Title != "は (主題助詞)" {
-		t.Errorf("doc.Title = %q, want the frontmatter title %q", doc.Title, "は (主題助詞)")
+		t.Errorf("doc.Title = %q, want the first heading %q", doc.Title, "は (主題助詞)")
 	}
 	if doc.ID == "" {
 		t.Error("doc.ID is empty")
@@ -183,7 +183,7 @@ func TestConceptIndexDocumentRejectsNonConcept(t *testing.T) {
 func TestNewConceptIndexOwnsParsedNote(t *testing.T) {
 	t.Parallel()
 	const relPath = "Concepts/japanese/は.md"
-	note := vault.Parse(relPath, []byte("---\ntitle: は (主題助詞)\n---\n\nMarks the topic.\n"))
+	note := vault.Parse(relPath, []byte("# は (主題助詞)\n\nMarks the topic.\n"))
 
 	idx, err := lesson.NewConceptIndex([]*vault.Note{note})
 	if err != nil {
@@ -191,8 +191,7 @@ func TestNewConceptIndexOwnsParsedNote(t *testing.T) {
 	}
 
 	note.RelPath = "Concepts/japanese/replaced.md"
-	note.Body = "replacement body"
-	note.Frontmatter["title"] = "replacement title"
+	note.Body = "# replacement title\n\nreplacement body"
 
 	doc, ok := idx.Document(func(_, body string) string { return "<rendered>" + body + "</rendered>" }, relPath)
 	if !ok {
@@ -260,7 +259,7 @@ func TestConceptIndexZeroValue(t *testing.T) {
 func TestDocumentRendersAgainstTheConceptsOwnPath(t *testing.T) {
 	t.Parallel()
 	idx, err := lesson.NewConceptIndex([]*vault.Note{
-		conceptNote("japanese", "は.md", "---\ntitle: は\n---\n\nMarks the topic.\n"),
+		conceptNote("japanese", "は.md", "# は\n\nMarks the topic.\n"),
 	})
 	if err != nil {
 		t.Fatalf("NewConceptIndex() error = %v", err)
@@ -285,7 +284,7 @@ func TestAMiswiredRendererIsAFaultRatherThanAnAnswer(t *testing.T) {
 	t.Parallel()
 
 	idx, err := lesson.NewConceptIndex([]*vault.Note{
-		conceptNote("japanese", "は.md", "---\ntitle: は\n---\n\nthe topic particle\n"),
+		conceptNote("japanese", "は.md", "# は\n\nthe topic particle\n"),
 	})
 	if err != nil {
 		t.Fatalf("NewConceptIndex() error = %v", err)
@@ -300,4 +299,27 @@ func TestAMiswiredRendererIsAFaultRatherThanAnAnswer(t *testing.T) {
 		}
 	}()
 	idx.Document(nil, "Concepts/japanese/は.md")
+}
+
+func TestAConceptIsTitledByItsFirstHeadingElseItsFile(t *testing.T) {
+	t.Parallel()
+	idx, err := lesson.NewConceptIndex([]*vault.Note{
+		conceptNote("japanese", "が.md", "---\ntitle: ignored\ntype: concept\n---\n\n# が (主格)\n\nMarks the subject.\n"),
+		conceptNote("japanese", "を.md", "---\ntype: concept\n---\n\nNo heading here.\n"),
+	})
+	if err != nil {
+		t.Fatalf("NewConceptIndex() error = %v", err)
+	}
+	for relPath, want := range map[string]string{
+		"Concepts/japanese/が.md": "が (主格)",
+		"Concepts/japanese/を.md": "を",
+	} {
+		doc, ok := idx.Document(func(_, body string) string { return body }, relPath)
+		if !ok {
+			t.Fatalf("Document(%q) not found", relPath)
+		}
+		if doc.Title != want {
+			t.Errorf("Document(%q).Title = %q, want %q", relPath, doc.Title, want)
+		}
+	}
 }

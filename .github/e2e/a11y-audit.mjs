@@ -9,7 +9,7 @@ const MUTATE = process.env.MUTATE || '';
 const MODE = 'drop-task-label';
 const NOTE = '/notes/Notes/reading-fidelity.md';
 const FIGURES = '/notes/Notes/figures.md';
-const PAGES = ['/', NOTE, '/syllabus/Maps/branches.md', FIGURES];
+const PAGES = ['/', NOTE, '/courses/Maps/branches.md', FIGURES];
 // A figure's frame runs with scripting off, so axe cannot run inside it: its
 // timers never fire there, and the per-frame runner injected into one never
 // finishes. The single-pass runner audits the page and every frame element

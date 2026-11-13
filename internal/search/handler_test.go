@@ -28,7 +28,7 @@ func TestSearchHandler(t *testing.T) {
 	t.Parallel()
 
 	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Status: "draft", PlainText: "kafka is a distributed log"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Draft: true, PlainText: "kafka is a distributed log"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
@@ -45,7 +45,7 @@ func TestSearchHandler(t *testing.T) {
 		}
 		// y-rail-left is the shared sidebar: the results page renders inside
 		// the same shell as every other page, never a chromeless view.
-		for _, want := range []string{"Kafka Basics", "draft", "y-rail-left"} {
+		for _, want := range []string{"Kafka Basics", wording.Draft.In(wording.ZhHant), "y-rail-left"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("search page missing %q; body = %q", want, body)
 			}
@@ -92,17 +92,17 @@ func TestSearchHandler(t *testing.T) {
 func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
 	t.Parallel()
 
-	undeclaredPolicy := undeclaredArtifactPolicy(t)
+	escapingPolicy := escapingArtifactPolicy(t)
 	invalidPolicy := invalidArtifactPolicy(t)
-	incompletePolicy := incompleteArtifactPolicy(t)
+	blankPolicy := blankArtifactPolicy(t)
 	tests := []struct {
 		name       string
 		idx        *lexical.Index
 		diagnostic string
 	}{
-		{name: "undeclared", idx: lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, undeclaredPolicy), diagnostic: undeclaredPolicy.Diagnostic()},
+		{name: "escaping", idx: lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, escapingPolicy), diagnostic: escapingPolicy.Diagnostic()},
 		{name: "invalid", idx: lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, invalidPolicy), diagnostic: invalidPolicy.Diagnostic()},
-		{name: "incomplete", idx: lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, incompletePolicy), diagnostic: incompletePolicy.Diagnostic()},
+		{name: "blank", idx: lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, blankPolicy), diagnostic: blankPolicy.Diagnostic()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -132,7 +132,7 @@ func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
 
 func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	t.Parallel()
-	idx := lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/One.md", Title: "One", Status: "draft", PlainText: "needle"}}, validArtifactPolicy(t))
+	idx := lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/One.md", Title: "One", Draft: true, PlainText: "needle"}}, validArtifactPolicy(t))
 	calls := 0
 	h := NewHandler(func() RequestSnapshot {
 		calls++
@@ -147,10 +147,9 @@ func TestSearchHandlerReadsOneRequestSnapshot(t *testing.T) {
 	if calls != 1 {
 		t.Errorf("request snapshot reads = %d, want 1", calls)
 	}
-	// The governed flag rides on the shell this handler was handed and gates
-	// the result row's status, so that word witnesses the shell rather than
-	// one the renderer derived for itself.
-	for _, want := range []string{"One", "draft"} {
+	// The draft mark rides on the index this handler was handed, so that word
+	// witnesses the snapshot rather than one the renderer derived for itself.
+	for _, want := range []string{"One", wording.Draft.In(wording.ZhHant)} {
 		if !strings.Contains(rr.Body.String(), want) {
 			t.Errorf("search response missing %q; body = %q", want, rr.Body.String())
 		}
@@ -161,7 +160,7 @@ func TestSearchResultsFragment(t *testing.T) {
 	t.Parallel()
 
 	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", Status: "draft", PlainText: "kafka is a distributed log"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", Draft: true, PlainText: "kafka is a distributed log"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {
@@ -192,49 +191,6 @@ func TestSearchResultsFragment(t *testing.T) {
 		if strings.Contains(body, absent) {
 			t.Errorf("search results fragment unexpectedly contains %q; body = %q", absent, body)
 		}
-	}
-}
-
-// TestSearchHitStatusChipFollowsGovernance pins C7's separation. The index
-// happily matches and returns a note's raw frontmatter status for a folder no
-// contract governs — that is a text field like any other. Rendering it as a
-// lifecycle chip is a different claim, and it is withheld until something has
-// declared the vocabulary the chip would be naming.
-func TestSearchHitStatusChipFollowsGovernance(t *testing.T) {
-	t.Parallel()
-
-	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Status: "draft", PlainText: "kafka log"},
-	}, schema.ArtifactPolicy{})
-
-	tests := []struct {
-		name     string
-		governed bool
-		wantChip bool
-	}{
-		{name: "governed vault names the status", governed: true, wantChip: true},
-		{name: "ungoverned folder does not", governed: false, wantChip: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			h := NewHandler(func() RequestSnapshot {
-				return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: tt.governed}}
-			}, slog.New(slog.DiscardHandler))
-			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=kafka", http.NoBody)
-			rr := httptest.NewRecorder()
-			h.results(rr, req)
-
-			body := rr.Body.String()
-			if !strings.Contains(body, "Kafka Basics") {
-				t.Fatalf("the hit itself is missing; body = %q", body)
-			}
-			// y-result__sep is the separator the results fragment writes only
-			// when it has a status to place after the path.
-			if got := strings.Contains(body, `y-result__sep`) && strings.Contains(body, "draft"); got != tt.wantChip {
-				t.Errorf("status chip present = %t, want %t; body = %q", got, tt.wantChip, body)
-			}
-		})
 	}
 }
 
@@ -340,7 +296,7 @@ func TestSearchResultsSurviveFoldLengtheningNote(t *testing.T) {
 func TestSearchResultsFragmentMetadataDiagnostic(t *testing.T) {
 	t.Parallel()
 
-	policy := undeclaredArtifactPolicy(t)
+	policy := escapingArtifactPolicy(t)
 	idx := lexical.NewIndex([]lexical.Document{
 		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"},
 	}, policy)
@@ -399,7 +355,7 @@ func TestSearchHandlerRejectsInvalidQuery(t *testing.T) {
 func TestSearchHandlerLogsExcludeRawQuery(t *testing.T) {
 	t.Parallel()
 
-	const sentinel = "OWNER_THOUGHT_CANARY type:TYPE_PRIVATE status:STATUS_PRIVATE domain:DOMAIN_PRIVATE topic:TOPIC_PRIVATE slug:SLUG_PRIVATE folder:FOLDER_PRIVATE"
+	const sentinel = "OWNER_THOUGHT_CANARY type:TYPE_PRIVATE draft:DRAFT_PRIVATE domain:DOMAIN_PRIVATE topic:TOPIC_PRIVATE slug:SLUG_PRIVATE folder:FOLDER_PRIVATE"
 	idx := lexical.NewIndex(nil, validArtifactPolicy(t))
 	tests := []struct {
 		name   string
@@ -431,7 +387,7 @@ func TestSearchHandlerLogsExcludeRawQuery(t *testing.T) {
 				for _, privateValue := range []string{
 					"OWNER_THOUGHT_CANARY",
 					"TYPE_PRIVATE",
-					"STATUS_PRIVATE",
+					"DRAFT_PRIVATE",
 					"DOMAIN_PRIVATE",
 					"TOPIC_PRIVATE",
 					"SLUG_PRIVATE",
@@ -450,7 +406,7 @@ func TestSearchHandlerLogsExcludeRawQuery(t *testing.T) {
 				delete(gotAttrs, "msg")
 				wantAttrs := map[string]any{
 					"error_type":  "*errors.errorString",
-					"filter_keys": []any{"type", "status", "domain", "topic", "slug", "folder"},
+					"filter_keys": []any{"type", "draft", "domain", "slug", "folder"},
 					"query_bytes": float64(len(sentinel)),
 				}
 				if diff := cmp.Diff(wantAttrs, gotAttrs); diff != "" {

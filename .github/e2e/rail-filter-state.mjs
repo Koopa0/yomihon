@@ -180,7 +180,7 @@ try {
     check(value === 'C02' && await page.locator('#_y-nav-rail a[href="/notes/Course/C01.md"]').evaluate((row) => row.hidden), 'early-owner', `remembered narrowing depends on the deferred entry: input=${JSON.stringify(value)}, want "C02" with the other lesson hidden`);
     await page.waitForFunction(() => window.railFrames.length >= 3);
     const frames = await page.evaluate(() => ({ frames: window.railFrames, shifts: window.railShifts, paints: performance.getEntriesByType('paint').map((entry) => ({ name: entry.name, startTime: entry.startTime })) }));
-    check(frames.frames.every((frame) => frame.value === 'C02' && JSON.stringify(frame.visible) === JSON.stringify(['C02 draft'])), 'early-owner', `a sampled rail frame was unfiltered: ${JSON.stringify(frames)}`);
+    check(frames.frames.every((frame) => frame.value === 'C02' && JSON.stringify(frame.visible) === JSON.stringify(['C02 \u8349\u7a3f'])), 'early-owner', `a sampled rail frame was unfiltered: ${JSON.stringify(frames)}`);
     control(frames.paints.some((paint) => paint.name === 'first-contentful-paint'), 'fixture did not positively paint');
     console.log(`FRAME-EVIDENCE: ${JSON.stringify(frames)}`);
     await context.close();
@@ -228,7 +228,7 @@ try {
       const state = await snapshot(page);
       const visible = state.rows.filter((row) => !row.hidden).map((row) => row.text);
       const expected = {
-        ' c02 ': ['C02 draft'], C02: ['C02 draft'], c0: ['C01 draft', 'C02 draft', 'C03 draft', '! C04 Unwritten \u672a\u89e3\u6790'],
+        ' c02 ': ['C02 \u8349\u7a3f'], C02: ['C02 \u8349\u7a3f'], c0: ['C01 \u8349\u7a3f', 'C02 \u8349\u7a3f', 'C03 \u8349\u7a3f', '! C04 Unwritten \u672a\u89e3\u6790'],
         '\u661f\u7a7a': ['\u661f\u7a7a \u00c4ther'], '\u00e4THER': ['\u661f\u7a7a \u00c4ther'], 'missing-token': [],
       }[query];
       check(expected ? JSON.stringify(visible) === JSON.stringify(expected) && state.empty === (expected.length > 0) : JSON.stringify(state.rows) === JSON.stringify(original.rows) && state.groups.every((group) => !group.hidden), 'filter-behavior', `${JSON.stringify(query)} rendered unexpected original rows: ${JSON.stringify(visible)}`);
@@ -258,7 +258,7 @@ try {
       control(await page.locator('html').getAttribute('lang') === lang, `locale cookie did not select ${lang}`);
       await fill(page, 'missing-token');
       const state = await reachState(page);
-      const sentence = lang === 'en' ? (count === 1 ? 'Only what the rail listed was filtered; 1 more was not reached.' : `Only what the rail listed was filtered; ${count} more were not reached.`) : `\u53ea\u7be9\u4e86\u5074\u6b04\u5217\u51fa\u7684\u9805\u76ee\uff0c\u53e6\u5916 ${count} \u9805\u6c92\u641c\u5230\u3002`;
+      const sentence = lang === 'en' ? (count === 1 ? 'Only what the sidebar listed was filtered; 1 more was not reached.' : `Only what the sidebar listed was filtered; ${count} more were not reached.`) : `\u53ea\u7be9\u4e86\u5074\u6b04\u5217\u51fa\u7684\u9805\u76ee\uff0c\u53e6\u5916 ${count} \u9805\u6c92\u641c\u5230\u3002`;
       const label = lang === 'en' ? 'Search everything \u2192' : '\u641c\u5c0b\u5168\u90e8 \u2192';
       check(count === 0 ? state.hidden : !state.hidden && state.links === 1 && state.label === label && state.text === `${sentence} ${label}`, 'reach-locale', `${lang}, ${count}: lost server-owned reach wording or label: ${JSON.stringify(state)}`);
       await context.close();
@@ -344,7 +344,7 @@ try {
     await page.waitForURL(BASE + NEXT);
     await context.close();
   }
-  for (const path of ['/syllabus/Maps/branches.md', '/preferences']) {
+  for (const path of ['/courses/Maps/branches.md', '/preferences']) {
     const { page, context } = await open('', { path, remembered: 'missing-token', blocked: false });
     control(await page.locator(FILTER).count() === 0, `${path} control unexpectedly has a filter`);
     const inert = await page.evaluate(async () => { const { initSidebar } = await import('/static/sidebar.js'); return initSidebar().canFocusFilter(); });

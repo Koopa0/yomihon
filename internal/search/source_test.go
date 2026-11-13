@@ -43,7 +43,7 @@ func sourceServer(t *testing.T) *httptest.Server {
 	return srv
 }
 
-// TestAFenceOnlyHitSaysTheExcerptIsSource is the silence the topic label
+// TestAFenceOnlyHitSaysTheExcerptIsSource is the silence the alias label
 // already ended: a fence-only row shows excerpt lines that are not a
 // sentence the note wrote, and without the word on the row the reader
 // sees no reason those lines are there. Both languages name it, and the

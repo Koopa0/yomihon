@@ -1,12 +1,8 @@
 ---
-title: L02 Add a contract
 type: lesson
-status: ready
-domain: yomihon
 slug: l02-add-a-contract
 level: fundamental
 created: 2026-09-22
-updated: 2026-09-22
 lang: en
 ---
 
@@ -14,33 +10,34 @@ Copy `System/schemas/vault-schema.toml` into the same path in your vault.
 Adapt its vocabulary and directories to your files. yomihon reads this file
 but never writes it.
 
-If your notes already carry statuses, which section should you check first?
+If your notes already carry frontmatter, which section should you check first?
 
 > [!question]- After you have decided
-> 1. `[enums]` and `[fields]`: the keys and values in your notes. See [[Frontmatter]].
-> 2. `[scan]`: the directories to check.
-> 3. `[[lifecycle]]`: transitions among the declared statuses. See [[The status lifecycle]].
+> 1. `[fields]` and `[types.*]`: the keys in your notes. See [[Frontmatter]].
+> 2. `[folders]`: the directories to check.
+> 3. `[enums]`: the values a field may take.
 >
-> The lifecycle depends on the status vocabulary. Changing that vocabulary
-> first avoids revisiting transitions after each edit. If you are keeping the
-> existing vocabulary, you can work on the lifecycle immediately.
+> The field list is closed. A key your notes write that yomihon does not
+> define is reported wherever it appears, so settling the fields first avoids
+> reading the same report after each edit. If your notes already write only
+> yomihon's fields, you can go straight to the folders.
 
-An invalid contract disables status changes. Reading, folders and search
+An invalid contract turns off courses and maps. Reading, folders and search
 remain available.
 
 ## What each section opens
 
 | Section | What it opens |
 | --- | --- |
-| `[enums]`, `[[lifecycle]]` | The vocabulary, and the status control that moves a note through it. Without either, the contract is refused whole and the folder is read as though it carried none. |
-| `[fields]` | The frontmatter keys a note may write. Leave it out and every key you have written is reported as one nothing declares. |
-| `[scan]` | Which directories hold knowledge. What lies outside them is still read, and is not judged. |
-| `[navigation]` | Study paths and maps. |
-| `[artifacts]` | The directories holding shapes to copy rather than notes under a lifecycle. Leave it out and no note anywhere gets a status control. |
+| `schema_version` | The format the file is written in. A contract without the version yomihon reads is refused whole, and the folder is read as though it carried none. |
+| `[folders]` | Which directories hold knowledge, which hold templates to copy rather than notes, the journal, and the roots a note's domain is read from. What lies outside the checked directories is still read, and is not judged. |
+| `[types.<name>]` | A note type, the fields it adds, and its role: `lesson`, `course`, `map` or `thought`. Study paths and maps come from the roles. |
+| `[fields]` | The fields every type may write and the ones every note must. Leave it out and every key but `type`, `draft` and Obsidian's own is reported as one nothing declares. |
+| `[enums]` | The values a field, or the domain a folder gives, may take. |
 | `[privacy]` | Directories withheld from agent-facing output. The command line refuses to report until this section exists. |
-| `[rules]` | The checks on a slug, on a domain against its folder, and on a tag. |
-| `[supersession]` | Fields recording which note replaced which. |
+| `[rules]` | The provenance a `concept` must carry, and the marks that keep a planned link from counting as broken. |
 
-One declaration can require another. Put `lesson` in `enums.type` and
-`rules.slug_pattern` becomes required, because a lesson carries a slug and
-nothing else says what a slug may look like.
+One declaration can require another. Give a type the `lesson` role and its
+fields must include `slug`, because a lesson carries a slug; give one the
+`thought` role and they must include `based_on`, because a thought is about a
+source.

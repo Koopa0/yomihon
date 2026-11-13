@@ -28,46 +28,32 @@ func validArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 
 func invalidArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 	tb.Helper()
-	return artifactPolicyFromSection(tb, "[artifacts]\nnon_instance_dirs = [\".\"]\n")
+	return artifactPolicyFromSection(tb, "[folders]\ntemplates = [\".\"]\n")
 }
 
-func incompleteArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
+// escapingArtifactPolicy declares a templates folder above the vault root, so
+// the contract loaded and the policy it meant cannot be honoured.
+func escapingArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 	tb.Helper()
-	return artifactPolicyFromSection(tb, "[artifacts]\n")
+	return artifactPolicyFromSection(tb, "[folders]\ntemplates = [\"../outside\"]\n")
 }
 
-// undeclaredArtifactPolicy is a contract that loaded and left [artifacts] out
-// altogether. It is not the zero value: the zero value belongs to a folder that
-// carries no contract, which excluded nothing on purpose, while this one meant
-// to exclude directories yomihon cannot name.
-func undeclaredArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
+// blankArtifactPolicy declares a templates folder with no name.
+func blankArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 	tb.Helper()
-	return artifactPolicyFromSection(tb, "")
+	return artifactPolicyFromSection(tb, "[folders]\ntemplates = [\"\"]\n")
 }
 
 func artifactPolicyFromSection(tb testing.TB, section string) schema.ArtifactPolicy {
 	tb.Helper()
 	path := filepath.Join(tb.TempDir(), "vault-schema.toml")
-	contract := `schema_version = "1"
+	contract := `schema_version = "2"
 
-[enums]
-type = ["concept"]
-
-[enums.status]
-note = ["draft"]
-
-[fields]
-known = ["based_on"]
+` + section + `
+[types.concept]
 
 [rules]
 concept_requires_provenance = ["based_on"]
-
-` + section + `
-[[lifecycle]]
-status = "draft"
-applies_to = ["concept"]
-from = []
-owner = ["koopa"]
 `
 	if err := os.WriteFile(path, []byte(contract), 0o600); err != nil {
 		tb.Fatalf("os.WriteFile: %v", err)
@@ -127,17 +113,17 @@ func TestSearchNonInstanceCapability(t *testing.T) {
 	t.Parallel()
 
 	idx := NewIndex([]Document{
-		{RelPath: "Concepts/Instance.md", Title: "Instance", NoteType: "concept", Domain: "meta", Status: "draft", Slug: "instance", Topics: []string{"cards"}, PlainText: "shared needle"},
-		{RelPath: "System/templates/Card.md", Title: "Template Card", NoteType: "concept", Domain: "meta", Status: "draft", Slug: "card", Topics: []string{"cards"}, PlainText: "shared template needle"},
+		{RelPath: "Concepts/Instance.md", Title: "Instance", NoteType: "concept", Domain: "meta", Draft: true, Slug: "instance", PlainText: "shared needle"},
+		{RelPath: "System/templates/Card.md", Title: "Template Card", NoteType: "concept", Domain: "meta", Draft: true, Slug: "card", PlainText: "shared template needle"},
 	}, validArtifactPolicy(t))
 
 	tests := []struct {
-		name       string
-		query      string
-		wantPaths  []string
-		wantStatus string
+		name      string
+		query     string
+		wantPaths []string
+		wantDraft bool
 	}{
-		{name: "metadata excludes noninstance", query: "type:concept", wantPaths: []string{"Concepts/Instance.md"}, wantStatus: "draft"},
+		{name: "metadata excludes noninstance", query: "type:concept", wantPaths: []string{"Concepts/Instance.md"}, wantDraft: true},
 		{name: "mixed metadata and text excludes noninstance", query: "type:concept template", wantPaths: []string{}},
 		{name: "folder and metadata exclude noninstance", query: "folder:System/templates type:concept", wantPaths: []string{}},
 		{name: "text includes noninstance without badge", query: "template", wantPaths: []string{"System/templates/Card.md"}},
@@ -156,8 +142,8 @@ func TestSearchNonInstanceCapability(t *testing.T) {
 				t.Errorf("Search(%q) paths mismatch (-want +results):\n%s", tt.query, diff)
 			}
 			for _, result := range answer.Results {
-				if result.Status != tt.wantStatus {
-					t.Errorf("Search(%q) result status = %q, want %q", tt.query, result.Status, tt.wantStatus)
+				if result.Draft != tt.wantDraft {
+					t.Errorf("Search(%q) result draft = %t, want %t", tt.query, result.Draft, tt.wantDraft)
 				}
 			}
 		})
@@ -171,15 +157,14 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 		name   string
 		policy schema.ArtifactPolicy
 	}{
-		{name: "undeclared", policy: undeclaredArtifactPolicy(t)},
+		{name: "escaping", policy: escapingArtifactPolicy(t)},
 		{name: "invalid", policy: invalidArtifactPolicy(t)},
-		{name: "incomplete", policy: incompleteArtifactPolicy(t)},
+		{name: "blank", policy: blankArtifactPolicy(t)},
 	}
 	metadataQueries := []string{
 		"type:concept",
-		"status:",
+		"draft:",
 		"domain:meta",
-		"topic:cards",
 		"slug:note",
 		"needle type:concept",
 		"folder:Concepts type:concept",
@@ -190,7 +175,7 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 		t.Run(policyTest.name, func(t *testing.T) {
 			t.Parallel()
 			idx := NewIndex([]Document{{
-				RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Domain: "meta", Status: "draft", Slug: "note", Topics: []string{"cards"}, PlainText: "needle",
+				RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Domain: "meta", Draft: true, Slug: "note", PlainText: "needle",
 			}}, policyTest.policy)
 
 			for _, query := range metadataQueries {
@@ -213,8 +198,8 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 				if diff := cmp.Diff([]string{"Concepts/Note.md"}, paths(answer.Results)); diff != "" {
 					t.Errorf("Search(%q) paths mismatch (-want +got):\n%s", query, diff)
 				}
-				if len(answer.Results) == 1 && answer.Results[0].Status != "" {
-					t.Errorf("Search(%q) status = %q, want no metadata badge", query, answer.Results[0].Status)
+				if len(answer.Results) == 1 && answer.Results[0].Draft {
+					t.Errorf("Search(%q) marked a draft, want no metadata badge", query)
 				}
 			}
 		})
@@ -228,29 +213,29 @@ func TestWithArtifactPolicyBindsIndependentMetadataAuthority(t *testing.T) {
 		RelPath:  "Concepts/Note.md",
 		Title:    "Note",
 		NoteType: "concept",
-		Status:   "draft",
+		Draft:    true,
 	}}, validArtifactPolicy(t))
-	closed := idx.WithArtifactPolicy(undeclaredArtifactPolicy(t))
+	closed := idx.WithArtifactPolicy(escapingArtifactPolicy(t))
 
 	openAnswer, err := idx.Search(Parse("Note"), -1)
 	if err != nil {
 		t.Fatalf("original Search(Note) error = %v", err)
 	}
-	if len(openAnswer.Results) != 1 || openAnswer.Results[0].Status != "draft" {
+	if len(openAnswer.Results) != 1 || !openAnswer.Results[0].Draft {
 		t.Fatalf("original Search(Note) = %+v, want draft metadata badge", openAnswer.Results)
 	}
 	closedAnswer, err := closed.Search(Parse("Note"), -1)
 	if err != nil {
 		t.Fatalf("closed Search(Note) error = %v", err)
 	}
-	if len(closedAnswer.Results) != 1 || closedAnswer.Results[0].Status != "" {
+	if len(closedAnswer.Results) != 1 || closedAnswer.Results[0].Draft {
 		t.Errorf("closed Search(Note) = %+v, want lexical result without metadata badge", closedAnswer.Results)
 	}
-	if _, err := closed.Search(Parse("status:draft"), -1); !errors.Is(err, ErrMetadataUnavailable) {
-		t.Errorf("closed Search(status:draft) error = %v, want ErrMetadataUnavailable", err)
+	if _, err := closed.Search(Parse("draft:true"), -1); !errors.Is(err, ErrMetadataUnavailable) {
+		t.Errorf("closed Search(draft:true) error = %v, want ErrMetadataUnavailable", err)
 	}
-	if _, err := idx.Search(Parse("status:draft"), -1); err != nil {
-		t.Errorf("original Search(status:draft) error = %v, want functional copy not to mutate original", err)
+	if _, err := idx.Search(Parse("draft:true"), -1); err != nil {
+		t.Errorf("original Search(draft:true) error = %v, want functional copy not to mutate original", err)
 	}
 }
 
@@ -269,9 +254,9 @@ func TestZeroValueIndexAnswersNothingWithoutInventingAFault(t *testing.T) {
 	if len(answer.Results) != 0 {
 		t.Errorf("zero Index.Search(type:concept, -1) = %v, want no results", answer.Results)
 	}
-	typeCounts, err := idx.CountByTypeStatus()
-	if err != nil || len(typeCounts) != 0 {
-		t.Errorf("zero Index.CountByTypeStatus() = (%v, %v), want an empty tally and no error", typeCounts, err)
+	drafts, err := idx.Search(Parse("draft:true"), -1)
+	if err != nil || len(drafts.Results) != 0 {
+		t.Errorf("zero Index.Search(draft:true, -1) = (%v, %v), want no results and no error", drafts.Results, err)
 	}
 }
 
@@ -285,12 +270,12 @@ func TestWithheldCapabilitiesRefuseMetadataWithSomethingToSay(t *testing.T) {
 
 	policy := (*schema.Contract)(nil).Capabilities(schema.Unreadable(errors.New("toml: line 42: expected a key separator"))).Artifacts
 	idx := NewIndex([]Document{
-		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Status: "draft"},
+		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Draft: true},
 	}, policy)
 
-	_, err := idx.Search(Parse("status:draft"), -1)
+	_, err := idx.Search(Parse("draft:true"), -1)
 	if !errors.Is(err, ErrMetadataUnavailable) {
-		t.Fatalf("Search(status:draft) error = %v, want ErrMetadataUnavailable", err)
+		t.Fatalf("Search(draft:true) error = %v, want ErrMetadataUnavailable", err)
 	}
 	if err.Error() == "" {
 		t.Error("the refusal carries no reason; the page has nothing to show but a false empty result")
@@ -310,7 +295,7 @@ func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
 	t.Parallel()
 
 	idx := NewIndex([]Document{
-		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Status: "draft", PlainText: "needle"},
+		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Draft: true, PlainText: "needle"},
 		{RelPath: "System/templates/Card.md", Title: "Card", NoteType: "lesson", PlainText: "needle"},
 	}, schema.ArtifactPolicy{})
 
@@ -330,12 +315,12 @@ func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
 	if len(plainAnswer.Results) != 2 {
 		t.Errorf("Search(needle) = %v, want both notes: nothing was excluded", paths(plainAnswer.Results))
 	}
-	counts, err := idx.CountByTypeStatus()
+	drafts, err := idx.Search(Parse("draft:true"), -1)
 	if err != nil {
-		t.Fatalf("CountByTypeStatus() with an unclaimed policy error = %v", err)
+		t.Fatalf("Search(draft:true) with an unclaimed policy error = %v", err)
 	}
-	if got := counts[TypeStatus{Type: "concept", Status: "draft"}]; got != 1 {
-		t.Errorf("CountByTypeStatus()[concept/draft] = %d, want 1", got)
+	if diff := cmp.Diff([]string{"Concepts/Note.md"}, paths(drafts.Results)); diff != "" {
+		t.Errorf("Search(draft:true) paths mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -345,9 +330,9 @@ func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
 func filterFixture(tb testing.TB) *Index {
 	tb.Helper()
 	return NewIndex([]Document{
-		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Domain: "golang", Status: "draft", Slug: "kafka-basics", Topics: []string{"messaging", "distributed"}, PlainText: "Kafka is a distributed log; 50% done."},
-		{RelPath: "Writing-old/Legacy.md", Title: "Legacy", NoteType: "note", Domain: "golang", Status: "archived", Slug: "legacy", Topics: []string{"messaging"}, PlainText: "older kafka streams notes"},
-		{RelPath: "Concepts/Focus.md", Title: "深度工作", NoteType: "concept", Domain: "meta", Status: "evergreen", Topics: []string{"focus"}, PlainText: "深度工作 需要 專注"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Domain: "golang", Draft: true, Slug: "kafka-basics", PlainText: "Kafka is a distributed log; 50% done."},
+		{RelPath: "Writing-old/Legacy.md", Title: "Legacy", NoteType: "note", Domain: "golang", Slug: "legacy", PlainText: "older kafka streams notes"},
+		{RelPath: "Concepts/Focus.md", Title: "深度工作", NoteType: "concept", Domain: "meta", PlainText: "深度工作 需要 專注"},
 	}, validArtifactPolicy(tb))
 }
 
@@ -361,11 +346,10 @@ func TestSearchFilters(t *testing.T) {
 		want  []string
 	}{
 		{"type equality", "type:lesson", []string{"Writing/Kafka.md"}},
-		{"status equality", "status:archived", []string{"Writing-old/Legacy.md"}},
+		{"draft equality", "draft:true", []string{"Writing/Kafka.md"}},
 		{"domain matches two in rel_path order", "domain:golang", []string{"Writing/Kafka.md", "Writing-old/Legacy.md"}},
 		{"slug equality", "slug:kafka-basics", []string{"Writing/Kafka.md"}},
-		{"topic membership single", "topic:focus", []string{"Concepts/Focus.md"}},
-		{"topic membership two", "topic:messaging", []string{"Writing/Kafka.md", "Writing-old/Legacy.md"}},
+		{"topic is no filter, so it is text no note holds", "topic:golang", []string{}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -551,25 +535,23 @@ func TestAPureFilterKeepsReadingOrder(t *testing.T) {
 	}
 }
 
-// TestTheNineAnswerGroupsComeBackInRankedOrder pins the complete group order,
-// including synthetic file topics. Paths deliberately reverse the evidence
-// order, so reading order cannot accidentally satisfy the rank assertion.
-func TestTheNineAnswerGroupsComeBackInRankedOrder(t *testing.T) {
+// TestTheSevenAnswerGroupsComeBackInRankedOrder pins the complete group
+// order. Paths deliberately reverse the evidence order, so reading order cannot
+// accidentally satisfy the rank assertion.
+func TestTheSevenAnswerGroupsComeBackInRankedOrder(t *testing.T) {
 	t.Parallel()
 	idx := NewIndex([]Document{
 		{RelPath: "a-kafka/data.txt", Title: "data.txt", PlainText: "opaque", File: true},
 		{RelPath: "b-kafka/inside.md", Title: "Inside", PlainText: "unrelated"},
-		{RelPath: "c-topic.txt", Title: "plain.txt", Topics: []string{"kafka"}, PlainText: "opaque", File: true},
 		{RelPath: "d/notes.txt", Title: "notes.txt", PlainText: "mentions kafka once", File: true},
 		{RelPath: "e/kafka.txt", Title: "kafka.txt", PlainText: "plain", File: true},
 		{RelPath: "f-tag.md", Title: "Declared", Tags: []string{"kafka"}, PlainText: "unrelated"},
-		{RelPath: "g-topic.md", Title: "Subject", Topics: []string{"kafka"}, PlainText: "unrelated"},
 		{RelPath: "h/note.md", Title: "Streaming", PlainText: "a kafka pipeline"},
 		{RelPath: "i/note.md", Title: "Kafka guide", PlainText: "nothing else"},
 	}, validArtifactPolicy(t))
 	want := []string{
-		"i/note.md", "h/note.md", "g-topic.md", "f-tag.md",
-		"e/kafka.txt", "d/notes.txt", "c-topic.txt", "b-kafka/inside.md", "a-kafka/data.txt",
+		"i/note.md", "h/note.md", "f-tag.md",
+		"e/kafka.txt", "d/notes.txt", "b-kafka/inside.md", "a-kafka/data.txt",
 	}
 	if int(bucketCount) != len(want) {
 		t.Fatalf("complete answer group count = %d, want %d", bucketCount, len(want))
@@ -578,127 +560,8 @@ func TestTheNineAnswerGroupsComeBackInRankedOrder(t *testing.T) {
 		t.Errorf("caught: Search(kafka) group order mismatch (-want +got):\n%s", diff)
 	}
 	limited, err := idx.Search(Parse("kafka"), 0)
-	if err != nil || limited.Total != 9 || len(limited.Results) != 0 {
-		t.Errorf("Search(kafka, 0) = (%+v, %v), want total 9 with no materialized results", limited, err)
-	}
-}
-
-// TestABareTokenReachesADeclaredTopicTheWayItReachesAnAlias is the symmetry
-// the alias comment already named: leaving a declared name out made this
-// program findable by fewer names than it follows. gentleness is the control —
-// an alias-only note, already reachable. kindness and 善良 live only on the
-// topic line, so a bare token that ignores topics answers 0 while topic: still
-// finds them.
-func TestABareTokenReachesADeclaredTopicTheWayItReachesAnAlias(t *testing.T) {
-	t.Parallel()
-	idx := NewIndex([]Document{
-		{RelPath: "alias.md", Title: "Named otherwise", Aliases: []string{"gentleness"}, PlainText: "unrelated prose"},
-		{RelPath: "kind.md", Title: "Stoner", Topics: []string{"kindness"}, PlainText: "unrelated prose"},
-		{RelPath: "han.md", Title: "史托納", Topics: []string{"善良"}, PlainText: "unrelated prose"},
-	}, validArtifactPolicy(t))
-
-	tests := []struct {
-		query string
-		want  []string
-	}{
-		{"gentleness", []string{"alias.md"}},
-		{"kindness", []string{"kind.md"}},
-		{"topic:kindness", []string{"kind.md"}},
-		{"善良", []string{"han.md"}},
-		{"topic:善良", []string{"han.md"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.query, func(t *testing.T) {
-			t.Parallel()
-			results := searchResults(t, idx, Parse(tt.query))
-			got := paths(results)
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("Search(%q) mismatch (-want +got):\n%s", tt.query, diff)
-			}
-			if tt.query == "kindness" || tt.query == "善良" {
-				if len(results) != 1 || results[0].Topic == "" {
-					t.Errorf("Search(%q) topic-only hit carries no topic evidence: %+v", tt.query, results)
-				}
-			}
-		})
-	}
-}
-
-// TestATopicLabelKeepsTheAuthorsSpelling pins the display source. Matching
-// reads the fold, so colour theory finds the note; the row must still show
-// Colour Theory, the way an alias keeps the author's spelling.
-func TestATopicLabelKeepsTheAuthorsSpelling(t *testing.T) {
-	t.Parallel()
-	idx := NewIndex([]Document{
-		{RelPath: "colour.md", Title: "Palette", Topics: []string{"Colour Theory"}, PlainText: "unrelated prose"},
-	}, validArtifactPolicy(t))
-
-	got := searchResults(t, idx, Parse("colour theory"))
-	if len(got) != 1 {
-		t.Fatalf("Search(colour theory) = %+v, want one topic-only hit", got)
-	}
-	if got[0].Topic != "Colour Theory" {
-		t.Errorf("Topic = %q, want the author's spelling Colour Theory, not the fold", got[0].Topic)
-	}
-}
-
-// TestATopicOnlyHitSortsAfterEveryBodyHit pins why topic is its own group
-// below body. A subject holds far more notes than a title, so ranking a
-// topic hit beside the title would bury the body answers; the topic-only
-// note's path sorts first so path order cannot pass this.
-func TestATopicOnlyHitSortsAfterEveryBodyHit(t *testing.T) {
-	t.Parallel()
-	topicOnly := "a.md"
-	bodyHit := "b.md"
-	titleHit := "c.md"
-	if vault.ComparePaths(topicOnly, bodyHit) >= 0 || vault.ComparePaths(bodyHit, titleHit) >= 0 {
-		t.Fatal("the topic-only path must sort first, then the body hit, then the title, or this fixture cannot catch a missing group")
-	}
-
-	idx := NewIndex([]Document{
-		{RelPath: topicOnly, Title: "Unrelated", Topics: []string{"kindness"}, PlainText: "nothing relevant"},
-		{RelPath: bodyHit, Title: "Also unrelated", PlainText: "a kindness mentioned in passing"},
-		{RelPath: titleHit, Title: "kindness", PlainText: "the named one"},
-	}, validArtifactPolicy(t))
-
-	got := paths(searchResults(t, idx, Parse("kindness")))
-	want := []string{titleHit, bodyHit, topicOnly}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("Search(kindness) order mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestANoteThatDeclaresATopicAndSaysItInProseRanksAsABodyHit pins the arm
-// order for a note that could sit in either group. Body wins, so the note
-// stays with today's answers; a topic-only note whose path sorts first still
-// follows it. Without the body document the order test cannot tell a missing
-// distinction from path order.
-func TestANoteThatDeclaresATopicAndSaysItInProseRanksAsABodyHit(t *testing.T) {
-	t.Parallel()
-	topicOnly := "a.md"
-	both := "z.md"
-	if vault.ComparePaths(topicOnly, both) >= 0 {
-		t.Fatal("the topic-only path must sort first, or this fixture cannot catch a body hit that fell into the topic group")
-	}
-
-	idx := NewIndex([]Document{
-		{RelPath: topicOnly, Title: "Unrelated", Topics: []string{"kindness"}, PlainText: "nothing relevant"},
-		{RelPath: both, Title: "Also unrelated", Topics: []string{"kindness"}, PlainText: "a kindness mentioned in passing"},
-	}, validArtifactPolicy(t))
-
-	got := searchResults(t, idx, Parse("kindness"))
-	want := []string{both, topicOnly}
-	if diff := cmp.Diff(want, paths(got)); diff != "" {
-		t.Errorf("Search(kindness) order mismatch (-want +got):\n%s", diff)
-	}
-	if len(got) != 2 {
-		t.Fatalf("Search(kindness) = %+v, want two hits", got)
-	}
-	if got[0].Topic != "" || got[0].Snippet == "" {
-		t.Errorf("the note that says the word in prose was not kept as a body hit: %+v", got[0])
-	}
-	if got[1].Topic == "" || got[1].Snippet != "" {
-		t.Errorf("the topic-only note was not kept as a topic hit: %+v", got[1])
+	if err != nil || limited.Total != 7 || len(limited.Results) != 0 {
+		t.Errorf("Search(kafka, 0) = (%+v, %v), want total 7 with no materialized results", limited, err)
 	}
 }
 
@@ -730,7 +593,7 @@ func TestAKnowledgeLayerHitLeadsAnOutsideHitInItsGroup(t *testing.T) {
 
 // TestARootFileOutsideTheKnowledgeLayerSortsAfterANote pins the Includes cut
 // at the first slash: a vault-root file matches no declared directory, so it
-// demotes. README.md is skip_basenames in the example vault and never reaches
+// demotes. README.md is in folders.skipped_files in the example vault and never reaches
 // the index, which is why the fixture is a root file that does.
 func TestARootFileOutsideTheKnowledgeLayerSortsAfterANote(t *testing.T) {
 	t.Parallel()
@@ -898,7 +761,7 @@ func TestSearchReachesBothWidthsFromEitherSpelling(t *testing.T) {
 	}
 }
 
-// TestSearchFiltersAnswerEitherCase pins that each of the six filter keys
+// TestSearchFiltersAnswerEitherCase pins that each filter key
 // answers the same set for either case of its value. Free text already folded;
 // a filter that compared raw made the habit that works on words fail on
 // constraints.
@@ -913,10 +776,9 @@ func TestSearchFiltersAnswerEitherCase(t *testing.T) {
 		want  []string
 	}{
 		{"type", "type:lesson", "type:Lesson", []string{"Writing/Kafka.md"}},
-		{"status", "status:archived", "status:Archived", []string{"Writing-old/Legacy.md"}},
+		{"draft", "draft:true", "draft:TRUE", []string{"Writing/Kafka.md"}},
 		{"domain", "domain:golang", "domain:Golang", []string{"Writing/Kafka.md", "Writing-old/Legacy.md"}},
 		{"slug", "slug:kafka-basics", "slug:Kafka-Basics", []string{"Writing/Kafka.md"}},
-		{"topic", "topic:focus", "topic:Focus", []string{"Concepts/Focus.md"}},
 		{"folder", "folder:Writing", "folder:writing", []string{"Writing/Kafka.md"}},
 	}
 	if len(tests) != len(filterKeys) {
@@ -1054,37 +916,6 @@ func TestSearchEmptyQuery(t *testing.T) {
 	}
 }
 
-// TestCountByTypeStatus tallies notes by (type, status) together — the pairing a
-// status-keyed tally cannot express, since two notes sharing a status but not a
-// type must stay separate. It also pins the two edges the pair carries alone: a
-// note outside the governed instance set is left out, and a note missing a field
-// falls in that field's "" bucket. The type/status words are invented so the
-// count is what is proven, not any real vault's vocabulary.
-func TestCountByTypeStatus(t *testing.T) {
-	t.Parallel()
-	idx := NewIndex([]Document{
-		{RelPath: "a.md", NoteType: "lesson", Status: "s1"},
-		{RelPath: "b.md", NoteType: "lesson", Status: "s1"},
-		{RelPath: "c.md", NoteType: "lesson", Status: "s2"},
-		{RelPath: "d.md", NoteType: "concept", Status: "s1"},
-		{RelPath: "e.md", NoteType: "", Status: ""},
-		{RelPath: "System/templates/Card.md", NoteType: "lesson", Status: "s1"},
-	}, validArtifactPolicy(t))
-	got, err := idx.CountByTypeStatus()
-	if err != nil {
-		t.Fatalf("CountByTypeStatus() error: %v", err)
-	}
-	want := map[TypeStatus]int{
-		{Type: "lesson", Status: "s1"}:  2,
-		{Type: "lesson", Status: "s2"}:  1,
-		{Type: "concept", Status: "s1"}: 1,
-		{Type: "", Status: ""}:          1,
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("CountByTypeStatus() mismatch (-want +got):\n%s", diff)
-	}
-}
-
 func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -1092,19 +923,19 @@ func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 		name   string
 		policy schema.ArtifactPolicy
 	}{
-		{name: "undeclared", policy: undeclaredArtifactPolicy(t)},
+		{name: "escaping", policy: escapingArtifactPolicy(t)},
 		{name: "invalid", policy: invalidArtifactPolicy(t)},
-		{name: "incomplete", policy: incompleteArtifactPolicy(t)},
+		{name: "blank", policy: blankArtifactPolicy(t)},
 	}
 	for _, tt := range policies {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			idx := NewIndex([]Document{{RelPath: "Concepts/Note.md", NoteType: "concept", Status: "draft"}}, tt.policy)
+			idx := NewIndex([]Document{{RelPath: "Concepts/Note.md", NoteType: "concept", Draft: true}}, tt.policy)
 
-			if got, err := idx.CountByTypeStatus(); !errors.Is(err, ErrMetadataUnavailable) {
-				t.Errorf("CountByTypeStatus() = (%v, %v), want ErrMetadataUnavailable", got, err)
+			if got, err := idx.Search(Parse("draft:true"), -1); !errors.Is(err, ErrMetadataUnavailable) {
+				t.Errorf("Search(draft:true) = (%v, %v), want ErrMetadataUnavailable", got.Results, err)
 			} else if err.Error() != tt.policy.Diagnostic() {
-				t.Errorf("CountByTypeStatus() error = %q, want %q", err.Error(), tt.policy.Diagnostic())
+				t.Errorf("Search(draft:true) error = %q, want %q", err.Error(), tt.policy.Diagnostic())
 			}
 		})
 	}
@@ -1121,7 +952,7 @@ func TestNewIndexDeterministicUnderAnyInputOrder(t *testing.T) {
 	t.Parallel()
 	docs := []Document{
 		{RelPath: "b.md", Title: "B", PlainText: "beta"},
-		{RelPath: "a.md", Title: "A", Topics: []string{"x"}, PlainText: "alpha"},
+		{RelPath: "a.md", Title: "A", Domain: "x", PlainText: "alpha"},
 		{RelPath: "d.txt", Title: "d.txt", PlainText: "delta", File: true},
 		{RelPath: "c.md", Title: "C", PlainText: "gamma"},
 	}
@@ -1191,7 +1022,6 @@ func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
 	idx := NewIndex([]Document{{
 		RelPath:   "Concepts/A.md",
 		Title:     "A",
-		Status:    "seedling",
 		PlainText: "needle",
 	}}, policy)
 
@@ -1205,8 +1035,8 @@ func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
 		t.Fatalf("restore contract: %v", err)
 	}
 
-	if _, countErr := idx.CountByTypeStatus(); !errors.Is(countErr, ErrMetadataUnavailable) {
-		t.Errorf("CountByTypeStatus() error = %v, want %v", countErr, ErrMetadataUnavailable)
+	if _, draftErr := idx.Search(Parse("draft:true"), -1); !errors.Is(draftErr, ErrMetadataUnavailable) {
+		t.Errorf("Search(draft:true) error = %v, want %v", draftErr, ErrMetadataUnavailable)
 	}
 	query := Parse("needle")
 	answer, err := idx.Search(query, -1)
@@ -1311,8 +1141,9 @@ func TestBoundedSearchKeepsTheOpeningStretch(t *testing.T) {
 // while the body text and the structured fields still match.
 func TestFrontmatterExcludedFromPlainText(t *testing.T) {
 	t.Parallel()
-	raw := []byte("---\ntitle: My Note\ntype: concept\ndomain: golang\ncreated: 2020-01-15\n---\n\nThe body mentions widgets.\n")
-	n := vault.Parse("Concepts/My Note.md", raw)
+	raw := []byte("---\ntype: concept\ndomain: elsewhere\ncreated: 2020-01-15\n---\n\nThe body mentions widgets.\n")
+	n := vault.Parse("Concepts/golang/My Note.md", raw)
+	n.Domain = "golang"
 	idx := NewIndex([]Document{DocumentFromNote(n)}, validArtifactPolicy(t))
 
 	if got := searchResults(t, idx, Parse("2020")); len(got) != 0 {
@@ -1324,6 +1155,11 @@ func TestFrontmatterExcludedFromPlainText(t *testing.T) {
 	if got := paths(searchResults(t, idx, Parse("domain:golang"))); len(got) != 1 {
 		t.Errorf("domain:golang = %v, want one match", got)
 	}
+	// The domain is the one the note's folder gave it; a domain key written in
+	// the frontmatter is no field and narrows nothing.
+	if got := paths(searchResults(t, idx, Parse("domain:elsewhere"))); len(got) != 0 {
+		t.Errorf("domain:elsewhere = %v, want no match", got)
+	}
 }
 
 // fileCorpusFixture is one vault of notes plus the files that sit beside them.
@@ -1333,8 +1169,8 @@ func TestFrontmatterExcludedFromPlainText(t *testing.T) {
 func fileCorpusFixture(tb testing.TB) (notesOnly, widened *Index) {
 	tb.Helper()
 	notes := []Document{
-		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", Status: "evergreen", PlainText: "a note about the flamingo"},
-		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Status: "draft", PlainText: "another flamingo mention"},
+		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", PlainText: "a note about the flamingo"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Draft: true, PlainText: "another flamingo mention"},
 	}
 	files := []Document{
 		DocumentFromFile("Notes/todo.txt", []byte("renew the passport before flamingo season")),
@@ -1375,7 +1211,7 @@ func TestNoteResultsOpenTheWidenedResults(t *testing.T) {
 	t.Parallel()
 	notesOnly, widened := fileCorpusFixture(t)
 
-	for _, query := range []string{"flamingo", "a", "status:draft", "folder:Writing"} {
+	for _, query := range []string{"flamingo", "a", "draft:true", "folder:Writing"} {
 		t.Run(query, func(t *testing.T) {
 			t.Parallel()
 			before := searchResults(t, notesOnly, Parse(query))
@@ -1391,27 +1227,15 @@ func TestNoteResultsOpenTheWidenedResults(t *testing.T) {
 	}
 }
 
-// TestFileEntriesAnswerNoMetadataProjection keeps every lifecycle tally the
-// tally it was. A file carries no frontmatter, so it is not an instance of
-// anything, and letting one into a status count or a "type:" filter would make
-// Home's figures disagree with the contract that defines them.
+// TestFileEntriesAnswerNoMetadataProjection keeps every metadata filter what it
+// was. A file carries no frontmatter, so it is not an instance of anything, and
+// letting one into a "type:" or "draft:" filter would answer for a field no
+// file can declare.
 func TestFileEntriesAnswerNoMetadataProjection(t *testing.T) {
 	t.Parallel()
-	notesOnly, widened := fileCorpusFixture(t)
+	_, widened := fileCorpusFixture(t)
 
-	beforeTypes, err := notesOnly.CountByTypeStatus()
-	if err != nil {
-		t.Fatalf("notes-only CountByTypeStatus() error: %v", err)
-	}
-	afterTypes, err := widened.CountByTypeStatus()
-	if err != nil {
-		t.Fatalf("widened CountByTypeStatus() error: %v", err)
-	}
-	if diff := cmp.Diff(beforeTypes, afterTypes); diff != "" {
-		t.Errorf("CountByTypeStatus changed when files joined the corpus (-notes only +widened):\n%s", diff)
-	}
-
-	for _, query := range []string{"type:lesson", "status:draft", "flamingo status:draft"} {
+	for _, query := range []string{"type:lesson", "draft:false", "flamingo draft:true"} {
 		if got := paths(searchResults(t, widened, Parse(query))); slices.Contains(got, "Notes/todo.txt") {
 			t.Errorf("Search(%q) answered with a file, which declares no metadata: %v", query, got)
 		}
@@ -1751,29 +1575,29 @@ func TestCrossingLandingSurvivesAnNFDCharacter(t *testing.T) {
 	}
 }
 
-// A topic can carry a space, and the way to name one is the same convention
+// A domain can carry a space, and the way to name one is the same convention
 // every search box uses: quote the value. Quoting had exempted the whole
 // field from being read as a filter, so the idiom looked supported and
-// quietly ran as body text over notes that never write their own topics down.
+// quietly ran as body text over notes that never write their own domain down.
 func TestQuotedFilterValueStillFilters(t *testing.T) {
 	t.Parallel()
 
 	idx := NewIndex([]Document{
-		{RelPath: "a.md", Title: "A", Topics: []string{"functional programming"}, PlainText: "one"},
-		{RelPath: "b.md", Title: "B", Topics: []string{"functional"}, PlainText: "two"},
-		{RelPath: "c.md", Title: "C", PlainText: "topic:functional programming written out in the body"},
+		{RelPath: "a.md", Title: "A", Domain: "functional programming", PlainText: "one"},
+		{RelPath: "b.md", Title: "B", Domain: "functional", PlainText: "two"},
+		{RelPath: "c.md", Title: "C", PlainText: "domain:functional programming written out in the body"},
 	}, schema.ArtifactPolicy{})
 
-	got := paths(searchResults(t, idx, Parse(`topic:"functional programming"`)))
+	got := paths(searchResults(t, idx, Parse(`domain:"functional programming"`)))
 	if diff := cmp.Diff([]string{"a.md"}, got); diff != "" {
-		t.Errorf(`Search(topic:"functional programming") mismatch (-want +got):`+"\n%s", diff)
+		t.Errorf(`Search(domain:"functional programming") mismatch (-want +got):`+"\n%s", diff)
 	}
 
 	// The other direction stands unchanged: quote the whole field and it is
 	// text, matched wherever those characters sit together.
-	quoted := paths(searchResults(t, idx, Parse(`"topic:functional programming"`)))
+	quoted := paths(searchResults(t, idx, Parse(`"domain:functional programming"`)))
 	if diff := cmp.Diff([]string{"c.md"}, quoted); diff != "" {
-		t.Errorf(`Search("topic:functional programming") mismatch (-want +got):`+"\n%s", diff)
+		t.Errorf(`Search("domain:functional programming") mismatch (-want +got):`+"\n%s", diff)
 	}
 }
 

@@ -4,7 +4,7 @@ package wording
 
 // HomeReadmeTitle names the note the vault may keep to explain itself, which
 // home shows in place of anything yomihon would have had to invent.
-var HomeReadmeTitle = both("這個書庫的說明", "About this library")
+var HomeReadmeTitle = both("這個書庫的說明", "About this vault")
 
 // HomeTitle is the desk's own heading. The arrival surface carries no kicker:
 // the H1 is the name, and a line above it would only repeat it.
@@ -20,9 +20,7 @@ var (
 	HomeDegradedTitle = both("讀不進來的檔案", "Files that could not be read")
 	FolderRecentTitle = both("最近變更", "Recently changed")
 	// The scoped ledes name the set the block lists — the contract's declared
-	// knowledge layer — because the status distribution beside it counts
-	// every indexed note, and two true numbers over unstated sets read as a
-	// contradiction. A folder that declared no layer lists everything and
+	// knowledge layer — so the list does not read as the whole folder. A folder that declared no layer lists everything and
 	// carries no lede: the heading already says what the list is, and naming
 	// a layer there would invent a rule its owner never wrote.
 	FolderRecentLedeScoped = both(
@@ -38,23 +36,6 @@ var (
 		"知識層資料夾中",
 		"In the declared knowledge folders",
 	)
-	FolderLifecycleTitle = both("依狀態分組", "By status")
-	// Beside a shelf narrowed to the declared layer the distribution still
-	// counts every indexed note, so its sentence says that the count reaches
-	// past the shelf; otherwise the heading stands alone, because a second
-	// sentence that restates it would name no set the heading does not.
-	FolderLifecycleLedeScoped = both(
-		"書庫中每篇已索引筆記落在哪裡，含書架之外的資料夾",
-		"Where each indexed note in the vault sits, including folders off the shelf",
-	)
-)
-
-// The count beside a status chip. A study path's own count is UnitWords'.
-// Chinese does not inflect a noun for number and English does, so each count
-// is a pair. A tally that reads "1 notes" is the first thing a reader notices.
-var (
-	NoteCountOne  = both("%d 篇筆記", "%d note")
-	NoteCountMany = both("%d 篇筆記", "%d notes")
 )
 
 // NoStructureRead marks a study-path card whose zero is a fault rather than
@@ -65,12 +46,6 @@ var NoStructureRead = both("未讀到課程結構", "No course structure read")
 
 // SearchSubmit is the button on the desk's own search field.
 var SearchSubmit = both("搜尋", "Search")
-
-// NoStatusStated names the square for notes whose frontmatter carries no
-// status. They still have somewhere to go, so they are counted and listed like
-// any other; the words say what the file is missing, which a blank chip would
-// leave the reader to guess.
-var NoStatusStated = both("未標示狀態", "No status stated")
 
 // DegradedNotice says how much of the page may be missing or stale, and where
 // the detail is. It carries the count, so it is a pair like the other tallies.
@@ -84,20 +59,6 @@ var (
 		"%d files could not be read, so pages may be incomplete or stopped at an older version. The health page has the detail.",
 	)
 )
-
-// LifecycleUnreadable names the cell for notes whose frontmatter was there and
-// could not be parsed. Nothing they declare could be read, so they belong to
-// no status — and until the YAML is repaired, nothing else about them can be
-// judged either.
-var LifecycleUnreadable = both("讀不出來", "Could not be read")
-
-// LifecycleUnstatedNote sits under the cells for notes carrying no status. One
-// of those cells is not a fault: for some kinds of note, declaring no status
-// is exactly right, and a number in a panel about lifecycle would otherwise
-// read as something to go and fix.
-var LifecycleUnstatedNote = both(
-	"有些類型的筆記本來就不寫狀態。",
-	"Some kinds of note do not carry a status.")
 
 // What the home page says about an egress declaration the contract made and
 // yomihon refused. The loss is not on this page — nothing here consults egress

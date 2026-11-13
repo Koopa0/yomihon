@@ -5,23 +5,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// footView is the part of a note's view the foot and the running head are read
-// from, filled from the same calls the handler makes.
+// footView is the part of a note's view the foot is read from, filled from the
+// same calls the handler makes.
 func footView(model *nav.Model, current string, lang wording.Lang) (Foot, NoteView) {
 	rail := NewReadingRail(nav.Shell{Nav: model}, current, "")
 	foot := FooterSequence(&rail, lang)
 	view := NoteView{
 		RelPath: current, Title: current, Prev: foot.Prev, Next: foot.Next, StepsLabel: foot.Label, StepsCourse: foot.Course, StepsUnit: foot.Unit,
 		StepsPath: foot.Path, StepsBack: foot.Back, StepsOnward: foot.Onward, StepsToContents: foot.ToContents, StepsAsides: foot.Asides,
-	}
-	if head, ok := RunningHeadOf(&rail); ok {
-		view.Running = &head
 	}
 	return foot, view
 }
@@ -139,7 +134,7 @@ func TestAWayOffASideBranchIsLabelledAndIsNeverAStep(t *testing.T) {
 			current: "Writing/E1.md",
 			lang:    wording.ZhHant,
 			want: []string{
-				`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/syllabus/Maps/Course.md?from=Writing%2FE1.md"><span class="y-steps__role">回到目錄</span></a>`,
+				`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/courses/Maps/Course.md?from=Writing%2FE1.md"><span class="y-steps__role">回到目錄</span></a>`,
 				`y-steps__link--back" href="/notes/Writing/C04.md">`,
 			},
 			absent: []string{`rel="next"`},
@@ -209,7 +204,7 @@ func TestTheFootNamesTheCourseWithALinkToItsContents(t *testing.T) {
 
 	model := footVault(t)
 	foot, html := footFor(t, model, "Writing/C03.md", wording.ZhHant)
-	if want := `<p class="y-steps__source"><a class="y-steps__path" href="/syllabus/Maps/Course.md?from=Writing%2FC03.md">Course</a></p>`; !strings.Contains(html, want) {
+	if want := `<p class="y-steps__source"><a class="y-steps__path" href="/courses/Maps/Course.md?from=Writing%2FC03.md">Course</a></p>`; !strings.Contains(html, want) {
 		t.Errorf("the foot does not name the course with a link to its contents; html = %q", html)
 	}
 	if want := `aria-label="` + foot.Label + `"`; !strings.Contains(html, want) || foot.Label != "Course 從此步往下" {
@@ -262,87 +257,34 @@ func TestALessonTheCourseTeachesNeverFallsBackToTheFolder(t *testing.T) {
 	}
 }
 
-// TestARunningHeadNamesTheBookAndPartAboveEveryPageOfIt holds the line above the
-// title: the path's title, the part, and for a side branch's lesson the word for
-// one, all one link to the contents with the lesson marked; and the folder's
-// breadcrumb for a note no path walks.
-func TestARunningHeadNamesTheBookAndPartAboveEveryPageOfIt(t *testing.T) {
+// TestNothingStandsAboveTheTitle holds the head of a note to its title. The
+// sidebar already says which course the note is in and which part, or which
+// folder, so a line over the heading said it twice: the running head of a
+// course's lesson and the folder's breadcrumb of any other note are both gone,
+// and the first thing in the head is the heading itself.
+func TestNothingStandsAboveTheTitle(t *testing.T) {
 	t.Parallel()
 
 	model := footVault(t)
-	head := func(current string, lang wording.Lang) (string, bool) {
-		rail := NewReadingRail(nav.Shell{Nav: model}, current, "")
-		running, ok := RunningHeadOf(&rail)
-		if !ok {
-			return "", false
-		}
-		view := NoteView{RelPath: current, Title: "T", Running: &running}
-		return renderedHTML(t, articleHead(view, lang)), true
-	}
-
-	tests := []struct {
-		name    string
-		current string
-		lang    wording.Lang
-		want    string
-	}{
-		{"a main-line lesson", "Writing/C03.md", wording.ZhHant, `<div class="y-crumbs y-crumbs--course"><a class="y-crumbs__link" href="/syllabus/Maps/Course.md?from=Writing%2FC03.md">Course · 主線</a></div>`},
-		{"a side branch's lesson", "Writing/L1.md", wording.ZhHant, `<a class="y-crumbs__link" href="/syllabus/Maps/Course.md?from=Writing%2FL1.md">Course · 主線 · 支線</a>`},
-		{"a side branch's lesson in English", "Writing/L1.md", wording.En, `Course · 主線 · Branch</a>`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			html, ok := head(tt.current, tt.lang)
-			if !ok {
-				t.Fatalf("%s has no running head", tt.current)
+	for _, current := range []string{"Writing/C03.md", "Writing/L1.md", "Writing/C02a.md", "Maps/Solo.md"} {
+		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+			_, view := footView(model, current, lang)
+			view.Title = "T"
+			html := renderedHTML(t, articleHead(view, lang))
+			if !strings.HasPrefix(html, `<h1 class="y-title">T</h1>`) {
+				t.Errorf("the head of %s in %s does not open on the title; html = %q", current, lang, html)
 			}
-			if !strings.Contains(html, tt.want) {
-				t.Errorf("the head of %s does not carry %q; html = %q", tt.current, tt.want, html)
+			if strings.Contains(html, "y-crumbs") {
+				t.Errorf("the head of %s in %s still draws a path or a running head; html = %q", current, lang, html)
 			}
-			if strings.Contains(html, `y-crumbs__sep`) {
-				t.Errorf("the running head is drawn as a folder's path; html = %q", html)
-			}
-		})
-	}
-
-	for _, none := range []string{"Writing/C02a.md", "Maps/Solo.md"} {
-		if _, ok := head(none, wording.ZhHant); ok {
-			t.Errorf("%s, which no path walks, has a running head", none)
-		}
-	}
-	crumbs := renderedHTML(t, articleHead(NoteView{RelPath: "Writing/C02a.md", Title: "T"}, wording.ZhHant))
-	if !strings.Contains(crumbs, `<a class="y-crumbs__link" href="/folders/Writing">Writing</a>`) || strings.Contains(crumbs, "y-crumbs--course") {
-		t.Errorf("a note in no path lost the folder's breadcrumb; html = %q", crumbs)
-	}
-}
-
-// TestARunningHeadWithNoPartNamesJustTheBook keeps the line from printing a
-// separator with nothing after it.
-func TestARunningHeadWithNoPartNamesJustTheBook(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		head RunningHead
-		want string
-	}{
-		{RunningHead{Title: "Course"}, "Course"},
-		{RunningHead{Title: "Course", Part: "主線"}, "Course · 主線"},
-		{RunningHead{Title: "Course", Branch: true}, "Course · 支線"},
-		{RunningHead{Title: "Course", Part: "主線", Branch: true}, "Course · 主線 · 支線"},
-	} {
-		if got := tt.head.Text(wording.ZhHant); got != tt.want {
-			t.Errorf("Text(%+v) = %q, want %q", tt.head, got, tt.want)
 		}
 	}
 }
 
-// TestTheFootAndTheHeadAreTheCoursesOnlyWhereTheRailResolvedABook holds the one
-// condition the foot and the head share: both are read off the rail's own
-// resolution of a book, so a note two courses teach, which resolves none, keeps
-// the folder's foot and breadcrumb both and cannot be given one without the
-// other.
-func TestTheFootAndTheHeadAreTheCoursesOnlyWhereTheRailResolvedABook(t *testing.T) {
+// TestTheFootIsTheCoursesOnlyWhereTheRailResolvedABook holds the foot to the
+// rail's own resolution of a book: a note two courses teach resolves none, and
+// keeps the folder's foot.
+func TestTheFootIsTheCoursesOnlyWhereTheRailResolvedABook(t *testing.T) {
 	t.Parallel()
 
 	model := buildStepsModel(t)
@@ -352,11 +294,5 @@ func TestTheFootAndTheHeadAreTheCoursesOnlyWhereTheRailResolvedABook(t *testing.
 	}
 	if foot := FooterSequence(&rail, wording.ZhHant); foot.Course {
 		t.Errorf("the foot is the course's where no book was resolved: %+v", foot)
-	}
-	if _, ok := RunningHeadOf(&rail); ok {
-		t.Error("a running head was drawn where no book was resolved")
-	}
-	if diff := cmp.Diff(RunningHead{}, func() RunningHead { h, _ := RunningHeadOf(nil); return h }()); diff != "" {
-		t.Errorf("a nil rail has a head (-want +got):\n%s", diff)
 	}
 }

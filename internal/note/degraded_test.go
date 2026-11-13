@@ -19,11 +19,11 @@ func writeDegradedFixture(t *testing.T) (root string) {
 	t.Helper()
 	root = t.TempDir()
 	okPath := filepath.Join(root, "note-ok.md")
-	if err := os.WriteFile(okPath, []byte("---\ntitle: OK\ntype: concept\n---\nsee [[note-locked]]\n"), 0o600); err != nil {
+	if err := os.WriteFile(okPath, []byte("---\ntype: concept\n---\n# OK\n\nsee [[note-locked]]\n"), 0o600); err != nil {
 		t.Fatalf("write note-ok.md: %v", err)
 	}
 	lockedPath := filepath.Join(root, "note-locked.md")
-	if err := os.WriteFile(lockedPath, []byte("---\ntitle: Locked\ntype: concept\n---\nlocked body\n"), 0o600); err != nil {
+	if err := os.WriteFile(lockedPath, []byte("---\ntype: concept\n---\n# Locked\n\nlocked body\n"), 0o600); err != nil {
 		t.Fatalf("write note-locked.md: %v", err)
 	}
 	lockNote(t, lockedPath)
@@ -114,7 +114,7 @@ func TestFolderNamedLikeANoteGetsThePlainNotFoundPage(t *testing.T) {
 		t.Fatalf("mkdir Folder.md: %v", err)
 	}
 	inner := filepath.Join(root, "Folder.md", "inner.md")
-	if err := os.WriteFile(inner, []byte("---\ntitle: Inner\ntype: concept\n---\ninner body\n"), 0o600); err != nil {
+	if err := os.WriteFile(inner, []byte("---\ntype: concept\n---\n# Inner\n\ninner body\n"), 0o600); err != nil {
 		t.Fatalf("write inner note: %v", err)
 	}
 	srv := newServer(t, root)
@@ -145,12 +145,12 @@ func TestDegradedSurfacesNameEveryFileTheFolderCouldNotRead(t *testing.T) {
 		second = "note-locked-two.md"
 	)
 	if err := os.WriteFile(filepath.Join(root, "note-ok.md"),
-		[]byte("---\ntitle: OK\ntype: concept\n---\nreadable body\n"), 0o600); err != nil {
+		[]byte("---\ntype: concept\n---\n# OK\n\nreadable body\n"), 0o600); err != nil {
 		t.Fatalf("write note-ok.md: %v", err)
 	}
 	for _, name := range []string{first, second} {
 		path := filepath.Join(root, name)
-		if err := os.WriteFile(path, []byte("---\ntitle: Locked\ntype: concept\n---\nlocked body\n"), 0o600); err != nil {
+		if err := os.WriteFile(path, []byte("---\ntype: concept\n---\n# Locked\n\nlocked body\n"), 0o600); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
 		lockNote(t, path)
@@ -182,45 +182,6 @@ func TestDegradedSurfacesNameEveryFileTheFolderCouldNotRead(t *testing.T) {
 		if !strings.Contains(blocked, `<span class="y-findings__path">`+name+`</span>`) {
 			t.Errorf("health blocked-sources section does not list %s as a file of its own", name)
 		}
-	}
-}
-
-// TestStatusFaceReadsTheFileNotTheGeneration pins where the write face gets
-// the status it puts under the controls. The rest of the page comes from a
-// generation that lags the folder by a couple of seconds, and lags it without
-// bound for a file that generation could not re-read and carried. A body that
-// is a few seconds old is what reading costs; a status that is a few seconds
-// old is a control acting on a value the reader has already changed.
-func TestStatusFaceReadsTheFileNotTheGeneration(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	const rel = "Concepts/Carried.md"
-	path := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		t.Fatalf("mkdir for %s: %v", rel, err)
-	}
-	if err := os.WriteFile(path,
-		[]byte("---\ntitle: Carried\ntype: concept\nstatus: seedling\n---\ncarried body\n"), 0o600); err != nil {
-		t.Fatalf("write %s: %v", rel, err)
-	}
-	srv := newServerWithContract(t, root, loadHomeContract(t))
-
-	// The generation now holds the status the file carried when it was built.
-	// The file moves on without it.
-	if err := os.WriteFile(path,
-		[]byte("---\ntitle: Carried\ntype: concept\nstatus: growing\n---\ncarried body\n"), 0o600); err != nil {
-		t.Fatalf("rewrite %s: %v", rel, err)
-	}
-
-	code, page := get(t, srv.Client(), srv.URL+"/notes/"+rel)
-	if code != http.StatusOK {
-		t.Fatalf("GET %s status = %d, want %d", rel, code, http.StatusOK)
-	}
-	if !strings.Contains(page, `<span class="ui-status">growing</span>`) {
-		t.Error("the status face does not show the status the file itself carries")
-	}
-	if strings.Contains(page, `<span class="ui-status">seedling</span>`) {
-		t.Error("the status face shows the generation's copy, which a transition would be built from")
 	}
 }
 

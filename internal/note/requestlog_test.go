@@ -112,7 +112,7 @@ func TestUnreadableNoteGETKeepsItsWarning(t *testing.T) {
 func requestLogServer(t *testing.T, root string) (srv *httptest.Server, logPath string) {
 	t.Helper()
 	store, source := newSnapshotStore(t, root, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
-	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
+	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 	file, err := os.CreateTemp(t.TempDir(), "request-*.log")
 	if err != nil {
 		t.Fatalf("create request log: %v", err)
@@ -125,8 +125,8 @@ func requestLogServer(t *testing.T, root string) (srv *httptest.Server, logPath 
 	})
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source: source, VaultName: shell.VaultName(source.Name()), Status: writer.Authority,
-		Snapshot: store.Current, ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+		Source: source, VaultName: shell.VaultName(source.Name()), Authority: authority,
+		Snapshot:     store.Current,
 		Continuation: noMark, Log: slog.New(slog.NewJSONHandler(file, nil)),
 	}).Register(mux)
 	srv = httptest.NewServer(origin.LoopbackOnly(origin.Protect(http.NewCrossOriginProtection().Handler(mux))))

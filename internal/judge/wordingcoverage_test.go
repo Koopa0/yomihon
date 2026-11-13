@@ -31,7 +31,7 @@ func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 		// Reached from the scan rather than from any note's frontmatter, so no
 		// note page can be asked to say it.
 		"schema.unmatched_knowledge_dir": "it is about the folder rather than a note",
-		// Reached from the contract's navigation table, not from any note.
+		// Reached from the contract's type roles, not from any note.
 		"schema.navigation_unavailable": "it is about the contract rather than a note",
 	}
 
@@ -53,7 +53,7 @@ func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 		t.Run(id, func(t *testing.T) {
 			t.Parallel()
 			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-				parts := wording.SchemaSentence(lang, id, "domain", "golang", "japanese")
+				parts := wording.SchemaSentence(lang, id, "domain", "golang")
 				var said strings.Builder
 				for _, part := range parts {
 					said.WriteString(part.Text)
@@ -82,7 +82,7 @@ func TestAnUnknownSchemaRuleStillSaysSomething(t *testing.T) {
 	const invented = "schema.not_a_rule_anyone_wrote"
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		var said strings.Builder
-		for _, part := range wording.SchemaSentence(lang, invented, "", "", "") {
+		for _, part := range wording.SchemaSentence(lang, invented, "", "") {
 			said.WriteString(part.Text)
 		}
 		if !strings.Contains(said.String(), invented) {

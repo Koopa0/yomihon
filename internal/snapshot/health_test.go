@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"iter"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -45,21 +46,21 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 	t.Parallel()
 
 	notes := []*vault.Note{
-		parse(t, "Concepts/written.md", "---\ntitle: A Written Note\n---\n\nI exist\n"),
-		parse(t, "Concepts/cites title.md", "---\ntitle: Cites Title\n---\n\nsee [[A Written Note]]\n"),
-		parse(t, "Concepts/cites nothing.md", "---\ntitle: Cites Nothing\n---\n\nsee [[no such name]]\n"),
-		parse(t, "Concepts/cites owed.md", "---\ntitle: Cites Owed\n---\n\nsee [[Owed Concept]]\n"),
-		parse(t, "Maps/ledger.md", "---\ntitle: Ledger\n---\n\n## 缺口帳\n\n- Owed Concept\n"),
+		parse(t, "Concepts/written.md", "# A Written Note\n\nI exist\n"),
+		parse(t, "Concepts/cites title.md", "# Cites Title\n\nsee [[A Written Note]]\n"),
+		parse(t, "Concepts/cites nothing.md", "# Cites Nothing\n\nsee [[no such name]]\n"),
+		parse(t, "Concepts/cites owed.md", "# Cites Owed\n\nsee [[Owed Concept]]\n"),
+		parse(t, "Maps/ledger.md", "# Ledger\n\n## 缺口帳\n\n- Owed Concept\n"),
 		// Two notes declaring one title: naming either of them would be the
 		// guess the resolver refuses to make, so this citation stays unwritten
 		// rather than being pointed at one of them.
-		parse(t, "A/twin.md", "---\ntitle: Shared Title\n---\n\none\n"),
-		parse(t, "B/twin.md", "---\ntitle: Shared Title\n---\n\ntwo\n"),
-		parse(t, "Concepts/cites shared.md", "---\ntitle: Cites Shared\n---\n\nsee [[Shared Title]]\n"),
+		parse(t, "A/twin.md", "# Shared Title\n\none\n"),
+		parse(t, "B/twin.md", "# Shared Title\n\ntwo\n"),
+		parse(t, "Concepts/cites shared.md", "# Cites Shared\n\nsee [[Shared Title]]\n"),
 	}
 	idx := graph.New(notes, nil)
 	planned := judge.NewPlanned(noteBodies(notes), nil)
-	h := newHealth(notes, linksOf(notes), idx, planned, newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
+	h := newHealth(notes, linksOf(notes), idx, planned, newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, mapCoverage{})
 
 	wantTitleOnly := []HealthTitleLink{{
 		From:   nav.NoteRef{Name: "cites title", RelPath: "Concepts/cites title.md"},
@@ -94,7 +95,7 @@ func TestHealthGroupsIslandsByFolderWithoutDroppingAny(t *testing.T) {
 		parse(t, "root.md", "e\n"),
 	}
 	idx := graph.New(notes, nil)
-	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
+	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, mapCoverage{})
 
 	want := []HealthIslandGroup{
 		{Dir: "Sources/course", Notes: []nav.NoteRef{
@@ -141,14 +142,14 @@ func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			target := parse(t, tt.targetPath, "---\ntitle: Target Note\n---\n\nbody\n")
-			citer := parse(t, tt.citerPath, "---\ntitle: Citer\n---\n\nsee [[Target Note]]\n")
+			target := parse(t, tt.targetPath, "# Target Note\n\nbody\n")
+			citer := parse(t, tt.citerPath, "# Citer\n\nsee [[Target Note]]\n")
 			notes := []*vault.Note{citer, target}
 			if tt.targetFirst {
 				notes = []*vault.Note{target, citer}
 			}
 			idx := graph.New(notes, nil)
-			h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
+			h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, mapCoverage{})
 
 			// The citer alone: nothing writes its name down anywhere, while the
 			// target's name is written in the citer either way round.
@@ -171,8 +172,8 @@ func TestHealthIgnoresCitationsFromArtifacts(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nsee [[No Such Note]]\n")
-	writeNote(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\nstatus: ready\n---\nsee [[{{concept_a}}]]\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nsee [[No Such Note]]\n")
+	writeNote(t, root, "System/templates/Card.md", "---\ntype: concept\n---\nsee [[{{concept_a}}]]\n")
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)
 
@@ -203,19 +204,19 @@ func TestHealthReportsSharedNamesOnlyOnceALinkUsesThem(t *testing.T) {
 
 	notes := []*vault.Note{
 		// Nothing anywhere cites "quiet", so nothing is broken by the pair.
-		parse(t, "A/quiet.md", "---\ntitle: Quiet A\n---\n\none\n"),
-		parse(t, "B/quiet.md", "---\ntitle: Quiet B\n---\n\ntwo\n"),
+		parse(t, "A/quiet.md", "# Quiet A\n\none\n"),
+		parse(t, "B/quiet.md", "# Quiet B\n\ntwo\n"),
 		// The control: a shared name a real note does cite. An empty answer
 		// cannot pass this test.
-		parse(t, "A/cited.md", "---\ntitle: Cited A\n---\n\nthree\n"),
-		parse(t, "B/cited.md", "---\ntitle: Cited B\n---\n\nfour\n"),
+		parse(t, "A/cited.md", "# Cited A\n\nthree\n"),
+		parse(t, "B/cited.md", "# Cited B\n\nfour\n"),
 		// A shared resource name is cited by an embed, and its twin by path
 		// only, which resolves by path and breaks nothing.
-		parse(t, "Concepts/reader.md", "---\ntitle: Reader\n---\n\nsee [[cited]] and ![[shot.png]] and [run](lab/a/out.txt)\n"),
+		parse(t, "Concepts/reader.md", "# Reader\n\nsee [[cited]] and ![[shot.png]] and [run](lab/a/out.txt)\n"),
 	}
 	resources := []string{"img/shot.png", "old/shot.png", "lab/a/out.txt", "lab/b/out.txt"}
 	idx := graph.New(notes, resources)
-	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
+	h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, mapCoverage{})
 
 	// The names carrying the extension are absent on purpose: two files sharing
 	// "cited.md" necessarily share "cited", and one repair stated twice reads
@@ -238,8 +239,8 @@ func TestDeclaredNonDefaultGapMarkKeepsHarvestedNameOffUnwritten(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Maps/ledger.md", "---\ntitle: Ledger\n---\n\n## Gaps\n- Ghost\n")
-	writeNote(t, root, "Concepts/citer.md", "---\ntitle: Citer\n---\n\nSee [[Ghost]] and [[Nowhere]].\n")
+	writeNote(t, root, "Maps/ledger.md", "# Ledger\n\n## Gaps\n- Ghost\n")
+	writeNote(t, root, "Concepts/citer.md", "# Citer\n\nSee [[Ghost]] and [[Nowhere]].\n")
 	contract := testContractWithRules(t, root, "planned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []")
 	store, _ := newTestStore(t, root, contract)
 	h := store.Current().health
@@ -275,5 +276,67 @@ func TestHealthNavigationFaultsBelongToCaller(t *testing.T) {
 	}
 	if (*Generation)(nil).Health().NavigationFaults != nil {
 		t.Error("absent generation carries faults")
+	}
+}
+
+// coverageVault is a folder whose maps reach one concept, whose other concepts
+// are cited by a note that is no map or by nothing, and which has a concept
+// outside the knowledge layer and a template, neither of which is its business.
+func coverageVault(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	concept := func(title string) string { return "---\ntype: concept\n---\n# " + title + "\n\nWords.\n" }
+	writeNote(t, root, "Concepts/Mapped.md", concept("Mapped"))
+	writeNote(t, root, "Concepts/Pending.md", concept("Pending"))
+	writeNote(t, root, "Concepts/Orphan.md", concept("Orphan"))
+	writeNote(t, root, "Outside/Concept.md", concept("Outside"))
+	writeNote(t, root, "System/templates/Template.md", concept("Template"))
+	writeNote(t, root, "Writing/Essay.md", "---\ntype: writing\n---\n# Essay\n\nSee [[Pending]].\n")
+	writeNote(t, root, "Maps/Go.md", "---\ntype: moc\n---\n# Go\n\n## Branch\n- [[Mapped]]\n\n## Waiting\n\nNothing here yet.\n")
+	return root
+}
+
+func coverageContract(t *testing.T) *schema.Contract {
+	t.Helper()
+	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return contract
+}
+
+// TestHealthSaysWhichConceptsNoMapLinksToAndWhichHeadingsHoldNoNote holds the
+// two groups that say how the maps cover the folder: a concept is reached when
+// a note of a map type cites it in its text, and one cited only by another kind
+// of note, or by nothing, is not; a heading is empty when no note stands under
+// it. A concept outside the knowledge layer and a template are no concept of the
+// vault's, and neither group is a finding.
+func TestHealthSaysWhichConceptsNoMapLinksToAndWhichHeadingsHoldNoNote(t *testing.T) {
+	t.Parallel()
+
+	store, _ := newTestStore(t, coverageVault(t), coverageContract(t))
+	health := store.Current().Capture().Health()
+	want := []nav.NoteRef{
+		{Name: "Orphan", RelPath: "Concepts/Orphan.md"},
+		{Name: "Pending", RelPath: "Concepts/Pending.md"},
+	}
+	if diff := cmp.Diff(want, health.UnmappedConcepts); diff != "" {
+		t.Errorf("concepts no map links to (-want +got):\n%s", diff)
+	}
+	wantBranches := []HealthEmptyBranch{{Map: nav.NoteRef{Name: "Go", RelPath: "Maps/Go.md"}, Heading: "Waiting", Level: 2}}
+	if diff := cmp.Diff(wantBranches, health.EmptyBranches); diff != "" {
+		t.Errorf("headings no note stands under (-want +got):\n%s", diff)
+	}
+}
+
+// TestAFolderThatFilesNoConceptsHasNoUnmappedConceptGroup holds the other end:
+// a contract that declares no concept type has no concept corpus to cover, and
+// says nothing rather than listing every note.
+func TestAFolderThatFilesNoConceptsHasNoUnmappedConceptGroup(t *testing.T) {
+	t.Parallel()
+
+	store, _ := newTestStore(t, coverageVault(t), nil)
+	if got := store.Current().Capture().Health().UnmappedConcepts; len(got) != 0 {
+		t.Errorf("a folder with no contract lists %d unmapped concepts: %v", len(got), got)
 	}
 }

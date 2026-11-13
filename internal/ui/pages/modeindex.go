@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -16,7 +17,7 @@ import (
 // stamped on the page so a check can name the surface it is looking at without
 // depending on the words, which change with the reader's language.
 const (
-	pathMode   = "paths"
+	courseMode = "courses"
 	mapMode    = "maps"
 	reportMode = "reports"
 	folderMode = "folders"
@@ -41,6 +42,9 @@ type ListIndexView struct {
 	// such as the reader's own marks. It carries its complete translated words.
 	Notice string
 	Shelf  Shelf
+	// Order is how the reader may reorder the rows; empty where there is one
+	// order.
+	Order ShelfOrder
 }
 
 // RecentBlock is what changed last, and the words the list is entitled to. It
@@ -61,8 +65,7 @@ type RecentBlock struct {
 // clone stamps every file with one moment: where the recorded times separate
 // nothing, the block says so instead of promising recency. Where the contract
 // declares a knowledge layer the list covers that layer and the sentence names
-// it, because the distribution beside it counts every indexed note, and two
-// true figures over unnamed sets read as a contradiction.
+// it, so the list does not read as the whole folder.
 func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) RecentBlock {
 	block := RecentBlock{Title: wording.FolderTiedTitle.In(lang), Notes: notes}
 	switch {
@@ -76,31 +79,6 @@ func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) R
 		block.Lede = wording.FolderTiedLede.In(lang)
 	}
 	return block
-}
-
-// StatusDistribution is where every indexed note sits: one cell per status the
-// notes carry, and beside them the cells for notes carrying none, kept apart so
-// the markup cannot dress those as statuses. A distribution holding no status
-// draws nothing — a vault whose vocabulary could not be read leaves it empty,
-// and the reason is stated once for the page rather than inside the block that
-// would have shown it.
-type StatusDistribution struct {
-	Lede     string
-	Statuses []LifecycleItem
-	Unstated []LifecycleItem
-}
-
-// NewStatusDistribution builds the block with the sentence it can stand
-// behind. The distribution counts every indexed note whatever the shelf shows,
-// so beside a shelf narrowed to the declared knowledge layer the sentence says
-// the count reaches past the shelf; an unscoped shelf carries no sentence,
-// because the heading already says what the block is.
-func NewStatusDistribution(statuses, unstated []LifecycleItem, scoped bool, lang wording.Lang) StatusDistribution {
-	lede := ""
-	if scoped {
-		lede = wording.FolderLifecycleLedeScoped.In(lang)
-	}
-	return StatusDistribution{Lede: lede, Statuses: statuses, Unstated: unstated}
 }
 
 // NewPathIndex builds the study-path index. The measure is the course's extent
@@ -122,13 +100,13 @@ func NewPathIndex(paths []nav.Path, roles schema.NavigationRoles, closure nav.Cl
 		}
 		rows = append(rows, Row{
 			Text:     studyPath.Title,
-			Href:     syllabusHref(studyPath.RelPath),
+			Href:     courseHref(studyPath.RelPath),
 			Mark:     mark,
 			Fault:    unread,
 			Language: rowLanguage(articleLang, studyPath.RelPath),
 		})
 	}
-	view := listIndex(pathMode, wording.Paths.In(lang),
+	view := listIndex(courseMode, wording.Courses.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
 		"", emptySentence(contract, declarationSentence(roles.PathTypes(), lang), lang), rows)
 	view.Fault, view.Restart = FaultOf(closure.Diagnostic(), closure.Reason(), lang)
@@ -481,6 +459,10 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 	folderIndex := NewFolderIndex(model, contract, lang, articleLang)
 	pathBlock := deskBlock(&pathIndex)
 	mapBlock := deskBlock(&mapIndex)
+	// A map's branches are the shape of its subject, which its own page lists
+	// and the desk does not count: a figure beside each map would read as how
+	// much of it is left. A course's lesson count stays, being its extent.
+	mapBlock.Shelf.Rows = unmarked(mapBlock.Shelf.Rows)
 	if withheld {
 		withhold(&pathBlock.Shelf)
 		withhold(&mapBlock.Shelf)
@@ -503,6 +485,17 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 		return []DeskBlock{folderBlock, pathBlock, mapBlock, reportBlock}
 	}
 	return []DeskBlock{pathBlock, mapBlock, reportBlock, folderBlock}
+}
+
+// unmarked is rows without the measure each carries, in a copy: the rows of a
+// shelf are shared by every view of it built for one request and are never
+// written, so a view that wants fewer things says so on its own.
+func unmarked(rows []Row) []Row {
+	out := slices.Clone(rows)
+	for i := range out {
+		out[i].Mark = ""
+	}
+	return out
 }
 
 // withholdListing takes back what a page may not claim about a declaration that

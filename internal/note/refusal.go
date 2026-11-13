@@ -30,7 +30,7 @@ func (h *Handler) LocalizedRouter(mux *http.ServeMux) http.Handler {
 }
 
 // CrossOriginDenied answers the browser's refused cross-origin request before
-// the router can enter any write face. The refusal keeps the reading shell so
+// the router can enter any route that changes state. The refusal keeps the reading shell so
 // the reader can return through a safe navigation link.
 func (h *Handler) CrossOriginDenied(w http.ResponseWriter, r *http.Request) {
 	h.refuseRequest(w, r, http.StatusForbidden)
@@ -42,7 +42,7 @@ func (h *Handler) refuseRequest(w http.ResponseWriter, r *http.Request, code int
 	if code == http.StatusForbidden {
 		title, lede = wording.RequestOriginRefusedTitle.In(lang), wording.RequestOriginRefusedLede.In(lang)
 	}
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
 	view := pages.RequestRefusedView{Title: title, Lede: lede, Sidebar: pages.NewSidebar(shell.Project(h.sources.VaultName, authority, snap), "")}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

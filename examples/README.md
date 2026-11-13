@@ -15,7 +15,7 @@ The books teach their subjects directly. The table below is for maintainers chec
 | --- | --- | --- |
 | Courses and side branches: `internal/sequence`, `internal/nav`, `internal/syllabus` | The five Go lessons; G06 as optional reading under G04; two Japanese lessons | The lesson after G04 is G05; G06 is not inserted into the main line |
 | Concepts and maps: `internal/lesson/concept.go`, `internal/render/concept.go`, `internal/nav/map.go` | Goroutine lifecycle, channel handoff, cancellation and cleanup; Japanese location particles | Links in the lessons open concept pages; all five concepts are mounted on a map |
-| Aliases and search: `internal/graph`, `internal/lexical`, `internal/search` | Titles, aliases and topics of the Go lessons; two programs, one blocking and one fixed | `取消 domain:go` finds the material; adding `status:draft` finds the blocking version |
+| Aliases and search: `internal/graph`, `internal/lexical`, `internal/search` | Titles, aliases and folder-derived domains of the Go lessons; two programs, one blocking and one fixed | `取消 domain:go` finds the lessons and concepts; `取消 draft:true` finds the blocking version |
 | Sources and comparison: `internal/snapshot/basedon.go`, `internal/note/compare.go` | [提早返回的管線](vault/Notes/go/提早返回的管線.md) declares the fixed version as its source | Open the side-by-side comparison from the draft and check how send exits |
 | Sections, blocks and excerpts: `internal/render` | G04 quotes a specific passage of the cancellation note | Heading and block links and embeds are valid; a quoted body is not counted as precise declared-source support |
 | Diagrams, code and footnotes: `internal/render`, `internal/asset` | The local [Go pipeline diagram](vault/System/assets/go-pipeline.svg), complete programs, official documentation as sources | The local diagram needs no network; the complete programs run |
@@ -23,9 +23,9 @@ The books teach their subjects directly. The table below is for maintainers chec
 | Sentence-pattern practice: `internal/lesson/slot.go`, `internal/note/handler.go` | Nine combinations for finding a book, six for reading places | Matched by slug; the Japanese and its translation update together |
 | Diary and reports: `internal/nav/nav.go`, `internal/report` | The 9/22 cancellation diary, a Markdown review, an HTML case | That day's content opens; the HTML is self-contained CSS with no script or external resource |
 | Resume, freshness and preferences: `internal/mark`, `internal/note/freshness.go`, `internal/preference` | Complete lessons and long programs that can be returned to | Save a position and return from the home page; an outside edit to the copy shows a notice; narrow widths and large text stay readable |
-| Contract, diagnostics, supersession and privacy: `internal/schema`, `internal/judge`, `internal/status` | Handbooks in both languages, deliberate faults, old and new startup notes | The diagnostics list, the supersession relation and the Diary privacy scope are kept |
+| Contract, diagnostics, replacement and privacy: `internal/schema`, `internal/judge` | Handbooks in both languages, deliberate faults, a startup lesson that took over a deleted lesson's name | The diagnostics list, the deleted name resolving through `aliases`, and the Diary privacy scope are kept |
 
-The Go books add `go` to the example contract's domain list. Fields, statuses and lifecycle rules are unchanged.
+The Go books add `go` to the example contract's domain list, read from the folders `Concepts/go/` and `Lessons/go/`. No note writes its title, domain or progress: an unfinished one writes `draft: true`.
 
 ## Deliberate diagnostics
 

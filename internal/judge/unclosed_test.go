@@ -19,9 +19,9 @@ func TestAnUnclosedFenceKeepsTheIdentityEveryReasonOfItsRuleShares(t *testing.T)
 
 	root := t.TempDir()
 	text := contractFixture(t, nil,
-		[2]string{`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, `knowledge_dirs = ["Writing"]`},
+		[2]string{`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, `checked = ["Writing"]`},
 	)
-	text = strings.Replace(text, "no_frontmatter_is_legal = true", "no_frontmatter_is_legal = false", 1)
+	text = strings.Replace(text, "frontmatter_optional = true", "frontmatter_optional = false", 1)
 	write(t, root, schema.ContractRelPath, text)
 	contract, err := schema.Load(root)
 	if err != nil {
@@ -35,10 +35,7 @@ func TestAnUnclosedFenceKeepsTheIdentityEveryReasonOfItsRuleShares(t *testing.T)
 		"is missing":                       "body\n",
 		"is not valid YAML":                "---\ntitle: [\n---\n",
 	} {
-		findings, lintErr := LintFrontmatter(path, []byte(body), contract)
-		if lintErr != nil {
-			t.Fatalf("LintFrontmatter(%q) error = %v", body, lintErr)
-		}
+		findings := LintFrontmatter(path, []byte(body), contract)
 		if len(findings) != 1 || !strings.HasSuffix(findings[0].Message, reason) {
 			t.Fatalf("LintFrontmatter(%q) = %+v, want exactly one finding ending %q", body, findings, reason)
 		}

@@ -1,13 +1,17 @@
-// Behaviour lock for the whole-folder findings table and the shape line above
-// it. Claims a rendering test cannot reach, because each is settled by the
-// browser rather than by the bytes: on a phone the rows stack and each cell
-// says which column it is, instead of the sheet running off the side where
-// half of it cannot be read; a heading is a link that really comes back with
-// the rows in another order; the shape line's own numbers hold against a
-// second count of the table it sits above, taken from the rendered page
-// rather than from what the line claims; and error and warn, which used to
-// differ only by a border, paint different inks and draw different marker
-// shapes — with no script involved in any of it.
+// Behaviour lock for the whole-folder findings tables, a table to each kind,
+// and the shape line above them. Claims a rendering test cannot reach, because
+// each is settled by the browser rather than by the bytes: every table stands
+// its four columns at the same widths, the count read down its right edge in
+// tabular figures, with one rule under each header and none between rows; the
+// fold over each group holds the explanation closed and never a finding, so
+// every row is on the page; on a phone the rows stack and each cell says which
+// column it is, instead of the sheet running off the side where half of it
+// cannot be read; a heading is a link that really comes back with the rows of
+// each kind in another order; the shape line's own numbers hold against a
+// second count of the tables beneath it, taken from the rendered page rather
+// than from what the line claims; and error, warn and info draw different
+// marker shapes and error a different ink — with no script involved in any of
+// it.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (the whole-folder page), and MUTATE.
 import { arrived } from './support/arrival.mjs';
@@ -25,8 +29,17 @@ const WIDTH_SITE = 'no-sideways-scroll';
 const ORDER_SITE = 'a-heading-reorders-the-rows';
 const SHAPE_SITE = 'the-shape-line-counts-what-the-table-shows';
 const INK_SITE = 'error-and-warn-paint-different-inks';
-const MARKER_SITE = 'error-and-warn-draw-different-markers';
-const SITES = [LABEL_SITE, DETAIL_SITE, BADGE_SITE, EMPTY_SITE, WIDTH_SITE, ORDER_SITE, SHAPE_SITE, INK_SITE, MARKER_SITE];
+const MARKER_SITE = 'the-weights-draw-different-markers';
+const COLUMNS_SITE = 'every-table-stands-its-columns-at-the-same-widths';
+const FIGURES_SITE = 'the-count-is-read-down-one-edge-in-tabular-figures';
+const RULES_SITE = 'one-rule-under-the-header-and-none-between-rows';
+const FOLD_SITE = 'the-fold-holds-the-explanation-and-no-finding';
+const SITES = [LABEL_SITE, DETAIL_SITE, BADGE_SITE, EMPTY_SITE, WIDTH_SITE, ORDER_SITE, SHAPE_SITE, INK_SITE, MARKER_SITE, COLUMNS_SITE, FIGURES_SITE, RULES_SITE, FOLD_SITE];
+
+// The widths every table stands its columns at, as shares of the table.
+const COLUMN_SHARES = [0.44, 0.38, 0.1, 0.08];
+// The width a laptop gives the page, where the four columns are a table.
+const DESK = { width: 1280, height: 900 };
 
 // The width a phone gives the page. Narrow enough that a four-column table
 // laid out as a table cannot hold its columns.
@@ -74,10 +87,10 @@ const restoreTableLayout = (page) => appendStyle(page, `@media screen and (max-w
 // any un-wrappable content in the table would do.
 const widenTheCells = (page) => appendStyle(page, `.y-findings tbody td{min-width:${PHONE.width + 200}px}`);
 
-// unpinTheEvidenceColumn lets a cell's second piece flow where the grid puts
-// it, which is back under the label in a fifth of the width it needs.
-const unpinTheEvidenceColumn = (page) => appendStyle(page, `@media screen and (max-width:${PHONE.width + 1}px){
-  .y-findings tbody td>*{grid-column:auto}
+// stretchTheColumnName lets a cell's label take the whole row, which puts the
+// evidence back under it in a fifth of the width it needs.
+const stretchTheColumnName = (page) => appendStyle(page, `@media screen and (max-width:${PHONE.width + 1}px){
+  .y-findings tbody td::before{grid-column:1 / -1}
 }`);
 
 // stretchTheWeightBadge lets the badge take the whole column, which is what a
@@ -97,9 +110,39 @@ const showTheEmptyCells = (page) => appendStyle(page, `@media screen and (max-wi
 // read as one.
 const revertErrorInk = (page) => appendStyle(page, `.y-severity--error{color:var(--warn)}`);
 
-// revertErrorMarker undoes the squared dot, rounding error's marker back to
-// warn's shape.
-const revertErrorMarker = (page) => appendStyle(page, `.y-severity--error::before{border-radius:50%}`);
+// revertWarnMarker gives warn error's own squared marker, which is how the two
+// weights came to read as one.
+const revertWarnMarker = (page) => appendStyle(page, `.y-severity--warn::before{background:currentcolor;border:0;border-radius:1px;height:7px;width:7px}`);
+
+// narrowTheFileColumn takes the file column off the share every table gives it.
+const narrowTheFileColumn = (page) => appendStyle(page, `.y-findings__col--file{width:30%}`);
+
+// leftAlignTheCounts sets the counts against the other edge.
+const leftAlignTheCounts = (page) => appendStyle(page, `.y-findings__count{text-align:left;font-variant-numeric:normal}`);
+
+// ruleBetweenRows draws the line between rows the table used to carry.
+const ruleBetweenRows = (page) => appendStyle(page, `.y-findings tbody td{border-top:1px solid #000}`);
+
+// foldTheFindings puts the rows behind the fold, which is what a table drawn
+// inside the explanation's own disclosure would do.
+const foldTheFindings = (page) => appendStyle(page, `.y-findings{display:none}`);
+
+// openTheFolds serves every explanation already open.
+const openTheFolds = (page) => {
+  let requests = 0;
+  let rewritten = 0;
+  return page.route((url) => url.pathname === new URL(BASE + PAGE).pathname, async (route) => {
+    requests += 1;
+    const response = await route.fetch();
+    const original = await response.text();
+    rewritten += (original.match(/<details class="y-healthabout">/g) || []).length;
+    await route.fulfill({ response, body: original.replaceAll('<details class="y-healthabout">', '<details class="y-healthabout" open>') });
+  }).then(() => () => {
+    if (requests < 1) return 'the page was never requested, so nothing was rewritten';
+    if (rewritten < 1) return 'the document carried no closed explanation to open';
+    return '';
+  });
+};
 
 // dropTheOrdering leaves the headings looking exactly as they do and makes them
 // ask for nothing the page reads, which is how a link that has quietly stopped
@@ -149,14 +192,19 @@ const corruptShapeCount = (page) => {
 
 const MUTATIONS = {
   'restore-table-layout': { target: LABEL_SITE, apply: restoreTableLayout },
-  'unpin-the-evidence-column': { target: DETAIL_SITE, apply: unpinTheEvidenceColumn },
+  'stretch-the-column-name': { target: DETAIL_SITE, apply: stretchTheColumnName },
   'stretch-the-weight-badge': { target: BADGE_SITE, apply: stretchTheWeightBadge },
   'show-the-empty-cells': { target: EMPTY_SITE, apply: showTheEmptyCells },
   'widen-the-cells': { target: WIDTH_SITE, apply: widenTheCells },
   'drop-the-ordering': { target: ORDER_SITE, apply: dropTheOrdering },
   'corrupt-shape-count': { target: SHAPE_SITE, apply: corruptShapeCount },
   'revert-error-ink': { target: INK_SITE, apply: revertErrorInk },
-  'revert-error-marker': { target: MARKER_SITE, apply: revertErrorMarker },
+  'revert-warn-marker': { target: MARKER_SITE, apply: revertWarnMarker },
+  'narrow-the-file-column': { target: COLUMNS_SITE, apply: narrowTheFileColumn },
+  'left-align-the-counts': { target: FIGURES_SITE, apply: leftAlignTheCounts },
+  'rule-between-rows': { target: RULES_SITE, apply: ruleBetweenRows },
+  'fold-the-findings': { target: FOLD_SITE, apply: foldTheFindings },
+  'open-the-folds': { target: FOLD_SITE, apply: openTheFolds },
 };
 
 for (const [name, mode] of Object.entries(MUTATIONS)) {
@@ -192,11 +240,10 @@ const readTable = (page) => page.evaluate(() => {
 
   const box = (element) => {
     const rect = element.getBoundingClientRect();
-    return { left: rect.left, right: rect.right, width: rect.width };
+    return { left: rect.left, right: rect.right, top: rect.top, width: rect.width };
   };
   const cells = [...document.querySelectorAll('.y-findings tbody td')].map((cell) => {
     const before = getComputedStyle(cell, '::before');
-    const kind = cell.querySelector('.y-findings__kind');
     const detail = cell.querySelector('.y-findings__detail');
     const badge = cell.querySelector('.y-severity');
     return {
@@ -205,7 +252,6 @@ const readTable = (page) => page.evaluate(() => {
       labelDrawn: !['none', 'normal', '""'].includes(before.content),
       filled: cell.textContent.trim() !== '' || cell.children.length > 0,
       box: box(cell),
-      kind: kind && box(kind),
       detail: detail && box(detail),
       badge: badge && box(badge),
     };
@@ -215,6 +261,7 @@ const readTable = (page) => page.evaluate(() => {
     viewportRight: viewport.right,
     documentWidth: document.scrollingElement.scrollWidth,
     rows: document.querySelectorAll('.y-findings tbody tr').length,
+    tables: document.querySelectorAll('.y-findings').length,
     headings: [...document.querySelectorAll('.y-findings thead a')].map((link) => ({
       text: link.textContent.trim(),
       href: link.getAttribute('href'),
@@ -228,8 +275,43 @@ const readTable = (page) => page.evaluate(() => {
 // readRows reports each row's subject and weight, top to bottom, which is what
 // an ordering has to be judged on.
 const readRows = (page) => page.evaluate(() => [...document.querySelectorAll('.y-findings tbody tr')].map((row) => ({
+  group: [...document.querySelectorAll('.y-healthgroup')].indexOf(row.closest('.y-healthgroup')),
   subject: row.querySelector('.y-findings__file')?.textContent.trim() ?? '',
   weight: row.querySelector('.y-findings__severity')?.textContent.trim() ?? '',
+})));
+
+// readDesk measures the tables at a laptop's width: where each table's columns
+// stand, how wide they are, and what each draws round its header, its rows and
+// its counts.
+const readDesk = (page) => page.evaluate(() => [...document.querySelectorAll('.y-findings')].map((table) => {
+  const tableBox = table.getBoundingClientRect();
+  const heads = [...table.querySelectorAll('thead th')].map((th) => th.getBoundingClientRect());
+  const cells = [...table.querySelectorAll('tbody td')];
+  const counts = [...table.querySelectorAll('tbody td.y-findings__count')];
+  const ends = counts.map((td) => td.getBoundingClientRect().right - Number.parseFloat(getComputedStyle(td).paddingRight));
+  return {
+    width: tableBox.width,
+    starts: heads.map((rect) => rect.left - tableBox.left),
+    shares: heads.map((rect) => rect.width / tableBox.width),
+    headRule: Math.max(...[...table.querySelectorAll('thead th')].map((th) => Number.parseFloat(getComputedStyle(th).borderBottomWidth))),
+    bodyRule: Math.max(0, ...cells.flatMap((td) => {
+      const style = getComputedStyle(td);
+      return [Number.parseFloat(style.borderTopWidth), Number.parseFloat(style.borderBottomWidth)];
+    })),
+    countEdges: ends,
+    countAlign: counts.map((td) => getComputedStyle(td).textAlign),
+    countFigures: counts.map((td) => getComputedStyle(td).fontVariantNumeric),
+  };
+}));
+
+// readFolds reports each explanation's disclosure and whether every row of the
+// table beside it is drawn.
+const readFolds = (page) => page.evaluate(() => [...document.querySelectorAll('.y-healthgroup')].map((group) => ({
+  hasFold: group.querySelector('details.y-healthabout') !== null,
+  open: group.querySelector('details.y-healthabout')?.open ?? false,
+  tableInFold: group.querySelector('details.y-healthabout .y-findings') !== null,
+  rows: group.querySelectorAll('.y-findings tbody tr').length,
+  rowsDrawn: [...group.querySelectorAll('.y-findings tbody tr')].filter((row) => row.checkVisibility()).length,
 })));
 
 // readShape reports the shape line as it stands: each weight it names, with
@@ -281,7 +363,11 @@ const badgeStyle = (page, selector) => page.evaluate((sel) => {
   if (!badge) return null;
   const style = getComputedStyle(badge);
   const marker = getComputedStyle(badge, '::before');
-  return { color: style.color, markerRadius: marker.borderRadius };
+  return {
+    color: style.color,
+    markerRadius: marker.borderRadius,
+    markerShape: `${marker.borderRadius}|${marker.backgroundColor === 'rgba(0, 0, 0, 0)' ? 'ring' : 'filled'}|${marker.width}`,
+  };
 }, selector);
 
 const WEIGHTS = { error: 3, warn: 2, info: 1, '': 0 };
@@ -299,7 +385,19 @@ try {
 
   const table = await readTable(page);
   if (table.rows < 4) broken(`the fixture has ${table.rows} findings, which is too few to say anything about how they lay out`);
-  if (table.headings.length !== 4) broken(`the table offers ${table.headings.length} orderings, want the four columns`);
+  if (table.tables < 2) broken(`the fixture draws ${table.tables} tables, too few to say anything about what kinds have in common`);
+  if (table.headings.length !== 4 * table.tables) broken(`the tables offer ${table.headings.length} orderings, want the four columns of each of ${table.tables}`);
+
+  // The fold holds an explanation and nothing found: every group's explanation
+  // is a closed disclosure, none holds a table, and every row of every table
+  // is drawn — a finding a reader has to open something to see is a finding
+  // the page has hidden.
+  for (const [i, fold] of (await readFolds(page)).entries()) {
+    if (!fold.hasFold) fail(FOLD_SITE, `group ${i} has no explanation to fold, so what is said about it is on the page unasked for`);
+    if (fold.open) fail(FOLD_SITE, `group ${i}'s explanation is open when the page arrives`);
+    if (fold.tableInFold) fail(FOLD_SITE, `group ${i} draws its findings inside the fold`);
+    if (fold.rowsDrawn !== fold.rows) fail(FOLD_SITE, `group ${i} draws ${fold.rowsDrawn} of its ${fold.rows} findings: the rest are behind something`);
+  }
   if (table.cells.length !== table.rows * 4) broken(`the table has ${table.cells.length} cells over ${table.rows} rows, want four each`);
 
   const shown = table.cells.filter((cell) => !cell.hidden);
@@ -314,11 +412,11 @@ try {
   // A finding's evidence belongs under the finding, in the column the label
   // points at. Laid out beside the label instead it reads as a second label
   // and wraps into a fraction of the width it needs.
-  const withEvidence = shown.filter((cell) => cell.kind && cell.detail);
+  const withEvidence = shown.filter((cell) => cell.detail);
   if (withEvidence.length === 0) broken('no finding in the fixture carries evidence, so where the evidence lands cannot be seen');
   for (const cell of withEvidence) {
-    if (Math.abs(cell.detail.left - cell.kind.left) > 1) {
-      fail(DETAIL_SITE, `evidence starts at ${cell.detail.left}px and the finding it belongs to at ${cell.kind.left}px, so it sits in the label's column`);
+    if (cell.detail.left - cell.box.left < 20 || cell.detail.top - cell.box.top > 8) {
+      fail(DETAIL_SITE, `evidence starts ${cell.detail.left - cell.box.left}px in and ${cell.detail.top - cell.box.top}px down in its cell, so it sits under the label and not beside it`);
     }
   }
 
@@ -350,6 +448,33 @@ try {
   const widest = Math.max(...shown.map((cell) => cell.box.right));
   if (widest > table.viewportRight + 1) {
     fail(WIDTH_SITE, `a cell reaches ${widest}px past the ${table.viewportRight}px edge of the viewport`);
+  }
+
+  // At a laptop's width the four columns are a table, and every table stands
+  // them at the same place and the same width: the file, the finding, the
+  // weight and the count line up from one kind to the next down the page. The
+  // counts are read down one edge in tabular figures, there is one rule and it
+  // is under the header, and nothing is ruled between rows.
+  await page.setViewportSize(DESK);
+  const desk = await readDesk(page);
+  if (desk.length < 2) broken(`the page draws ${desk.length} tables at ${DESK.width}px, too few to compare`);
+  for (const [i, measured] of desk.entries()) {
+    for (const [column, share] of COLUMN_SHARES.entries()) {
+      if (Math.abs(measured.shares[column] - share) > 0.01) {
+        fail(COLUMNS_SITE, `table ${i}'s column ${column} is ${(measured.shares[column] * 100).toFixed(1)}% of the table, want ${share * 100}%`);
+      }
+      if (Math.abs(measured.starts[column] - desk[0].starts[column] * (measured.width / desk[0].width)) > 1) {
+        fail(COLUMNS_SITE, `table ${i}'s column ${column} starts at ${measured.starts[column].toFixed(1)}px, not where the first table's does`);
+      }
+    }
+    if (measured.countAlign.some((align) => !['right', 'end'].includes(align)) || measured.countFigures.some((figures) => !figures.includes('tabular-nums'))) {
+      fail(FIGURES_SITE, `table ${i}'s counts are set ${JSON.stringify(measured.countAlign)} in ${JSON.stringify(measured.countFigures)}, want right-aligned tabular figures`);
+    }
+    if (new Set(measured.countEdges.map((edge) => Math.round(edge))).size > 1) {
+      fail(FIGURES_SITE, `table ${i}'s counts do not end on one edge: ${JSON.stringify(measured.countEdges)}`);
+    }
+    if (!(measured.headRule > 0)) fail(RULES_SITE, `table ${i} draws no rule under its header`);
+    if (measured.bodyRule > 0) fail(RULES_SITE, `table ${i} draws a ${measured.bodyRule}px line between its rows`);
   }
 
   // The shape line's own numbers, held against a second count of the very
@@ -394,52 +519,54 @@ try {
   if (errorBadge.color === warnBadge.color) {
     fail(INK_SITE, `error and warn severity badges both paint ${errorBadge.color}, so the two weights read as the same ink`);
   }
-  if (errorBadge.markerRadius === warnBadge.markerRadius) {
-    fail(MARKER_SITE, `error and warn severity badges both draw a ${errorBadge.markerRadius} marker, so the two weights read as the same shape`);
+  if (errorBadge.markerShape === warnBadge.markerShape) {
+    fail(MARKER_SITE, `error and warn severity badges both draw a ${errorBadge.markerShape} marker, so the two weights read as the same shape`);
   }
 
   const before = await readRows(page);
   const weights = new Set(before.map((row) => row.weight));
-  if (weights.size < 2) broken(`every finding in the fixture weighs the same (${[...weights]}), so reordering by weight could not be seen`);
+  if (weights.size < 2) broken(`every finding in the fixture weighs the same (${[...weights]}), so no weight could be read off the rows`);
 
-  const severity = page.locator('.y-findings thead a[href$="=severity"]');
-  if (await severity.count() !== 1) broken(`the table offers ${await severity.count()} ways to order by weight, want 1`);
+  // A heading orders the rows of each kind among themselves. The kinds keep
+  // their places, so the groups stand in the order they did, and inside each
+  // the files run in order.
+  const file = page.locator('.y-findings thead a[href$="=file"]');
+  if (await file.count() < 1) broken('the tables offer no way to order by file');
   // The ordering is a whole new document, so the rows are read after that
   // document has arrived rather than after whatever was still on screen the
   // moment the click returned.
   const asked = page.url();
-  await severity.click();
+  await file.first().click();
   await page.waitForURL((url) => url.toString() !== asked, { timeout: 15000 });
   await page.waitForLoadState('domcontentloaded');
   await arrived(page);
   if (await page.locator('.y-findings tbody tr').count() === 0) {
-    broken(`following the weight heading landed on ${page.url()}, which carries no findings table at all`);
+    broken(`following the file heading landed on ${page.url()}, which carries no findings table at all`);
   }
 
   const after = await readRows(page);
   if (after.length !== before.length) broken(`the reordered page holds ${after.length} findings, was ${before.length}`);
   if (after.every((row, i) => row.subject === before[i].subject)) {
-    fail(ORDER_SITE, 'following the weight heading returned the rows in exactly the order they were already in');
+    fail(ORDER_SITE, 'following the file heading returned the rows in exactly the order they were already in');
   }
   for (let i = 1; i < after.length; i += 1) {
-    const heavier = WEIGHTS[after[i - 1].weight];
-    const lighter = WEIGHTS[after[i].weight];
-    if (heavier === undefined || lighter === undefined) broken(`a row weighs ${JSON.stringify(after[i])}, which is no weight this page uses`);
-    if (heavier < lighter) {
-      fail(ORDER_SITE, `ordered by weight, row ${i} (${after[i].weight}) is heavier than the row above it (${after[i - 1].weight})`);
+    if (after[i].group < after[i - 1].group) {
+      fail(ORDER_SITE, `ordered by file, row ${i} belongs to a kind that stands above the kind of the row before it: the kinds moved`);
+    }
+    if (after[i].group === after[i - 1].group && after[i].subject < after[i - 1].subject) {
+      fail(ORDER_SITE, `ordered by file, ${JSON.stringify(after[i].subject)} stands below ${JSON.stringify(after[i - 1].subject)} in one kind`);
     }
   }
   const sorted = (await readTable(page)).headings.filter((heading) => heading.sorted);
-  if (sorted.length !== 1 || !sorted[0].href.endsWith('=severity')) {
-    fail(ORDER_SITE, `the reordered page marks ${JSON.stringify(sorted)} as the ordering in force, want the weight heading alone`);
+  if (sorted.length !== (await readTable(page)).tables || sorted.some((heading) => !heading.href.endsWith('=file'))) {
+    fail(ORDER_SITE, `the reordered page marks ${JSON.stringify(sorted)} as the ordering in force, want the file heading of every table`);
   }
 
-  // A weight in the shape line is a live link to that same reordering, proven
-  // by following it — from a fresh, unsorted visit, so the click has an order
-  // to actually change.
+  // A weight in the shape line is a live link to the weight ordering, proven
+  // by following it — from a fresh, unsorted visit — and by what it arrives at:
+  // every table marked as ordered by weight, the heaviest first inside each.
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
   await arrived(page);
-  const beforeShape = await readRows(page);
   const shapeLink = page.locator('.y-healthshape__weight').first();
   if (await shapeLink.count() === 0) broken('the fixture carries a weight, so the shape line must offer a weight link to follow');
   const askedShape = page.url();
@@ -447,22 +574,23 @@ try {
   await page.waitForURL((url) => url.toString() !== askedShape, { timeout: 15000 });
   await page.waitForLoadState('domcontentloaded');
   await arrived(page);
-  const afterShape = await readRows(page);
-  if (afterShape.length !== beforeShape.length) broken(`the reordered page holds ${afterShape.length} findings, was ${beforeShape.length}`);
-  if (afterShape.every((row, i) => row.subject === beforeShape[i].subject)) {
-    fail(SHAPE_SITE, 'following a weight link from the shape line returned the rows in exactly the order they were already in');
-  }
-  for (let i = 1; i < afterShape.length; i += 1) {
-    const heavier = WEIGHTS[afterShape[i - 1].weight];
-    const lighter = WEIGHTS[afterShape[i].weight];
-    if (heavier === undefined || lighter === undefined) broken(`a row weighs ${JSON.stringify(afterShape[i])}, which is no weight this page uses`);
+  const byWeight = await readRows(page);
+  for (let i = 1; i < byWeight.length; i += 1) {
+    if (byWeight[i].group !== byWeight[i - 1].group) continue;
+    const heavier = WEIGHTS[byWeight[i - 1].weight];
+    const lighter = WEIGHTS[byWeight[i].weight];
+    if (heavier === undefined || lighter === undefined) broken(`a row weighs ${JSON.stringify(byWeight[i])}, which is no weight this page uses`);
     if (heavier < lighter) {
-      fail(SHAPE_SITE, `following the shape line's weight link, row ${i} (${afterShape[i].weight}) is heavier than the row above it (${afterShape[i - 1].weight})`);
+      fail(SHAPE_SITE, `following the shape line's weight link, row ${i} (${byWeight[i].weight}) is heavier than the row above it (${byWeight[i - 1].weight}) in one kind`);
     }
+  }
+  const weighed = (await readTable(page)).headings.filter((heading) => heading.sorted);
+  if (weighed.length !== (await readTable(page)).tables || weighed.some((heading) => !heading.href.endsWith('=severity'))) {
+    fail(SHAPE_SITE, `following the shape line's weight link marks ${JSON.stringify(weighed)} as the ordering in force, want the weight heading of every table`);
   }
 
   await page.close();
-  console.log(`PASS health-table: ${table.rows} findings stack and name their columns at ${PHONE.width}px with no sideways scroll, a heading really reorders them, the shape line's own numbers hold, and error reads heavier than warn`);
+  console.log(`PASS health-table: ${table.rows} findings stack and name their columns at ${PHONE.width}px with no sideways scroll, a heading really reorders them, the shape line's own numbers hold, and the weights draw their own shapes`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

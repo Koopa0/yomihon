@@ -52,6 +52,25 @@ type Health struct {
 	// a thing to do on every page.
 	FrontmatterUnreadable []HealthNoteFindings
 	SchemaFaults          []HealthNoteFindings
+
+	// UnmappedConcepts are the notes of the contract's concept type that no
+	// note of a map type links to in its text, so that no map reaches them. They
+	// are how the folder's maps cover its concepts, said for the author to see,
+	// and not findings: a concept waiting for its map is not a fault, and the
+	// page holds no weight for it. Empty where the contract declares no concept
+	// type.
+	UnmappedConcepts []nav.NoteRef
+	// EmptyBranches are the headings of the folder's maps that no note stands
+	// under, which a map's own tree leaves out. They are said here for the same
+	// reason, and are no findings either.
+	EmptyBranches []HealthEmptyBranch
+}
+
+// HealthEmptyBranch is one heading of a map with no note beneath it.
+type HealthEmptyBranch struct {
+	Map     nav.NoteRef
+	Heading string
+	Level   int
 }
 
 // HealthNoteFindings is one note the schema had something to say about: how
@@ -153,8 +172,9 @@ func (h *Health) Empty() bool {
 // newHealth gathers the whole-folder view from projections this generation
 // already built, through the same extractor as every other link answer here.
 // links is what each note cites, by path, as it was read when the note was.
-func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef, roles schema.NavigationRoles) Health {
+func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef, roles schema.NavigationRoles, coverage mapCoverage) Health {
 	var h Health
+	h.EmptyBranches = emptyBranchRows(coverage.maps)
 	var uncited []nav.NoteRef
 	titleReferenced := make(map[string]bool)
 	if idx == nil {
@@ -210,8 +230,63 @@ func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index,
 	islands := slices.DeleteFunc(uncited, func(n nav.NoteRef) bool { return titleReferenced[n.RelPath] })
 	h.Collisions = collisions(idx, links)
 	h.Islands = groupByFolder(islands)
+	h.UnmappedConcepts = unmappedConcepts(notes, back, policy, roles, coverage)
 	sortHealth(&h)
 	return h
+}
+
+// mapCoverage is what the two coverage groups are worked out from: the
+// folder's maps, the type its concepts are filed under (empty where the
+// contract declares none), and the layer the concepts are read in.
+type mapCoverage struct {
+	maps        []nav.Map
+	conceptType string
+	knowledge   schema.KnowledgeScope
+}
+
+// emptyBranchRows lists every heading of every map that no note stands under,
+// map by map in the order the maps are listed.
+func emptyBranchRows(maps []nav.Map) []HealthEmptyBranch {
+	var rows []HealthEmptyBranch
+	for i := range maps {
+		for _, branch := range maps[i].Empty {
+			rows = append(rows, HealthEmptyBranch{
+				Map:     nav.NoteRef{Name: maps[i].Title, RelPath: maps[i].RelPath},
+				Heading: branch.Heading,
+				Level:   branch.Level,
+			})
+		}
+	}
+	return rows
+}
+
+// unmappedConcepts lists the concept notes no map links to in its text, in path
+// order. A concept is reached by a map when a note of a map type cites it; one
+// cited only by other notes is still waiting to be placed on one. Notes outside
+// the knowledge layer and declared non-instances are no concepts of this vault.
+func unmappedConcepts(notes []*vault.Note, back *Backlinks, policy schema.ArtifactPolicy, roles schema.NavigationRoles, coverage mapCoverage) []nav.NoteRef {
+	if coverage.conceptType == "" {
+		return nil
+	}
+	types := make(map[string]string, len(notes))
+	for _, n := range notes {
+		if n != nil {
+			types[n.RelPath] = n.Type()
+		}
+	}
+	var out []nav.NoteRef
+	for _, n := range notes {
+		if n == nil || schema.NormalizeWord(n.Type()) != coverage.conceptType ||
+			policy.IsNonInstance(n.RelPath) || !coverage.knowledge.Includes(n.RelPath) {
+			continue
+		}
+		if slices.ContainsFunc(back.To(n.RelPath), func(citer nav.NoteRef) bool { return roles.IsMapType(types[citer.RelPath]) }) {
+			continue
+		}
+		out = append(out, nav.NoteRef{Name: nav.Label(n.RelPath), RelPath: n.RelPath})
+	}
+	slices.SortFunc(out, func(a, b nav.NoteRef) int { return vault.ComparePaths(a.RelPath, b.RelPath) })
+	return out
 }
 
 // collisions lists every name several files claim and some note cites. It asks

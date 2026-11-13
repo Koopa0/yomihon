@@ -102,7 +102,7 @@ func JournalIndex(v JournalView, c layouts.Chrome) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = ShelfPage(v.Entries).Render(ctx, templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = ShelfPage(v.Entries, c.Lang).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -124,7 +124,7 @@ func JournalIndex(v JournalView, c layouts.Chrome) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = ShelfPage(v.Undated).Render(ctx, templ_7745c5c3_Buffer)
+					templ_7745c5c3_Err = ShelfPage(v.Undated, c.Lang).Render(ctx, templ_7745c5c3_Buffer)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

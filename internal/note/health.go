@@ -24,10 +24,10 @@ import (
 // is called and in which language, which is a question about this request.
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(h.sources.VaultName, authority, snap)
-	found := shell.GatherFindings(authority, snap)
+	found := shell.GatherFindings(snap)
 	articleLang := articleLanguageLookup(snap)
 	contract := h.enumContract(authority)
 	view := pages.HealthView{
@@ -39,11 +39,11 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		Blocked:               healthBlocked(found.Blocked),
 		Notices:               folderNotices(found.Collision, found.Root, lang),
 		Skipped:               healthSkipped(found.Skipped),
-		StatusOutsideEnum:     healthStatusNotes(found.StatusOutsideEnum, articleLang, contract),
-		StatusUnreachable:     healthStatusNotes(found.StatusUnreachable, articleLang, nil),
 		FrontmatterUnreadable: healthNoteFindings(found.FrontmatterUnreadable, articleLang),
 		SchemaFaults:          healthEnumFindings(healthNoteFindings(found.SchemaFaults, articleLang), snap, lang, contract),
 		NavigationFaults:      healthNavigationFaults(found.NavigationFaults, articleLang),
+		UnmappedConcepts:      noteRefs(found.UnmappedConcepts, articleLang),
+		EmptyBranches:         healthEmptyBranches(found.EmptyBranches, articleLang),
 		InstanceScopeUnknown:  found.InstanceScopeUnknown,
 		// A folder that declared no vocabulary has no schema findings to
 		// report, and that is an answer rather than a failure — the view says
@@ -51,7 +51,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		// of the closed flag. What it carries is whatever actually failed: a
 		// contract that could not be read, or one that read and named a
 		// folder its artifacts section may not name.
-		SchemaScopeUnknown: authority.Diagnostic(lang),
+		SchemaScopeUnknown: authority.Diagnostic(),
 		LastComplete:       lastCompleteBuild(found.LastComplete),
 		// A word the table cannot order by leaves the page in its default
 		// order: the reader asked for this page, and the ordering is how it is
@@ -68,19 +68,13 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// healthStatusNotes carries the gathered notes whose status their type never
-// declared across to the page, each title marked with the language its author
-// wrote it in. The rows arrive in the index's own path order, which is the
-// order the rest of the page lists findings in.
-func healthStatusNotes(found []shell.StatusNote, articleLang pages.ArticleLanguageFor, contract *schema.Contract) []pages.HealthStatusNote {
-	out := make([]pages.HealthStatusNote, 0, len(found))
-	for _, row := range found {
-		out = append(out, pages.HealthStatusNote{
-			Note:            noteRef(row.Note, articleLang),
-			Type:            row.Type,
-			Status:          row.Status,
-			AllowedStatuses: contract.StatusesInGroup(contract.StatusGroup(row.Type)),
-		})
+// healthEmptyBranches carries each map that has a heading no note stands under
+// across to the page, marked with the language its author wrote it in.
+func healthEmptyBranches(found []snapshot.HealthEmptyBranch, articleLang pages.ArticleLanguageFor) []snapshot.HealthEmptyBranch {
+	out := make([]snapshot.HealthEmptyBranch, len(found))
+	for i, branch := range found {
+		branch.Map = noteRef(branch.Map, articleLang)
+		out[i] = branch
 	}
 	return out
 }
@@ -242,10 +236,6 @@ func healthNavigationFaults(found []nav.CoreFault, articleLang pages.ArticleLang
 // Other diagnostics stay on the note; only enum repair needs the whole list.
 func healthEnumFindings(rows []pages.HealthNoteFindings, snap *snapshot.Generation, lang wording.Lang, contract *schema.Contract) []pages.HealthNoteFindings {
 	for i := range rows {
-		reading, ok := snap.Note(rows[i].Note.RelPath)
-		if !ok {
-			continue
-		}
 		findings := snap.SchemaFindings(rows[i].Note.RelPath)
 		for j := range findings {
 			finding := &findings[j]
@@ -253,7 +243,7 @@ func healthEnumFindings(rows []pages.HealthNoteFindings, snap *snapshot.Generati
 				continue
 			}
 			field := deref(finding.Field)
-			parts := wording.AllowedEnumValues(lang, field, enumValues(contract, field, reading.Type))
+			parts := wording.AllowedEnumValues(lang, field, enumValues(contract, field))
 			if len(parts) > 0 {
 				rows[i].EnumNotices = append(rows[i].EnumNotices, parts)
 			}

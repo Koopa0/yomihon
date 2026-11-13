@@ -115,10 +115,8 @@ func (f *File) Continuation() (Continuation, bool) {
 //
 // The replacement is written beside the file and renamed over it, so a reader
 // whose machine stops mid-write finds either the old mark or the new one and
-// never half of either. It is not synchronized to the platter: the guarantee
-// the status write buys there is for an author's own bytes surviving a power
-// cut, and what is lost here is one mark a reader sets again by pressing the
-// same control.
+// never half of either. It is not synchronized to the platter: what is lost
+// here is one mark a reader sets again by pressing the same control.
 func (f *File) SetContinuation(c *Continuation) error {
 	if err := validate(c); err != nil {
 		return err

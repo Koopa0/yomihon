@@ -172,8 +172,8 @@ func TestSpeculationRulesReachOnlyReadingAddresses(t *testing.T) {
 	fetched := []string{
 		"/notes/Lessons/L01%20Point%20yomihon%20at%20a%20folder.md",
 		"/notes/Notes/What%20yomihon%20is.md?q=read#a-section",
-		"/syllabus/Maps/study.md",
-		"/paths",
+		"/courses/Maps/study.md",
+		"/courses",
 		"/maps",
 		"/journal",
 		"/journal?month=2026-07",
@@ -183,7 +183,7 @@ func TestSpeculationRulesReachOnlyReadingAddresses(t *testing.T) {
 	}
 	// Everything else a reader's page links to or the server answers, named so
 	// that a route added under an allowed prefix has to be added here to be
-	// judged. The last three are the allowed prefixes' own traps.
+	// judged. The last is an allowed prefix's own trap.
 	left := []string{
 		"/",
 		"/health",
@@ -196,16 +196,15 @@ func TestSpeculationRulesReachOnlyReadingAddresses(t *testing.T) {
 		"/freshness/Notes/What%20yomihon%20is.md",
 		"/preview/Notes/What%20yomihon%20is.md",
 		"/thought/Notes/What%20yomihon%20is.md",
+		"/syllabus/Maps/study.md",
+		"/paths",
 		"/open-thoughts",
 		"/preferences",
 		"/preferences?from=%2Fnotes%2Fa.md",
 		"/marks",
 		"/uncertainties",
 		"/static/app.css",
-		"/status",
 		"/reports/2026-09-03.html",
-		"/notes/Notes/What%20yomihon%20is.md?from=draft",
-		"/notes/Notes/What%20yomihon%20is.md?q=read&from=draft",
 	}
 	for _, address := range fetched {
 		if !hover.Where.admits(t, address, false) {

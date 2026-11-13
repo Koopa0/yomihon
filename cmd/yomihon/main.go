@@ -1,6 +1,6 @@
 // yomihon is the local reading-and-adjudication interface for the Obsidian
-// vault. Its HTTP server listens only on 127.0.0.1 and writes exactly one
-// frontmatter field (status). Nothing here contacts a network.
+// vault. Its HTTP server listens only on 127.0.0.1 and writes nothing into the
+// vault. Nothing here contacts a network.
 package main
 
 import (
@@ -236,7 +236,7 @@ func run(log *slog.Logger, root string) (resultErr error) {
 	log.Info("yomihon serving", "addr", listener.Addr().String(), "vault", cfg.root)
 	err = serveHTTP(ctx, srv, listener, shutdownGrace(srv))
 	// The deferred close above waits without a deadline for in-flight handlers
-	// and the scanner, deliberately, so an uncertain status write is not
+	// and the scanner, deliberately, so work already accepted is not
 	// abandoned. Announcing that turns the wait from an apparent hang into a
 	// visible state, which is what the reader who pressed Ctrl-C is owed.
 	// While the notify handler is installed that wait also swallows a repeated

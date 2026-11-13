@@ -1,11 +1,7 @@
 ---
-title: G05 固定數量的 worker
 type: lesson
-status: ready
-domain: go
 slug: go-worker-pool
 level: intermediate
-topics: [Go, 並行, worker]
 created: 2026-09-22
 lang: zh-Hant
 ---

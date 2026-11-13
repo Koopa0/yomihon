@@ -18,7 +18,7 @@ func TestChromeAnchorsStayOutsideEveryAuthoredHeading(t *testing.T) {
 		t.Run(lang.Tag(), func(t *testing.T) {
 			t.Parallel()
 			contract := rejectedCapabilityContract(t)
-			faulted := nav.New(nil, nil, graph.BuildFromNotes(nil, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement())
+			faulted := nav.New(nil, nil, graph.BuildFromNotes(nil, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate())
 			for _, variant := range []struct {
 				name  string
 				model *nav.Model

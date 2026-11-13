@@ -21,8 +21,8 @@ func TestAGenerationCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 
 	const faulty = "Concepts/golang/Bad.md"
 	const clean = "Concepts/golang/Fine.md"
-	faultyBody := "---\ntitle: Bad\ntype: concept\ndomain: golang\nstatus: bogus\ncreated: 2026-06-01\nupdated: 2026-06-01\nextra: 1\n---\n\nbody\n"
-	cleanBody := "---\ntitle: Fine\ntype: concept\ndomain: golang\nstatus: seedling\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Something]]\"\n---\n\nbody\n"
+	faultyBody := "---\ntype: concept\ndraft: maybe\ncreated: 2026-06-01\nextra: 1\n---\n\nbody\n"
+	cleanBody := "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[Something]]\"\n---\n\n# Fine\n\nbody\n"
 
 	root := t.TempDir()
 	contract := testContract(t, root)
@@ -31,10 +31,7 @@ func TestAGenerationCarriesTheSchemaVerdictForEachNote(t *testing.T) {
 	store, _ := newTestStore(t, root, contract)
 	gen := store.Current()
 
-	want, err := judge.LintFrontmatter(faulty, []byte(faultyBody), contract)
-	if err != nil {
-		t.Fatalf("judge.LintFrontmatter() error = %v", err)
-	}
+	want := judge.LintFrontmatter(faulty, []byte(faultyBody), contract)
 	if len(want) == 0 {
 		t.Fatal("the fixture note draws no schema findings, so this test would pass on any implementation")
 	}
@@ -62,7 +59,7 @@ func TestSchemaFindingsAreTheCallersOwnSlice(t *testing.T) {
 	t.Parallel()
 
 	const faulty = "Concepts/golang/Bad.md"
-	body := "---\ntitle: Bad\ntype: concept\ndomain: golang\nstatus: bogus\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n"
+	body := "---\ntype: concept\ndraft: maybe\ncreated: 2026-06-01\n---\n\nbody\n"
 
 	root := t.TempDir()
 	contract := testContract(t, root)
@@ -124,7 +121,7 @@ func TestGenerationDomainFolder(t *testing.T) {
 func TestCapturedDomainRoots(t *testing.T) {
 	t.Parallel()
 	const rel = "Writing/lessons/japanese/nested/Deep.md"
-	const body = "---\ntitle: Deep\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n"
+	const body = "---\ntype: concept\ndomain: golang\ncreated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n"
 	root := t.TempDir()
 	firstContract := domainRootContract(t, root, `["Writing/lessons"]`)
 	writeNote(t, root, rel, body)
@@ -132,24 +129,23 @@ func TestCapturedDomainRoots(t *testing.T) {
 	first := firstStore.Current().Capture()
 
 	copyBeforeBuild := firstContract.Definition()
-	copyBeforeBuild.Rules.DomainEqualsFolderUnder[0] = "Writing"
+	copyBeforeBuild.Folders.DomainFrom[0] = "Writing"
 	fromOriginalContract, _ := newTestStore(t, root, firstContract)
 	copyAfterBuild := firstContract.Definition()
-	copyAfterBuild.Rules.DomainEqualsFolderUnder[0] = "Writing"
+	copyAfterBuild.Folders.DomainFrom[0] = "Writing"
 
 	secondContract := domainRootContract(t, root, `["Writing"]`)
 	secondStore, _ := newTestStore(t, root, secondContract)
 	second := secondStore.Current().Capture()
 
 	for _, tt := range []struct {
-		name    string
-		gen     *Generation
-		folder  string
-		message string
+		name   string
+		gen    *Generation
+		folder string
 	}{
-		{name: "captured first after replacement", gen: first, folder: "japanese", message: `domain "golang" does not match its folder japanese`},
-		{name: "original contract after caller edits", gen: fromOriginalContract.Current().Capture(), folder: "japanese", message: `domain "golang" does not match its folder japanese`},
-		{name: "captured replacement", gen: second, folder: "lessons", message: `domain "golang" does not match its folder lessons`},
+		{name: "captured first after replacement", gen: first, folder: "japanese"},
+		{name: "original contract after caller edits", gen: fromOriginalContract.Current().Capture(), folder: "japanese"},
+		{name: "captured replacement", gen: second, folder: "lessons"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -157,25 +153,51 @@ func TestCapturedDomainRoots(t *testing.T) {
 			if folder != tt.folder || !found {
 				t.Errorf("captured DomainFolder(%q) = (%q, %t), want (%q, true)", rel, folder, found, tt.folder)
 			}
-			var got []judge.Finding
-			for _, finding := range tt.gen.SchemaFindings(rel) {
-				if finding.RuleID == "schema.domain_folder" {
-					got = append(got, finding)
-				}
+			reading, ok := tt.gen.Note(rel)
+			if !ok {
+				t.Fatalf("Note(%q) absent from the generation", rel)
 			}
-			if len(got) != 1 {
-				t.Fatalf("captured domain findings = %v, want exactly one", got)
-			}
-			want := judge.Finding{
-				RuleID: "schema.domain_folder", Path: rel, Severity: judge.SeverityError,
-				Field: new("domain"), Target: new("golang"), Message: tt.message,
-				Evidence: "frontmatter validated against vault-schema.toml", SuggestedAction: "fix the frontmatter to match the schema",
-				SourceRule: "vault-schema.toml#rules", Fingerprint: "v1:1b6dee4516d7c953",
-			}
-			if diff := cmp.Diff(want, got[0]); diff != "" {
-				t.Errorf("captured domain finding mismatch (-want +got):\n%s", diff)
+			if reading.Domain != tt.folder {
+				t.Errorf("Note(%q).Domain = %q, want %q, the folder and not the frontmatter", rel, reading.Domain, tt.folder)
 			}
 		})
+	}
+}
+
+// TestAReadingTakesItsDomainFromItsFolder pins where a note's domain comes
+// from: the first folder below whichever declared root holds it. A note
+// directly under a root, or outside every root, has none, and a domain the
+// frontmatter writes is never read.
+func TestAReadingTakesItsDomainFromItsFolder(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	contract := domainRootContract(t, root, `["Concepts", "Writing/lessons"]`)
+	const body = "---\ntype: concept\ndomain: written\n---\n\nbody\n"
+	tests := []struct {
+		rel  string
+		want string
+	}{
+		{rel: "Concepts/golang/Slices.md", want: "golang"},
+		{rel: "Concepts/golang/deep/Maps.md", want: "golang"},
+		{rel: "Writing/lessons/japanese/L1.md", want: "japanese"},
+		{rel: "Concepts/Overview.md", want: ""},
+		{rel: "Notes/rust/Ownership.md", want: ""},
+		{rel: "Writing/lessons-extra/japanese/L2.md", want: ""},
+	}
+	for _, tt := range tests {
+		writeNote(t, root, tt.rel, body)
+	}
+	store, _ := newTestStore(t, root, contract)
+	gen := store.Current()
+	for _, tt := range tests {
+		reading, ok := gen.Note(tt.rel)
+		if !ok {
+			t.Errorf("Note(%q) absent from the generation", tt.rel)
+			continue
+		}
+		if reading.Domain != tt.want {
+			t.Errorf("Note(%q).Domain = %q, want %q", tt.rel, reading.Domain, tt.want)
+		}
 	}
 }
 
@@ -185,11 +207,11 @@ func domainRootContract(t *testing.T, root, roots string) *schema.Contract {
 	if err != nil {
 		t.Fatalf("read contract fixture: %v", err)
 	}
-	const declaration = `domain_equals_folder_under = ["Concepts"]`
+	const declaration = `domain_from = ["Concepts"]`
 	if strings.Count(string(data), declaration) != 1 {
 		t.Fatal("fixture must have exactly one domain-root declaration")
 	}
-	data = []byte(strings.Replace(string(data), declaration, "domain_equals_folder_under = "+roots, 1))
+	data = []byte(strings.Replace(string(data), declaration, "domain_from = "+roots, 1))
 	tree, openErr := os.OpenRoot(root)
 	if openErr != nil {
 		t.Fatalf("open fixture root: %v", openErr)

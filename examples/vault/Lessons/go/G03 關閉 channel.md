@@ -1,11 +1,7 @@
 ---
-title: G03 關閉 channel
 type: lesson
-status: ready
-domain: go
 slug: go-close-channel
 level: fundamental
-topics: [Go, 並行, channel]
 created: 2026-09-22
 lang: zh-Hant
 ---

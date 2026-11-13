@@ -12,7 +12,7 @@ import (
 func TestDeclaredSourcesPreserveAuthoredPlaces(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNote(t, root, "Source.md", "---\ntitle: Source\n---\n# Source\n\n## Methods\n\nmethod ^Quote-1\n\n## Limitations\n\nlimits\n\n```md\n## Fiction\n```\n")
+	writeNote(t, root, "Source.md", "---\n---\n# Source\n\n## Methods\n\nmethod ^Quote-1\n\n## Limitations\n\nlimits\n\n```md\n## Fiction\n```\n")
 	writeNote(t, root, "Other.md", "## Observation\n\nobservation\n")
 	writeNote(t, root, "A/twin.md", "a\n")
 	writeNote(t, root, "B/twin.md", "b\n")

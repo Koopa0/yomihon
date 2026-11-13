@@ -498,10 +498,10 @@ func TestAPathOfNotesThatAreNotLessonsNamesNoLessonAnywhere(t *testing.T) {
 	}
 }
 
-// TestNoKickerEndsInASeparator holds the line above a path's title on both pages
-// that carry it. The line is the whole of what it says, so there is nothing
-// after it for a separator to join to, and a mark left at its end reads as a
-// sentence that stopped.
+// TestNoKickerEndsInASeparator holds the line above a course's title on the page
+// that carries one, the listening page. The line is the whole of what it says,
+// so there is nothing after it for a separator to join to, and a mark left at
+// its end reads as a sentence that stopped.
 func TestNoKickerEndsInASeparator(t *testing.T) {
 	t.Parallel()
 
@@ -510,25 +510,20 @@ func TestNoKickerEndsInASeparator(t *testing.T) {
 		lang wording.Lang
 		want string
 	}{
-		{wording.ZhHant, "學習路徑"},
-		{wording.En, "Study path"},
+		{wording.ZhHant, "課程"},
+		{wording.En, "Course"},
 	} {
-		pages := map[string]string{
-			"cover":  renderedHTML(t, Syllabus(PathView{Title: "Path"}, layouts.Chrome{Lang: tt.lang})),
-			"listen": renderedHTML(t, Listen(ListenView{Title: "Path"}, layouts.Chrome{Lang: tt.lang})),
+		html := renderedHTML(t, Listen(ListenView{Title: "Path"}, layouts.Chrome{Lang: tt.lang}))
+		found := kicker.FindStringSubmatch(html)
+		if found == nil {
+			t.Errorf("the listen page in %s carries no kicker; the check below proves nothing", tt.lang)
+			continue
 		}
-		for name, html := range pages {
-			found := kicker.FindStringSubmatch(html)
-			if found == nil {
-				t.Errorf("the %s in %s carries no kicker; the check below proves nothing", name, tt.lang)
-				continue
-			}
-			if found[1] != tt.want {
-				t.Errorf("the %s kicker in %s reads %q, want %q", name, tt.lang, found[1], tt.want)
-			}
-			if strings.HasSuffix(strings.TrimSpace(found[1]), "·") {
-				t.Errorf("the %s kicker in %s ends in a separator: %q", name, tt.lang, found[1])
-			}
+		if found[1] != tt.want {
+			t.Errorf("the listen kicker in %s reads %q, want %q", tt.lang, found[1], tt.want)
+		}
+		if strings.HasSuffix(strings.TrimSpace(found[1]), "·") {
+			t.Errorf("the listen kicker in %s ends in a separator: %q", tt.lang, found[1])
 		}
 	}
 }
@@ -588,19 +583,19 @@ func TestTheRailDrawsASideBranchAfterTheLessonItHangsFrom(t *testing.T) {
 	}
 }
 
-// TestTheHeadNamesWhatIsUnsettledInTheNounThePathIsReadIn holds the exception
+// TestTheHeadNamesTheDraftsInTheNounThePathIsReadIn holds the exception
 // the head states after the extent. It is the one place the interface says a
 // count of entries in a sentence of its own, so it is the place a noun left
 // behind in one language would show.
-func TestTheHeadNamesWhatIsUnsettledInTheNounThePathIsReadIn(t *testing.T) {
+func TestTheHeadNamesTheDraftsInTheNounThePathIsReadIn(t *testing.T) {
 	t.Parallel()
 
-	contract := settledTestContract(t, "ready")
+	contract := loadTestContract(t)
 	lessons := buildPathUnder(t, contract, "## Data {sequence=primary}\n\n- [[Slices]]\n- [[Arrays]]\n- [[GC]]\n")
 	items := buildPathUnder(t, contract, "## Data {sequence=primary}\n\n- [[Queue]]\n- [[Worker]]\n- [[Gate]]\n", map[string]string{
-		"Writing/Queue.md":  "---\ntitle: Queue\ntype: concept\nstatus: draft\n---\nbody\n",
-		"Writing/Worker.md": "---\ntitle: Worker\ntype: concept\nstatus: ready\n---\nbody\n",
-		"Writing/Gate.md":   "---\ntitle: Gate\ntype: concept\nstatus: draft\n---\nbody\n",
+		"Writing/Queue.md":  "---\ntitle: Queue\ntype: concept\ndraft: true\n---\nbody\n",
+		"Writing/Worker.md": "---\ntitle: Worker\ntype: concept\n---\nbody\n",
+		"Writing/Gate.md":   "---\ntitle: Gate\ntype: concept\ndraft: true\n---\nbody\n",
 	})
 	settled := buildPathUnder(t, contract, "## Data {sequence=primary}\n\n- [[Slices]]\n- [[GC]]\n")
 
@@ -610,21 +605,21 @@ func TestTheHeadNamesWhatIsUnsettledInTheNounThePathIsReadIn(t *testing.T) {
 		lang wording.Lang
 		want string
 	}{
-		{"lessons in Chinese", &lessons, wording.ZhHant, "其中 1 課尚未定案"},
-		{"items in Chinese", &items, wording.ZhHant, "其中 2 篇尚未定案"},
-		{"lessons in English", &lessons, wording.En, "1 not yet settled"},
-		{"items in English", &items, wording.En, "2 not yet settled"},
+		{"lessons in Chinese", &lessons, wording.ZhHant, "其中 1 課是草稿"},
+		{"items in Chinese", &items, wording.ZhHant, "其中 2 篇是草稿"},
+		{"lessons in English", &lessons, wording.En, "1 in draft"},
+		{"items in English", &items, wording.En, "2 in draft"},
 		{"nothing left to finish", &settled, wording.ZhHant, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			view := BuildPathView(tt.path, []nav.Path{*tt.path}, &CourseCover{})
-			if got := view.UnsettledNote(tt.lang); got != tt.want {
-				t.Errorf("UnsettledNote() = %q, want %q", got, tt.want)
+			if got := view.DraftsNote(tt.lang); got != tt.want {
+				t.Errorf("DraftsNote() = %q, want %q", got, tt.want)
 			}
-			if got := strings.Contains(renderCover(t, &view, tt.lang), `data-course-unsettled`); got != (tt.want != "") {
-				t.Errorf("the head draws the unsettled figure = %t, want %t", got, tt.want != "")
+			if got := strings.Contains(renderCover(t, &view, tt.lang), `data-course-drafts`); got != (tt.want != "") {
+				t.Errorf("the head draws the drafts figure = %t, want %t", got, tt.want != "")
 			}
 		})
 	}

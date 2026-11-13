@@ -51,6 +51,10 @@ func TestComponentMotionIsWrittenInTokens(t *testing.T) {
 			declaration: "animation: y-search-spin 0.7s linear infinite;",
 		},
 		{
+			why:         "the fallback that shows a kept place's column when the script that places it never runs, a wait for a failed script rather than a tempo, which flips visibility and moves nothing",
+			declaration: "animation: y-kept-reveal 0s 400ms forwards;",
+		},
+		{
 			why:         "motion turned off for a reader who asked for less, written as a span too short to see rather than as none so an animation still reports that it ended",
 			declaration: "animation-duration: 0.001ms !important;",
 		},
@@ -71,7 +75,7 @@ func TestComponentMotionIsWrittenInTokens(t *testing.T) {
 	}
 
 	for _, found := range timeLiterals(css) {
-		t.Errorf("%s:%d sets a duration of %s in %q; the interface moves at --dur-base and --dur-slow, a page arrives over --dur-arrival, and a jumped-to heading dwells at --dur-dwell, so a rule reaches for one of those rather than writing a number of its own", path, found.line, found.text, found.context)
+		t.Errorf("%s:%d sets a duration of %s in %q; the interface moves at --dur-base and --dur-slow, and a jumped-to heading dwells at --dur-dwell, so a rule reaches for one of those rather than writing a number of its own", path, found.line, found.text, found.context)
 	}
 }
 

@@ -14,7 +14,7 @@ import (
 // true and is the only thing left to say about it.
 func libraryName(name string, lang wording.Lang) string {
 	if name == "" {
-		return wording.ThisLibrary.In(lang)
+		return wording.ThisVault.In(lang)
 	}
 	return name
 }

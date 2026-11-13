@@ -29,7 +29,7 @@ const inventoryPath = "docs/privacy/data-inventory.md"
 const inventoryTableHeader = "| Kept in the browser | What it holds | How long |"
 
 // cookiePrefix is what every cookie yomihon writes is named with. The name is a
-// Go string literal in every case, because the server writes all six, so the Go
+// Go string literal in every case, because the server writes every one, so the Go
 // declarations are the authority for the set; a name the browser spells out for
 // itself is held against that set rather than trusted.
 const cookiePrefix = "yomihon_"
@@ -93,9 +93,9 @@ var jsIdentifier = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 // templates, and the table has to name each one exactly once and name nothing
 // else.
 //
-// A build constraint such as yomihon_nodurable shares the cookie prefix and is
-// not a cookie. It cannot reach this check: a constraint is a comment, and what
-// is collected here is string literals from the syntax tree. The set equality
+// A build constraint that shares the cookie prefix is not a cookie. It cannot
+// reach this check: a constraint is a comment, and what is collected here is
+// string literals from the syntax tree. The set equality
 // below is what proves that structurally — if one ever did leak in, the set
 // would differ from the declared one and this would go red rather than growing
 // a row nobody wrote.

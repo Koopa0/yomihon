@@ -23,7 +23,7 @@ var ThoughtObsidian = both("在 Obsidian 建立筆記", "Create in Obsidian")
 
 // ThoughtSectionFmt names, in the contents list, the link that starts a note of
 // the reader's own based on one section; the argument is that heading's text.
-var ThoughtSectionFmt = both("留想法：%s", "Leave a thought: %s")
+var ThoughtSectionFmt = both("留下自己的想法：%s", "Leave a thought: %s")
 
 // ThoughtNoteNameFmt is the file name a reader's thought starts with; the
 // arguments are the source note's title and the minute the thought was begun.

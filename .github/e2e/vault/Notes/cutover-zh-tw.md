@@ -1,12 +1,13 @@
 ---
-title: 切換
 type: lesson
-domain: golang
-status: draft
+
+
+draft: true
 slug: cutover-zh-tw
 lang: zh-Hant
 based_on: "[[cutover]]"
 ---
+# 切換
 
 翻譯的那一半，和它的原文屬於同一個資料夾，檔名以原文的檔名開頭，而兩邊宣告的
 語言不同。based_on 指向原文，所以這一對是作者自己宣告的，不是這裡猜出來的。

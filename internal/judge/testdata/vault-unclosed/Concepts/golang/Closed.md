@@ -1,8 +1,5 @@
 ---
-title: Closed
 type: inbox
-domain: golang
-status: seedling
 ---
 
 # Body

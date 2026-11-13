@@ -8,12 +8,10 @@ import (
 	"sync/atomic"
 	"testing"
 	"unicode/utf8"
-
-	"github.com/google/go-cmp/cmp"
 )
 
 // facetFixture is an index wide enough that a division has something to
-// divide: several statuses, several types, several domains, notes that declare
+// divide: several types, several domains, some drafts, notes that declare
 // none of them, a vault file that can declare nothing, a value whose spelling
 // differs only in case from another's, a value carrying a space, and a note
 // the contract places outside instance metadata while it still declares all
@@ -22,20 +20,20 @@ import (
 func facetFixture(tb testing.TB) *Index {
 	tb.Helper()
 	docs := []Document{
-		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Domain: "golang", Status: "draft", PlainText: "needle in a log"},
-		{RelPath: "Writing/Streams.md", Title: "Streams", NoteType: "lesson", Domain: "golang", Status: "ready", PlainText: "needle in a stream"},
-		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", Domain: "meta", Status: "draft", PlainText: "needle and focus"},
-		{RelPath: "Concepts/Depth.md", Title: "Depth", NoteType: "concept", Domain: "meta", Status: "Draft", PlainText: "needle and depth"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Domain: "golang", Draft: true, PlainText: "needle in a log"},
+		{RelPath: "Writing/Streams.md", Title: "Streams", NoteType: "lesson", Domain: "golang", PlainText: "needle in a stream"},
+		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", Domain: "meta", Draft: true, PlainText: "needle and focus"},
+		{RelPath: "Concepts/Depth.md", Title: "Depth", NoteType: "Concept", Domain: "meta", Draft: true, PlainText: "needle and depth"},
 		{RelPath: "Notes/Loose.md", Title: "Loose", PlainText: "needle with nothing declared"},
-		{RelPath: "Notes/Spaced.md", Title: "Spaced", NoteType: "note", Domain: "field notes", Status: "archived", PlainText: "needle in the field"},
-		{RelPath: "Notes/Odd.md", Title: "Odd", NoteType: "note", Domain: `say "what"`, Status: "archived", PlainText: "needle said what"},
+		{RelPath: "Notes/Spaced.md", Title: "Spaced", NoteType: "note", Domain: "field notes", PlainText: "needle in the field"},
+		{RelPath: "Notes/Odd.md", Title: "Odd", NoteType: "note", Domain: `say "what"`, PlainText: "needle said what"},
 		{RelPath: "Assets/plain.txt", Title: "plain.txt", File: true, PlainText: "needle in a file"},
 		// A template: the contract places System/templates outside instance
 		// metadata, so its frontmatter is not a note's. It carries values of
 		// its own precisely so that tallying it would be visible — a narrowed
 		// query leaves it out, so a division that counted it would print a
 		// number the page it leads to contradicts.
-		{RelPath: "System/templates/Card.md", Title: "Card", NoteType: "template", Domain: "scaffolding", Status: "blank", PlainText: "needle in a template"},
+		{RelPath: "System/templates/Card.md", Title: "Card", NoteType: "template", Domain: "scaffolding", Draft: true, PlainText: "needle in a template"},
 	}
 	return NewIndex(docs, validArtifactPolicy(tb))
 }
@@ -47,11 +45,11 @@ func facetFixture(tb testing.TB) *Index {
 var facetQueries = []string{
 	"needle",
 	`"in a"`,
-	"needle status:draft",
+	"needle draft:true",
 	"needle type:concept",
 	"type:lesson",
-	"needle status:DRAFT",
-	"needle domain:golang status:draft",
+	"needle type:CONCEPT",
+	"needle domain:golang draft:true",
 }
 
 // TestEveryFacetCountIsItsNarrowedQuerysOwnAnswer is the lock the whole column
@@ -171,7 +169,6 @@ func TestAFacetCountsEveryHitAndNotTheBuiltStretch(t *testing.T) {
 			RelPath:   "Notes/n" + strconv.Itoa(i) + ".md",
 			Title:     "n" + strconv.Itoa(i),
 			NoteType:  "note",
-			Status:    "draft",
 			PlainText: "needle",
 		})
 	}
@@ -184,9 +181,9 @@ func TestAFacetCountsEveryHitAndNotTheBuiltStretch(t *testing.T) {
 	if len(answer.Results) != limit || answer.Total != notes {
 		t.Fatalf("Search built %d of %d results, want %d of %d", len(answer.Results), answer.Total, limit, notes)
 	}
-	draft := facetValueCount(t, answer, StatusFilterKey, "draft")
-	if draft != notes {
-		t.Errorf("status:draft counted %d, want %d — the tally is reading the built stretch, not the answer", draft, notes)
+	counted := facetValueCount(t, answer, "type", "note")
+	if counted != notes {
+		t.Errorf("type:note counted %d, want %d — the tally is reading the built stretch, not the answer", counted, notes)
 	}
 }
 
@@ -215,7 +212,7 @@ func TestAnUnstatedCellIsNotAValue(t *testing.T) {
 }
 
 // TestTwoSpellingsOfOneValueAreOneRow pins that values are gathered the way
-// matching gathers them. "Draft" and "draft" are one constraint to the index,
+// matching gathers them. "Concept" and "concept" are one constraint to the index,
 // so two rows of one would each print a count the shared narrowed query
 // contradicts — which is exactly what the count check above would catch, and
 // this says why.
@@ -229,7 +226,7 @@ func TestTwoSpellingsOfOneValueAreOneRow(t *testing.T) {
 	}
 	var spellings []string
 	for _, division := range answer.Facets {
-		if division.Key != StatusFilterKey {
+		if division.Key != "type" {
 			continue
 		}
 		for _, value := range division.Values {
@@ -245,8 +242,8 @@ func TestTwoSpellingsOfOneValueAreOneRow(t *testing.T) {
 			t.Errorf("%q occupies %d rows, but the index reads them as one constraint", value, rows)
 		}
 	}
-	if folded["draft"] != 1 {
-		t.Fatalf("status rows = %v, want one row gathering Draft and draft", spellings)
+	if folded["concept"] != 1 {
+		t.Fatalf("type rows = %v, want one row gathering Concept and concept", spellings)
 	}
 }
 
@@ -292,7 +289,7 @@ func TestADivisionIsOfferedOnlyWhereItCouldBeHonoured(t *testing.T) {
 		}
 	}
 
-	closed := idx.WithArtifactPolicy(undeclaredArtifactPolicy(t))
+	closed := idx.WithArtifactPolicy(escapingArtifactPolicy(t))
 	answer, err := closed.Search(Parse("needle"), -1)
 	if err != nil {
 		t.Fatalf("Search on an unavailable policy error = %v", err)
@@ -302,37 +299,6 @@ func TestADivisionIsOfferedOnlyWhereItCouldBeHonoured(t *testing.T) {
 	}
 	if len(answer.Facets) != 0 {
 		t.Errorf("a folder whose metadata is unavailable offered %d divisions, each leading to a refusal", len(answer.Facets))
-	}
-}
-
-// TestACarrierTravelsWithTheStatusItHolds pins that a value carries the note
-// types holding it. A status is declared per type, so a surface ruling on a
-// value needs them, and a value that arrived without them would be ruled on as
-// though every type declared it.
-func TestACarrierTravelsWithTheStatusItHolds(t *testing.T) {
-	t.Parallel()
-	idx := facetFixture(t)
-
-	answer, err := idx.Search(Parse("needle"), -1)
-	if err != nil {
-		t.Fatalf("Search error = %v", err)
-	}
-	got := map[string][]string{}
-	for _, division := range answer.Facets {
-		if division.Key != StatusFilterKey {
-			continue
-		}
-		for _, value := range division.Values {
-			got[fold(value.Value)] = value.Carriers
-		}
-	}
-	want := map[string][]string{
-		"draft":    {"concept", "lesson"},
-		"ready":    {"lesson"},
-		"archived": {"note"},
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("status carriers mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -372,7 +338,6 @@ func TestEveryDividedKeyReadsItsOwnField(t *testing.T) {
 	// wrong field names the field it actually read rather than merely failing.
 	marked := &entry{
 		NoteType: "type as written", NoteTypeFold: "type",
-		Status: "status as written", StatusFold: "status",
 		Domain: "domain as written", DomainFold: "domain",
 	}
 	for _, key := range facetKeys {
@@ -404,23 +369,23 @@ func TestNarrowingAQueryLeavesEveryOtherByteAlone(t *testing.T) {
 		add    string
 		drop   string
 	}{
-		{"an empty query becomes the constraint", "", Filter{StatusFilterKey, "draft"}, "status:draft", ""},
-		{"a plain term keeps its single space", "kafka", Filter{StatusFilterKey, "draft"}, "kafka status:draft", "kafka"},
+		{"an empty query becomes the constraint", "", Filter{"type", "draft"}, "type:draft", ""},
+		{"a plain term keeps its single space", "kafka", Filter{"type", "draft"}, "kafka type:draft", "kafka"},
 		{"runs of spaces the reader typed survive", "kafka    streams", Filter{"type", "lesson"}, "kafka    streams type:lesson", "kafka    streams"},
 		{"a quoted phrase keeps its quotes", `"owns jobs" kafka`, Filter{"domain", "golang"}, `"owns jobs" kafka domain:golang`, `"owns jobs" kafka`},
 		{"a trailing space is not doubled", "kafka ", Filter{"type", "lesson"}, "kafka type:lesson", "kafka "},
 		{"a value holding a space is quoted", "kafka", Filter{"domain", "field notes"}, `kafka domain:"field notes"`, "kafka"},
-		{"removal takes the space in front of it", "a status:draft b", Filter{StatusFilterKey, "draft"}, "", "a b"},
-		{"removal at the head takes the space behind it", "status:draft b", Filter{StatusFilterKey, "draft"}, "", "b"},
-		{"removal is by the value matching does, not by spelling", "a status:DRAFT b", Filter{StatusFilterKey, "draft"}, "", "a b"},
-		{"a constraint written twice goes entirely", "status:draft x status:Draft", Filter{StatusFilterKey, "draft"}, "", "x"},
+		{"removal takes the space in front of it", "a type:draft b", Filter{"type", "draft"}, "", "a b"},
+		{"removal at the head takes the space behind it", "type:draft b", Filter{"type", "draft"}, "", "b"},
+		{"removal is by the value matching does, not by spelling", "a type:DRAFT b", Filter{"type", "draft"}, "", "a b"},
+		{"a constraint written twice goes entirely", "type:draft x type:Draft", Filter{"type", "draft"}, "", "x"},
 		// Two of them with only one space between: both want that space, and
 		// the cut walked backwards into ground it had already taken.
-		{"two of them with nothing between", "status:draft status:Draft", Filter{StatusFilterKey, "draft"}, "", ""},
-		{"two of them with nothing between, inside a query", "a status:draft status:draft b", Filter{StatusFilterKey, "draft"}, "", "a b"},
-		{"two of them separated by a wider gap", "status:draft  x  status:Draft", Filter{StatusFilterKey, "draft"}, "", "x"},
-		{"another key is left standing", "type:lesson status:draft", Filter{StatusFilterKey, "draft"}, "", "type:lesson"},
-		{"a query not carrying it is unchanged", "kafka type:lesson", Filter{StatusFilterKey, "draft"}, "kafka type:lesson status:draft", "kafka type:lesson"},
+		{"two of them with nothing between", "type:draft type:Draft", Filter{"type", "draft"}, "", ""},
+		{"two of them with nothing between, inside a query", "a type:draft type:draft b", Filter{"type", "draft"}, "", "a b"},
+		{"two of them separated by a wider gap", "type:draft  x  type:Draft", Filter{"type", "draft"}, "", "x"},
+		{"another key is left standing", "domain:golang type:draft", Filter{"type", "draft"}, "", "domain:golang"},
+		{"a query not carrying it is unchanged", "kafka domain:golang", Filter{"type", "draft"}, "kafka domain:golang type:draft", "kafka domain:golang"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -513,14 +478,14 @@ func facetSummary(answer Answer) string {
 // query the parser no longer reads that constraint in, and addition either
 // yields a query carrying exactly it or admits it could not be written.
 func FuzzRewriteQuery(f *testing.F) {
-	f.Add("status:draft status:Draft", "status", "draft")
-	f.Add("a status:draft status:draft b", "status", "draft")
+	f.Add("type:draft type:Draft", "type", "draft")
+	f.Add("a type:draft type:draft b", "type", "draft")
 	f.Add("深度 type:lesson 工作", "type", "lesson")
 	f.Add(`"owns jobs" domain:golang`, "domain", "golang")
 	f.Add("folder:Writing/ folder:Writing", "folder", "Writing")
-	f.Add("", "status", "")
+	f.Add("", "type", "")
 	f.Add("   ", "type", `a" b`)
-	f.Add("「深度 工作」 status:ready", "status", "ready")
+	f.Add("「深度 工作」 type:ready", "type", "ready")
 
 	f.Fuzz(func(t *testing.T, raw, key, value string) {
 		if !utf8.ValidString(raw) || !utf8.ValidString(value) {

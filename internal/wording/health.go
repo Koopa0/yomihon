@@ -10,8 +10,8 @@ var HealthTitle = both("整體狀況", "Health")
 // otherwise indistinguishable from a page that checked nothing. It also names
 // what this page does not cover, and where that is checked instead.
 var HealthAllClear = both(
-	"這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有正文連過來，沒有名字被兩個檔案同時使用，status 值都在 schema 的清單裡。frontmatter 少了必填欄位不歸這一頁管——那些請跑 ",
-	"Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, no name is claimed by two files, and every status is in the schema's list. Frontmatter missing a required field is not this page's business — for those, run ",
+	"這一頁檢查的項目目前都沒有問題：每個 [[…]] 連結都有目標，每篇筆記都有正文連過來，沒有名字被兩個檔案同時使用。frontmatter 少了必填欄位不歸這一頁管——那些請跑 ",
+	"Everything this page checks is clear: every [[…]] link has a target, every note is cited in the text, and no name is claimed by two files. Frontmatter missing a required field is not this page's business — for those, run ",
 )
 
 // HealthAllClearAfterCommand closes that sentence after the command it names.
@@ -19,8 +19,8 @@ var HealthAllClearAfterCommand = both("。", ".")
 
 // HealthReportsOnly is the promise the whole page rests on.
 var HealthReportsOnly = both(
-	"這裡只回報，不會動你的檔案。",
-	"This page reports and never touches your files.",
+	"這一頁只回報，不會修改你的檔案。",
+	"This page reports and never changes your files.",
 )
 
 // The lede over unreadable files, which changes with whether a complete read
@@ -54,27 +54,17 @@ var (
 	UnwrittenTitle = both("連到不存在的目標", "Links to something that is not there")
 	UnwrittenLede  = both(
 		"這些連結的目標不存在，而且沒有任何缺口帳列出它們。目標是作者寫下的名字：可能是一篇還沒寫的筆記，也可能是一個不在書庫裡的檔案——兩者要修的東西不一樣。",
-		"These links point at something that does not exist, and no gap ledger lists it. The target is the name the author wrote: it may be a note nobody has written, or a file that is not in the library at all — and those are different repairs.",
+		"These links point at something that does not exist, and no gap ledger lists it. The target is the name the author wrote: it may be a note nobody has written, or a file that is not in the vault at all — and those are different repairs.",
 	)
 	TitleOnlyTitle = both("連結寫的是筆記的標題", "Links written to a note's title")
 	TitleOnlyLede  = both(
 		"這些筆記都存在。連結指不到它們，是因為寫的是標題，而標題不是這個書庫解析連結用的名字——檔名和 aliases 才是。要修的是那篇筆記的 aliases，不是再寫一篇。",
-		"These notes exist. The links miss them because they name a title, and a title is not what this library resolves a link by — a filename and its aliases are. The repair is that note's aliases, not another note.",
+		"These notes exist. The links miss them because they name a title, and a title is not what this vault resolves a link by — a filename and its aliases are. The repair is that note's aliases, not another note.",
 	)
 	IslandsTitle = both("沒有正文 [[…]] 連結連過來的筆記", "Notes with no incoming body [[…]] links")
 	IslandsLede  = both(
 		"沒有其他筆記在正文用 [[…]] 連結連到它們。一般 Markdown 連結和來源聲明都不計入；即使這裡列出筆記，它仍可能有能正常開啟的 Markdown 連結連過來，不表示那些連結需要修正。很多寫作方式本來就不互相引用——日記、逐字稿、模板、產生出來的報告——所以這裡按資料夾分開，先看形狀，再決定哪一堆值得你看。",
 		"No other note links to these with [[…]] in its body. Ordinary Markdown links and declared sources do not count here; a listed note may still have working incoming Markdown links that need no repair. Plenty of writing is not meant to be cited — journals, transcripts, templates, generated reports — so they are grouped by folder: see the shape first, then decide which group is worth your time.",
-	)
-	StatusOutsideEnumTitle = both("狀態值不在允許清單的筆記", "Notes whose status is outside the list")
-	StatusOutsideEnumLede  = both(
-		"這些筆記的 status 不在它的類型在 schema 宣告的清單裡。筆記頁會標出它們；要修正請直接編輯 frontmatter。",
-		"These notes carry a status the schema does not declare for their type. The reading page marks them; the repair is a frontmatter edit.",
-	)
-	StatusUnreachableTitle = both("沒有任何生命週期列到達的狀態", "Notes in a status no lifecycle row reaches")
-	StatusUnreachableLede  = both(
-		"這些筆記的 status 在它的類型所屬清單裡，但沒有任何 lifecycle 列套用到這個類型。通常是手改 frontmatter，或是縮小 lifecycle 列時筆記還留在舊狀態。",
-		"These notes carry a status their type's list declares, but no lifecycle row applies to that type. That usually means a hand-edited frontmatter value, or a lifecycle row narrowed while notes were already there.",
 	)
 	CollisionsTitle = both("兩個檔案共用的名字", "Names two files answer to")
 	CollisionsLede  = both(
@@ -87,7 +77,6 @@ var (
 var (
 	LinkedToFmt      = both("連到「%s」", "links to %q")
 	TitleOnlyMeansTo = both("寫的是「%s」，指的是", "written as %q, meaning ")
-	StatusAndTypeFmt = both("狀態值「%s」，類型「%s」", "status %q, type %q")
 	// CollisionSharedWith opens the list of the other files answering to the
 	// same name. The file the row is about is the first of them, which is the
 	// file the check command reports the collision against, so a reader
@@ -114,19 +103,24 @@ var (
 	HealthShapeFilesMany = both("%d 個檔案", "%d files")
 )
 
-// HealthGuideTitle opens what each kind of finding in the table means. The
-// explanations sit under the table rather than over it: a reader who came to
-// decide what to repair first wants the rows, and a reader who does not know
-// what a row is claiming wants the sentence — and only the second is reading
-// prose.
-var HealthGuideTitle = both("每一種發現是什麼意思", "What each kind of finding means")
+// HealthAbout is the fold over each group's explanation. What the fold holds
+// says what a kind of finding means; the findings themselves, and how many,
+// are never behind it.
+var HealthAbout = both("說明", "About this")
+
+// The two groups that say how the folder's maps cover it. They appear only when
+// something is in them, and neither is a finding.
+var (
+	HealthUnmappedConceptsTitle = both("還沒連到地圖的概念", "Concepts no map links to")
+	HealthEmptyBranchesTitle    = both("沒有筆記的地圖分支", "Map branches with no notes")
+)
 
 // ContractUnreadable is the one loud sentence for a vault whose contract file
 // exists and could not be loaded: without it, a folder with a broken contract
 // is indistinguishable from a folder with none.
 var (
-	ContractUnreadable       = both("vault contract 無法讀取；生命週期與治理投影已關閉。", "The vault contract could not be read; lifecycle and governance projections are closed.")
-	ContractUnreadablePrefix = both("vault contract 無法讀取：", "The vault contract could not be read: ")
+	ContractUnreadable       = both("契約無法讀取，這個書庫的結構與隱私規則沒有套用。", "The contract could not be read; its rules for structure and privacy are not applied.")
+	ContractUnreadablePrefix = both("契約無法讀取：", "The contract could not be read: ")
 )
 
 // ContractChanged is what a reader is told when the contract's bytes moved

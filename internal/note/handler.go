@@ -11,17 +11,14 @@
 //
 // A vault file with no dedicated reader is shown here too, as an honest
 // stand-in page rather than as something this package pretends to render.
-// Status mutation remains in internal/status.
+// Nothing here writes into the vault.
 package note
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"path"
@@ -38,7 +35,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -48,37 +44,21 @@ import (
 // Sources names the authorities one reading request draws on, and the log the
 // routes report an operational fault to. Snapshot is one closure because a
 // request must read the atomic pointer once and derive its navigation and
-// counts from that coherent value. Status captures one immutable lifecycle
-// view for the request. Source changes affect the next request; a write still
-// revalidates current authority under the lifecycle lock.
+// counts from that coherent value. Authority captures one immutable contract
+// view for the request; source changes affect the next request.
 type Sources struct {
 	// Uncertainties reads the separate location-mark file. Nil means this
 	// process has no mark storage; a read error remains visible on the desk.
 	Uncertainties func() ([]mark.Uncertainty, error)
 	Source        *vault.Reader
-	// Contract supplies the field and lifecycle vocabulary a thought stub is
-	// written from; the note type it is for comes from the snapshot's roles.
+	// Contract supplies the field vocabulary a thought stub is written from;
+	// the note type it is for comes from the snapshot's roles.
 	Contract *schema.Contract
 	// VaultName is the opened folder's startup name, fixed even when the
 	// selecting pathname changes. The scanner reports divergence separately.
 	VaultName string
-	Status    func() status.Authority
+	Authority func() schema.Authority
 	Snapshot  func() *snapshot.Generation
-	// ObservedStatus is a closure over the write package's read of the note's
-	// own status line. The rest of the page comes from a scan that lags the
-	// folder by a couple of seconds, which a body and a link graph can afford
-	// and an adjudication state cannot: the reader arrives here straight from a
-	// write, and a status that lags is one they have already changed.
-	//
-	// It takes the request's context because the read queues behind the write
-	// face's own lock, which one flip can hold across two synchronizations.
-	ObservedStatus func(ctx context.Context, rel string) (string, error)
-	// ConsumeReceipt is a closure over the write face's attestation that it
-	// recently flipped the note at rel out of status from, spending the
-	// attestation when it answers true. The transition receipt renders only
-	// on that answer, so the page's sentence about a change is backed by the
-	// one component that performed it rather than by whatever a URL claims.
-	ConsumeReceipt func(rel, from string) bool
 	// Continuation is a closure over the place the reader deliberately left
 	// off at, answering false when they have left none. The desk reads it once
 	// per request and resolves what it names inside the same generation the
@@ -111,8 +91,7 @@ type Handler struct {
 // New wires the reading feature. It defensively copies the startup-owned
 // record so later field reassignment by the caller cannot rewire a live
 // handler. Every required reference and function must be non-nil: a wiring
-// bug fails here, not on the first request three calls deep inside show(). A
-// fail-closed write face still provides a closed status.Authority.
+// bug fails here, not on the first request three calls deep inside show().
 func New(d *Sources) *Handler {
 	if d == nil {
 		panic("note: New requires a non-nil Sources")
@@ -120,17 +99,11 @@ func New(d *Sources) *Handler {
 	if d.Source == nil {
 		panic("note: New requires a non-nil Source")
 	}
-	if d.Status == nil {
-		panic("note: New requires a non-nil Status")
+	if d.Authority == nil {
+		panic("note: New requires a non-nil Authority")
 	}
 	if d.Snapshot == nil {
 		panic("note: New requires a non-nil Snapshot provider")
-	}
-	if d.ObservedStatus == nil {
-		panic("note: New requires a non-nil ObservedStatus provider")
-	}
-	if d.ConsumeReceipt == nil {
-		panic("note: New requires a non-nil ConsumeReceipt provider")
 	}
 	if d.Continuation == nil {
 		panic("note: New requires a non-nil Continuation provider")
@@ -170,7 +143,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // line of text because the reader is mid-navigation and needs the way onward
 // they were already using: the folder tree, the search, and home.
 func (h *Handler) notFound(w http.ResponseWriter, r *http.Request) {
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
 	h.showNotFound(w, r, r.URL.Path, authority, snap)
 }
@@ -184,7 +157,7 @@ func (h *Handler) showNotFound(
 	w http.ResponseWriter,
 	r *http.Request,
 	asked string,
-	authority status.Authority,
+	authority schema.Authority,
 	snap *snapshot.Generation,
 ) {
 	h.showMissing(w, r, asked, false, snapshot.BlockedSource{}, authority, snap)
@@ -197,7 +170,7 @@ func (h *Handler) showUnreadable(
 	w http.ResponseWriter,
 	r *http.Request,
 	asked, rel string,
-	authority status.Authority,
+	authority schema.Authority,
 	snap *snapshot.Generation,
 ) {
 	h.showMissing(w, r, asked, true, blockedSource(snap, rel), authority, snap)
@@ -231,7 +204,7 @@ func (h *Handler) showMissing(
 	asked string,
 	unreadable bool,
 	cause snapshot.BlockedSource,
-	authority status.Authority,
+	authority schema.Authority,
 	snap *snapshot.Generation,
 ) {
 	pageShell := shell.Project(h.sources.VaultName, authority, snap)
@@ -261,7 +234,7 @@ func (h *Handler) showMissing(
 // are, had nowhere to lead until now.
 func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 	dir := path.Clean(strings.Trim(r.PathValue("path"), "/"))
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
 	if dir == "." || dir == ".." || strings.HasPrefix(dir, "../") {
 		h.showNotFound(w, r, r.URL.Path, authority, snap)
@@ -283,7 +256,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 
 // show serves one entry of the browse tree. Every file the tree lists opens
 // here; the presentation follows the kind. Markdown is the note page — the
-// reading surface with its status face, table of contents and diagnostics.
+// reading surface with its table of contents and diagnostics.
 // Everything else is a read-only view of a file, built by showFile.
 //
 // A note's body reaches this first-party page through the markdown pipeline's
@@ -295,7 +268,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
 	if !servable(rel) {
 		h.showNotFound(w, r, r.URL.Path, authority, snap)
@@ -334,16 +307,6 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 
 	view, conceptRefs := h.reading(r, rel, &n, snap, authority, lang, "")
 	view.Concepts = loadConcepts(snap, conceptRefs, lang)
-	// The receipt is spent by the page that states it, so it is read here
-	// rather than wherever a note's view is assembled: a column beside another
-	// note shows no such sentence and must not consume the one attestation the
-	// note's own page would have shown.
-	view.FlippedFrom = vouchedOrigin(authority, h.sources.ConsumeReceipt, rel, n.Type,
-		transition{from: r.URL.Query().Get("from"), to: view.Status})
-	// The receipt for a change the face cannot walk back carries the recovery
-	// sentence; a reversible one leaves undoing to the controls already on the
-	// page.
-	view.FlipNoReturn = view.FlippedFrom != "" && !authority.CanReturn(n.Type, view.FlippedFrom, view.Status)
 
 	pageChrome := layouts.ChromeFromRequest(r, n.Title)
 	if err := pages.Note(view, pageChrome).Render(r.Context(), w); err != nil {
@@ -371,11 +334,11 @@ func (h *Handler) reading(
 	rel string,
 	n *snapshot.Reading,
 	snap *snapshot.Generation,
-	authority status.Authority,
+	authority schema.Authority,
 	lang wording.Lang,
 	idPrefix string,
 ) (view pages.NoteView, conceptRefs []string) {
-	state := h.governance(r.Context(), n, snap, authority, lang)
+	state := h.governance(n, snap, authority)
 	// render.Pipeline.HTML never fails the whole render: a content-level
 	// problem becomes a Diagnostic, not an error — no error path left to handle.
 	// On the compare page, which is neither note's own, a figure is its
@@ -396,7 +359,7 @@ func (h *Handler) reading(
 	// governed lesson with a slot sidecar also gets its sentence-pattern machine,
 	// and its concept wikilinks become in-app sheet triggers. This happens only
 	// after the request's captured authority has classified the note, so every
-	// projection in this response uses one coherent lifecycle view.
+	// projection in this response uses one coherent view of the contract.
 	// The lesson type is the one type this page enriches with lesson-body
 	// interactions. What the contract layer supplies is the spelling, not yet a
 	// vault's own choice of word: it is still one fixed name, so a folder
@@ -417,9 +380,6 @@ func (h *Handler) reading(
 	render.Qualify(idPrefix, &result)
 	result.HTML = annotateMarkAnchors(result.HTML)
 
-	// The status face and the status shown beside the title are the same
-	// claim, so they come from the same read.
-	noteStatus := cmp.Or(state.status, n.Status)
 	// One resolved rail answers both the navigation and the article's own way
 	// onward, so the step under the prose and the folder list beside it can
 	// never disagree about what follows this note.
@@ -432,14 +392,7 @@ func (h *Handler) reading(
 		readingRail.KeptNote = kept.RelPath
 	}
 	foot := pages.FooterSequence(&readingRail, lang)
-	// The line above the title names the book the note is a page of, where the
-	// rail resolved one; a note in no path keeps the folder's breadcrumb.
-	var running *pages.RunningHead
-	if head, ok := pages.RunningHeadOf(&readingRail); ok {
-		running = &head
-	}
-	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
-	domainFolder, _ := snap.DomainFolder(rel)
+	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(snap, rel)
 	contract := h.enumContract(authority)
 	cause := blockedSource(snap, rel)
 	view = pages.NoteView{
@@ -447,7 +400,7 @@ func (h *Handler) reading(
 		RelPath:            n.RelPath,
 		Language:           n.Language,
 		Type:               n.Type,
-		Status:             noteStatus,
+		Draft:              n.Draft,
 		Updated:            updatedDisplay,
 		UpdatedAt:          updatedMachine,
 		UpdatedFromFile:    updatedFromFile,
@@ -456,7 +409,7 @@ func (h *Handler) reading(
 		Stale:              n.Stale,
 		ParsePanic:         cause.ParsePanic,
 		ParseReason:        cause.Reason,
-		RenderDiagnostics:  noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
+		RenderDiagnostics:  faults(result.Diagnostics, snap),
 		CitedBy:            snap.CitedBy(rel),
 		BasedOn:            declaredSources,
 		DeclaredBy:         declaredBy(snap, rel, &result, idPrefix, lang),
@@ -472,16 +425,11 @@ func (h *Handler) reading(
 		StepsOnward:        foot.Onward,
 		StepsToContents:    foot.ToContents,
 		StepsAsides:        foot.Asides,
-		Running:            running,
 		TOC:                result.Outline(),
 		BodyHTML:           result.HTML,
 		TitleAnchor:        result.TitleAnchor,
 		ReadingRail:        readingRail,
-		Governed:           state.shell.Governed,
-		NonInstance:        state.nonInstance(),
-		WriteDiagnostic:    state.writeDiagnostic,
 		IDPrefix:           idPrefix,
-		Transitions:        state.transitions,
 		ContentIdentity:    hex.EncodeToString(n.ContentIdentity[:]),
 		MarkAddress:        h.sources.MarkAddress,
 		PlaceKept:          marked && kept.RelPath == n.RelPath,
@@ -491,15 +439,7 @@ func (h *Handler) reading(
 		// pulled in from other notes is bound by its own stamp, so an edit to
 		// an embedded source can reach this page while it is open.
 		TranscludedIdentity: result.TranscludedIdentity,
-		NoFrontmatter:       state.noFrontmatter,
-		FrontmatterRequired: state.frontmatterRequired,
-		StatusUnknown:       state.statusUnknown,
-		AllowedStatuses:     enumValues(contract, "status", n.Type),
-		StatusNotText:       state.statusNotText,
-		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n, lang, contract),
-		// The layer that withheld the transition set, when that is why it is
-		// empty, so the page names it instead of the schema.
-		OutsideKnowledgeScope: state.outsideLayer(),
+		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n, lang, contract),
 		// Said whatever the vault governs: it is a fact about the bytes, and
 		// it is the page's own to state, not a verdict borrowed from a contract.
 		FrontmatterUnclosed: n.FrontmatterUnclosed,
@@ -508,19 +448,15 @@ func (h *Handler) reading(
 }
 
 // metarowDate picks the one date the reading page shows and the strings the
-// time element carries. The note's declared update wins when it is readable:
-// it is the author's own claim, shown as the date it is. Otherwise the file's
-// recorded change time answers, keeping its clock in the machine-readable
-// value because a clock is what was observed — and fromFile then picks the
-// label naming that different claim.
+// time element carries: the file's recorded change time, kept with its clock in
+// the machine-readable value because a clock is what was observed. A note
+// writes no update date of its own, so fromFile is always the answer and the
+// label names that claim.
 //
 // Every note this page serves was observed by the generation's scan, so the
-// fallback is expected to answer; should the scan hold no identity for the
-// path anyway, the page goes dateless rather than dated by invention.
-func metarowDate(updated time.Time, snap *snapshot.Generation, rel string) (display, machine string, fromFile bool) {
-	if !updated.IsZero() {
-		return updated.Format(time.DateOnly), updated.Format(time.DateOnly), false
-	}
+// date is expected to answer; should the scan hold no identity for the path
+// anyway, the page goes dateless rather than dated by invention.
+func metarowDate(snap *snapshot.Generation, rel string) (display, machine string, fromFile bool) {
 	entry, ok := snap.Entry(rel)
 	if !ok || entry.ModTime().IsZero() {
 		return "", "", false
@@ -533,10 +469,7 @@ func metarowDate(updated time.Time, snap *snapshot.Generation, rel string) (disp
 // reader can read. The findings themselves are one program's verdict in one
 // language for another program to parse; what a page owes a reader is the same
 // verdict in their own words, with the note's own text kept intact inside it.
-//
-// The folder comes from the same captured generation as the findings, so the
-// explanation names the folder the domain rule compared.
-func schemaNotices(findings []judge.Finding, domainFolder string, reading *snapshot.Reading, lang wording.Lang, contract *schema.Contract) [][]wording.SchemaPart {
+func schemaNotices(findings []judge.Finding, reading *snapshot.Reading, lang wording.Lang, contract *schema.Contract) [][]wording.SchemaPart {
 	if len(findings) == 0 {
 		return nil
 	}
@@ -548,17 +481,13 @@ func schemaNotices(findings []judge.Finding, domainFolder string, reading *snaps
 		if reading.FrontmatterUnclosed && f.RuleID == "schema.frontmatter" {
 			continue
 		}
-		folder := domainFolder
-		if f.RuleID == "schema.status_unreachable" {
-			folder = reading.Type
-		}
 		target := deref(f.Target)
 		if f.RuleID == "schema.frontmatter" {
 			target = reading.FMDiagnostic
 		}
-		sentence := wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), target, folder)
+		sentence := wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), target)
 		if f.RuleID == "schema.enum" {
-			sentence = append(sentence, wording.AllowedEnumValues(lang, deref(f.Field), enumValues(contract, deref(f.Field), reading.Type))...)
+			sentence = append(sentence, wording.AllowedEnumValues(lang, deref(f.Field), enumValues(contract, deref(f.Field)))...)
 		}
 		notices = append(notices, sentence)
 	}
@@ -594,54 +523,12 @@ func faults(diags []render.Diagnostic, snap *snapshot.Generation) []render.Diagn
 	return kept
 }
 
-// noteFaults is every fault this page states about the note: what the render
-// met, filtered against what the vault knows, plus the one observation that
-// needs the note's own name beside its title. It takes those two strings
-// rather than the note, because those two are all it reads and a projection
-// of a whole note is a wider coupling than this asks for.
-func noteFaults(diags []render.Diagnostic, snap *snapshot.Generation, relPath, title string, lang wording.Lang) []render.Diagnostic {
-	out := faults(diags, snap)
-	if d, ok := titleTruncatedAtHash(relPath, title, lang); ok {
-		out = append(out, d)
-	}
-	return out
-}
-
-// titleTruncatedAtHash reports that a note's title is exactly its filename cut
-// where YAML starts a comment: at whitespace followed by "#".
-//
-// The condition mirrors YAML's own, which is why it cannot fire on a title
-// that survived. A hash with no space before it starts no comment, so
-// "trailing#nospace" arrives whole and is not this.
-//
-// It is an observation, not an accusation. A title written short on purpose,
-// in quotes, produces the identical coincidence, and nothing in the parsed
-// frontmatter separates the two; the sentence therefore reports what is
-// visible and leaves the author to recognise their own case.
-func titleTruncatedAtHash(relPath, title string, lang wording.Lang) (render.Diagnostic, bool) {
-	stem := vault.NormalizeNFC(strings.TrimSuffix(path.Base(relPath), ".md"))
-	written := vault.NormalizeNFC(title)
-	if written == "" || written == stem || !strings.HasPrefix(stem, written) {
-		return render.Diagnostic{}, false
-	}
-	rest := stem[len(written):]
-	trimmed := strings.TrimLeft(rest, " \t")
-	if len(trimmed) == len(rest) || !strings.HasPrefix(trimmed, "#") {
-		return render.Diagnostic{}, false
-	}
-	return render.Diagnostic{
-		Kind:    render.DiagTitleTruncatedAtHash,
-		Target:  title,
-		Message: fmt.Sprintf(wording.TitleTruncatedAtHashFmt.In(lang), title),
-	}, true
-}
-
 // governance is where the request's two authorities put one note: the folder
-// governs it, the folder declared a knowledge layer this note sits outside of,
-// the folder holds it outside the lifecycle, or neither authority can be asked.
-// The four answers are exclusive and exhaustive, which is what a set of
-// booleans could not state — booleans also admit both-true, and read on an
-// unanswerable request as "not an artifact, therefore an instance".
+// holds it as a note instance, the folder holds it as a readable artifact, or
+// neither authority can be asked. The three answers are exclusive and
+// exhaustive, which is what a pair of booleans could not state — booleans also
+// admit both-true, and read on an unanswerable request as "not an artifact,
+// therefore an instance".
 type governance uint8
 
 const (
@@ -649,209 +536,50 @@ const (
 	// of the two authorities has closed. It is the zero value because it is
 	// the answer that asserts least.
 	governanceUnavailable governance = iota
-	// governedInstance is a note the folder's lifecycle governs: the page
-	// offers its status face and, for a lesson, its lesson affordances.
+	// governedInstance is a note the folder holds as one of its notes: for a
+	// lesson, the page offers its lesson affordances.
 	governedInstance
-	// outsideKnowledgeLayer is a note the contract never placed under its state
-	// machine: it sits outside the directories scan.knowledge_dirs declares, so
-	// the page names the layer rather than claiming the schema defines nothing
-	// onward. It is still a note, and reads as one.
-	outsideKnowledgeLayer
-	// readableArtifact is a note the folder holds outside its lifecycle —
-	// readable, never adjudicated. The page says so rather than apologising
-	// for a status face that was never meant to be there.
+	// readableArtifact is a note the folder holds outside its instances, such
+	// as a template — readable, never adjudicated.
 	readableArtifact
 )
 
 // classifyGovernance places one note against two authority samples taken at
-// different instants: the request's captured lifecycle view, and the
+// different instants: the request's captured contract view, and the
 // snapshot's own artifact capture. A note is placed only while both still
-// answer, whichever was taken first. The knowledge layer is the contract's own
-// and does not move, so the lifecycle view answers for it alone.
-func classifyGovernance(lifecycle status.Authority, policy schema.ArtifactPolicy, relPath string) governance {
-	if lifecycle.Closed() || !policy.Available() {
+// answer, whichever was taken first.
+func classifyGovernance(authority schema.Authority, policy schema.ArtifactPolicy, relPath string) governance {
+	if authority.Closed() || !policy.Available() {
 		return governanceUnavailable
 	}
 	if policy.IsNonInstance(relPath) {
 		return readableArtifact
-	}
-	if errors.Is(lifecycle.WhyUngoverned(relPath), status.ErrOutsideKnowledgeScope) {
-		return outsideKnowledgeLayer
 	}
 	return governedInstance
 }
 
 type governanceState struct {
 	shell nav.Shell
-	// placement is where the request's authorities put this note. Everything
-	// below is read for a governed instance and left empty for the other two.
+	// placement is where the request's authorities put this note.
 	placement governance
-	// status is what the note's own file says, read for this request. It is
-	// empty unless the write face applies to this note; the page falls back to
-	// the scan's value, which is the only answer available when nothing may be
-	// written and is then never contradicted by anything.
-	status              string
-	transitions         []pages.Transition
-	writeDiagnostic     string
-	noFrontmatter       bool
-	frontmatterRequired bool
-	// statusNotText is set when the note wrote a status the reader did not
-	// take as text, so status above is empty and the page can say which of
-	// the two silences this is.
-	statusNotText bool
-	// statusUnknown is set when the note's non-empty status value is not in
-	// the contract's declared list for its type, so the page can state that
-	// fact instead of implying the schema defines nothing onward from it.
-	statusUnknown bool
 }
 
-// instance reports a note the folder holds under the lifecycle's vocabulary
-// rather than as a readable artifact, which is what decides whether the page
-// reads a status and dresses a lesson. The declared knowledge layer decides
-// where the state machine runs, not what a note is, so a note outside it is
-// still one.
+// instance reports a note the folder holds as one of its notes rather than as
+// a readable artifact, which is what decides whether the page dresses a
+// lesson.
 func (s *governanceState) instance() bool {
-	return s.placement == governedInstance || s.placement == outsideKnowledgeLayer
+	return s.placement == governedInstance
 }
-
-// nonInstance reports a note the folder holds outside its lifecycle. It is
-// not the negation of instance: a note neither authority could be asked about
-// is neither.
-func (s *governanceState) nonInstance() bool { return s.placement == readableArtifact }
-
-// outsideLayer reports a note the declared knowledge layer withheld, which is
-// why its transition set is empty and how the page knows to name the layer.
-func (s *governanceState) outsideLayer() bool { return s.placement == outsideKnowledgeLayer }
 
 func (h *Handler) governance(
-	ctx context.Context,
 	n *snapshot.Reading,
 	snap *snapshot.Generation,
-	authority status.Authority,
-	lang wording.Lang,
+	authority schema.Authority,
 ) governanceState {
-	policy := snap.ArtifactPolicy()
-	state := governanceState{
-		shell:           shell.Project(h.sources.VaultName, authority, snap),
-		placement:       classifyGovernance(authority, policy, n.RelPath),
-		writeDiagnostic: authority.WriteDiagnostic(lang),
+	return governanceState{
+		shell:     shell.Project(h.sources.VaultName, authority, snap),
+		placement: classifyGovernance(authority, snap.ArtifactPolicy(), n.RelPath),
 	}
-	if state.writeDiagnostic == "" && !policy.Available() {
-		state.writeDiagnostic = policy.Diagnostic()
-	}
-	if state.instance() && state.writeDiagnostic == "" {
-		switch {
-		case n.FMDiagnostic != "":
-			// Bad YAML: diagnostic only, no keys — read isn't reliable enough to
-			// write.
-		case !n.HasFrontmatter:
-			// No block at all (e.g. drills): the absent sentence, no keys. A note
-			// whose opening fence nothing closes lands here too, and the view
-			// carries that fact beside this one, which the face ranks first.
-			state.noFrontmatter = true
-			state.frontmatterRequired = h.sources.Contract.RequiresFrontmatter()
-		default:
-			// A present block, empty fence pair included: the no-status face
-			// when nothing readable was written there. No keys either until a
-			// status can be read.
-			state.status, state.writeDiagnostic = h.observedStatus(ctx, n.RelPath, lang)
-			if state.writeDiagnostic == "" {
-				state.statusNotText = state.status == "" && n.StatusNotText
-				state.transitions = offeredTransitions(authority, n.RelPath, n.Type, state.status)
-				state.statusUnknown = state.status != "" &&
-					authority.DeclaresStatuses(n.Type) &&
-					!authority.KnownStatus(n.Type, state.status)
-			}
-		}
-	}
-	return state
-}
-
-// vouchedOrigin is the status a transition receipt may name, or empty. The
-// value arrives in the URL, so anything can put anything there: a hand-typed
-// address could otherwise have the page announce a transition that never
-// happened, from a status the contract does not declare, or to one this write
-// face refuses to perform at all.
-//
-// The page may state only what it can stand behind, and that is two separate
-// facts. The contract has to admit the sentence: the named origin is a
-// declared status for this note's type, and the move from it to the status
-// the note now carries is one the contract legalises. And the write face has
-// to attest the event: consume answers true only while it holds an unspent
-// record of a flip it recently performed out of the named origin on this
-// note, and spends that record on answering. So the receipt appears on the
-// one reading the redirect lands, and a reload, a bookmark, or a hand-typed
-// address finds nothing left to vouch for it. The contract checks run first,
-// so a claim the page could never repeat spends nothing.
-func vouchedOrigin(
-	authority status.Authority,
-	consume func(rel, from string) bool,
-	rel, noteType string,
-	move transition,
-) string {
-	if move.from == "" || move.to == "" || move.from == move.to {
-		return ""
-	}
-	if !authority.KnownStatus(noteType, move.from) {
-		return ""
-	}
-	if !authority.LegalTransition(noteType, move.from, move.to) {
-		return ""
-	}
-	if !consume(rel, move.from) {
-		return ""
-	}
-	return move.from
-}
-
-// transition is one move through the lifecycle as a page states it: the
-// status the note left, and the status it carries now.
-//
-// The two travel as one value because they are drawn from one vocabulary and
-// read alike, so a check taking them as adjacent parameters can be handed
-// them the wrong way round and still compile — and the check below, whose
-// whole purpose is to refuse a move the contract does not legalise, would
-// then be asking about the return journey and passing whatever it found.
-type transition struct {
-	from string
-	to   string
-}
-
-// offeredTransitions pairs each legal target with whether the face could
-// walk the note back from it to the status it carries now — which is what
-// decides between the single-press control and the two-step confirm.
-func offeredTransitions(authority status.Authority, relPath, noteType, current string) []pages.Transition {
-	targets := authority.Transitions(relPath, noteType, current)
-	if len(targets) == 0 {
-		return nil
-	}
-	offered := make([]pages.Transition, 0, len(targets))
-	for _, to := range targets {
-		offered = append(offered, pages.Transition{To: to, NoReturn: !authority.CanReturn(noteType, current, to)})
-	}
-	return offered
-}
-
-// observedStatus asks the write package what the note's status line says right
-// now, and turns a failure into a closed write face rather than a guess.
-//
-// Falling back to the scan's value would be the wrong repair: the value it
-// holds may be exactly the one the reader has already moved away from, and a
-// transition offered from it is refused on arrival. Whatever prevented this
-// read is the same thing that would prevent the write.
-func (h *Handler) observedStatus(ctx context.Context, rel string, lang wording.Lang) (current, blocked string) {
-	current, err := h.sources.ObservedStatus(ctx, rel)
-	if err != nil {
-		// A reader who navigated away is not a fault to report: the read was
-		// refused because nobody is waiting for it, and logging that as a
-		// failure teaches an operator to distrust a log that is telling the
-		// truth about everything else.
-		if ctx.Err() == nil {
-			h.sources.Log.Warn("read the note's own status for the reading page", "path", rel, "error", err)
-		}
-		return "", wording.NoteStatusUnreadable.In(lang)
-	}
-	return current, ""
 }
 
 // injectSlotMachine splices this lesson's slot-pattern machine into its rendered

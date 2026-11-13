@@ -10,29 +10,23 @@ import (
 // fetch its page ahead of a click. It is an allowlist of reading addresses,
 // so a route added later is left alone until it is named here.
 //
-// Every address named is a plain read, and the one exclusion covers what the
-// allowlist's own patterns would otherwise reach: a note address carrying
-// "from" is where the redirect after a status change lands, and reading it
-// spends the one-time receipt the landing page states. Fetching it ahead of
-// the reader would leave the arrival with nothing to say. No link on any page
-// carries it, so this closes a door that is shut rather than one that is open.
+// Every address named is a plain read.
 //
 // Left out on purpose: the raw, compare, freshness and preview endpoints,
 // search, read-aloud, the preferences page, thought composition, and the
 // health view, which reads every note in the vault to answer. The desk and
-// the open-thoughts shelf read live status and are left until a measurement
-// says the wait is worth the work.
+// the open-thoughts shelf are left until a measurement says the wait is worth
+// the work.
 const speculationReads = `{"or":[` +
 	`{"href_matches":"/notes/*"},` +
-	`{"href_matches":"/syllabus/*"},` +
+	`{"href_matches":"/courses/*"},` +
 	`{"href_matches":"/folders"},` +
 	`{"href_matches":"/folders/*"},` +
 	`{"href_matches":"/reports"},` +
-	`{"href_matches":"/paths"},` +
+	`{"href_matches":"/courses"},` +
 	`{"href_matches":"/maps"},` +
 	`{"href_matches":"/journal"}` +
-	`]},` +
-	`{"not":{"href_matches":{"pathname":"/notes/*","search":"*from=*"}}}`
+	`]}`
 
 // speculationSteps picks out the previous and next links at the foot of a
 // note and of a journal month, which are the two places a page names where

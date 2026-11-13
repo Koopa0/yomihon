@@ -1,5 +1,5 @@
 ---
-title: Withheld hidden
 ---
+# Withheld hidden
 
 The withheld half of the pair.

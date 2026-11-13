@@ -1,4 +1,4 @@
-<h1><img src="assets/brand/yomihon-mark.svg" width="36" height="36" alt="" aria-hidden="true"> yomihon</h1>
+<h1><picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/yomihon-mark-on-paper.svg"><img src="assets/brand/yomihon-mark.svg" width="36" height="36" alt="" aria-hidden="true"></picture> yomihon</h1>
 
 [English](README.md) | 繁體中文
 
@@ -43,9 +43,9 @@ yomihon ~/notes
 - **讀。** wikilink、callout、註腳、表格、Mermaid 圖、程式碼與 ruby，照作者寫的呈現。設定頁可選亮色、暗色或跟隨系統，三段字級，明體、黑體或楷體。「留下待續位置」把你讀到的地方記在這台裝置上。閱讀桌（首頁）會列出這個待續位置，點一下就能回去。
 - **學。** 一門課會列出各部，標出你讀到的這一課，連到前後各一課。支線是選讀。振假名可以隱藏。課裡作者標了朗讀的日文段落，可以唸出來。範例書庫有一門[《Go 並行入門》](examples/vault/Notes/Books/Go%20並行入門.md)，另有[兩課日文短對話](examples/vault/Notes/Books/在圖書館讀日文.md)。
 - **找。** 搜尋支援中文、日文與英文。每篇筆記旁邊放著本頁章節與引用它的筆記。地圖列出同一主題底下的筆記。
-- **報告。** 直接放在 `System/reports/` 的 Markdown 報告依日期由新到舊列出，每份以標題顯示。
+- **報告。** 直接放在 `System/reports/` 的 Markdown 報告，依 `created` 欄位的日期（沒有就用檔名開頭的日期）由新到舊列出，每份以標題顯示，彼此靠各自寫下的連結串起來。
 - **檢查。** 整體狀況頁列出指向不存在目標的 wikilink，以及沒有其他筆記連過來的筆記。`yomihon check` 在終端機列出失效連結與 frontmatter 問題。
-- **接著處理還沒想通的。** `yomihon left-open` 列出你標成「還不確定」的位置，以及狀態仍是契約宣告為初始的想法，新的在前，讓 agent 也讀得到。契約扣住的資料夾裡的東西一概不列。
+- **接著處理還沒想通的。** `yomihon left-open` 列出你標成「還不確定」的位置，以及仍寫著 `draft: true` 的想法，新的在前，讓 agent 也讀得到。契約扣住的資料夾裡的東西一概不列。
 
 介面有英文與繁體中文。筆記保留寫下時的語言。
 

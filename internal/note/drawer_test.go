@@ -2,11 +2,10 @@ package note_test
 
 import (
 	"fmt"
+	"html"
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -31,14 +30,14 @@ func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("Writing/lessons/golang/Slices.md", "---\ntitle: Slices\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("Writing/lessons/golang/Maps lesson.md", "---\ntitle: Maps lesson\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("Maps/Go path.md", "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n## data | Data | 資料 {sequence=primary}\n\n- [[Slices]]\n- [[Planned lesson]]\n- [[Maps lesson]]\n")
+	write("Writing/lessons/golang/Slices.md", "---\ntype: lesson\n---\n# Slices\n\nbody\n")
+	write("Writing/lessons/golang/Maps lesson.md", "---\ntype: lesson\n---\n# Maps lesson\n\nbody\n")
+	write("Maps/Go path.md", "---\ntype: study-path\n---\n# Go path\n\n## data | Data | 資料 {sequence=primary}\n\n- [[Slices]]\n- [[Planned lesson]]\n- [[Maps lesson]]\n")
 	write("Diary/2026-07-31.md", "today\n")
-	write("Concepts/plain.md", "---\ntitle: Plain\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nprose\n")
-	write("System/reports/weekly.md", "---\ntitle: Weekly\ntype: system\ndomain: meta\n---\n\nreport\n")
-	write("Concepts/linked.md", "---\ntitle: Linked\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nprose\n")
-	write("Maps/atlas.md", "---\ntitle: Atlas\ntype: topic-map\ndomain: golang\n---\n\n## Themes\n\n- [[linked]]\n")
+	write("Concepts/plain.md", "---\ntype: concept\n---\n# Plain\n\nprose\n")
+	write("System/reports/weekly.md", "---\ntype: system\n---\n# Weekly\n\nreport\n")
+	write("Concepts/linked.md", "---\ntype: concept\n---\n# Linked\n\nprose\n")
+	write("Maps/atlas.md", "---\ntype: topic-map\n---\n# Atlas\n\n## Themes\n\n- [[linked]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -157,9 +156,9 @@ func TestCitedByAnswersOnThePage(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("Concepts/cited.md", "---\ntitle: Cited\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nthe target\n")
-	write("Concepts/citer.md", "---\ntitle: Citer\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nsee [[cited]]\n")
-	write("Concepts/island.md", "---\ntitle: Island\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nalone\n")
+	write("Concepts/cited.md", "---\ntype: concept\n---\n# Cited\n\nthe target\n")
+	write("Concepts/citer.md", "---\ntype: concept\n---\n# Citer\n\nsee [[cited]]\n")
+	write("Concepts/island.md", "---\ntype: concept\n---\n# Island\n\nalone\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -222,10 +221,10 @@ func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("Concepts/broken.md", "---\ntitle: Broken\ntype: concept\ndomain: golang\nstatus: draft\n---\n\ncites [[nothing at all]] and [[A Written Note]]\n")
-	write("Concepts/written.md", "---\ntitle: A Written Note\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nI exist\n")
-	write("Maps/ledger.md", "---\ntitle: Ledger\ntype: topic-map\ndomain: golang\n---\n\n## 缺口帳\n\n- Planned concept\n")
-	write("Concepts/tracked.md", "---\ntitle: Tracked\ntype: concept\ndomain: golang\nstatus: draft\n---\n\ncites [[Planned concept]]\n")
+	write("Concepts/broken.md", "---\ntype: concept\n---\n# Broken\n\ncites [[nothing at all]] and [[A Written Note]]\n")
+	write("Concepts/written.md", "---\ntype: concept\n---\n# A Written Note\n\nI exist\n")
+	write("Maps/ledger.md", "---\ntype: topic-map\n---\n# Ledger\n\n## 缺口帳\n\n- Planned concept\n")
+	write("Concepts/tracked.md", "---\ntype: concept\n---\n# Tracked\n\ncites [[Planned concept]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -253,40 +252,23 @@ func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
 	}
 }
 
-// healthKindCount is the number the guide under the findings table gives for
-// one kind of finding. The guide is where the page states how much of a kind
-// there is, and it counts the table's own rows, so a number that disagrees
-// with the lines under it is the disagreement worth catching.
-func healthKindCount(t *testing.T, page, title string) int {
-	t.Helper()
-	stated := regexp.MustCompile(`<dt class="y-findingsguide__term">\s*` + regexp.QuoteMeta(title) +
-		`\s*<span class="ui-navitem__count">(\d+)</span>`)
-	match := stated.FindStringSubmatch(page)
-	if match == nil {
-		t.Fatalf("the findings guide states no number for %q", title)
-	}
-	count, err := strconv.Atoi(match[1])
-	if err != nil {
-		t.Fatalf("the findings guide states %q for %q, which is no number: %v", match[1], title, err)
-	}
-	return count
-}
-
-// healthSectionBody returns every row of the health page's findings table that
-// reports one kind of finding, failing when there are none — a page that
-// stopped reporting a kind must not read as a page whose rows are correctly
-// absent. The rows are bounded by their own cells, so a name appearing in
-// another kind's row cannot stand in for one this kind left out.
+// healthSectionBody returns every row of the health page's table for one kind
+// of finding, failing when there are none — a page that stopped reporting a kind
+// must not read as a page whose rows are correctly absent. The rows are bounded
+// by the group that is named for the kind, so a name appearing in another
+// kind's table cannot stand in for one this kind left out.
 func healthSectionBody(t *testing.T, body, title string) string {
 	t.Helper()
 	if !strings.Contains(body, title) {
 		t.Fatalf("the health page says nothing at all about %q", title)
 	}
 	var rows []string
-	for _, row := range findingsRow.FindAllString(body, -1) {
-		if strings.Contains(row, `<span class="y-findings__kind">`+title+`</span>`) {
-			rows = append(rows, row)
+	for _, group := range strings.Split(body, `<section class="y-healthgroup"`)[1:] {
+		heading, _, _ := strings.Cut(group, "</h2>")
+		if !strings.HasSuffix(heading, ">"+html.EscapeString(title)) {
+			continue
 		}
+		rows = append(rows, findingsRow.FindAllString(group, -1)...)
 	}
 	if len(rows) == 0 {
 		t.Fatalf("the findings table has no row reporting %q", title)
@@ -313,9 +295,9 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("教案/國一上/第二課 空氣.md", "---\ntitle: 空氣\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("教案/國一上/第三課 水.md", "---\ntitle: 水\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("教案/研習/心得.md", "---\ntitle: 心得\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n")
+	write("教案/國一上/第二課 空氣.md", "---\ntype: concept\n---\n# 空氣\n\nbody\n")
+	write("教案/國一上/第三課 水.md", "---\ntype: concept\n---\n# 水\n\nbody\n")
+	write("教案/研習/心得.md", "---\ntype: concept\n---\n# 心得\n\nbody\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -352,7 +334,7 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 		t.Errorf("GET a folder that does not exist status = %d, want 404", code)
 	}
 
-	// The breadcrumb on a note now leads somewhere.
+	// The note's rail names the folder it is in, and the name leads there.
 	code, body = get(t, srv.Client(), srv.URL+"/notes/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A/%E7%AC%AC%E4%BA%8C%E8%AA%B2%20%E7%A9%BA%E6%B0%A3.md")
 	if code != http.StatusOK {
 		t.Fatalf("GET the note status = %d, want 200", code)
@@ -360,13 +342,9 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 	// The href must be the folder the crumb names, not merely folder-shaped:
 	// a crumb carrying no path still renders "/folders/" and would pass a
 	// prefix check while leading the reader nowhere.
-	for _, want := range []string{
-		`href="/folders/%E6%95%99%E6%A1%88"`,
-		`href="/folders/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A"`,
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("the note's breadcrumb does not link to %s; body = %q", want, body)
-		}
+	const folder = `<a class="y-where__path" href="/folders/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A">教案/國一上</a>`
+	if !strings.Contains(body, folder) {
+		t.Errorf("the note's rail does not name its folder with a link to it, %s; body = %q", folder, body)
 	}
 }
 
@@ -481,7 +459,7 @@ func TestTheFolderIndexSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 			t.Fatalf("mkdir: %v", err)
 		}
-		body := "---\ntitle: " + filepath.Base(rel) + "\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+		body := "---\ntype: concept\n---\n# " + filepath.Base(rel) + "\n\nbody\n"
 		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
 			t.Fatalf("write: %v", err)
 		}
@@ -548,8 +526,8 @@ func TestCitedBySurvivesWithoutTheRail(t *testing.T) {
 	}
 	// No headings anywhere, so neither note has a table of contents and the
 	// backlink is the only reading aid the page can offer.
-	write("Concepts/target.md", "---\ntitle: Target\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nplain prose\n")
-	write("Concepts/source.md", "---\ntitle: Source\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nsee [[target]]\n")
+	write("Concepts/target.md", "---\ntype: concept\n---\n# Target\n\nplain prose\n")
+	write("Concepts/source.md", "---\ntype: concept\n---\n# Source\n\nsee [[target]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 	code, body := get(t, srv.Client(), srv.URL+"/notes/Concepts/target.md")
@@ -563,19 +541,25 @@ func TestCitedBySurvivesWithoutTheRail(t *testing.T) {
 	if !strings.Contains(citedByBlock(t, body), `href="/notes/Concepts/source.md"`) {
 		t.Fatalf("the cited-by block does not name the citing note; body = %q", body)
 	}
-	if strings.Contains(body, "y-shell--rail-empty") {
-		t.Error("the rail is called empty while it holds the only aid this note has")
+	// The note has no outline, so what links here is the only thing it ends on:
+	// it is the block that ends the text, at every width, and the sidebar's one
+	// contents row leads down to it.
+	endAt := strings.Index(body, `<div class="y-related" id="_y-end"`)
+	if endAt < 0 {
+		t.Fatalf("the end of the text is absent; body = %q", body)
 	}
-	aids := strings.Index(body, `class="y-inlineaids"`)
-	if aids < 0 {
-		t.Fatalf("the narrow projection is absent; body = %q", body)
+	endOf := strings.Index(body[endAt:], "</main>")
+	if endOf < 0 {
+		t.Fatal("the end of the text is not followed by the end of main")
 	}
-	end := strings.Index(body[aids:], "</main>")
-	if end < 0 {
-		t.Fatal("the narrow projection is not followed by the end of main")
+	if !strings.Contains(body[endAt:endAt+endOf], "連到這篇") {
+		t.Errorf("the end of the text drops what links here; block = %q", body[endAt:endAt+endOf])
 	}
-	if !strings.Contains(body[aids:aids+end], "連到這篇") {
-		t.Errorf("the narrow projection drops what links here; block = %q", body[aids:aids+end])
+	if !strings.Contains(body, `<a href="#_y-end" lang="zh-Hant" data-level="2">正文連到這篇</a>`) {
+		t.Errorf("the sidebar has no contents row that leads down to what links here; body = %q", body)
+	}
+	if strings.Contains(body, "y-inlineaids") || strings.Contains(body, "y-rail-right") {
+		t.Error("the page still carries a folded row of aids or a right rail")
 	}
 }
 
@@ -606,12 +590,12 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 		}
 	}
 	lesson := func(title string) string {
-		return "---\ntitle: " + title + "\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+		return "---\ntype: lesson\n---\n# " + title + "\n\nbody\n"
 	}
 	write("Writing/lessons/golang/Setup.md", lesson("Setup"))
 	write("Writing/lessons/golang/Basics.md", lesson("Basics"))
 	write("Writing/lessons/golang/Wrapping up.md", lesson("Wrapping up"))
-	write("Maps/Go course.md", "---\ntitle: Go course\ntype: study-path\ndomain: golang\n---\n\n## start | Start | 開始 {sequence=primary}\n\n- [[Setup]]\n- [[Basics]]\n- [[Wrapping up]]\n")
+	write("Maps/Go course.md", "---\ntype: study-path\n---\n# Go course\n\n## start | Start | 開始 {sequence=primary}\n\n- [[Setup]]\n- [[Basics]]\n- [[Wrapping up]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -647,7 +631,7 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 		// The foot names the course with a link to its contents, which marks
 		// the lesson the reader is on; the landmark's own name is the step
 		// onward, so the printed words are the title alone.
-		`<p class="y-steps__source"><a class="y-steps__path" href="/syllabus/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FSetup.md">Go course</a></p>`,
+		`<p class="y-steps__source"><a class="y-steps__path" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FSetup.md">Go course</a></p>`,
 		nextCourseRole,
 	} {
 		if !strings.Contains(body, want) {

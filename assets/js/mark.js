@@ -10,10 +10,9 @@
 // until this file marks the document. What it sends is where the window is,
 // and a browser with no script has no such thing to send.
 //
-// A reading page draws it twice — in the rail, and in the header row for the
-// widths that have no rail — and never shows both at once. This
-// finds every one of them and reads each one's own words, so a face added to
-// some other part of the page needs nothing here.
+// A reading page draws it once, in the header row. This finds every control
+// there is and reads each one's own words, so a face added to some other part of
+// the page needs nothing here.
 //
 // Every word this shows comes from the page, which is where the two languages
 // are decided.
@@ -59,6 +58,36 @@ function positionNow() {
   return { anchor, offset: Math.max(0, top - anchorTop) };
 }
 
+// The sentence a press earns is a small label, not a message left standing: it
+// is there for a few seconds, then fades and is emptied, so it never lingers
+// over the page or under the row. The fade is the stylesheet's, and the
+// emptying waits for as long as the stylesheet says the fade lasts, which is
+// none for a reader who asked for less motion.
+const SAID_FOR = 4000;
+const saidTimers = new WeakMap();
+
+function lapse(said) {
+  clearTimeout(saidTimers.get(said));
+  delete said.dataset.replyFading;
+  saidTimers.set(
+    said,
+    setTimeout(() => {
+      const fade = (Number.parseFloat(getComputedStyle(said).transitionDuration) || 0) * 1000;
+      const clear = () => {
+        said.textContent = '';
+        delete said.dataset.replyTone;
+        delete said.dataset.replyFading;
+      };
+      if (fade < 1) {
+        clear();
+        return;
+      }
+      said.dataset.replyFading = '';
+      saidTimers.set(said, setTimeout(clear, fade));
+    }, SAID_FOR),
+  );
+}
+
 // A press that kept the place is also the place now being in this note, so every
 // face of the control draws the bookmark the way the server draws it for a note
 // that already held one. A face that is a toggle says so in its pressed state
@@ -72,8 +101,11 @@ function say(control, words, kept) {
   }
   const said = control.querySelector('[data-mark-said]');
   if (!said) return;
+  clearTimeout(saidTimers.get(said));
+  delete said.dataset.replyFading;
   said.dataset.replyTone = kept ? 'kept' : 'refused';
   said.textContent = words ?? '';
+  if (words) lapse(said);
 }
 
 async function keep(control) {
@@ -98,21 +130,38 @@ async function keep(control) {
   say(control, kept ? control.dataset.markSaved : control.dataset.markFailed, kept);
 }
 
-// land finishes an arrival the address asked for. The browser has already gone
-// to the fragment; what is left is the distance below it, measured from the
-// same anchor the mark was taken against.
+// land finishes the return to a kept place the address asked for. The browser
+// has already gone to the fragment; what is left is the distance below it,
+// measured from the same anchor the mark was taken against.
+//
+// The head script held the column out of sight for this document, so every way
+// out of here reveals it, and it is revealed as soon as the page has been
+// placed once: the first frame the reader sees is then already at the place.
+// The two later placements stay because the page can still change height after
+// that, and they correct the place without anything having been seen at the
+// wrong one.
 //
 // The query is spent whatever happens to the number in it, so a reload after
-// landing is an ordinary reading of the note rather than a second arrival.
+// landing is an ordinary reading of the note rather than a second return.
 function land() {
+  const root = document.documentElement;
+  const reveal = () => {
+    delete root.dataset.arrival;
+  };
   const address = new URL(location.href);
   const carried = address.searchParams.get(OFFSET_PARAM);
-  if (carried === null) return;
+  if (carried === null) {
+    reveal();
+    return;
+  }
   address.searchParams.delete(OFFSET_PARAM);
   history.replaceState(null, '', address.pathname + address.search + address.hash);
 
   const offset = Number(carried);
-  if (!Number.isInteger(offset) || offset < 0) return;
+  if (!Number.isInteger(offset) || offset < 0) {
+    reveal();
+    return;
+  }
 
   let anchor = null;
   if (address.hash.length > 1) {
@@ -127,12 +176,16 @@ function land() {
     // the distance below it measures from nothing and would drop the reader at
     // an unrelated depth. A browser running none of this is left at the top of
     // the document by the same address; this leaves them there too.
-    if (!anchor) return;
+    if (!anchor) {
+      reveal();
+      return;
+    }
   }
   const apply = () => {
     window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);
   };
   apply();
+  reveal();
   // The column's own measurements settle a frame or two after this file first
   // runs — a web font arrives, a diagram takes its height — and a position
   // applied before that lands against a page that has since moved.

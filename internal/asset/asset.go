@@ -1,7 +1,8 @@
 // Package asset serves yomihon's fixed, compile-time-known set of static
 // files: the vendored mermaid ES-module runtime, yomihon's own fixed native
-// client-module graph, the canonical brand mark, the product stylesheet
-// assembled from its hand-written parts, and the generated chroma stylesheet.
+// client-module graph, the canonical brand mark and the same mark on a paper
+// tile, the product stylesheet assembled from its hand-written parts, and the
+// generated chroma stylesheet.
 //
 // Its entire security property rests on one invariant: registry (built
 // once, at package init, from what is compiled into the binary via
@@ -90,7 +91,7 @@ var stylesheetParts = []string{
 var registry = buildRegistry()
 
 // buildRegistry assembles the fixed asset set: the explicitly named product
-// modules, canonical brand mark, and whole vendored mermaid/ subtree from
+// modules, the two brand marks, and whole vendored mermaid/ subtree from
 // assets.Files (see that package's doc comment for why the mermaid tree is
 // more than one file), plus render.ChromaCSS's computed stylesheet, which has
 // no embedded file backing it at all.
@@ -121,6 +122,7 @@ func buildRegistry() map[string]entry {
 		embedFile(reg, name, "js/"+name, jsContentType)
 	}
 	embedFile(reg, "yomihon-mark.svg", "brand/yomihon-mark.svg", svgContentType)
+	embedFile(reg, "yomihon-mark-on-paper.svg", "brand/yomihon-mark-on-paper.svg", svgContentType)
 	embedTree(reg, "js/mermaid")
 	embedFonts(reg, "fonts")
 	embedStylesheet(reg, "app.css", stylesheetParts)

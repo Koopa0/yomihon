@@ -22,7 +22,7 @@
 // row's own style would report, since the ring is still drawn either way.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a lesson carrying a folding metadata row, the
-// inline reading aids, a no-return confirm, and a concept term), and MUTATE.
+// inline reading aids, and a concept term), and MUTATE.
 // MUTATE=list prints every watched regression.
 import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
@@ -32,26 +32,25 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 const SEARCH = '/search?q=a';
+const COMPARE = '/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md';
 const SHEET = '[data-concept-sheet]';
 const CONCEPT = '[data-concept]';
 
-// The widest a note is still drawn in its narrow form. The three-column shell
-// begins at 1280px, and from there the right rail carries the reading aids and
-// the facts stand open beside the title, so the disclosures that fold them are
-// not laid out; one pixel under is the widest width that has them.
+// The widest a note is still drawn in its narrow form. From 1280px the facts
+// stand open beside the title, so the disclosure that folds them is not laid
+// out; one pixel under is the widest width that has it.
 const NARROW_NOTE = 1279;
 
-// The four folds the interface owns, with the page and width each one is
-// actually reachable on. The metadata row and the no-return confirm ride the
-// note; the inline reading aids stand in for the right rail below 1280px, the
-// width the three-column shell begins at, so the widest the folded forms are
-// reachable at is 1279px; the value column has a summary to press only below that width, since
-// the search page holds it open and takes the control away where the results
-// have a column beside them.
+// The three folds the interface owns, with the page and width each one is
+// actually reachable on. The metadata row rides the note, and is folded below
+// 1280px; the folded contents ride a column of the page that holds two notes,
+// the one place a note's contents are not in a sidebar beside it; the value
+// column has a summary to press only below 900px, since the search page holds
+// it open and takes the control away where the results have a column beside
+// them.
 const FOLDS = [
   { key: 'metadata row', path: null, width: NARROW_NOTE, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
-  { key: 'inline reading aids', path: null, width: NARROW_NOTE, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
-  { key: 'no-return confirm', path: null, width: 1280, selector: 'details.y-statusconfirm', wrapper: '.y-statusconfirm::details-content' },
+  { key: 'folded contents', path: COMPARE, width: NARROW_NOTE, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
   { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets', wrapper: '.y-facets::details-content' },
 ];
 
@@ -66,18 +65,18 @@ const FOLDS = [
 const RING_CANDIDATES = [
   { key: 'rail groups', path: null, width: 1280, selector: '.y-rail-left details', wrapper: '.y-rail-left details::details-content' },
   { key: 'metadata row', path: null, width: NARROW_NOTE, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
-  { key: 'inline reading aids', path: null, width: NARROW_NOTE, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
-  { key: 'no-return confirm', path: null, width: 1280, selector: 'details.y-statusconfirm', wrapper: '.y-statusconfirm::details-content' },
+  { key: 'folded contents', path: COMPARE, width: NARROW_NOTE, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
   { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets', wrapper: '.y-facets::details-content' },
 ];
 
-// Where the reduced-motion walk runs. Three readings rather than one: the
-// note carries three of the folds, the value column lives on the search page,
-// and the narrow width swaps the rail for a drawer and the reading aids for an
-// inline block, so it resolves different rules over the same markup.
+// Where the reduced-motion walk runs. Four readings rather than one: the note
+// carries one of the folds, the compared notes another, the value column lives
+// on the search page, and the narrow width swaps the rail for a drawer, so it
+// resolves different rules over the same markup.
 const QUIET_STOPS = [
-  { name: `the note at ${NARROW_NOTE}px`, path: null, width: NARROW_NOTE, folds: ['details.y-metarow', 'details.y-toc-inline', 'details.y-statusconfirm'] },
-  { name: 'the note at 390px', path: null, width: 390, folds: ['details.y-metarow', 'details.y-toc-inline', 'details.y-statusconfirm'] },
+  { name: `the note at ${NARROW_NOTE}px`, path: null, width: NARROW_NOTE, folds: ['details.y-metarow'] },
+  { name: 'the note at 390px', path: null, width: 390, folds: ['details.y-metarow'] },
+  { name: `the compared notes at ${NARROW_NOTE}px`, path: COMPARE, width: NARROW_NOTE, folds: ['details.y-toc-inline'] },
   { name: 'the search page at 900px', path: SEARCH, width: 900, folds: ['details.y-facets'] },
 ];
 
@@ -164,7 +163,7 @@ const MUTATIONS = {
   },
   // The blanket itself weakened for an ordinary element, which is the other
   // half of the same claim: the walk has to read the elements, not only the
-  // four pseudo-elements it was written for.
+  // pseudo-elements it was written for.
   'restore-a-hover-under-reduced-motion': {
     target: 'every-transition-collapses-under-reduce',
     css: '@media (prefers-reduced-motion: reduce){.yomihon .ui-navitem{transition-duration:var(--dur-slow) !important}}',
@@ -203,8 +202,8 @@ for (const site of SITES) {
     process.exit(2);
   }
 }
-if (FOLDS.length !== 4) {
-  console.error(`motion-contract: the fold table names ${FOLDS.length} folds, want the four the interface owns`);
+if (FOLDS.length !== 3) {
+  console.error(`motion-contract: the fold table names ${FOLDS.length} folds, want the three the interface owns`);
   process.exit(2);
 }
 {
@@ -430,7 +429,7 @@ try {
     const reading = await readQuiet(quietPage, stop.folds);
     if (reading.total < 50) broken(`${stop.name} rendered ${reading.total} elements, which is not a page this can judge`);
     for (const fold of reading.folds) {
-      if (!fold.present) broken(`${stop.name} carries no ${fold.selector}, so one of the four folds is unread there`);
+      if (!fold.present) broken(`${stop.name} carries no ${fold.selector}, so one of the folds is unread there`);
     }
     for (const element of reading.loud) {
       if (longestSeconds(element.duration) > QUIET) {

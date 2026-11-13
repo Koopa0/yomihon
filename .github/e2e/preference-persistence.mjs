@@ -64,6 +64,27 @@ const rewriteResource = (glob, needle, replacement, label) => async (page) => {
   };
 };
 const rewriteModule = (needle, replacement, label) => rewriteResource('**/preferences.js{,?*}', needle, replacement, label);
+
+// The settings page itself, rewritten as it is served. The needle is a piece of
+// markup that occurs a known number of times, and anything else is reported
+// rather than applied to the wrong number of places.
+const rewriteSettingsPage = (needle, replacement, label, expected) => async (page) => {
+  let matches = 0;
+  await page.route('**/preferences?*', async (route) => {
+    if (route.request().resourceType() !== 'document') {
+      await route.continue();
+      return;
+    }
+    const response = await route.fetch();
+    const original = await response.text();
+    matches += original.split(needle).length - 1;
+    await route.fulfill({ response, body: original.replaceAll(needle, replacement) });
+  });
+  return () => {
+    if (matches !== expected) return `${label} needle matched ${matches} times, want exactly ${expected}`;
+    return '';
+  };
+};
 const rewriteCSS = (needle, replacement, label) => rewriteResource('**/app.css{,?*}', needle, replacement, label);
 
 // The line being rewritten is itself a template string, so its placeholders
@@ -95,6 +116,23 @@ const MUTATIONS = {
   // The submit is hidden by a rule that asks whether anything is running. Drop
   // the question and a browser running nothing loses the only control that
   // applies anything.
+  // The page keeps the row for the buttons beside sections only if its radios
+  // carry the field's name; one that loses it is still drawn and clickable, and
+  // sends nothing.
+  'section-buttons-field-loses-its-name': {
+    target: 'no-javascript-fallback',
+    apply: rewriteSettingsPage('name="sectionbuttons"', 'name="sectionbuttons-unnamed"', 'the field name of the section buttons radios', 2),
+  },
+  // Kept only for the page view, the section buttons choice would be gone by
+  // the next request while looking applied.
+  'section-buttons-kept-for-this-page-view-only': {
+    target: 'choices-survive-the-journey',
+    apply: rewriteModule(
+      "      setPreference('sectionbuttons', value);\n",
+      '      root.dataset.sectionbuttons = value;\n',
+      'the section buttons write',
+    ),
+  },
   'hide-the-submit-from-everyone': {
     target: 'no-javascript-fallback',
     apply: rewriteCSS('[data-js] .y-prefs__fallback {', '.y-prefs__fallback {', 'the enhancement test on the submit'),
@@ -131,6 +169,7 @@ const rootState = (page) =>
       textsize: root.dataset.textsize ?? '',
       font: root.dataset.font ?? '',
       ruby: root.dataset.ruby ?? '',
+      sectionbuttons: root.dataset.sectionbuttons ?? '',
     };
   });
 
@@ -161,13 +200,14 @@ try {
     broken(`the page carries no way back to a note (href ${reading}), so it was not reached from one`);
   }
   const start = await checkedValues(page);
-  if (start.textsize !== 'm' || start.font !== 'serif') {
-    broken(`this browser arrives with size ${start.textsize} and face ${start.font} already set, so the changes below prove nothing`);
+  if (start.textsize !== 'm' || start.font !== 'serif' || start.sectionbuttons !== 'always') {
+    broken(`this browser arrives with size ${start.textsize}, face ${start.font} and section buttons ${start.sectionbuttons} already set, so the changes below prove nothing`);
   }
 
   // ── What is picked here is still true everywhere else ───────────────────
   await pick(page, 'textsize', 'l');
   await pick(page, 'font', 'kai');
+  await pick(page, 'sectionbuttons', 'hover');
   await page.waitForTimeout(200);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -185,6 +225,12 @@ try {
       `after a reload the page shows size=${reloadedRadios.textsize} face=${reloadedRadios.font} as chosen, want l and kai`,
     );
   }
+  if (reloaded.sectionbuttons !== 'hover' || reloadedRadios.sectionbuttons !== 'hover') {
+    fail(
+      'choices-survive-the-journey',
+      `after a reload the buttons beside sections are stamped ${reloaded.sectionbuttons || 'nothing'} and shown as ${reloadedRadios.sectionbuttons}, want hover in both`,
+    );
+  }
 
   // The reading itself, which is what the two choices above are for.
   await page.goto(BASE + reading, { waitUntil: 'domcontentloaded' });
@@ -194,6 +240,9 @@ try {
       'choices-survive-the-journey',
       `the note is stamped size=${onTheNote.textsize || 'nothing'} face=${onTheNote.font || 'nothing'}, want the l and kai chosen before it`,
     );
+  }
+  if (onTheNote.sectionbuttons !== 'hover') {
+    fail('choices-survive-the-journey', `the note is stamped sectionbuttons=${onTheNote.sectionbuttons || 'nothing'}, want the hover chosen before it`);
   }
 
   // Back to the choices, then forward to the note again. The radios are left
@@ -276,6 +325,7 @@ try {
   }
   await plain.click('[data-pref-field="textsize"] input[value="xl"]');
   await plain.click('[data-pref-field="font"] input[value="sans"]');
+  await plain.click('[data-pref-field="sectionbuttons"] input[value="hover"]');
   await plain.click('.y-prefs__fallback');
   await plain.waitForLoadState('domcontentloaded');
   const applied = {};
@@ -286,8 +336,15 @@ try {
       `the form stored size=${applied.yomihon_textsize || 'nothing'} face=${applied.yomihon_font || 'nothing'}, want xl and sans together`,
     );
   }
+  if (applied.yomihon_sectionbuttons !== 'hover') {
+    fail('no-javascript-fallback', `the form stored sectionbuttons=${applied.yomihon_sectionbuttons || 'nothing'} beside the others, want hover`);
+  }
   if (new URL(plain.url()).pathname !== reading) {
     fail('no-javascript-fallback', `applying the form landed on ${plain.url()}, want the reader back on ${reading}`);
+  }
+  const served = await plain.getAttribute('html', 'data-sectionbuttons');
+  if (served !== 'hover') {
+    fail('no-javascript-fallback', `the page the reader lands on is stamped sectionbuttons=${served ?? 'nothing'} by the server, want hover with no script to set it`);
   }
 
   console.log(

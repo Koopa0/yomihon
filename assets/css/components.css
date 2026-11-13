@@ -234,26 +234,6 @@ samp {
   white-space: nowrap;
 }
 
-/* A kept location or authored source section identifies the row, so a narrow
-   shelf must keep those words visible instead of clipping them like a title. */
-.ui-navitem--wrap {
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.ui-navitem--wrap > span {
-  max-width: 100%;
-  overflow: visible;
-  overflow-wrap: anywhere;
-  text-overflow: clip;
-  white-space: normal;
-}
-
-.ui-navitem--wrap > .ui-navitem__count {
-  margin-left: 0;
-}
-
 .y-here .ui-navitem,
 .y-railgroup .ui-navitem,
 .y-railreports .ui-navitem,
@@ -692,31 +672,19 @@ html:not([data-js]) .y-rubybtn {
    ============================================================ */
 :root {
   --rail-open: 272px;
-  --rail-right: 240px;
 }
 
-/* The rails are the window's own edges, as a desktop application's panes are,
-   and the reading column takes whatever width is left between them. Nothing
-   here centres or caps the shell: capped, it would leave both rails floating in
-   from the window's sides, short of the header's ends above them. The article
-   keeps its own measure and stands in the middle of the column. */
+/* The rail is the window's own edge, as a desktop application's pane is, and
+   the reading column takes whatever width is left beside it. Nothing here
+   centres or caps the shell: capped, it would leave the rail floating in from
+   the window's side, short of the header's end above it. The article keeps its
+   own measure and stands in the column. */
 .y-shell {
   align-items: start;
   display: grid;
   flex: 1;
-  grid-template-columns: var(--rail-open) minmax(0, 1fr) var(--rail-right);
-  width: 100%;
-}
-/* The right rail exists to hold reading aids — the table of contents and the
-   diagnostics list. A note with neither drops the rail's column entirely and
-   the reading column takes the width; the status face at the article's end
-   carries write controls wherever the rail is absent. */
-.y-shell--rail-empty {
   grid-template-columns: var(--rail-open) minmax(0, 1fr);
-}
-
-.y-shell--rail-empty .y-rail-right {
-  display: none;
+  width: 100%;
 }
 
 .y-nav-scrim {
@@ -743,7 +711,8 @@ html:not([data-js]) .y-rubybtn {
 /* Without scripting, arrival brings the current row into the rail's view and
    leaves the document's own landing alone. The target stays declared after
    arrival, and a fold that reflows the text would then lose the reader's
-   paragraph, so with scripting the rail module places the row once instead.
+   paragraph, so with scripting the page's own rail script places the row once
+   instead, before anything is painted.
    Without scripting nothing folds the column while the page is read. */
 @media (scripting: none) {
   .y-rail-left .ui-navitem[aria-current='page'] {
@@ -839,23 +808,6 @@ html:not([data-js]) .y-rubybtn {
   stroke: none;
 }
 
-/* The rail's first line sits on the line of the crumbs opposite it, so the two
-   columns start reading at the same height. */
-.y-rail-right {
-  border-left: 1px solid var(--line);
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-  height: calc(100vh - var(--header-height));
-  overflow-y: auto;
-  padding: 44px var(--header-inset) 48px 24px;
-  position: sticky;
-  top: var(--header-height);
-}
-
-.y-rail-right > * {
-  flex: none;
-}
 /* The document scrolls, not this element. A reader arrives with focus on the
    body, and the browser scrolls the focused element's scrolling box — so while
    the prose lived in its own overflow container, the viewport had nothing to
@@ -883,6 +835,16 @@ html:not([data-js]) .y-rubybtn {
   margin: 0;
 }
 
+/* The group's name is where the rail's words begin, on the header's own line,
+   and the mark that says it folds stands at the far end. A chevron ahead of the
+   name moved the first words of every page whose rail opens on a group — the
+   search and the findings — a chevron's width in from the line the header's
+   first control stands on. */
+.y-railsummary > .y-chevron {
+  margin-inline-start: auto;
+  order: 1;
+}
+
 /* The head of a book rail: the course's name, then how much of it there is.
    The name is the one strong line in the rail; the extent is meta beneath it,
    and a hairline closes the head before the parts begin. The text sits on the
@@ -890,7 +852,7 @@ html:not([data-js]) .y-rubybtn {
 .y-railbook__title {
   color: var(--fg);
   display: block;
-  font-family: var(--font-sans);
+  font-family: var(--font-serif);
   font-size: var(--fs-16);
   font-weight: var(--fw-semibold);
   line-height: 1.5rem;
@@ -913,6 +875,128 @@ html:not([data-js]) .y-rubybtn {
 
 .y-railgroup {
   margin: 2px 0 8px var(--rail-list-inset);
+}
+
+/* The note's own contents, under the row that is the note: the one list the
+   reader's place in the map and in the note are read from. It starts under the
+   row's words and is quieter than the rows, because the rows are where the
+   reader goes next and this is where they are. The current heading is the
+   scroll-spy's, drawn heavier and in the full ink; the last row leads down to
+   what the note ends on. */
+.y-railtoc {
+  margin: 2px 0 8px calc(var(--rail-list-inset) + var(--rail-row-inset));
+}
+
+.y-railtoc .y-toc__row > :where(a:first-child) {
+  box-shadow: none;
+  font-size: var(--fs-13);
+  line-height: 1.4;
+  padding: 4px 0;
+}
+
+.y-railtoc .y-toc__row > :where(a:first-child):hover {
+  box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.y-railtoc .y-toc__row > a[data-level='3'] {
+  padding-left: 12px;
+}
+
+.y-railtoc .y-toc__row > a[data-level='4'] {
+  padding-left: 24px;
+}
+
+.y-railtoc .y-toc__list .is-active {
+  box-shadow: none;
+  color: var(--fg);
+  font-weight: var(--fw-semibold);
+}
+
+/* The sidebar's rows are shorter than the two rem a door is drawn at beside a
+   title in the reading column, so here the door takes the row's own height: a
+   door taller than its row hangs out of it, and covers the top of the next row,
+   the one the pointer is going to. */
+.y-railtoc .y-toc__list .y-toc__door {
+  background: var(--rail-ground);
+  height: auto;
+  inset-block: 0;
+}
+
+.y-railtoc .y-toc__row--end {
+  margin-top: 6px;
+}
+
+/* Where a note in no course is: the word for the kind of place over the path
+   itself, in the face a path is set in and unbroken by spacing between a
+   Latin name and the Han characters beside it. It is long, and breaks
+   anywhere rather than running out of the rail. */
+.y-where {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0 6px;
+}
+
+.y-where__label {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
+}
+
+.y-where__path {
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-13);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  text-autospace: no-autospace;
+  text-decoration: none;
+}
+
+.y-where__path:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The name a folded column keeps, set along the strip the way the spine of a
+   book is. It is drawn into the rail and shown only while the column is
+   folded; the strip is forty pixels wide and holds the button that unfolds it
+   and this, and a name too long for the height is cut with an ellipsis and
+   kept whole in the link's title. */
+.y-railspine {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  html[data-rail='collapsed'] .y-railspine {
+    color: var(--fg);
+    display: flex;
+    justify-content: center;
+    margin: 12px calc(-1 * var(--rail-pad)) 0 calc(-1 * var(--rail-pad-start));
+    text-decoration: none;
+  }
+
+  .y-railspine__name {
+    font-family: var(--font-serif);
+    font-size: var(--fs-15);
+    font-weight: var(--fw-medium);
+    line-height: 1.2;
+    max-block-size: calc(100vh - var(--header-height) - var(--rail-head-height) - 48px);
+    overflow: hidden;
+    padding-block: 4px;
+    text-orientation: mixed;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    writing-mode: vertical-rl;
+  }
+
+  html[data-rail='collapsed'] .y-railspine:hover .y-railspine__name {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
 }
 
 .y-railsep {
@@ -945,7 +1029,6 @@ html:not([data-js]) .y-rubybtn {
 .y-rail-left details::details-content,
 .y-metarow::details-content,
 .y-toc-inline::details-content,
-.y-statusconfirm::details-content,
 .y-facets::details-content {
   height: 0;
   interpolate-size: allow-keywords;
@@ -963,7 +1046,6 @@ html:not([data-js]) .y-rubybtn {
 .y-rail-left details[open]::details-content,
 .y-metarow[open]::details-content,
 .y-toc-inline[open]::details-content,
-.y-statusconfirm[open]::details-content,
 .y-facets[open]::details-content {
   height: auto;
 }
@@ -977,7 +1059,7 @@ html:not([data-js]) .y-rubybtn {
   transition: none;
 }
 
-/* lifecycle status rows */
+/* the point beside a navigation row */
 .y-navdot {
   background: var(--fg-subtle);
   border-radius: 50%;
@@ -1165,19 +1247,13 @@ html:not([data-js]) .y-rubybtn {
   overflow-wrap: anywhere;
 }
 
-.y-railfoot__size {
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-variant-numeric: tabular-nums;
-  line-height: 1.25rem;
-}
 
 /* ============================================================
    The reading shell
    ============================================================ */
-/* Five pages are one shape: a note, a file, a study path, the reading choices,
-   and the two a reader only reaches by accident — an address that names
-   nothing, and a status write that was refused. A reader moving between them
+/* These pages are one shape: a note, a file, a study path, the reading
+   choices, and the ones a reader only reaches by accident — an address that
+   names nothing, a request refused. A reader moving between them
    is reading the same kind of prose, so they are given the same line, the same
    space either side of it, and the same room above and below, in one place
    where that can be read as one decision.
@@ -1196,6 +1272,42 @@ html:not([data-js]) .y-rubybtn {
   padding: 44px var(--gutter-read) 120px;
 }
 
+/* One left edge. The text of every page that has a sidebar starts where the
+   reading column does, and the text of every page that has none starts where
+   the desk's container does, so moving from one page to the next moves nothing
+   the reader's eye is on. The edge is the margin that stands the block in the
+   middle of the room, taken as the box's own margin with the gutter that the
+   box's text sits in from it already counted, so pages whose gutters differ
+   still start their text at the same place. Where the room is narrower than the
+   block the margin is nothing and the column fills it, which is also where the
+   drawer is. */
+.y-main > :is(.y-article, .y-syl) {
+  margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2));
+  margin-right: auto;
+}
+
+.y-main > .y-healthpage {
+  margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2 + var(--gutter-read) - var(--gutter-list)));
+  margin-right: auto;
+}
+
+.y-main > .y-searchpage {
+  margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2 + var(--gutter-read) - var(--gutter-answer)));
+  margin-right: auto;
+}
+
+.y-shell2:has(> .y-rail-left) > .y-main > .y-recovery {
+  margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2));
+  margin-right: auto;
+}
+
+.y-main > .y-listen,
+.y-shell2:not(:has(> .y-rail-left)) > .y-main > .y-recovery,
+.y-prefs {
+  margin-left: max(0px, calc((100% - var(--measure-list) - 2 * var(--gutter-list)) / 2 + var(--gutter-list) - var(--gutter-read)));
+  margin-right: auto;
+}
+
 /* ============================================================
    The shelf shell
    ============================================================ */
@@ -1211,62 +1323,32 @@ html:not([data-js]) .y-rubybtn {
   padding: 42px var(--gutter-list) 120px;
 }
 
-/* A page arrives as a whole new document, so the block of content under the
-   header is the one thing that changes beneath a reader who pressed a link.
-   It comes forward: from a little faint and a little small, growing into
-   place over a curve that decelerates, which says the page changed without
-   sending anything up or down the way the reader scrolls. Only that block
-   moves. The header and the rails are the same on both sides of the press and
-   stay still, and <main> is left alone because a transform on it would take
-   every positioned descendant of the column with it. The reading choices page
-   is <main> itself, with no block inside it to move, so it arrives without
-   this. It carries no blur: a filter over a layer as tall as the column would
-   be repainted on every press, and it reads as a landing page, not a book.
+/* A page change plays no animation. The block under the header is the first
+   thing painted at its final size and opacity, the header and the rails are
+   where they were, and nothing is faded, scaled or moved to say the page
+   changed: the press already said so, and what the reader is looking at should
+   not move for it. Measured, the old arrival left every click's first frame at
+   half opacity and a scale of 98.5% for about 270ms.
 
-   A scale moves each point by its distance from the origin, and the column
-   can be thousands of pixels tall. From its own centre the first line of a
-   note three thousand pixels tall would travel about twenty pixels, against
-   two on a short page. The origin is therefore the centre of the part of the
-   column on screen when the page opens at the top, or the centre of the block
-   where the block is shorter than that, so the lines the reader is looking at
-   barely move and a short page and a long note arrive alike. That holds only
-   at the top. A page read lower down would have its text moved by twenty
-   pixels or more, and further the lower it is, so such a page does not play
-   the arrival at all.
-
-   The keyframes say only where the movement starts, and the fill is held
-   backwards, so once it ends nothing of it is left: a scale that stayed would
-   make the block the containing block of whatever is fixed inside it. A page
-   the browser put back from history, or reloaded in place, or prepared before
-   the reader asked for it, does not play it: nothing new arrives, and the text
-   is already where it was being read. Nor does a page that opens at a place in
-   it: an address with a fragment, whether it names a heading or a stretch of
-   text, or one returning to a kept place, which carries its distance in the
-   query. The browser scrolls to the place by where the block is while it is
-   still small, and what it was asked for would land a few pixels off once the
-   block settled.
-   All four are marks the head script writes once, and the rule reads only
-   those. A condition worked out here instead, the fragment's own target, say,
-   would stop matching when the reader jumped about the page and went back, and
-   the block would play the arrival again over text they were reading.
-   Reduced motion is answered by the blanket under the interface's own root. */
-@keyframes y-come-forward {
-  from {
-    opacity: 0.5;
-    scale: 0.985;
-  }
+   One page is not painted at once. A reader returning to a kept place opens the
+   note at an anchor and a distance below it, and the distance can be applied
+   only by script, once the anchor's own measurements are in. The head script
+   marks that document, and until the page's module has scrolled to the place
+   the column is held out of sight, so the first frame the reader sees is
+   already at the place. The module removes the mark as soon as it has placed
+   the page. A document whose module never runs would stay hidden, so the same
+   rule reveals the column after a delay: the keyframes only flip visibility,
+   and a page the rule never matched, such as one without scripting, was never
+   hidden. */
+html[data-js][data-arrival='kept'] .y-main {
+  animation: y-kept-reveal 0s 400ms forwards;
+  visibility: hidden;
 }
 
-html:not([data-prerender], [data-arrival]) :is(
-  .y-article,
-  .y-healthpage,
-  .y-home,
-  .y-listen,
-  .y-recovery,
-  .y-syl
-) {
-  animation: y-come-forward var(--dur-arrival) var(--ease-arrival) backwards;
-  transform-origin: 50% min(50%, 45vh);
+@keyframes y-kept-reveal {
+  to {
+    visibility: visible;
+  }
 }
 
 /* ============================================================
@@ -1440,9 +1522,8 @@ details.y-metarow {
 }
 
 /* The wide-open placement: the same facts, undisclosed, beside the title.
-   Hidden by default and shown only from 1280 up, the split .y-rail-right and
-   .y-inlineaids already use — the width where .y-metarow's own disclosure
-   hides in turn (Responsive, below). Nothing has to turn it back off under
+   Hidden by default and shown only from 1280 up — the width where
+   .y-metarow's own disclosure hides in turn (Responsive, below). Nothing has to turn it back off under
    that width: display: none is already its only rule outside that one query. */
 .y-headmeta {
   align-items: center;
@@ -2017,23 +2098,18 @@ details.y-metarow {
   margin: 0;
 }
 
-.y-flipreceipt {
-  margin: 0 0 12px;
-}
-
 @keyframes y-reply-in {
   from {
     opacity: 0;
   }
 }
 
-/* The freshness line: one quiet sentence the client puts above the article when
-   the file has moved on from the words printed below. It takes the flip
-   receipt's weight because it reports the same kind of thing — something that
-   happened to this note while the page was open — and neither of them is the
-   article. The server never sends it, so there is nothing here to hide when
-   scripting is off. Its control is a button rather than a link: what it does is
-   reload this address, which no href expresses. */
+/* The freshness line: one quiet sentence the client puts above the article
+   when the file has moved on from the words printed below. It is quiet because
+   it reports something that happened to this note while the page was open, and
+   it is not the article. The server never sends it, so there is nothing here
+   to hide when scripting is off. Its control is a button rather than a link:
+   what it does is reload this address, which no href expresses. */
 .y-freshness {
   color: var(--fg-muted);
   font-size: var(--fs-13);
@@ -2045,8 +2121,7 @@ details.y-metarow {
    keeps it just below the header (the --header-height every pinned edge here clears)
    without moving the reader's place; the page ground behind it, because it
    floats over prose once stuck. Scoped to the state attribute the banner
-   carries so the recovery page's hold note, which shares the class, stays in
-   flow beside its link. No motion is added, so reduced-motion needs nothing. */
+   carries. No motion is added, so reduced-motion needs nothing. */
 .y-freshness[data-freshness] {
   background: var(--bg);
   border-bottom: 1px solid var(--border-faint);
@@ -2344,16 +2419,14 @@ button.y-freshness__action {
 }
 
 /* ============================================================
-   Right rail — TOC · status panel · diagnostics
+   Right rail — TOC · diagnostics
    ============================================================ */
-/* Inline reading aids — the stand-in for the right rail at widths where the
-   rail is hidden: one closed native disclosure between the head and the first
-   sentence, naming every aid the page carries, and the notes beside this one
-   at the end of the text. Wide viewports show the rail and hide both (the
-   media rule sits with the other width switches at the end of this sheet). */
-.y-inlineaids,
-.y-related {
-  display: none;
+/* The contents row a note in a column of a page holding two carries, because
+   such a column has no sidebar beside it: one closed native disclosure between
+   the head and the first sentence. Every other aid waits in the block that ends
+   the text. */
+.y-inlineaids {
+  margin: 16px 0 0;
 }
 
 /* One row on a forty-pixel pitch: the summary's own line and four pixels above
@@ -2414,29 +2487,22 @@ button.y-freshness__action {
   padding: 4px 0 12px;
 }
 
-/* The two aids that wait at the end of the text are named in the summary, so
-   the open row leads down to them rather than leaving a name with nothing
-   under it. */
-.y-toc-inline__jump {
+/* The block that ends the text: what stands beside the note, in one column
+   below the way the prose ends, a wide gap above it so the text has finished
+   before it begins. Each aid keeps the anatomy it had when it stood in a
+   column of its own — a small quiet label over a list of links — so a reader
+   who knew it there finds it unchanged, and the sidebar's last contents row
+   leads here. It is the row's target, so a jump parks it clear of the header. */
+.y-related {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px 20px;
-  margin: 0;
-}
-
-.y-toc-inline__jump a {
-  color: var(--fg-subtle);
-  font-family: var(--font-sans);
-  font-size: var(--fs-13);
-  line-height: 1.5rem;
-}
-
-.y-toc-inline__jump a:hover {
-  color: var(--fg);
-}
-
-.y-related__block {
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 56px;
   scroll-margin-top: var(--header-clearance);
+}
+
+.y-related:focus {
+  outline: none;
 }
 
 .y-toc__list {
@@ -2472,27 +2538,21 @@ button.y-freshness__action {
    step smaller and quieter, so the eye finds the contents first. The aids'
    links are one anatomy whatever list they are in: the quiet ink at rest and
    the full ink under a pointer, the same as the contents' own rows. */
-:is(.y-rail-right, .y-toc-inline__body, .y-related, .y-sealbar) .ui-side__label {
+:is(.y-toc-inline__body, .y-related) .ui-side__label {
   color: var(--fg-muted);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
 }
 
-:is(.y-rail-right, .y-toc-inline__body, .y-related, .y-sealbar) .ui-side__label .ui-navitem__count {
+:is(.y-toc-inline__body, .y-related) .ui-side__label .ui-navitem__count {
   font-size: var(--fs-13);
 }
 
-.y-rail-right .ui-side__label:has(+ .y-toc__list) {
-  color: var(--fg);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-semibold);
-}
-
-:is(.y-rail-right, .y-toc-inline__body, .y-related) .ui-navitem {
+:is(.y-toc-inline__body, .y-related) .ui-navitem {
   color: var(--fg-subtle);
 }
 
-:is(.y-rail-right, .y-toc-inline__body, .y-related) .ui-navitem:hover {
+:is(.y-toc-inline__body, .y-related) .ui-navitem:hover {
   color: var(--fg);
 }
 
@@ -2572,29 +2632,6 @@ button.y-freshness__action {
   }
 }
 
-.y-statuspanel {
-  border-top: 1px solid var(--line);
-  padding-top: 20px;
-}
-
-.y-statuspanel__head {
-  padding: 0;
-}
-
-.y-statuspanel__row {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.y-statuspanel__forms {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 16px 0 0;
-}
-
 .y-statuspanel__notice {
   color: var(--fg-subtle);
   font-family: var(--font-serif);
@@ -2604,11 +2641,7 @@ button.y-freshness__action {
   padding: 12px 0 0;
 }
 
-.y-statusform {
-  margin: 0;
-}
-
-/* one plain transition control; every legal target renders identically */
+/* one plain control */
 .y-xbtn {
   background: transparent;
   border: 0;
@@ -2632,56 +2665,6 @@ button.y-freshness__action {
 .y-xbtn--primary {
   box-shadow: inset 0 0 0 1px var(--line-strong);
   color: var(--fg);
-}
-
-/* terminal-target confirm — the native disclosure that keeps the submit one
-   interaction away; its summary wears the plain control's face */
-.y-statusconfirm {
-  min-width: 0;
-}
-
-/* The confirmation reads as a sentence and a button, so once it is open its
-   form takes the whole row rather than sitting among the others. */
-.y-statusform:has(.y-statusconfirm[open]) {
-  flex-basis: 100%;
-}
-
-/* Open, the confirmation takes its row, and its summary stays the size of the
-   control a reader pressed rather than stretching across the row with it. */
-.y-statusconfirm__summary {
-  align-items: center;
-  display: flex;
-  justify-content: center;
-  list-style: none;
-  -webkit-user-select: none;
-  user-select: none;
-  width: fit-content;
-}
-
-.y-statusconfirm__summary::marker {
-  content: none;
-}
-
-.y-statusconfirm[open] .y-statusconfirm__summary {
-  background: var(--overlay);
-  color: var(--fg);
-}
-
-.y-statusconfirm__note {
-  color: var(--fg-muted);
-  font-family: var(--font-serif);
-  font-size: var(--fs-13);
-  line-height: 1.6;
-  margin: 8px 0;
-}
-
-.y-statusconfirm__submit {
-  border-color: var(--warn);
-  color: var(--fg);
-}
-
-.y-sealbar .y-statusconfirm {
-  width: auto;
 }
 
 /* diagnostics rail */
@@ -2772,8 +2755,8 @@ button.y-freshness__action {
   font-size: var(--fs-12);
 }
 
-/* out-of-enum status flag — the diagnostics rail's amber accent applied to a
-   status-face notice, so the flag reads as a finding rather than as copy */
+/* the diagnostics rail's amber accent on a schema notice, so the notice reads
+   as a finding rather than as copy */
 .y-statusflag {
   border-left: 2.5px solid var(--warn);
 }
@@ -2785,51 +2768,12 @@ button.y-freshness__action {
 }
 
 /* ============================================================
-   Status bar — the status face at the end of the article wherever the right
-   rail is absent: narrow viewports hide the rail, and no-aid notes drop its
-   column. The write face belongs after reading, not pinned to the viewport
-   bottom. The y-sealbar class names are kept; the layout predates the bar
-   being a plain control surface.
-   ============================================================ */
-.y-sealbar {
-  align-items: center;
-  border-top: 1px solid var(--line);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 32px;
-  padding: 16px 0 0;
-}
-@media (min-width: 1280px) {
-  .y-shell:not(.y-shell--rail-empty) .y-sealbar {
-    display: none;
-  }
-}
-
-.y-sealbar__spacer {
-  flex: 1;
-}
-
-.y-sealbar .y-xbtn {
-  padding-inline: 14px;
-  width: auto;
-}
-
-.y-sealbar__notice {
-  color: var(--fg-subtle);
-  font-family: var(--font-serif);
-  font-size: var(--fs-13);
-  line-height: 1.6;
-  margin: 0;
-}
-
-/* ============================================================
    The search field — one shape wherever it is asked for
    ============================================================ */
-/* Three places ask a reader to type a search: the desk, the search page, and
-   the palette the keyboard opens. They are one field, so the height, the
-   corner, the type and the icon are written once here and each place adds
-   only the ground it sits on.
+/* Two places ask a reader to type a search: the search page and the palette
+   the keyboard opens. They are one field, so the height, the corner, the type
+   and the icon are written once here and each place adds only the ground it
+   sits on.
 
    The resting line is an outline drawn inward rather than a border, so focus
    can thicken it from one pixel to two and colour it without a single glyph
@@ -2838,7 +2782,6 @@ button.y-freshness__action {
    the ring stays off the input and the field around it carries the state —
    the same outline every other control answers focus with, drawn where this
    one already has a line. */
-.y-homesearch,
 .y-searchdialog__form,
 .y-searchpage__form {
   align-items: center;
@@ -2851,7 +2794,6 @@ button.y-freshness__action {
   padding: 0 12px;
 }
 
-.y-homesearch:focus-within,
 .y-searchdialog__form:focus-within,
 .y-searchpage__form:focus-within {
   outline: 2px solid var(--link);
@@ -2861,7 +2803,6 @@ button.y-freshness__action {
 /* A phone zooms the page when it focuses an input set below its own body
    size, which moves the whole layout to read one word. Sixteen pixels is
    where that stops, and it is the size the typed query deserves anyway. */
-.y-homesearch input,
 .y-searchdialog__input,
 .y-searchpage__form input {
   background: transparent;
@@ -2874,7 +2815,6 @@ button.y-freshness__action {
   outline: 0;
 }
 
-.y-homesearch input:focus-visible,
 .y-searchdialog__input:focus-visible,
 .y-searchpage__form input:focus-visible {
   outline: 0;
@@ -2883,7 +2823,6 @@ button.y-freshness__action {
 /* The browser's own clear control is drawn in the system's accent colour, which
    is a blue nothing else in this interface uses. It keeps its place and its
    behaviour; only the mark is redrawn, as a cross in the subtle ink. */
-.y-homesearch input::-webkit-search-cancel-button,
 .y-searchdialog__input::-webkit-search-cancel-button,
 .y-searchpage__form input::-webkit-search-cancel-button {
   appearance: none;
@@ -2893,14 +2832,12 @@ button.y-freshness__action {
   width: 14px;
 }
 
-.y-homesearch input::-webkit-search-cancel-button:hover,
 .y-searchdialog__input::-webkit-search-cancel-button:hover,
 .y-searchpage__form input::-webkit-search-cancel-button:hover {
   background: linear-gradient(45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%);
 }
 
 /* One glyph size for every way into search, the header's entry included. */
-.y-homesearch svg,
 .y-searchbtn svg,
 .y-searchdialog__form svg,
 .y-searchpage__form svg {
@@ -2911,18 +2848,38 @@ button.y-freshness__action {
 
 /* The header's entry takes its ink from the control around it, which is why
    it is not in this list. */
-.y-homesearch svg,
 .y-searchdialog__form svg,
 .y-searchpage__form svg {
   color: var(--fg-subtle);
 }
 
-.y-homesearch .y-xbtn,
 .y-searchpage__form .y-xbtn {
   flex: none;
   height: 32px;
   padding: 0 16px;
   width: auto;
+}
+
+/* What a reader came to look at is what they are looking for, so the query is
+   the largest text on the page: 28px in the reading face, which a phone does
+   not zoom for. The field grows to hold it, and a phone's width takes it down
+   a step so the button is still reached without scrolling sideways. */
+.y-searchpage__form {
+  height: auto;
+  min-height: 56px;
+  padding-block: 4px;
+}
+
+.y-searchpage__form input {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  line-height: 1.3;
+}
+
+@media (max-width: 600px) {
+  .y-searchpage__form input {
+    font-size: 1.375rem;
+  }
 }
 
 /* ============================================================
@@ -3034,14 +2991,6 @@ button.y-freshness__action {
   max-width: calc(var(--measure-answer) + 2 * var(--gutter-answer));
   padding: 40px var(--gutter-answer) 96px;
 }
-
-/* The page names itself, then offers the field, then answers: three steps a
-   measured distance apart, so the count is not read as part of the field's
-   frame and the field is not read as the title's underline. */
-.y-searchpage > .y-title {
-  margin-bottom: 24px;
-}
-
 
 /* The divisions beside the results. The page's own column is a reading
    measure, so the answer and what it is made of are laid out as a pair rather
@@ -3249,12 +3198,11 @@ a.y-facetrow:hover {
   font-size: var(--fs-12);
   margin-top: 14px;
 }
-/* An answer is a shelf of its own, so its rows are the shelf's rows: a hairline
-   between them, the same inset, and nothing drawn around any one of them. What
-   a list of findings needs is a place for the eye to stop between one and the
-   next, and a line does that where two pixels of air did not — twenty-odd hits
-   ran together. The row is taller than a shelf row because it carries a
-   sentence under its title as well as a path. */
+/* An answer is a shelf of its own, so its rows are the shelf's rows: the same
+   inset, and nothing drawn around any one of them and no line between them.
+   What a list of findings needs is a place for the eye to stop between one and
+   the next, and the room each hit is given does that. The row is taller than a
+   shelf row because it carries a sentence under its title as well as a path. */
 .y-results {
   display: flex;
   flex-direction: column;
@@ -3264,7 +3212,6 @@ a.y-facetrow:hover {
 /* A hit's words start under the field's own edge, and the wash a pointer
    brings reaches past it, as a shelf row's does. */
 .y-result {
-  border-bottom: 1px solid var(--border-faint);
   border-radius: var(--r-sm);
   display: flex;
   flex-direction: column;
@@ -3290,29 +3237,16 @@ a.y-facetrow:hover {
   margin: 0 6px;
 }
 
+.y-result__meta .ui-status {
+  margin-inline-start: 8px;
+}
+
 .y-result__kind {
   color: var(--fg-faint);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
 }
-/* a status the contract does not declare — worn by a search hit, a landing-page
-   row, and the distribution chip alike, so one fault reads as one thing
-   wherever it is met. The words inside carry the meaning; the tint only makes
-   them findable while a reader scans a list that otherwise looks uniform. It
-   sits inline so it wraps with the line it belongs to rather than pushing the
-   row wider than its neighbours. */
-.y-outofenum {
-  background: var(--warn-bg);
-  border-radius: 3px;
-  color: var(--warn);
-  display: inline-block;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  line-height: 1.75;
-  margin-left: 8px;
-  padding: 0 6px;
-  white-space: nowrap;
-}
+
 /* Half the snippets on this page are Chinese, and Chinese prose needs the
    reading leading rather than the interface's. */
 .y-result__snippet {
@@ -3996,6 +3930,23 @@ a.y-facetrow:hover {
   max-width: 600px;
 }
 
+/* The desk's own name is a label over what stands first on it, and the
+   quietest line there: it names the page and is never the loudest thing on it. */
+.y-desklabel {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
+  margin: 0 0 28px;
+}
+
+/* A heading kept for the listener alone, where the page's loudest thing is
+   something other than its name, takes a pixel rather than a line of its own. */
+.y-offscreen--block {
+  display: block;
+}
+
 /* The desk's shelves are sections of one page rather than cards laid on it:
    each opens on a hairline and its heading, two to a row with a wide gutter
    between, and nothing draws a box around a list a reader only scans. */
@@ -4021,9 +3972,6 @@ a.y-facetrow:hover {
   grid-column: span 7;
 }
 
-.y-homeblock--lifecycle {
-  grid-column: span 5;
-}
 /* The four ways in sit two by two; the desk's own search field is not one of
    them and takes the width under them. */
 .y-modeblock {
@@ -4052,11 +4000,38 @@ a.y-facetrow:hover {
   font-size: var(--fs-14);
   margin-top: 4px;
 }
-/* The search row sits above the ways in, at the width of the page rather than
-   as one more block beside them. */
-.y-homesearchrow {
-  display: block;
-  margin: 0 0 22px;
+
+/* With no place kept the courses lead the desk, in a block of their own above
+   the rest: one to a line at the size a page's own title is set at, because a
+   reader who kept nothing came to choose one. */
+.y-homelead {
+  margin: 0 0 48px;
+}
+
+.y-modeblock--lead {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.y-modeblock--lead .ui-navitem {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-30);
+  line-height: 1.35;
+  padding-block: 8px;
+}
+
+.y-modeblock--lead .ui-navitem:hover {
+  color: var(--link);
+}
+
+/* The way on past the three is the quiet line it is everywhere else. */
+.y-modeblock--lead .y-shelfall {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  line-height: 1.5rem;
+  padding-block: 4px;
 }
 
 /* The thought door shows the Markdown it composed as a reading code block, set
@@ -4099,15 +4074,6 @@ a.y-facetrow:hover {
   align-items: center;
   display: inline-flex;
   text-decoration: none;
-}
-
-/* The sentence under the chip row explaining why some notes state no status:
-   the card lede's voice, upright, set below the row rather than under a head. */
-.y-homeblock__note {
-  color: var(--fg-faint);
-  font-family: var(--font-serif);
-  font-size: var(--fs-13);
-  margin: 12px 0 0;
 }
 
 .y-shelfblocks {
@@ -4217,44 +4183,6 @@ a.y-facetrow:hover {
   font-size: var(--fs-12);
 }
 
-.y-homechips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.y-homechip {
-  align-items: center;
-  background: var(--elevated);
-  border: 1px solid var(--border-faint);
-  border-radius: var(--r-sm);
-  color: var(--fg-muted);
-  display: inline-flex;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  gap: 7px;
-  padding: 7px 9px;
-}
-
-.y-homechip[href]:hover {
-  border-color: var(--border-strong);
-  color: var(--fg);
-}
-/* a status no carrying type declares — the note page's amber flag family */
-.y-homechip--unknown {
-  border-left: 2.5px solid var(--warn);
-}
-
-.y-homechip__count {
-  color: var(--fg-faint);
-  min-width: 1.35em;
-  text-align: right;
-}
-
-.y-homesearch {
-  background: var(--elevated);
-  border-radius: var(--r-sm);
-}
 /* The way to the folder's own README closes the desk. It is set in the reading
    measure, and it begins where everything stacked above it begins: centred, its
    rule and its one line both started a hundred pixels in from the shelves and
@@ -4267,8 +4195,8 @@ a.y-facetrow:hover {
 }
 
 /* The desk's last line, the way to the whole-folder view. It is the quietest
-   line on the page and keeps the ink of the words around it, the count
-   included: the colour that asks for attention is the health page's own. */
+   line on the page, and it names the page without saying what is on it: the
+   colour that asks for attention is the health page's own. */
 .y-deskhealth {
   color: var(--fg-subtle);
   font-family: var(--font-sans);
@@ -4288,14 +4216,9 @@ a.y-facetrow:hover {
   color: var(--fg);
 }
 
-.y-deskhealth__count {
-  font-variant-numeric: tabular-nums;
-}
-
 @media (max-width: 1180px) {
   .y-homeblock--recent,
-  .y-modeblock,
-  .y-homeblock--lifecycle {
+  .y-modeblock {
     grid-column: 1 / -1;
   }
 
@@ -4385,6 +4308,179 @@ a.y-facetrow:hover {
    how a fault came to be drawn in the colour of an ordinary figure. */
 .y-row__measure--warn {
   color: var(--warn);
+}
+
+/* What the reader left open, on the desk and on the shelf: each is a short
+   stack rather than a row with a figure at its end — what kind of thing it is
+   and when, its name and the place in it that was marked, the sentence found
+   there, and the notes a thought came from. There is no hairline between them:
+   the space does that, and the shelf's own rule above the first is dropped. */
+.y-list--open {
+  border-top: 0;
+}
+
+.y-openitem {
+  display: grid;
+  gap: 4px;
+  padding: 12px 0 16px;
+}
+
+.y-openitem__meta {
+  align-items: center;
+  color: var(--fg-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  gap: 4px 12px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.y-openitem__meta time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The two kinds are told apart by a shape and a word, never by colour alone:
+   the reader's own mark is the diamond the control that makes it draws, in the
+   accent that belongs to the reader; a thought is a written line in the ink; a
+   mark whose place is gone says so in the colour findings are drawn in. */
+.y-openitem__tag {
+  align-items: center;
+  color: var(--accent);
+  display: inline-flex;
+  font-weight: var(--fw-semibold);
+  gap: 5px;
+}
+
+.y-openitem__tag::before {
+  background: currentcolor;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  content: '';
+  flex: none;
+  height: 9px;
+  width: 9px;
+}
+
+.y-openitem__tag--thought {
+  color: var(--fg);
+}
+
+.y-openitem__tag--thought::before {
+  clip-path: none;
+  height: 2px;
+  width: 10px;
+}
+
+.y-openitem__tag--fault {
+  color: var(--warn);
+}
+
+.y-openitem__tag--fault::before {
+  clip-path: none;
+  height: 8px;
+  width: 8px;
+}
+
+.y-openitem__name {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-20);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.y-openitem__name[href]:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.y-openitem__sign {
+  color: var(--fg-muted);
+  margin-inline: 0.3em;
+}
+
+.y-openitem__place {
+  color: var(--fg-muted);
+}
+
+/* The sentence is the part a reader scans to remember what the row was about,
+   so it is held to two lines rather than lent whole. */
+.y-openitem__opening {
+  -webkit-box-orient: vertical;
+  color: var(--fg-muted);
+  display: -webkit-box;
+  font-family: var(--font-serif);
+  font-size: var(--fs-15);
+  -webkit-line-clamp: 2;
+  line-height: 1.8;
+  margin: 0;
+  overflow: hidden;
+}
+
+.y-openitem__sources {
+  color: var(--fg-muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  gap: 2px 10px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.y-openitem__sources a {
+  color: var(--link);
+}
+
+/* The choice of how a shelf is ordered: one group, the chosen one on the tonal
+   ground in the full ink with a heavier word and a line under it — drawn as the
+   read-aloud speeds are, because a choice is drawn one way everywhere. */
+.y-order {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  gap: 2px;
+  margin: 0 0 20px;
+}
+
+.y-order__label {
+  color: var(--fg-subtle);
+  margin-inline-end: 6px;
+}
+
+.y-order button {
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  cursor: pointer;
+  font: inherit;
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.y-order button:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.y-order button[aria-pressed='true'] {
+  background: var(--selected);
+  color: var(--on-selected);
+  font-weight: var(--fw-semibold);
+  text-decoration: underline 2px var(--outline);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 5px;
+}
+
+@media (pointer: coarse) {
+  .y-order button {
+    min-height: 44px;
+  }
 }
 
 /* A row on a shelf that is read by date, as the journal is. The row leads with
@@ -4724,35 +4820,6 @@ a.y-facetrow:hover {
   background: none;
   border: 0;
   padding: 0;
-}
-
-.y-recovery__kicker {
-  color: var(--fg-faint);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  margin: 0 0 10px;
-}
-
-.y-recovery__state {
-  background: var(--elevated);
-  border-left: 3px solid var(--fg-subtle);
-  color: var(--fg);
-  font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  margin: 24px 0 0;
-  padding: 14px 16px;
-}
-
-.y-recovery__state[data-status-changed='false'] {
-  border-left-color: var(--border-strong);
-}
-
-.y-recovery__summary {
-  color: var(--fg);
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-17);
-  line-height: var(--lh-read);
-  margin: 22px 0 0;
 }
 
 .y-recovery__detail,
@@ -5275,7 +5342,6 @@ a.y-facetrow:hover {
   padding-top: 20px;
 }
 
-
 /* The words end on a space and the arrow follows as inline text, the way the
    rest of the interface sets "All of it →". A flex or grid box here would drop
    that space, since the space is trailing whitespace inside a box of its own,
@@ -5376,6 +5442,38 @@ a.y-facetrow:hover {
   background: var(--overlay);
 }
 
+/* The way back to the place the reader kept is drawn one way on the desk and on
+   the course: an outline in the ink, no fill, with the reader's own bookmark
+   leading the words. Vermilion is the bookmark and nothing else about it, and
+   it fills nothing. Starting a course has no place to return to, so it stays
+   the tonal button it was. */
+.y-cover__open[data-course-action='continue'],
+.y-continue__note[href] {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  column-gap: 8px;
+  display: inline-flex;
+  min-height: 40px;
+  padding: 0 16px;
+  text-decoration: none;
+}
+
+.y-cover__open[data-course-action='continue']:hover,
+.y-continue__note[href]:hover {
+  background: var(--wash);
+  text-decoration: none;
+}
+
+@media (pointer: coarse), (max-width: 720px) {
+  .y-cover__open[data-course-action='continue'],
+  .y-continue__note[href] {
+    min-height: 44px;
+  }
+}
+
 .y-cover__verb {
   flex: none;
   font-weight: var(--fw-medium);
@@ -5410,8 +5508,7 @@ html {
   scrollbar-gutter: stable;
 }
 
-.y-rail-left,
-.y-rail-right {
+.y-rail-left {
   overscroll-behavior: contain;
 }
 
@@ -5555,14 +5652,16 @@ samp,
    note. The eye arrives the moment the jump does, so the echo plays at once;
    it used to be held back while the viewport was still travelling, which is a
    wait that no longer describes anything and would now simply delay the one
-   signal saying where the reader ended up. */
+   signal saying where the reader ended up. The wash is the ink's, as every
+   other state the interface is in is: vermilion belongs to the reader's own
+   marks, and a jump is not one. */
 .y-prose :target {
   animation: y-arrive var(--dur-dwell) var(--ease-standard);
 }
 @keyframes y-arrive {
   from {
-    background: var(--accent-muted);
-    box-shadow: 0 0 0 6px var(--accent-muted);
+    background: var(--wash-strong);
+    box-shadow: 0 0 0 6px var(--wash-strong);
   }
 
   to {
@@ -5665,7 +5764,6 @@ samp,
     transform: scaleX(1);
   }
 }
-
 
 /* ============================================================
    Compare (two notes side by side)
@@ -5786,13 +5884,11 @@ samp,
   font-size: var(--fs-12);
 }
 
-
 /* ============================================================
    Responsive
    ============================================================ */
 @media (min-width: 1280px) {
-  /* The same split .y-rail-right and .y-inlineaids already use: past it the
-     facts stand open beside the title, so the disclosure that folds them at
+  /* Past this width the facts stand open beside the title, so the disclosure that folds them at
      narrower widths is not also drawn. The selector repeats the type
      qualifier details.y-metarow carries at its own display: block rule
      above, matching that rule's specificity instead of reaching for
@@ -5853,26 +5949,11 @@ samp,
   }
 }
 
+/* Below the width where a note's facts stand open beside its title the note's
+   sidebar narrows to leave the text its room. */
 @media (max-width: 1279px) {
   .y-shell {
     --rail-open: 248px;
-    grid-template-columns: var(--rail-open) minmax(0, 1fr);
-  }
-
-  .y-rail-right {
-    display: none;
-  }
-
-  .y-inlineaids {
-    display: block;
-    margin: 16px 0 0;
-  }
-
-  .y-related {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    margin-top: 56px;
   }
 }
 /* The left column folded away, above the width where it is a drawer. What is
@@ -5930,11 +6011,7 @@ samp,
     --rail-strip: 40px;
   }
 
-  html[data-rail='collapsed'] .y-shell:has(> .y-rail-left) {
-    grid-template-columns: var(--rail-strip) minmax(0, 1fr) var(--rail-right);
-  }
-
-  html[data-rail='collapsed'] .y-shell--rail-empty:has(> .y-rail-left),
+  html[data-rail='collapsed'] .y-shell:has(> .y-rail-left),
   html[data-rail='collapsed'] .y-shell2:has(> .y-rail-left) {
     grid-template-columns: var(--rail-strip) minmax(0, 1fr);
   }
@@ -5963,12 +6040,6 @@ samp,
 
   html[data-rail='collapsed'] .y-railtoggle__pane {
     fill-opacity: 0;
-  }
-}
-
-@media (min-width: 901px) and (max-width: 1279px) {
-  html[data-rail='collapsed'] .y-shell:has(> .y-rail-left) {
-    grid-template-columns: var(--rail-strip) minmax(0, 1fr);
   }
 }
 
@@ -6152,6 +6223,7 @@ samp,
   .y-facetrow--active,
   .y-pager__page[aria-current='page'],
   .y-ttsbar button[aria-pressed='true'],
+  .y-order button[aria-pressed='true'],
   .y-compare__align[aria-pressed='true'] {
     outline: 1px solid CanvasText;
     outline-offset: -1px;
@@ -6195,7 +6267,6 @@ samp,
   .y-rail-left details::details-content,
   .y-metarow::details-content,
   .y-toc-inline::details-content,
-  .y-statusconfirm::details-content,
   .y-facets::details-content {
     transition: none;
   }
@@ -6240,7 +6311,6 @@ samp,
     --selected: transparent;
     --on-selected: #000;
     --accent: #000;
-    --accent-muted: transparent;
     --link: #000;
     --warn: #000;
     --warn-bg: transparent;
@@ -6288,13 +6358,11 @@ samp,
   .y-codecopy,
   .y-header,
   .y-rail-left,
-  .y-rail-right,
   .y-inlineaids,
   .y-related,
   .y-searchdialog,
   .y-nav-scrim,
   .y-skiplink,
-  .y-sealbar,
   .y-preview,
   .y-compare__tabs,
   .y-tts,
@@ -6371,7 +6439,7 @@ samp,
      and the person holding the paper cannot click the fold open. The arrows
      that offer another ordering go, for the same reason the rest of the
      pointer machinery does. */
-  .y-findingsguide::details-content {
+  .y-healthabout::details-content {
     content-visibility: visible;
   }
 
@@ -6652,14 +6720,34 @@ samp,
   color: var(--fg);
 }
 
-/* The findings, as one table. A hairline under the header and one between rows
-   is the whole frame: a box around a ledger adds a line for every line it
-   already has. */
+/* The findings, a table to each kind. The one rule is the one under the
+   header, and nothing is ruled between rows or drawn round the table: a box
+   round a ledger adds a line for every line it already has, and the room a row
+   is given does what a hairline did. Every table on the page stands its four
+   columns at the same widths, so the file, the finding, the weight and the
+   count line up from one kind to the next down the whole page. */
 .y-findings {
   border-collapse: collapse;
-  margin: 26px 0 0;
+  margin: 12px 0 0;
+  table-layout: fixed;
   text-align: left;
   width: 100%;
+}
+
+.y-findings__col--file {
+  width: 44%;
+}
+
+.y-findings__col--finding {
+  width: 38%;
+}
+
+.y-findings__col--severity {
+  width: 10%;
+}
+
+.y-findings__col--count {
+  width: 8%;
 }
 
 .y-findings__target {
@@ -6728,7 +6816,7 @@ samp,
 }
 
 .y-findings tbody td {
-  border-top: 1px solid var(--border-faint);
+  overflow-wrap: anywhere;
   padding: 11px 12px 11px 0;
   vertical-align: baseline;
 }
@@ -6744,12 +6832,6 @@ samp,
   font-family: var(--font-mono);
   font-size: var(--fs-12);
   overflow-wrap: anywhere;
-}
-
-.y-findings__kind {
-  color: var(--fg);
-  font-family: var(--font-sans);
-  font-size: var(--fs-13);
 }
 
 .y-findings__detail {
@@ -6768,6 +6850,7 @@ samp,
   color: var(--fg-faint);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
   padding-right: 0;
   text-align: right;
 }
@@ -6775,8 +6858,8 @@ samp,
 /* The weight the judging face gives a finding, in that face's own word. Error
    and warn used to share one ink and differ only by a border, which reads as
    one colour at a glance. On screen they are pulled further apart by two more
-   channels: the marker's shape — squared for error, round for warn — and
-   error's ink, a hue of its own rather than a darker warning, never the same
+   channels: the marker's shape — a filled square for error, a ring for warn, a
+   small dot for info — and error's ink, a hue of its own rather than a darker warning, never the same
    colour. Neither borrows the vermilion, which marks the reader's own place
    and nothing else. The border is what a
    printed page keeps no matter how a reader's printer treats background
@@ -6802,8 +6885,8 @@ samp,
   border-radius: 50%;
   content: '';
   flex: none;
-  height: 6px;
-  width: 6px;
+  height: 5px;
+  width: 5px;
 }
 
 .y-severity--error {
@@ -6814,11 +6897,20 @@ samp,
 
 .y-severity--error::before {
   border-radius: 1px;
+  height: 7px;
+  width: 7px;
 }
 
 .y-severity--warn {
   background: var(--warn-bg);
   color: var(--warn);
+}
+
+.y-severity--warn::before {
+  background: transparent;
+  border: 2px solid currentcolor;
+  height: 8px;
+  width: 8px;
 }
 
 .y-severity--info {
@@ -6827,48 +6919,80 @@ samp,
   color: var(--fg-faint);
 }
 
-/* What each kind of finding means, under the table rather than over it. A
-   reader who knows what a row claims came for the rows; the sentences are here
-   for the one who does not, and they are the same sentences the page used to
-   open every list with. */
-.y-findingsguide {
-  margin: 30px 0 0;
+/* A kind of finding: its name, then the fold holding what it means, then the
+   table. The name is a step below the page's own, which stays the largest text
+   here; nothing on the page is set larger than it. */
+.y-healthgroup {
+  margin: 40px 0 0;
 }
 
-.y-findingsguide__head {
+.y-healthgroup__title {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-18);
+  font-weight: var(--fw-semibold);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* What a kind means, folded: a reader who knows what a row claims came for the
+   rows. The fold holds explanation and nothing else; a fact about the group
+   stands below it, and every row is in the table. */
+.y-healthabout {
+  margin: 2px 0 0;
+}
+
+.y-healthabout__head {
   align-items: center;
   color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  gap: 7px;
-}
-
-.y-findingsguide__head:hover {
-  color: var(--fg);
-}
-
-.y-findingsguide__list {
-  margin: 14px 0 0;
-}
-
-.y-findingsguide__term {
-  align-items: baseline;
-  color: var(--fg);
-  display: flex;
-  font-family: var(--font-sans);
   font-size: var(--fs-13);
-  gap: 10px;
-  margin: 16px 0 0;
+  gap: 4px;
+  min-height: 28px;
 }
 
-.y-findingsguide__meaning {
+.y-healthabout__head:hover {
+  color: var(--fg);
+}
+
+.y-healthabout__text {
   color: var(--fg-subtle);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--fs-13);
   line-height: 1.7;
   margin: 4px 0 0;
+  max-width: 46em;
+}
+
+.y-healthgroup__standing {
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  margin: 6px 0 0;
+}
+
+/* The two groups that say how the maps cover the folder are plain lists: there
+   is no weight and no count to line up, only a name and where it is. */
+.y-healthlist {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.y-healthlist li {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  padding: 6px 0;
+}
+
+.y-healthlist__branch {
+  color: var(--fg-subtle);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-15);
 }
 
 /* Which rows of the report are on this page, set in the same label face as the
@@ -6980,6 +7104,10 @@ samp,
     display: block;
   }
 
+  .y-findings colgroup {
+    display: none;
+  }
+
   .y-findings thead tr {
     border-bottom: 1px solid var(--border-strong);
     display: flex;
@@ -6998,12 +7126,10 @@ samp,
   }
 
   .y-findings tbody tr {
-    border-top: 1px solid var(--border-faint);
     padding: 10px 0;
   }
 
   .y-findings tbody td {
-    border-top: none;
     display: grid;
     gap: 2px 12px;
     grid-template-columns: minmax(0, 5.5em) minmax(0, 1fr);
@@ -7627,36 +7753,41 @@ samp,
   display: block;
 }
 
-.y-markset__note {
-  color: var(--fg-subtle);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  line-height: 1.5;
-  margin: 8px 0 0;
-}
-
-.y-markset__said {
-  margin: 8px 0 0;
-}
-
-/* The same verb again in the header row, for the widths the rail is not drawn
-   at: the header is the piece of the page that stays put while the note
-   scrolls. From the width the rail is drawn at, the rail carries the control
-   and this one steps aside, so a reader is shown one control for the verb at
-   every width. The script is the second condition, for the reason the rail's
-   control has it: what the press sends is where the window is. */
+/* The control for keeping a place, in the header row, which is the piece of the
+   page that stays put while the note scrolls. It has its words beside the
+   bookmark where the row has the width and the bookmark alone below it, the
+   words then being its name. The script is the condition, for the reason it is
+   the control's: what the press sends is where the window is. */
 .y-headermark {
   display: none;
   flex: none;
-  position: relative;
 }
 
 [data-js] .y-headermark {
   display: flex;
 }
 
-@media (min-width: 1280px) {
-  [data-js] .y-headermark {
+.y-headermark__button {
+  gap: 8px;
+  padding: 0 10px 0 8px;
+  width: auto;
+}
+
+.y-headermark__label {
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .y-headermark__button {
+    padding: 0;
+    width: 32px;
+  }
+
+  .y-headermark__label {
     display: none;
   }
 }
@@ -7665,38 +7796,60 @@ samp,
 @media (pointer: coarse) {
   .y-headermark__button {
     height: 44px;
-    width: 44px;
+    min-width: 44px;
   }
 }
 
 /* In the row it is a bookmark: an outline while the place kept is elsewhere,
-   filled in the reader's accent once it is in this note. The pressed state is
-   the one attribute both the eye and a screen reader are told by. */
-.y-headermark__button[aria-pressed='true'] {
-  color: var(--accent);
-}
-
+   filled in the reader's accent once it is in this note, with its words staying
+   the ink: vermilion is the bookmark's shape and nothing written beside it. The
+   pressed state is the one attribute both the eye and a screen reader are told
+   by. */
 .y-headermark__button[aria-pressed='true'] svg {
+  color: var(--accent);
   fill: currentcolor;
 }
 
-/* The sentence the press earns hangs under the row rather than in it, where it
-   would push the row's other controls aside for as long as it is there. */
+/* The sentence the press earns is a small label placed against the header and
+   out of its flow, so it never pushes the row's other controls aside and never
+   covers the title: under the row at its right end where the row is wide, and
+   over the wordmark where it is narrow, which is the one thing in the row that
+   can be hidden for a few seconds without losing a control. It takes no
+   pointer, so nothing under it is hard to press, and it fades before it is
+   emptied. */
 .y-headermark__said {
+  inset-block-start: calc(100% + 4px);
+  inset-inline-end: var(--header-inset);
   margin: 0;
   max-width: min(280px, calc(100vw - 16px));
+  pointer-events: none;
   position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
   width: max-content;
 }
 
 .y-headermark__said:not(:empty) {
-  background: var(--panel);
-  border: 1px solid var(--border);
+  background: var(--elevated);
   border-radius: var(--r-sm);
-  box-shadow: var(--shadow-2);
-  padding: 6px 10px;
+  padding: 4px 10px;
+}
+
+.y-headermark__said[data-reply-fading] {
+  opacity: 0;
+  transition: opacity var(--dur-slow) linear;
+}
+
+@media (max-width: 840px) {
+  .y-headermark__said {
+    inset-block-start: 50%;
+    inset-inline: calc(var(--header-inset) + 32px + 16px) auto;
+    translate: 0 -50%;
+  }
+}
+
+@media (max-width: 520px) {
+  .y-headermark__said {
+    inset-inline-start: 40px;
+  }
 }
 
 /* The reader's own place, in the one accent the interface has: a bookmark. It is
@@ -7733,45 +7886,61 @@ samp,
   flex: none;
 }
 
-/* The way back to the place the reader kept, ahead of the four ways in. */
+/* The way back to the place the reader kept, ahead of the four ways in, and
+   the largest text on the desk: the reader came back for this place. Where it
+   sits is a line of the interface's own voice above, the heading it was kept
+   under a line of the page's below, and the one way back under both. */
 .y-continue {
-  background: var(--elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--r-sm);
-  margin: 0 0 28px;
-  padding: 16px 18px;
+  margin: 0 0 56px;
 }
 
-.y-continue__note {
-  color: var(--fg);
-  display: block;
-  font-family: var(--font-serif);
-  font-size: var(--fs-15);
+.y-continue__kicker {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
   line-height: 1.5;
   margin: 8px 0 0;
 }
 
-/* The way back to the place is the reader's own, so it takes their colour. A
-   row whose note is gone is a sentence and keeps the ink. */
-.y-continue__note[href] {
-  color: var(--accent);
+.y-continue__title {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-30);
+  font-weight: var(--fw-regular);
+  line-height: 1.25;
+  margin: 12px 0 8px;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
-.y-continue__note[href]:hover {
-  text-decoration: underline;
+.y-continue__title:lang(ja),
+.y-continue__title:lang(ko),
+.y-continue__title:lang(zh) {
+  line-height: 1.4;
 }
 
-.y-continue__note > .y-keptmark {
-  margin-inline-end: 8px;
-  vertical-align: -1px;
+.y-continue__section {
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+  line-height: 1.6;
+  margin: 0;
 }
 
+/* The way back sits under the place it leads to, a step apart from it, and is
+   as wide as its words. */
+.y-continue__note {
+  margin-top: 24px;
+}
+
+/* A row whose note is gone is a sentence and keeps the ink. */
 .y-continue__notice {
   color: var(--fg-muted);
   font-family: var(--font-serif);
   font-size: var(--fs-13);
   line-height: 1.6;
-  margin: 8px 0 0;
+  margin: 16px 0 0;
 }
 
 .y-continue__device {
@@ -7780,6 +7949,12 @@ samp,
   font-size: var(--fs-12);
   line-height: 1.6;
   margin: 8px 0 0;
+}
+
+@media (min-width: 721px) {
+  .y-continue__title {
+    font-size: 3.25rem;
+  }
 }
 
 /* The reader's "not sure yet" control is always there and quiet: the variant

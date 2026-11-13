@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -12,12 +13,13 @@ import (
 // as a reading page shows it. It holds no map, slice, handle or live contract
 // reference, so returning it by value cannot mutate a published generation.
 type Reading struct {
-	RelPath            string
-	Title              string
-	Body               string
-	Type               string
-	Domain             string
-	Status             string
+	RelPath string
+	Title   string
+	Body    string
+	Type    string
+	Domain  string
+	// Draft is whether the author declared the note unfinished.
+	Draft              bool
 	Slug               string
 	FMDiagnostic       string
 	Language           string
@@ -31,16 +33,12 @@ type Reading struct {
 	// is the one fact that tells it from a note that never wrote one, and it is
 	// what keeps a page from calling it frontmatter-free.
 	FrontmatterUnclosed bool
-	// StatusNotText is true where the note wrote a status the reader did not
-	// take as text, so Status above is empty for a reason a page can name.
-	StatusNotText bool
-	// Updated is the note's own declared update date, zero when the frontmatter
-	// carries none; the page then falls back to the recorded change time.
-	Updated time.Time
+	// Created is the note's own declared creation date, zero when the
+	// frontmatter carries none.
+	Created time.Time
 	// ContentIdentity is vault.ContentIdentity over the source bytes this
-	// projection was captured from. The page embeds it in each transition form
-	// so the write face can refuse a ruling read against content the disk no
-	// longer carries.
+	// projection was captured from, so a page can tell whether the disk still
+	// carries what it shows.
 	ContentIdentity [sha256.Size]byte
 	// Stale is true for a copy this generation could not re-read and took from
 	// the generation before it, so a page can say the file was not readable.
@@ -58,18 +56,17 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 	}
 	return Reading{
 		RelPath:            parsed.RelPath,
-		Title:              parsed.Title(),
+		Title:              graph.TitleOf(parsed.RelPath, parsed.Body),
 		Body:               parsed.Body,
 		Type:               parsed.Type(),
-		Domain:             parsed.Domain(),
-		Status:             parsed.Status(),
+		Domain:             parsed.Domain,
+		Draft:              schema.Draft(parsed.Frontmatter),
 		Slug:               parsed.Slug(),
 		FMDiagnostic:       parsed.FMDiagnostic,
 		Language:           language,
 		LanguageDiagnostic: diagnostic,
 		HasFrontmatter:     parsed.HasFrontmatter,
-		StatusNotText:      parsed.StatusNotText(),
-		Updated:            parsed.Updated(),
+		Created:            parsed.Created(),
 		ContentIdentity:    vault.ContentIdentity(data),
 		// Asked only of a note with no block, where the answer can be yes, so a
 		// note that did parse is not scanned a second time for it.

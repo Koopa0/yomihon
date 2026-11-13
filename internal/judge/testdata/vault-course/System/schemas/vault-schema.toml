@@ -1,58 +1,31 @@
-schema_version = "1"
+schema_version = "2"
+
+[folders]
+checked = ["Maps", "Writing"]
+templates = ["System/templates"]
+skipped_files = []
 
 [enums]
-type = ["lesson", "course", "topic-map", "concept"]
-
-[enums.status]
-note = ["draft", "ready", "archived"]
-lesson = ["draft", "ready", "archived"]
 
 [fields]
-required = ["title", "type", "status"]
-known = ["title", "type", "status", "lineage", "lang"]
-lesson_only = ["slug", "predecessor", "successors"]
+common = ["type", "lang"]
+required = ["type"]
 
-[fields.status_group]
-lesson = ["lesson"]
+[types.lesson]
+role = "lesson"
+fields = ["slug"]
+slug_pattern = '^[a-z]+$'
+
+[types.course]
+role = "course"
+
+[types.topic-map]
+role = "map"
+
+[types.concept]
 
 [rules]
-concept_requires_provenance = ["lineage"]
-slug_pattern = "^[a-z]+$"
-
-[scan]
-knowledge_dirs = ["Maps", "Writing"]
-skip_basenames = []
-
-[navigation]
-path_types = ["course"]
-map_types = ["topic-map"]
-
-[artifacts]
-non_instance_dirs = ["System/templates"]
+concept_requires_provenance = ["based_on"]
 
 [privacy]
 never_egress_dirs = []
-
-[supersession]
-predecessor_field = "predecessor"
-successor_field = "successors"
-general_link_field = "lineage"
-archived_status = "archived"
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "ready"
-applies_to = ["*"]
-from = ["draft"]
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "archived"
-applies_to = ["*"]
-from = ["*"]
-owner = ["koopa"]

@@ -1,51 +1,56 @@
 # A small vault for the smoke test and the browser behavior probes. The
 # reading faces load this contract but do not validate notes against it, so
-# most notes here exercise the faces without conforming to every required field.
+# most notes here exercise the faces without conforming to every field.
 # Notes/out-of-contract.md deliberately uses type field-note, absent from the
-# enum below, so live smoke locks fail-open reading independently of map types.
-# The lifecycle entries carry one real edge — draft to ready — so the lesson
-# note offers a live status control for the write-face probes. The home block
-# counts the statuses notes actually carry: the seedling inbox note under
-# Notes/ and the drafts give it a real distribution to show. fields.known
-# carries created so the reports shelf has a vault that dates a note by a
-# declared field, beside one it dates by the filename and one with no day at
-# all.
-schema_version = "1"
+# types below, so live smoke locks fail-open reading independently of map types.
+# A note still being written carries draft: true, the flag the reading faces
+# mark, so rows across the sidebar, the course and the reading rail carry the
+# mark the layout probes measure beside a name. fields.common carries created
+# so the reports shelf has a vault that dates a note by a declared field,
+# beside one it dates by the filename and one with no day at all.
+schema_version = "2"
+
+[folders]
+checked = ["Concepts", "Notes", "Maps", "Writing"]
+templates = ["System/templates"]
+journal = "Diary"
+domain_from = ["Concepts"]
+skipped_files = ["README.md"]
+
 [enums]
-type = ["concept", "guide", "inbox", "lesson", "moc", "source-map", "study-path", "system", "topic-map"]
 domain = ["golang", "japanese"]
-source_kind = ["course"]
-source_provider = ["example-provider"]
-level = ["fundamental"]
-map_kind = ["topic"]
-[enums.status]
-note = ["seedling", "ready"]
-system = ["active"]
-lesson = ["draft", "ready"]
+
 [fields]
-required = ["title", "type", "domain"]
-required_inbox = ["title", "type"]
-known = ["title", "type", "domain", "status", "based_on", "source_locator", "tags", "created", "lang"]
-lesson_only = ["slug"]
-[fields.status_group]
-system = ["system", "guide"]
-lesson = ["lesson"]
+common = ["type", "aliases", "lang", "created", "based_on"]
+required = ["type"]
+
+[types.concept]
+
+[types.guide]
+
+[types.inbox]
+
+[types.lesson]
+role = "lesson"
+fields = ["slug"]
+slug_pattern = '^[a-z0-9]+(-[a-z0-9]+)*$'
+
+[types.moc]
+role = "map"
+
+[types.source-map]
+role = "map"
+
+[types.study-path]
+role = "course"
+
+[types.system]
+
+[types.topic-map]
+role = "map"
+
 [rules]
-domain_equals_folder_under = ["Concepts"]
 concept_requires_provenance = ["based_on", "source_locator"]
-slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
-forbid_tag_with_slash = true
-[scan]
-knowledge_dirs = ["Concepts", "Notes", "Maps", "Writing"]
-skip_basenames = ["README.md"]
-
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc", "source-map", "topic-map"]
-journal_dir = "Diary"
-
-[artifacts]
-non_instance_dirs = ["System/templates"]
 
 [privacy]
 # Diary/ is the one directory this fixture marks private (its note says so:
@@ -53,18 +58,3 @@ non_instance_dirs = ["System/templates"]
 # — see .github/e2e/sidebar-content.mjs — because this policy withholds only
 # the agent-facing check/report surface, never the pages a person reads.
 never_egress_dirs = ["Diary"]
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["lesson"]
-from = []
-owner = ["claude", "koopa"]
-
-[[lifecycle]]
-status = "ready"
-applies_to = ["lesson"]
-from = ["draft"]
-owner = ["koopa"]
-# A reviewed lesson rests here, so the pages that print a status leave it
-# unmarked and mark only the lessons still at draft.
-settled = true

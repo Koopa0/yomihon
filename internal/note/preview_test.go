@@ -29,7 +29,7 @@ const (
 // previewTarget is the note a card is opened on: two sections named plainly,
 // an opening passage belonging to neither, and a block address, so a cut can
 // be observed from all four sides.
-const previewTarget = "---\ntitle: Target\n---\n\n" +
+const previewTarget = "---\n---\n\n" +
 	previewBeforeSentinel + "\n\n" +
 	"## Addressed\n\n" +
 	previewInsideSentinel + "\n\n" +
@@ -44,7 +44,7 @@ const previewTargetRel = "Notes/target.md"
 // previewOpensOnHeading is the Goroutines.md shape: a blank line, then the
 // first heading. The body keeps that leading blank so the cut cannot key on
 // line 0 and still find the opening.
-const previewOpensOnHeading = "---\ntitle: Opens on heading\n---\n\n" +
+const previewOpensOnHeading = "---\n---\n\n" +
 	"## First\n\n" +
 	previewOpensOnHeadingSentinel + "\n\n" +
 	"## Second\n\n" +
@@ -55,7 +55,7 @@ const previewOpensOnHeadingRel = "Notes/opens-on-heading.md"
 // previewOpensOnTitle starts on `# Title` with no blank after the fence, so
 // the first heading really is line 0 of the body. A same-or-higher cut never
 // meets another H1 and used to return the whole note.
-const previewOpensOnTitle = "---\ntitle: Opens on title\n---\n" +
+const previewOpensOnTitle = "---\n---\n" +
 	"# Title\n\n" +
 	previewTitleIntroSentinel + "\n\n" +
 	"## A\n\n" +
@@ -74,7 +74,7 @@ func writePreviewVault(t *testing.T, root string) {
 	writeVaultNote(t, root, previewOpensOnHeadingRel, previewOpensOnHeading)
 	writeVaultNote(t, root, previewOpensOnTitleRel, previewOpensOnTitle)
 	writeVaultNote(t, root, "Notes/host.md",
-		"---\ntitle: Host\n---\n\nThe host body.\n\n![[target#Addressed]]\n")
+		"---\n---\n# Host\n\nThe host body.\n\n![[target#Addressed]]\n")
 }
 
 // previewResponse is one card's answer, read whole.
@@ -319,7 +319,7 @@ func TestAnAddressThatNamesNothingAnswersWithASentenceNotAnEmptyCard(t *testing.
 	root := t.TempDir()
 	writePreviewVault(t, root)
 	writeVaultNote(t, root, "Notes/plain.txt", "not markdown at all\n")
-	writeVaultNote(t, root, ".obsidian/workspace.md", "---\ntitle: Hidden\n---\n\nNot served.\n")
+	writeVaultNote(t, root, ".obsidian/workspace.md", "---\n---\n# Hidden\n\nNot served.\n")
 	srv := newServer(t, root)
 
 	for _, tt := range []struct {
@@ -373,7 +373,7 @@ func TestTheExcerptKeepsTheLanguageItsAuthorWroteIt(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeVaultNote(t, root, "Writing/japanese.md",
-		"---\ntitle: Japanese\ntype: writing\ndomain: japanese\nstatus: draft\nlang: ja\n---\n\nHonest body.\n")
+		"---\ntype: writing\nlang: ja\n---\n# Japanese\n\nHonest body.\n")
 	srv := newServerWithContract(t, root, loadContract(t))
 
 	card := askPreview(t, srv.Client(), srv.URL, "Writing/japanese.md", "", wording.ZhHant)
@@ -429,11 +429,11 @@ func TestALongNoteIsCutAndSaysSo(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	const tail = "SENTINEL the words past the budget"
-	long := "---\ntitle: Long\n---\n\n" +
+	long := "---\n---\n# Long\n\n" +
 		strings.Repeat("A ballast paragraph, one of many, putting bytes between the top of this note and its end.\n\n", 400) +
 		tail + "\n"
 	writeVaultNote(t, root, "Notes/long.md", long)
-	writeVaultNote(t, root, "Notes/short.md", "---\ntitle: Short\n---\n\nA note that fits.\n")
+	writeVaultNote(t, root, "Notes/short.md", "---\n---\n# Short\n\nA note that fits.\n")
 	srv := newServer(t, root)
 
 	cut := askPreview(t, srv.Client(), srv.URL, "Notes/long.md", "", wording.ZhHant)
@@ -559,7 +559,7 @@ func TestTheCardNamesTheNoteItIsShowing(t *testing.T) {
 	}
 	// The name and the destination in one assertion: a name that is not the way
 	// on, or a way on that is not named, each leave the reader where they were.
-	const named = `<a class="y-preview__sourcelink" href="/notes/Notes/target.md">Target`
+	const named = `<a class="y-preview__sourcelink" href="/notes/Notes/target.md">target`
 	if !strings.Contains(whole.body, named) {
 		t.Errorf("the card does not name the note it is showing as the way on to it; want %s in:\n%s", named, whole.body)
 	}

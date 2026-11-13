@@ -10,7 +10,6 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -25,11 +24,11 @@ const benchNoteCount = 5000
 // questions — what the gathering costs, and what a page costs with it — are
 // answered by different numbers.
 func BenchmarkGatherFindings(b *testing.B) {
-	lifecycle, snap := benchFolder(b)
+	_, snap := benchFolder(b)
 	b.ReportAllocs()
 	for b.Loop() {
-		found := GatherFindings(lifecycle, snap)
-		if found.Total() < 0 {
+		found := GatherFindings(snap)
+		if findingLists(&found) < 0 {
 			b.Fatal("negative total")
 		}
 	}
@@ -40,11 +39,11 @@ func BenchmarkGatherFindings(b *testing.B) {
 // one process so the comparison survives a machine doing other work: what the
 // foot costs a page is the difference between them, not either number alone.
 func BenchmarkProject(b *testing.B) {
-	lifecycle, snap := benchFolder(b)
+	authority, snap := benchFolder(b)
 	b.Run("with-the-foot", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			projected := Project("bench-vault", lifecycle, snap)
+			projected := Project("bench-vault", authority, snap)
 			if projected.Vault.Notes == 0 {
 				b.Fatal("the projection counted no notes")
 			}
@@ -59,8 +58,8 @@ func BenchmarkProject(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
 			policy := snap.ArtifactPolicy()
-			claim := lifecycle.Claim()
-			projected := nav.Shell{Nav: snap.Navigation(), Governed: lifecycle.Governed()}
+			claim := authority.Claim()
+			projected := nav.Shell{Nav: snap.Navigation(), Governed: authority.Governed()}
 			if !claim.Trustworthy() || !policy.Trustworthy() || projected.Nav == nil {
 				b.Fatal("the stand-in took a different path from the projection it stands in for")
 			}
@@ -68,18 +67,18 @@ func BenchmarkProject(b *testing.B) {
 	})
 }
 
-// benchFolder builds one folder of benchNoteCount notes and the lifecycle view
-// a request would hold beside it. Every note declares a type, a domain and a
-// status the contract knows, which is the ordinary shape of a folder somebody
+// benchFolder builds one folder of benchNoteCount notes and the contract authority
+// a request would hold beside it. Every note declares a type and a domain the
+// contract knows, which is the ordinary shape of a folder somebody
 // keeps; every fourth cites a name nothing answers to, so the gathering reports
 // something rather than walking an empty folder.
-func benchFolder(b *testing.B) (status.Authority, *snapshot.Generation) {
+func benchFolder(b *testing.B) (schema.Authority, *snapshot.Generation) {
 	b.Helper()
 	root := b.TempDir()
 	for i := range benchNoteCount {
 		rel := fmt.Sprintf("Writing/lessons/L%04d.md", i)
 		body := fmt.Sprintf(
-			"---\ntitle: L%04d\ntype: lesson\ndomain: japanese\nstatus: draft\n"+
+			"---\ntitle: L%04d\ntype: lesson\ndomain: japanese\n"+
 				"created: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n",
 			i,
 		)
@@ -107,15 +106,6 @@ func benchFolder(b *testing.B) (status.Authority, *snapshot.Generation) {
 			b.Errorf("Reader.Close() error = %v", closeErr)
 		}
 	})
-	lifecycle, err := status.Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
-	if err != nil {
-		b.Fatalf("status.Open() error = %v", err)
-	}
-	b.Cleanup(func() {
-		if closeErr := lifecycle.Close(); closeErr != nil {
-			b.Errorf("Lifecycle.Close() error = %v", closeErr)
-		}
-	})
 	store, err := snapshot.New(b.Context(), reader, slog.New(slog.DiscardHandler), contract, contract.Governance())
 	if err != nil {
 		b.Fatalf("snapshot.New() error = %v", err)
@@ -124,5 +114,5 @@ func benchFolder(b *testing.B) (status.Authority, *snapshot.Generation) {
 	if snap.NoteCount() != benchNoteCount {
 		b.Fatalf("the folder built for this benchmark holds %d notes, want %d", snap.NoteCount(), benchNoteCount)
 	}
-	return lifecycle.Authority(), snap
+	return schema.CaptureAuthority(contract, contract.Governance()), snap
 }

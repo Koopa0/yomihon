@@ -1,41 +1,30 @@
 package shell
 
-import (
-	"path/filepath"
-	"testing"
+import "testing"
 
-	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/snapshot"
-)
+// findingLists is how many entries the finding lists of a gathering hold
+// between them, so that a test can ask whether it found anything at all. The
+// health page counts its own rows from the same lists; this is no count a page
+// states.
+func findingLists(f *Findings) int {
+	total := len(f.Blocked) + len(f.Skipped) + len(f.Unwritten) + len(f.TitleOnly) +
+		len(f.Collisions) + len(f.NavigationFaults) + len(f.FrontmatterUnreadable) + len(f.SchemaFaults)
+	for _, group := range f.Islands {
+		total += len(group.Notes)
+	}
+	return total
+}
 
 // TestGatheringSurvivesAFolderWithNoGeneration holds the one projection here
-// that is a question rather than a field. Every rail states how many findings
-// stand against the folder, which means the gathering now runs on every page —
-// including one answered before a folder has ever been read, where the search
-// index is absent and asking it anything at all would take the page down
+// that is a question rather than a field. The gathering runs for the health
+// page, which can be answered before a folder has ever been read, where the
+// search index is absent and asking it anything at all would take the page down
 // instead of saying there is nothing to report.
 func TestGatheringSurvivesAFolderWithNoGeneration(t *testing.T) {
 	t.Parallel()
 
-	contract, err := schema.LoadFile(filepath.Join("testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("schema.LoadFile() error = %v", err)
-	}
-	found := GatherFindings(lifecycleView(t, contract), nil)
-	if total := found.Total(); total != 0 {
-		t.Errorf("Total() = %d for a folder with no generation, want 0", total)
-	}
-}
-
-func TestNavigationFaultCountsOnceBesideOtherFindings(t *testing.T) {
-	t.Parallel()
-	found := Findings{NavigationFaults: []nav.CoreFault{{}, {}}, Skipped: []snapshot.Skipped{{}}, SchemaFaults: []snapshot.HealthNoteFindings{{Count: 4}}}
-	if got := found.Total(); got != 7 {
-		t.Errorf("Total() = %d, want two navigation faults plus five existing findings", got)
-	}
-	only := Findings{NavigationFaults: []nav.CoreFault{{}}}
-	if got := only.Total(); got != 1 {
-		t.Errorf("fault-only Total() = %d, want 1", got)
+	found := GatherFindings(nil)
+	if total := findingLists(&found); total != 0 {
+		t.Errorf("a folder with no generation gathers %d findings, want 0", total)
 	}
 }

@@ -98,7 +98,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 
 	root, model := buildVault(t)
 	current := "Writing/lessons/go/L01.md"
-	shelfIndex, shelfRecent, shelfStatuses := recordedShelfView(model)
+	shelfIndex, shelfRecent := recordedShelfView(model)
 	course := newRecordedCourse(t, root, model)
 	branchModel := footVault(t)
 
@@ -139,8 +139,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"steps-branch-single-english", footOf(t, branchModel, "Writing/B1.md", wording.En)},
 		{"steps-branch-contents", footOf(t, branchModel, "Writing/E1.md", wording.ZhHant)},
 		{"steps-branch-anchor", footOf(t, branchModel, "Writing/C02.md", wording.ZhHant)},
-		{"articlehead-running", headOf(t, branchModel, "Writing/L1.md", wording.ZhHant)},
-		{"articlehead-running-english", headOf(t, branchModel, "Writing/L1.md", wording.En)},
+		{"articlehead-course-lesson", headOf(t, branchModel, "Writing/L1.md", wording.ZhHant)},
+		{"articlehead-course-lesson-english", headOf(t, branchModel, "Writing/L1.md", wording.En)},
 		// A course annotated the way its author writes one: a sentence beside each
 		// lesson, a side branch hanging from a lesson, an appendix after the
 		// last part, and something marked to be heard. The course above has
@@ -157,9 +157,12 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"listen-page", Listen(recordedListenView(), recordedChrome())},
 		{"listen-page-english", Listen(recordedListenView(), recordedEnglishChrome())},
 		// A course whose lessons mark nothing says so, and grows no bar.
-		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/syllabus/Maps/Go%20path.md"}, recordedChrome())},
+		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/courses/Maps/Go%20path.md"}, recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
+		{"home-page-kept", Home(recordedKeptHomeView(model), recordedChrome())},
+		{"open-thoughts-page", ListIndex(recordedOpenThoughtsView(wording.ZhHant), recordedChrome())},
+		{"open-thoughts-page-english", ListIndex(recordedOpenThoughtsView(wording.En), recordedEnglishChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
 		{"health-page-english", Health(recordedHealthView(model), recordedEnglishChrome())},
 		{"health-page-unreadable", Health(recordedUnreadableHealthView(t, model), recordedChrome())},
@@ -167,7 +170,6 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"file-page", File(recordedFileView(model), recordedChrome())},
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
 		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedChrome())},
-		{"recovery-page", StatusRecovery(recordedRecoveryView(model), recordedChrome())},
 		{"search-page", Search(recordedSearchView(model, recordedChrome().Lang), recordedChrome())},
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model, wording.En), wording.En)},
@@ -204,8 +206,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
 		{"folder-index-fault-head", ListIndex(recordedFaultedModeIndexView(model), recordedChrome())},
 		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
-		{"folder-index-page", FolderIndex(NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), RecentBlock{}, StatusDistribution{}, recordedChrome())},
-		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, shelfStatuses, recordedChrome())},
+		{"folder-index-page", FolderIndex(NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), RecentBlock{}, recordedChrome())},
+		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, recordedChrome())},
 		// The surfaces that have nothing to show, in both languages. Each of
 		// them is a branch the recordings above never reach — the search fixture
 		// finds notes, the health fixture has faults, and the desk fixture fills
@@ -221,12 +223,6 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"health-page-clear-english", Health(recordedClearHealthView(model), recordedEnglishChrome())},
 		{"home-page-empty", Home(recordedNothingHomeView(wording.ZhHant), recordedChrome())},
 		{"home-page-empty-english", Home(recordedNothingHomeView(wording.En), recordedEnglishChrome())},
-	}
-	for _, state := range recordedStatusStates() {
-		cases = append(cases,
-			surface{"statuspanel-" + state.name, statusPanel(state.view, wording.ZhHant)},
-			surface{"statusbar-" + state.name, statusBar(state.view, wording.ZhHant)},
-		)
 	}
 	if len(cases) < 32 {
 		t.Fatalf("only %d surfaces are recorded, so this test locks almost nothing", len(cases))
@@ -268,14 +264,13 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 }
 
 // recordedNothingFoundView is a search that matched nothing. It carries the
-// loosened searches and the lifecycle advice, which is everything the page has
+// loosened searches and the scope advice, which is everything the page has
 // to offer at that moment and the part a narrower fixture leaves unwritten.
 func recordedNothingFoundView(model *nav.Model) SearchView {
 	return SearchView{
 		Query:      "kafka",
 		FilterKeys: lexical.FilterKeys(),
 		StepBacks:  []SearchStepBack{{Query: "kaf", Count: 2}},
-		Governed:   true,
 		Sidebar:    NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
@@ -309,7 +304,7 @@ func recordedNothingHomeView(lang wording.Lang) HomeView {
 		Degraded:       fmt.Sprintf(wording.DegradedNoticeOne.In(lang), 1),
 		DegradedDetail: "Sources/articles/Raw.md: permission denied",
 		Blocks: []DeskBlock{
-			unfilled(pathMode, wording.Paths.In(lang), "/paths",
+			unfilled(courseMode, wording.Courses.In(lang), "/courses",
 				plural(0, wording.PathCountOne, wording.PathCountMany, lang),
 				fmt.Sprintf(wording.NoDeclaredTypeEmptyFmt.In(lang), "lesson")),
 			unfilled(mapMode, wording.Maps.In(lang), "/maps",
@@ -364,6 +359,18 @@ func recordedPreferencesView(lang wording.Lang) PreferencesView {
 					{Value: "off", Label: wording.PrefOff.In(lang), Stores: true},
 				},
 			},
+			// A choice with no sentence of its own: the recording keeps the
+			// heading and the options with nothing under the heading and no
+			// description for the options to point at.
+			{
+				Name:    "sectionbuttons",
+				Legend:  wording.PrefSectionButtons.In(lang),
+				Refused: wording.PrefSaveRefused.In(lang),
+				Options: []PreferenceOption{
+					{Value: "always", Label: wording.PrefSectionButtonsAlways.In(lang), Checked: true, Stores: true, Unset: true},
+					{Value: "hover", Label: wording.PrefSectionButtonsHover.In(lang), Stores: true},
+				},
+			},
 		},
 	}
 }
@@ -408,6 +415,7 @@ func recordedChrome() layouts.Chrome {
 		Ruby:                      "on",
 		TextSize:                  "m",
 		Rail:                      "open",
+		SectionButtons:            "always",
 		SingleKeyShortcutsEnabled: true,
 		Lang:                      wording.ZhHant,
 	}
@@ -467,7 +475,7 @@ func renderedNoteView(t *testing.T, model *nav.Model, current, body string) Note
 		RelPath:         current,
 		Language:        "ja",
 		Type:            "lesson",
-		Status:          "draft",
+		Draft:           true,
 		ObsidianHref:    ObsidianHref("/vault", current),
 		Updated:         "2026-07-10",
 		UpdatedAt:       "2026-07-10",
@@ -494,15 +502,11 @@ func renderedNoteView(t *testing.T, model *nav.Model, current, body string) Note
 		},
 		TOC:                 []render.TOCEntry{{ID: "h1", Level: 2, Text: "第一節"}},
 		ReadingRail:         NewReadingRail(recordedShell(model), current, "golang"),
-		Governed:            true,
-		Transitions:         []Transition{{To: "ready"}, {To: "archived", NoReturn: true}},
 		ContentIdentity:     "abc123",
 		MarkAddress:         "/marks",
 		TranscludedIdentity: "def456",
-		FlippedFrom:         "seed",
-		FlipNoReturn:        true,
 		SchemaNotices: [][]wording.SchemaPart{
-			wording.SchemaSentence(wording.ZhHant, "schema.enum", "status", "seed", "Writing"),
+			wording.SchemaSentence(wording.ZhHant, "schema.enum", "status", "seed"),
 		},
 		Concepts: []lesson.ConceptDoc{{ID: "c1", Title: "助詞", HTML: "<p>concept</p>"}},
 	}
@@ -532,7 +536,7 @@ func recordedListenView() ListenView {
 	}
 	return ListenView{
 		Title:    "朗讀《Go path》",
-		PathHref: "/syllabus/Maps/Go%20path.md",
+		PathHref: "/courses/Maps/Go%20path.md",
 		Lessons: []ListenLesson{
 			{
 				Title: "L01 わたしは学生です",
@@ -609,47 +613,6 @@ func (c recordedCourse) view(lang wording.Lang, kept string) PathView {
 // and the bytes reading cannot be taken of two different notes.
 const courseRelPath = "Maps/Go path.md"
 
-// recordedStatusStates names every state the write face can be in. The two
-// faces draw the same set, which is the thing worth recording: a change that
-// moves one of them and not the other shows up as a difference between two
-// files here.
-func recordedStatusStates() []struct {
-	name string
-	view NoteView
-} {
-	base := NoteView{RelPath: "Writing/lessons/go/L01.md", Governed: true, ContentIdentity: "abc123", MarkAddress: "/marks"}
-	with := func(mutate func(v *NoteView)) NoteView {
-		v := base
-		mutate(&v)
-		return v
-	}
-	return []struct {
-		name string
-		view NoteView
-	}{
-		{"non-instance", with(func(v *NoteView) { v.NonInstance = true })},
-		{"write-diagnostic", with(func(v *NoteView) { v.WriteDiagnostic = "contract unreadable"; v.Status = "draft" })},
-		{"no-frontmatter", with(func(v *NoteView) { v.NoFrontmatter = true })},
-		{"status-unknown", with(func(v *NoteView) { v.Status = "seed"; v.StatusUnknown = true })},
-		{"status-unreadable", with(func(v *NoteView) { v.ObsidianHref = "obsidian://open?path=x" })},
-		{"status-not-text", with(func(v *NoteView) { v.StatusNotText = true; v.ObsidianHref = "obsidian://open?path=x" })},
-		{"no-transitions", with(func(v *NoteView) { v.Status = "published" })},
-		{"transitions", with(func(v *NoteView) {
-			v.Status = "draft"
-			v.Transitions = []Transition{{To: "ready"}, {To: "archived", NoReturn: true}}
-		})},
-		{"ungoverned", with(func(v *NoteView) { v.Governed = false; v.Status = "draft" })},
-		{"frontmatter-diagnostic", with(func(v *NoteView) { v.Diagnostic = "yaml: line 2"; v.Status = "draft" })},
-		{"schema-notices", with(func(v *NoteView) {
-			v.Status = "draft"
-			v.Transitions = []Transition{{To: "ready"}}
-			v.SchemaNotices = [][]wording.SchemaPart{
-				wording.SchemaSentence(wording.ZhHant, "schema.required", "slug", "", ""),
-			}
-		})},
-	}
-}
-
 // The remaining page entry points, each carrying enough to reach the blocks it
 // draws conditionally. They are recorded for the same reason the reading page
 // is: their own helpers moved out of their templates.
@@ -663,6 +626,65 @@ func recordedHomeView(model *nav.Model) HomeView {
 		Blocks:         NewDeskBlocks(model, schema.NavigationRoles{}, ContractGoverning, recordedChrome().Lang, nil),
 		ReadmeMissing:  true,
 	}
+}
+
+// recordedKeptHomeView is the desk of a reader who left off somewhere: the
+// place is the first thing on it, and the courses stand with the other ways in
+// rather than above them.
+func recordedKeptHomeView(model *nav.Model) HomeView {
+	view := recordedHomeView(model)
+	view.OpenThoughts = recordedOpenShelf(recordedChrome().Lang)
+	view.Continue = ContinueRow{
+		Show: true, Title: "L01", Language: "en", Kicker: "Go path · Part one",
+		Section: RowPlace{Text: "A second look", Language: "en"},
+		Href:    ResumeHref("Writing/lessons/go/L01.md", "a-second-look", 640),
+	}
+	return view
+}
+
+// recordedOpenShelf is what a reader left open, one row of each kind the shelf
+// draws: a marked place with the sentence found there, a thought with the notes
+// it declares, a place whose heading is gone, and a mark on a whole note.
+func recordedOpenShelf(lang wording.Lang) Shelf {
+	mark, thought := wording.UncertaintyControl.In(lang), wording.OpenThoughtKind.In(lang)
+	return Shelf{
+		Title: wording.OpenThoughtsTitle.In(lang), Href: "/open-thoughts", Open: true, Lede: wording.OpenThoughtsLede.In(lang),
+		Rows: []Row{
+			{
+				Text: "L01", Language: "en", Href: ResumeHref("Writing/lessons/go/L01.md", "a-second-look", 0), Mark: mark, When: "2026-11-10",
+				Place: RowPlace{Text: "A second look", Language: "en"}, Opening: "The second pass reads what the first one skipped.",
+			},
+			{
+				Text: "A thought on L01", Href: ResumeHref("Notes/thought.md", "", 0), Mark: thought, Thought: true, Draft: true, When: "2026-10-31",
+				Opening: "I thought the first pass had read everything.",
+				Sources: []RowSource{{Text: "L01 › A second look", Href: ResumeHref("Writing/lessons/go/L01.md", "a-second-look", 0), Language: "en"}, {Text: "A note nobody wrote"}},
+			},
+			{
+				Text: "L01", Language: "en", Mark: wording.UncertaintyPlaceNotFound.In(lang), Fault: true, When: "2026-10-20",
+				Place: RowPlace{Text: "#renamed", Language: "en"}, Href: ResumeHref("Writing/lessons/go/L01.md", "", 0),
+				Removal: &UncertaintyRemoval{
+					Label: wording.UncertaintyClearControl.In(lang), Unavailable: wording.UncertaintyUnavailable.In(lang),
+					Failed: wording.UncertaintyNotStored.In(lang), Cleared: wording.UncertaintyCleared.In(lang), Language: string(lang),
+					Endpoint: "/uncertainties", Path: "Writing/lessons/go/L01.md", Anchor: "renamed",
+				},
+			},
+			{Text: "C01", Href: ResumeHref("Concepts/go/C01.md", "", 0), Mark: mark, When: "2026-10-01"},
+		},
+	}
+}
+
+// recordedOpenThoughtsView is the shelf of what was left open with its choice of
+// order, the one it opens in pressed.
+func recordedOpenThoughtsView(lang wording.Lang) ListIndexView {
+	shelf := recordedOpenShelf(lang)
+	order := ShelfOrder{Label: wording.OpenOrderLabel.In(lang)}
+	for _, choice := range []struct {
+		value OpenOrder
+		text  wording.Phrase
+	}{{OpenNewest, wording.OpenOrderNewest}, {OpenBySource, wording.OpenOrderSource}, {OpenOldest, wording.OpenOrderOldest}} {
+		order.Choices = append(order.Choices, ShelfOrderChoice{Value: string(choice.value), Text: choice.text.In(lang), Pressed: choice.value == OpenNewest})
+	}
+	return ListIndexView{Mode: "open-thoughts", Shelf: shelf, Order: order}
 }
 
 // recordedWithheldHomeView is the desk over a vault whose contract could not be
@@ -682,21 +704,15 @@ func recordedWithheldHomeView(model *nav.Model) HomeView {
 	return view
 }
 
-// recordedShelfView is the folder index carrying the two shelf blocks, which
-// only a governed vault with a readable distribution fills.
-func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock, StatusDistribution) {
+// recordedShelfView is the folder index carrying its recent-notes block, one
+// row a draft and one finished, so the recording shows the mark and its
+// absence side by side.
+func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock) {
 	recent := NewRecentBlock([]HomeNote{
-		{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Status: "draft", Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
-		{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Status: "seed", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
+		{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Draft: true, Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
+		{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
 	}, true, true, recordedChrome().Lang)
-	return NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), recent, NewStatusDistribution(
-		[]LifecycleItem{
-			{Name: "draft", Count: 2, Href: statusHref("draft")},
-			{Name: "ready", Count: 1, Href: statusHref("ready")},
-		},
-		[]LifecycleItem{{Count: 1, Unknown: true, Label: "沒有寫狀態"}},
-		model.KnowledgeScoped(), recordedChrome().Lang,
-	)
+	return NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), recent
 }
 
 // recordedReportIndexView carries every answer a report row can give in the
@@ -811,10 +827,10 @@ func recordedHealthView(model *nav.Model) HealthView {
 		Collisions:            []HealthCollision{{Name: "Repeat", Candidates: []nav.NoteRef{{Name: "A/Repeat.md", RelPath: "A/Repeat.md"}, {Name: "B/Repeat.md", RelPath: "B/Repeat.md"}}}},
 		Blocked:               []HealthBlockedSource{{Path: "Sources/articles/Raw.md", Reason: "permission denied"}},
 		Skipped:               []HealthSkippedSource{{Path: "Notes/Linked note.md", Reason: "symbolic link"}},
-		StatusOutsideEnum:     []HealthStatusNote{{Note: ref, Type: "lesson", Status: "seed"}},
-		StatusUnreachable:     []HealthStatusNote{{Note: ref, Type: "concept", Status: "published"}},
 		FrontmatterUnreadable: []HealthNoteFindings{{Note: ref, Severity: judge.SeverityError, Count: 1}},
 		SchemaFaults:          []HealthNoteFindings{{Note: ref, Severity: judge.SeverityError, Count: 3}},
+		UnmappedConcepts:      []nav.NoteRef{{Name: "C02", RelPath: "Concepts/go/C02.md"}},
+		EmptyBranches:         []snapshot.HealthEmptyBranch{{Map: nav.NoteRef{Name: "Reading map", RelPath: "Maps/Reading map.md"}, Heading: "Waiting", Level: 2}},
 		// The ordering a request that named none resolves to, which is what a
 		// reader arriving at the page is holding.
 		Sort:    HealthByFinding,
@@ -923,22 +939,9 @@ func recordedFolderView(*nav.Model) FolderView {
 		recordedChrome().Lang, nil)
 }
 
-func recordedRecoveryView(model *nav.Model) StatusRecoveryView {
-	return StatusRecoveryView{
-		Changed:         true,
-		Summary:         "摘要",
-		NextAction:      "下一步",
-		TechnicalDetail: "rename: file exists",
-		NotePath:        "Writing/lessons/go/L01.md",
-		NoteIdentity:    "abc123",
-		ObsidianHref:    ObsidianHref("/vault", "Writing/lessons/go/L01.md"),
-		Sidebar:         NewSidebar(nav.Shell{Nav: model}, "Writing/lessons/go/L01.md"),
-	}
-}
-
 // recordedSearchView takes the language because the column's headings and
-// its not-stated cell are written before the view leaves the handler, the
-// way a result's own status is: everything else on this page is translated
+// its not-stated cell are written before the view leaves the handler:
+// everything else on this page is translated
 // inside the template, so without this the English recording would show a
 // Traditional Chinese column.
 func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
@@ -947,7 +950,7 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 		Results: []SearchResult{{
 			RelPath:     "Writing/lessons/go/L01.md",
 			Title:       "L01",
-			Status:      "draft",
+			Draft:       true,
 			LandingBare: "kafka",
 			SnippetRuns: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " after"}},
 			PathRuns:    []SnippetRun{{Text: "Writing/"}, {Text: "lessons", Hit: true}},
@@ -958,7 +961,6 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 			// match at the end of a path cannot show.
 			RelPath:     "Writing/lessons/go/Reading kafka from source.md",
 			Title:       "Reading kafka from source",
-			Status:      "ready",
 			LandingBare: "kafka",
 			SnippetRuns: []SnippetRun{{Text: "the "}, {Text: "kafka", Hit: true}, {Text: " reader keeps its offsets"}},
 			PathRuns:    []SnippetRun{{Text: "Writing/lessons/go/Reading "}, {Text: "kafka", Hit: true}, {Text: " from source.md"}},
@@ -968,7 +970,6 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 		FilterKeys:        lexical.FilterKeys(),
 		StepBacks:         []SearchStepBack{{Query: "kafka", Count: 2}},
 		Facets:            recordedSearchFacets(lang),
-		Governed:          true,
 		Sidebar:           NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
@@ -1009,24 +1010,17 @@ func recordedPagedHealthView(model *nav.Model) HealthView {
 }
 
 // recordedSearchFacets is one of each row the column can draw: a plain value,
-// a value already in the query whose row leads back out of it, a value no
-// carrier declares, a value the grammar cannot spell and so cannot offer, and
-// the cell standing for the hits that declared nothing. A recording that held
-// only the first would leave the other four unrecorded and free to change.
+// a value already in the query whose row leads back out of it, a value the
+// grammar cannot spell and so cannot offer, and the cell standing for the hits
+// that declared nothing. A recording that held only the first would leave the
+// other three unrecorded and free to change.
 func recordedSearchFacets(lang wording.Lang) []SearchFacet {
 	return []SearchFacet{{
-		Key:     "status",
-		Heading: wording.FacetHeading("status", lang),
-		Rows: []SearchFacetRow{
-			{Label: "draft", Count: 2, Query: "kafka", Active: true},
-			{Label: "ready", Count: 1, Query: "kafka status:ready"},
-			{Label: "seedling", Count: 1, Query: "kafka status:seedling", OutsideEnum: true},
-		},
-	}, {
 		Key:     "type",
 		Heading: wording.FacetHeading("type", lang),
 		Rows: []SearchFacetRow{
-			{Label: "lesson", Count: 2, Query: "kafka type:lesson"},
+			{Label: "lesson", Count: 2, Query: "kafka", Active: true},
+			{Label: "concept", Count: 1, Query: "kafka type:concept"},
 			{Label: wording.FacetUnstated.In(lang), Count: 1, Unstated: true},
 		},
 	}, {
@@ -1058,8 +1052,8 @@ func recordedCompareView() CompareView {
 	}
 }
 
-// footOf and headOf are the foot and the running head of one lesson of the
-// branch course, drawn from the same calls the page makes.
+// footOf and headOf are the foot and the head of one lesson of the branch
+// course, drawn from the same calls the page makes.
 func footOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) templ.Component {
 	t.Helper()
 	_, view := footView(model, current, lang)
@@ -1069,9 +1063,6 @@ func footOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) t
 func headOf(t *testing.T, model *nav.Model, current string, lang wording.Lang) templ.Component {
 	t.Helper()
 	_, view := footView(model, current, lang)
-	if view.Running == nil {
-		t.Fatalf("%s has no running head, so the recording would hold the folder's breadcrumb", current)
-	}
 	return articleHead(view, lang)
 }
 
@@ -1092,7 +1083,8 @@ func TestRecordedChromeUsesStableAssetVersions(t *testing.T) {
 		"chroma.css":                            1,
 		"yomihon.js":                            1,
 		"mermaid.esm.min.mjs":                   1,
-		"yomihon-mark.svg":                      2,
+		"yomihon-mark.svg":                      1,
+		"yomihon-mark-on-paper.svg":             1,
 		"fonts/Geist-Variable.woff2":            1,
 		"fonts/GeistMono-Variable.woff2":        1,
 		"fonts/Newsreader-Latin-Variable.woff2": 1,

@@ -1,7 +1,7 @@
 ---
-title: Listen Path
+
 type: study-path
-domain: japanese
+
 ---
 # Listen Path
 

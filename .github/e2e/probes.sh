@@ -41,7 +41,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # probe file | the page path it must be driven against
 probes=(
-  "arrival-readiness.mjs|/"
+  "page-change.mjs|/"
   "brand-contract.mjs|/"
   "palette.mjs|/"
   "search-behavior.mjs|/"
@@ -59,8 +59,8 @@ probes=(
   "prose-overflow.mjs|/notes/Notes/browser-boundary.md"
   "article-language-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "language-scroll-restore.mjs|/notes/Notes/Glass%20Tide.md"
-  "right-rail-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
-  "narrow-aids.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "sidebar-contents.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "left-edge.mjs|/"
   "skip-link-contract.mjs|/notes/Notes/alpha.md"
   "contrast-contract.mjs|/notes/Notes/reading-fidelity.md"
   "print-librarian-chrome.mjs|/notes/Notes/reading-fidelity.md"
@@ -79,7 +79,6 @@ probes=(
   "study-path-branches.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
   "note-head-facts.mjs|/notes/Writing/lessons/japanese/L01.md"
-  "status-recovery-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "shortcut-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "rail-collapse.mjs|/notes/Notes/alpha.md"
   "rail-initial-target.mjs|/notes/Writing/lessons/long-rail/Rail%20lesson%2030.md"
@@ -91,8 +90,8 @@ probes=(
   "read-aloud-local-voices.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "speak-cells.mjs|/notes/Writing/lessons/languages/Read%20aloud.md"
   "listen-course.mjs|/listen/Maps/listen.md"
-  "lesson-title-wrap.mjs|/syllabus/Maps/study.md"
-  "branch-title-wrap.mjs|/syllabus/Maps/branches.md"
+  "lesson-title-wrap.mjs|/courses/Maps/study.md"
+  "branch-title-wrap.mjs|/courses/Maps/branches.md"
   "course-line.mjs|/notes/Course/C01.md"
   "book-rail-head.mjs|/notes/Course/C02.md"
   "dialog-exit.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -114,10 +113,8 @@ probes=(
   # A month named outright rather than whichever one it is today, so what this
   # probe measures is the same measurement next month.
   "journal-month.mjs|/journal?month=2026-07"
-  "flip-receipt-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reply-contract.mjs|/notes/Notes/reading-fidelity.md"
-  "sealbar-flow-contract.mjs|/notes/Writing/lessons/japanese/L01.md"
-  "status-and-fragment-visibility.mjs|/search?q=status%3Adraft"
+  "fragment-split-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
   "result-landing-visibility.mjs|/search?q=%22alpha%20beta%20gamma%22"
   "result-landing-cjk.mjs|/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8"
   "midword-landing.mjs|/search?q=lybdenum"
@@ -127,6 +124,8 @@ probes=(
   "nothing-notice-width.mjs|/search?q=qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll"
   "search-facets.mjs|/search?q=a"
   "search-overflow.mjs|/search?q=stoppedAt"
+  "largest-text.mjs|/search?q=alpha"
+  "shelf-order.mjs|/open-thoughts"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
   "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"
@@ -144,8 +143,9 @@ probes=(
   # on every desk the run draws carries a row offering it back, and the course
   # holding the marked lesson offers to go back to it. A probe that reads
   # either would meet a page the fixture alone does not explain.
-  "course-cover.mjs|/syllabus/Maps/branches.md"
+  "course-cover.mjs|/courses/Maps/branches.md"
   "reader-mark.mjs|/notes/Notes/reading-fidelity.md"
+  "kept-place-size.mjs|/"
 )
 
 # The audit's plain run includes its canary; mutation jobs retain the targeted
@@ -161,6 +161,7 @@ behavior_only=(
 leaves_a_place=(
   "course-cover.mjs"
   "reader-mark.mjs"
+  "kept-place-size.mjs"
 )
 
 fail() {

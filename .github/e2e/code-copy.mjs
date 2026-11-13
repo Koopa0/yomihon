@@ -20,7 +20,7 @@ const READINGS = [
   ['/notes/Concepts/japanese/code-copy-concept.md', [CONCEPT]],
   ['/notes/Examples/code-copy.go', [PROGRAM]],
   ['/notes/Examples/code-copy-document.md', [DOCUMENT]],
-  ['/syllabus/Maps/code-copy-path.md', [OPENING]],
+  ['/courses/Maps/code-copy-path.md', [OPENING]],
 ];
 const MUTATIONS = {
   'flatten-newlines': {

@@ -15,6 +15,7 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 		<main id="_y-main" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
 			<div class="y-home">
 				@indexHead(v.Count, v.Shelf.Title, v.Shelf.Lede, c.Lang)
+				@shelfOrder(v.Order, indexHref(v.Mode))
 				if v.Notice != "" {
 					@nothingToShow(nothingNotice{Kind: v.Mode, Fault: true}) {
 						<p>{ v.Notice }</p>
@@ -25,7 +26,7 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 				} else if len(v.Shelf.Rows) == 0 && v.Shelf.Empty != "" {
 					<p class="y-homeempty" data-index-empty>{ v.Shelf.Empty }</p>
 				}
-				@ShelfPage(v.Shelf)
+				@ShelfPage(v.Shelf, c.Lang)
 				{ children... }
 			</div>
 		</main>
@@ -33,23 +34,20 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 }
 
 // FolderIndex is the folder mode's page: the same listing every mode gets, and
-// under it the two things a reader asks about how the shelf is kept — what
-// changed last, and where every note sits. Those describe how the files are
-// kept, which is a different question from what there is to read, so they are
+// under it what a reader asks about how the shelf is kept: what changed last.
+// That describes how the files are kept, which is a different question from what there is to read, so they are
 // answered in the mode that browses by position rather than on the desk a
 // reader arrives at to read something.
-templ FolderIndex(v ListIndexView, recent RecentBlock, statuses StatusDistribution, c layouts.Chrome) {
+templ FolderIndex(v ListIndexView, recent RecentBlock, c layouts.Chrome) {
 	@ListIndex(v, c) {
-		@shelfKeeping(recent, statuses, c)
+		@shelfKeeping(recent, c)
 	}
 }
 
-// shelfKeeping is the pair of blocks under the folder listing. Each draws only
-// when it has something to say: a folder holding no indexed note has no recent
-// list, and a vault whose vocabulary could not be read has no distribution,
-// with the reason already stated once at the head of the page.
-templ shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Chrome) {
-	if len(recent.Notes) > 0 || len(statuses.Statuses) > 0 {
+// shelfKeeping is the block under the folder listing. It draws only when it
+// has something to say: a folder holding no indexed note has no recent list.
+templ shelfKeeping(recent RecentBlock, c layouts.Chrome) {
+	if len(recent.Notes) > 0 {
 		<div class="y-homegrid y-shelfblocks">
 			if len(recent.Notes) > 0 {
 				<section class="y-homeblock y-homeblock--recent" data-home-block="recent" aria-labelledby="folders-recent-title">
@@ -62,11 +60,8 @@ templ shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Ch
 									<span class="y-homenote__path">{ n.RelPath }</span>
 								</span>
 								<span class="y-homenote__meta">
-									if n.Status != "" && !n.Settled {
-										<span class="ui-status">{ n.Status }</span>
-										if n.StatusOutsideEnum {
-											@statusOutsideEnumMark(c.Lang)
-										}
+									if n.Draft {
+										<span class="ui-status">{ wording.Draft.In(c.Lang) }</span>
 									}
 									if n.Modified != "" {
 										<time datetime={ n.ModifiedAt }>{ n.Modified }</time>
@@ -75,32 +70,6 @@ templ shelfKeeping(recent RecentBlock, statuses StatusDistribution, c layouts.Ch
 							</a>
 						}
 					</div>
-				</section>
-			}
-			if len(statuses.Statuses) > 0 {
-				<section class="y-homeblock y-homeblock--lifecycle" data-home-block="lifecycle" aria-labelledby="folders-lifecycle-title">
-					@homeBlockHead("folders-lifecycle-title", wording.FolderLifecycleTitle.In(c.Lang), statuses.Lede)
-					<div class="y-homechips">
-						for _, it := range statuses.Statuses {
-							<a class={ "y-homechip", templ.KV("y-homechip--unknown", it.Unknown) } href={ templ.URL(statusHref(it.Name)) }>
-								@lifecycleChipBody(it, c.Lang)
-							</a>
-						}
-						for _, it := range statuses.Unstated {
-							if it.Href == "" {
-								<span class="y-homechip" data-unstated>
-									@unstatedChipBody(it, c.Lang)
-								</span>
-							} else {
-								<a class="y-homechip" data-unstated href={ templ.URL(it.Href) }>
-									@unstatedChipBody(it, c.Lang)
-								</a>
-							}
-						}
-					</div>
-					if len(statuses.Unstated) > 0 {
-						<p class="y-homeblock__note">{ wording.LifecycleUnstatedNote.In(c.Lang) }</p>
-					}
 				</section>
 			}
 		</div>

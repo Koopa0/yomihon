@@ -190,3 +190,49 @@ func TestRailFilterCallerSet(t *testing.T) {
 		})
 	}
 }
+
+// TestEveryRailKeepsItsScrollPositionAcrossPages holds the pre-paint script that
+// carries a rail's scroll position from one page to the next. A page is a new
+// document and a new document's rail starts at its top, so without this a
+// reader on a long course lost their place in the rail on every click. Every
+// rail goes through the one boundary, so each of the four kinds is rendered and
+// each must carry the script once, after the filter has been restored, because
+// a filtered tree is a different height. It reads the storage key and the
+// event that writes it, which are what the two pages agree on, and leaves the
+// browser's own behavior to the probe that scrolls a real rail.
+func TestEveryRailKeepsItsScrollPositionAcrossPages(t *testing.T) {
+	t.Parallel()
+	c := layouts.Chrome{Nonce: "probe-nonce"}
+	for _, tt := range []struct {
+		name      string
+		component templ.Component
+		filtered  bool
+	}{
+		{"sidebar", sidebar(Sidebar{}, c), true},
+		{"book", readingRail(ReadingRail{Kind: ReadingRailBook}, c), true},
+		{"folder", readingRail(ReadingRail{Kind: ReadingRailFolder}, c), true},
+		{"course page", syllabusRail(PathView{}, c), false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var out bytes.Buffer
+			if err := tt.component.Render(t.Context(), &out); err != nil {
+				t.Fatal(err)
+			}
+			text := out.String()
+			if got := strings.Count(text, `"yomihon.railTop"`); got != 2 {
+				t.Fatalf("the rail names its position key %d times, want 2 (read it, and write it when the page is left)", got)
+			}
+			if !strings.Contains(text, `addEventListener("pagehide"`) {
+				t.Error("the rail never writes its position when the page is left, so the next page cannot put it back")
+			}
+			if tt.filtered {
+				restore := strings.Index(text, "railFilterState?.restore()")
+				keep := strings.Index(text, `"yomihon.railTop"`)
+				if restore < 0 || keep < restore {
+					t.Errorf("the position is put back at %d, before the filter is restored at %d, so a filtered tree would be scrolled for the wrong height", keep, restore)
+				}
+			}
+		})
+	}
+}

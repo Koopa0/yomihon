@@ -1,7 +1,7 @@
 ---
-title: Read aloud languages
+
 type: study-path
-domain: japanese
+
 ---
 
 ## Lessons {sequence=primary}

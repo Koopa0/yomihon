@@ -5,7 +5,7 @@ package wording
 // ShelfAll ends a narrowed shelf, where the rest of it is one click away. It
 // states no number: the shelf's own count is already in its head, and a second
 // figure describing the same listing is a figure that can disagree with it.
-var ShelfAll = both("全部 →", "All of it →")
+var ShelfAll = both("全部 →", "All →")
 
 // What an empty path or map listing says. Those two shelves are filled by a
 // declaration and by nothing else: a markdown file added to the folder is read,
@@ -82,8 +82,8 @@ var (
 // What each mode counts. Chinese uses a different measure word for each kind of
 // thing and English inflects the noun, so every count is a pair.
 var (
-	PathCountOne    = both("%d 條", "%d path")
-	PathCountMany   = both("%d 條", "%d paths")
+	PathCountOne    = both("%d 門", "%d course")
+	PathCountMany   = both("%d 門", "%d courses")
 	MapCountOne     = both("%d 張", "%d map")
 	MapCountMany    = both("%d 張", "%d maps")
 	ReportCountOne  = both("%d 份", "%d report")

@@ -22,9 +22,8 @@ const pagedReport = 2*healthPageSize + 7
 // the line itself rather than out of the code that wrote it.
 var shapeFileCount = regexp.MustCompile(`<span>(\d+)[^<]*</span></p>`)
 
-// guideTally reads what the guide under the table says each kind of finding
-// comes to.
-var guideTally = regexp.MustCompile(`<span class="ui-navitem__count">(\d+)</span>`)
+// statedTotal reads the total the shape line states for the whole report.
+var statedTotal = regexp.MustCompile(`<span class="y-healthshape__total">(\d+) `)
 
 // TestEveryFindingIsOnExactlyOnePage walks the whole report a page at a time
 // and holds the pages against the undivided table: together they have to be
@@ -89,8 +88,8 @@ func TestTheLastPageOfTheReportNamesItsOwnRows(t *testing.T) {
 	}
 }
 
-// TestTheReportsShapeIsTheReportNotThePage holds the two tallies beside the
-// table to the whole report. A shape line that followed the page would say the
+// TestTheReportsShapeIsTheReportNotThePage holds the two tallies above the
+// tables to the whole report. A shape line that followed the page would say the
 // folder had different faults depending on which stretch of the table was on
 // screen.
 func TestTheReportsShapeIsTheReportNotThePage(t *testing.T) {
@@ -112,16 +111,16 @@ func TestTheReportsShapeIsTheReportNotThePage(t *testing.T) {
 		if files != pagedReport {
 			t.Errorf("page %v says the report touches %d files, want %d", asked, files, pagedReport)
 		}
-		tallies := guideTally.FindAllStringSubmatch(page, -1)
-		if len(tallies) != 1 {
-			t.Fatalf("page %v explains %d kinds of finding, want the one the fixture holds", asked, len(tallies))
+		stated := statedTotal.FindStringSubmatch(page)
+		if stated == nil {
+			t.Fatalf("page %v states no total", asked)
 		}
-		counted, err := strconv.Atoi(tallies[0][1])
+		counted, err := strconv.Atoi(stated[1])
 		if err != nil {
-			t.Fatalf("page %v's guide counts %q, which is no number: %v", asked, tallies[0][1], err)
+			t.Fatalf("page %v states %q findings, which is no number: %v", asked, stated[1], err)
 		}
 		if counted != pagedReport {
-			t.Errorf("page %v's guide counts %d findings, want %d", asked, counted, pagedReport)
+			t.Errorf("page %v states %d findings, want %d", asked, counted, pagedReport)
 		}
 	}
 }

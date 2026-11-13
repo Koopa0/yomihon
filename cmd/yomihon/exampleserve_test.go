@@ -4,12 +4,9 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
-	"io"
 	"io/fs"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -19,7 +16,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"golang.org/x/net/html"
 
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -51,8 +47,8 @@ func TestExampleLaunchersKeepTheCheckoutUntouched(t *testing.T) {
 			if decodeErr := json.Unmarshal(data, &receipt); decodeErr != nil {
 				t.Fatal(decodeErr)
 			}
-			if receipt.Status != http.StatusSeeOther || !strings.Contains(receipt.Changed, "\nstatus: archived\n") {
-				t.Errorf("caught: copied example did not accept the real private status form: %+v", receipt)
+			if receipt.Status != http.StatusOK || receipt.Changed != h.originals[exampleServeNote] {
+				t.Errorf("caught: copied example did not serve its lesson unchanged: %+v", receipt)
 			}
 			if _, err := os.Stat(receipt.Root); !errors.Is(err, os.ErrNotExist) {
 				t.Errorf("caught: launcher left its copied vault: %q, stat error=%v", receipt.Root, err)
@@ -213,8 +209,9 @@ func TestExampleLauncherForwardsShutdownAndCleansTheCopy(t *testing.T) {
 }
 
 // TestExampleServeChild is the compiled child reached by the launcher's real
-// command boundary. Its form drives the production composition without a
-// listener, and only after the root has been proven to be a private copy.
+// command boundary. It reads a lesson through the production composition
+// without a listener, only after the root has been proven to be a private
+// copy, and reports the bytes the copy holds afterwards.
 func TestExampleServeChild(t *testing.T) {
 	if os.Getenv("YOMIHON_TEST_EXAMPLE_CHILD") != "1" {
 		t.Skip("launcher subprocess")
@@ -256,33 +253,12 @@ func TestExampleServeChild(t *testing.T) {
 			t.Error(closeErr)
 		}
 	})
-	page := readingPageIn(t, site, pages.VaultHref("/notes/", exampleServeNote), wording.ZhHant)
-	form := exampleServeArchiveForm(t, page)
-	req := siteRequest(t, http.MethodPost, "/status", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	recorder := httptest.NewRecorder()
-	site.ServeHTTP(recorder, req)
-	res := recorder.Result()
-	if _, readErr := io.ReadAll(res.Body); readErr != nil {
-		t.Fatal(readErr)
-	}
-	if closeErr := res.Body.Close(); closeErr != nil {
-		t.Fatal(closeErr)
-	}
-	if res.StatusCode != http.StatusSeeOther {
-		t.Fatalf("caught: copied example status response=%d, want303", res.StatusCode)
-	}
-	want := originals[exampleServeNote]
-	if strings.Count(want, "\nstatus: ready\n") != 1 {
-		t.Fatal("example status fixture has no unique ready line")
-	}
-	want = strings.Replace(want, "\nstatus: ready\n", "\nstatus: archived\n", 1)
+	code, _ := pageIn(t, site, pages.VaultHref("/notes/", exampleServeNote), wording.ZhHant)
 	changed := exampleServeFiles(t, root)
-	originals[exampleServeNote] = want
 	if diff := cmp.Diff(originals, changed); diff != "" {
-		t.Fatalf("caught: private transition changed other bytes (-want +got):\n%s", diff)
+		t.Fatalf("caught: serving the copy changed its bytes (-want +got):\n%s", diff)
 	}
-	receipt, err := json.Marshal(exampleServeReceipt{Root: root, PID: os.Getpid(), Parent: os.Getppid(), Status: res.StatusCode, Changed: changed[exampleServeNote]})
+	receipt, err := json.Marshal(exampleServeReceipt{Root: root, PID: os.Getpid(), Parent: os.Getppid(), Status: code, Changed: changed[exampleServeNote]})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,40 +273,6 @@ func TestExampleServeChild(t *testing.T) {
 	if os.Getenv("YOMIHON_TEST_EXAMPLE_SERVER_FAILURE") == "1" {
 		t.Error("controlled server failure")
 	}
-}
-
-func exampleServeArchiveForm(t *testing.T, page string) url.Values {
-	t.Helper()
-	doc, err := html.Parse(strings.NewReader(page))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for node := range doc.Descendants() {
-		if node.Type != html.ElementNode || node.Data != "form" {
-			continue
-		}
-		fields := make(url.Values)
-		for child := range node.Descendants() {
-			if child.Type != html.ElementNode || child.Data != "input" {
-				continue
-			}
-			var name, value string
-			for _, attr := range child.Attr {
-				if attr.Key == "name" {
-					name = attr.Val
-				}
-				if attr.Key == "value" {
-					value = attr.Val
-				}
-			}
-			fields.Set(name, value)
-		}
-		if fields.Get("path") == exampleServeNote && fields.Get("from") == "ready" && fields.Get("to") == "archived" && fields.Get("content_identity") != "" {
-			return fields
-		}
-	}
-	t.Fatal("example page has no complete archive form")
-	return nil
 }
 
 func exampleServeFiles(t *testing.T, directory string) map[string]string {

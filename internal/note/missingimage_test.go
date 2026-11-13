@@ -20,7 +20,7 @@ func TestAMissingPictureIsSaidOnTheNotePage(t *testing.T) {
 	t.Parallel()
 
 	const rel = "Concepts/golang/Shows.md"
-	body := "---\ntitle: Shows\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Shows]]\"\n---\n\n" +
+	body := "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[Shows]]\"\n---\n# Shows\n\n" +
 		"See [[No such note]].\n\n![a missing picture](./missing.png)\n\n![one that is there](./there.png)\n"
 
 	root := t.TempDir()
@@ -112,7 +112,7 @@ func TestAPictureNamedInAnotherNormalisationIsNotCalledMissing(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	body := "---\ntitle: Spelled\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Spelled]]\"\n---\n\n![a picture](./" + decomposed + ")\n"
+	body := "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[Spelled]]\"\n---\n# Spelled\n\n![a picture](./" + decomposed + ")\n"
 	if err := os.WriteFile(filepath.Join(dir, "Spelled.md"), []byte(body), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}

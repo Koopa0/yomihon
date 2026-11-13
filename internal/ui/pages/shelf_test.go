@@ -1,7 +1,10 @@
 package pages
 
 import (
+	"context"
 	"fmt"
+	"io"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -82,15 +85,15 @@ func TestShelfBlockHandsTheReaderTheRestOfTheShelf(t *testing.T) {
 	t.Parallel()
 
 	shelf := Shelf{
-		Title: "路徑", Count: "2 條", Lede: "課程。", Href: "/paths", Empty: "沒有課程。",
+		Title: "課程", Count: "2 門", Lede: "課程。", Href: "/courses", Empty: "沒有課程。",
 		Rows: []Row{{Text: "one", Href: "/a"}, {Text: "two", Href: "/b"}},
 	}
 	var full strings.Builder
-	if err := ShelfBlock(shelf, "paths", 1, wording.ZhHant).Render(t.Context(), &full); err != nil {
+	if err := ShelfBlock(shelf, "courses", 1, wording.ZhHant, false).Render(t.Context(), &full); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	got := full.String()
-	if !strings.Contains(got, `<a class="ui-navitem y-shelfall" href="/paths">`+wording.ShelfAll.In(wording.ZhHant)+`</a>`) {
+	if !strings.Contains(got, `<a class="ui-navitem y-shelfall" href="/courses">`+wording.ShelfAll.In(wording.ZhHant)+`</a>`) {
 		t.Errorf("a narrowed block does not hand the reader the rest of the shelf:\n%s", got)
 	}
 	if strings.Contains(got, ">two<") {
@@ -104,7 +107,7 @@ func TestShelfBlockHandsTheReaderTheRestOfTheShelf(t *testing.T) {
 	}
 
 	var bare strings.Builder
-	if err := ShelfBlock(Shelf{Title: "路徑", Href: "/paths", Empty: "沒有課程。"}, "paths", 3, wording.ZhHant).Render(t.Context(), &bare); err != nil {
+	if err := ShelfBlock(Shelf{Title: "課程", Href: "/courses", Empty: "沒有課程。"}, "courses", 3, wording.ZhHant, false).Render(t.Context(), &bare); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	if !strings.Contains(bare.String(), "沒有課程。") {
@@ -124,11 +127,11 @@ func TestAShelfOfRowsThatAreNotStopsIsNotEmpty(t *testing.T) {
 	t.Parallel()
 
 	shelf := Shelf{
-		Title: "路徑", Count: "1 條", Href: "/paths", Empty: "沒有課程。",
+		Title: "課程", Count: "1 門", Href: "/courses", Empty: "沒有課程。",
 		Rows: []Row{{Text: "unwritten"}},
 	}
 	var out strings.Builder
-	if err := ShelfBlock(shelf, "paths", 3, wording.ZhHant).Render(t.Context(), &out); err != nil {
+	if err := ShelfBlock(shelf, "courses", 3, wording.ZhHant, false).Render(t.Context(), &out); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	got := out.String()
@@ -254,7 +257,7 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 	model := buildModel(t)
 	lang := wording.ZhHant
 	pages := map[string]ListIndexView{
-		pathMode:   NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
+		courseMode: NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
 		mapMode:    NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
 		reportMode: NewReportIndex(model.Reports(), lang, nil),
 		folderMode: NewFolderIndex(model, ContractGoverning, lang, nil),
@@ -272,6 +275,12 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 		}
 		shown := shelfRows(&block.Shelf, deskBlockItems)
 		listed := shelfRows(&page.Shelf, len(page.Shelf.Rows))
+		if block.Mode == mapMode {
+			// The one measure the desk leaves off: a map's branch count is the
+			// shape of its subject, listed on the map page and not counted on
+			// the desk. Every other row field must still agree.
+			listed = unmarked(listed)
+		}
 		if block.Mode == folderMode {
 			zero := make(map[string]bool)
 			for _, folder := range model.ShelfFolders() {
@@ -286,7 +295,7 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 			t.Fatalf("the %s block shows %d rows over a page listing %d, want %d", block.Mode, len(shown), len(listed), want)
 		}
 		for i := range shown {
-			if shown[i] != listed[i] {
+			if !reflect.DeepEqual(shown[i], listed[i]) {
 				t.Errorf("the %s block's row %d is %+v, its page's is %+v", block.Mode, i, shown[i], listed[i])
 			}
 		}
@@ -300,7 +309,7 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 // empty link. The ordinary unlinked row remains skipped on the narrow shelf.
 func TestShelfKeepsAnInertFaultRow(t *testing.T) {
 	t.Parallel()
-	fault := Row{Text: "Lost <note>.md", Mark: "Note not found", Fault: true, Wrap: true}
+	fault := Row{Text: "Lost <note>.md", Mark: "Note not found", Fault: true}
 	shelf := Shelf{Title: "Open", Href: "/open-thoughts", Rows: []Row{{Text: "unwritten"}, fault, {Text: "next", Href: "/next"}}}
 	if diff := cmp.Diff([]Row{fault}, shelfRows(&shelf, 1)); diff != "" {
 		t.Errorf("caught: shelfRows fault inclusion mismatch (-want +got):\n%s", diff)
@@ -314,16 +323,32 @@ func TestShelfKeepsAnInertFaultRow(t *testing.T) {
 		{
 			name: "home",
 			render: func(out *strings.Builder) error {
-				return ShelfBlock(shelf, "open-thoughts", 1, wording.En).Render(t.Context(), out)
+				return ShelfBlock(shelf, "open-thoughts", 1, wording.En, false).Render(t.Context(), out)
 			},
 			marker: "data-desk-item", warning: "ui-navitem__count--warn",
 		},
 		{
 			name: "full shelf",
 			render: func(out *strings.Builder) error {
-				return ShelfPage(Shelf{Rows: []Row{fault}}).Render(t.Context(), out)
+				return ShelfPage(Shelf{Rows: []Row{fault}}, wording.En).Render(t.Context(), out)
 			},
 			marker: "data-index-row", warning: "y-row__measure--warn",
+		},
+		{
+			name: "home of what was left open",
+			render: func(out *strings.Builder) error {
+				open := shelf
+				open.Open = true
+				return ShelfBlock(open, "open-thoughts", 1, wording.En, false).Render(t.Context(), out)
+			},
+			marker: "data-desk-item", warning: "y-openitem__tag--fault",
+		},
+		{
+			name: "full shelf of what was left open",
+			render: func(out *strings.Builder) error {
+				return ShelfPage(Shelf{Open: true, Rows: []Row{fault}}, wording.En).Render(t.Context(), out)
+			},
+			marker: "data-index-row", warning: "y-openitem__tag--fault",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -345,5 +370,111 @@ func TestShelfKeepsAnInertFaultRow(t *testing.T) {
 				t.Errorf("caught: inert fault row mismatch (-want +got):\n%s", diff)
 			}
 		})
+	}
+}
+
+func renderShelf(t *testing.T, c interface {
+	Render(context.Context, io.Writer) error
+}) string {
+	t.Helper()
+	var out strings.Builder
+	if err := c.Render(t.Context(), &out); err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	return out.String()
+}
+
+// TestAnOpenRowSaysWhatKindItIsWhenItWasLeftAndWhereBeforeItsSentence holds the
+// order a reader scans an open row in, and that the name is its one link: the
+// sources a thought declares are links of their own, so a link around the whole
+// row would nest them.
+func TestAnOpenRowSaysWhatKindItIsWhenItWasLeftAndWhereBeforeItsSentence(t *testing.T) {
+	t.Parallel()
+
+	thought := Row{
+		Text: "On cancelling", Href: "/notes/t.md", Mark: "Thought", Thought: true, Draft: true, When: "2026-10-31",
+		Opening: "I thought cancel() had stopped it.",
+		Sources: []RowSource{{Text: "Pipelines › Cancel", Href: "/notes/p.md#cancel"}},
+	}
+	mark := Row{
+		Text: "G04", Href: "/notes/g.md#wait", Mark: "Not sure yet", When: "2026-11-10",
+		Place: RowPlace{Text: "Can cancel and Wait swap?", Language: "en"}, Opening: "main takes one value.",
+	}
+	page := renderShelf(t, ShelfPage(Shelf{Open: true, Rows: []Row{thought, mark}}, wording.En))
+	rows := strings.Split(page, `data-index-row`)[1:]
+	if len(rows) != 2 {
+		t.Fatalf("the shelf draws %d rows, want 2: %s", len(rows), page)
+	}
+	order := []string{
+		`data-open-kind="thought"`, `>Thought</span>`, `>Draft</span>`, `datetime="2026-10-31"`,
+		`<a class="y-openitem__name" href="/notes/t.md"><span class="y-openitem__title">On cancelling</span>`,
+		`<p class="y-openitem__opening">I thought cancel() had stopped it.</p>`,
+		`<p class="y-openitem__sources"><span>Declared sources</span> <a href="/notes/p.md#cancel">Pipelines › Cancel</a>`,
+	}
+	at := 0
+	for _, want := range order {
+		i := strings.Index(rows[0][at:], want)
+		if i < 0 {
+			t.Fatalf("the thought row lacks %q after offset %d, in order: %s", want, at, rows[0])
+		}
+		at += i
+	}
+	if got := strings.Count(rows[0], "<a "); got != 2 {
+		t.Errorf("the thought row has %d links, want the name and its one source: %s", got, rows[0])
+	}
+	if !strings.Contains(rows[1], `<span class="y-openitem__sign" aria-hidden="true">›</span> <span class="y-openitem__place" lang="en">Can cancel and Wait swap?</span>`) {
+		t.Errorf("the place is not joined to the name by the sign: %s", rows[1])
+	}
+	if strings.Contains(rows[1], "ui-status") || strings.Contains(rows[1], "y-openitem__sources") {
+		t.Errorf("a mark is drawn as a draft or with sources: %s", rows[1])
+	}
+	if !strings.Contains(rows[1], `data-open-kind="mark"`) {
+		t.Errorf("a mark is not told from a thought: %s", rows[1])
+	}
+}
+
+// TestTheShelfOfferedOrdersAreAGroupOfGetButtonsWithOnePressed holds the order
+// control: a form that submits the page's own address with no script, naming
+// each order by a value of the closed set, with exactly the current one marked
+// pressed.
+func TestTheShelfOfferedOrdersAreAGroupOfGetButtonsWithOnePressed(t *testing.T) {
+	t.Parallel()
+
+	for _, current := range OpenOrders {
+		order := ShelfOrder{Label: "Order"}
+		for _, choice := range OpenOrders {
+			order.Choices = append(order.Choices, ShelfOrderChoice{Value: string(choice), Text: string(choice), Pressed: choice == current})
+		}
+		form := renderShelf(t, shelfOrder(order, "/open-thoughts"))
+		for _, want := range []string{
+			`<form class="y-order" method="get" action="/open-thoughts" role="group" aria-labelledby="shelf-order-label" data-shelf-order>`,
+			`<span class="y-order__label" id="shelf-order-label">Order</span>`,
+		} {
+			if !strings.Contains(form, want) {
+				t.Errorf("the order control lacks %q: %s", want, form)
+			}
+		}
+		if got := strings.Count(form, `aria-pressed="true"`); got != 1 {
+			t.Errorf("with %q current, %d choices are pressed, want 1: %s", current, got, form)
+		}
+		if !strings.Contains(form, `name="order" value="`+string(current)+`" aria-pressed="true"`) {
+			t.Errorf("the current order %q is not the pressed one: %s", current, form)
+		}
+	}
+	if form := renderShelf(t, shelfOrder(ShelfOrder{}, "/x")); form != "" {
+		t.Errorf("a shelf with one order draws a control: %s", form)
+	}
+}
+
+func TestOnlyTheClosedSetOfOrdersIsRead(t *testing.T) {
+	t.Parallel()
+
+	for value, want := range map[string]OpenOrder{
+		"": OpenNewest, "newest": OpenNewest, "source": OpenBySource, "oldest": OpenOldest,
+		"Oldest": OpenNewest, "random": OpenNewest, "source,oldest": OpenNewest,
+	} {
+		if got := ParseOpenOrder(value); got != want {
+			t.Errorf("ParseOpenOrder(%q) = %q, want %q", value, got, want)
+		}
 	}
 }

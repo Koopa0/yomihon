@@ -14,7 +14,6 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -64,8 +63,8 @@ func benchServer(b *testing.B) *httptest.Server {
 	for i := range benchNoteCount {
 		rel := fmt.Sprintf("Writing/lessons/L%04d.md", i)
 		body := fmt.Sprintf(
-			"---\ntitle: L%04d\ntype: lesson\ndomain: japanese\nstatus: draft\n"+
-				"created: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n",
+			"---\ntype: lesson\n"+
+				"created: 2026-06-01\n---\n# L%04d\n\nbody\n",
 			i,
 		)
 		if i%4 == 0 {
@@ -93,29 +92,19 @@ func benchServer(b *testing.B) *httptest.Server {
 		}
 	})
 	log := slog.New(slog.DiscardHandler)
-	writer, err := status.Open(reader, contract, contract.Governance(), log)
-	if err != nil {
-		b.Fatalf("status.Open() error = %v", err)
-	}
-	b.Cleanup(func() {
-		if closeErr := writer.Close(); closeErr != nil {
-			b.Errorf("Writer.Close() error = %v", closeErr)
-		}
-	})
 	store, err := snapshot.New(b.Context(), reader, log, contract, contract.Governance())
 	if err != nil {
 		b.Fatalf("snapshot.New() error = %v", err)
 	}
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source:         reader,
-		VaultName:      shell.VaultName(reader.Name()),
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Log:            log,
+		Source:    reader,
+		VaultName: shell.VaultName(reader.Name()),
+		Authority: func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
+		Snapshot:  store.Current,
+
+		Continuation: noMark,
+		Log:          log,
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
 	b.Cleanup(srv.Close)

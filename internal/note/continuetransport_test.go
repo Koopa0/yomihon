@@ -30,7 +30,7 @@ func TestContinuationDeskOwnsItsHTTPTransport(t *testing.T) {
 	http.DefaultTransport = blocked
 	t.Cleanup(func() { http.DefaultTransport = original })
 
-	page := deskWithMark(t, aNote, &mark.Continuation{}, false)
+	page := deskWithMark(t, &mark.Continuation{}, false)
 	if !strings.HasPrefix(page, "<!doctype html>") {
 		t.Errorf("the real desk response is not an HTML document: prefix %q", page[:min(160, len(page))])
 	}

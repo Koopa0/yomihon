@@ -1,7 +1,7 @@
 ---
-title: Alias A
 aliases:
   - shared
 ---
+# Alias A
 
 One alias owner.

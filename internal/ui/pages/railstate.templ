@@ -106,4 +106,65 @@ templ settleRail(c layouts.Chrome, filter bool) {
 			})();
 		</script>
 	}
+	// A page change is a whole new document, and a new document's rail starts at
+	// its top, so on a long course every click threw the reader's place in the
+	// rail away. Where the next page belongs to the same book, or to the same
+	// kind of rail, the position it left is put back before anything is painted,
+	// and only a current row that is out of the view is then brought in, by the
+	// least distance. A different rail, and a reload, start at the top as they
+	// always did and bring the current row to the top of the view where it is
+	// out of it, which is the rule the stylesheet keeps where scripting is off.
+	// It runs after the filter's restore, because a filtered tree is a
+	// different height.
+	<script nonce={ c.Nonce }>
+		(() => {
+			"use strict";
+			const rail = document.querySelector(".y-rail-left");
+			if (!rail) return;
+			const id =
+				rail.querySelector("[data-book-path]")?.dataset.bookPath ??
+				rail.dataset.readingRail ??
+				rail.getAttribute("aria-label") ??
+				"";
+			let kept = null;
+			try {
+				kept = JSON.parse(sessionStorage.getItem("yomihon.railTop") || "null");
+			} catch {
+				kept = null;
+			}
+			const reloaded =
+				performance.getEntriesByType("navigation")[0]?.type === "reload";
+			const same =
+				!reloaded && kept !== null && kept.id === id && Number.isFinite(kept.top);
+			if (same) rail.scrollTop = kept.top;
+			const row = [...rail.querySelectorAll(".ui-navitem[aria-current='page']")].find(
+				(item) => item.getClientRects().length > 0,
+			);
+			if (row) {
+				const box = rail.getBoundingClientRect();
+				const top =
+					box.top +
+					rail.clientTop +
+					(Number.parseFloat(getComputedStyle(rail).scrollPaddingTop) || 0);
+				const bottom = box.top + rail.clientTop + rail.clientHeight;
+				const place = row.getBoundingClientRect();
+				if (place.top < top) rail.scrollTop += place.top - top;
+				else if (place.bottom > bottom && same) rail.scrollTop += place.bottom - bottom;
+				else if (place.bottom > bottom) rail.scrollTop += place.top - top;
+			}
+			// A folded column has no height to read a position from, and what it
+			// would store is the top; the position kept is the one from before.
+			addEventListener("pagehide", () => {
+				if (rail.querySelector(".y-railbody")?.getClientRects().length === 0) return;
+				try {
+					sessionStorage.setItem(
+						"yomihon.railTop",
+						JSON.stringify({ id, top: rail.scrollTop }),
+					);
+				} catch {
+					// A page without storage keeps nothing; the next one starts at the top.
+				}
+			});
+		})();
+	</script>
 }

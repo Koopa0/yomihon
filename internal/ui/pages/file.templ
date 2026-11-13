@@ -16,7 +16,7 @@ templ File(v FileView, c layouts.Chrome) {
 	{{ c.Readings = render.CarriesReadings(v.BodyHTML) }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
-		<div class="y-shell y-shell--rail-empty">
+		<div class="y-shell">
 			@sidebar(v.Sidebar, c)
 			<main id="_y-main" tabindex="-1" class="y-main">
 				<article class="y-article">

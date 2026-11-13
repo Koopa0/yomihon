@@ -16,7 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/graph"
-	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -380,45 +380,9 @@ func TestSnapshotWarningProducers(t *testing.T) {
 	}
 }
 
-func TestSnapshotWarningVerdict(t *testing.T) {
-	// Contract loading refuses the bad slug pattern before a real generation
-	// can reach this producer. This fixture holds its bounded reporting route.
-	root := t.TempDir()
-	writeNote(t, root, "note.md", "ordinary body\n")
-	f := newWarningFixture(t, root, nil)
-	entry, ok := f.store.Current().Entry("note.md")
-	if !ok {
-		t.Fatal("captured note entry unavailable")
-	}
-	reported := make(map[warningKey]struct{})
-	logger := slog.New(slog.NewJSONHandler(f.logs, nil))
-	for range 3 {
-		g := newGeneration(1)
-		g.warnings = newWarningAttempt(reported)
-		g.recordVerdict(entry, nil, errors.New("unavailable pattern"), logger)
-		if len(g.findings) != 0 {
-			t.Fatal("failed verdict gained findings")
-		}
-		g.warnings.complete()
-	}
-	t.Log("producer-hit: bounded actual recordVerdict route; New caller failure unreachable")
-	assertWarningCount(t, f, "schema verdict unavailable for a note", 1, "verdict warning was reported again")
-	g := newGeneration(1)
-	g.warnings = newWarningAttempt(reported)
-	g.recordVerdict(entry, []judge.Finding{{}}, nil, logger)
-	if len(g.findings["note.md"]) != 1 {
-		t.Fatal("successful verdict lost its findings")
-	}
-	g.warnings.complete()
-	g = newGeneration(1)
-	g.warnings = newWarningAttempt(reported)
-	g.recordVerdict(entry, nil, errors.New("unavailable pattern"), logger)
-	assertWarningCount(t, f, "schema verdict unavailable for a note", 2, "recovered verdict was not rearmed")
-}
-
 // TestSnapshotWarningKindIsPartOfTheKey pins that two warnings about the same
 // note revision with the same message stay distinct when their kinds differ:
-// a read failure does not silence a verdict failure that happens to share its
+// a read failure does not silence a sidecar failure that happens to share its
 // words.
 func TestSnapshotWarningKindIsPartOfTheKey(t *testing.T) {
 	root := t.TempDir()
@@ -432,9 +396,9 @@ func TestSnapshotWarningKindIsPartOfTheKey(t *testing.T) {
 	g := newGeneration(1)
 	g.warnings = newWarningAttempt(make(map[warningKey]struct{}))
 	g.warnSourceUnavailable(entry, errors.New("same failure"), logger)
-	g.recordVerdict(entry, nil, errors.New("same failure"), logger)
+	g.warnSlotProblems(f.store.Current().scan, []lesson.Problem{{Source: "note.md", Message: "same failure"}}, logger)
 	assertWarningCount(t, f, "vault source unavailable in snapshot generation", 1, "read warning was not reported")
-	assertWarningCount(t, f, "schema verdict unavailable for a note", 1, "warning kinds were collapsed")
+	assertWarningCount(t, f, "slot sidecar unusable in snapshot generation", 1, "warning kinds were collapsed")
 }
 
 func TestSnapshotWarningsCanceled(t *testing.T) {

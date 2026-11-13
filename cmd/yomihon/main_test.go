@@ -39,7 +39,6 @@ import (
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -93,7 +92,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"is refused rather than judged: that ground is scanned, but nothing from it\n" +
 			"can be reported, and an empty answer would read as a clean verdict.\n" +
 			"\n" +
-			"When scan.knowledge_dirs names directories, the frontmatter schema rules\n" +
+			"When folders.checked names directories, the frontmatter schema rules\n" +
 			"judge those files; a file outside them is still scanned for links, but is\n" +
 			"not held to the schema. When the list is omitted or empty, every note is\n" +
 			"held to the schema.\n" +
@@ -120,7 +119,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"human summary when it is; --format decides instead of the terminal, and\n" +
 			"md falls back to the human view.\n" +
 			"\n" +
-			"When scan.knowledge_dirs names directories, only that layer is tallied.\n" +
+			"When folders.checked names directories, only that layer is tallied.\n" +
 			"A concept or map outside it cannot change a public concept's mount\n" +
 			"state. When the list is omitted or empty, the whole vault is counted.\n" +
 			"A withheld path is never reported.\n" +
@@ -153,8 +152,8 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 		"left-open": "Usage: yomihon left-open [--root <dir>] [--format json|human|md]\n" +
 			"\n" +
 			"Lists what you left open in a vault: the locations you marked \"Not sure\n" +
-			"yet\", and the notes of the contract's answer type that are still in an\n" +
-			"initial status — newest first, as the reading desk shows them.\n" +
+			"yet\", and the notes of the contract's answer type that still declare\n" +
+			"draft: true — newest first, as the reading desk shows them.\n" +
 			"\n" +
 			"Marks are kept on this machine, one set per folder, found by the folder's\n" +
 			"path as it is spelled: this reads the set that yomihon serve kept for the\n" +
@@ -399,8 +398,7 @@ func assertHomeUntouched(t *testing.T, home string) {
 // path may write. The invariant is system-level: it is not that each face
 // avoids writing in isolation but that all of them summed do, so the guard
 // lives at the composition point and drives the faces as they are actually
-// wired. The one writing endpoint (POST /status) is deliberately not wired,
-// because writing the single status field is its job.
+// wired.
 func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -427,38 +425,25 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		t.Fatalf("snapshot.New: %v", err)
 	}
 
-	// The writer shares the fixture's contract authority with the snapshot,
-	// but its writing endpoint is deliberately not registered below.
-	writer, err := status.Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
-	if err != nil {
-		t.Fatalf("status.Open: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := writer.Close(); closeErr != nil {
-			t.Errorf("Writer.Close() error = %v", closeErr)
-		}
-	})
+	authority := func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) }
 	vaultName := shell.VaultName(reader.Name())
 	searchProvider := func() search.RequestSnapshot {
-		authority := writer.Authority()
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority, snap), Status: authority}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap)}
 	}
 	pathProvider := func() syllabus.RequestSnapshot {
 		snap := store.Current().Capture()
-		authority := writer.Authority()
-		return syllabus.RequestSnapshot{Shell: shell.Project(vaultName, authority, snap), Generation: snap, Status: authority}
+		captured := authority()
+		return syllabus.RequestSnapshot{Shell: shell.Project(vaultName, captured, snap), Generation: snap, Authority: captured}
 	}
 
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   func() (mark.Continuation, bool) { return mark.Continuation{}, false },
-		Source:         reader,
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		Log:            log,
+		Continuation: func() (mark.Continuation, bool) { return mark.Continuation{}, false },
+		Source:       reader,
+		Authority:    authority,
+		Snapshot:     store.Current,
+		Log:          log,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(pathProvider, log).Register(mux)
@@ -477,7 +462,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		"/notes/README.md",
 		"/notes/Notes/alpha.md",
 		"/notes/Notes/beta.md",
-		"/syllabus/Maps/study.md",
+		"/courses/Maps/study.md",
 		"/search?q=tortoise",
 		"/search/results?q=tortoise",
 		"/reports",
@@ -515,7 +500,7 @@ func writeSweepFixture(t *testing.T, root string) {
 		"README.md":                           "# Sweep\n\nHome, linking to [[Alpha]].\n",
 		"Notes/alpha.md":                      "---\ntype: concept\naliases: [Alpha]\n---\n# Alpha\n\nAlpha links to [[Beta]] and mentions a tortoise.\n",
 		"Notes/beta.md":                       "---\ntype: concept\naliases: [Beta]\n---\n# Beta\n\nBeta body.\n",
-		"Maps/study.md":                       "---\ntype: study-path\ntitle: Study Path\n---\n# Study Path\n\n- [[Alpha]]\n- [[Beta]]\n",
+		"Maps/study.md":                       "---\ntype: study-path\n---\n# Study Path\n\n- [[Alpha]]\n- [[Beta]]\n",
 		"Makefile":                            "build:\n\tgo build ./...\n",
 		"Diagrams/pic.png":                    "\x89PNG\r\n\x1a\n and a few bytes more",
 		"System/reports/2026-09-02 review.md": "# Review\n\nThe week in the vault.\n",

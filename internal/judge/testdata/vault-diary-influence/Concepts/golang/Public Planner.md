@@ -1,7 +1,5 @@
 ---
-title: Public Planner
 type: concept
-domain: golang
 ---
 a public note that lists a planned concept.
 

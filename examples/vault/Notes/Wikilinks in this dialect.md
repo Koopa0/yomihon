@@ -1,11 +1,6 @@
 ---
-title: Wikilinks in this dialect
 type: note
-status: ready
-domain: yomihon
-topics: [links, resolution]
 created: 2026-09-22
-updated: 2026-09-22
 lang: en
 ---
 
@@ -25,7 +20,7 @@ A name resolves to one file, to several, or to none.
 
 ## Fragments
 
-`[[Name#Section]]` points into a note: [[The status lifecycle#published is declared and never set]] lands on that heading. If the note resolves and the section does not, the link goes to the note and says the section was not found instead — [[The vault contract#A section that is not there]] does that here.
+`[[Name#Section]]` points into a note: [[Drafts#Leaving it out means finished]] lands on that heading. If the note resolves and the section does not, the link goes to the note and says the section was not found instead — [[The vault contract#A section that is not there]] does that here.
 
 [[The vault contract#^single-source]] goes to one block rather than a whole note, named by the anchor that note carries.
 
@@ -33,6 +28,6 @@ A name resolves to one file, to several, or to none.
 
 `![[Name]]` pulls the whole note in; with a section after the name, only that section:
 
-![[The status lifecycle#initial is written out]]
+![[Drafts#Nothing is written back]]
 
 An embed whose section is not found shows nothing of the note: a notice names the address, and the note's name above it leads to the whole note.

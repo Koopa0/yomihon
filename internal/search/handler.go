@@ -39,21 +39,6 @@ const searchPageSize = 20
 type RequestSnapshot struct {
 	Index *lexical.Index
 	Shell nav.Shell
-
-	// Status is the read-only status vocabulary a result row rules against.
-	// It may be absent, and rows then name statuses without ruling on them.
-	Status StatusVocabulary
-}
-
-// StatusVocabulary is the read-only half of the status projection, declared
-// here in the consumer so a face that only reads does not put the component
-// able to change the vault inside its import closure.
-type StatusVocabulary interface {
-	// Closed reports whether this view can classify a governed instance at
-	// all: a folder with no contract, or one that cannot be honoured.
-	Closed() bool
-	// KnownStatus reports whether the contract declares status for noteType.
-	KnownStatus(noteType, status string) bool
 }
 
 // Handler serves the search page and its read-only results fragment, reading
@@ -133,11 +118,10 @@ func answerView(snap *RequestSnapshot, q string, a *answer, lang wording.Lang, a
 	}
 	view := pages.SearchView{
 		Query:             q,
-		Results:           viewResults(found, snap.Shell.Governed, snap.Status, a.tokens),
+		Results:           viewResults(found, a.tokens),
 		Pager:             strip,
 		Total:             a.found.Total,
 		Diagnostic:        a.diagnostic,
-		Governed:          snap.Shell.Governed,
 		StepBacks:         stepBackViews(snap.Index, q, a.found.Results, a.diagnostic),
 		UnknownFilterKeys: a.parsed.UnknownFilterKeys(),
 		FilterKeys:        lexical.FilterKeys(),
@@ -149,7 +133,7 @@ func answerView(snap *RequestSnapshot, q string, a *answer, lang wording.Lang, a
 		}
 	}
 	if onPage && a.diagnostic == "" && snap.Shell.Governed {
-		view.Facets = facetViews(q, a.found.Facets, snap.Status, lang)
+		view.Facets = facetViews(q, a.found.Facets, lang)
 	}
 	return view
 }
@@ -163,11 +147,7 @@ func answerView(snap *RequestSnapshot, q string, a *answer, lang wording.Lang, a
 //
 // A division no hit stated a value for draws nothing: a column reading "not
 // stated: 12" and offering nothing else narrows no search.
-func facetViews(q string, divisions []lexical.Facet, vocabulary StatusVocabulary, lang wording.Lang) []pages.SearchFacet {
-	// Asked of the vocabulary rather than inferred from the shell, for the same
-	// reason the result rows ask: a view that knows none would otherwise mark
-	// every value a fault.
-	rules := vocabulary != nil && !vocabulary.Closed()
+func facetViews(q string, divisions []lexical.Facet, lang wording.Lang) []pages.SearchFacet {
 	out := make([]pages.SearchFacet, 0, len(divisions))
 	for _, division := range divisions {
 		if len(division.Values) == 0 {
@@ -179,7 +159,7 @@ func facetViews(q string, divisions []lexical.Facet, vocabulary StatusVocabulary
 			Rows:    make([]pages.SearchFacetRow, 0, len(division.Values)+1),
 		}
 		for _, value := range division.Values {
-			facet.Rows = append(facet.Rows, facetRow(q, division.Key, value, rules, vocabulary))
+			facet.Rows = append(facet.Rows, facetRow(q, division.Key, value))
 		}
 		if division.Unstated > 0 {
 			facet.Rows = append(facet.Rows, pages.SearchFacetRow{
@@ -200,36 +180,19 @@ func facetViews(q string, divisions []lexical.Facet, vocabulary StatusVocabulary
 // decided by removing it and seeing whether anything changed, rather than by a
 // second comparison of folded values kept here: the grammar decides what names
 // what, and the answer and the link the row offers then cannot disagree.
-func facetRow(q, key string, value lexical.FacetValue, rules bool, vocabulary StatusVocabulary) pages.SearchFacetRow {
+func facetRow(q, key string, value lexical.FacetValue) pages.SearchFacetRow {
 	row := pages.SearchFacetRow{Label: value.Value, Count: value.Count}
-	if rules && key == lexical.StatusFilterKey {
-		row.OutsideEnum = !declaredByACarrier(vocabulary, value)
-	}
 	constraint := lexical.Filter{Key: key, Value: value.Value}
 	if without := lexical.WithoutFilter(q, constraint); without != q {
 		row.Query, row.Active = without, true
 		return row
 	}
 	// A value this grammar cannot spell back — one carrying a quote character —
-	// leaves the row a cell with its count and no offer, the way a lifecycle
-	// square with nothing to query stops being a link.
+	// leaves the row a cell with its count and no offer.
 	if narrowed, ok := lexical.WithFilter(q, constraint); ok {
 		row.Query = narrowed
 	}
 	return row
-}
-
-// declaredByACarrier reports whether any note type holding this status declares
-// it. A status is declared per type, so the value alone cannot be ruled on: the
-// same value is vocabulary under one type and outside every enum under another,
-// and a verdict reached without the types would contradict the rows beneath it.
-func declaredByACarrier(vocabulary StatusVocabulary, value lexical.FacetValue) bool {
-	for _, noteType := range value.Carriers {
-		if vocabulary.KnownStatus(noteType, value.Value) {
-			return true
-		}
-	}
-	return false
 }
 
 // results renders only the lexical-results region used by progressive search.
@@ -377,25 +340,20 @@ func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 	return q, true
 }
 
-// viewResults maps the engine's results onto the view's plain field type. A
-// hit's status is carried only for a governed vault: elsewhere a status chip
-// would present raw frontmatter as a value drawn from a declared vocabulary.
-func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocabulary, tokens []string) []pages.SearchResult {
-	// Asked of the vocabulary rather than inferred from the shell beside it: a
-	// view that knows none would otherwise mark every governed row a fault.
-	rules := vocabulary != nil && !vocabulary.Closed()
+// viewResults maps the engine's results onto the view's plain field type.
+func viewResults(results []lexical.Result, tokens []string) []pages.SearchResult {
 	out := make([]pages.SearchResult, len(results))
 	for i := range results {
 		r := &results[i]
 		out[i] = pages.SearchResult{
 			RelPath:       r.RelPath,
 			Title:         r.Title,
+			Draft:         r.Draft,
 			Language:      r.Language,
 			Snippet:       r.Snippet,
 			SnippetRuns:   bodyRuns(r, tokens),
 			PathRuns:      snippetRuns(r.RelPath, tokens),
 			AliasRuns:     snippetRuns(r.Alias, tokens),
-			TopicRuns:     snippetRuns(r.Topic, tokens),
 			TagRuns:       viewRuns(lexical.MarkTagHits(r.Tag, tokens)),
 			File:          r.File,
 			Landing:       r.Landing,
@@ -405,13 +363,6 @@ func viewResults(results []lexical.Result, governed bool, vocabulary StatusVocab
 			LandingSuffix: r.LandingSuffix,
 			BlockCrossing: r.BlockCrossing,
 			FromFence:     r.FromFence,
-		}
-		// A row that names no status can carry no verdict about one.
-		if governed {
-			out[i].Status = r.Status
-			if rules && r.Status != "" {
-				out[i].StatusOutsideEnum = !vocabulary.KnownStatus(r.NoteType, r.Status)
-			}
 		}
 	}
 	return out

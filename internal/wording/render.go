@@ -112,15 +112,6 @@ var TitleOnlySeveralFmt = both(
 	"「%s」是 %d 篇筆記共同的 title，而 title 不是連結找得到的名字；旁邊的筆記狀況列出了是哪幾篇",
 	"%q is the title of %d notes, and a title is not a name a link finds; the note's conditions beside the article name them")
 
-// TitleTruncatedAtHashFmt states a coincidence and the remedy, and is true
-// whichever way the note got here. An unquoted value loses everything from a
-// whitespace-and-hash onward, and a title written short in quotes lands in the
-// same place; the parsed frontmatter cannot tell them apart, so this reports
-// what is observable and leaves the author to recognise their own case.
-var TitleTruncatedAtHashFmt = both(
-	"這篇的 title「%s」恰好是檔名在空白加 # 處截斷的結果；若 title 原本要包含 #，用引號寫就能保留。",
-	"This note's title %q is exactly what its filename becomes when cut at a space followed by #; if the title was meant to carry the #, quoting it keeps it.")
-
 // AmbiguousTargetFmt is said where a name places more than one file. It is not
 // the sentence a title-only citation gets: that name reaches a note under a
 // name links do not follow, and an alias fixes it, while this name is followed

@@ -15,11 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -40,20 +38,18 @@ func runningFolder(t *testing.T, root string) *httptest.Server {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
+	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 	h := note.New(&note.Sources{
-		Source:         source,
-		VaultName:      shell.VaultName(source.Name()),
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Log:            log,
+		Source:    source,
+		VaultName: shell.VaultName(source.Name()),
+		Authority: authority,
+		Snapshot:  store.Current,
+
+		Continuation: noMark,
+		Log:          log,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	status.NewHandler(writer, func() nav.Shell { return nav.Shell{} }, log).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
@@ -105,7 +101,7 @@ func noticeOn(t *testing.T, page, marker string) string {
 // a note written beside them answered 404 indefinitely, and neither the desk
 // nor the health page said anything. Both now say that the pages have stopped
 // updating, name the two files, and say it in the language the reader chose;
-// the desk's count of findings keeps agreeing with the health table; and
+// the health page's stated total keeps agreeing with its table; and
 // taking one of the pair away brings the folder back with nothing restarted.
 func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 	t.Parallel()
@@ -115,18 +111,18 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 		// Two notes that cite each other, so that the folder has no uncited note
 		// and nothing against it: the desk can then count none, and a freeze is
 		// the only thing that could change it.
-		"Notes/Existing.md": "---\ntitle: Existing\ntype: concept\n---\nsee [[" + strings.TrimSuffix(path.Base(frozenComposed), ".md") + "]]\n",
-		frozenComposed:      "---\ntitle: Ga\ntype: concept\n---\nsee [[Existing]]\n",
+		"Notes/Existing.md": "---\ntype: concept\n---\n# Existing\n\nsee [[" + strings.TrimSuffix(path.Base(frozenComposed), ".md") + "]]\n",
+		frozenComposed:      "---\ntype: concept\n---\n# Ga\n\nsee [[Existing]]\n",
 	} {
 		writeVaultNote(t, root, rel, body)
 	}
 	srv := runningFolder(t, root)
 	client := srv.Client()
-	if claim := deskHealthClaim(t, getInLanguage(t, client, srv.URL+"/", wording.En)); claim != 0 {
+	if claim := healthClaim(t, getInLanguage(t, client, srv.URL+"/health", wording.En)); claim != 0 {
 		t.Fatalf("the folder before the pair has %d findings, so a freeze has nothing to change", claim)
 	}
 
-	writeVaultNote(t, root, frozenDecomposed, "---\ntitle: Ga\ntype: concept\n---\nga\n")
+	writeVaultNote(t, root, frozenDecomposed, "---\ntype: concept\n---\n# Ga\n\nga\n")
 	entries, err := os.ReadDir(filepath.Join(root, "Notes"))
 	if err != nil {
 		t.Fatalf("ReadDir(Notes): %v", err)
@@ -138,7 +134,7 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 	if !slices.Contains(listed, path.Base(frozenComposed)) || !slices.Contains(listed, path.Base(frozenDecomposed)) {
 		t.Skip("this filesystem folds the two spellings into one file, so there is no pair to refuse")
 	}
-	writeVaultNote(t, root, frozenFresh, "---\ntitle: Fresh\ntype: concept\n---\nfresh\n")
+	writeVaultNote(t, root, frozenFresh, "---\ntype: concept\n---\n# Fresh\n\nfresh\n")
 
 	waitUntil(t, "the health page says the folder is frozen", func() bool {
 		return strings.Contains(getInLanguage(t, client, srv.URL+"/health", wording.En), "data-health-notice")
@@ -174,9 +170,9 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 			}
 		}
 	}
-	// The desk and the table are one instrument and state one number. A notice
-	// is no row of the table, so the number leaves it out and the two still
-	// agree while the folder is frozen; the notice itself says the rest.
+	// The stated total and the table are one instrument and state one number. A
+	// notice is no row of the table, so the number leaves it out and the two
+	// still agree while the folder is frozen; the notice itself says the rest.
 	frozen := getInLanguage(t, client, srv.URL+"/health", wording.En)
 	drawn := 0
 	for _, row := range rowCount.FindAllStringSubmatch(frozen, -1) {
@@ -186,8 +182,8 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 		}
 		drawn += count
 	}
-	if claim := deskHealthClaim(t, getInLanguage(t, client, srv.URL+"/", wording.En)); claim != drawn {
-		t.Errorf("the desk claims %d findings and the table's lines hold %d", claim, drawn)
+	if claim := healthClaim(t, frozen); claim != drawn {
+		t.Errorf("the page states %d findings and the table's lines hold %d", claim, drawn)
 	}
 
 	removeFile(t, root, frozenDecomposed)

@@ -38,7 +38,7 @@ func TestBaseStartsBodyWithSkipLink(t *testing.T) {
 // TestBaseCarriesOnlyTheScriptedMarkRulesImportMapAndModuleEntry pins
 // the four script elements a page carries, and the order they come in. The
 // mark sets data-js before the first style so a scripted page is laid out as it
-// will stay, and says whether this document is the answer to a press; the
+// will stay, and says whether this document is a return to a kept place; the
 // speculation rules follow it, ahead of the stylesheets, so the browser learns
 // what to fetch as early as the head allows; the import map names versioned
 // modules before the module entry closes the body.
@@ -57,7 +57,7 @@ func TestBaseCarriesOnlyTheScriptedMarkRulesImportMapAndModuleEntry(t *testing.T
 	const importMap = `<script type="importmap" nonce="response-nonce">`
 	// The statement stands on its own line because that is how templ fmt lays
 	// out a script element, and the format check keeps it so.
-	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tconst entry = performance.getEntriesByType(\"navigation\")[0];\n\t\t\t\t\tconst kept = new URLSearchParams(location.search).has(\"at\");\n\t\t\t\t\tif (entry?.type === \"back_forward\") d.dataset.arrival = \"traverse\";\n\t\t\t\t\telse if (entry?.type === \"reload\") d.dataset.arrival = \"reload\";\n\t\t\t\t\telse if (kept || entry?.name.includes(\"#\"))\n\t\t\t\t\t\td.dataset.arrival = \"place\";\n\t\t\t\t\tif (document.prerendering) {\n\t\t\t\t\t\td.dataset.prerender = \"\";\n\t\t\t\t\t\tdocument.onprerenderingchange = () => delete d.dataset.prerender;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t</script>"
+	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tif (new URLSearchParams(location.search).has(\"at\")) d.dataset.arrival = \"kept\";\n\t\t\t\t}\n\t\t\t</script>"
 	const rules = `<script type="speculationrules" nonce="response-nonce">` + `{"prefetch":`
 	if got := strings.Count(html, entry); got != 1 {
 		t.Errorf("Base() module entries = %d, want 1 opening %q; html = %q", got, entry, html)
@@ -96,7 +96,11 @@ func TestBaseCarriesOnlyTheScriptedMarkRulesImportMapAndModuleEntry(t *testing.T
 	}
 }
 
-func TestBaseProjectsCanonicalBrandAssetOnce(t *testing.T) {
+// The favicon sits on a browser's tab, where no stylesheet gives the mark a
+// ground, so it draws the mark on its paper tile; the header's mark is the
+// canonical file, which the stylesheet seats on that tile itself in the dark
+// theme. Each is named once, and neither names the other's file.
+func TestBaseProjectsEachBrandFileOnce(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	if err := Base(Chrome{Title: "測試", Assets: asset.Versions{Token: "recorded0000"}}).Render(t.Context(), &buf); err != nil {
@@ -104,7 +108,8 @@ func TestBaseProjectsCanonicalBrandAssetOnce(t *testing.T) {
 	}
 	html := buf.String()
 	const brandAsset = "/static/yomihon-mark.svg?v=recorded0000"
-	const favicon = `<link rel="icon" type="image/svg+xml" href="` + brandAsset + `">`
+	const onPaperAsset = "/static/yomihon-mark-on-paper.svg?v=recorded0000"
+	const favicon = `<link rel="icon" type="image/svg+xml" href="` + onPaperAsset + `">`
 	const headerMark = `<img class="y-brand__mark" src="` + brandAsset + `" width="24" height="24" alt="" aria-hidden="true">`
 	if got := strings.Count(html, favicon); got != 1 {
 		t.Errorf("Base() favicon projections = %d, want one exact %q; html = %q", got, favicon, html)
@@ -112,8 +117,11 @@ func TestBaseProjectsCanonicalBrandAssetOnce(t *testing.T) {
 	if got := strings.Count(html, headerMark); got != 1 {
 		t.Errorf("Base() header mark projections = %d, want one exact %q; html = %q", got, headerMark, html)
 	}
-	if got := strings.Count(html, brandAsset); got != 2 {
-		t.Errorf("Base() canonical brand references = %d, want favicon plus header only; html = %q", got, html)
+	if got := strings.Count(html, brandAsset); got != 1 {
+		t.Errorf("Base() canonical brand references = %d, want the header only; html = %q", got, html)
+	}
+	if got := strings.Count(html, onPaperAsset); got != 1 {
+		t.Errorf("Base() on-paper brand references = %d, want the favicon only; html = %q", got, html)
 	}
 	for _, forbidden := range []string{`rel="manifest"`, `apple-touch-icon`, `.ico`, `y-brand__dot`} {
 		if strings.Contains(html, forbidden) {
@@ -418,13 +426,32 @@ func TestBaseStampsTheColumnStateOnTheRoot(t *testing.T) {
 	}
 }
 
+// The buttons beside a section are shown or held back by a stylesheet rule that
+// asks the root, so the answer has to be in the markup the server sends: a rule
+// that waited for a script to set it would paint the buttons one way and then
+// the other on every load of a reader who chose to have them held back.
+func TestBaseStampsTheSectionButtonsOnTheRoot(t *testing.T) {
+	t.Parallel()
+	for _, when := range []string{"always", "hover"} {
+		var buf bytes.Buffer
+		if err := Base(Chrome{SectionButtons: when}).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("Base().Render() error = %v", err)
+		}
+		_, afterDoctype, _ := strings.Cut(buf.String(), "<html")
+		root, _, _ := strings.Cut(afterDoctype, ">")
+		if !strings.Contains(root, `data-sectionbuttons="`+when+`"`) {
+			t.Errorf("Base() root is missing data-sectionbuttons=%q; root = %q", when, root)
+		}
+	}
+}
+
 // TestHeaderCarriesOnlyWhatReadingNeeds holds the row to the controls a reader
 // uses while reading, in the order that keeps the fixed ones still. The theme,
 // the text size, the language, the whole-folder view and the keyboard help are
 // reached elsewhere, so none of their hooks may come back to the row; the
-// furigana switch and the bookmark are drawn only when the page says so, and
-// stand before the search entry and the way to the choices, so a page that
-// draws neither moves nothing else.
+// furigana switch and the bookmark are drawn only when the page says so. The
+// order is the design's: the furigana switch, the search, the bookmark, the
+// way to the choices.
 func TestHeaderCarriesOnlyWhatReadingNeeds(t *testing.T) {
 	t.Parallel()
 	mark := &MarkOffer{Path: "a.md", Identity: "abc", Endpoint: "/marks"}
@@ -435,10 +462,10 @@ func TestHeaderCarriesOnlyWhatReadingNeeds(t *testing.T) {
 	}{
 		{name: "a page with neither", chrome: Chrome{}, want: []string{"y-searchbtn", "y-prefslink"}},
 		{name: "a page with readings", chrome: Chrome{Readings: true}, want: []string{"y-rubybtn", "y-searchbtn", "y-prefslink"}},
-		{name: "a note offering a mark", chrome: Chrome{Mark: mark}, want: []string{"y-headermark", "y-searchbtn", "y-prefslink"}},
-		{name: "a note with both", chrome: Chrome{Readings: true, Mark: mark}, want: []string{"y-rubybtn", "y-headermark", "y-searchbtn", "y-prefslink"}},
+		{name: "a note offering a mark", chrome: Chrome{Mark: mark}, want: []string{"y-searchbtn", "y-headermark", "y-prefslink"}},
+		{name: "a note with both", chrome: Chrome{Readings: true, Mark: mark}, want: []string{"y-rubybtn", "y-searchbtn", "y-headermark", "y-prefslink"}},
 	}
-	controls := []string{"y-rubybtn", "y-headermark", "y-searchbtn", "y-prefslink"}
+	controls := []string{"y-rubybtn", "y-searchbtn", "y-headermark", "y-prefslink"}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

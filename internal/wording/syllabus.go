@@ -1,19 +1,20 @@
 package wording
 
-// The syllabus: a study path read as a course rather than as a note.
+// The course page: a course read as a whole rather than as a note.
 
-// SyllabusKicker names the kind above the path's own title. It is the whole
-// line, with nothing after it for a separator to join to, so it ends on its
-// last word.
-var SyllabusKicker = both("學習路徑", "Study path")
+// SyllabusKicker names the kind above the title of the page that reads a course
+// aloud, the one page of a course that carries no sidebar to say which course it
+// is. It is the whole line, with nothing after it for a separator to join to, so
+// it ends on its last word.
+var SyllabusKicker = both("課程", "Course")
 
 // PathItemUnreadable stands where a course lists something the page could not
 // read as either a lesson or a branch. Dropping such a row would take it off a
 // page whose whole job is showing the course as it is written, and the reader
 // would be looking at a list quietly missing an item.
 var PathItemUnreadable = both(
-	"這條路徑列了一項無法判讀的內容，這一頁沒有把它讀成課程或分部。",
-	"This path lists something that could not be read as either a lesson or a branch.")
+	"這個課程列了一項無法判讀的內容，這一頁沒有把它讀成課或分部。",
+	"This course lists something that could not be read as either a lesson or a branch.")
 
 // PartLabelFmt is a part's heading label, over its name on the cover. It takes
 // the part's number in the language's own numerals: hanzi in Chinese, roman in
@@ -53,8 +54,8 @@ var (
 	ListenTitleFmt      = both("朗讀《%s》", "Listen to %s")
 	ListenThisPath      = both("聆聽 ", "Listen ")
 	ListenNothingMarked = both(
-		"這條路徑沒有標記朗讀的段落。",
-		"No passage in this path is marked to be read aloud.")
+		"這個課程沒有標記朗讀的段落。",
+		"No passage in this course is marked to be read aloud.")
 )
 
 // A branch's own label. Local branches carry their heading; the main line does
@@ -68,11 +69,10 @@ var (
 	BranchTag       = both("支線", "Branch")
 )
 
-// The syllabus's own rail.
+// The course page's own sidebar.
 var (
-	StudyPathNav = both("學習路徑導覽", "Study path navigation")
-	StudyPaths   = both("學習路徑", "Study paths")
-	ThisPath     = both("這條學習路徑", "This study path")
+	CourseNav  = both("課程導覽", "Course navigation")
+	ThisCourse = both("這個課程", "This course")
 )
 
 // What the page says over an empty course, split by which repair is due.
@@ -86,16 +86,16 @@ var (
 // is stays the same sentence in both.
 var (
 	NoCourseIntro = both(
-		"這條路徑沒有讀到任何課程結構。分部與課次是由標題或開啟清單那一行行尾的 ",
-		"No course structure could be read from this path. Parts and lessons are declared by a ",
+		"這個課程沒有讀到任何課程結構。分部與課是由標題或開啟清單那一行行尾的 ",
+		"No course structure could be read from this course. Parts and lessons are declared by a ",
 	)
 	NoCourseNoMarkerTail = both(
 		" 標記宣告的；沒有標記的標題不會被讀成分部，底下的連結也不會被讀成課。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
 		" marker at the end of a heading, or of the row that opens a list. A heading without one is not read as a part, and the links under it are not read as lessons. yomihon reports and never repairs; edit this note directly.",
 	)
 	NoCourseMarkerFaultIntro = both(
-		"這條路徑寫了 sequence 標記，但沒有一個分部能讀成課程結構。標記的值只能是 ",
-		"This path writes sequence markers, but none of its branches could be read as course structure. A marker takes exactly one of ",
+		"這個課程寫了 sequence 標記，但沒有一個分部能讀成課程結構。標記的值只能是 ",
+		"This course writes sequence markers, but none of its branches could be read as course structure. A marker takes exactly one of ",
 	)
 	NoCourseMarkerFaultTail = both(
 		" 三者之一，寫在標題或開啟清單那一行的行尾。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
@@ -107,8 +107,8 @@ var (
 	// sentences above are both claims about somebody else's file, and one
 	// of them would be false.
 	NoCourseUnexplained = both(
-		"這條路徑有一個結構問題，這個頁面沒有可以說明的話。判讀報告會指出是哪一個。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
-		"This path has a structural problem this page has no words for. The adjudication report names which one. yomihon reports and never repairs; edit this note directly.",
+		"這個課程有一個結構問題，這個頁面沒有可以說明的話。檢查結果會指出是哪一個。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
+		"This course has a structural problem this page has no words for. The check result names which one. yomihon reports and never repairs; edit this note directly.",
 	)
 	// The joiners between the three spelled values. The two languages use
 	// different marks and different words, so they are phrases, not markup.
@@ -135,10 +135,10 @@ var (
 	ParenClose = both("）", ")")
 )
 
-// AssetNotFound and PathNotFound are what the two address-shaped routes say
+// AssetNotFound and CourseNotFound are what the two address-shaped routes say
 // when they answer with nothing. Each names what was looked for, because the
 // address alone does not say which route refused it.
 var (
-	AssetNotFound = both("找不到指定的資產", "That asset was not found")
-	PathNotFound  = both("找不到指定的學習路徑", "That study path was not found")
+	AssetNotFound  = both("找不到指定的資產", "That asset was not found")
+	CourseNotFound = both("找不到指定的課程", "That course was not found")
 )

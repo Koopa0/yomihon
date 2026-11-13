@@ -52,7 +52,7 @@ func TestNoteArticleLanguageComesOnlyFromAuthority(t *testing.T) {
 	}
 }
 
-func TestInlineReadingAidsUseChromeLanguage(t *testing.T) {
+func TestTheEndOfTheTextUsesChromeLanguage(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	view := NoteView{
@@ -62,420 +62,19 @@ func TestInlineReadingAidsUseChromeLanguage(t *testing.T) {
 	if err := Note(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
-	if html := buf.String(); !strings.Contains(html, `<div class="y-inlineaids" lang="zh-Hant">`) {
-		t.Errorf("inline reading aids do not restore the chrome language inside a Japanese article: %q", html)
+	if html := buf.String(); !strings.Contains(html, `<div class="y-related" id="_y-end" tabindex="-1" lang="zh-Hant">`) {
+		t.Errorf("the end of the text does not restore the chrome language inside a Japanese article: %q", html)
 	}
-}
-
-// TestWriteFaceReachableInEveryLayoutState is the write-face safety lock over
-// the layout matrix. The right rail exists to hold reading aids; a note with
-// none drops the rail's column, and narrow viewports hide the rail outright —
-// so the fixed-bottom status bar must carry the status face, including the
-// fail-closed notice, whenever the rail is absent. The status panel is the
-// one surface the vault is written through: no combination of aids and
-// contract state may leave its state with nowhere to appear.
-//
-// Each case constructs the view directly and asserts the collapse predicate
-// plus the rendered page. The closed-contract, no-aid note is the pinned
-// worst case: before the status bar carried the notices, that combination
-// rendered the write face's state nowhere at all.
-func TestWriteFaceReachableInEveryLayoutState(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name        string
-		view        NoteView
-		wantAids    bool
-		wantPresent []string
-		wantAbsent  []string
-		wantCounts  map[string]int
-	}{
-		{
-			name:     "no aids, open contract: the status bar carries the transition forms",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", Transitions: []Transition{{To: "ready"}}},
-			wantAids: false,
-			wantPresent: []string{
-				"y-shell--rail-empty",
-				"y-sealbar",
-				`action="/status"`,
-			},
-		},
-		{
-			name:     "no aids, closed contract: the status bar carries the fail-closed notice",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", Transitions: []Transition{{To: "ready"}, {To: "archived"}}, WriteDiagnostic: "contract unavailable"},
-			wantAids: false,
-			wantPresent: []string{
-				"y-shell--rail-empty",
-				"y-sealbar",
-				`<span class="ui-status">draft</span>`,
-				"生命週期寫入目前無法使用",
-			},
-			wantAbsent: []string{`action="/status"`},
-			wantCounts: map[string]int{
-				`data-status-state="unavailable"`: 2,
-				"生命週期寫入目前無法使用":                    2,
-			},
-		},
-		{
-			name: "malformed non-instance suppresses every status form even if transitions leak into the view",
-			view: NoteView{
-				Governed:    true,
-				Title:       "Template",
-				RelPath:     "System/templates/T.md",
-				Status:      "draft",
-				Transitions: []Transition{{To: "ready"}, {To: "archived"}},
-				NonInstance: true,
-				Diagnostic:  "bad yaml",
-			},
-			wantAids: true,
-			wantPresent: []string{
-				"y-statuspanel",
-				"y-sealbar",
-				"筆記狀況",
-			},
-			wantAbsent: []string{`action="/status"`, `<span class="ui-status">`},
-			wantCounts: map[string]int{
-				`data-status-state="non-instance"`:           2,
-				wording.NonInstanceReason.In(wording.ZhHant): 2,
-			},
-		},
-		{
-			name:     "no aids, no frontmatter: the status bar says so",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", NoFrontmatter: true},
-			wantAids: false,
-			wantPresent: []string{
-				"y-shell--rail-empty",
-				"y-sealbar",
-				wording.NoFrontmatter.In(wording.ZhHant),
-			},
-		},
-		{
-			name:     "headings keep the rail and add the inline disclosure",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", Transitions: []Transition{{To: "ready"}}, TOC: []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}}},
-			wantAids: true,
-			wantPresent: []string{
-				"y-statuspanel",
-				"y-inlineaids",
-				"y-toc-inline",
-				"本頁內容",
-			},
-			wantAbsent: []string{"y-shell--rail-empty"},
-		},
-		{
-			// The one wording for an empty transition set: the schema defines
-			// nothing onward. Owner lists gate nothing, so there is no second
-			// owner-boundary sentence for the panel to reach for.
-			name:     "empty transition set states the schema fact",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft"},
-			wantAids: false,
-			wantPresent: []string{
-				"y-statuspanel",
-				"y-sealbar",
-				wording.NoLegalTransitions.In(wording.ZhHant),
-			},
-			wantAbsent: []string{"接下來的狀態轉換由其他 owner 持有"},
-			// Counted, not merely present: the two faces carry the same
-			// sentence, so a Contains satisfied by the panel alone would leave
-			// the bar's branch — the only status face at the widths that drop
-			// the rail — locked by nothing.
-			wantCounts: map[string]int{wording.NoLegalTransitions.In(wording.ZhHant): 2},
-		},
-		{
-			// The other reading of an empty set: the note sits outside the
-			// knowledge layer, so the layer is named on both faces and the
-			// schema sentence — false here, since the contract does define
-			// onward moves — is not reached for.
-			name:        "empty transition set outside the knowledge layer names the layer",
-			view:        NoteView{Governed: true, Title: "T", RelPath: "System/agent-guides/a.md", Status: "draft", OutsideKnowledgeScope: true},
-			wantAids:    false,
-			wantPresent: []string{"y-statuspanel", "y-sealbar"},
-			wantAbsent:  []string{wording.NoLegalTransitions.In(wording.ZhHant), `action="/status"`},
-			wantCounts:  map[string]int{wording.OutsideKnowledgeScope.In(wording.ZhHant): 2},
-		},
-		{
-			// The corner the invariant missed. The frontmatter parses, so the
-			// diagnostics face stays away; its status is a shape no single
-			// value can be read out of, so nothing reaches the chip; and with
-			// no transitions the bar printed a spacer and nothing else. At
-			// every width that drops the rail, that empty bar was the whole
-			// write face. Saying "no legal transition" here would be the wrong
-			// sentence too: the schema was never consulted, because there was
-			// no status to consult it about.
-			name:     "unreadable status: both faces say the status could not be read",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md"},
-			wantAids: false,
-			wantPresent: []string{
-				"y-shell--rail-empty",
-				"y-sealbar",
-				"y-statuspanel",
-				"讀不出 status 值",
-			},
-			wantAbsent: []string{wording.NoLegalTransitions.In(wording.ZhHant), `action="/status"`},
-			wantCounts: map[string]int{
-				"讀不出 status 值": 2,
-			},
-		},
-		{
-			name:     "broken frontmatter: the diagnostics face owns the page, no status bar",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Diagnostic: "unterminated string"},
-			wantAids: true,
-			wantPresent: []string{
-				"筆記狀況",
-				"y-inlineaids",
-			},
-			wantAbsent: []string{"y-shell--rail-empty", "y-sealbar", "y-statuspanel"},
-		},
-		{
-			// The gate proving it can close. A folder nothing governs has no
-			// lifecycle at all, so neither status face belongs on the page —
-			// not even to apologise for a contract that was never promised.
-			name:     "ungoverned folder: neither status face appears",
-			view:     NoteView{Title: "T", RelPath: "a.md", Status: "draft"},
-			wantAids: false,
-			wantPresent: []string{
-				"y-shell--rail-empty",
-				"y-title",
-			},
-			wantAbsent: []string{
-				"y-statuspanel",
-				"y-sealbar",
-				"目前沒有合法的狀態轉換",
-				"生命週期寫入目前無法使用",
-				`action="/status"`,
-			},
-		},
-		{
-			name:     "render diagnostics alone keep the rail",
-			view:     NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", Transitions: []Transition{{To: "ready"}}, RenderDiagnostics: []render.Diagnostic{{Kind: render.DiagWikilinkBroken, Target: "X", Message: "broken"}}},
-			wantAids: true,
-			wantPresent: []string{
-				"筆記狀況",
-				"y-inlineaids",
-				"y-statuspanel",
-			},
-			wantAbsent: []string{"y-shell--rail-empty"},
-		},
-		{
-			name: "declared sources alone keep the rail",
-			view: NoteView{
-				Title:   "T",
-				RelPath: "a.md",
-				BasedOn: []snapshot.DeclaredSource{{Name: "Book notes", RelPath: "Book notes.md"}},
-			},
-			wantAids: true,
-			wantPresent: []string{
-				"y-basedon",
-				`ui-side__label">聲明的來源`,
-				"y-inlineaids",
-			},
-			wantAbsent: []string{"y-shell--rail-empty"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := tt.view.hasAids(); got != tt.wantAids {
-				t.Errorf("hasAids() = %v, want %v", got, tt.wantAids)
-			}
-
-			var buf bytes.Buffer
-			if err := Note(tt.view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
-				t.Fatalf("render: %v", err)
-			}
-			html := buf.String()
-			for _, want := range tt.wantPresent {
-				if !strings.Contains(html, want) {
-					t.Errorf("rendered page is missing %q", want)
-				}
-			}
-			for _, absent := range tt.wantAbsent {
-				if strings.Contains(html, absent) {
-					t.Errorf("rendered page unexpectedly contains %q", absent)
-				}
-			}
-			for marker, want := range tt.wantCounts {
-				if got := strings.Count(html, marker); got != want {
-					t.Errorf("rendered page count for %q = %d, want %d", marker, got, want)
-				}
-			}
-		})
-	}
-}
-
-// TestStatusBarMirrorsTheStatusPanelGuard records the status bar's render
-// condition as the invariant it is: the bar renders exactly when the status
-// panel does. A frontmatter diagnostic ordinarily suppresses both because no
-// status was parsed; a path-classified non-instance is the exception and keeps
-// both quiet notices visible beside the frontmatter diagnostic.
-func TestStatusBarMirrorsTheStatusPanelGuard(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		view          NoteView
-		wantStatusBar bool
-	}{
-		{name: "open contract", view: NoteView{Governed: true, Status: "draft", Transitions: []Transition{{To: "ready"}}}, wantStatusBar: true},
-		{name: "closed contract", view: NoteView{Governed: true, Status: "draft", WriteDiagnostic: "contract unavailable"}, wantStatusBar: true},
-		{name: "no frontmatter", view: NoteView{Governed: true, NoFrontmatter: true}, wantStatusBar: true},
-		{name: "frontmatter diagnostic", view: NoteView{Governed: true, Diagnostic: "bad yaml"}, wantStatusBar: false},
-		{name: "non-instance remains named beside frontmatter diagnostic", view: NoteView{Governed: true, Diagnostic: "bad yaml", NonInstance: true}, wantStatusBar: true},
-		// The same views on a folder nothing governs: the bar has no lifecycle
-		// to mirror, so it is absent in every one of them.
-		{name: "ungoverned open-looking view", view: NoteView{Status: "draft", Transitions: []Transition{{To: "ready"}}}, wantStatusBar: false},
-		{name: "ungoverned no frontmatter", view: NoteView{NoFrontmatter: true}, wantStatusBar: false},
-		{name: "ungoverned non-instance", view: NoteView{Diagnostic: "bad yaml", NonInstance: true}, wantStatusBar: false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			var buf bytes.Buffer
-			if err := Note(tt.view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
-				t.Fatalf("render: %v", err)
-			}
-			if got := strings.Contains(buf.String(), "y-sealbar"); got != tt.wantStatusBar {
-				t.Errorf("status bar rendered = %v, want %v", got, tt.wantStatusBar)
-			}
-			if tt.wantStatusBar {
-				html := buf.String()
-				want := `<section class="y-sealbar" lang="zh-Hant" aria-labelledby="_y-status-bar-label"`
-				if !strings.Contains(html, want) {
-					t.Errorf("status bar is not a named region: missing %q", want)
-				}
-			}
-		})
-	}
-
-	t.Run("note carries every legal transition as a plain form", func(t *testing.T) {
-		t.Parallel()
-
-		v := NoteView{
-			Governed:    true,
-			RelPath:     "a.md",
-			Status:      "draft",
-			Transitions: []Transition{{To: "ready"}, {To: "archived"}},
-		}
-		var buf bytes.Buffer
-		if err := statusBar(v, wording.ZhHant).Render(t.Context(), &buf); err != nil {
-			t.Fatalf("render status bar: %v", err)
-		}
-		html := buf.String()
-		for _, want := range []string{
-			`name="to" value="ready"`,
-			`name="to" value="archived"`,
-			`<span class="ui-status">draft</span>`,
-		} {
-			if !strings.Contains(html, want) {
-				t.Errorf("status bar is missing %q", want)
-			}
-		}
-		if got, want := strings.Count(html, `name="to"`), 2; got != want {
-			t.Errorf("status bar transition form count = %d, want %d", got, want)
-		}
-	})
-}
-
-// TestStatusBarFlagsAStatusOutsideTheSchema locks the narrow-width status
-// face to the same answer the rail panel gives an undeclared status value:
-// the flag states the fault and no transition form renders, even when the
-// view carries onward targets. The bar is the only status face where the
-// right rail is absent, so a bar that fell through to plain forms would
-// contradict the panel on exactly the viewports that cannot see the panel.
-func TestStatusBarFlagsAStatusOutsideTheSchema(t *testing.T) {
-	t.Parallel()
-
-	v := NoteView{
-		Governed:      true,
-		RelPath:       "a.md",
-		Status:        "這是草稿",
-		StatusUnknown: true,
-		Transitions:   []Transition{{To: "archived"}},
-	}
-	var buf bytes.Buffer
-	if err := statusBar(v, wording.ZhHant).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render status bar: %v", err)
-	}
-	html := buf.String()
-	if !strings.Contains(html, "y-statusflag") {
-		t.Errorf("status bar does not carry the out-of-schema flag:\n%s", html)
-	}
-	if got := strings.Count(html, `name="to"`); got != 0 {
-		t.Errorf("status bar renders %d transition forms for an undeclared status, want 0:\n%s", got, html)
-	}
-}
-
-// TestTransitionButtonsAreDescribedByTheSchemaNotices holds both states of the
-// wiring between the transition controls and the schema's findings about this
-// note's frontmatter. The amber notices sit beside the buttons, which reaches
-// a sighted reader and says nothing to one whose reader announces a focused
-// control on its own — so on a page carrying findings, every transition submit
-// names the notices block as its description and the block carries the id
-// being named; on a page carrying none, the reference is absent rather than
-// dangling. The form count is the yardstick for "every": each transition form
-// holds exactly one submit, on both status faces, so the number of references
-// must equal the number of forms — fewer leaves a button unexplained, more
-// means the description leaked onto a control it does not govern.
-func TestTransitionButtonsAreDescribedByTheSchemaNotices(t *testing.T) {
-	t.Parallel()
-
-	base := NoteView{
-		Governed:    true,
-		RelPath:     "a.md",
-		Status:      "draft",
-		Transitions: []Transition{{To: "ready"}, {To: "archived", NoReturn: true}},
-	}
-
-	t.Run("a page with findings describes every submit", func(t *testing.T) {
-		t.Parallel()
-
-		v := base
-		v.SchemaNotices = [][]wording.SchemaPart{{{Text: "slug", Code: true}, {Text: " is written as no slug"}}}
-		var buf bytes.Buffer
-		if err := Note(v, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
-			t.Fatalf("render: %v", err)
-		}
-		html := buf.String()
-		if got := strings.Count(html, ` id="_y-schema-notices"`); got != 1 {
-			t.Fatalf("the _y-schema-notices id appears %d times, want exactly 1 block for the buttons to point at", got)
-		}
-		forms := strings.Count(html, `name="to"`)
-		if forms == 0 {
-			t.Fatal("no transition form rendered, so nothing below checks the description wiring")
-		}
-		if got := strings.Count(html, `aria-describedby="_y-schema-notices"`); got != forms {
-			t.Errorf("%d of %d transition submits name the notices block as their description", got, forms)
-		}
-	})
-
-	t.Run("a page without findings leaves the controls bare", func(t *testing.T) {
-		t.Parallel()
-
-		var buf bytes.Buffer
-		if err := Note(base, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
-			t.Fatalf("render: %v", err)
-		}
-		html := buf.String()
-		if strings.Contains(html, "_y-schema-notices") {
-			t.Errorf("a page with no findings still carries a _y-schema-notices reference or id:\n%s", html)
-		}
-	})
 }
 
 // TestSchemaNoticesStandInReadingColumn pins where unknown-field guidance
-// renders. The block carries the id the transition controls describe
-// themselves by, so it must appear exactly once in the document; hiding it
-// inside the right rail made it vanish at the widths where that rail is gone.
+// renders: once, above the prose, in the reading column, at every width.
 func TestSchemaNoticesStandInReadingColumn(t *testing.T) {
 	t.Parallel()
 
 	v := NoteView{
-		Governed:    true,
-		Title:       "Probe",
-		RelPath:     "Writing/lessons/japanese/L01.md",
-		Status:      "draft",
-		Transitions: []Transition{{To: "ready"}},
+		Title:   "Probe",
+		RelPath: "Writing/lessons/japanese/L01.md",
 		SchemaNotices: [][]wording.SchemaPart{
 			{{Text: "mystery_key", Code: true}, {Text: " 不是 schema 認得的欄位。"}},
 		},
@@ -495,30 +94,30 @@ func TestSchemaNoticesStandInReadingColumn(t *testing.T) {
 		t.Fatal("the article is not closed")
 	}
 
-	if !strings.Contains(article, `id="_y-schema-notices"`) {
+	const notice = `<code>mystery_key</code>`
+	if got := strings.Count(html, notice); got != 1 {
+		t.Fatalf("the schema notice appears %d times in the page, want once", got)
+	}
+	if !strings.Contains(article, notice) {
 		t.Fatalf("the schema notices block is not in the reading column:\n%s", article)
 	}
-	if strings.Contains(article, `aside class="y-rail-right"`) {
-		t.Fatal("the reading column should not contain the right rail")
-	}
-	railStart := strings.Index(html, `<aside class="y-rail-right"`)
-	if railStart >= 0 && strings.Contains(html[railStart:], `id="_y-schema-notices"`) {
-		t.Errorf("the schema notices block still renders inside the right rail")
+	if strings.Contains(html, "y-rail-right") {
+		t.Fatal("the page draws a right rail, which is gone")
 	}
 	proseStart := strings.Index(article, `<div class="y-prose">`)
-	noticeStart := strings.Index(article, `id="_y-schema-notices"`)
+	noticeStart := strings.Index(article, notice)
 	if proseStart < 0 || noticeStart < 0 || noticeStart > proseStart {
 		t.Errorf("the schema notices block must sit above the prose; notice@%d prose@%d", noticeStart, proseStart)
 	}
 }
 
-// TestInlineDiagnosticsFoldAboveTheProse pins the placement, not the contents.
-// At widths where the right rail is gone this block sits between the title and
-// the first sentence, so an open list of findings was the last thing the page
-// said before the prose it was about — worst on the notes that have the most of
-// them. It folds like the contents above it, so the count is still stated and
-// nothing is hidden from a reader who wants it.
-func TestInlineDiagnosticsFoldAboveTheProse(t *testing.T) {
+// TestDiagnosticsStandAtTheEndOfTheText pins the placement, not the contents.
+// The check's findings about a note are what a reader who wants them goes to
+// look for, and a list of them above the prose was the last thing the page said
+// before the text it was about, worst on the notes that have the most of them.
+// They wait at the end of the text with the other aids, at every width, with
+// their count stated, and the page's first screen is the title and the text.
+func TestDiagnosticsStandAtTheEndOfTheText(t *testing.T) {
 	t.Parallel()
 
 	view := NoteView{
@@ -528,37 +127,41 @@ func TestInlineDiagnosticsFoldAboveTheProse(t *testing.T) {
 			{Kind: render.DiagWikilinkBroken, Target: "Relational Model", Message: "does not resolve"},
 			{Kind: render.DiagWikilinkBroken, Target: "Leader Election", Message: "does not resolve"},
 		},
+		BodyHTML: "<p>body</p>",
 	}
 	var buf bytes.Buffer
-	if err := inlineAids(view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render inlineAids: %v", err)
+	if err := noteArticle(view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("render noteArticle: %v", err)
 	}
 	got := buf.String()
 
-	if !strings.Contains(got, "y-diaglist") {
-		t.Fatalf("the diagnostics did not render at all:\n%s", got)
+	prose := strings.Index(got, `<div class="y-prose">`)
+	related := strings.Index(got, `<div class="y-related"`)
+	list := strings.Index(got, "y-diaglist")
+	if prose < 0 || related < 0 || list < 0 {
+		t.Fatalf("prose@%d related@%d diaglist@%d; every one of them has to render:\n%s", prose, related, list, got)
 	}
-	before, _, _ := strings.Cut(got, "y-diaglist")
-	if !strings.Contains(before, "<summary") {
-		t.Errorf("the diagnostics are not inside a disclosure; they open above the prose:\n%s", got)
+	if prose >= related || related >= list {
+		t.Errorf("prose@%d related@%d diaglist@%d; want the findings inside the block that ends the text", prose, related, list)
+	}
+	if above := got[:prose]; strings.Contains(above, "y-diaglist") || strings.Contains(above, "y-inlineaids") {
+		t.Errorf("a list of findings or a folded row of aids stands above the prose:\n%s", above)
 	}
 	if !strings.Contains(got, "筆記狀況") {
-		t.Errorf("the disclosure does not name what it holds:\n%s", got)
+		t.Errorf("the block does not name what it holds:\n%s", got)
 	}
 	if !strings.Contains(got, ">2<") {
-		t.Errorf("the count is not stated on the closed disclosure:\n%s", got)
+		t.Errorf("the count is not stated:\n%s", got)
 	}
 }
 
-// TestNarrowAidsAreOneClosedRowAndTheNotesBesideFollowTheText holds the shape
-// the reading aids take where the right rail is hidden. Four folds stacked
-// between the title and the first sentence pushed the prose a third of a screen
-// down, so every aid is named in one closed row and the two a reader looks for
-// once finished — the note to read beside this one and the notes citing it —
-// stand after the text instead, where the row leads down to them. The rail
-// carries the same blocks at the widths that show it, so they are not added to
-// the article twice there; that half is held by the stylesheet and the browser.
-func TestNarrowAidsAreOneClosedRowAndTheNotesBesideFollowTheText(t *testing.T) {
+// TestTheEndOfTheTextHoldsEveryAidAndNothingStandsAboveTheProse holds the shape
+// of a note that has them all. The contents are in the sidebar and everything
+// else waits after the text, in one block, in one order: the note to read
+// beside this one, the sources it declared, the notes declared on it, the notes
+// whose text links here, what the check found. Nothing is folded between the
+// title and the first sentence, and the block comes before the way onward.
+func TestTheEndOfTheTextHoldsEveryAidAndNothingStandsAboveTheProse(t *testing.T) {
 	t.Parallel()
 
 	view := NoteView{
@@ -580,101 +183,88 @@ func TestNarrowAidsAreOneClosedRowAndTheNotesBesideFollowTheText(t *testing.T) {
 	}
 	article := buf.String()
 
-	rowStart := strings.Index(article, `<div class="y-inlineaids"`)
 	prose := strings.Index(article, `<div class="y-prose">`)
-	related := strings.Index(article, `<div class="y-related"`)
+	related := strings.Index(article, `<div class="y-related" id="_y-end"`)
 	steps := strings.Index(article, `<nav class="y-steps`)
-	if rowStart < 0 || prose < 0 || related < 0 || steps < 0 {
-		t.Fatalf("row@%d prose@%d related@%d steps@%d; every one of them has to render:\n%s", rowStart, prose, related, steps, article)
+	if prose < 0 || related < 0 || steps < 0 {
+		t.Fatalf("prose@%d related@%d steps@%d; every one of them has to render:\n%s", prose, related, steps, article)
 	}
-	if rowStart >= prose || prose >= related || related >= steps {
-		t.Fatalf("row@%d prose@%d related@%d steps@%d; want the row, the text, the notes beside it, then the way onward", rowStart, prose, related, steps)
+	if prose >= related || related >= steps {
+		t.Fatalf("prose@%d related@%d steps@%d; want the text, the block that ends it, then the way onward", prose, related, steps)
 	}
-	row := article[rowStart:prose]
-	if n := strings.Count(row, "<details"); n != 1 {
-		t.Errorf("the aids above the prose are %d disclosures, want one row:\n%s", n, row)
-	}
-	if strings.Contains(row, "<details open") || strings.Contains(row, " open>") {
-		t.Errorf("the row of aids is drawn open, so it stands between the title and the text:\n%s", row)
-	}
-	summary, _, _ := strings.Cut(row, "</summary>")
-	for _, name := range []string{wording.OnThisPage.In(wording.En), wording.NoteHealth.In(wording.En), wording.BasedOn.In(wording.En), wording.DeclaredBy.In(wording.En), wording.CompareOffer.In(wording.En), wording.CitedBy.In(wording.En)} {
-		if !strings.Contains(summary, name) {
-			t.Errorf("the closed row does not name %q:\n%s", name, summary)
-		}
-	}
-	if strings.Contains(row, `class="y-pair"`) || strings.Contains(row, `class="y-citedby"`) {
-		t.Errorf("the note beside this one or the notes citing it still stand above the text:\n%s", row)
+	if above := article[:prose]; strings.Contains(above, "y-inlineaids") || strings.Contains(above, "y-toc-inline") || strings.Contains(above, "y-toc__list") {
+		t.Errorf("an aid stands above the prose of a note that has its own page:\n%s", above)
 	}
 	after := article[related:steps]
-	for _, block := range []string{`class="y-pair"`, `class="y-citedby"`} {
-		if !strings.Contains(after, block) {
-			t.Errorf("%s is not between the text and the way onward:\n%s", block, after)
+	last := -1
+	for _, block := range []string{`class="y-pair"`, `class="y-basedon"`, `declared-by`, `class="y-citedby"`, `y-diaglist`} {
+		at := strings.Index(after, block)
+		if at < 0 {
+			t.Errorf("%s is not in the block that ends the text:\n%s", block, after)
+			continue
 		}
-	}
-	for _, id := range []string{view.relatedPairID(), view.relatedCitedID()} {
-		if !strings.Contains(row, `href="#`+id+`"`) {
-			t.Errorf("the row does not lead down to #%s:\n%s", id, row)
+		if at < last {
+			t.Errorf("%s comes before the block that should precede it", block)
 		}
-		if !strings.Contains(after, `id="`+id+`"`) {
-			t.Errorf("nothing after the text answers to #%s:\n%s", id, after)
-		}
+		last = at
 	}
 }
 
-// TestFlipReceiptStatesTheChangeItCanVouchFor holds what a reader is told
-// after a transition installs. The redirect used to land on the note with the
-// new chip and nothing else, so the whole confirmation was a coloured word
-// that looks the same whether the press worked, did nothing, or was somebody
-// else's. A reader who cannot see the chip got no answer at all.
-//
-// The line is a live region so it reaches a reader on arrival, and it states
-// only what the page can stand behind: the note's status now, and what the
-// form said it was leaving. It is not rendered when those agree, so a hand
-// typed address cannot manufacture a change that did not happen.
-func TestFlipReceiptStatesTheChangeItCanVouchFor(t *testing.T) {
+// TestTheContentsRowThatLeadsDownIsNamedByWhatItLeadsTo holds the sidebar's last
+// contents row to the heading the end block itself opens with, whichever of its
+// blocks that is, and holds it absent where the note has no end block. A row
+// named with words the block does not print, or leading to an id nothing
+// answers to, is a promise the page does not keep.
+func TestTheContentsRowThatLeadsDownIsNamedByWhatItLeadsTo(t *testing.T) {
 	t.Parallel()
+
+	toc := []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}}
+	cited := []nav.NoteRef{{Name: "C01", RelPath: "C01.md"}}
 	tests := []struct {
-		name        string
-		view        NoteView
-		wantPresent []string
-		wantAbsent  []string
+		name string
+		view NoteView
+		want func(wording.Lang) string
 	}{
-		{
-			name:        "a real transition is stated once, in a live region",
-			view:        NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "ready", FlippedFrom: "draft"},
-			wantPresent: []string{`role="status"`, "已從", "draft", "ready"},
-		},
-		{
-			name:       "an ordinary reading carries no receipt",
-			view:       NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "ready"},
-			wantAbsent: []string{"已從"},
-		},
-		{
-			name:       "a hand typed origin equal to the current status states nothing",
-			view:       NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "ready", FlippedFrom: "ready"},
-			wantAbsent: []string{"已從"},
-		},
+		{"a note to read beside", NoteView{Pair: nav.NoteRef{Name: "O", RelPath: "O.md"}, CitedBy: cited}, func(l wording.Lang) string { return wording.CompareOffer.In(l) }},
+		{"declared sources", NoteView{BasedOn: []snapshot.DeclaredSource{{Name: "B", RelPath: "B.md"}}, CitedBy: cited}, func(l wording.Lang) string { return wording.BasedOn.In(l) }},
+		{"notes declared on it", NoteView{DeclaredBy: []DeclaringNoteView{{Note: nav.NoteRef{Name: "E", RelPath: "E.md"}}}, CitedBy: cited}, func(l wording.Lang) string { return wording.DeclaredBy.In(l) }},
+		{"notes linking here", NoteView{CitedBy: cited}, func(l wording.Lang) string { return wording.CitedBy.In(l) }},
+		{"only the findings", NoteView{Diagnostic: "bad"}, func(l wording.Lang) string { return wording.NoteHealth.In(l) }},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var buf bytes.Buffer
-			if err := Note(tt.view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
-				t.Fatalf("render: %v", err)
-			}
-			html := buf.String()
-			for _, want := range tt.wantPresent {
-				if !strings.Contains(html, want) {
-					t.Errorf("the receipt is missing %q", want)
+		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+			t.Run(tt.name+" "+lang.Tag(), func(t *testing.T) {
+				t.Parallel()
+				view := tt.view
+				view.RelPath, view.TOC, view.BodyHTML = "Notes/T.md", toc, "<p>body</p>"
+				contents := renderedHTML(t, railContents(&view, lang))
+				want := `<a href="#_y-end" lang="` + lang.Tag() + `" data-level="2">` + tt.want(lang) + `</a>`
+				if !strings.Contains(contents, want) {
+					t.Fatalf("the contents do not end on %q:\n%s", want, contents)
 				}
-			}
-			for _, absent := range tt.wantAbsent {
-				if strings.Contains(html, absent) {
-					t.Errorf("a receipt appeared where none is true (%q)", absent)
+				if strings.Index(contents, `href="#h"`) > strings.Index(contents, `href="#_y-end"`) {
+					t.Errorf("the row that leads down comes before the headings:\n%s", contents)
 				}
-			}
-		})
+				page := renderedHTML(t, noteArticle(view, lang))
+				_, end, found := strings.Cut(page, `id="_y-end"`)
+				if !found || !strings.Contains(end, tt.want(lang)) {
+					t.Errorf("the end of the text does not answer to the row, or does not print its name %q:\n%s", tt.want(lang), page)
+				}
+			})
+		}
+	}
+
+	// A note with no aids ends on its text and the contents have no row to lead
+	// to it.
+	bare := NoteView{RelPath: "Notes/T.md", TOC: toc, BodyHTML: "<p>body</p>"}
+	if bare.endShown() {
+		t.Fatal("this fixture was meant to end on its text")
+	}
+	if contents := renderedHTML(t, railContents(&bare, wording.En)); strings.Contains(contents, "_y-end") {
+		t.Errorf("the contents lead to an end the note does not have:\n%s", contents)
+	}
+	if page := renderedHTML(t, noteArticle(bare, wording.En)); strings.Contains(page, "y-related") {
+		t.Errorf("a note with no aids ends on a block anyway:\n%s", page)
 	}
 }
 

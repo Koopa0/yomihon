@@ -28,7 +28,7 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 			parse(t, "Sources/course/第9課.md", "b\n"),
 		}
 		idx := graph.New(notes, nil)
-		h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
+		h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, mapCoverage{})
 
 		want := []nav.NoteRef{
 			{Name: "第9課", RelPath: "Sources/course/第9課.md"},
@@ -67,7 +67,7 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 			parse(t, "Writing/第9課.md", "see [[no such name]]\n"),
 		}
 		idx := graph.New(notes, nil)
-		h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{})
+		h := newHealth(notes, linksOf(notes), idx, judge.NewPlanned(noteBodies(notes), nil), newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, mapCoverage{})
 
 		want := []string{"Writing/第9課.md", "Writing/第10課.md"}
 		got := make([]string, 0, len(h.Unwritten))
@@ -79,11 +79,11 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 		}
 	})
 
-	t.Run("the notes sharing one declared title", func(t *testing.T) {
+	t.Run("the notes sharing one title", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
-			parse(t, "Writing/第10課.md", "---\ntitle: 課\n---\n\na\n"),
-			parse(t, "Writing/第9課.md", "---\ntitle: 課\n---\n\nb\n"),
+			parse(t, "Writing/第10課.md", "# 課\n\na\n"),
+			parse(t, "Writing/第9課.md", "# 課\n\nb\n"),
 		}
 
 		want := []nav.NoteRef{

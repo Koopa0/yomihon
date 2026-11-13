@@ -4,9 +4,6 @@ package wording
 // says both, because a reader who sees only the fault cannot tell whether the
 // page in front of them is missing something.
 
-// StatusOutsideEnumChip marks a status the schema does not declare.
-var StatusOutsideEnumChip = both("不在 schema 允許清單中", "Not in the schema's list")
-
 // The labels on the diagnostic kinds the renderer can report. Each names the
 // fault in the fewest words that still distinguish it from its neighbours.
 var (

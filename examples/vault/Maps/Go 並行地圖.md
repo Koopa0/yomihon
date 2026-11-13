@@ -1,8 +1,5 @@
 ---
-title: Go 並行地圖
 type: moc
-status: ready
-map_kind: topic
 created: 2026-09-22
 lang: zh-Hant
 ---

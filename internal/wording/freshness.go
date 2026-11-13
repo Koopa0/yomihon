@@ -19,24 +19,7 @@ var (
 		"此筆記已經不在原本的位置了，可能被搬到別處，也可能已刪除。",
 		"This note is no longer where it was. It may have moved, or it may have been deleted.",
 	)
-	FreshnessSearchTitle         = both("搜尋這個標題", "Search for this title")
-	FreshnessHoldPreparingTitle  = both("頁面資料準備中…", "The page is catching up…")
-	FreshnessHoldPreparingDetail = both(
-		"這篇筆記在磁碟上已經變更，閱讀頁還沒讀到那一版；準備好之後這個連結會自己恢復。",
-		"This note changed on disk and the reading page has not caught up. This link restores itself once it has.",
-	)
-	FreshnessHoldGoneTitle = both("筆記已不在原處", "The note has moved")
-	// FreshnessWriteHold is said beside the status controls once the watch has
-	// learned the page no longer shows what a reload would. A press from here
-	// would make a ruling over words the reader has not seen — and where what
-	// moved is an excerpt pulled in from another note, the host's own identity
-	// still matches, so nothing downstream would refuse the press; the hold is
-	// the only guard. The sentence names the way back instead of leaving a
-	// dead control unexplained.
-	FreshnessWriteHold = both(
-		"此頁已與檔案不同步，狀態按鈕已停用；請先重新載入。",
-		"This page no longer matches the file; the status controls are disabled. Reload first.",
-	)
+	FreshnessSearchTitle = both("搜尋這個標題", "Search for this title")
 )
 
 // What the freshness endpoint says when it cannot answer at all. The page

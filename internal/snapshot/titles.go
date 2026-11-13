@@ -17,7 +17,7 @@ func titlesByName(notes []*vault.Note) map[string][]nav.NoteRef {
 		if n == nil {
 			continue
 		}
-		key := graph.NormalizeKey(n.Title())
+		key := graph.NormalizeKey(graph.TitleOf(n.RelPath, n.Body))
 		if key == "" {
 			continue
 		}

@@ -32,16 +32,16 @@ func TestAStudyPathRowStatesExtentAndNothingElse(t *testing.T) {
 	}, schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 
 	want := []Row{
-		{Text: "Go path", Href: "/syllabus/Maps/Go%20path.md", Mark: "4 課"},
-		{Text: "Unread structure", Href: "/syllabus/Maps/Broken.md", Mark: "0 課 · 未讀到課程結構", Fault: true},
-		{Text: "Plans nothing", Href: "/syllabus/Maps/Empty.md", Mark: "0 課"},
-		{Text: "Queue kit", Href: "/syllabus/Maps/QueueKit.md", Mark: "2 篇"},
+		{Text: "Go path", Href: "/courses/Maps/Go%20path.md", Mark: "4 課"},
+		{Text: "Unread structure", Href: "/courses/Maps/Broken.md", Mark: "0 課 · 未讀到課程結構", Fault: true},
+		{Text: "Plans nothing", Href: "/courses/Maps/Empty.md", Mark: "0 課"},
+		{Text: "Queue kit", Href: "/courses/Maps/QueueKit.md", Mark: "2 篇"},
 	}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("study-path rows mismatch (-want +got):\n%s", diff)
 	}
-	if view.Mode != pathMode {
-		t.Errorf("study-path index is marked %q, want %q", view.Mode, pathMode)
+	if view.Mode != courseMode {
+		t.Errorf("study-path index is marked %q, want %q", view.Mode, courseMode)
 	}
 }
 
@@ -300,10 +300,10 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 		mode      string
 		component templ.Component
 	}{
-		{pathMode, ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
+		{courseMode, ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
 		{mapMode, ListIndex(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
 		{reportMode, ListIndex(NewReportIndex(model.Reports(), wording.ZhHant, nil), layouts.Chrome{})},
-		{folderMode, FolderIndex(NewFolderIndex(model, ContractGoverning, wording.ZhHant, nil), RecentBlock{}, StatusDistribution{}, layouts.Chrome{})},
+		{folderMode, FolderIndex(NewFolderIndex(model, ContractGoverning, wording.ZhHant, nil), RecentBlock{}, layouts.Chrome{})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode, func(t *testing.T) {
@@ -314,38 +314,6 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 			}
 			if want := `data-index="` + tt.mode + `"`; !strings.Contains(buf.String(), want) {
 				t.Errorf("the %s index does not carry %s", tt.mode, want)
-			}
-		})
-	}
-}
-
-// TestStatusDistributionNamesItsReachBesideANarrowedShelf holds the sentence
-// under the distribution to the shelf beside it: a shelf narrowed to the
-// declared layer sits above a count that still reaches every indexed note, so
-// the sentence says so, and an unscoped shelf carries no sentence — the
-// heading already says what the block is.
-func TestStatusDistributionNamesItsReachBesideANarrowedShelf(t *testing.T) {
-	t.Parallel()
-	items := []LifecycleItem{{Name: "draft", Count: 2}}
-	for _, tt := range []struct {
-		name   string
-		scoped bool
-		lang   wording.Lang
-		want   string
-	}{
-		{name: "scoped zh", scoped: true, lang: wording.ZhHant, want: "書庫中每篇已索引筆記落在哪裡，含書架之外的資料夾"},
-		{name: "scoped en", scoped: true, lang: wording.En, want: "Where each indexed note in the vault sits, including folders off the shelf"},
-		{name: "unscoped zh", scoped: false, lang: wording.ZhHant, want: ""},
-		{name: "unscoped en", scoped: false, lang: wording.En, want: ""},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := NewStatusDistribution(items, nil, tt.scoped, tt.lang)
-			if got.Lede != tt.want {
-				t.Errorf("lede = %q, want %q", got.Lede, tt.want)
-			}
-			if len(got.Statuses) != 1 {
-				t.Errorf("statuses were not carried through: %v", got.Statuses)
 			}
 		})
 	}

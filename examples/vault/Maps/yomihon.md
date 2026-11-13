@@ -1,10 +1,6 @@
 ---
-title: yomihon
 type: moc
-status: ready
-map_kind: topic
 created: 2026-09-22
-updated: 2026-09-22
 lang: en
 ---
 
@@ -26,7 +22,7 @@ Courses and references in this library.
 
 - [[The vault contract]]
 - [[Frontmatter]]
-- [[The status lifecycle]]
+- [[Drafts]]
 - [[Wikilinks in this dialect]]
 - [[Diagnostics are reports]]
 
@@ -45,6 +41,5 @@ Courses and references in this library.
 
 ## Seen working
 
-- [[A published note]] — a status yomihon will not set
-- [[A note with a fault in its frontmatter]] — a status outside the list
+- [[A note with a fault in its frontmatter]] — a value outside the list
 - [[Go 並行回顧 2026-09-22]] — waiting, cancellation and bounded work

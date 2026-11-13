@@ -16,7 +16,7 @@ import (
 // change of wording is a visible change to this test and not a silent one.
 const (
 	skippedNoteZh = "這份文件不在書庫的索引與診斷範圍內。"
-	skippedNoteEn = "This document is outside the library's index and diagnostics."
+	skippedNoteEn = "This document is outside the vault's index and diagnostics."
 )
 
 // skippedReadme is the file the contract leaves out. Its frontmatter carries a
@@ -41,7 +41,7 @@ func skippedDocumentVault(t *testing.T) string {
 	write(t, filepath.Join(root, "Writing", "README.md"), []byte(skippedReadme))
 	write(t, filepath.Join(root, "Writing", "diagram.png"), []byte("\x89PNG\r\n\x1a\n fake pixels"))
 	write(t, filepath.Join(root, "Writing", "guide.md"), []byte(
-		"---\ntitle: The Guide\ntype: writing\nstatus: draft\n---\n# Guide heading\n\nA note that links [the parent](../../out.md).\n"))
+		"---\ntype: writing\n---\n# The Guide\n\n# Guide heading\n\nA note that links [the parent](../../out.md).\n"))
 	write(t, filepath.Join(root, "Writing", "plain.txt"), []byte("plain text\n"))
 	write(t, filepath.Join(root, "Elsewhere", "README.md"), bytes.Repeat([]byte("x"), bigTextBytes))
 	return root
@@ -117,9 +117,8 @@ func TestSkippedMarkdownOpensAsADocument(t *testing.T) {
 				t.Error("the frontmatter block is read as part of the document")
 			}
 
-			// None of a note's furniture: no status face, no aids rail, no
-			// contents.
-			for _, absent := range []string{`action="/status"`, "y-sealbar", "y-statusform", "y-rail-right", "y-toc"} {
+			// None of a note's furniture: no contents, no end block of aids.
+			for _, absent := range []string{"y-railtoc", "y-toc", "y-related"} {
 				if strings.Contains(body, absent) {
 					t.Errorf("the document carries note furniture: found %q", absent)
 				}
@@ -157,7 +156,7 @@ func TestSkippedMarkdownOpensAsADocument(t *testing.T) {
 }
 
 // TestSkippedMarkdownChangesNothingElse holds the boundary of the page above:
-// a note keeps its status face, a file that is not Markdown keeps being shown as
+// a note keeps its reading aids, a file that is not Markdown keeps being shown as
 // source, a skipped file too large to read comfortably keeps its information
 // page, and the raw bytes are untouched.
 func TestSkippedMarkdownChangesNothingElse(t *testing.T) {
@@ -165,7 +164,7 @@ func TestSkippedMarkdownChangesNothingElse(t *testing.T) {
 	srv := newServerWithContract(t, skippedDocumentVault(t), loadContract(t))
 
 	_, noteBody := pageIn(t, srv, "/notes/Writing/guide.md", wording.En)
-	for _, want := range []string{"y-sealbar", "y-statusform", `action="/status"`, "y-rail-right", "y-toc"} {
+	for _, want := range []string{"y-railtoc", "y-toc"} {
 		if !strings.Contains(noteBody, want) {
 			t.Errorf("the note page lost %q", want)
 		}

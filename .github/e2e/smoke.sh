@@ -28,9 +28,9 @@ fail() {
   exit 1
 }
 
-# One named site per way into the library, plus the search block, one content
-# marker that only the fixture vault's rendered README can supply, and the
-# quiet row that leads from the desk to the library's health. The live verdict
+# One named site per way into the library, one content marker that only the
+# fixture vault's rendered README can supply, and the quiet row that leads from
+# the desk to the library's health. The live verdict
 # and its self-test share this table, so neither can silently stop checking
 # one of them.
 #
@@ -38,18 +38,17 @@ fail() {
 # listing beside a copy of itself is a second organisation of the same notes,
 # so what the rail used to promise here is promised on the note page below.
 home_markers=(
-  'paths|data-home-block="paths"'
+  'courses|data-home-block="courses"'
   'maps|data-home-block="maps"'
   'reports|data-home-block="reports"'
   'folders|data-home-block="folders"'
-  'search|data-home-block="search"'
   'vault-readme|data-home-readme'
   'desk-health|data-home-health'
 )
 
 # This is a set comparison, not an order oracle: deleting a marker from the
 # live table must not also delete its self-test by construction.
-required_home_sites=(paths maps reports folders search vault-readme desk-health)
+required_home_sites=(courses maps reports folders vault-readme desk-health)
 
 # The rail, checked where it now lives: beside the thing being read. The map
 # tree marker is what proves a tree rendered rather than an empty group.
@@ -81,6 +80,46 @@ note_body_error() {
       return 1
     fi
   done
+}
+
+# Reads a vault contract on stdin and prints each note type it declares, one
+# per line: the name of every [types.<name>] table, and every word of the type
+# list under [enums], which the loader joins to the tables. A type word written
+# under any other key or table is not a declaration, so a list of levels or of
+# domains cannot make a type look declared.
+declared_types() {
+  awk '
+    function words(text,    rest) {
+      rest = text
+      while (match(rest, /"[^"]*"/)) {
+        print substr(rest, RSTART + 1, RLENGTH - 2)
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      return rest ~ /\]/
+    }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*\[/ {
+      header = $0
+      sub(/^[[:space:]]*\[[[:space:]]*/, "", header)
+      sub(/[[:space:]]*\].*$/, "", header)
+      in_enums = (header == "enums")
+      listing = 0
+      if (header ~ /^types\./) {
+        name = header
+        sub(/^types\./, "", name)
+        gsub(/"/, "", name)
+        print name
+      }
+      next
+    }
+    in_enums && !listing && /^[[:space:]]*type[[:space:]]*=/ {
+      line = $0
+      sub(/^[^=]*=/, "", line)
+      listing = !words(line)
+      next
+    }
+    in_enums && listing { listing = !words($0) }
+  '
 }
 
 home_body_error() {
@@ -251,6 +290,57 @@ yomihon   2 koopa 7u IPv4 0x2 0t0 TCP 192.168.1.5:19733 (LISTEN)"
     fi
   done
 
+  # The declared types of a contract are read from the tables and from the
+  # enum list. Each recording is a contract shape a reader may write, and each
+  # states which types it declares; a reading that drops the tables, drops the
+  # enum words, follows a multi-line list too short, or counts a word from some
+  # other list turns exactly one row red.
+  check_types() { # <name> <want: comma-joined types> <contract text>
+    local name="$1" want="$2" text="$3" got
+    got="$(declared_types <<<"$text" | tr '\n' ',')"
+    got="${got%,}"
+    if [ "$got" = "$want" ]; then
+      echo "  ok: ${name} -> ${got:-no types}"
+    else
+      echo "  SELF-TEST FAIL: ${name} -> '${got}', want '${want}'" >&2
+      failures=1
+    fi
+  }
+  check_types "tables only" "concept,guide" '[types.concept]
+
+[types.guide]
+role = "x"'
+  check_types "one-line enum list only" "inbox,moc" '[enums]
+domain = ["golang"]
+type = ["inbox", "moc"]'
+  check_types "tables and enum list together" "inbox,note,concept" '[enums]
+type = ["inbox"]
+
+[types.note]
+[types.concept]'
+  check_types "a multi-line enum list" "a,b,c" '[enums]
+type = [
+  "a", "b",
+  "c",
+]
+level = ["not-a-type"]'
+  check_types "words from other lists and tables are not types" "" '[enums]
+domain = ["field-note"]
+level = ["field-note"]
+
+[fields]
+common = ["type", "field-note"]
+
+[folders]
+checked = ["field-note"]'
+  check_types "a type list after another table is not the enum list" "" '[fields]
+type = ["field-note"]'
+  check_types "a quoted table name" "study path" '[types."study path"]'
+  check_types "a commented-out declaration" "" '# [types.field-note]
+# type = ["field-note"]'
+  check_types "no declarations" "" '[privacy]
+never_egress_dirs = []'
+
   [ "$failures" -eq 0 ] || fail "an HTTP smoke verdict accepted a recorded regression"
   echo "self-test passed: widened binds, incomplete Home bodies and note pages without their rail were refused at their named invariants"
 }
@@ -263,14 +353,12 @@ fi
 out_of_contract_note="${here}/vault/Notes/out-of-contract.md"
 fixture_contract="${here}/vault/System/schemas/vault-schema.toml"
 out_of_contract_type="$(sed -n 's/^type: //p' "$out_of_contract_note")"
-contract_types="$(sed -n 's/^type = //p' "$fixture_contract")"
+contract_types="$(declared_types <"$fixture_contract")"
 [ -n "$out_of_contract_type" ] || fail "the out-of-contract fixture has no type"
-[ -n "$contract_types" ] || fail "the fixture contract has no type enum"
-case "$contract_types" in
-*\"${out_of_contract_type}\"*)
-  fail "the out-of-contract fixture type ${out_of_contract_type} is present in the fixture enum"
-  ;;
-esac
+[ -n "$contract_types" ] || fail "the fixture contract declares no note type"
+if grep -qxF -- "$out_of_contract_type" <<<"$contract_types"; then
+  fail "the out-of-contract fixture type ${out_of_contract_type} is declared by the fixture contract"
+fi
 
 base="${YOMIHON_BASE:?smoke.sh needs a running server; start it with serve.sh}"
 port="${YOMIHON_PORT:?smoke.sh needs a running server; start it with serve.sh}"
@@ -288,6 +376,16 @@ assert_face() {
   echo "ok: ${path}"
 }
 
+# The retired addresses of a course answer with a redirect to its own, carrying
+# the rest of the address and the query: fetched without following, so a page
+# still served at the old address cannot pass for the redirect.
+assert_redirect() {
+  local path="$1" want="$2" result
+  result="$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "${base}${path}")" || fail "GET ${path} did not return"
+  [ "$result" = "301 ${base}${want}" ] || fail "GET ${path} answered ${result}, want 301 ${base}${want}"
+  echo "ok: ${path} moved to ${want}"
+}
+
 # Home is fetched without redirect following: a retired 302 must not borrow the
 # README page's 200 and markers. Its body then proves every block on Home and
 # the fixture vault README are both present.
@@ -303,7 +401,10 @@ if ! reason="$(note_body_error "$(<"$body")")"; then
 fi
 echo "ok: the rail on /notes/Notes/alpha.md"
 assert_face "/notes/Notes/out-of-contract.md" "out-of-contract reading sentinel"
-assert_face "/syllabus/Maps/study.md" "<title>Study Path"
+assert_face "/courses/Maps/study.md" "<title>Study Path"
+assert_face "/courses" 'data-index="courses"'
+assert_redirect "/syllabus/Maps/study.md?from=Notes%2Falpha.md" "/courses/Maps/study.md?from=Notes%2Falpha.md"
+assert_redirect "/paths" "/courses"
 assert_face "/search?q=tortoise" 'href="/notes/Notes/alpha.md"'
 assert_face "/search/results?q=tortoise" 'data-live-search-results'
 

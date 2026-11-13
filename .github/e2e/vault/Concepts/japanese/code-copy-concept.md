@@ -1,9 +1,9 @@
 ---
-title: Code copy concept
 type: concept
 based_on: "[[Notes/alpha]]"
-domain: japanese
+
 ---
+# Code copy concept
 
 ```text
 concept <-

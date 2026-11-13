@@ -68,18 +68,18 @@ func buildVault(t *testing.T) (root string, model *nav.Model) {
 			"- [[L01]]\n",
 		// A newly added topic map lists a concept. No application registration
 		// names this file; its type and content are enough to grow the sidebar.
-		"Maps/Reading map.md": "---\ntitle: Reading map\ntype: topic-map\ndomain: humanities\n---\n" +
+		"Maps/Reading map.md": "---\ntype: topic-map\n---\n" +
 			"## Themes\n\n- [[C01]]\n- [[Ghost]]\n",
-		"Writing/lessons/go/L01.md": "---\ntype: lesson\nstatus: draft\n---\nbody\n",
-		"Writing/lessons/go/L02.md": "---\ntype: lesson\nstatus: draft\n---\nbody\n",
+		"Writing/lessons/go/L01.md": "---\ntype: lesson\ndraft: true\n---\nbody\n",
+		"Writing/lessons/go/L02.md": "---\ntype: lesson\ndraft: true\n---\nbody\n",
 		// A concept note not listed by any study-path.
 		"Concepts/go/C01.md": "---\ntype: concept\n---\nbody\n",
 		"Concepts/go/C02.md": "---\ntype: concept\n---\nbody\n",
 		"A/Repeat.md":        "body\n",
 		"B/Repeat.md":        "body\n",
-		"System/templates/Template map.md": "---\ntitle: TEMPLATE MAP SENTINEL\ntype: topic-map\n---\n" +
+		"System/templates/Template map.md": "---\ntype: topic-map\n---\n# TEMPLATE MAP SENTINEL\n\n" +
 			"## Shelf\n- [[L01]]\n",
-		"System/templates/Template target.md": "---\ntitle: TEMPLATE TARGET SENTINEL\ntype: concept\nstatus: ready\n---\nbody\n",
+		"System/templates/Template target.md": "---\ntype: concept\n---\n# TEMPLATE TARGET SENTINEL\n\nbody\n",
 		// A Sources note with no frontmatter at all (a legal shape).
 		"Sources/articles/Other.md": "just prose, no frontmatter\n",
 		"Sources/articles/Raw.md":   "raw clipping, no frontmatter\n",
@@ -100,7 +100,7 @@ func buildVault(t *testing.T) (root string, model *nav.Model) {
 		"Reading list.md": "# Reading list\n",
 		// A report, so the reports mode has something to narrow. With none,
 		// every check that holds a block to its page compared nothing for it.
-		"System/reports/2026-07-10 vault audit.md": "---\ntitle: Vault audit\n---\nbody\n",
+		"System/reports/2026-07-10 vault audit.md": "# Vault audit\n\nbody\n",
 	}
 	for rel, content := range files {
 		p := filepath.Join(root, filepath.FromSlash(rel))
@@ -169,9 +169,7 @@ func modelOf(t *testing.T, root string) *nav.Model {
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 		contract.JournalDir(),
-		contract.ArticleLanguage(), contract.AuthoredDate(),
-		contract.Settlement(),
-	)
+		contract.ArticleLanguage(), contract.AuthoredDate())
 }
 
 // TestNewSidebarWayfinding checks the resolved navigation for a note that lives
@@ -439,9 +437,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 		contract.JournalDir(),
-		contract.ArticleLanguage(), contract.AuthoredDate(),
-		contract.Settlement(),
-	)
+		contract.ArticleLanguage(), contract.AuthoredDate())
 	if model.NavigationClosure().Diagnostic() == "" || model.ArtifactClosure().Diagnostic() == "" {
 		t.Fatalf("fixture produced no capability fault: navigation %q artifact %q",
 			model.NavigationClosure().Diagnostic(), model.ArtifactClosure().Diagnostic())
@@ -453,7 +449,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	html := buf.String()
 	for _, want := range []string{
 		`data-sidebar-group="navigation-diagnostics"`,
-		"路徑與地圖",
+		"課程與地圖",
 		"筆記清單目前無法使用",
 		// The sentences themselves, HTML-escaped exactly as the page writes them.
 		htmlEscape(model.NavigationClosure().Diagnostic()),
@@ -469,7 +465,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 }
 
 // TestSidebarRendersRejectedJournalDirDiagnostic is the journal half of the
-// capability-fault lock: a contract that wrote journal_dir and could not honour
+// capability-fault lock: a contract that wrote folders.journal and could not honour
 // it must say so on the rail. Gating the drawer on an empty projection alone
 // made a typo look like a vault that never kept a journal.
 func TestSidebarRendersRejectedJournalDirDiagnostic(t *testing.T) {
@@ -482,9 +478,7 @@ func TestSidebarRendersRejectedJournalDirDiagnostic(t *testing.T) {
 		contract.KnowledgeScope(),
 		contract.ArtifactPolicy(),
 		contract.JournalDir(),
-		contract.ArticleLanguage(), contract.AuthoredDate(),
-		contract.Settlement(),
-	)
+		contract.ArticleLanguage(), contract.AuthoredDate())
 	if !model.JournalClosure().Closed() || model.JournalClosure().Diagnostic() == "" {
 		t.Fatalf("fixture produced no journal fault: closed=%t diagnostic=%q",
 			model.JournalClosure().Closed(), model.JournalClosure().Diagnostic())
@@ -519,7 +513,6 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 		schema.JournalDir{},
 		schema.ArticleLanguage{},
 		schema.AuthoredDate{},
-		schema.Settlement{},
 	)
 	var buf bytes.Buffer
 	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
@@ -529,7 +522,7 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 	for _, unwanted := range []string{
 		`data-sidebar-group="navigation-diagnostics"`,
 		`data-sidebar-group="journal"`,
-		"路徑與地圖目前無法使用",
+		"課程與地圖目前無法使用",
 		"筆記清單目前無法使用",
 		"日誌目前無法使用",
 	} {
@@ -549,41 +542,31 @@ func htmlEscape(s string) string {
 }
 
 // rejectedCapabilityContract loads a contract that claims governance and then
-// declares a path type its own enums.type does not contain, and an artifact
-// directory that escapes the vault. Both declarations are made and rejected.
+// gives a type a role the contract does not know, and a template directory that
+// escapes the vault. Both declarations are made and rejected.
 func rejectedCapabilityContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := `schema_version = "1"
+	text := `schema_version = "2"
 
-[enums]
-type = ["concept", "moc"]
-
-[enums.status]
-note = ["draft"]
+[folders]
+checked = ["Concepts"]
+templates = ["../escape"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "based_on"]
+common = ["type", "based_on"]
+required = ["type"]
+
+[types.concept]
+
+[types.moc]
+role = "map"
+
+[types.broken]
+role = "cours"
 
 [rules]
 concept_requires_provenance = ["based_on"]
-
-[scan]
-knowledge_dirs = ["Concepts"]
-
-[navigation]
-path_types = ["undeclared-type"]
-map_types = ["moc"]
-
-[artifacts]
-non_instance_dirs = ["../escape"]
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
 `
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatalf("write contract: %v", err)
@@ -595,42 +578,32 @@ owner = ["koopa"]
 	return contract
 }
 
-// rejectedJournalDirContract writes a journal_dir the capability refuses, so
+// rejectedJournalDirContract writes a journal directory the capability refuses, so
 // the journal projection closes while paths and maps stay open.
 func rejectedJournalDirContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := `schema_version = "1"
+	text := `schema_version = "2"
 
-[enums]
-type = ["concept", "moc", "study-path"]
-
-[enums.status]
-note = ["draft"]
+[folders]
+checked = ["Concepts"]
+templates = ["System/templates"]
+journal = "../escape"
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "based_on"]
+common = ["type", "based_on"]
+required = ["type"]
+
+[types.concept]
+
+[types.moc]
+role = "map"
+
+[types.study-path]
+role = "course"
 
 [rules]
 concept_requires_provenance = ["based_on"]
-
-[scan]
-knowledge_dirs = ["Concepts"]
-
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-journal_dir = "../escape"
-
-[artifacts]
-non_instance_dirs = ["System/templates"]
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
 `
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatalf("write contract: %v", err)
@@ -781,7 +754,7 @@ func TestAProseMapListsItsBodyLinksOnTheRail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
-	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement())
+	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate())
 
 	view := NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 	if len(view.Shelf.Rows) != 1 || view.Shelf.Rows[0].Mark != "5 枝" {
@@ -845,24 +818,15 @@ func TestNewSidebarNoCurrentNote(t *testing.T) {
 	}
 }
 
-// TestSidebarLeavesTheCurrentNotesStatusToThePage holds which of a page's
-// status faces is allowed to speak. The panel and the bottom bar read the
-// note's status line from disk when the page is built; the rail's per-lesson
-// badge comes from the captured generation, which the scanner republishes on
-// its own cadence. Right after a transition the redirect is served inside that
-// window, so the same response printed the new status twice and the old one
-// once, for one note, with nothing to say which was current.
-//
-// The repair is to keep the third copy from showing rather than to synchronise
-// it. A reader standing on a note is already told its status by the faces that
-// read it live; a rail badge repeating an older answer beside them adds no
-// fact and can only disagree. Every other row keeps its badge — there the
-// generation's answer is the only one on offer and contradicts nothing.
+// TestSidebarLeavesTheCurrentNotesDraftMarkToThePage holds which copy of a
+// draft's mark speaks. A reader standing on a note is already told it is a
+// draft by the note's own head, so the rail's badge on that row adds no fact.
+// Every other row keeps its badge.
 //
 // The current row's badge is drawn but reserved, which the stylesheet hides
 // while keeping its room. Leaving it out instead made the row's name wrap in a
 // different place on the note being read than on the lessons beside it.
-func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
+func TestSidebarLeavesTheCurrentNotesDraftMarkToThePage(t *testing.T) {
 	t.Parallel()
 	const current = "Writing/lessons/japanese/L01.md"
 	const other = "Writing/lessons/japanese/L02.md"
@@ -876,7 +840,7 @@ func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
 		"study path row": func(rel string) string {
 			t.Helper()
 			var buf bytes.Buffer
-			entry := nav.PathEntry{Kind: nav.EntryResolved, RelPath: rel, Name: "L", Status: "draft"}
+			entry := nav.PathEntry{Kind: nav.EntryResolved, RelPath: rel, Name: "L", Draft: true}
 			if err := pathEntryLink(sb, layouts.Chrome{}, &entry).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render %s: %v", rel, err)
 			}
@@ -885,7 +849,7 @@ func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
 		"map branch row": func(rel string) string {
 			t.Helper()
 			var buf bytes.Buffer
-			entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: rel, Name: "L", Status: "draft"}
+			entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: rel, Name: "L", Draft: true}
 			if err := entryLink(sb, layouts.Chrome{}, entry).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render %s: %v", rel, err)
 			}
@@ -894,29 +858,29 @@ func TestSidebarLeavesTheCurrentNotesStatusToThePage(t *testing.T) {
 		"book row": func(rel string) string {
 			t.Helper()
 			var buf bytes.Buffer
-			entry := PathEntryView{Kind: nav.EntryResolved, RelPath: rel, Href: "/notes/" + rel, Name: "L", Status: "draft", Here: rel == current}
-			if err := bookRailEntry(layouts.Chrome{}, entry).Render(t.Context(), &buf); err != nil {
+			entry := PathEntryView{Kind: nav.EntryResolved, RelPath: rel, Href: "/notes/" + rel, Name: "L", Draft: true, Here: rel == current}
+			if err := bookRailEntry(layouts.Chrome{}, entry, nil).Render(t.Context(), &buf); err != nil {
 				t.Fatalf("render %s: %v", rel, err)
 			}
 			return buf.String()
 		},
 	}
 
-	const badge = `<span class="ui-navitem__count">draft</span>`
-	const reserved = `<span class="ui-navitem__count ui-navitem__count--reserved">draft</span>`
+	badge := `<span class="ui-navitem__count">` + wording.Draft.In(wording.ZhHant) + `</span>`
+	reserved := `<span class="ui-navitem__count ui-navitem__count--reserved">` + wording.Draft.In(wording.ZhHant) + `</span>`
 	for name, render := range rows {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			currentRow := render(current)
 			if !strings.Contains(currentRow, reserved) {
-				t.Errorf("the current note's row does not carry its badge as the reserved, hidden one, so the rail either repeats the status beside the faces that read it live or lets the name wrap differently here:\n%s", currentRow)
+				t.Errorf("the current note's row does not carry its badge as the reserved, hidden one, so the rail either repeats the mark beside the note's own head or lets the name wrap differently here:\n%s", currentRow)
 			}
 			if strings.Contains(currentRow, badge) {
 				t.Errorf("the current note's row shows a badge the stylesheet does not hide:\n%s", currentRow)
 			}
 			otherRow := render(other)
 			if !strings.Contains(otherRow, badge) {
-				t.Errorf("a row that is not the current note lost the only status answer it had:\n%s", otherRow)
+				t.Errorf("a row that is not the current note lost its draft mark:\n%s", otherRow)
 			}
 			if strings.Contains(otherRow, "--reserved") {
 				t.Errorf("a row that is not the current note has its badge hidden:\n%s", otherRow)

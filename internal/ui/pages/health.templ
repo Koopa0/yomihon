@@ -43,13 +43,6 @@ type HealthView struct {
 	// separate from Blocked: nothing went wrong reading them, and no later
 	// reading will pick them up as captured notes.
 	Skipped []HealthSkippedSource
-	// StatusOutsideEnum are the notes whose status value is outside their type's
-	// declared list. An empty list renders nothing, the unknowable case
-	// included.
-	StatusOutsideEnum []HealthStatusNote
-	// StatusUnreachable are the notes whose status is in its type's declared
-	// group while no lifecycle row with that status applies to its type.
-	StatusUnreachable []HealthStatusNote
 	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML,
 	// so nothing they declare could be judged at all.
 	FrontmatterUnreadable []HealthNoteFindings
@@ -57,6 +50,12 @@ type HealthView struct {
 	// the schema does not accept. Enum repair carries the same declared
 	// vocabulary as the note's own page.
 	SchemaFaults []HealthNoteFindings
+	// UnmappedConcepts are the concepts no map links to, and EmptyBranches the
+	// map headings no note stands under. They are how the folder's maps cover
+	// it, said for the author to see, and neither is a finding: no weight, no
+	// count, and neither makes the folder less than clear.
+	UnmappedConcepts []nav.NoteRef
+	EmptyBranches    []snapshot.HealthEmptyBranch
 	// InstanceScopeUnknown and SchemaScopeUnknown are why a group of the lists
 	// above could not be worked out, empty where it could: an empty list under
 	// a silent heading reads as "nothing found", which is a different and here
@@ -79,17 +78,6 @@ type HealthView struct {
 	// request that named none still gets one.
 	Page    PageNumber
 	Sidebar Sidebar
-}
-
-// HealthStatusNote is one note carrying a status its own type never declared,
-// named beside the value and that type. The value is the word the reader has to
-// edit and the type is why it failed, so both travel with the link.
-type HealthStatusNote struct {
-	Note   nav.NoteRef
-	Type   string
-	Status string
-	// AllowedStatuses is this type's vocabulary, absent for non-enum findings.
-	AllowedStatuses []string
 }
 
 // HealthNoteFindings is one note the schema had something to say about: how
@@ -143,15 +131,18 @@ templ Health(v HealthView, c layouts.Chrome) {
 		<div class="y-shell2">
 			@sidebar(v.Sidebar, c)
 			<main id="_y-main" tabindex="-1" class="y-main">
-				// A sheet of findings, each a row of four things read across, so
-				// this page is laid out on the shelf the other listing pages take
-				// rather than in the column a note is read in.
+				// A sheet of findings, a table to each kind, each a row of four
+				// things read across, so this page is laid out on the shelf the
+				// other listing pages take rather than in the column a note is
+				// read in. Its name is the largest text on it: the page is about
+				// what the folder has to say, and no figure is set above that.
 				<article class="y-healthpage">
 					<h1 class="y-title">{ wording.HealthTitle.In(c.Lang) }</h1>
 					if v.clean() {
 						@nothingToShow(nothingNotice{Kind: "health"}) {
 							<p>{ wording.HealthAllClear.In(c.Lang) }<code lang="en">yomihon check</code>{ wording.HealthAllClearAfterCommand.In(c.Lang) }</p>
 						}
+						@healthCoverage(v, c)
 					} else {
 						<p class="y-healthlede">{ wording.HealthReportsOnly.In(c.Lang) }</p>
 						@templ.Join(healthNotices(v.Notices), healthUnknown(wording.HealthInstanceScopeUnknown.In(c.Lang), v.InstanceScopeUnknown))
@@ -164,12 +155,15 @@ templ Health(v HealthView, c layouts.Chrome) {
 	}
 }
 
-// healthFindings is every finding as one table, and under it what each kind of
-// finding means. One table rather than one per kind, because the two questions
-// a reader opens this page with — what is worst, and what is wrong with this
-// one file — are both answers about the whole set, and neither can be read off
-// a page that has already split it. Ordering is a link per column and needs no
-// script: the server hands back the same table in the order that was asked for.
+// healthFindings is every finding, a table to each kind under that kind's own
+// name, and above them the report's shape. A kind is a group because the two
+// questions a reader opens this page with — what is worst, and what is wrong
+// with this one file — are answered inside a kind: the repair of an unwritten
+// link and of a shared name are different work, and a table that mixed them
+// listed one beside the other for no reason a reader could name. Ordering is a
+// link per column and needs no script: the server hands back the same groups
+// with the rows of each in the order that was asked for.
+//
 // A page with nothing to tabulate draws no table. It is reachable: a contract
 // that cannot be read closes the schema checks and says so above, and a folder
 // whose links all resolve then has a page that has something to tell the reader
@@ -177,9 +171,9 @@ templ Health(v HealthView, c layouts.Chrome) {
 // nothing offers four controls that each do nothing.
 //
 // A long report is divided rather than scrolled: the rows are gathered and
-// ordered whole, the shape line above and the guide below are counted from all
-// of them, and only the body of the table is cut to the stretch this request
-// asked for.
+// ordered whole, the shape line above is counted from all of them, and only the
+// stretch this request asked for is drawn, each group on it under its heading.
+// The way the folder's maps cover its concepts is said after the last of them.
 templ healthFindings(v HealthView, c layouts.Chrome) {
 	{{ rows := v.rows(c.Lang) }}
 	if len(rows) > 0 {
@@ -188,7 +182,44 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 		if strip.Number > 0 {
 			<p class="y-healthrange">{ healthRange(&strip, c.Lang) }</p>
 		}
+		for _, group := range healthGroups(window) {
+			@healthGroupSection(v, group, c)
+		}
+		@pager(strip, c.Lang)
+		if strip.Number == 0 || strip.Last == strip.Total {
+			@healthCoverage(v, c)
+		}
+	} else {
+		@healthCoverage(v, c)
+	}
+}
+
+// healthGroupSection is one kind of finding: its name, what it is as a fold
+// that starts closed, and its rows as a table whose four columns stand at the
+// widths every table on the page shares. What the fold holds is explanation;
+// every row, its weight and its count are drawn in the table, and a fact about
+// the group that is not an explanation stands between the two.
+templ healthGroupSection(v HealthView, group healthGroup, c layouts.Chrome) {
+	{{ id := "health-kind-" + strconv.Itoa(int(group.Kind)) }}
+	<section class="y-healthgroup" aria-labelledby={ id }>
+		<h2 class="y-healthgroup__title" id={ id }>{ group.Kind.title(c.Lang) }</h2>
+		<details class="y-healthabout">
+			<summary class="y-healthabout__head">
+				@chevron()
+				{ wording.HealthAbout.In(c.Lang) }
+			</summary>
+			<p class="y-healthabout__text">{ v.kindLede(group.Kind, c.Lang) }</p>
+		</details>
+		if standing := v.kindStanding(group.Kind, c.Lang); standing != "" {
+			<p class="y-healthgroup__standing">{ standing }</p>
+		}
 		<table class="y-findings">
+			<colgroup>
+				<col class="y-findings__col--file"/>
+				<col class="y-findings__col--finding"/>
+				<col class="y-findings__col--severity"/>
+				<col class="y-findings__col--count"/>
+			</colgroup>
 			<thead>
 				<tr>
 					for _, col := range healthColumns {
@@ -199,7 +230,7 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 				</tr>
 			</thead>
 			<tbody>
-				for _, row := range window {
+				for _, row := range group.Rows {
 					<tr { sourceBoundHealthAttrs(row.ID)... }>
 						<td class="y-findings__file" data-col={ wording.HealthColumnFile.In(c.Lang) }>
 							if row.File.RelPath != "" {
@@ -209,7 +240,6 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 							}
 						</td>
 						<td data-col={ wording.HealthColumnFinding.In(c.Lang) }>
-							<span class="y-findings__kind">{ row.Kind.title(c.Lang) }</span>
 							if len(row.Detail) > 0 {
 								<span class="y-findings__detail">
 									for i, detail := range row.Detail {
@@ -231,8 +261,41 @@ templ healthFindings(v HealthView, c layouts.Chrome) {
 				}
 			</tbody>
 		</table>
-		@pager(strip, c.Lang)
-		@healthGuide(v, healthTallies(rows), c)
+	</section>
+}
+
+// healthCoverage is how the folder's maps cover it, in two groups that each
+// appear only when there is something in them: the concepts no map links to, and
+// the map headings no note stands under. They are lists, not tables, because
+// there is nothing to weigh or count in them, and they sit apart from the
+// findings: a concept waiting for its map is not wrong, and a heading waiting
+// for its first note is a place the author meant to write.
+templ healthCoverage(v HealthView, c layouts.Chrome) {
+	if len(v.UnmappedConcepts) > 0 {
+		<section class="y-healthgroup" aria-labelledby="health-unmapped-concepts" data-health-coverage="concepts">
+			<h2 class="y-healthgroup__title" id="health-unmapped-concepts">{ wording.HealthUnmappedConceptsTitle.In(c.Lang) }</h2>
+			<ul class="y-healthlist" role="list">
+				for _, note := range v.UnmappedConcepts {
+					<li>
+						<a class="y-healthlink" href={ templ.URL(notesHref(note.RelPath)) }><span { authoredLanguageAttrs(note.Language)... }>{ note.Name }</span></a>
+						<span class="y-findings__path">{ note.RelPath }</span>
+					</li>
+				}
+			</ul>
+		</section>
+	}
+	if len(v.EmptyBranches) > 0 {
+		<section class="y-healthgroup" aria-labelledby="health-empty-branches" data-health-coverage="branches">
+			<h2 class="y-healthgroup__title" id="health-empty-branches">{ wording.HealthEmptyBranchesTitle.In(c.Lang) }</h2>
+			<ul class="y-healthlist" role="list">
+				for _, branch := range v.EmptyBranches {
+					<li>
+						<a class="y-healthlink" href={ templ.URL(notesHref(branch.Map.RelPath)) }><span { authoredLanguageAttrs(branch.Map.Language)... }>{ branch.Map.Name }</span></a>
+						<span class="y-healthlist__branch" { authoredLanguageAttrs(branch.Map.Language)... }>{ branch.Heading }</span>
+					</li>
+				}
+			</ul>
+		</section>
 	}
 }
 
@@ -284,29 +347,6 @@ templ healthEvidence(detail healthDetail) {
 	}
 	if detail.Link.RelPath != "" {
 		<a class="y-healthlink" href={ templ.URL(notesHref(detail.Link.RelPath)) }><span { authoredLanguageAttrs(detail.Link.Language)... }>{ detail.Link.Name }</span></a>
-	}
-}
-
-// healthGuide explains each kind of finding the table holds, and how many of it
-// there are. It is closed to begin with because a reader who already knows what
-// a row claims came for the rows.
-templ healthGuide(v HealthView, tallies []healthTally, c layouts.Chrome) {
-	if len(tallies) > 0 {
-		<details class="y-findingsguide">
-			<summary class="y-findingsguide__head">
-				@chevron()
-				{ wording.HealthGuideTitle.In(c.Lang) }
-			</summary>
-			<dl class="y-findingsguide__list">
-				for _, tally := range tallies {
-					<dt class="y-findingsguide__term">
-						{ tally.Kind.title(c.Lang) }
-						<span class="ui-navitem__count">{ strconv.Itoa(tally.Count) }</span>
-					</dt>
-					<dd class="y-findingsguide__meaning">{ v.kindLede(tally.Kind, c.Lang) }</dd>
-				}
-			</dl>
-		</details>
 	}
 }
 

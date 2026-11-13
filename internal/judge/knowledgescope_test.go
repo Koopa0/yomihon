@@ -12,41 +12,29 @@ import (
 
 // scopeLockContract is the Lock vault: one concept under Notes, one under
 // System/notes, and a System note whose type the contract refuses. The
-// knowledge_dirs line is the only thing each case changes.
-const scopeLockContract = `schema_version = "1"
+// folders.checked line is the only thing each case changes.
+const scopeLockContract = `schema_version = "2"
+
+[folders]
+KNOWLEDGE_DIRS
+templates = []
+skipped_files = ["README.md"]
 
 [enums]
-type = ["concept", "note"]
-
-[enums.status]
-note = ["draft"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "status", "based_on"]
+common = ["type", "based_on"]
+required = ["type"]
+
+[types.concept]
+
+[types.note]
 
 [rules]
 concept_requires_provenance = ["based_on"]
 
-[scan]
-KNOWLEDGE_DIRS
-skip_basenames = ["README.md"]
-
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = []
-
 [privacy]
 never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
 `
 
 const (
@@ -65,11 +53,11 @@ func writeScopeLockVault(t *testing.T, knowledgeDirsLine string) string {
 		t.Fatal("scopeLockContract no longer contains KNOWLEDGE_DIRS")
 	}
 	write(t, root, schema.ContractRelPath, text)
-	write(t, root, scopeLockNotesConcept, "---\ntitle: Kept\ntype: concept\nbased_on:\n  - \"[[Idea]]\"\n---\nBody.\n")
-	write(t, root, scopeLockSystemConcept, "---\ntitle: Idea\ntype: concept\nbased_on:\n  - \"[[Kept]]\"\n---\nBody.\n")
-	write(t, root, scopeLockSystemNote, "---\ntitle: Probe\ntype: probe\n---\nBody.\n")
-	write(t, root, scopeLockAwayNote, "---\ntitle: Loose\ntype: probe\n---\nBody.\n")
-	write(t, root, "Notes/README.md", "---\ntitle: Skip me\ntype: probe\n---\n")
+	write(t, root, scopeLockNotesConcept, "---\ntype: concept\nbased_on:\n  - \"[[Idea]]\"\n---\n# Kept\nBody.\n")
+	write(t, root, scopeLockSystemConcept, "---\ntype: concept\nbased_on:\n  - \"[[Kept]]\"\n---\n# Idea\nBody.\n")
+	write(t, root, scopeLockSystemNote, "---\ntype: probe\n---\n# Probe\nBody.\n")
+	write(t, root, scopeLockAwayNote, "---\ntype: probe\n---\n# Loose\nBody.\n")
+	write(t, root, "Notes/README.md", "---\ntype: probe\n---\n# Skip me\n")
 	return root
 }
 
@@ -86,13 +74,13 @@ func findingPaths(findings []Finding, rule RuleID) []string {
 
 // TestDefaultCheckFollowsDeclaredKnowledgeScope is the check half of the
 // Lock: with System declared, the default check reports the System finding;
-// with knowledge_dirs omitted or set to [], every note is linted.
+// with folders.checked omitted or set to [], every note is linted.
 func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 	t.Parallel()
 
 	t.Run("System declared reports the System finding", func(t *testing.T) {
 		t.Parallel()
-		root := writeScopeLockVault(t, `knowledge_dirs = ["Notes", "System"]`)
+		root := writeScopeLockVault(t, `checked = ["Notes", "System"]`)
 		defaultFindings, err := runCheckAction(t.Context(), root, nil, false)
 		if err != nil {
 			t.Fatalf("check(default): %v", err)
@@ -107,8 +95,8 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 		name string
 		line string
 	}{
-		{name: "omitted knowledge_dirs lints every note", line: ""},
-		{name: "empty knowledge_dirs lints every note", line: `knowledge_dirs = []`},
+		{name: "omitted folders.checked lints every note", line: ""},
+		{name: "empty folders.checked lints every note", line: `checked = []`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -123,7 +111,7 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 				t.Errorf("default check schema.enum paths mismatch (-want +got):\n%s", diff)
 			}
 			if slices.Contains(got, "Notes/README.md") {
-				t.Errorf("default check linted Notes/README.md; skip_basenames still applies when no layer is declared")
+				t.Errorf("default check linted Notes/README.md; skipped_files still applies when no layer is declared")
 			}
 		})
 	}
@@ -134,7 +122,7 @@ func TestDefaultCheckFollowsDeclaredKnowledgeScope(t *testing.T) {
 func TestCoverageFollowsDeclaredKnowledgeScope(t *testing.T) {
 	t.Parallel()
 
-	root := writeScopeLockVault(t, `knowledge_dirs = ["Notes", "System"]`)
+	root := writeScopeLockVault(t, `checked = ["Notes", "System"]`)
 	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
@@ -156,43 +144,31 @@ func TestCoverageIgnoresMountSourcesOutsideTheDeclaredLayer(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, `schema_version = "1"
+	write(t, root, schema.ContractRelPath, `schema_version = "2"
+
+[folders]
+checked = ["Notes"]
+templates = []
 
 [enums]
-type = ["concept", "atlas"]
-
-[enums.status]
-note = ["draft"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "status", "based_on"]
+common = ["type", "based_on"]
+required = ["type"]
+
+[types.concept]
+
+[types.atlas]
+role = "map"
 
 [rules]
 concept_requires_provenance = ["based_on"]
 
-[scan]
-knowledge_dirs = ["Notes"]
-skip_basenames = []
-
-[navigation]
-path_types = []
-map_types = ["atlas"]
-
-[artifacts]
-non_instance_dirs = []
-
 [privacy]
 never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
 `)
-	write(t, root, "Notes/Idea.md", "---\ntitle: Idea\ntype: concept\nbased_on:\n  - \"[[Atlas]]\"\n---\nBody.\n")
-	write(t, root, "Maps/Atlas.md", "---\ntitle: Atlas\ntype: atlas\n---\n\n- [[Idea]]\n")
+	write(t, root, "Notes/Idea.md", "---\ntype: concept\nbased_on:\n  - \"[[Atlas]]\"\n---\n# Idea\nBody.\n")
+	write(t, root, "Maps/Atlas.md", "---\ntype: atlas\n---\n# Atlas\n\n- [[Idea]]\n")
 
 	got, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
@@ -214,44 +190,31 @@ func TestCoverageUnroutedNotesFollowDeclaredKnowledgeScope(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, `schema_version = "1"
+	write(t, root, schema.ContractRelPath, `schema_version = "2"
+
+[folders]
+checked = ["Notes", "System"]
+templates = []
 
 [enums]
-type = ["concept", "research-brief"]
-
-[enums.status]
-note = ["draft"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "status", "based_on"]
+common = ["type", "based_on"]
+required = ["type"]
+
+[types.concept]
+
+[types.research-brief]
 
 [rules]
 concept_requires_provenance = ["based_on"]
 
-[scan]
-knowledge_dirs = ["Notes", "System"]
-skip_basenames = []
-
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = []
-
 [privacy]
 never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
 `)
-	write(t, root, "Notes/Kept.md", "---\ntitle: Kept\ntype: concept\nbased_on:\n  - \"[[Brief]]\"\n---\nBody.\n")
-	write(t, root, "System/notes/Brief.md", "---\ntitle: Brief\ntype: research-brief\n---\nBody.\n")
-	write(t, root, "Away/Loose.md", "---\ntitle: Loose\ntype: research-brief\n---\nBody.\n")
+	write(t, root, "Notes/Kept.md", "---\ntype: concept\nbased_on:\n  - \"[[Brief]]\"\n---\n# Kept\nBody.\n")
+	write(t, root, "System/notes/Brief.md", "---\ntype: research-brief\n---\n# Brief\nBody.\n")
+	write(t, root, "Away/Loose.md", "---\ntype: research-brief\n---\n# Loose\nBody.\n")
 
 	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {

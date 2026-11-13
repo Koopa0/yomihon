@@ -14,7 +14,7 @@ func TestCapturedSnapshotPathSuffix(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	for rel, body := range map[string]string{
-		"Concepts/Atlas/Page.md":    "---\ntitle: Atlas page\ntype: concept\n---\n## Part\n\nBlock payload. ^piece\n",
+		"Concepts/Atlas/Page.md":    "---\ntype: concept\n---\n## Part\n\nBlock payload. ^piece\n",
 		"Concepts/A/Shared/Twin.md": "body\n",
 		"Concepts/B/Shared/Twin.md": "body\n",
 		"Concepts/Citer.md":         "See [[Atlas/Page]] and [[Atlas/Page#Part]], [[Shared/Twin]], [[Nope/Page]].\n",

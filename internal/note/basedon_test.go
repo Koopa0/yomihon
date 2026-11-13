@@ -61,9 +61,9 @@ func TestDeclaredSourcesOnTheReadingPage(t *testing.T) {
 		if !strings.Contains(block, "Source model") {
 			t.Errorf("the resolved source is not named; block = %q", block)
 		}
-		rail := railRight(t, body)
-		if !strings.Contains(rail, `class="y-basedon"`) {
-			t.Errorf("the wide rail has no declared-source block; rail = %q", rail)
+		end := endOfText(t, body)
+		if !strings.Contains(end, `class="y-basedon"`) {
+			t.Errorf("the end of the text has no declared-source block; end = %q", end)
 		}
 	})
 
@@ -138,8 +138,8 @@ func TestFragmentNormalizationReadingPage(t *testing.T) {
 			t.Errorf("caught: fragment-normalization source page missing %q: %s", want, source)
 		}
 	}
-	if got := strings.Count(source, "href=\"#\u1e99-child\" data-level=\"2\""); got != 2 {
-		t.Errorf("caught: fragment-normalization responsive contents count = %d, want 2", got)
+	if got := strings.Count(source, "href=\"#\u1e99-child\" data-level=\"2\""); got != 1 {
+		t.Errorf("caught: fragment-normalization contents count = %d, want 1", got)
 	}
 	code, claim := get(t, srv.Client(), srv.URL+"/notes/Claim.md")
 	if code != http.StatusOK {
@@ -237,7 +237,7 @@ func TestCitationScopeLabelsDifferOnNoteAndHealth(t *testing.T) {
 }
 
 func concept(title, basedOn, body string) string {
-	return "---\ntitle: " + title + "\ntype: concept\ndomain: golang\nstatus: draft\n" + basedOn + "\n---\n\n" + body + "\n"
+	return "---\ntype: concept\n" + basedOn + "\n---\n# " + title + "\n\n" + body + "\n"
 }
 
 func basedOnBlock(t *testing.T, body string) string {
@@ -254,16 +254,16 @@ func basedOnBlock(t *testing.T, body string) string {
 	return body[start : start+end]
 }
 
-func railRight(t *testing.T, body string) string {
+func endOfText(t *testing.T, body string) string {
 	t.Helper()
-	const open = `<aside class="y-rail-right"`
+	const open = `<div class="y-related"`
 	start := strings.Index(body, open)
 	if start < 0 {
-		t.Fatal("the reading page has no right rail")
+		t.Fatal("the reading page has no block at the end of the text")
 	}
-	end := strings.Index(body[start:], "</aside>")
+	end := strings.Index(body[start:], "</main>")
 	if end < 0 {
-		t.Fatal("the right rail is not closed")
+		t.Fatal("the end of the text is not followed by the end of main")
 	}
 	return body[start : start+end]
 }
@@ -328,8 +328,8 @@ The claim.
 	if strings.Index(block, "Method evidence") >= strings.Index(block, "Other › Observation") {
 		t.Errorf("file grouping lost authored order: %s", block)
 	}
-	if strings.Count(body, block) != 2 {
-		t.Error("wide and narrow placements differ")
+	if strings.Count(body, block) != 1 {
+		t.Error("the declared sources are not drawn once, at the end of the text")
 	}
 	if !strings.Contains(body, `<div class="y-diaglist">`) {
 		t.Fatal("note health omits all source-location diagnostics")
