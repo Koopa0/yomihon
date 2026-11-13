@@ -180,7 +180,8 @@ try {
   }
   let shown = null;
   for (let i = 0; i < await splits.count(); i += 1) {
-    await splits.nth(i).scrollIntoViewIfNeeded();
+    // A copy that is not laid out cannot be scrolled to, and says so by not being painted.
+    await splits.nth(i).scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => {});
     const seen = await painted(splits.nth(i));
     if (onScreen(seen)) { shown = seen; break; }
   }

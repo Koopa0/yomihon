@@ -944,7 +944,7 @@ try {
   // name in its title. Open, and below the drawer width, it is not drawn.
   await run('folded-column-keeps-its-name', async () => {
     for (const [shape, path, source] of [
-      ['a folder', PAGE, '.y-where__path'],
+      ['a folder', '/notes/Notes/cutover.md', '.y-where__path'],
       ['a course', '/notes/Course/C02.md', '.y-railbook__title'],
     ]) {
       const { page, context, checkProof } = await open('folded-column-keeps-its-name', path, { width: 1281, collapsed: true });

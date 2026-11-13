@@ -134,8 +134,6 @@ const open = async (options = {}) => {
 
 const frames = (page) => page.evaluate(() => window.__frames ?? []);
 
-const expects = (site) => !MUTATE || MODES[MUTATE].expect === site;
-
 try {
   console.log(`page-change: Chrome ${browser.version()}`);
 
@@ -165,7 +163,7 @@ try {
   {
     const { page, context, proof } = await open();
     await page.goto(BASE + `${KEPT_PAGE}?at=${KEPT_OFFSET}`, { waitUntil: 'load' });
-    await page.waitForFunction(() => (window.__frames ?? []).length >= 20, null, { timeout: 5000 });
+    await page.waitForFunction(() => (window.__frames ?? []).at(-1)?.at >= 850, null, { timeout: 8000 });
     const seen = (await frames(page)).filter((frame) => frame.column);
     const settled = seen.at(-1);
     if (settled.y < KEPT_OFFSET - 2 || settled.y > KEPT_OFFSET + 2) {
@@ -223,7 +221,10 @@ try {
       return { top: rail.scrollTop, href: row?.getAttribute('href') ?? null };
     });
     if (!chosen.href || chosen.top < 150) broken(`the rail could not be parked with a row in view: ${JSON.stringify(chosen)}`);
-    await Promise.all([page.waitForURL((url) => url.pathname === decodeURI(chosen.href) || url.pathname === chosen.href), page.locator(`.y-rail-left a[href="${chosen.href}"]`).click()]);
+    // Followed by address rather than by a press: a press may be answered by a
+    // page the browser prefetched before the planted change could reach it, and
+    // leaving the page is what writes the position either way.
+    await page.goto(BASE + chosen.href, { waitUntil: 'load' });
     await page.waitForFunction(() => (window.__frames ?? []).length >= 2, null, { timeout: 5000 });
     const arrival = await page.evaluate(() => {
       const rail = document.querySelector('.y-rail-left');

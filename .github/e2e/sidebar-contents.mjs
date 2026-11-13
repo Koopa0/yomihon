@@ -123,12 +123,15 @@ try {
     if (!block) return null;
     const label = block.querySelector('.ui-side__label');
     const clone = label?.cloneNode(true);
-    clone?.querySelectorAll('.ui-navitem__count, .y-diagcount').forEach((n) => n.remove());
-    const kids = [...block.children].map((child) => {
-      if (child.matches('nav.y-basedon[data-declared-by]')) return 'y-basedon-declared';
-      if (child.classList.contains('y-diag') || child.querySelector('.y-diaglist')) return 'y-diag';
-      return [...child.classList].find((name) => ['y-pair', 'y-basedon', 'y-citedby'].includes(name)) ?? child.className;
-    });
+    for (const counter of clone?.querySelectorAll('.ui-navitem__count, .y-diagcount') ?? []) counter.remove();
+    // In the order a reader meets them on the page, which is where each one
+    // is drawn and not the order the markup happens to list them in.
+    const kids = [...block.children].map((child) => ({
+      top: child.getBoundingClientRect().top,
+      kind: child.matches('nav.y-basedon[data-declared-by]') ? 'y-basedon-declared'
+        : child.querySelector('.y-diaglist') ? 'y-diag'
+          : [...child.classList].find((name) => ['y-pair', 'y-basedon', 'y-citedby'].includes(name)) ?? child.className,
+    })).sort((a, b) => a.top - b.top).map((child) => child.kind);
     const style = getComputedStyle(block);
     return { first: clone?.textContent.trim() ?? null, kids, display: style.display, prose: document.querySelector('.y-prose')?.getBoundingClientRect().top ?? null, top: block.getBoundingClientRect().top + scrollY };
   });
