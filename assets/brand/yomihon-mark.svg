@@ -1,5 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <path data-brand-part="cover" fill="#0F0F0F" d="M8.1 4h15.8A1.6 1.6 0 0 1 25.5 5.6v20.8a1.6 1.6 0 0 1-1.6 1.6H8.1A1.6 1.6 0 0 1 6.5 26.4V5.6A1.6 1.6 0 0 1 8.1 4Z"/>
-  <path data-brand-part="pages" fill="#F5F1E6" d="M7.9 5.6h13.5v20.8H7.9Zm15.1 2.2h1v2.4h-1Zm0 4.6h1v2.4h-1Zm0 4.6h1v2.4h-1Zm0 4.6h1v2.4h-1Z"/>
-  <path data-brand-part="obi" fill="#D62A0F" d="M9.6 7.6h4.2v8.2H9.6Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <path data-brand-part="page" fill="#282A2D" d="M10 10H51V25C40 24 34 30 26 49H10Z"/>
+  <path data-brand-part="ribbon" fill="#536D85" d="M32 54C40 37 46 32 55 33V54Z"/>
 </svg>

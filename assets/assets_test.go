@@ -16,7 +16,7 @@ import (
 	"testing"
 )
 
-const validBrandSVGFixture = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path data-brand-part="cover" fill="#0F0F0F" d="M0 0Z"/><path data-brand-part="pages" fill="#F5F1E6" d="M1 1Z"/><path data-brand-part="obi" fill="#D62A0F" d="M2 2Z"/></svg>`
+const validBrandSVGFixture = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path data-brand-part="page" fill="#282A2D" d="M0 0Z"/><path data-brand-part="ribbon" fill="#536D85" d="M1 1Z"/></svg>`
 
 func TestBrandDirectoryContainsExactlyCanonicalSVG(t *testing.T) {
 	t.Parallel()
@@ -89,16 +89,17 @@ func TestBrandMarkValidatorRejectsNonCanonicalSVG(t *testing.T) {
 		{name: "mask", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<mask id="m"/></svg>`, 1)},
 		{name: "text", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<text>yomihon</text></svg>`, 1)},
 		{name: "metadata", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<metadata>generator</metadata></svg>`, 1)},
-		{name: "nested group", svg: strings.Replace(validBrandSVGFixture, `<path data-brand-part="cover" fill="#0F0F0F" d="M0 0Z"/>`, `<g><path data-brand-part="cover" fill="#0F0F0F" d="M0 0Z"/></g>`, 1)},
-		{name: "fourth path", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<path data-brand-part="extra" fill="#0F0F0F" d="M3 3Z"/></svg>`, 1)},
-		{name: "wrong part order", svg: strings.Replace(validBrandSVGFixture, `data-brand-part="cover"`, `data-brand-part="pages"`, 1)},
-		{name: "wrong cover color", svg: strings.Replace(validBrandSVGFixture, `#0F0F0F`, `#101010`, 1)},
-		{name: "wrong pages color", svg: strings.Replace(validBrandSVGFixture, `#F5F1E6`, `#FFFFFF`, 1)},
-		{name: "wrong obi color", svg: strings.Replace(validBrandSVGFixture, `#D62A0F`, `#FF0000`, 1)},
+		{name: "nested group", svg: strings.Replace(validBrandSVGFixture, `<path data-brand-part="page" fill="#282A2D" d="M0 0Z"/>`, `<g><path data-brand-part="page" fill="#282A2D" d="M0 0Z"/></g>`, 1)},
+		{name: "third path", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<path data-brand-part="extra" fill="#282A2D" d="M3 3Z"/></svg>`, 1)},
+		{name: "wrong part order", svg: strings.Replace(validBrandSVGFixture, `data-brand-part="page"`, `data-brand-part="ribbon"`, 1)},
+		{name: "wrong page color", svg: strings.Replace(validBrandSVGFixture, `#282A2D`, `#2A2A2D`, 1)},
+		{name: "wrong ribbon color", svg: strings.Replace(validBrandSVGFixture, `#536D85`, `#536D86`, 1)},
+		{name: "missing ribbon", svg: strings.Replace(validBrandSVGFixture, `<path data-brand-part="ribbon" fill="#536D85" d="M1 1Z"/>`, ``, 1)},
+		{name: "wrong view box", svg: strings.Replace(validBrandSVGFixture, `viewBox="0 0 64 64"`, `viewBox="0 0 32 32"`, 1)},
 		{name: "event handler", svg: strings.Replace(validBrandSVGFixture, `d="M0 0Z"`, `d="M0 0Z" onload="alert(1)"`, 1)},
 		{name: "style attribute", svg: strings.Replace(validBrandSVGFixture, `d="M0 0Z"`, `d="M0 0Z" style="opacity:.5"`, 1)},
 		{name: "href attribute", svg: strings.Replace(validBrandSVGFixture, `d="M0 0Z"`, `d="M0 0Z" href="https://example.com"`, 1)},
-		{name: "attribute order", svg: strings.Replace(validBrandSVGFixture, `data-brand-part="cover" fill="#0F0F0F" d="M0 0Z"`, `fill="#0F0F0F" data-brand-part="cover" d="M0 0Z"`, 1)},
+		{name: "attribute order", svg: strings.Replace(validBrandSVGFixture, `data-brand-part="page" fill="#282A2D" d="M0 0Z"`, `fill="#282A2D" data-brand-part="page" d="M0 0Z"`, 1)},
 		{name: "empty path", svg: strings.Replace(validBrandSVGFixture, `d="M0 0Z"`, `d=""`, 1)},
 		{name: "comment", svg: strings.Replace(validBrandSVGFixture, `</svg>`, `<!-- generated --></svg>`, 1)},
 		{name: "processing instruction", svg: `<?xml version="1.0"?>` + validBrandSVGFixture},
@@ -127,9 +128,8 @@ func validateBrandMarkSVG(data []byte) error {
 		part string
 		fill string
 	}{
-		{part: "cover", fill: "#0F0F0F"},
-		{part: "pages", fill: "#F5F1E6"},
-		{part: "obi", fill: "#D62A0F"},
+		{part: "page", fill: "#282A2D"},
+		{part: "ribbon", fill: "#536D85"},
 	}
 
 	decoder := xml.NewDecoder(bytes.NewReader(data))
@@ -167,7 +167,7 @@ func validateBrandMarkSVG(data []byte) error {
 				}
 				paths++
 			default:
-				return fmt.Errorf("element at depth %d = {%s}%s, want svg with three direct path children only", depth, value.Name.Space, value.Name.Local)
+				return fmt.Errorf("element at depth %d = {%s}%s, want svg with two direct path children only", depth, value.Name.Space, value.Name.Local)
 			}
 		case xml.EndElement:
 			depth--
@@ -204,8 +204,8 @@ func validateBrandSVGRootAttributes(attrs []xml.Attr) error {
 	if attr := attrs[0]; attr.Name.Space != "" || attr.Name.Local != "xmlns" || attr.Value != "http://www.w3.org/2000/svg" {
 		return fmt.Errorf("first svg attribute = {%s}%s=%q, want xmlns=%q", attr.Name.Space, attr.Name.Local, attr.Value, "http://www.w3.org/2000/svg")
 	}
-	if attr := attrs[1]; attr.Name.Space != "" || attr.Name.Local != "viewBox" || attr.Value != "0 0 32 32" {
-		return fmt.Errorf("second svg attribute = {%s}%s=%q, want viewBox=%q", attr.Name.Space, attr.Name.Local, attr.Value, "0 0 32 32")
+	if attr := attrs[1]; attr.Name.Space != "" || attr.Name.Local != "viewBox" || attr.Value != "0 0 64 64" {
+		return fmt.Errorf("second svg attribute = {%s}%s=%q, want viewBox=%q", attr.Name.Space, attr.Name.Local, attr.Value, "0 0 64 64")
 	}
 	return nil
 }

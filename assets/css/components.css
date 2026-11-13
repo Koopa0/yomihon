@@ -493,6 +493,21 @@ samp {
   width: 24px;
 }
 
+/* The mark's page shape is nearly the dark header's own ink, so in the dark
+   theme the mark sits on a paper tile. The artwork's own margin is the tile's
+   inset. */
+:root[data-theme='dark'] .y-brand__mark {
+  background: #F5F1E6;
+  border-radius: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .y-brand__mark {
+    background: #F5F1E6;
+    border-radius: 4px;
+  }
+}
+
 .y-searchbtn {
   align-items: center;
   background: transparent;
