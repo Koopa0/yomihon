@@ -7,10 +7,10 @@
 // every step an ordinary page of the browser's history and leaves the browser's
 // own return to put the page and its position back. What a real browser shows is
 // whether it still can: two steps back land on the first note's address, at the
-// scroll position they left, with the section's own controls in place and the
-// place the reader had left off at still marked there. (That place, which the
-// reader chose to keep, and this way back, which the browser keeps, are two
-// things: one is not needed for the other.)
+// scroll position they left, with the section's own controls in place. And the
+// place the reader had chosen to leave off at, which is another thing than this
+// way back (neither needs the other), is drawn in the margin of the section that
+// holds it when they press the control, and again on a fresh visit.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note with sections, a link in the second one
 // to a note that links on to a third), and MUTATE. MUTATE=list prints every
@@ -21,7 +21,7 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/Reading%20flow.md';
 const MUTATE = process.env.MUTATE || '';
 
-const SITES = ['back-lands-on-the-note-they-left', 'the-section-stands-where-it-stood'];
+const SITES = ['back-lands-on-the-note-they-left', 'the-section-stands-where-it-stood', 'the-place-stays-where-it-was-left'];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -38,7 +38,16 @@ const fail = (site, message) => {
 };
 const broken = (message) => { throw new ProbeBroken(`BROKEN return-from-a-detour: ${message}`); };
 
-const planted = { seen: 0 };
+const planted = { seen: 0, matched: 0 };
+const rewrite = (match, needle, replacement) => async (page) => {
+  await page.route(match, async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    planted.seen += 1;
+    if (original.includes(needle)) planted.matched += 1;
+    await route.fulfill({ response, body: original.replaceAll(needle, replacement) });
+  });
+};
 const addScript = (source) => async (page) => {
   await page.route('**/static/yomihon.js{,?*}', async (route) => {
     const response = await route.fetch();
@@ -61,6 +70,16 @@ const MUTATIONS = {
         location.replace(link.href);
       }, true);
     `),
+  },
+  // Pressing the control keeps the place and draws it nowhere.
+  'draw-the-place-in-no-section-when-it-is-kept': {
+    target: 'the-place-stays-where-it-was-left',
+    apply: rewrite('**/mark.js{,?*}', 'if (kept) showPlace(place.anchor);', ''),
+  },
+  // A fresh visit forgets which section holds the place.
+  'draw-the-place-in-no-section-on-a-fresh-visit': {
+    target: 'the-place-stays-where-it-was-left',
+    apply: rewrite((url) => url.pathname.endsWith('Reading%20flow.md'), 'data-section-place data-text=', 'data-section-place hidden data-text='),
   },
   // Coming back puts the note at its top.
   'put-the-note-at-its-top-when-it-returns': {
@@ -100,14 +119,30 @@ try {
   if (MUTATE) await MUTATIONS[MUTATE].apply(page);
   const start = BASE + PAGE;
   await page.goto(start, { waitUntil: 'load' });
-  if (MUTATE && planted.seen === 0) throw new NotApplied(`NOT-APPLIED return-from-a-detour: ${MUTATE}: the planted script reached no page`);
+  if (MUTATE && planted.seen === 0 && MUTATE !== 'draw-the-place-in-no-section-on-a-fresh-visit') throw new NotApplied(`NOT-APPLIED return-from-a-detour: ${MUTATE}: the planted change reached no page`);
   await page.evaluate(() => document.fonts.ready);
+
+  // The reader chooses to keep their place in a section other than the one any
+  // earlier visit of this probe left it in: a place already drawn where it is
+  // wanted would prove nothing.
+  const placed = () => page.evaluate(() => [...document.querySelectorAll('.y-prose .y-sect')]
+    .filter((section) => section.querySelector('[data-section-place]:not([hidden])'))
+    .map((section) => section.firstElementChild.id));
+  const before = await placed();
+  const target = ['the-third-mechanism', 'the-first-mechanism'].find((id) => !before.includes(id));
+  await page.evaluate((id) => window.scrollTo(0, document.getElementById(id).getBoundingClientRect().top + scrollY + 80), target);
+  await page.waitForTimeout(150);
+  await page.locator('.y-header [data-mark-button]').click();
+  await page.waitForFunction(() => document.querySelector('[data-mark-control][data-mark-kept]') !== null, null, { timeout: 4000 }).catch(() => broken('pressing the control kept no place'));
+  await page.waitForTimeout(150);
+  const keptIn = await placed();
+  if (keptIn.length !== 1 || keptIn[0] !== target) fail('the-place-stays-where-it-was-left', `the place was kept under ${target} (it was drawn in ${JSON.stringify(before)}) and is now drawn in ${JSON.stringify(keptIn)}`);
 
   // Stand at the second section, with its link in view.
   const link = page.locator('.y-prose .y-sect ~ p a.wikilink').first();
   if ((await link.count()) === 0) broken(`${PAGE} has no link in a section to follow`);
+  await page.evaluate(() => window.scrollTo(0, document.getElementById('the-second-mechanism').getBoundingClientRect().top + scrollY + 150));
   await link.scrollIntoViewIfNeeded();
-  await page.evaluate(() => window.scrollBy(0, -150));
   await page.waitForTimeout(150);
   const left = await page.evaluate(() => {
     const sections = [...document.querySelectorAll('.y-prose .y-sect > [id]')];
@@ -139,7 +174,13 @@ try {
     fail('the-section-stands-where-it-stood', `the reader left at ${JSON.stringify(left)} and came back to ${JSON.stringify(back)}`);
   }
   if (!back.controls) fail('the-section-stands-where-it-stood', `the section they came back to has none of its controls: ${JSON.stringify(back)}`);
-  console.log(`PASS return-from-a-detour: two steps on and two back land on the note at the section and the scroll position it was left at (${left.heading}, ${left.scrollY}px), with the section's controls in place`);
+
+  // A fresh visit, with nothing in memory, draws the place in the same section.
+  await page.goto(startedAt, { waitUntil: 'load' });
+  if (MUTATE === 'draw-the-place-in-no-section-on-a-fresh-visit' && planted.matched === 0) throw new NotApplied(`NOT-APPLIED return-from-a-detour: ${MUTATE}: the planted change matched nothing`);
+  const again = await placed();
+  if (again.length !== 1 || again[0] !== target) fail('the-place-stays-where-it-was-left', `on a fresh visit the place is drawn in ${JSON.stringify(again)}, want ${target}`);
+  console.log(`PASS return-from-a-detour: two steps on and two back land on the note at the section and the scroll position it was left at (${left.heading}, ${left.scrollY}px), with the section's controls in place and the kept place drawn in its section, on the way and on a fresh visit`);
 } catch (error) {
   console.error(error.message);
   if (error instanceof NotApplied) {
