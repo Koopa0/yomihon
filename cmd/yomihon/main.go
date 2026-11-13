@@ -1,6 +1,6 @@
 // yomihon is the local reading-and-adjudication interface for the Obsidian
-// vault. Its HTTP server listens only on 127.0.0.1 and writes exactly one
-// frontmatter field (status). Nothing here contacts a network.
+// vault. Its HTTP server listens only on 127.0.0.1 and writes nothing into the
+// vault. Nothing here contacts a network.
 package main
 
 import (

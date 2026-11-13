@@ -19,42 +19,19 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-const openThoughtContract = `schema_version = "1"
-[enums]
-type = ["reflection", "other"]
-[enums.status]
-note = ["started", "revisit", "settled"]
+const openThoughtContract = `schema_version = "2"
+[folders]
+checked = ["Inside"]
+templates = []
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "status", "draft", "updated", "based_on"]
-[scan]
-knowledge_dirs = ["Inside"]
-[navigation]
-path_types = []
-map_types = []
-answer_type = "reflection"
-[artifacts]
-non_instance_dirs = []
+common = ["type", "draft", "created"]
+required = ["type"]
+[types.reflection]
+role = "thought"
+fields = ["based_on"]
+[types.other]
 [privacy]
 never_egress_dirs = []
-[[lifecycle]]
-status = "started"
-applies_to = ["*"]
-initial = true
-from = []
-owner = []
-[[lifecycle]]
-status = "revisit"
-applies_to = ["*"]
-initial = true
-from = ["started"]
-owner = []
-[[lifecycle]]
-status = "settled"
-applies_to = ["*"]
-initial = false
-from = ["started", "revisit"]
-owner = []
 `
 
 func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
@@ -196,7 +173,7 @@ func TestOpenThoughtsEmptySaysWhatTheShelfHolds(t *testing.T) {
 func TestOpenThoughtsSkipsDeclaredNonInstances(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	putOpenThoughtFile(t, root, schema.ContractRelPath, strings.Replace(openThoughtContract, "non_instance_dirs = []", `non_instance_dirs = ["Templates"]`, 1))
+	putOpenThoughtFile(t, root, schema.ContractRelPath, strings.Replace(openThoughtContract, "templates = []", `templates = ["Templates"]`, 1))
 	putOpenThoughtFile(t, root, "Inside/Real.md", openThoughtNote("A real thought", "reflection", draftFlag, "2026-09-01"))
 	putOpenThoughtFile(t, root, "Templates/Template.md", openThoughtNote("A template row", "reflection", draftFlag, "2026-09-02"))
 	site, _ := openThoughtSite(t, root)
@@ -354,8 +331,8 @@ func putOpenThoughtFile(t *testing.T, root, rel, content string) {
 // draftFlag is the frontmatter line that leaves a thought open.
 const draftFlag = "draft: true\n"
 
-// openThoughtNote writes a note of kind; flag is a whole frontmatter line, or
-// empty for a note that writes none.
-func openThoughtNote(title, kind, flag, updated string) string {
-	return fmt.Sprintf("---\ntitle: %q\ntype: %s\n%supdated: %s\nbased_on: '[[Source#Chapter]]'\n---\nA thought.\n", title, kind, flag, updated)
+// openThoughtNote writes a note of kind titled by its first heading; flag is a
+// whole frontmatter line, or empty for a note that writes none.
+func openThoughtNote(title, kind, flag, created string) string {
+	return fmt.Sprintf("---\ntype: %s\n%screated: %s\nbased_on: '[[Source#Chapter]]'\n---\n# %s\n\nA thought.\n", kind, flag, created, title)
 }

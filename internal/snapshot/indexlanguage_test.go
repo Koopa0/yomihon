@@ -15,15 +15,13 @@ func TestSearchIndexCarriesDeclaredArticleLanguage(t *testing.T) {
 
 	root := t.TempDir()
 	writeNote(t, root, indexLanguageRel, `---
-title: L01 わたしは学生です
 type: lesson
-domain: japanese
-status: draft
 slug: jp-l01
 lang: ja
 created: 2026-06-01
-updated: 2026-06-01
 ---
+
+# L01 わたしは学生です
 
 わたしは学生です
 `)

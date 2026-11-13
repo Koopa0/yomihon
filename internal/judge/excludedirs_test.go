@@ -22,7 +22,7 @@ func TestExcludedDirectoriesTakeNoPartInNameCollisions(t *testing.T) {
 		wantCollision bool
 	}{
 		{name: "not excluded", declaration: "", wantCollision: true},
-		{name: "excluded", declaration: `exclude_dirs = ["courses/*/lab"]`, wantCollision: false},
+		{name: "excluded", declaration: `ignored = ["courses/*/lab"]`, wantCollision: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -32,9 +32,9 @@ func TestExcludedDirectoriesTakeNoPartInNameCollisions(t *testing.T) {
 				strings.Replace(frontmatterContract, "SCAN_DECLARATION", tt.declaration, 1))
 			write(t, root, "courses/C1/lab/main.go", "package main\n")
 			write(t, root, "courses/C2/lab/main.go", "package main\n")
-			write(t, root, "courses/C4/lab/L1/tpl/L10 Two pointers.md", "---\ntitle: Template\ntype: note\n---\n")
-			write(t, root, "courses/C4/modules/L10 Two pointers.md", "---\ntitle: Module\ntype: note\n---\n")
-			write(t, root, "Notes/Index.md", "---\ntitle: Index\ntype: note\n---\n\nSee [[L10 Two pointers]].\n")
+			write(t, root, "courses/C4/lab/L1/tpl/L10 Two pointers.md", "---\ntype: note\n---\n# Template\n")
+			write(t, root, "courses/C4/modules/L10 Two pointers.md", "---\ntype: note\n---\n# Module\n")
+			write(t, root, "Notes/Index.md", "---\ntype: note\n---\n# Index\n\nSee [[L10 Two pointers]].\n")
 
 			// The default report drops findings that touch nothing in the
 			// knowledge layer, and the colliding files are outside it, so the

@@ -1,10 +1,7 @@
 ---
-title: G02 channel 的交接
 type: lesson
-domain: go
 slug: go-channel-handoff
 level: fundamental
-topics: [Go, 並行, channel]
 created: 2026-09-22
 lang: zh-Hant
 ---

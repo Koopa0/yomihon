@@ -92,7 +92,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"is refused rather than judged: that ground is scanned, but nothing from it\n" +
 			"can be reported, and an empty answer would read as a clean verdict.\n" +
 			"\n" +
-			"When scan.knowledge_dirs names directories, the frontmatter schema rules\n" +
+			"When folders.checked names directories, the frontmatter schema rules\n" +
 			"judge those files; a file outside them is still scanned for links, but is\n" +
 			"not held to the schema. When the list is omitted or empty, every note is\n" +
 			"held to the schema.\n" +
@@ -119,7 +119,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"human summary when it is; --format decides instead of the terminal, and\n" +
 			"md falls back to the human view.\n" +
 			"\n" +
-			"When scan.knowledge_dirs names directories, only that layer is tallied.\n" +
+			"When folders.checked names directories, only that layer is tallied.\n" +
 			"A concept or map outside it cannot change a public concept's mount\n" +
 			"state. When the list is omitted or empty, the whole vault is counted.\n" +
 			"A withheld path is never reported.\n" +
@@ -500,7 +500,7 @@ func writeSweepFixture(t *testing.T, root string) {
 		"README.md":                           "# Sweep\n\nHome, linking to [[Alpha]].\n",
 		"Notes/alpha.md":                      "---\ntype: concept\naliases: [Alpha]\n---\n# Alpha\n\nAlpha links to [[Beta]] and mentions a tortoise.\n",
 		"Notes/beta.md":                       "---\ntype: concept\naliases: [Beta]\n---\n# Beta\n\nBeta body.\n",
-		"Maps/study.md":                       "---\ntype: study-path\ntitle: Study Path\n---\n# Study Path\n\n- [[Alpha]]\n- [[Beta]]\n",
+		"Maps/study.md":                       "---\ntype: study-path\n---\n# Study Path\n\n- [[Alpha]]\n- [[Beta]]\n",
 		"Makefile":                            "build:\n\tgo build ./...\n",
 		"Diagrams/pic.png":                    "\x89PNG\r\n\x1a\n and a few bytes more",
 		"System/reports/2026-09-02 review.md": "# Review\n\nThe week in the vault.\n",

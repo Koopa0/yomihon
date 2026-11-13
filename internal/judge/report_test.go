@@ -38,7 +38,7 @@ func TestReportGolden(t *testing.T) {
 			if err != nil {
 				t.Fatalf("schema.Load(%q): %v", tt.fixture, err)
 			}
-			roots := domainRoots(contract.Definition().Rules.DomainEqualsFolderUnder)
+			roots := domainRoots(contract.Domains().Roots())
 			if len(roots) == 0 {
 				t.Fatal("the report fixture declares no domain roots, so a grouping test over it would prove nothing")
 			}

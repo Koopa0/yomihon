@@ -35,33 +35,27 @@ rules and does not define new behavior.
 | `path.role_missing` | `yomihon` | [`internal/judge/pathrules.go`](../internal/judge/pathrules.go) |
 | `path.role_nested_primary` | `yomihon` | [`internal/judge/pathrules.go`](../internal/judge/pathrules.go) |
 | `path.role_on_entry` | `yomihon` | [`internal/judge/pathrules.go`](../internal/judge/pathrules.go) |
-| `provenance.unresolved` | `vault-schema.toml#supersession` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
+| `provenance.alias_resolved` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
 | `provenance.unresolved` | `yomihon` | [`internal/judge/graphrules.go`](../internal/judge/graphrules.go) |
 | `scan.skipped` | `yomihon` | [`internal/judge/skipped.go`](../internal/judge/skipped.go) |
 | `scan.unreadable` | `yomihon` | [`internal/judge/unreadable.go`](../internal/judge/unreadable.go) |
-| `schema.domain_folder` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
+| `schema.draft` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.enum` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.frontmatter` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.language` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
-| `schema.legacy_tag` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.navigation_unavailable` | `vault-schema.toml` | [`internal/judge/navigation.go`](../internal/judge/navigation.go) |
 | `schema.provenance` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
-| `schema.reference_nested_sequence` | `vault-schema.toml#supersession` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.reference_nested_sequence` | `yomihon` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.required` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
-| `schema.slug` | `vault-schema.toml#rules` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
-| `schema.status_unreachable` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
+| `schema.slug` | `vault-schema.toml#types` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.type_dependent` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.unknown_key` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
-| `schema.unmatched_knowledge_dir` | `vault-schema.toml#scan` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
-| `supersession.archived_navigation_target` | `vault-schema.toml#supersession` | [`internal/judge/supersession.go`](../internal/judge/supersession.go) |
-| `supersession.predecessor_not_archived` | `vault-schema.toml#supersession` | [`internal/judge/supersession.go`](../internal/judge/supersession.go) |
+| `schema.unmatched_knowledge_dir` | `vault-schema.toml#folders` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 
-`provenance.unresolved` cites `yomihon` for `based_on` and `related`, and
-`vault-schema.toml#supersession` for contract-configured replacement fields.
-If a configured field is also named `based_on` or `related`,
-`appendConfiguredReferences` preserves that field's `yomihon` authority.
-A RuleID prefix alone does not determine authority.
+`provenance.unresolved` cites `yomihon` for `based_on` and `related`.
+`provenance.alias_resolved` reports a reader's thought whose `based_on` reaches
+a note only through an alias. A RuleID prefix alone does not determine
+authority.
 
 `schema.reference_nested_sequence` uses that same reference-field selection
 and authority. It reports once per field when an item in a reference list is

@@ -18,14 +18,14 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// landingBody is the four-case note the lock names: a CJK sentence, a title
+// landingBody is the four-case note the lock names: a CJK sentence, a heading
 // the row can search, a phrase broken only by a wrap inside one paragraph,
 // the same two words parted by a paragraph boundary, and an earlier decoy
 // copy of the first of those words so a bare first-block directive would
 // land on the wrong sentence. A same-block `" second"` sits after, so a
 // one-character slip in the block-end test cannot hide behind the lock.
 const landingBody = "" +
-	"# 長篇觀察\n\n" +
+	"## 長篇觀察\n\n" +
 	"這是試讀用的導言。\n\n" +
 	"The decoy cobalt sits in the opening paragraph.\n\n" +
 	"The evidence records a bright\ncrimson heron near the tower.\n\n" +
@@ -141,7 +141,7 @@ func TestSearchLandingHoldsTheFourCases(t *testing.T) {
 			href:  notePath + "#:~:text=evidence%20records%20a-,bright%20crimson",
 		},
 		{
-			name:  "title",
+			name:  "heading",
 			query: "長篇觀察",
 			href:  notePath + "#:~:text=%E9%95%B7%E7%AF%87%E8%A7%80%E5%AF%9F,-%E9%80%99%E6%98%AF%E8%A9%A6%E8%AE%80%E7%94%A8%E7%9A%84%E5%B0%8E%E8%A8%80%E3%80%82",
 		},

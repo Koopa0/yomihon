@@ -375,7 +375,7 @@ func TestShowResolvesADecomposedPath(t *testing.T) {
 
 	root := t.TempDir()
 	writeVault(t, root)
-	body := "---\ntitle: Cafe path\ntype: study-path\ndomain: golang\n---\n\n" +
+	body := "---\ntype: study-path\n---\n\n# Cafe path\n\n" +
 		"## data | Data | 資料\n\n### text | Text | 文字 {sequence=primary}\n\n- [[Slices]]\n"
 	if err := os.WriteFile(filepath.Join(root, "Maps", composed), []byte(body), 0o600); err != nil {
 		t.Fatalf("write study-path: %v", err)

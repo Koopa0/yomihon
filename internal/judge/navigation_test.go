@@ -10,7 +10,7 @@ import (
 )
 
 // TestARefusedNavigationTableFailsTheGateOfTheRulesItSilenced is the lock on
-// the silence: a contract whose [navigation] table is refused used to skip
+// the silence: a contract whose type roles are refused used to skip
 // every course and gate nothing, so a run denying a course rule exited 0 with
 // the course never read.
 //
@@ -93,7 +93,7 @@ func TestTheNavigationFindingSurvivesEveryScope(t *testing.T) {
 }
 
 // TestNoNavigationFindingWhenTheTableIsUsable keeps the finding from being a
-// permanent fixture of every report: a contract whose table is read cleanly
+// permanent fixture of every report: a contract whose roles are read cleanly
 // never carries it.
 func TestNoNavigationFindingWhenTheTableIsUsable(t *testing.T) {
 	t.Parallel()
@@ -104,17 +104,17 @@ func TestNoNavigationFindingWhenTheTableIsUsable(t *testing.T) {
 	}
 	for i := range findings {
 		if findings[i].RuleID == navigationUnavailableRule {
-			t.Errorf("a usable [navigation] table drew %s", navigationUnavailableRule)
+			t.Errorf("usable type roles drew %s", navigationUnavailableRule)
 		}
 	}
 }
 
-// TestAContractWithoutANavigationTableIsReportedToo pins the other way the
-// roles go missing. A contract that exists and leaves the table out declared
-// nothing about which types are courses, and the course rules skip every note
-// just as they do for a refused one; the finding's sentence says "missing"
-// for this case, so the case has to draw it.
-func TestAContractWithoutANavigationTableIsReportedToo(t *testing.T) {
+// TestARoleTwoTypesClaimIsReportedToo pins the other way the roles go
+// unusable. A role only one type may hold, given to two, leaves no answer to
+// which of them is the lesson, so the roles are refused as a whole and the
+// course rules skip every note just as they do for a role nobody knows; the
+// case has to draw the same finding.
+func TestARoleTwoTypesClaimIsReportedToo(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -126,10 +126,10 @@ func TestAContractWithoutANavigationTableIsReportedToo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(contract) error = %v", err)
 	}
-	const table = "[navigation]\npath_types = [\"course\"]\nmap_types = [\"topic-map\"]\n"
-	text := strings.Replace(string(data), table, "", 1)
+	const anchor = "[types.concept]\n"
+	text := strings.Replace(string(data), anchor, "[types.lecture]\nrole = \"lesson\"\nfields = [\"slug\"]\n\n"+anchor, 1)
 	if text == string(data) {
-		t.Fatalf("fixture drift: the contract no longer carries %q", table)
+		t.Fatalf("fixture drift: the contract no longer carries %q", anchor)
 	}
 	if err = os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- contractPath is the fixed contract location under this test's own t.TempDir
 		t.Fatalf("WriteFile(contract) error = %v", err)
@@ -146,6 +146,6 @@ func TestAContractWithoutANavigationTableIsReportedToo(t *testing.T) {
 		}
 	}
 	if got != 1 {
-		t.Errorf("a contract with no [navigation] table drew %d %s findings, want 1", got, navigationUnavailableRule)
+		t.Errorf("a lesson role two types hold drew %d %s findings, want 1", got, navigationUnavailableRule)
 	}
 }

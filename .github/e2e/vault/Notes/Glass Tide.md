@@ -1,7 +1,7 @@
 ---
-title: Glass Tide
+
 type: concept
-domain: golang
+
 ---
 
 # Glass Tide

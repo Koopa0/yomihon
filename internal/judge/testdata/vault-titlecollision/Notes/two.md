@@ -1,5 +1,5 @@
 ---
-title: Shared Title
 ---
+# Shared Title
 
 The second holder of the shared title.

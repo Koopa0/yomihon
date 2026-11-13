@@ -1,8 +1,8 @@
 ---
-title: Reading Fidelity
 type: concept
-domain: golang
+
 ---
+# Reading Fidelity
 
 The reading-fidelity fixture: the three things a note can say that a browser
 has to receive intact — a footnote, a link written at a section, and code.

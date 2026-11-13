@@ -1,9 +1,9 @@
 package schema_test
 
 import (
+	"maps"
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/BurntSushi/toml"
@@ -19,128 +19,54 @@ func TestEnumValuesCompleteDeclaration(t *testing.T) {
 		t.Fatal(err)
 	}
 	var raw struct {
-		Enums  map[string]any `toml:"enums"`
-		Fields struct {
-			StatusGroup map[string][]string `toml:"status_group"`
-		} `toml:"fields"`
+		Enums map[string][]string `toml:"enums"`
 	}
-	if _, err := toml.Decode(string(data), &raw); err != nil {
+	meta, err := toml.Decode(string(data), &raw)
+	if err != nil {
 		t.Fatal(err)
 	}
+	if len(raw.Enums) == 0 {
+		t.Fatal("fixture declares no enums; the completeness claim would be vacuous")
+	}
+	// Every enum the fixture writes, plus the type list its tables make.
+	want := map[string][]string{}
+	maps.Copy(want, raw.Enums)
+	if _, written := raw.Enums["type"]; written {
+		t.Fatal("fixture writes enums.type; this test reads the type list off the tables alone")
+	}
+	for _, key := range meta.Keys() {
+		if len(key) == 2 && key[0] == "types" {
+			want["type"] = append(want["type"], key[1])
+		}
+	}
+
 	contract := loadFixture(t)
-	declared := make(map[string]bool)
-	for _, field := range reflect.VisibleFields(reflect.TypeFor[schema.Enums]()) {
-		if !field.IsExported() {
-			continue
-		}
-		name := field.Tag.Get("toml")
-		declared[name] = true
-		value, ok := raw.Enums[name]
-		if !ok {
-			t.Fatalf("fixture lacks enum declaration %q", name)
-		}
-		if name == "status" {
-			continue
-		}
-		if field.Type != reflect.TypeFor[[]string]() {
-			t.Fatalf("enum declaration %q is not a flat vocabulary", name)
-		}
-		want := enumDeclarationStrings(t, value)
-		for _, kind := range []string{"", "lesson", "unknown"} {
-			got := contract.EnumValues(name, kind)
-			if diff := cmp.Diff(want, got); diff != "" {
-				t.Errorf("EnumValues(%q, %q) (-want +got):\n%s", name, kind, diff)
-			}
-			if len(got) > 0 {
-				got[0] = "changed"
-			}
-			if diff := cmp.Diff(want, contract.EnumValues(name, kind)); diff != "" {
-				t.Errorf("EnumValues(%q, %q) changed after caller mutation (-want +got):\n%s", name, kind, diff)
-			}
-		}
-	}
-	for name := range raw.Enums {
-		if !declared[name] {
-			t.Errorf("fixture enum %q has no declaration", name)
-		}
-	}
-	groups, ok := raw.Enums["status"].(map[string]any)
-	if !ok {
-		t.Fatal("fixture status is not a grouped vocabulary")
-	}
-	exercised := make(map[string]bool)
-	kinds := append(enumDeclarationStrings(t, raw.Enums["type"]), "", "unknown")
-	for _, kind := range kinds {
-		group := "note"
-		for candidate, members := range raw.Fields.StatusGroup {
-			for _, member := range members {
-				if member == kind {
-					group = candidate
-				}
-			}
-		}
-		value, ok := groups[group]
-		if !ok {
-			t.Fatalf("fixture type %q names missing group %q", kind, group)
-		}
-		exercised[group] = true
-		want := enumDeclarationStrings(t, value)
-		got := contract.EnumValues("status", kind)
-		if diff := cmp.Diff(want, got); diff != "" {
-			t.Errorf("EnumValues(status, %q) (-want +got):\n%s", kind, diff)
+	for field, values := range want {
+		got := contract.EnumValues(field)
+		if diff := cmp.Diff(values, got); diff != "" {
+			t.Errorf("EnumValues(%q) (-want +got):\n%s", field, diff)
 		}
 		if len(got) > 0 {
 			got[0] = "changed"
 		}
-		if diff := cmp.Diff(want, contract.EnumValues("status", kind)); diff != "" {
-			t.Errorf("EnumValues(status, %q) changed after caller mutation (-want +got):\n%s", kind, diff)
+		if diff := cmp.Diff(values, contract.EnumValues(field)); diff != "" {
+			t.Errorf("EnumValues(%q) changed after caller mutation (-want +got):\n%s", field, diff)
 		}
 	}
-	for group := range groups {
-		if !exercised[group] {
-			t.Errorf("fixture status group %q was not exercised", group)
+	for _, enum := range contract.Definition().Enums {
+		if _, ok := want[enum.Field]; !ok {
+			t.Errorf("Definition() carries enum %q the fixture does not write", enum.Field)
 		}
 	}
-}
-
-func enumDeclarationStrings(t *testing.T, value any) []string {
-	t.Helper()
-	values, ok := value.([]any)
-	if !ok {
-		t.Fatalf("fixture vocabulary has type %T, want []any", value)
-	}
-	out := make([]string, len(values))
-	for i, value := range values {
-		word, ok := value.(string)
-		if !ok {
-			t.Fatalf("fixture vocabulary member has type %T, want string", value)
-		}
-		out[i] = word
-	}
-	return out
 }
 
 func TestEnumValuesAuthorityAndShape(t *testing.T) {
 	t.Parallel()
-	const declaration = `schema_version = "1"
+	const declaration = `schema_version = "2"
 [enums]
-type = ["article", "empty", "cafe\u0301"]
+type = ["article", "cafe\u0301"]
 domain = []
-source_kind = ["cafe\u0301", "Café"]
-[enums.status]
-note = ["cafe\u0301", "Café"]
-empty = []
-custom = ["custom-word"]
-[fields.status_group]
-empty = ["empty"]
-custom = ["cafe\u0301"]
-[rules]
-slug_pattern = "^[a-z]+$"
-[[lifecycle]]
-status = "cafe\u0301"
-applies_to = ["article"]
-from = []
-owner = []
+level = ["cafe\u0301", "Café"]
 `
 	path := filepath.Join(t.TempDir(), "contract.toml")
 	if err := os.WriteFile(path, []byte(declaration), 0o600); err != nil {
@@ -151,35 +77,27 @@ owner = []
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
-		name, field, kind string
-		want              []string
+		name, field string
+		want        []string
 	}{
-		{"empty flat", "domain", "article", []string{}},
-		{"absent flat", "level", "article", nil},
-		{"unknown field", "unknown", "article", nil},
-		{"empty status", "status", "empty", []string{}},
-		{"default status", "status", "article", []string{"café", "Café"}},
-		{"unknown type", "status", "unknown", []string{"café", "Café"}},
-		{"empty type", "status", "", []string{"café", "Café"}},
-		{"normalized type", "status", "cafe\u0301", []string{"custom-word"}},
-		{"distinct case type", "status", "CAFÉ", []string{"café", "Café"}},
-		{"normalized flat", "source_kind", "article", []string{"café", "Café"}},
+		{"declared types", "type", []string{"article", "café"}},
+		{"empty enum", "domain", []string{}},
+		{"absent enum", "lang", nil},
+		{"unknown field", "unknown", nil},
+		{"normalized values", "level", []string{"café", "Café"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			if diff := cmp.Diff(tc.want, contract.EnumValues(tc.field, tc.kind)); diff != "" {
-				t.Errorf("EnumValues(%q, %q) (-want +got):\n%s", tc.field, tc.kind, diff)
+			if diff := cmp.Diff(tc.want, contract.EnumValues(tc.field)); diff != "" {
+				t.Errorf("EnumValues(%q) (-want +got):\n%s", tc.field, diff)
 			}
 		})
 	}
 	for _, absent := range []*schema.Contract{nil, new(schema.Contract)} {
-		for _, field := range []string{"type", "status", "domain", "unknown"} {
-			if got := absent.EnumValues(field, "article"); got != nil {
-				t.Errorf("ungoverned EnumValues(%q, article) = %q, want nil", field, got)
+		for _, field := range []string{"type", "domain", "level", "unknown"} {
+			if got := absent.EnumValues(field); got != nil {
+				t.Errorf("ungoverned EnumValues(%q) = %q, want nil", field, got)
 			}
 		}
-	}
-	if contract.StatusGroup("unknown") != "" || contract.Statuses("unknown") != nil {
-		t.Error("judging fallback granted unknown type lifecycle authority")
 	}
 }

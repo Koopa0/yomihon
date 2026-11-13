@@ -129,17 +129,12 @@ var SearchEmptyLede = both(
 // rather than one a template happened to keep.
 var ResultAliasLabel = both("又稱 ", "also called ")
 
-// ResultTopicLabel introduces the subject a result answered to when it was
-// not in the title or the body. Without the word, a topic-only hit would sit
-// on the row with nothing the reader typed.
-var ResultTopicLabel = both("主題： ", "topic: ")
-
 // ResultTagLabel names the frontmatter tag that explains a tag-only result.
 var ResultTagLabel = both("標籤： ", "tag: ")
 
 // ResultSourceLabel names a hit whose deciding excerpt is fenced source
 // rather than a sentence the note wrote. The word sits on the row with
-// the alias and the topic, so the excerpt itself stays the fence's own
+// the alias, so the excerpt itself stays the fence's own
 // lines and MarkHits never sees a label yomihon wrote.
 var ResultSourceLabel = both("原始碼", "source")
 

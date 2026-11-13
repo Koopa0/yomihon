@@ -240,11 +240,10 @@ func TestTheListeningPageNamesALessonAsTheCoursePageDoes(t *testing.T) {
 		}
 	}
 	lesson := func(name, title string) {
-		head := "---\n"
+		head := "---\ntype: lesson\ncreated: 2026-06-01\n---\n\n"
 		if title != "" {
-			head += "title: \"" + title + "\"\n"
+			head += "# " + title + "\n\n"
 		}
-		head += "type: lesson\ndomain: golang\nstatus: ready\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n"
 		body := head + "<!-- read-aloud: ja -->\nいち。\n"
 		if err := os.WriteFile(filepath.Join(lessonDir, name+".md"), []byte(body), 0o600); err != nil {
 			t.Fatalf("write %s: %v", name, err)

@@ -92,17 +92,17 @@ func TestSearchHandler(t *testing.T) {
 func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
 	t.Parallel()
 
-	undeclaredPolicy := undeclaredArtifactPolicy(t)
+	escapingPolicy := escapingArtifactPolicy(t)
 	invalidPolicy := invalidArtifactPolicy(t)
-	incompletePolicy := incompleteArtifactPolicy(t)
+	blankPolicy := blankArtifactPolicy(t)
 	tests := []struct {
 		name       string
 		idx        *lexical.Index
 		diagnostic string
 	}{
-		{name: "undeclared", idx: lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, undeclaredPolicy), diagnostic: undeclaredPolicy.Diagnostic()},
+		{name: "escaping", idx: lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, escapingPolicy), diagnostic: escapingPolicy.Diagnostic()},
 		{name: "invalid", idx: lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, invalidPolicy), diagnostic: invalidPolicy.Diagnostic()},
-		{name: "incomplete", idx: lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, incompletePolicy), diagnostic: incompletePolicy.Diagnostic()},
+		{name: "blank", idx: lexical.NewIndex([]lexical.Document{{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"}}, blankPolicy), diagnostic: blankPolicy.Diagnostic()},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -296,7 +296,7 @@ func TestSearchResultsSurviveFoldLengtheningNote(t *testing.T) {
 func TestSearchResultsFragmentMetadataDiagnostic(t *testing.T) {
 	t.Parallel()
 
-	policy := undeclaredArtifactPolicy(t)
+	policy := escapingArtifactPolicy(t)
 	idx := lexical.NewIndex([]lexical.Document{
 		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept"},
 	}, policy)
@@ -406,7 +406,7 @@ func TestSearchHandlerLogsExcludeRawQuery(t *testing.T) {
 				delete(gotAttrs, "msg")
 				wantAttrs := map[string]any{
 					"error_type":  "*errors.errorString",
-					"filter_keys": []any{"type", "draft", "domain", "topic", "slug", "folder"},
+					"filter_keys": []any{"type", "draft", "domain", "slug", "folder"},
 					"query_bytes": float64(len(sentinel)),
 				}
 				if diff := cmp.Diff(wantAttrs, gotAttrs); diff != "" {

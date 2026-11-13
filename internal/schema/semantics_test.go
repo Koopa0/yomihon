@@ -8,86 +8,99 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-const semanticallyValidContract = `schema_version = "1"
-aligned_with = "human-doctrine.md"
-generated_at_must_match = true
+const semanticallyValidContract = `schema_version = "2"
+
+[folders]
+checked = ["Writing"]
+ignored = []
+templates = []
+domain_from = ["Writing"]
+skipped_files = ["README.md"]
 
 [enums]
-type = ["inbox", "lesson", "concept", "system"]
+type = ["inbox"]
 domain = ["golang"]
-source_kind = ["book"]
-source_provider = ["publisher"]
 level = ["beginner"]
-map_kind = ["topic"]
-
-[enums.status]
-note = ["draft", "archived"]
-lesson = ["draft", "archived"]
-system = ["active", "draft", "archived"]
 
 [fields]
-required = ["title", "type"]
-required_inbox = ["title"]
-domain_exempt_types = ["system"]
-known = ["title", "type", "based_on", "source_locator", "related"]
-lesson_only = ["slug", "evolution_predecessor", "evolution_successors"]
+common = ["type", "aliases", "lang", "created"]
+required = ["type"]
 
-[fields.status_group]
-lesson = ["lesson"]
-system = ["system"]
-
-[rules]
-domain_equals_folder_under = ["Writing"]
-concept_requires_provenance = ["based_on", "source_locator"]
+[types.lesson]
+role = "lesson"
+required = ["slug"]
+fields = ["slug", "level", "prerequisites"]
 slug_pattern = "^[a-z]+$"
 
-[scan]
-knowledge_dirs = ["Writing"]
-skip_basenames = ["README.md"]
+[types.concept]
 
-[navigation]
-path_types = []
-map_types = []
+[types.thought]
+role = "thought"
+fields = ["based_on"]
 
-[artifacts]
-non_instance_dirs = []
+[rules]
+concept_requires_provenance = ["based_on"]
 
 [privacy]
 never_egress_dirs = []
-
-[supersession]
-predecessor_field = "evolution_predecessor"
-successor_field = "evolution_successors"
-general_link_field = "related"
-archived_status = "archived"
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "archived"
-applies_to = ["*"]
-from = ["*"]
-owner = []
 `
+
+// decodeError is what decodeContract says about data, empty when it loads.
+func decodeError(t *testing.T, data string) string {
+	t.Helper()
+	_, err := decodeContract([]byte(data), policySource{})
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+type semanticCase struct {
+	name    string
+	from    string
+	to      string
+	wantErr string
+}
+
+func runSemanticCases(t *testing.T, tests []semanticCase) {
+	t.Helper()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			data := replaceContractText(t, semanticallyValidContract, tt.from, tt.to)
+			got := decodeError(t, data)
+			if tt.wantErr == "" {
+				if got != "" {
+					t.Fatalf("decodeContract() error = %q, want nil", got)
+				}
+				return
+			}
+			if got == "" {
+				t.Fatalf("decodeContract() error = nil, want substring %q", tt.wantErr)
+			}
+			if !strings.Contains(got, tt.wantErr) {
+				t.Errorf("decodeContract() error = %q, want substring %q", got, tt.wantErr)
+			}
+		})
+	}
+}
 
 func TestCoreSemanticsEnums(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		from    string
-		to      string
-		wantErr string
-	}{
+	runSemanticCases(t, []semanticCase{
 		{
 			name:    "type empty element",
-			from:    `type = ["inbox", "lesson", "concept", "system"]`,
-			to:      `type = ["inbox", "", "concept", "system"]`,
-			wantErr: "enums.type: empty value",
+			from:    `type = ["inbox"]`,
+			to:      `type = ["inbox", ""]`,
+			wantErr: "types: empty type name",
+		},
+		{
+			name:    "type spelled twice once the words are folded",
+			from:    `type = ["inbox"]`,
+			to:      "type = [\"caf\u00e9\", \"cafe\u0301\"]",
+			wantErr: "types: duplicate type \"caf\u00e9\"",
 		},
 		{
 			name:    "domain duplicate",
@@ -96,416 +109,294 @@ func TestCoreSemanticsEnums(t *testing.T) {
 			wantErr: `enums.domain: duplicate value "golang"`,
 		},
 		{
-			name:    "source kind empty element",
-			from:    `source_kind = ["book"]`,
-			to:      `source_kind = [""]`,
-			wantErr: "enums.source_kind: empty value",
-		},
-		{
-			name:    "source provider duplicate",
-			from:    `source_provider = ["publisher"]`,
-			to:      `source_provider = ["publisher", "publisher"]`,
-			wantErr: `enums.source_provider: duplicate value "publisher"`,
-		},
-		{
 			name:    "level empty element",
 			from:    `level = ["beginner"]`,
 			to:      `level = [""]`,
 			wantErr: "enums.level: empty value",
 		},
 		{
-			name:    "map kind duplicate",
-			from:    `map_kind = ["topic"]`,
-			to:      `map_kind = ["topic", "topic"]`,
-			wantErr: `enums.map_kind: duplicate value "topic"`,
+			name:    "level duplicate once the words are folded",
+			from:    `level = ["beginner"]`,
+			to:      "level = [\"caf\u00e9\", \"cafe\u0301\"]",
+			wantErr: "enums.level: duplicate value \"caf\u00e9\"",
 		},
 		{
-			name:    "status empty element",
-			from:    `note = ["draft", "archived"]`,
-			to:      `note = ["draft", ""]`,
-			wantErr: `enums.status."note": empty value`,
+			name: "enum errors are sorted",
+			from: `level = ["beginner"]`,
+			to: `level = ["duplicate", "duplicate"]
+aliases = ["duplicate", "duplicate"]`,
+			wantErr: `enums.aliases: duplicate value "duplicate"`,
 		},
-		{
-			name:    "status duplicate",
-			from:    `note = ["draft", "archived"]`,
-			to:      `note = ["draft", "draft"]`,
-			wantErr: `enums.status."note": duplicate value "draft"`,
-		},
-		{
-			name:    "empty status group name",
-			from:    `system = ["active", "draft", "archived"]`,
-			to:      `"" = ["active", "draft", "archived"]`,
-			wantErr: "enums.status: empty group name",
-		},
-		{
-			name: "status map errors are sorted",
-			from: `[enums.status]
-note = ["draft", "archived"]
-lesson = ["draft", "archived"]
-system = ["active", "draft", "archived"]`,
-			to: `[enums.status]
-zeta = ["duplicate", "duplicate"]
-note = ["draft", "archived"]
-lesson = ["draft", "archived"]
-alpha = ["duplicate", "duplicate"]
-system = ["active", "draft", "archived"]`,
-			wantErr: `enums.status."alpha": duplicate value "duplicate"`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			data := replaceContractText(t, semanticallyValidContract, tt.from, tt.to)
-			_, err := decodeContract([]byte(data), policySource{})
-			if err == nil {
-				t.Fatalf("decodeContract() error = nil, want substring %q", tt.wantErr)
-			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("decodeContract() error = %q, want substring %q", err, tt.wantErr)
-			}
-		})
-	}
+	})
 }
 
 func TestCoreSemanticsFields(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		from    string
-		to      string
-		wantErr string
-	}{
+	runSemanticCases(t, []semanticCase{
+		{
+			name:    "common empty element",
+			from:    `common = ["type", "aliases", "lang", "created"]`,
+			to:      `common = ["type", ""]`,
+			wantErr: "fields.common: empty value",
+		},
+		{
+			name:    "common duplicate",
+			from:    `common = ["type", "aliases", "lang", "created"]`,
+			to:      `common = ["type", "lang", "lang"]`,
+			wantErr: `fields.common: duplicate value "lang"`,
+		},
 		{
 			name:    "required empty element",
-			from:    `required = ["title", "type"]`,
-			to:      `required = ["title", ""]`,
-			wantErr: "fields.required: empty value",
+			from:    `required = ["type"]`,
+			to:      `required = ["type", ""]`,
+			wantErr: `fields.required: empty value`,
 		},
 		{
 			name:    "required duplicate",
-			from:    `required = ["title", "type"]`,
-			to:      `required = ["title", "title"]`,
-			wantErr: `fields.required: duplicate value "title"`,
+			from:    `required = ["type"]`,
+			to:      `required = ["type", "type"]`,
+			wantErr: `fields.required: duplicate value "type"`,
 		},
 		{
-			name:    "required inbox empty element",
-			from:    `required_inbox = ["title"]`,
-			to:      `required_inbox = [""]`,
-			wantErr: "fields.required_inbox: empty value",
+			name:    "required outside common",
+			from:    `required = ["type"]`,
+			to:      `required = ["type", "slug"]`,
+			wantErr: `fields.required: "slug" is not listed in fields.common`,
 		},
 		{
-			name:    "required inbox duplicate",
-			from:    `required_inbox = ["title"]`,
-			to:      `required_inbox = ["title", "title"]`,
-			wantErr: `fields.required_inbox: duplicate value "title"`,
+			name:    "type fields duplicate",
+			from:    `fields = ["slug", "level", "prerequisites"]`,
+			to:      `fields = ["slug", "level", "level"]`,
+			wantErr: `types.lesson.fields: duplicate value "level"`,
 		},
 		{
-			name:    "known empty element",
-			from:    `known = ["title", "type", "based_on", "source_locator", "related"]`,
-			to:      `known = ["title", "type", "based_on", "", "related"]`,
-			wantErr: "fields.known: empty value",
+			name:    "type required duplicate",
+			from:    `required = ["slug"]`,
+			to:      `required = ["slug", "slug"]`,
+			wantErr: `types.lesson.required: duplicate value "slug"`,
 		},
 		{
-			name:    "known duplicate",
-			from:    `known = ["title", "type", "based_on", "source_locator", "related"]`,
-			to:      `known = ["title", "type", "based_on", "based_on", "related"]`,
-			wantErr: `fields.known: duplicate value "based_on"`,
+			name:    "type required outside its fields",
+			from:    `required = ["slug"]`,
+			to:      `required = ["slug", "based_on"]`,
+			wantErr: `types.lesson.required: "based_on" is not listed in types.lesson.fields`,
 		},
 		{
-			name:    "lesson only empty element",
-			from:    `lesson_only = ["slug", "evolution_predecessor", "evolution_successors"]`,
-			to:      `lesson_only = ["slug", "", "evolution_successors"]`,
-			wantErr: "fields.lesson_only: empty value",
+			name:    "type required from common",
+			from:    `required = ["slug"]`,
+			to:      `required = ["slug", "created"]`,
+			wantErr: "",
 		},
-		{
-			name:    "lesson only duplicate",
-			from:    `lesson_only = ["slug", "evolution_predecessor", "evolution_successors"]`,
-			to:      `lesson_only = ["slug", "slug", "evolution_successors"]`,
-			wantErr: `fields.lesson_only: duplicate value "slug"`,
-		},
-		{
-			name:    "domain exempt empty element",
-			from:    `domain_exempt_types = ["system"]`,
-			to:      `domain_exempt_types = [""]`,
-			wantErr: "fields.domain_exempt_types: empty value",
-		},
-		{
-			name:    "domain exempt duplicate",
-			from:    `domain_exempt_types = ["system"]`,
-			to:      `domain_exempt_types = ["system", "system"]`,
-			wantErr: `fields.domain_exempt_types: duplicate value "system"`,
-		},
-		{
-			name:    "required outside known",
-			from:    `required = ["title", "type"]`,
-			to:      `required = ["title", "missing"]`,
-			wantErr: `fields.required: value "missing" is not listed in fields.known`,
-		},
-		{
-			name:    "required inbox outside known",
-			from:    `required_inbox = ["title"]`,
-			to:      `required_inbox = ["missing"]`,
-			wantErr: `fields.required_inbox: value "missing" is not listed in fields.known`,
-		},
-		{
-			name:    "known overlaps lesson only",
-			from:    `known = ["title", "type", "based_on", "source_locator", "related"]`,
-			to:      `known = ["title", "type", "based_on", "source_locator", "related", "slug"]`,
-			wantErr: `fields.known and fields.lesson_only overlap at "slug"`,
-		},
-		{
-			name:    "domain exempt outside type enum",
-			from:    `domain_exempt_types = ["system"]`,
-			to:      `domain_exempt_types = ["missing"]`,
-			wantErr: `fields.domain_exempt_types: value "missing" is not listed in enums.type`,
-		},
-		{
-			name:    "required inbox without inbox type",
-			from:    `type = ["inbox", "lesson", "concept", "system"]`,
-			to:      `type = ["lesson", "concept", "system"]`,
-			wantErr: `fields.required_inbox requires enums.type to contain "inbox"`,
-		},
-		{
-			name:    "lesson only without lesson type",
-			from:    `type = ["inbox", "lesson", "concept", "system"]`,
-			to:      `type = ["inbox", "concept", "system"]`,
-			wantErr: `fields.lesson_only requires enums.type to contain "lesson"`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+	})
+}
 
-			data := replaceContractText(t, semanticallyValidContract, tt.from, tt.to)
-			_, err := decodeContract([]byte(data), policySource{})
-			if err == nil {
-				t.Fatalf("decodeContract() error = nil, want substring %q", tt.wantErr)
-			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("decodeContract() error = %q, want substring %q", err, tt.wantErr)
-			}
+// TestTheFieldListIsClosed holds the closed list where a contract writes it: a
+// field yomihon neither defines nor reserves for Obsidian is refused wherever
+// the contract lists it, and the two derived names are refused like any other.
+func TestTheFieldListIsClosed(t *testing.T) {
+	t.Parallel()
+
+	const commonLine = `common = ["type", "aliases", "lang", "created"]`
+	const lessonFields = `fields = ["slug", "level", "prerequisites"]`
+	var tests []semanticCase
+	for _, field := range []string{"title", "domain", "status", "updated", "replaces", "topics", "source_kind"} {
+		tests = append(tests,
+			semanticCase{
+				name:    field + " in common",
+				from:    commonLine,
+				to:      `common = ["type", "aliases", "lang", "created", "` + field + `"]`,
+				wantErr: `fields.common: "` + field + `" is not a field yomihon defines`,
+			},
+			semanticCase{
+				name:    field + " in a type",
+				from:    lessonFields,
+				to:      `fields = ["slug", "level", "prerequisites", "` + field + `"]`,
+				wantErr: `types.lesson.fields: "` + field + `" is not a field yomihon defines`,
+			},
+		)
+	}
+	for _, field := range []string{"tags", "aliases", "cssclasses", "draft", "based_on", "verified_on", "verified_with"} {
+		tests = append(tests, semanticCase{
+			name: field + " is a field a contract may list",
+			from: lessonFields,
+			to:   `fields = ["slug", "level", "prerequisites", "` + field + `"]`,
 		})
+	}
+	runSemanticCases(t, tests)
+}
+
+// TestTheProvenanceDoorCannotReopenTheClosedList holds the one list a concept
+// may borrow field names from: it names fields beside the ones yomihon
+// defines, and it cannot name one yomihon builds in, derives or has removed,
+// which would let a concept write it with no finding.
+func TestTheProvenanceDoorCannotReopenTheClosedList(t *testing.T) {
+	t.Parallel()
+
+	const provenance = `concept_requires_provenance = ["based_on"]`
+	var tests []semanticCase
+	shut := []string{
+		"title", "domain",
+		"status", "replaces", "supersedes", "superseded_by", "archived", "published", "topics", "updated",
+		"source_kind", "source_provider", "map_kind",
+		"type", "draft", "tags", "aliases", "cssclasses",
+	}
+	for _, field := range shut {
+		tests = append(tests, semanticCase{
+			name:    field + " cannot be named",
+			from:    provenance,
+			to:      `concept_requires_provenance = ["based_on", "` + field + `"]`,
+			wantErr: `rules.concept_requires_provenance: "` + field + `" is a field yomihon builds in, derives or has removed`,
+		})
+	}
+	for _, field := range []string{"source_locator", "page", "level", "verified_on"} {
+		tests = append(tests, semanticCase{
+			name: field + " can be named",
+			from: provenance,
+			to:   `concept_requires_provenance = ["based_on", "` + field + `"]`,
+		})
+	}
+	runSemanticCases(t, tests)
+
+	withoutConcept := replaceContractText(t, semanticallyValidContract, "[types.concept]\n\n", "")
+	withoutConcept = replaceContractText(t, withoutConcept, provenance, `concept_requires_provenance = ["based_on", "status"]`)
+	want := `rules.concept_requires_provenance: "status" is a field yomihon builds in, derives or has removed`
+	if got := decodeError(t, withoutConcept); !strings.Contains(got, want) {
+		t.Errorf("decodeContract() with no concept type error = %q, want substring %q", got, want)
 	}
 }
 
-func TestCoreSemanticsStatusGroups(t *testing.T) {
+func TestTheRolesNeedTheirFields(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		from    string
-		to      string
-		wantErr string
-	}{
+	runSemanticCases(t, []semanticCase{
 		{
-			name:    "missing default note group",
-			from:    "note = [\"draft\", \"archived\"]\n",
-			to:      "",
-			wantErr: `enums.status: missing required group "note"`,
+			name: "a lesson type without slug",
+			from: `required = ["slug"]
+fields = ["slug", "level", "prerequisites"]
+slug_pattern = "^[a-z]+$"`,
+			to:      `fields = ["level", "prerequisites"]`,
+			wantErr: "types.lesson: the lesson role needs slug in types.lesson.fields",
 		},
 		{
-			name:    "empty mapping group name",
-			from:    `system = ["system"]`,
-			to:      `"" = ["system"]`,
-			wantErr: "fields.status_group: empty group name",
+			name:    "a thought type without based_on",
+			from:    "role = \"thought\"\nfields = [\"based_on\"]",
+			to:      "role = \"thought\"\nfields = [\"lang\"]",
+			wantErr: "types.thought: the thought role needs based_on in types.thought.fields",
 		},
 		{
-			name:    "mapping group is not a status enum",
-			from:    `system = ["system"]`,
-			to:      `other = ["system"]`,
-			wantErr: `fields.status_group: unknown status group "other"`,
+			name:    "a thought type given based_on by fields.common",
+			from:    "common = [\"type\", \"aliases\", \"lang\", \"created\"]",
+			to:      "common = [\"type\", \"aliases\", \"lang\", \"created\", \"based_on\"]",
+			wantErr: "",
 		},
 		{
-			name:    "mapped list has empty element",
-			from:    `lesson = ["lesson"]`,
-			to:      `lesson = [""]`,
-			wantErr: `fields.status_group."lesson": empty value`,
+			name: "a slug pattern on a type without slug",
+			from: "[types.concept]\n",
+			to: `[types.concept]
+slug_pattern = "^[a-z]+$"
+`,
+			wantErr: "types.concept.slug_pattern: the type does not list slug in fields",
 		},
 		{
-			name:    "mapped list has duplicate",
-			from:    `lesson = ["lesson"]`,
-			to:      `lesson = ["lesson", "lesson"]`,
-			wantErr: `fields.status_group."lesson": duplicate value "lesson"`,
+			name:    "an invalid slug pattern",
+			from:    `slug_pattern = "^[a-z]+$"`,
+			to:      `slug_pattern = "["`,
+			wantErr: "types.lesson.slug_pattern: invalid regular expression",
 		},
-		{
-			name:    "mapped type is unknown",
-			from:    `lesson = ["lesson"]`,
-			to:      `lesson = ["missing"]`,
-			wantErr: `fields.status_group."lesson": value "missing" is not listed in enums.type`,
-		},
-		{
-			name:    "type is assigned to two groups",
-			from:    `system = ["system"]`,
-			to:      `system = ["system", "lesson"]`,
-			wantErr: `fields.status_group: type "lesson" is assigned to both "lesson" and "system"`,
-		},
-		{
-			name: "map errors are sorted",
-			from: `[fields.status_group]
-lesson = ["lesson"]
-system = ["system"]`,
-			to: `[fields.status_group]
-zeta = ["system"]
-lesson = ["lesson"]
-alpha = ["system"]
-system = ["system"]`,
-			wantErr: `fields.status_group: unknown status group "alpha"`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			data := replaceContractText(t, semanticallyValidContract, tt.from, tt.to)
-			_, err := decodeContract([]byte(data), policySource{})
-			if err == nil {
-				t.Fatalf("decodeContract() error = nil, want substring %q", tt.wantErr)
-			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("decodeContract() error = %q, want substring %q", err, tt.wantErr)
-			}
-		})
-	}
+	})
 }
 
 func TestCoreSemanticsRules(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		from    string
-		to      string
-		wantErr string
-	}{
+	const provenance = `concept_requires_provenance = ["based_on"]`
+	runSemanticCases(t, []semanticCase{
 		{
 			name:    "domain folder empty element",
-			from:    `domain_equals_folder_under = ["Writing"]`,
-			to:      `domain_equals_folder_under = [""]`,
-			wantErr: "rules.domain_equals_folder_under: empty value",
+			from:    `domain_from = ["Writing"]`,
+			to:      `domain_from = [""]`,
+			wantErr: "folders.domain_from: empty value",
 		},
 		{
 			name:    "domain folder duplicate",
-			from:    `domain_equals_folder_under = ["Writing"]`,
-			to:      `domain_equals_folder_under = ["Writing", "Writing"]`,
-			wantErr: `rules.domain_equals_folder_under: duplicate value "Writing"`,
+			from:    `domain_from = ["Writing"]`,
+			to:      `domain_from = ["Writing", "Writing"]`,
+			wantErr: `folders.domain_from: duplicate value "Writing"`,
 		},
 		{
 			name:    "domain folder has backslash",
-			from:    `domain_equals_folder_under = ["Writing"]`,
-			to:      `domain_equals_folder_under = ["Writing\\notes"]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe relative directory path "Writing\\notes"`,
+			from:    `domain_from = ["Writing"]`,
+			to:      `domain_from = ["Writing\\notes"]`,
+			wantErr: `folders.domain_from: unsafe relative directory path "Writing\\notes"`,
 		},
 		{
 			name:    "domain folder is current directory",
-			from:    `domain_equals_folder_under = ["Writing"]`,
-			to:      `domain_equals_folder_under = ["."]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe relative directory path "."`,
+			from:    `domain_from = ["Writing"]`,
+			to:      `domain_from = ["."]`,
+			wantErr: `folders.domain_from: unsafe relative directory path "."`,
 		},
 		{
 			name:    "domain folder is parent directory",
-			from:    `domain_equals_folder_under = ["Writing"]`,
-			to:      `domain_equals_folder_under = [".."]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe relative directory path ".."`,
+			from:    `domain_from = ["Writing"]`,
+			to:      `domain_from = [".."]`,
+			wantErr: `folders.domain_from: unsafe relative directory path ".."`,
 		},
 		{
 			name:    "domain folder is absolute",
-			from:    `domain_equals_folder_under = ["Writing"]`,
-			to:      `domain_equals_folder_under = ["/Writing"]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe relative directory path "/Writing"`,
+			from:    `domain_from = ["Writing"]`,
+			to:      `domain_from = ["/Writing"]`,
+			wantErr: `folders.domain_from: unsafe relative directory path "/Writing"`,
 		},
 		{
 			name:    "domain folder contains NUL",
-			from:    `domain_equals_folder_under = ["Writing"]`,
-			to:      `domain_equals_folder_under = ["\u0000"]`,
-			wantErr: `rules.domain_equals_folder_under: unsafe relative directory path "\x00"`,
+			from:    `domain_from = ["Writing"]`,
+			to:      `domain_from = ["\u0000"]`,
+			wantErr: `folders.domain_from: unsafe relative directory path "\x00"`,
 		},
 		{
 			name:    "concept provenance empty element",
-			from:    `concept_requires_provenance = ["based_on", "source_locator"]`,
+			from:    provenance,
 			to:      `concept_requires_provenance = ["based_on", ""]`,
 			wantErr: "rules.concept_requires_provenance: empty value",
 		},
 		{
 			name:    "concept provenance duplicate",
-			from:    `concept_requires_provenance = ["based_on", "source_locator"]`,
+			from:    provenance,
 			to:      `concept_requires_provenance = ["based_on", "based_on"]`,
 			wantErr: `rules.concept_requires_provenance: duplicate value "based_on"`,
 		},
 		{
-			name:    "concept provenance unknown field",
-			from:    `concept_requires_provenance = ["based_on", "source_locator"]`,
-			to:      `concept_requires_provenance = ["based_on", "missing"]`,
-			wantErr: `rules.concept_requires_provenance: value "missing" is not listed in fields.known`,
-		},
-		{
-			name:    "concept provenance lesson field",
-			from:    `concept_requires_provenance = ["based_on", "source_locator"]`,
-			to:      `concept_requires_provenance = ["based_on", "slug"]`,
-			wantErr: `rules.concept_requires_provenance: value "slug" is listed in fields.lesson_only`,
-		},
-		{
 			name:    "concept type without provenance",
-			from:    `concept_requires_provenance = ["based_on", "source_locator"]`,
+			from:    provenance,
 			to:      `concept_requires_provenance = []`,
-			wantErr: `rules.concept_requires_provenance must not be empty when enums.type contains "concept"`,
+			wantErr: `rules.concept_requires_provenance must not be empty when the types include "concept"`,
 		},
 		{
-			name:    "lesson type without slug pattern",
-			from:    `slug_pattern = "^[a-z]+$"`,
-			to:      `slug_pattern = ""`,
-			wantErr: `rules.slug_pattern must not be empty when enums.type contains "lesson"`,
-		},
-		{
-			name:    "lesson type with invalid slug pattern",
-			from:    `slug_pattern = "^[a-z]+$"`,
-			to:      `slug_pattern = "["`,
-			wantErr: "rules.slug_pattern: invalid regular expression",
-		},
-		{
-			name: "planned gap marks empty element",
-			from: `slug_pattern = "^[a-z]+$"`,
-			to: `slug_pattern = "^[a-z]+$"
-planned_gap_marks = [""]`,
+			name:    "planned gap marks empty element",
+			from:    provenance,
+			to:      provenance + "\nplanned_gap_marks = [\"\"]",
 			wantErr: "rules.planned_gap_marks: empty value",
 		},
 		{
-			name: "planned gap marks duplicate",
-			from: `slug_pattern = "^[a-z]+$"`,
-			to: `slug_pattern = "^[a-z]+$"
-planned_gap_marks = ["Gaps", "Gaps"]`,
+			name:    "planned gap marks duplicate",
+			from:    provenance,
+			to:      provenance + "\nplanned_gap_marks = [\"Gaps\", \"Gaps\"]",
 			wantErr: `rules.planned_gap_marks: duplicate value "Gaps"`,
 		},
 		{
-			name: "planned inline marks empty element",
-			from: `slug_pattern = "^[a-z]+$"`,
-			to: `slug_pattern = "^[a-z]+$"
-planned_inline_marks = [""]`,
+			name:    "planned inline marks empty element",
+			from:    provenance,
+			to:      provenance + "\nplanned_inline_marks = [\"\"]",
 			wantErr: "rules.planned_inline_marks: empty value",
 		},
 		{
-			name: "planned inline marks duplicate",
-			from: `slug_pattern = "^[a-z]+$"`,
-			to: `slug_pattern = "^[a-z]+$"
-planned_inline_marks = ["todo", "todo"]`,
+			name:    "planned inline marks duplicate",
+			from:    provenance,
+			to:      provenance + "\nplanned_inline_marks = [\"todo\", \"todo\"]",
 			wantErr: `rules.planned_inline_marks: duplicate value "todo"`,
 		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			data := replaceContractText(t, semanticallyValidContract, tt.from, tt.to)
-			_, err := decodeContract([]byte(data), policySource{})
-			if err == nil {
-				t.Fatalf("decodeContract() error = nil, want substring %q", tt.wantErr)
-			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("decodeContract() error = %q, want substring %q", err, tt.wantErr)
-			}
-		})
-	}
+	})
 }
 
 // TestPlannedMarksAreLoadedFromTheContract holds the loader polarity: a
@@ -545,9 +436,10 @@ planned_inline_marks = []`,
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			const provenance = `concept_requires_provenance = ["based_on"]`
 			data := semanticallyValidContract
 			if tt.extra != "" {
-				data = replaceContractText(t, data, `slug_pattern = "^[a-z]+$"`, `slug_pattern = "^[a-z]+$"`+tt.extra)
+				data = replaceContractText(t, data, provenance, provenance+tt.extra)
 			}
 			got, err := decodeContract([]byte(data), policySource{})
 			if err != nil {
@@ -564,217 +456,84 @@ planned_inline_marks = []`,
 	}
 }
 
-func TestCoreSemanticsScan(t *testing.T) {
+func TestCoreSemanticsFolders(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name    string
-		from    string
-		to      string
-		wantErr string
-	}{
-		{
-			name:    "knowledge directory empty element",
-			from:    `knowledge_dirs = ["Writing"]`,
-			to:      `knowledge_dirs = [""]`,
-			wantErr: "scan.knowledge_dirs: empty value",
-		},
-		{
-			name:    "knowledge directory duplicate",
-			from:    `knowledge_dirs = ["Writing"]`,
-			to:      `knowledge_dirs = ["Writing", "Writing"]`,
-			wantErr: `scan.knowledge_dirs: duplicate value "Writing"`,
-		},
-		{
-			name:    "knowledge directory has slash",
-			from:    `knowledge_dirs = ["Writing"]`,
-			to:      `knowledge_dirs = ["Writing/notes"]`,
-			wantErr: `scan.knowledge_dirs: unsafe top-level component "Writing/notes"`,
-		},
-		{
-			name:    "knowledge directory has backslash",
-			from:    `knowledge_dirs = ["Writing"]`,
-			to:      `knowledge_dirs = ["Writing\\notes"]`,
-			wantErr: `scan.knowledge_dirs: unsafe top-level component "Writing\\notes"`,
-		},
-		{
-			name:    "knowledge directory is current directory",
-			from:    `knowledge_dirs = ["Writing"]`,
-			to:      `knowledge_dirs = ["."]`,
-			wantErr: `scan.knowledge_dirs: unsafe top-level component "."`,
-		},
-		{
-			name:    "knowledge directory is parent directory",
-			from:    `knowledge_dirs = ["Writing"]`,
-			to:      `knowledge_dirs = [".."]`,
-			wantErr: `scan.knowledge_dirs: unsafe top-level component ".."`,
-		},
-		{
-			name:    "knowledge directory is absolute",
-			from:    `knowledge_dirs = ["Writing"]`,
-			to:      `knowledge_dirs = ["/Writing"]`,
-			wantErr: `scan.knowledge_dirs: unsafe top-level component "/Writing"`,
-		},
-		{
-			name:    "knowledge directory contains NUL",
-			from:    `knowledge_dirs = ["Writing"]`,
-			to:      `knowledge_dirs = ["\u0000"]`,
-			wantErr: `scan.knowledge_dirs: unsafe top-level component "\x00"`,
-		},
-		{
-			name:    "skip basename empty element",
-			from:    `skip_basenames = ["README.md"]`,
-			to:      `skip_basenames = [""]`,
-			wantErr: "scan.skip_basenames: empty value",
-		},
-		{
-			name:    "skip basename duplicate",
-			from:    `skip_basenames = ["README.md"]`,
-			to:      `skip_basenames = ["README.md", "README.md"]`,
-			wantErr: `scan.skip_basenames: duplicate value "README.md"`,
-		},
-		{
-			name:    "skip basename has slash",
-			from:    `skip_basenames = ["README.md"]`,
-			to:      `skip_basenames = ["System/README.md"]`,
-			wantErr: `scan.skip_basenames: invalid basename "System/README.md"`,
-		},
-		{
-			name:    "skip basename has backslash",
-			from:    `skip_basenames = ["README.md"]`,
-			to:      `skip_basenames = ["System\\README.md"]`,
-			wantErr: `scan.skip_basenames: invalid basename "System\\README.md"`,
-		},
-		{
-			name:    "skip basename is current directory",
-			from:    `skip_basenames = ["README.md"]`,
-			to:      `skip_basenames = ["."]`,
-			wantErr: `scan.skip_basenames: invalid basename "."`,
-		},
-		{
-			name:    "skip basename is parent directory",
-			from:    `skip_basenames = ["README.md"]`,
-			to:      `skip_basenames = [".."]`,
-			wantErr: `scan.skip_basenames: invalid basename ".."`,
-		},
-		{
-			name:    "skip basename contains NUL",
-			from:    `skip_basenames = ["README.md"]`,
-			to:      `skip_basenames = ["\u0000"]`,
-			wantErr: `scan.skip_basenames: invalid basename "\x00"`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			data := replaceContractText(t, semanticallyValidContract, tt.from, tt.to)
-			_, err := decodeContract([]byte(data), policySource{})
-			if err == nil {
-				t.Fatalf("decodeContract() error = nil, want substring %q", tt.wantErr)
-			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("decodeContract() error = %q, want substring %q", err, tt.wantErr)
-			}
-		})
-	}
+	const checked = `checked = ["Writing"]`
+	const skipped = `skipped_files = ["README.md"]`
+	runSemanticCases(t, []semanticCase{
+		{name: "checked directory empty element", from: checked, to: `checked = [""]`, wantErr: "folders.checked: empty value"},
+		{name: "checked directory duplicate", from: checked, to: `checked = ["Writing", "Writing"]`, wantErr: `folders.checked: duplicate value "Writing"`},
+		{name: "checked directory has slash", from: checked, to: `checked = ["Writing/notes"]`, wantErr: `folders.checked: unsafe top-level component "Writing/notes"`},
+		{name: "checked directory has backslash", from: checked, to: `checked = ["Writing\\notes"]`, wantErr: `folders.checked: unsafe top-level component "Writing\\notes"`},
+		{name: "checked directory is current directory", from: checked, to: `checked = ["."]`, wantErr: `folders.checked: unsafe top-level component "."`},
+		{name: "checked directory is parent directory", from: checked, to: `checked = [".."]`, wantErr: `folders.checked: unsafe top-level component ".."`},
+		{name: "checked directory is absolute", from: checked, to: `checked = ["/Writing"]`, wantErr: `folders.checked: unsafe top-level component "/Writing"`},
+		{name: "checked directory contains NUL", from: checked, to: `checked = ["\u0000"]`, wantErr: `folders.checked: unsafe top-level component "\x00"`},
+		{name: "skipped file empty element", from: skipped, to: `skipped_files = [""]`, wantErr: "folders.skipped_files: empty value"},
+		{name: "skipped file duplicate", from: skipped, to: `skipped_files = ["README.md", "README.md"]`, wantErr: `folders.skipped_files: duplicate value "README.md"`},
+		{name: "skipped file has slash", from: skipped, to: `skipped_files = ["System/README.md"]`, wantErr: `folders.skipped_files: invalid basename "System/README.md"`},
+		{name: "skipped file has backslash", from: skipped, to: `skipped_files = ["System\\README.md"]`, wantErr: `folders.skipped_files: invalid basename "System\\README.md"`},
+		{name: "skipped file is current directory", from: skipped, to: `skipped_files = ["."]`, wantErr: `folders.skipped_files: invalid basename "."`},
+		{name: "skipped file is parent directory", from: skipped, to: `skipped_files = [".."]`, wantErr: `folders.skipped_files: invalid basename ".."`},
+		{name: "skipped file contains NUL", from: skipped, to: `skipped_files = ["\u0000"]`, wantErr: `folders.skipped_files: invalid basename "\x00"`},
+	})
 }
 
-func TestScanExcludeDirsValidation(t *testing.T) {
+func TestIgnoredFoldersValidation(t *testing.T) {
 	t.Parallel()
 
-	const declared = `skip_basenames = ["README.md"]`
+	const declared = `ignored = []`
 	tests := []struct {
 		name    string
 		to      string
 		wantErr string
 	}{
-		{name: "omitted key is legal", to: declared},
-		{name: "empty list is legal", to: declared + "\nexclude_dirs = []"},
-		{name: "nested glob", to: declared + "\nexclude_dirs = [\"courses/*/lab\"]"},
-		{name: "literal path", to: declared + "\nexclude_dirs = [\"System/templates\"]"},
-		{name: "several patterns", to: declared + "\nexclude_dirs = [\"courses/*/lab\", \"*/tpl\"]"},
-		{
-			name:    "empty element",
-			to:      declared + "\nexclude_dirs = [\"\"]",
-			wantErr: "scan.exclude_dirs: empty value",
-		},
-		{
-			name:    "duplicate",
-			to:      declared + "\nexclude_dirs = [\"lab\", \"lab\"]",
-			wantErr: `scan.exclude_dirs: duplicate value "lab"`,
-		},
-		{
-			name:    "parent segment",
-			to:      declared + "\nexclude_dirs = [\"../lab\"]",
-			wantErr: `scan.exclude_dirs: pattern "../lab" climbs out of the vault`,
-		},
-		{
-			name:    "parent segment in the middle",
-			to:      declared + "\nexclude_dirs = [\"courses/../lab\"]",
-			wantErr: `scan.exclude_dirs: pattern "courses/../lab" is not a clean relative path`,
-		},
-		{
-			name:    "absolute",
-			to:      declared + "\nexclude_dirs = [\"/courses/lab\"]",
-			wantErr: `scan.exclude_dirs: pattern "/courses/lab" is absolute`,
-		},
-		{
-			name:    "trailing slash",
-			to:      declared + "\nexclude_dirs = [\"courses/lab/\"]",
-			wantErr: `scan.exclude_dirs: pattern "courses/lab/" is not a clean relative path`,
-		},
-		{
-			name:    "empty segment",
-			to:      declared + "\nexclude_dirs = [\"courses//lab\"]",
-			wantErr: `scan.exclude_dirs: pattern "courses//lab" is not a clean relative path`,
-		},
-		{
-			name:    "current directory",
-			to:      declared + "\nexclude_dirs = [\".\"]",
-			wantErr: `scan.exclude_dirs: pattern "." is not a clean relative path`,
-		},
-		{
-			name:    "malformed glob",
-			to:      declared + "\nexclude_dirs = [\"courses/[lab\"]",
-			wantErr: `scan.exclude_dirs: pattern "courses/[lab" is not a valid pattern`,
-		},
-		{
-			name:    "NUL",
-			to:      declared + "\nexclude_dirs = [\"a\\u0000b\"]",
-			wantErr: `contains a NUL byte`,
-		},
+		{name: "omitted key is legal", to: ""},
+		{name: "empty list is legal", to: declared},
+		{name: "nested glob", to: `ignored = ["courses/*/lab"]`},
+		{name: "literal path", to: `ignored = ["System/templates"]`},
+		{name: "several patterns", to: `ignored = ["courses/*/lab", "*/tpl"]`},
+		{name: "empty element", to: `ignored = [""]`, wantErr: "folders.ignored: empty value"},
+		{name: "duplicate", to: `ignored = ["lab", "lab"]`, wantErr: `folders.ignored: duplicate value "lab"`},
+		{name: "parent segment", to: `ignored = ["../lab"]`, wantErr: `folders.ignored: pattern "../lab" climbs out of the vault`},
+		{name: "parent segment in the middle", to: `ignored = ["courses/../lab"]`, wantErr: `folders.ignored: pattern "courses/../lab" is not a clean relative path`},
+		{name: "absolute", to: `ignored = ["/courses/lab"]`, wantErr: `folders.ignored: pattern "/courses/lab" is absolute`},
+		{name: "trailing slash", to: `ignored = ["courses/lab/"]`, wantErr: `folders.ignored: pattern "courses/lab/" is not a clean relative path`},
+		{name: "empty segment", to: `ignored = ["courses//lab"]`, wantErr: `folders.ignored: pattern "courses//lab" is not a clean relative path`},
+		{name: "current directory", to: `ignored = ["."]`, wantErr: `folders.ignored: pattern "." is not a clean relative path`},
+		{name: "malformed glob", to: `ignored = ["courses/[lab"]`, wantErr: `folders.ignored: pattern "courses/[lab" is not a valid pattern`},
+		{name: "NUL", to: `ignored = ["a\u0000b"]`, wantErr: `contains a NUL byte`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			data := replaceContractText(t, semanticallyValidContract, declared, tt.to)
-			_, err := decodeContract([]byte(data), policySource{})
+			got := decodeError(t, data)
 			if tt.wantErr == "" {
-				if err != nil {
-					t.Fatalf("decodeContract() error = %v, want nil", err)
+				if got != "" {
+					t.Fatalf("decodeContract() error = %q, want nil", got)
 				}
 				return
 			}
-			if err == nil {
+			if got == "" {
 				t.Fatalf("decodeContract() error = nil, want substring %q", tt.wantErr)
 			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("decodeContract() error = %q, want substring %q", err, tt.wantErr)
+			if !strings.Contains(got, tt.wantErr) {
+				t.Errorf("decodeContract() error = %q, want substring %q", got, tt.wantErr)
 			}
 		})
 	}
 }
 
-// TestScanBoundaryFollowsExcludeDirs pins what a contract's exclusion list
+// TestScanBoundaryFollowsIgnoredFolders pins what a contract's ignored list
 // means once loaded: a directory it names is beyond the scan, a sibling is not,
 // and a contract that declares nothing excludes nothing but the dot names.
-func TestScanBoundaryFollowsExcludeDirs(t *testing.T) {
+func TestScanBoundaryFollowsIgnoredFolders(t *testing.T) {
 	t.Parallel()
 
-	declared := `skip_basenames = ["README.md"]`
-	data := replaceContractText(t, semanticallyValidContract, declared, declared+"\nexclude_dirs = [\"courses/*/lab\"]")
+	data := replaceContractText(t, semanticallyValidContract, `ignored = []`, `ignored = ["courses/*/lab"]`)
 	contract, err := decodeContract([]byte(data), policySource{})
 	if err != nil {
 		t.Fatalf("decodeContract() error = %v", err)
@@ -800,7 +559,7 @@ func TestScanBoundaryFollowsExcludeDirs(t *testing.T) {
 		t.Fatalf("decodeContract() error = %v", err)
 	}
 	if plain.ScanBoundary().OutsideScan("courses/C1/lab/main.go") {
-		t.Error("a contract without exclude_dirs excludes courses/C1/lab/main.go")
+		t.Error("a contract without ignored folders excludes courses/C1/lab/main.go")
 	}
 	var absent *Contract
 	if absent.ScanBoundary().OutsideScan("courses/C1/lab/main.go") {
@@ -808,120 +567,10 @@ func TestScanBoundaryFollowsExcludeDirs(t *testing.T) {
 	}
 }
 
-func TestCoreSemanticsSupersession(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		from    string
-		to      string
-		wantErr string
-	}{
-		{
-			name:    "missing section is legal",
-			from:    supersessionContractSection,
-			to:      "",
-			wantErr: "",
-		},
-		{
-			name:    "empty predecessor field",
-			from:    `predecessor_field = "evolution_predecessor"`,
-			to:      `predecessor_field = ""`,
-			wantErr: `supersession.predecessor_field must not be empty`,
-		},
-		{
-			name:    "empty successor field",
-			from:    `successor_field = "evolution_successors"`,
-			to:      `successor_field = ""`,
-			wantErr: `supersession.successor_field must not be empty`,
-		},
-		{
-			name:    "empty general link field",
-			from:    `general_link_field = "related"`,
-			to:      `general_link_field = ""`,
-			wantErr: `supersession.general_link_field must not be empty`,
-		},
-		{
-			name:    "empty archived status",
-			from:    `archived_status = "archived"`,
-			to:      `archived_status = ""`,
-			wantErr: `supersession.archived_status must not be empty`,
-		},
-		{
-			name:    "predecessor is not lesson only",
-			from:    `predecessor_field = "evolution_predecessor"`,
-			to:      `predecessor_field = "title"`,
-			wantErr: `supersession.predecessor_field: value "title" is not listed in fields.lesson_only`,
-		},
-		{
-			name:    "successor is not lesson only",
-			from:    `successor_field = "evolution_successors"`,
-			to:      `successor_field = "title"`,
-			wantErr: `supersession.successor_field: value "title" is not listed in fields.lesson_only`,
-		},
-		{
-			name:    "general link is not known",
-			from:    `general_link_field = "related"`,
-			to:      `general_link_field = "missing"`,
-			wantErr: `supersession.general_link_field: value "missing" is not listed in fields.known`,
-		},
-		{
-			name:    "predecessor equals successor",
-			from:    `successor_field = "evolution_successors"`,
-			to:      `successor_field = "evolution_predecessor"`,
-			wantErr: `supersession fields "predecessor_field" and "successor_field" must be distinct`,
-		},
-		{
-			name:    "predecessor equals general link",
-			from:    `general_link_field = "related"`,
-			to:      `general_link_field = "evolution_predecessor"`,
-			wantErr: `supersession fields "predecessor_field" and "general_link_field" must be distinct`,
-		},
-		{
-			name:    "successor equals general link",
-			from:    `general_link_field = "related"`,
-			to:      `general_link_field = "evolution_successors"`,
-			wantErr: `supersession fields "successor_field" and "general_link_field" must be distinct`,
-		},
-		{
-			name:    "archive token is not legal for every type",
-			from:    `archived_status = "archived"`,
-			to:      `archived_status = "active"`,
-			wantErr: `supersession.archived_status: value "active" is not legal for type "inbox"`,
-		},
-		{
-			name:    "archive token is unknown",
-			from:    `archived_status = "archived"`,
-			to:      `archived_status = "missing"`,
-			wantErr: `supersession.archived_status: value "missing" is not listed in enums.status`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			data := replaceContractText(t, semanticallyValidContract, tt.from, tt.to)
-			_, err := decodeContract([]byte(data), policySource{})
-			if tt.wantErr == "" {
-				if err != nil {
-					t.Fatalf("decodeContract() error = %v, want nil", err)
-				}
-				return
-			}
-			if err == nil {
-				t.Fatalf("decodeContract() error = nil, want substring %q", tt.wantErr)
-			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("decodeContract() error = %q, want substring %q", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 func TestCoreSemanticsGreenControls(t *testing.T) {
 	t.Parallel()
 
-	t.Run("cross status group reuse and optional enums", func(t *testing.T) {
+	t.Run("optional enums written empty", func(t *testing.T) {
 		t.Parallel()
 
 		data := semanticallyValidContract
@@ -930,19 +579,16 @@ func TestCoreSemanticsGreenControls(t *testing.T) {
 			to   string
 		}{
 			{from: `domain = ["golang"]`, to: `domain = []`},
-			{from: `source_kind = ["book"]`, to: `source_kind = []`},
-			{from: `source_provider = ["publisher"]`, to: `source_provider = []`},
 			{from: `level = ["beginner"]`, to: `level = []`},
-			{from: `map_kind = ["topic"]`, to: `map_kind = []`},
 		} {
 			data = replaceContractText(t, data, replacement.from, replacement.to)
 		}
-		if _, err := decodeContract([]byte(data), policySource{}); err != nil {
-			t.Fatalf("decodeContract(empty optional enums and repeated status token) error = %v", err)
+		if got := decodeError(t, data); got != "" {
+			t.Fatalf("decodeContract(empty optional enums) error = %q", got)
 		}
 	})
 
-	t.Run("empty optional rule and scan lists without governed types", func(t *testing.T) {
+	t.Run("empty optional rule and folder lists without governed types", func(t *testing.T) {
 		t.Parallel()
 
 		data := semanticallyValidContract
@@ -951,54 +597,39 @@ func TestCoreSemanticsGreenControls(t *testing.T) {
 			to   string
 		}{
 			{
-				from: `type = ["inbox", "lesson", "concept", "system"]`,
-				to:   `type = ["inbox", "system"]`,
+				from: "[types.lesson]\nrole = \"lesson\"\nrequired = [\"slug\"]\nfields = [\"slug\", \"level\", \"prerequisites\"]\nslug_pattern = \"^[a-z]+$\"\n\n",
+				to:   "",
 			},
-			{
-				from: `lesson_only = ["slug", "evolution_predecessor", "evolution_successors"]`,
-				to:   `lesson_only = []`,
-			},
-			{from: "lesson = [\"lesson\"]\n", to: ""},
-			{
-				from: `concept_requires_provenance = ["based_on", "source_locator"]`,
-				to:   `concept_requires_provenance = []`,
-			},
-			{from: `slug_pattern = "^[a-z]+$"`, to: `slug_pattern = ""`},
-			{from: `domain_equals_folder_under = ["Writing"]`, to: `domain_equals_folder_under = []`},
-			{from: `knowledge_dirs = ["Writing"]`, to: `knowledge_dirs = []`},
-			{from: `skip_basenames = ["README.md"]`, to: `skip_basenames = []`},
-			{from: supersessionContractSection, to: ""},
+			{from: "[types.concept]\n\n", to: ""},
+			{from: "[types.thought]\nrole = \"thought\"\nfields = [\"based_on\"]\n\n", to: ""},
+			{from: `concept_requires_provenance = ["based_on"]`, to: `concept_requires_provenance = []`},
+			{from: `domain_from = ["Writing"]`, to: `domain_from = []`},
+			{from: `checked = ["Writing"]`, to: `checked = []`},
+			{from: `skipped_files = ["README.md"]`, to: `skipped_files = []`},
 		} {
 			data = replaceContractText(t, data, replacement.from, replacement.to)
 		}
-		if _, err := decodeContract([]byte(data), policySource{}); err != nil {
-			t.Fatalf("decodeContract(empty optional core lists) error = %v", err)
+		if got := decodeError(t, data); got != "" {
+			t.Fatalf("decodeContract(empty optional core lists) error = %q", got)
 		}
 	})
 
-	t.Run("absent capabilities remain degraded", func(t *testing.T) {
+	t.Run("an omitted privacy section stays degraded while the rest holds", func(t *testing.T) {
 		t.Parallel()
 
-		data := semanticallyValidContract
-		for _, section := range []string{
-			"[navigation]\npath_types = []\nmap_types = []\n\n",
-			"[artifacts]\nnon_instance_dirs = []\n\n",
-			"[privacy]\nnever_egress_dirs = []\n\n",
-		} {
-			data = replaceContractText(t, data, section, "")
-		}
+		data := replaceContractText(t, semanticallyValidContract, "\n[privacy]\nnever_egress_dirs = []\n", "")
 		s, err := decodeContract([]byte(data), policySource{})
 		if err != nil {
-			t.Fatalf("decodeContract(absent capabilities) error = %v", err)
+			t.Fatalf("decodeContract(absent privacy) error = %v", err)
 		}
-		if s.NavigationRoles().Available() {
-			t.Error("NavigationRoles().Available() = true, want false")
+		if s.PrivacyPolicy().Available() || s.PrivacyPolicy().Trustworthy() {
+			t.Error("PrivacyPolicy() of a contract that omitted [privacy] is available or trustworthy, want fail-closed")
 		}
-		if s.ArtifactPolicy().Available() {
-			t.Error("ArtifactPolicy().Available() = true, want false")
+		if !s.NavigationRoles().Available() {
+			t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Diagnostic())
 		}
-		if s.PrivacyPolicy().Available() {
-			t.Error("PrivacyPolicy().Available() = true, want false")
+		if !s.ArtifactPolicy().Available() {
+			t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
 		}
 	})
 
@@ -1025,21 +656,6 @@ func TestCoreSemanticsGreenControls(t *testing.T) {
 			t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
 		}
 	})
-
-	t.Run("coordination metadata remains decode only", func(t *testing.T) {
-		t.Parallel()
-
-		data := replaceContractText(
-			t,
-			semanticallyValidContract,
-			`aligned_with = "human-doctrine.md"`,
-			`aligned_with = ""`,
-		)
-		data = replaceContractText(t, data, "generated_at_must_match = true", "generated_at_must_match = false")
-		if _, err := decodeContract([]byte(data), policySource{}); err != nil {
-			t.Fatalf("decodeContract(decode-only coordination metadata) error = %v", err)
-		}
-	})
 }
 
 func TestClassifyDecodeErrorPreservesSemanticMessage(t *testing.T) {
@@ -1052,8 +668,8 @@ func TestClassifyDecodeErrorPreservesSemanticMessage(t *testing.T) {
 	}{
 		{
 			name: "semantic error",
-			err:  errors.New(`fields.status_group: unknown status group "alpha"`),
-			want: `fields.status_group: unknown status group "alpha"`,
+			err:  errors.New(`enums.title: "title" is not a field yomihon defines or derives`),
+			want: `enums.title: "title" is not a field yomihon defines or derives`,
 		},
 		{
 			name: "TOML decoder error",
@@ -1072,14 +688,6 @@ func TestClassifyDecodeErrorPreservesSemanticMessage(t *testing.T) {
 	}
 }
 
-const supersessionContractSection = `[supersession]
-predecessor_field = "evolution_predecessor"
-successor_field = "evolution_successors"
-general_link_field = "related"
-archived_status = "archived"
-
-`
-
 func replaceContractText(t *testing.T, contract, from, to string) string {
 	t.Helper()
 	if got := strings.Count(contract, from); got != 1 {
@@ -1093,8 +701,8 @@ func replaceContractText(t *testing.T, contract, from, to string) string {
 func TestLoadDomainRoots(t *testing.T) {
 	t.Parallel()
 	const (
-		overlap    = "rules.domain_equals_folder_under: overlapping roots"
-		unsafePath = "rules.domain_equals_folder_under: unsafe relative directory path"
+		overlap    = "folders.domain_from: overlapping roots"
+		unsafePath = "folders.domain_from: unsafe relative directory path"
 	)
 	tests := []struct {
 		name    string
@@ -1131,9 +739,9 @@ func TestLoadDomainRoots(t *testing.T) {
 		{name: "nonadjacent folded ancestor reverse", roots: `["writing/lessons", "Concepts", "Writing"]`, wantErr: overlap},
 		{name: "unicode folded ancestor forward", roots: `["\u03a3", "\u03c2/studies"]`, wantErr: overlap},
 		{name: "unicode folded ancestor reverse", roots: `["\u03c2/studies", "\u03a3"]`, wantErr: overlap},
-		{name: "duplicate", roots: `["Writing", "Writing"]`, wantErr: `rules.domain_equals_folder_under: duplicate value "Writing"`},
-		{name: "nested duplicate", roots: `["Writing/lessons", "Writing/lessons"]`, wantErr: `rules.domain_equals_folder_under: duplicate value "Writing/lessons"`},
-		{name: "empty element", roots: `[""]`, wantErr: "rules.domain_equals_folder_under: empty value"},
+		{name: "duplicate", roots: `["Writing", "Writing"]`, wantErr: `folders.domain_from: duplicate value "Writing"`},
+		{name: "nested duplicate", roots: `["Writing/lessons", "Writing/lessons"]`, wantErr: `folders.domain_from: duplicate value "Writing/lessons"`},
+		{name: "empty element", roots: `[""]`, wantErr: "folders.domain_from: empty value"},
 		{name: "dot", roots: `["."]`, wantErr: unsafePath},
 		{name: "parent", roots: `[".."]`, wantErr: unsafePath},
 		{name: "nested dot", roots: `["Writing/./lessons"]`, wantErr: unsafePath},
@@ -1150,7 +758,7 @@ func TestLoadDomainRoots(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			data := replaceContractText(t, semanticallyValidContract,
-				`domain_equals_folder_under = ["Writing"]`, `domain_equals_folder_under = `+tt.roots)
+				`domain_from = ["Writing"]`, `domain_from = `+tt.roots)
 			got, err := loadContractBytes(t, []byte(data))
 			if tt.wantErr != "" {
 				if err == nil {
@@ -1164,8 +772,11 @@ func TestLoadDomainRoots(t *testing.T) {
 			if err != nil {
 				t.Fatalf("LoadFile() error = %v, want accepted relative roots", err)
 			}
-			if diff := cmp.Diff(tt.want, got.Definition().Rules.DomainEqualsFolderUnder); diff != "" {
+			if diff := cmp.Diff(tt.want, got.Definition().Folders.DomainFrom); diff != "" {
 				t.Errorf("loaded roots mismatch (-want +got):\n%s", diff)
+			}
+			if diff := cmp.Diff(tt.want, got.Domains().Roots()); diff != "" {
+				t.Errorf("Domains().Roots() mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}
@@ -1210,5 +821,16 @@ func TestDomainFolder(t *testing.T) {
 				t.Errorf("DomainFolder(%q, %q) = (%q, %t), want (%q, %t)", tt.roots, tt.path, got, found, tt.want, tt.found)
 			}
 		})
+	}
+}
+
+func TestAnEnumTypeListedTwiceIsRefused(t *testing.T) {
+	t.Parallel()
+	text := strings.Replace(validContract, `type = ["note"]`, `type = ["note", "note"]`, 1)
+	if text == validContract {
+		t.Fatal("the contract fixture no longer lists enums.type as the test expects")
+	}
+	if _, err := decodeContract([]byte(text), policySource{}); err == nil || !strings.Contains(err.Error(), `enums.type: duplicate value "note"`) {
+		t.Errorf("decodeContract() error = %v, want enums.type: duplicate value", err)
 	}
 }

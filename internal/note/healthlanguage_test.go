@@ -98,14 +98,11 @@ func healthLanguageSchemaSnapshot(t *testing.T) *snapshot.Generation {
 	t.Helper()
 	root := t.TempDir()
 	writeNote(t, root, healthLanguageRel, `---
-title: L01
 type: memorandum
-domain: golang
-status: draft
 lang: ja
 created: 2026-06-01
-updated: 2026-06-01
 ---
+# L01
 
 body
 `)

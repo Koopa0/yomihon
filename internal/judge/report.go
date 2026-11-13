@@ -313,7 +313,7 @@ func humanReport(findings []Finding, roots domainRoots) string {
 
 // markdownReport renders the packed findings as a fileable markdown note body.
 // Frontmatter is only what this vault's contract would itself accept: a type
-// the enums declare, keys fields.known lists, and no required field left blank.
+// it declares and no required field left blank.
 // A vault that cannot host that note is told so and gets the triage body
 // without a frontmatter block its own check would reject. There is no
 // timestamp; the caller stamps and routes it.
@@ -362,9 +362,7 @@ func markdownReport(findings []Finding, roots domainRoots, contract *schema.Cont
 }
 
 const (
-	checkReportType  = "report"
-	checkReportTitle = "yomihon check"
-	checkReportTool  = "yomihon"
+	checkReportType = "report"
 )
 
 // checkReportPreamble is the leading bytes of a markdown check body: either a
@@ -385,31 +383,15 @@ func checkReportPreamble(contract *schema.Contract) string {
 // values this contract would accept on a check-report note. It is empty when
 // the type is undeclared, a required field cannot be filled, or the candidate
 // still fails the frontmatter rules — the caller then tells the reader instead
-// of handing them a note their own check would reject.
+// of handing them a note their own check would reject. The note's title is
+// the report's own first heading, so the block carries only its type.
 func checkReportFrontmatter(contract *schema.Contract) string {
 	if !contract.DeclaresType(checkReportType) {
 		return ""
 	}
-	known := contract.Definition().Fields.Known
-	var lines []string
-	writeKey := func(key, value string) {
-		if slices.Contains(known, key) {
-			lines = append(lines, key+": "+value)
-		}
-	}
-	writeKey("type", checkReportType)
-	writeKey("title", checkReportTitle)
-	writeKey("tool", checkReportTool)
-	if len(lines) == 0 {
-		return ""
-	}
-	block := "---\n" + strings.Join(lines, "\n") + "\n---\n\n"
-	run, err := newLintRun(contract)
-	if err != nil {
-		return ""
-	}
+	block := "---\ntype: " + checkReportType + "\n---\n\n"
 	n := parseNote("report.md", []byte(block+"body\n"))
-	findings := run.note(&n)
+	findings := newLintRun(contract).note(&n)
 	for i := range findings {
 		if findings[i].Severity == SeverityError {
 			return ""

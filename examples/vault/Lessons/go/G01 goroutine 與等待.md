@@ -1,10 +1,7 @@
 ---
-title: G01 goroutine 與等待
 type: lesson
-domain: go
 slug: go-goroutine-wait
 level: fundamental
-topics: [Go, 並行, goroutine]
 created: 2026-09-22
 lang: zh-Hant
 ---

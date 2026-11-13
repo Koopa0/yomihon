@@ -1,7 +1,5 @@
 ---
-title: A
 type: concept
-domain: golang
 source_locator: x
 status: bogusstatus
 base: &b

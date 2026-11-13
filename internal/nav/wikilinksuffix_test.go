@@ -10,12 +10,12 @@ func TestCapturedNavigationPathSuffix(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	for rel, body := range map[string]string{
-		"Concepts/Atlas/Page.md":    "---\ntitle: Atlas page\ntype: concept\n---\nbody\n",
-		"Concepts/Atlas/Second.md":  "---\ntitle: Second page\ntype: concept\n---\nbody\n",
+		"Concepts/Atlas/Page.md":    "---\ntype: concept\n---\n# Atlas page\n\nbody\n",
+		"Concepts/Atlas/Second.md":  "---\ntype: concept\n---\n# Second page\n\nbody\n",
 		"Concepts/A/Shared/Twin.md": "body\n",
 		"Concepts/B/Shared/Twin.md": "body\n",
-		"Maps/Map.md":               "---\ntitle: Map\ntype: moc\n---\n## Shelf\n- [[Atlas/Page]]\n- [[Shared/Twin]]\n- [[Nope/Page]]\n",
-		"Maps/Course.md":            "---\ntitle: Course\ntype: study-path\n---\n## Main {sequence=primary}\n- [[Atlas/Page]]\n- [[Shared/Twin]]\n- [[Nope/Page]]\n- [[Atlas/Second]]\n",
+		"Maps/Map.md":               "---\ntype: moc\n---\n# Map\n\n## Shelf\n- [[Atlas/Page]]\n- [[Shared/Twin]]\n- [[Nope/Page]]\n",
+		"Maps/Course.md":            "---\ntype: study-path\n---\n# Course\n\n## Main {sequence=primary}\n- [[Atlas/Page]]\n- [[Shared/Twin]]\n- [[Nope/Page]]\n- [[Atlas/Second]]\n",
 	} {
 		writeNavFixture(t, root, rel, body)
 	}

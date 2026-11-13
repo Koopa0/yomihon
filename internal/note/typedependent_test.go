@@ -43,7 +43,7 @@ func TestTypeDependentNotePage(t *testing.T) {
 	if mkdirErr := fixture.MkdirAll("Notes", 0o750); mkdirErr != nil {
 		t.Fatalf("create notes directory: %v", mkdirErr)
 	}
-	if writeErr := fixture.WriteFile(rel, []byte("---\ntitle: Invalid type\ntype: 'Lesson<script>&'\nlevel: fundamental\nslug: invalid-type\nextra: yes\n---\n\nBody.\n"), 0o600); writeErr != nil {
+	if writeErr := fixture.WriteFile(rel, []byte("---\ntype: 'Lesson<script>&'\nlevel: fundamental\nslug: invalid-type\nextra: yes\n---\n# Invalid type\n\nBody.\n"), 0o600); writeErr != nil {
 		t.Fatalf("write fixture note: %v", writeErr)
 	}
 	contract, err := schema.Load(root)

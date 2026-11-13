@@ -153,39 +153,25 @@ func silent(wording.Lang) string { return "" }
 // travels the way a vault's own words travel.
 func declaringContract(t *testing.T, pathType string, mapTypes ...string) schema.NavigationRoles {
 	t.Helper()
-	declared := append([]string{pathType}, mapTypes...)
-	quoted := func(words []string) string { return `"` + strings.Join(words, `", "`) + `"` }
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := `schema_version = "1"
+	var contractText strings.Builder
+	contractText.WriteString(`schema_version = "2"
 
-[enums]
-type = [` + quoted(declared) + `]
-
-[enums.status]
-note = ["draft"]
+[folders]
+checked = ["Notes"]
+templates = ["System/templates"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type"]
+common = ["type"]
+required = ["type"]
 
-[rules]
-
-[scan]
-knowledge_dirs = ["Notes"]
-
-[navigation]
-path_types = [` + quoted([]string{pathType}) + `]
-map_types = [` + quoted(mapTypes) + `]
-
-[artifacts]
-non_instance_dirs = ["System/templates"]
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
-`
+[types.` + pathType + `]
+role = "course"
+`)
+	for _, mapType := range mapTypes {
+		contractText.WriteString("\n[types." + mapType + "]\nrole = \"map\"\n")
+	}
+	text := contractText.String()
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatalf("write contract: %v", err)
 	}

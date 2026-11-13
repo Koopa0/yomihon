@@ -148,14 +148,14 @@ func writeRecoverySiteFixture(t *testing.T, root string) {
 	if err = os.MkdirAll(filepath.Dir(mapPath), 0o750); err != nil {
 		t.Fatalf("mkdir map directory: %v", err)
 	}
-	const studyPath = "---\ntitle: Study Path\ntype: study-path\n---\n\n# Study Path\n"
+	const studyPath = "---\ntype: study-path\n---\n\n# Study Path\n"
 	if err = os.WriteFile(mapPath, []byte(studyPath), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
 		t.Fatalf("write study path: %v", err)
 	}
 }
 
 // TestContractAbsenceIsNotReportedAsAFault locks the difference between a
-// folder that never declared a lifecycle and one whose declaration is broken.
+// folder that never declared a contract and one whose declaration is broken.
 // Both used to arrive here as the same warning, and the absent case additionally
 // arrived as "vault source changed while it was being read" — a race nobody ran.
 // Reporting an ordinary folder as a fault is what made a working tool look

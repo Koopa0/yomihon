@@ -20,7 +20,7 @@ func keptCourse(t *testing.T) string {
 		t.Fatalf("mkdir lessons: %v", err)
 	}
 	for _, name := range []string{"Open", "Done"} {
-		body := "---\ntitle: " + name + "\ntype: lesson\nstatus: draft\n---\n\nbody\n"
+		body := "---\ntype: lesson\n---\n# " + name + "\n\nbody\n"
 		if err := os.WriteFile(filepath.Join(lessons, name+".md"), []byte(body), 0o600); err != nil {
 			t.Fatalf("write lesson %s: %v", name, err)
 		}
@@ -29,7 +29,7 @@ func keptCourse(t *testing.T) string {
 	if err := os.MkdirAll(maps, 0o750); err != nil {
 		t.Fatalf("mkdir maps: %v", err)
 	}
-	course := "---\ntitle: Test path\ntype: study-path\n---\n\n## Part {sequence=primary}\n\n- [[Open]]\n- [[Done]]\n"
+	course := "---\ntype: study-path\n---\n# Test path\n\n## Part {sequence=primary}\n\n- [[Open]]\n- [[Done]]\n"
 	if err := os.WriteFile(filepath.Join(maps, "path.md"), []byte(course), 0o600); err != nil {
 		t.Fatalf("write the course: %v", err)
 	}

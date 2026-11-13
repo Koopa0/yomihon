@@ -58,7 +58,7 @@ The command line speaks English only. These are the words `yomihon left-open` wr
 | `wikilink` | The vault's own link to the item, brackets included, as a thought's `based_on` writes it. Left out where it could reach somewhere else. | `NoteWikilink`, `MarkedLocation.Wikilink` |
 | `lost` | What a location no longer finds: `note`, or `location` when the note is there and the location is not. | `note.Loss`, `openLostNote`, `openLostLocation` |
 | `create_time` | When the location was marked, in RFC 3339 and in UTC. | |
-| `update_date` | The date a thought's frontmatter declares. | |
+| `create_date` | The date a thought's frontmatter declares it was created on. | |
 
 ## Frozen outputs
 

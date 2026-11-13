@@ -1,11 +1,11 @@
 ---
-title: Read aloud languages
 type: lesson
-domain: japanese
-status: draft
+
+
 draft: true
 slug: read-aloud-languages
 ---
+# Read aloud languages
 
 <!-- read-aloud: ja -->
 朝です。

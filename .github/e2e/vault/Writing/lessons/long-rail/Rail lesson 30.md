@@ -1,8 +1,8 @@
 ---
 type: lesson
-title: Rail lesson 30
-domain: golang
-status: draft
+
+
+
 draft: true
 slug: rail-lesson-30
 ---

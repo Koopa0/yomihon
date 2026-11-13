@@ -1,7 +1,7 @@
 ---
-title: Suffix landing
+
 type: concept
-domain: golang
+
 ---
 # 接尾のある着地
 

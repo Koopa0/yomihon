@@ -36,7 +36,7 @@ func TestEmptySearchExplainsLiteralOperators(t *testing.T) {
 		{name: "ordinary lower case", query: "goroutine or missing"},
 		{name: "genuine miss", query: "absent"},
 		{name: "literal success", query: "goroutine -flag"},
-		{name: "filter value", query: "topic:-flag"},
+		{name: "filter value", query: "domain:-flag"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -41,7 +41,7 @@ func skippedDocumentVault(t *testing.T) string {
 	write(t, filepath.Join(root, "Writing", "README.md"), []byte(skippedReadme))
 	write(t, filepath.Join(root, "Writing", "diagram.png"), []byte("\x89PNG\r\n\x1a\n fake pixels"))
 	write(t, filepath.Join(root, "Writing", "guide.md"), []byte(
-		"---\ntitle: The Guide\ntype: writing\nstatus: draft\n---\n# Guide heading\n\nA note that links [the parent](../../out.md).\n"))
+		"---\ntype: writing\n---\n# The Guide\n\n# Guide heading\n\nA note that links [the parent](../../out.md).\n"))
 	write(t, filepath.Join(root, "Writing", "plain.txt"), []byte("plain text\n"))
 	write(t, filepath.Join(root, "Elsewhere", "README.md"), bytes.Repeat([]byte("x"), bigTextBytes))
 	return root

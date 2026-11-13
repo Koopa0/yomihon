@@ -1,8 +1,8 @@
 ---
-title: Source locations claim
+
 type: lesson
-domain: golang
-status: draft
+
+
 draft: true
 slug: source-locations-claim
 based_on:

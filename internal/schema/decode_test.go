@@ -7,148 +7,102 @@ import (
 	"testing"
 )
 
-const validContractV1 = `schema_version = "1"
-aligned_with = "Note-Contract.md"
-generated_at_must_match = true
+const validContract = `schema_version = "2"
+
+[folders]
+checked = ["Writing"]
+templates = ["System/templates"]
+journal = "Diary"
+domain_from = ["Writing"]
+skipped_files = ["README.md"]
 
 [enums]
-type = ["lesson", "study-path", "moc"]
-
-[enums.status]
-note = ["draft", "archived"]
-lesson = ["draft", "archived"]
+type = ["note"]
+domain = ["golang"]
+level = ["beginner"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "related"]
-lesson_only = ["slug", "evolution_predecessor", "evolution_successors"]
+common = ["type", "aliases", "created"]
+required = ["type"]
 
-[fields.status_group]
-lesson = ["lesson"]
-
-[rules]
+[types.lesson]
+role = "lesson"
+fields = ["slug", "level"]
 slug_pattern = "^[a-z]+$"
 
-[scan]
-knowledge_dirs = ["Writing"]
+[types.study-path]
+role = "course"
 
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
+[types.moc]
+role = "map"
 
-[artifacts]
-non_instance_dirs = ["System/templates"]
+[rules]
+planned_gap_marks = ["Gaps"]
 
 [privacy]
 never_egress_dirs = ["Private"]
-
-[supersession]
-predecessor_field = "evolution_predecessor"
-successor_field = "evolution_successors"
-general_link_field = "related"
-archived_status = "archived"
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["lesson", "study-path"]
-from = []
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "archived"
-applies_to = ["*"]
-from = ["*"]
-owner = []
 `
-
-func TestCurrentContractVocabularyDecodes(t *testing.T) {
-	t.Parallel()
-
-	s, err := loadContractBytes(t, []byte(validContractV1))
-	if err != nil {
-		t.Fatalf("LoadFile(current schema v1 vocabulary) error = %v", err)
-	}
-	if s.metadata.supersession == nil {
-		t.Fatal("decoded supersession = nil, want retained section")
-	}
-	if got, want := *s.metadata.supersession, (supersessionSection{
-		PredecessorField: "evolution_predecessor",
-		SuccessorField:   "evolution_successors",
-		GeneralLinkField: "related",
-		ArchivedStatus:   "archived",
-	}); got != want {
-		t.Errorf("decoded supersession = %+v, want %+v", got, want)
-	}
-}
-
-func TestUnknownSupersessionKeysAreCoreErrors(t *testing.T) {
-	t.Parallel()
-
-	data := []byte(strings.Replace(
-		validContractV1,
-		"archived_status = \"archived\"\n",
-		"archived_status = \"archived\"\nunknown_zeta = true\nunknown_alpha = true\n",
-		1,
-	))
-	_, err := loadContractBytes(t, data)
-	if err == nil {
-		t.Fatal("LoadFile(unknown supersession keys) error = nil, want hard error")
-	}
-	const want = `unknown core keys: "supersession.unknown_alpha", "supersession.unknown_zeta"`
-	if !strings.Contains(err.Error(), want) {
-		t.Errorf("LoadFile(unknown supersession keys) error = %q, want substring %q", err, want)
-	}
-}
 
 func TestDynamicContractMapKeysDecode(t *testing.T) {
 	t.Parallel()
 
-	data := strings.Replace(
-		validContractV1,
-		"note = [\"draft\", \"archived\"]",
-		"note = [\"draft\", \"archived\"]\npublication = [\"published\", \"archived\"]",
-		1,
-	)
-	data = strings.Replace(
-		data,
-		"lesson = [\"lesson\"]",
-		"lesson = [\"lesson\"]\npublication = [\"moc\"]",
-		1,
-	)
-	if _, err := loadContractBytes(t, []byte(data)); err != nil {
+	data := strings.Replace(validContract, "[types.moc]\n", "[types.\"réponse\"]\nfields = [\"based_on\"]\n\n[types.moc]\n", 1)
+	contract, err := loadContractBytes(t, []byte(data))
+	if err != nil {
 		t.Fatalf("LoadFile(dynamic map keys) error = %v", err)
+	}
+	if !contract.DeclaresType("réponse") {
+		t.Error(`DeclaresType("réponse") = false, want the table name read as a type`)
 	}
 }
 
 func TestContractVersion(t *testing.T) {
 	t.Parallel()
 
-	t.Run("unsupported", func(t *testing.T) {
-		t.Parallel()
+	for _, tt := range []struct {
+		name string
+		from string
+		to   string
+		want string
+	}{
+		{
+			name: "earlier",
+			from: `schema_version = "2"`,
+			to:   `schema_version = "1"`,
+			want: `unsupported schema_version "1"; supported version is "2"`,
+		},
+		{
+			name: "later",
+			from: `schema_version = "2"`,
+			to:   `schema_version = "3"`,
+			want: `unsupported schema_version "3"; supported version is "2"`,
+		},
+		{
+			name: "empty",
+			from: `schema_version = "2"`,
+			to:   `schema_version = ""`,
+			want: `unsupported schema_version ""; supported version is "2"`,
+		},
+		{
+			name: "missing",
+			from: "schema_version = \"2\"\n",
+			to:   "",
+			want: `missing required key "schema_version"`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-		data := []byte(strings.Replace(validContractV1, `schema_version = "1"`, `schema_version = "2"`, 1))
-		if _, err := loadContractBytes(t, data); err == nil {
-			t.Fatal(`LoadFile(schema_version = "2") error = nil, want unsupported-version error`)
-		}
-	})
-
-	t.Run("missing", func(t *testing.T) {
-		t.Parallel()
-
-		data := []byte(strings.Replace(validContractV1, "schema_version = \"1\"\n", "", 1))
-		if _, err := loadContractBytes(t, data); err == nil {
-			t.Fatal("LoadFile(missing schema_version) error = nil, want missing-version error")
-		}
-	})
-
-	t.Run("empty", func(t *testing.T) {
-		t.Parallel()
-
-		data := []byte(strings.Replace(validContractV1, `schema_version = "1"`, `schema_version = ""`, 1))
-		if _, err := loadContractBytes(t, data); err == nil {
-			t.Fatal(`LoadFile(schema_version = "") error = nil, want unsupported-version error`)
-		}
-	})
+			data := []byte(strings.Replace(validContract, tt.from, tt.to, 1))
+			_, err := decodeContract(data, policySource{})
+			if err == nil {
+				t.Fatalf("decodeContract(%s schema_version) error = nil, want %q", tt.name, tt.want)
+			}
+			if got := err.Error(); got != tt.want {
+				t.Errorf("decodeContract(%s schema_version) error = %q, want %q", tt.name, got, tt.want)
+			}
+		})
+	}
 }
 
 func TestCoreDecodeErrorsCloseContract(t *testing.T) {
@@ -160,30 +114,19 @@ func TestCoreDecodeErrorsCloseContract(t *testing.T) {
 	}{
 		{
 			name: "wrong core type",
-			data: []byte(strings.Replace(
-				validContractV1,
-				`schema_version = "1"`,
-				`schema_version = 1`,
-				1,
-			)),
+			data: []byte(strings.Replace(validContract, `schema_version = "2"`, `schema_version = 2`, 1)),
 		},
 		{
 			name: "malformed TOML",
-			data: []byte(strings.Replace(
-				validContractV1,
-				`schema_version = "1"`,
-				`schema_version = ["1"`,
-				1,
-			)),
+			data: []byte(strings.Replace(validContract, `schema_version = "2"`, `schema_version = ["2"`, 1)),
 		},
 		{
-			name: "wrong supersession type",
-			data: []byte(strings.Replace(
-				validContractV1,
-				`archived_status = "archived"`,
-				`archived_status = ["archived"]`,
-				1,
-			)),
+			name: "wrong folders type",
+			data: []byte(strings.Replace(validContract, `journal = "Diary"`, `journal = ["Diary"]`, 1)),
+		},
+		{
+			name: "wrong type table type",
+			data: []byte(strings.Replace(validContract, `role = "course"`, `role = ["course"]`, 1)),
 		},
 	}
 	for _, tt := range tests {
@@ -200,155 +143,55 @@ func TestCoreDecodeErrorsCloseContract(t *testing.T) {
 func TestUnknownCoreKeys(t *testing.T) {
 	t.Parallel()
 
-	data := []byte(strings.Replace(
-		validContractV1,
-		"schema_version = \"1\"\n",
-		"schema_version = \"1\"\nunknown_zeta = true\nunknown_alpha = true\n",
-		1,
-	))
-	_, err := loadContractBytes(t, data)
-	if err == nil {
-		t.Fatal("LoadFile(unknown core keys) error = nil, want hard error")
-	}
-	const want = `unknown core keys: "unknown_alpha", "unknown_zeta"`
-	if !strings.Contains(err.Error(), want) {
-		t.Errorf("LoadFile(unknown core keys) error = %q, want substring %q", err, want)
-	}
-}
+	for _, tt := range []struct {
+		name string
+		from string
+		to   string
+		want string
+	}{
+		{
+			name: "top level",
+			from: "schema_version = \"2\"\n",
+			to:   "schema_version = \"2\"\nunknown_zeta = true\nunknown_alpha = true\n",
+			want: `unknown keys: "unknown_alpha", "unknown_zeta"`,
+		},
+		{
+			name: "folders",
+			from: "journal = \"Diary\"\n",
+			to:   "journal = \"Diary\"\nunknown_zeta = true\nunknown_alpha = true\n",
+			want: `unknown keys: "folders.unknown_alpha", "folders.unknown_zeta"`,
+		},
+		{
+			name: "a type table",
+			from: "role = \"course\"\n",
+			to:   "role = \"course\"\nunknown_zeta = true\nunknown_alpha = true\n",
+			want: `unknown keys: "types.study-path.unknown_alpha", "types.study-path.unknown_zeta"`,
+		},
+		{
+			name: "fields",
+			from: "required = [\"type\"]\n",
+			to:   "required = [\"type\"]\nunknown_zeta = true\nunknown_alpha = true\n",
+			want: `unknown keys: "fields.unknown_alpha", "fields.unknown_zeta"`,
+		},
+		{
+			name: "rules",
+			from: "planned_gap_marks = [\"Gaps\"]\n",
+			to:   "planned_gap_marks = [\"Gaps\"]\nunknown_zeta = true\nunknown_alpha = true\n",
+			want: `unknown keys: "rules.unknown_alpha", "rules.unknown_zeta"`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-func TestUnknownNavigationKeysInvalidateOnlyNavigation(t *testing.T) {
-	t.Parallel()
-
-	data := []byte(strings.Replace(
-		validContractV1,
-		"map_types = [\"moc\"]\n",
-		"map_types = [\"moc\"]\nmystery_zeta = true\nmystery_alpha = true\n",
-		1,
-	))
-	s, err := loadContractBytes(t, data)
-	if err != nil {
-		t.Fatalf("LoadFile(unknown navigation keys) error = %v", err)
-	}
-	if s.NavigationRoles().Available() {
-		t.Fatal("NavigationRoles().Available() = true, want false")
-	}
-	const want = `invalid navigation roles: unknown keys "navigation.mystery_alpha", "navigation.mystery_zeta"; Paths and Maps disabled`
-	if got := s.NavigationRoles().Diagnostic(); got != want {
-		t.Errorf("NavigationRoles().Diagnostic() = %q, want %q", got, want)
-	}
-	if !s.ArtifactPolicy().Available() {
-		t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
-	}
-	if !s.PrivacyPolicy().Available() {
-		t.Errorf("PrivacyPolicy().Available() = false, diagnostic %q", s.PrivacyPolicy().Diagnostic())
-	}
-	if s.JournalDir().Trustworthy() {
-		t.Error("JournalDir stays open after an unknown [navigation] key")
-	}
-	if got := s.JournalDir().Diagnostic(); got != want {
-		t.Errorf("JournalDir().Diagnostic() = %q, want the same sentence as NavigationRoles", got)
-	}
-	if _, ok := s.Stage("lesson", "draft"); !ok {
-		t.Error(`Stage("lesson", "draft") = false, want true`)
-	}
-}
-
-func TestNavigationTypeErrorInvalidatesOnlyNavigation(t *testing.T) {
-	t.Parallel()
-
-	data := []byte(strings.Replace(
-		validContractV1,
-		`path_types = ["study-path"]`,
-		`path_types = "study-path"`,
-		1,
-	))
-	s, err := loadContractBytes(t, data)
-	if err != nil {
-		t.Fatalf("LoadFile(navigation type error) error = %v", err)
-	}
-	if s.NavigationRoles().Available() {
-		t.Fatal("NavigationRoles().Available() = true, want false")
-	}
-	const want = `invalid navigation roles: key "navigation.path_types" has incompatible TOML type; Paths and Maps disabled`
-	if got := s.NavigationRoles().Diagnostic(); got != want {
-		t.Errorf("NavigationRoles().Diagnostic() = %q, want %q", got, want)
-	}
-	if !s.ArtifactPolicy().Available() {
-		t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
-	}
-	if !s.PrivacyPolicy().Available() {
-		t.Errorf("PrivacyPolicy().Available() = false, diagnostic %q", s.PrivacyPolicy().Diagnostic())
-	}
-	if s.JournalDir().Trustworthy() {
-		t.Error("JournalDir stays open after a [navigation] type error")
-	}
-	if got := s.JournalDir().Diagnostic(); got != want {
-		t.Errorf("JournalDir().Diagnostic() = %q, want the same sentence as NavigationRoles", got)
-	}
-	if _, ok := s.Stage("lesson", "draft"); !ok {
-		t.Error(`Stage("lesson", "draft") = false, want true`)
-	}
-}
-
-func TestUnknownArtifactKeysInvalidateOnlyArtifacts(t *testing.T) {
-	t.Parallel()
-
-	data := []byte(strings.Replace(
-		validContractV1,
-		"non_instance_dirs = [\"System/templates\"]\n",
-		"non_instance_dirs = [\"System/templates\"]\nmystery_zeta = true\nmystery_alpha = true\n",
-		1,
-	))
-	s, err := loadContractBytes(t, data)
-	if err != nil {
-		t.Fatalf("LoadFile(unknown artifact keys) error = %v", err)
-	}
-	if s.ArtifactPolicy().Available() {
-		t.Fatal("ArtifactPolicy().Available() = true, want false")
-	}
-	const want = `invalid artifact policy: unknown keys "artifacts.mystery_alpha", "artifacts.mystery_zeta"`
-	if got := s.ArtifactPolicy().Diagnostic(); got != want {
-		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want %q", got, want)
-	}
-	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Diagnostic())
-	}
-	if !s.PrivacyPolicy().Available() {
-		t.Errorf("PrivacyPolicy().Available() = false, diagnostic %q", s.PrivacyPolicy().Diagnostic())
-	}
-	if _, ok := s.Stage("lesson", "draft"); !ok {
-		t.Error(`Stage("lesson", "draft") = false, want true`)
-	}
-}
-
-func TestArtifactTypeErrorInvalidatesOnlyArtifacts(t *testing.T) {
-	t.Parallel()
-
-	data := []byte(strings.Replace(
-		validContractV1,
-		`non_instance_dirs = ["System/templates"]`,
-		`non_instance_dirs = "System/templates"`,
-		1,
-	))
-	s, err := loadContractBytes(t, data)
-	if err != nil {
-		t.Fatalf("LoadFile(artifact type error) error = %v", err)
-	}
-	if s.ArtifactPolicy().Available() {
-		t.Fatal("ArtifactPolicy().Available() = true, want false")
-	}
-	const want = `invalid artifact policy: key "artifacts.non_instance_dirs" has incompatible TOML type`
-	if got := s.ArtifactPolicy().Diagnostic(); got != want {
-		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want %q", got, want)
-	}
-	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false, diagnostic %q", s.NavigationRoles().Diagnostic())
-	}
-	if !s.PrivacyPolicy().Available() {
-		t.Errorf("PrivacyPolicy().Available() = false, diagnostic %q", s.PrivacyPolicy().Diagnostic())
-	}
-	if _, ok := s.Stage("lesson", "draft"); !ok {
-		t.Error(`Stage("lesson", "draft") = false, want true`)
+			data := []byte(strings.Replace(validContract, tt.from, tt.to, 1))
+			_, err := loadContractBytes(t, data)
+			if err == nil {
+				t.Fatal("LoadFile(unknown keys) error = nil, want hard error")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("LoadFile(unknown keys) error = %q, want substring %q", err, tt.want)
+			}
+		})
 	}
 }
 
@@ -356,7 +199,7 @@ func TestUnknownPrivacyKeysInvalidateOnlyPrivacy(t *testing.T) {
 	t.Parallel()
 
 	data := []byte(strings.Replace(
-		validContractV1,
+		validContract,
 		"never_egress_dirs = [\"Private\"]\n",
 		"never_egress_dirs = [\"Private\"]\nmystery_zeta = true\nmystery_alpha = true\n",
 		1,
@@ -378,8 +221,8 @@ func TestUnknownPrivacyKeysInvalidateOnlyPrivacy(t *testing.T) {
 	if !s.ArtifactPolicy().Available() {
 		t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
 	}
-	if _, ok := s.Stage("lesson", "draft"); !ok {
-		t.Error(`Stage("lesson", "draft") = false, want true`)
+	if !s.DeclaresType("lesson") {
+		t.Error(`DeclaresType("lesson") = false, want the core vocabulary loaded`)
 	}
 }
 
@@ -387,7 +230,7 @@ func TestPrivacyTypeErrorInvalidatesOnlyPrivacy(t *testing.T) {
 	t.Parallel()
 
 	data := []byte(strings.Replace(
-		validContractV1,
+		validContract,
 		`never_egress_dirs = ["Private"]`,
 		`never_egress_dirs = "Private"`,
 		1,
@@ -409,8 +252,8 @@ func TestPrivacyTypeErrorInvalidatesOnlyPrivacy(t *testing.T) {
 	if !s.ArtifactPolicy().Available() {
 		t.Errorf("ArtifactPolicy().Available() = false, diagnostic %q", s.ArtifactPolicy().Diagnostic())
 	}
-	if _, ok := s.Stage("lesson", "draft"); !ok {
-		t.Error(`Stage("lesson", "draft") = false, want true`)
+	if !s.DeclaresType("lesson") {
+		t.Error(`DeclaresType("lesson") = false, want the core vocabulary loaded`)
 	}
 }
 
@@ -424,21 +267,17 @@ func loadContractBytes(t *testing.T, data []byte) (*Contract, error) {
 }
 
 type decodeClassification struct {
-	errClass                 string
-	version                  string
-	lifecycleEntries         int
-	lifecycleStatuses        string
-	navigationAvailable      bool
-	navigationDiagnostic     string
-	artifactAvailable        bool
-	artifactDiagnostic       string
-	privacyAvailable         bool
-	privacyDiagnostic        string
-	supersessionPresent      bool
-	supersessionPredecessor  string
-	supersessionSuccessor    string
-	supersessionGeneralLink  string
-	supersessionArchiveState string
+	errClass             string
+	version              string
+	typeRoles            string
+	navigationAvailable  bool
+	navigationDiagnostic string
+	artifactAvailable    bool
+	artifactDiagnostic   string
+	privacyAvailable     bool
+	privacyDiagnostic    string
+	journalAvailable     bool
+	journalDiagnostic    string
 }
 
 func classifyDecode(data []byte) decodeClassification {
@@ -446,35 +285,28 @@ func classifyDecode(data []byte) decodeClassification {
 	if err != nil {
 		return decodeClassification{errClass: classifyDecodeError(err)}
 	}
-	classification := decodeClassification{
+	return decodeClassification{
 		version:              s.Version(),
-		lifecycleEntries:     s.StageCount(),
-		lifecycleStatuses:    stageStatuses(s),
+		typeRoles:            typeRoles(s),
 		navigationAvailable:  s.NavigationRoles().Available(),
 		navigationDiagnostic: s.NavigationRoles().Diagnostic(),
 		artifactAvailable:    s.ArtifactPolicy().Available(),
 		artifactDiagnostic:   s.ArtifactPolicy().Diagnostic(),
 		privacyAvailable:     s.PrivacyPolicy().Available(),
 		privacyDiagnostic:    s.PrivacyPolicy().Diagnostic(),
+		journalAvailable:     s.JournalDir().Available(),
+		journalDiagnostic:    s.JournalDir().Diagnostic(),
 	}
-	if s.metadata.supersession != nil {
-		classification.supersessionPresent = true
-		classification.supersessionPredecessor = s.metadata.supersession.PredecessorField
-		classification.supersessionSuccessor = s.metadata.supersession.SuccessorField
-		classification.supersessionGeneralLink = s.metadata.supersession.GeneralLinkField
-		classification.supersessionArchiveState = s.metadata.supersession.ArchivedStatus
-	}
-	return classification
 }
 
-// stageStatuses names the lifecycle rows a decode kept, in the order it kept
-// them. The row count alone let two decodes that kept different rows of the
+// typeRoles names the types a decode kept with their roles, in the order it
+// kept them. The count alone let two decodes that kept different types of the
 // same length compare equal, which is the shape of the defect this comparison
 // exists to catch.
-func stageStatuses(contract *Contract) string {
-	names := make([]string, len(contract.stages))
-	for i, stage := range contract.stages {
-		names[i] = stage.Status
+func typeRoles(contract *Contract) string {
+	names := make([]string, len(contract.types))
+	for i, def := range contract.types {
+		names[i] = def.name + ":" + string(def.role)
 	}
 	return strings.Join(names, ",")
 }
@@ -485,7 +317,7 @@ func classifyDecodeError(err error) string {
 		return "missing-version"
 	case strings.HasPrefix(message, "unsupported schema_version "):
 		return "unsupported-version"
-	case strings.HasPrefix(message, "unknown core keys: "):
+	case strings.HasPrefix(message, "unknown keys: "):
 		return "unknown-core"
 	case strings.HasPrefix(message, "contract keys differ only by letter case: "):
 		return "folded-keys"
@@ -493,8 +325,6 @@ func classifyDecodeError(err error) string {
 		return "too-deep"
 	case strings.HasPrefix(message, "contract is larger than "):
 		return "too-large"
-	case message == "no lifecycle stages":
-		return "missing-lifecycle"
 	case strings.HasPrefix(message, "toml:"):
 		return "toml-decode"
 	default:
@@ -505,16 +335,19 @@ func classifyDecodeError(err error) string {
 func FuzzDecodeContractDeterministic(f *testing.F) {
 	seeds := [][]byte{
 		nil,
-		[]byte(validContractV1),
+		[]byte(validContract),
 		[]byte(`schema_version = "2"`),
+		[]byte(`schema_version = "1"`),
 		[]byte("not = [valid"),
-		[]byte(strings.Replace(validContractV1, "schema_version = \"1\"\n", "schema_version = \"1\"\nunknown = true\n", 1)),
-		[]byte(strings.Replace(validContractV1, "map_types = [\"moc\"]\n", "map_types = [\"moc\"]\nunknown = true\n", 1)),
-		[]byte(strings.Replace(validContractV1, "non_instance_dirs = [\"System/templates\"]\n", "non_instance_dirs = [\"System/templates\"]\nunknown = true\n", 1)),
-		[]byte(strings.Replace(validContractV1, "never_egress_dirs = [\"Private\"]\n", "never_egress_dirs = [\"Private\"]\nunknown = true\n", 1)),
-		[]byte(strings.Replace(validContractV1, `path_types = ["study-path"]`, `path_types = "study-path"`, 1)),
-		[]byte(strings.Replace(validContractV1, `non_instance_dirs = ["System/templates"]`, `non_instance_dirs = "System/templates"`, 1)),
-		[]byte(strings.Replace(validContractV1, `never_egress_dirs = ["Private"]`, `never_egress_dirs = "Private"`, 1)),
+		[]byte(strings.Replace(validContract, "schema_version = \"2\"\n", "schema_version = \"2\"\nunknown = true\n", 1)),
+		[]byte(strings.Replace(validContract, "journal = \"Diary\"\n", "journal = \"Diary\"\nunknown = true\n", 1)),
+		[]byte(strings.Replace(validContract, "role = \"course\"\n", "role = \"course\"\nunknown = true\n", 1)),
+		[]byte(strings.Replace(validContract, "never_egress_dirs = [\"Private\"]\n", "never_egress_dirs = [\"Private\"]\nunknown = true\n", 1)),
+		[]byte(strings.Replace(validContract, `role = "course"`, `role = "lesson"`, 1)),
+		[]byte(strings.Replace(validContract, `role = "course"`, `role = "unknown"`, 1)),
+		[]byte(strings.Replace(validContract, `templates = ["System/templates"]`, `templates = ["../x"]`, 1)),
+		[]byte(strings.Replace(validContract, `journal = "Diary"`, `journal = "../Diary"`, 1)),
+		[]byte(strings.Replace(validContract, `never_egress_dirs = ["Private"]`, `never_egress_dirs = "Private"`, 1)),
 		[]byte("0B7b11BYCAAXX7=\"8\"\n[enums.status]\n72=\"\"\n0=\"\""),
 		[]byte(foldedKeyContract("top-level")),
 		[]byte(foldedKeyContract("nested-table")),
@@ -535,7 +368,7 @@ func FuzzDecodeContractDeterministic(f *testing.F) {
 		`["Writing/\u0000lessons"]`,
 	} {
 		seeds = append(seeds, []byte(strings.Replace(semanticallyValidContract,
-			`domain_equals_folder_under = ["Writing"]`, `domain_equals_folder_under = `+roots, 1)))
+			`domain_from = ["Writing"]`, `domain_from = `+roots, 1)))
 	}
 
 	for _, seed := range seeds {
@@ -563,58 +396,52 @@ func foldedKeyContract(shape string) string {
 		longS   = "\u017f" // ſ, which the decoder folds to s
 		dottedI = "\u0130" // İ, which the decoder does not fold to i
 	)
+	const versionLine = "schema_version = \"2\"\n"
 	switch shape {
 	case "top-level":
-		return strings.Replace(validContractV1,
-			"aligned_with = \"Note-Contract.md\"\n",
-			"aligned_with = \"Note-Contract.md\"\nAligned_With = \"Other.md\"\n", 1)
+		return strings.Replace(validContract, versionLine, versionLine+"Schema_version = \"2\"\n", 1)
 	case "nested-table":
-		return validContractV1 + "\n[Navigation]\npath_types = [\"moc\"]\n"
+		return validContract + "\n[Folders]\nchecked = [\"Writing\"]\n"
 	case "array-of-tables":
-		return validContractV1 + "\n[[Lifecycle]]\nstatus = \"ready\"\napplies_to = [\"*\"]\nfrom = [\"draft\"]\nowner = []\n"
+		return validContract + "\n[[rows]]\nx = 1\n\n[[Rows]]\nx = 2\n"
 	case "key-in-table":
-		return strings.Replace(validContractV1,
-			"required = [\"title\", \"type\"]\n",
-			"required = [\"title\", \"type\"]\nRequired = [\"nothing\"]\n", 1)
+		return strings.Replace(validContract,
+			"required = [\"type\"]\n",
+			"required = [\"type\"]\nRequired = [\"aliases\"]\n", 1)
 	case "map-valued-section":
-		return strings.Replace(validContractV1,
-			"note = [\"draft\", \"archived\"]\n",
-			"note = [\"draft\", \"archived\"]\nNote = [\"draft\"]\n", 1)
+		return strings.Replace(validContract,
+			"domain = [\"golang\"]\n",
+			"domain = [\"golang\"]\nDomain = [\"rust\"]\n", 1)
 	case "quoted-key":
 		// A key outside the ASCII set has to be quoted to be a key at all, and
 		// this pair separates the decoder's own folding from a lowercasing
 		// comparison: the two fold together and do not lowercase together.
-		return strings.Replace(validContractV1,
+		return strings.Replace(validContract,
 			"slug_pattern = \"^[a-z]+$\"\n",
 			"slug_pattern = \"^[a-z]+$\"\n\""+longS+"lug_pattern\" = \"^[0-9]+$\"\n", 1)
 	case "two-pairs":
 		// Two folded pairs in two different tables, so the order they are
 		// reported in is observable.
-		withFields := strings.Replace(validContractV1,
-			"required = [\"title\", \"type\"]\n",
-			"required = [\"title\", \"type\"]\nRequired = [\"nothing\"]\n", 1)
+		withFields := strings.Replace(validContract,
+			"required = [\"type\"]\n",
+			"required = [\"type\"]\nRequired = [\"aliases\"]\n", 1)
 		return strings.Replace(withFields,
-			"note = [\"draft\", \"archived\"]\n",
-			"note = [\"draft\", \"archived\"]\nNote = [\"draft\"]\n", 1)
+			"domain = [\"golang\"]\n",
+			"domain = [\"golang\"]\nDomain = [\"rust\"]\n", 1)
 	case "row-in-table-array":
 		// Both spellings inside one row of an array of tables: the ambiguity is
 		// in the row, not among the row headers.
-		return strings.Replace(validContractV1,
-			"[[lifecycle]]\nstatus = \"archived\"\n",
-			"[[lifecycle]]\nstatus = \"archived\"\nStatus = \"ready\"\n", 1)
+		return validContract + "\n[[rows]]\nstatus = 1\nStatus = 2\n"
 	case "inline-table-array":
-		// Written as an array of inline tables, the lifecycle rows arrive as a
-		// different Go type from the same rows written as tables.
-		head, _, _ := strings.Cut(validContractV1, "[[lifecycle]]")
-		return strings.Replace(head,
-			"generated_at_must_match = true\n",
-			"generated_at_must_match = true\nlifecycle = [{status = \"draft\", Status = \"archived\", applies_to = [\"lesson\"], from = [], owner = []}]\n", 1)
+		// Written as an array of inline tables, the rows arrive as a different
+		// Go type from the same rows written as tables.
+		return strings.Replace(validContract, versionLine,
+			versionLine+"rows = [{status = \"draft\", Status = \"archived\"}]\n", 1)
 	case "lowercases-together-only":
 		// The other direction: these two lowercase to the same string and the
 		// decoder still keeps them apart, so they are two unknown keys.
-		return strings.Replace(validContractV1,
-			"aligned_with = \"Note-Contract.md\"\n",
-			"aligned_with = \"Note-Contract.md\"\ninitial = true\n\""+dottedI+"nitial\" = true\n", 1)
+		return strings.Replace(validContract, versionLine,
+			versionLine+"initial = true\n\""+dottedI+"nitial\" = true\n", 1)
 	}
 	panic("unknown shape " + shape)
 }
@@ -626,14 +453,14 @@ func TestDecodeRefusesKeysThatFoldTogether(t *testing.T) {
 		shape string
 		names [2]string
 	}{
-		{"top-level", [2]string{`"Aligned_With"`, `"aligned_with"`}},
-		{"nested-table", [2]string{`"Navigation"`, `"navigation"`}},
-		{"array-of-tables", [2]string{`"Lifecycle"`, `"lifecycle"`}},
+		{"top-level", [2]string{`"Schema_version"`, `"schema_version"`}},
+		{"nested-table", [2]string{`"Folders"`, `"folders"`}},
+		{"array-of-tables", [2]string{`"Rows"`, `"rows"`}},
 		{"key-in-table", [2]string{`"fields.Required"`, `"fields.required"`}},
-		{"map-valued-section", [2]string{`"enums.status.Note"`, `"enums.status.note"`}},
-		{"quoted-key", [2]string{`"rules.slug_pattern"`, "\"rules.\u017flug_pattern\""}},
-		{"inline-table-array", [2]string{`"lifecycle.Status"`, `"lifecycle.status"`}},
-		{"row-in-table-array", [2]string{`"lifecycle.Status"`, `"lifecycle.status"`}},
+		{"map-valued-section", [2]string{`"enums.Domain"`, `"enums.domain"`}},
+		{"quoted-key", [2]string{`"types.lesson.slug_pattern"`, "\"types.lesson.\u017flug_pattern\""}},
+		{"inline-table-array", [2]string{`"rows.Status"`, `"rows.status"`}},
+		{"row-in-table-array", [2]string{`"rows.Status"`, `"rows.status"`}},
 	} {
 		t.Run(tc.shape, func(t *testing.T) {
 			t.Parallel()
@@ -689,17 +516,15 @@ func TestDecodeKeepsSpellingsTheDecoderTellsApart(t *testing.T) {
 	t.Run("one folded spelling per table still binds", func(t *testing.T) {
 		t.Parallel()
 
-		// The second lifecycle row writes Status, and nothing else in that row
-		// folds to it, so the row binds the way it always did.
-		data := strings.Replace(validContractV1,
-			"[[lifecycle]]\nstatus = \"archived\"\n",
-			"[[lifecycle]]\nStatus = \"archived\"\n", 1)
+		// The folders table writes Checked, and nothing else in that table
+		// folds to it, so the key binds the way it always did.
+		data := strings.Replace(validContract, `checked = ["Writing"]`, `Checked = ["Writing"]`, 1)
 		contract, err := decodeContract([]byte(data), policySource{})
 		if err != nil {
 			t.Fatalf("decodeContract() error = %v, want the contract to load", err)
 		}
-		if got, want := contract.StageCount(), 2; got != want {
-			t.Errorf("StageCount() = %d, want %d", got, want)
+		if got := contract.KnowledgeScope().Declared(); len(got) != 1 || got[0] != "Writing" {
+			t.Errorf("KnowledgeScope().Declared() = %q, want [Writing]", got)
 		}
 	})
 
@@ -721,7 +546,7 @@ func TestDecodeKeepsSpellingsTheDecoderTellsApart(t *testing.T) {
 	t.Run("the shipped contract vocabulary still loads", func(t *testing.T) {
 		t.Parallel()
 
-		if _, err := decodeContract([]byte(validContractV1), policySource{}); err != nil {
+		if _, err := decodeContract([]byte(validContract), policySource{}); err != nil {
 			t.Fatalf("decodeContract(valid) error = %v", err)
 		}
 	})

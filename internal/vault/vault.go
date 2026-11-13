@@ -12,7 +12,6 @@ package vault
 import (
 	"bytes"
 	"fmt"
-	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -28,6 +27,11 @@ type Note struct {
 	// fields and Frontmatter stays nil.
 	HasFrontmatter bool
 	Frontmatter    map[string]any
+	// Domain is the first folder below a root the contract derives domains
+	// from, empty for a note outside every root. A note never writes it, so
+	// Parse leaves it empty and whoever reads a vault against its contract
+	// fills it in.
+	Domain string
 	// FMDiagnostic is non-empty when the frontmatter block exists but is not
 	// valid YAML. Display-only: yomihon reports, a human edits the file.
 	FMDiagnostic string
@@ -92,31 +96,10 @@ func (n *Note) Strings(key string) []string {
 	return out
 }
 
-// Title is the frontmatter title, falling back to the filename stem.
-func (n *Note) Title() string {
-	if t, _ := n.Text("title"); t != "" {
-		return t
-	}
-	base := filepath.Base(filepath.FromSlash(n.RelPath))
-	return strings.TrimSuffix(base, filepath.Ext(base))
-}
-
-// Status is the frontmatter status, empty when absent, which is legal.
-func (n *Note) Status() string {
-	s, _ := n.Text("status")
-	return s
-}
-
 // Type is the frontmatter type, empty when absent.
 func (n *Note) Type() string {
 	t, _ := n.Text("type")
 	return t
-}
-
-// Domain is the frontmatter domain, empty when absent.
-func (n *Note) Domain() string {
-	d, _ := n.Text("domain")
-	return d
 }
 
 // Aliases are the other names this note answers to, in declaration order, and
@@ -125,11 +108,11 @@ func (n *Note) Aliases() []string {
 	return n.Strings("aliases")
 }
 
-// Updated is the note's declared update date, or the zero time when the
+// Created is the note's declared creation date, or the zero time when the
 // frontmatter carries none or a shape no date reads from. YAML hands an
 // unquoted date over as a time and a quoted one as text, so both are read.
-func (n *Note) Updated() time.Time {
-	switch v := n.Frontmatter["updated"].(type) {
+func (n *Note) Created() time.Time {
+	switch v := n.Frontmatter["created"].(type) {
 	case time.Time:
 		return v
 	case string:

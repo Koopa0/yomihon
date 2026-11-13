@@ -24,8 +24,7 @@ func mapVault(t *testing.T, title, tag string) string {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir Maps: %v", err)
 	}
-	body := "---\ntitle: " + title + "\ntype: topic-map\ndomain: golang\nstatus: evergreen\n" +
-		"created: 2026-06-01\nupdated: 2026-06-01\nlang: " + tag + "\n---\n\n## Branch\n\n- [[Somewhere]]\n"
+	body := "---\ntype: topic-map\ncreated: 2026-06-01\nlang: " + tag + "\n---\n# " + title + "\n\n## Branch\n\n- [[Somewhere]]\n"
 	if err := os.WriteFile(filepath.Join(dir, "Map.md"), []byte(body), 0o600); err != nil {
 		t.Fatalf("write the map: %v", err)
 	}

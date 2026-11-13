@@ -80,9 +80,9 @@ type openThought struct {
 	Path     string `json:"path"`
 	Title    string `json:"title,omitempty"`
 	Wikilink string `json:"wikilink,omitempty"`
-	// UpdateDate is the date the note's own frontmatter declares, never a
-	// moment yomihon observed.
-	UpdateDate string `json:"update_date,omitempty"`
+	// CreateDate is the date the note's own frontmatter declares it was
+	// created on, never a moment yomihon observed.
+	CreateDate string `json:"create_date,omitempty"`
 }
 
 var (
@@ -392,8 +392,8 @@ func openThoughtEntry(snap *snapshot.Generation, reading *snapshot.Reading, allo
 		Kind: openKindThought, Path: reading.RelPath, Title: title,
 		Wikilink: note.NoteWikilink(snap, reading.RelPath),
 	}
-	if !reading.Updated.IsZero() {
-		entry.UpdateDate = reading.Updated.Format(time.DateOnly)
+	if !reading.Created.IsZero() {
+		entry.CreateDate = reading.Created.Format(time.DateOnly)
 	}
 	return entry, true
 }
@@ -442,8 +442,9 @@ func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allow
 // words, and a wikilink inside one is shown as the name it was written with,
 // so a heading citing a withheld note would say that note's path in the list —
 // and its anchor, made from the same words, would say it again. A title is
-// frontmatter, not body, so the links it writes are read from the title
-// itself; a heading's words arrive rendered, so its links are found in body.
+// its note's first heading as written, so the links it writes are read from the
+// title itself; a marked location's heading arrives rendered, so its links are
+// found in body.
 func namesWithheld(snap *snapshot.Generation, text, body string, allowed func(string) bool, withheldDirs []string) bool {
 	if spellsWithheldDir(text, withheldDirs) {
 		return true
@@ -731,7 +732,7 @@ func humanLocationLine(e *openLocation) string {
 // humanThoughtLine is one thought as a person at a terminal reads it: its
 // declared date, the kind, the path and its title.
 func humanThoughtLine(e *openThought) string {
-	date := cmp.Or(e.UpdateDate, humanOpenDateless)
+	date := cmp.Or(e.CreateDate, humanOpenDateless)
 	line := fmt.Sprintf("%s  %-8s  %s", date, e.Kind, escapeTerminal(e.Path))
 	if e.Title != "" {
 		line += "  " + escapeTerminal(e.Title)

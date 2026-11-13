@@ -226,10 +226,10 @@ yomihon left-open --root <vault> --format json
 
 One JSON object per line, newest first: each location the reader marked "Not
 sure yet" (`"kind":"location"`) and each note of the contract's answer type
-still in a status the contract declares initial (`"kind":"thought"`). It is the
+that declares `draft: true` (`"kind":"thought"`). It is the
 "What you left open" shelf, read by the same selection. A location carries
 `path`, `anchor`, `anchor_text`, `title`, `wikilink` and `create_time`; a
-thought carries `path`, `title`, `status`, `wikilink` and `update_date`. A
+thought carries `path`, `title`, `wikilink` and `create_date`. A
 field with no value is left out, except a lost location's `anchor`. `wikilink` is written with its brackets, the
 form a `based_on` takes, and is left out wherever it could point somewhere
 else — a heading another heading of the note shares, or a path a link cannot
@@ -456,21 +456,21 @@ second reader does.
 
 ## Being findable
 
-Six filter keys:
+Five filter keys:
 
-`type:` · `draft:` · `domain:` · `slug:` · `topic:` · `folder:`
+`type:` · `draft:` · `domain:` · `slug:` · `folder:`
 
 | Property | Behaviour |
 |---|---|
 | Case | **lowercase only.** `Type:lesson` is not a filter — it degrades to a literal token searched as text |
 | Repeated key | **AND.** Two `type:` filters both have to hold, so they are jointly unsatisfiable rather than last-wins |
-| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, Unicode simple case folding without multi-rune expansion). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `topic:` is membership of the folded topics |
-| Unknown prefix | named back to the reader with all six offered, and the term is searched as text rather than dropped |
+| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, Unicode simple case folding without multi-rune expansion). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `domain:` is the folder name under a `domain_from` root, not a field the note writes |
+| Unknown prefix | named back to the reader with all five offered, and the term is searched as text rather than dropped |
 | Quoting | `"…"`, `「…」`, `『…』` — at the start of a field, or straight after a recognised key and its colon |
-| Indexed | title, aliases, declared topics, frontmatter tags, body plain text and the vault-relative path are free-text searchable; type, domain and slug are reachable only through their own filter, and `draft:true` or `draft:false` selects by the draft flag. An alias hit is filed with the title hits |
+| Indexed | title, aliases, frontmatter tags, body plain text and the vault-relative path are free-text searchable; type, domain and slug are reachable only through their own filter, and `draft:true` or `draft:false` selects by the draft flag. An alias hit is filed with the title hits |
 | Tag shorthand | Frontmatter tags also answer bare words and one leading `#` as tag shorthand. Every token must match the same declared tag. The answering tag is shown in its original spelling; queries against other fields keep their literal hashes. There is no `tag:` filter or note-head tag display |
 | CJK | no segmenter: a folded literal substring, and a newline between two Han or Kana runes is dropped |
-| Ranking | nine fixed groups: note title/alias, note body, note topic, note tag, file title, file body, file topic, note path and file path. Frontmatter tags rank below body and topic hits; inline tags are not indexed as metadata. Inside a group, notes in the directories the contract calls knowledge come before those outside, then vault reading order. A title that is exactly the query under that fold leads. There is no score |
+| Ranking | seven fixed groups: note title/alias, note body, note tag, file title, file body, note path and file path. Frontmatter tags rank below body hits; inline tags are not indexed as metadata. Inside a group, notes in the directories the contract calls knowledge come before those outside, then vault reading order. A title that is exactly the query under that fold leads. There is no score |
 
 ## Study paths: sequence is declared, never inferred
 

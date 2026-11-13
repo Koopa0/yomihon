@@ -1,6 +1,7 @@
 package search
 
 import (
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // aliasServer answers over notes whose aliases are the only place a term
@@ -151,4 +153,78 @@ func elementText(t *testing.T, row, class string) string {
 		t.Fatalf("the %s element is never closed: %q", class, row)
 	}
 	return row[at : at+end]
+}
+
+func getSearch(t *testing.T, srv *httptest.Server, query string, lang wording.Lang) string {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/search?q="+query, http.NoBody)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	if lang == wording.En {
+		req.Header.Set("Cookie", wording.CookieName+"="+string(wording.En))
+	}
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return string(body)
+}
+
+// TestAnAliasLabelIsSaidInTheReadersLanguage holds the word that introduces
+// the answering name to the page's language: a label written in one would
+// leave the other reader looking at a title that does not match.
+func TestAnAliasLabelIsSaidInTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+	srv := aliasServer(t)
+
+	zh := elementText(t, resultRow(t, getSearch(t, srv, "green+thread", wording.ZhHant), "Concepts/Goroutine.md"), "y-result__alias")
+	if !strings.Contains(zh, wording.ResultAliasLabel.In(wording.ZhHant)) {
+		t.Errorf("the default page does not introduce the name in Traditional Chinese: %q", zh)
+	}
+	en := elementText(t, resultRow(t, getSearch(t, srv, "green+thread", wording.En), "Concepts/Goroutine.md"), "y-result__alias")
+	if !strings.Contains(en, wording.ResultAliasLabel.In(wording.En)) {
+		t.Errorf("the English page does not introduce the name in English: %q", en)
+	}
+	if strings.Contains(en, wording.ResultAliasLabel.In(wording.ZhHant)) {
+		t.Errorf("the English page still carries the Traditional Chinese label: %q", en)
+	}
+}
+
+// TestAnAliasLabelKeepsTheAuthorsSpelling is the display half of the fold.
+// Matching reads the folded alias, so a lowercase query finds the note; the
+// row must still print the name the way its author wrote it.
+func TestAnAliasLabelKeepsTheAuthorsSpelling(t *testing.T) {
+	t.Parallel()
+	idx := lexical.NewIndex([]lexical.Document{
+		{RelPath: "Notes/Palette.md", Title: "Palette", NoteType: "concept", Draft: true,
+			Aliases: []string{"Colour Theory"}, PlainText: "unrelated prose"},
+	}, validArtifactPolicy(t))
+	mux := http.NewServeMux()
+	NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
+	}, slog.New(slog.DiscardHandler)).Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	_, body := getBody(t, srv.Client(), srv.URL+"/search?q=colour+theory")
+	named := elementText(t, resultRow(t, body, "Notes/Palette.md"), "y-result__alias")
+	if !strings.Contains(named, "Colour") || !strings.Contains(named, "Theory") {
+		t.Errorf("the row does not show Colour Theory as written: %q", named)
+	}
+	if strings.Contains(named, "colour theory") {
+		t.Errorf("the label printed the fold, not the author's spelling: %q", named)
+	}
 }

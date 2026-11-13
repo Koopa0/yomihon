@@ -31,7 +31,7 @@ func TestHealthNamesAPathTheScanPassedOver(t *testing.T) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "Real.md"), []byte("---\ntitle: Real\ntype: concept\n---\n\nbody\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "Real.md"), []byte("---\ntype: concept\n---\n# Real\n\nbody\n"), 0o600); err != nil {
 		t.Fatalf("write note: %v", err)
 	}
 	if err := os.Symlink("Real.md", filepath.Join(dir, "Linked.md")); err != nil {

@@ -1,7 +1,7 @@
 ---
-title: Task Child
 type: inbox
-domain: golang
+
 ---
+# Task Child
 
 - [x] Inner task

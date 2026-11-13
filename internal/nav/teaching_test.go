@@ -111,8 +111,9 @@ func TestTeachingPath(t *testing.T) {
 func domainPathNote(rel, title, domain, body string) *vault.Note {
 	return &vault.Note{
 		RelPath:     rel,
-		Frontmatter: map[string]any{"title": title, "type": "study-path", "domain": domain},
-		Body:        body,
+		Frontmatter: map[string]any{"type": "study-path"},
+		Domain:      domain,
+		Body:        "# " + title + "\n\n" + body,
 		BodyLine:    1,
 	}
 }

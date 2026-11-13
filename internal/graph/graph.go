@@ -59,7 +59,10 @@ func (k Kind) String() string {
 // vault-relative paths holding it. Read-only once built.
 type Index struct {
 	names map[string][]string
-	paths []pathName
+	// located holds the names a file answers to by where it is, so a name in
+	// names and not here is claimed by an alias alone.
+	located map[string]bool
+	paths   []pathName
 }
 
 type pathName struct {
@@ -94,12 +97,13 @@ func New(notes []*vault.Note, resources []string) *Index {
 // BuildFromNotes builds an Index from note paths, their already-extracted
 // aliases, and resource paths, touching no disk.
 func BuildFromNotes(notes []NoteInput, resources []string) *Index {
-	idx := &Index{names: make(map[string][]string)}
+	idx := &Index{names: make(map[string][]string), located: make(map[string]bool)}
 	paths := make(map[string]pathName, len(notes)+len(resources))
 	for _, n := range notes {
 		paths[n.RelPath] = pathName{relPath: n.RelPath, full: NormalizeKey(n.RelPath), stem: NormalizeKey(pathStem(n.RelPath))}
 		for _, key := range noteKeys(n.RelPath) {
 			idx.add(key, n.RelPath)
+			idx.located[NormalizeKey(key)] = true
 		}
 		for _, alias := range n.Aliases {
 			idx.add(alias, n.RelPath)
@@ -111,6 +115,7 @@ func BuildFromNotes(notes []NoteInput, resources []string) *Index {
 		}
 		for _, key := range resourceKeys(res) {
 			idx.add(key, res)
+			idx.located[NormalizeKey(key)] = true
 		}
 	}
 	for key, members := range idx.names {
@@ -147,6 +152,22 @@ func (idx *Index) Resolve(name string) Resolution {
 	default:
 		return Resolution{Kind: KindAmbiguous, Candidates: slices.Clone(members)}
 	}
+}
+
+// ResolvesOnlyByAlias reports whether name resolves to one file and no file is
+// named that, so the only reason it reaches the file it does is an alias that
+// file lists. The relative path comes back with the answer. A name some file
+// answers to by where it is, even one the alias also repeats, is not one.
+func (idx *Index) ResolvesOnlyByAlias(name string) (relPath string, ok bool) {
+	key := NormalizeKey(name)
+	if idx.located[key] {
+		return "", false
+	}
+	members := idx.names[key]
+	if len(members) != 1 {
+		return "", false
+	}
+	return members[0], true
 }
 
 // Claimed reports whether a location key or an alias claims name. A name that

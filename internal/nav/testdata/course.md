@@ -1,8 +1,8 @@
 ---
-title: 手沖咖啡
 type: study-path
-domain: coffee
+draft: false
 ---
+# 手沖咖啡
 
 ## 主線 {sequence=primary}
 

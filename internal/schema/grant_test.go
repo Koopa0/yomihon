@@ -42,7 +42,7 @@ func TestGovernanceSeparatesSilenceFromFault(t *testing.T) {
 		},
 		{
 			name:            "contract loaded",
-			governance:      loadContractText(t, "", "").Governance(),
+			governance:      loadContractText(t, "").Governance(),
 			wantGoverned:    true,
 			wantTrustworthy: true,
 		},
@@ -76,18 +76,18 @@ func TestGovernanceSeparatesSilenceFromFault(t *testing.T) {
 func TestContractLeftAnInputOutStaysGoverned(t *testing.T) {
 	t.Parallel()
 
-	contract := loadContractText(t, "", "")
+	contract := loadContractText(t, "")
 	if !contract.Governance().Governed() {
-		t.Fatal("a contract that omitted [artifacts] reports the vault ungoverned")
+		t.Fatal("a contract that omitted [privacy] reports the vault ungoverned")
 	}
 	if !contract.Governance().Trustworthy() {
 		t.Error("the contract itself was read cleanly; only one declaration inside it is unresolved")
 	}
-	if contract.ArtifactPolicy().Trustworthy() {
-		t.Error("the omitted declaration is trustworthy; the operator meant to exclude directories yomihon cannot name")
+	if contract.PrivacyPolicy().Trustworthy() {
+		t.Error("the omitted declaration is trustworthy; the operator meant to withhold directories yomihon cannot name")
 	}
-	if contract.ArtifactPolicy().Diagnostic() == "" {
-		t.Error("the omitted declaration says nothing; a governed vault with no artifact policy is news")
+	if contract.PrivacyPolicy().Diagnostic() == "" {
+		t.Error("the omitted declaration says nothing; a governed vault with no privacy policy is news")
 	}
 }
 

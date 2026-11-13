@@ -25,8 +25,8 @@ const (
 	collidingComposed   = "Notes/\u304c.md"
 	collidingDecomposed = "Notes/\u304b\u3099.md"
 
-	collidingBody = "---\ntitle: Ga\ntype: concept\n---\nga\n"
-	freshBody     = "---\ntitle: Fresh\ntype: concept\n---\nfresh\n"
+	collidingBody = "---\ntype: concept\n---\nga\n"
+	freshBody     = "---\ntype: concept\n---\nfresh\n"
 )
 
 // refusedScanMessage is the line the loop logs when a scan fails, which is where
@@ -90,7 +90,7 @@ func refusedScanErrors(lines []loggedLine) []string {
 func collisionFolder(t *testing.T) (store *Store, root string, logged func() []loggedLine) {
 	t.Helper()
 	root = t.TempDir()
-	writeNote(t, root, "Notes/Existing.md", "---\ntitle: Existing\ntype: concept\n---\nexisting\n")
+	writeNote(t, root, "Notes/Existing.md", "---\ntype: concept\n---\nexisting\n")
 	writeNote(t, root, collidingComposed, collidingBody)
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
@@ -262,7 +262,7 @@ func (s *refusingSource) ScanAvailable(ctx context.Context) (vault.Scan, error) 
 func refusableFolder(t *testing.T) (store *Store, source *refusingSource) {
 	t.Helper()
 	root := t.TempDir()
-	writeNote(t, root, "Notes/Existing.md", "---\ntitle: Existing\ntype: concept\n---\nexisting\n")
+	writeNote(t, root, "Notes/Existing.md", "---\ntype: concept\n---\nexisting\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {

@@ -3,7 +3,6 @@ package note
 import (
 	"fmt"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -59,7 +58,7 @@ func (h *Handler) thought(w http.ResponseWriter, r *http.Request) {
 	// note is titled by its own name, so the title a contract may require and
 	// the file the reader saves read the same.
 	name := thoughtNoteName(n.Title, lang, time.Now())
-	markdown := thoughtMarkdown(h.sources.Contract, role, &n, name, sectionText)
+	markdown := thoughtMarkdown(role, &n, sectionText)
 	view := pages.ThoughtView{
 		SourceTitle: label,
 		SourceHref:  pages.ResumeHref(rel, section, 0),
@@ -103,30 +102,19 @@ func thoughtSourceAvailable(snap *snapshot.Generation, rel string) bool {
 	return resolved.Kind == graph.KindUnique && resolved.RelPath == rel
 }
 
-// thoughtMarkdown omits values that the source and contract cannot determine.
-// title is the new note's own title, written only when the contract knows the
-// field. sectionText is the section heading as the reader sees it: Obsidian
-// matches a heading link by its text, not by the id this site gives it.
-func thoughtMarkdown(contract *schema.Contract, role string, source *snapshot.Reading, title, sectionText string) string {
-	definition := contract.Definition()
+// thoughtMarkdown is the frontmatter a reader's thought starts with: its role
+// type, the draft flag, and the citation of the source. The note's title is not
+// written: it is the name the file is saved under, and the heading the reader
+// writes under it. sectionText is the section heading as the reader sees it:
+// Obsidian matches a heading link by its text, not by the id this site gives it.
+func thoughtMarkdown(role string, source *snapshot.Reading, sectionText string) string {
 	var b strings.Builder
 	b.WriteString("---\n")
-	write := func(field, value string) {
-		if value != "" && slices.Contains(definition.Fields.Known, field) {
-			b.WriteString(field + ": " + strconv.Quote(value) + "\n")
-		}
-	}
-	write("title", title)
-	write("type", role)
+	b.WriteString("type: " + strconv.Quote(role) + "\n")
 	// A thought starts unfinished: the reader removes the flag in the editor
 	// once it is written, and until then the shelf of what they left open
 	// lists it.
-	if slices.Contains(definition.Fields.Known, schema.DraftField) {
-		b.WriteString(schema.DraftField + ": true\n")
-	}
-	if slices.Contains(definition.Enums.Domain, source.Domain) && !slices.Contains(definition.Fields.DomainExempt, role) {
-		write("domain", source.Domain)
-	}
+	b.WriteString(schema.DraftField + ": true\n")
 	b.WriteString("based_on: " + strconv.Quote("[["+thoughtCitation(source.RelPath, sectionText)+"]]") + "\n---\n")
 	return b.String()
 }

@@ -19,7 +19,7 @@ func TestHealthSaysOnlyWhatIsTrueOfAFenceThatNeverCloses(t *testing.T) {
 
 	root := t.TempDir()
 	for _, n := range []struct{ path, body string }{
-		{"Writing/Declared.md", "---\ntitle: Declared\ntype: writing\n---\n\nbody\n"},
+		{"Writing/Declared.md", "---\ntype: writing\n---\n# Declared\n\nbody\n"},
 		{"Writing/Unclosed.md", "---\ntitle: Unclosed\ntype: writing\n--\n\nbody\n"},
 	} {
 		full := filepath.Join(root, filepath.FromSlash(n.path))

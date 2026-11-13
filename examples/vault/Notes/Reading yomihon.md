@@ -1,5 +1,4 @@
 ---
-title: Reading yomihon
 type: study-path
 created: 2026-09-22
 lang: en
@@ -7,13 +6,13 @@ lang: en
 
 # Reading yomihon
 
-The reader's contract, status model and setup. For subject lessons, see [[Go 並行入門]] and [[在圖書館讀日文]].
+The reader's contract, drafts and setup. For subject lessons, see [[Go 並行入門]] and [[在圖書館讀日文]].
 
 ## The idea {sequence=primary}
 
 - [[What yomihon is]]
 - [[The vault contract]]
-- [[The status lifecycle]]
+- [[Drafts]]
 - [[Diagnostics are reports]]
 
 ## Doing it {sequence=primary}

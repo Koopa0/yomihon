@@ -69,10 +69,8 @@ func FuzzParse(f *testing.F) {
 
 		// These accessors are part of the read path and must remain total even
 		// when YAML decoded a non-map or malformed frontmatter.
-		_ = first.Title()
-		_ = first.Status()
 		_ = first.Type()
-		_ = first.Domain()
+		_ = first.Created()
 		_ = first.Slug()
 	})
 }

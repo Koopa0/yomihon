@@ -185,7 +185,7 @@ func TestFreshnessAnnouncesAFrontmatterOnlyEdit(t *testing.T) {
 func TestReadingPageStampsNoStatusBesideItsIdentity(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	const body = "---\ntitle: watched\ntype: lesson\nstatus: draft\n---\n\nBody.\n"
+	const body = "---\ntype: lesson\n---\n# watched\n\nBody.\n"
 	writeFreshNote(t, root, body)
 	srv := newServerWithContract(t, root, loadContract(t))
 

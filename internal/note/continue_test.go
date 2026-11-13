@@ -43,7 +43,7 @@ func deskOverNote(t *testing.T, name, body string, kept *mark.Continuation, has 
 	return page
 }
 
-const aNote = "---\ntitle: Alpha\n---\n\n# Alpha\n\nSome words.\n"
+const aNote = "---\n---\n# Alpha\n\n# Alpha\n\nSome words.\n"
 
 func keptIn(path, anchor string, offset int, identity string) *mark.Continuation {
 	return &mark.Continuation{

@@ -25,13 +25,13 @@ func TestTheReportGroupsByTheFoldersTheContractDeclares(t *testing.T) {
 
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
-		[2]string{`domain_equals_folder_under = ["Concepts"]`, `domain_equals_folder_under = ["Ideas"]`},
+		[2]string{`domain_from = ["Concepts"]`, `domain_from = ["Ideas"]`},
 		[2]string{
-			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			`knowledge_dirs = ["Ideas"]`,
+			`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			`checked = ["Ideas"]`,
 		}))
 	write(t, root, "Ideas/golang/Cited.md",
-		"---\ntitle: Cited\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Cited]]\"\n---\n\nsee [[Nowhere]]\n")
+		"---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[Cited]]\"\n---\n# Cited\n\nsee [[Nowhere]]\n")
 
 	stdout, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
 	if err != nil {
@@ -72,8 +72,8 @@ func TestRunCheckDomainHeadings(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			write(t, root, schema.ContractRelPath, contractFixture(t, nil,
-				[2]string{`domain_equals_folder_under = ["Concepts"]`, `domain_equals_folder_under = ` + tt.roots},
-				[2]string{`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, `knowledge_dirs = ["` + tt.scope + `"]`},
+				[2]string{`domain_from = ["Concepts"]`, `domain_from = ` + tt.roots},
+				[2]string{`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, `checked = ["` + tt.scope + `"]`},
 			))
 			// Legal no-frontmatter notes still yield an actionable broken link.
 			write(t, root, tt.path, "see [[Nowhere]]\n")

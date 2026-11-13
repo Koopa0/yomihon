@@ -89,11 +89,6 @@ type SearchResult struct {
 	// note's other names would otherwise see nothing of what they typed.
 	AliasRuns []SnippetRun
 
-	// TopicRuns is the declared subject that answered the query where title,
-	// alias and body did not. A topic-only hit has no snippet, so without this
-	// the query word appears nowhere on the row.
-	TopicRuns []SnippetRun
-
 	// TagRuns names the frontmatter tag that answered a tag-only query.
 	TagRuns []SnippetRun
 
@@ -315,13 +310,6 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 									if r.FromFence {
 										<span class="y-result__sep" aria-hidden="true">·</span>
 										<span class="y-result__source">{ wording.ResultSourceLabel.In(lang) }</span>
-									}
-									if len(r.TopicRuns) > 0 {
-										<span class="y-result__sep" aria-hidden="true">·</span>
-										<span class="y-result__topic">
-											{ wording.ResultTopicLabel.In(lang) }
-											@hitRuns(r.TopicRuns)
-										</span>
 									}
 									if len(r.TagRuns) > 0 {
 										<span class="y-result__sep" aria-hidden="true">·</span>

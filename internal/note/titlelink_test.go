@@ -8,13 +8,6 @@ import (
 	"testing"
 )
 
-// notePath escapes a vault path for a request. A note whose own name carries
-// a hash is exactly the subject here, and an unescaped one would cut the
-// request short and fetch a different note.
-func notePath(rel string) string {
-	return strings.ReplaceAll(rel, "#", "%23")
-}
-
 func writeNotes(t *testing.T, notes map[string]string) string {
 	t.Helper()
 	root := t.TempDir()
@@ -39,8 +32,8 @@ func TestNotePageDoesNotDenyANoteItCanSee(t *testing.T) {
 	t.Parallel()
 
 	root := writeNotes(t, map[string]string{
-		"Concepts/golang/Citing.md": "---\ntitle: Citing\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\n見 [[The Long Title]]。\n",
-		"Concepts/golang/Target.md": "---\ntitle: The Long Title\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n",
+		"Concepts/golang/Citing.md": "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n# Citing\n\n見 [[The Long Title]]。\n",
+		"Concepts/golang/Target.md": "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n# The Long Title\n\nbody\n",
 	})
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -62,9 +55,9 @@ func TestNotePageDoesNotDenyANoteItCanSee(t *testing.T) {
 func TestNotePageNamesEveryHolderOfASharedTitle(t *testing.T) {
 	t.Parallel()
 
-	shared := "---\ntitle: Shared Name\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n"
+	shared := "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n# Shared Name\n\nbody\n"
 	root := writeNotes(t, map[string]string{
-		"Concepts/golang/Citing.md": "---\ntitle: Citing\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\n見 [[Shared Name]]。\n",
+		"Concepts/golang/Citing.md": "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n# Citing\n\n見 [[Shared Name]]。\n",
 		"Concepts/golang/A.md":      shared,
 		"Concepts/golang/B.md":      shared,
 	})
@@ -79,92 +72,6 @@ func TestNotePageNamesEveryHolderOfASharedTitle(t *testing.T) {
 	}
 }
 
-// TestNotePageReportsATitleCutAtAHash covers the frontmatter shape that loses
-// its own words: an unquoted value ends at a space followed by "#", because
-// that is where YAML starts a comment.
-func TestNotePageReportsATitleCutAtAHash(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		name     string
-		rel      string
-		title    string
-		wantSaid bool
-	}{
-		{
-			name:     "an unquoted title loses everything after the hash",
-			rel:      "Concepts/golang/場景 #7 未命名.md",
-			title:    "場景 #7 未命名",
-			wantSaid: true,
-		},
-		{
-			// A hash with no space before it starts no comment, so this title
-			// arrives whole. Reporting it would accuse a file with nothing
-			// wrong with it.
-			name:     "a hash with no space before it is not a comment",
-			rel:      "Concepts/golang/trailing#nospace.md",
-			title:    "trailing#nospace",
-			wantSaid: false,
-		},
-		{
-			// The same rule where it actually bites: the title is a prefix of
-			// the filename and the remainder begins with a hash, but with no
-			// space before it — so YAML never cut anything and this title was
-			// written exactly as it stands. A check that looked only for a
-			// hash would accuse it.
-			name:     "a filename whose extra part begins with a bare hash",
-			rel:      "Concepts/golang/Plan#2.md",
-			title:    "\"Plan\"",
-			wantSaid: false,
-		},
-		{
-			name:     "an ordinary title unlike its filename is not this",
-			rel:      "Concepts/golang/Filename.md",
-			title:    "A Quite Different Title",
-			wantSaid: false,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			root := writeNotes(t, map[string]string{
-				tc.rel: "---\ntitle: " + tc.title + "\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n",
-			})
-			srv := newServerWithContract(t, root, loadHomeContract(t))
-
-			_, page := get(t, srv.Client(), srv.URL+"/notes/"+notePath(tc.rel))
-			said := strings.Contains(page, "截斷")
-			if said != tc.wantSaid {
-				t.Errorf("the page says the title was cut at a hash = %v, want %v", said, tc.wantSaid)
-			}
-		})
-	}
-}
-
-// TestTheCutTitleSentenceIsTrueForADeliberatelyShortTitle is the edge the
-// wording is built around. A title written short on purpose, in quotes,
-// produces exactly the coincidence an unquoted truncation produces, and
-// nothing in the parsed frontmatter separates them. The sentence therefore
-// has to be one that stays true for the author who meant it — it reports the
-// coincidence and offers the remedy, and accuses nobody of anything.
-func TestTheCutTitleSentenceIsTrueForADeliberatelyShortTitle(t *testing.T) {
-	t.Parallel()
-
-	root := writeNotes(t, map[string]string{
-		"Concepts/golang/Plan #2 final.md": "---\ntitle: \"Plan\"\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n",
-	})
-	srv := newServerWithContract(t, root, loadHomeContract(t))
-
-	_, page := get(t, srv.Client(), srv.URL+"/notes/"+notePath("Concepts/golang/Plan #2 final.md"))
-	if !strings.Contains(page, "恰好是") {
-		t.Error("the sentence does not read as an observed coincidence, so it accuses an author who wrote what they meant")
-	}
-	for _, accusation := range []string{"錯誤", "遺失", "應該"} {
-		if strings.Contains(page, accusation) {
-			t.Errorf("the sentence carries %q, which is false about a title written short on purpose", accusation)
-		}
-	}
-}
-
 // TestHealthDoesNotCallATitleReferencedNoteUncited holds the other half of the
 // same truth. A note reached only by its title is cited by nobody as far as
 // the resolver is concerned, because a title is not a name a link follows —
@@ -174,8 +81,8 @@ func TestHealthDoesNotCallATitleReferencedNoteUncited(t *testing.T) {
 	t.Parallel()
 
 	root := writeNotes(t, map[string]string{
-		"Concepts/golang/Citing.md": "---\ntitle: Citing\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\n見 [[The Long Title]]。\n",
-		"Concepts/golang/Target.md": "---\ntitle: The Long Title\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n\nbody\n",
+		"Concepts/golang/Citing.md": "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n# Citing\n\n見 [[The Long Title]]。\n",
+		"Concepts/golang/Target.md": "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[x]]\"\n---\n# The Long Title\n\nbody\n",
 	})
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 

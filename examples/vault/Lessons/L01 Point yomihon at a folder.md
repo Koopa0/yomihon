@@ -1,12 +1,9 @@
 ---
-title: L01 Point yomihon at a folder
+aliases: [Building yomihon from source]
 type: lesson
-domain: yomihon
 slug: l01-point-at-a-folder
 level: fundamental
-supersedes: ["Building yomihon from source"]
 created: 2026-09-22
-updated: 2026-09-22
 lang: en
 ---
 

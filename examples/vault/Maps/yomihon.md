@@ -1,9 +1,6 @@
 ---
-title: yomihon
 type: moc
-map_kind: topic
 created: 2026-09-22
-updated: 2026-09-22
 lang: en
 ---
 
@@ -25,7 +22,7 @@ Courses and references in this library.
 
 - [[The vault contract]]
 - [[Frontmatter]]
-- [[The status lifecycle]]
+- [[Drafts]]
 - [[Wikilinks in this dialect]]
 - [[Diagnostics are reports]]
 

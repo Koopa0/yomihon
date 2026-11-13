@@ -141,37 +141,26 @@ func draftFacts(drafts ...string) map[string]noteFacts {
 func draftVault(t *testing.T) (root string, contract *schema.Contract) {
 	t.Helper()
 
-	text := `schema_version = "1"
+	text := `schema_version = "2"
 
-[enums]
-type = ["note", "moc", "study-path"]
-
-[enums.status]
-note = ["draft", "ready"]
+[folders]
+checked = ["Concepts", "Maps"]
+templates = ["System/templates"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "draft"]
+common = ["type", "draft"]
+required = ["type"]
 
-[scan]
-knowledge_dirs = ["Concepts", "Maps"]
+[types.note]
 
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
+[types.moc]
+role = "map"
 
-[artifacts]
-non_instance_dirs = ["System/templates"]
+[types.study-path]
+role = "course"
 
 [privacy]
 never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-initial = true
-from = []
-owner = ["koopa"]
 `
 	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
 	if err := os.WriteFile(contractPath, []byte(text), 0o600); err != nil {
@@ -184,8 +173,8 @@ owner = ["koopa"]
 
 	root = t.TempDir()
 	note := func(rel, title, kind, flag, body string) {
-		front := "---\ntitle: " + title + "\ntype: " + kind + "\n" + flag
-		writeNavFixture(t, root, rel, front+"---\n"+body)
+		front := "---\ntype: " + kind + "\n" + flag
+		writeNavFixture(t, root, rel, front+"---\n# "+title+"\n\n"+body)
 	}
 	note("Concepts/Done.md", "Done", "note", "draft: false\n", "body\n")
 	note("Concepts/Open.md", "Open", "note", "draft: true\n", "body\n")

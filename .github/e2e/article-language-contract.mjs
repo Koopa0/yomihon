@@ -156,7 +156,7 @@ const MUTATIONS = {
   },
   'drop-contract-lang': {
     target: 'contract-declares-lang',
-    apply: rewritePath(CONTRACT_RAW, ', "lang"]', ']', 'contract known-field language'),
+    apply: rewritePath(CONTRACT_RAW, '"lang", ', '', 'contract common-field language'),
   },
   'change-declared-shell-lang': {
     target: 'declared-shell-language',
@@ -333,10 +333,10 @@ try {
   }
 
   if (contractRaw.status !== 200) broken(`${CONTRACT_RAW} returned ${contractRaw.status}, want 200`);
-  const knownLines = contractRaw.body.split(/\r?\n/).filter((line) => line.startsWith('known = '));
-  const knownFields = knownLines.length === 1 ? Array.from(knownLines[0].matchAll(/"([^"]+)"/g), (match) => match[1]) : [];
-  if (knownLines.length !== 1 || knownFields.filter((field) => field === 'lang').length !== 1) {
-    fail('contract-declares-lang', `contract known fields are ${JSON.stringify(knownFields)}, want lang exactly once`);
+  const commonLines = contractRaw.body.split(/\r?\n/).filter((line) => line.startsWith('common = '));
+  const commonFields = commonLines.length === 1 ? Array.from(commonLines[0].matchAll(/"([^"]+)"/g), (match) => match[1]) : [];
+  if (commonLines.length !== 1 || commonFields.filter((field) => field === 'lang').length !== 1) {
+    fail('contract-declares-lang', `contract common fields are ${JSON.stringify(commonFields)}, want lang exactly once`);
   }
 
   if (declaredDOM.shellLanguage !== 'zh-Hant') {

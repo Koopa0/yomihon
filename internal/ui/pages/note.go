@@ -29,8 +29,6 @@ func renderDiagLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 		return wording.DiagLinkNoTarget.In(lang)
 	case render.DiagWikilinkTitleOnly:
 		return wording.DiagLinkTitleOnly.In(lang)
-	case render.DiagTitleTruncatedAtHash:
-		return wording.DiagTitleCut.In(lang)
 	case render.DiagWikilinkAmbiguous:
 		return wording.DiagLinkManyTargets.In(lang)
 	case render.DiagUnknownCallout:

@@ -40,14 +40,14 @@ func (g *Generation) BasedOnDeclarations(rel string) []string {
 	return slices.Clone(basedOnValues(g.parsed[rel]))
 }
 
-// DeclaredTitle is the title rel's own frontmatter declares, empty when it
-// declares none. A reading's Title falls back to the file name, which is a
-// path rather than a title.
+// DeclaredTitle is the title rel's own first heading declares, empty when it
+// has none. A reading's Title falls back to the file name, which is a path
+// rather than a title.
 func (g *Generation) DeclaredTitle(rel string) string {
 	if g == nil || g.parsed[rel] == nil {
 		return ""
 	}
-	title, _ := g.parsed[rel].Text("title")
+	title, _ := graph.FirstH1(g.parsed[rel].Body)
 	return title
 }
 
@@ -125,7 +125,7 @@ func (g *Generation) OpenItems(marks []OpenMark) []OpenItem {
 	notes := g.NotesOfType(role)
 	for i := range notes {
 		if notes[i].Draft {
-			items = append(items, OpenItem{Note: &notes[i], At: notes[i].Updated})
+			items = append(items, OpenItem{Note: &notes[i], At: notes[i].Created})
 		}
 	}
 	for i := range marks {

@@ -11,8 +11,8 @@ import (
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// TestReferenceSequenceGolden keeps one repair per field, including the
-// product-owned reference and the contract-owned replacement reference.
+// TestReferenceSequenceGolden keeps one repair per field the product reads as
+// a reference.
 func TestReferenceSequenceGolden(t *testing.T) {
 	t.Parallel()
 	got := runSchema(t, "testdata/vault-reference-sequence")
@@ -36,7 +36,7 @@ func TestReferenceSequenceShapes(t *testing.T) {
 		{name: "mixed", fields: "based_on: [\"[[Good]]\", [Bad]]\n", want: []string{"based_on"}},
 		{name: "several nested items once", fields: "based_on: [[One], [Two], [[Three]]]\n", want: []string{"based_on"}},
 		{name: "both fixed references", fields: "based_on: [[One]]\nrelated: [[Two]]\n", want: []string{"based_on", "related"}},
-		{name: "general replacement", fields: "lineage: [[Note]]\n", want: []string{"lineage"}},
+		{name: "a replacement ledger field is not a reference", fields: "lineage: [[Note]]\n"},
 		{name: "alias item", fields: "source_locator: &nested [Note]\nbased_on: [*nested]\n", want: []string{"based_on"}},
 		{name: "alias outer list", fields: "source_locator: &nested [[Note]]\nbased_on: *nested\n", want: []string{"based_on"}},
 		{name: "quoted flow", fields: "based_on: [\"[[Note]]\", \"Note\"]\n"},
@@ -49,11 +49,8 @@ func TestReferenceSequenceShapes(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			data := []byte("---\ntitle: Probe\ntype: concept\nstatus: draft\n" + tt.fields + "---\n\nReadable body.\n")
-			findings, lintErr := LintFrontmatter("Concepts/Probe.md", data, contract)
-			if lintErr != nil {
-				t.Fatal(lintErr)
-			}
+			data := []byte("---\ntype: concept\n" + tt.fields + "---\n\nReadable body.\n")
+			findings := LintFrontmatter("Concepts/Probe.md", data, contract)
 			t.Log("hit: reference shape linter reached")
 			var got []string
 			for _, finding := range findings {
@@ -80,9 +77,9 @@ func TestReferenceSequenceCommandPrivacyAndDeny(t *testing.T) {
 		wantExit int
 		wantRows int
 	}{
-		{name: "public ungated", path: "Concepts/Probe.md", wantRows: 2},
-		{name: "public severity gate", path: "Concepts/Probe.md", deny: []string{"error"}, wantExit: 1, wantRows: 2},
-		{name: "public rule gate", path: "Concepts/Probe.md", deny: []string{"schema.reference_nested_sequence"}, wantExit: 1, wantRows: 2},
+		{name: "public ungated", path: "Concepts/Probe.md", wantRows: 1},
+		{name: "public severity gate", path: "Concepts/Probe.md", deny: []string{"error"}, wantExit: 1, wantRows: 1},
+		{name: "public rule gate", path: "Concepts/Probe.md", deny: []string{"schema.reference_nested_sequence"}, wantExit: 1, wantRows: 1},
 		{name: "private even with all", path: "Concepts/Private/Secret.md"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -92,7 +89,7 @@ func TestReferenceSequenceCommandPrivacyAndDeny(t *testing.T) {
 			if err := os.MkdirAll(filepath.Dir(clean), 0o750); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(clean, []byte("---\ntitle: Clean\ntype: memo\nstatus: draft\n---\n\nBody.\n"), 0o600); err != nil {
+			if err := os.WriteFile(clean, []byte("---\ntype: memo\n---\n\nBody.\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			for _, file := range []struct{ source, destination string }{
@@ -150,10 +147,7 @@ func wantPrivateReferenceFindings(t *testing.T, root, path string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	findings, err := LintFrontmatter(path, data, contract)
-	if err != nil {
-		t.Fatal(err)
-	}
+	findings := LintFrontmatter(path, data, contract)
 	var fields []string
 	for i := range findings {
 		finding := &findings[i]
@@ -161,13 +155,19 @@ func wantPrivateReferenceFindings(t *testing.T, root, path string) {
 			fields = append(fields, *finding.Field)
 		}
 	}
-	if diff := cmp.Diff([]string{"based_on", "lineage"}, fields); diff != "" {
+	if diff := cmp.Diff([]string{"based_on"}, fields); diff != "" {
 		t.Fatalf("caught: private fixture did not produce reference findings (-want +got):\n%s", diff)
 	}
 }
 
-func TestReferenceSequenceContractSelection(t *testing.T) {
+// TestReferenceSequenceFieldsAreTheProducts holds the reference fields to the
+// two the product reads, based_on and related, for every type. The contract
+// names no further reference field: a replacement ledger written into a note is
+// an unknown key, not a reference, and a field the provenance rule names is
+// asked to exist, not declared a reference.
+func TestReferenceSequenceFieldsAreTheProducts(t *testing.T) {
 	t.Parallel()
+	const ledger = "predecessor: [[Old]]\nsuccessors: [[New]]\nlineage: [[Ignored]]\nbased_on: [[Source]]\n"
 	for _, tt := range []struct {
 		name         string
 		replacements [][2]string
@@ -175,13 +175,11 @@ func TestReferenceSequenceContractSelection(t *testing.T) {
 		fields       string
 		want         []string
 	}{
-		{name: "lesson fields", noteType: "lesson", fields: "predecessor: [[Old]]\nsuccessors: [[New]]\nlineage: [[Ignored]]\n", want: []string{"predecessor / vault-schema.toml#supersession", "successors / vault-schema.toml#supersession"}},
-		{name: "system document fields", replacements: [][2]string{{`type = ["concept", "lesson", "memo"]`, `type = ["concept", "lesson", "memo", "system"]`}, {"[enums.status]\n", "[enums.status]\nsystem = [\"draft\", \"archived\"]\n"}, {"[fields.status_group]\n", "[fields.status_group]\nsystem = [\"system\"]\n"}}, noteType: "system", fields: "based_on: [[Source]]\nlineage: [[New]]\n", want: []string{"based_on / yomihon", "lineage / vault-schema.toml#supersession"}},
-		{name: "renamed general field", replacements: [][2]string{{"lineage", "replaces"}}, noteType: "memo", fields: "replaces: [[New]]\nlineage: [[Ignored]]\n", want: []string{"replaces / vault-schema.toml#supersession"}},
-		{name: "renamed lesson fields", replacements: [][2]string{{`"predecessor"`, `"earlier"`}, {`"successors"`, `"later"`}}, noteType: "lesson", fields: "earlier: [[Old]]\nlater: [[New]]\npredecessor: [[Ignored]]\n", want: []string{"earlier / vault-schema.toml#supersession", "later / vault-schema.toml#supersession"}},
-		{name: "unknown type has no status group", noteType: "unknown", fields: "lineage: [[Ignored]]\nbased_on: [[Source]]\n", want: []string{"based_on / yomihon"}},
-		{name: "fixed field configured too", replacements: [][2]string{{"general_link_field = \"lineage\"", "general_link_field = \"based_on\""}}, noteType: "concept", fields: "based_on: [[Source]]\n", want: []string{"based_on / yomihon"}},
-		{name: "provenance requirement does not declare a reference", replacements: [][2]string{{"concept_requires_provenance = [\"based_on\", \"source_locator\"]", "concept_requires_provenance = [\"aliases\"]"}}, noteType: "concept", fields: "aliases: [[Ignored]]\n"},
+		{name: "lesson", noteType: "lesson", fields: "slug: probe\n" + ledger, want: []string{"based_on / yomihon"}},
+		{name: "memo", noteType: "memo", fields: ledger, want: []string{"based_on / yomihon"}},
+		{name: "concept", noteType: "concept", fields: ledger + "related: [[Other]]\n", want: []string{"based_on / yomihon", "related / yomihon"}},
+		{name: "unknown type", noteType: "unknown", fields: ledger, want: []string{"based_on / yomihon"}},
+		{name: "provenance requirement does not declare a reference", replacements: [][2]string{{"concept_requires_provenance = [\"based_on\", \"source_locator\"]", "concept_requires_provenance = [\"source_locator\"]"}}, noteType: "concept", fields: "source_locator: [[Ignored]]\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -196,43 +194,34 @@ func TestReferenceSequenceContractSelection(t *testing.T) {
 				}
 				declaration = strings.ReplaceAll(declaration, replacement[0], replacement[1])
 			}
-			root, err := os.OpenRoot(t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Cleanup(func() {
-				if closeErr := root.Close(); closeErr != nil {
-					t.Error(closeErr)
-				}
-			})
-			if writeErr := root.WriteFile("contract.toml", []byte(declaration), 0o600); writeErr != nil {
+			path := filepath.Join(t.TempDir(), "contract.toml")
+			if writeErr := os.WriteFile(path, []byte(declaration), 0o600); writeErr != nil { // #nosec G703 -- fixed basename below t.TempDir
 				t.Fatal(writeErr)
 			}
-			contract, err := schema.LoadFile(filepath.Join(root.Name(), "contract.toml"))
+			contract, err := schema.LoadFile(path)
 			if err != nil {
 				t.Fatal(err)
 			}
-			findings, err := LintFrontmatter("Concepts/Probe.md", []byte("---\ntitle: Probe\ntype: "+tt.noteType+"\nstatus: draft\n"+tt.fields+"---\n\nBody.\n"), contract)
-			if err != nil {
-				t.Fatal(err)
-			}
-			t.Log("hit: contract reference selector reached")
+			findings := LintFrontmatter("Concepts/Probe.md", []byte("---\ntype: "+tt.noteType+"\n"+tt.fields+"---\n\nBody.\n"), contract)
 			var got []string
 			for _, finding := range findings {
 				if finding.RuleID == "schema.reference_nested_sequence" {
 					if finding.Field == nil {
-						t.Fatal("caught: configured reference finding has no field")
+						t.Fatal("caught: reference finding has no field")
 					}
 					got = append(got, *finding.Field+" / "+finding.SourceRule)
 				}
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("caught: contract reference fields (-want +got):\n%s", diff)
+				t.Errorf("caught: reference fields (-want +got):\n%s", diff)
 			}
 		})
 	}
 }
 
+// TestReferenceSequenceSystemFindingContract holds the whole finding a working
+// document draws for a nested reference: it is the same finding any note
+// draws, since no type takes lighter rules.
 func TestReferenceSequenceSystemFindingContract(t *testing.T) {
 	t.Parallel()
 	data, err := os.ReadFile("testdata/vault-reference-sequence/System/schemas/vault-schema.toml")
@@ -240,16 +229,10 @@ func TestReferenceSequenceSystemFindingContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	declaration := string(data)
-	for _, replacement := range [][2]string{
-		{`type = ["concept", "lesson", "memo"]`, `type = ["concept", "lesson", "memo", "system"]`},
-		{"[enums.status]\n", "[enums.status]\nsystem = [\"draft\", \"archived\"]\n"},
-		{"[fields.status_group]\n", "[fields.status_group]\nsystem = [\"system\"]\n"},
-	} {
-		if strings.Count(declaration, replacement[0]) != 1 {
-			t.Fatalf("contract replacement %q has no unique declaration", replacement[0])
-		}
-		declaration = strings.Replace(declaration, replacement[0], replacement[1], 1)
+	if strings.Count(declaration, "[types.memo]\n") != 1 {
+		t.Fatal("contract has no unique memo type to add the system type beside")
 	}
+	declaration = strings.Replace(declaration, "[types.memo]\n", "[types.memo]\n\n[types.system]\n", 1)
 	path := filepath.Join(t.TempDir(), "contract.toml")
 	if writeErr := os.WriteFile(path, []byte(declaration), 0o600); writeErr != nil { // #nosec G703 -- fixed basename below t.TempDir
 		t.Fatal(writeErr)
@@ -258,21 +241,16 @@ func TestReferenceSequenceSystemFindingContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	basedOn, lineage := "based_on", "lineage"
+	basedOn := "based_on"
 	want := []Finding{
 		{RuleID: "schema.reference_nested_sequence", Severity: SeverityError, Path: "Concepts/Probe.md", Field: &basedOn, Message: "based_on contains a nested YAML list instead of a reference", Evidence: "a reference item was read as a YAML sequence", SuggestedAction: "quote the reference, for example based_on: [\"[[Note]]\"] or based_on: [\"Note\"]", SourceRule: "yomihon", Fingerprint: "v1:8d1e0a396dea0de3"},
-		{RuleID: "schema.reference_nested_sequence", Severity: SeverityError, Path: "Concepts/Probe.md", Field: &lineage, Message: "lineage contains a nested YAML list instead of a reference", Evidence: "a reference item was read as a YAML sequence", SuggestedAction: "quote the reference, for example lineage: [\"[[Note]]\"] or lineage: [\"Note\"]", SourceRule: "vault-schema.toml#supersession", Fingerprint: "v1:c8642cae83a4d17b"},
 	}
-	for _, status := range []string{"draft", "archived"} {
-		t.Run(status, func(t *testing.T) {
+	for _, noteType := range []string{"system", "memo"} {
+		t.Run(noteType, func(t *testing.T) {
 			t.Parallel()
-			findings, lintErr := LintFrontmatter("Concepts/Probe.md", []byte("---\ntitle: Probe\ntype: system\nstatus: "+status+"\nbased_on: [[Source]]\nlineage: [[New]]\n---\n\nReadable body.\n"), contract)
-			if lintErr != nil {
-				t.Fatal(lintErr)
-			}
-			t.Log("hit: system reference finding contract reached")
+			findings := LintFrontmatter("Concepts/Probe.md", []byte("---\ntype: "+noteType+"\nbased_on: [[Source]]\n---\n\nReadable body.\n"), contract)
 			if diff := cmp.Diff(want, findings); diff != "" {
-				t.Errorf("caught: system reference finding contract (-want +got):\n%s", diff)
+				t.Errorf("caught: reference finding contract for %s (-want +got):\n%s", noteType, diff)
 			}
 		})
 	}
