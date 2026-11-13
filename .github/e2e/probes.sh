@@ -125,6 +125,7 @@ probes=(
   "search-facets.mjs|/search?q=a"
   "search-overflow.mjs|/search?q=stoppedAt"
   "largest-text.mjs|/search?q=alpha"
+  "shelf-order.mjs|/open-thoughts"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
   "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"
