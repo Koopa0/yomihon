@@ -202,4 +202,3 @@ var (
 	CalloutNote    = both("備註", "Note")
 	CalloutQuote   = both("引用", "Quote")
 )
-

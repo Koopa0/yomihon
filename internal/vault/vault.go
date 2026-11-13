@@ -112,7 +112,19 @@ func (n *Note) Aliases() []string {
 // frontmatter carries none or a shape no date reads from. YAML hands an
 // unquoted date over as a time and a quoted one as text, so both are read.
 func (n *Note) Created() time.Time {
-	switch v := n.Frontmatter["created"].(type) {
+	return n.declaredDate("created")
+}
+
+// VerifiedOn is the day the author wrote down as the one they last checked the
+// note's claims on, read as Created reads its date: the zero time when the
+// frontmatter carries none or a shape no date reads from. It is the author's
+// statement and nothing here confirms it.
+func (n *Note) VerifiedOn() time.Time {
+	return n.declaredDate("verified_on")
+}
+
+func (n *Note) declaredDate(key string) time.Time {
+	switch v := n.Frontmatter[key].(type) {
 	case time.Time:
 		return v
 	case string:

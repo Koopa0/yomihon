@@ -751,7 +751,7 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 			Message: fmt.Sprintf("unknown callout type %q; rendered as a neutral callout", typ),
 		})
 	}
-	if _, labelled := calloutLabel(typ, bucket); title == "" && !(labelled && namesItsLabel(typ)) {
+	if _, labelled := calloutLabel(typ, bucket); title == "" && (!labelled || !namesItsLabel(typ)) {
 		title = defaultTitle
 	}
 	titleHTML, openingID := html.EscapeString(title), ""

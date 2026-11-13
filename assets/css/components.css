@@ -924,16 +924,6 @@ html:not([data-js]) .y-rubybtn {
   font-weight: var(--fw-semibold);
 }
 
-/* The sidebar's rows are shorter than the two rem a door is drawn at beside a
-   title in the reading column, so here the door takes the row's own height: a
-   door taller than its row hangs out of it, and covers the top of the next row,
-   the one the pointer is going to. */
-.y-railtoc .y-toc__list .y-toc__door {
-  background: var(--rail-ground);
-  height: auto;
-  inset-block: 0;
-}
-
 .y-railtoc .y-toc__row--end {
   margin-top: 6px;
 }
@@ -1029,15 +1019,14 @@ html:not([data-js]) .y-rubybtn {
    interpolate-size lets a height:auto transition resolve; ::details-content is
    the wrapper the engine wraps a <details>'s body in, and declaring the
    keyword on that wrapper keeps it off everything else inside the fold. Every
-   fold the interface owns opens this way — the rail's groups, the note's
-   metadata row, the inline reading aids, the no-return confirm, and the search
+   fold the interface owns opens this way — the rail's groups, the inline
+   reading aids, the no-return confirm, and the search
    page's value column — so the reader meets one gesture rather than five.
    Disclosures in a note's prose are left alone: those are the author's, and a
    callout is part of the writing. Reduced motion disables all of it below —
    the blanket motion kill reaches elements and ::before/::after, not this
    pseudo-element, so each fold is turned off by name. */
 .y-rail-left details::details-content,
-.y-metarow::details-content,
 .y-toc-inline::details-content,
 .y-facets::details-content {
   height: 0;
@@ -1054,7 +1043,6 @@ html:not([data-js]) .y-rubybtn {
 }
 
 .y-rail-left details[open]::details-content,
-.y-metarow[open]::details-content,
 .y-toc-inline[open]::details-content,
 .y-facets[open]::details-content {
   height: auto;
@@ -1439,78 +1427,38 @@ html[data-js][data-arrival='kept'] .y-main {
   background: var(--wash);
   color: var(--fg);
 }
-/* On a note the same row folds, so the reader meets the title and then the
-   prose. The element name qualifies it: the heads of a file yomihon cannot
-   read and of a study path keep the plain row above, and only the note's
-   disclosure needs its two halves stacked. Type, size and colour stay on the
-   row itself, where they are read by everything that asks what this line looks
-   like on a given medium. */
-/* stylelint-disable-next-line selector-no-qualifying-type -- the same class
-   marks a plain row on the file and study-path pages; only the note's
-   disclosure is meant here. */
-details.y-metarow {
-  display: block;
-}
-
-.y-metarow__summary {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-}
-
-.y-metarow__detail {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 10px;
-}
-
-.y-metarow__detail > span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-/* The note's facts, read as a description list: dt/dd pairs wrapped one per
-   div (HTML5's dl content model allows it), laid out as a wrapping flex row.
-   That single rule is what gives "a quiet two-column row on wide screens and
-   stacked on narrow ones" for free — the row lays flat where its container is
-   wide (the open .y-headmeta copy below) and wraps to one pair per line where
-   it is narrow (inside .y-metarow's disclosure); no separate narrow/wide
-   variant of the list itself exists. */
-.y-notefacts {
-  align-items: baseline;
+/* The note's facts, at the end of the text with what stands beside the note: a
+   description list with its terms in one column and its values in the next,
+   quiet, since a reader who has finished looks here for what the note is and
+   where the file is and no one reads it ahead of the prose. The draft mark
+   stands above it. A path is long and breaks anywhere rather than running out
+   of the column; the doors out of the page stand under it, on one line. */
+.y-facts {
   color: var(--fg-subtle);
-  display: flex;
-  flex-wrap: wrap;
   font-family: var(--font-sans);
   font-size: var(--fs-14);
-  line-height: 1.25rem;
+  line-height: 1.5rem;
+}
+
+.y-facts__draft {
+  margin: 0 0 8px;
+}
+
+.y-notefacts {
+  display: grid;
+  gap: 6px 24px;
+  grid-template-columns: 11em minmax(0, 1fr);
   margin: 0;
 }
 
 .y-notefacts > div {
-  align-items: baseline;
-  display: flex;
-  min-width: 0;
-}
-
-.y-notefacts > div + div::before {
-  color: var(--line-strong);
-  content: '·' / '';
-  margin: 0 8px;
+  display: contents;
 }
 
 .y-notefacts dt {
-  border: 0;
-  clip-path: inset(50%);
-  display: inline-block;
-  height: 1px;
-  margin: 0 -1px 0 0;
-  overflow: hidden;
-  padding: 0;
-  white-space: nowrap;
-  width: 1px;
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
 }
 
 .y-notefacts dd {
@@ -1518,54 +1466,50 @@ details.y-metarow {
   overflow-wrap: anywhere;
 }
 
+.y-notefacts__links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .y-notefacts a {
   color: var(--fg-subtle);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
 .y-notefacts a:hover {
   color: var(--fg);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration-color: currentcolor;
 }
 
-/* The wide-open placement: the same facts, undisclosed, beside the title.
-   Hidden by default and shown only from 1280 up — the width where
-   .y-metarow's own disclosure hides in turn (Responsive, below). Nothing has to turn it back off under
-   that width: display: none is already its only rule outside that one query. */
-.y-headmeta {
-  align-items: center;
-  display: none;
-  flex-wrap: wrap;
-  gap: 8px 4px;
-  margin: 16px 0 0;
+.y-notefacts__path {
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
 }
 
-/* The facts line is one row of its own, and wraps inside itself when the path
-   is long. The doors (open in Obsidian, leave a thought) stand together on the
-   row beneath, left-aligned, so a long path never pushes one of them alone onto
-   a line. The first door is pulled back by its own padding so the word, not the
-   button's edge, lines up with the title above. */
-.y-headmeta > .y-notefacts,
-.y-metarow__detail > .y-notefacts {
-  flex: 0 0 100%;
+.y-notefacts__door {
+  display: block;
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  margin-top: 4px;
 }
 
-.y-notefacts + .y-metarow__raw {
-  margin-left: -10px;
-}
+@media (max-width: 720px) {
+  .y-notefacts {
+    gap: 2px 0;
+    grid-template-columns: minmax(0, 1fr);
+  }
 
-/* Where the facts are stacked in the narrow disclosure the path is the long one,
-   so it takes a line of its own instead of wrapping behind a separator that
-   would then open the next line. */
-.y-metarow__detail .y-notefacts > div:has(a) {
-  flex-basis: 100%;
-}
+  .y-notefacts dt {
+    margin-top: 12px;
+  }
 
-.y-metarow__detail .y-notefacts > div:has(a)::before {
-  content: none;
+  .y-notefacts > div:first-child dt {
+    margin-top: 0;
+  }
 }
 
 /* ============================================================
@@ -2501,6 +2445,387 @@ button.y-freshness__action {
   padding: 4px 0 12px;
 }
 
+/* ============================================================
+   The margin beside a section
+   ============================================================ */
+/* A heading stands in a row with what the reader can do about its section and
+   what they already left there: "Not sure yet", a thought of their own, the
+   first sentence of each thought written about it and the day, and the mark of
+   the place they left off. The wide layout puts that column in the room the
+   reading block reserves beside the text; where the room is not there it stands
+   at the end of the heading's own line and wraps under it. The room is a fact of
+   the width of the reading column's container, counted in the same rem the block
+   is, so each of the three text sizes asks for its own.
+
+   The heading keeps the rhythm it had: the wrapper takes the margins the heading
+   carried and the heading takes none, so adding the row moves nothing a reader
+   had learned to expect. */
+.y-main {
+  container: y-main / inline-size;
+}
+
+.y-sect {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  position: relative;
+}
+
+.y-sect > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.y-prose .y-sect:has(> [data-level='1']),
+.y-prose .y-sect:has(> [data-level='2']) {
+  margin: var(--sp-h2) 0 var(--sp-after-h2);
+}
+
+.y-prose .y-sect:has(> [data-level='3']) {
+  margin: var(--sp-h3) 0 var(--sp-after-h3);
+}
+
+.y-prose .y-sect:has(> :is([data-level='4'], [data-level='5'], [data-level='6'])) {
+  margin: var(--sp-h4) 0 var(--sp-after-h4);
+}
+
+.y-prose .y-sect > [data-level] {
+  margin: 0;
+}
+
+.y-prose .y-sect + * {
+  margin-top: 0;
+}
+
+.y-prose > .y-sect:first-child {
+  margin-top: 0;
+}
+
+.y-margin {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  gap: 0 4px;
+  line-height: 1.4;
+}
+
+/* Quiet by default and always there: the variant ink at the regular weight, the
+   full ink under the pointer that rests on the heading's row or on a keyboard
+   focus. A mouse click leaves focus behind, which :focus-within would have read
+   as the keyboard and kept dark, so only :focus-visible counts. */
+.y-margin .y-margin__act {
+  background: none;
+  border: 0;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: var(--fw-regular);
+  min-height: 32px;
+  padding: 0 6px;
+  position: relative;
+  text-decoration: none;
+  transition: color var(--dur-base) linear;
+}
+
+.y-sect:is(:hover, :has(:focus-visible)) .y-margin .y-margin__act:not([aria-pressed='true']),
+.y-margin .y-margin__act:not([aria-pressed='true']):is(:hover, :focus-visible) {
+  color: var(--fg);
+}
+
+/* The margin's words come from the attribute beside each one, which is the same
+   text the element's accessible name carries: see sectionMargin. */
+.y-margin .y-margin__act::after,
+.y-margin .y-margin__place::after,
+.y-margin .y-margin__tag::before,
+.y-margin .y-margin__opening::before {
+  content: attr(data-text);
+}
+
+.y-margin time::before {
+  content: attr(datetime);
+}
+
+.y-margin .y-margin__act[disabled] {
+  cursor: default;
+}
+
+.y-margin .y-margin__act[aria-pressed='true'] {
+  color: var(--accent);
+  font-weight: var(--fw-semibold);
+}
+
+/* The mark of a section the reader is not sure of: a diamond and its words. The
+   diamond hangs in the gutter to the left of the words, so the words stand where
+   they stood before the mark. The bookmark is the shape of the place they left
+   off and is never drawn for this. */
+.y-margin .y-margin__act[aria-pressed='true']::before {
+  background: currentcolor;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  content: '';
+  height: 9px;
+  inset-block-start: 50%;
+  inset-inline-start: -15px;
+  position: absolute;
+  translate: 0 -50%;
+  width: 9px;
+}
+
+/* A button that cannot keep a mark yet, because the document has no script to
+   keep it with, is not drawn unless it already shows one. */
+:root:not([data-js]) .y-margin .y-margin__act[data-section-mark]:not([aria-pressed='true']) {
+  display: none;
+}
+
+.y-margin [aria-disabled='true'].y-margin__act {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.y-margin .y-margin__date,
+.y-margin .y-margin__tag {
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.y-margin .y-margin__date[hidden] {
+  display: none;
+}
+
+.y-margin .y-margin__mine {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+}
+
+.y-margin .y-margin__tag {
+  font-weight: var(--fw-semibold);
+  margin-inline-end: 4px;
+}
+
+.y-margin .y-margin__opening {
+  -webkit-box-orient: vertical;
+  color: var(--fg);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  text-underline-offset: 0.2em;
+}
+
+.y-margin .y-margin__place {
+  align-items: center;
+  color: var(--accent);
+  display: flex;
+  flex-basis: 100%;
+  font-weight: var(--fw-semibold);
+  gap: 4px;
+  margin: 0;
+}
+
+.y-margin .y-margin__place[hidden] {
+  display: none;
+}
+
+.y-margin .y-margin__place::before {
+  background: currentcolor;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
+  content: '';
+  flex: none;
+  height: 12px;
+  width: 8px;
+}
+
+.y-margin .y-margin__said {
+  flex-basis: 100%;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  margin: 0;
+}
+
+.y-margin .y-margin__said:empty {
+  display: none;
+}
+
+.y-margin .y-margin__said[data-reply-fading] {
+  opacity: 0;
+  transition: opacity var(--dur-slow) linear;
+}
+
+/* The line above a question that starts closed. It is small print among the
+   prose, says when a guess is honest and offers one link; it asks nothing. */
+.y-predict {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  line-height: 1.6;
+  margin: var(--sp-block) 0 0;
+}
+
+.y-predict a {
+  color: var(--link);
+  text-underline-offset: 0.2em;
+}
+
+.y-predict + .callout {
+  margin-top: 6px;
+}
+
+/* A note's title takes its thoughts into the same margin its sections do. */
+.y-sect--title > .y-margin {
+  font-size: var(--fs-12);
+}
+
+/* Two notes side by side have a column each and no room beside either: the
+   margin stays at the end of the heading's line. */
+.y-compare__column .y-margin {
+  position: static;
+  width: auto;
+}
+
+/* The room beside the reading column: the column, the gap and the margin the
+   block reserves, and the gutter the column's box keeps at its left, must all
+   fit in the container. Each text size changes the column, so each has its own
+   width to ask for. The shared rules are the same three times over because a
+   container query cannot name a custom property. */
+@container y-main (min-width: 58.875rem) {
+  :root:not([data-textsize='l'], [data-textsize='xl']) .y-article .y-sect {
+    align-items: start;
+    display: block;
+  }
+
+  :root:not([data-textsize='l'], [data-textsize='xl']) .y-article .y-margin {
+    flex-direction: column;
+    gap: 4px 0;
+    inset-block-start: 0.35em;
+    inset-inline-start: calc(100% + var(--margin-gap));
+    position: absolute;
+    width: var(--margin-col);
+  }
+
+  :root:not([data-textsize='l'], [data-textsize='xl']) .y-article .y-margin > * {
+    align-self: flex-start;
+  }
+
+  :root:not([data-textsize='l'], [data-textsize='xl']) .y-article .y-margin__act {
+    margin-inline-start: -6px;
+    min-height: 28px;
+  }
+
+  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-article .y-margin__act:not([aria-pressed='true']) {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-base) linear;
+  }
+
+  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-article .y-sect:hover .y-margin__act {
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: var(--dur-hover-wait);
+  }
+
+  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-article .y-sect:has(:focus-visible) .y-margin__act {
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: initial;
+  }
+}
+
+@container y-main (min-width: 63.625rem) {
+  :root[data-textsize='l'] .y-article .y-sect {
+    align-items: start;
+    display: block;
+  }
+
+  :root[data-textsize='l'] .y-article .y-margin {
+    flex-direction: column;
+    gap: 4px 0;
+    inset-block-start: 0.35em;
+    inset-inline-start: calc(100% + var(--margin-gap));
+    position: absolute;
+    width: var(--margin-col);
+  }
+
+  :root[data-textsize='l'] .y-article .y-margin > * {
+    align-self: flex-start;
+  }
+
+  :root[data-textsize='l'] .y-article .y-margin__act {
+    margin-inline-start: -6px;
+    min-height: 28px;
+  }
+
+  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-article .y-margin__act:not([aria-pressed='true']) {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-base) linear;
+  }
+
+  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-article .y-sect:hover .y-margin__act {
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: var(--dur-hover-wait);
+  }
+
+  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-article .y-sect:has(:focus-visible) .y-margin__act {
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: initial;
+  }
+}
+
+@container y-main (min-width: 68.375rem) {
+  :root[data-textsize='xl'] .y-article .y-sect {
+    align-items: start;
+    display: block;
+  }
+
+  :root[data-textsize='xl'] .y-article .y-margin {
+    flex-direction: column;
+    gap: 4px 0;
+    inset-block-start: 0.35em;
+    inset-inline-start: calc(100% + var(--margin-gap));
+    position: absolute;
+    width: var(--margin-col);
+  }
+
+  :root[data-textsize='xl'] .y-article .y-margin > * {
+    align-self: flex-start;
+  }
+
+  :root[data-textsize='xl'] .y-article .y-margin__act {
+    margin-inline-start: -6px;
+    min-height: 28px;
+  }
+
+  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-article .y-margin__act:not([aria-pressed='true']) {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--dur-base) linear;
+  }
+
+  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-article .y-sect:hover .y-margin__act {
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: var(--dur-hover-wait);
+  }
+
+  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-article .y-sect:has(:focus-visible) .y-margin__act {
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: initial;
+  }
+}
+
+/* A touch screen has nothing to rest on a heading, so the buttons are drawn
+   whatever the setting. */
+@media (pointer: coarse) {
+  :root[data-sectionbuttons='hover'] .y-article .y-margin__act {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 /* The block that ends the text: what stands beside the note, in one column
    below the way the prose ends, a wide gap above it so the text has finished
    before it begins. Each aid keeps the anatomy it had when it stood in a
@@ -2586,11 +2911,7 @@ button.y-freshness__action {
   padding-left: 40px;
 }
 
-/* The section's own door shows under a pointer and takes no room until then:
-   it sits over the end of the row's first line, on the ground colour so it
-   covers whatever words run under it, and a title keeps the whole width to
-   wrap in. A reserved strip at rest made every long title break one word
-   early, for a control that was not on screen. */
+/* A contents row is its link, and the link is the row. */
 .y-toc__row {
   align-items: stretch;
   display: flex;
@@ -2601,49 +2922,6 @@ button.y-freshness__action {
   flex: 1;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-
-.y-toc__list .y-toc__door {
-  align-items: center;
-  background: var(--bg);
-  border-left: 0;
-  color: var(--fg-subtle);
-  display: flex;
-  height: 2rem;
-  inset-block-start: 0;
-  inset-inline-end: 0;
-  justify-content: center;
-  margin-left: 0;
-  opacity: 0;
-  padding: 0;
-  position: absolute;
-  width: 28px;
-}
-
-.y-toc__door svg {
-  height: 14px;
-  width: 14px;
-}
-
-.y-toc__row:hover .y-toc__door,
-.y-toc__row:focus-within .y-toc__door {
-  opacity: 1;
-}
-
-.y-toc__list .y-toc__door:hover {
-  color: var(--fg);
-}
-
-/* A touch screen has no pointer to reveal the door with, so there it is always
-   drawn and keeps its own width beside the title. */
-@media (pointer: coarse) {
-  .y-toc__list .y-toc__door {
-    flex: none;
-    height: auto;
-    opacity: 1;
-    position: static;
-    width: 44px;
-  }
 }
 
 .y-statuspanel__notice {
@@ -5387,7 +5665,7 @@ samp,
 .y-fileinfo__list dd,
 .y-findings__path,
 .y-homenote__path,
-.y-notefacts a,
+.y-notefacts__path,
 .y-result__meta {
   text-autospace: no-autospace;
 }
@@ -5684,24 +5962,6 @@ samp,
 /* ============================================================
    Responsive
    ============================================================ */
-@media (min-width: 1280px) {
-  /* Past this width the facts stand open beside the title, so the disclosure that folds them at
-     narrower widths is not also drawn. The selector repeats the type
-     qualifier details.y-metarow carries at its own display: block rule
-     above, matching that rule's specificity instead of reaching for
-     !important — source order alone then decides it, this query being the
-     later one. */
-  /* stylelint-disable-next-line selector-no-qualifying-type -- the same class
-     marks a plain row on the file and study-path pages; only the note's
-     disclosure is meant here. */
-  details.y-metarow {
-    display: none;
-  }
-
-  .y-headmeta {
-    display: flex;
-  }
-}
 /* One column at a time, the document scrolling, and the strip pinned under the
    header so the other note is always one press away. Levelling two columns
    that are no longer beside one another means nothing, so that control goes. */
@@ -6061,7 +6321,6 @@ samp,
   }
 
   .y-rail-left details::details-content,
-  .y-metarow::details-content,
   .y-toc-inline::details-content,
   .y-facets::details-content {
     transition: none;
@@ -6174,14 +6433,9 @@ samp,
   /* Librarian chrome in the opening column is for repair on screen, not for
      paper. A printed page is the title and the body; path crumbs, type and
      Obsidian metarow, and folder previous/next stay off the sheet. Course
-     lesson-order prev/next may remain — it is part of the book. .y-headmeta is
-     the same facts' wide-open copy, named here too: without it the width the
-     browser prints at (often 1280 or wider) would show the facts
-     .y-metarow was just told to hide, doubling them on the sheet rather than
-     dropping them from it. */
+     lesson-order prev/next may remain — it is part of the book. */
   .y-crumbs,
   .y-metarow,
-  .y-headmeta,
   .y-steps:not(.y-steps--course) {
     display: none !important;
   }
