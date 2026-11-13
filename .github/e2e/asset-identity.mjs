@@ -14,6 +14,7 @@ const mapElement = /<script type="importmap" nonce="[^"]*">([\s\S]*?)<\/script>/
 const MUTATIONS = {
   'drop-stylesheet-version': { target: 'styles', needle: /href="\/static\/app\.css\?v=[a-f0-9]{12}"/g, replacement: 'href="/static/app.css"' },
   'drop-mark-version': { target: 'resources', needle: /src="\/static\/yomihon-mark\.svg\?v=[a-f0-9]{12}"/g, replacement: 'src="/static/yomihon-mark.svg"' },
+  'drop-favicon-version': { target: 'resources', needle: /href="\/static\/yomihon-mark-on-paper\.svg\?v=[a-f0-9]{12}"/g, replacement: 'href="/static/yomihon-mark-on-paper.svg"' },
   'drop-preload-version': { target: 'resources', needle: /href="\/static\/fonts\/Geist-Variable\.woff2\?v=[a-f0-9]{12}"/g, replacement: 'href="/static/fonts/Geist-Variable.woff2"' },
   'omit-css-font-url': { target: 'css-font-set', asset: '/static/app.css', needle: /url\('\/static\/fonts\/Newsreader-Latin-Italic-Variable\.woff2\?v=[a-f0-9]{12}'\)/g, replacement: "url('')" },
   'drop-font-url-version': { target: 'css-font-identities', asset: '/static/app.css', needle: /url\('\/static\/fonts\/Newsreader-Latin-Italic-Variable\.woff2\?v=[a-f0-9]{12}'\)/g, replacement: "url('/static/fonts/Newsreader-Latin-Italic-Variable.woff2')" },
@@ -58,7 +59,7 @@ try {
   page.on('pageerror', (error) => pageErrors.push(error.message));
   page.on('response', (response) => {
     const url = new URL(response.url());
-    if (url.origin !== new URL(BASE).origin || (!modulePaths.includes(url.pathname) && !url.pathname.endsWith('.css') && !url.pathname.startsWith('/static/fonts/') && url.pathname !== '/static/yomihon-mark.svg')) return;
+    if (url.origin !== new URL(BASE).origin || (!modulePaths.includes(url.pathname) && !url.pathname.endsWith('.css') && !url.pathname.startsWith('/static/fonts/') && url.pathname !== '/static/yomihon-mark.svg' && url.pathname !== '/static/yomihon-mark-on-paper.svg')) return;
     pending.push((async () => responses.push({ url, status: response.status(), bytes: await response.body() }))());
   });
   let seen = 0;
@@ -141,8 +142,18 @@ try {
   }
   const requestedPaths = [...new Set(responses.filter((response) => modulePaths.includes(response.url.pathname)).map((response) => response.url.pathname))].sort();
   if (JSON.stringify(requestedPaths) !== JSON.stringify(modulePaths)) fail('module-identities', 'native imports did not request the complete module graph and facade');
-  const resourcePaths = ['/static/app.css', '/static/chroma.css', '/static/yomihon.js', '/static/yomihon-mark.svg', '/static/yomihon-mark.svg', '/static/fonts/Geist-Variable.woff2', '/static/fonts/GeistMono-Variable.woff2', '/static/fonts/Newsreader-Latin-Variable.woff2'].sort();
+  const resourcePaths = ['/static/app.css', '/static/chroma.css', '/static/yomihon.js', '/static/yomihon-mark.svg', '/static/yomihon-mark-on-paper.svg', '/static/fonts/Geist-Variable.woff2', '/static/fonts/GeistMono-Variable.woff2', '/static/fonts/Newsreader-Latin-Variable.woff2'].sort();
   if (JSON.stringify(declarations.resources.map((address) => new URL(address, BASE).pathname).sort()) !== JSON.stringify(resourcePaths)) fail('resources', 'page does not declare the complete static link/img/script multiset');
+  // A headless tab does not always fetch its favicon, so the address the page
+  // declares for it is requested here when the page did not, as the font
+  // addresses below are.
+  for (const address of declarations.resources) {
+    const url = new URL(address, BASE);
+    if (url.pathname === '/static/yomihon-mark-on-paper.svg' && !responses.some((candidate) => candidate.url.href === url.href)) {
+      const response = await context.request.get(url.href);
+      responses.push({ url, status: response.status(), bytes: await response.body() });
+    }
+  }
   for (const address of declarations.resources) checkAddress(address, new URL(address, BASE).pathname, 'resources');
   const appCSS = checkAddress(declarations.styles[0], '/static/app.css', 'styles').bytes.toString('utf8');
   const cssFontURLs = [...appCSS.matchAll(/url\(['"]?(\/static\/fonts\/[^)'"\s]+)['"]?\)/g)].map((match) => match[1]);

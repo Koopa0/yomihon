@@ -56,6 +56,7 @@ func TestRepresentativeAssetsServe200(t *testing.T) {
 		{name: "italic reading font", path: "/static/fonts/Newsreader-Latin-Italic-Variable.woff2", wantType: "font/woff2", minBodyLen: 1000},
 		{name: "mermaid entry module", path: "/static/mermaid.esm.min.mjs", wantType: "text/javascript; charset=utf-8", minBodyLen: 1000},
 		{name: "brand mark", path: "/static/yomihon-mark.svg", wantType: "image/svg+xml", minBodyLen: 100},
+		{name: "brand mark on paper", path: "/static/yomihon-mark-on-paper.svg", wantType: "image/svg+xml", minBodyLen: 100},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -90,38 +91,44 @@ func TestRepresentativeAssetsServe200(t *testing.T) {
 	}
 }
 
-func TestBrandMarkServesExactEmbeddedBytes(t *testing.T) {
+func TestBrandFilesServeExactEmbeddedBytes(t *testing.T) {
 	t.Parallel()
 	srv := newServer(t)
 
-	want, err := projectassets.Files.ReadFile("brand/yomihon-mark.svg")
-	if err != nil {
-		t.Fatalf("read embedded brand mark: %v", err)
-	}
-	resp, err := srv.Client().Get(srv.URL + "/static/yomihon-mark.svg") //nolint:noctx // fixed, test-controlled URL
-	if err != nil {
-		t.Fatalf("GET brand mark: %v", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			t.Errorf("close response body: %v", closeErr)
-		}
-	}()
-	got, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("read brand mark response: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /static/yomihon-mark.svg status = %d, want %d; body:\n%s", resp.StatusCode, http.StatusOK, got)
-	}
-	if contentType := resp.Header.Get("Content-Type"); contentType != "image/svg+xml" {
-		t.Errorf("GET /static/yomihon-mark.svg Content-Type = %q, want %q", contentType, "image/svg+xml")
-	}
-	if contentTypeOptions := resp.Header.Get("X-Content-Type-Options"); contentTypeOptions != "nosniff" {
-		t.Errorf("GET /static/yomihon-mark.svg X-Content-Type-Options = %q, want %q", contentTypeOptions, "nosniff")
-	}
-	if !bytes.Equal(got, want) {
-		t.Errorf("GET /static/yomihon-mark.svg body differs from the canonical embedded bytes")
+	for _, name := range []string{"yomihon-mark.svg", "yomihon-mark-on-paper.svg"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			want, err := projectassets.Files.ReadFile("brand/" + name)
+			if err != nil {
+				t.Fatalf("read embedded brand file: %v", err)
+			}
+			resp, err := srv.Client().Get(srv.URL + "/static/" + name) //nolint:noctx // fixed, test-controlled URL
+			if err != nil {
+				t.Fatalf("GET brand file: %v", err)
+			}
+			defer func() {
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					t.Errorf("close response body: %v", closeErr)
+				}
+			}()
+			got, err := io.ReadAll(resp.Body)
+			if err != nil {
+				t.Fatalf("read brand file response: %v", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET /static/%s status = %d, want %d; body:\n%s", name, resp.StatusCode, http.StatusOK, got)
+			}
+			if contentType := resp.Header.Get("Content-Type"); contentType != "image/svg+xml" {
+				t.Errorf("GET /static/%s Content-Type = %q, want %q", name, contentType, "image/svg+xml")
+			}
+			if contentTypeOptions := resp.Header.Get("X-Content-Type-Options"); contentTypeOptions != "nosniff" {
+				t.Errorf("GET /static/%s X-Content-Type-Options = %q, want %q", name, contentTypeOptions, "nosniff")
+			}
+			if !bytes.Equal(got, want) {
+				t.Errorf("GET /static/%s body differs from the embedded bytes", name)
+			}
+		})
 	}
 }
 
@@ -221,6 +228,8 @@ func TestUnknownAssetsAre404(t *testing.T) {
 		{name: "font LICENSE is embedded but not served", path: "/static/fonts/LICENSE.txt"},
 		{name: "brand directory alias", path: "/static/brand/yomihon-mark.svg"},
 		{name: "brand mark backup alias", path: "/static/yomihon-mark.svg.bak"},
+		{name: "brand mark on paper directory alias", path: "/static/brand/yomihon-mark-on-paper.svg"},
+		{name: "brand mark on paper wrong-case alias", path: "/static/Yomihon-mark-on-paper.svg"},
 		{name: "brand mark wrong-case alias", path: "/static/Yomihon-mark.svg"},
 		{name: "static favicon alias", path: "/static/favicon.svg"},
 		{name: "root favicon alias", path: "/favicon.svg"},
@@ -278,6 +287,7 @@ func TestConditionalRequestAnswers304(t *testing.T) {
 		{name: "embedded font", path: "/static/fonts/Geist-Variable.woff2"},
 		{name: "vendored module", path: "/static/mermaid.esm.min.mjs"},
 		{name: "brand mark", path: "/static/yomihon-mark.svg"},
+		{name: "brand mark on paper", path: "/static/yomihon-mark-on-paper.svg"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
