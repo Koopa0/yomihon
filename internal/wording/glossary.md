@@ -68,7 +68,6 @@ The command line speaks English only. These are the words `yomihon left-open` wr
 
 The test below compares whole words, so it cannot tell a retired sense of a word from a sound one. These are known, found by reading, and replaced in the redesign. Confirm each before changing it.
 
-- *path* for a course: the Chinese measure word of `PathCountOne` and `PathCountMany` in `desk.go`, which counts courses with 條.
 - 位置 for something other than a location or a place: a storage place at `desk.go:72` and `freshness.go:18`.
 - Section written three ways in Chinese (段落, 小節, 章節): `diagnostic.go:17,18,23,41,42,44,45`; `render.go:15,20,135`; `note.go:97,99`.
 - Lesson written three ways (課, 課文, 課次): `syllabus.go:124,127`; `preferences.go:84`.

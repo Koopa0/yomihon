@@ -82,7 +82,7 @@ func TestShelfBlockHandsTheReaderTheRestOfTheShelf(t *testing.T) {
 	t.Parallel()
 
 	shelf := Shelf{
-		Title: "路徑", Count: "2 條", Lede: "課程。", Href: "/courses", Empty: "沒有課程。",
+		Title: "課程", Count: "2 門", Lede: "課程。", Href: "/courses", Empty: "沒有課程。",
 		Rows: []Row{{Text: "one", Href: "/a"}, {Text: "two", Href: "/b"}},
 	}
 	var full strings.Builder
@@ -104,7 +104,7 @@ func TestShelfBlockHandsTheReaderTheRestOfTheShelf(t *testing.T) {
 	}
 
 	var bare strings.Builder
-	if err := ShelfBlock(Shelf{Title: "路徑", Href: "/courses", Empty: "沒有課程。"}, "courses", 3, wording.ZhHant).Render(t.Context(), &bare); err != nil {
+	if err := ShelfBlock(Shelf{Title: "課程", Href: "/courses", Empty: "沒有課程。"}, "courses", 3, wording.ZhHant).Render(t.Context(), &bare); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	if !strings.Contains(bare.String(), "沒有課程。") {
@@ -124,7 +124,7 @@ func TestAShelfOfRowsThatAreNotStopsIsNotEmpty(t *testing.T) {
 	t.Parallel()
 
 	shelf := Shelf{
-		Title: "路徑", Count: "1 條", Href: "/courses", Empty: "沒有課程。",
+		Title: "課程", Count: "1 門", Href: "/courses", Empty: "沒有課程。",
 		Rows: []Row{{Text: "unwritten"}},
 	}
 	var out strings.Builder

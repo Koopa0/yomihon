@@ -82,8 +82,8 @@ var (
 // What each mode counts. Chinese uses a different measure word for each kind of
 // thing and English inflects the noun, so every count is a pair.
 var (
-	PathCountOne    = both("%d 條", "%d course")
-	PathCountMany   = both("%d 條", "%d courses")
+	PathCountOne    = both("%d 門", "%d course")
+	PathCountMany   = both("%d 門", "%d courses")
 	MapCountOne     = both("%d 張", "%d map")
 	MapCountMany    = both("%d 張", "%d maps")
 	ReportCountOne  = both("%d 份", "%d report")
