@@ -29,8 +29,7 @@ const (
 	supportedVersion = "1"
 
 	// PublishedStatus records a completed publication outside the vault.
-	// Nothing here can attest one, so no control offers a transition to it and
-	// the write face refuses one; the value enters a note by hand.
+	// yomihon sets no status; the value enters a note by hand.
 	PublishedStatus = "published"
 
 	// SystemDocumentGroup is the status group holding a vault's own working
