@@ -96,7 +96,11 @@ func TestBaseCarriesOnlyTheScriptedMarkRulesImportMapAndModuleEntry(t *testing.T
 	}
 }
 
-func TestBaseProjectsCanonicalBrandAssetOnce(t *testing.T) {
+// The favicon sits on a browser's tab, where no stylesheet gives the mark a
+// ground, so it draws the mark on its paper tile; the header's mark is the
+// canonical file, which the stylesheet seats on that tile itself in the dark
+// theme. Each is named once, and neither names the other's file.
+func TestBaseProjectsEachBrandFileOnce(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	if err := Base(Chrome{Title: "測試", Assets: asset.Versions{Token: "recorded0000"}}).Render(t.Context(), &buf); err != nil {
@@ -104,7 +108,8 @@ func TestBaseProjectsCanonicalBrandAssetOnce(t *testing.T) {
 	}
 	html := buf.String()
 	const brandAsset = "/static/yomihon-mark.svg?v=recorded0000"
-	const favicon = `<link rel="icon" type="image/svg+xml" href="` + brandAsset + `">`
+	const onPaperAsset = "/static/yomihon-mark-on-paper.svg?v=recorded0000"
+	const favicon = `<link rel="icon" type="image/svg+xml" href="` + onPaperAsset + `">`
 	const headerMark = `<img class="y-brand__mark" src="` + brandAsset + `" width="24" height="24" alt="" aria-hidden="true">`
 	if got := strings.Count(html, favicon); got != 1 {
 		t.Errorf("Base() favicon projections = %d, want one exact %q; html = %q", got, favicon, html)
@@ -112,8 +117,11 @@ func TestBaseProjectsCanonicalBrandAssetOnce(t *testing.T) {
 	if got := strings.Count(html, headerMark); got != 1 {
 		t.Errorf("Base() header mark projections = %d, want one exact %q; html = %q", got, headerMark, html)
 	}
-	if got := strings.Count(html, brandAsset); got != 2 {
-		t.Errorf("Base() canonical brand references = %d, want favicon plus header only; html = %q", got, html)
+	if got := strings.Count(html, brandAsset); got != 1 {
+		t.Errorf("Base() canonical brand references = %d, want the header only; html = %q", got, html)
+	}
+	if got := strings.Count(html, onPaperAsset); got != 1 {
+		t.Errorf("Base() on-paper brand references = %d, want the favicon only; html = %q", got, html)
 	}
 	for _, forbidden := range []string{`rel="manifest"`, `apple-touch-icon`, `.ico`, `y-brand__dot`} {
 		if strings.Contains(html, forbidden) {
