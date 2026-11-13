@@ -1159,7 +1159,7 @@ type generation struct {
 	resources []string
 	// findings are the schema's verdicts, kept only for notes that drew one.
 	findings map[string][]judge.Finding
-	// skippedNotes are paths left out of the note map by skip_basenames.
+	// skippedNotes are paths left out of the note map by folders.skipped_files.
 	skippedNotes map[string]struct{}
 	// figures are the inspections of the figures read, by path.
 	figures map[string]figure.Inspection
