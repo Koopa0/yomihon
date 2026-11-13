@@ -136,6 +136,7 @@ probes=(
   "concept-sheet.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reading-without-interaction.mjs|/notes/Notes/Reading%20flow.md"
   "section-marks.mjs|/notes/Notes/Reading%20flow.md"
+  "return-from-a-detour.mjs|/notes/Notes/Reading%20flow.md"
   "reading-face.mjs|/notes/Notes/reading-fidelity.md"
   "reading-scale.mjs|/notes/Notes/reading-scale.md"
   "a11y-audit.mjs|/notes/Notes/reading-fidelity.md"
@@ -145,7 +146,6 @@ probes=(
   # either would meet a page the fixture alone does not explain.
   "course-cover.mjs|/courses/Maps/branches.md"
   "reader-mark.mjs|/notes/Notes/reading-fidelity.md"
-  "return-from-a-detour.mjs|/notes/Notes/Reading%20flow.md"
 )
 
 # The audit's plain run includes its canary; mutation jobs retain the targeted
@@ -161,7 +161,6 @@ behavior_only=(
 leaves_a_place=(
   "course-cover.mjs"
   "reader-mark.mjs"
-  "return-from-a-detour.mjs"
 )
 
 fail() {
