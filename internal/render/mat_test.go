@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -61,5 +62,30 @@ func TestAPictureInAnExcerptIsSetOnAMat(t *testing.T) {
 	got := r.HTML("note.md", "", "![[Target]]\n", wording.ZhHant).HTML
 	if !strings.Contains(got, `<p class="mat"><img src="/raw/pic.png"`) {
 		t.Errorf("a picture alone in an excerpt's paragraph is not on a mat:\n%s", got)
+	}
+}
+
+// holdsNoPicture is a vault in which every file a note reaches for is missing.
+type holdsNoPicture struct{}
+
+func (holdsNoPicture) MissingFile(string) bool { return true }
+
+func (holdsNoPicture) OutsideScan(string) bool { return false }
+
+func (holdsNoPicture) IsDirectory(string) bool { return false }
+
+// TestAPictureTheVaultDoesNotHoldIsNotSetOnAMat: a picture whose file is not
+// there is marked where the author put it, and that marker is what stands in
+// the paragraph. A mat around a broken-image icon would present a hole as if it
+// were a drawing.
+func TestAPictureTheVaultDoesNotHoldIsNotSetOnAMat(t *testing.T) {
+	t.Parallel()
+	r := render.New(graph.BuildFromNotes(nil, []string{"attachments/gone.png"}), transclusions{}, noTitles{}, holdsNoPicture{})
+	got := r.HTML("note.md", "", "![gone](attachments/gone.png)\n", wording.En).HTML
+	if !strings.Contains(got, `class="image-missing"`) {
+		t.Fatalf("the premise is wrong: the missing picture is not marked:\n%s", got)
+	}
+	if strings.Contains(got, `class="mat"`) {
+		t.Errorf("a picture the vault does not hold is on a mat:\n%s", got)
 	}
 }
