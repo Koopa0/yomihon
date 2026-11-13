@@ -19,8 +19,12 @@ import (
 // are none of them written yet — shows no rows here and is not empty, so it
 // still says how much it holds and still offers the way on. limit is how many
 // rows there is room for; a negative one is read as none.
-templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang) {
-	<section class="y-homeblock y-modeblock" data-home-block={ id } aria-labelledby={ "home-" + id + "-title" }>
+//
+// A shelf that leads the desk is the one a reader came for, so its rows are the
+// largest text on the page: the desk of a reader who kept no place opens on the
+// courses, one to a line, at the size a page's own title is set at.
+templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang, lead bool) {
+	<section class={ "y-homeblock y-modeblock", templ.KV("y-modeblock--lead", lead) } data-home-block={ id } aria-labelledby={ "home-" + id + "-title" }>
 		<header class="y-homeblock__head">
 			<h2 id={ "home-" + id + "-title" }><a href={ templ.URL(s.Href) }>{ s.Title }</a></h2>
 			if s.Count != "" {

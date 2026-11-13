@@ -2780,10 +2780,10 @@ button.y-freshness__action {
 /* ============================================================
    The search field — one shape wherever it is asked for
    ============================================================ */
-/* Three places ask a reader to type a search: the desk, the search page, and
-   the palette the keyboard opens. They are one field, so the height, the
-   corner, the type and the icon are written once here and each place adds
-   only the ground it sits on.
+/* Two places ask a reader to type a search: the search page and the palette
+   the keyboard opens. They are one field, so the height, the corner, the type
+   and the icon are written once here and each place adds only the ground it
+   sits on.
 
    The resting line is an outline drawn inward rather than a border, so focus
    can thicken it from one pixel to two and colour it without a single glyph
@@ -2792,7 +2792,6 @@ button.y-freshness__action {
    the ring stays off the input and the field around it carries the state —
    the same outline every other control answers focus with, drawn where this
    one already has a line. */
-.y-homesearch,
 .y-searchdialog__form,
 .y-searchpage__form {
   align-items: center;
@@ -2805,7 +2804,6 @@ button.y-freshness__action {
   padding: 0 12px;
 }
 
-.y-homesearch:focus-within,
 .y-searchdialog__form:focus-within,
 .y-searchpage__form:focus-within {
   outline: 2px solid var(--link);
@@ -2815,7 +2813,6 @@ button.y-freshness__action {
 /* A phone zooms the page when it focuses an input set below its own body
    size, which moves the whole layout to read one word. Sixteen pixels is
    where that stops, and it is the size the typed query deserves anyway. */
-.y-homesearch input,
 .y-searchdialog__input,
 .y-searchpage__form input {
   background: transparent;
@@ -2828,7 +2825,6 @@ button.y-freshness__action {
   outline: 0;
 }
 
-.y-homesearch input:focus-visible,
 .y-searchdialog__input:focus-visible,
 .y-searchpage__form input:focus-visible {
   outline: 0;
@@ -2837,7 +2833,6 @@ button.y-freshness__action {
 /* The browser's own clear control is drawn in the system's accent colour, which
    is a blue nothing else in this interface uses. It keeps its place and its
    behaviour; only the mark is redrawn, as a cross in the subtle ink. */
-.y-homesearch input::-webkit-search-cancel-button,
 .y-searchdialog__input::-webkit-search-cancel-button,
 .y-searchpage__form input::-webkit-search-cancel-button {
   appearance: none;
@@ -2847,14 +2842,12 @@ button.y-freshness__action {
   width: 14px;
 }
 
-.y-homesearch input::-webkit-search-cancel-button:hover,
 .y-searchdialog__input::-webkit-search-cancel-button:hover,
 .y-searchpage__form input::-webkit-search-cancel-button:hover {
   background: linear-gradient(45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%);
 }
 
 /* One glyph size for every way into search, the header's entry included. */
-.y-homesearch svg,
 .y-searchbtn svg,
 .y-searchdialog__form svg,
 .y-searchpage__form svg {
@@ -2865,13 +2858,11 @@ button.y-freshness__action {
 
 /* The header's entry takes its ink from the control around it, which is why
    it is not in this list. */
-.y-homesearch svg,
 .y-searchdialog__form svg,
 .y-searchpage__form svg {
   color: var(--fg-subtle);
 }
 
-.y-homesearch .y-xbtn,
 .y-searchpage__form .y-xbtn {
   flex: none;
   height: 32px;
@@ -3932,6 +3923,23 @@ a.y-facetrow:hover {
   max-width: 600px;
 }
 
+/* The desk's own name is a label over what stands first on it, and the
+   quietest line there: it names the page and is never the loudest thing on it. */
+.y-desklabel {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  line-height: 1.4;
+  margin: 0 0 28px;
+}
+
+/* A heading kept for the listener alone, where the page's loudest thing is
+   something other than its name, takes a pixel rather than a line of its own. */
+.y-offscreen--block {
+  display: block;
+}
+
 /* The desk's shelves are sections of one page rather than cards laid on it:
    each opens on a hairline and its heading, two to a row with a wide gutter
    between, and nothing draws a box around a list a reader only scans. */
@@ -3985,11 +3993,38 @@ a.y-facetrow:hover {
   font-size: var(--fs-14);
   margin-top: 4px;
 }
-/* The search row sits above the ways in, at the width of the page rather than
-   as one more block beside them. */
-.y-homesearchrow {
-  display: block;
-  margin: 0 0 22px;
+
+/* With no place kept the courses lead the desk, in a block of their own above
+   the rest: one to a line at the size a page's own title is set at, because a
+   reader who kept nothing came to choose one. */
+.y-homelead {
+  margin: 0 0 48px;
+}
+
+.y-modeblock--lead {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.y-modeblock--lead .ui-navitem {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-30);
+  line-height: 1.35;
+  padding-block: 8px;
+}
+
+.y-modeblock--lead .ui-navitem:hover {
+  color: var(--link);
+}
+
+/* The way on past the three is the quiet line it is everywhere else. */
+.y-modeblock--lead .y-shelfall {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  line-height: 1.5rem;
+  padding-block: 4px;
 }
 
 /* The thought door shows the Markdown it composed as a reading code block, set
@@ -4141,10 +4176,6 @@ a.y-facetrow:hover {
   font-size: var(--fs-12);
 }
 
-.y-homesearch {
-  background: var(--elevated);
-  border-radius: var(--r-sm);
-}
 /* The way to the folder's own README closes the desk. It is set in the reading
    measure, and it begins where everything stacked above it begins: centred, its
    rule and its one line both started a hundred pixels in from the shelves and
@@ -4157,8 +4188,8 @@ a.y-facetrow:hover {
 }
 
 /* The desk's last line, the way to the whole-folder view. It is the quietest
-   line on the page and keeps the ink of the words around it, the count
-   included: the colour that asks for attention is the health page's own. */
+   line on the page, and it names the page without saying what is on it: the
+   colour that asks for attention is the health page's own. */
 .y-deskhealth {
   color: var(--fg-subtle);
   font-family: var(--font-sans);
@@ -4176,10 +4207,6 @@ a.y-facetrow:hover {
 
 .y-deskhealth a:hover {
   color: var(--fg);
-}
-
-.y-deskhealth__count {
-  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 1180px) {
@@ -7620,33 +7647,61 @@ samp,
   flex: none;
 }
 
-/* The way back to the place the reader kept, ahead of the four ways in. */
+/* The way back to the place the reader kept, ahead of the four ways in, and
+   the largest text on the desk: the reader came back for this place. Where it
+   sits is a line of the interface's own voice above, the heading it was kept
+   under a line of the page's below, and the one way back under both. */
 .y-continue {
-  margin: 0 0 28px;
+  margin: 0 0 56px;
 }
 
-.y-continue__note {
-  color: var(--fg);
-  display: block;
-  font-family: var(--font-serif);
-  font-size: var(--fs-15);
+.y-continue__kicker {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
   line-height: 1.5;
   margin: 8px 0 0;
 }
 
-/* The way back to the place is drawn as the course draws its own (above): the
-   bookmark is the reader's colour and the words are the ink. A row whose note
-   is gone is a sentence and keeps the ink. */
-.y-continue__note > .y-keptmark {
-  vertical-align: -1px;
+.y-continue__title {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-30);
+  font-weight: var(--fw-regular);
+  line-height: 1.25;
+  margin: 12px 0 8px;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
 }
 
+.y-continue__title:lang(ja),
+.y-continue__title:lang(ko),
+.y-continue__title:lang(zh) {
+  line-height: 1.4;
+}
+
+.y-continue__section {
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* The way back sits under the place it leads to, a step apart from it, and is
+   as wide as its words. */
+.y-continue__note {
+  margin-top: 24px;
+}
+
+/* A row whose note is gone is a sentence and keeps the ink. */
 .y-continue__notice {
   color: var(--fg-muted);
   font-family: var(--font-serif);
   font-size: var(--fs-13);
   line-height: 1.6;
-  margin: 8px 0 0;
+  margin: 16px 0 0;
 }
 
 .y-continue__device {
@@ -7655,6 +7710,12 @@ samp,
   font-size: var(--fs-12);
   line-height: 1.6;
   margin: 8px 0 0;
+}
+
+@media (min-width: 721px) {
+  .y-continue__title {
+    font-size: 3.25rem;
+  }
 }
 
 /* The reader's "not sure yet" control is always there and quiet: the variant

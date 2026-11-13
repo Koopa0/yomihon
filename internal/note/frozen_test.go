@@ -101,7 +101,7 @@ func noticeOn(t *testing.T, page, marker string) string {
 // a note written beside them answered 404 indefinitely, and neither the desk
 // nor the health page said anything. Both now say that the pages have stopped
 // updating, name the two files, and say it in the language the reader chose;
-// the desk's count of findings keeps agreeing with the health table; and
+// the health page's stated total keeps agreeing with its table; and
 // taking one of the pair away brings the folder back with nothing restarted.
 func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 	t.Parallel()
@@ -118,7 +118,7 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 	}
 	srv := runningFolder(t, root)
 	client := srv.Client()
-	if claim := deskHealthClaim(t, getInLanguage(t, client, srv.URL+"/", wording.En)); claim != 0 {
+	if claim := healthClaim(t, getInLanguage(t, client, srv.URL+"/health", wording.En)); claim != 0 {
 		t.Fatalf("the folder before the pair has %d findings, so a freeze has nothing to change", claim)
 	}
 
@@ -170,9 +170,9 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 			}
 		}
 	}
-	// The desk and the table are one instrument and state one number. A notice
-	// is no row of the table, so the number leaves it out and the two still
-	// agree while the folder is frozen; the notice itself says the rest.
+	// The stated total and the table are one instrument and state one number. A
+	// notice is no row of the table, so the number leaves it out and the two
+	// still agree while the folder is frozen; the notice itself says the rest.
 	frozen := getInLanguage(t, client, srv.URL+"/health", wording.En)
 	drawn := 0
 	for _, row := range rowCount.FindAllStringSubmatch(frozen, -1) {
@@ -182,8 +182,8 @@ func TestAFrozenFolderSaysSoOnTheDeskAndTheHealthPage(t *testing.T) {
 		}
 		drawn += count
 	}
-	if claim := deskHealthClaim(t, getInLanguage(t, client, srv.URL+"/", wording.En)); claim != drawn {
-		t.Errorf("the desk claims %d findings and the table's lines hold %d", claim, drawn)
+	if claim := healthClaim(t, frozen); claim != drawn {
+		t.Errorf("the page states %d findings and the table's lines hold %d", claim, drawn)
 	}
 
 	removeFile(t, root, frozenDecomposed)

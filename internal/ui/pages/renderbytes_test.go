@@ -160,6 +160,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/courses/Maps/Go%20path.md"}, recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
+		{"home-page-kept", Home(recordedKeptHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
 		{"health-page-english", Health(recordedHealthView(model), recordedEnglishChrome())},
 		{"health-page-unreadable", Health(recordedUnreadableHealthView(t, model), recordedChrome())},
@@ -623,6 +624,19 @@ func recordedHomeView(model *nav.Model) HomeView {
 		Blocks:         NewDeskBlocks(model, schema.NavigationRoles{}, ContractGoverning, recordedChrome().Lang, nil),
 		ReadmeMissing:  true,
 	}
+}
+
+// recordedKeptHomeView is the desk of a reader who left off somewhere: the
+// place is the first thing on it, and the courses stand with the other ways in
+// rather than above them.
+func recordedKeptHomeView(model *nav.Model) HomeView {
+	view := recordedHomeView(model)
+	view.Continue = ContinueRow{
+		Show: true, Title: "L01", Language: "en", Kicker: "Go path · Part one",
+		Section: RowPlace{Text: "A second look", Language: "en"},
+		Href:    ResumeHref("Writing/lessons/go/L01.md", "a-second-look", 640),
+	}
+	return view
 }
 
 // recordedWithheldHomeView is the desk over a vault whose contract could not be

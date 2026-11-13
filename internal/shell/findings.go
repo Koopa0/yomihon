@@ -11,10 +11,8 @@ import (
 // one captured generation. It carries no words of its own: which language a row
 // is read in, and what each row is called, is settled where the page is built.
 //
-// It is gathered here rather than beside the page because two surfaces read it.
-// The page lists the rows; the desk says how many there are. A number worked
-// out a second time beside the desk is a number that disagrees with the page
-// the day either one changes.
+// It is gathered here rather than beside the page so that what the folder has
+// to answer for is read from one captured generation, in one place.
 type Findings struct {
 	// NavigationFaults are readable notes with omitted navigation trees.
 	NavigationFaults []nav.CoreFault
@@ -59,8 +57,7 @@ type Findings struct {
 // that note's row and are tallied there, so the fold cancels and every list
 // contributes the things found in it rather than the lines they are drawn on.
 // A note the schema said nine things about counts nine. A collision is not
-// counted: it is not a row of the table, and the desk and the table are one
-// instrument that states the same number.
+// counted: it is not a row of the table.
 func (f *Findings) Total() int {
 	total := len(f.Blocked) + len(f.Skipped) +
 		len(f.Unwritten) + len(f.TitleOnly) +

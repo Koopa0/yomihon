@@ -86,7 +86,7 @@ func TestShelfBlockHandsTheReaderTheRestOfTheShelf(t *testing.T) {
 		Rows: []Row{{Text: "one", Href: "/a"}, {Text: "two", Href: "/b"}},
 	}
 	var full strings.Builder
-	if err := ShelfBlock(shelf, "courses", 1, wording.ZhHant).Render(t.Context(), &full); err != nil {
+	if err := ShelfBlock(shelf, "courses", 1, wording.ZhHant, false).Render(t.Context(), &full); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	got := full.String()
@@ -104,7 +104,7 @@ func TestShelfBlockHandsTheReaderTheRestOfTheShelf(t *testing.T) {
 	}
 
 	var bare strings.Builder
-	if err := ShelfBlock(Shelf{Title: "課程", Href: "/courses", Empty: "沒有課程。"}, "courses", 3, wording.ZhHant).Render(t.Context(), &bare); err != nil {
+	if err := ShelfBlock(Shelf{Title: "課程", Href: "/courses", Empty: "沒有課程。"}, "courses", 3, wording.ZhHant, false).Render(t.Context(), &bare); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	if !strings.Contains(bare.String(), "沒有課程。") {
@@ -128,7 +128,7 @@ func TestAShelfOfRowsThatAreNotStopsIsNotEmpty(t *testing.T) {
 		Rows: []Row{{Text: "unwritten"}},
 	}
 	var out strings.Builder
-	if err := ShelfBlock(shelf, "courses", 3, wording.ZhHant).Render(t.Context(), &out); err != nil {
+	if err := ShelfBlock(shelf, "courses", 3, wording.ZhHant, false).Render(t.Context(), &out); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	got := out.String()
@@ -272,6 +272,12 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 		}
 		shown := shelfRows(&block.Shelf, deskBlockItems)
 		listed := shelfRows(&page.Shelf, len(page.Shelf.Rows))
+		if block.Mode == mapMode {
+			// The one measure the desk leaves off: a map's branch count is the
+			// shape of its subject, listed on the map page and not counted on
+			// the desk. Every other row field must still agree.
+			listed = unmarked(listed)
+		}
 		if block.Mode == folderMode {
 			zero := make(map[string]bool)
 			for _, folder := range model.ShelfFolders() {
@@ -314,7 +320,7 @@ func TestShelfKeepsAnInertFaultRow(t *testing.T) {
 		{
 			name: "home",
 			render: func(out *strings.Builder) error {
-				return ShelfBlock(shelf, "open-thoughts", 1, wording.En).Render(t.Context(), out)
+				return ShelfBlock(shelf, "open-thoughts", 1, wording.En, false).Render(t.Context(), out)
 			},
 			marker: "data-desk-item", warning: "ui-navitem__count--warn",
 		},
