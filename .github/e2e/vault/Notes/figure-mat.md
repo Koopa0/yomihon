@@ -8,6 +8,10 @@ A small picture on a line of its own.
 
 ![[pic.svg|120]]
 
+A raster picture on a line of its own is not a drawing and has no mat.
+
+![[raster-picture.png]]
+
 A wide picture ![inside a sentence|900](wide-drawing.svg) stays part of the sentence.
 
 A figure nobody approved.

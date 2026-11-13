@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// The mat is the ground an author's drawing sits on: a picture alone in its
+// The mat is the ground an author's drawing sits on: an SVG alone in its
 // paragraph, or a figure's frame. These tests read the authored stylesheets and
 // hold what the drawing's reader depends on: one inset for both, a scroll
 // instead of a shrink, a ground that follows the same light or dark the
@@ -59,7 +59,7 @@ func wantValue(t *testing.T, rule cssRule, property, want, why string) {
 	}
 }
 
-// TestAMatIsToneAndEightPixelsWrittenOnce holds the one inset the picture and
+// TestAMatIsToneAndEightPixelsWrittenOnce holds the one inset the SVG and
 // the figure share. Both are the author's drawing on the same ground, so a
 // second inset anywhere is two mats that disagree by a few pixels, which is
 // all the edge a tone-only mat has. The frame inside it takes none of its own:
@@ -69,7 +69,7 @@ func TestAMatIsToneAndEightPixelsWrittenOnce(t *testing.T) {
 	rules := componentRules(t)
 
 	mat := theOne(t, rules, matSelector, "")
-	wantValue(t, mat, "padding", "8px", "the picture and the figure sit on one mat, and its inset is written here and nowhere else")
+	wantValue(t, mat, "padding", "8px", "the SVG and the figure sit on one mat, and its inset is written here and nowhere else")
 	wantValue(t, mat, "background", "var(--mat)", "a mat is a tone, and the tone is the token")
 
 	for _, rule := range rules {
@@ -118,7 +118,7 @@ func TestAMatHoldsAWideDrawingAtItsFloorAndScrolls(t *testing.T) {
 	wantValue(t, unsized, "width", "max(100%, var(--mat-floor))", "a frame with no width of its own fills the column, and is held at the floor")
 
 	picture := theOne(t, rules, pictureSelector, "")
-	wantValue(t, picture, "max-width", "max(100%, var(--mat-floor, 0%))", "a picture on a mat is held at the floor; a picture in a sentence has no floor, so it is never wider than its column")
+	wantValue(t, picture, "max-width", "max(100%, var(--mat-floor, 0%))", "a picture on a mat (an SVG) is held at the floor; a picture in a sentence has no floor, so it is never wider than its column")
 
 	if got := theOne(t, rules, ".y-prose .mat > img", "").values("display"); !slices.Equal(got, []string{"block"}) {
 		t.Errorf(".y-prose .mat > img declares display: %q, want block, or the line box leaves a gap under the drawing inside its mat", got)

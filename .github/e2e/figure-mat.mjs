@@ -1,18 +1,18 @@
-// Browser lock for the mat an author's drawing sits on: a picture alone in its
+// Browser lock for the mat an author's drawing sits on: an SVG alone in its
 // paragraph, and a figure's frame. It reads what a reader gets, in the eight
 // contexts that decide it — a phone and a desk, a light and a dark system, a
 // light and a dark page — because the mat answers to the system and the page
 // separately, and a lock that never put the two in disagreement could not tell
 // them apart.
 //
-// A green run means: the mat of a picture and of a figure nobody approved takes
+// A green run means: the mat of a drawing and of a figure nobody approved takes
 // the system's tone whatever the page is, and the picture's own dark variant
 // agrees with it; an approved figure's mat takes the page's; both are one 8px
 // inset; on a phone a drawing wider than the screen is held at 560px inside a
 // mat that scrolls, the page does not, and the mat is a named stop in the tab
 // order that a key scrolls; on a desk nothing scrolls and nothing is a stop; a
-// small picture is left at the size it was given; and a picture inside a
-// sentence is never held to the floor.
+// small drawing is left at the size it was given; a picture inside a sentence
+// is never held to the floor; and a raster picture has no mat.
 //
 // Env: YOMIHON_BASE, YOMIHON_FIXTURE_ROOT, YOMIHON_FIXTURE_HOME, PAGE_PATH and
 // MUTATE. MUTATE=list prints the modes.
@@ -21,7 +21,7 @@ import { rm } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 
 import { arrived } from './support/arrival.mjs';
-import { approveFigures } from './support/figure-approval.mjs';
+import { approveFigures, fixtureHome, fixtureRoot } from './support/figure-approval.mjs';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/figure-mat.md';
@@ -40,6 +40,7 @@ const SITES = [
   'mat-scrolls',
   'small-picture-kept',
   'floor-stays-on-the-mat',
+  'raster-stays-bare',
   'mat-focus',
 ];
 
@@ -61,6 +62,8 @@ const MUTATIONS = {
   'upscale-small-picture': { site: 'small-picture-kept', file: 'app.css', append: '.y-prose .mat > img { min-width: var(--mat-floor); }' },
   // A picture inside a sentence is held to the floor too.
   'floor-outside-mat': { site: 'floor-stays-on-the-mat', file: 'app.css', replace: ['max-width: max(100%, var(--mat-floor, 0%));', 'max-width: max(100%, 560px);'] },
+  // A raster picture is set on a mat as a drawing is.
+  'matte-raster-picture': { site: 'raster-stays-bare', file: 'page', replace: ['<p><img src="/raw/Notes/raster-picture.png"', '<p class="mat"><img src="/raw/Notes/raster-picture.png"'] },
   // A mat that overflows is not given a place in the tab order.
   'no-focus-stop': { site: 'mat-focus', file: 'diagrams.js', replace: ["mat.setAttribute('tabindex', '0');", ''] },
   // Every mat is a tab stop, whether or not there is anything to scroll to.
@@ -140,7 +143,8 @@ const readPage = () => {
       name: drawing.getAttribute('alt') || drawing.getAttribute('title'),
     };
   });
-  const inline = document.querySelector('.y-prose p:not(.mat) > img');
+  const raster = document.querySelector('.y-prose img[src*="raster-picture"]');
+  const inline = document.querySelector('.y-prose p:not(.mat) > img[src*="wide-drawing"]');
   const column = document.querySelector('.y-prose').getBoundingClientRect();
   const wide = document.querySelector('.y-prose .mat > img[src*="wide-drawing"]');
   let variant = null;
@@ -155,6 +159,7 @@ const readPage = () => {
   }
   return {
     mats,
+    raster: raster && { width: raster.getBoundingClientRect().width, inMat: raster.closest('.mat') !== null },
     inline: inline && { width: inline.getBoundingClientRect().width, inMat: inline.closest('.mat') !== null },
     column: column.width,
     pageWidth: document.documentElement.scrollWidth,
@@ -167,7 +172,8 @@ let browser;
 let approvalsFile;
 let routeError;
 try {
-  approvalsFile = await approveFigures('Notes/figures', ['mat-live.html']);
+  const root = await fixtureRoot();
+  approvalsFile = await approveFigures(root, await fixtureHome(root), 'Notes/figures', ['mat-live.html']);
   browser = await chromium.launch({ channel: 'chrome', headless: true });
   const mutation = MUTATE ? MUTATIONS[MUTATE] : null;
 
@@ -180,10 +186,11 @@ try {
         { name: 'yomihon_theme', value: theme, url: BASE },
       ]);
       if (mutation) {
-        await context.route(`${BASE}/static/*`, async (route) => {
+        await context.route(`${BASE}/**`, async (route) => {
           try {
             const url = new URL(route.request().url());
-            if (url.pathname !== `/static/${mutation.file}`) return route.continue();
+            const target = mutation.file === 'page' ? PAGE : `/static/${mutation.file}`;
+            if (url.pathname !== target) return route.continue();
             const response = await route.fetch();
             return route.fulfill({ response, body: rewrite(await response.text(), mutation) });
           } catch (error) {
@@ -209,6 +216,10 @@ try {
 
       const seen = await page.evaluate(readPage);
       if (errors.length) throw new ProbeBroken(`BROKEN figure-mat: ${errors.join('; ')}`);
+      // raster-stays-bare: read before the fixture's shape is, since a raster
+      // picture on a mat changes the count of mats the shape check holds.
+      if (!seen.raster) throw new ProbeBroken('BROKEN figure-mat: the fixture holds no raster picture');
+      if (seen.raster.inMat) fail('raster-stays-bare', `${where}: the raster picture is on a mat, which is for a drawing and not for a picture`);
       const byKind = Object.fromEntries(seen.mats.map((mat) => [mat.kind, mat]));
       if (seen.mats.length !== 4 || ['wide', 'small', 'figure', 'approved'].some((kind) => !byKind[kind])) {
         throw new ProbeBroken(`BROKEN figure-mat: the fixture holds ${JSON.stringify(seen.mats.map((mat) => mat.kind))}, want a wide picture, a small one, a figure and an approved figure`);

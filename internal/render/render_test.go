@@ -774,7 +774,7 @@ func TestEmbedPictureTargetPaintsInline(t *testing.T) {
 		t.Parallel()
 		r := newRenderer(t, nil, []string{"attachments/pic.png"}, nil)
 		got := r.HTML("note.md", "", "![[pic.png]]\n", wording.ZhHant)
-		const wantHTML = "<p class=\"mat\"><img src=\"/raw/attachments/pic.png\" alt=\"pic.png\"></p>\n"
+		const wantHTML = "<p><img src=\"/raw/attachments/pic.png\" alt=\"pic.png\"></p>\n"
 		if got.HTML != wantHTML {
 			t.Errorf("HTML().HTML = %q, want exactly %q", got.HTML, wantHTML)
 		}

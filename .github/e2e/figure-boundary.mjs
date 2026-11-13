@@ -12,15 +12,15 @@
 //
 // Env: YOMIHON_BASE, YOMIHON_FIXTURE_ROOT, YOMIHON_FIXTURE_HOME, PAGE_PATH and
 // MUTATE. MUTATE=list prints the modes.
-import { createHash } from 'node:crypto';
 import { createSocket } from 'node:dgram';
-import { mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { basename, dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 import { chromium } from 'playwright-core';
 
 import { arrived } from './support/arrival.mjs';
+import { approveFigures, FixtureRefused, fixtureHome, fixtureRoot } from './support/figure-approval.mjs';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/figures.md';
@@ -153,39 +153,9 @@ const listenUDP = async (channel) => {
 };
 
 // ---------- approvals, written where the server reads them ----------
-const fixtureRoot = async () => {
-  const supplied = process.env.YOMIHON_FIXTURE_ROOT;
-  if (!supplied) throw new ProbeBroken('BROKEN figure-boundary: no disposable fixture root');
-  const root = await realpath(supplied);
-  if (basename(root) !== 'vault' || !basename(dirname(root)).startsWith('yomihon-serve.')) {
-    throw new ProbeBroken('BROKEN figure-boundary: unsafe fixture root');
-  }
-  return root;
-};
-const fixtureHome = async (root) => {
-  const supplied = process.env.YOMIHON_FIXTURE_HOME;
-  if (!supplied) throw new ProbeBroken('BROKEN figure-boundary: no disposable server home');
-  const home = await realpath(supplied);
-  if (basename(home) !== 'home' || dirname(home) !== dirname(root)) {
-    throw new ProbeBroken('BROKEN figure-boundary: the server home is not beside the disposable vault');
-  }
-  return home;
-};
-// The approval command needs a person at a terminal, which a probe is not, so
-// the record it would write is written here in its documented shape: the
-// per-vault directory named by the digest of the resolved root.
-const approve = async (root, home) => {
-  const config = process.platform === 'darwin' ? join(home, 'Library', 'Application Support') : join(home, '.config');
-  const vaultDir = join(config, 'yomihon', createHash('sha256').update(root.normalize('NFC')).digest('hex').slice(0, 32));
-  const approvals = [];
-  for (const name of APPROVED) {
-    const bytes = await readFile(join(root, FIGURES, name));
-    approvals.push({ path: `${FIGURES}/${name}`, sha256: createHash('sha256').update(bytes).digest('hex'), time: new Date().toISOString() });
-  }
-  await mkdir(vaultDir, { recursive: true, mode: 0o700 });
-  const file = join(vaultDir, 'figures.json');
-  await writeFile(file, `${JSON.stringify({ version: 1, vault: root, approvals }, null, 2)}\n`, { mode: 0o600 });
-  return file;
+// A refusal of the fixture is the probe's own breakage, said in its name.
+const refuseFixture = (error) => {
+  throw error instanceof FixtureRefused ? new ProbeBroken(`BROKEN figure-boundary: ${error.message}`) : error;
 };
 
 // ---------- the run ----------
@@ -193,9 +163,9 @@ let browser;
 let approvalsFile;
 let routeError;
 try {
-  const root = await fixtureRoot();
-  const home = await fixtureHome(root);
-  approvalsFile = await approve(root, home);
+  const root = await fixtureRoot().catch(refuseFixture);
+  const home = await fixtureHome(root).catch(refuseFixture);
+  approvalsFile = await approveFigures(root, home, FIGURES, APPROVED);
 
   const outside = {};
   for (const channel of CHANNELS) outside[channel] = await listenTCP(channel);

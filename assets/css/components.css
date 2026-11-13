@@ -1773,7 +1773,7 @@ details.y-metarow {
 }
 
 /* A picture is never wider than its column, except on a mat: a mat scrolls
-   sideways, so it holds a picture at the floor it names instead of shrinking it
+   sideways, so it holds a drawing at the floor it names instead of shrinking it
    until its words cannot be read. Outside a mat there is no floor. */
 .y-prose img {
   border-radius: 0;
@@ -2213,12 +2213,13 @@ button.y-freshness__action {
   padding: 10px 14px;
 }
 
-/* What an author drew sits on a mat: a picture alone in its paragraph, or a
-   figure's frame. The mat is tone and 8px with no frame line, and it is the one
-   place that inset is written. It takes the system's light or dark rather than
-   the page's, because what it holds can only know the system's: a picture's own
-   stylesheet, and a figure that is not running script, ask the browser for
-   prefers-color-scheme and the browser answers with the system. A figure the
+/* What an author drew sits on a mat: an SVG alone in its paragraph, or a
+   figure's frame. A raster picture or a photograph is not a drawing made for a
+   light ground and has none. The mat is tone and 8px with no frame line, and it
+   is the one place that inset is written. It takes the system's light or dark
+   rather than the page's, because what it holds can only know the system's: a
+   drawing's own stylesheet, and a figure that is not running script, ask the
+   browser for prefers-color-scheme and the browser answers with the system. A figure the
    owner approved is told the page's theme instead, so its mat follows the page.
    Narrower than its floor a mat scrolls sideways rather than shrinking what it
    holds; the floor is set by the drawing's own width, which the browser knows
