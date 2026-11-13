@@ -79,11 +79,11 @@ func TestEveryListSortsPathsTheWayTheirNumbersRead(t *testing.T) {
 		}
 	})
 
-	t.Run("the notes sharing one declared title", func(t *testing.T) {
+	t.Run("the notes sharing one title", func(t *testing.T) {
 		t.Parallel()
 		notes := []*vault.Note{
-			parse(t, "Writing/第10課.md", "---\ntitle: 課\n---\n\na\n"),
-			parse(t, "Writing/第9課.md", "---\ntitle: 課\n---\n\nb\n"),
+			parse(t, "Writing/第10課.md", "# 課\n\na\n"),
+			parse(t, "Writing/第9課.md", "# 課\n\nb\n"),
 		}
 
 		want := []nav.NoteRef{

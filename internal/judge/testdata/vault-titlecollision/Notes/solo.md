@@ -1,5 +1,5 @@
 ---
-title: Half Private
 ---
+# Half Private
 
 The only public holder of its title.

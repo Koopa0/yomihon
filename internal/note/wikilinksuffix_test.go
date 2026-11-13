@@ -13,18 +13,18 @@ import (
 func TestRegisteredReadingPathSuffix(t *testing.T) {
 	t.Parallel()
 	root := writeNotes(t, map[string]string{
-		"Concepts/Atlas/Page.md":           "---\ntitle: Atlas page\ntype: concept\n---\n## Part\n\nSection payload.\n\nBlock payload. ^piece\n",
+		"Concepts/Atlas/Page.md":           "---\ntype: concept\n---\n# Atlas page\n\n## Part\n\nSection payload.\n\nBlock payload. ^piece\n",
 		"Concepts/A/Shared/Twin.md":        "A twin.\n",
 		"Concepts/B/Shared/Twin.md":        "B twin.\n",
-		"Concepts/Thought/Source.md":       "---\ntitle: Thought source\n---\n## Part\nbody\n",
-		"Concepts/Source.md":               "---\ntitle: Source\ntype: concept\nbased_on: '[[Atlas/Page#Part]]'\n---\n[[Atlas/Page|Chosen]]\n\n[[Shared/Twin]]\n\n[[Nope/Page]]\n\n![[Atlas/Page#^piece]]\n",
-		"Extra/Concepts/Thought/Source.md": "---\ntitle: Deeper candidate\n---\nDo not choose me.\n",
+		"Concepts/Thought/Source.md":       "---\n---\n# Thought source\n\n## Part\nbody\n",
+		"Concepts/Source.md":               "---\ntype: concept\nbased_on: '[[Atlas/Page#Part]]'\n---\n# Source\n\n[[Atlas/Page|Chosen]]\n\n[[Shared/Twin]]\n\n[[Nope/Page]]\n\n![[Atlas/Page#^piece]]\n",
+		"Extra/Concepts/Thought/Source.md": "---\n---\n# Deeper candidate\n\nDo not choose me.\n",
 	})
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := strings.Replace(string(data), "[navigation]\n", "[navigation]\nanswer_type = \"writing\"\n", 1)
+	text := writingHoldsTheThoughtRole(t, string(data))
 	file := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	if mkdirErr := os.MkdirAll(filepath.Dir(file), 0o750); mkdirErr != nil {
 		t.Fatal(mkdirErr)

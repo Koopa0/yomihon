@@ -289,7 +289,7 @@ func TestADivisionIsOfferedOnlyWhereItCouldBeHonoured(t *testing.T) {
 		}
 	}
 
-	closed := idx.WithArtifactPolicy(undeclaredArtifactPolicy(t))
+	closed := idx.WithArtifactPolicy(escapingArtifactPolicy(t))
 	answer, err := closed.Search(Parse("needle"), -1)
 	if err != nil {
 		t.Fatalf("Search on an unavailable policy error = %v", err)

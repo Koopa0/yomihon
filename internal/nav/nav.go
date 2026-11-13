@@ -464,7 +464,7 @@ func newModel(
 	}
 
 	for _, n := range mapNotes {
-		ref := NoteRef{Name: n.Title(), RelPath: n.RelPath, Language: facts[n.RelPath].language}
+		ref := NoteRef{Name: graph.TitleOf(n.RelPath, n.Body), RelPath: n.RelPath, Language: facts[n.RelPath].language}
 		if roles.IsPathType(n.Type()) {
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
@@ -538,16 +538,16 @@ func collectNavigationNotes(
 		if n == nil {
 			continue
 		}
-		// The declared title only: Note.Title falls back to the file stem,
+		// The heading's title only: the title falls back to the file stem,
 		// which would name a course row by its file again.
-		title, _ := n.Text("title")
+		title, _ := graph.FirstH1(n.Body)
 		facts[p] = noteFacts{draft: schema.Draft(n.Frontmatter), title: title, noteType: n.Type()}
 		// Membership is the vault's own declaration, not whether a note happens
 		// to carry a type: a note without frontmatter is still one its author
 		// wrote and still the newest thing they changed.
 		if scope.Includes(p) {
 			knowledgeNotes = append(knowledgeNotes, NoteSummary{
-				Title:    n.Title(),
+				Title:    graph.TitleOf(n.RelPath, n.Body),
 				RelPath:  p,
 				Type:     n.Type(),
 				Draft:    schema.Draft(n.Frontmatter),
@@ -657,37 +657,17 @@ func buildReports(files []capturedFile, dated schema.AuthoredDate) []Report {
 	return reports
 }
 
-// writtenReportTitle is what a Markdown report calls itself: the title its
-// frontmatter declares, else the first level-one heading its body opens on,
-// else the file's own name. Reading the heading is the report shelf's own
-// business — a note is called by its frontmatter title or its file everywhere
-// else — so Note.Title stays what it is and this reads past it.
+// writtenReportTitle is what a Markdown report calls itself: the first level-one
+// heading its body opens on, else the file's own name. The words travel as the
+// author typed them, collapsed onto one line, as the line a report opens with
+// does: a shelf that stripped Markdown out of a title would be a second
+// renderer.
 func writtenReportTitle(file capturedFile, stem string) string {
 	if file.note == nil {
 		return stem
 	}
-	if title, _ := file.note.Text("title"); title != "" {
-		return title
-	}
-	return cmp.Or(firstTitleHeading(file.note.Body), stem)
-}
-
-// firstTitleHeading is the words of the first level-one heading in body that
-// has any, read the way the page that displays the note reads headings: a
-// heading inside fenced code or an authored HTML block is not one, and a
-// heading underlined with = is. The words travel as the author typed them,
-// collapsed onto one line, as the line a report opens with does: a shelf that
-// stripped Markdown out of a title would be a second renderer.
-func firstTitleHeading(body string) string {
-	for _, heading := range graph.Headings(body, graph.LineSkipZones(body)) {
-		if heading.Level != 1 {
-			continue
-		}
-		if words := strings.Join(strings.Fields(heading.Text), " "); words != "" {
-			return words
-		}
-	}
-	return ""
+	title, _ := graph.FirstH1(file.note.Body)
+	return cmp.Or(title, stem)
 }
 
 // qualifySharedTitles gives each report that shares its title with another the

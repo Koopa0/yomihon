@@ -23,7 +23,7 @@ func TestFrontmatterSchemaSentenceNamesItsActualCause(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := SchemaSentence(tc.lang, "schema.frontmatter", "", tc.diagnostic, "")
+			got := SchemaSentence(tc.lang, "schema.frontmatter", "", tc.diagnostic)
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("frontmatter explanation (-want +got):\n%s", diff)
 			}

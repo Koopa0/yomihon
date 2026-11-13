@@ -11,8 +11,7 @@ import (
 
 // TestLoadRealContract checks that an explicitly selected private vault's
 // current contract passes strict decoding. Synthetic fixtures remain the
-// contract for exact vocabulary, lifecycle behavior, and capability
-// degradation.
+// contract for exact vocabulary, roles, and capability degradation.
 func TestLoadRealContract(t *testing.T) {
 	t.Parallel()
 	defer redactRealVaultPanic(t)
@@ -25,10 +24,10 @@ func TestLoadRealContract(t *testing.T) {
 	definition := contract.Definition()
 
 	t.Logf(
-		"real-vault aggregate: note_types=%d status_groups=%d lifecycle_stages=%d navigation_available=%t artifact_available=%t privacy_available=%t",
-		len(definition.Enums.Type),
-		len(definition.Enums.Status),
-		contract.StageCount(),
+		"real-vault aggregate: note_types=%d enums=%d common_fields=%d navigation_available=%t artifact_available=%t privacy_available=%t",
+		len(definition.Types),
+		len(definition.Enums),
+		len(definition.Fields.Common),
 		contract.NavigationRoles().Available(),
 		contract.ArtifactPolicy().Available(),
 		contract.PrivacyPolicy().Available(),

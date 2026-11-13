@@ -44,7 +44,7 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 			root := t.TempDir()
 			const rel = "Lost <note>.md"
 			file := filepath.Join(root, rel)
-			if err := os.WriteFile(file, []byte("---\ntitle: Own title\n---\n# Own title\n\n## Chapter\n\nWords.\n"), 0o600); err != nil {
+			if err := os.WriteFile(file, []byte("---\n---\n# Own title\n\n# Own title\n\n## Chapter\n\nWords.\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			log := slog.New(slog.DiscardHandler)
@@ -76,7 +76,7 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 					t.Fatal(removeErr)
 				}
 			} else {
-				if writeErr := os.WriteFile(file, []byte("---\ntitle: Own title\n---\n# Own title\n\n## Renamed\n\nWords.\n"), 0o600); writeErr != nil {
+				if writeErr := os.WriteFile(file, []byte("---\n---\n# Own title\n\n# Own title\n\n## Renamed\n\nWords.\n"), 0o600); writeErr != nil {
 					t.Fatal(writeErr)
 				}
 			}
@@ -185,7 +185,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			file := filepath.Join(root, "Source.md")
-			if err := os.WriteFile(file, []byte("---\ntitle: Captured title\n---\n## Chapter\n"), 0o600); err != nil {
+			if err := os.WriteFile(file, []byte("---\n---\n# Captured title\n\n## Chapter\n"), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			log := slog.New(slog.DiscardHandler)
@@ -220,7 +220,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 			initial := http.NewServeMux()
 			mark.NewUncertaintyHandler(marks, handler, log).Register(initial)
 			assertLostMarkPair(t, initial, "en", "Source.md", "chapter")
-			if writeErr := os.WriteFile(file, []byte("---\ntitle: Later title\n---\n## Renamed\n"), 0o600); writeErr != nil {
+			if writeErr := os.WriteFile(file, []byte("---\n---\n# Later title\n\n## Renamed\n"), 0o600); writeErr != nil {
 				t.Fatal(writeErr)
 			}
 			second, err = snapshot.New(t.Context(), source, log, nil, schema.Ungoverned())
@@ -275,11 +275,11 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 		rel  string
 		text string
 	}{
-		{rel: "A.md", text: "---\ntitle: Z title\n---\n## Alpha\n\n## Beta\n"},
-		{rel: "B.md", text: "---\ntitle: A title\n---\nWords.\n"},
+		{rel: "A.md", text: "---\n---\n# Z title\n\n## Alpha\n\n## Beta\n"},
+		{rel: "B.md", text: "---\n---\n# A title\n\nWords.\n"},
 		{rel: "Missing.md", text: "Words.\n"},
-		{rel: "Newest.md", text: "---\ntitle: Newest\n---\nWords.\n"},
-		{rel: "Oldest.md", text: "---\ntitle: Oldest\n---\nWords.\n"},
+		{rel: "Newest.md", text: "---\n---\n# Newest\n\nWords.\n"},
+		{rel: "Oldest.md", text: "---\n---\n# Oldest\n\nWords.\n"},
 	} {
 		if err := os.WriteFile(filepath.Join(root, fixture.rel), []byte(fixture.text), 0o600); err != nil {
 			t.Fatal(err)

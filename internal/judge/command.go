@@ -49,23 +49,20 @@ func allRuleIDs() []RuleID {
 		"schema.unknown_key",
 		"schema.type_dependent",
 		"schema.slug",
-		"schema.domain_folder",
-		"schema.legacy_tag",
 		"schema.provenance",
 		"schema.reference_nested_sequence",
 		"schema.frontmatter",
 		"schema.unmatched_knowledge_dir",
 		navigationUnavailableRule,
-		"schema.status_unreachable",
 		"scan.skipped",
 		unreadableRule,
 		"collision.name",
 		calloutTitleMarkupRule,
-		predecessorNotArchivedRule,
-		archivedNavigationRule,
 		// The authoring contract's own rules. This list has to match what the
 		// rules emit, in both directions.
 		"schema.language",
+		"schema.draft",
+		"provenance.alias_resolved",
 	}
 	for _, rule := range sequence.Rules() {
 		ids = append(ids, RuleID(rule))

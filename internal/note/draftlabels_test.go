@@ -18,7 +18,7 @@ func TestTheFoldersAndTheRailMarkOnlyDrafts(t *testing.T) {
 
 	root := keptCourse(t)
 	for name, flag := range map[string]string{"Open": "draft: true\n", "Done": ""} {
-		body := "---\ntitle: " + name + "\ntype: lesson\n" + flag + "---\n\nbody\n"
+		body := "---\ntype: lesson\n" + flag + "---\n# " + name + "\n\nbody\n"
 		if err := os.WriteFile(filepath.Join(root, "Writing", "lessons", name+".md"), []byte(body), 0o600); err != nil {
 			t.Fatalf("write lesson %s: %v", name, err)
 		}

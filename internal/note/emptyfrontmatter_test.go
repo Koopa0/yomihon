@@ -38,7 +38,7 @@ func TestEmptyFrontmatterBlockIsToldApartFromAnAbsentBlock(t *testing.T) {
 			emptyPage := getInLanguage(t, srv.Client(), srv.URL+"/notes/Writing/Empty.md", lang)
 			absentPage := getInLanguage(t, srv.Client(), srv.URL+"/notes/Writing/Absent.md", lang)
 
-			required := requiredFieldSaid(lang, "title")
+			required := requiredFieldSaid(lang, "type")
 			if !strings.Contains(emptyPage, required) {
 				t.Errorf("empty block is missing the required-field finding; want %q", required)
 			}
@@ -51,7 +51,7 @@ func TestEmptyFrontmatterBlockIsToldApartFromAnAbsentBlock(t *testing.T) {
 
 func requiredFieldSaid(lang wording.Lang, field string) string {
 	var b strings.Builder
-	for _, part := range wording.SchemaSentence(lang, "schema.required", field, "", "") {
+	for _, part := range wording.SchemaSentence(lang, "schema.required", field, "") {
 		if part.Code {
 			b.WriteString("<code>")
 			b.WriteString(part.Text)

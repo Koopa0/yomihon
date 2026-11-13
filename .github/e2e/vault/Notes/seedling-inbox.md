@@ -1,9 +1,9 @@
 ---
-title: Seedling inbox fixture
-type: inbox
-status: seedling
----
-# Not the title
 
-A captured item sitting at seedling, a status no lifecycle row reaches, so the
-judge has one such finding to report.
+type: inbox
+
+---
+## Not the title
+
+A captured note whose opening heading is not a title, so the page keeps it as the
+first thing in the prose.

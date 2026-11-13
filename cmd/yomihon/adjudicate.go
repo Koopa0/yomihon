@@ -246,7 +246,7 @@ func contractGuidance(err error) string {
 	switch {
 	case errors.Is(err, judge.ErrNoVaultContract):
 		return "  yomihon reads " + schema.ContractRelPath + " for the note types, fields and\n" +
-			"  lifecycle that check, coverage and exists judge against, and for the directories\n" +
+			"  roles that check, coverage and exists judge against, and for the directories\n" +
 			"  whose contents must never leave this machine. A folder carrying no such file has\n" +
 			"  declared nothing, and these three commands have no vocabulary to answer in.\n" +
 			"  Reading and search need none of it: yomihon <dir>\n" +

@@ -29,14 +29,14 @@ func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("Writing/lessons/golang/Slices.md", "---\ntitle: Slices\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("Writing/lessons/golang/Maps lesson.md", "---\ntitle: Maps lesson\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("Maps/Go path.md", "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n## data | Data | 資料 {sequence=primary}\n\n- [[Slices]]\n- [[Planned lesson]]\n- [[Maps lesson]]\n")
+	write("Writing/lessons/golang/Slices.md", "---\ntype: lesson\n---\n# Slices\n\nbody\n")
+	write("Writing/lessons/golang/Maps lesson.md", "---\ntype: lesson\n---\n# Maps lesson\n\nbody\n")
+	write("Maps/Go path.md", "---\ntype: study-path\n---\n# Go path\n\n## data | Data | 資料 {sequence=primary}\n\n- [[Slices]]\n- [[Planned lesson]]\n- [[Maps lesson]]\n")
 	write("Diary/2026-07-31.md", "today\n")
-	write("Concepts/plain.md", "---\ntitle: Plain\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nprose\n")
-	write("System/reports/weekly.md", "---\ntitle: Weekly\ntype: system\ndomain: meta\n---\n\nreport\n")
-	write("Concepts/linked.md", "---\ntitle: Linked\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nprose\n")
-	write("Maps/atlas.md", "---\ntitle: Atlas\ntype: topic-map\ndomain: golang\n---\n\n## Themes\n\n- [[linked]]\n")
+	write("Concepts/plain.md", "---\ntype: concept\n---\n# Plain\n\nprose\n")
+	write("System/reports/weekly.md", "---\ntype: system\n---\n# Weekly\n\nreport\n")
+	write("Concepts/linked.md", "---\ntype: concept\n---\n# Linked\n\nprose\n")
+	write("Maps/atlas.md", "---\ntype: topic-map\n---\n# Atlas\n\n## Themes\n\n- [[linked]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -155,9 +155,9 @@ func TestCitedByAnswersOnThePage(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("Concepts/cited.md", "---\ntitle: Cited\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nthe target\n")
-	write("Concepts/citer.md", "---\ntitle: Citer\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nsee [[cited]]\n")
-	write("Concepts/island.md", "---\ntitle: Island\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nalone\n")
+	write("Concepts/cited.md", "---\ntype: concept\n---\n# Cited\n\nthe target\n")
+	write("Concepts/citer.md", "---\ntype: concept\n---\n# Citer\n\nsee [[cited]]\n")
+	write("Concepts/island.md", "---\ntype: concept\n---\n# Island\n\nalone\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -220,10 +220,10 @@ func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("Concepts/broken.md", "---\ntitle: Broken\ntype: concept\ndomain: golang\nstatus: draft\n---\n\ncites [[nothing at all]] and [[A Written Note]]\n")
-	write("Concepts/written.md", "---\ntitle: A Written Note\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nI exist\n")
-	write("Maps/ledger.md", "---\ntitle: Ledger\ntype: topic-map\ndomain: golang\n---\n\n## 缺口帳\n\n- Planned concept\n")
-	write("Concepts/tracked.md", "---\ntitle: Tracked\ntype: concept\ndomain: golang\nstatus: draft\n---\n\ncites [[Planned concept]]\n")
+	write("Concepts/broken.md", "---\ntype: concept\n---\n# Broken\n\ncites [[nothing at all]] and [[A Written Note]]\n")
+	write("Concepts/written.md", "---\ntype: concept\n---\n# A Written Note\n\nI exist\n")
+	write("Maps/ledger.md", "---\ntype: topic-map\n---\n# Ledger\n\n## 缺口帳\n\n- Planned concept\n")
+	write("Concepts/tracked.md", "---\ntype: concept\n---\n# Tracked\n\ncites [[Planned concept]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -292,9 +292,9 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("教案/國一上/第二課 空氣.md", "---\ntitle: 空氣\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("教案/國一上/第三課 水.md", "---\ntitle: 水\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("教案/研習/心得.md", "---\ntitle: 心得\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n")
+	write("教案/國一上/第二課 空氣.md", "---\ntype: concept\n---\n# 空氣\n\nbody\n")
+	write("教案/國一上/第三課 水.md", "---\ntype: concept\n---\n# 水\n\nbody\n")
+	write("教案/研習/心得.md", "---\ntype: concept\n---\n# 心得\n\nbody\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
@@ -460,7 +460,7 @@ func TestTheFolderIndexSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 			t.Fatalf("mkdir: %v", err)
 		}
-		body := "---\ntitle: " + filepath.Base(rel) + "\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+		body := "---\ntype: concept\n---\n# " + filepath.Base(rel) + "\n\nbody\n"
 		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
 			t.Fatalf("write: %v", err)
 		}
@@ -527,8 +527,8 @@ func TestCitedBySurvivesWithoutTheRail(t *testing.T) {
 	}
 	// No headings anywhere, so neither note has a table of contents and the
 	// backlink is the only reading aid the page can offer.
-	write("Concepts/target.md", "---\ntitle: Target\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nplain prose\n")
-	write("Concepts/source.md", "---\ntitle: Source\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nsee [[target]]\n")
+	write("Concepts/target.md", "---\ntype: concept\n---\n# Target\n\nplain prose\n")
+	write("Concepts/source.md", "---\ntype: concept\n---\n# Source\n\nsee [[target]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 	code, body := get(t, srv.Client(), srv.URL+"/notes/Concepts/target.md")
@@ -585,12 +585,12 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 		}
 	}
 	lesson := func(title string) string {
-		return "---\ntitle: " + title + "\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+		return "---\ntype: lesson\n---\n# " + title + "\n\nbody\n"
 	}
 	write("Writing/lessons/golang/Setup.md", lesson("Setup"))
 	write("Writing/lessons/golang/Basics.md", lesson("Basics"))
 	write("Writing/lessons/golang/Wrapping up.md", lesson("Wrapping up"))
-	write("Maps/Go course.md", "---\ntitle: Go course\ntype: study-path\ndomain: golang\n---\n\n## start | Start | 開始 {sequence=primary}\n\n- [[Setup]]\n- [[Basics]]\n- [[Wrapping up]]\n")
+	write("Maps/Go course.md", "---\ntype: study-path\n---\n# Go course\n\n## start | Start | 開始 {sequence=primary}\n\n- [[Setup]]\n- [[Basics]]\n- [[Wrapping up]]\n")
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 

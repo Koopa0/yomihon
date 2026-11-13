@@ -22,8 +22,8 @@ func TestReadingNamesAnEmptyRenderedBody(t *testing.T) {
 	}{
 		{name: "zero bytes", empty: true},
 		{name: "whitespace", content: " \t\n\r\n", empty: true},
-		{name: "frontmatter only", content: "---\ntitle: Empty\nlanguage: ja\n---\n", empty: true},
-		{name: "frontmatter and whitespace", content: "---\ntitle: Empty\n---\n \t\n", empty: true},
+		{name: "frontmatter only", content: "---\nlanguage: ja\n---\n# Empty\n\n", empty: true},
+		{name: "frontmatter and whitespace", content: "---\n---\n# Empty\n\n \t\n", empty: true},
 		{name: "title consumed by article head", content: "# Empty\n", empty: true},
 		{name: "closed comment", content: "%%A hidden draft paragraph.%%\n", empty: true},
 		{name: "unclosed comment", content: "%%\nA whole draft paragraph I wrote but never closed the comment.\n", hidden: "A whole draft paragraph I wrote but never closed the comment."},

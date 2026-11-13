@@ -222,11 +222,6 @@ that stayed silent are the ones a reader would have to guess about.
 contract reader consults them; they record, for your own tooling's doctrine,
 whose step a status's onward move is.
 
-A note carrying a status that is legal in its type's enum but has no lifecycle
-row applying to that type gets `schema.status_unreachable`: nothing could ever
-have moved it there. The finding needs a note that actually carries the value —
-a status declared and never used is not reported.
-
 ## The one field yomihon writes, and the one it refuses
 
 `status` is the only frontmatter yomihon writes, and it writes only the value —

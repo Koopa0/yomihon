@@ -50,7 +50,6 @@ func TestFaultsKeepsOnlyUnplannedBrokenLinks(t *testing.T) {
 
 	root := t.TempDir()
 	writeNote(t, root, "Maps/plan.md", `---
-title: Plan
 ---
 
 ## 缺口帳
@@ -60,14 +59,12 @@ title: Plan
 `)
 	// Written elsewhere, against names the ledger above has declared.
 	writeNote(t, root, "Notes/tracked.md", `---
-title: Tracked
 ---
 
 Partitioning depends on [[Consistent Hashing]] and [[Vector Clocks]].
 `)
 	// The same shape of link, against a name nothing has declared.
 	writeNote(t, root, "Notes/unplanned.md", `---
-title: Unplanned
 ---
 
 This cites [[Byzantine Broadcast]], which no note has said it will write.
@@ -120,14 +117,13 @@ func TestFaultsKeepsResolvedTargetsThatFailedToRender(t *testing.T) {
 
 	root := t.TempDir()
 	writeNote(t, root, "Maps/plan.md", `---
-title: Plan
 ---
 
 ## 缺口帳
 
 - Consistent Hashing
 `)
-	writeNote(t, root, "Notes/Consistent Hashing.md", "---\ntitle: Consistent Hashing\n---\n\nWritten after all.\n")
+	writeNote(t, root, "Notes/Consistent Hashing.md", "---\n---\n# Consistent Hashing\n\nWritten after all.\n")
 
 	snap := plainVaultView(t, root)
 

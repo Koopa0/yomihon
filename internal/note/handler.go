@@ -19,7 +19,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"path"
@@ -399,8 +398,7 @@ func (h *Handler) reading(
 	if head, ok := pages.RunningHeadOf(&readingRail); ok {
 		running = &head
 	}
-	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(n.Updated, snap, rel)
-	domainFolder, _ := snap.DomainFolder(rel)
+	updatedDisplay, updatedMachine, updatedFromFile := metarowDate(snap, rel)
 	contract := h.enumContract(authority)
 	cause := blockedSource(snap, rel)
 	view = pages.NoteView{
@@ -417,7 +415,7 @@ func (h *Handler) reading(
 		Stale:              n.Stale,
 		ParsePanic:         cause.ParsePanic,
 		ParseReason:        cause.Reason,
-		RenderDiagnostics:  noteFaults(result.Diagnostics, snap, n.RelPath, n.Title, lang),
+		RenderDiagnostics:  faults(result.Diagnostics, snap),
 		CitedBy:            snap.CitedBy(rel),
 		BasedOn:            declaredSources,
 		DeclaredBy:         declaredBy(snap, rel, &result, idPrefix, lang),
@@ -448,7 +446,7 @@ func (h *Handler) reading(
 		// pulled in from other notes is bound by its own stamp, so an edit to
 		// an embedded source can reach this page while it is open.
 		TranscludedIdentity: result.TranscludedIdentity,
-		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), domainFolder, n, lang, contract),
+		SchemaNotices:       schemaNotices(snap.SchemaFindings(rel), n, lang, contract),
 		// Said whatever the vault governs: it is a fact about the bytes, and
 		// it is the page's own to state, not a verdict borrowed from a contract.
 		FrontmatterUnclosed: n.FrontmatterUnclosed,
@@ -457,19 +455,15 @@ func (h *Handler) reading(
 }
 
 // metarowDate picks the one date the reading page shows and the strings the
-// time element carries. The note's declared update wins when it is readable:
-// it is the author's own claim, shown as the date it is. Otherwise the file's
-// recorded change time answers, keeping its clock in the machine-readable
-// value because a clock is what was observed — and fromFile then picks the
-// label naming that different claim.
+// time element carries: the file's recorded change time, kept with its clock in
+// the machine-readable value because a clock is what was observed. A note
+// writes no update date of its own, so fromFile is always the answer and the
+// label names that claim.
 //
 // Every note this page serves was observed by the generation's scan, so the
-// fallback is expected to answer; should the scan hold no identity for the
-// path anyway, the page goes dateless rather than dated by invention.
-func metarowDate(updated time.Time, snap *snapshot.Generation, rel string) (display, machine string, fromFile bool) {
-	if !updated.IsZero() {
-		return updated.Format(time.DateOnly), updated.Format(time.DateOnly), false
-	}
+// date is expected to answer; should the scan hold no identity for the path
+// anyway, the page goes dateless rather than dated by invention.
+func metarowDate(snap *snapshot.Generation, rel string) (display, machine string, fromFile bool) {
 	entry, ok := snap.Entry(rel)
 	if !ok || entry.ModTime().IsZero() {
 		return "", "", false
@@ -482,10 +476,7 @@ func metarowDate(updated time.Time, snap *snapshot.Generation, rel string) (disp
 // reader can read. The findings themselves are one program's verdict in one
 // language for another program to parse; what a page owes a reader is the same
 // verdict in their own words, with the note's own text kept intact inside it.
-//
-// The folder comes from the same captured generation as the findings, so the
-// explanation names the folder the domain rule compared.
-func schemaNotices(findings []judge.Finding, domainFolder string, reading *snapshot.Reading, lang wording.Lang, contract *schema.Contract) [][]wording.SchemaPart {
+func schemaNotices(findings []judge.Finding, reading *snapshot.Reading, lang wording.Lang, contract *schema.Contract) [][]wording.SchemaPart {
 	if len(findings) == 0 {
 		return nil
 	}
@@ -497,17 +488,13 @@ func schemaNotices(findings []judge.Finding, domainFolder string, reading *snaps
 		if reading.FrontmatterUnclosed && f.RuleID == "schema.frontmatter" {
 			continue
 		}
-		folder := domainFolder
-		if f.RuleID == "schema.status_unreachable" {
-			folder = reading.Type
-		}
 		target := deref(f.Target)
 		if f.RuleID == "schema.frontmatter" {
 			target = reading.FMDiagnostic
 		}
-		sentence := wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), target, folder)
+		sentence := wording.SchemaSentence(lang, string(f.RuleID), deref(f.Field), target)
 		if f.RuleID == "schema.enum" {
-			sentence = append(sentence, wording.AllowedEnumValues(lang, deref(f.Field), enumValues(contract, deref(f.Field), reading.Type))...)
+			sentence = append(sentence, wording.AllowedEnumValues(lang, deref(f.Field), enumValues(contract, deref(f.Field)))...)
 		}
 		notices = append(notices, sentence)
 	}
@@ -541,48 +528,6 @@ func faults(diags []render.Diagnostic, snap *snapshot.Generation) []render.Diagn
 		kept = append(kept, d)
 	}
 	return kept
-}
-
-// noteFaults is every fault this page states about the note: what the render
-// met, filtered against what the vault knows, plus the one observation that
-// needs the note's own name beside its title. It takes those two strings
-// rather than the note, because those two are all it reads and a projection
-// of a whole note is a wider coupling than this asks for.
-func noteFaults(diags []render.Diagnostic, snap *snapshot.Generation, relPath, title string, lang wording.Lang) []render.Diagnostic {
-	out := faults(diags, snap)
-	if d, ok := titleTruncatedAtHash(relPath, title, lang); ok {
-		out = append(out, d)
-	}
-	return out
-}
-
-// titleTruncatedAtHash reports that a note's title is exactly its filename cut
-// where YAML starts a comment: at whitespace followed by "#".
-//
-// The condition mirrors YAML's own, which is why it cannot fire on a title
-// that survived. A hash with no space before it starts no comment, so
-// "trailing#nospace" arrives whole and is not this.
-//
-// It is an observation, not an accusation. A title written short on purpose,
-// in quotes, produces the identical coincidence, and nothing in the parsed
-// frontmatter separates the two; the sentence therefore reports what is
-// visible and leaves the author to recognise their own case.
-func titleTruncatedAtHash(relPath, title string, lang wording.Lang) (render.Diagnostic, bool) {
-	stem := vault.NormalizeNFC(strings.TrimSuffix(path.Base(relPath), ".md"))
-	written := vault.NormalizeNFC(title)
-	if written == "" || written == stem || !strings.HasPrefix(stem, written) {
-		return render.Diagnostic{}, false
-	}
-	rest := stem[len(written):]
-	trimmed := strings.TrimLeft(rest, " \t")
-	if len(trimmed) == len(rest) || !strings.HasPrefix(trimmed, "#") {
-		return render.Diagnostic{}, false
-	}
-	return render.Diagnostic{
-		Kind:    render.DiagTitleTruncatedAtHash,
-		Target:  title,
-		Message: fmt.Sprintf(wording.TitleTruncatedAtHashFmt.In(lang), title),
-	}, true
 }
 
 // governance is where the request's two authorities put one note: the folder

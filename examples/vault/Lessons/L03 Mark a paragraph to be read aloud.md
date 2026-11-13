@@ -1,11 +1,8 @@
 ---
-title: L03 Mark a paragraph to be read aloud
 type: lesson
-domain: japanese
 slug: l03-read-aloud
 level: intermediate
 created: 2026-09-22
-updated: 2026-09-22
 lang: en
 ---
 

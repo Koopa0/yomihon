@@ -44,10 +44,10 @@ func TestTheDeskStatesWhatTheHealthTableHolds(t *testing.T) {
 	for rel, body := range map[string]string{
 		// Three objections in one note — an undeclared key, a slug the schema
 		// rejects, a type it does not know — plus a citation nothing answers.
-		"Concepts/golang/Faulty.md": "---\ntitle: Faulty\ntype: memorandum\ndomain: golang\nstatus: draft\nslug: Not Kebab\nnot_a_field: 1\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody with [[Ghost]]\n",
+		"Concepts/golang/Faulty.md": "---\ntype: memorandum\nslug: Not Kebab\nnot_a_field: 1\ncreated: 2026-06-01\n---\n# Faulty\n\nbody with [[Ghost]]\n",
 		// A note no text reaches, which the page counts one line at a time
 		// where the schema faults above share one.
-		"Notes/Island.md": "---\ntitle: Island\ntype: memorandum\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nalone\n",
+		"Notes/Island.md": "---\ntype: memorandum\ncreated: 2026-06-01\n---\n# Island\n\nalone\n",
 	} {
 		full := filepath.Join(root, filepath.FromSlash(rel))
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
@@ -99,14 +99,14 @@ func TestHealthAndDeskDoNotCountNavigationEntriesAsIslands(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			notes := map[string]string{
-				"Maps/Course.md":    "---\ntitle: Course\ntype: study-path\ndomain: golang\nstatus: archived\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n## Unit\n- [[Listed]]\n",
-				"Maps/Overview.md":  "---\ntitle: Overview\ntype: moc\ndomain: golang\nstatus: archived\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n- [[Listed]]\n",
-				"Writing/Listed.md": "---\ntitle: Listed\nslug: listed\ntype: lesson\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nLesson text.\n",
+				"Maps/Course.md":    "---\ntype: study-path\ncreated: 2026-06-01\n---\n# Course\n\n## Unit\n- [[Listed]]\n",
+				"Maps/Overview.md":  "---\ntype: moc\ncreated: 2026-06-01\n---\n# Overview\n\n- [[Listed]]\n",
+				"Writing/Listed.md": "---\nslug: listed\ntype: lesson\ncreated: 2026-06-01\n---\n# Listed\n\nLesson text.\n",
 			}
 			want := 0
 			if unlisted {
 				want = 1
-				notes["Writing/Unlisted.md"] = "---\ntitle: Unlisted\nslug: unlisted\ntype: lesson\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nLesson text.\n"
+				notes["Writing/Unlisted.md"] = "---\nslug: unlisted\ntype: lesson\ncreated: 2026-06-01\n---\n# Unlisted\n\nLesson text.\n"
 			}
 			srv := newServerWithContract(t, writeNotes(t, notes), loadHomeContract(t))
 			code, desk := get(t, srv.Client(), srv.URL+"/")

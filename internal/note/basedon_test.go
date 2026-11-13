@@ -237,7 +237,7 @@ func TestCitationScopeLabelsDifferOnNoteAndHealth(t *testing.T) {
 }
 
 func concept(title, basedOn, body string) string {
-	return "---\ntitle: " + title + "\ntype: concept\ndomain: golang\nstatus: draft\n" + basedOn + "\n---\n\n" + body + "\n"
+	return "---\ntype: concept\n" + basedOn + "\n---\n# " + title + "\n\n" + body + "\n"
 }
 
 func basedOnBlock(t *testing.T, body string) string {

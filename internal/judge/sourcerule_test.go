@@ -187,11 +187,11 @@ func TestEveryEmittedSourceRuleIsOneThatCanBeOpened(t *testing.T) {
 	t.Parallel()
 
 	declared := map[string]bool{
-		sourceContract:             true,
-		sourceContractRules:        true,
-		sourceContractScan:         true,
-		sourceContractSupersession: true,
-		sourceYomihon:              true,
+		sourceContract:        true,
+		sourceContractRules:   true,
+		sourceContractFolders: true,
+		sourceContractTypes:   true,
+		sourceYomihon:         true,
 		// A document is an admissible source in principle — one the vault
 		// keeps, or one this repository ships — but no rule cites one, so none
 		// is declared: reintroducing one means adding it here deliberately,
@@ -261,7 +261,8 @@ func TestEveryEmittedSourceRuleIsOneThatCanBeOpened(t *testing.T) {
 			t.Errorf("declared source %q has no rule for checking it", value)
 		}
 		if hasAnchor && file == sourceContract {
-			if !strings.Contains(declaredTables, "["+anchor+"]") {
+			// A table of tables, such as [types], is declared by its members.
+			if !strings.Contains(declaredTables, "["+anchor+"]") && !strings.Contains(declaredTables, "["+anchor+".") {
 				t.Errorf("source_rule %q names contract table [%s], which the fixture contract does not declare", value, anchor)
 			}
 		}

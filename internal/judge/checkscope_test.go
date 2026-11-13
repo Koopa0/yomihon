@@ -15,9 +15,8 @@ import (
 // name. It returns the vault root.
 func writeCheckableVault(t *testing.T, root string) string {
 	t.Helper()
-	writeSupersessionContract(t, root)
-	writeJudgeNote(t, root, "Writing/Lesson.md",
-		"---\ntitle: Lesson\ntype: lesson\nstatus: ready\n---\nbody\n")
+	writeCourseContract(t, root)
+	writeJudgeNote(t, root, "Writing/Lesson.md", courseLesson("lesson"))
 	return root
 }
 
@@ -112,7 +111,7 @@ func TestCheckRefusesAScopeTheContractWithholds(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeWithheldScopeContract(t, root)
-	const broken = "---\ntitle: T\ntype: lesson\ndomain: meta\nstatus: not-a-declared-status\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\nbody\n"
+	const broken = "---\ntype: not-a-declared-type\ncreated: 2026-01-01\n---\nbody\n"
 	writeJudgeNote(t, root, "Writing/Public.md", broken)
 	writeJudgeNote(t, root, "Private/Secret.md", broken)
 
@@ -169,8 +168,8 @@ func writeWithheldScopeContract(t *testing.T, root string) {
 	if err != nil {
 		t.Fatalf("read schema fixture: %v", err)
 	}
-	const knowledgeDirs = `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
-	text := strings.Replace(string(data), knowledgeDirs, `knowledge_dirs = ["Writing", "Private"]`, 1)
+	const knowledgeDirs = `checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
+	text := strings.Replace(string(data), knowledgeDirs, `checked = ["Writing", "Private"]`, 1)
 	if text == string(data) {
 		t.Fatalf("schema fixture does not declare %s", knowledgeDirs)
 	}

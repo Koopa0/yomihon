@@ -172,7 +172,6 @@ func benchDocs() []Document {
 				Domain:    domains[i],
 				Draft:     j == 0,
 				Slug:      domains[i] + "-" + string(rune('a'+j)),
-				Topics:    []string{domains[i], "reference"},
 				PlainText: body + " a concept note about " + domains[i],
 			})
 		}

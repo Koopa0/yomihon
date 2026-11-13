@@ -1,7 +1,7 @@
 ---
-title: Naming course
 type: study-path
 ---
+# Naming course
 
 ## Lessons {sequence=primary}
 

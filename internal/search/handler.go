@@ -354,7 +354,6 @@ func viewResults(results []lexical.Result, tokens []string) []pages.SearchResult
 			SnippetRuns:   bodyRuns(r, tokens),
 			PathRuns:      snippetRuns(r.RelPath, tokens),
 			AliasRuns:     snippetRuns(r.Alias, tokens),
-			TopicRuns:     snippetRuns(r.Topic, tokens),
 			TagRuns:       viewRuns(lexical.MarkTagHits(r.Tag, tokens)),
 			File:          r.File,
 			Landing:       r.Landing,

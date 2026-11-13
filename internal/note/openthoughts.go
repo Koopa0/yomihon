@@ -126,10 +126,10 @@ func openNoteRow(reading *snapshot.Reading, snap *snapshot.Generation) openThoug
 		text += " — " + strings.Join(declarations, "; ")
 	}
 	row := pages.Row{Text: text, Href: pages.ResumeHref(reading.RelPath, "", 0), Language: reading.Language, Wrap: true}
-	if !reading.Updated.IsZero() {
-		row.When = reading.Updated.Format(time.DateOnly)
+	if !reading.Created.IsZero() {
+		row.When = reading.Created.Format(time.DateOnly)
 	}
-	return openThoughtRow{row: row, at: reading.Updated}
+	return openThoughtRow{row: row, at: reading.Created}
 }
 
 // openMarkRow projects a stored identity without moving or deleting it.

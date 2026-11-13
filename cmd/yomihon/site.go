@@ -108,8 +108,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		contract = nil
 		governance = schema.Unreadable(err)
 	default:
-		log.Info("vault contract loaded",
-			"version", contract.Version(), "lifecycle_stages", contract.StageCount())
+		log.Info("vault contract loaded", "version", contract.Version())
 		logPolicyFaults(log, contract)
 		governance = contract.Governance()
 		// The contract was read through this reader, so its scan boundary is

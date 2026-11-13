@@ -1,9 +1,9 @@
 ---
-title: Mark anchor bounds
 type: note
-status: draft
+
 draft: true
 ---
+# Mark anchor bounds
 
 Before the first accepted position. ^before/start?position
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -25,20 +26,21 @@ const (
 	voicedMark       = '\u3099'
 )
 
-// TestDomainMatchesItsFolderInEitherSpelling pins that a note naming the folder
-// it sits in is read as naming it, in whichever of the two spellings its author
-// wrote — while a note naming a different word is still reported, so the
-// agreement is about that one word and not about everything falling silent.
+// TestDomainEnumFoldsTheFolderSpelling pins that a note's domain, read off the
+// folder it sits in, is the word the contract declares in whichever of the two
+// spellings the folder or the contract was written — while a folder naming a
+// different word is still reported, so the agreement is about that one word
+// and not about everything falling silent.
 //
-// A scan reports composed paths, so the folder side is canonical before any
-// rule sees it; the value side is the author's own bytes and is folded where it
-// is compared. The finding keeps those bytes: a reader is shown what their file
-// says, and the fingerprint keys on it.
+// A scan reports composed paths and the contract folds its own values as it
+// loads, so both sides are canonical before the rule compares them. The finding
+// carries the folder's composed name, which is the word everything downstream
+// of the scan calls it.
 //
 // The rows drive the check command over a vault on disk rather than the linting
 // seam, because the folder's spelling is the variable here and only a real scan
 // settles what a directory written one way is called afterwards.
-func TestDomainMatchesItsFolderInEitherSpelling(t *testing.T) {
+func TestDomainEnumFoldsTheFolderSpelling(t *testing.T) {
 	t.Parallel()
 
 	// These rows are about spelling only if the two spellings are different
@@ -63,35 +65,31 @@ func TestDomainMatchesItsFolderInEitherSpelling(t *testing.T) {
 
 	for _, tt := range []struct {
 		name string
-		// folder is the spelling handed to the filesystem; value is the
-		// spelling written on the note's domain line.
-		folder string
-		value  string
-		// wantMismatch marks a row whose value names a different word, which
+		// folder is the spelling handed to the filesystem; declared is the
+		// spelling the contract's domain vocabulary is written in.
+		folder   string
+		declared string
+		// wantMismatch marks a row whose folder names a different word, which
 		// stays a finding in either spelling.
 		wantMismatch bool
 	}{
-		{name: "composed folder composed value", folder: composedDomain, value: composedDomain},
-		{name: "composed folder decomposed value", folder: composedDomain, value: decomposedDomain},
-		{name: "decomposed folder composed value", folder: decomposedDomain, value: composedDomain},
-		{name: "decomposed folder decomposed value", folder: decomposedDomain, value: decomposedDomain},
-		{name: "composed folder other word composed", folder: composedDomain, value: composedOther, wantMismatch: true},
-		{name: "composed folder other word decomposed", folder: composedDomain, value: decomposedOther, wantMismatch: true},
-		{name: "decomposed folder other word composed", folder: decomposedDomain, value: composedOther, wantMismatch: true},
-		{name: "decomposed folder other word decomposed", folder: decomposedDomain, value: decomposedOther, wantMismatch: true},
+		{name: "composed folder composed contract", folder: composedDomain, declared: composedDomain},
+		{name: "decomposed folder composed contract", folder: decomposedDomain, declared: composedDomain},
+		{name: "composed folder decomposed contract", folder: composedDomain, declared: decomposedDomain},
+		{name: "decomposed folder decomposed contract", folder: decomposedDomain, declared: decomposedDomain},
+		{name: "other word composed folder", folder: composedOther, declared: composedDomain, wantMismatch: true},
+		{name: "other word decomposed folder", folder: decomposedOther, declared: composedDomain, wantMismatch: true},
+		{name: "other word decomposed folder, decomposed contract", folder: decomposedOther, declared: decomposedDomain, wantMismatch: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			write(t, root, schema.ContractRelPath, contractFixture(t, nil,
-				[2]string{`domain = ["golang", "japanese", "meta"]`,
-					`domain = ["golang", "japanese", "meta", "` + composedDomain + `", "` + composedOther + `"]`},
-				[2]string{`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-					`knowledge_dirs = ["Concepts"]`},
+				[2]string{`domain = ["golang", "japanese", "meta"]`, `domain = ["golang", "japanese", "meta", "` + tt.declared + `"]`},
+				[2]string{`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`, `checked = ["Concepts"]`},
 			))
 			rel := "Concepts/" + tt.folder + "/N.md"
-			write(t, root, rel, "---\ntitle: N\ntype: concept\ndomain: "+tt.value+
-				"\nstatus: seedling\ncreated: 2026-06-01\nupdated: 2026-06-01\nsource_locator: book p.1\n---\n\nbody\n")
+			write(t, root, rel, "---\ntype: concept\ncreated: 2026-06-01\nsource_locator: book p.1\n---\n# N\n\nbody\n")
 
 			// Which spelling a volume keeps is the volume's to decide, and one
 			// that folds turns this row into its sibling rather than into
@@ -124,37 +122,22 @@ func TestDomainMatchesItsFolderInEitherSpelling(t *testing.T) {
 			var want []Finding
 			if tt.wantMismatch {
 				want = append(want, Finding{
-					RuleID:          "schema.domain_folder",
+					RuleID:          "schema.enum",
 					Severity:        SeverityError,
 					Path:            notePath,
 					Field:           new("domain"),
-					Message:         `domain "` + tt.value + `" does not match its folder ` + composedDomain,
+					Message:         `domain "` + composedOther + `" is not an allowed value`,
 					Evidence:        "frontmatter validated against vault-schema.toml",
 					SuggestedAction: "fix the frontmatter to match the schema",
-					SourceRule:      sourceContractRules,
-					Target:          new(tt.value),
-					Fingerprint:     fingerprint("schema.domain_folder", notePath, "domain\x1f"+tt.value),
+					SourceRule:      sourceContract,
+					Target:          new(composedOther),
 				})
 			}
-			if diff := cmp.Diff(want, got); diff != "" {
+			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(Finding{}, "Fingerprint")); diff != "" {
 				t.Errorf("Check() findings on %s mismatch (-want +got):\n%s", rel, diff)
 			}
-
-			// Named separately from the comparison above, because it is the
-			// property the fold is most likely to cost: a value folded on its
-			// way into the evidence reads as the author's word while being
-			// different bytes, and moves the fingerprint off the file.
-			if !strings.ContainsRune(tt.value, voicedMark) || len(got) != 1 {
-				return
-			}
-			switch target := got[0].Target; {
-			case target == nil:
-				t.Errorf("Check() named no target, want the bytes the file wrote, %q", tt.value)
-			case *target != tt.value:
-				t.Errorf("Check() reported target %q, want the bytes the file wrote, %q", *target, tt.value)
-			}
-			if !strings.Contains(got[0].Message, tt.value) {
-				t.Errorf("Check() message %q does not quote the bytes the file wrote, %q", got[0].Message, tt.value)
+			if tt.wantMismatch && len(got) == 1 && strings.ContainsRune(got[0].Message, voicedMark) {
+				t.Errorf("Check() message %q carries a decomposed spelling, want the folder's composed name", got[0].Message)
 			}
 		})
 	}

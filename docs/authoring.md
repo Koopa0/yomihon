@@ -8,9 +8,9 @@ You need a text editor and the [yomihon binary](https://github.com/koopa0/yomiho
 
 Open the release page for the binary you installed and download its **Source code** archive. Extract `examples/vault/System/schemas/vault-schema.toml` and copy it to `System/schemas/vault-schema.toml` inside your notes folder. You need neither Go nor a Git clone. For example, [the v0.3.0 starter](https://raw.githubusercontent.com/koopa0/yomihon/v0.3.0/examples/vault/System/schemas/vault-schema.toml) belongs to v0.3.0; use your own release's tag when it differs. When building from source, use [the starter in that checkout](../examples/vault/System/schemas/vault-schema.toml).
 
-The starter is a decision to adapt, not a rule for every vault. Review its note types, fields, lifecycle transitions, scanned directories and privacy directories against your notes. In particular, `privacy.never_egress_dirs` withholds those directories from command output; it does not hide them from the local reader. yomihon reads this file and never writes it.
+The starter is a decision to adapt, not a rule for every vault. Review its folders, note types, field lists and privacy directories against your notes. In particular, `privacy.never_egress_dirs` withholds those directories from command output; it does not hide them from the local reader. yomihon reads this file and never writes it.
 
-For this small example, keep the starter unchanged. Create `Concepts/`, `Inbox/`, `Lessons/`, `Maps/` and `Notes/` inside your notes folder, matching the starter’s scanned directories. The first, second and fourth can remain empty. Save the following four files in `Notes` and `Lessons`. The English filenames below are also the wikilink targets; a frontmatter title is not a substitute for a filename.
+For this small example, keep the starter unchanged. Create `Concepts/`, `Inbox/`, `Lessons/`, `Maps/` and `Notes/` inside your notes folder, matching the directories the starter’s `folders.checked` names. The first, second and fourth can remain empty. Save the following four files in `Notes` and `Lessons`. The English filenames below are also the wikilink targets and the titles: a note's title is its first `#` heading, or its filename when it has none, and the frontmatter carries no title or domain.
 
 ## Arrange the course
 
@@ -18,9 +18,7 @@ For this small example, keep the starter unchanged. Create `Concepts/`, `Inbox/`
 
 ```markdown
 ---
-title: First course
 type: study-path
-status: ready
 lang: en
 ---
 
@@ -50,10 +48,7 @@ Put a marker at the end of an H2–H6 heading or a row that opens a child list. 
 
 ```markdown
 ---
-title: Start
 type: lesson
-status: ready
-domain: yomihon
 slug: first-course-start
 level: fundamental
 lang: en
@@ -66,10 +61,7 @@ Read this first. What do you already know about the subject?
 
 ```markdown
 ---
-title: Continue
 type: lesson
-status: ready
-domain: yomihon
 slug: first-course-continue
 level: fundamental
 lang: en
@@ -82,10 +74,7 @@ Try one small example using what you read in Start.
 
 ```markdown
 ---
-title: Extra
 type: lesson
-status: ready
-domain: yomihon
 slug: first-course-extra
 level: fundamental
 lang: en
@@ -106,9 +95,7 @@ Quote references inside YAML lists: write `based_on: ["[[Note]]"]` or
 `based_on: ["Note"]`. An unquoted `based_on: [[Note]]` is a nested YAML list,
 so `yomihon check` reports `schema.reference_nested_sequence` once for that
 field, and the note's page says the same in your language. Like the other
-frontmatter rules, it judges only notes inside `[scan] knowledge_dirs`.
-The same diagnostic applies to `related` and the
-replacement fields the contract configures for the note's type. Edit the
+frontmatter rules, it judges only notes inside `folders.checked`. Edit the
 reference in your editor; yomihon leaves its bytes unchanged.
 
 For more authoring shapes, see [the study-path reference](../skills/yomihon/references/study-paths.md).

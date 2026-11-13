@@ -48,7 +48,7 @@ var commandHelp = map[string]string{
 		"is refused rather than judged: that ground is scanned, but nothing from it\n" +
 		"can be reported, and an empty answer would read as a clean verdict.\n" +
 		"\n" +
-		"When scan.knowledge_dirs names directories, the frontmatter schema rules\n" +
+		"When folders.checked names directories, the frontmatter schema rules\n" +
 		"judge those files; a file outside them is still scanned for links, but is\n" +
 		"not held to the schema. When the list is omitted or empty, every note is\n" +
 		"held to the schema.\n" +
@@ -75,7 +75,7 @@ var commandHelp = map[string]string{
 		"human summary when it is; --format decides instead of the terminal, and\n" +
 		"md falls back to the human view.\n" +
 		"\n" +
-		"When scan.knowledge_dirs names directories, only that layer is tallied.\n" +
+		"When folders.checked names directories, only that layer is tallied.\n" +
 		"A concept or map outside it cannot change a public concept's mount\n" +
 		"state. When the list is omitted or empty, the whole vault is counted.\n" +
 		"A withheld path is never reported.\n" +

@@ -15,40 +15,24 @@ import (
 )
 
 // skipBasenameLockContract is the Lock vault for #363: one knowledge note and
-// a README.md the contract names under scan.skip_basenames. The README carries
-// a type the contract refuses, so check would report it if the scan still
-// treated it as a note.
-const skipBasenameLockContract = `schema_version = "1"
+// a README.md the contract names under folders.skipped_files. The README
+// carries a type the contract refuses, so check would report it if the scan
+// still treated it as a note.
+const skipBasenameLockContract = `schema_version = "2"
+
+[folders]
+checked = ["Notes"]
+skipped_files = ["README.md"]
 
 [enums]
 type = ["note"]
 
-[enums.status]
-note = ["draft"]
-
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "status"]
-
-[scan]
-knowledge_dirs = ["Notes"]
-skip_basenames = ["README.md"]
-
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = []
+common = ["type"]
+required = ["type"]
 
 [privacy]
 never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
 `
 
 const skipBasenameLockSentinel = "skipbasename-lock-sentinel"
@@ -58,9 +42,9 @@ func writeSkipBasenameLockVault(t *testing.T) string {
 	root := t.TempDir()
 	files := map[string]string{
 		schema.ContractRelPath: skipBasenameLockContract,
-		"README.md": "---\ntitle: Skip me\ntype: probe\n---\n" +
+		"README.md": "---\naliases: Skip me\ntype: probe\n---\n" +
 			skipBasenameLockSentinel + "\n",
-		"Notes/Kept.md": "---\ntitle: Kept\ntype: note\nstatus: draft\n---\nKept body.\n",
+		"Notes/Kept.md": "---\ntype: note\n---\n# Kept\n\nKept body.\n",
 	}
 	for rel, body := range files {
 		full := filepath.Join(root, filepath.FromSlash(rel))
@@ -75,7 +59,7 @@ func writeSkipBasenameLockVault(t *testing.T) string {
 }
 
 // TestSkipBasenamesAreNotNotes is the Lock for #363. A basename the contract
-// names under scan.skip_basenames is not a note: the shelf, search, exists and
+// names under folders.skipped_files is not a note: the shelf, search, exists and
 // check all omit it, /notes/ opens it as a document with none of a note's
 // furniture, and /raw/ still serves the bytes.
 func TestSkipBasenamesAreNotNotes(t *testing.T) {

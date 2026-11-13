@@ -63,8 +63,8 @@ func benchServer(b *testing.B) *httptest.Server {
 	for i := range benchNoteCount {
 		rel := fmt.Sprintf("Writing/lessons/L%04d.md", i)
 		body := fmt.Sprintf(
-			"---\ntitle: L%04d\ntype: lesson\ndomain: japanese\nstatus: draft\n"+
-				"created: 2026-06-01\nupdated: 2026-06-01\n---\n\nbody\n",
+			"---\ntype: lesson\n"+
+				"created: 2026-06-01\n---\n# L%04d\n\nbody\n",
 			i,
 		)
 		if i%4 == 0 {

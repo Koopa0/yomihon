@@ -5,13 +5,11 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -46,7 +44,6 @@ func TestCheckSchemaGolden(t *testing.T) {
 		{name: "rules", fixture: "testdata/vault-schema", golden: "testdata/golden/schema.jsonl"},
 		{name: "scalar coercion", fixture: "testdata/vault-coercion", golden: "testdata/golden/coercion.jsonl"},
 		{name: "parser strictness", fixture: "testdata/vault-strictness", golden: "testdata/golden/strictness.jsonl"},
-		{name: "unreachable status", fixture: "testdata/vault-status-unreachable", golden: "testdata/golden/status-unreachable.jsonl"},
 		{name: "unclosed fence", fixture: "testdata/vault-unclosed", golden: "testdata/golden/unclosed.jsonl"},
 	}
 	for _, tt := range tests {
@@ -67,7 +64,7 @@ func TestCheckSchemaGolden(t *testing.T) {
 
 // TestDeclaredOptionalEnums holds the distinction between an undeclared
 // vocabulary and a declared vocabulary that rejects the note's value. Type
-// and status retain their own rules when every optional vocabulary is open.
+// retains its own rule when every optional vocabulary is open.
 func TestDeclaredOptionalEnums(t *testing.T) {
 	t.Parallel()
 
@@ -80,122 +77,23 @@ func TestDeclaredOptionalEnums(t *testing.T) {
 		wantFindings []Finding
 	}{
 		{
-			name:        "domain/omitted",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\ndomain: book\n",
-		},
-		{
-			name:        "domain/empty",
-			declaration: "domain = []\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\ndomain: book\n",
-		},
-		{
-			name:        "domain/matching",
-			declaration: "domain = [\"book\"]\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\ndomain: book\n",
-		},
-		{
-			name:        "domain/mismatching",
-			declaration: "domain = [\"course\"]\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\ndomain: book\n",
-			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"domain","message":"domain \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:8dc91cb04dc11f0b"}` + "\n",
-			wantExit:    1,
-			wantFindings: []Finding{{
-				RuleID:          "schema.enum",
-				Severity:        SeverityError,
-				Path:            "Notes/Probe.md",
-				Field:           new("domain"),
-				Message:         `domain "book" is not an allowed value`,
-				Evidence:        "frontmatter validated against vault-schema.toml",
-				SuggestedAction: "fix the frontmatter to match the schema",
-				SourceRule:      "vault-schema.toml",
-				Target:          new("book"),
-				Fingerprint:     "v1:8dc91cb04dc11f0b",
-			}},
-		},
-		{
-			name:        "source_kind/omitted",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_kind: book\n",
-		},
-		{
-			name:        "source_kind/empty",
-			declaration: "source_kind = []\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_kind: book\n",
-		},
-		{
-			name:        "source_kind/matching",
-			declaration: "source_kind = [\"book\"]\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_kind: book\n",
-		},
-		{
-			name:        "source_kind/mismatching",
-			declaration: "source_kind = [\"course\"]\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_kind: book\n",
-			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"source_kind","message":"source_kind \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:896e1c4b426bc247"}` + "\n",
-			wantExit:    1,
-			wantFindings: []Finding{{
-				RuleID:          "schema.enum",
-				Severity:        SeverityError,
-				Path:            "Notes/Probe.md",
-				Field:           new("source_kind"),
-				Message:         `source_kind "book" is not an allowed value`,
-				Evidence:        "frontmatter validated against vault-schema.toml",
-				SuggestedAction: "fix the frontmatter to match the schema",
-				SourceRule:      "vault-schema.toml",
-				Target:          new("book"),
-				Fingerprint:     "v1:896e1c4b426bc247",
-			}},
-		},
-		{
-			name:        "source_provider/omitted",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_provider: book\n",
-		},
-		{
-			name:        "source_provider/empty",
-			declaration: "source_provider = []\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_provider: book\n",
-		},
-		{
-			name:        "source_provider/matching",
-			declaration: "source_provider = [\"book\"]\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_provider: book\n",
-		},
-		{
-			name:        "source_provider/mismatching",
-			declaration: "source_provider = [\"course\"]\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nsource_provider: book\n",
-			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"source_provider","message":"source_provider \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:67ef750ff979fe0c"}` + "\n",
-			wantExit:    1,
-			wantFindings: []Finding{{
-				RuleID:          "schema.enum",
-				Severity:        SeverityError,
-				Path:            "Notes/Probe.md",
-				Field:           new("source_provider"),
-				Message:         `source_provider "book" is not an allowed value`,
-				Evidence:        "frontmatter validated against vault-schema.toml",
-				SuggestedAction: "fix the frontmatter to match the schema",
-				SourceRule:      "vault-schema.toml",
-				Target:          new("book"),
-				Fingerprint:     "v1:67ef750ff979fe0c",
-			}},
-		},
-		{
 			name:        "level/omitted",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nlevel: book\n",
+			frontmatter: "type: memo\nlevel: book\n",
 		},
 		{
 			name:        "level/empty",
 			declaration: "level = []\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nlevel: book\n",
+			frontmatter: "type: memo\nlevel: book\n",
 		},
 		{
 			name:        "level/matching",
 			declaration: "level = [\"book\"]\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nlevel: book\n",
+			frontmatter: "type: memo\nlevel: book\n",
 		},
 		{
 			name:        "level/mismatching",
 			declaration: "level = [\"course\"]\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nlevel: book\n",
+			frontmatter: "type: memo\nlevel: book\n",
 			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"level","message":"level \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:c323b71b99e2043d"}` + "\n",
 			wantExit:    1,
 			wantFindings: []Finding{{
@@ -212,41 +110,8 @@ func TestDeclaredOptionalEnums(t *testing.T) {
 			}},
 		},
 		{
-			name:        "map_kind/omitted",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nmap_kind: book\n",
-		},
-		{
-			name:        "map_kind/empty",
-			declaration: "map_kind = []\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nmap_kind: book\n",
-		},
-		{
-			name:        "map_kind/matching",
-			declaration: "map_kind = [\"book\"]\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nmap_kind: book\n",
-		},
-		{
-			name:        "map_kind/mismatching",
-			declaration: "map_kind = [\"course\"]\n",
-			frontmatter: "title: Probe\ntype: memo\nstatus: draft\nmap_kind: book\n",
-			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"map_kind","message":"map_kind \"book\" is not an allowed value","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"book","fingerprint":"v1:6f011d7f93384586"}` + "\n",
-			wantExit:    1,
-			wantFindings: []Finding{{
-				RuleID:          "schema.enum",
-				Severity:        SeverityError,
-				Path:            "Notes/Probe.md",
-				Field:           new("map_kind"),
-				Message:         `map_kind "book" is not an allowed value`,
-				Evidence:        "frontmatter validated against vault-schema.toml",
-				SuggestedAction: "fix the frontmatter to match the schema",
-				SourceRule:      "vault-schema.toml",
-				Target:          new("book"),
-				Fingerprint:     "v1:6f011d7f93384586",
-			}},
-		},
-		{
 			name:        "type remains dedicated",
-			frontmatter: "title: Probe\ntype: unknown\nstatus: draft\n",
+			frontmatter: "type: unknown\n",
 			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"type","message":"type \"unknown\" is not an allowed type","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"unknown","fingerprint":"v1:3bed4c2ace05b5f0"}` + "\n",
 			wantExit:    1,
 			wantFindings: []Finding{{
@@ -262,52 +127,23 @@ func TestDeclaredOptionalEnums(t *testing.T) {
 				Fingerprint:     "v1:3bed4c2ace05b5f0",
 			}},
 		},
-		{
-			name:        "status remains dedicated",
-			frontmatter: "title: Probe\ntype: memo\nstatus: bogus\n",
-			wantOutput:  `{"rule_id":"schema.enum","severity":"error","path":"Notes/Probe.md","field":"status","message":"status \"bogus\" is not a valid status","evidence":"frontmatter validated against vault-schema.toml","suggested_action":"fix the frontmatter to match the schema","source_rule":"vault-schema.toml","target":"bogus","fingerprint":"v1:a06a5cad90f6b8d0"}` + "\n",
-			wantExit:    1,
-			wantFindings: []Finding{{
-				RuleID:          "schema.enum",
-				Severity:        SeverityError,
-				Path:            "Notes/Probe.md",
-				Field:           new("status"),
-				Message:         `status "bogus" is not a valid status`,
-				Evidence:        "frontmatter validated against vault-schema.toml",
-				SuggestedAction: "fix the frontmatter to match the schema",
-				SourceRule:      "vault-schema.toml",
-				Target:          new("bogus"),
-				Fingerprint:     "v1:a06a5cad90f6b8d0",
-			}},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			root := t.TempDir()
-			write(t, root, schema.ContractRelPath, `schema_version = "1"
+			write(t, root, schema.ContractRelPath, `schema_version = "2"
+[folders]
+checked = ["Notes"]
+templates = []
 [enums]
-type = ["memo"]
-`+tt.declaration+`[enums.status]
-note = ["draft"]
-[fields]
-required = ["title", "type"]
-known = ["title", "type", "status", "domain", "source_kind", "source_provider", "level", "map_kind"]
-[scan]
-knowledge_dirs = ["Notes"]
-[navigation]
-path_types = []
-map_types = []
-[artifacts]
-non_instance_dirs = []
+`+tt.declaration+`[fields]
+common = ["type", "level"]
+required = ["type"]
+[types.memo]
 [privacy]
 never_egress_dirs = []
-[[lifecycle]]
-status = "draft"
-applies_to = ["memo"]
-from = []
-owner = []
 `)
 			data := []byte("---\n" + tt.frontmatter + "---\nBody.\n")
 			write(t, root, "Notes/Probe.md", string(data))
@@ -337,10 +173,7 @@ owner = []
 			t.Run("lint", func(t *testing.T) {
 				t.Parallel()
 
-				got, err := LintFrontmatter("Notes/Probe.md", data, contract)
-				if err != nil {
-					t.Fatalf("LintFrontmatter() error = %v", err)
-				}
+				got := LintFrontmatter("Notes/Probe.md", data, contract)
 				if diff := cmp.Diff(tt.wantFindings, got); diff != "" {
 					t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
 				}
@@ -407,14 +240,14 @@ func TestAnEmptyKnowledgeDirIsNotAnUnmatchedOne(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile(contract) error = %v", err)
 	}
-	const declared = `knowledge_dirs = ["notes", "archive", "Sources"]`
-	text := strings.Replace(string(contract), declared, `knowledge_dirs = ["Notes", "Inbox"]`, 1)
+	const declared = `checked = ["notes", "archive", "Sources"]`
+	text := strings.Replace(string(contract), declared, `checked = ["Notes", "Inbox"]`, 1)
 	if text == string(contract) {
 		t.Fatalf("fixture drift: the contract no longer declares %s", declared)
 	}
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, text)
-	write(t, root, "Notes/kept.md", "---\ntitle: Kept\ntype: note\nstatus: draft\n---\n")
+	write(t, root, "Notes/kept.md", "---\ntype: note\n---\n# Kept\n")
 	if mkdirErr := os.MkdirAll(filepath.Join(root, "Inbox"), 0o750); mkdirErr != nil {
 		t.Fatalf("MkdirAll(Inbox) error = %v", mkdirErr)
 	}
@@ -430,164 +263,22 @@ func TestAnEmptyKnowledgeDirIsNotAnUnmatchedOne(t *testing.T) {
 	}
 }
 
-func TestLessonStatusUsesOnlyItsConfiguredGroup(t *testing.T) {
-	t.Parallel()
-
-	contract, err := schema.Load("testdata/vault-supersession")
-	if err != nil {
-		t.Fatalf("schema.Load() error = %v", err)
-	}
-	n := parseNote("Writing/Invalid.md", []byte(`---
-title: Invalid
-type: lesson
-status: bogus
-slug: invalid
----
-`))
-	findings, err := checkSchema([]note{n}, contract)
-	if err != nil {
-		t.Fatalf("checkSchema() error = %v", err)
-	}
-
-	var statusFindings []Finding
-	for i := range findings {
-		if findings[i].RuleID == "schema.enum" && findings[i].Field != nil && *findings[i].Field == "status" {
-			statusFindings = append(statusFindings, findings[i])
-		}
-	}
-	if len(statusFindings) != 1 {
-		t.Fatalf("status findings = %v, want exactly one lesson-group finding", statusFindings)
-	}
-	if got, want := statusFindings[0].Message, `status "bogus" is not a valid lesson status`; got != want {
-		t.Errorf("status message = %q, want %q", got, want)
-	}
-}
-
-// TestSystemDocumentsTakeTheLightStatusRule pins the routing the contract's
-// status groups decide: a type the contract places in the system group gets
-// the light rule — its status reads against the system enum, and the full
-// knowledge-note requirements never fire for it.
-func TestSystemDocumentsTakeTheLightStatusRule(t *testing.T) {
-	t.Parallel()
-
-	contract, err := schema.Load("testdata/vault-schema")
-	if err != nil {
-		t.Fatalf("schema.Load() error = %v", err)
-	}
-	n := parseNote("Sources/Guide.md", []byte(`---
-title: Guide
-type: guide
-status: bogus
----
-`))
-	findings, err := checkSchema([]note{n}, contract)
-	if err != nil {
-		t.Fatalf("checkSchema() error = %v", err)
-	}
-
-	var statusFindings []Finding
-	for i := range findings {
-		if findings[i].RuleID != "schema.enum" || findings[i].Field == nil {
-			continue
-		}
-		if *findings[i].Field == "status" {
-			statusFindings = append(statusFindings, findings[i])
-		}
-	}
-	if len(statusFindings) != 1 {
-		t.Fatalf("status findings = %v, want exactly one system-group finding", statusFindings)
-	}
-	if got, want := statusFindings[0].Message, `status "bogus" is not a valid system status`; got != want {
-		t.Errorf("status message = %q, want %q", got, want)
-	}
-	for i := range findings {
-		if findings[i].RuleID == "schema.required" {
-			t.Errorf("a system document drew a knowledge-note requirement: %+v", findings[i])
-		}
-	}
-}
-
-// undeclaredTypeContract declares a single note type and no status groups, so
-// a note written with any other type resolves to no status group at all. Its
-// note statuses are draft and ready.
-const undeclaredTypeContract = `schema_version = "1"
-
-[enums]
-type = ["article"]
-
-[enums.status]
-note = ["draft", "ready"]
-
-[fields]
-required = ["title", "type"]
-known = ["title", "type", "status"]
-
-[scan]
-knowledge_dirs = ["Concepts"]
-skip_basenames = []
-
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = []
-
-[privacy]
-never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["curator"]
-
-[[lifecycle]]
-status = "ready"
-applies_to = ["*"]
-from = ["draft"]
-owner = ["curator"]
-`
-
-// TestUndeclaredTypeStatusReadsAgainstTheNoteGroup pins the fallback for an
-// in-scope note whose type the contract never declared: such a type resolves
-// to no status group at all, yet its status still reads against the general
-// note group. The type already carries its own finding, and a group that does
-// not exist could neither name the enum to check nor the group to blame in
-// the reason — so a status the note group allows draws no finding, and one it
-// rejects is blamed in the note group's own words.
-func TestUndeclaredTypeStatusReadsAgainstTheNoteGroup(t *testing.T) {
+// TestEveryTypeTakesTheSameRules holds that no type is let off the knowledge
+// rules. The working-document types — a guide, a template, a system note —
+// once took a lighter rule that waived the required fields; the contract no
+// longer states such a group, so each of them answers for a missing required
+// field like any other note.
+func TestEveryTypeTakesTheSameRules(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, undeclaredTypeContract)
-	contract, err := schema.Load(root)
-	if err != nil {
-		t.Fatalf("schema.Load() error = %v", err)
-	}
-
-	valid := parseNote("Concepts/Valid.md", []byte("---\ntitle: Valid\ntype: mystery\nstatus: ready\n---\n"))
-	invalid := parseNote("Concepts/Invalid.md", []byte("---\ntitle: Invalid\ntype: mystery\nstatus: bogus\n---\n"))
-	findings, err := checkSchema([]note{valid, invalid}, contract)
-	if err != nil {
-		t.Fatalf("checkSchema() error = %v", err)
-	}
-
-	t.Log("hit: checker fallback consumer reached")
-	var statusFindings []Finding
-	for i := range findings {
-		if findings[i].RuleID == "schema.enum" && findings[i].Field != nil && *findings[i].Field == "status" {
-			statusFindings = append(statusFindings, findings[i])
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil))
+	contract := loadTestAuthority(t, root).contract
+	for _, noteType := range []string{"guide", "template", "system", "note"} {
+		findings := LintFrontmatter("Writing/Doc.md", []byte("---\ntype: "+noteType+"\n---\n# Doc\n"), contract)
+		if diff := cmp.Diff([]string{"schema.required created is required"}, describeFindings(findings)); diff != "" {
+			t.Errorf("LintFrontmatter(type %s) mismatch (-want +got):\n%s", noteType, diff)
 		}
-	}
-	if len(statusFindings) != 1 {
-		t.Fatalf("caught: status findings = %+v, want exactly one, on the note whose status the note group rejects", statusFindings)
-	}
-	if got, want := statusFindings[0].Path, "Concepts/Invalid.md"; got != want {
-		t.Errorf("status finding path = %q, want %q", got, want)
-	}
-	if got, want := statusFindings[0].Message, `status "bogus" is not a valid status`; got != want {
-		t.Errorf("caught: status message = %q, want %q", got, want)
 	}
 }
 
@@ -595,20 +286,17 @@ func TestLintArticleLanguage(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, contractFixture(t, nil))
-	run, err := newLintRun(loadTestAuthority(t, root).contract)
-	if err != nil {
-		t.Fatalf("newLintRun() error = %v", err)
-	}
+	run := newLintRun(loadTestAuthority(t, root).contract)
 	tests := []struct {
 		name string
 		yaml string
 		want int
 	}{
-		{name: "missing is allowed", yaml: "title: T", want: 0},
-		{name: "valid Japanese", yaml: "title: T\nlang: ja", want: 0},
-		{name: "valid canonicalizable", yaml: "title: T\nlang: zh-hant", want: 0},
-		{name: "invalid", yaml: "title: T\nlang: not_a_tag", want: 1},
-		{name: "non-string", yaml: "title: T\nlang: [ja]", want: 1},
+		{name: "missing is allowed", yaml: "type: note", want: 0},
+		{name: "valid Japanese", yaml: "type: note\nlang: ja", want: 0},
+		{name: "valid canonicalizable", yaml: "type: note\nlang: zh-hant", want: 0},
+		{name: "invalid", yaml: "type: note\nlang: not_a_tag", want: 1},
+		{name: "non-string", yaml: "type: note\nlang: [ja]", want: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -631,11 +319,8 @@ func TestCheckSchemaIncludesArticleLanguage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema.Load() error = %v", err)
 	}
-	n := parseNote("Sources/Invalid-language.md", []byte("---\ntitle: Invalid language\ntype: lesson\ndomain: japanese\nstatus: draft\nslug: invalid-language\nlang: not_a_tag\n---\n"))
-	findings, err := checkSchema([]note{n}, contract)
-	if err != nil {
-		t.Fatalf("checkSchema() error = %v", err)
-	}
+	n := parseNote("Sources/Invalid-language.md", []byte("---\ntype: lesson\nslug: invalid-language\nlang: not_a_tag\n---\n# Invalid language\n"))
+	findings := checkSchema([]note{n}, contract)
 	var languageFindings []Finding
 	for i := range findings {
 		if findings[i].RuleID == "schema.language" {
@@ -662,10 +347,7 @@ func runSchema(t *testing.T, root string) []byte {
 	if err != nil {
 		t.Fatalf("schema.Load(%q): %v", root, err)
 	}
-	findings, err := checkSchema(notes, s)
-	if err != nil {
-		t.Fatalf("checkSchema: %v", err)
-	}
+	findings := checkSchema(notes, s)
 	sortFindings(findings)
 	var buf bytes.Buffer
 	if err := WriteJSONL(&buf, findings); err != nil {
@@ -690,8 +372,7 @@ func runSchema(t *testing.T, root string) []byte {
 func TestTheProvenanceRuleFollowsTheContractsOwnConceptType(t *testing.T) {
 	t.Parallel()
 
-	const body = "---\ntitle: Idea\ntype: concept\ndomain: golang\n" +
-		"status: seedling\ncreated: 2026-01-01\nupdated: 2026-01-01\n---\nbody\n"
+	const body = "---\ntype: concept\ncreated: 2026-01-01\n---\n# Idea\n\nbody\n"
 	const relPath = "Concepts/golang/Idea.md"
 
 	tests := []struct {
@@ -704,124 +385,8 @@ func TestTheProvenanceRuleFollowsTheContractsOwnConceptType(t *testing.T) {
 			want: []string{"schema.provenance"},
 		},
 		{
-			name: "a vault whose contract declares none",
-			replacements: [][2]string{
-				{`"source-note", "concept", "writing"`, `"source-note", "writing"`},
-				{"[[lifecycle]]\nstatus = \"seedling\"\napplies_to = [\"concept\"]\ninitial = false\nfrom = [\"cleaned\"]\nowner = [\"hermes\", \"claude\"]\n\n", ""},
-			},
-			want: []string{"schema.enum"},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			root := t.TempDir()
-			write(t, root, schema.ContractRelPath, contractFixture(t, nil, tt.replacements...))
-			contract := loadTestAuthority(t, root).contract
-
-			findings, err := LintFrontmatter(relPath, []byte(body), contract)
-			if err != nil {
-				t.Fatalf("LintFrontmatter() error = %v", err)
-			}
-			var rules []string
-			for _, f := range findings {
-				rules = append(rules, string(f.RuleID))
-			}
-			if diff := cmp.Diff(tt.want, rules); diff != "" {
-				t.Errorf("rules reported (-want +got):\n%s", diff)
-			}
-		})
-	}
-}
-
-// TestDocumentScalarTypeKeepsItsStatusGroup preserves the scalar type used
-// to route document rules, even when graph metadata does not accept its shape.
-func TestDocumentScalarTypeKeepsItsStatusGroup(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
-		[2]string{`type = ["inbox",`, `type = ["1", "true", "inbox",`},
-		[2]string{`system = ["system", "template", "guide"]`, `system = ["1", "true", "system", "template", "guide"]`},
-	))
-	contract := loadTestAuthority(t, root).contract
-	for _, tc := range []struct {
-		name, kind, status string
-		rejected           bool
-	}{
-		{name: "numeric system member", kind: "1", status: "active"},
-		{name: "numeric note member", kind: "1", status: "draft", rejected: true},
-		{name: "boolean system member", kind: "true", status: "active"},
-		{name: "boolean note member", kind: "true", status: "draft", rejected: true},
-		{name: "quoted numeric system member", kind: "'1'", status: "active"},
-		{name: "quoted numeric note member", kind: "'1'", status: "draft", rejected: true},
-		{name: "quoted boolean system member", kind: "'true'", status: "active"},
-		{name: "quoted boolean note member", kind: "'true'", status: "draft", rejected: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			body := "---\ntype: " + tc.kind + "\nstatus: " + tc.status + "\n---\nBody.\n"
-			got, err := LintFrontmatter("Writing/Scalar.md", []byte(body), contract)
-			if err != nil {
-				t.Fatalf("LintFrontmatter() error = %v", err)
-			}
-			t.Logf("hit: document-scalar type=%s status=%s judge=returned", tc.kind, tc.status)
-			var want []Finding
-			if tc.rejected {
-				want = []Finding{{
-					RuleID:          "schema.enum",
-					Severity:        SeverityError,
-					Path:            "Writing/Scalar.md",
-					Field:           new("status"),
-					Target:          new("draft"),
-					Message:         `status "draft" is not a valid system status`,
-					Evidence:        "frontmatter validated against vault-schema.toml",
-					SuggestedAction: "fix the frontmatter to match the schema",
-					SourceRule:      "vault-schema.toml",
-				}}
-			}
-			// Frozen output tests own fingerprint bytes; this predicate owns the
-			// full diagnostic and the absence of full knowledge-note findings.
-			if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(Finding{}, "Fingerprint")); diff != "" {
-				t.Errorf("caught: document-scalar type=%s status=%s (-want +got):\n%s", tc.kind, tc.status, diff)
-			}
-		})
-	}
-}
-
-// TestADocumentsStatusIsJudgedAgainstItsOwnGroup holds the light rule that
-// templates, guides and system notes answer to. Which statuses that group
-// allows is the contract's declaration, and the rule reads the group the note
-// was routed by rather than naming a set of its own — the routing and the enum
-// were two separate spellings of the same word, and two spellings drift.
-//
-// The vault's own working documents keep a short lifecycle that has nothing in
-// common with the one a written note travels, so a status legal for a template
-// is illegal for an essay and the reverse. A rule reading the wrong group would
-// therefore be wrong in both directions at once, which is what the last case
-// here varies the contract to show.
-func TestADocumentsStatusIsJudgedAgainstItsOwnGroup(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name         string
-		status       string
-		replacements [][2]string
-		want         []string
-	}{
-		{
-			name:   "a status the contract lists for documents",
-			status: "active",
-		},
-		{
-			name:   "a status the contract lists only for written notes",
-			status: "draft",
-			want:   []string{"schema.enum"},
-		},
-		{
-			name:         "a vault that lists other statuses for its documents",
-			status:       "active",
-			replacements: [][2]string{{`system = ["active", "archived"]`, `system = ["operational", "archived"]`}},
+			name:         "a vault whose contract declares none",
+			replacements: [][2]string{{"[types.concept]\n", ""}},
 			want:         []string{"schema.enum"},
 		},
 	}
@@ -833,11 +398,7 @@ func TestADocumentsStatusIsJudgedAgainstItsOwnGroup(t *testing.T) {
 			write(t, root, schema.ContractRelPath, contractFixture(t, nil, tt.replacements...))
 			contract := loadTestAuthority(t, root).contract
 
-			body := "---\ntitle: Template\ntype: template\nstatus: " + tt.status + "\n---\nbody\n"
-			findings, err := LintFrontmatter("Concepts/golang/Template.md", []byte(body), contract)
-			if err != nil {
-				t.Fatalf("LintFrontmatter() error = %v", err)
-			}
+			findings := LintFrontmatter(relPath, []byte(body), contract)
 			var rules []string
 			for _, f := range findings {
 				rules = append(rules, string(f.RuleID))
@@ -849,252 +410,47 @@ func TestADocumentsStatusIsJudgedAgainstItsOwnGroup(t *testing.T) {
 	}
 }
 
-// TestEnumFieldsPartition holds the reflection walk to the next field of
-// schema.Enums. Every visible field is either a dedicated rule (Type, Status)
-// identified by the Go name, or an exported []string the walk validates. A
-// vocabulary that is not []string or is unexported must not silently lose its
-// membership check. The type exclusion is the identifier, not a struct tag
-// that can be renamed away.
-func TestEnumFieldsPartition(t *testing.T) {
+// TestScalarTypeKeepsItsRouting preserves the scalar type used to route the
+// type's own fields, even when graph metadata does not accept its shape: a type
+// written 1 or true, quoted or not, is the declared type of that name, so the
+// field it lists is allowed and the field it requires is asked for. An
+// undeclared scalar is the control.
+func TestScalarTypeKeepsItsRouting(t *testing.T) {
 	t.Parallel()
-
-	dedicated := map[string]bool{"Type": true, "Status": true}
-	for _, field := range reflect.VisibleFields(reflect.TypeFor[schema.Enums]()) {
-		if dedicated[field.Name] {
-			continue
-		}
-		if !field.IsExported() {
-			t.Errorf("Enums.%s is visible but not exported; enumFields would skip it silently", field.Name)
-			continue
-		}
-		if field.Type.Kind() != reflect.Slice || field.Type.Elem().Kind() != reflect.String {
-			t.Errorf("Enums.%s is neither a dedicated rule nor an exported []string; enumFields would skip it silently", field.Name)
-		}
-	}
-}
-
-// TestStatusUnreachableJudgeLock holds the per-note rule the issue reproduces:
-// a status the group declares while no lifecycle row applies to the note's
-// type fires, and widening the row back silences it.
-func TestStatusUnreachableJudgeLock(t *testing.T) {
-	t.Parallel()
-
-	const body = "---\ntitle: Stranded\ntype: concept\ndomain: probe\nstatus: published\n" +
-		"created: 2026-01-01\nupdated: 2026-01-01\nbased_on: [\"x\"]\n---\nbody\n"
-	const relPath = "Concepts/probe/Stranded.md"
-
-	lint := func(publishedAppliesTo string) []Finding {
-		t.Helper()
-		root := t.TempDir()
-		contract := unreachableLockContract(publishedAppliesTo)
-		write(t, root, schema.ContractRelPath, contract)
-		loaded := loadTestAuthority(t, root).contract
-		findings, err := LintFrontmatter(relPath, []byte(body), loaded)
-		if err != nil {
-			t.Fatalf("LintFrontmatter() error = %v", err)
-		}
-		return findings
-	}
-
-	narrowed := lint(`["note"]`)
-	var gotNarrowed []string
-	for _, f := range narrowed {
-		gotNarrowed = append(gotNarrowed, string(f.RuleID))
-	}
-	if !slices.Contains(gotNarrowed, "schema.status_unreachable") {
-		t.Fatalf("narrowed contract findings = %v, want schema.status_unreachable", gotNarrowed)
-	}
-
-	control := lint(`["note", "concept"]`)
-	for _, f := range control {
-		if f.RuleID == "schema.status_unreachable" {
-			t.Fatalf("widened contract reported schema.status_unreachable on %q", f.Path)
-		}
-	}
-}
-
-func unreachableLockContract(publishedAppliesTo string) string {
-	return `schema_version = "1"
-
-[enums]
-type = ["concept", "note"]
-
-[enums.status]
-note = ["draft", "ready", "published"]
-
-[fields]
-required = ["title", "type", "domain", "status", "created", "updated"]
-known = ["title", "type", "domain", "status", "created", "updated", "based_on"]
-lesson_only = []
-
-[rules]
-concept_requires_provenance = ["based_on"]
-slug_pattern = "^[a-z]+$"
-
-[scan]
-knowledge_dirs = ["Concepts"]
-skip_basenames = []
-
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-initial = true
-from = []
-owner = ["author"]
-
-[[lifecycle]]
-status = "published"
-applies_to = ` + publishedAppliesTo + `
-initial = false
-from = ["ready"]
-owner = ["author"]
-
-[privacy]
-never_egress_dirs = []
-`
-}
-
-// TestStatusEnumFoldsTheSpelling holds the frontmatter verdict to one answer
-// per status word. A contract and a note reach this code from different
-// places — a filesystem hands over a decomposed spelling, an editor and the
-// search index a composed one — so one word can arrive as two byte strings.
-// The reading page's status face folds them; while this face did not, a single
-// page could say the status was outside the contract and offer a transition
-// out of that same status. Case is a separate matter: two statuses differing
-// only in case are two declarations the contract meant, and stay two.
-//
-// The three status verdicts are each reached by their own rows: the knowledge
-// rules, the lighter document rules a status group of working documents takes,
-// and the eligibility guard in front of the unreachable-status rule, which only
-// sees a status the group declares.
-func TestStatusEnumFoldsTheSpelling(t *testing.T) {
-	t.Parallel()
-
-	// One word in two spellings, written from code points so nothing
-	// between the keyboard and the compiler can fold one into the other:
-	// the dakuten composed into one letter, then left as the bare letter
-	// followed by its combining mark.
-	composed := "\u9032\u884c\u4e2d\u304c"
-	decomposed := "\u9032\u884c\u4e2d\u304b\u3099"
-	if composed == decomposed || schema.NormalizeWord(decomposed) != composed {
-		t.Fatalf("the fixture spellings are not one word in two forms: %q and %q", composed, decomposed)
-	}
-
-	tests := []struct {
-		name     string
-		declared string
-		noteType string
-		status   string
-		want     []string
+	root := t.TempDir()
+	write(t, root, schema.ContractRelPath, contractFixture(t, nil, [2]string{
+		"[types.inbox]\n",
+		"[types.\"1\"]\nfields = [\"verified_on\"]\nrequired = [\"verified_on\"]\n\n" +
+			"[types.\"true\"]\nfields = [\"verified_on\"]\nrequired = [\"verified_on\"]\n\n[types.inbox]\n",
+	}))
+	contract := loadTestAuthority(t, root).contract
+	for _, tc := range []struct {
+		name, kind, fields string
+		want               []string
 	}{
-		{name: "knowledge/composed contract, composed note", declared: composed, noteType: "memo", status: composed},
-		{name: "knowledge/decomposed contract, decomposed note", declared: decomposed, noteType: "memo", status: decomposed},
-		{name: "knowledge/composed contract, decomposed note", declared: composed, noteType: "memo", status: decomposed},
-		{name: "knowledge/decomposed contract, composed note", declared: decomposed, noteType: "memo", status: composed},
+		{name: "numeric declared type", kind: "1", fields: "verified_on: 2026-01-01\n"},
+		{name: "boolean declared type", kind: "true", fields: "verified_on: 2026-01-01\n"},
+		{name: "quoted numeric declared type", kind: "'1'", fields: "verified_on: 2026-01-01\n"},
+		{name: "quoted boolean declared type", kind: "'true'", fields: "verified_on: 2026-01-01\n"},
+		{name: "numeric type missing its field", kind: "1", want: []string{"schema.required verified_on is required"}},
+		{name: "quoted boolean type missing its field", kind: "'true'", want: []string{"schema.required verified_on is required"}},
 		{
-			name: "knowledge/undeclared word", declared: composed, noteType: "memo", status: "other",
-			want: []string{"schema.enum other"},
+			name: "undeclared numeric type", kind: "2", fields: "verified_on: 2026-01-01\n",
+			want: []string{
+				`schema.enum type "2" is not an allowed type target=2`,
+				`schema.type_dependent type "2" is not valid, so type-only fields cannot be judged until type is valid target=2`,
+			},
 		},
-		{
-			name: "knowledge/case is not folded", declared: "draft", noteType: "memo", status: "Draft",
-			want: []string{"schema.enum Draft"},
-		},
-		{name: "document/composed contract, decomposed note", declared: composed, noteType: "worklog", status: decomposed},
-		{name: "document/decomposed contract, composed note", declared: decomposed, noteType: "worklog", status: composed},
-		{
-			name: "document/undeclared word", declared: composed, noteType: "worklog", status: "other",
-			want: []string{"schema.enum other"},
-		},
-		{
-			name: "unreachable/composed contract, composed note", declared: composed, noteType: "journal", status: composed,
-			want: []string{"schema.status_unreachable " + composed},
-		},
-		{
-			name: "unreachable/composed contract, decomposed note", declared: composed, noteType: "journal", status: decomposed,
-			want: []string{"schema.status_unreachable " + decomposed},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
-			root := t.TempDir()
-			write(t, root, schema.ContractRelPath, statusSpellingContract(tt.declared))
-			data := []byte("---\ntitle: Probe\ntype: " + tt.noteType + "\nstatus: " + tt.status + "\n---\nBody.\n")
-			write(t, root, "Notes/Probe.md", string(data))
-			contract, err := schema.Load(root)
-			if err != nil {
-				t.Fatalf("schema.Load() error = %v", err)
-			}
-			findings, err := LintFrontmatter("Notes/Probe.md", data, contract)
-			if err != nil {
-				t.Fatalf("LintFrontmatter() error = %v", err)
-			}
-			var got []string
-			for i := range findings {
-				got = append(got, string(findings[i].RuleID)+" "+*findings[i].Target)
-			}
-			if diff := cmp.Diff(tt.want, got); diff != "" {
-				t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
+			body := "---\ntype: " + tc.kind + "\ncreated: 2026-01-01\n" + tc.fields + "---\nBody.\n"
+			got := LintFrontmatter("Writing/Scalar.md", []byte(body), contract)
+			if diff := cmp.Diff(tc.want, describeFindings(got)); diff != "" {
+				t.Errorf("caught: scalar type=%s (-want +got):\n%s", tc.kind, diff)
 			}
 		})
 	}
-}
-
-// statusSpellingContract declares one substantive status in both status
-// groups, spelled the way the caller asks. A memo takes the knowledge rules
-// and has a lifecycle row for that status; a journal takes the same rules with
-// no row for it, so a status the group declares is still one nothing can reach;
-// a worklog belongs to the working-document group and takes the lighter rules.
-func statusSpellingContract(declared string) string {
-	return `schema_version = "1"
-
-[enums]
-type = ["memo", "journal", "worklog"]
-
-[enums.status]
-note = ["` + declared + `", "archived"]
-system = ["` + declared + `", "archived"]
-
-[fields]
-required = ["title", "type"]
-known = ["title", "type", "status"]
-
-[fields.status_group]
-system = ["worklog"]
-
-[scan]
-knowledge_dirs = ["Notes"]
-
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = []
-
-[privacy]
-never_egress_dirs = []
-
-[[lifecycle]]
-status = "` + declared + `"
-applies_to = ["memo"]
-from = []
-owner = []
-
-[[lifecycle]]
-status = "archived"
-applies_to = ["*"]
-from = []
-owner = []
-`
 }
 
 // TestOptionalEnumFoldsTheSpelling holds every optional vocabulary to one
@@ -1134,16 +490,18 @@ func TestOptionalEnumFoldsTheSpelling(t *testing.T) {
 		t.Fatalf("the control word is the declared word: %q", composed)
 	}
 
-	// The table below names the vocabularies it covers, so a vocabulary added
-	// to the contract without a row here is reported rather than left untested.
+	// The vocabularies come from the fields yomihon defines, so a field added
+	// there is covered here without a row. The type, the draft flag and the
+	// language each answer to a rule of their own; the list is pinned so a
+	// field leaving it is reported rather than silently untested.
 	var fields []string
-	for _, field := range reflect.VisibleFields(reflect.TypeFor[schema.Enums]()) {
-		if field.Name == "Type" || field.Name == "Status" {
+	for _, field := range schema.Fields() {
+		if field == schema.FieldType || field == schema.DraftField || field == schema.FieldLang {
 			continue
 		}
-		fields = append(fields, field.Tag.Get("toml"))
+		fields = append(fields, field)
 	}
-	if want := []string{"domain", "source_kind", "source_provider", "level", "map_kind"}; !slices.Equal(fields, want) {
+	if want := []string{"aliases", "based_on", "created", "slug", "level", "prerequisites", "verified_on", "verified_with"}; !slices.Equal(fields, want) {
 		t.Fatalf("optional vocabularies = %q, want %q", fields, want)
 	}
 
@@ -1175,16 +533,13 @@ func TestOptionalEnumFoldsTheSpelling(t *testing.T) {
 
 				root := t.TempDir()
 				write(t, root, schema.ContractRelPath, optionalEnumContract(field, tt.declared))
-				data := []byte("---\ntitle: Probe\ntype: memo\nstatus: draft\n" + field + ": " + tt.value + "\n---\nBody.\n")
+				data := []byte("---\ntype: memo\n" + field + ": " + tt.value + "\n---\nBody.\n")
 				write(t, root, "Notes/Probe.md", string(data))
 				contract, err := schema.Load(root)
 				if err != nil {
 					t.Fatalf("schema.Load() error = %v", err)
 				}
-				findings, err := LintFrontmatter("Notes/Probe.md", data, contract)
-				if err != nil {
-					t.Fatalf("LintFrontmatter() error = %v", err)
-				}
+				findings := LintFrontmatter("Notes/Probe.md", data, contract)
 				var want []string
 				if tt.wantValue != "" {
 					want = []string{"schema.enum " + field + ` "` + tt.wantValue + `" is not an allowed value` +
@@ -1198,13 +553,12 @@ func TestOptionalEnumFoldsTheSpelling(t *testing.T) {
 	}
 }
 
-// TestDomainExemptTypeFoldsTheSpelling holds the waiver a contract writes for a
-// type that carries no domain. The waiver is read by comparing the note's own
-// type against the exempted list, so a type spelled one way in the contract and
-// another in the note lost its waiver and the note was told a field it is
-// excused from is missing. A type the contract does not exempt is the control:
-// it still has to carry the field.
-func TestDomainExemptTypeFoldsTheSpelling(t *testing.T) {
+// TestTypeRequiredFieldsFoldTheSpelling holds the fields a type adds to the
+// required set to the type word, not its bytes. A type spelled one way in the
+// contract and another in the note would otherwise lose its own requirement and
+// the note would pass without the field its type asks for. A type that does not
+// require the field is the control.
+func TestTypeRequiredFieldsFoldTheSpelling(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -1221,31 +575,25 @@ func TestDomainExemptTypeFoldsTheSpelling(t *testing.T) {
 		noteType string
 		want     []string
 	}{
-		{name: "composed contract, composed note", declared: composed, noteType: composed},
-		{name: "composed contract, decomposed note", declared: composed, noteType: decomposed},
-		{name: "decomposed contract, composed note", declared: decomposed, noteType: composed},
-		{name: "decomposed contract, decomposed note", declared: decomposed, noteType: decomposed},
-		{
-			name: "a type the contract does not exempt", declared: composed, noteType: "memo",
-			want: []string{"schema.required domain is required"},
-		},
+		{name: "composed contract, composed note", declared: composed, noteType: composed, want: []string{"schema.required level is required"}},
+		{name: "composed contract, decomposed note", declared: composed, noteType: decomposed, want: []string{"schema.required level is required"}},
+		{name: "decomposed contract, composed note", declared: decomposed, noteType: composed, want: []string{"schema.required level is required"}},
+		{name: "decomposed contract, decomposed note", declared: decomposed, noteType: decomposed, want: []string{"schema.required level is required"}},
+		{name: "a type that does not require it", declared: composed, noteType: "memo"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			root := t.TempDir()
-			write(t, root, schema.ContractRelPath, domainExemptContract(tt.declared))
-			data := []byte("---\ntitle: Probe\ntype: " + tt.noteType + "\nstatus: draft\n---\nBody.\n")
+			write(t, root, schema.ContractRelPath, typeRequiredContract(tt.declared))
+			data := []byte("---\ntype: " + tt.noteType + "\n---\nBody.\n")
 			write(t, root, "Notes/Probe.md", string(data))
 			contract, err := schema.Load(root)
 			if err != nil {
 				t.Fatalf("schema.Load() error = %v", err)
 			}
-			findings, err := LintFrontmatter("Notes/Probe.md", data, contract)
-			if err != nil {
-				t.Fatalf("LintFrontmatter() error = %v", err)
-			}
+			findings := LintFrontmatter("Notes/Probe.md", data, contract)
 			if diff := cmp.Diff(tt.want, describeFindings(findings)); diff != "" {
 				t.Errorf("LintFrontmatter() findings mismatch (-want +got):\n%s", diff)
 			}
@@ -1272,73 +620,48 @@ func describeFindings(findings []Finding) []string {
 // optionalEnumContract declares one word for one optional vocabulary, spelled
 // the way the caller asks, and leaves every other vocabulary open.
 func optionalEnumContract(field, declared string) string {
-	return `schema_version = "1"
+	return `schema_version = "2"
+
+[folders]
+checked = ["Notes"]
+templates = []
 
 [enums]
-type = ["memo"]
 ` + field + ` = ["` + declared + `"]
 
-[enums.status]
-note = ["draft"]
-
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "status", "domain", "source_kind", "source_provider", "level", "map_kind"]
+common = ["type", "aliases", "based_on", "created", "slug", "level", "prerequisites", "verified_on", "verified_with"]
+required = ["type"]
 
-[scan]
-knowledge_dirs = ["Notes"]
-
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = []
+[types.memo]
 
 [privacy]
 never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = []
 `
 }
 
-// domainExemptContract requires a domain of every note and excuses one type
-// from it, naming that type in both places the way the caller asks.
-func domainExemptContract(declared string) string {
-	return `schema_version = "1"
+// typeRequiredContract declares a type that requires level, naming the type
+// the way the caller asks, beside a memo that does not.
+func typeRequiredContract(declared string) string {
+	return `schema_version = "2"
+
+[folders]
+checked = ["Notes"]
+templates = []
 
 [enums]
-type = ["memo", "` + declared + `"]
-
-[enums.status]
-note = ["draft"]
 
 [fields]
-required = ["title", "type", "domain"]
-known = ["title", "type", "status", "domain"]
-domain_exempt_types = ["` + declared + `"]
+common = ["type"]
+required = ["type"]
 
-[scan]
-knowledge_dirs = ["Notes"]
+[types.memo]
 
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = []
+[types."` + declared + `"]
+fields = ["level"]
+required = ["level"]
 
 [privacy]
 never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = []
 `
 }

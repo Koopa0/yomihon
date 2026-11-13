@@ -8,9 +8,9 @@
 
 開啟你安裝的執行檔所屬版本的發佈頁，下載 **Source code** 壓縮檔。取出 `examples/vault/System/schemas/vault-schema.toml`，複製到筆記資料夾裡的 `System/schemas/vault-schema.toml`。不必安裝 Go，也不必 clone Git repo。例如 [v0.3.0 的入門契約](https://raw.githubusercontent.com/koopa0/yomihon/v0.3.0/examples/vault/System/schemas/vault-schema.toml) 適用於 v0.3.0；若你的版本不同，請改用該版本的 tag。從原始碼編譯時，使用[同一份 checkout 的入門契約](../examples/vault/System/schemas/vault-schema.toml)。
 
-入門契約是讓你調整的起點。請逐一核對筆記類型、欄位、生命週期轉換、掃描目錄與隱私目錄是否符合你的筆記。尤其 `privacy.never_egress_dirs` 會讓那些目錄不出現在指令輸出裡，但不會把它們從本機閱讀介面隱藏。yomihon 只讀取契約，不寫入它。
+入門契約是讓你調整的起點。請逐一核對資料夾、筆記類型、欄位清單與隱私目錄是否符合你的筆記。尤其 `privacy.never_egress_dirs` 會讓那些目錄不出現在指令輸出裡，但不會把它們從本機閱讀介面隱藏。yomihon 只讀取契約，不寫入它。
 
-下面的小範例先保留入門契約原樣。在筆記資料夾建立 `Concepts/`、`Inbox/`、`Lessons/`、`Maps/` 與 `Notes/`，對應入門契約的掃描目錄。第一、第二與第四個目錄可以先留空，再把下面四個檔案存入 `Notes` 與 `Lessons`。範例沿用英文檔名，wikilink 也寫這些檔名；frontmatter 的 title 不能代替檔名。
+下面的小範例先保留入門契約原樣。在筆記資料夾建立 `Concepts/`、`Inbox/`、`Lessons/`、`Maps/` 與 `Notes/`，對應入門契約 `folders.checked` 列出的目錄。第一、第二與第四個目錄可以先留空，再把下面四個檔案存入 `Notes` 與 `Lessons`。範例沿用英文檔名，wikilink 也寫這些檔名，標題也來自它們：筆記的標題取內文第一個 `#` 標題，沒有就用檔名；frontmatter 不寫標題，也不寫領域。
 
 ## 排好課程
 
@@ -18,9 +18,7 @@
 
 ```markdown
 ---
-title: First course
 type: study-path
-status: ready
 lang: en
 ---
 
@@ -50,10 +48,7 @@ lang: en
 
 ```markdown
 ---
-title: Start
 type: lesson
-status: ready
-domain: yomihon
 slug: first-course-start
 level: fundamental
 lang: en
@@ -66,10 +61,7 @@ Read this first. What do you already know about the subject?
 
 ```markdown
 ---
-title: Continue
 type: lesson
-status: ready
-domain: yomihon
 slug: first-course-continue
 level: fundamental
 lang: en
@@ -82,10 +74,7 @@ Try one small example using what you read in Start.
 
 ```markdown
 ---
-title: Extra
 type: lesson
-status: ready
-domain: yomihon
 slug: first-course-extra
 level: fundamental
 lang: en

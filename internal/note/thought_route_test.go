@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -30,15 +29,11 @@ func TestThoughtRouteOffersOrdinaryDocumentsAndLessonsTheSameDoor(t *testing.T) 
 				t.Fatalf("thought route status = %d, body %s", recorder.Code, recorder.Body.String())
 			}
 			markdown := thoughtTemplate(t, recorder.Body.String())
-			// The title is the suggested file name, whose minute is the clock's.
-			titleLine, rest, _ := strings.Cut(strings.TrimPrefix(markdown, "---\n"), "\n")
-			title, titled := strings.CutPrefix(titleLine, "title: ")
-			if unquoted, err := strconv.Unquote(title); !titled || err != nil || !thoughtNamePattern.MatchString(unquoted) {
-				t.Errorf("first frontmatter line = %q, want the suggested note name as title", titleLine)
-			}
-			const want = "type: \"writing\"\ndraft: true\ndomain: \"japanese\"\nbased_on: \"[[Source#Chapter one]]\"\n---\n"
-			if rest != want {
-				t.Errorf("offered Markdown after the title = %q, want %q", rest, want)
+			// The title is the name the file is saved under, not a key, and the
+			// source's domain is its folder's, not the thought's to copy.
+			const want = "---\ntype: \"writing\"\ndraft: true\nbased_on: \"[[Source#Chapter one]]\"\n---\n"
+			if markdown != want {
+				t.Errorf("offered Markdown = %q, want %q", markdown, want)
 			}
 			if _, err := os.Stat(filepath.Join(root, "Source-thought.md")); !os.IsNotExist(err) {
 				t.Errorf("opening the door created a thought file: %v", err)
@@ -105,8 +100,8 @@ func TestThoughtRouteOffersObsidianOnlyInAnObsidianVault(t *testing.T) {
 			if name := query.Get("name"); !thoughtNamePattern.MatchString(name) {
 				t.Errorf("file name %q does not read as a thought on the source", name)
 			}
-			if want := "title: " + strconv.Quote(query.Get("name")) + "\n"; !strings.Contains(query.Get("content"), want) {
-				t.Errorf("content = %q, want the file name as title (%s)", query.Get("content"), want)
+			if want := "---\ntype: \"writing\"\ndraft: true\n"; !strings.HasPrefix(query.Get("content"), want) {
+				t.Errorf("content = %q, want it to open on the thought's type and draft flag (%q)", query.Get("content"), want)
 			}
 			if !strings.Contains(query.Get("content"), `based_on: "[[Source]]"`) {
 				t.Errorf("content = %q, want it to cite the source", query.Get("content"))
@@ -195,11 +190,11 @@ func thoughtRouteFixture(t *testing.T, declareAnswer bool, sourceType string) (m
 func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (handler *note.Handler, root string) {
 	t.Helper()
 	root = t.TempDir()
-	content := "---\ntitle: '<img src=x onerror=alert(1)>'\ndomain: japanese\n"
+	content := "---\n"
 	if sourceType != "" {
 		content += "type: " + sourceType + "\n"
 	}
-	content += "---\n# Chapter one\nPROMPT AND EXPLANATION MUST NOT BE COPIED\n"
+	content += "---\n# <img src=x onerror=alert(1)>\n\n## Chapter one\nPROMPT AND EXPLANATION MUST NOT BE COPIED\n"
 	if err := os.WriteFile(filepath.Join(root, "Source.md"), []byte(content), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -207,11 +202,9 @@ func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (h
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The draft flag is known to this contract, so the door's stub starts the
-	// thought unfinished.
-	text := strings.Replace(string(data), "known = [", "known = [\"draft\", ", 1)
-	if declareAnswer {
-		text = strings.Replace(text, "[navigation]\n", "[navigation]\nanswer_type = \"writing\"\n", 1)
+	text := writingHoldsTheThoughtRole(t, string(data))
+	if !declareAnswer {
+		text = strings.Replace(text, "[types.writing]\nrole = \"thought\"\n", "[types.writing]\n", 1)
 	}
 	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
 	if err = os.WriteFile(contractPath, []byte(text), 0o600); err != nil { // #nosec G703 -- a temporary file this test just named

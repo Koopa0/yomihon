@@ -1,8 +1,6 @@
 ---
-title: Lesson template
 type: lesson
 draft: true
-domain: go
 level: fundamental
 slug: lesson-template
 lang: en

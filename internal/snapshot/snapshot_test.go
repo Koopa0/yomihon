@@ -59,7 +59,7 @@ func testContract(tb testing.TB, root string) *schema.Contract {
 }
 
 // testContractWithRules is testContract with extra [rules] lines appended
-// after forbid_tag_with_slash, so a test can declare planned marks without
+// after the provenance rule, so a test can declare planned marks without
 // rewriting the fixture.
 func testContractWithRules(tb testing.TB, root, extraRules string) *schema.Contract {
 	tb.Helper()
@@ -69,7 +69,7 @@ func testContractWithRules(tb testing.TB, root, extraRules string) *schema.Contr
 	}
 	text := string(data)
 	if extraRules != "" {
-		const needle = "forbid_tag_with_slash = true"
+		const needle = `concept_requires_provenance = ["based_on", "source_locator"]`
 		next := strings.Replace(text, needle, needle+"\n"+extraRules, 1)
 		if next == text {
 			tb.Fatal("the contract fixture does not contain the rules needle")
@@ -156,8 +156,8 @@ func immutableGenerationFixture(t *testing.T) (gen *Generation, root string) {
 	root = t.TempDir()
 	writeNote(t, root, "A/Foo.md", "first body\n")
 	writeNote(t, root, "B/Foo.md", "second body\n")
-	writeNote(t, root, "Concepts/go/Concept.md", "---\ntitle: Concept\ntype: concept\ndraft: true\n---\nconcept body\n")
-	writeNote(t, root, "Writing/Lesson.md", "---\ntitle: Lesson\ntype: lesson\nstatus: draft\nslug: lesson-l01\n---\nlesson body\n")
+	writeNote(t, root, "Concepts/go/Concept.md", "---\ntype: concept\ndraft: true\n---\nconcept body\n")
+	writeNote(t, root, "Writing/Lesson.md", "---\ntype: lesson\nslug: lesson-l01\n---\nlesson body\n")
 	writeNote(t, root, "System/slots/L01.yaml", `lesson: L01
 slug: lesson-l01
 title: Lesson
@@ -322,7 +322,7 @@ func TestNewScansOnceAndReadsOnlyGenerationInputs(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "README.md", "home\n")
 	writeNote(t, root, "System/slots/L01.yaml", `lesson: L01
 slug: lesson-l01
@@ -399,7 +399,7 @@ func TestRescanRetriesTransientReadWithoutMetadataChange(t *testing.T) {
 
 	root := t.TempDir()
 	const path = "Concepts/Alpha.md"
-	writeNote(t, root, path, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, path, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -439,7 +439,7 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 
 	root := t.TempDir()
 	const relPath = "Concepts/Alpha.md"
-	writeNote(t, root, relPath, "---\ntitle: Alpha\ntype: concept\n---\nold body\n")
+	writeNote(t, root, relPath, "---\ntype: concept\n---\nold body\n")
 	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatal(err)
@@ -461,7 +461,7 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 	store.now = func() time.Time { return clock }
 	complete := store.Current()
 
-	writeNote(t, root, relPath, "---\ntitle: Alpha\ntype: concept\n---\nreplacement body with a different size\n")
+	writeNote(t, root, relPath, "---\ntype: concept\n---\nreplacement body with a different size\n")
 	source.fail[relPath] = 1
 	store.rescan(t.Context())
 	if got := store.Current(); got != complete {
@@ -487,7 +487,7 @@ func TestRescanRetainsLastCompleteGenerationAcrossTransientRead(t *testing.T) {
 func TestNewBuildsSnapshot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\n\nalpha body about kafka\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\n\nalpha body about kafka\n")
 
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)
@@ -544,7 +544,7 @@ func TestResolutionAndTransclusionsBindToOneGeneration(t *testing.T) {
 func TestRescanSwapsOnlyOnFilesystemChange(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\n\nalpha body\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\n\nalpha body\n")
 
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)
@@ -558,7 +558,7 @@ func TestRescanSwapsOnlyOnFilesystemChange(t *testing.T) {
 	}
 
 	const betaRel = "Concepts/Beta.md"
-	writeNote(t, root, betaRel, "---\ntitle: Beta\ntype: concept\n---\n\nbeta mentions widgets\n")
+	writeNote(t, root, betaRel, "---\ntype: concept\n---\n\nbeta mentions widgets\n")
 	betaModified := time.Date(2026, time.July, 10, 8, 45, 0, 0, time.UTC)
 	betaPath := filepath.Join(root, filepath.FromSlash(betaRel))
 	if err := os.Chtimes(betaPath, betaModified, betaModified); err != nil {
@@ -591,9 +591,9 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\ndraft: true\n---\nbody\n")
-	writeNote(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\ndraft: false\n---\nbody\n")
-	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\ndraft: true\n---\nbody\n")
+	writeNote(t, root, "System/templates/Card.md", "---\ntype: concept\ndraft: false\n---\nbody\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)
 
@@ -647,8 +647,8 @@ func TestNewRecoversInstanceProjectionsWhenAnUnreadableContractReturnsUnchanged(
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
-	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nbody\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
 	contract := testContract(t, root)
 
 	path := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
@@ -697,8 +697,8 @@ func TestRescanRecoversInstanceProjectionsWhenAnUnreadableContractReturnsUnchang
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
-	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nbody\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)
 
@@ -747,7 +747,7 @@ func TestRescanRecoversInstanceProjectionsWhenAnUnreadableContractReturnsUnchang
 	}
 
 	// A later ordinary change must not revive a refusal that already lifted.
-	writeNote(t, root, "Concepts/Beta.md", "---\ntitle: Beta\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Concepts/Beta.md", "---\ntype: concept\n---\nbody\n")
 	store.rescan(t.Context())
 	if got := store.Current(); len(got.Navigation().Paths()) != 1 || got.Navigation().ArtifactClosure().Diagnostic() != "" {
 		t.Errorf("navigation after an unrelated rescan = %+v, want the recovered path to stay", got.Navigation())
@@ -768,8 +768,8 @@ func TestRescanLatchesTheEgressDeclarationWhenItsSourceChanges(t *testing.T) {
 	const stale = "vault privacy policy source changed after startup; agent-facing output disabled until restart"
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
-	writeNote(t, root, "Diary/Monday.md", "---\ntitle: Monday\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nbody\n")
+	writeNote(t, root, "Diary/Monday.md", "---\ntype: concept\n---\nbody\n")
 	contract := testContractDeclaringPrivacy(t, root, "Diary")
 	store, _ := newTestStore(t, root, contract)
 
@@ -785,7 +785,7 @@ func TestRescanLatchesTheEgressDeclarationWhenItsSourceChanges(t *testing.T) {
 	// A rescan the contract did not take part in leaves the declaration alone.
 	// Without this the latch could fire on every rebuild and the assertion
 	// below would pass for a reason that has nothing to do with the source.
-	writeNote(t, root, "Concepts/Beta.md", "---\ntitle: Beta\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Concepts/Beta.md", "---\ntype: concept\n---\nbody\n")
 	store.rescan(t.Context())
 	if unchanged := store.Current(); !unchanged.PrivacyPolicy().Available() {
 		t.Fatalf("egress policy after an unrelated rescan = %q, want it still available",
@@ -816,7 +816,7 @@ func TestNewDoesNotFabricateInstanceCapabilities(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
 	store, _ := newTestStore(t, root, nil)
 	snap := store.Current()
 
@@ -851,7 +851,7 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
+	writeNote(t, root, "Maps/Path.md", "---\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
 	reader, err := vault.Open(root)
 	if err != nil {
 		t.Fatalf("vault.Open: %v", err)
@@ -897,7 +897,7 @@ func TestNewClosesEveryProjectionForAnUnreadableContract(t *testing.T) {
 func TestConcurrentReadDuringSwap(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\n\nbody\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\n\nbody\n")
 
 	contract := testContract(t, root)
 	store, reader := newTestStore(t, root, contract)
@@ -955,7 +955,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 func TestBuildGenerationIndexesTextFilesAndSkipsTheRest(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Note.md", "---\ntitle: Note\ntype: concept\n---\n\nfindable body\n")
+	writeNote(t, root, "Concepts/Note.md", "---\ntype: concept\n---\n\nfindable body\n")
 	writeNote(t, root, "Notes/todo.txt", "findable body\n")
 	writeNote(t, root, "Notes/page.html", "<p>findable body</p>\n")
 	// Its bytes are characters and its page is a picture: a hit inside one would
@@ -1011,9 +1011,9 @@ func storeWithNotes(t *testing.T, root string, contract *schema.Contract) *Store
 
 func writeNeedlePair(t *testing.T, root string) {
 	t.Helper()
-	writeNote(t, root, "System/early.md", "---\ntitle: Early\ntype: system\n---\nneedle in a template\n")
-	writeNote(t, root, "Writing/late.md", "---\ntitle: Late\ntype: writing\n---\nneedle in a note\n")
-	writeNote(t, root, "AAA.md", "---\ntitle: Root\ntype: guide\n---\nneedle at the root\n")
+	writeNote(t, root, "System/early.md", "---\ntype: system\n---\nneedle in a template\n")
+	writeNote(t, root, "Writing/late.md", "---\ntype: writing\n---\nneedle in a note\n")
+	writeNote(t, root, "AAA.md", "---\ntype: guide\n---\nneedle at the root\n")
 }
 
 // TestSearchRanksAKnowledgeLayerNoteAboveASystemFile plumbs OutsideKnowledge
@@ -1059,10 +1059,10 @@ func testContractWithoutKnowledgeDirs(tb testing.TB, root string) *schema.Contra
 	if err != nil {
 		tb.Fatalf("read contract fixture: %v", err)
 	}
-	const needle = `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
-	text := strings.Replace(string(data), needle, `knowledge_dirs = []`, 1)
+	const needle = `checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
+	text := strings.Replace(string(data), needle, `checked = []`, 1)
 	if text == string(data) {
-		tb.Fatal("the contract fixture does not contain the knowledge_dirs needle")
+		tb.Fatal("the contract fixture does not contain the checked needle")
 	}
 	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
@@ -1084,7 +1084,7 @@ func testContractWithoutKnowledgeDirs(tb testing.TB, root string) *schema.Contra
 func TestBuildGenerationStillResolvesWikilinksToFiles(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Note.md", "---\ntitle: Note\ntype: concept\n---\n\nsee [[drawing.svg]]\n")
+	writeNote(t, root, "Concepts/Note.md", "---\ntype: concept\n---\n\nsee [[drawing.svg]]\n")
 	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"></svg>`)
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
@@ -1124,7 +1124,7 @@ func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "notes.txt", "plain text\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
@@ -1147,7 +1147,7 @@ func TestOneUnreadableOrdinaryFileDoesNotFreezeTheFolder(t *testing.T) {
 	}
 
 	const added = "Concepts/Beta.md"
-	writeNote(t, root, added, "---\ntitle: Beta\ntype: concept\n---\nbeta\n")
+	writeNote(t, root, added, "---\ntype: concept\n---\nbeta\n")
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note(added); !ok {
 		t.Error("a note written after the unreadable file never reached a published generation")
@@ -1170,8 +1170,8 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 
 	root := t.TempDir()
 	const failing = "Concepts/Alpha.md"
-	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
-	writeNote(t, root, "Concepts/Base.md", "---\ntitle: Base\ntype: concept\n---\nbase\n")
+	writeNote(t, root, failing, "---\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, "Concepts/Base.md", "---\ntype: concept\n---\nbase\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -1194,7 +1194,7 @@ func TestPermanentReadFailureBoundsRebuildWork(t *testing.T) {
 
 	// The note is edited — its size changes, so the next rescan rebuilds — and
 	// from now on every read of it fails.
-	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha, now a different size\n")
+	writeNote(t, root, failing, "---\ntype: concept\n---\nalpha, now a different size\n")
 	source.fail[failing] = 1 << 30
 
 	// One rescan per scan interval, as the ticker would drive it. The cheap
@@ -1256,7 +1256,7 @@ func TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold(t *testing.T) {
 
 	root := t.TempDir()
 	const blocked = "Concepts/Alpha.md"
-	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -1280,10 +1280,10 @@ func TestUnreadableNoteRetainsGenerationUntilTheDegradeThreshold(t *testing.T) {
 	// The note is edited to a different size — so the next rescan rebuilds —
 	// and from now on every read of it fails. A second note is written
 	// alongside it, so what the retention costs the reader is visible.
-	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha, edited to a different size\n")
+	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha, edited to a different size\n")
 	source.fail[blocked] = 1 << 30
 	const added = "Concepts/Beta.md"
-	writeNote(t, root, added, "---\ntitle: Beta\ntype: concept\n---\nbeta\n")
+	writeNote(t, root, added, "---\ntype: concept\n---\nbeta\n")
 
 	// Under the backoff the attempts land on ticks 0, 1, 3, and 7, so ticks 0
 	// through 2 carry the first two failures — one short of the threshold.
@@ -1330,7 +1330,7 @@ func TestDegradedGenerationPublishesWhatCouldBeRead(t *testing.T) {
 
 	root := t.TempDir()
 	const unreadable = "Concepts/Alpha.md"
-	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha as first read\n")
+	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha as first read\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -1356,10 +1356,10 @@ func TestDegradedGenerationPublishesWhatCouldBeRead(t *testing.T) {
 	// and from now on every read of it fails. A second note is written while
 	// the folder cannot be read whole: this is the reader's own new work, and
 	// it is what the old policy suppressed for as long as the failure lasted.
-	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha, edited and now unreadable\n")
+	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha, edited and now unreadable\n")
 	source.fail[unreadable] = 1 << 30
 	const added = "Concepts/Beta.md"
-	writeNote(t, root, added, "---\ntitle: Beta\ntype: concept\n---\nbeta\n")
+	writeNote(t, root, added, "---\ntype: concept\n---\nbeta\n")
 
 	// One rescan per scan interval, as the ticker drives it. The backoff puts
 	// the first three attempts on ticks 0, 1, and 3 — about six seconds.
@@ -1445,7 +1445,7 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 		carried = "Concepts/Carried.md"
 		never   = "Concepts/Never.md"
 	)
-	writeNote(t, root, carried, "---\ntitle: Carried\ntype: concept\n---\nthe words read before the file shut\n")
+	writeNote(t, root, carried, "---\ntype: concept\n---\nthe words read before the file shut\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -1468,8 +1468,8 @@ func TestDegradedGenerationNamesEverySourceItCouldNotRead(t *testing.T) {
 
 	// The note that was read is edited to a different size, so the next rescan
 	// rebuilds; a second note arrives beside it. From here neither can be read.
-	writeNote(t, root, carried, "---\ntitle: Carried\ntype: concept\n---\nwords written after the file shut\n")
-	writeNote(t, root, never, "---\ntitle: Never\ntype: concept\n---\nnever read\n")
+	writeNote(t, root, carried, "---\ntype: concept\n---\nwords written after the file shut\n")
+	writeNote(t, root, never, "---\ntype: concept\n---\nnever read\n")
 	source.fail[carried] = 1 << 30
 	source.fail[never] = 1 << 30
 
@@ -1531,7 +1531,7 @@ func TestAFolderBeingWrittenInStillDegrades(t *testing.T) {
 
 	root := t.TempDir()
 	const unreadable = "Concepts/Alpha.md"
-	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -1552,14 +1552,14 @@ func TestAFolderBeingWrittenInStillDegrades(t *testing.T) {
 	clock := base
 	store.now = func() time.Time { return clock }
 
-	writeNote(t, root, unreadable, "---\ntitle: Alpha\ntype: concept\n---\nalpha, edited and now unreadable\n")
+	writeNote(t, root, unreadable, "---\ntype: concept\n---\nalpha, edited and now unreadable\n")
 	source.fail[unreadable] = 1 << 30
 
 	// A note arrives before every attempt, so the file domain differs each
 	// time and the backoff restarts on each one.
 	for tick := range degradeAfter {
 		writeNote(t, root, "Concepts/Beta-"+strconv.Itoa(tick)+".md",
-			"---\ntitle: Beta\ntype: concept\n---\nbeta\n")
+			"---\ntype: concept\n---\nbeta\n")
 		clock = base.Add(time.Duration(tick) * scanInterval)
 		store.rescan(t.Context())
 	}
@@ -1582,7 +1582,7 @@ func TestFreshnessReportsStartupIncompletenessAndRetainedStaleness(t *testing.T)
 
 	root := t.TempDir()
 	const blocked = "Concepts/Alpha.md"
-	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -1628,7 +1628,7 @@ func TestFreshnessReportsStartupIncompletenessAndRetainedStaleness(t *testing.T)
 	clock := time.Now()
 	store.now = func() time.Time { return clock }
 	retained := store.Current()
-	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha, edited to a different size\n")
+	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha, edited to a different size\n")
 	source.fail[blocked] = 1 << 30
 	store.rescan(t.Context())
 	if store.Current() != retained {
@@ -1669,7 +1669,7 @@ func TestSupersededGenerationKeepsItsOwnBuildFacts(t *testing.T) {
 
 	root := t.TempDir()
 	const blocked = "Concepts/Alpha.md"
-	writeNote(t, root, blocked, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, blocked, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -1730,8 +1730,8 @@ func TestMetadataInvisibleEditIsEventuallyRepublished(t *testing.T) {
 
 	root := t.TempDir()
 	const relPath = "Concepts/Alpha.md"
-	const oldBody = "---\ntitle: Alpha\ntype: concept\n---\nMARKER_OLD_XYZ\n"
-	const newBody = "---\ntitle: Alpha\ntype: concept\n---\nMARKER_NEW_ABC\n"
+	const oldBody = "---\ntype: concept\n---\nMARKER_OLD_XYZ\n"
+	const newBody = "---\ntype: concept\n---\nMARKER_NEW_ABC\n"
 	if len(oldBody) != len(newBody) {
 		t.Fatalf("fixture bodies differ in size (%d vs %d); this would prove nothing", len(oldBody), len(newBody))
 	}
@@ -1810,7 +1810,7 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 
 	root := t.TempDir()
 	const failing = "Concepts/Alpha.md"
-	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, failing, "---\ntype: concept\n---\nalpha\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -1830,7 +1830,7 @@ func TestReconciliationDefersToFailureBackoff(t *testing.T) {
 	clock := time.Now()
 	store.now = func() time.Time { return clock }
 
-	writeNote(t, root, failing, "---\ntitle: Alpha\ntype: concept\n---\nalpha, now a different size\n")
+	writeNote(t, root, failing, "---\ntype: concept\n---\nalpha, now a different size\n")
 	source.fail[failing] = 1 << 30
 	store.rescan(t.Context())
 	if !store.retry {
@@ -1854,7 +1854,7 @@ func TestASidecarTooLargeToShowIsNotSearchable(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
 	oversize := "sentences:\n" + strings.Repeat("  - text: rarespelunker\n", (render.MaxSourceBytes/24)+64)
 	writeNote(t, root, "System/slots/L01.yaml", oversize)
 	contract := testContract(t, root)
@@ -1887,7 +1887,7 @@ func TestAReadablePDFIsNotSearchable(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\n---\nalpha\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nalpha\n")
 	writeNote(t, root, "paper.pdf", "%PDF-1.4\n1 0 obj\n<< /Title (rarespelunker) >>\nendobj\n%%EOF\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
@@ -1920,8 +1920,8 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 
 	root := t.TempDir()
 	const needle = "rarespelunker"
-	writeNote(t, root, "small.md", "---\ntitle: Small\ntype: concept\n---\n"+needle+" sits here.\n")
-	huge := "---\ntitle: Huge\ntype: concept\n---\n" + needle + " sits here too.\n" +
+	writeNote(t, root, "small.md", "---\ntype: concept\n---\n"+needle+" sits here.\n")
+	huge := "---\ntype: concept\n---\n" + needle + " sits here too.\n" +
 		strings.Repeat("padding padding padding\n", 60000)
 	if len(huge) <= render.MaxSourceBytes {
 		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
@@ -1977,7 +1977,7 @@ func TestAnOverCapNoteIsNotRetained(t *testing.T) {
 		t.Errorf("the over-cap note reached the index; got %v", paths)
 	}
 
-	writeNote(t, root, "later.md", "---\ntitle: Later\ntype: concept\n---\nlater\n")
+	writeNote(t, root, "later.md", "---\ntype: concept\n---\nlater\n")
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note("later.md"); !ok {
 		t.Error("a note written after the over-cap skip never reached a published generation")
@@ -1992,12 +1992,12 @@ func TestAnOverCapNoteIsReportedAsSkipped(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	huge := "---\ntitle: Huge\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
+	huge := "---\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
 	if len(huge) <= render.MaxSourceBytes {
 		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
 	}
 	writeNote(t, root, "huge.md", huge)
-	writeNote(t, root, "small.md", "---\ntitle: Small\ntype: concept\n---\nunder the bound\n")
+	writeNote(t, root, "small.md", "---\ntype: concept\n---\nunder the bound\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -2030,8 +2030,8 @@ func TestAnOverCapNoteKeepsANameForCitations(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "small.md", "---\ntitle: Small\ntype: concept\n---\nsee [[huge]]\n")
-	huge := "---\ntitle: Huge\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
+	writeNote(t, root, "small.md", "---\ntype: concept\n---\nsee [[huge]]\n")
+	huge := "---\ntype: concept\n---\n" + strings.Repeat("padding padding padding\n", 60000)
 	if len(huge) <= render.MaxSourceBytes {
 		t.Fatalf("the oversize fixture is %d bytes, under the cap; this would prove nothing", len(huge))
 	}
@@ -2074,7 +2074,7 @@ func TestASecondReconciliationLoopIsRefused(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nbody\n")
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)
 
@@ -2111,7 +2111,7 @@ func TestMissingFileTellsAnAbsentPathFromAnUnseenOne(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nbody\n")
 	writeNote(t, root, "Concepts/there.png", "not really a picture\n")
 	// Written composed, the way a vault holds a name.
 	writeNote(t, root, "Concepts/\u00e9.png", "not really a picture\n")
@@ -2153,7 +2153,7 @@ func TestIsDirectoryTellsAFolderFromAFileAndFromNothing(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nbody\n")
 	writeNote(t, root, "Concepts/lab/code/main.go", "package main\n")
 	writeNote(t, root, "Concepts/\u00e9/x.txt", "x\n")
 	contract := testContract(t, root)
@@ -2188,9 +2188,10 @@ func TestAnswerRoleIsFixedAtStartAcrossRescans(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	declared := strings.Replace(string(data), "[navigation]\n", "[navigation]\nanswer_type = \"writing\"\n", 1)
-	if declared == string(data) {
-		t.Fatal("the contract fixture has no navigation table")
+	declared := strings.Replace(string(data), "[types.thought]\nrole = \"thought\"\n", "[types.thought]\n", 1)
+	declared = strings.Replace(declared, "[types.writing]\n", "[types.writing]\nrole = \"thought\"\n", 1)
+	if strings.Count(declared, `role = "thought"`) != 1 || !strings.Contains(declared, "[types.writing]\nrole = \"thought\"\n") {
+		t.Fatal("the contract fixture's thought role did not move to writing")
 	}
 	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	if err = os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {
@@ -2208,12 +2209,12 @@ func TestAnswerRoleIsFixedAtStartAcrossRescans(t *testing.T) {
 		t.Fatalf("answer role at start = %q, want %q", got, "writing")
 	}
 	// The declaration is withdrawn on disk and the vault changes, so the next
-	// scan rebuilds. Like path_types and map_types, the role holds until the
+	// scan rebuilds. Like the course and map roles, the role holds until the
 	// next start.
 	if err = os.WriteFile(contractPath, data, 0o600); err != nil { // #nosec G703 -- a testing.T.TempDir root
 		t.Fatal(err)
 	}
-	writeNote(t, root, "Later.md", "---\ntitle: Later\n---\nlater\n")
+	writeNote(t, root, "Later.md", "# Later\n\nlater\n")
 	store.rescan(t.Context())
 	if _, ok := store.Current().Note("Later.md"); !ok {
 		t.Fatal("the rescan did not publish a new generation, so it proves nothing")

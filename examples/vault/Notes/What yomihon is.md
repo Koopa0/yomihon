@@ -1,15 +1,12 @@
 ---
-title: What yomihon is
 type: note
-domain: yomihon
 created: 2026-09-22
-updated: 2026-09-22
 lang: en
 ---
 
 yomihon opens a Markdown folder as a local reading library. Pages show section navigation, backlinks and diagnostics. Study paths arrange lessons into courses; search opens notes at the matching text.
 
-Use [[The vault contract]] to declare note types, status transitions, courses and maps.
+Use [[The vault contract]] to declare note types, the fields a note may write, courses and maps.
 
 ## What it does not do
 

@@ -5,33 +5,36 @@ import (
 	"testing"
 )
 
-func TestNavigationRolesNameTheLessonTypeOnlyWhenTheContractListsIt(t *testing.T) {
+func TestNavigationRolesNameTheLessonTypeOnlyWhenTheContractGivesTheRole(t *testing.T) {
 	t.Parallel()
 
-	lessonless := strings.NewReplacer(
-		`type = ["lesson", "study-path", "moc"]`, `type = ["note", "study-path", "moc"]`,
-		"lesson = [\"draft\", \"archived\"]\n", "",
-		"[fields.status_group]\nlesson = [\"lesson\"]\n", "",
-		`applies_to = ["lesson", "study-path"]`, `applies_to = ["note", "study-path"]`,
-		`lesson_only = ["slug", "evolution_predecessor", "evolution_successors"]`, `lesson_only = []`,
-		"[supersession]\npredecessor_field = \"evolution_predecessor\"\nsuccessor_field = \"evolution_successors\"\ngeneral_link_field = \"related\"\narchived_status = \"archived\"\n\n", "",
-	).Replace(validContractV1)
-	if lessonless == validContractV1 {
-		t.Fatal("the replacer matched nothing, so the contract below still lists the lesson type")
+	const lessonRole = "[types.lesson]\nrole = \"lesson\"\n"
+	if strings.Count(validContract, lessonRole) != 1 {
+		t.Fatal("the base contract no longer gives lesson the lesson role")
 	}
+	lessonless := strings.Replace(validContract, lessonRole, "[types.lesson]\n", 1)
+	renamed := strings.Replace(validContract, lessonRole, "[types.module]\nrole = \"lesson\"\n", 1)
 
 	for _, tt := range []struct {
-		name string
-		data string
-		want map[string]bool
+		name   string
+		data   string
+		want   map[string]bool
+		holder string
 	}{
 		{
-			name: "a contract that lists it",
-			data: validContractV1,
-			want: map[string]bool{"lesson": true, "study-path": false, "moc": false, "": false},
+			name:   "a contract that gives the role to lesson",
+			data:   validContract,
+			want:   map[string]bool{"lesson": true, "study-path": false, "moc": false, "": false},
+			holder: "lesson",
 		},
 		{
-			name: "a contract that does not",
+			name:   "a contract that gives it to another type",
+			data:   renamed,
+			want:   map[string]bool{"module": true, "lesson": false, "": false},
+			holder: "module",
+		},
+		{
+			name: "a contract that gives it to none",
 			data: lessonless,
 			want: map[string]bool{"lesson": false, "note": false, "": false},
 		},
@@ -48,24 +51,34 @@ func TestNavigationRolesNameTheLessonTypeOnlyWhenTheContractListsIt(t *testing.T
 					t.Errorf("IsLessonType(%q) = %t, want %t", noteType, got, want)
 				}
 			}
+			name, declared := contract.LessonType()
+			wantName := tt.holder
+			if wantName == "" {
+				wantName = "lesson"
+			}
+			if name != wantName || declared != (tt.holder != "") {
+				t.Errorf("LessonType() = (%q, %t), want (%q, %t)", name, declared, wantName, tt.holder != "")
+			}
 		})
 	}
 }
 
-func TestTheLessonTypeSurvivesANavigationDeclarationThatCannotBeHonoured(t *testing.T) {
+func TestTheLessonTypeSurvivesRolesThatCannotBeHonoured(t *testing.T) {
 	t.Parallel()
 
-	data := strings.Replace(validContractV1, "[navigation]\n", "[navigation]\nanswer_types = [\"moc\"]\n", 1)
+	data := strings.Replace(validContract, "[rules]\n", "[types.extra]\nrole = \"answers\"\n\n[rules]\n", 1)
 	contract, err := loadContractBytes(t, []byte(data))
 	if err != nil {
 		t.Fatalf("LoadFile() error = %v", err)
 	}
-	roles := contract.NavigationRoles()
-	if roles.Available() {
-		t.Fatal("an unknown navigation key left the role sets open, so this case proves nothing about the lesson type")
+	if contract.NavigationRoles().Available() {
+		t.Fatal("an unknown role left the role sets open, so this case proves nothing about the lesson type")
 	}
-	if !roles.IsLessonType("lesson") {
-		t.Error("IsLessonType(lesson) = false after navigation was rejected, want the lesson type kept")
+	if name, declared := contract.LessonType(); name != "lesson" || !declared {
+		t.Errorf("LessonType() = (%q, %t) after the roles were rejected, want (\"lesson\", true)", name, declared)
+	}
+	if !CaptureAuthority(contract, contract.Governance()).IsLessonType("lesson") {
+		t.Error("Authority.IsLessonType(lesson) = false after the roles were rejected, want the reading aids kept")
 	}
 }
 

@@ -490,7 +490,7 @@ func renderedNoteView(t *testing.T, model *nav.Model, current, body string) Note
 		MarkAddress:         "/marks",
 		TranscludedIdentity: "def456",
 		SchemaNotices: [][]wording.SchemaPart{
-			wording.SchemaSentence(wording.ZhHant, "schema.enum", "status", "seed", "Writing"),
+			wording.SchemaSentence(wording.ZhHant, "schema.enum", "status", "seed"),
 		},
 		Concepts: []lesson.ConceptDoc{{ID: "c1", Title: "助詞", HTML: "<p>concept</p>"}},
 	}

@@ -3,58 +3,24 @@
 # real shape, just enough to give handler_test.go a non-nil contract so the
 # governed branches in handler.go's show() can actually be exercised
 # (schema.LoadFile is reused as-is; this is not a second schema loader).
-schema_version = "1"
+schema_version = "2"
+
+[folders]
+checked = ["Writing"]
+templates = ["System/templates"]
+skipped_files = ["README.md"]
+frontmatter_optional = true
 
 [enums]
-type = ["lesson", "writing"]
 domain = ["japanese"]
 
-[enums.status]
-note = ["imported", "draft", "ready", "archived"]
-lesson = ["imported", "draft", "ready", "archived"]
-
 [fields]
-required = ["title", "type", "domain", "status", "created", "updated"]
-known = ["title", "aliases", "type", "domain", "topics", "status", "created", "updated", "based_on", "lang"]
+common = ["type", "aliases", "draft", "lang", "created", "based_on"]
+required = ["type", "created"]
 
-[fields.status_group]
-lesson = ["lesson"]
+[types.lesson]
+role = "lesson"
+fields = ["slug"]
+slug_pattern = '^[a-z0-9]+(-[a-z0-9]+)*$'
 
-[rules]
-slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
-
-[scan]
-knowledge_dirs = ["Writing"]
-skip_basenames = ["README.md"]
-no_frontmatter_is_legal = true
-
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = ["System/templates"]
-
-[[lifecycle]]
-status = "imported"
-applies_to = ["lesson", "writing"]
-from = []
-owner = ["claude", "koopa"]
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["lesson", "writing"]
-from = ["imported"]
-owner = ["claude", "koopa"]
-
-[[lifecycle]]
-status = "ready"
-applies_to = ["lesson", "writing"]
-from = ["draft"]
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "archived"
-applies_to = ["*"]
-from = ["*"]
-owner = ["claude", "koopa"]
+[types.writing]

@@ -81,13 +81,13 @@ func writeCommentProbeVault(t *testing.T, root string) {
 	}
 	files := map[string]string{
 		schema.ContractRelPath: string(contract),
-		"Maps/Closed probe.md": "---\ntitle: " + closedProbeTitle + "\ntype: study-path\n---\n\n" +
+		"Maps/Closed probe.md": "---\ntype: study-path\n---\n\n" +
 			probeCourse + "%%\n",
-		"Maps/Unclosed probe.md": "---\ntitle: " + unclosedProbeTitle + "\ntype: study-path\n---\n\n" +
+		"Maps/Unclosed probe.md": "---\ntype: study-path\n---\n\n" +
 			probeCourse,
-		"Writing/" + visibleLessonOne + ".md": "---\ntitle: " + visibleLessonOne + "\ntype: lesson\nstatus: draft\n---\n\nbody\n",
-		"Writing/" + visibleLessonTwo + ".md": "---\ntitle: " + visibleLessonTwo + "\ntype: lesson\nstatus: draft\n---\n\nbody\n",
-		"Writing/" + hiddenLessonOne + ".md":  "---\ntitle: " + hiddenLessonOne + "\ntype: lesson\nstatus: draft\n---\n\nbody\n",
+		"Writing/" + visibleLessonOne + ".md": "---\ntype: lesson\n---\n\nbody\n",
+		"Writing/" + visibleLessonTwo + ".md": "---\ntype: lesson\n---\n\nbody\n",
+		"Writing/" + hiddenLessonOne + ".md":  "---\ntype: lesson\n---\n\nbody\n",
 	}
 	for rel, body := range files {
 		full := filepath.Join(root, filepath.FromSlash(rel))

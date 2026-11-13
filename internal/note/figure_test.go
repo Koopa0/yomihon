@@ -367,10 +367,10 @@ func TestAConceptSheetNeverFramesAFigure(t *testing.T) {
 	mkdir(t, filepath.Join(root, "Concepts", "japanese"))
 	mkdir(t, filepath.Join(root, "Writing", "lessons", "japanese"))
 	write(t, filepath.Join(root, "Concepts", "japanese", "は.md"),
-		[]byte("---\ntitle: は (主題助詞)\ntype: concept\n---\n\nMarks the topic.\n\n![[moving.html]]\n"))
+		[]byte("---\ntype: concept\n---\n# は (主題助詞)\n\nMarks the topic.\n\n![[moving.html]]\n"))
 	write(t, filepath.Join(root, "Concepts", "japanese", "moving.html"), []byte(scriptedFigure))
 	write(t, filepath.Join(root, "Writing", "lessons", "japanese", "L01.md"),
-		[]byte("---\ntitle: L01\ntype: lesson\nstatus: draft\n---\n\nThe particle [[は]] marks the topic.\n"))
+		[]byte("---\ntype: lesson\n---\n# L01\n\nThe particle [[は]] marks the topic.\n"))
 	srv := newApproveAllServer(t, root, loadContract(t))
 	_, _, concept := fetch(t, srv.Client(), srv.URL+"/notes/Concepts/japanese/%E3%81%AF.md")
 	if !strings.Contains(concept, `sandbox="allow-scripts"`) {

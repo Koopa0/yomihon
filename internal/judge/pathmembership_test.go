@@ -5,15 +5,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
-// TestSupersessionFollowsCourseMembership holds what "the course still points
-// at an archived note" means. A course points at a note by listing it as a
-// lesson; a link in its prose, in a block declared out of the course, in one
-// nobody declared, or in a row the grammar refused is not the course pointing
-// at anything. Reporting those told the author to fix a course that never
-// listed the note.
-func TestSupersessionFollowsCourseMembership(t *testing.T) {
+// TestCourseMembershipIsTheListedLesson holds what "the course lists a note"
+// means. A course lists a note by naming it as a lesson; a link in its prose, in
+// a block declared out of the course, in one nobody declared, or in a row the
+// grammar refused is not the course listing anything. The lesson Retired shares
+// the course's domain and is not a draft, so the course either lists it or
+// reports it as on disk but unlisted.
+func TestCourseMembershipIsTheListedLesson(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -76,39 +78,36 @@ func TestSupersessionFollowsCourseMembership(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
-			writeSupersessionContract(t, root)
-			writeJudgeNote(t, root, "Maps/Course.md",
-				"---\ntitle: Course\ntype: study-path\nstatus: ready\n---\n\n"+tt.body)
-			writeJudgeNote(t, root, "Writing/Live.md",
-				"---\ntitle: Live\ntype: lesson\nstatus: ready\n---\nbody\n")
-			writeJudgeNote(t, root, "Writing/Retired.md",
-				"---\ntitle: Retired\ntype: lesson\nstatus: archived\n---\nbody\n")
+			writeCourseContract(t, root)
+			writeJudgeNote(t, root, courseNotePath, courseNote(tt.body))
+			writeJudgeNote(t, root, courseLessonPath("Live"), courseLesson("live"))
+			writeJudgeNote(t, root, courseLessonPath("Retired"), courseLesson("retired"))
 
 			out := string(runCheck(t, root))
-			got := strings.Contains(out, archivedNavigationRule)
-			if got != tt.want {
-				t.Errorf("%s reported for %q = %t, want %t; findings:\n%s",
-					archivedNavigationRule, tt.body, got, tt.want, out)
+			if got := courseLists(out, "Retired"); got != tt.want {
+				t.Errorf("course lists Retired for %q = %t, want %t; findings:\n%s", tt.body, got, tt.want, out)
 			}
 		})
 	}
 }
 
 // TestMapsStillFollowEveryLink is the other side of the same rule: a general
-// map has no declared-sequence grammar, so it keeps pointing at a note through
-// any link it carries. Narrowing courses must not narrow maps.
+// map has no declared-sequence grammar, so every link it carries is ordinary
+// link health — none of them is a lesson row the course rule owns. Narrowing
+// courses must not narrow maps.
 func TestMapsStillFollowEveryLink(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeSupersessionContract(t, root)
+	writeCourseContract(t, root)
 	writeJudgeNote(t, root, "Maps/Shelf.md",
-		"---\ntitle: Shelf\ntype: topic-map\nstatus: ready\n---\n\n關於 [[Retired]] 的說明。\n")
-	writeJudgeNote(t, root, "Writing/Retired.md",
-		"---\ntitle: Retired\ntype: lesson\nstatus: archived\n---\nbody\n")
+		"---\ntype: topic-map\n---\n# Shelf\n\n## 主線 {sequence=primary}\n\n- [[Unwritten]]\n\n關於 [[Absent]] 的說明。\n")
 
 	out := string(runCheck(t, root))
-	if !strings.Contains(out, archivedNavigationRule) {
-		t.Errorf("a map's prose link to an archived note stopped being reported; findings:\n%s", out)
+	if n := strings.Count(out, `"rule_id":"link.broken"`); n != 2 {
+		t.Errorf("link.broken reported %d times, want 2 — a map's links are all ordinary links; findings:\n%s", n, out)
+	}
+	if strings.Contains(out, "map.disk_mismatch") {
+		t.Errorf("a map's link was reconciled as a course lesson; findings:\n%s", out)
 	}
 }
 
@@ -124,14 +123,63 @@ func writeJudgeNote(t *testing.T, root, rel, content string) {
 	}
 }
 
-// writeSupersessionContract gives a fixture vault the contract that declares
-// the supersession vocabulary, which is what makes the archived-target rule
-// answerable at all.
-func writeSupersessionContract(t *testing.T, root string) {
-	t.Helper()
-	data, err := os.ReadFile(filepath.Join("testdata", "vault-supersession", "System", "schemas", "vault-schema.toml"))
-	if err != nil {
-		t.Fatalf("read supersession contract: %v", err)
-	}
-	writeJudgeNote(t, root, "System/schemas/vault-schema.toml", string(data))
+// courseNotePath is the course the membership tests write. It sits in the
+// golang domain beside its lessons, so a lesson the course does not list is
+// reported as on disk but unlisted.
+const courseNotePath = "Writing/lessons/golang/Course.md"
+
+func courseLessonPath(name string) string {
+	return "Writing/lessons/golang/" + name + ".md"
 }
+
+func courseNote(body string) string {
+	return "---\ntype: study-path\n---\n# Course\n\n" + body
+}
+
+func courseLesson(slug string) string {
+	return "---\ntype: lesson\nslug: " + slug + "\n---\nbody\n"
+}
+
+// courseLists reports whether the course lists the lesson called name: a lesson
+// of the course's domain that it does not list is reported unlisted.
+func courseLists(out, name string) bool {
+	unlisted := `"rule_id":"map.disk_unlisted","severity":"warn","path":"` + courseLessonPath(name) + `"`
+	return !strings.Contains(out, unlisted)
+}
+
+// writeCourseContract gives a fixture vault a contract with a course, a lesson
+// and a map role, and a domain root, which is what makes course membership
+// answerable at all.
+func writeCourseContract(t *testing.T, root string) {
+	t.Helper()
+	writeJudgeNote(t, root, schema.ContractRelPath, courseContract)
+}
+
+const courseContract = `schema_version = "2"
+
+[folders]
+checked = ["Concepts", "Maps", "Writing"]
+templates = []
+domain_from = ["Writing/lessons"]
+
+[enums]
+
+[fields]
+common = ["type", "draft"]
+required = ["type"]
+
+[types.note]
+
+[types.lesson]
+role = "lesson"
+fields = ["slug"]
+
+[types.study-path]
+role = "course"
+
+[types.topic-map]
+role = "map"
+
+[privacy]
+never_egress_dirs = []
+`

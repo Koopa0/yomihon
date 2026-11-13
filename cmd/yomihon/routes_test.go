@@ -87,7 +87,7 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 
 // writeDeskFixture writes the smallest vault that holds one of everything the
 // desk offers: a contract, a study path, a general map, a note under a
-// lifecycle folder, a written report, and an HTML file left in the folder a
+// checked folder, a written report, and an HTML file left in the folder a
 // retired generator wrote its briefings to.
 func writeDeskFixture(t *testing.T, root string) {
 	t.Helper()
@@ -98,10 +98,10 @@ func writeDeskFixture(t *testing.T, root string) {
 	}
 	files := map[string]string{
 		schema.ContractRelPath:                          string(contract),
-		"Maps/study.md":                                 "---\ntitle: Study Path\ntype: study-path\n---\n\n# Study Path\n\n## Part One\n\n- [[alpha]]\n",
-		"Maps/reading.md":                               "---\ntitle: Reading Map\ntype: topic-map\n---\n\n# Reading Map\n\n## Branch\n\n- [[alpha]]\n",
-		"Concepts/alpha.md":                             "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\n\n# Alpha\n",
-		"Concepts/beta.md":                              "---\ntitle: Beta\ntype: concept\nstatus: draft\n---\n\n# Beta\n",
+		"Maps/study.md":                                 "---\ntype: study-path\n---\n\n# Study Path\n\n## Part One\n\n- [[alpha]]\n",
+		"Maps/reading.md":                               "---\ntype: topic-map\n---\n\n# Reading Map\n\n## Branch\n\n- [[alpha]]\n",
+		"Concepts/alpha.md":                             "---\ntype: concept\n---\n\n# Alpha\n",
+		"Concepts/beta.md":                              "---\ntype: concept\n---\n\n# Beta\n",
 		"Diary/2026-07-10.md":                           "# A journal entry\n",
 		"System/reports/2026-09-02.md":                  "# Written report\n",
 		"System/reports/daily-briefing/2026-09-03.html": "<p>briefing</p>\n",
@@ -386,21 +386,21 @@ func TestTheDeskStatesWhatEveryModePageStates(t *testing.T) {
 			contract: func(string) string { return "this is not toml [[[\n" },
 		},
 		{
-			// The artifact policy alone: the section is there and the key it
-			// must carry is not.
-			name: "an artifact policy missing its required key",
+			// The artifact policy alone: the templates it names climb out of
+			// the vault.
+			name: "an artifact policy naming a directory outside the vault",
 			contract: func(contract string) string {
-				return strings.Replace(contract, "non_instance_dirs = [\"System/templates\"]\n", "", 1)
+				return strings.Replace(contract, `templates = ["System/templates"]`, `templates = ["../System/templates"]`, 1)
 			},
 		},
 		{
-			// The navigation roles alone: one type declared as both a path and
-			// a map, which the roles reader rejects and nothing else reads.
-			name: "a type declared as both a path and a map",
+			// The navigation roles alone: a second type holding the thought
+			// role, which the roles reader rejects and nothing else reads.
+			name: "two types holding the thought role",
 			contract: func(contract string) string {
 				return strings.Replace(contract,
-					`map_types = ["moc", "source-map", "topic-map"]`,
-					`map_types = ["moc", "source-map", "topic-map", "study-path"]`, 1)
+					"[types.writing]\n",
+					"[types.writing]\nrole = \"thought\"\nfields = [\"based_on\"]\n", 1)
 			},
 		},
 	}
@@ -595,7 +595,7 @@ func TestFolderShelfScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read schema fixture: %v", err)
 	}
-	const declaration = `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
+	const declaration = `checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
 	if strings.Count(string(contract), declaration) != 1 {
 		t.Fatal("schema fixture must carry exactly one knowledge declaration")
 	}
@@ -613,7 +613,7 @@ func TestFolderShelfScope(t *testing.T) {
 	}{
 		{
 			name:        "declared knowledge layer",
-			contract:    withDeclaration(`knowledge_dirs = ["Concepts"]`),
+			contract:    withDeclaration(`checked = ["Concepts"]`),
 			rootFiles:   true,
 			wantCount:   "3 篇",
 			wantShelf:   []string{"/folders/Concepts", "/notes/Welcome.md", "/notes/Board.canvas"},
@@ -629,7 +629,7 @@ func TestFolderShelfScope(t *testing.T) {
 		},
 		{
 			name:        "empty declaration",
-			contract:    withDeclaration(`knowledge_dirs = []`),
+			contract:    withDeclaration(`checked = []`),
 			rootFiles:   true,
 			wantCount:   "5 篇",
 			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/Welcome.md", "/notes/Board.canvas"},
@@ -652,7 +652,7 @@ func TestFolderShelfScope(t *testing.T) {
 		},
 		{
 			name:        "malformed knowledge declaration",
-			contract:    withDeclaration(`knowledge_dirs = "Concepts"`),
+			contract:    withDeclaration(`checked = "Concepts"`),
 			rootFiles:   true,
 			wantCount:   "6 篇",
 			wantShelf:   []string{"/folders/Concepts", "/folders/System", "/folders/Outside", "/notes/README.md", "/notes/Welcome.md", "/notes/Board.canvas"},
@@ -660,7 +660,7 @@ func TestFolderShelfScope(t *testing.T) {
 		},
 		{
 			name:        "declared folder has no captured files",
-			contract:    withDeclaration(`knowledge_dirs = ["Missing"]`),
+			contract:    withDeclaration(`checked = ["Missing"]`),
 			rootFiles:   true,
 			wantCount:   "1 篇",
 			wantShelf:   []string{"/notes/Welcome.md", "/notes/Board.canvas"},
@@ -668,7 +668,7 @@ func TestFolderShelfScope(t *testing.T) {
 		},
 		{
 			name:      "declared folder has no captured files and no root files",
-			contract:  withDeclaration(`knowledge_dirs = ["Missing"]`),
+			contract:  withDeclaration(`checked = ["Missing"]`),
 			wantCount: "0 篇",
 		},
 	}
@@ -715,11 +715,11 @@ func TestEmptyFolderShelfDescribesOnlyItsListing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read schema fixture: %v", err)
 	}
-	const declaration = `knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
+	const declaration = `checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`
 	if strings.Count(string(contract), declaration) != 1 {
 		t.Fatal("schema fixture must carry exactly one knowledge declaration")
 	}
-	site := folderShelfSite(t, strings.Replace(string(contract), declaration, `knowledge_dirs = ["Missing"]`, 1), false)
+	site := folderShelfSite(t, strings.Replace(string(contract), declaration, `checked = ["Missing"]`, 1), false)
 
 	for _, tt := range []struct {
 		language   string
@@ -1022,11 +1022,11 @@ func writeContractDeclaring(t *testing.T, root, pathType string, mapTypes []stri
 		if i > 0 {
 			with = mapTypes[i-1]
 		}
-		quoted := `"` + replaced + `"`
-		if !strings.Contains(text, quoted) {
-			t.Fatalf("the loader fixture no longer declares %s, so this fixture rewrites nothing", quoted)
+		table := "[types." + replaced + "]\n"
+		if strings.Count(text, table) != 1 {
+			t.Fatalf("the loader fixture no longer declares %s once, so this fixture rewrites nothing", table)
 		}
-		text = strings.ReplaceAll(text, quoted, `"`+with+`"`)
+		text = strings.Replace(text, table, "[types."+with+"]\n", 1)
 	}
 	full := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {

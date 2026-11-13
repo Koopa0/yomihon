@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/text/width"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -128,10 +129,6 @@ type Document struct {
 	// Draft is whether the note declares draft: true.
 	Draft bool
 	Slug  string
-	// Topics are the subjects the note declared. A bare token reaches them
-	// the way it reaches an alias: leaving them out made a note findable by
-	// fewer names than it follows.
-	Topics []string
 	// Tags are frontmatter retrieval words, not a schema vocabulary.
 	Tags []string
 	// Aliases are the other names the note declared. They are the names a
@@ -190,20 +187,15 @@ type entry struct {
 	// Aliases are the note's other declared names, held as written and folded for
 	// matching. A link resolves by these and not by the title, so a hit on one
 	// ranks with a title hit rather than below a mention in prose.
-	Aliases      []string
-	AliasFolds   []string
-	NoteType     string
-	NoteTypeFold string
-	Domain       string
-	DomainFold   string
-	Draft        bool
-	Slug         string
-	SlugFold     string
-	// Topics are the note's declared subjects, held as written. TopicFolds
-	// is what matching reads; Topics is what the result row shows, so a
-	// declared Colour Theory is not rewritten as colour theory.
-	Topics            []string
-	TopicFolds        []string
+	Aliases           []string
+	AliasFolds        []string
+	NoteType          string
+	NoteTypeFold      string
+	Domain            string
+	DomainFold        string
+	Draft             bool
+	Slug              string
+	SlugFold          string
 	Tags              []string
 	TagFolds          []string
 	PlainText         string
@@ -312,12 +304,6 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	noteType := vault.NormalizeNFC(d.NoteType)
 	domain := vault.NormalizeNFC(d.Domain)
 	slug := vault.NormalizeNFC(d.Slug)
-	topics := make([]string, len(d.Topics))
-	topicFolds := make([]string, len(d.Topics))
-	for i, t := range d.Topics {
-		topics[i] = vault.NormalizeNFC(t)
-		topicFolds[i] = fold(topics[i])
-	}
 	tags := make([]string, len(d.Tags))
 	tagFolds := make([]string, len(d.Tags))
 	for i, tag := range d.Tags {
@@ -344,8 +330,6 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		Draft:             d.Draft,
 		Slug:              slug,
 		SlugFold:          fold(slug),
-		Topics:            topics,
-		TopicFolds:        topicFolds,
 		Tags:              tags,
 		TagFolds:          tagFolds,
 		PlainText:         plain,
@@ -614,7 +598,8 @@ func pairedSpans(offs []int) [][2]int {
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
 	projection := render.PlainProjection(n.Body)
-	if len(projection.Blocks) > 0 && render.DropsTitleHeading(n.Title(), n.Body) {
+	title := graph.TitleOf(n.RelPath, n.Body)
+	if len(projection.Blocks) > 0 && render.DropsTitleHeading(title, n.Body) {
 		// That heading opens the body, so it is the first block. The page
 		// shows it as the title instead, and neither the body nor the
 		// contents list carries a copy to tell apart.
@@ -622,12 +607,11 @@ func DocumentFromNote(n *vault.Note) Document {
 	}
 	return Document{
 		RelPath:      n.RelPath,
-		Title:        n.Title(),
+		Title:        title,
 		NoteType:     n.Type(),
-		Domain:       n.Domain(),
+		Domain:       n.Domain,
 		Draft:        schema.Draft(n.Frontmatter),
 		Slug:         n.Slug(),
-		Topics:       n.Strings("topics"),
 		Tags:         n.Strings("tags"),
 		Aliases:      n.Aliases(),
 		PlainText:    projection.Text,

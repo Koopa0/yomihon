@@ -1,10 +1,7 @@
 ---
-title: G06 select 與逾時
 type: lesson
-domain: go
 slug: go-select-timeout
 level: intermediate
-topics: [Go, 並行, select]
 created: 2026-09-22
 lang: zh-Hant
 ---

@@ -36,7 +36,7 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 		}
 	}
 	lesson := func(title string) string {
-		return "---\ntitle: " + title + "\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+		return "---\ntype: lesson\n---\n# " + title + "\n\nbody\n"
 	}
 	const dir = "Writing/lessons/golang/"
 	write(dir+"Setup.md", lesson("Setup"))
@@ -45,8 +45,8 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 	write(dir+"Wrapping up.md", lesson("Wrapping up"))
 	write(dir+"Epilogue.md", lesson("Epilogue"))
 	// In the same folder, taught by nothing.
-	write(dir+"Zebra.md", "---\ntitle: Zebra\ntype: note\ndomain: golang\n---\n\nbody\n")
-	write("Maps/Go course.md", "---\ntitle: Go course\ntype: study-path\ndomain: golang\n---\n\n"+
+	write(dir+"Zebra.md", "---\ntype: note\n---\n# Zebra\n\nbody\n")
+	write("Maps/Go course.md", "---\ntype: study-path\n---\n# Go course\n\n"+
 		"## start | Start | 開始 {sequence=primary}\n\n"+
 		"- [[Setup]]\n"+
 		"- [[Basics]]\n"+

@@ -25,12 +25,6 @@ type Result struct {
 	// without it a reader who typed another name sees no reason for the hit.
 	Alias string
 
-	// Topic is the declared subject that answered the query when title, alias
-	// and body did not, in the note's own spelling, and empty otherwise. The
-	// row shows a title, so without it a topic-only hit names nothing the
-	// reader typed.
-	Topic string
-
 	// Tag is the frontmatter tag that answered when stronger evidence did not,
 	// in the author's spelling. Tag-only hits have no body excerpt or landing.
 	Tag string
@@ -166,8 +160,8 @@ type FacetValue struct {
 }
 
 // Search runs a parsed query against the index and returns results in the final
-// deterministic order, nine groups concatenated: a note's title hits, a note's
-// body hits, a note's topic hits, a note's tag hits, the first three over vault
+// deterministic order, seven groups concatenated: a note's title hits, a note's
+// body hits, a note's tag hits, the first two over vault
 // files that are not notes, then the path-only hits, notes again before files. Each group keeps
 // the vault's reading order, except that a fold-equal exact title leads the
 // title-note group, a knowledge-layer hit leads an outside-knowledge hit
@@ -214,7 +208,7 @@ func (idx *Index) Search(q *Query, limit int) (Answer, error) {
 	}
 	answer.Results = make([]Result, len(hits))
 	for i, h := range hits {
-		answer.Results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias, h.topic, h.tag)
+		answer.Results[i] = h.entry.result(q.tokens, h.bodyEvidence, metadataAvailable, h.alias, h.tag)
 	}
 	return answer, nil
 }
@@ -228,25 +222,20 @@ type hit struct {
 	// alias is the name that answered the query when it was not the title, in
 	// the note's own spelling, since the row itself shows a title.
 	alias string
-	// topic is the declared subject that answered the query when title, alias
-	// and body did not.
-	topic string
 	tag   string
 }
 
 // bucket names one answer group. This declaration order is the result order and
 // the only statement of it, so a group moves by moving its constant: notes before
-// files under each kind of evidence, and title, body and topic before an address.
+// files under each kind of evidence, and title and body before an address.
 type bucket uint8
 
 const (
 	titleNote bucket = iota
 	bodyNote
-	topicNote
 	tagNote
 	titleFile
 	bodyFile
-	topicFile
 	pathNote
 	pathFile
 	bucketCount
@@ -259,7 +248,7 @@ type resultBuckets struct {
 }
 
 // place files one filter-matching entry into its answer group by what the
-// tokens matched: the title, the body, a declared topic or tag, or only the path. It
+// tokens matched: the title, the body, a declared tag, or only the path. It
 // reports whether the entry was filed at all — matching every filter and none
 // of the terms is not a hit, and a caller counting what the query found has to
 // be able to tell the two apart.
@@ -275,11 +264,6 @@ func (b *resultBuckets) place(e *entry, tokens []string) bool {
 		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
 	case allContain(e.PlainFold, tokens):
 		b.add(bodyNote, bodyFile, hit{entry: e, bodyEvidence: true})
-	case topicAnswering(e, tokens) != "":
-		// A topic is a name the note declared for retrieval. It ranks below
-		// body so a mention in prose stays above the many notes that share a
-		// subject.
-		b.add(topicNote, topicFile, hit{entry: e, topic: topicAnswering(e, tokens)})
 	case tagAnswering(e, tokens) != "":
 		b.groups[tagNote] = append(b.groups[tagNote], hit{entry: e, tag: tagAnswering(e, tokens)})
 	case allContain(e.PathFold, tokens):
@@ -349,24 +333,8 @@ func (b *resultBuckets) ordered() []hit {
 	return slices.Concat(b.groups[:]...)
 }
 
-// topicAnswering returns the note's own spelling of the first declared topic
-// that holds every token, or empty when none does. Matching reads TopicFolds;
-// the as-written Topics value is what the row shows. Empty tokens are a
-// pure-filter query and already land in the title group.
-func topicAnswering(e *entry, tokens []string) string {
-	if len(tokens) == 0 {
-		return ""
-	}
-	for i, folded := range e.TopicFolds {
-		if allContain(folded, tokens) {
-			return e.Topics[i]
-		}
-	}
-	return ""
-}
-
 // tagTokens accepts one leading hash as tag shorthand without changing the
-// literal query used by titles, aliases, bodies, topics and paths.
+// literal query used by titles, aliases, bodies and paths.
 func tagTokens(tokens []string) []string {
 	out := make([]string, len(tokens))
 	for i, token := range tokens {
@@ -527,7 +495,7 @@ func (e *entry) matchesFilters(filters []Filter) bool {
 }
 
 // matchesFilter reports whether e satisfies one filter. type/domain/slug
-// compare the folded copies; draft asks the flag, true or false; topic is folded membership of TopicFolds; folder is
+// compare the folded copies; draft asks the flag, true or false; folder is
 // a rel_path prefix taken one directory name at a time, so "folder:Writing"
 // matches "Writing" and "Writing/x.md" and "writing/x.md", but never
 // "Writing-old/x.md".
@@ -541,8 +509,6 @@ func (e *entry) matchesFilter(f Filter) bool {
 		return e.DomainFold == f.Value
 	case "slug":
 		return e.SlugFold == f.Value
-	case "topic":
-		return slices.Contains(e.TopicFolds, f.Value)
 	case "folder":
 		return withinFolder(e.RelPath, f.Value)
 	default:
@@ -579,7 +545,7 @@ func withinFolder(relPath, folder string) bool {
 
 // result builds a Result for e, with a snippet centered on the earliest
 // matched-token offset.
-func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias, topic, tag string) Result {
+func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, alias, tag string) Result {
 	draft := e.Draft && metadataAvailable && e.metadataCapable
 	var bodySnippet string
 	var bodyRuns []ExcerptRun
@@ -595,7 +561,6 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 		Snippet:       bodySnippet,
 		SnippetRuns:   bodyRuns,
 		Alias:         alias,
-		Topic:         topic,
 		Tag:           tag,
 		File:          e.isFile,
 		Landing:       terms.first,

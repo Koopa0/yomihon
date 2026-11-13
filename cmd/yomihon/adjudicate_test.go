@@ -471,8 +471,7 @@ func judgeableVault(t *testing.T) string {
 	root := t.TempDir()
 	writeFile(t, root, schema.ContractRelPath, string(contract)+"\n[privacy]\nnever_egress_dirs = []\n")
 	writeFile(t, root, "Writing/Present.md",
-		"---\ntitle: Present\ntype: lesson\ndomain: meta\nstatus: draft\n"+
-			"created: 2026-01-01\nupdated: 2026-01-01\nslug: present\n---\n[[Nobody Wrote This]]\n")
+		"---\ntype: lesson\ncreated: 2026-01-01\nslug: present\n---\n[[Nobody Wrote This]]\n")
 	return root
 }
 

@@ -19,9 +19,9 @@ import (
 // numbered from one per card.
 func comparePairVault() map[string]string {
 	lesson := func(title, lang, extra, section, body string) string {
-		return "---\ntitle: " + title + "\ntype: lesson\ndomain: japanese\n" +
-			"created: 2026-06-01\nupdated: 2026-06-01\nlang: " + lang + "\nslug: " + strings.ToLower(title) + "\n" +
-			"unknown_to_the_contract: yes\n" + extra + "---\n\n" +
+		return "---\ntype: lesson\n" +
+			"created: 2026-06-01\nlang: " + lang + "\nslug: " + strings.ToLower(title) + "\n" +
+			"unknown_to_the_contract: yes\n" + extra + "---\n# " + title + "\n\n" +
 			body + "[^one]\n\nGo to [that part](#" + section + ").\n\n" +
 			"## Ledger\n\nThe heading both halves keep.\n\n" +
 			"## " + strings.ToUpper(section[:1]) + section[1:] + "\n\nThe other one.\n\n" +
@@ -218,8 +218,8 @@ func TestComparingWithoutASecondNoteReadsTheFirstAlone(t *testing.T) {
 // contract asks for so the only thing under test is which other note is
 // offered beside it.
 func pairNote(title, language, extra string) string {
-	return "---\ntitle: " + title + "\ntype: lesson\ndomain: japanese\n" +
-		"created: 2026-06-01\nupdated: 2026-06-01\nlang: " + language + "\n" + extra + "---\n\nbody\n"
+	return "---\ntype: lesson\n" +
+		"created: 2026-06-01\nlang: " + language + "\n" + extra + "---\n# " + title + "\n\nbody\n"
 }
 
 // offeredPartner is the note a reading page offers to be read beside, or "".

@@ -85,14 +85,6 @@ const (
 	// alias on the note the citation meant makes the existing link work.
 	DiagWikilinkTitleOnly DiagnosticKind = "wikilink-title-only"
 
-	// DiagTitleTruncatedAtHash means this note's own title is exactly what its
-	// filename becomes when cut where YAML starts a comment in an unquoted value.
-	// It is an observation, not an accusation: a title deliberately written short
-	// in quotes produces the same coincidence, and nothing parsed tells them apart.
-	// No pass here raises it: the coincidence is between a note's frontmatter and
-	// its filename, both of which are read where a note is assembled, so that is
-	// where it is noticed and this is only where it is named.
-	DiagTitleTruncatedAtHash DiagnosticKind = "title-truncated-at-hash"
 	// DiagUnknownCallout means a "> [!type]" callout's type is not one
 	// of the recognized callout types; it was rendered as a neutral
 	// note-style callout without dropping its body.
@@ -610,7 +602,9 @@ func DropsTitleHeading(title, body string) bool {
 }
 
 // removeBodyFirstH1 drops a leading level-1 ATX heading when the page already
-// shows that same text as its title. Only the very first non-blank line qualifies,
+// shows that same text as its title. A title is read from its heading with the
+// closing marks taken off and white space folded, so the comparison is made on
+// those words. Only the very first non-blank line qualifies,
 // and a note displayed under its filename keeps its heading. The second return is
 // the anchor that heading would have been given, and only when one was removed:
 // the title is then the only thing on the page still saying those words. The
@@ -626,8 +620,18 @@ func removeBodyFirstH1(title, body string) (stripped, anchor string, dropped int
 		return body, "", -1
 	}
 	heading := strings.TrimSpace(strings.TrimPrefix(lines[i], "# "))
-	if heading != strings.TrimSpace(title) {
+	words := heading
+	if marked := graph.ATXHeading.FindStringSubmatch(lines[i]); marked != nil {
+		words = marked[2]
+	}
+	if foldSpace(words) != foldSpace(title) {
 		return body, "", -1
 	}
-	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n"), graph.SectionID(heading), i
+	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n"), graph.SectionID(words), i
+}
+
+// foldSpace is a heading's words with every run of white space as one space,
+// the form a note's title takes from the heading it is read from.
+func foldSpace(words string) string {
+	return strings.Join(strings.Fields(words), " ")
 }

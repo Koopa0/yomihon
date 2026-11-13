@@ -68,7 +68,7 @@ func buildVault(t *testing.T) (root string, model *nav.Model) {
 			"- [[L01]]\n",
 		// A newly added topic map lists a concept. No application registration
 		// names this file; its type and content are enough to grow the sidebar.
-		"Maps/Reading map.md": "---\ntitle: Reading map\ntype: topic-map\ndomain: humanities\n---\n" +
+		"Maps/Reading map.md": "---\ntype: topic-map\n---\n" +
 			"## Themes\n\n- [[C01]]\n- [[Ghost]]\n",
 		"Writing/lessons/go/L01.md": "---\ntype: lesson\ndraft: true\n---\nbody\n",
 		"Writing/lessons/go/L02.md": "---\ntype: lesson\ndraft: true\n---\nbody\n",
@@ -77,9 +77,9 @@ func buildVault(t *testing.T) (root string, model *nav.Model) {
 		"Concepts/go/C02.md": "---\ntype: concept\n---\nbody\n",
 		"A/Repeat.md":        "body\n",
 		"B/Repeat.md":        "body\n",
-		"System/templates/Template map.md": "---\ntitle: TEMPLATE MAP SENTINEL\ntype: topic-map\n---\n" +
+		"System/templates/Template map.md": "---\ntype: topic-map\n---\n# TEMPLATE MAP SENTINEL\n\n" +
 			"## Shelf\n- [[L01]]\n",
-		"System/templates/Template target.md": "---\ntitle: TEMPLATE TARGET SENTINEL\ntype: concept\n---\nbody\n",
+		"System/templates/Template target.md": "---\ntype: concept\n---\n# TEMPLATE TARGET SENTINEL\n\nbody\n",
 		// A Sources note with no frontmatter at all (a legal shape).
 		"Sources/articles/Other.md": "just prose, no frontmatter\n",
 		"Sources/articles/Raw.md":   "raw clipping, no frontmatter\n",
@@ -100,7 +100,7 @@ func buildVault(t *testing.T) (root string, model *nav.Model) {
 		"Reading list.md": "# Reading list\n",
 		// A report, so the reports mode has something to narrow. With none,
 		// every check that holds a block to its page compared nothing for it.
-		"System/reports/2026-07-10 vault audit.md": "---\ntitle: Vault audit\n---\nbody\n",
+		"System/reports/2026-07-10 vault audit.md": "# Vault audit\n\nbody\n",
 	}
 	for rel, content := range files {
 		p := filepath.Join(root, filepath.FromSlash(rel))
@@ -465,7 +465,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 }
 
 // TestSidebarRendersRejectedJournalDirDiagnostic is the journal half of the
-// capability-fault lock: a contract that wrote journal_dir and could not honour
+// capability-fault lock: a contract that wrote folders.journal and could not honour
 // it must say so on the rail. Gating the drawer on an empty projection alone
 // made a typo look like a vault that never kept a journal.
 func TestSidebarRendersRejectedJournalDirDiagnostic(t *testing.T) {
@@ -542,41 +542,31 @@ func htmlEscape(s string) string {
 }
 
 // rejectedCapabilityContract loads a contract that claims governance and then
-// declares a path type its own enums.type does not contain, and an artifact
-// directory that escapes the vault. Both declarations are made and rejected.
+// gives a type a role the contract does not know, and a template directory that
+// escapes the vault. Both declarations are made and rejected.
 func rejectedCapabilityContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := `schema_version = "1"
+	text := `schema_version = "2"
 
-[enums]
-type = ["concept", "moc"]
-
-[enums.status]
-note = ["draft"]
+[folders]
+checked = ["Concepts"]
+templates = ["../escape"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "based_on"]
+common = ["type", "based_on"]
+required = ["type"]
+
+[types.concept]
+
+[types.moc]
+role = "map"
+
+[types.broken]
+role = "cours"
 
 [rules]
 concept_requires_provenance = ["based_on"]
-
-[scan]
-knowledge_dirs = ["Concepts"]
-
-[navigation]
-path_types = ["undeclared-type"]
-map_types = ["moc"]
-
-[artifacts]
-non_instance_dirs = ["../escape"]
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
 `
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatalf("write contract: %v", err)
@@ -588,42 +578,32 @@ owner = ["koopa"]
 	return contract
 }
 
-// rejectedJournalDirContract writes a journal_dir the capability refuses, so
+// rejectedJournalDirContract writes a journal directory the capability refuses, so
 // the journal projection closes while paths and maps stay open.
 func rejectedJournalDirContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := `schema_version = "1"
+	text := `schema_version = "2"
 
-[enums]
-type = ["concept", "moc", "study-path"]
-
-[enums.status]
-note = ["draft"]
+[folders]
+checked = ["Concepts"]
+templates = ["System/templates"]
+journal = "../escape"
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "based_on"]
+common = ["type", "based_on"]
+required = ["type"]
+
+[types.concept]
+
+[types.moc]
+role = "map"
+
+[types.study-path]
+role = "course"
 
 [rules]
 concept_requires_provenance = ["based_on"]
-
-[scan]
-knowledge_dirs = ["Concepts"]
-
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-journal_dir = "../escape"
-
-[artifacts]
-non_instance_dirs = ["System/templates"]
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
 `
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatalf("write contract: %v", err)

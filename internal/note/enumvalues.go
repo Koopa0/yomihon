@@ -13,9 +13,7 @@ func (h *Handler) enumContract(authority schema.Authority) *schema.Contract {
 	return h.sources.Contract
 }
 
-// enumValues reads the declaration that judged this field. An unknown type
-// uses the general note group for the schema finding, as the checker does;
-// the lifecycle panel separately withholds claims about that unknown type.
-func enumValues(contract *schema.Contract, field, noteType string) []string {
-	return contract.EnumValues(field, noteType)
+// enumValues reads the declaration that judged this field.
+func enumValues(contract *schema.Contract, field string) []string {
+	return contract.EnumValues(field)
 }
