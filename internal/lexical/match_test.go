@@ -593,7 +593,7 @@ func TestAKnowledgeLayerHitLeadsAnOutsideHitInItsGroup(t *testing.T) {
 
 // TestARootFileOutsideTheKnowledgeLayerSortsAfterANote pins the Includes cut
 // at the first slash: a vault-root file matches no declared directory, so it
-// demotes. README.md is skip_basenames in the example vault and never reaches
+// demotes. README.md is in folders.skipped_files in the example vault and never reaches
 // the index, which is why the fixture is a root file that does.
 func TestARootFileOutsideTheKnowledgeLayerSortsAfterANote(t *testing.T) {
 	t.Parallel()
