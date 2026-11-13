@@ -9,7 +9,7 @@ import (
 // readingRail is the narrow left navigation on a reading surface: one map
 // chosen by what is being read, never by the address the reader arrived from.
 templ readingRail(rr ReadingRail, c layouts.Chrome) {
-	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) } data-reading-rail={ string(rr.Kind) }>
+	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.VaultNavigation.In(c.Lang) } data-reading-rail={ string(rr.Kind) }>
 		@railHead(c, true)
 		<div class="y-railbody" id="_y-nav-rail-body">
 			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
@@ -18,7 +18,7 @@ templ readingRail(rr ReadingRail, c layouts.Chrome) {
 				if faults := rr.CapabilityFaults(c.Lang); len(faults) > 0 {
 					<div class="y-railsep" aria-hidden="true"></div>
 					<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="_y-sidebar-navigation-diagnostics-title">
-						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
+						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.CoursesAndMaps.In(c.Lang) }</h2>
 						for _, fault := range faults {
 							<p>
 								@browserDiagnostic(fault.Summary, fault.Detail)

@@ -98,15 +98,15 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 				for _, block := range blocks {
 					modes = append(modes, block.Mode)
 				}
-				wantOrder := "paths,maps,reports,folders"
+				wantOrder := "courses,maps,reports,folders"
 				if tt.contract == ContractAbsent {
-					wantOrder = "folders,paths,maps,reports"
+					wantOrder = "folders,courses,maps,reports"
 				}
 				if got := strings.Join(modes, ","); got != wantOrder {
 					t.Errorf("desk mode order = %q, want %q", got, wantOrder)
 				}
 				for _, block := range blocks {
-					if block.Mode != pathMode && block.Mode != mapMode && block.Mode != folderMode {
+					if block.Mode != courseMode && block.Mode != mapMode && block.Mode != folderMode {
 						continue
 					}
 					want := tt.path(lang)
@@ -256,7 +256,7 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 			folder:   guide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext),
 		},
 	} {
-		for _, mode := range []string{pathMode, mapMode, folderMode} {
+		for _, mode := range []string{courseMode, mapMode, folderMode} {
 			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 				t.Run(tt.name+"/"+mode+"/"+string(lang), func(t *testing.T) {
 					t.Parallel()

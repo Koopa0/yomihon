@@ -139,7 +139,7 @@ func TestAWayOffASideBranchIsLabelledAndIsNeverAStep(t *testing.T) {
 			current: "Writing/E1.md",
 			lang:    wording.ZhHant,
 			want: []string{
-				`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/syllabus/Maps/Course.md?from=Writing%2FE1.md"><span class="y-steps__role">回到目錄</span></a>`,
+				`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/courses/Maps/Course.md?from=Writing%2FE1.md"><span class="y-steps__role">回到目錄</span></a>`,
 				`y-steps__link--back" href="/notes/Writing/C04.md">`,
 			},
 			absent: []string{`rel="next"`},
@@ -209,7 +209,7 @@ func TestTheFootNamesTheCourseWithALinkToItsContents(t *testing.T) {
 
 	model := footVault(t)
 	foot, html := footFor(t, model, "Writing/C03.md", wording.ZhHant)
-	if want := `<p class="y-steps__source"><a class="y-steps__path" href="/syllabus/Maps/Course.md?from=Writing%2FC03.md">Course</a></p>`; !strings.Contains(html, want) {
+	if want := `<p class="y-steps__source"><a class="y-steps__path" href="/courses/Maps/Course.md?from=Writing%2FC03.md">Course</a></p>`; !strings.Contains(html, want) {
 		t.Errorf("the foot does not name the course with a link to its contents; html = %q", html)
 	}
 	if want := `aria-label="` + foot.Label + `"`; !strings.Contains(html, want) || foot.Label != "Course 從此步往下" {
@@ -286,8 +286,8 @@ func TestARunningHeadNamesTheBookAndPartAboveEveryPageOfIt(t *testing.T) {
 		lang    wording.Lang
 		want    string
 	}{
-		{"a main-line lesson", "Writing/C03.md", wording.ZhHant, `<div class="y-crumbs y-crumbs--course"><a class="y-crumbs__link" href="/syllabus/Maps/Course.md?from=Writing%2FC03.md">Course · 主線</a></div>`},
-		{"a side branch's lesson", "Writing/L1.md", wording.ZhHant, `<a class="y-crumbs__link" href="/syllabus/Maps/Course.md?from=Writing%2FL1.md">Course · 主線 · 支線</a>`},
+		{"a main-line lesson", "Writing/C03.md", wording.ZhHant, `<div class="y-crumbs y-crumbs--course"><a class="y-crumbs__link" href="/courses/Maps/Course.md?from=Writing%2FC03.md">Course · 主線</a></div>`},
+		{"a side branch's lesson", "Writing/L1.md", wording.ZhHant, `<a class="y-crumbs__link" href="/courses/Maps/Course.md?from=Writing%2FL1.md">Course · 主線 · 支線</a>`},
 		{"a side branch's lesson in English", "Writing/L1.md", wording.En, `Course · 主線 · Branch</a>`},
 	}
 	for _, tt := range tests {

@@ -102,7 +102,7 @@ func NewPathIndex(paths []nav.Path, roles schema.NavigationRoles, closure nav.Cl
 			Language: rowLanguage(articleLang, studyPath.RelPath),
 		})
 	}
-	view := listIndex(courseMode, wording.Paths.In(lang),
+	view := listIndex(courseMode, wording.Courses.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
 		"", emptySentence(contract, declarationSentence(roles.PathTypes(), lang), lang), rows)
 	view.Fault, view.Restart = FaultOf(closure.Diagnostic(), closure.Reason(), lang)

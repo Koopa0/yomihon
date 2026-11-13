@@ -626,7 +626,7 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 		// The foot names the course with a link to its contents, which marks
 		// the lesson the reader is on; the landmark's own name is the step
 		// onward, so the printed words are the title alone.
-		`<p class="y-steps__source"><a class="y-steps__path" href="/syllabus/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FSetup.md">Go course</a></p>`,
+		`<p class="y-steps__source"><a class="y-steps__path" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FSetup.md">Go course</a></p>`,
 		nextCourseRole,
 	} {
 		if !strings.Contains(body, want) {

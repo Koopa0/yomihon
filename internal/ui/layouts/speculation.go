@@ -19,11 +19,11 @@ import (
 // the work.
 const speculationReads = `{"or":[` +
 	`{"href_matches":"/notes/*"},` +
-	`{"href_matches":"/syllabus/*"},` +
+	`{"href_matches":"/courses/*"},` +
 	`{"href_matches":"/folders"},` +
 	`{"href_matches":"/folders/*"},` +
 	`{"href_matches":"/reports"},` +
-	`{"href_matches":"/paths"},` +
+	`{"href_matches":"/courses"},` +
 	`{"href_matches":"/maps"},` +
 	`{"href_matches":"/journal"}` +
 	`]}`

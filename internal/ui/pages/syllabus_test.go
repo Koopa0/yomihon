@@ -912,10 +912,10 @@ func TestTheKickerAboveACourseTitleEndsOnItsLastWord(t *testing.T) {
 			return Syllabus(PathView{Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md"}, layouts.Chrome{Lang: lang})
 		},
 		"listen": func(lang wording.Lang) templ.Component {
-			return Listen(ListenView{Title: "Path", PathHref: "/syllabus/Maps/Path.md"}, layouts.Chrome{Lang: lang})
+			return Listen(ListenView{Title: "Path", PathHref: "/courses/Maps/Path.md"}, layouts.Chrome{Lang: lang})
 		},
 	}
-	want := map[wording.Lang]string{wording.ZhHant: "學習路徑", wording.En: "Study path"}
+	want := map[wording.Lang]string{wording.ZhHant: "課程", wording.En: "Course"}
 
 	for name, page := range pages {
 		for lang, words := range want {
@@ -963,7 +963,7 @@ func TestACourseActionSpacesItsArrowFromItsWords(t *testing.T) {
 		{
 			name: "listen",
 			page: func(lang wording.Lang) templ.Component {
-				return Listen(ListenView{Title: "Path", PathHref: "/syllabus/Maps/Path.md"}, layouts.Chrome{Lang: lang})
+				return Listen(ListenView{Title: "Path", PathHref: "/courses/Maps/Path.md"}, layouts.Chrome{Lang: lang})
 			},
 			want: map[wording.Lang][]string{
 				wording.ZhHant: {"目錄 "},

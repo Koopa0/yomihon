@@ -329,15 +329,15 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 // progress bar.
 templ syllabusRail(v PathView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
-	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.StudyPathNav.In(lang) }>
+	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.CourseNav.In(lang) }>
 		@railHead(c, false)
 		<div class="y-railbody" id="_y-nav-rail-body">
-			<div class="ui-side__label y-syl-raillabel">{ wording.StudyPaths.In(lang) }</div>
+			<div class="ui-side__label y-syl-raillabel">{ wording.Courses.In(lang) }</div>
 			for _, p := range v.Paths {
 				@pathSwitch(p)
 			}
 			if len(v.Branches) > 0 {
-				<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">{ wording.ThisPath.In(lang) }</div>
+				<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">{ wording.ThisCourse.In(lang) }</div>
 				for _, sec := range v.Branches {
 					<a class="ui-navitem" href={ templ.URL("#" + sec.Anchor) }>
 						<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>

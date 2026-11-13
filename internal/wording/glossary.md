@@ -9,7 +9,7 @@ A vault's own words belong to that vault, not to this page: the note types and s
 | Idea | Screen word | 畫面用語 | Means | Retired | In code |
 | --- | --- | --- | --- | --- | --- |
 | The folder of Markdown yomihon reads | vault | 書庫 | The folder yomihon is pointed at. A directory inside it is a *folder*; the vault's own root is a folder only when the subject is the disk. | library, 知識庫 | `vault`, `internal/vault` |
-| An ordered run of lessons | course | 課程 | Lessons grouped in parts along a main line, with optional side branches of extra reading. | study path, syllabus, 學習路徑 | `nav.Path` (with `PathView`, `PathGroup`, `IsPathType` and the contract key `path_types`), `Syllabus*`, `internal/syllabus`, `Course*`. They keep their names. The course page's address `/syllabus/…` and `/paths` are to be renamed, with a redirect, on the owner's ruling. |
+| An ordered run of lessons | course | 課程 | Lessons grouped in parts along a main line, with optional side branches of extra reading. | study path, syllabus, 學習路徑 | `nav.Path` (with `PathView`, `PathGroup`, `IsPathType` and the contract key `path_types`), `Syllabus*`, `internal/syllabus`, `Course*`. They keep their names. The course page is at `/courses/…` and the list of courses at `/courses`; the retired `/syllabus/…` and `/paths` answer with a permanent redirect to them. |
 | Where a file sits in the vault | path | 路徑 | The route from the vault's root to a file, such as `Notes/Books/Go.md`. It never names a course. | | `path`. In code `nav.Path` and the contract key `path_types` name a course; this is the one place the code says path for a course. |
 | Where the reader stopped | place | 待續位置 | What "Leave off here" keeps. Written with 待續 in full, not as 位置 alone. | | `Continuation`. `nav.Place` is a third, unrelated sense (where a note sits in a course) and is to be renamed; `isContinuation` in `sequence` is a course row's continuation paragraph, not this. |
 | A spot the reader is unsure of | location | 位置 | A spot in a note marked "Not sure yet". The thing marked is a location; the act is to *mark* it. | place, in this sense | `Uncertainty`. Only the wording names `UncertaintyPlace*` move to `Location`: `mark.Places` and `HasPlace` serve both marks and name an anchor a note renders, so they keep their names. |
@@ -68,10 +68,10 @@ The command line speaks English only. These are the words `yomihon left-open` wr
 
 The test below compares whole words, so it cannot tell a retired sense of a word from a sound one. These are known, found by reading, and replaced in the redesign. Confirm each before changing it.
 
-- *path* for a course: `desk.go:85,86`; `sidebar.go:48,62,66`; `syllabus.go:14,55,88,96,109`.
+- *path* for a course: the Chinese measure word of `PathCountOne` and `PathCountMany` in `desk.go`, which counts courses with 條.
 - 位置 for something other than a location or a place: a storage place at `desk.go:72` and `freshness.go:18`.
 - Section written three ways in Chinese (段落, 小節, 章節): `diagnostic.go:20,21,26,44,45,47,48`; `render.go:15,20,144`; `note.go:178,180`.
-- Lesson written three ways (課, 課文, 課次): `syllabus.go:88,124,127`; `preferences.go:84`.
+- Lesson written three ways (課, 課文, 課次): `syllabus.go:124,127`; `preferences.go:84`.
 - The home page called *home page* or 首頁: `recovery.go:64,188,291`.
 - *Image* where *picture* is meant: `slotmachine.go:23`.
 - English written inside Chinese text: `vault contract` at `health.go:128,129` and `recovery.go:71,75`.

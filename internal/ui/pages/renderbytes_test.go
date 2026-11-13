@@ -157,7 +157,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"listen-page", Listen(recordedListenView(), recordedChrome())},
 		{"listen-page-english", Listen(recordedListenView(), recordedEnglishChrome())},
 		// A course whose lessons mark nothing says so, and grows no bar.
-		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/syllabus/Maps/Go%20path.md"}, recordedChrome())},
+		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/courses/Maps/Go%20path.md"}, recordedChrome())},
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
@@ -301,7 +301,7 @@ func recordedNothingHomeView(lang wording.Lang) HomeView {
 		Degraded:       fmt.Sprintf(wording.DegradedNoticeOne.In(lang), 1),
 		DegradedDetail: "Sources/articles/Raw.md: permission denied",
 		Blocks: []DeskBlock{
-			unfilled(pathMode, wording.Paths.In(lang), "/paths",
+			unfilled(courseMode, wording.Courses.In(lang), "/courses",
 				plural(0, wording.PathCountOne, wording.PathCountMany, lang),
 				fmt.Sprintf(wording.NoDeclaredTypeEmptyFmt.In(lang), "lesson")),
 			unfilled(mapMode, wording.Maps.In(lang), "/maps",
@@ -520,7 +520,7 @@ func recordedListenView() ListenView {
 	}
 	return ListenView{
 		Title:    "朗讀《Go path》",
-		PathHref: "/syllabus/Maps/Go%20path.md",
+		PathHref: "/courses/Maps/Go%20path.md",
 		Lessons: []ListenLesson{
 			{
 				Title: "L01 わたしは学生です",

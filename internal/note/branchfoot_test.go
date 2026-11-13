@@ -78,7 +78,7 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 	for _, want := range []string{
 		// The line above the title: the book, its part, and the word for a branch,
 		// as one link to the contents with this lesson marked.
-		`<div class="y-crumbs y-crumbs--course"><a class="y-crumbs__link" href="/syllabus/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FExtra.md">Go course · Start · 支線</a></div>`,
+		`<div class="y-crumbs y-crumbs--course"><a class="y-crumbs__link" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FExtra.md">Go course · Start · 支線</a></div>`,
 	} {
 		if !strings.Contains(branch, want) {
 			t.Errorf("the branch lesson's head does not carry %q", want)
@@ -100,7 +100,7 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 	anchorFoot := foot(page(dir + "Basics.md"))
 	for _, want := range []string{
 		// The course is named by the title alone, as a link to its contents.
-		`<p class="y-steps__source"><a class="y-steps__path" href="/syllabus/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FBasics.md">Go course</a></p>`,
+		`<p class="y-steps__source"><a class="y-steps__path" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FBasics.md">Go course</a></p>`,
 		`href="/notes/Writing/lessons/golang/Wrapping%20up.md" rel="next"`,
 		`<p class="y-steps__aside"><span class="y-steps__asidelabel">支線：</span><a class="y-steps__asidelink" href="/notes/Writing/lessons/golang/Extra.md">Extra</a></p>`,
 	} {
@@ -114,7 +114,7 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 	last := foot(page(dir + "Epilogue.md"))
 	for _, want := range []string{
 		`y-steps__link--back" href="/notes/Writing/lessons/golang/Wrapping%20up.md"`,
-		`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/syllabus/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FEpilogue.md"><span class="y-steps__role">回到目錄</span></a>`,
+		`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FEpilogue.md"><span class="y-steps__role">回到目錄</span></a>`,
 	} {
 		if !strings.Contains(last, want) {
 			t.Errorf("the last branch lesson does not carry %q; foot = %q", want, last)

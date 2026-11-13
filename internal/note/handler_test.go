@@ -1170,7 +1170,7 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 	assertCauseStatedOnce(t, page, "toml: line 42")
 	// The ways in whose projections closed list nothing rather than asserting
 	// an emptiness they cannot vouch for.
-	for _, mode := range []string{"paths", "maps"} {
+	for _, mode := range []string{"courses", "maps"} {
 		block := homeSection(t, page, `data-home-block="`+mode+`"`)
 		if strings.Contains(block, "data-desk-item") {
 			t.Errorf("the %s block lists items under an unreadable contract; block = %q", mode, block)
@@ -1508,7 +1508,7 @@ func TestEveryBlockIsBuiltFromTheSnapshot(t *testing.T) {
 	if strings.Contains(body, `data-home-block="lifecycle"`) {
 		t.Error("the folder index still draws a block of notes by status")
 	}
-	paths := homeSection(t, desk, `data-home-block="paths"`)
+	paths := homeSection(t, desk, `data-home-block="courses"`)
 	// The block says how big a course is, not how much of it is done. The
 	// figure that used to sit here counted lessons awaiting a human's final
 	// review, and publishing one moved it out of that status — so the number
@@ -1516,7 +1516,7 @@ func TestEveryBlockIsBuiltFromTheSnapshot(t *testing.T) {
 	if strings.Contains(paths, "已完成") {
 		t.Errorf("the study-path block reports completion again; section = %q", paths)
 	}
-	for _, marker := range []string{"Test path", "2 課", "/syllabus/Maps/path.md"} {
+	for _, marker := range []string{"Test path", "2 課", "/courses/Maps/path.md"} {
 		if !strings.Contains(paths, marker) {
 			t.Errorf("Study paths block is missing %q", marker)
 		}
@@ -1660,7 +1660,7 @@ func TestTheArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 			body := html.UnescapeString(page)
 			// The instance-derived way in closes on one cause, so the cause is
 			// stated once and the block lists nothing at all.
-			if block := homeSection(t, body, `data-home-block="paths"`); strings.Contains(block, "data-desk-item") {
+			if block := homeSection(t, body, `data-home-block="courses"`); strings.Contains(block, "data-desk-item") {
 				t.Errorf("the desk still lists courses without a usable artifact policy; block = %q", block)
 			}
 			assertCauseStatedOnce(t, body, tt.want)
@@ -1715,7 +1715,7 @@ func TestANavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) {
 		t.Errorf("Recent degraded with navigation roles; section = %q", recent)
 	}
 	body := html.UnescapeString(page)
-	if block := homeSection(t, body, `data-home-block="paths"`); strings.Contains(block, "data-desk-item") {
+	if block := homeSection(t, body, `data-home-block="courses"`); strings.Contains(block, "data-desk-item") {
 		t.Errorf("Study Paths listed without usable navigation roles; block = %q", block)
 	}
 	// A rejected navigation declaration closes only the study paths, and the
@@ -1758,7 +1758,7 @@ func TestHomeStudyPathsReportsBothCapabilityFailures(t *testing.T) {
 			t.Errorf("capability cause %q appears %d times on the page, want once", cause, got)
 		}
 	}
-	if block := homeSection(t, body, `data-home-block="paths"`); strings.Contains(block, "data-desk-item") {
+	if block := homeSection(t, body, `data-home-block="courses"`); strings.Contains(block, "data-desk-item") {
 		t.Error("Study Paths listed under two rejected declarations")
 	}
 }
@@ -1822,7 +1822,7 @@ func TestHomeWithoutAnIntroductionStaysReadOnly(t *testing.T) {
 	// one — so a vault with nothing in it yet would otherwise strand a reader
 	// on a page they cannot leave except by searching.
 	for _, present := range []string{
-		`data-home-block="paths"`,
+		`data-home-block="courses"`,
 		`data-home-block="maps"`,
 		`data-home-block="reports"`,
 		`data-home-block="folders"`,
@@ -1945,7 +1945,7 @@ func TestTheDeskDrawsItsWaysInForAFolderHoldingNothing(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	for _, mode := range []string{"paths", "maps", "reports", "folders"} {
+	for _, mode := range []string{"courses", "maps", "reports", "folders"} {
 		if !strings.Contains(body, `data-home-block="`+mode+`"`) {
 			t.Errorf("the desk lost its %s block over a folder holding nothing", mode)
 		}
@@ -2841,7 +2841,7 @@ func TestHomeStudyPathCardSeparatesTheTwoZeroes(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	paths := homeSection(t, body, `data-home-block="paths"`)
+	paths := homeSection(t, body, `data-home-block="courses"`)
 	card := func(title string) string {
 		t.Helper()
 		at := strings.Index(paths, title)
@@ -2958,7 +2958,7 @@ func TestAnUnreadableContractKeepsTheRecentListUnscoped(t *testing.T) {
 	// The parse error is still the page's one loud sentence.
 	assertCauseStatedOnce(t, page, "toml: line 42")
 	// What a contract answers for stays closed.
-	if block := homeSection(t, page, `data-home-block="paths"`); strings.Contains(block, "data-desk-item") {
+	if block := homeSection(t, page, `data-home-block="courses"`); strings.Contains(block, "data-desk-item") {
 		t.Errorf("the desk still lists courses under an unreadable contract; block = %q", block)
 	}
 	shelfCode, shelfBody := get(t, srv.Client(), srv.URL+"/folders")

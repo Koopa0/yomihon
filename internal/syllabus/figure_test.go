@@ -63,7 +63,7 @@ func TestACoursePageNeverFramesAFigure(t *testing.T) {
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	for _, address := range []string{"/listen/Maps/Path.md", "/syllabus/Maps/Path.md"} {
+	for _, address := range []string{"/listen/Maps/Path.md", "/courses/Maps/Path.md"} {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+address, http.NoBody)
 		if err != nil {
 			t.Fatal(err)
@@ -90,7 +90,7 @@ func TestACoursePageNeverFramesAFigure(t *testing.T) {
 		// The listening page drops a marked paragraph holding a figure whole,
 		// since every figure's markup holds a paragraph of its own; only the
 		// course page shows the stand-in.
-		if address == "/syllabus/Maps/Path.md" && !strings.Contains(page.String(), "這裡無法顯示") {
+		if address == "/courses/Maps/Path.md" && !strings.Contains(page.String(), "這裡無法顯示") {
 			t.Errorf("GET %s shows no figure stand-in, so the figure was not reached and this proves nothing", address)
 		}
 	}

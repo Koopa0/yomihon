@@ -24,7 +24,7 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 		page      string
 		sectionOf func(heading string) string
 	}{
-		{wording.ZhHant, "留下自己的想法", func(h string) string { return `aria-label="留想法：` + h + `"` }},
+		{wording.ZhHant, "留下自己的想法", func(h string) string { return `aria-label="留下自己的想法：` + h + `"` }},
 		{wording.En, "Leave a thought", func(h string) string { return `aria-label="Leave a thought: ` + h + `"` }},
 	} {
 		t.Run(tc.lang.Tag(), func(t *testing.T) {

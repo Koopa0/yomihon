@@ -82,15 +82,15 @@ func TestShelfBlockHandsTheReaderTheRestOfTheShelf(t *testing.T) {
 	t.Parallel()
 
 	shelf := Shelf{
-		Title: "路徑", Count: "2 條", Lede: "課程。", Href: "/paths", Empty: "沒有課程。",
+		Title: "路徑", Count: "2 條", Lede: "課程。", Href: "/courses", Empty: "沒有課程。",
 		Rows: []Row{{Text: "one", Href: "/a"}, {Text: "two", Href: "/b"}},
 	}
 	var full strings.Builder
-	if err := ShelfBlock(shelf, "paths", 1, wording.ZhHant).Render(t.Context(), &full); err != nil {
+	if err := ShelfBlock(shelf, "courses", 1, wording.ZhHant).Render(t.Context(), &full); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	got := full.String()
-	if !strings.Contains(got, `<a class="ui-navitem y-shelfall" href="/paths">`+wording.ShelfAll.In(wording.ZhHant)+`</a>`) {
+	if !strings.Contains(got, `<a class="ui-navitem y-shelfall" href="/courses">`+wording.ShelfAll.In(wording.ZhHant)+`</a>`) {
 		t.Errorf("a narrowed block does not hand the reader the rest of the shelf:\n%s", got)
 	}
 	if strings.Contains(got, ">two<") {
@@ -104,7 +104,7 @@ func TestShelfBlockHandsTheReaderTheRestOfTheShelf(t *testing.T) {
 	}
 
 	var bare strings.Builder
-	if err := ShelfBlock(Shelf{Title: "路徑", Href: "/paths", Empty: "沒有課程。"}, "paths", 3, wording.ZhHant).Render(t.Context(), &bare); err != nil {
+	if err := ShelfBlock(Shelf{Title: "路徑", Href: "/courses", Empty: "沒有課程。"}, "courses", 3, wording.ZhHant).Render(t.Context(), &bare); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	if !strings.Contains(bare.String(), "沒有課程。") {
@@ -124,11 +124,11 @@ func TestAShelfOfRowsThatAreNotStopsIsNotEmpty(t *testing.T) {
 	t.Parallel()
 
 	shelf := Shelf{
-		Title: "路徑", Count: "1 條", Href: "/paths", Empty: "沒有課程。",
+		Title: "路徑", Count: "1 條", Href: "/courses", Empty: "沒有課程。",
 		Rows: []Row{{Text: "unwritten"}},
 	}
 	var out strings.Builder
-	if err := ShelfBlock(shelf, "paths", 3, wording.ZhHant).Render(t.Context(), &out); err != nil {
+	if err := ShelfBlock(shelf, "courses", 3, wording.ZhHant).Render(t.Context(), &out); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	got := out.String()
@@ -254,7 +254,7 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 	model := buildModel(t)
 	lang := wording.ZhHant
 	pages := map[string]ListIndexView{
-		pathMode:   NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
+		courseMode:   NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
 		mapMode:    NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, lang, nil),
 		reportMode: NewReportIndex(model.Reports(), lang, nil),
 		folderMode: NewFolderIndex(model, ContractGoverning, lang, nil),

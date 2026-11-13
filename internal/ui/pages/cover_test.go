@@ -510,8 +510,8 @@ func TestNoKickerEndsInASeparator(t *testing.T) {
 		lang wording.Lang
 		want string
 	}{
-		{wording.ZhHant, "學習路徑"},
-		{wording.En, "Study path"},
+		{wording.ZhHant, "課程"},
+		{wording.En, "Course"},
 	} {
 		pages := map[string]string{
 			"cover":  renderedHTML(t, Syllabus(PathView{Title: "Path"}, layouts.Chrome{Lang: tt.lang})),

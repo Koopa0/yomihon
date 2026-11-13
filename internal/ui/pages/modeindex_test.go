@@ -32,16 +32,16 @@ func TestAStudyPathRowStatesExtentAndNothingElse(t *testing.T) {
 	}, schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 
 	want := []Row{
-		{Text: "Go path", Href: "/syllabus/Maps/Go%20path.md", Mark: "4 課"},
-		{Text: "Unread structure", Href: "/syllabus/Maps/Broken.md", Mark: "0 課 · 未讀到課程結構", Fault: true},
-		{Text: "Plans nothing", Href: "/syllabus/Maps/Empty.md", Mark: "0 課"},
-		{Text: "Queue kit", Href: "/syllabus/Maps/QueueKit.md", Mark: "2 篇"},
+		{Text: "Go path", Href: "/courses/Maps/Go%20path.md", Mark: "4 課"},
+		{Text: "Unread structure", Href: "/courses/Maps/Broken.md", Mark: "0 課 · 未讀到課程結構", Fault: true},
+		{Text: "Plans nothing", Href: "/courses/Maps/Empty.md", Mark: "0 課"},
+		{Text: "Queue kit", Href: "/courses/Maps/QueueKit.md", Mark: "2 篇"},
 	}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("study-path rows mismatch (-want +got):\n%s", diff)
 	}
-	if view.Mode != pathMode {
-		t.Errorf("study-path index is marked %q, want %q", view.Mode, pathMode)
+	if view.Mode != courseMode {
+		t.Errorf("study-path index is marked %q, want %q", view.Mode, courseMode)
 	}
 }
 
@@ -300,7 +300,7 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 		mode      string
 		component templ.Component
 	}{
-		{pathMode, ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
+		{courseMode, ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
 		{mapMode, ListIndex(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
 		{reportMode, ListIndex(NewReportIndex(model.Reports(), wording.ZhHant, nil), layouts.Chrome{})},
 		{folderMode, FolderIndex(NewFolderIndex(model, ContractGoverning, wording.ZhHant, nil), RecentBlock{}, layouts.Chrome{})},

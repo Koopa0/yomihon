@@ -138,9 +138,9 @@ func TestThePathIndexReadsOneGeneration(t *testing.T) {
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 
-			code, page := get(t, srv.Client(), srv.URL+"/paths")
+			code, page := get(t, srv.Client(), srv.URL+"/courses")
 			if code != http.StatusOK {
-				t.Fatalf("GET /paths status = %d, want 200", code)
+				t.Fatalf("GET /courses status = %d, want 200", code)
 			}
 			const want = `<span class="y-row__title" lang="ja">Japanese title</span>`
 			if got := rowTitleSpan(t, page); got != want {
