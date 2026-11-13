@@ -52,11 +52,11 @@ var NoteParseStale = both(
 	"The file opened, but its current note content could not be parsed. What follows is the last readable version. Check the note's content against the parser's message, save a correction, and reload.",
 )
 
-// The right rail and the blocks in it. CitedBy names body wikilinks only;
-// BasedOn is the author's based_on declaration, a different claim, so the two
-// labels stay visibly different rather than one number that mixes them.
+// The contents in the sidebar and the blocks that end the text. CitedBy names
+// body wikilinks only; BasedOn is the author's based_on declaration, a
+// different claim, so the two labels stay visibly different rather than one
+// number that mixes them.
 var (
-	ReadingAids = both("閱讀輔助", "Reading aids")
 	OnThisPage  = both("本頁內容", "On this page")
 	NoteHealth  = both("筆記狀況", "Note health")
 	CitedBy     = both("正文連到這篇", "Cited in the text")
