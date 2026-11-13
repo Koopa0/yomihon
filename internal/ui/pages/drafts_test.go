@@ -77,8 +77,8 @@ func TestTheCourseHeadCountsItsDrafts(t *testing.T) {
 	}
 
 	for lang, want := range map[wording.Lang]string{
-		wording.ZhHant: `<span class="y-syl-drafts" data-course-drafts>其中 1 課尚未定案</span>`,
-		wording.En:     `<span class="y-syl-drafts" data-course-drafts>1 not yet settled</span>`,
+		wording.ZhHant: `<span class="y-syl-drafts" data-course-drafts>其中 1 課是草稿</span>`,
+		wording.En:     `<span class="y-syl-drafts" data-course-drafts>1 are drafts</span>`,
 	} {
 		if html := renderCourse(t, view, lang); !strings.Contains(html, want) {
 			t.Errorf("%s course head lacks %q", lang.Tag(), want)

@@ -9,8 +9,8 @@ you. Fixes land on `main`; earlier releases are not maintained.
 
 Report privately through [GitHub's private advisory form](https://github.com/koopa0/yomihon/security/advisories/new), never a public issue, and attach no vault content.
 yomihon is a single-user local reader: it listens only on `127.0.0.1`, makes no
-outbound network call itself, and writes one frontmatter field, so anything that
-writes outside `status`, or leaves the machine, is worth reporting. One thing
+outbound network call itself, and writes nothing into the vault, so anything that
+writes into the vault, or leaves the machine, is worth reporting. One thing
 leaves the machine by design: a figure whose exact bytes the owner approved runs
 its scripts in the browser, and those can reach the network through the
 residual channels the threat model lists. A figure nobody approved that makes
@@ -21,9 +21,9 @@ disk and in your browser, and [the threat model](../docs/security/threat-model.m
 says what the boundary is and is not meant to hold.
 
 The public instance at `yomihon.koopa0.dev` is a deliberate exception and needs
-no report. It serves the sample notes committed in this repository, its write
-face is open on purpose so a visitor can try the one verb yomihon has, and
-those notes are restored from git every hour.
+no report. It serves the sample notes committed in this repository read-only;
+what a visitor can change is limited to the shared reader marks the threat model
+bounds.
 
 ## Verifying a downloaded binary
 
