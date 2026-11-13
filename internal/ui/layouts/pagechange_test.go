@@ -4,19 +4,30 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"maps"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/a-h/templ"
 )
 
-// contentBlocks is every block of content a page puts under the header: the
-// column of a note, the shelf of a desk or folder or index, a course, the
-// listening page, the whole-folder view and the pages a reader reaches by
-// accident. A page change plays no animation, so none of them carries one.
-const contentBlocks = "article|healthpage|home|listen|recovery|syl"
+// columnFamily is what the column under the header is made of: the grid the
+// sidebar and the column stand in, the column itself, the block each kind of
+// page puts in it (a note, the findings, the desk and its shelves, a course, the
+// listening page, the whole-folder view, a search, the reading choices, the
+// pair of notes read together) and the text of a note. A page change plays no
+// animation, so none of them carries one.
+const columnFamily = "main|shell|shell2|article|healthpage|home|listen|recovery|syl|searchpage|prefs|compare|compare-shell|prose"
+
+// columnMember matches one compound selector that is a member of that family,
+// by class or by the element a page's block is written on, however it is
+// qualified: `.y-article[lang]`, `main.y-main`, `:is(.y-home, .y-syl)`. A name
+// that only begins with a member's, such as `.y-article__title`, is not one.
+var columnMember = regexp.MustCompile(`(?:^|[^\w-])(?:\.y-(?:` + columnFamily + `)|main|article)(?:[^\w-]|$)`)
 
 // squeeze turns every run of white space into one space, so a rule is compared
 // by what it says and not by how it is laid out.
@@ -72,6 +83,137 @@ func cssRules(css string) []struct{ selector, body string } {
 	return rules
 }
 
+// topLevelSplit cuts a selector at the separators that stand outside every
+// parenthesis and bracket, so a comma inside :is() or a space inside :has() does
+// not cut it.
+func topLevelSplit(s string, separator func(rune) bool) []string {
+	var parts []string
+	var current strings.Builder
+	depth := 0
+	flush := func() {
+		if current.Len() > 0 {
+			parts = append(parts, current.String())
+			current.Reset()
+		}
+	}
+	for _, r := range s {
+		switch r {
+		case '(', '[':
+			depth++
+		case ')', ']':
+			depth--
+		}
+		if depth == 0 && separator(r) {
+			flush()
+			continue
+		}
+		current.WriteRune(r)
+	}
+	flush()
+	return parts
+}
+
+// negation opens a :not() or a :has(), whose argument says what the element is
+// not, or what it holds, and so does not make the argument what the selector
+// selects.
+var negation = regexp.MustCompile(`:(?:not|has)\(`)
+
+func withoutNegations(compound string) string {
+	for {
+		found := negation.FindStringIndex(compound)
+		if found == nil {
+			return compound
+		}
+		depth, end := 1, found[1]
+		for ; end < len(compound) && depth > 0; end++ {
+			switch compound[end] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+			}
+		}
+		compound = compound[:found[0]] + compound[end:]
+	}
+}
+
+// movingProperty finds the name of an animation or transition property in a
+// rule's body. A body is read for the names alone, because a value may hold a
+// semicolon inside a url().
+var movingProperty = regexp.MustCompile(`(?:^|[;{\s])((?:animation|transition)[a-z-]*)\s*:`)
+
+// movingProperties is every such property a rule's body declares, sorted.
+func movingProperties(body string) []string {
+	seen := map[string]bool{}
+	for _, match := range movingProperty.FindAllStringSubmatch(body, -1) {
+		seen[match[1]] = true
+	}
+	return slices.Sorted(maps.Keys(seen))
+}
+
+// columnMotion lists, as the selector it was written with and the properties it
+// declares, every rule of a sheet that moves the column. A rule moves it when a
+// selector it lists ends on a member of the family (or on a child of one that is
+// any element at all), whatever it declares among animation and transition; or
+// when it declares an animation on anything that sits under a member, because an
+// animation plays when the page is drawn and a transition on a descendant waits
+// for a change the page's drawing is not.
+func columnMotion(css string) map[string]string {
+	moved := map[string]string{}
+	for _, rule := range cssRules(css) {
+		properties := movingProperties(rule.body)
+		if len(properties) == 0 {
+			continue
+		}
+		animates := slices.ContainsFunc(properties, func(name string) bool { return strings.HasPrefix(name, "animation") })
+		for _, selector := range topLevelSplit(rule.selector, func(r rune) bool { return r == ',' }) {
+			compounds := topLevelSplit(selector, func(r rune) bool { return unicode.IsSpace(r) || strings.ContainsRune(">+~", r) })
+			if len(compounds) == 0 {
+				continue
+			}
+			subject := compounds[len(compounds)-1]
+			if subject == "*" && len(compounds) > 1 {
+				subject = compounds[len(compounds)-2]
+			}
+			under := slices.ContainsFunc(compounds, func(compound string) bool { return columnMember.MatchString(withoutNegations(compound)) })
+			if columnMember.MatchString(withoutNegations(subject)) || (under && animates) {
+				// A second rule written with the same selector is a second
+				// declaration of motion, not the first one again.
+				if again, ok := moved[rule.selector]; ok {
+					moved[rule.selector] = again + " and again " + strings.Join(properties, ", ")
+				} else {
+					moved[rule.selector] = strings.Join(properties, ", ")
+				}
+				break
+			}
+		}
+	}
+	return moved
+}
+
+// columnMotionAllowed is every rule that is allowed to move the column or to
+// animate under it, each as written and with the properties it declares, and why
+// it may. It is the whole set: a rule that is not in it fails
+// TestAPageChangePlaysNoAnimation, and an entry no rule matches fails it too, so
+// the list cannot outlive the rule it excused. None of them plays when a page is
+// drawn.
+var columnMotionAllowed = []struct{ sheet, selector, properties, why string }{
+	{"components.css", "html[data-js][data-arrival='kept'] .y-main", "animation",
+		"a returning reader's column is held hidden until the page's module has scrolled to the kept place, and shown on a timer if it never does; TestOnlyAKeptPlaceHoldsTheColumnBack holds its exact form"},
+	{"components.css", ".y-shell:has(> .y-rail-left), .y-shell2:has(> .y-rail-left)", "transition",
+		"the sidebar folding and opening is a press: the grid's first track changes and the column follows it"},
+	{"components.css", "html[data-rail-settling] .y-shell:has(> .y-rail-left), html[data-rail-settling] .y-shell2:has(> .y-rail-left), html[data-rail-settling] .y-railbody, html[data-rail-settling] .y-railhead .y-filter", "transition",
+		"the same fold while it settles; the script marks the root for the length of that press only"},
+	{"components.css", ".y-prose :target", "animation",
+		"the wash a jump to a heading leaves on the heading it lands on, in ink; TestTheJumpedToHeadingEchoIsInkNotVermilion holds it"},
+	{"components.css", "[data-js]:not([data-mermaid-error]) .y-prose .mermaid-diagram:not([data-mermaid-error]):not(:has(svg))", "animation",
+		"a diagram waiting to be drawn pulses in place until the work finishes; TestComponentMotionIsWrittenInTokens names it"},
+	{"components.css", "[data-js]:not([data-mermaid-error]) .y-preview .y-prose .mermaid-diagram:not([data-mermaid-error]):not(:has(svg))", "animation-name",
+		"the same wait inside the preview card, which sets its own tempo and names only the keyframes"},
+	{"components.css", "[data-js][data-mermaid-error] .y-prose .mermaid-diagram:not(:has(svg)), [data-js] .y-prose .mermaid-diagram[data-mermaid-error]:not(:has(svg))", "animation",
+		"the same wait, stopped: a diagram that failed to draw does not go on pulsing"},
+}
+
 // readSheet reads a stylesheet with its comments blanked, so a rule is compared
 // by what it declares and not by what the prose beside it says.
 func readSheet(t *testing.T, name string) string {
@@ -86,20 +228,35 @@ func readSheet(t *testing.T, name string) string {
 
 // TestAPageChangePlaysNoAnimation holds the one thing a reader sees on every
 // press: the block of content is painted whole, at full opacity and size, and
-// nothing declares an animation on it. It reads the declarations and not a
-// moment of a running animation, which a check would have to catch mid-flight.
+// nothing in the stylesheets moves the column it stands in. It reads the
+// declarations and not a moment of a running animation, which a check would have
+// to catch mid-flight.
 //
-// Three things stand for the old arrival and each is refused by name: the
-// keyframes, the tokens that tuned it, and the cross-document view transition
-// that was measured as an alternative and delays the first paint by about
-// 300ms. A rule that animates a content block under another name is caught by
-// what it declares and where, so renaming the keyframes does not get past it.
+// Three things stand for the arrival that was removed and each is refused by
+// name: the keyframes, the tokens that tuned it, and the cross-document view
+// transition that was measured as an alternative and delays the first paint by
+// about 300ms. Names are not the guard, since a rule can reuse keyframes that
+// are already there. What is held is the set of rules: every rule of the sheets
+// that ends on the column or on any of the blocks pages put in it, however it is
+// qualified, or that animates anything under one of them, has to be one of the
+// few in columnMotionAllowed, with the properties it is allowed to declare. A
+// new rule on `.y-main`, on `.y-article[lang]` or on `.y-shell > .y-main` is in
+// that set and fails.
+//
+// This reads the stylesheets and nothing else. A transition on something under
+// the column waits for a change and is left to the sheet's other tests; motion
+// written in a style attribute or by a script is not read here, and the browser
+// probe page-change.mjs, which watches the painted frames of a real page change,
+// is what sees it.
 func TestAPageChangePlaysNoAnimation(t *testing.T) {
 	t.Parallel()
-	components := readSheet(t, "components.css")
-	tokens := readSheet(t, "tokens.css")
+	sheets := map[string]string{
+		"components.css": readSheet(t, "components.css"),
+		"tokens.css":     readSheet(t, "tokens.css"),
+		"reset.css":      readSheet(t, "reset.css"),
+	}
 
-	for name, sheet := range map[string]string{"components.css": components, "tokens.css": tokens} {
+	for name, sheet := range sheets {
 		for _, gone := range []string{"y-come-forward", "--dur-arrival", "--ease-arrival", "@view-transition", "data-prerender"} {
 			if strings.Contains(sheet, gone) {
 				t.Errorf("%s still names %q; a page change plays no animation, so nothing of the arrival is left", name, gone)
@@ -107,24 +264,29 @@ func TestAPageChangePlaysNoAnimation(t *testing.T) {
 		}
 	}
 
-	block := regexp.MustCompile(`\.y-(` + contentBlocks + `)$`)
-	var checked int
-	for _, rule := range cssRules(components) {
-		for selector := range strings.SplitSeq(rule.selector, ",") {
-			fields := strings.Fields(strings.TrimSpace(selector))
-			if len(fields) == 0 || !block.MatchString(fields[len(fields)-1]) {
-				continue
-			}
-			checked++
-			for name := range declarations(t, selector, rule.body) {
-				if name == "animation" || strings.HasPrefix(name, "animation-") || name == "transition" || strings.HasPrefix(name, "transition-") {
-					t.Errorf("the rule for %q declares %s; the block of content under the header is painted whole and nothing moves it", strings.TrimSpace(selector), name)
-				}
+	allowed := map[string]map[string]string{}
+	for _, entry := range columnMotionAllowed {
+		if allowed[entry.sheet] == nil {
+			allowed[entry.sheet] = map[string]string{}
+		}
+		allowed[entry.sheet][entry.selector] = entry.properties
+	}
+	for name, sheet := range sheets {
+		found := columnMotion(sheet)
+		for selector, properties := range found {
+			want, ok := allowed[name][selector]
+			switch {
+			case !ok:
+				t.Errorf("%s: the rule for %q declares %s on the column under the header, or on something under one of the blocks pages put in it; a page change plays no animation, so the column is painted whole and nothing moves it. If this is a press's motion and not a page change's, add it to columnMotionAllowed with its reason", name, selector, properties)
+			case want != properties:
+				t.Errorf("%s: the rule for %q declares %s, want %s", name, selector, properties, want)
 			}
 		}
-	}
-	if checked < len(strings.Split(contentBlocks, "|")) {
-		t.Errorf("only %d rules for the content blocks %s were read, so this check read almost none of them", checked, contentBlocks)
+		for selector := range allowed[name] {
+			if _, ok := found[selector]; !ok {
+				t.Errorf("%s: columnMotionAllowed excuses a rule for %q that the sheet no longer has, or that no longer reaches the column", name, selector)
+			}
+		}
 	}
 }
 
