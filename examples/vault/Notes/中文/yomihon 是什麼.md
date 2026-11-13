@@ -1,7 +1,6 @@
 ---
 title: yomihon 是什麼
 type: note
-status: ready
 domain: yomihon
 created: 2026-09-22
 updated: 2026-09-22
@@ -14,6 +13,6 @@ yomihon 把 Markdown 資料夾開成一座本機書庫。每篇筆記有章節�
 
 ## 它不做的事
 
-它不整理或修復檔案，問題如何呈現見 [[診斷只是回報]]。在筆記內，狀態控制只會依操作改寫 `status` 值；正文與其他欄位維持原樣。
+它不整理或修復檔案，問題如何呈現見 [[診斷只是回報]]。它從不寫入書庫：筆記的 frontmatter，包括 `draft` 旗標，只在作者的編輯器裡改動。
 
 伺服器只監聽 `127.0.0.1`。網路與命令列輸出的隱私邊界見 [[Privacy and egress]]。

@@ -1,7 +1,7 @@
 ---
 title: Note template
 type: note
-status: draft
+draft: true
 domain: go
 lang: en
 ---

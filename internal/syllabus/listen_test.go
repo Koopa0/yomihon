@@ -89,7 +89,7 @@ func listenServer(t *testing.T, root string, status syllabus.LessonTypes) *httpt
 		return syllabus.RequestSnapshot{
 			Shell:      nav.Shell{Nav: snap.Navigation(), Governed: true},
 			Generation: snap,
-			Status:     status,
+			Authority:  status,
 		}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)

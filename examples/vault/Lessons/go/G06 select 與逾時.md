@@ -1,7 +1,6 @@
 ---
 title: G06 select 與逾時
 type: lesson
-status: ready
 domain: go
 slug: go-select-timeout
 level: intermediate

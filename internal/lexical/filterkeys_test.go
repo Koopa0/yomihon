@@ -21,7 +21,7 @@ func TestTheFilterKeysOfferedAreTheOnesTheGrammarAccepts(t *testing.T) {
 			t.Errorf("the page offers %q, which the parser does not accept", key)
 		}
 	}
-	for _, key := range []string{"type", "status", "domain", "topic", "slug", "folder"} {
+	for _, key := range []string{"type", "draft", "domain", "topic", "slug", "folder"} {
 		if !isFilterKey(key) {
 			t.Errorf("%q stopped being a filter key; this test's own list is stale", key)
 		}
@@ -48,8 +48,7 @@ func TestEveryFilterKeyTheGrammarAcceptsIsAnswered(t *testing.T) {
 		PathFold:     fold("Writing/lessons/one.md"),
 		NoteType:     "lesson",
 		NoteTypeFold: fold("lesson"),
-		Status:       "ready",
-		StatusFold:   fold("ready"),
+		Draft:        true,
 		Domain:       "japanese",
 		DomainFold:   fold("japanese"),
 		Slug:         "one",
@@ -59,7 +58,7 @@ func TestEveryFilterKeyTheGrammarAcceptsIsAnswered(t *testing.T) {
 	}
 	satisfied := map[string]string{
 		"type":   "lesson",
-		"status": "ready",
+		"draft":  "true",
 		"domain": "japanese",
 		"slug":   "one",
 		"topic":  "kanji",

@@ -1,14 +1,13 @@
 ---
 title: status 的生命週期
 type: note
-status: ready
 domain: yomihon
 created: 2026-09-22
 updated: 2026-09-22
 lang: zh-Hant
 ---
 
-[[知識庫契約]]的每一列 `[[lifecycle]]` 說一個狀態：適用哪些類型、筆記能不能從這裡開始、能從哪些狀態走過來。
+[[知識庫契約]]的每一列 `[[lifecycle]]` 說一個狀態：適用哪些類型、筆記能不能從這裡開始、能從哪些狀態走過來。`yomihon check` 會依它檢查每篇筆記；閱讀頁不印任何狀態。
 
 ```mermaid
 flowchart LR
@@ -27,14 +26,8 @@ flowchart LR
 
 ## published 宣告得出來，卻不會被設定
 
-上圖呈現契約允許的轉換，包含 `ready → published`。即使契約允許這個目標，yomihon 也不會把筆記**設為** `published`：這個值記錄的是在別處發生的發表，閱讀介面無法為它作證。
+上圖呈現契約允許的轉換，包含 `ready → published`。yomihon 不設定任何狀態，`published` 或其他都一樣：它從不寫入書庫，狀態只在作者的編輯器裡改動。
 
-這項限制針對的是轉換的目標，不是已經標為 `published` 的筆記。[[A published note]]（英文）手寫上了這個值；它的狀態面板仍提供 `archived`，因為這份範例契約允許 `published → archived`，上圖也畫出了這條路。其他知識庫能提供哪些後續轉換，要看各自的契約。
+## draft 標出還沒寫完的
 
-## settled 讓完成的筆記不加標記
-
-一列可以寫 `settled = true`。閱讀頁只在筆記不在已定案的狀態時才印出它的 status，所以整座書庫不會滿是標籤，還沒做完的幾篇才看得出來。契約若從不寫這個鍵，每個狀態都照樣標出。
-
-## 一次寫入是什麼
-
-按鈕改寫 frontmatter 的一行。如果檔案在你讀的這段時間裡被改過，這次寫入會被拒絕，不會套在你沒讀過的版本上。
+寫了 `draft: true` 的筆記，會在自己的頁面、側欄與課程上標為草稿。寫完的筆記不加標記，也不需要這個欄位：不寫 `draft` 和寫 `draft: false` 是一樣的。

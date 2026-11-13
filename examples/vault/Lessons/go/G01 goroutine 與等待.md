@@ -1,7 +1,6 @@
 ---
 title: G01 goroutine 與等待
 type: lesson
-status: ready
 domain: go
 slug: go-goroutine-wait
 level: fundamental

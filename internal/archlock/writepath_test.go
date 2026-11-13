@@ -13,18 +13,14 @@ import (
 	"testing"
 )
 
-// yomihon writes in exactly two places, and this file is what holds that
-// number at two.
-//
-// One is the status field inside a note, which internal/status alone rewrites.
-// The other is the reader's own records — the marks a reader keeps and the
-// figures the owner approved — which internal/mark alone writes, in files of
-// yomihon's own outside the vault. Everything else this program does
-// is reading. The sentence the privacy inventory and the threat model both
-// make to a stranger rests on that being true of the code rather than of
-// anyone's memory of it, so the syntax tree is asked directly.
+// yomihon writes in exactly one place, and that place is outside the vault:
+// the reader's own records — the marks a reader keeps and the figures the
+// owner approved — which internal/mark alone writes, in files of yomihon's own
+// under the platform's configuration directory. Nothing writes into a vault.
+// The sentence the privacy inventory and the threat model both make to a
+// stranger rests on that being true of the code rather than of anyone's memory
+// of it, so the syntax tree is asked directly.
 var writingPackages = []string{
-	"internal/status/",
 	"internal/mark/",
 }
 
@@ -36,8 +32,7 @@ var writingPackages = []string{
 // be held to each other's.
 const inventoryFirstTable = "| Data | Where it lives | How long | Who can reach it |"
 
-// marksFileRow is what the inventory has to say about the second written
-// place. The file's own name is the part a person can look for on their disk,
+// marksFileRow is what the inventory has to say about the one written place. The file's own name is the part a person can look for on their disk,
 // so that is what is held here rather than a sentence that can be reworded.
 const marksFileRow = "reader.json"
 
@@ -79,8 +74,8 @@ var methodWrites = []string{
 // platform-specific halves against, and lowLevelPackages are it and the
 // standard library's own. Both reach the filesystem underneath os, so a write
 // spelled through either is a write the check over os alone cannot see — and
-// the two calls that swap a note into place, unix.Renameat2 and
-// unix.RenameatxNp, are exactly that.
+// the calls that swap a file into place, unix.Renameat2 and unix.RenameatxNp,
+// are exactly that.
 const unixPackage = "golang.org/x/sys/unix"
 
 var lowLevelPackages = map[string]bool{unixPackage: true, "syscall": true}
@@ -108,7 +103,7 @@ var lowLevelWriteFamilies = []string{
 // writeFlags are the os constants that make an OpenFile a write.
 var writeFlags = []string{"O_WRONLY", "O_RDWR", "O_CREATE", "O_APPEND", "O_TRUNC"}
 
-// mayWrite reports whether path is one of the two packages allowed to.
+// mayWrite reports whether path is in the one package allowed to write.
 func mayWrite(path string) bool {
 	for _, pkg := range writingPackages {
 		if strings.HasPrefix(path, pkg) {
@@ -361,14 +356,15 @@ func hasPrefixIn(name string, families []string) bool {
 	return false
 }
 
-// TestTheOnlyPlacesProductionCodeWritesAreTheStatusFieldAndTheMarksFile reads
-// every shipped Go file for a spelling that changes the filesystem and permits
-// exactly two packages: the write face that rewrites a note's status line, and
-// the one that keeps the reader's own marks in a file of yomihon's own.
+// TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles reads every
+// shipped Go file for a spelling that changes the filesystem and permits
+// exactly one package: the one that keeps the reader's own marks in files of
+// yomihon's own, outside the vault.
 //
-// A third is what this exists to catch. Nothing else here writes, and the two
-// documents that tell a stranger so are held to the same tree by the check
-// below them.
+// A second is what this exists to catch, and above all one that opens a vault
+// file for writing: yomihon is read-only toward the vault. Nothing else here
+// writes, and the two documents that tell a stranger so are held to the same
+// tree by the check below them.
 //
 // It judges a call rather than a name, unlike the outbound-connection check,
 // because the names here are ordinary English words that appear as methods on
@@ -376,7 +372,7 @@ func hasPrefixIn(name string, families []string) bool {
 // method named Remove on some other type reading as a write; what it buys is
 // that a confined write through an *os.Root, which is how this repository
 // writes, cannot hide behind a receiver.
-func TestTheOnlyPlacesProductionCodeWritesAreTheStatusFieldAndTheMarksFile(t *testing.T) {
+func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 	t.Parallel()
 
 	var found []site
@@ -392,8 +388,8 @@ func TestTheOnlyPlacesProductionCodeWritesAreTheStatusFieldAndTheMarksFile(t *te
 			}
 		}
 	})
-	// Each writing package has to have been seen writing. A walk that reached
-	// neither would report a tree with no writes in it at all, which is the
+	// The writing package has to have been seen writing. A walk that never
+	// reached it would report a tree with no writes in it at all, which is the
 	// one result that would look like success and mean nothing.
 	for _, pkg := range writingPackages {
 		if permitted[pkg] == 0 {
@@ -401,36 +397,34 @@ func TestTheOnlyPlacesProductionCodeWritesAreTheStatusFieldAndTheMarksFile(t *te
 		}
 	}
 	t.Logf("examined the shipped tree and found writes in %d permitted packages: %v", len(permitted), permitted)
-	report(t, "this changes the filesystem, and yomihon writes in exactly two places: a note's status field and the reader's own marks file", found)
+	report(t, "this changes the filesystem, and yomihon writes in exactly one place, outside the vault: the reader's own marks files", found)
 }
 
-// TestOnlyTheWritingPackagesReachTheRawSyscallWrappers is the structural half
-// of the check above, and it exists because the other half is a list of names.
+// TestNoPackageReachesTheRawSyscallWrappers is the structural half of the
+// check above, and it exists because the other half is a list of names.
 //
 // The prefix families are a good list and they are still a list: golang.org/x/
-// sys/unix is a few thousand symbols wide, it grows, and the one that mattered
-// here — RenameatxNp — is a name no general rule would have produced. What can
-// be held without a list is who may reach that package at all, which is the
-// same shape the layering check uses. A package that cannot import it cannot
-// call anything in it, whatever it is called.
+// sys/unix is a few thousand symbols wide, it grows, and a name like
+// RenameatxNp is one no general rule would have produced. What can be held
+// without a list is who may reach that package at all, which is the same shape
+// the layering check uses: nothing does, since the one writing package needs
+// no more than os. A package that cannot import it cannot call anything in it,
+// whatever it is called.
 //
 // syscall is deliberately not held this way. The command reads a termination
 // signal from it and the request-shutdown path reads two errnos, neither of
 // which writes anything, so a ban would refuse honest code; those two are held
 // by the families instead.
-func TestOnlyTheWritingPackagesReachTheRawSyscallWrappers(t *testing.T) {
+func TestNoPackageReachesTheRawSyscallWrappers(t *testing.T) {
 	t.Parallel()
 
 	var found []site
-	reached := 0
+	examined := 0
 	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
+		examined++
 		for _, imp := range file.Imports {
 			canonical, err := strconv.Unquote(imp.Path.Value)
 			if err != nil || canonical != unixPackage {
-				continue
-			}
-			if mayWrite(path) {
-				reached++
 				continue
 			}
 			found = append(found, site{
@@ -440,15 +434,15 @@ func TestOnlyTheWritingPackagesReachTheRawSyscallWrappers(t *testing.T) {
 			})
 		}
 	})
-	if reached == 0 {
-		t.Fatalf("no file was seen importing %s, so this walk never reached the package it is meant to permit", unixPackage)
+	if examined == 0 {
+		t.Fatal("no production file was examined, so this walk proves nothing")
 	}
-	t.Logf("examined the shipped tree and found %d permitted imports of %s", reached, unixPackage)
-	report(t, "only the two packages that write may reach the raw syscall wrappers, whose surface no list of names can cover", found)
+	t.Logf("examined %d shipped files for an import of %s", examined, unixPackage)
+	report(t, "no package may reach the raw syscall wrappers, whose surface no list of names can cover", found)
 }
 
-// TestTheMarksFileIsNamedInThePrivacyInventory holds the second written place
-// to the document a stranger checks the claim against. The code and the
+// TestTheMarksFileIsNamedInThePrivacyInventory holds the one written place to
+// the document a stranger checks the claim against. The code and the
 // sentence about it are edited by different hands on different days, and a
 // file the product writes without the inventory naming it is the one failure
 // this repository has no other way to notice.
@@ -596,7 +590,7 @@ func count(links []sequence.Link, node ast.Node) int {
 		clean: true,
 	},
 	{
-		name: "the repository's own idiom for swapping a file into place",
+		name: "a raw rename that swaps a file into place",
 		path: "internal/report/report.go",
 		src: `package report
 import "golang.org/x/sys/unix"

@@ -42,7 +42,7 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 
 // syllabusHead is the cover: the path kicker, the title, the note's own
 // preface, the derived metarow (how large the course is, how much of it hangs
-// in side branches, how many of its entries are not yet settled), and the one
+// in side branches, how many of its entries are still drafts), and the one
 // verb that opens the course with, where something is marked, the way to hear
 // it. No path dek (subtitle) is rendered: there is no backing field for it, and
 // no data means no render — the same treatment the reading page gives a note's
@@ -68,12 +68,11 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 			}
 			<span>{ figure }</span>
 		}
-		// The exception and not the rule: a course whose entries are all settled
-		// says nothing here, and so does one whose contract settles no status,
-		// because the count would then be every entry.
-		if note := v.UnsettledNote(lang); note != "" {
+		// The exception and not the rule: a course with no draft says nothing
+		// here.
+		if note := v.DraftsNote(lang); note != "" {
 			<span aria-hidden="true">·</span>
-			<span class="y-syl-unsettled" data-course-unsettled>{ note }</span>
+			<span class="y-syl-drafts" data-course-drafts>{ note }</span>
 		}
 	</div>
 	// The ways in belong to a path that has something to walk. The condition is
@@ -285,8 +284,8 @@ templ moduleHeadingContent(sec PathBranchView, lang wording.Lang) {
 // words beside the point are unchanged by it; where the reader stands is not a
 // claim about what they have finished.
 //
-// The status at the row's far end is the exception: a lesson at a settled
-// status prints none. The bookmark beside it is the reader's own, and marks the
+// The draft label at the row's far end is the exception: a finished lesson
+// prints none. The bookmark beside it is the reader's own, and marks the
 // one lesson they left off in.
 templ entryRow(l PathEntryView, lang wording.Lang) {
 	if l.Kind == nav.EntryResolved {
@@ -296,13 +295,13 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 				<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
 				@glossRunIn(l)
 			</span>
-			if l.Kept || l.labelled() {
+			if l.Kept || l.Draft {
 				<span class="y-lesson__aside">
 					if l.Kept {
 						@keptPlace(lang)
 					}
-					if l.labelled() {
-						<span class="ui-status">{ l.Status }</span>
+					if l.Draft {
+						<span class="ui-status">{ wording.Draft.In(lang) }</span>
 					}
 				</span>
 			}

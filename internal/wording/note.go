@@ -1,7 +1,6 @@
 package wording
 
-// The reading page: the article's own furniture, the aids beside it, and the
-// two faces of the status control.
+// The reading page: the article's own furniture and the aids beside it.
 
 // The concept sheet a lesson's wikilinks open.
 var (
@@ -14,6 +13,11 @@ var (
 	RawFile        = both("原始檔", "Raw file")
 	OpenInObsidian = both("在 Obsidian 開啟", "Open in Obsidian")
 )
+
+// Draft marks a note whose author declared draft: true: on its own page, and
+// on the rows of the sidebar and the course that reach it. A finished note is
+// the ordinary state and carries no mark.
+var Draft = both("草稿", "Draft")
 
 // NoteLanguage labels the head's language row: the BCP 47 tag a note declares
 // for its own authored content, distinct from PrefLanguage, which names the
@@ -62,38 +66,15 @@ var (
 	BasedOnNav  = both("這篇聲明的來源", "Sources this note declared")
 )
 
-// The status face: its label, and what it says in each state that offers no
-// control. StatusBar visibly names both the rail and article-end regions, and
-// says whose word the status is: the author's own mark on the note, and nothing
-// the reader has done.
-var (
-	StatusLabel          = both("狀態", "Status")
-	StatusBar            = both("作者標記的狀態", "Status set by the author")
-	WriteFaceUnavailable = both("生命週期寫入目前無法使用。", "Lifecycle writes are unavailable.")
-	// NoFrontmatter is the sentence for a file that has no frontmatter block.
-	// A present but empty fence pair is a block with no status and uses
-	// StatusUnreadable instead — the judge already keeps those shapes apart.
-	NoFrontmatter         = both("沒有 frontmatter（合法）。", "No frontmatter (which is legal).")
-	NoFrontmatterRequired = both("沒有 frontmatter（契約要求必須有）。", "No frontmatter (the contract requires one).")
-	NoLegalTransitions    = both("目前沒有合法的狀態轉換。", "No status transition is legal from here.")
-	FrontmatterNotYAML    = both("frontmatter 不是有效的 YAML。", "The frontmatter is not valid YAML.")
-)
+// FrontmatterNotYAML is the summary for a frontmatter block that is not valid
+// YAML.
+var FrontmatterNotYAML = both("frontmatter 不是有效的 YAML。", "The frontmatter is not valid YAML.")
 
 // FrontmatterUnsupportedYAML names the authored forms that can make the YAML
 // decoder fail at runtime, without quoting its Go implementation details.
 var FrontmatterUnsupportedYAML = both(
 	"frontmatter 使用了 yomihon 讀不進來的 YAML 寫法：合併鍵（<<），或把串列、對應表當作鍵。請直接編輯 frontmatter，改用一般的文字鍵。",
 	"The frontmatter uses a YAML form yomihon cannot read: a merge key (<<), or a list or mapping used as a key. Edit the frontmatter directly to use ordinary text keys.",
-)
-
-// StatusFrontmatterNeverCloses is the status face for a note whose first line
-// opens a frontmatter fence that nothing closes. It is not the sentence for no
-// frontmatter, which says the note is fine: the block is there, only its
-// closing line is not, and the status inside it was never read. It ends on the
-// same open clause the other no-status sentences do, and the door line follows.
-var StatusFrontmatterNeverCloses = both(
-	"frontmatter 沒有結尾的 ---，所以讀不到 status。yomihon 只陳述，不修復；",
-	"The frontmatter has no closing ---, so no status could be read. yomihon reports and never repairs; ",
 )
 
 // FrontmatterNeverCloses is said above the article of a note whose first line
@@ -106,68 +87,6 @@ var FrontmatterNeverCloses = both(
 	"這篇的第一行是 ---，下一行也像欄位，但後面一直沒有結尾的 ---，所以整段 frontmatter 都沒有被讀進來，type、status、slug、domain 都不算。yomihon 只陳述，不修復；請直接編輯檔案，補上結尾的 ---。",
 	"This note opens a frontmatter block on line 1, and the closing --- never comes, so none of its fields were read: not type, status, slug or domain. yomihon reports and never repairs; edit the file and add the closing ---.",
 )
-
-// The way out of a state the interface offers nothing onward from. The second
-// form names the editor link the page already carries.
-var (
-	EditFrontmatterToRecover = both(
-		"要恢復請直接編輯 frontmatter。",
-		"To recover, edit the frontmatter directly.",
-	)
-	EditFrontmatterToRecoverWithLink = both(
-		"要恢復請直接編輯 frontmatter；「在 Obsidian 開啟」就在標題下方。",
-		"To recover, edit the frontmatter directly; \"Open in Obsidian\" is under the title.",
-	)
-)
-
-// What the status face says about a value it cannot rule on. Both end the same
-// way, because the repair is the same one and it is a hand edit.
-var (
-	StatusOutsideList = both(
-		"不在 schema 允許清單中。yomihon 只陳述，不修復；請直接編輯 frontmatter。",
-		"is not in the schema's declared list. yomihon reports and never repairs; edit the frontmatter directly.",
-	)
-	// The three causes are a complete division of what reaches this sentence:
-	// the key is absent, its value is empty or null, or what stands there is not
-	// one value at all — an empty fence pair included, which is a block that
-	// wrote none of those. A single value the note did write and the reader did
-	// not take as text has its own sentence below, because the repair differs —
-	// that note needs quotation marks, and one reaching this needs a status.
-	StatusUnreadable = both(
-		"frontmatter 裡讀不出 status 值（缺少、是空的，或不是單一值）。yomihon 只陳述，不修復；",
-		"No status value could be read from the frontmatter — it is missing, empty, or not a single value. yomihon reports and never repairs; ",
-	)
-	// Said where the note wrote one status value and YAML handed it back as
-	// something other than text: an unquoted date, a number, a boolean. The
-	// judging commands read the same line as the characters the author typed,
-	// so the panel of schema findings under this one quotes the value back.
-	// This sentence is what keeps the two panels describing one field rather
-	// than contradicting each other about whether it is there — which is also
-	// why a list or a mapping is not said this way: nothing quotes those, and
-	// promising a diagnostic that is not there is the same fault reversed.
-	StatusNotText = both(
-		"這篇寫了 status，但那個值不是文字（例如沒加引號的日期或數字），所以這裡拿不到可以判讀的狀態；下面的 schema 診斷引的就是這個值。yomihon 只陳述，不修復；",
-		"This note wrote a status and the value is not text — an unquoted date or number, say — so nothing here can judge by it; the schema diagnostic below quotes the value. yomihon reports and never repairs; ",
-	)
-	StatusValuePrefix = both("狀態值 ", "The status ")
-)
-
-// The two-step confirmation a no-return target carries: what it costs, and
-// the press that accepts it. The cost it names is the reader's own footing —
-// no offered transition leads from there back to the status the note carries
-// now — not whether the destination offers anything onward.
-// Both name the target, so both are formats. Each is split around the value
-// it names, because the value is marked up where it appears and a format
-// string cannot carry an element.
-var (
-	NoReturnTargetBefore = both("設為 ", "After ")
-	NoReturnTargetAfter  = both(" 之後，這裡不再有回到目前狀態的路。", ", this offers no way back to the current status.")
-	ConfirmSetBefore     = both("確認設為 ", "Confirm ")
-	ConfirmSetAfter      = both("", "")
-)
-
-// NoReturnSummaryBefore is the visible action prefix for both control shapes.
-var NoReturnSummaryBefore = both("設為 ", "Set to ")
 
 // How a link that named a section was read, for a link whose base name resolved
 // to nothing. Both carry the two halves, so both are formats.

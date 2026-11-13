@@ -39,7 +39,6 @@ import (
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -153,8 +152,8 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 		"left-open": "Usage: yomihon left-open [--root <dir>] [--format json|human|md]\n" +
 			"\n" +
 			"Lists what you left open in a vault: the locations you marked \"Not sure\n" +
-			"yet\", and the notes of the contract's answer type that are still in an\n" +
-			"initial status — newest first, as the reading desk shows them.\n" +
+			"yet\", and the notes of the contract's answer type that still declare\n" +
+			"draft: true — newest first, as the reading desk shows them.\n" +
 			"\n" +
 			"Marks are kept on this machine, one set per folder, found by the folder's\n" +
 			"path as it is spelled: this reads the set that yomihon serve kept for the\n" +
@@ -399,8 +398,7 @@ func assertHomeUntouched(t *testing.T, home string) {
 // path may write. The invariant is system-level: it is not that each face
 // avoids writing in isolation but that all of them summed do, so the guard
 // lives at the composition point and drives the faces as they are actually
-// wired. The one writing endpoint (POST /status) is deliberately not wired,
-// because writing the single status field is its job.
+// wired.
 func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -427,38 +425,25 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		t.Fatalf("snapshot.New: %v", err)
 	}
 
-	// The writer shares the fixture's contract authority with the snapshot,
-	// but its writing endpoint is deliberately not registered below.
-	writer, err := status.Open(reader, contract, contract.Governance(), slog.New(slog.DiscardHandler))
-	if err != nil {
-		t.Fatalf("status.Open: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := writer.Close(); closeErr != nil {
-			t.Errorf("Writer.Close() error = %v", closeErr)
-		}
-	})
+	authority := func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) }
 	vaultName := shell.VaultName(reader.Name())
 	searchProvider := func() search.RequestSnapshot {
-		authority := writer.Authority()
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority, snap), Status: authority}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap)}
 	}
 	pathProvider := func() syllabus.RequestSnapshot {
 		snap := store.Current().Capture()
-		authority := writer.Authority()
-		return syllabus.RequestSnapshot{Shell: shell.Project(vaultName, authority, snap), Generation: snap, Status: authority}
+		captured := authority()
+		return syllabus.RequestSnapshot{Shell: shell.Project(vaultName, captured, snap), Generation: snap, Authority: captured}
 	}
 
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   func() (mark.Continuation, bool) { return mark.Continuation{}, false },
-		Source:         reader,
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		Log:            log,
+		Continuation: func() (mark.Continuation, bool) { return mark.Continuation{}, false },
+		Source:       reader,
+		Authority:    authority,
+		Snapshot:     store.Current,
+		Log:          log,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	syllabus.New(pathProvider, log).Register(mux)

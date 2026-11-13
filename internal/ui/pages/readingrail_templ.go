@@ -427,17 +427,17 @@ func bookRailItems(rr ReadingRail, c layouts.Chrome, pathRel string, chain []str
 
 // bookRailEntry is one row of the book: a lesson the reader can open, or the
 // words the course lists where nothing could be opened. The title carries
-// whatever language the view holds for it, while the status chip and the
+// whatever language the view holds for it, while the draft chip and the
 // resolution word beside it stay the interface's. Both branches of the row ask
 // the same way, so neither can be left behind; navigation reads a declaration
 // only off a target that resolved, so today the second branch has none to carry.
 //
 // Which row the reader is on is decided where the view is built, so the rail
 // reads the answer rather than working it out a second time from the address.
-// The row the reader is on does not show its status, which the page states
+// The row the reader is on does not show its draft chip, which the page states
 // itself, but where it would print one it still draws the chip hidden so its
-// name wraps where it does on the rows beside it. A lesson at a settled status
-// prints none, and the bookmark marks the one lesson the reader left off in.
+// name wraps where it does on the rows beside it. A finished lesson prints
+// none, and the bookmark marks the one lesson the reader left off in.
 func bookRailEntry(c layouts.Chrome, entry PathEntryView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -558,7 +558,7 @@ func bookRailEntry(c layouts.Chrome, entry PathEntryView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			if entry.labelled() {
+			if entry.Draft {
 				{
 					templ_7745c5c3_ElementWriter := templ_7745c5c3_Buffer
 					templ_7745c5c3_Buffer := templ.GetBuffer()
@@ -600,9 +600,9 @@ func bookRailEntry(c layouts.Chrome, entry PathEntryView) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var25 string
-				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(entry.Status)
+				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(wording.Draft.In(c.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 115, Col: 107}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/readingrail.templ`, Line: 115, Col: 119}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {

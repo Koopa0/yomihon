@@ -23,7 +23,7 @@ import (
 func (h *Handler) thought(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	snap := h.sources.Snapshot().Capture()
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	rel := vault.NormalizeNFC(r.PathValue("path"))
 	role := snap.NavigationRoles().AnswerType()
 	n, ok := readableNote(snap, rel)
@@ -118,14 +118,11 @@ func thoughtMarkdown(contract *schema.Contract, role string, source *snapshot.Re
 	}
 	write("title", title)
 	write("type", role)
-	var initial []string
-	for _, status := range contract.Statuses(role) {
-		if contract.DeclaresInitial(role, status) {
-			initial = append(initial, status)
-		}
-	}
-	if len(initial) == 1 {
-		write("status", initial[0])
+	// A thought starts unfinished: the reader removes the flag in the editor
+	// once it is written, and until then the shelf of what they left open
+	// lists it.
+	if slices.Contains(definition.Fields.Known, schema.DraftField) {
+		b.WriteString(schema.DraftField + ": true\n")
 	}
 	if slices.Contains(definition.Enums.Domain, source.Domain) && !slices.Contains(definition.Fields.DomainExempt, role) {
 		write("domain", source.Domain)

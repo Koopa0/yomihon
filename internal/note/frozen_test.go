@@ -15,11 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -40,20 +38,18 @@ func runningFolder(t *testing.T, root string) *httptest.Server {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
+	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 	h := note.New(&note.Sources{
-		Source:         source,
-		VaultName:      shell.VaultName(source.Name()),
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Log:            log,
+		Source:    source,
+		VaultName: shell.VaultName(source.Name()),
+		Authority: authority,
+		Snapshot:  store.Current,
+
+		Continuation: noMark,
+		Log:          log,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)
-	status.NewHandler(writer, func() nav.Shell { return nav.Shell{} }, log).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 

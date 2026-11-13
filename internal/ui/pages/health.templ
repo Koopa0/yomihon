@@ -43,13 +43,6 @@ type HealthView struct {
 	// separate from Blocked: nothing went wrong reading them, and no later
 	// reading will pick them up as captured notes.
 	Skipped []HealthSkippedSource
-	// StatusOutsideEnum are the notes whose status value is outside their type's
-	// declared list. An empty list renders nothing, the unknowable case
-	// included.
-	StatusOutsideEnum []HealthStatusNote
-	// StatusUnreachable are the notes whose status is in its type's declared
-	// group while no lifecycle row with that status applies to its type.
-	StatusUnreachable []HealthStatusNote
 	// FrontmatterUnreadable are the notes whose frontmatter is not valid YAML,
 	// so nothing they declare could be judged at all.
 	FrontmatterUnreadable []HealthNoteFindings
@@ -79,17 +72,6 @@ type HealthView struct {
 	// request that named none still gets one.
 	Page    PageNumber
 	Sidebar Sidebar
-}
-
-// HealthStatusNote is one note carrying a status its own type never declared,
-// named beside the value and that type. The value is the word the reader has to
-// edit and the type is why it failed, so both travel with the link.
-type HealthStatusNote struct {
-	Note   nav.NoteRef
-	Type   string
-	Status string
-	// AllowedStatuses is this type's vocabulary, absent for non-enum findings.
-	AllowedStatuses []string
 }
 
 // HealthNoteFindings is one note the schema had something to say about: how

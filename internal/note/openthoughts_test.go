@@ -49,16 +49,16 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 			}
 			log := slog.New(slog.DiscardHandler)
 			store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-			writer := openStatusWriter(t, source, nil, schema.Ungoverned())
+			authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 			marks, err := mark.New(t.TempDir(), source.Name())
 			if err != nil {
 				t.Fatal(err)
 			}
 			current := store.Current()
 			handler := note.New(&note.Sources{
-				Source: source, Status: writer.Authority,
-				Snapshot:       func() *snapshot.Generation { return current },
-				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+				Source: source, Authority: authority,
+				Snapshot: func() *snapshot.Generation { return current },
+
 				Continuation: noMark, Uncertainties: marks.Uncertainties,
 				UncertaintyAddress: mark.UncertaintyAddress, Log: log,
 			})
@@ -190,7 +190,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 			}
 			log := slog.New(slog.DiscardHandler)
 			first, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-			writer := openStatusWriter(t, source, nil, schema.Ungoverned())
+			authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 			marks, err := mark.New(t.TempDir(), source.Name())
 			if err != nil {
 				t.Fatal(err)
@@ -198,7 +198,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 			reads := 0
 			second := first
 			handler := note.New(&note.Sources{
-				Source: source, Status: writer.Authority,
+				Source: source, Authority: authority,
 				Snapshot: func() *snapshot.Generation {
 					reads++
 					if tt.advance && reads > 1 {
@@ -206,7 +206,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 					}
 					return first.Current()
 				},
-				ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+
 				Continuation: noMark, Uncertainties: marks.Uncertainties,
 				UncertaintyAddress: mark.UncertaintyAddress, Log: log,
 			})
@@ -287,16 +287,16 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	}
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
-	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
+	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 	marks, err := mark.New(t.TempDir(), source.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
 	current := store.Current()
 	handler := note.New(&note.Sources{
-		Source: source, Status: writer.Authority,
-		Snapshot:       func() *snapshot.Generation { return current },
-		ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt,
+		Source: source, Authority: authority,
+		Snapshot: func() *snapshot.Generation { return current },
+
 		Continuation: noMark, Uncertainties: marks.Uncertainties,
 		UncertaintyAddress: mark.UncertaintyAddress, Log: log,
 	})

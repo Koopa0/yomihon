@@ -1,10 +1,8 @@
 # Loader fixture only — the runtime contract is the real vault's
 # System/schemas/vault-schema.toml (wall 3). A lesson-only slice of the
-# real shape, just enough to give handler_test.go a non-nil contract so
-# WriteClosed is false and the NoFrontmatter/Transitions branch selection
-# in handler.go's show() can actually be exercised (schema.LoadFile is
-# reused as-is; this is not a second schema loader). Mirrors
-# internal/status/testdata/contract.toml.
+# real shape, just enough to give handler_test.go a non-nil contract so the
+# governed branches in handler.go's show() can actually be exercised
+# (schema.LoadFile is reused as-is; this is not a second schema loader).
 schema_version = "1"
 
 [enums]

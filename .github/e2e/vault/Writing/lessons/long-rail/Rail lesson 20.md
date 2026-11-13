@@ -3,6 +3,7 @@ type: lesson
 title: Rail lesson 20
 domain: golang
 status: draft
+draft: true
 slug: rail-lesson-20
 ---
 

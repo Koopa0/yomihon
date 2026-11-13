@@ -150,12 +150,11 @@ func repeatedASCIIFenceDocs() []Document {
 	return docs
 }
 
-// benchDocs is a small fixed corpus spanning a few domains and statuses, with
+// benchDocs is a small fixed corpus spanning a few domains, one draft in three, with
 // the query term present in some notes and absent in others, so matching does
 // real work rather than trivially hitting or missing every entry.
 func benchDocs() []Document {
 	domains := []string{"golang", "japanese", "distributed", "rust", "database"}
-	statuses := []string{"seed", "growing", "evergreen"}
 	bodies := []string{
 		"kafka partitions replicate across brokers for durability",
 		"the kana syllabary maps sounds to written symbols",
@@ -171,7 +170,7 @@ func benchDocs() []Document {
 				Title:     domains[i] + " concept " + string(rune('A'+j)),
 				NoteType:  "concept",
 				Domain:    domains[i],
-				Status:    statuses[j],
+				Draft:     j == 0,
 				Slug:      domains[i] + "-" + string(rune('a'+j)),
 				Topics:    []string{domains[i], "reference"},
 				PlainText: body + " a concept note about " + domains[i],

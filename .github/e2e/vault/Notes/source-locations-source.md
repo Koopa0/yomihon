@@ -3,6 +3,7 @@ title: Source locations source
 type: lesson
 domain: golang
 status: draft
+draft: true
 slug: source-locations-source
 ---
 

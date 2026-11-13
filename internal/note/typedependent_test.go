@@ -52,11 +52,11 @@ func TestTypeDependentNotePage(t *testing.T) {
 	}
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
-	writer := openStatusWriter(t, source, contract, contract.Governance())
+	authority := func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) }
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source: source, Status: writer.Authority, Snapshot: store.Current,
-		ObservedStatus: writer.ObservedStatus, ConsumeReceipt: writer.ConsumeReceipt, Continuation: noMark, Log: log,
+		Source: source, Authority: authority, Snapshot: store.Current,
+		Continuation: noMark, Log: log,
 	}).Register(mux)
 	for _, tt := range []struct {
 		lang   wording.Lang

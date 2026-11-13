@@ -108,8 +108,8 @@ var commandHelp = map[string]string{
 	openCommand: "Usage: yomihon " + openCommand + " [--root <dir>] [--format json|human|md]\n" +
 		"\n" +
 		"Lists what you left open in a vault: the locations you marked \"Not sure\n" +
-		"yet\", and the notes of the contract's answer type that are still in an\n" +
-		"initial status — newest first, as the reading desk shows them.\n" +
+		"yet\", and the notes of the contract's answer type that still declare\n" +
+		"draft: true — newest first, as the reading desk shows them.\n" +
 		"\n" +
 		"Marks are kept on this machine, one set per folder, found by the folder's\n" +
 		"path as it is spelled: this reads the set that yomihon serve kept for the\n" +

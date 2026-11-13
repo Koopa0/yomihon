@@ -1,7 +1,6 @@
 ---
 title: 讀懂 yomihon
 type: study-path
-status: ready
 created: 2026-09-22
 lang: zh-Hant
 ---

@@ -53,11 +53,6 @@ type SearchView struct {
 	// has no column to put them in.
 	Facets []SearchFacet
 
-	// Governed says this generation has a lifecycle contract behind it, which
-	// gates the advice offered when nothing matched: a status filter is only
-	// worth suggesting where statuses exist.
-	Governed bool
-
 	// Sidebar is the resolved left navigation, built where every other page
 	// builds it, so arriving at a search never strands the reader in a
 	// chromeless view.
@@ -65,7 +60,7 @@ type SearchView struct {
 }
 
 // SearchResult is one rendered hit: the entry's path (linked), display title,
-// status, and a context snippet.
+// whether it is a draft, and a context snippet.
 type SearchResult struct {
 	RelPath string
 	Title   string
@@ -73,8 +68,9 @@ type SearchResult struct {
 	// the field authority and the frontmatter carried a valid value. Empty
 	// otherwise, so a listing inherits the page language rather than guessing.
 	Language string
-	Status   string
-	Snippet  string
+	// Draft is whether the note declares itself unfinished.
+	Draft   bool
+	Snippet string
 
 	// SnippetRuns is the snippet cut into the stretches that matched the query
 	// and the stretches that did not, so the page can mark the words the reader
@@ -101,14 +97,9 @@ type SearchResult struct {
 	// TagRuns names the frontmatter tag that answered a tag-only query.
 	TagRuns []SnippetRun
 
-	// File marks a hit that is a vault file rather than a note, named on the row
-	// so a missing status does not read as a note's status gone missing.
+	// File marks a hit that is a vault file rather than a note, named on the
+	// row so it does not read as a note.
 	File bool
-
-	// StatusOutsideEnum marks a hit whose status value the contract does not
-	// declare for this note's type, so a value nothing allows does not look
-	// exactly like one everything does.
-	StatusOutsideEnum bool
 
 	// Landing is the first-block stretch a browser text directive can find
 	// for a body hit. Empty when the row has no body match, or when a
@@ -198,11 +189,6 @@ type SearchFacetRow struct {
 	// Active marks a value the current query already names, whose row leads
 	// back out of it rather than further in.
 	Active bool
-
-	// OutsideEnum marks a value no note type carrying it declares, so a value
-	// nothing allows does not look exactly like one everything does. It is the
-	// same verdict the result rows wear, reached the same way.
-	OutsideEnum bool
 
 	// Unstated marks the row standing for the hits that declared no value for
 	// this key. It is kept off the values rather than sorted among them,
@@ -318,12 +304,9 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 									} else {
 										{ r.RelPath }
 									}
-									if r.Status != "" {
+									if r.Draft {
 										<span class="y-result__sep" aria-hidden="true">·</span>
-										{ r.Status }
-										if r.StatusOutsideEnum {
-											@statusOutsideEnumMark(lang)
-										}
+										{ wording.Draft.In(lang) }
 									}
 									if r.File {
 										<span class="y-result__sep" aria-hidden="true">·</span>
@@ -402,11 +385,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 							}
 						</p>
 					}
-					if v.Governed {
-						<p class="y-nothing__hint">{ wording.SearchScopeHintWithStatus.In(lang) }<code>status:draft</code>{ wording.SearchScopeHintAfterCommand.In(lang) }</p>
-					} else {
-						<p class="y-nothing__hint">{ wording.SearchScopeHint.In(lang) }</p>
-					}
+					<p class="y-nothing__hint">{ wording.SearchScopeHint.In(lang) }</p>
 				}
 			} else {
 				// Nothing has been asked yet, and a blank page is the one moment
@@ -504,9 +483,6 @@ templ searchFacets(facets []SearchFacet, lang wording.Lang) {
 // arms above cannot drift into showing different things.
 templ facetRowBody(row SearchFacetRow, lang wording.Lang) {
 	<span class="y-facetrow__label">{ row.Label }</span>
-	if row.OutsideEnum {
-		@statusOutsideEnumMark(lang)
-	}
 	<span class="y-facetrow__count" data-facet-count={ strconv.Itoa(row.Count) }>
 		{ fmt.Sprintf(wording.FacetCountFmt.In(lang), row.Count) }
 	</span>

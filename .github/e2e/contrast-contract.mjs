@@ -933,7 +933,7 @@ try {
     await context.close();
   }
 
-  // The quiet word a course row prints beside a lesson that is not yet settled,
+  // The quiet word a course row prints beside a lesson that is still a draft,
   // and the link back to the place the reader kept, each wearing the production
   // classes. The row is read idle and under the hover wash it is painted over;
   // the link on the raised panel the desk gives it.
@@ -944,7 +944,7 @@ try {
     if (!response || response.status() !== 200) broken(`status fixture navigation returned ${response?.status() ?? 'no response'}, want 200`);
 
     proveApplied('status-label-aa', 'status');
-    const row = '<a class="y-lesson" href="#"><span class="y-navdot" aria-hidden="true"></span><span class="y-lesson__title">Alpha</span><span class="y-lesson__aside"><span class="ui-status">draft</span></span></a>';
+    const row = '<a class="y-lesson" href="#"><span class="y-navdot" aria-hidden="true"></span><span class="y-lesson__title">Alpha</span><span class="y-lesson__aside"><span class="ui-status">草稿</span></span></a>';
     for (const theme of ['light', 'dark']) {
       const result = await measurePlanted(page, theme, row, '.ui-status', ['--overlay']);
       if (result.issue) broken(`status label ${theme}: ${result.issue}`);

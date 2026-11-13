@@ -17,18 +17,18 @@ import (
 func aliasServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Concepts/Goroutine.md", Title: "Goroutine", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Goroutine.md", Title: "Goroutine", NoteType: "concept", Draft: true,
 			Aliases: []string{"green thread"}, PlainText: "a unit of concurrency"},
-		{RelPath: "Concepts/Pointer.md", Title: "Pointer", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Pointer.md", Title: "Pointer", NoteType: "concept", Draft: true,
 			Aliases: []string{"指標"}, PlainText: "an address held as a value"},
-		{RelPath: "Concepts/Kana.md", Title: "Kana", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Kana.md", Title: "Kana", NoteType: "concept", Draft: true,
 			Aliases: []string{"かな"}, PlainText: "a syllabary"},
-		{RelPath: "Concepts/Plain.md", Title: "Plain", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Plain.md", Title: "Plain", NoteType: "concept", Draft: true,
 			PlainText: "no alias at all"},
 		// Two names, and the query names the second: with one alias apiece,
 		// "the name that matched" and "the first name" are the same string,
 		// and a row that always showed the first would look correct.
-		{RelPath: "Concepts/Several.md", Title: "Several", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Several.md", Title: "Several", NoteType: "concept", Draft: true,
 			Aliases: []string{"first name", "second name"}, PlainText: "unrelated"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
@@ -120,9 +120,9 @@ func TestAnAliasHitRanksWithTheTitleItStandsFor(t *testing.T) {
 	t.Parallel()
 
 	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Concepts/Mentions.md", Title: "Mentions", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Mentions.md", Title: "Mentions", NoteType: "concept", Draft: true,
 			PlainText: "this body happens to say green thread in passing"},
-		{RelPath: "Concepts/Named.md", Title: "Named", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Named.md", Title: "Named", NoteType: "concept", Draft: true,
 			Aliases: []string{"green thread"}, PlainText: "unrelated words"},
 	}, validArtifactPolicy(t))
 

@@ -10,37 +10,17 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-func lifecycleView(t *testing.T, contract *schema.Contract) status.Authority {
+func lifecycleView(t *testing.T, contract *schema.Contract) schema.Authority {
 	t.Helper()
 	return governedLifecycleView(t, contract, contract.Governance())
 }
 
-func governedLifecycleView(t *testing.T, contract *schema.Contract, governance schema.Governance) status.Authority {
+func governedLifecycleView(t *testing.T, contract *schema.Contract, governance schema.Governance) schema.Authority {
 	t.Helper()
-	root := t.TempDir()
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open(%q) error = %v", root, err)
-	}
-	t.Cleanup(func() {
-		if closeErr := reader.Close(); closeErr != nil {
-			t.Errorf("Reader.Close() error = %v", closeErr)
-		}
-	})
-	lifecycle, err := status.Open(reader, contract, governance, slog.New(slog.DiscardHandler))
-	if err != nil {
-		t.Fatalf("status.Open(%q) error = %v", root, err)
-	}
-	t.Cleanup(func() {
-		if closeErr := lifecycle.Close(); closeErr != nil {
-			t.Errorf("Lifecycle.Close() error = %v", closeErr)
-		}
-	})
-	return lifecycle.Authority()
+	return schema.CaptureAuthority(contract, governance)
 }
 
 func snapshotView(t *testing.T, contract *schema.Contract, notes map[string]string) *snapshot.Generation {
@@ -139,7 +119,7 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 
 	tests := []struct {
 		name      string
-		lifecycle status.Authority
+		lifecycle schema.Authority
 		snap      *snapshot.Generation
 	}{
 		{name: "lifecycle", lifecycle: unreadable, snap: openSnapshot},

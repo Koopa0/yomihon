@@ -2,6 +2,7 @@
 title: Mark anchor bounds
 type: note
 status: draft
+draft: true
 ---
 
 Before the first accepted position. ^before/start?position

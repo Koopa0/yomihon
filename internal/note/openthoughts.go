@@ -2,7 +2,6 @@ package note
 
 import (
 	"cmp"
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -26,50 +25,39 @@ type openThoughtRow struct {
 func (h *Handler) openThoughts(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	snap := h.sources.Snapshot().Capture()
-	shelf, fault := h.openThoughtShelf(r.Context(), snap, lang, 0)
+	shelf, fault := h.openThoughtShelf(snap, lang, 0)
 	view := pages.ListIndexView{Mode: "open-thoughts", Count: shelf.Count, Notice: fault, Shelf: shelf}
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write open thoughts", "error", err)
 	}
 }
 
-// openThoughtCandidate is one row that may be shown. rel is set for a note,
-// whose declared status is confirmed against the file only if the row is shown.
+// openThoughtCandidate is one row that may be shown: a note, or a marked
+// location still to be resolved against the generation.
 type openThoughtCandidate struct {
 	openThoughtRow
 
-	rel  string
 	kept *snapshot.OpenMark
 }
 
-// openThoughtShelf interleaves marks with notes in the declared role's initial
-// stages. Candidates come from the snapshot alone; a live status read then
-// confirms only the note rows actually shown, so a note the existing writer
-// just moved on leaves the list at once without every request parsing every
-// note of the role. limit bounds the rows returned; zero means all of them.
-// The count is the snapshot's, less any candidate the live read removed.
-func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generation, lang wording.Lang, limit int) (shelf pages.Shelf, fault string) {
-	contract := h.sources.Contract
-	role := snap.NavigationRoles().AnswerType()
-	var initial []string
-	for _, status := range contract.Statuses(role) {
-		if role != "" && contract.DeclaresInitial(role, status) {
-			initial = append(initial, status)
-		}
-	}
+// openThoughtShelf interleaves marks with the declared role's notes that still
+// declare draft: true, all read from one snapshot. limit bounds the rows
+// returned; zero means all of them.
+//
+// A vault whose contract declares the role says so in the lede, and the count
+// beside the title states an empty shelf; one that does not keeps the
+// marks-only sentences.
+func (h *Handler) openThoughtShelf(snap *snapshot.Generation, lang wording.Lang, limit int) (shelf pages.Shelf, fault string) {
 	shelf = pages.Shelf{
 		Title: wording.OpenThoughtsTitle.In(lang), Href: openThoughtsAddress,
 		Lede: wording.OpenThoughtsMarksLede.In(lang), Empty: wording.OpenThoughtsMarksEmpty.In(lang),
 	}
-	if len(initial) > 0 {
-		stages := strings.Join(initial, wording.ListSeparator.In(lang))
-		shelf.Lede = fmt.Sprintf(wording.OpenThoughtsLedeFmt.In(lang), role, stages)
-		shelf.Empty = fmt.Sprintf(wording.OpenThoughtsEmptyFmt.In(lang), role, stages)
+	if snap.NavigationRoles().AnswerType() != "" {
+		shelf.Lede, shelf.Empty = wording.OpenThoughtsLede.In(lang), ""
 	}
 	candidates, fault := h.openCandidates(snap, lang)
-	rows, total, readFault := h.confirmOpenRows(ctx, candidates, role, limit, lang, newPlaceResolver(snap))
-	shelf.Rows = rows
-	fault = cmp.Or(readFault, fault)
+	shelf.Rows = openRows(candidates, limit, lang, newPlaceResolver(snap))
+	total := len(candidates)
 	if fault == "" {
 		count := wording.OpenThoughtsCount
 		if total == 1 {
@@ -87,10 +75,6 @@ func (h *Handler) openThoughtShelf(ctx context.Context, snap *snapshot.Generatio
 // selection of open items, already in shelf order. Mark identities remain
 // candidates even when their note or place is gone. The fault is set when the
 // mark file cannot be read.
-//
-// A note's snapshot status selects it, so a note moved back to an initial
-// status reappears only after the next scan (at most one scan interval); a
-// move out of one removes it at once through the live read.
 func (h *Handler) openCandidates(snap *snapshot.Generation, lang wording.Lang) (candidates []openThoughtCandidate, fault string) {
 	var marks []snapshot.OpenMark
 	if h.sources.Uncertainties != nil {
@@ -100,12 +84,12 @@ func (h *Handler) openCandidates(snap *snapshot.Generation, lang wording.Lang) (
 		}
 		marks = OpenMarks(kept)
 	}
-	for _, item := range snap.OpenItems(h.sources.Contract, marks) {
+	for _, item := range snap.OpenItems(marks) {
 		if item.Mark != nil {
 			candidates = append(candidates, openThoughtCandidate{at: item.At, kept: item.Mark})
 			continue
 		}
-		candidates = append(candidates, openThoughtCandidate{openThoughtRow: openNoteRow(item.Note, snap), rel: item.Note.RelPath})
+		candidates = append(candidates, openThoughtCandidate{openThoughtRow: openNoteRow(item.Note, snap)})
 	}
 	return candidates, fault
 }
@@ -119,27 +103,13 @@ func OpenMarks(kept []mark.Uncertainty) []snapshot.OpenMark {
 	return marks
 }
 
-// confirmOpenRows walks the sorted candidates and returns up to limit rows
-// (all when limit is zero), reading the live status of each note row it is
-// about to show. total is the candidate count less any note the live read
-// removed or could not read; a candidate past the limit is counted as it stands.
-func (h *Handler) confirmOpenRows(ctx context.Context, candidates []openThoughtCandidate, role string, limit int, lang wording.Lang, places *placeResolver) (rows []pages.Row, total int, fault string) {
-	total = len(candidates)
+// openRows projects the sorted candidates into up to limit rows, all of them
+// when limit is zero.
+func openRows(candidates []openThoughtCandidate, limit int, lang wording.Lang, places *placeResolver) []pages.Row {
+	var rows []pages.Row
 	for i := range candidates {
 		if limit > 0 && len(rows) >= limit {
 			break
-		}
-		if rel := candidates[i].rel; rel != "" {
-			status, err := h.sources.ObservedStatus(ctx, rel)
-			if err != nil {
-				fault = wording.OpenThoughtsReadFailed.In(lang)
-				total--
-				continue
-			}
-			if !h.sources.Contract.DeclaresInitial(role, status) {
-				total--
-				continue
-			}
 		}
 		row := candidates[i].row
 		if candidates[i].kept != nil {
@@ -147,7 +117,7 @@ func (h *Handler) confirmOpenRows(ctx context.Context, candidates []openThoughtC
 		}
 		rows = append(rows, row)
 	}
-	return rows, total, fault
+	return rows
 }
 
 func openNoteRow(reading *snapshot.Reading, snap *snapshot.Generation) openThoughtRow {

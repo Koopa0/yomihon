@@ -54,28 +54,23 @@ func TestNewIndexRealVault(t *testing.T) {
 		t.Fatal("NewIndex() produced an empty real-vault index")
 	}
 
-	counts, err := idx.CountByTypeStatus()
-	indexedByStatus := 0
+	drafts, err := idx.Search(Parse(DraftFilterKey+":true"), 0)
 	if policy.Available() {
 		if err != nil {
-			t.Fatal("CountByTypeStatus() failed with an available artifact policy")
+			t.Fatal("a draft search failed with an available artifact policy")
 		}
-		for _, count := range counts {
-			indexedByStatus += count
-		}
-		if indexedByStatus > idx.Len() {
-			t.Errorf("metadata-capable notes = %d, want at most %d", indexedByStatus, idx.Len())
+		if drafts.Total > idx.Len() {
+			t.Errorf("drafts = %d, want at most %d", drafts.Total, idx.Len())
 		}
 	} else if !errors.Is(err, ErrMetadataUnavailable) {
-		t.Fatal("CountByTypeStatus() did not fail closed with an unavailable artifact policy")
+		t.Fatal("a draft search did not fail closed with an unavailable artifact policy")
 	}
 
 	t.Logf(
-		"real-vault aggregate: notes=%d artifact_available=%t metadata_notes=%d type_status_pairs=%d",
+		"real-vault aggregate: notes=%d artifact_available=%t drafts=%d",
 		idx.Len(),
 		policy.Available(),
-		indexedByStatus,
-		len(counts),
+		drafts.Total,
 	)
 }
 

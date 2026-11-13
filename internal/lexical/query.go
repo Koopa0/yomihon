@@ -7,6 +7,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -73,34 +74,35 @@ const (
 	filterPath
 )
 
-// StatusFilterKey is the key a status filter is written with. It is exported
-// because a page builds that query for a reader — the lifecycle squares link to
-// one — and a page spelling it itself would keep working until this table
-// renamed the key, at which point the reader would follow a link into the
-// search's own "I do not recognise that filter" answer.
-const StatusFilterKey = "status"
+// DraftFilterKey is the key the draft filter is written with: draft:true
+// keeps the notes that declare draft: true, draft:false the rest. It is
+// exported because a page writes that query out for a reader, and a page
+// spelling it itself would keep working until this table renamed the key, at
+// which point the reader would follow it into the search's own "I do not
+// recognise that filter" answer.
+const DraftFilterKey = schema.DraftField
 
 // filterKeys is the grammar: every key a filter may be written with, and the
 // capability each asks of an entry. It is a table rather than a switch because
 // the page that repairs a mistyped filter has to offer this exact set.
 var filterKeys = map[string]filterKind{
-	"type":          filterMetadata,
-	StatusFilterKey: filterMetadata,
-	"domain":        filterMetadata,
-	"topic":         filterMetadata,
-	"slug":          filterMetadata,
-	"folder":        filterPath,
+	"type":         filterMetadata,
+	DraftFilterKey: filterMetadata,
+	"domain":       filterMetadata,
+	"topic":        filterMetadata,
+	"slug":         filterMetadata,
+	"folder":       filterPath,
 }
 
 // facetKeys are the keys an answer is divided along, in the order a reader
 // meets them. It stands beside the grammar table because a key can only be
 // offered as a division of an answer if the grammar accepts it as a filter,
 // and because what keeps the list this short is size rather than any property
-// of the vocabulary: a note declares one type, one status and one domain,
+// of the vocabulary: a note declares one type and one domain,
 // while it may declare many topics and lives at one of hundreds of addresses,
 // and a column of two hundred subjects narrows nothing. A test holds this set
 // inside the grammar's own.
-var facetKeys = []string{StatusFilterKey, "type", "domain"}
+var facetKeys = []string{"type", "domain"}
 
 // classifyFilterKey is the shared grammar and capability classification for
 // structured filters. Every recognized key receives a capability kind here.
@@ -389,7 +391,7 @@ func WithoutFilter(raw string, f Filter) string {
 
 // filterValuesEqual reports whether two values written for the same key name
 // the same constraint. The comparison is the one matching makes, so a link
-// removing "status:Draft" removes the "status:draft" a reader typed: both were
+// removing "type:Lesson" removes the "type:lesson" a reader typed: both were
 // asking the index the same question. A folder value is the exception the
 // matcher already carries — it is compared a directory name at a time, so the
 // as-written spellings are what stand here.

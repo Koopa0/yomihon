@@ -1,7 +1,6 @@
 package note
 
 import (
-	"maps"
 	"net/http"
 	"slices"
 	"time"
@@ -10,11 +9,9 @@ import (
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
-	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // shelfRecentLimit keeps the recent list a trailhead rather than another browse
@@ -27,7 +24,7 @@ const shelfRecentLimit = 7
 // closed.
 func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	// The names and counts below and the language each row is declared in come
 	// from this one reading of the published pointer. Taken twice, a rebuild
 	// between them puts one note's title beside another version's language, and
@@ -51,151 +48,36 @@ func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 // folder reading remain available in every contract state.
 func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	model := pageShell.Nav
-	lifecycle, unstated, lifecycleClosed := h.lifecycle(authority, snap, lang)
-	// The distribution is derived from the write authority while the counts
-	// under it come from the snapshot's own artifact sample, and the two are
-	// taken at different instants. This does not fire today: the request-local
-	// view binds its policy and its search index to one authority, so the count
-	// refuses first and closes the block on the way out. It stands as the guard
-	// for the day that binding is loosened, and the binding itself is what the
-	// snapshot package pins.
-	if !lifecycleClosed && !snap.ArtifactPolicy().Trustworthy() {
-		lifecycle = nil
-		lifecycleClosed = true
-	}
 	// The recent list is plain reading — scanner-captured names and times — so
 	// no closure gates it: the navigation model builds it in every contract
 	// state, degraded to the all-inclusive, layer-citation-free answer when a
 	// declaration could not be honoured.
 	articleLang := articleLanguageLookup(snap)
-	recent, recentOrdered := recentShelfNotes(model.KnowledgeNotes(), pageShell.Governed, authority, articleLang)
+	recent, recentOrdered := recentShelfNotes(model.KnowledgeNotes(), articleLang)
 
 	view := pages.NewFolderIndex(model, pages.ContractStateFrom(pageShell.Governed, snap), lang, articleLang)
-	// Two of the three causes the desk states can empty or degrade something
-	// drawn here: the write authority closes the distribution, and the artifact
-	// policy closes it too and takes the knowledge layer off the recent list.
+	// Two of the three causes the desk states can degrade something drawn
+	// here: the contract and the artifact policy, which takes the knowledge
+	// layer off the recent list.
 	// The navigation declaration is not one of them — the roles it carries
 	// decide which notes are courses and maps, and this page draws neither — so
 	// stating it here would hand the reader a fault about another page.
 	view.Fault = statedOnce(
-		authority.Diagnostic(lang),
+		authority.Diagnostic(),
 		model.ArtifactClosure().Diagnostic(),
 	)
 	recentBlock := pages.NewRecentBlock(recent, recentOrdered, model.KnowledgeScoped(), lang)
 	// The recent list is never withheld, only reworded — it is plain reading,
 	// and the block it is built into degrades its own sentence rather than
-	// disappearing. A distribution is drawn only where this page can stand
-	// behind every number in it: an ungoverned folder has no vocabulary to
-	// group by, and a closed one has a vocabulary yomihon could not read.
-	var distribution pages.StatusDistribution
-	if pageShell.Governed && !lifecycleClosed {
-		distribution = pages.NewStatusDistribution(lifecycle, unstated, model.KnowledgeScoped(), lang)
-	}
+	// disappearing.
 	chrome := layouts.ChromeFromRequest(r, view.Shelf.Title)
-	if err := pages.FolderIndex(view, recentBlock, distribution, chrome).Render(r.Context(), w); err != nil {
+	if err := pages.FolderIndex(view, recentBlock, chrome).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write folder index", "error", err)
 	}
-}
-
-// lifecycle assembles the distribution block: the vault's status distribution,
-// one entry per status at least one note currently carries, in the contract's
-// toml order. A closed result means the block was withheld — the vault declared
-// a vocabulary yomihon could not read — never that the vault has no statuses. A
-// vault whose notes carry none yields an open, empty block.
-func (h *Handler) lifecycle(
-	authority status.Authority,
-	snap *snapshot.Generation,
-	lang wording.Lang,
-) (items, unstated []pages.LifecycleItem, closed bool) {
-	if !authority.Governed() {
-		return nil, nil, false
-	}
-	if authority.Closed() {
-		return nil, nil, true
-	}
-	counts, err := snap.Search().CountByTypeStatus()
-	if err != nil {
-		return nil, nil, true
-	}
-	// The block states what the notes carry and claims nothing more: owner
-	// lists play no part, and a terminal status with notes at it is as much a
-	// fact of the vault as any other — a distribution that hid a bucket would
-	// disagree with its own total. Every indexed note is accounted for,
-	// including the ones holding no status at all: they leave this loop and
-	// arrive in the two cells below, which are kept apart from the statuses
-	// because neither of them is one.
-	byStatus := make(map[string]int, len(counts))
-	// declared records whether some type carrying the status declares it. A
-	// status no carrier declares is outside every relevant enum, and its chip
-	// says so with the note page's own flag instead of passing as vocabulary.
-	declared := make(map[string]bool, len(counts))
-	// Notes with no readable status used to leave the block entirely, which is
-	// how a distribution came to disagree with the number of notes it claimed
-	// to be a distribution of. They are counted here and given their own two
-	// cells below.
-	withoutStatus := 0
-	for ts, n := range counts {
-		if ts.Status == "" {
-			withoutStatus += n
-			continue
-		}
-		byStatus[ts.Status] += n
-		if authority.KnownStatus(ts.Type, ts.Status) {
-			declared[ts.Status] = true
-		}
-	}
-	items = make([]pages.LifecycleItem, 0, len(byStatus))
-	add := func(s string) {
-		items = append(items, pages.LifecycleItem{
-			Name:    s,
-			Count:   byStatus[s],
-			Unknown: !declared[s],
-		})
-	}
-	for _, s := range authority.Order() {
-		if byStatus[s] == 0 {
-			continue
-		}
-		add(s)
-		delete(byStatus, s)
-	}
-	// Whatever is still here sits at a value the default vocabulary does not
-	// list: the contract routes that kind of note to another group of statuses,
-	// or the note carries a value no group declares at all. The total above
-	// counted those notes, so leaving them out is exactly how a number stops
-	// agreeing with its own breakdown. Nothing declares an order across groups,
-	// so they follow in a stable one.
-	for _, s := range slices.Sorted(maps.Keys(byStatus)) {
-		add(s)
-	}
-	// The notes with no readable status divide in two, and the division
-	// matters to a reader: one kind cannot be judged at all until its
-	// frontmatter is repaired, the other declared no status and may be
-	// perfectly entitled not to. Both counts come from the index that produced
-	// the tally above, so the cells add up to the notes it counted rather than
-	// to a second reckoning of the folder.
-	unreadable, err := snap.Search().CountUnreadableFrontmatter()
-	if err != nil {
-		return items, nil, false
-	}
-	if unreadable > 0 {
-		unstated = append(unstated, pages.LifecycleItem{
-			Label: wording.LifecycleUnreadable.In(lang),
-			Count: unreadable,
-			Href:  "/health",
-		})
-	}
-	// The rest declared no status at all. The cell takes its words from where a
-	// blank status has always taken them, which is a sentence this product
-	// already wrote for exactly this square and then stopped reaching.
-	if declaredNone := withoutStatus - unreadable; declaredNone > 0 {
-		unstated = append(unstated, pages.LifecycleItem{Count: declaredNone})
-	}
-	return items, unstated, false
 }
 
 // recentShelfNotes selects the newest knowledge notes from the snapshot's
@@ -211,11 +93,8 @@ func (h *Handler) lifecycle(
 // give.
 func recentShelfNotes(
 	notes []nav.NoteSummary,
-	governed bool,
-	authority status.Authority,
 	articleLang pages.ArticleLanguageFor,
 ) (recent []pages.HomeNote, ordered bool) {
-	rules := !authority.Closed()
 	notes = slices.Clone(notes)
 	slices.SortStableFunc(notes, func(a, b nav.NoteSummary) int {
 		switch {
@@ -239,20 +118,9 @@ func recentShelfNotes(
 
 	out := make([]pages.HomeNote, 0, len(notes))
 	for _, n := range notes {
-		item := pages.HomeNote{Title: n.Title, RelPath: n.RelPath, Type: n.Type}
+		item := pages.HomeNote{Title: n.Title, RelPath: n.RelPath, Type: n.Type, Draft: n.Draft}
 		if articleLang != nil {
 			item.Language = articleLang(n.RelPath)
-		}
-		// A status chip names a value from a declared vocabulary. Without a
-		// contract there is no vocabulary, so raw frontmatter text is not
-		// dressed up as a lifecycle state — and a view that holds no
-		// vocabulary rules on nothing rather than calling every value a fault.
-		if governed {
-			item.Status = n.Status
-			item.Settled = n.Settled
-			if rules && n.Status != "" {
-				item.StatusOutsideEnum = !authority.KnownStatus(n.Type, n.Status)
-			}
 		}
 		if !n.Modified.IsZero() {
 			item.Modified = n.Modified.Format("2006-01-02")

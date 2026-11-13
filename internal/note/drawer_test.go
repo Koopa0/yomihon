@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -251,25 +249,6 @@ func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
 	if strings.Contains(body, "Planned concept") {
 		t.Errorf("the health page reports a planned name as a fault; body = %q", body)
 	}
-}
-
-// healthKindCount is the number the guide under the findings table gives for
-// one kind of finding. The guide is where the page states how much of a kind
-// there is, and it counts the table's own rows, so a number that disagrees
-// with the lines under it is the disagreement worth catching.
-func healthKindCount(t *testing.T, page, title string) int {
-	t.Helper()
-	stated := regexp.MustCompile(`<dt class="y-findingsguide__term">\s*` + regexp.QuoteMeta(title) +
-		`\s*<span class="ui-navitem__count">(\d+)</span>`)
-	match := stated.FindStringSubmatch(page)
-	if match == nil {
-		t.Fatalf("the findings guide states no number for %q", title)
-	}
-	count, err := strconv.Atoi(match[1])
-	if err != nil {
-		t.Fatalf("the findings guide states %q for %q, which is no number: %v", match[1], title, err)
-	}
-	return count
 }
 
 // healthSectionBody returns every row of the health page's findings table that

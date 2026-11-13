@@ -138,7 +138,7 @@ func describeGroups(b *strings.Builder, groups []*PathGroup, indent string) {
 			switch {
 			case item.Entry != nil:
 				e := item.Entry
-				fmt.Fprintf(b, "%s e:%s|%s|%s|%s\n", indent, e.Name, e.Target, e.RelPath, e.Status)
+				fmt.Fprintf(b, "%s e:%s|%s|%s|%t\n", indent, e.Name, e.Target, e.RelPath, e.Draft)
 				for _, c := range e.Candidates {
 					fmt.Fprintf(b, "%s  c:%s\n", indent, c)
 				}

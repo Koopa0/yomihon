@@ -7,7 +7,6 @@ package lexical
 
 import (
 	"errors"
-	"iter"
 	"path"
 	"slices"
 	"strings"
@@ -126,8 +125,9 @@ type Document struct {
 	Title    string
 	NoteType string
 	Domain   string
-	Status   string
-	Slug     string
+	// Draft is whether the note declares draft: true.
+	Draft bool
+	Slug  string
 	// Topics are the subjects the note declared. A bare token reaches them
 	// the way it reaches an alias: leaving them out made a note findable by
 	// fewer names than it follows.
@@ -169,11 +169,6 @@ type Document struct {
 	// marks nothing.
 	OutsideKnowledge bool
 
-	// FrontmatterUnreadable marks a note whose frontmatter was there and could
-	// not be parsed, which is not the same as a note that declares nothing. Both
-	// arrive with every field empty, and only this tells them apart.
-	FrontmatterUnreadable bool
-
 	// Language is the note's own declared BCP 47 tag when the contract gave
 	// the field authority and the frontmatter carried a valid value. Empty
 	// otherwise, so a listing inherits the page language rather than guessing.
@@ -201,8 +196,7 @@ type entry struct {
 	NoteTypeFold string
 	Domain       string
 	DomainFold   string
-	Status       string
-	StatusFold   string
+	Draft        bool
 	Slug         string
 	SlugFold     string
 	// Topics are the note's declared subjects, held as written. TopicFolds
@@ -223,10 +217,6 @@ type entry struct {
 	isFile            bool
 	outsideKnowledge  bool
 	metadataCapable   bool
-	// frontmatterUnreadable records that this note had a frontmatter block that
-	// could not be parsed, so a tally can separate it from a note that declared
-	// nothing.
-	frontmatterUnreadable bool
 
 	// language is the note's declared article language, carried into results
 	// so a listing can stamp title and snippet without re-reading frontmatter.
@@ -321,7 +311,6 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 	plainFold, fenceFoldRanges := foldPlain(plain, fenceRanges)
 	noteType := vault.NormalizeNFC(d.NoteType)
 	domain := vault.NormalizeNFC(d.Domain)
-	status := vault.NormalizeNFC(d.Status)
 	slug := vault.NormalizeNFC(d.Slug)
 	topics := make([]string, len(d.Topics))
 	topicFolds := make([]string, len(d.Topics))
@@ -352,8 +341,7 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		NoteTypeFold:      fold(noteType),
 		Domain:            domain,
 		DomainFold:        fold(domain),
-		Status:            status,
-		StatusFold:        fold(status),
+		Draft:             d.Draft,
 		Slug:              slug,
 		SlugFold:          fold(slug),
 		Topics:            topics,
@@ -373,9 +361,8 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		// An unclaimed policy excludes nothing, so every readable note answers over
 		// its own raw frontmatter. A file has no frontmatter, so it answers no
 		// metadata projection under any policy.
-		metadataCapable:       !d.File && policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
-		frontmatterUnreadable: d.FrontmatterUnreadable,
-		language:              d.Language,
+		metadataCapable: !d.File && policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
+		language:        d.Language,
 	}
 }
 
@@ -638,7 +625,7 @@ func DocumentFromNote(n *vault.Note) Document {
 		Title:        n.Title(),
 		NoteType:     n.Type(),
 		Domain:       n.Domain(),
-		Status:       n.Status(),
+		Draft:        schema.Draft(n.Frontmatter),
 		Slug:         n.Slug(),
 		Topics:       n.Strings("topics"),
 		Tags:         n.Strings("tags"),
@@ -648,9 +635,6 @@ func DocumentFromNote(n *vault.Note) Document {
 		FenceRanges:  projection.FenceRanges,
 		DisplaySpans: projection.DisplaySpans,
 		Insertions:   projection.Insertions,
-		// A diagnostic here means the block was present and did not parse. A
-		// note that simply carries no frontmatter has none, and is not this.
-		FrontmatterUnreadable: n.FMDiagnostic != "",
 	}
 }
 
@@ -668,96 +652,6 @@ func DocumentFromFile(relPath string, data []byte) Document {
 // Len reports how many entries are indexed.
 func (idx *Index) Len() int {
 	return len(idx.entries)
-}
-
-// TypeStatus is a note's (type, status) pair. Which onward transitions a status
-// allows depends on the note type, so a caller that weighs those transitions
-// needs both together — a tally keyed on status alone cannot supply it.
-type TypeStatus struct {
-	Type   string
-	Status string
-}
-
-// CountUnreadableFrontmatter reports how many of the notes this index counts had
-// a frontmatter block that could not be parsed. It answers over exactly the
-// entries CountByTypeStatus answers over, because its purpose is to divide that
-// tally's empty bucket, where an unreadable note and a note with no status meet.
-func (idx *Index) CountUnreadableFrontmatter() (int, error) {
-	if !idx.policy.Trustworthy() {
-		return 0, idx.metadataUnavailableError()
-	}
-	unreadable := 0
-	for _, e := range idx.entries {
-		if e.metadataCapable && e.frontmatterUnreadable {
-			unreadable++
-		}
-	}
-	return unreadable, nil
-}
-
-// CountByTypeStatus tallies metadata-capable notes by their (type, status) pair
-// in one pass; the pair is the form of the question, because transition rules key
-// on type as well as status. A note missing either field lands in that field's ""
-// bucket. A declared but unhonourable artifact policy returns ErrMetadataUnavailable.
-func (idx *Index) CountByTypeStatus() (map[TypeStatus]int, error) {
-	if !idx.policy.Trustworthy() {
-		return nil, idx.metadataUnavailableError()
-	}
-	counts := make(map[TypeStatus]int, len(idx.entries))
-	for _, e := range idx.entries {
-		if !e.metadataCapable {
-			continue
-		}
-		counts[TypeStatus{Type: e.NoteType, Status: e.Status}]++
-	}
-	return counts, nil
-}
-
-// StatusHolder is one indexed note's identity beside the lifecycle fields a
-// contract rules on: the row form of CountByTypeStatus, the same notes named
-// rather than tallied.
-type StatusHolder struct {
-	RelPath string
-	Type    string
-	Status  string
-}
-
-// StatusHolders lists every metadata-capable note carrying a status, in the
-// index's own reading order. It returns exactly the notes CountByTypeStatus
-// tallies, so a page showing both cannot state a number its list does not fill.
-func (idx *Index) StatusHolders() ([]StatusHolder, error) {
-	holders, err := idx.EachStatusHolder()
-	if err != nil {
-		return nil, err
-	}
-	out := make([]StatusHolder, 0, len(idx.entries))
-	for holder := range holders {
-		out = append(out, holder)
-	}
-	return out, nil
-}
-
-// EachStatusHolder walks the same notes StatusHolders lists, in the same order,
-// without building a list of them. A caller that only asks a question of each
-// note — is this status one the vault declared, is it one anything can reach —
-// keeps nothing, and on a folder of thousands of notes that is the difference
-// between a page that allocates a copy of the folder's lifecycle and one that
-// does not. The list form is built from this walk, so the two cannot come to
-// disagree about which notes hold a status.
-func (idx *Index) EachStatusHolder() (iter.Seq[StatusHolder], error) {
-	if !idx.policy.Trustworthy() {
-		return nil, idx.metadataUnavailableError()
-	}
-	return func(yield func(StatusHolder) bool) {
-		for _, e := range idx.entries {
-			if !e.metadataCapable || e.Status == "" {
-				continue
-			}
-			if !yield(StatusHolder{RelPath: e.RelPath, Type: e.NoteType, Status: e.Status}) {
-				return
-			}
-		}
-	}, nil
 }
 
 // remapInsertions preserves exact NFC edges. A composed or reordered interior

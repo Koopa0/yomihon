@@ -11,15 +11,13 @@ publishing pipeline, and not a service.
 Four boundaries hold. Each is enforced in the tree, so you can check the claim
 rather than take it:
 
-- **It writes one field.** The whole write face is a single frontmatter field,
-  `status`, behind one `POST /status` endpoint. A transition has to be legal in
-  the vault contract's state machine. The rewrite changes the status value and
-  nothing else: the rest of that line, its quoting, and any comment its author
-  wrote there all survive byte for byte. `internal/status` is the only package
-  allowed to write vault files, and its package comment says so. One status is
-  never offered. `published` records a completed publication outside the vault
-  and nothing here can attest one, so a person writes it by hand and yomihon
-  renders it; `Flip` refuses it with `ErrPublishedReserved`.
+- **It never writes the vault.** No byte of a note, the contract or anything
+  else under the vault directory is written, renamed or removed. What an author
+  claims about a note — `draft: true` included — stays in the author's editor.
+  The reader's own marks live in files of yomihon's own under the platform's
+  configuration directory, and `internal/mark` is the only package allowed to
+  write at all; a test in `internal/archlock` reads every shipped file and
+  fails on a write anywhere else.
 - **It never leaves the machine.** The listener hardcodes `127.0.0.1` and only
   the port varies, through `YOMIHON_PORT` — the one environment variable
   production code reads. A test in `cmd/yomihon` parses every file the binary is
@@ -180,10 +178,10 @@ the code is.
 
 Three proposals are worth pricing before you write them:
 
-- **A new dependency.** `go.mod` names eleven direct requirements and each
+- **A new dependency.** `go.mod` names ten direct requirements and each
   earned its place: goldmark and chroma to render, a goldmark extension that
   lets emphasis close beside CJK punctuation, templ for the templates, a TOML
-  decoder for the vault contract, a YAML decoder for frontmatter, three
+  decoder for the vault contract, a YAML decoder for frontmatter, two
   `golang.org/x` libraries for runtime behavior, and go-cmp plus
   `golang.org/x/mod` for the tests. The client side is vanilla
   JavaScript in flat native modules, with one exception: the Mermaid renderer,

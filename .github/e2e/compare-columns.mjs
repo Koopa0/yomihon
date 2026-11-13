@@ -260,18 +260,6 @@ const articleOf = (html, from) => {
   return html.slice(at, end + '</article>'.length);
 };
 
-// upToTheWriteFace drops the one thing a column does not carry. The note's own
-// page ends its article with the status face; a column passes nothing where the
-// page passes that in, so the comparison stops where the face begins. The
-// closing tag comes off first, or the column — which has no face to cut at —
-// would keep a close the note's own article no longer has.
-const upToTheWriteFace = (article) => {
-  const close = '</article>';
-  const body = article.endsWith(close) ? article.slice(0, -close.length) : article;
-  const at = body.indexOf('<section class="y-sealbar"');
-  return at < 0 ? body : body.slice(0, at);
-};
-
 const boxOf = (locator) => locator.evaluate((element) => {
   const rect = element.getBoundingClientRect();
   return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
@@ -391,7 +379,7 @@ try {
   if (!renamed.includes(columnPrefix) || !aloneHTML.includes(alonePrefix)) {
     fail('column-is-the-note', 'the per-column mark prefix does not match the IDs of that reading');
   }
-  if (upToTheWriteFace(renamed.replace(columnPrefix, alonePrefix)) !== upToTheWriteFace(nestedArticle(aloneHTML))) {
+  if (renamed.replace(columnPrefix, alonePrefix) !== nestedArticle(aloneHTML)) {
     fail('column-is-the-note', 'the second column is not what the note reads as on its own page');
   }
 

@@ -127,17 +127,17 @@ func TestSearchNonInstanceCapability(t *testing.T) {
 	t.Parallel()
 
 	idx := NewIndex([]Document{
-		{RelPath: "Concepts/Instance.md", Title: "Instance", NoteType: "concept", Domain: "meta", Status: "draft", Slug: "instance", Topics: []string{"cards"}, PlainText: "shared needle"},
-		{RelPath: "System/templates/Card.md", Title: "Template Card", NoteType: "concept", Domain: "meta", Status: "draft", Slug: "card", Topics: []string{"cards"}, PlainText: "shared template needle"},
+		{RelPath: "Concepts/Instance.md", Title: "Instance", NoteType: "concept", Domain: "meta", Draft: true, Slug: "instance", Topics: []string{"cards"}, PlainText: "shared needle"},
+		{RelPath: "System/templates/Card.md", Title: "Template Card", NoteType: "concept", Domain: "meta", Draft: true, Slug: "card", Topics: []string{"cards"}, PlainText: "shared template needle"},
 	}, validArtifactPolicy(t))
 
 	tests := []struct {
-		name       string
-		query      string
-		wantPaths  []string
-		wantStatus string
+		name      string
+		query     string
+		wantPaths []string
+		wantDraft bool
 	}{
-		{name: "metadata excludes noninstance", query: "type:concept", wantPaths: []string{"Concepts/Instance.md"}, wantStatus: "draft"},
+		{name: "metadata excludes noninstance", query: "type:concept", wantPaths: []string{"Concepts/Instance.md"}, wantDraft: true},
 		{name: "mixed metadata and text excludes noninstance", query: "type:concept template", wantPaths: []string{}},
 		{name: "folder and metadata exclude noninstance", query: "folder:System/templates type:concept", wantPaths: []string{}},
 		{name: "text includes noninstance without badge", query: "template", wantPaths: []string{"System/templates/Card.md"}},
@@ -156,8 +156,8 @@ func TestSearchNonInstanceCapability(t *testing.T) {
 				t.Errorf("Search(%q) paths mismatch (-want +results):\n%s", tt.query, diff)
 			}
 			for _, result := range answer.Results {
-				if result.Status != tt.wantStatus {
-					t.Errorf("Search(%q) result status = %q, want %q", tt.query, result.Status, tt.wantStatus)
+				if result.Draft != tt.wantDraft {
+					t.Errorf("Search(%q) result draft = %t, want %t", tt.query, result.Draft, tt.wantDraft)
 				}
 			}
 		})
@@ -177,7 +177,7 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 	}
 	metadataQueries := []string{
 		"type:concept",
-		"status:",
+		"draft:",
 		"domain:meta",
 		"topic:cards",
 		"slug:note",
@@ -190,7 +190,7 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 		t.Run(policyTest.name, func(t *testing.T) {
 			t.Parallel()
 			idx := NewIndex([]Document{{
-				RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Domain: "meta", Status: "draft", Slug: "note", Topics: []string{"cards"}, PlainText: "needle",
+				RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Domain: "meta", Draft: true, Slug: "note", Topics: []string{"cards"}, PlainText: "needle",
 			}}, policyTest.policy)
 
 			for _, query := range metadataQueries {
@@ -213,8 +213,8 @@ func TestSearchUnavailableMetadataCapability(t *testing.T) {
 				if diff := cmp.Diff([]string{"Concepts/Note.md"}, paths(answer.Results)); diff != "" {
 					t.Errorf("Search(%q) paths mismatch (-want +got):\n%s", query, diff)
 				}
-				if len(answer.Results) == 1 && answer.Results[0].Status != "" {
-					t.Errorf("Search(%q) status = %q, want no metadata badge", query, answer.Results[0].Status)
+				if len(answer.Results) == 1 && answer.Results[0].Draft {
+					t.Errorf("Search(%q) marked a draft, want no metadata badge", query)
 				}
 			}
 		})
@@ -228,7 +228,7 @@ func TestWithArtifactPolicyBindsIndependentMetadataAuthority(t *testing.T) {
 		RelPath:  "Concepts/Note.md",
 		Title:    "Note",
 		NoteType: "concept",
-		Status:   "draft",
+		Draft:    true,
 	}}, validArtifactPolicy(t))
 	closed := idx.WithArtifactPolicy(undeclaredArtifactPolicy(t))
 
@@ -236,21 +236,21 @@ func TestWithArtifactPolicyBindsIndependentMetadataAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatalf("original Search(Note) error = %v", err)
 	}
-	if len(openAnswer.Results) != 1 || openAnswer.Results[0].Status != "draft" {
+	if len(openAnswer.Results) != 1 || !openAnswer.Results[0].Draft {
 		t.Fatalf("original Search(Note) = %+v, want draft metadata badge", openAnswer.Results)
 	}
 	closedAnswer, err := closed.Search(Parse("Note"), -1)
 	if err != nil {
 		t.Fatalf("closed Search(Note) error = %v", err)
 	}
-	if len(closedAnswer.Results) != 1 || closedAnswer.Results[0].Status != "" {
+	if len(closedAnswer.Results) != 1 || closedAnswer.Results[0].Draft {
 		t.Errorf("closed Search(Note) = %+v, want lexical result without metadata badge", closedAnswer.Results)
 	}
-	if _, err := closed.Search(Parse("status:draft"), -1); !errors.Is(err, ErrMetadataUnavailable) {
-		t.Errorf("closed Search(status:draft) error = %v, want ErrMetadataUnavailable", err)
+	if _, err := closed.Search(Parse("draft:true"), -1); !errors.Is(err, ErrMetadataUnavailable) {
+		t.Errorf("closed Search(draft:true) error = %v, want ErrMetadataUnavailable", err)
 	}
-	if _, err := idx.Search(Parse("status:draft"), -1); err != nil {
-		t.Errorf("original Search(status:draft) error = %v, want functional copy not to mutate original", err)
+	if _, err := idx.Search(Parse("draft:true"), -1); err != nil {
+		t.Errorf("original Search(draft:true) error = %v, want functional copy not to mutate original", err)
 	}
 }
 
@@ -269,9 +269,9 @@ func TestZeroValueIndexAnswersNothingWithoutInventingAFault(t *testing.T) {
 	if len(answer.Results) != 0 {
 		t.Errorf("zero Index.Search(type:concept, -1) = %v, want no results", answer.Results)
 	}
-	typeCounts, err := idx.CountByTypeStatus()
-	if err != nil || len(typeCounts) != 0 {
-		t.Errorf("zero Index.CountByTypeStatus() = (%v, %v), want an empty tally and no error", typeCounts, err)
+	drafts, err := idx.Search(Parse("draft:true"), -1)
+	if err != nil || len(drafts.Results) != 0 {
+		t.Errorf("zero Index.Search(draft:true, -1) = (%v, %v), want no results and no error", drafts.Results, err)
 	}
 }
 
@@ -285,12 +285,12 @@ func TestWithheldCapabilitiesRefuseMetadataWithSomethingToSay(t *testing.T) {
 
 	policy := (*schema.Contract)(nil).Capabilities(schema.Unreadable(errors.New("toml: line 42: expected a key separator"))).Artifacts
 	idx := NewIndex([]Document{
-		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Status: "draft"},
+		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Draft: true},
 	}, policy)
 
-	_, err := idx.Search(Parse("status:draft"), -1)
+	_, err := idx.Search(Parse("draft:true"), -1)
 	if !errors.Is(err, ErrMetadataUnavailable) {
-		t.Fatalf("Search(status:draft) error = %v, want ErrMetadataUnavailable", err)
+		t.Fatalf("Search(draft:true) error = %v, want ErrMetadataUnavailable", err)
 	}
 	if err.Error() == "" {
 		t.Error("the refusal carries no reason; the page has nothing to show but a false empty result")
@@ -310,7 +310,7 @@ func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
 	t.Parallel()
 
 	idx := NewIndex([]Document{
-		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Status: "draft", PlainText: "needle"},
+		{RelPath: "Concepts/Note.md", Title: "Note", NoteType: "concept", Draft: true, PlainText: "needle"},
 		{RelPath: "System/templates/Card.md", Title: "Card", NoteType: "lesson", PlainText: "needle"},
 	}, schema.ArtifactPolicy{})
 
@@ -330,12 +330,12 @@ func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
 	if len(plainAnswer.Results) != 2 {
 		t.Errorf("Search(needle) = %v, want both notes: nothing was excluded", paths(plainAnswer.Results))
 	}
-	counts, err := idx.CountByTypeStatus()
+	drafts, err := idx.Search(Parse("draft:true"), -1)
 	if err != nil {
-		t.Fatalf("CountByTypeStatus() with an unclaimed policy error = %v", err)
+		t.Fatalf("Search(draft:true) with an unclaimed policy error = %v", err)
 	}
-	if got := counts[TypeStatus{Type: "concept", Status: "draft"}]; got != 1 {
-		t.Errorf("CountByTypeStatus()[concept/draft] = %d, want 1", got)
+	if diff := cmp.Diff([]string{"Concepts/Note.md"}, paths(drafts.Results)); diff != "" {
+		t.Errorf("Search(draft:true) paths mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -345,9 +345,9 @@ func TestUnclaimedArtifactPolicyFiltersOverRawFrontmatter(t *testing.T) {
 func filterFixture(tb testing.TB) *Index {
 	tb.Helper()
 	return NewIndex([]Document{
-		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Domain: "golang", Status: "draft", Slug: "kafka-basics", Topics: []string{"messaging", "distributed"}, PlainText: "Kafka is a distributed log; 50% done."},
-		{RelPath: "Writing-old/Legacy.md", Title: "Legacy", NoteType: "note", Domain: "golang", Status: "archived", Slug: "legacy", Topics: []string{"messaging"}, PlainText: "older kafka streams notes"},
-		{RelPath: "Concepts/Focus.md", Title: "深度工作", NoteType: "concept", Domain: "meta", Status: "evergreen", Topics: []string{"focus"}, PlainText: "深度工作 需要 專注"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Domain: "golang", Draft: true, Slug: "kafka-basics", Topics: []string{"messaging", "distributed"}, PlainText: "Kafka is a distributed log; 50% done."},
+		{RelPath: "Writing-old/Legacy.md", Title: "Legacy", NoteType: "note", Domain: "golang", Slug: "legacy", Topics: []string{"messaging"}, PlainText: "older kafka streams notes"},
+		{RelPath: "Concepts/Focus.md", Title: "深度工作", NoteType: "concept", Domain: "meta", Topics: []string{"focus"}, PlainText: "深度工作 需要 專注"},
 	}, validArtifactPolicy(tb))
 }
 
@@ -361,7 +361,7 @@ func TestSearchFilters(t *testing.T) {
 		want  []string
 	}{
 		{"type equality", "type:lesson", []string{"Writing/Kafka.md"}},
-		{"status equality", "status:archived", []string{"Writing-old/Legacy.md"}},
+		{"draft equality", "draft:true", []string{"Writing/Kafka.md"}},
 		{"domain matches two in rel_path order", "domain:golang", []string{"Writing/Kafka.md", "Writing-old/Legacy.md"}},
 		{"slug equality", "slug:kafka-basics", []string{"Writing/Kafka.md"}},
 		{"topic membership single", "topic:focus", []string{"Concepts/Focus.md"}},
@@ -913,7 +913,7 @@ func TestSearchFiltersAnswerEitherCase(t *testing.T) {
 		want  []string
 	}{
 		{"type", "type:lesson", "type:Lesson", []string{"Writing/Kafka.md"}},
-		{"status", "status:archived", "status:Archived", []string{"Writing-old/Legacy.md"}},
+		{"draft", "draft:true", "draft:TRUE", []string{"Writing/Kafka.md"}},
 		{"domain", "domain:golang", "domain:Golang", []string{"Writing/Kafka.md", "Writing-old/Legacy.md"}},
 		{"slug", "slug:kafka-basics", "slug:Kafka-Basics", []string{"Writing/Kafka.md"}},
 		{"topic", "topic:focus", "topic:Focus", []string{"Concepts/Focus.md"}},
@@ -1054,37 +1054,6 @@ func TestSearchEmptyQuery(t *testing.T) {
 	}
 }
 
-// TestCountByTypeStatus tallies notes by (type, status) together — the pairing a
-// status-keyed tally cannot express, since two notes sharing a status but not a
-// type must stay separate. It also pins the two edges the pair carries alone: a
-// note outside the governed instance set is left out, and a note missing a field
-// falls in that field's "" bucket. The type/status words are invented so the
-// count is what is proven, not any real vault's vocabulary.
-func TestCountByTypeStatus(t *testing.T) {
-	t.Parallel()
-	idx := NewIndex([]Document{
-		{RelPath: "a.md", NoteType: "lesson", Status: "s1"},
-		{RelPath: "b.md", NoteType: "lesson", Status: "s1"},
-		{RelPath: "c.md", NoteType: "lesson", Status: "s2"},
-		{RelPath: "d.md", NoteType: "concept", Status: "s1"},
-		{RelPath: "e.md", NoteType: "", Status: ""},
-		{RelPath: "System/templates/Card.md", NoteType: "lesson", Status: "s1"},
-	}, validArtifactPolicy(t))
-	got, err := idx.CountByTypeStatus()
-	if err != nil {
-		t.Fatalf("CountByTypeStatus() error: %v", err)
-	}
-	want := map[TypeStatus]int{
-		{Type: "lesson", Status: "s1"}:  2,
-		{Type: "lesson", Status: "s2"}:  1,
-		{Type: "concept", Status: "s1"}: 1,
-		{Type: "", Status: ""}:          1,
-	}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("CountByTypeStatus() mismatch (-want +got):\n%s", diff)
-	}
-}
-
 func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -1099,12 +1068,12 @@ func TestCountsUnavailableWithoutArtifactPolicy(t *testing.T) {
 	for _, tt := range policies {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			idx := NewIndex([]Document{{RelPath: "Concepts/Note.md", NoteType: "concept", Status: "draft"}}, tt.policy)
+			idx := NewIndex([]Document{{RelPath: "Concepts/Note.md", NoteType: "concept", Draft: true}}, tt.policy)
 
-			if got, err := idx.CountByTypeStatus(); !errors.Is(err, ErrMetadataUnavailable) {
-				t.Errorf("CountByTypeStatus() = (%v, %v), want ErrMetadataUnavailable", got, err)
+			if got, err := idx.Search(Parse("draft:true"), -1); !errors.Is(err, ErrMetadataUnavailable) {
+				t.Errorf("Search(draft:true) = (%v, %v), want ErrMetadataUnavailable", got.Results, err)
 			} else if err.Error() != tt.policy.Diagnostic() {
-				t.Errorf("CountByTypeStatus() error = %q, want %q", err.Error(), tt.policy.Diagnostic())
+				t.Errorf("Search(draft:true) error = %q, want %q", err.Error(), tt.policy.Diagnostic())
 			}
 		})
 	}
@@ -1191,7 +1160,6 @@ func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
 	idx := NewIndex([]Document{{
 		RelPath:   "Concepts/A.md",
 		Title:     "A",
-		Status:    "seedling",
 		PlainText: "needle",
 	}}, policy)
 
@@ -1205,8 +1173,8 @@ func TestIndexMetadataClosesWhenPolicySourceDrifts(t *testing.T) {
 		t.Fatalf("restore contract: %v", err)
 	}
 
-	if _, countErr := idx.CountByTypeStatus(); !errors.Is(countErr, ErrMetadataUnavailable) {
-		t.Errorf("CountByTypeStatus() error = %v, want %v", countErr, ErrMetadataUnavailable)
+	if _, draftErr := idx.Search(Parse("draft:true"), -1); !errors.Is(draftErr, ErrMetadataUnavailable) {
+		t.Errorf("Search(draft:true) error = %v, want %v", draftErr, ErrMetadataUnavailable)
 	}
 	query := Parse("needle")
 	answer, err := idx.Search(query, -1)
@@ -1333,8 +1301,8 @@ func TestFrontmatterExcludedFromPlainText(t *testing.T) {
 func fileCorpusFixture(tb testing.TB) (notesOnly, widened *Index) {
 	tb.Helper()
 	notes := []Document{
-		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", Status: "evergreen", PlainText: "a note about the flamingo"},
-		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Status: "draft", PlainText: "another flamingo mention"},
+		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", PlainText: "a note about the flamingo"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Draft: true, PlainText: "another flamingo mention"},
 	}
 	files := []Document{
 		DocumentFromFile("Notes/todo.txt", []byte("renew the passport before flamingo season")),
@@ -1375,7 +1343,7 @@ func TestNoteResultsOpenTheWidenedResults(t *testing.T) {
 	t.Parallel()
 	notesOnly, widened := fileCorpusFixture(t)
 
-	for _, query := range []string{"flamingo", "a", "status:draft", "folder:Writing"} {
+	for _, query := range []string{"flamingo", "a", "draft:true", "folder:Writing"} {
 		t.Run(query, func(t *testing.T) {
 			t.Parallel()
 			before := searchResults(t, notesOnly, Parse(query))
@@ -1391,27 +1359,15 @@ func TestNoteResultsOpenTheWidenedResults(t *testing.T) {
 	}
 }
 
-// TestFileEntriesAnswerNoMetadataProjection keeps every lifecycle tally the
-// tally it was. A file carries no frontmatter, so it is not an instance of
-// anything, and letting one into a status count or a "type:" filter would make
-// Home's figures disagree with the contract that defines them.
+// TestFileEntriesAnswerNoMetadataProjection keeps every metadata filter what it
+// was. A file carries no frontmatter, so it is not an instance of anything, and
+// letting one into a "type:" or "draft:" filter would answer for a field no
+// file can declare.
 func TestFileEntriesAnswerNoMetadataProjection(t *testing.T) {
 	t.Parallel()
-	notesOnly, widened := fileCorpusFixture(t)
+	_, widened := fileCorpusFixture(t)
 
-	beforeTypes, err := notesOnly.CountByTypeStatus()
-	if err != nil {
-		t.Fatalf("notes-only CountByTypeStatus() error: %v", err)
-	}
-	afterTypes, err := widened.CountByTypeStatus()
-	if err != nil {
-		t.Fatalf("widened CountByTypeStatus() error: %v", err)
-	}
-	if diff := cmp.Diff(beforeTypes, afterTypes); diff != "" {
-		t.Errorf("CountByTypeStatus changed when files joined the corpus (-notes only +widened):\n%s", diff)
-	}
-
-	for _, query := range []string{"type:lesson", "status:draft", "flamingo status:draft"} {
+	for _, query := range []string{"type:lesson", "draft:false", "flamingo draft:true"} {
 		if got := paths(searchResults(t, widened, Parse(query))); slices.Contains(got, "Notes/todo.txt") {
 			t.Errorf("Search(%q) answered with a file, which declares no metadata: %v", query, got)
 		}

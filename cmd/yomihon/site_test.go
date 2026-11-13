@@ -17,63 +17,9 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
-
-func TestProductionStatusFailureUsesTheReadingShell(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	writeRecoverySiteFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
-	if err != nil {
-		t.Fatalf("newReadingSite: %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := site.close(); closeErr != nil {
-			t.Errorf("readingSite.close() error = %v", closeErr)
-		}
-	})
-	form := url.Values{"path": {"Maps/study.md"}, "from": {"draft"}}
-	req := siteRequest(t, http.MethodPost, "/status", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	recorder := httptest.NewRecorder()
-	site.ServeHTTP(recorder, req)
-
-	response := recorder.Result()
-	defer func() {
-		if closeErr := response.Body.Close(); closeErr != nil {
-			t.Errorf("close response body: %v", closeErr)
-		}
-	}()
-	if response.StatusCode != http.StatusUnprocessableEntity {
-		t.Fatalf("POST /status = %d, want %d", response.StatusCode, http.StatusUnprocessableEntity)
-	}
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		t.Fatalf("read response body: %v", err)
-	}
-	html := string(body)
-	for _, want := range []string{
-		"y-brand",
-		wording.SearchNotes.In(wording.ZhHant),
-		"狀態尚未變更",
-		`href="/notes/Maps/study.md"`,
-		`data-sidebar-group="paths"`,
-		"Study Path",
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("production recovery page is missing %q; body = %q", want, html)
-		}
-	}
-	if strings.Contains(html, `action="/status"`) {
-		t.Errorf("production recovery page offers a POST retry; body = %q", html)
-	}
-	if got := response.Header.Get("Cache-Control"); got != "no-store" {
-		t.Errorf("Cache-Control = %q, want no-store", got)
-	}
-}
 
 func TestReadingSiteCloseWaitsForWatcherBeforeClosingCapabilities(t *testing.T) {
 	t.Parallel()
@@ -84,27 +30,14 @@ func TestReadingSiteCloseWaitsForWatcherBeforeClosingCapabilities(t *testing.T) 
 	if err != nil {
 		t.Fatalf("vault.Open(%q) error = %v", root, err)
 	}
-	contract, err := schema.LoadReader(t.Context(), source)
-	if err != nil {
-		t.Fatalf("schema.LoadReader() error = %v", err)
-	}
-	writer, err := status.Open(source, contract, contract.Governance(), slog.New(slog.DiscardHandler))
-	if err != nil {
-		t.Fatalf("status.Open() error = %v", err)
-	}
 	watchCtx, cancel := context.WithCancel(t.Context())
 	site := &readingSite{
-		writer: writer,
 		source: source,
 		cancel: cancel,
 	}
 	watcherResult := make(chan error, 1)
 	site.watchers.Go(func() {
 		<-watchCtx.Done()
-		if writer.Authority().Closed() {
-			watcherResult <- errors.New("writer closed before watcher exited")
-			return
-		}
 		if _, scanErr := source.ScanComplete(context.WithoutCancel(t.Context())); scanErr != nil {
 			watcherResult <- errors.New("vault reader closed before watcher exited")
 			return
@@ -117,9 +50,6 @@ func TestReadingSiteCloseWaitsForWatcherBeforeClosingCapabilities(t *testing.T) 
 	}
 	if err = <-watcherResult; err != nil {
 		t.Fatal(err)
-	}
-	if !writer.Authority().Closed() {
-		t.Error("Writer remained open after readingSite.close()")
 	}
 	if _, err = source.ScanComplete(t.Context()); err == nil {
 		t.Error("Reader.ScanComplete() after readingSite.close() = nil, want closed-reader error")
@@ -138,14 +68,6 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 	if err != nil {
 		t.Fatalf("vault.Open(%q) error = %v", root, err)
 	}
-	contract, err := schema.LoadReader(t.Context(), source)
-	if err != nil {
-		t.Fatalf("schema.LoadReader() error = %v", err)
-	}
-	writer, err := status.Open(source, contract, contract.Governance(), slog.New(slog.DiscardHandler))
-	if err != nil {
-		t.Fatalf("status.Open() error = %v", err)
-	}
 	requestStarted := make(chan struct{})
 	releaseRequest := make(chan struct{})
 	requestResult := make(chan error, 1)
@@ -153,10 +75,6 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 		handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			close(requestStarted)
 			<-releaseRequest
-			if writer.Authority().Closed() {
-				requestResult <- errors.New("writer closed before active request exited")
-				return
-			}
 			if _, scanErr := source.ScanComplete(context.WithoutCancel(t.Context())); scanErr != nil {
 				requestResult <- errors.New("vault reader closed before active request exited")
 				return
@@ -164,7 +82,6 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 			requestResult <- nil
 			w.WriteHeader(http.StatusNoContent)
 		}),
-		writer: writer,
 		source: source,
 	}
 	requestDone := make(chan struct{})
@@ -208,9 +125,6 @@ func TestReadingSiteCloseWaitsForActiveRequestsBeforeClosingCapabilities(t *test
 	<-requestDone
 	if err = <-closeResult; err != nil {
 		t.Fatalf("readingSite.close() error = %v", err)
-	}
-	if !writer.Authority().Closed() {
-		t.Error("Writer remained open after readingSite.close()")
 	}
 	if _, err = source.ScanComplete(t.Context()); err == nil {
 		t.Error("Reader.ScanComplete() after readingSite.close() = nil, want closed-reader error")
@@ -372,9 +286,8 @@ func siteRequest(t *testing.T, method, target string, body io.Reader) *http.Requ
 }
 
 // TestTheSiteRefusesACrossSiteWrite locks the cross-origin middleware into the
-// served assembly. Two endpoints change state — the status write into a note,
-// and the route a reader keeps a reading place through — and a
-// hostile page in the reader's own browser is the one party that can drive a
+// served assembly. The routes a reader keeps a reading place and an uncertainty
+// mark through change state outside the vault, and a hostile page in the reader's own browser is the one party that can drive a
 // POST at the loopback listener from off this machine; the browser labels such
 // a request with Sec-Fetch-Site, and the assembly has to turn it away before
 // any handler runs. Everything else that watches this boundary watches
@@ -386,11 +299,6 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	notePath := filepath.Join(root, "Maps", "study.md")
-	before, err := os.ReadFile(notePath) // #nosec G304 -- fixed fixture path under t.TempDir
-	if err != nil {
-		t.Fatalf("read fixture note: %v", err)
-	}
 	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
@@ -401,47 +309,10 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 		}
 	})
 
-	postStatus := func(t *testing.T, fetchSite string) int {
-		t.Helper()
-		form := url.Values{"path": {"Maps/study.md"}, "from": {"draft"}}
-		req := siteRequest(t, http.MethodPost, "/status", strings.NewReader(form.Encode()))
-		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-		if fetchSite != "" {
-			req.Header.Set("Sec-Fetch-Site", fetchSite)
-		}
-		recorder := httptest.NewRecorder()
-		site.ServeHTTP(recorder, req)
-		return recorder.Code
-	}
-
-	// A browser-labeled cross-site write is refused outright. The note's bytes
-	// are re-read afterwards as well, but only the 403 carries the assertion:
-	// this form names no target status, so the handler behind the middleware
-	// would decline it too and no admitted request could have written anything.
-	if got := postStatus(t, "cross-site"); got != http.StatusForbidden {
-		t.Errorf("cross-site POST /status = %d, want %d", got, http.StatusForbidden)
-	}
-	after, err := os.ReadFile(notePath) // #nosec G304 -- fixed fixture path under t.TempDir
-	if err != nil {
-		t.Fatalf("re-read fixture note: %v", err)
-	}
-	if !bytes.Equal(before, after) {
-		t.Errorf("cross-site POST changed the note: before %q, after %q", before, after)
-	}
-
-	// A same-origin browser write is admitted. 422 is the status handler's own
-	// recovery answer for this form, deeper in the stack than the middleware;
-	// any non-403 would prove admission, and the exact code is pinned by the
-	// production-recovery test above.
-	if got := postStatus(t, "same-origin"); got != http.StatusUnprocessableEntity {
-		t.Errorf("same-origin POST /status = %d, want %d from the status handler, never %d",
-			got, http.StatusUnprocessableEntity, http.StatusForbidden)
-	}
-
-	// The second write endpoint is behind the same wrapper rather than a guard
-	// of its own, which is exactly why it is driven here: the protection is a
-	// property of the assembly, and nothing in the mark package's own tests
-	// would notice it being unwired for that route alone.
+	// The write endpoint is behind the wrapper rather than a guard of its own,
+	// which is exactly why it is driven here: the protection is a property of
+	// the assembly, and nothing in the mark package's own tests would notice
+	// it being unwired.
 	postMark := func(t *testing.T, fetchSite string) int {
 		t.Helper()
 		form := url.Values{"path": {"Maps/study.md"}, "offset": {"0"}, "identity": {strings.Repeat("a", 64)}}
@@ -468,8 +339,8 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 	// on this machine — curl, the operator's own tooling. The middleware
 	// deliberately admits it: the boundary defends against browser-carried
 	// cross-site requests, which always label themselves.
-	if got := postStatus(t, ""); got != http.StatusUnprocessableEntity {
-		t.Errorf("headerless POST /status = %d, want %d from the status handler", got, http.StatusUnprocessableEntity)
+	if got := postMark(t, ""); got != http.StatusNoContent {
+		t.Errorf("headerless POST /marks = %d, want %d", got, http.StatusNoContent)
 	}
 }
 

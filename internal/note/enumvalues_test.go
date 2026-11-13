@@ -333,7 +333,7 @@ func enumReadingSurfaces(t *testing.T, body string, contract *schema.Contract, f
 			t.Logf("hit: "+marker+" field=%s type=%s sink=%s lang=%s", field, kind, sink, lang)
 			var nodes []*html.Node
 			if sink == "note" {
-				nodes = enumElements(page, func(n *html.Node) bool { return enumAttribute(n, "id") == "_y-schema-notices" })
+				nodes = enumSchemaNotices(page)
 			} else {
 				nodes = enumElements(page, func(n *html.Node) bool {
 					return n.Data == "tr" && len(enumElements(n, func(link *html.Node) bool {
@@ -442,36 +442,13 @@ func TestEnumGuidanceReadsTheContractOnEveryReadingSurface(t *testing.T) {
 						}
 						page := enumGuidancePage(t, srv.Client(), srv.URL+"/notes/"+rel, lang)
 						t.Logf("hit: enum-guidance field=%s type=%s sink=note lang=%s", tc.field, tc.kind, lang)
-						notices := enumElements(page, func(n *html.Node) bool { return enumAttribute(n, "id") == "_y-schema-notices" })
+						notices := enumSchemaNotices(page)
 						if len(notices) != 1 {
 							t.Fatalf("schema notice blocks = %d, want 1", len(notices))
 						}
 						assertEnumList(t, notices[0], tc.field, want, lang)
-						if tc.field == "status" && contract.DeclaresType(tc.kind) {
-							panels := enumElements(page, func(n *html.Node) bool {
-								return enumHasClass(n, "y-statusflag") && strings.Contains(enumText(n), tc.value) && !enumHasAncestor(n, "id", "_y-schema-notices")
-							})
-							if len(panels) != 2 {
-								t.Fatalf("wide/narrow status flags = %d, want 2", len(panels))
-							}
-							for _, panel := range panels {
-								assertEnumList(t, panel, tc.field, want, lang)
-							}
-						}
 						health := enumGuidancePage(t, srv.Client(), srv.URL+"/health", lang)
 						t.Logf("hit: enum-guidance field=%s type=%s sink=health lang=%s", tc.field, tc.kind, lang)
-						if !contract.DeclaresType(tc.kind) {
-							statusRows := enumElements(health, func(n *html.Node) bool {
-								return n.Data == "tr" && strings.Contains(enumText(n), tc.value) && strings.Contains(enumText(n), tc.kind)
-							})
-							if len(statusRows) != 1 {
-								t.Fatalf("unknown-type status rows = %d, want 1", len(statusRows))
-							}
-							if strings.Contains(enumText(statusRows[0]), enumGuidancePrefix(lang)) {
-								t.Errorf("caught: unknown type received lifecycle status-list advice")
-							}
-						}
-
 						rows := enumElements(health, func(n *html.Node) bool {
 							return n.Type == html.ElementNode && n.Data == "tr" && strings.Contains(enumText(n), "Enum guidance")
 						})
@@ -487,15 +464,6 @@ func TestEnumGuidanceReadsTheContractOnEveryReadingSurface(t *testing.T) {
 						}
 						if !matched {
 							t.Errorf("caught: Health has no allowed %s values", tc.field)
-						}
-						if tc.field == "status" && contract.DeclaresType(tc.kind) {
-							statusRows := enumElements(health, func(n *html.Node) bool {
-								return n.Data == "tr" && strings.Contains(enumText(n), tc.value) && strings.Contains(enumText(n), tc.kind)
-							})
-							if len(statusRows) != 1 {
-								t.Fatalf("status Health rows = %d, want 1", len(statusRows))
-							}
-							assertEnumList(t, statusRows[0], tc.field, want, lang)
 						}
 					})
 				}
@@ -602,6 +570,24 @@ func enumGuidancePrefix(lang wording.Lang) string {
 	return "允許的 "
 }
 
+// enumSchemaNotices finds the block of schema notices a reading page draws
+// above the body: the element whose children are all notice paragraphs, other
+// than the one that says a frontmatter fence never closes.
+func enumSchemaNotices(page *html.Node) []*html.Node {
+	return enumElements(page, func(n *html.Node) bool {
+		if n.Data != "div" || n.FirstChild == nil {
+			return false
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			if child.Type != html.ElementNode || child.Data != "p" || !enumHasClass(child, "y-statusflag") {
+				return false
+			}
+		}
+		text := enumText(n)
+		return text != wording.FrontmatterNeverCloses.In(wording.ZhHant) && text != wording.FrontmatterNeverCloses.In(wording.En)
+	})
+}
+
 func enumElements(root *html.Node, matches func(*html.Node) bool) []*html.Node {
 	var found []*html.Node
 	var visit func(*html.Node)
@@ -636,14 +622,6 @@ func enumAttribute(node *html.Node, name string) string {
 
 func enumHasClass(node *html.Node, class string) bool {
 	return slices.Contains(strings.Fields(enumAttribute(node, "class")), class)
-}
-func enumHasAncestor(node *html.Node, key, value string) bool {
-	for parent := node.Parent; parent != nil; parent = parent.Parent {
-		if enumAttribute(parent, key) == value {
-			return true
-		}
-	}
-	return false
 }
 
 // TestEnumGuidanceClosesAfterContractDrift prevents a retained generation from

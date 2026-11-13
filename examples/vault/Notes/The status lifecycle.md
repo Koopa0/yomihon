@@ -1,14 +1,13 @@
 ---
 title: The status lifecycle
 type: note
-status: ready
 domain: yomihon
 created: 2026-09-22
 updated: 2026-09-22
 lang: en
 ---
 
-Each `[[lifecycle]]` row in [[The vault contract]] names one status: the note types it applies to, whether a note may start there, and which statuses it can be reached from.
+Each `[[lifecycle]]` row in [[The vault contract]] names one status: the note types it applies to, whether a note may start there, and which statuses it can be reached from. `yomihon check` holds every note to it; the reading pages print no status at all.
 
 ```mermaid
 flowchart LR
@@ -27,14 +26,8 @@ Every row says whether a note can begin at that status. Writing `initial` on one
 
 ## published is declared and never set
 
-The diagram shows transitions the contract allows, including `ready → published`. Yomihon never sets a note **to** `published`, even when the contract permits that target: the value records a publication that happened somewhere else, and a reading surface cannot attest to one.
+The diagram shows transitions the contract allows, including `ready → published`. yomihon sets no status, `published` or any other: it never writes into the vault, and a status changes only in the author's editor.
 
-This restriction concerns the target, not a note already marked `published`. [[A published note]] carries that value, written by hand. Its status panel offers `archived` because this example contract allows `published → archived`, as the diagram shows. Other vaults offer the onward transitions their own contracts permit.
+## draft marks what is unfinished
 
-## settled keeps a finished note unmarked
-
-A row can say `settled = true`. A reading page then prints a note's status only when the note is not at a settled one, so a finished library is not covered in labels and the few notes still to be done stand out. A contract that never writes the key marks every status.
-
-## What a write is
-
-The button rewrites one line of a note's [[Frontmatter]]. If the file changed on disk while you were reading, the write is refused rather than applied to a version you never read.
+A note that writes `draft: true` is marked as a draft on its own page, in the sidebar and on its course. A finished note carries no mark and needs no field: leaving `draft` out, or writing `draft: false`, is the same.

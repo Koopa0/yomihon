@@ -21,7 +21,7 @@ func TestThoughtMarkdownContainsOnlyDeterminedFrontmatterAndSource(t *testing.T)
 				Title: "Do not copy this title", Body: "Do not copy this prompt or answer",
 			}
 			got := thoughtMarkdown(contract, contract.NavigationRoles().AnswerType(), source, "A thought", "Chapter one")
-			const want = "---\ntitle: \"A thought\"\ntype: \"writing\"\nstatus: \"draft\"\ndomain: \"japanese\"\nbased_on: \"[[Sources/Book#Chapter one]]\"\n---\n"
+			const want = "---\ntitle: \"A thought\"\ntype: \"writing\"\ndraft: true\ndomain: \"japanese\"\nbased_on: \"[[Sources/Book#Chapter one]]\"\n---\n"
 			if got != want {
 				t.Errorf("thoughtMarkdown() = %q, want %q", got, want)
 			}
@@ -29,15 +29,30 @@ func TestThoughtMarkdownContainsOnlyDeterminedFrontmatterAndSource(t *testing.T)
 	}
 }
 
-func TestThoughtMarkdownOmitsMultipleInitialStates(t *testing.T) {
+// TestThoughtMarkdownStartsUnfinishedOnlyWhereTheContractKnowsTheFlag pins
+// the stub's one claim about the thought's progress: it starts as a draft,
+// which is what puts it on the shelf of what the reader left open, and it
+// writes the flag only for a contract that lists the field. No status line is
+// written either way.
+func TestThoughtMarkdownStartsUnfinishedOnlyWhereTheContractKnowsTheFlag(t *testing.T) {
 	t.Parallel()
-	contract := thoughtTestContract(t,
-		"status = \"ready\"\napplies_to = [\"writing\", \"lesson\"]\ninitial = false",
-		"status = \"ready\"\napplies_to = [\"writing\", \"lesson\"]\ninitial = true")
-	got := thoughtMarkdown(contract, contract.NavigationRoles().AnswerType(), &snapshot.Reading{RelPath: "Source.md"}, "", "")
-	const want = "---\ntype: \"writing\"\nbased_on: \"[[Source]]\"\n---\n"
-	if got != want {
-		t.Errorf("thoughtMarkdown() = %q, want status omitted with multiple initial states", got)
+	known := thoughtTestContract(t, "", "")
+	unknown := thoughtTestContractWith(t, func(text string) string { return text })
+	for _, tc := range []struct {
+		name      string
+		contract  *schema.Contract
+		wantDraft bool
+	}{
+		{"a contract that knows draft", known, true},
+		{"a contract that does not", unknown, false},
+	} {
+		got := thoughtMarkdown(tc.contract, "writing", &snapshot.Reading{RelPath: "Source.md"}, "", "")
+		if strings.Contains(got, "\ndraft: true\n") != tc.wantDraft {
+			t.Errorf("%s: thoughtMarkdown() = %q, want draft: true written = %t", tc.name, got, tc.wantDraft)
+		}
+		if strings.Contains(got, "status:") {
+			t.Errorf("%s: thoughtMarkdown() = %q, want no status line", tc.name, got)
+		}
 	}
 }
 
@@ -57,32 +72,13 @@ func TestThoughtMarkdownWritesHeadingTextNotItsID(t *testing.T) {
 	}
 }
 
-func TestThoughtMarkdownOmitsStatusWithoutLiteralInitial(t *testing.T) {
-	t.Parallel()
-	// With every initial key removed the lifecycle still lets a reader infer a
-	// first status from rows that name no predecessor, but nothing declares one.
-	contract := thoughtTestContractWith(t, func(text string) string {
-		var kept []string
-		for line := range strings.SplitSeq(text, "\n") {
-			if !strings.HasPrefix(line, "initial = ") {
-				kept = append(kept, line)
-			}
-		}
-		return strings.Join(kept, "\n")
-	})
-	got := thoughtMarkdown(contract, "writing", &snapshot.Reading{RelPath: "Source.md"}, "", "")
-	if strings.Contains(got, "status:") {
-		t.Errorf("thoughtMarkdown() = %q, want no status line when no initial is declared", got)
-	}
-}
-
 func TestThoughtMarkdownOmitsUndeterminedRequiredFields(t *testing.T) {
 	t.Parallel()
 	contract := thoughtTestContract(t, "", "")
 	// This existing fixture already requires title, created and updated. The
 	// door is given no title here, and the dates are not the source's to lend.
 	got := thoughtMarkdown(contract, contract.NavigationRoles().AnswerType(), &snapshot.Reading{RelPath: "Source.md", Domain: "not-declared"}, "", "")
-	const want = "---\ntype: \"writing\"\nstatus: \"draft\"\nbased_on: \"[[Source]]\"\n---\n"
+	const want = "---\ntype: \"writing\"\ndraft: true\nbased_on: \"[[Source]]\"\n---\n"
 	if got != want {
 		t.Errorf("thoughtMarkdown() = %q, want no invented metadata", got)
 	}
@@ -92,7 +88,7 @@ func TestThoughtMarkdownWritesTheTitleItIsGivenQuoted(t *testing.T) {
 	t.Parallel()
 	contract := thoughtTestContract(t, "", "")
 	got := thoughtMarkdown(contract, contract.NavigationRoles().AnswerType(), &snapshot.Reading{RelPath: "Source.md"}, `On: "quotes" 的想法`, "")
-	const want = "---\ntitle: \"On: \\\"quotes\\\" 的想法\"\ntype: \"writing\"\nstatus: \"draft\"\nbased_on: \"[[Source]]\"\n---\n"
+	const want = "---\ntitle: \"On: \\\"quotes\\\" 的想法\"\ntype: \"writing\"\ndraft: true\nbased_on: \"[[Source]]\"\n---\n"
 	if got != want {
 		t.Errorf("thoughtMarkdown() = %q, want %q", got, want)
 	}
@@ -130,15 +126,18 @@ func TestThoughtMarkdownQuotesSourceWithoutInjectingFrontmatter(t *testing.T) {
 	contract := thoughtTestContract(t, "", "")
 	source := &snapshot.Reading{RelPath: "Sources/quote\" and & plus+.md"}
 	got := thoughtMarkdown(contract, contract.NavigationRoles().AnswerType(), source, "", "")
-	const want = "---\ntype: \"writing\"\nstatus: \"draft\"\nbased_on: \"[[Sources/quote\\\" and & plus+]]\"\n---\n"
+	const want = "---\ntype: \"writing\"\ndraft: true\nbased_on: \"[[Sources/quote\\\" and & plus+]]\"\n---\n"
 	if got != want {
 		t.Errorf("thoughtMarkdown() = %q, want %q", got, want)
 	}
 }
 
+// thoughtTestContract is the shared contract with the reader's thoughts filed
+// as writing and the draft flag known, edited once more by before and after.
 func thoughtTestContract(t *testing.T, before, after string) *schema.Contract {
 	t.Helper()
 	return thoughtTestContractWith(t, func(text string) string {
+		text = strings.Replace(text, "known = [", "known = [\"draft\", ", 1)
 		if before == "" {
 			return text
 		}

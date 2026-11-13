@@ -173,8 +173,8 @@ const readResults = (page) => page.evaluate(() =>
 
 // readFindings identifies each row of the table: the file it is about, read as
 // an address rather than as display text, and the kind of finding it reports.
-// One file can draw several rows — a note with a broken link and a status its
-// type never declared is two of them — so the file alone would read as a
+// One file can draw several rows — a note with a broken link and a value its
+// contract does not accept is two of them — so the file alone would read as a
 // repeat the moment two of its rows fell either side of a page break.
 const readFindings = (page) => page.evaluate(() =>
   [...document.querySelectorAll('.y-findings tbody tr')].map((row) => {

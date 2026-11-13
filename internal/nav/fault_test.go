@@ -172,5 +172,5 @@ map_types = ["moc"]
 non_instance_dirs = ["Maps"]
 `).ArtifactPolicy()
 	}
-	return newModel(files, graph.New(notes, nil), roles, contract.KnowledgeScope(), policy, contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement(), walkers)
+	return newModel(files, graph.New(notes, nil), roles, contract.KnowledgeScope(), policy, contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), walkers)
 }

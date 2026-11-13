@@ -34,8 +34,8 @@ import (
 )
 
 // The command that hands a program what the reader has left open: the
-// locations they marked "Not sure yet" and the thoughts still in an initial
-// status, the same selection the "What you left open" shelf shows. Its name,
+// locations they marked "Not sure yet" and the thoughts that still declare
+// draft: true, the same selection the "What you left open" shelf shows. Its name,
 // and the names and values of its output fields, are gathered here so that
 // renaming any of them is one edit: the command line's own words are decided
 // when the command that needs them is.
@@ -79,7 +79,6 @@ type openThought struct {
 	Kind     string `json:"kind"`
 	Path     string `json:"path"`
 	Title    string `json:"title,omitempty"`
-	Status   string `json:"status"`
 	Wikilink string `json:"wikilink,omitempty"`
 	// UpdateDate is the date the note's own frontmatter declares, never a
 	// moment yomihon observed.
@@ -304,7 +303,7 @@ func openAllowed(contract *schema.Contract) func(string) bool {
 
 // openUnreadable refuses a list that could be missing a thought: a note the
 // scan saw and could not read may be one, and so may a note whose frontmatter
-// could not be read, since its type and status are what would say. An empty
+// could not be read, since its type and draft flag are what would say. An empty
 // answer would read as nothing left open. A note in withheld ground is passed
 // over in silence, so whether it could be read changes neither the answer nor
 // the exit.
@@ -323,8 +322,9 @@ func openUnreadable(snap *snapshot.Generation, allowed func(string) bool) error 
 			continue
 		}
 		// A type that is not text leaves whether the note is a thought unknown;
-		// a status that is not text on a thought leaves whether it is open so.
-		unread := snap.NotText(rel, "type") || (schema.NormalizeWord(reading.Type) == answerType && snap.NotText(rel, "status"))
+		// a draft flag that is not a boolean on a thought leaves whether it is
+		// open so.
+		unread := snap.NotText(rel, "type") || (schema.NormalizeWord(reading.Type) == answerType && snap.NotBoolean(rel, schema.DraftField))
 		if reading.FMDiagnostic != "" || reading.FrontmatterUnclosed || unread {
 			return fmt.Errorf("%s has frontmatter that could not be read, so whether it is a thought still open is unknown; nothing was listed", escapeTerminal(rel))
 		}
@@ -363,7 +363,7 @@ type openEntry struct {
 func openEntries(snap *snapshot.Generation, contract *schema.Contract, kept []mark.Uncertainty, allowed func(string) bool) []openEntry {
 	var entries []openEntry
 	withheldDirs := contract.PrivacyPolicy().WithheldDirs()
-	for _, item := range snap.OpenItems(contract, note.OpenMarks(kept)) {
+	for _, item := range snap.OpenItems(note.OpenMarks(kept)) {
 		if !allowed(item.Path()) {
 			continue
 		}
@@ -389,7 +389,7 @@ func openThoughtEntry(snap *snapshot.Generation, reading *snapshot.Reading, allo
 		return openThought{}, false
 	}
 	entry := openThought{
-		Kind: openKindThought, Path: reading.RelPath, Title: title, Status: reading.Status,
+		Kind: openKindThought, Path: reading.RelPath, Title: title,
 		Wikilink: note.NoteWikilink(snap, reading.RelPath),
 	}
 	if !reading.Updated.IsZero() {
@@ -729,14 +729,14 @@ func humanLocationLine(e *openLocation) string {
 }
 
 // humanThoughtLine is one thought as a person at a terminal reads it: its
-// declared date, the kind, the path, its title and its status.
+// declared date, the kind, the path and its title.
 func humanThoughtLine(e *openThought) string {
 	date := cmp.Or(e.UpdateDate, humanOpenDateless)
 	line := fmt.Sprintf("%s  %-8s  %s", date, e.Kind, escapeTerminal(e.Path))
 	if e.Title != "" {
 		line += "  " + escapeTerminal(e.Title)
 	}
-	return line + "  (" + escapeTerminal(e.Status) + ")\n"
+	return line + "\n"
 }
 
 // escapeTerminal makes text one line a terminal shows as written: a C0 or C1

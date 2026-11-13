@@ -19,8 +19,11 @@ level = ["fundamental", "intermediate"]
 # What a map groups by.
 map_kind = ["topic"]
 
-# published is declared for notes. yomihon never sets it — see the lifecycle
-# row below — but a note that carries it is legal and renders like any other.
+# No note in this vault writes a status: a note says it is unfinished with
+# draft: true, which the product defines and fields.known lists. The loader
+# still requires a status vocabulary and the lifecycle rows below until the
+# contract format drops them, and `yomihon check` holds any status a note does
+# write to them, which is why fields.known still lists the key.
 [enums.status]
 note = ["draft", "ready", "published", "archived"]
 lesson = ["draft", "ready", "archived"]
@@ -28,13 +31,13 @@ lesson = ["draft", "ready", "archived"]
 thought = ["draft", "ready", "archived"]
 
 [fields]
-required = ["title", "type", "status", "domain"]
+required = ["title", "type", "domain"]
 # A capture has not been filed yet, so it is not asked what it is about.
-required_inbox = ["title", "type", "status"]
+required_inbox = ["title", "type"]
 # A course and a map span subjects rather than sitting inside one.
 domain_exempt_types = ["study-path", "moc"]
 known = [
-  "title", "aliases", "type", "domain", "topics", "tags", "status",
+  "title", "aliases", "type", "domain", "topics", "tags", "status", "draft",
   "created", "updated", "lang", "map_kind",
   "source_kind", "source_provider", "based_on", "replaces",
 ]
@@ -108,11 +111,6 @@ archived_status = "archived"
 # record, for your own tooling's doctrine, whose step a status's onward move is.
 #
 # A row may also say settled = true: the status is where a finished note rests.
-# A surface that prints each note's status leaves a settled one unmarked and
-# marks only the notes not there yet, so a vault of finished notes is not
-# covered in labels. A status is settled when any row naming it says so, and a
-# contract that writes the key on no row settles nothing: every status is
-# marked.
 [[lifecycle]]
 status = "draft"
 applies_to = ["*"]
@@ -137,12 +135,9 @@ initial = false
 from = ["*"]
 owner = ["author"]
 
-# The schema allows this transition and yomihon still refuses to make it. The
-# value records a publication that happened outside the vault, and nothing here
-# can attest to one, so the control is never offered and a request for it is
-# refused with that reason. A note carrying the value renders like any other.
-# The refusal is yomihon's own, which is why the row is written out rather than
-# left absent: an absent row would say the vault never allowed it.
+# The value records a publication that happened outside the vault. yomihon sets
+# no status at all, this one included; a note carrying it renders like any
+# other.
 [[lifecycle]]
 status = "published"
 # In this starting-point contract, name only types whose status list carries

@@ -23,12 +23,12 @@ ready_status() {
 
 # The reading surface deliberately stays available when the vault contract is
 # broken, so Home's 200 alone cannot prove that a browser fixture has a usable
-# schema. Browser probes need the contract-backed navigation and write faces;
+# schema. Browser probes need the contract-backed navigation;
 # require the real server startup log to say that contract loading succeeded.
 contract_log_error() {
   local content="$1" loaded unavailable
   loaded="$(grep -cF 'msg="vault contract loaded"' <<<"$content" || true)"
-  unavailable="$(grep -cF 'msg="vault contract unavailable; write face is closed (fail-closed)"' <<<"$content" || true)"
+  unavailable="$(grep -cF 'msg="vault contract unavailable"' <<<"$content" || true)"
   if [ "$unavailable" -ne 0 ]; then
     echo "the server reported the fixture contract unavailable"
     return 1
@@ -102,7 +102,7 @@ self_test() {
     echo "  ok: one successful contract load -> accepted"
   fi
   for entry in \
-    'unavailable|the server reported the fixture contract unavailable|time=2026-07-17T00:00:00Z level=WARN msg="vault contract unavailable; write face is closed (fail-closed)" error=invalid' \
+    'unavailable|the server reported the fixture contract unavailable|time=2026-07-17T00:00:00Z level=WARN msg="vault contract unavailable" error=invalid' \
     'missing|reported 0 successful fixture contract loads|time=2026-07-17T00:00:00Z level=INFO msg="scanner ready"' \
     'duplicated|reported 2 successful fixture contract loads|time=2026-07-17T00:00:00Z level=INFO msg="vault contract loaded" version=1
 time=2026-07-17T00:00:01Z level=INFO msg="vault contract loaded" version=1'; do

@@ -22,20 +22,15 @@ import (
 // on each: only one of them means a reload would deliver something new, and
 // two of them mean the question could not be settled this time. Collapsing the
 // unsettled pair into "changed" would turn a passing read failure into a claim
-// the reader would act on, which is the same refusal the write face makes when
-// it cannot confirm what it is replacing.
+// the reader would act on.
 type freshness string
 
 const (
-	// freshUnchanged: the bytes on disk are the bytes this page rendered — the
-	// status it printed included, when it carried one — and the published
-	// generation agrees.
+	// freshUnchanged: the bytes on disk are the bytes this page rendered, and
+	// the published generation agrees.
 	freshUnchanged freshness = "unchanged"
 	// freshStale: reloading now shows the new version, or the file information
-	// page once the published generation excludes an oversized body. A flip of the
-	// status value alone also lands here: that value sits outside the content
-	// the identity covers, and a fresh render prints it anew while an open
-	// page keeps what it printed.
+	// page once the published generation excludes an oversized body.
 	freshStale freshness = "stale"
 	// freshPreparing: the note changed on disk and the published generation has
 	// not caught up. Reloading now would render the same bytes again, so the
@@ -87,21 +82,14 @@ func (l *freshnessLog) changed(path, cause string) bool {
 // rooted capability the page used, and the published generation is only
 // observed.
 //
-// The identity a page carries covers every byte except the frontmatter status
-// value: the write face binds a ruling to exactly the bytes it does not
-// rewrite, and this check keeps that boundary. A page left open keeps showing
-// whatever status it printed, however live the value was at render time, so
-// the reading page carries that printed status beside the identity and the
-// answer covers the pair — a flip of the one value the identity leaves out is
-// stale like any other change a reload would deliver. A caller that carries no
-// status, as the recovery page does not, is compared on its identity alone.
+// The identity a page carries covers every byte of the note.
 //
-// A page whose render read an embed at all carries a third value: the identity
-// of what those embeds came to, which the host's own identity cannot cover
-// because it turns on bytes that live in other files, or on their not being
-// there. It is compared the same way the status is — only when carried, and
-// only once the host's own bytes are level — so a page with no embed on it
-// keeps exactly the ask and the answer it always had.
+// A page whose render read an embed at all carries a second value: the
+// identity of what those embeds came to, which the host's own identity cannot
+// cover because it turns on bytes that live in other files, or on their not
+// being there. It is compared only when carried, and only once the host's own
+// bytes are level, so a page with no embed on it keeps exactly the ask and the
+// answer it always had.
 func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
@@ -115,11 +103,7 @@ func (h *Handler) freshness(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, malformedIdentity("identity", lang), http.StatusBadRequest)
 		return
 	}
-	ask := freshnessAsk{
-		rendered:      rendered,
-		printedStatus: query.Get("status"),
-		statusCarried: query.Has("status"),
-	}
+	ask := freshnessAsk{rendered: rendered}
 	if query.Has("embeds") {
 		transcluded, ok := parseIdentity(query.Get("embeds"))
 		if !ok {
@@ -146,16 +130,11 @@ func malformedIdentity(field string, lang wording.Lang) string {
 }
 
 // freshnessAsk is everything one polling page states about itself: the
-// identity of the bytes it rendered, the status it printed beside the title,
-// and the identity of what it transcluded. The two optional halves each
-// travel with their own carried flag because absence and emptiness are
-// different claims — a page that printed no status stamps an empty one, while
-// the recovery page carries none at all, and a page that read no embed carries
-// no stamp rather than a digest of nothing.
+// identity of the bytes it rendered and the identity of what it transcluded.
+// The second travels with its own carried flag because a page that read no
+// embed carries no stamp rather than a digest of nothing.
 type freshnessAsk struct {
 	rendered           [sha256.Size]byte
-	printedStatus      string
-	statusCarried      bool
 	transcluded        [sha256.Size]byte
 	transcludedCarried bool
 }
@@ -206,13 +185,6 @@ func (h *Handler) compareNote(ctx context.Context, rel string, ask *freshnessAsk
 		return freshPreparing
 	}
 	if disk != ask.rendered {
-		return freshStale
-	}
-	// The printed status settles the answer only when a caller carried one and
-	// the bytes are level. The disk's side of the pair comes from the same
-	// parse that decides what a page prints, so the two sides cannot disagree
-	// about what a status line means.
-	if ask.statusCarried && vault.Parse(rel, data).Status() != ask.printedStatus {
 		return freshStale
 	}
 	// The transcluded stamp is settled last and from the generation alone: a

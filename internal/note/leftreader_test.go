@@ -41,16 +41,15 @@ func TestAProbeThatLeavesIsNotLoggedAsAFault(t *testing.T) {
 	var written bytes.Buffer
 	log := slog.New(slog.NewTextHandler(&written, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	store, source := newSnapshotStore(t, t.TempDir(), log, nil, schema.Ungoverned())
-	writer := openStatusWriter(t, source, nil, schema.Ungoverned())
+	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source:         source,
-		Status:         writer.Authority,
-		Snapshot:       store.Current,
-		ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   noMark,
-		Log:            log,
+		Source:    source,
+		Authority: authority,
+		Snapshot:  store.Current,
+
+		Continuation: noMark,
+		Log:          log,
 	}).Register(mux)
 
 	mux.ServeHTTP(&goneReader{}, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/favicon.ico", http.NoBody))

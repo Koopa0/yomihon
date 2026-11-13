@@ -1,7 +1,6 @@
 ---
 title: An older approach
 type: note
-status: archived
 domain: yomihon
 created: 2026-09-22
 updated: 2026-09-22

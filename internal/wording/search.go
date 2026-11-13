@@ -73,12 +73,7 @@ func LiteralOperatorSentence(lang Lang, terms []string) string {
 // The second form is for a library with no lifecycle to filter by, where the
 // status hint would name a facility that is not there.
 var (
-	SearchScopeHintWithStatus = both(
-		"圖片、PDF 這類檔案只列出，不讀內容。請試較少或不同的詞，或用 ",
-		"Search covers notes and any file that can be shown as text. Images, PDFs and other binary files are listed in the navigation but never read. Try fewer or different words, or narrow by lifecycle with ",
-	)
-	SearchScopeHintAfterCommand = both(" 依生命週期縮小範圍。", ".")
-	SearchScopeHint             = both(
+	SearchScopeHint = both(
 		"圖片、PDF 這類檔案只列出，不讀內容。請試較少或不同的詞。",
 		"Search covers notes and any file that can be shown as text. Images, PDFs and other binary files are listed in the navigation but never read. Try fewer or different words.",
 	)
@@ -198,7 +193,6 @@ var (
 // the grammar's, and it is unexported so the names cannot be rewritten from
 // outside the package that owns them.
 var facetHeadings = map[string]Phrase{
-	"status": both("狀態", "Status"),
 	"type":   both("類型", "Type"),
 	"domain": both("領域", "Domain"),
 }

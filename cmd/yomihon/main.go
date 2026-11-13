@@ -236,7 +236,7 @@ func run(log *slog.Logger, root string) (resultErr error) {
 	log.Info("yomihon serving", "addr", listener.Addr().String(), "vault", cfg.root)
 	err = serveHTTP(ctx, srv, listener, shutdownGrace(srv))
 	// The deferred close above waits without a deadline for in-flight handlers
-	// and the scanner, deliberately, so an uncertain status write is not
+	// and the scanner, deliberately, so work already accepted is not
 	// abandoned. Announcing that turns the wait from an apparent hang into a
 	// visible state, which is what the reader who pressed Ctrl-C is owed.
 	// While the notify handler is installed that wait also swallows a repeated

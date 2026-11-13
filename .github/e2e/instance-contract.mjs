@@ -1,6 +1,5 @@
 // Behavior lock: files under the contract's non-instance directories remain
-// directly readable and browsable, but never leak into instance projections or
-// expose a status write face.
+// directly readable and browsable, but never leak into instance projections.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -15,7 +14,6 @@ const MAP_TITLE = 'TEMPLATE MAP LEAK SENTINEL';
 const MAP_BODY = 'TEMPLATE MAP BODY SENTINEL';
 const LESSON_TITLE = 'TEMPLATE LESSON WRITE SENTINEL';
 const LESSON_BODY = 'TEMPLATE LESSON BODY SENTINEL';
-const QUIET_REASON = '不屬於生命週期治理範圍';
 const MUTATE = process.env.MUTATE || '';
 
 const SITES = [
@@ -26,8 +24,6 @@ const SITES = [
   'map-raw-readable',
   'lesson-note-readable',
   'lesson-raw-readable',
-  'noninstance-quiet-marker',
-  'noninstance-no-status-form',
 ];
 
 class LockFired extends Error {
@@ -94,14 +90,6 @@ const MUTATIONS = {
   'redact-template-lesson-raw': {
     target: 'lesson-raw-readable',
     apply: rewritePath(LESSON_RAW, (body) => body.replaceAll(LESSON_BODY, 'REDACTED LESSON RAW')),
-  },
-  'drop-noninstance-marker': {
-    target: 'noninstance-quiet-marker',
-    apply: rewritePath(LESSON_NOTE, (body) => body.replaceAll(QUIET_REASON, 'governance marker removed')),
-  },
-  'inject-noninstance-status-form': {
-    target: 'noninstance-no-status-form',
-    apply: rewritePath(LESSON_NOTE, (body) => body.replaceAll(QUIET_REASON, `${QUIET_REASON}<form class="y-statusform" action="/status"></form>`)),
   },
 };
 
@@ -176,20 +164,13 @@ try {
   if (!response || response.status() !== 200 || !(await page.locator('main').textContent()).includes(LESSON_BODY)) {
     fail('lesson-note-readable', 'the template lesson note is not directly readable with its sentinel');
   }
-  const noninstanceFaces = page.locator('[data-status-state="non-instance"]');
-  if (await noninstanceFaces.count() !== 2 || await noninstanceFaces.getByText(QUIET_REASON, { exact: true }).count() !== 2 || await page.locator('.ui-status').count() !== 0) {
-    fail('noninstance-quiet-marker', 'the template lesson lacks the quiet non-instance marker or exposes a status decoration');
-  }
-  if (await page.locator('form.y-statusform, form[action="/status"]').count() !== 0) {
-    fail('noninstance-no-status-form', 'the template lesson exposes a status form');
-  }
   response = await page.goto(BASE + LESSON_RAW, { waitUntil: 'domcontentloaded' });
   if (!response || response.status() !== 200 || !(await response.text()).includes(LESSON_BODY)) {
     fail('lesson-raw-readable', 'the template lesson raw route is not readable with its sentinel');
   }
 
   if (proof && !proof()) notApplied(`the ${MUTATE} mutation changed nothing in the response it targeted`);
-  console.log('PASS instance-contract: template artifacts stay browsable and directly readable while absent from instance projections and write faces');
+  console.log('PASS instance-contract: template artifacts stay browsable and directly readable while absent from instance projections');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

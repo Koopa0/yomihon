@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -68,12 +69,12 @@ func TestOrderingByWeightPlacesTheFileNothingCouldRead(t *testing.T) {
 	// page's own order, so ordering by weight has something to move and the
 	// comparison below is not satisfied by rows that were already in place.
 	view := HealthView{
-		Blocked:           blocked,
-		Skipped:           []HealthSkippedSource{{Path: "Notes/Linked note.md", Reason: "symbolic link"}},
-		Islands:           []HealthIslandGroup{{Dir: "Notes", Name: "Notes", Notes: []nav.NoteRef{{Name: "Alone", RelPath: "Notes/Alone.md"}}}},
-		IslandCount:       1,
-		StatusOutsideEnum: []HealthStatusNote{{Note: healthTestNote, Type: "lesson", Status: "seed"}},
-		Sort:              HealthBySeverity,
+		Blocked:      blocked,
+		Skipped:      []HealthSkippedSource{{Path: "Notes/Linked note.md", Reason: "symbolic link"}},
+		Islands:      []HealthIslandGroup{{Dir: "Notes", Name: "Notes", Notes: []nav.NoteRef{{Name: "Alone", RelPath: "Notes/Alone.md"}}}},
+		IslandCount:  1,
+		SchemaFaults: []HealthNoteFindings{{Note: healthTestNote, Severity: judge.SeverityError, Count: 1}},
+		Sort:         HealthBySeverity,
 	}
 	want := []string{blocked[0].Path, healthTestNote.Name, "Notes/Linked note.md", "Alone"}
 	if diff := cmp.Diff(want, healthRowFiles(t, &view)); diff != "" {

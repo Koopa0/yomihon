@@ -18,9 +18,9 @@ import (
 func facetSite(t *testing.T) *httptest.Server {
 	t.Helper()
 	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Domain: "golang", Status: "draft", PlainText: "needle in a log"},
-		{RelPath: "Writing/Streams.md", Title: "Streams", NoteType: "lesson", Domain: "golang", Status: "ready", PlainText: "needle in a stream"},
-		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", Domain: "meta", Status: "draft", PlainText: "needle and focus"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Domain: "golang", Draft: true, PlainText: "needle in a log"},
+		{RelPath: "Writing/Streams.md", Title: "Streams", NoteType: "lesson", Domain: "golang", PlainText: "needle in a stream"},
+		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", Domain: "meta", Draft: true, PlainText: "needle and focus"},
 		{RelPath: "Notes/Loose.md", Title: "Loose", PlainText: "needle with nothing declared"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
@@ -85,7 +85,7 @@ func TestEveryDivisionOfferedIsNamedInBothLanguages(t *testing.T) {
 	t.Parallel()
 
 	answer, err := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Domain: "golang", Status: "draft", PlainText: "needle"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Domain: "golang", Draft: true, PlainText: "needle"},
 	}, validArtifactPolicy(t)).Search(lexical.Parse("needle"), -1)
 	if err != nil {
 		t.Fatalf("Search error = %v", err)
@@ -122,7 +122,6 @@ func TestAFacetRowLeadsWhereItSaysItDoes(t *testing.T) {
 
 	_, plain := getBody(t, srv.Client(), srv.URL+"/search?q=needle")
 	for _, want := range []string{
-		"q=needle+status%3Adraft",
 		"q=needle+type%3Alesson",
 		"q=needle+domain%3Agolang",
 	} {
@@ -133,18 +132,18 @@ func TestAFacetRowLeadsWhereItSaysItDoes(t *testing.T) {
 
 	// With the constraint already in the query, its row leads back out of it
 	// and takes nothing else with it.
-	_, narrowed := getBody(t, srv.Client(), srv.URL+"/search?q=needle+status%3Adraft")
+	_, narrowed := getBody(t, srv.Client(), srv.URL+"/search?q=needle+type%3Alesson")
 	if !strings.Contains(narrowed, `href="/search?q=needle"`) {
 		t.Errorf("the active row does not lead back out of the constraint; body = %q", narrowed)
 	}
 	if !strings.Contains(narrowed, "data-facet-active") {
 		t.Errorf("the constraint in the query is not marked as standing; body = %q", narrowed)
 	}
-	// Narrowed to draft, every hit is at draft, so the status division holds
+	// Narrowed to lesson, every hit is a lesson, so the type division holds
 	// that one row and offers no sibling the grammar would read as an AND of
-	// two statuses — a search nothing can answer.
-	if strings.Contains(narrowed, "status%3Aready") {
-		t.Errorf("the column offers a second status beside an active one, which no note can satisfy; body = %q", narrowed)
+	// two types — a search nothing can answer.
+	if strings.Contains(narrowed, "type%3Aconcept") {
+		t.Errorf("the column offers a second type beside an active one, which no note can satisfy; body = %q", narrowed)
 	}
 }
 
@@ -156,7 +155,7 @@ func TestADivisionIsNotDrawnWhereItCouldNotBeHonoured(t *testing.T) {
 	t.Parallel()
 
 	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Status: "draft", PlainText: "needle"},
+		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Draft: true, PlainText: "needle"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {

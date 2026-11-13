@@ -2,7 +2,7 @@
 
 [繁體中文](ARCHITECTURE.zh-TW.md)
 
-yomihon turns a folder of Markdown into a local reading environment. Authors keep writing in their editor; yomihon builds navigation, search, courses, and diagnostics from those files. It stores reading marks separately and changes a note only when the reader requests a permitted `status` transition.
+yomihon turns a folder of Markdown into a local reading environment. Authors keep writing in their editor; yomihon builds navigation, search, courses, and diagnostics from those files. It stores reading marks separately and never writes into the vault.
 
 ## 1. Reading model
 
@@ -12,7 +12,7 @@ The files remain authoritative. Derived views can be rebuilt, while the author's
 
 | Data | Owner and lifetime |
 | --- | --- |
-| Markdown, frontmatter, attachments, and lesson sidecars | The vault. Edited outside yomihon, except for a permitted status change. |
+| Markdown, frontmatter, attachments, and lesson sidecars | The vault. Edited only outside yomihon; `draft: true` is the author's word that a note is unfinished. |
 | `System/schemas/vault-schema.toml` | The vault's declarations: note types, fields, lifecycle, navigation roles, and output policies. |
 | Reading generation | In-memory note bodies, link resolution, navigation, search, and diagnostics, replaced together. |
 | Continuation and uncertainty marks | Application files in the local user's configuration directory, scoped to the vault. |
@@ -20,7 +20,7 @@ The files remain authoritative. Derived views can be rebuilt, while the author's
 
 A wikilink cites a note, `based_on` declares a source, and a study path orders lessons. These relationships are projected separately: a citation does not put a lesson into a course, and a reading mark does not change a note's lifecycle. The [site][site] combines these [generation projections][snapshot].
 
-`cmd/yomihon` composes feature packages around `vault.Reader`, `snapshot.Store`, and `status.Writer`. HTTP handlers render `templ` views. Assets are embedded; native JavaScript modules add browser interactions and use the vendored Mermaid renderer. Serving needs no database or asset build pipeline. [Dependencies][modules] and [assets][assets] define what the binary carries.
+`cmd/yomihon` composes feature packages around `vault.Reader`, `snapshot.Store`, and a per-request `schema.Authority`. HTTP handlers render `templ` views. Assets are embedded; native JavaScript modules add browser interactions and use the vendored Mermaid renderer. Serving needs no database or asset build pipeline. [Dependencies][modules] and [assets][assets] define what the binary carries.
 
 ## 2. Vault and contract
 
@@ -34,12 +34,12 @@ A selected descriptor survives a rename, but does not freeze bytes another progr
 
 ### Declared capabilities
 
-`internal/schema` reads the TOML contract and exposes the declarations used by navigation, validation, and status changes. Features consume those declarations instead of maintaining independent lists of note types and lifecycle states. Artifact policy distinguishes readable material from governed note instances; `scan.knowledge_dirs` limits lifecycle operations without hiding other files from browsing.
+`internal/schema` reads the TOML contract and exposes the declarations used by navigation and validation. Features consume those declarations instead of maintaining independent lists of note types and lifecycle states. Artifact policy distinguishes readable material from governed note instances; `scan.knowledge_dirs` limits what is judged without hiding other files from browsing.
 
 | Contract condition | Reading behavior |
 | --- | --- |
 | No contract | Plain-folder reading, text search, and link diagnostics remain available. Contract-dependent operations are unavailable. |
-| Contract cannot be loaded | Reading continues with a visible governance fault; status writes stay closed. |
+| Contract cannot be loaded | Reading continues with a visible governance fault. |
 | Contract loads, but a policy is invalid | The affected capability is withheld rather than treating missing authority as permission. |
 | Contract bytes change after loading | Source-bound artifact and privacy authorities are revoked; restart loads the new declarations. |
 
@@ -67,7 +67,7 @@ This is consistency between projections, not a point-in-time filesystem snapshot
 
 Retries back off to a minute; a metadata-visible change can trigger an earlier attempt. The three-attempt threshold prevents one damaged file from indefinitely hiding new, readable notes elsewhere. `Freshness` reports blocked sources and the last complete read alongside the view being served.
 
-`Generation.Capture` also captures artifact authority for the request. Two kinds of information remain deliberately separate from immutable reading content: freshness reports the scanner's ongoing attempts, and the status control observes the note's live status. After a status write, the control can therefore show the new state before the next reading generation is published. See [request composition][site] and [live status reads][status].
+`Generation.Capture` also captures artifact authority for the request. Freshness remains deliberately separate from immutable reading content: it reports the scanner's ongoing attempts and compares the page's content identity, a hash of every byte of the note, with the file on disk. See [request composition][site] and [freshness][note].
 
 ## 4. Rendering and links
 
@@ -103,37 +103,21 @@ The contract identifies course and lesson types. `internal/sequence` owns the br
 
 Explicit roles prevent the reader from guessing whether a nested list is required study, an optional detour, or reference material. Lesson sidecars and concept sheets add authored practice and explanations; an unusable sidecar disables its panel rather than the course. The browser can hide furigana and read designated passages aloud through speech synthesis. The page explicitly selects a voice the browser reports as local, matching the passage's language and script, and says speech is unavailable without a match. There is no server-side model or speech service. Browser and operating-system voice behavior is outside the Go process's outbound-request boundary. See [course authoring][authoring], [sequence grammar][sequence], [course handler][syllabus], [lesson projections][lesson], and [browser lesson controls][lesson-js].
 
-## 6. Status updates
+## 6. Read-only toward the vault
 
-![A status request validates the live source, prepares a narrow replacement, rechecks authority, and confirms only after installation and directory synchronization.](docs/architecture/04-status-update.png)
+No endpoint and no command writes into the vault. Notes, the contract, and attachments are written, renamed, and removed only by the author's own tools. The author's claims about a note stay in its frontmatter; the reader's reactions stay outside the vault (section 7).
 
-[`POST /status`][status-handler] is the only endpoint that changes vault content. A request supplies the path, expected status, target status, and content identity of the note the reader saw. The writer checks its authority and scope, rereads the file, compares the expected state and content identity, and validates the transition against the contract. `published` cannot be assigned here: it records an external publication that yomihon cannot attest.
+The one per-note progress signal is the optional boolean `draft`. A note that writes `draft: true` is marked as a draft on its own page, in the sidebar, on its course, in the recent list, and in search, where `draft:true` filters by it; a note that leaves it out or writes `draft: false` is finished and unmarked. A course head counts its main-line drafts. The "What you left open" shelf reads the same field, and a thought opened through the editor handoff starts with `draft: true`. The status value a contract declares is still judged by `check`, and no page prints it.
 
-The [rewrite][status] replaces only the status value's byte span. It preserves the surrounding YAML syntax, comments, and prose, then reparses the result. Readable YAML that cannot be changed this way is refused unchanged rather than reserialized. Read-only, hard-linked, or ungoverned targets are also refused.
-
-### Installation
-
-The writer serializes its own operations. It prepares a sibling temporary file, preserves the required metadata, synchronizes the replacement, then rechecks the source and policy before installing. Synchronizing the containing directory completes the durability boundary. Status installation is enabled on supported macOS and Linux builds; unsupported platforms retain reading without this write capability. See [platform support][durability] and [installation][install].
-
-The filesystem determines which installation strategy is available:
-
-| Strategy | Protection against an external edit during installation |
-| --- | --- |
-| Atomic exchange | Retain and inspect the displaced version; attempt to restore a conflicting edit. |
-| Retained hardlink | Preserve the previous inode to detect in-place edits; a competing path replacement can still escape this protection. |
-| Plain rename | Recheck before replacement, without protecting the remaining install window. |
-
-The writer probes filesystem behavior rather than relying only on an operation reporting success. These strategies do not lock external editors or provide a universal compare-and-swap over their writes.
-
-A refusal before installation leaves the note unchanged. After installation starts, outcomes differ: an unrecoverable race can leave both versions for inspection, and a failed directory synchronization means the new bytes are visible but their crash durability is unconfirmed. A durable success creates a short-lived receipt for the redirected page. Neither that receipt nor the new status is an authenticated audit trail. See [install outcomes][install] and [HTTP handling][status-handler].
+[`internal/mark`][marks] is the only package that writes, and only under the platform's configuration directory. An [architecture check][archlock] reads every shipped Go file for a spelling that changes the filesystem and fails on one anywhere else, so a code path that opened a vault file for writing would fail the build.
 
 ## 7. Reader state
 
 Continuation and uncertainty marks live outside the vault, under the local user's configuration directory. They record a note location and identity, not authored progress fields or prose. The resolved vault root determines their storage namespace. Different browsers using that local reader can share marks; appearance and interface language remain browser preferences.
 
-Mark files are created on demand and replaced through a temporary sibling. They are not synchronized to stable storage like note updates: losing a recent reading mark is a recoverable convenience failure. A missing configuration directory disables mark controls without preventing reading. A damaged continuation is treated as no saved place; uncertainty-file failures remain visible to the reader. See [composition][site], [mark storage][marks], and [preferences][preferences].
+Mark files are created on demand and replaced through a temporary sibling. They are not synchronized to stable storage: losing a recent reading mark is a recoverable convenience failure. A missing configuration directory disables mark controls without preventing reading. A damaged continuation is treated as no saved place; uncertainty-file failures remain visible to the reader. See [composition][site], [mark storage][marks], and [preferences][preferences].
 
-The reading page polls for freshness rather than treating its displayed text as a live editor buffer. Content identity distinguishes a changed note from a location that still refers to the same reading; transcluded identity covers changes in excerpts as well. Reading, changing status, and keeping a place therefore have separate freshness requirements. See [note handling][note] and [rendered excerpt identity][render].
+The reading page polls for freshness rather than treating its displayed text as a live editor buffer. Content identity distinguishes a changed note from a location that still refers to the same reading; transcluded identity covers changes in excerpts as well. Reading and keeping a place therefore have separate freshness requirements. See [note handling][note] and [rendered excerpt identity][render].
 
 ## 8. Commands and output privacy
 
@@ -146,7 +130,7 @@ The reading page polls for freshness rather than treating its displayed text as 
 | `check` | Findings about frontmatter, links, paths, provenance, and course structure; configured deny rules determine failure. |
 | `coverage` | A corpus summary, including concept coverage; it reports rather than gates. |
 | `exists` | Whether the readable, permitted corpus contains a matching note. |
-| `left-open` | The marked locations and the thoughts in an initial status, newest first. |
+| `left-open` | The marked locations and the thoughts that declare `draft: true`, newest first. |
 
 A scoped `check` still constructs the whole-root graph before filtering findings. Incomplete input is not evidence of absence: `exists` may report a known match, but refuses a negative answer when unreadable sources could change it. `coverage` refuses a partial census. An existence answer is an observation, not a reservation against an editor creating a file afterwards. The [rule inventory][judge-rules] names each finding and its authority.
 
@@ -175,11 +159,10 @@ The important workload is a changing library on a reader's machine: startup time
 | Generation overlap | Live heap during rebuild and long requests; retirement of old generations. | Reduce duplicate representations or expensive per-generation products. |
 | Substring search | Corpus size, long and common queries, filters, snippet work. | Candidate indexes that preserve matching and snippet semantics. |
 | Rich note rendering | Fences, highlighting, excerpts, tables, and browser Mermaid work. | Bound expensive work and cache only under complete content and dependency identities. |
-| Status installation | Source rereads, attribute checks, writer contention, filesystem synchronization. | Keep the critical section limited; never trade author bytes for faster acknowledgement. |
 
 A database or persistent index would add an invalidation and recovery protocol alongside externally editable files. It earns its place when measured rebuild or query costs justify that responsibility. A file watcher alone would not remove the need to reconcile lost events, renames, permissions, and identity changes.
 
-The tests exercise the same boundaries: real filesystem and permission fixtures, concurrent snapshot reads, rendering and query cases, install-window faults, frozen command output, and browser behavior. Architecture checks constrain who may write vault files or interpret contract vocabulary. Their scope is defined by the checks; they are not a sandbox for arbitrary code. See [architecture checks][archlock], [snapshot tests][snapshot-package], [status tests][status-package], [search tests][lexical-package], and [contribution checks][contributing].
+The tests exercise the same boundaries: real filesystem and permission fixtures, concurrent snapshot reads, rendering and query cases, frozen command output, and browser behavior. Architecture checks constrain who may write vault files or interpret contract vocabulary. Their scope is defined by the checks; they are not a sandbox for arbitrary code. See [architecture checks][archlock], [snapshot tests][snapshot-package], [search tests][lexical-package], and [contribution checks][contributing].
 
 Useful end-to-end experiments are:
 
@@ -188,12 +171,11 @@ Useful end-to-end experiments are:
 | Edit a note and an embedded source while pages load | Each reading uses a published generation; freshness identifies changed material. |
 | Make a source unreadable, add another note, then restore permissions | Retention, degraded publication, and recovery occur with visible blocked-source information. |
 | Introduce NFC filename collisions and ambiguous aliases | A scan refusal and a link ambiguity remain distinct diagnoses. |
-| Race an editor with a status write on different filesystems | The selected install strategy and outcome accurately describe preserved, visible, or uncertain bytes. |
 | Change the contract during a command | Output is withheld when its source authority no longer holds. |
 | Load hostile Markdown or an HTML file | Authored content cannot acquire the reading application's script or form authority. |
 | Grow the vault and alternate edits with queries | Measure distributions for build time, visibility lag, search latency, and peak memory, not just note count. |
 
-Shutdown closes request admission, stops the scanner, and waits for accepted handlers before releasing the rooted reader and writer. Finishing a file installation takes precedence over abandoning it at the HTTP shutdown deadline. See [site lifetime][site].
+Shutdown closes request admission, stops the scanner, and waits for accepted handlers before releasing the rooted reader. See [site lifetime][site].
 
 [site]: cmd/yomihon/site.go
 [main]: cmd/yomihon/main.go
@@ -215,11 +197,6 @@ Shutdown closes request admission, stops the scanner, and waits for accepted han
 [lesson]: internal/lesson
 [lesson-js]: assets/js/lesson.js
 [authoring]: docs/authoring.md
-[status]: internal/status/status.go
-[status-package]: internal/status
-[status-handler]: internal/status
-[install]: internal/status/install.go
-[durability]: internal/status/durability_supported.go
 [marks]: internal/mark/file.go
 [preferences]: internal/preference
 [note]: internal/note/handler.go

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -37,33 +36,21 @@ func snapshotSearch(tb testing.TB, idx *lexical.Index, query string) []lexical.R
 
 func assertSearchArtifactPolicy(tb testing.TB, snap *Generation) {
 	tb.Helper()
-	if got := snapshotSearch(tb, snap.Search(), "status:ready"); len(got) != 0 {
+	if got := snapshotSearch(tb, snap.Search(), "draft:false type:concept"); len(got) != 0 {
 		tb.Errorf("metadata search returned non-instance template: %+v", got)
 	}
 	if got := snapshotSearch(tb, snap.Search(), "Card"); len(got) != 1 || got[0].RelPath != "System/templates/Card.md" {
 		tb.Errorf("plain search = %+v, want readable template", got)
 	}
-	counts := searchStatusCounts(tb, snap.Search())
-	if counts["ready"] != 0 || counts["draft"] != 1 {
-		tb.Errorf("status counts = %v, want draft instance only", counts)
+	if got := snapshotSearch(tb, snap.Search(), "draft:true"); len(got) != 1 || got[0].RelPath != "Concepts/Alpha.md" {
+		tb.Errorf("draft search = %+v, want the draft instance only", got)
 	}
 }
 
-// searchStatusCounts folds the index's (type, status) tally down to a
-// status-keyed one, which is the shape these assertions read. The index counts
-// the pair because a status means something different per note type; a test
-// naming one status across every type wants the flattened sum.
-func searchStatusCounts(tb testing.TB, idx *lexical.Index) map[string]int {
-	tb.Helper()
-	pairs, err := idx.CountByTypeStatus()
-	if err != nil {
-		tb.Fatalf("CountByTypeStatus() error: %v", err)
-	}
-	counts := make(map[string]int, len(pairs))
-	for pair, n := range pairs {
-		counts[pair.Status] += n
-	}
-	return counts
+// draftSearch asks the index for its drafts, the metadata projection these
+// assertions read: it answers only while the bound artifact policy does.
+func draftSearch(idx *lexical.Index) (lexical.Answer, error) {
+	return idx.Search(lexical.Parse("draft:true"), -1)
 }
 
 func testContract(tb testing.TB, root string) *schema.Contract {
@@ -169,7 +156,7 @@ func immutableGenerationFixture(t *testing.T) (gen *Generation, root string) {
 	root = t.TempDir()
 	writeNote(t, root, "A/Foo.md", "first body\n")
 	writeNote(t, root, "B/Foo.md", "second body\n")
-	writeNote(t, root, "Concepts/go/Concept.md", "---\ntitle: Concept\ntype: concept\nstatus: draft\n---\nconcept body\n")
+	writeNote(t, root, "Concepts/go/Concept.md", "---\ntitle: Concept\ntype: concept\ndraft: true\n---\nconcept body\n")
 	writeNote(t, root, "Writing/Lesson.md", "---\ntitle: Lesson\ntype: lesson\nstatus: draft\nslug: lesson-l01\n---\nlesson body\n")
 	writeNote(t, root, "System/slots/L01.yaml", `lesson: L01
 slug: lesson-l01
@@ -219,20 +206,14 @@ func TestAGenerationReturnsImmutableProjections(t *testing.T) {
 	if got := snapshotSearch(t, gen.Search(), "Foo")[0].Title; got != "Foo" {
 		t.Errorf("Search(Foo) after mutation starts with title %q, want %q", got, "Foo")
 	}
-	counts, err := gen.Search().CountByTypeStatus()
-	if err != nil {
-		t.Fatalf("CountByTypeStatus() error = %v", err)
+	drafts, err := draftSearch(gen.Search())
+	if err != nil || len(drafts.Results) == 0 {
+		t.Fatalf("draft search = (%+v, %v), want the draft concept", drafts.Results, err)
 	}
-	before := maps.Clone(counts)
-	for pair := range counts {
-		counts[pair] = 0
-	}
-	counts, err = gen.Search().CountByTypeStatus()
-	if err != nil {
-		t.Fatalf("CountByTypeStatus() after mutation error = %v", err)
-	}
-	if diff := cmp.Diff(before, counts); diff != "" {
-		t.Errorf("CountByTypeStatus() after caller mutation (-before +after):\n%s", diff)
+	drafts.Results[0].Draft = false
+	drafts, err = draftSearch(gen.Search())
+	if err != nil || len(drafts.Results) == 0 || !drafts.Results[0].Draft {
+		t.Errorf("draft search after caller mutation = (%+v, %v), want the draft still marked", drafts.Results, err)
 	}
 
 	slot, ok := gen.Slots().Lookup("lesson-l01")
@@ -272,32 +253,32 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 	if !requestA.ArtifactPolicy().Available() {
 		t.Error("request-captured ArtifactPolicy changed while the response was in flight")
 	}
-	if _, err := requestA.Search().CountByTypeStatus(); err != nil {
-		t.Errorf("request-captured Search.CountByTypeStatus() error = %v, want stable authority", err)
+	if _, err := draftSearch(requestA.Search()); err != nil {
+		t.Errorf("request-captured draft search error = %v, want stable authority", err)
 	}
 	// Notes are answered before files, and the contract is a vault file whose
 	// characters a reader can open, so it joins the text corpus and can share a
 	// query with this note. The claim under test is the note's badge, so the
 	// note is named rather than assumed to be alone.
 	if results := snapshotSearch(t, requestA.Search(), "Concept"); len(results) == 0 ||
-		results[0].RelPath != "Concepts/go/Concept.md" || results[0].Status != "draft" {
+		results[0].RelPath != "Concepts/go/Concept.md" || !results[0].Draft {
 		t.Errorf("request-captured Search(Concept) = %+v, want stable metadata badge", results)
 	}
 	if requestB.ArtifactPolicy().Available() {
 		t.Error("next ArtifactPolicy capture remained available after its source changed")
 	}
-	if _, err := requestB.Search().CountByTypeStatus(); !errors.Is(err, lexical.ErrMetadataUnavailable) {
-		t.Errorf("next Search.CountByTypeStatus() error = %v, want ErrMetadataUnavailable", err)
+	if _, err := draftSearch(requestB.Search()); !errors.Is(err, lexical.ErrMetadataUnavailable) {
+		t.Errorf("next draft search error = %v, want ErrMetadataUnavailable", err)
 	}
 	if results := snapshotSearch(t, requestB.Search(), "Concept"); len(results) == 0 ||
-		results[0].RelPath != "Concepts/go/Concept.md" || results[0].Status != "" {
+		results[0].RelPath != "Concepts/go/Concept.md" || results[0].Draft {
 		t.Errorf("next Search(Concept) = %+v, want lexical result without metadata badge", results)
 	}
 	// A page combines two samples of the same authority: the policy it asks for
-	// classification, and the index it asks for counts. Capture binds both to
+	// classification, and the index it asks for metadata. Capture binds both to
 	// one authority, which is why a reader can trust them together. Were they
-	// ever to disagree, a page could show a lifecycle tally beside a policy that
-	// had already stopped classifying — so the agreement is asserted here rather
+	// ever to disagree, a page could show a draft filter's answer beside a
+	// policy that had already stopped classifying — so the agreement is asserted here rather
 	// than left to be inferred from the two halves above.
 	for _, tt := range []struct {
 		name string
@@ -306,9 +287,9 @@ func TestCaptureBindsArtifactAuthorityAcrossOneRequest(t *testing.T) {
 		{name: "captured before the source changed", gen: requestA},
 		{name: "captured after the source changed", gen: requestB},
 	} {
-		_, countErr := tt.gen.Search().CountByTypeStatus()
+		_, countErr := draftSearch(tt.gen.Search())
 		if got, want := tt.gen.ArtifactPolicy().Available(), countErr == nil; got != want {
-			t.Errorf("%s: ArtifactPolicy().Available() = %t but the bound index answers counts = %t; "+
+			t.Errorf("%s: ArtifactPolicy().Available() = %t but the bound index answers metadata = %t; "+
 				"one request would combine two disagreeing authorities", tt.name, got, want)
 		}
 	}
@@ -610,8 +591,8 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
-	writeNote(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\nstatus: ready\n---\nbody\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\ndraft: true\n---\nbody\n")
+	writeNote(t, root, "System/templates/Card.md", "---\ntitle: Card\ntype: concept\ndraft: false\n---\nbody\n")
 	writeNote(t, root, "Maps/Path.md", "---\ntitle: Path\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Alpha]]\n")
 	contract := testContract(t, root)
 	store, _ := newTestStore(t, root, contract)
@@ -644,7 +625,7 @@ func TestRescanRetainsStartupInstanceCapabilities(t *testing.T) {
 	if result := snapshotSearch(t, got.Search(), "Card"); len(result) != 1 || result[0].RelPath != "System/templates/Card.md" {
 		t.Errorf("plain lexical search after artifact drift = %+v, want locally readable template", result)
 	}
-	if _, err := got.Search().Search(lexical.Parse("status:ready"), -1); err == nil {
+	if _, err := got.Search().Search(lexical.Parse("draft:true"), -1); err == nil {
 		t.Error("metadata search succeeded under source-stale artifact policy")
 	}
 

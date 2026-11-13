@@ -23,7 +23,7 @@ func unknownFilterServer(t *testing.T) *httptest.Server {
 		// be told apart from "the literal search ran and this corpus has
 		// nothing". Without a note that really contains the characters, an
 		// empty result proves neither.
-		{RelPath: "Notes/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Status: "draft",
+		{RelPath: "Notes/Kafka.md", Title: "Kafka Basics", NoteType: "lesson", Draft: true,
 			PlainText: "kafka is a distributed log, written up as path:Notes in the index"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()

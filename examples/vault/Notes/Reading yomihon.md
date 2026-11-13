@@ -1,7 +1,6 @@
 ---
 title: Reading yomihon
 type: study-path
-status: ready
 created: 2026-09-22
 lang: en
 ---

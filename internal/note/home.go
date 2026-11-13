@@ -23,7 +23,7 @@ import (
 // a read face: no status forms or write capability enter the view.
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
 	// The desk links to the folder's own introduction rather than reprinting
 	// it, so nothing here renders it and its absence is not news.
@@ -52,7 +52,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	// One cause is not quoted: a contract that changed after yomihon read it is
 	// said in the reader's own words, once, whichever of the three carries it.
 	fault, restart := statedAsFaults(lang,
-		faultCause{authority.Diagnostic(lang), authority.Claim().Reason()},
+		faultCause{authority.Diagnostic(), authority.Claim().Reason()},
 		faultCause{visibleNav.NavigationClosure().Diagnostic(), visibleNav.NavigationClosure().Reason()},
 		faultCause{visibleNav.ArtifactClosure().Diagnostic(), visibleNav.ArtifactClosure().Reason()},
 	)
@@ -60,9 +60,9 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	privacyFault, privacyRestart := statedAsFaults(lang, faultCause{privacy.Diagnostic(), privacy.Reason()})
 	// Counted by the call the health page lists its rows from, so the number
 	// at the foot of the desk and the table it leads to are one instrument.
-	found := shell.GatherFindings(authority, snap)
+	found := shell.GatherFindings(snap)
 	kept, hasMark := h.sources.Continuation()
-	open, openFault := h.openThoughtShelf(r.Context(), snap, lang, pages.OpenThoughtsHomeRows)
+	open, openFault := h.openThoughtShelf(snap, lang, pages.OpenThoughtsHomeRows)
 	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
 		open = pages.Shelf{}
 	}

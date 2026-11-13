@@ -1,10 +1,10 @@
 // Behavior lock for the wide reading rail. A long table of contents, the
-// status controls, and diagnostics retain their full content height; the rail
-// is the one vertical scroller that makes each focus target reachable. It also
-// holds the order the reader meets them in: the note's own shape, then the
-// sources it declared, then what leads to it from the text of other notes, and
-// the ruling last — a small verb beside the reading rather than the frame
-// around it. Both rails sit against the window's edges however wide the window
+// control for keeping a place, and diagnostics retain their full content
+// height; the rail is the one vertical scroller that makes each focus target
+// reachable. It also holds the order the reader meets them in: the note's own
+// shape, then the sources it declared, then what leads to it from the text of
+// other notes, and the reader's verb last — a small control beside the reading
+// rather than the frame around it. Both rails sit against the window's edges however wide the window
 // is, the left rail's text starts where the header's first control starts, and
 // the right rail's text ends where the header's last control ends.
 //
@@ -17,7 +17,7 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 const SITE = 'rail-content-reachable';
-const ORDER_SITE = 'reading-precedes-the-ruling';
+const ORDER_SITE = 'reading-precedes-the-verb';
 const DOOR_SITE = 'contents-door-shares-its-row';
 const EDGE_SITE = 'rails-sit-at-the-window-edges';
 const SITES = [SITE, ORDER_SITE, DOOR_SITE, EDGE_SITE];
@@ -60,15 +60,15 @@ const restoreChildShrink = async (page) => {
 
 // Appends to the product's own stylesheet, landing outside the layer it
 // declares, so the rule outranks what it stands in for without an importance
-// flag. The rail is a column flex container, so an order of -1 lifts the panel
-// back above the reading without moving one byte of the document.
-const rulingFirst = async (page) => {
+// flag. The rail is a column flex container, so an order of -1 lifts the
+// control above the reading without moving one byte of the document.
+const verbFirst = async (page) => {
   let seen = 0;
   await page.route('**/static/app.css{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     seen += 1;
-    await route.fulfill({ response, body: `${original}\n.y-rail-right .y-statuspanel{order:-1}\n` });
+    await route.fulfill({ response, body: `${original}\n.y-rail-right .y-markset{order:-1}\n` });
   });
   return () => (seen > 0 ? '' : 'the stylesheet was never requested, so the rule reached no page');
 };
@@ -140,9 +140,9 @@ const MUTATIONS = {
     target: SITE,
     apply: restoreChildShrink,
   },
-  'put-the-ruling-first': {
+  'put-the-verb-first': {
     target: ORDER_SITE,
-    apply: rulingFirst,
+    apply: verbFirst,
   },
   'centre-the-shell-again': {
     target: EDGE_SITE,
@@ -256,7 +256,7 @@ try {
         flexShrink: getComputedStyle(child).flexShrink,
       })),
     }));
-    if (shape.children.length !== 7) broken(`the fixture has ${shape.children.length} rail children, want the outline, the note that belongs beside this one, declared sources, cited-by, diagnostics, the mark control, and the status panel`);
+    if (shape.children.length !== 6) broken(`the fixture has ${shape.children.length} rail children, want the outline, the note that belongs beside this one, declared sources, cited-by, diagnostics, and the mark control`);
     if (shape.overflowY !== 'auto' || shape.scrollHeight <= shape.clientHeight) {
       broken(`the fixture does not exercise one overflowing rail at 1600×${height}: ${JSON.stringify(shape)}`);
     }
@@ -272,12 +272,7 @@ try {
     }
 
     const tocLinks = rail.locator('.y-toc__list a');
-    // The panel's reachable controls in its resting state: plain transition
-    // buttons plus the summary of a terminal target's closed confirm. The
-    // confirm's inner submit is deliberately unreachable until the disclosure
-    // is opened — that second step is the point — so only visible controls
-    // belong in the keyboard walk.
-    const statusControls = rail.locator('.y-statuspanel button:visible, .y-statuspanel summary:visible');
+    const verbControls = rail.locator('.y-markset button:visible');
     const diagnostics = rail.locator('.y-diag');
     // The cited-by block never leaves the rail: it says "nothing cites this"
     // when nothing does, so a missing block is the answer going missing rather
@@ -287,19 +282,17 @@ try {
     if (await rail.locator('.y-pair').count() !== 1) broken('the fixture is offered no note to read beside this one');
     if (await rail.locator('.y-markset').count() !== 1) broken('the fixture has no control for keeping a reading place');
     if (await tocLinks.count() !== 24) broken(`the fixture has ${await tocLinks.count()} TOC links, want 24`);
-    if (await statusControls.count() === 0) broken('the fixture has no status control');
+    if (await verbControls.count() !== 1) broken(`the fixture's mark control has ${await verbControls.count()} buttons, want 1`);
     if (await diagnostics.count() === 0) broken('the fixture has no diagnostic card');
 
     for (let i = 0; i < await tocLinks.count(); i += 1) {
       await assertTarget(tocLinks.nth(i), `TOC link ${i + 1}`, height);
     }
-    for (let i = 0; i < await statusControls.count(); i += 1) {
-      await assertTarget(statusControls.nth(i), `status control ${i + 1}`, height);
-    }
+    await assertTarget(verbControls.first(), 'the control for keeping a place', height);
     // What the reader meets, and in which order. The rail is its own scroll
     // container, so whatever sits at the top is what is seen there without
-    // scrolling: the note's own shape, then what leads to it, and the ruling
-    // last. Measured where each block is painted rather than where it is
+    // scrolling: the note's own shape, then what leads to it, and the
+    // reader's verb last. Measured where each block is painted rather than where it is
     // written, because a stylesheet can reorder a flex column without moving a
     // byte of the document.
     const tops = await rail.evaluate((element) => {
@@ -307,7 +300,7 @@ try {
         const found = element.querySelector(selector);
         return found ? found.getBoundingClientRect().top + element.scrollTop : null;
       };
-      return { outline: top('nav .y-toc__list'), pair: top('.y-pair'), based: top('.y-basedon'), cited: top('.y-citedby'), ruling: top('.y-statuspanel') };
+      return { outline: top('nav .y-toc__list'), pair: top('.y-pair'), based: top('.y-basedon'), cited: top('.y-citedby'), verb: top('.y-markset') };
     });
     for (const [name, value] of Object.entries(tops)) {
       if (value === null) broken(`the fixture has no ${name} block, so the order it stands in proves nothing`);
@@ -321,21 +314,12 @@ try {
     if (!(tops.based < tops.cited)) {
       failOrder(`what leads to this note is painted above the sources it declared at 1600×${height}: ${JSON.stringify(tops)}`);
     }
-    if (!(tops.cited < tops.ruling)) {
-      failOrder(`the ruling is painted above what leads to this note at 1600×${height}: ${JSON.stringify(tops)}; the verb has taken the frame's place`);
+    if (!(tops.cited < tops.verb)) {
+      failOrder(`the control for keeping a place is painted above what leads to this note at 1600×${height}: ${JSON.stringify(tops)}; the verb has taken the frame's place`);
     }
 
-    // Walking every control in the panel locks its own internal order, and
-    // walking on out of the outline locks that the reading hands downward
+    // Walking on out of the outline locks that the reading hands downward
     // rather than being reached last.
-    await statusControls.first().focus();
-    for (let i = 1; i < await statusControls.count(); i += 1) {
-      await page.keyboard.press('Tab');
-      const reached = await statusControls.nth(i).evaluate((element) => document.activeElement === element);
-      if (!reached) {
-        fail(`Tab order did not reach status control ${i + 1} at 1600×${height}`);
-      }
-    }
     await tocLinks.last().focus();
     await page.keyboard.press('Tab');
     const wentOn = await rail.evaluate((element) => {
@@ -511,7 +495,7 @@ try {
     await wide.close();
   }
 
-  console.log('PASS right-rail-contract: the reading leads and the ruling closes the rail, every block stays reachable at 1600×768 and 1600×900, each contents row holds its own door, and both rails stand against the window\'s edges, each holding its text as far in as the header does, at 1920');
+  console.log('PASS right-rail-contract: the reading leads and the reader\'s verb closes the rail, every block stays reachable at 1600×768 and 1600×900, each contents row holds its own door, and both rails stand against the window\'s edges, each holding its text as far in as the header does, at 1920');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

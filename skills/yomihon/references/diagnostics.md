@@ -91,7 +91,7 @@ yomihon serve --root <vault>
 The reason is on the page, and in a startup log line that names it outright:
 
 ```
-level=WARN msg="vault contract unavailable; write face is closed (fail-closed)"
+level=WARN msg="vault contract unavailable"
   error="decode vault contract: fields.required: value \"nosuchkey\" is not listed in fields.known"
 ```
 

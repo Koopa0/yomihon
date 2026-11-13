@@ -113,28 +113,6 @@ func TestAChangedNoteIsSaidAndStillOffered(t *testing.T) {
 	}
 }
 
-// TestTheStatusMovingDoesNotAgeAMark holds the half of the identity decision
-// that makes it usable: the note's own status is spliced out of the identity,
-// so an author walking a note through its lifecycle does not make every mark
-// look stale.
-func TestTheStatusMovingDoesNotAgeAMark(t *testing.T) {
-	t.Parallel()
-
-	const draft = "---\ntitle: Alpha\nstatus: draft\n---\n\n# Alpha\n\nSome words.\n"
-	const ready = "---\ntitle: Alpha\nstatus: ready\n---\n\n# Alpha\n\nSome words.\n"
-	if draft == ready {
-		t.Fatal("the two versions are the same bytes, so this proves nothing")
-	}
-	// The mark is taken against the draft and the desk is served over the
-	// version whose status has moved on.
-	page := deskWithMark(t, ready,
-		keptIn("Notes/alpha.md", "alpha", 320, identityOf(draft)), true)
-
-	if strings.Contains(page, wording.MarkNoteChanged.In(wording.ZhHant)) {
-		t.Errorf("a status flip aged the mark; the row says the note changed:\n%s", rowOf(page))
-	}
-}
-
 // TestAMarkedNoteThatIsGoneSaysSo covers the other end: the note the place was
 // kept in is no longer in the vault. Nothing is cleared — the reader did not
 // ask for that — and the row stops being a link.

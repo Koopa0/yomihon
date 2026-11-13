@@ -2,7 +2,6 @@
 title: goroutine 的生命週期
 aliases: [goroutine lifetime, goroutine leak, 洩漏]
 type: concept
-status: ready
 domain: go
 topics: [goroutine, 並行]
 based_on: ["G01 goroutine 與等待"]

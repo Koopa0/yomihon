@@ -49,20 +49,3 @@ func TestLeadingByteOrderMarkBelongsToTheFileNotTheBody(t *testing.T) {
 		})
 	}
 }
-
-func TestByteOrderMarkKeepsStatusSpansInTheOriginalBytes(t *testing.T) {
-	t.Parallel()
-	for _, input := range []string{"\xef\xbb\xbf---\nstatus: draft\n---\n# Title\n", "\xef\xbb\xbf---\r\nstatus: draft\r\n---\r\n# Title\n"} {
-		start, end, ok := vault.StatusValueSpan([]byte(input))
-		if !ok {
-			t.Fatalf("StatusValueSpan(%q) did not locate the value", input)
-		}
-		wantStart := 15
-		if input[6] == '\r' {
-			wantStart = 16
-		}
-		if start != wantStart || end != wantStart+5 || input[start:end] != "draft" {
-			t.Errorf("StatusValueSpan(%q) = [%d:%d] %q, want [%d:%d] draft", input, start, end, input[start:end], wantStart, wantStart+5)
-		}
-	}
-}

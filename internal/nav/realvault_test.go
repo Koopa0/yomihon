@@ -57,7 +57,7 @@ func TestNewRealVault(t *testing.T) {
 		notes[entry.Path()] = note
 		noteList = append(noteList, note)
 	}
-	model := New(scan.Files(), notes, graph.New(noteList, resources), roles, contract.KnowledgeScope(), policy, contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement())
+	model := New(scan.Files(), notes, graph.New(noteList, resources), roles, contract.KnowledgeScope(), policy, contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate())
 	if roles.Available() == (model.NavigationClosure().Diagnostic() != "") {
 		t.Error("real-vault navigation diagnostic disagrees with capability availability")
 	}
@@ -120,7 +120,7 @@ func validateRealVaultMaps(t *testing.T, category string, maps []Map) int {
 					t.Errorf("%s[%d] entry[%d] resolved without a path", category, mapOrdinal, entryOrdinal)
 				}
 			case EntryUnresolved, EntryAmbiguous, EntryNonInstance:
-				if entry.RelPath != "" || entry.Status != "" {
+				if entry.RelPath != "" || entry.Draft {
 					t.Errorf("%s[%d] entry[%d] warning fabricates resolved metadata", category, mapOrdinal, entryOrdinal)
 				}
 			default:
@@ -203,7 +203,7 @@ func validateRealVaultPaths(t *testing.T, paths []Path) int {
 		entryCount += len(entries)
 		for entryOrdinal, entry := range entries {
 			if entry.State != sequence.EntryAccepted {
-				if entry.RelPath != "" || entry.Status != "" {
+				if entry.RelPath != "" || entry.Draft {
 					t.Errorf("path[%d] entry[%d] was refused yet carries a resolution", pathOrdinal, entryOrdinal)
 				}
 				continue
@@ -214,7 +214,7 @@ func validateRealVaultPaths(t *testing.T, paths []Path) int {
 					t.Errorf("path[%d] entry[%d] resolved without a path", pathOrdinal, entryOrdinal)
 				}
 			case EntryUnresolved, EntryAmbiguous, EntryNonInstance:
-				if entry.RelPath != "" || entry.Status != "" {
+				if entry.RelPath != "" || entry.Draft {
 					t.Errorf("path[%d] entry[%d] warning fabricates resolved metadata", pathOrdinal, entryOrdinal)
 				}
 			default:

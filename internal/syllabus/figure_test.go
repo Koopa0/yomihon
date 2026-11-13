@@ -57,7 +57,7 @@ func TestACoursePageNeverFramesAFigure(t *testing.T) {
 		return syllabus.RequestSnapshot{
 			Shell:      nav.Shell{Nav: snap.Navigation(), Governed: true},
 			Generation: snap,
-			Status:     lessonTypes("lesson"),
+			Authority:  lessonTypes("lesson"),
 		}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
