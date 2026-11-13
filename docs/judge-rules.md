@@ -52,7 +52,9 @@ rules and does not define new behavior.
 | `schema.unknown_key` | `vault-schema.toml` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 | `schema.unmatched_knowledge_dir` | `vault-schema.toml#folders` | [`internal/judge/schema.go`](../internal/judge/schema.go) |
 
-`provenance.unresolved` cites `yomihon` for `based_on` and `related`.
+`provenance.unresolved` cites `yomihon` for `based_on` and `related`; a note
+that writes `related` is also `schema.unknown_key`, because the field is not
+on the closed list.
 `provenance.alias_resolved` reports a reader's thought whose `based_on` reaches
 a note only through an alias. A RuleID prefix alone does not determine
 authority.

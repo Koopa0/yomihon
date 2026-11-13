@@ -83,6 +83,46 @@ note_body_error() {
   done
 }
 
+# Reads a vault contract on stdin and prints each note type it declares, one
+# per line: the name of every [types.<name>] table, and every word of the type
+# list under [enums], which the loader joins to the tables. A type word written
+# under any other key or table is not a declaration, so a list of levels or of
+# domains cannot make a type look declared.
+declared_types() {
+  awk '
+    function words(text,    rest) {
+      rest = text
+      while (match(rest, /"[^"]*"/)) {
+        print substr(rest, RSTART + 1, RLENGTH - 2)
+        rest = substr(rest, RSTART + RLENGTH)
+      }
+      return rest ~ /\]/
+    }
+    /^[[:space:]]*#/ { next }
+    /^[[:space:]]*\[/ {
+      header = $0
+      sub(/^[[:space:]]*\[[[:space:]]*/, "", header)
+      sub(/[[:space:]]*\].*$/, "", header)
+      in_enums = (header == "enums")
+      listing = 0
+      if (header ~ /^types\./) {
+        name = header
+        sub(/^types\./, "", name)
+        gsub(/"/, "", name)
+        print name
+      }
+      next
+    }
+    in_enums && !listing && /^[[:space:]]*type[[:space:]]*=/ {
+      line = $0
+      sub(/^[^=]*=/, "", line)
+      listing = !words(line)
+      next
+    }
+    in_enums && listing { listing = !words($0) }
+  '
+}
+
 home_body_error() {
   local content="$1" entry site marker
   for entry in "${home_markers[@]}"; do
@@ -251,6 +291,57 @@ yomihon   2 koopa 7u IPv4 0x2 0t0 TCP 192.168.1.5:19733 (LISTEN)"
     fi
   done
 
+  # The declared types of a contract are read from the tables and from the
+  # enum list. Each recording is a contract shape a reader may write, and each
+  # states which types it declares; a reading that drops the tables, drops the
+  # enum words, follows a multi-line list too short, or counts a word from some
+  # other list turns exactly one row red.
+  check_types() { # <name> <want: comma-joined types> <contract text>
+    local name="$1" want="$2" text="$3" got
+    got="$(declared_types <<<"$text" | tr '\n' ',')"
+    got="${got%,}"
+    if [ "$got" = "$want" ]; then
+      echo "  ok: ${name} -> ${got:-no types}"
+    else
+      echo "  SELF-TEST FAIL: ${name} -> '${got}', want '${want}'" >&2
+      failures=1
+    fi
+  }
+  check_types "tables only" "concept,guide" '[types.concept]
+
+[types.guide]
+role = "x"'
+  check_types "one-line enum list only" "inbox,moc" '[enums]
+domain = ["golang"]
+type = ["inbox", "moc"]'
+  check_types "tables and enum list together" "inbox,note,concept" '[enums]
+type = ["inbox"]
+
+[types.note]
+[types.concept]'
+  check_types "a multi-line enum list" "a,b,c" '[enums]
+type = [
+  "a", "b",
+  "c",
+]
+level = ["not-a-type"]'
+  check_types "words from other lists and tables are not types" "" '[enums]
+domain = ["field-note"]
+level = ["field-note"]
+
+[fields]
+common = ["type", "field-note"]
+
+[folders]
+checked = ["field-note"]'
+  check_types "a type list after another table is not the enum list" "" '[fields]
+type = ["field-note"]'
+  check_types "a quoted table name" "study path" '[types."study path"]'
+  check_types "a commented-out declaration" "" '# [types.field-note]
+# type = ["field-note"]'
+  check_types "no declarations" "" '[privacy]
+never_egress_dirs = []'
+
   [ "$failures" -eq 0 ] || fail "an HTTP smoke verdict accepted a recorded regression"
   echo "self-test passed: widened binds, incomplete Home bodies and note pages without their rail were refused at their named invariants"
 }
@@ -263,14 +354,12 @@ fi
 out_of_contract_note="${here}/vault/Notes/out-of-contract.md"
 fixture_contract="${here}/vault/System/schemas/vault-schema.toml"
 out_of_contract_type="$(sed -n 's/^type: //p' "$out_of_contract_note")"
-contract_types="$(sed -n 's/^type = //p' "$fixture_contract")"
+contract_types="$(declared_types <"$fixture_contract")"
 [ -n "$out_of_contract_type" ] || fail "the out-of-contract fixture has no type"
-[ -n "$contract_types" ] || fail "the fixture contract has no type enum"
-case "$contract_types" in
-*\"${out_of_contract_type}\"*)
-  fail "the out-of-contract fixture type ${out_of_contract_type} is present in the fixture enum"
-  ;;
-esac
+[ -n "$contract_types" ] || fail "the fixture contract declares no note type"
+if grep -qxF -- "$out_of_contract_type" <<<"$contract_types"; then
+  fail "the out-of-contract fixture type ${out_of_contract_type} is declared by the fixture contract"
+fi
 
 base="${YOMIHON_BASE:?smoke.sh needs a running server; start it with serve.sh}"
 port="${YOMIHON_PORT:?smoke.sh needs a running server; start it with serve.sh}"
