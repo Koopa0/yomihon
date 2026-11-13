@@ -67,7 +67,7 @@ samp {
 }
 
 .y-skiplink:focus {
-  outline: 2px solid var(--fg-subtle);
+  outline: 2px solid var(--link);
   outline-offset: 2px;
   translate: 0;
 }
@@ -106,7 +106,7 @@ samp {
 /* The ring follows the control's own corners. Setting a radius here repainted
    every rounded control with a different one the moment it took focus. */
 .yomihon :focus-visible {
-  outline: 2px solid var(--fg-subtle);
+  outline: 2px solid var(--link);
   outline-offset: 2px;
 }
 
@@ -137,7 +137,7 @@ samp {
 /* ---- Sidebar nav item ---- */
 .ui-navitem {
   align-items: center;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--fg-muted);
   cursor: pointer;
   display: flex;
@@ -158,10 +158,13 @@ samp {
   color: var(--fg);
 }
 
+/* Selected, drawn one way everywhere: a tonal ground and a heavier weight, so
+   the choice reads without colour. */
 .ui-navitem[aria-current='page'],
 .ui-navitem.is-active {
-  color: var(--fg);
-  font-weight: var(--fw-medium);
+  background: var(--selected);
+  color: var(--on-selected);
+  font-weight: var(--fw-semibold);
 }
 
 .ui-navitem svg {
@@ -281,7 +284,8 @@ samp {
 .y-here .ui-navitem[aria-current='page'],
 .y-railgroup .ui-navitem[aria-current='page'],
 .y-railreports .ui-navitem[aria-current='page'] {
-  box-shadow: inset 2px 0 0 var(--fg);
+  background: var(--selected);
+  color: var(--on-selected);
 }
 
 /* A row in the left rail starts its words a row's inset in from the rule that
@@ -438,7 +442,7 @@ samp {
   align-items: center;
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
-  background: color-mix(in oklch, var(--bg) 85%, transparent);
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
   border-bottom: 1px solid var(--line);
   display: flex;
   flex: none;
@@ -498,13 +502,13 @@ samp {
    inset. */
 :root[data-theme='dark'] .y-brand__mark {
   background: #F5F1E6;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .y-brand__mark {
     background: #F5F1E6;
-    border-radius: 4px;
+    border-radius: var(--r-sm);
   }
 }
 
@@ -512,7 +516,7 @@ samp {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--fg-subtle);
   cursor: pointer;
@@ -557,7 +561,7 @@ samp {
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
@@ -987,8 +991,8 @@ html:not([data-js]) .y-rubybtn {
 .y-filter {
   background: transparent;
   border: 0;
-  border-radius: var(--r-md);
-  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1px var(--outline);
   box-sizing: border-box;
   color: var(--fg);
   font-family: var(--font-sans);
@@ -1004,7 +1008,7 @@ html:not([data-js]) .y-rubybtn {
 }
 
 .y-filter:focus {
-  box-shadow: inset 0 0 0 1px var(--fg-subtle);
+  box-shadow: inset 0 0 0 2px var(--link);
 }
 /* the filter's designed no-match state — never a silently empty column */
 .y-filter-empty {
@@ -1083,7 +1087,7 @@ html:not([data-js]) .y-rubybtn {
 .y-railitem,
 .y-treeitem {
   align-items: center;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--fg-muted);
   cursor: pointer;
   display: flex;
@@ -1330,7 +1334,7 @@ html:not([data-prerender], [data-arrival]) :is(
    enough not to compete with the title above it and underlined so it reads as
    a link rather than another piece of metadata. */
 .y-metarow__raw {
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--fg-muted);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
@@ -1477,7 +1481,7 @@ details.y-metarow {
    Reading prose — styles the renderer's REAL output (never reshaped)
    ============================================================ */
 .y-prose {
-  color: var(--fg-muted);
+  color: var(--fg);
   font-family: var(--font-read);
   font-size: var(--fs-ed-17);
   line-height: var(--lh-cjk);
@@ -1678,25 +1682,25 @@ details.y-metarow {
 }
 
 .y-prose img {
-  border-radius: var(--r-lg);
+  border-radius: 0;
   height: auto;
   max-width: 100%;
 }
 
-/* A link is ink with a quiet underline, so it is findable without colour and
-   the accent stays where it means something. The wikilink, the preview link and
-   the concept link are all this one link: the faults a wikilink can carry
-   change the line, never the ink. */
+/* A link is the author's voice, blue, and underlined, so it is findable
+   without colour and the vermilion stays the reader's. The wikilink, the
+   preview link and the concept link are all this one link: the faults a
+   wikilink can carry change the line, never the ink. */
 .y-prose a {
-  color: var(--fg);
+  color: var(--link);
   text-decoration: underline;
-  text-decoration-color: color-mix(in oklch, var(--fg) 25%, transparent);
+  text-decoration-color: color-mix(in srgb, var(--link) 85%, transparent);
   text-decoration-thickness: 1px;
   text-underline-offset: 3px;
 }
 
 .y-prose a:hover {
-  text-decoration-color: color-mix(in oklch, var(--fg) 60%, transparent);
+  text-decoration-color: currentcolor;
 }
 /* A link that leaves the library opens in a tab of its own, and says so with a
    small arrow after its words. The arrow is generated content with an empty
@@ -1779,7 +1783,7 @@ details.y-metarow {
 .y-prose pre {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+  border-radius: 0;
   font-family: var(--font-mono);
   font-size: var(--fs-ed-13);
   line-height: 1.75;
@@ -1877,7 +1881,7 @@ details.y-metarow {
 }
 
 .y-prose th {
-  border-bottom: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--outline);
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: inherit;
@@ -1887,10 +1891,11 @@ details.y-metarow {
 }
 
 .y-prose td {
-  border-bottom: 1px solid var(--line-faint);
+  border-bottom: 1px solid var(--outline-variant);
   color: var(--fg-muted);
   font-family: var(--font-serif);
   font-size: inherit;
+  font-variant-numeric: tabular-nums;
   padding: 10px 14px;
 }
 
@@ -1921,16 +1926,17 @@ details.y-metarow {
    those sit outside the column. Left prose-scoped, a results page fell back to
    the browser's own pure yellow — the one saturated primary colour anywhere in
    the product, fired dozens of times at once on a page of hits, and on a dark
-   evening it landed on a near-black ground.
+   evening it landed on a near-black ground. It is a neutral wash of the ink
+   instead, none of the four voices.
 
    The ink is explicit, not inherited: a mark on the path line sits in 11px
-   faint type, and inheriting that token through the gold wash lands under
-   4.5:1. Horizontal padding is omitted so a stemmed tail sits against its
-   highlighted head (`<mark>Goroutine</mark>s` is one word). */
+   quiet type, and inheriting that token through the wash lands closer to
+   4.5:1 than a hit should. Horizontal padding is omitted so a stemmed tail
+   sits against its highlighted head (`<mark>Goroutine</mark>s` is one word). */
 .yomihon mark {
-  background: color-mix(in oklch, var(--gold) 26%, transparent);
+  background: color-mix(in srgb, var(--fg) 18%, transparent);
   border-radius: var(--r-sm);
-  color: var(--gold-ink);
+  color: var(--fg);
 }
 
 /* wikilinks — the renderer's real classes (a.wikilink / .wikilink-broken / .wikilink-ambiguous) */
@@ -2068,6 +2074,14 @@ button.y-freshness__action {
   padding: 0;
 }
 
+/* Held while the folder is read again: the quiet ink and no line, so it does
+   not look like a link that can be followed. */
+.y-freshness__action[aria-disabled='true'] {
+  color: var(--fg-muted);
+  cursor: progress;
+  text-decoration: none;
+}
+
 .y-syl-nocourse {
   color: var(--fg-muted);
   margin: 18px 0 0;
@@ -2104,7 +2118,7 @@ button.y-freshness__action {
 .y-prose .embed-media {
   background: var(--wash);
   border: 1px dashed var(--line-strong);
-  border-radius: var(--r-md);
+  border-radius: 0;
   color: var(--fg-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-12);
@@ -2121,7 +2135,7 @@ button.y-freshness__action {
 .y-prose .figure-embed__frame {
   background: var(--bg);
   border: 1px solid var(--line-strong);
-  border-radius: var(--r-md);
+  border-radius: 0;
   display: block;
   max-width: 100%;
 }
@@ -2144,7 +2158,7 @@ button.y-freshness__action {
 /* callouts — renderer emits .callout / .callout-note / .callout-warning + title/icon/body */
 .y-prose .callout {
   background: var(--wash);
-  border-radius: var(--r-lg);
+  border-radius: 0;
   margin: var(--sp-block) 0 0;
   padding: 16px 20px;
 }
@@ -2274,7 +2288,7 @@ button.y-freshness__action {
 .y-prose .mermaid-diagram {
   background: var(--panel);
   border: 1px dashed var(--line-strong);
-  border-radius: var(--r-lg);
+  border-radius: 0;
   color: var(--fg-subtle);
   font-family: var(--font-mono);
   font-size: var(--fs-13);
@@ -2598,7 +2612,7 @@ button.y-freshness__action {
 .y-xbtn {
   background: transparent;
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--fg-muted);
   cursor: pointer;
@@ -2832,7 +2846,7 @@ button.y-freshness__action {
   display: flex;
   gap: 10px;
   height: 44px;
-  outline: 1px solid var(--border);
+  outline: 1px solid var(--outline);
   outline-offset: -1px;
   padding: 0 12px;
 }
@@ -2840,7 +2854,7 @@ button.y-freshness__action {
 .y-homesearch:focus-within,
 .y-searchdialog__form:focus-within,
 .y-searchpage__form:focus-within {
-  outline: 2px solid var(--fg-subtle);
+  outline: 2px solid var(--link);
   outline-offset: -2px;
 }
 
@@ -2942,7 +2956,7 @@ button.y-freshness__action {
 }
 
 .y-searchdialog__form:focus-within {
-  box-shadow: inset 0 -2px 0 var(--fg-subtle);
+  box-shadow: inset 0 -2px 0 var(--link);
 }
 
 .y-searchdialog .y-live-search__status {
@@ -3111,15 +3125,12 @@ a.y-facetrow:hover {
   font-variant-numeric: tabular-nums;
 }
 /* A value already in the query leads back out of it, so it is marked as
-   standing rather than as somewhere to go. */
+   standing rather than as somewhere to go: selected, the one way the interface
+   draws a choice. */
 .y-facetrow--active {
-  color: var(--fg);
-  font-weight: var(--fw-medium);
-}
-
-.y-facetrow--active .y-facetrow__label::before {
-  color: var(--fg);
-  content: '\2713\00a0';
+  background: var(--selected);
+  color: var(--on-selected);
+  font-weight: var(--fw-semibold);
 }
 /* A row with nothing to ask for is a cell, and reads as one. */
 .y-facetrow--quiet {
@@ -3254,7 +3265,7 @@ a.y-facetrow:hover {
    brings reaches past it, as a shelf row's does. */
 .y-result {
   border-bottom: 1px solid var(--border-faint);
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -3327,10 +3338,11 @@ a.y-facetrow:hover {
    it grows with the reader's own type choice instead of needing a rule per
    step. */
 .yomihon rt {
-  color: var(--fg-muted);
+  color: var(--fg);
   font-family: var(--font-read);
   font-size: 0.55em;
   font-weight: 400;
+  padding-block-end: 0.2em;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -3354,14 +3366,15 @@ a.y-facetrow:hover {
 .y-prose .y-reading > p {
   margin: 0;
 }
-/* The paragraph the voice is on. A colour and nothing else: the blanket that
-   switches every transition and animation off for a reduced-motion reader must
-   leave this readable, and the spread shadow gives the colour room without
-   moving a single line of the note. */
+/* The paragraph the voice is on. A wash of the ink and nothing else: the
+   vermilion is the reader's marks', and the blanket that switches every
+   transition and animation off for a reduced-motion reader must leave this
+   readable. The spread shadow gives the wash room without moving a single
+   line of the note. */
 .y-prose .y-reading[data-reading] {
-  background: var(--accent-muted);
+  background: var(--wash-strong);
   border-radius: var(--r-sm);
-  box-shadow: 0 0 0 5px var(--accent-muted);
+  box-shadow: 0 0 0 5px var(--wash-strong);
 }
 
 .y-tts {
@@ -3392,8 +3405,8 @@ a.y-facetrow:hover {
 }
 
 .y-tts[data-speaking] {
-  background: var(--accent-muted);
-  color: var(--accent);
+  background: var(--wash-strong);
+  color: var(--fg);
 }
 
 .y-tts svg {
@@ -3485,8 +3498,8 @@ a.y-facetrow:hover {
 }
 
 .y-cellspeak[data-speaking] {
-  background: var(--accent-muted);
-  color: var(--accent);
+  background: var(--wash-strong);
+  color: var(--fg);
 }
 
 /* The read-aloud controls are a line of the page rather than a panel on it:
@@ -3514,7 +3527,7 @@ a.y-facetrow:hover {
 .y-ttsbar button {
   background: transparent;
   border: 0;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--fg-muted);
   cursor: pointer;
   font-size: var(--fs-14);
@@ -3537,8 +3550,8 @@ a.y-facetrow:hover {
 }
 
 .y-ttsbar__label + button[data-speech-rate] {
-  border-end-start-radius: var(--r-md);
-  border-start-start-radius: var(--r-md);
+  border-end-start-radius: var(--r-sm);
+  border-start-start-radius: var(--r-sm);
   box-shadow: inset 1px 0 0 var(--line), inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line);
 }
 
@@ -3547,14 +3560,18 @@ a.y-facetrow:hover {
 }
 
 .y-ttsbar button[data-speech-rate]:not(:has(+ button[data-speech-rate])) {
-  border-end-end-radius: var(--r-md);
-  border-start-end-radius: var(--r-md);
+  border-end-end-radius: var(--r-sm);
+  border-start-end-radius: var(--r-sm);
   box-shadow: inset -1px 0 0 var(--line), inset 0 1px 0 var(--line), inset 0 -1px 0 var(--line);
 }
 
 .y-ttsbar button[aria-pressed='true'] {
-  background: var(--wash);
-  color: var(--fg);
+  background: var(--selected);
+  color: var(--on-selected);
+  font-weight: var(--fw-semibold);
+  text-decoration: underline 2px var(--outline);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 5px;
 }
 /* Previous on the first paragraph and next on the last: the move is not there,
    and a control that looks live while refusing every press is worse than one
@@ -3618,7 +3635,7 @@ a.y-facetrow:hover {
 .y-slotcard {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-lg);
+  border-radius: 0;
   margin: 14px 0 0;
   padding: 18px 20px;
 }
@@ -3725,7 +3742,7 @@ a.y-facetrow:hover {
   .y-slotselect::picker(select) {
     background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: var(--r-md);
+    border-radius: var(--r-sm);
     box-shadow: var(--shadow-2);
     font-family: var(--font-serif);
     padding: 4px;
@@ -3743,7 +3760,7 @@ a.y-facetrow:hover {
   }
 
   .y-slotselect option:checked {
-    background: color-mix(in oklch, var(--c) 10%, transparent);
+    background: color-mix(in srgb, var(--c) 10%, transparent);
   }
 
   .y-slotselect option::checkmark {
@@ -3760,7 +3777,7 @@ a.y-facetrow:hover {
 }
 
 .y-slotout {
-  background: color-mix(in oklch, var(--c) 12%, transparent);
+  background: color-mix(in srgb, var(--c) 12%, transparent);
   border-radius: 4px;
   color: var(--c);
   padding: 0 3px;
@@ -4053,7 +4070,7 @@ a.y-facetrow:hover {
 .y-thought__markdown {
   background: var(--panel);
   border: 1px solid var(--line);
-  border-radius: var(--r-lg);
+  border-radius: 0;
   font-family: var(--font-mono);
   font-size: var(--fs-ed-13);
   line-height: 1.75;
@@ -4236,7 +4253,7 @@ a.y-facetrow:hover {
 
 .y-homesearch {
   background: var(--elevated);
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
 }
 /* The way to the folder's own README closes the desk. It is set in the reading
    measure, and it begins where everything stacked above it begins: centred, its
@@ -4302,7 +4319,7 @@ a.y-facetrow:hover {
    pointer brings reaching past the words rather than moving them. */
 .y-back {
   align-items: center;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--fg-muted);
   display: inline-flex;
   font-family: var(--font-sans);
@@ -4334,7 +4351,7 @@ a.y-facetrow:hover {
 .y-row {
   align-items: baseline;
   border-bottom: 1px solid var(--border-faint);
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   display: flex;
   gap: 18px;
   padding: 14px 0;
@@ -4628,7 +4645,7 @@ a.y-facetrow:hover {
 .y-fileframe {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: 0;
   display: block;
   height: min(78vh, 900px);
   margin: 22px 0 0;
@@ -4638,7 +4655,7 @@ a.y-facetrow:hover {
 .y-fileinfo {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   margin: 26px 0 0;
   padding: 20px 22px;
 }
@@ -4790,7 +4807,7 @@ a.y-facetrow:hover {
   align-items: center;
   background: transparent;
   border: 1px solid var(--line-strong);
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--fg);
   display: inline-flex;
   font-family: var(--font-sans);
@@ -5503,6 +5520,12 @@ samp,
   word-break: auto-phrase;
 }
 
+/* A Japanese line may hang its closing full stop or comma past the measure, as
+   a Japanese book sets it. Chinese and Latin text keep a hard edge. */
+.y-prose :lang(ja) {
+  hanging-punctuation: allow-end;
+}
+
 /* A language switch must set the face on the text itself: a paragraph inherits
    its parent's already-computed family, not a newly chosen font variable.
    Code and controls keep their own faces even inside a Japanese passage. */
@@ -5695,8 +5718,13 @@ samp,
 }
 
 .y-compare__align[aria-pressed='true'] {
-  border-color: var(--fg);
-  color: var(--fg);
+  background: var(--selected);
+  border-color: transparent;
+  color: var(--on-selected);
+  font-weight: var(--fw-semibold);
+  text-decoration: underline 2px var(--outline);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 5px;
 }
 
 .y-compare {
@@ -6111,9 +6139,22 @@ samp,
   /* A bookmark is a fill, and a fill is what forced colours takes away. The
      reader's chosen highlight keeps it a shape to be seen. */
   .y-keptmark,
-  [data-mark-kept] [data-mark-button]::before {
+  [data-mark-kept] [data-mark-button]::before,
+  [data-uncertainty-control] .y-xbtn[aria-pressed='true']::before {
     background: Highlight;
     forced-color-adjust: none;
+  }
+
+  /* A selected choice is a tonal ground, which forced colours flattens, so it
+     keeps a frame in the system's text colour. */
+  .ui-navitem[aria-current='page'],
+  .ui-navitem.is-active,
+  .y-facetrow--active,
+  .y-pager__page[aria-current='page'],
+  .y-ttsbar button[aria-pressed='true'],
+  .y-compare__align[aria-pressed='true'] {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
   }
 
   /* A callout's fold chevron is a mask over its background, and the background
@@ -6133,6 +6174,19 @@ samp,
     forced-color-adjust: none;
   }
 }
+/* A reader who asked the system for more contrast gets the quiet ink at full
+   strength and every table rule at the interactive edge's. */
+@media (prefers-contrast: more) {
+  :root {
+    --fg-muted: var(--fg);
+    --outline-variant: var(--outline);
+  }
+
+  .y-prose a {
+    text-decoration-color: currentcolor;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .y-rail-left {
     transition: none;
@@ -6181,16 +6235,15 @@ samp,
     --border: #bbb;
     --border-strong: #888;
     --border-faint: #ddd;
+    --outline: #888;
+    --outline-variant: #ddd;
+    --selected: transparent;
+    --on-selected: #000;
     --accent: #000;
-    --accent-strong: #000;
     --accent-muted: transparent;
-    --accent-faint: transparent;
-    --on-accent: #fff;
     --link: #000;
     --warn: #000;
     --warn-bg: transparent;
-    --gold: #000;
-    --gold-ink: #000;
     --error: #000;
     --error-bg: transparent;
     --sage: #000;
@@ -6398,6 +6451,15 @@ samp,
   .y-prose li {
     orphans: 2;
     widows: 2;
+  }
+
+  /* A reading on paper keeps a floor a printer can still form. */
+  .yomihon rt {
+    font-size: max(0.55em, 6.5pt);
+  }
+
+  .y-prose td rt {
+    font-size: max(0.7em, 6.5pt);
   }
 }
 
@@ -6879,9 +6941,12 @@ samp,
    apart. It is also the one item that is not a step to somewhere else, which is
    why it is the only one with a ground of its own. */
 .y-pager__page[aria-current='page'] {
-  background: var(--wash);
-  color: var(--fg);
-  font-weight: var(--fw-medium);
+  background: var(--selected);
+  color: var(--on-selected);
+  font-weight: var(--fw-semibold);
+  text-decoration: underline 2px var(--outline);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 5px;
 }
 
 /* The undivided listing sits apart from the numbers: it is not another page,
@@ -6983,7 +7048,7 @@ samp,
    mark of three sliders stands in for it beside the search entrance's glass. */
 .y-prefslink {
   align-items: center;
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   color: var(--fg-muted);
   display: inline-flex;
   flex: none;
@@ -7352,7 +7417,7 @@ samp,
 }
 
 .y-steps__link {
-  border-radius: var(--r-lg);
+  border-radius: var(--r-sm);
   color: var(--fg);
   display: flex;
   flex: 0 1 calc(50% - 8px);
@@ -7459,7 +7524,7 @@ samp,
    The excerpt scrolls inside the card without taking the page with it. */
 .y-prose .wikilink[data-preview-open] {
   anchor-name: --y-preview-anchor;
-  text-decoration-color: color-mix(in oklch, var(--fg) 60%, transparent);
+  text-decoration-color: currentcolor;
 }
 
 /* A declared source owns the card the same way, and shows it with the row
@@ -7629,7 +7694,7 @@ samp,
 .y-headermark__said:not(:empty) {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--r-md);
+  border-radius: var(--r-sm);
   box-shadow: var(--shadow-2);
   padding: 6px 10px;
 }
@@ -7717,12 +7782,39 @@ samp,
   margin: 8px 0 0;
 }
 
+/* The reader's "not sure yet" control is always there and quiet: the variant
+   ink at the regular weight, and the full ink under a pointer or the keyboard.
+   Pressed, it is the reader's own mark — vermilion, heavier, and a diamond,
+   because the bookmark is kept for the place they left off. */
+[data-uncertainty-control] .y-xbtn {
+  font-weight: var(--fw-regular);
+}
+
+[data-uncertainty-control] .y-xbtn:focus-visible {
+  color: var(--fg);
+}
+
+[data-uncertainty-control] .y-xbtn[aria-pressed='true'] {
+  color: var(--accent);
+  font-weight: var(--fw-semibold);
+}
+
+[data-uncertainty-control] .y-xbtn[aria-pressed='true']::before {
+  background: currentcolor;
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  content: '';
+  display: inline-block;
+  height: 9px;
+  margin-inline-end: 6px;
+  width: 9px;
+}
+
 /* Lost marks keep their original location readable and a native removal action. */
 .y-uncertainty-removal {
   overflow-wrap: anywhere;
 }
 
 .y-uncertainty-removal button:focus-visible {
-  outline: 2px solid var(--fg);
+  outline: 2px solid var(--link);
   outline-offset: 2px;
 }

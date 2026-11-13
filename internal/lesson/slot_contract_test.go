@@ -211,9 +211,8 @@ func TestTheSlotColourTokensAgreeAcrossGoAndTheStylesheets(t *testing.T) {
 		t.Errorf("the classes that assign a slot colour differ from the tokens declared here (-declared +stylesheet):\n%s", diff)
 	}
 
-	// Every block that names one slot colour has to name all of them: the light
-	// palette and each dark one are separate lists, and a token added to one
-	// leaves the others rendering the reader's own theme without it.
+	// The palette names every slot colour in one block, each as a light-dark()
+	// pair, so a token added there is added to both themes at once.
 	blocks := 0
 	naming := regexp.MustCompile(`--slot-([a-z]+)\s*:`)
 	for block := range strings.SplitSeq(readStylesheet(t, "tokens.css"), "}") {
@@ -231,12 +230,10 @@ func TestTheSlotColourTokensAgreeAcrossGoAndTheStylesheets(t *testing.T) {
 			t.Errorf("a palette block names a different set of slot colours (-declared +palette):\n%s", diff)
 		}
 	}
-	// The palette is written three times: the light one, and a dark one for
-	// each of the two ways a reader can be in the dark. A floor rather than a
-	// count would let one of them be deleted with the remaining two agreeing
-	// among themselves, which is the drift this exists to catch.
-	if blocks != 3 {
-		t.Errorf("found %d palette blocks naming slot colours, want 3: the light palette, the chosen dark one and the system dark one", blocks)
+	// A second block naming them would be a second copy of the palette, which
+	// is the drift the one block exists to prevent.
+	if blocks != 1 {
+		t.Errorf("found %d palette blocks naming slot colours, want 1: the root's light-dark() pairs", blocks)
 	}
 }
 

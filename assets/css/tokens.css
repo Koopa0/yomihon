@@ -1,201 +1,98 @@
 /* ============================================================
    yomihon — design tokens
    ------------------------------------------------------------
-   Consolidates the design bundle: theme.css's values +
-   colors_and_type.css's alias vocabulary, re-skinned to the product
-   accent (theme-adaptive vermilion 朱, reserved for the reader's own place)
-   and the product type stack (Geist + Noto Serif/Sans CJK + Newsreader + LXGW WenKai).
+   The palette is the mark's own paper and inks. Four voices share it: the
+   ink of the text and the interface, the blue of links and focus, the
+   vermilion (朱) of the reader's own marks, and the ochre of what yomihon
+   finds. Each voice also carries a shape or a word, so none is told by colour
+   alone.
 
-   Dark mode is a class/attribute strategy: [data-theme="dark"] is
-   stamped on <html> server-side from a cookie (no FOUC). Every colour
-   token has a light value and a dark twin; components re-resolve on
-   toggle with zero markup change. AA contrast notes carried from
-   theme.css (the vermilion / warn / sage / gold values are chosen so
-   badge text clears 4.5:1 on its tint in both themes).
+   Every colour token is declared once, here, as light-dark(light, dark). The
+   theme is the root's color-scheme and nothing else: light unless the reader
+   stored dark ([data-theme="dark"], stamped server-side from a cookie, so no
+   flash) or stored nothing on a dark system. A Go test holds the sheet to
+   that shape.
    ============================================================ */
 
-:root,
-[data-theme='light'] {
-  /* ---- Surfaces (warm oatmeal paper) ---- */
-  --bg: oklch(0.966 0.005 106);
-  --panel: oklch(0.988 0.003 106);
-  --elevated: oklch(0.945 0.006 107);
-  --overlay: oklch(0.915 0.008 107);
-  /* The left rail's ground: a lighter sheet beside the page in light, and the
-     page's own ground in dark, where a lighter panel read as a lit strip down
-     the side of a dark room. */
-  --rail-ground: var(--panel);
-  /* A switch that is on: a step down from the ink, so a control that is set
-     does not outweigh the words beside it. */
-  --switch-on: var(--fg-muted);
+:root {
+  color-scheme: light;
 
-  /* ---- Text (sumi inks, 3 tiers: the faint tier is the subtle one under
-     its older name, so the quietest text is one value that clears 4.5:1 on
-     every surface it is set on) ---- */
-  --fg: oklch(0.153 0.012 107);
-  --fg-muted: oklch(0.400 0.020 107);
-  --fg-subtle: oklch(0.500 0.020 107);
+  /* ---- Surfaces (the mark's paper) ---- */
+  --bg: light-dark(#f5f1e6, #161513);
+  --panel: light-dark(#eee9dc, #1e1d1a);
+  --elevated: light-dark(#e7e1d2, #252420);
+  --overlay: light-dark(#e1ddd3, #2e2d29);
+  /* The left rail's ground: the header's tone, a step off the page in both
+     themes. */
+  --rail-ground: var(--panel);
+  /* A switch that is on: the neutral control ink, a step off the text, so a
+     control that is set does not outweigh the words beside it. */
+  --switch-on: light-dark(#5d5a51, #d6d2c6);
+
+  /* ---- Text (two inks: the text, and the variant every quieter word takes;
+     the older tier names stay as aliases so each clears 4.5:1 on every
+     surface it is set on) ---- */
+  --fg: light-dark(#1d1c1a, #dad5ca);
+  --fg-muted: light-dark(#4b4842, #c4bfb4);
+  --fg-subtle: var(--fg-muted);
   --fg-faint: var(--fg-subtle);
 
-  /* ---- The one interface accent — 朱 seal-ink vermilion, reserved for the
-     reader's own place: the bookmark where they left off, the paragraph the
-     voice is reading, and where an address arrived. It marks no status, since
-     a status is the author's word and not the reader's. ---- */
-  --accent: oklch(0.470 0.175 33);
-  --accent-strong: oklch(0.400 0.165 33);
-  --accent-muted: oklch(0.550 0.180 33 / 0.12);
-  --accent-faint: oklch(0.550 0.180 33 / 0.06);
-  --on-accent: oklch(0.985 0.003 106);
-  --link: oklch(0.470 0.150 33);
+  /* ---- Lines. The outline is the edge of anything interactive and the rule
+     under a table's head, at 3:1 or more; the variant is a table's inner
+     rule, which carries no information. ---- */
+  --outline: light-dark(#7b776e, #938e83);
+  --outline-variant: light-dark(#cdc8bd, #4a4740);
+
+  /* ---- Selected: one treatment everywhere, a tonal ground and a heavier
+     weight, so a choice reads without colour. ---- */
+  --selected: light-dark(#e4e0d4, #35332e);
+  --on-selected: light-dark(#1f1e1a, #e7e3d7);
+
+  /* ---- The reader's own voice — 朱 seal-ink vermilion, reserved for the
+     reader's own marks: the bookmark where they left off and the diamond on
+     what they are not sure of yet. It marks no status, since a status is the
+     author's word and not the reader's. ---- */
+  --accent: light-dark(#a93a1f, #ee7b5b);
+  --accent-muted: light-dark(color-mix(in srgb, #a93a1f 12%, transparent), color-mix(in srgb, #ee7b5b 16%, transparent));
+
+  /* ---- Links and focus: the author's voice, blue. ---- */
+  --link: light-dark(#2b4c7e, #afc5ee);
 
   /* ---- Honest diagnostics — muted ochre, never angry red (金繼ぎ) ---- */
-  --warn: oklch(0.470 0.125 70);
-  --warn-bg: oklch(0.560 0.120 70 / 0.10);
-  --gold: oklch(0.660 0.098 82);   /* kintsugi seam thread */
-  --gold-ink: oklch(0.461 0.100 82);   /* corrections (訂正) carry this, never 朱 */
+  --warn: light-dark(#7a5a0e, #e3c57c);
+  --warn-bg: light-dark(oklch(0.560 0.120 70 / 0.10), oklch(0.800 0.130 80 / 0.14));
   /* A finding that blocks the folder: a muted plum, its own hue, so it is told
      from a warning at a glance without borrowing the seal ink. */
-  --error: oklch(0.450 0.110 325);
-  --error-bg: oklch(0.550 0.120 325 / 0.10);
+  --error: light-dark(oklch(0.450 0.110 325), oklch(0.800 0.090 325));
+  --error-bg: light-dark(oklch(0.550 0.120 325 / 0.10), oklch(0.700 0.110 325 / 0.15));
 
   /* ---- Growth track — muted sage (never out-shouts the accent) ---- */
-  --sage: oklch(0.450 0.060 145);
-  --sage-bg: oklch(0.560 0.055 145 / 0.11);
+  --sage: light-dark(oklch(0.450 0.060 145), oklch(0.820 0.065 148));
+  --sage-bg: light-dark(oklch(0.560 0.055 145 / 0.11), oklch(0.680 0.060 148 / 0.13));
 
-  --success: oklch(0.520 0.130 155);
-  --success-bg: oklch(0.520 0.130 155 / 0.10);
+  --success: light-dark(oklch(0.520 0.130 155), oklch(0.740 0.120 155));
+  --success-bg: light-dark(oklch(0.520 0.130 155 / 0.10), oklch(0.740 0.120 155 / 0.14));
 
   /* ---- Slot-machine colours — the 8 grammatical roles. Each coloured
      element reads --c; the .y-slot-<token> class only assigns it, so one token
      tints a slot's select border, its surface, and its ruby together. Muted so
      a card full of coloured words never out-shouts the reading, and hues avoid
-     the accent's red-orange (reserved for the reader's own place). ---- */
-  --slot-topic: oklch(0.500 0.125 250);
-  --slot-pred: oklch(0.560 0.120 65);
-  --slot-poss: oklch(0.615 0.070 250);
-  --slot-obj: oklch(0.530 0.100 185);
-  --slot-place: oklch(0.510 0.115 305);
-  --slot-time: oklch(0.560 0.095 45);
-  --slot-verb: oklch(0.505 0.095 150);
-  --slot-num: oklch(0.520 0.120 350);
+     the accent's red-orange (reserved for the reader's own marks). Brightened
+     for dark, same hues. ---- */
+  --slot-topic: light-dark(oklch(0.500 0.125 250), oklch(0.780 0.120 250));
+  --slot-pred: light-dark(oklch(0.560 0.120 65), oklch(0.800 0.115 65));
+  --slot-poss: light-dark(oklch(0.615 0.070 250), oklch(0.820 0.065 250));
+  --slot-obj: light-dark(oklch(0.530 0.100 185), oklch(0.790 0.095 185));
+  --slot-place: light-dark(oklch(0.510 0.115 305), oklch(0.790 0.110 305));
+  --slot-time: light-dark(oklch(0.560 0.095 45), oklch(0.810 0.090 45));
+  --slot-verb: light-dark(oklch(0.505 0.095 150), oklch(0.795 0.090 150));
+  --slot-num: light-dark(oklch(0.520 0.120 350), oklch(0.790 0.115 350));
 
-  --shadow-1: 0 2px 8px -2px oklch(0.30 0.02 107 / 0.10), 0 1px 2px oklch(0.30 0.02 107 / 0.07);
-  --shadow-2: 0 18px 40px -12px oklch(0.28 0.02 107 / 0.18), 0 4px 12px oklch(0.28 0.02 107 / 0.10);
-
-  color-scheme: light;
-}
-
-/* ---- Dark twin — warm charcoal ink-stone ---- */
-[data-theme='dark'] {
-  --bg: oklch(0.153 0.006 107);
-  --panel: oklch(0.210 0.011 107);
-  --elevated: oklch(0.262 0.013 107);
-  --overlay: oklch(0.305 0.014 107);
-  --rail-ground: var(--bg);
-  --switch-on: var(--fg-subtle);
-
-  --fg: oklch(0.962 0.004 106);
-  --fg-muted: oklch(0.760 0.010 106);
-  --fg-subtle: oklch(0.720 0.014 107);
-  --fg-faint: var(--fg-subtle);
-
-  --accent: oklch(0.820 0.150 34);
-  --accent-strong: oklch(0.880 0.130 34);
-  --accent-muted: oklch(0.660 0.170 34 / 0.16);
-  --accent-faint: oklch(0.660 0.170 34 / 0.07);
-  --on-accent: oklch(0.150 0.010 60);
-  --link: oklch(0.740 0.150 34);
-
-  --warn: oklch(0.860 0.120 82);
-  --warn-bg: oklch(0.800 0.130 80 / 0.14);
-  --gold: oklch(0.735 0.098 84);
-  --gold-ink: oklch(0.810 0.098 84);
-  --error: oklch(0.800 0.090 325);
-  --error-bg: oklch(0.700 0.110 325 / 0.15);
-
-  --sage: oklch(0.820 0.065 148);
-  --sage-bg: oklch(0.680 0.060 148 / 0.13);
-
-  --success: oklch(0.740 0.120 155);
-  --success-bg: oklch(0.740 0.120 155 / 0.14);
-
-  /* Slot roles, brightened for the dark ink-stone (same hues as light). */
-  --slot-topic: oklch(0.780 0.120 250);
-  --slot-pred: oklch(0.800 0.115 65);
-  --slot-poss: oklch(0.820 0.065 250);
-  --slot-obj: oklch(0.790 0.095 185);
-  --slot-place: oklch(0.790 0.110 305);
-  --slot-time: oklch(0.810 0.090 45);
-  --slot-verb: oklch(0.795 0.090 150);
-  --slot-num: oklch(0.790 0.115 350);
-
-  --shadow-1: 0 2px 8px -2px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
-  --shadow-2: 0 18px 40px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.45);
-
-  color-scheme: dark;
-}
-
-/* The same ink-stone, entered by the system's preference instead of the
-   reader's: a root carrying no stored choice follows a dark desk. A stored
-   choice keeps beating the system either way — an explicit light escapes
-   this block through the :not() guard, and an explicit dark repeats these
-   values. This body must stay declaration-for-declaration identical to
-   [data-theme="dark"] above; a Go test compares the two and names any token
-   that drifts. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: oklch(0.153 0.006 107);
-    --panel: oklch(0.210 0.011 107);
-    --elevated: oklch(0.262 0.013 107);
-    --overlay: oklch(0.305 0.014 107);
-    --rail-ground: var(--bg);
-    --switch-on: var(--fg-subtle);
-
-    --fg: oklch(0.962 0.004 106);
-    --fg-muted: oklch(0.760 0.010 106);
-    --fg-subtle: oklch(0.720 0.014 107);
-    --fg-faint: var(--fg-subtle);
-
-    --accent: oklch(0.820 0.150 34);
-    --accent-strong: oklch(0.880 0.130 34);
-    --accent-muted: oklch(0.660 0.170 34 / 0.16);
-    --accent-faint: oklch(0.660 0.170 34 / 0.07);
-    --on-accent: oklch(0.150 0.010 60);
-    --link: oklch(0.740 0.150 34);
-
-    --warn: oklch(0.860 0.120 82);
-    --warn-bg: oklch(0.800 0.130 80 / 0.14);
-    --gold: oklch(0.735 0.098 84);
-    --gold-ink: oklch(0.810 0.098 84);
-    --error: oklch(0.800 0.090 325);
-    --error-bg: oklch(0.700 0.110 325 / 0.15);
-
-    --sage: oklch(0.820 0.065 148);
-    --sage-bg: oklch(0.680 0.060 148 / 0.13);
-
-    --success: oklch(0.740 0.120 155);
-    --success-bg: oklch(0.740 0.120 155 / 0.14);
-
-    /* Slot roles, brightened for the dark ink-stone (same hues as light). */
-    --slot-topic: oklch(0.780 0.120 250);
-    --slot-pred: oklch(0.800 0.115 65);
-    --slot-poss: oklch(0.820 0.065 250);
-    --slot-obj: oklch(0.790 0.095 185);
-    --slot-place: oklch(0.790 0.110 305);
-    --slot-time: oklch(0.810 0.090 45);
-    --slot-verb: oklch(0.795 0.090 150);
-    --slot-num: oklch(0.790 0.115 350);
-
-    --shadow-1: 0 2px 8px -2px rgb(0 0 0 / 0.50), 0 1px 2px rgb(0 0 0 / 0.40);
-    --shadow-2: 0 18px 40px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.45);
-
-    color-scheme: dark;
-  }
-}
+  --shadow-1: 0 2px 8px -2px light-dark(oklch(0.30 0.02 107 / 0.10), rgb(0 0 0 / 0.50)), 0 1px 2px light-dark(oklch(0.30 0.02 107 / 0.07), rgb(0 0 0 / 0.40));
+  --shadow-2: 0 18px 40px -12px light-dark(oklch(0.28 0.02 107 / 0.18), rgb(0 0 0 / 0.65)), 0 4px 12px light-dark(oklch(0.28 0.02 107 / 0.10), rgb(0 0 0 / 0.45));
 
 
-/* ---- Non-colour tokens (theme-independent) ---- */
-:root {
+  /* ---- Non-colour tokens (theme-independent) ---- */
   /* Type families — Latin (Geist/Newsreader) leads; CJK resolves to Noto when
      the woff2 are vendored (path b), else to a SYSTEM CJK face of the right
      class (path a, 2026-07-03): the reading body must stay 明體/Mincho, not
@@ -285,19 +182,22 @@
      itself, so a hairline over the paper and a hairline over a panel are the
      same ink at the same weight, and all of them turn over with the theme
      because the ink does. */
-  --line: color-mix(in oklch, var(--fg) 10%, transparent);
-  --line-faint: color-mix(in oklch, var(--fg) 5%, transparent);
-  --line-strong: color-mix(in oklch, var(--fg) 20%, transparent);
-  --wash: color-mix(in oklch, var(--fg) 5%, transparent);
+  --line: color-mix(in srgb, var(--fg) 10%, transparent);
+  --line-faint: color-mix(in srgb, var(--fg) 5%, transparent);
+  --line-strong: color-mix(in srgb, var(--fg) 20%, transparent);
+  --wash: color-mix(in srgb, var(--fg) 5%, transparent);
+  /* A state the interface is in for a while, such as the voice reading a
+     paragraph: twice the hover's wash, so it holds while the pointer moves. */
+  --wash-strong: color-mix(in srgb, var(--fg) 10%, transparent);
   --border: var(--line);
   --border-strong: var(--line-strong);
   --border-faint: var(--line-faint);
 
-  /* Radii — a control is soft, a surface is softer */
-  --r-sm: 6px;
-  --r-md: 8px;
+  /* Shapes: a control takes the small corner, a surface the reader summoned
+     (a dialog, a sheet, a card) the large one, and a block that carries the
+     text — a picture, code, a callout, a diagram — none. */
+  --r-sm: 4px;
   --r-lg: 12px;
-  --r-xl: 16px;
 
   /* Overlay mask — the wash behind a dialog, sheet or drawer. One value for
      every kind of overlay rather than one per component: a reader dismissing
@@ -371,6 +271,23 @@
   --dur-slow: 200ms;
   --dur-arrival: 320ms;
   --dur-dwell: 1100ms;
+}
+
+/* The two ways into dark. Each sets the scheme and nothing else; the tokens
+   above answer it. An explicit light choice escapes the system's through the
+   :not() guard, so a stored choice beats the system either way. */
+[data-theme='light'] {
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+  }
 }
 
 /* The reading column's editorial scale at the owner's chosen size. Only the

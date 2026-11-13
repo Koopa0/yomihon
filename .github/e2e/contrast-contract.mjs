@@ -197,13 +197,14 @@ const MUTATIONS = {
     contexts: ['search'],
     apply: weakenStylesheet('app.css', '.y-searchresults[aria-busy="true"] .y-result__meta{opacity:0.58}'),
   },
-  // A mark that inherits faint path-line ink through the gold wash lands
-  // under 4.5:1 on every ground the row sits on. The lock composites the
-  // translucent background first, and visits hover and busy, not only idle.
-  'inherit-mark-ink': {
+  // A mark inked in the outline grey, a line colour rather than a text one,
+  // lands under 4.5:1 once its wash is composited over the row. The lock
+  // composites the translucent background first, and visits hover and busy,
+  // not only idle.
+  'outline-mark-ink': {
     target: 'mark-aa',
     contexts: ['search'],
-    apply: weakenStylesheet('app.css', '.yomihon mark{color:inherit}'),
+    apply: weakenStylesheet('app.css', '.yomihon mark{color:var(--outline)}'),
   },
   // The word a course row prints for a status that needs noticing is the
   // faintest ink the interface has, on a row that is painted over by the
@@ -305,11 +306,19 @@ const measureTheme = (page, theme) => page.evaluate((selectedTheme) => {
   const context = canvas.getContext('2d', { willReadFrequently: true });
   if (!context) return { issue: 'a 2D canvas context is unavailable' };
 
+  // A token is a light-dark() pair, which only an element can resolve: the
+  // probe reads the colour it paints under the root's scheme. A token that
+  // resolves to nothing falls back to transparent and fails the alpha check.
   const rgb = (property) => {
     const value = root.getPropertyValue(property).trim();
     if (!value) return { issue: `${property} is empty` };
+    const probe = document.createElement('span');
+    probe.style.color = `var(${property}, transparent)`;
+    document.body.append(probe);
+    const painted = getComputedStyle(probe).color;
+    probe.remove();
     context.clearRect(0, 0, 1, 1);
-    context.fillStyle = value;
+    context.fillStyle = painted;
     context.fillRect(0, 0, 1, 1);
     const pixel = context.getImageData(0, 0, 1, 1).data;
     if (pixel[3] !== 255) return { issue: `${property} rasterized with alpha ${pixel[3]}` };
@@ -468,9 +477,12 @@ const measurePlanted = (page, theme, html, inkSelector, groundTokens) => page.ev
     }
     if (!idle) return { issue: `nothing opaque was found behind ${ink}` };
     grounds.push({ ground: 'idle', ratio: ratio(foreground, idle), color: `rgb(${foreground.channels.join(' ')})`, background: `rgb(${idle.channels.join(' ')})` });
-    const root = getComputedStyle(document.documentElement);
     for (const token of tokens) {
-      const painted = raster(root.getPropertyValue(token).trim());
+      const probe = document.createElement('span');
+      probe.style.color = `var(${token}, transparent)`;
+      host.append(probe);
+      const painted = raster(getComputedStyle(probe).color);
+      probe.remove();
       if (painted.issue) return { issue: painted.issue };
       if (painted.alpha !== 255) return { issue: `${token} rasterized with alpha ${painted.alpha}` };
       grounds.push({ ground: token, ratio: ratio(foreground, painted), color: `rgb(${foreground.channels.join(' ')})`, background: `rgb(${painted.channels.join(' ')})` });
