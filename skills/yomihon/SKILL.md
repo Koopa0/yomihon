@@ -495,7 +495,7 @@ the body can be perfect and nothing projects.
 
 1. **The note's `type` must hold the `course` role** in the contract
    (`[types.<name>] role = "course"`). A note whose type holds no such role
-   answers nothing at `/syllabus/<its path>` and enters no count, whatever it
+   answers nothing at `/courses/<its path>` and enters no count, whatever it
    contains. Maps are gated the same way by the `map` role.
 2. **A map is not a study path.** Maps, reports and ordinary notes do not read
    this syntax at all, and the marker does not show up on their pages either:
@@ -621,7 +621,7 @@ below is not something `check` will do for you.**
    against `references/writing-for-the-reader.md`, because nothing else checks
    those rules.
 8. **Look at the projection, because no command reports it.** Open the course
-   at `/syllabus/<the path's path>` and the count is what you meant; a map you
+   at `/courses/<the path's path>` and the count is what you meant; a map you
    wrote is at `/maps` with the branches you expected. A 404 or a number one
    short is the only sign of the quietest fault there is — a note whose type
    holds no `course` role.

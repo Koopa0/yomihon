@@ -149,7 +149,7 @@ role = "course"
 Only a type holding the `course` role reads the `{sequence=…}` grammar. Had
 this note said `type: note`, everything below would still be valid Markdown,
 the page would still render, and the course would simply not exist —
-`/syllabus/` would answer 404 and `check` would report nothing, because nothing
+`/courses/` would answer 404 and `check` would report nothing, because nothing
 is wrong with the note. There is no diagnostic for this. You find it by the
 course being absent.
 

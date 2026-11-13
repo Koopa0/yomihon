@@ -58,7 +58,7 @@ bytes and reject control characters. Go dependencies are pinned by
 `coverage`, `exists`, `left-open` — and not the reading room. Measured on `examples/vault`'s
 `Diary`: the CLI withholds even the name (`{"matches":[],"withheld":true}`),
 while over HTTP the note's body reaches `/raw`, `/notes` and `/preview` and its
-name reaches six doors; only Home, `/paths` and `/reports` are clean. The
+name reaches six doors; only Home, `/courses` and `/reports` are clean. The
 declaration therefore governs what yomihon says to a program, not what a
 process on this machine can read; loopback cannot tell a person's browser from
 an agent's `curl`, and a local agent reads the files directly anyway. Binding

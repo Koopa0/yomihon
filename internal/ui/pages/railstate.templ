@@ -113,7 +113,7 @@ templ settleRail(c layouts.Chrome, filter bool) {
 	// and only a current row that is out of the view is then brought in, by the
 	// least distance. A different rail, and a reload, start at the top as they
 	// always did and bring the current row to the top of the view where it is
-	// out of it, which is the rule the deferred module keeps for the same case.
+	// out of it, which is the rule the stylesheet keeps where scripting is off.
 	// It runs after the filter's restore, because a filtered tree is a
 	// different height.
 	<script nonce={ c.Nonce }>

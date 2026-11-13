@@ -731,7 +731,8 @@ html:not([data-js]) .y-rubybtn {
 /* Without scripting, arrival brings the current row into the rail's view and
    leaves the document's own landing alone. The target stays declared after
    arrival, and a fold that reflows the text would then lose the reader's
-   paragraph, so with scripting the rail module places the row once instead.
+   paragraph, so with scripting the page's own rail script places the row once
+   instead, before anything is painted.
    Without scripting nothing folds the column while the page is read. */
 @media (scripting: none) {
   .y-rail-left .ui-navitem[aria-current='page'] {
