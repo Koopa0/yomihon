@@ -18,7 +18,7 @@ import { chromium } from 'playwright-core';
 
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/syllabus/Maps/study.md';
+const PAGE = process.env.PAGE_PATH || '/courses/Maps/study.md';
 const MUTATE = process.env.MUTATE || '';
 const SITES = ['title-fits-at-phone-width', 'every-line-of-the-title-is-visible'];
 

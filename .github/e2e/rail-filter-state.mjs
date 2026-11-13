@@ -344,7 +344,7 @@ try {
     await page.waitForURL(BASE + NEXT);
     await context.close();
   }
-  for (const path of ['/syllabus/Maps/branches.md', '/preferences']) {
+  for (const path of ['/courses/Maps/branches.md', '/preferences']) {
     const { page, context } = await open('', { path, remembered: 'missing-token', blocked: false });
     control(await page.locator(FILTER).count() === 0, `${path} control unexpectedly has a filter`);
     const inert = await page.evaluate(async () => { const { initSidebar } = await import('/static/sidebar.js'); return initSidebar().canFocusFilter(); });

@@ -172,7 +172,7 @@ try {
   }
 
   await page.emulateMedia({ media: 'screen' });
-  await page.goto(BASE + '/syllabus/Maps/listen.md', { waitUntil: 'load' });
+  await page.goto(BASE + '/courses/Maps/listen.md', { waitUntil: 'load' });
   const actions = page.locator('.y-cover__open, .y-syl-read');
   if (await actions.count() !== 3) broken('course fixture must offer the course verb and both the note and listening links');
   for (const action of await actions.all()) {

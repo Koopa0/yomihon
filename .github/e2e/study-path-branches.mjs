@@ -14,8 +14,8 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const MUTATE = process.env.MUTATE || '';
 
-const PATH_INDEX = '/paths';
-const COURSE_PAGE = '/syllabus/Maps/branches.md';
+const PATH_INDEX = '/courses';
+const COURSE_PAGE = '/courses/Maps/branches.md';
 const SECOND_LESSON = '/notes/Course/C02.md';
 const SIDE_LESSON = '/notes/Course/S01.md';
 const MAP_PAGE = '/notes/Maps/reading.md';
@@ -175,7 +175,7 @@ try {
   // that is planned and unwritten. The side branch and the routine block are
   // not it.
   await page.goto(BASE + PATH_INDEX, { waitUntil: 'domcontentloaded' });
-  const row = page.locator('main a[href="/syllabus/Maps/branches.md"]');
+  const row = page.locator('main a[href="/courses/Maps/branches.md"]');
   if (await row.count() !== 1) broken(`the course index lists the branch course ${await row.count()} times, want 1`);
   const listed = (await row.innerText()).match(/(\d+)\s*課/);
   if (!listed) broken(`the course index row shows no lesson count: ${JSON.stringify(await row.innerText())}`);
@@ -188,7 +188,7 @@ try {
   // study path lists two concept notes, a note outside the governed set and a
   // lesson nobody wrote, so it is the case a noun chosen without looking at
   // what the rows reached would get wrong.
-  const notes = page.locator('main a[href="/syllabus/Maps/study.md"]');
+  const notes = page.locator('main a[href="/courses/Maps/study.md"]');
   if (await notes.count() !== 1) broken(`the course index lists the study path ${await notes.count()} times, want 1`);
   const notesRow = await notes.innerText();
   if (!/4\s*篇/.test(notesRow) || notesRow.includes('課')) {

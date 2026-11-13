@@ -36,7 +36,7 @@ const SHAPES = [
   ['book rail', '/notes/Course/C02.md'],
   ['folder rail', '/notes/Notes/cutover.md'],
   ['rail-empty note', '/notes/README.md'],
-  ['study path', '/syllabus/Maps/study.md'],
+  ['study path', '/courses/Maps/study.md'],
   ['shared sidebar', '/health'],
 ];
 

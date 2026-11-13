@@ -23,7 +23,7 @@ import { chromium } from 'playwright-core';
 
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/syllabus/Maps/branches.md';
+const PAGE = process.env.PAGE_PATH || '/courses/Maps/branches.md';
 const MUTATE = process.env.MUTATE || '';
 
 // The fixture course, as the vault writes it: three lessons on the main line
@@ -84,7 +84,7 @@ const notApplied = (message) => {
 // whose needle stopped matching reports itself instead of passing.
 const servedCourse = (rewrite, needle) => async (page) => {
   let rewrites = 0;
-  await page.route('**/syllabus/**', async (route) => {
+  await page.route('**/courses/**', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     const body = rewrite(original);

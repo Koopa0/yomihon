@@ -29,7 +29,7 @@ const SITES = [
 
 // The lesson PAGE is, as its course lists it, and the course's own address.
 const LESSON_NAME = 'C01';
-const COURSE_PATH = '/syllabus/Maps/branches.md';
+const COURSE_PATH = '/courses/Maps/branches.md';
 
 class LockFired extends Error {
   constructor(site, message) {
