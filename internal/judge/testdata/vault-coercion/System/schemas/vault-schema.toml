@@ -9,6 +9,10 @@ skipped_files = ["README.md"]
 [enums]
 domain = ["golang", "japanese"]
 level = ["fundamental"]
+prerequisites = ["topic"]
+slug = ["fundamental-slug"]
+verified_on = ["example-provider"]
+verified_with = ["course"]
 
 [fields]
 common = ["type", "lang", "based_on"]
@@ -17,7 +21,7 @@ required = ["type"]
 [types.inbox]
 
 [types.concept]
-fields = ["level"]
+fields = ["level", "prerequisites", "slug", "verified_on", "verified_with"]
 
 [types.lesson]
 role = "lesson"

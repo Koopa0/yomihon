@@ -30,6 +30,10 @@ const (
 // unknown key.
 const domainField = "domain"
 
+// titleField names the other derived value. A contract may state no enum for
+// it and list it nowhere; it is read from the note's first heading.
+const titleField = "title"
+
 // definedFields is the vocabulary a contract chooses from: DraftField, which
 // is built in, and the fields above.
 var definedFields = []string{
@@ -45,6 +49,21 @@ var obsidianReserved = []string{"tags", "aliases", "cssclasses"}
 // lists them: the note's type, the draft flag the product itself defines, and
 // the names Obsidian reserves.
 var builtInFields = append([]string{FieldType, DraftField}, obsidianReserved...)
+
+// removedFields are the names earlier contracts let a note write that yomihon
+// no longer defines. Like the derived names they stay out of the closed list.
+var removedFields = []string{
+	"status", "replaces", "supersedes", "superseded_by", "archived", "published",
+	"topics", "updated", "source_kind", "source_provider", "map_kind",
+}
+
+// shutProvenanceNames reports whether the concept provenance list may not name
+// field: it is built in, derived or removed, so a concept would be let write it
+// with no finding.
+func shutProvenanceNames(field string) bool {
+	return slices.Contains(builtInFields, field) || field == domainField || field == titleField ||
+		slices.Contains(removedFields, field)
+}
 
 // Fields returns the frontmatter fields yomihon defines, in the order the
 // documentation names them. The slice is the caller's own.

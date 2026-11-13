@@ -24,7 +24,10 @@ import (
 // decimal, nulls dropped, and everything else — quoted text, the 1.1 boolean
 // words, out-of-range numbers, reals, aliases, custom-tagged and block scalars
 // (whose trailing newline is kept or stripped by their chomping) — left as the
-// reference reads them. The strictness fixture pins the parse boundary: a
+// reference reads them. It states a vocabulary on five of the defined fields
+// (level, prerequisites, slug, verified_on, verified_with), none of which a
+// value there can satisfy, so every value written reaches the golden as one
+// schema.enum line whichever field carries it. The strictness fixture pins the parse boundary: a
 // repeated key (nested, in a list, flow or block), a tab indent, an invalid
 // escape, and an unterminated quote each become a single parse fault; a merge
 // key is read as an ordinary key; and the fence handling matches — an empty

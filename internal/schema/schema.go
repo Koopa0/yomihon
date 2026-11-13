@@ -412,8 +412,9 @@ func (c *Contract) declareTypes(tables map[string]typeFile, enums map[string][]s
 	}
 }
 
-// declareEnums keeps every vocabulary in the order its contract wrote it,
-// leaving out the type list, which the types themselves carry.
+// declareEnums keeps every vocabulary, sorted by field name so the order a
+// note's values are checked in does not depend on map iteration, leaving out
+// the type list, which the types themselves carry.
 func (c *Contract) declareEnums(enums map[string][]string) {
 	fields := make([]string, 0, len(enums))
 	for field := range enums {
@@ -708,6 +709,11 @@ func validateRules(contract *Contract) error {
 	}
 	if err := validateUniqueStrings("rules.concept_requires_provenance", rules.ConceptRequiresProvenance); err != nil {
 		return err
+	}
+	for _, field := range rules.ConceptRequiresProvenance {
+		if shutProvenanceNames(field) {
+			return fmt.Errorf("rules.concept_requires_provenance: %q is a field yomihon builds in, derives or has removed", field)
+		}
 	}
 	if _, hasConcept := contract.typeByName[conceptType]; hasConcept && len(rules.ConceptRequiresProvenance) == 0 {
 		return errors.New(`rules.concept_requires_provenance must not be empty when the types include "concept"`)

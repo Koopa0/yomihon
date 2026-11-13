@@ -226,6 +226,46 @@ func TestTheFieldListIsClosed(t *testing.T) {
 	runSemanticCases(t, tests)
 }
 
+// TestTheProvenanceDoorCannotReopenTheClosedList holds the one list a concept
+// may borrow field names from: it names fields beside the ones yomihon
+// defines, and it cannot name one yomihon builds in, derives or has removed,
+// which would let a concept write it with no finding.
+func TestTheProvenanceDoorCannotReopenTheClosedList(t *testing.T) {
+	t.Parallel()
+
+	const provenance = `concept_requires_provenance = ["based_on"]`
+	var tests []semanticCase
+	shut := []string{
+		"title", "domain",
+		"status", "replaces", "supersedes", "superseded_by", "archived", "published", "topics", "updated",
+		"source_kind", "source_provider", "map_kind",
+		"type", "draft", "tags", "aliases", "cssclasses",
+	}
+	for _, field := range shut {
+		tests = append(tests, semanticCase{
+			name:    field + " cannot be named",
+			from:    provenance,
+			to:      `concept_requires_provenance = ["based_on", "` + field + `"]`,
+			wantErr: `rules.concept_requires_provenance: "` + field + `" is a field yomihon builds in, derives or has removed`,
+		})
+	}
+	for _, field := range []string{"source_locator", "page", "level", "verified_on"} {
+		tests = append(tests, semanticCase{
+			name: field + " can be named",
+			from: provenance,
+			to:   `concept_requires_provenance = ["based_on", "` + field + `"]`,
+		})
+	}
+	runSemanticCases(t, tests)
+
+	withoutConcept := replaceContractText(t, semanticallyValidContract, "[types.concept]\n\n", "")
+	withoutConcept = replaceContractText(t, withoutConcept, provenance, `concept_requires_provenance = ["based_on", "status"]`)
+	want := `rules.concept_requires_provenance: "status" is a field yomihon builds in, derives or has removed`
+	if got := decodeError(t, withoutConcept); !strings.Contains(got, want) {
+		t.Errorf("decodeContract() with no concept type error = %q, want substring %q", got, want)
+	}
+}
+
 func TestTheRolesNeedTheirFields(t *testing.T) {
 	t.Parallel()
 

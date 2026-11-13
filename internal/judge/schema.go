@@ -287,7 +287,7 @@ func (r *lintRun) enumFields(n *note) []Finding {
 		// the file wrote, so a reader is shown their own bytes.
 		if enum.Field == "domain" {
 			if domain := r.domains.Of(n.path); domain != "" && !slices.Contains(enum.Values, schema.NormalizeWord(domain)) {
-				out = append(out, schemaFinding(n, "schema.enum", "domain", domain, "is not an allowed value"))
+				out = append(out, unlistedDomainFinding(n, domain))
 			}
 			continue
 		}
@@ -385,6 +385,17 @@ func schemaFinding(n *note, ruleID RuleID, field, value, reason string) Finding 
 	if value != "" {
 		f.Target = new(value)
 	}
+	return f
+}
+
+// unlistedDomainFinding builds the finding for a note whose folder names a
+// domain the contract's vocabulary does not. The note wrote no domain, so
+// there is no frontmatter to fix: the evidence says where the value came from
+// and the action moves the note or widens the vocabulary.
+func unlistedDomainFinding(n *note, domain string) Finding {
+	f := schemaFinding(n, "schema.enum", "domain", domain, "is not an allowed value")
+	f.Evidence = "the note's domain is the name of the folder it sits in below a folders.domain_from root, and the vault contract's enums.domain does not list that name"
+	f.SuggestedAction = "move the note into a folder named for a domain the vault contract declares, or add the folder's name to enums.domain in the vault contract"
 	return f
 }
 
