@@ -413,12 +413,14 @@ func TestABucketNamesItself(t *testing.T) {
 // TestAnUnrecognizedCalloutTypeKeepsTheNoteLook holds the half that must not
 // move. A callout type outside the vocabulary is classified as bucketUnknown
 // and uses the neutral note shell. A reader who wrote "> [!speculation]"
-// still gets its diagnostic without a stopped page or an invented tint.
+// still gets its diagnostic without a stopped page or an invented look.
 func TestAnUnrecognizedCalloutTypeKeepsTheNoteLook(t *testing.T) {
 	t.Parallel()
 
-	if got, want := calloutIcon(bucketUnknown), calloutIcon(bucketNote); got != want {
-		t.Errorf("calloutIcon(bucketUnknown) = %q, want %q", got, want)
+	unknown, _ := calloutLabel("speculation", bucketUnknown)
+	note, _ := calloutLabel("speculation", bucketNote)
+	if got, want := unknown.In(wording.ZhHant), note.In(wording.ZhHant); got != want {
+		t.Errorf("the label of an unknown type = %q, want the note's %q", got, want)
 	}
 	if got, want := calloutClass(bucketUnknown), "note"; got != want {
 		t.Errorf("calloutClass(bucketUnknown) = %q, want %q", got, want)
@@ -427,7 +429,7 @@ func TestAnUnrecognizedCalloutTypeKeepsTheNoteLook(t *testing.T) {
 
 // TestABucketNobodyGaveALookToStops holds the arm that runs when a member is
 // added to the block and neither of these is taught what it looks like. Both
-// used to end in a default that handed back the note's glyph and class, so the
+// used to end in a default that handed back the note's label and class, so the
 // new bucket rendered as a note and every page kept working — the reader is
 // shown a callout that looks like something the author did not write, and
 // nothing anywhere says so.
@@ -438,7 +440,10 @@ func TestABucketNobodyGaveALookToStops(t *testing.T) {
 		name string
 		look func(calloutBucket) string
 	}{
-		{"calloutIcon", calloutIcon},
+		{"calloutLabel", func(bucket calloutBucket) string {
+			word, _ := calloutLabel("speculation", bucket)
+			return word.In(wording.ZhHant)
+		}},
 		{"calloutClass", calloutClass},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

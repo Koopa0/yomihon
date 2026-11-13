@@ -2240,16 +2240,16 @@ button.y-freshness__action {
   margin: 6px 0 0;
 }
 
-/* callouts — renderer emits .callout / .callout-note / .callout-warning + title/icon/body */
+/* callouts — the renderer emits .callout (note, warning or quote) with a type
+   word, a title and a body. Nothing here is tinted or ruled: the word says what
+   kind it is and the indent sets the block off, so a printed page, a
+   forced-colour display and a screen reader tell one from another as readily as
+   the eye did by colour. The title row hangs out into the indent. */
 .y-prose .callout {
-  background: var(--wash);
-  border-radius: 0;
-  margin: var(--sp-block) 0 0;
-  padding: 16px 20px;
-}
+  --callout-indent: calc(var(--fs-ed-17) * 2);
 
-.y-prose .callout-warning {
-  background: var(--warn-bg);
+  margin: var(--sp-block) 0 0;
+  padding: 0 0 0 var(--callout-indent);
 }
 
 .y-prose .callout-quote .callout-body {
@@ -2259,7 +2259,7 @@ button.y-freshness__action {
    are authored words — 口述紀錄, a person's name — and capitals with spacing
    dressed them as machine labels while doing nothing at all to CJK. */
 .y-prose .callout-title {
-  align-items: center;
+  align-items: baseline;
   color: var(--fg);
   cursor: default;
   display: flex;
@@ -2268,7 +2268,28 @@ button.y-freshness__action {
   font-weight: var(--fw-semibold);
   gap: 8px;
   line-height: 1.25rem;
-  margin: 0 0 6px;
+  margin: 0 0 6px calc(-1 * var(--callout-indent));
+}
+/* The type word is underlined where the page's own words are small print, so it
+   reads as a label and not as part of the title. It is as wide as the indent
+   less the gap, which sets a two-character Chinese word and the title after it
+   on the body's own left edge. An English word is longer than the indent and
+   starts at the body's edge instead of hanging out of it. */
+.y-prose .callout-type {
+  border-bottom: 1px solid currentcolor;
+  flex: none;
+  font-size: var(--fs-12);
+  line-height: 1.25rem;
+  min-width: calc(var(--callout-indent) - 8px);
+  white-space: nowrap;
+}
+
+.y-prose .callout-title:has(> .callout-type:lang(en)) {
+  margin-inline-start: 0;
+}
+
+.y-prose .callout-warning .callout-type {
+  font-weight: var(--fw-bold);
 }
 /* stylelint-disable-next-line selector-no-qualifying-type -- a callout renders
    as either a details (foldable, clickable summary) or a div (plain, nothing
@@ -2285,11 +2306,11 @@ button.y-freshness__action {
    title, and the renderer's markup is left as it is. */
 /* stylelint-disable-next-line selector-no-qualifying-type -- as above. */
 .y-prose details.callout > .callout-title::after {
+  align-self: center;
   background-color: currentcolor;
   content: '';
   flex: none;
   height: 11px;
-  margin-block-start: calc((1.25rem - 11px) / 2);
   margin-inline-start: auto;
   mask-image: url(data:image/svg+xml,%3Csvg%20xmlns=%27http://www.w3.org/2000/svg%27%20viewBox=%270%200%2024%2024%27%20fill=%27none%27%20stroke=%27black%27%20stroke-width=%272.2%27%20stroke-linecap=%27round%27%3E%3Cpath%20d=%27m6%209%206%206%206-6%27/%3E%3C/svg%3E);
   mask-position: center;
@@ -2310,26 +2331,9 @@ button.y-freshness__action {
   transform: rotate(90deg);
 }
 
-.y-prose .callout-warning .callout-title {
-  color: var(--warn);
-}
-
-.y-prose .callout-icon {
-  flex: none;
-  height: 16px;
-  width: 16px;
-}
-
-/* A folded callout is one line, its title, so it is given the room of one: a
-   closed fold kept the open callout's padding and stood as a slab around a
-   single row. */
+/* A folded callout is one line, its title, so it takes no more room than that. */
 /* stylelint-disable-next-line selector-no-qualifying-type -- a callout renders
    as either a details or a div; only the details can be closed. */
-.y-prose details.callout:not([open]) {
-  padding: 12px 16px;
-}
-
-/* stylelint-disable-next-line selector-no-qualifying-type -- as above. */
 .y-prose details.callout:not([open]) > .callout-title {
   margin-bottom: 0;
 }

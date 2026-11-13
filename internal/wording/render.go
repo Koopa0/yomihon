@@ -191,3 +191,15 @@ var FigureApprovalsUnreadable = both(
 	"核可紀錄無法讀取，所以這個圖解的腳本沒有執行。",
 	"The approval record could not be read, so this figure's scripts are not running.",
 )
+
+// The word a callout opens its title row with. It says what kind of callout this
+// is in letters, so a printed page, a forced-colour display and a screen reader
+// tell a warning from a note without the tint that used to. A question or a
+// frequently asked question prints none: the question is the title and what
+// opens under it is its answer.
+var (
+	CalloutWarning = both("注意", "Warning")
+	CalloutNote    = both("備註", "Note")
+	CalloutQuote   = both("引用", "Quote")
+)
+
