@@ -612,8 +612,8 @@ func TestTheHeadNamesTheDraftsInTheNounThePathIsReadIn(t *testing.T) {
 	}{
 		{"lessons in Chinese", &lessons, wording.ZhHant, "其中 1 課是草稿"},
 		{"items in Chinese", &items, wording.ZhHant, "其中 2 篇是草稿"},
-		{"lessons in English", &lessons, wording.En, "1 are drafts"},
-		{"items in English", &items, wording.En, "2 are drafts"},
+		{"lessons in English", &lessons, wording.En, "1 in draft"},
+		{"items in English", &items, wording.En, "2 in draft"},
 		{"nothing left to finish", &settled, wording.ZhHant, ""},
 	}
 	for _, tt := range tests {
