@@ -94,9 +94,39 @@ func TestSettingsSentencesCarryNoJargonAndNoCounting(t *testing.T) {
 		t.Errorf("the storage note reads %q, want it to still carry %q", got, want)
 	}
 	// The lists are what the counts were a second copy of, so they stay.
-	for _, item := range []string{"介面語言", "外觀", "字級", "字體", "顯示讀音", "單鍵快捷鍵"} {
+	for _, item := range []string{"介面語言", "外觀", "字級", "字體", "顯示讀音", "單鍵快捷鍵", "側欄", "小節旁的按鈕"} {
 		if !strings.Contains(PrefStorageCookies.In(ZhHant), item) {
 			t.Errorf("the cookie list no longer names %q; the naming is the part that was never wrong", item)
 		}
+	}
+}
+
+// The row for the buttons beside each section is worded by the owner, not by
+// whoever builds the page: the three strings below were approved as written,
+// and the cookie list names the row by the same words as its heading.
+func TestSectionButtonsRowUsesTheApprovedWords(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		phrase Phrase
+		zh, en string
+	}{
+		{"heading", PrefSectionButtons, "小節旁的按鈕", "Buttons beside sections"},
+		{"always show", PrefSectionButtonsAlways, "一直顯示", "Always show"},
+		{"show on hover", PrefSectionButtonsHover, "滑鼠停留時顯示", "Show on hover"},
+	} {
+		if got := tt.phrase.In(ZhHant); got != tt.zh {
+			t.Errorf("the %s reads %q in Chinese, want the approved %q", tt.name, got, tt.zh)
+		}
+		if got := tt.phrase.In(En); got != tt.en {
+			t.Errorf("the %s reads %q in English, want the approved %q", tt.name, got, tt.en)
+		}
+	}
+	if got, want := PrefStorageCookies.In(ZhHant), "、"+PrefSectionButtons.In(ZhHant); !strings.HasSuffix(got, want) {
+		t.Errorf("the Chinese cookie list reads %q, want it to end with %q", got, want)
+	}
+	if got, want := PrefStorageCookies.In(En), ", buttons beside sections"; !strings.HasSuffix(got, want) {
+		t.Errorf("the English cookie list reads %q, want it to end with %q", got, want)
 	}
 }

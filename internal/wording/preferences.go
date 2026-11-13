@@ -76,6 +76,15 @@ var (
 	PrefRailCollapsed = both("收合", "Collapsed")
 )
 
+// The buttons beside each section of a note: drawn all the time, quietly, or
+// only while the reader is at that section's heading. The row has no sentence
+// of its own; its two options say what each does.
+var (
+	PrefSectionButtons       = both("小節旁的按鈕", "Buttons beside sections")
+	PrefSectionButtonsAlways = both("一直顯示", "Always show")
+	PrefSectionButtonsHover  = both("滑鼠停留時顯示", "Show on hover")
+)
+
 // The face the reading is set in, and the three it may be set in. Each side
 // names them as its own readers know them: the Chinese page by the characters,
 // the English page by the names those faces carry in English.
@@ -167,8 +176,8 @@ var (
 		"Settings are cookies on this address; sidebar section disclosure and filter text die with the tab; none of it leaves this machine.",
 	)
 	PrefStorageCookies = both(
-		"cookie 記著：介面語言、外觀、字級、字體、顯示讀音、單鍵快捷鍵、側欄",
-		"Cookies: language, appearance, text size, typeface, readings, single-key shortcuts, sidebar",
+		"cookie 記著：介面語言、外觀、字級、字體、顯示讀音、單鍵快捷鍵、側欄、小節旁的按鈕",
+		"Cookies: language, appearance, text size, typeface, readings, single-key shortcuts, sidebar, buttons beside sections",
 	)
 	PrefStorageSession = both(
 		"分頁內的值：側欄各區的展開狀態、側欄篩選字",

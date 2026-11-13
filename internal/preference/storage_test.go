@@ -28,6 +28,8 @@ func TestStorageAccountNamesEveryStoredChoice(t *testing.T) {
 		"yomihon_ruby":      {"顯示讀音", "readings"},
 		"yomihon_shortcuts": {"單鍵快捷鍵", "single-key shortcuts"},
 		"yomihon_rail":      {"側欄", "sidebar"},
+
+		"yomihon_sectionbuttons": {"小節旁的按鈕", "buttons beside sections"},
 	}
 	kept := []string{wording.CookieName}
 	for _, p := range layouts.Preferences() {
