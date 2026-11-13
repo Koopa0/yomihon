@@ -307,12 +307,13 @@ const measureTheme = (page, theme) => page.evaluate((selectedTheme) => {
   if (!context) return { issue: 'a 2D canvas context is unavailable' };
 
   // A token is a light-dark() pair, which only an element can resolve: the
-  // probe reads the colour it paints under the root's scheme.
+  // probe reads the colour it paints under the root's scheme. A token that
+  // resolves to nothing falls back to transparent and fails the alpha check.
   const rgb = (property) => {
     const value = root.getPropertyValue(property).trim();
     if (!value) return { issue: `${property} is empty` };
     const probe = document.createElement('span');
-    probe.style.color = `var(${property})`;
+    probe.style.color = `var(${property}, transparent)`;
     document.body.append(probe);
     const painted = getComputedStyle(probe).color;
     probe.remove();
@@ -478,7 +479,7 @@ const measurePlanted = (page, theme, html, inkSelector, groundTokens) => page.ev
     grounds.push({ ground: 'idle', ratio: ratio(foreground, idle), color: `rgb(${foreground.channels.join(' ')})`, background: `rgb(${idle.channels.join(' ')})` });
     for (const token of tokens) {
       const probe = document.createElement('span');
-      probe.style.color = `var(${token})`;
+      probe.style.color = `var(${token}, transparent)`;
       host.append(probe);
       const painted = raster(getComputedStyle(probe).color);
       probe.remove();

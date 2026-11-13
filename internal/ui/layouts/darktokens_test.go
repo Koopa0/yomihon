@@ -32,10 +32,22 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 		t.Fatalf("ReadFile(%q) error = %v", path, err)
 	}
 
+	rules := parseRules(t, withoutComments(string(source)), nil)
+	// A name declared anywhere as a pair is a colour token wherever else it is
+	// declared, whatever the value there.
+	pairNames := map[string]bool{}
+	for _, rule := range rules {
+		for property, value := range cssDeclarations(t, rule.body) {
+			if strings.HasPrefix(property, "--") && strings.Contains(value, "light-dark(") {
+				pairNames[property] = true
+			}
+		}
+	}
+
 	pairs := map[string][]string{}
 	schemes := map[string]string{}
 	singleTheme := 0
-	for _, rule := range parseRules(t, withoutComments(string(source)), nil) {
+	for _, rule := range rules {
 		where := strings.Join(append(slices.Clone(rule.within), rule.selector), " ")
 		declarations := cssDeclarations(t, rule.body)
 		if strings.Contains(rule.selector, "data-theme") || slices.ContainsFunc(rule.within, func(at string) bool {
@@ -52,14 +64,14 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 			if !strings.HasPrefix(property, "--") {
 				continue
 			}
-			if strings.Contains(value, "light-dark(") {
+			if pairNames[property] {
 				pairs[property] = append(pairs[property], where)
 			}
 			if property == overlayMask {
 				singleTheme++
 				continue
 			}
-			if literal := oneThemeColour.FindString(withoutLightDark(value)); literal != "" {
+			if literal := oneThemeColourIn(value); literal != "" {
 				t.Errorf("%s in %s carries %q outside light-dark(), a colour for one theme only", property, where, literal)
 			}
 		}
@@ -93,10 +105,49 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 
 const overlayMask = "--overlay-mask"
 
-// oneThemeColour matches a colour written as a value rather than through a
-// token: a hex colour or a colour function. color-mix() is not one; it mixes
-// what it is given.
-var oneThemeColour = regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(`)
+// oneThemeColourIn returns the first colour a value writes outside
+// light-dark(): a hex colour, a colour function or a colour keyword.
+// color-mix() is not one; it mixes what it is given. transparent and
+// currentcolor are the same in either theme, and a quoted font name is not a
+// colour whatever it is called.
+func oneThemeColourIn(value string) string {
+	rest := quoted.ReplaceAllString(withoutLightDark(value), "")
+	if literal := oneThemeColour.FindString(rest); literal != "" {
+		return literal
+	}
+	if match := colourKeyword.FindStringSubmatch(rest); match != nil {
+		return match[1]
+	}
+	return ""
+}
+
+var (
+	oneThemeColour = regexp.MustCompile(`#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(`)
+	quoted         = regexp.MustCompile(`'[^']*'|"[^"]*"`)
+	// colourKeyword matches a named colour standing as a value of its own, not
+	// as part of a custom property's name.
+	colourKeyword = regexp.MustCompile(`(?i)(?:^|[\s,(])(` + strings.Join(namedColours, "|") + `)(?:$|[\s,)])`)
+)
+
+// namedColours is every colour keyword CSS Color 4 defines.
+var namedColours = strings.Fields(`aliceblue antiquewhite aqua aquamarine azure beige bisque black
+blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral
+cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen
+darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon
+darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink
+deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro
+ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo
+ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan
+lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen
+lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen
+magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen
+mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream
+mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid
+palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum
+powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown
+seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen
+steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow
+yellowgreen`)
 
 // withoutLightDark removes every light-dark(...) call from a value, counting
 // the parentheses inside it, so what is left is what was written outside one.

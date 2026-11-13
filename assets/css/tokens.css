@@ -186,6 +186,9 @@
   --line-faint: color-mix(in srgb, var(--fg) 5%, transparent);
   --line-strong: color-mix(in srgb, var(--fg) 20%, transparent);
   --wash: color-mix(in srgb, var(--fg) 5%, transparent);
+  /* A state the interface is in for a while, such as the voice reading a
+     paragraph: twice the hover's wash, so it holds while the pointer moves. */
+  --wash-strong: color-mix(in srgb, var(--fg) 10%, transparent);
   --border: var(--line);
   --border-strong: var(--line-strong);
   --border-faint: var(--line-faint);

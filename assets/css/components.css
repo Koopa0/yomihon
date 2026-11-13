@@ -3366,14 +3366,15 @@ a.y-facetrow:hover {
 .y-prose .y-reading > p {
   margin: 0;
 }
-/* The paragraph the voice is on. A colour and nothing else: the blanket that
-   switches every transition and animation off for a reduced-motion reader must
-   leave this readable, and the spread shadow gives the colour room without
-   moving a single line of the note. */
+/* The paragraph the voice is on. A wash of the ink and nothing else: the
+   vermilion is the reader's marks', and the blanket that switches every
+   transition and animation off for a reduced-motion reader must leave this
+   readable. The spread shadow gives the wash room without moving a single
+   line of the note. */
 .y-prose .y-reading[data-reading] {
-  background: var(--accent-muted);
+  background: var(--wash-strong);
   border-radius: var(--r-sm);
-  box-shadow: 0 0 0 5px var(--accent-muted);
+  box-shadow: 0 0 0 5px var(--wash-strong);
 }
 
 .y-tts {
@@ -3404,8 +3405,8 @@ a.y-facetrow:hover {
 }
 
 .y-tts[data-speaking] {
-  background: var(--accent-muted);
-  color: var(--accent);
+  background: var(--wash-strong);
+  color: var(--fg);
 }
 
 .y-tts svg {
@@ -3497,8 +3498,8 @@ a.y-facetrow:hover {
 }
 
 .y-cellspeak[data-speaking] {
-  background: var(--accent-muted);
-  color: var(--accent);
+  background: var(--wash-strong);
+  color: var(--fg);
 }
 
 /* The read-aloud controls are a line of the page rather than a panel on it:
