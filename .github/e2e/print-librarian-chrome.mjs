@@ -13,6 +13,7 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const FOLDER_PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const COURSE_PAGE = '/notes/Notes/alpha.md';
+const FILE_PAGE = '/notes/Notes/plain.txt';
 const MUTATE = process.env.MUTATE || '';
 
 const SITES = [
@@ -143,9 +144,6 @@ try {
   // pass print hide for the wrong reason — the page was empty of chrome to
   // begin with.
   await page.emulateMedia({ media: 'screen' });
-  if (!(await laidOut(page.locator('.y-crumbs')))) {
-    broken('the folder note paints no path crumbs on screen, so print hide cannot be judged');
-  }
   if (!(await laidOut(page.locator('.y-metarow')))) {
     broken('the folder note paints no metarow on screen, so print hide cannot be judged');
   }
@@ -155,14 +153,23 @@ try {
   }
 
   await page.emulateMedia({ media: 'print' });
-  if (await laidOut(page.locator('.y-crumbs'))) {
-    fail('crumbs-off-paper', 'path crumbs still lay out on paper');
-  }
   if (await laidOut(page.locator('.y-metarow'))) {
     fail('metarow-off-paper', 'the type and Obsidian metarow still lay out on paper');
   }
   if (await laidOut(folderSteps)) {
     fail('folder-steps-off-paper', 'folder previous/next still lay out on paper');
+  }
+
+  // A note carries no line above its title, so the path crumbs are read on the
+  // page that still has them: the file page.
+  await page.goto(BASE + FILE_PAGE, { waitUntil: 'domcontentloaded' });
+  await page.emulateMedia({ media: 'screen' });
+  if (!(await laidOut(page.locator('.y-crumbs')))) {
+    broken('the file page paints no path crumbs on screen, so print hide cannot be judged');
+  }
+  await page.emulateMedia({ media: 'print' });
+  if (await laidOut(page.locator('.y-crumbs'))) {
+    fail('crumbs-off-paper', 'path crumbs still lay out on paper');
   }
 
   await page.goto(BASE + COURSE_PAGE, { waitUntil: 'domcontentloaded' });

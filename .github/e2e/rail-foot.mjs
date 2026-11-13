@@ -1,5 +1,5 @@
-// Behavior lock for the foot of the left rail — which folder the reader is in
-// and how large it is — and for the desk's way to the health page, which is
+// Behavior lock for the foot of the left rail — which folder the reader is in,
+// and nothing about how large it is — and for the desk's way to the health page, which is
 // where what the health page has to say about the folder is offered now that
 // the rail leaves it to the desk.
 //
@@ -104,6 +104,11 @@ const MUTATIONS = {
     target: 'foot-on-the-rail',
     apply: rewritePage(PAGE, (body) => body.replace(/<div class="y-railfoot"[\s\S]*?<\/p><\/div>/, '')),
   },
+  // The foot states how many notes the folder holds again.
+  'restore-the-count': {
+    target: 'foot-on-the-rail',
+    apply: rewritePage(PAGE, (body) => body.replace('</p></div></div></aside>', '</p><p class="y-railfoot__size">12 notes</p></div></div></aside>')),
+  },
   // The foot survives at reading width and is taken away from the drawer,
   // which is the shape a rule written for one width and not the other has.
   'hide-foot-in-the-drawer': {
@@ -175,7 +180,7 @@ const readFoot = (page) =>
       last: foot.parentElement?.lastElementChild === foot,
       count: document.querySelectorAll('[data-rail-foot]').length,
       name: text('.y-railfoot__name'),
-      size: text('.y-railfoot__size'),
+      counted: foot.querySelector('.y-railfoot__size') !== null || /\d/.test(foot.innerText),
     };
   });
 
@@ -222,9 +227,8 @@ try {
   if (wide.count !== 1) fail('foot-on-the-rail', `the page draws ${wide.count} rail feet, want exactly 1`);
   if (!wide.inRail) fail('foot-on-the-rail', 'the foot is not inside the left rail');
   if (!wide.last) fail('foot-on-the-rail', 'the foot is not the last thing in the rail, so the rail does not end with it');
-  for (const [line, value] of [['name', wide.name], ['size', wide.size]]) {
-    if (value === '') fail('foot-on-the-rail', `the foot's ${line} line is blank, and a blank is not a sentence`);
-  }
+  if (wide.name === '') fail('foot-on-the-rail', "the foot's name line is blank, and a blank is not a sentence");
+  if (wide.counted) fail('foot-on-the-rail', 'the foot states a count of what the folder holds, which follows the reader down every page as a gauge of how much is left');
   if (wide.name !== SERVED_FOLDER) {
     fail('foot-on-the-rail', `the foot calls the folder ${JSON.stringify(wide.name)}, want ${JSON.stringify(SERVED_FOLDER)} — the name of the directory serve.sh serves`);
   }
@@ -337,7 +341,7 @@ try {
   }
 
   console.log(
-    `PASS rail-foot: the rail ends with ${JSON.stringify(wide.name)} and ${JSON.stringify(wide.size)}, at 1280px and inside the opened drawer at 390px, and the desk leads to the health page with its ${total} findings`,
+    `PASS rail-foot: the rail ends with ${JSON.stringify(wide.name)} and no count, at 1280px and inside the opened drawer at 390px, and the desk leads to the health page with its ${total} findings`,
   );
 } catch (err) {
   if (err instanceof NotApplied) {

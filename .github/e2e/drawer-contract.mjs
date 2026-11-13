@@ -347,7 +347,7 @@ try {
       fail('server-nav-state-free', 'server markup stamped data-nav even though only the enhancement runtime owns drawer state');
     }
     if (!(await page.$(RAIL))) broken('the no-JS page has no #_y-nav-rail');
-    const link = page.locator(`${RAIL} a[href]:not([aria-current="page"])`).first();
+    const link = page.locator(`${RAIL} a[href]:not(.y-railspine):not([aria-current="page"])`).first();
     if (await link.count() !== 1) broken('the no-JS rail has no non-current navigation link to exercise');
     const hit = await link.evaluate((el) => {
       const rect = el.getBoundingClientRect();
@@ -508,7 +508,7 @@ try {
       const rail = document.querySelector('#_y-nav-rail');
       if (!rail || rail.querySelector('[data-e2e-focus-refusal]')) return;
       let refused = 0;
-      for (const row of rail.querySelectorAll('a[href]')) {
+      for (const row of rail.querySelectorAll('a[href]:not(.y-railspine)')) {
         row.focus();
         if (document.activeElement !== row) refused += 1;
       }
@@ -522,7 +522,7 @@ try {
     const refusedRows = await page.evaluate(() => {
       const before = document.activeElement;
       let refused = 0;
-      for (const row of document.querySelectorAll('#_y-nav-rail a[href]')) {
+      for (const row of document.querySelectorAll('#_y-nav-rail a[href]:not(.y-railspine)')) {
         row.focus();
         if (document.activeElement !== row) refused += 1;
       }
@@ -535,7 +535,7 @@ try {
     const focusableRows = await page.evaluate(() => {
       const before = document.activeElement;
       let count = 0;
-      for (const row of document.querySelectorAll('#_y-nav-rail a[href]')) {
+      for (const row of document.querySelectorAll('#_y-nav-rail a[href]:not(.y-railspine)')) {
         row.focus();
         if (document.activeElement === row) count += 1;
       }
@@ -656,7 +656,7 @@ try {
     // The declined Escape leaves the spaces where they were, by design; they
     // are cleared here so the cases below start from an unnarrowed rail.
     await filter.fill('');
-    await page.$eval(`${RAIL} a[href]`, (link) => link.focus());
+    await page.$eval(`${RAIL} a[href]:not(.y-railspine)`, (link) => link.focus());
     await page.keyboard.press('Escape');
     await closeState(page, 'escape-focus-return', 'Escape');
 

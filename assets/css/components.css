@@ -5736,9 +5736,10 @@ samp,
   }
 }
 
+/* Below the width where a note's facts stand open beside its title the note's
+   sidebar narrows to leave the text its room. */
 @media (max-width: 1279px) {
-  .y-shell,
-  .y-shell2 {
+  .y-shell {
     --rail-open: 248px;
   }
 }

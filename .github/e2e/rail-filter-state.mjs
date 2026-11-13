@@ -258,7 +258,7 @@ try {
       control(await page.locator('html').getAttribute('lang') === lang, `locale cookie did not select ${lang}`);
       await fill(page, 'missing-token');
       const state = await reachState(page);
-      const sentence = lang === 'en' ? (count === 1 ? 'Only what the rail listed was filtered; 1 more was not reached.' : `Only what the rail listed was filtered; ${count} more were not reached.`) : `\u53ea\u7be9\u4e86\u5074\u6b04\u5217\u51fa\u7684\u9805\u76ee\uff0c\u53e6\u5916 ${count} \u9805\u6c92\u641c\u5230\u3002`;
+      const sentence = lang === 'en' ? (count === 1 ? 'Only what the sidebar listed was filtered; 1 more was not reached.' : `Only what the sidebar listed was filtered; ${count} more were not reached.`) : `\u53ea\u7be9\u4e86\u5074\u6b04\u5217\u51fa\u7684\u9805\u76ee\uff0c\u53e6\u5916 ${count} \u9805\u6c92\u641c\u5230\u3002`;
       const label = lang === 'en' ? 'Search everything \u2192' : '\u641c\u5c0b\u5168\u90e8 \u2192';
       check(count === 0 ? state.hidden : !state.hidden && state.links === 1 && state.label === label && state.text === `${sentence} ${label}`, 'reach-locale', `${lang}, ${count}: lost server-owned reach wording or label: ${JSON.stringify(state)}`);
       await context.close();

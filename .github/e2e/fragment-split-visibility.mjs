@@ -80,7 +80,7 @@ const MUTATIONS = {
   // it leaves a sentence that still looks like an explanation.
   'strip-split-section': {
     target: 'fragment-split-painted',
-    apply: rewritePath(NOTE_PAGE, '、章節 <code>補足</code>', '', 2, 'fragment-split section'),
+    apply: rewritePath(NOTE_PAGE, '、章節 <code>補足</code>', '', 1, 'fragment-split section'),
   },
 };
 
@@ -157,64 +157,30 @@ const painted = (locator) => locator.evaluate((element) => {
 const onScreen = (seen) => seen.width > 1 && seen.height > 1 && seen.inViewport
   && seen.visible && seen.inkAlpha > 0 && seen.hit;
 
-// foldSettled waits for a disclosure that was just opened to finish opening.
-// The engine wraps a fold's body in ::details-content, which grows from no
-// height to the body's height and stops being hidden as that growth starts.
-// Until it ends the body is cut off at the fold's edge, so a point in the
-// middle of a line inside it lands on whatever is drawn there instead — the
-// summary above it — and the reading describes the fold opening rather than
-// the opened fold a reader is looking at.
-//
-// The engine offers no animation for that growth through getAnimations() and
-// fires no transitionend for it, on the fold or anywhere else, so what is
-// watched is the wrapper's own computed height: once the body is no longer
-// hidden and that height has held still across two frames, the fold is as open
-// as it is going to get. A fold that opens instantly — reduced motion, or no
-// transition declared — settles on the first comparison, and one that never
-// opens runs out the deadline and falls through to the assertion below, which
-// is what has to answer for it.
-const foldSettled = (locator) => locator.evaluate((details) => new Promise((resolve) => {
-  const deadline = performance.now() + 2000;
-  let previous = null;
-  let held = 0;
-  const read = () => {
-    const style = getComputedStyle(details, '::details-content');
-    held = style.contentVisibility !== 'hidden' && style.height === previous ? held + 1 : 0;
-    previous = style.height;
-    if (held >= 2 || performance.now() > deadline) resolve();
-    else requestAnimationFrame(read);
-  };
-  requestAnimationFrame(read);
-}));
-
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
 
-  // Below the width where the right rail is drawn: from 1280 up the rail holds
-  // the panel and the folded copy is not drawn at all.
+  // The findings stand in the block that ends the note, at every width, so the
+  // reader reaches them by following the sidebar's last contents row or by
+  // scrolling to the end; the probe brings them into view the way a reader
+  // would rather than reaching past that into markup nobody has revealed.
   await page.setViewportSize({ width: 1024, height: 800 });
   await page.goto(BASE + NOTE_PAGE, { waitUntil: 'domcontentloaded' });
   await arrived(page);
 
-  // At this width the rail is gone and the panel is a closed disclosure, which
-  // is the state a reader meets it in: they open 筆記狀況 and read what is
-  // there. Opening it is the flow, so the probe walks it rather than reaching
-  // past it into markup nobody has revealed.
-  const disclosure = page.locator('details.y-toc-inline', { has: page.locator('summary:has-text("筆記狀況")') }).first();
-  if (await disclosure.count() !== 1) broken('the note page offers no 筆記狀況 disclosure to open');
-  await disclosure.locator('summary').first().click();
-  if (await disclosure.evaluate((d) => !d.open)) broken('the 筆記狀況 disclosure did not open');
-  await foldSettled(disclosure);
+  const block = page.locator('.y-related');
+  if (await block.count() !== 1) broken('the note page has no block at its end for the findings to stand in');
 
-  const splits = disclosure.locator('.y-diag__split');
+  const splits = block.locator('.y-diag__split');
   if (await splits.count() === 0) {
     fail('fragment-split-painted', 'the note states no reading for a link that addressed a section');
   }
   let shown = null;
   for (let i = 0; i < await splits.count(); i += 1) {
+    await splits.nth(i).scrollIntoViewIfNeeded();
     const seen = await painted(splits.nth(i));
     if (onScreen(seen)) { shown = seen; break; }
   }

@@ -1,18 +1,18 @@
 // Browser lock for the header row: it carries only what reading needs. To the
 // right of the wordmark there is the furigana switch on a page that has
-// furigana, the bookmark for keeping a reading place below the width the
-// reading rail is drawn at, the search, and the way to the settings — in that
-// order and nothing else. Everything a reader sets once and leaves alone lives
-// on the settings page.
+// furigana, the bookmark for keeping a reading place, the search, and the way
+// to the settings — in that order and nothing else, at every width. Everything
+// a reader sets once and leaves alone lives on the settings page.
 //
 // What is asked here is what a reader can see and reach, measured rather than
 // read off the stylesheet: at each width the row fits inside the window, the
 // wordmark keeps all of its letters, the cluster holds exactly its controls in
 // their order, and exactly one control for keeping a reading place is drawn —
-// the bookmark in the row or the one in the rail, never both and never
-// neither. The bookmark is then asked what a toggle owes a reader: a name, a
-// pressed state that changes when the place is kept, a target a thumb can hit,
-// and a place in the keyboard's order.
+// the bookmark in the row, never two and never none. The bookmark is then asked
+// what a toggle owes a reader: a name, a pressed state that changes when the
+// place is kept, a target a thumb can hit, and a place in the keyboard's order.
+// The sentence its press earns is asked to hang out of the row: nothing in the
+// row moves while it is there, it never covers the title, and it goes away.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -24,10 +24,9 @@ const MUTATE = process.env.MUTATE || '';
 // offers to keep a reading place.
 const READINGS_PAGE = '/notes/Writing/lessons/japanese/L01.md';
 
-// The first width the reading rail is drawn at, which is the first width the
-// rail carries the reading-place control and the row's bookmark steps aside.
-// Both sides of it are measured, so a breakpoint that moved in either
-// direction shows up here.
+// The width the row's bookmark used to step aside at, when the right rail
+// carried the control from there. Both sides of it are still measured, so a
+// breakpoint brought back in either direction shows up here.
 const RAIL = 1280;
 const WIDTHS = [1440, RAIL + 1, RAIL, RAIL - 1, 1024, 938, 937, 720, 521, 390, 375];
 const PLACE_WIDTHS = [937, 938, 1024, RAIL - 1, RAIL, RAIL + 1, 1440];
@@ -50,6 +49,7 @@ const SITES = [
   'drawn-marks-are-named',
   'bookmark-takes-a-thumb',
   'keyboard-walks-the-cluster',
+  'saved-label-stays-out-of-the-row',
 ];
 
 class LockFired extends Error {
@@ -107,27 +107,26 @@ const rewriteScript = async (page, glob, needle, replacement) => {
 // touch screen. A mutation applied on a page whose questions it cannot
 // reach would be reported as not caught for the wrong reason.
 const MUTATIONS = {
-  // The row's bookmark is drawn from the rail's width too, so a reader there
-  // is shown two controls for one verb.
-  'draw-the-bookmark-beside-the-rail': {
+  // The row's bookmark steps aside again from the width the right rail used to
+  // carry it at, so a reader there has no way to keep a place at all.
+  'hide-the-bookmark-wide': {
     target: 'reading-place-reachable',
     on: 'note',
-    apply: (page) => injectRule(page, '.y-headermark', `@media (min-width: ${RAIL}px) { [data-js] .y-headermark { display: flex; } }`),
+    apply: (page) => injectRule(page, '.y-headermark', `@media (min-width: ${RAIL}px) { [data-js] .y-headermark { display: none; } }`),
   },
-  // The row's bookmark steps aside before the rail arrives, so a reader in
-  // between has no way to keep a place at all.
+  // The row's bookmark steps aside early, so a reader in between has no way to
+  // keep a place at all.
   'hide-the-bookmark-early': {
     target: 'reading-place-reachable',
     on: 'note',
     apply: (page) => injectRule(page, '.y-headermark', `@media (min-width: 1200px) { [data-js] .y-headermark { display: none; } }`),
   },
-  // Folding the left column takes the reading rail's control with it, so a
-  // reader who folded the column has no way to keep a place at the widths
-  // the row's bookmark steps aside at.
-  'hide-the-rail-mark-under-a-folded-column': {
-    target: 'reading-place-reachable',
-    on: 'folded',
-    apply: (page) => injectRule(page, '.y-rail-right .y-markset', "html[data-rail='collapsed'] .y-rail-right .y-markset { display: none; }"),
+  // The sentence a press earns is laid in the row's flow again, so it pushes
+  // the controls beside it aside for as long as it is there.
+  'put-the-saved-label-in-the-row': {
+    target: 'saved-label-stays-out-of-the-row',
+    on: 'note',
+    apply: (page) => injectRule(page, '.y-headermark__said', '.y-headermark__said { position: static !important; }'),
   },
   // The cluster's order changes: the search moves to the end of the row.
   'move-search-past-settings': {
@@ -305,6 +304,13 @@ const readRow = (page, cluster) => page.evaluate((selectors) => {
   };
 }, cluster);
 
+// Where each control of the row stands, so a sentence that pushed one aside
+// shows as a difference between two readings.
+const rowRects = (page) => page.evaluate(() => ['.y-brand', '[data-search-open]', '.y-prefslink', '.y-headermark__button'].map((selector) => {
+  const box = document.querySelector(selector).getBoundingClientRect();
+  return [selector, Math.round(box.left * 10) / 10, Math.round(box.top * 10) / 10, Math.round(box.width * 10) / 10];
+}));
+
 const reachablePlaces = (page) => page.locator('[data-mark-button]').evaluateAll((buttons) => buttons.filter((button) => {
   const box = button.getBoundingClientRect();
   return button.checkVisibility() && box.width > 0 && box.height > 0 && !button.disabled;
@@ -364,7 +370,7 @@ try {
         }
         const want = CLUSTER.filter((selector) => {
           if (selector === RUBY) return hasSwitch;
-          if (selector === MARK) return hasMark && width < RAIL;
+          if (selector === MARK) return hasMark;
           return true;
         });
         // The furigana question is its own site, so the order is asked of the
@@ -409,8 +415,25 @@ try {
     if (names.some((name) => !name)) {
       fail('drawn-marks-are-named', `${language}: at 390px the search and the settings are named ${JSON.stringify(names)}, want a name on each`);
     }
+    const rowBefore = await rowRects(note);
     await note.locator(MARK).click();
     await note.locator('.y-headermark [data-mark-said]:not(:empty)').waitFor({ state: 'attached', timeout: 4000 });
+    // The sentence is a small label placed against the row, so nothing in the
+    // row moved for it; at this width it covers the wordmark and stops short of
+    // the search beside it.
+    const saved = await note.evaluate(() => {
+      const label = document.querySelector('.y-headermark__said');
+      const box = label.getBoundingClientRect();
+      const search = document.querySelector('[data-search-open]').getBoundingClientRect();
+      return { position: getComputedStyle(label).position, right: box.right, searchLeft: search.left, text: label.textContent };
+    });
+    const rowAfter = await rowRects(note);
+    if (JSON.stringify(rowBefore) !== JSON.stringify(rowAfter)) {
+      fail('saved-label-stays-out-of-the-row', `${language}: the row moved when the place was kept: ${JSON.stringify(rowBefore)} then ${JSON.stringify(rowAfter)}`);
+    }
+    if (saved.position !== 'absolute' || saved.right > saved.searchLeft + 0.5) {
+      fail('saved-label-stays-out-of-the-row', `${language}: at 390px the saved label is ${saved.position} and ends at ${saved.right}px, past the search at ${saved.searchLeft}px`);
+    }
     const after = await note.evaluate((selector) => {
       const button = document.querySelector(selector);
       return { pressed: button.getAttribute('aria-pressed'), fill: getComputedStyle(button.querySelector('svg')).fill };
@@ -418,6 +441,25 @@ try {
     if (after.pressed !== 'true' || after.fill === 'none') {
       fail('bookmark-says-whether-it-is-set', `${language}: after the place was kept the bookmark reads ${JSON.stringify(after)}, want pressed and filled`);
     }
+    // Wide, the label hangs under the row at its right end and never covers the
+    // title; either way it goes away by itself a few seconds on.
+    await note.setViewportSize({ width: 1440, height: 800 });
+    await note.locator(MARK).click();
+    await note.locator('.y-headermark [data-mark-said]:not(:empty)').waitFor({ state: 'attached', timeout: 4000 });
+    const wide = await note.evaluate(() => {
+      const label = document.querySelector('.y-headermark__said').getBoundingClientRect();
+      const header = document.querySelector('.y-header').getBoundingClientRect();
+      const title = document.querySelector('.y-article .y-title').getBoundingClientRect();
+      const overlap = label.left < title.right && label.right > title.left && label.top < title.bottom && label.bottom > title.top;
+      return { top: label.top, headerBottom: header.bottom, overlap };
+    });
+    if (wide.top < wide.headerBottom - 0.5 || wide.overlap) {
+      fail('saved-label-stays-out-of-the-row', `${language}: at 1440px the saved label sits at ${wide.top}px against a header ending at ${wide.headerBottom}px${wide.overlap ? ' and covers the title' : ''}, want it under the row and clear of the title`);
+    }
+    await note.waitForFunction(() => document.querySelector('.y-headermark__said').textContent === '', null, { timeout: 7000 }).catch(() => {
+      fail('saved-label-stays-out-of-the-row', `${language}: the saved label was still on the page seven seconds after the place was kept`);
+    });
+    await note.setViewportSize({ width: 390, height: 800 });
     if (proveRewrite && !proveRewrite()) notApplied('the module rewrite found no single needle to change');
 
     // A reader on the keyboard reaches the cluster from the wordmark in the

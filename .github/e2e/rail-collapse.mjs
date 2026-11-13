@@ -28,31 +28,31 @@ const ROW = '.y-railhead';
 const NAV_TOGGLE = '[data-nav-toggle]';
 const FILTER = '[data-nav-filter]';
 
-// One page of each shape of rail: a book rail, a folder rail, a note with
-// nothing in its right rail, the study-path page, and a page that mounts the
+// One page of each shape of rail: a book rail, a folder rail, a note at the
+// vault root, the study-path page, and a page that mounts the
 // shared sidebar. A choice honoured on some of them would come back on the
 // others.
 const SHAPES = [
   ['book rail', '/notes/Course/C02.md'],
   ['folder rail', '/notes/Notes/cutover.md'],
-  ['rail-empty note', '/notes/README.md'],
+  ['root note', '/notes/README.md'],
   ['study path', '/courses/Maps/study.md'],
   ['shared sidebar', '/health'],
 ];
 
 const STRIP = 40;
 
-// The column's open widths: every shell's at the width where all three columns
-// stand, and the note shell's below it, where it gives up the right rail and
-// narrows to leave the text its room.
+// The column's open widths: every shell's at and above the width where a
+// note's facts stand open beside its title, and the note shell's below it,
+// where it narrows to leave the text its room.
 const OPEN = 272;
 const NOTE_OPEN_NARROW = 248;
 const THREE_COLUMNS = 1280;
 
 // The reading measure of a note that declares no language, and a window in the
 // band where the column is open beside text narrower than that measure. From
-// the width where all three columns stand, the text is already at its measure
-// with the column shown, so folding the column there has nothing to give back.
+// the width where the facts stand open, the text is already at its measure with
+// the column shown, so folding the column there has nothing to give back.
 const MEASURE = 646;
 const FOLD_WIDTH = 940;
 
@@ -79,6 +79,7 @@ const SITES = [
   'control-revealed-before-runtime',
   'no-script-draws-no-control',
   'strip-is-one-button',
+  'folded-column-keeps-its-name',
   'every-shell-keeps-its-open-width',
   'open-panel-keeps-its-padding-beside-a-scrollbar',
   'focus-is-never-hidden-under-the-head',
@@ -348,6 +349,11 @@ const MUTATIONS = {
   'restore-the-ring-offset': {
     target: 'strip-ring-is-whole',
     apply: injectStyle("html[data-rail='collapsed'] .y-railtoggle__button:focus-visible{outline-offset:2px!important}", '.y-railtoggle__button'),
+  },
+  // The folded column draws no name.
+  'hide-the-spine': {
+    target: 'folded-column-keeps-its-name',
+    apply: injectStyle("html[data-rail='collapsed'] .y-railspine{display:none !important}", '.y-railspine'),
   },
   // The whole strip answering a click.
   'make-the-strip-a-target': {
@@ -763,7 +769,7 @@ try {
         display: getComputedStyle(panel).display,
         boxes: panel.getClientRects().length,
         landmark: rail.tagName === 'ASIDE' && rail.hasAttribute('aria-label'),
-        reachable: [...rail.querySelectorAll('a[href], input, button, summary')].filter((el) => el.getClientRects().length > 0 && !el.matches('[data-rail-toggle]')).length,
+        reachable: [...rail.querySelectorAll('a[href], input, button, summary')].filter((el) => el.getClientRects().length > 0 && !el.matches('[data-rail-toggle], .y-railspine')).length,
       };
     }, BODY);
     if (facts.display !== 'none' || facts.boxes !== 0 || facts.reachable !== 0) {
@@ -933,8 +939,48 @@ try {
     await context.close();
   });
 
+  // The folded column is not blank: it keeps the name of what the page is in,
+  // set along the strip like the spine of a book, a link to it, with the whole
+  // name in its title. Open, and below the drawer width, it is not drawn.
+  await run('folded-column-keeps-its-name', async () => {
+    for (const [shape, path, source] of [
+      ['a folder', PAGE, '.y-where__path'],
+      ['a course', '/notes/Course/C02.md', '.y-railbook__title'],
+    ]) {
+      const { page, context, checkProof } = await open('folded-column-keeps-its-name', path, { width: 1281, collapsed: true });
+      await checkProof();
+      await settled(page);
+      const spine = await page.evaluate((sourceSelector) => {
+        const link = document.querySelector('.y-railspine');
+        const name = link?.querySelector('.y-railspine__name');
+        const box = link?.getBoundingClientRect();
+        return {
+          text: name?.textContent.trim() ?? null,
+          title: link?.getAttribute('title') ?? null,
+          href: link?.getAttribute('href') ?? null,
+          drawn: Boolean(link && link.getClientRects().length > 0),
+          writing: name ? getComputedStyle(name).writingMode : null,
+          inStrip: Boolean(box && box.right <= 41),
+          expected: document.querySelector(sourceSelector)?.textContent.trim() ?? null,
+        };
+      }, source);
+      if (!spine.drawn || spine.text === null || spine.text !== spine.expected || spine.title !== spine.text || !spine.href) {
+        fail('folded-column-keeps-its-name', `${shape}: the folded column draws ${JSON.stringify(spine)}, want its name, the same words as the open column's, as a link with the whole name in its title`);
+      }
+      if (!spine.writing?.startsWith('vertical') || !spine.inStrip) {
+        fail('folded-column-keeps-its-name', `${shape}: the name is set ${spine.writing} and ${spine.inStrip ? 'inside' : 'outside'} the strip, want it vertical and inside`);
+      }
+      await page.locator(TOGGLE).click();
+      await settled(page);
+      if (await page.locator('.y-railspine').evaluate((link) => link.getClientRects().length > 0)) {
+        fail('folded-column-keeps-its-name', `${shape}: the name is still drawn once the column is open again`);
+      }
+      await context.close();
+    }
+  });
+
   // The open width of every shell is what it was before the fold existed: the
-  // note shell narrows below the width where all three columns stand, and the
+  // note shell narrows below the width where its facts stand open, and the
   // study-path and shared-sidebar shells keep the wide column at every width.
   await run('every-shell-keeps-its-open-width', async () => {
     for (const width of [901, 1024, THREE_COLUMNS - 1, THREE_COLUMNS, 1281]) {
