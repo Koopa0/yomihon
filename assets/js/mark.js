@@ -10,10 +10,9 @@
 // until this file marks the document. What it sends is where the window is,
 // and a browser with no script has no such thing to send.
 //
-// A reading page draws it twice — in the rail, and in the header row for the
-// widths that have no rail — and never shows both at once. This
-// finds every one of them and reads each one's own words, so a face added to
-// some other part of the page needs nothing here.
+// A reading page draws it once, in the header row. This finds every control
+// there is and reads each one's own words, so a face added to some other part of
+// the page needs nothing here.
 //
 // Every word this shows comes from the page, which is where the two languages
 // are decided.
@@ -59,6 +58,36 @@ function positionNow() {
   return { anchor, offset: Math.max(0, top - anchorTop) };
 }
 
+// The sentence a press earns is a small label, not a message left standing: it
+// is there for a few seconds, then fades and is emptied, so it never lingers
+// over the page or under the row. The fade is the stylesheet's, and the
+// emptying waits for as long as the stylesheet says the fade lasts, which is
+// none for a reader who asked for less motion.
+const SAID_FOR = 4000;
+const saidTimers = new WeakMap();
+
+function lapse(said) {
+  clearTimeout(saidTimers.get(said));
+  delete said.dataset.replyFading;
+  saidTimers.set(
+    said,
+    setTimeout(() => {
+      const fade = (Number.parseFloat(getComputedStyle(said).transitionDuration) || 0) * 1000;
+      const clear = () => {
+        said.textContent = '';
+        delete said.dataset.replyTone;
+        delete said.dataset.replyFading;
+      };
+      if (fade < 1) {
+        clear();
+        return;
+      }
+      said.dataset.replyFading = '';
+      saidTimers.set(said, setTimeout(clear, fade));
+    }, SAID_FOR),
+  );
+}
+
 // A press that kept the place is also the place now being in this note, so every
 // face of the control draws the bookmark the way the server draws it for a note
 // that already held one. A face that is a toggle says so in its pressed state
@@ -72,8 +101,11 @@ function say(control, words, kept) {
   }
   const said = control.querySelector('[data-mark-said]');
   if (!said) return;
+  clearTimeout(saidTimers.get(said));
+  delete said.dataset.replyFading;
   said.dataset.replyTone = kept ? 'kept' : 'refused';
   said.textContent = words ?? '';
+  if (words) lapse(said);
 }
 
 async function keep(control) {

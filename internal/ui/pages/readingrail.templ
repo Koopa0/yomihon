@@ -38,7 +38,7 @@ templ readingRail(rr ReadingRail, c layouts.Chrome) {
 					@bookRail(rr, c)
 				case ReadingRailFolder:
 					if rr.Model != nil {
-						@ShelfRail(rr.HereShelf(c.Lang), railWindow, rr.hereDir, wording.MoreInFolder.In(c.Lang))
+						@folderRail(rr, c)
 					}
 				case ReadingRailReports:
 					if rr.Model != nil {
@@ -124,6 +124,9 @@ templ bookRailEntry(c layouts.Chrome, entry PathEntryView, note *NoteView) {
 				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", entry.Here) }>{ wording.Draft.In(c.Lang) }</span>
 			}
 		</a>
+		if entry.Here {
+			@railContents(note, c.Lang)
+		}
 	} else {
 		<span
 			class="ui-navitem y-navitem--broken"
@@ -206,6 +209,6 @@ templ railContents(note *NoteView, lang wording.Lang) {
 // a name to give and shown only while the column is folded.
 templ railSpine(s railSpineView) {
 	if s.Title != "" {
-		<a class="y-railspine" href={ templ.URL(s.Href) } title={ s.Title }>{ s.Title }</a>
+		<a class="y-railspine" href={ templ.URL(s.Href) } title={ s.Title }><span class="y-railspine__name">{ s.Title }</span></a>
 	}
 }

@@ -231,6 +231,17 @@
   --measure-answer: 720px;
   --gutter-answer: 24px;
 
+  /* The reading block: the column, the gap, and the margin beside it that the
+     page reserves for the reader's own actions on a section. Pages with a
+     sidebar stand this block in the middle of the room beside it and start
+     their own text where its column starts, so a note, a course, a search and
+     the page of findings all begin at one left edge. It is stated from the
+     reading measure of the root, not of an article, so a note written in
+     English, whose own measure is narrower, still starts where the rest do. */
+  --margin-col: 13rem;
+  --margin-gap: 2.5rem;
+  --read-block: calc(var(--measure-read) + var(--margin-gap) + var(--margin-col));
+
   /* The widest a page with no rail grows to. Past it the page stands in the
      middle of the window. A page with rails has no such width: its rails sit
      against the window's edges and the room between them is the reading
