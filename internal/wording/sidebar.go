@@ -3,8 +3,8 @@ package wording
 // The navigation rail: what it calls the places a reader can go, and what it
 // says when a projection it would have shown is unavailable.
 
-// LibraryNavigation names the rail itself for whoever reaches it by key.
-var LibraryNavigation = both("書庫導覽", "Library navigation")
+// VaultNavigation names the sidebar itself for whoever reaches it by key.
+var VaultNavigation = both("書庫導覽", "Vault navigation")
 
 // ToggleRail names the button at the top of the left column that folds the
 // whole column away above the drawer width and brings it back. The name does
@@ -29,7 +29,7 @@ var (
 
 // VaultRoot is what the rail calls the folder everything else sits under, since
 // that folder has no name of its own to show.
-var VaultRoot = both("書庫根目錄", "Library root")
+var VaultRoot = both("書庫根目錄", "Vault root")
 
 // The filter over the rail: its placeholder, its accessible name, and what it
 // says when nothing matches.
@@ -45,12 +45,12 @@ var MoreInFolder = both("另外 %d 篇 →", "%d more →")
 
 // The rail's section headings.
 var (
-	PathsAndMaps = both("路徑與地圖", "Paths and maps")
-	Paths        = both("學習路徑", "Study paths")
-	Maps         = both("地圖", "Maps")
-	Journal      = both("日誌", "Journal")
-	Reports      = both("報告", "Reports")
-	Folders      = both("資料夾", "Folders")
+	CoursesAndMaps = both("課程與地圖", "Courses and maps")
+	Courses        = both("課程", "Courses")
+	Maps           = both("地圖", "Maps")
+	Journal        = both("日誌", "Journal")
+	Reports        = both("報告", "Reports")
+	Folders        = both("資料夾", "Folders")
 )
 
 // OpenMap is the link from a rail branch to the whole map it is a branch of.
@@ -59,13 +59,13 @@ var OpenMap = both("開啟地圖", "Open the map")
 
 // What the rail says when a projection it would have listed cannot be built.
 var (
-	PathsMapsAndArtifactsUnavailable = both(
-		"路徑、地圖與筆記清單目前無法使用。",
-		"Paths, maps and note listings are unavailable.",
+	CoursesMapsAndArtifactsUnavailable = both(
+		"課程、地圖與筆記清單目前無法使用。",
+		"Courses, maps and note listings are unavailable.",
 	)
-	PathsAndMapsUnavailable = both("路徑與地圖目前無法使用。", "Paths and maps are unavailable.")
-	ArtifactsUnavailable    = both("筆記清單目前無法使用。", "Note listings are unavailable.")
-	JournalUnavailable      = both("日誌目前無法使用。", "Journal is unavailable.")
+	CoursesAndMapsUnavailable = both("課程與地圖目前無法使用。", "Courses and maps are unavailable.")
+	ArtifactsUnavailable      = both("筆記清單目前無法使用。", "Note listings are unavailable.")
+	JournalUnavailable        = both("日誌目前無法使用。", "Journal is unavailable.")
 )
 
 // CourseOrderOf names a study path's own order for the steps the sidebar
@@ -109,15 +109,15 @@ var (
 // showing. The count is worked out in the browser from what is on screen, so
 // the sentence is filled in there, from these.
 var (
-	FilterPartialOne  = both("只篩了側欄列出的項目，另外 1 項沒搜到。", "Only what the rail listed was filtered; 1 more was not reached.")
-	FilterPartialMany = both("只篩了側欄列出的項目，另外 {count} 項沒搜到。", "Only what the rail listed was filtered; {count} more were not reached.")
+	FilterPartialOne  = both("只篩了側欄列出的項目，另外 1 項沒搜到。", "Only what the sidebar listed was filtered; 1 more was not reached.")
+	FilterPartialMany = both("只篩了側欄列出的項目，另外 {count} 項沒搜到。", "Only what the sidebar listed was filtered; {count} more were not reached.")
 	FilterSearchAll   = both("搜尋全部 →", "Search everything →")
 )
 
-// ThisLibrary names the folder at the foot of the rail when its path yields no
+// ThisVault names the folder at the foot of the rail when its path yields no
 // name to show. It is still named — as the one the reader is reading — because blank lines at the end of the rail read as something
 // broken rather than as an answer.
-var ThisLibrary = both("這個書庫", "This library")
+var ThisVault = both("這個書庫", "This vault")
 
 // How many things the health page has to report, said on the desk's way to it
 // and at the head of that page's own table.

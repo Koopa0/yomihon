@@ -16,7 +16,7 @@ import (
 // stamped on the page so a check can name the surface it is looking at without
 // depending on the words, which change with the reader's language.
 const (
-	pathMode   = "paths"
+	courseMode = "courses"
 	mapMode    = "maps"
 	reportMode = "reports"
 	folderMode = "folders"
@@ -96,13 +96,13 @@ func NewPathIndex(paths []nav.Path, roles schema.NavigationRoles, closure nav.Cl
 		}
 		rows = append(rows, Row{
 			Text:     studyPath.Title,
-			Href:     syllabusHref(studyPath.RelPath),
+			Href:     courseHref(studyPath.RelPath),
 			Mark:     mark,
 			Fault:    unread,
 			Language: rowLanguage(articleLang, studyPath.RelPath),
 		})
 	}
-	view := listIndex(pathMode, wording.Paths.In(lang),
+	view := listIndex(courseMode, wording.Paths.In(lang),
 		plural(len(paths), wording.PathCountOne, wording.PathCountMany, lang),
 		"", emptySentence(contract, declarationSentence(roles.PathTypes(), lang), lang), rows)
 	view.Fault, view.Restart = FaultOf(closure.Diagnostic(), closure.Reason(), lang)

@@ -160,7 +160,7 @@ templ pathTree(sb Sidebar, c layouts.Chrome, p nav.Path) {
 			<span class="y-railitem__name">{ p.Title }</span>
 		</summary>
 		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(syllabusHref(p.RelPath)) }>{ wording.ContentsLink.In(c.Lang) }</a>
+			<a class="y-railitem__full" href={ templ.URL(courseHref(p.RelPath)) }>{ wording.ContentsLink.In(c.Lang) }</a>
 			for _, g := range p.Groups {
 				@pathGroupNode(sb, c, p.RelPath, childChain(nil, g.Name), g)
 			}

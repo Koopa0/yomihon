@@ -250,14 +250,14 @@ func ModelCapabilityFaults(model *nav.Model, lang wording.Lang) []CapabilityFaul
 	artifact := model.ArtifactClosure()
 	switch {
 	case navigation.Closed() && artifact.Closed() && navigation.Diagnostic() == artifact.Diagnostic():
-		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
+		return []CapabilityFault{{Summary: wording.CoursesMapsAndArtifactsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
 	case navigation.Closed() && artifact.Closed():
 		return []CapabilityFault{
-			{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()},
+			{Summary: wording.CoursesAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()},
 			{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact.Diagnostic()},
 		}
 	case navigation.Closed():
-		return []CapabilityFault{{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
+		return []CapabilityFault{{Summary: wording.CoursesAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
 	case artifact.Closed():
 		return []CapabilityFault{{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact.Diagnostic()}}
 	default:
@@ -365,7 +365,7 @@ func RunningHeadOf(rail *ReadingRail) (head RunningHead, ok bool) {
 	}
 	return RunningHead{
 		Title:  rail.neighbors.PathTitle,
-		Href:   syllabusHrefFrom(rail.neighbors.PathRelPath, rail.CurrentPath),
+		Href:   courseHrefFrom(rail.neighbors.PathRelPath, rail.CurrentPath),
 		Part:   rail.place.Part,
 		Branch: rail.place.OnBranch,
 	}, true

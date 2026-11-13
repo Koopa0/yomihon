@@ -4,7 +4,7 @@ package wording
 
 // HomeReadmeTitle names the note the vault may keep to explain itself, which
 // home shows in place of anything yomihon would have had to invent.
-var HomeReadmeTitle = both("這個書庫的說明", "About this library")
+var HomeReadmeTitle = both("這個書庫的說明", "About this vault")
 
 // HomeTitle is the desk's own heading. The arrival surface carries no kicker:
 // the H1 is the name, and a line above it would only repeat it.

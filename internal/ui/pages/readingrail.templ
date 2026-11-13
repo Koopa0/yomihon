@@ -49,7 +49,7 @@ templ bookRail(rr ReadingRail, c layouts.Chrome) {
 	if rr.book != nil {
 		{{ view := rr.bookView() }}
 		<div class="y-railbook" data-book-path={ rr.book.RelPath }>
-			<a class="y-railbook__title" href={ templ.URL(syllabusHrefFrom(rr.book.RelPath, rr.CurrentPath)) }>{ rr.book.Title }</a>
+			<a class="y-railbook__title" href={ templ.URL(courseHrefFrom(rr.book.RelPath, rr.CurrentPath)) }>{ rr.book.Title }</a>
 			<p class="y-railbook__span">{ joinMarks(view.Extent(c.Lang)...) }</p>
 			for _, sec := range view.Branches {
 				@bookRailBranch(rr, c, rr.book.RelPath, nil, sec)

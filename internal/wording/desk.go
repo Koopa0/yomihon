@@ -5,7 +5,7 @@ package wording
 // ShelfAll ends a narrowed shelf, where the rest of it is one click away. It
 // states no number: the shelf's own count is already in its head, and a second
 // figure describing the same listing is a figure that can disagree with it.
-var ShelfAll = both("全部 →", "All of it →")
+var ShelfAll = both("全部 →", "All →")
 
 // What an empty path or map listing says. Those two shelves are filled by a
 // declaration and by nothing else: a markdown file added to the folder is read,

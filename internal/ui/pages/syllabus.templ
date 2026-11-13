@@ -361,7 +361,7 @@ templ pathSwitch(p PathLink) {
 			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>
 		</span>
 	} else {
-		<a class="ui-navitem" href={ templ.URL(syllabusHref(p.RelPath)) }>
+		<a class="ui-navitem" href={ templ.URL(courseHref(p.RelPath)) }>
 			@pathIcon()
 			<span class="y-pathitem__name">{ p.Title }</span>
 			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>

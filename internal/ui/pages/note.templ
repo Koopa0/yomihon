@@ -526,7 +526,7 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 			// folder's order is only named. The landmark's own name stays the
 			// step onward from this note, so it is not the link's words twice.
 			if v.StepsCourse && v.StepsPath.RelPath != "" {
-				<p class="y-steps__source"><a class="y-steps__path" href={ templ.URL(syllabusHrefFrom(v.StepsPath.RelPath, v.RelPath)) } { authoredLanguageAttrs(v.StepsPath.Language)... }>{ v.StepsPath.Name }</a></p>
+				<p class="y-steps__source"><a class="y-steps__path" href={ templ.URL(courseHrefFrom(v.StepsPath.RelPath, v.RelPath)) } { authoredLanguageAttrs(v.StepsPath.Language)... }>{ v.StepsPath.Name }</a></p>
 			} else {
 				<p class="y-steps__source">{ v.StepsLabel }</p>
 			}
@@ -557,7 +557,7 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 					<span class="y-steps__name" { authoredLanguageAttrs(v.StepsOnward.Language)... }>{ v.StepsOnward.Name } <span class="y-steps__dir" aria-hidden="true">→</span></span>
 				</a>
 			} else if v.StepsToContents && v.StepsPath.RelPath != "" {
-				<a class="y-steps__link y-steps__link--next y-steps__link--onward" href={ templ.URL(syllabusHrefFrom(v.StepsPath.RelPath, v.RelPath)) }>
+				<a class="y-steps__link y-steps__link--next y-steps__link--onward" href={ templ.URL(courseHrefFrom(v.StepsPath.RelPath, v.RelPath)) }>
 					<span class="y-steps__role">{ wording.BranchToContents.In(lang) }</span>
 				</a>
 			}
