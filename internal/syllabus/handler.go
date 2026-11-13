@@ -107,7 +107,9 @@ func movedTo(target string) http.HandlerFunc {
 		if r.URL.RawQuery != "" {
 			where += "?" + r.URL.RawQuery
 		}
-		http.Redirect(w, r, where, http.StatusMovedPermanently)
+		// The target always begins with the fixed address of the course routes,
+		// so no part of the request can make it leave this server.
+		http.Redirect(w, r, where, http.StatusMovedPermanently) // #nosec G710 -- where starts with a constant path on this server
 	}
 }
 

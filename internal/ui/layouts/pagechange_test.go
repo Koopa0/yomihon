@@ -77,7 +77,7 @@ func cssRules(css string) []struct{ selector, body string } {
 func readSheet(t *testing.T, name string) string {
 	t.Helper()
 	path := "../../../assets/css/" + name
-	source, err := os.ReadFile(path)
+	source, err := os.ReadFile(path) // #nosec G304 -- a stylesheet of this repository, named by the caller
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error = %v", path, err)
 	}

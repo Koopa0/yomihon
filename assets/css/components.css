@@ -1306,7 +1306,7 @@ html:not([data-js]) .y-rubybtn {
 
 .y-main > .y-listen,
 .y-shell2:not(:has(> .y-rail-left)) > .y-main > .y-recovery,
-main.y-prefs {
+.y-prefs {
   margin-left: max(0px, calc((100% - var(--measure-list) - 2 * var(--gutter-list)) / 2 + var(--gutter-list) - var(--gutter-read)));
   margin-right: auto;
 }
