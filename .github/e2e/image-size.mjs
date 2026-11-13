@@ -1,5 +1,6 @@
 // Authored image fields survive rendering; loaded pictures keep their natural
-// ratio inside the responsive reading column. Each fault rewrites one served declaration or image field, and the
+// ratio inside the responsive reading column, where a picture on a mat may run
+// to the mat's floor and no further. Each fault rewrites one served declaration or image field, and the
 // oracle reads the real loaded image after page arrival has settled.
 import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
@@ -132,9 +133,16 @@ try {
       // column caps its width. Smaller mismatched hints exercise the browser's
       // loaded natural ratio, while their original HTML fields stay intact.
       assert('ratio', boxes[5] && Math.abs(boxes[5].height - boxes[5].width * 600 / 800) <= 1, `800x600 image lost its loaded ratio: ${boxes[5]?.width}x${boxes[5]?.height}`);
+      // A picture alone in its paragraph sits on a mat, which scrolls: it is
+      // held at the mat's floor rather than shrunk to a narrow column, so it may
+      // be wider than the column while the mat that holds it is not.
+      const floor = 560;
+      const mats = [];
+      for (let i = 0; i < expected.length; i++) mats.push(await images.nth(i).evaluate((image) => image.closest('.mat')?.getBoundingClientRect().width ?? image.getBoundingClientRect().width));
       for (const [i, [expectedWidth, , , naturalWidth, naturalHeight]] of expected.entries()) {
         const box = boxes[i];
-        assert('cap', box && column && box.width <= column.width + 1, `image ${i} escaped the column`);
+        assert('cap', box && column && box.width <= Math.max(column.width, floor) + 1, `image ${i} escaped the column and the floor of its mat`);
+        assert('cap', mats[i] <= column.width + 1, `the mat of image ${i} escaped the column`);
         if (expectedWidth && Number(expectedWidth) < column.width) assert(expected[i][5], Math.abs(box.width - Number(expectedWidth)) <= 1, `image ${i} lost its actual width`);
         assert('ratio', Math.abs(box.height - box.width * naturalHeight / naturalWidth) <= 1, `image ${i} lost its loaded natural ratio: ${box.width}x${box.height}`);
       }

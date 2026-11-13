@@ -22,6 +22,10 @@
   --panel: light-dark(#eee9dc, #1e1d1a);
   --elevated: light-dark(#e7e1d2, #252420);
   --overlay: light-dark(#e1ddd3, #2e2d29);
+  /* The mat an author's picture or figure sits on. It is a step off the page
+     in both themes, so a drawing made for a light ground is set apart by tone
+     and by nothing else. */
+  --mat: light-dark(#e6e2d8, #2a2925);
   /* The left rail's ground: the header's tone, a step off the page in both
      themes. */
   --rail-ground: var(--panel);
