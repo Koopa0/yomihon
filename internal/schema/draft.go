@@ -8,6 +8,6 @@ const DraftField = "draft"
 // Draft reports whether a note's frontmatter declares it unfinished: the key
 // holds the boolean true. Absent, false or any other shape is a finished note.
 func Draft(frontmatter map[string]any) bool {
-	draft, _ := frontmatter[DraftField].(bool)
-	return draft
+	draft, isBool := frontmatter[DraftField].(bool)
+	return isBool && draft
 }

@@ -14,12 +14,12 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// deskWithMark serves a desk over a one-note vault, with the place the reader
-// kept already in hand. The mark never reaches a file here: what the row is
+// deskWithMark serves a desk over a vault holding aNote, with the place the
+// reader kept already in hand. The mark never reaches a file here: what the row is
 // built from is the closure, which is the seam this exercises.
-func deskWithMark(t *testing.T, body string, kept *mark.Continuation, has bool) string {
+func deskWithMark(t *testing.T, kept *mark.Continuation, has bool) string {
 	t.Helper()
-	return deskOverNote(t, "alpha.md", body, kept, has)
+	return deskOverNote(t, "alpha.md", aNote, kept, has)
 }
 
 // deskOverNote is deskWithMark with the note's own filename, for the one case
@@ -61,7 +61,7 @@ func keptIn(path, anchor string, offset int, identity string) *mark.Continuation
 func TestADeskWithNoMarkSaysNothingAboutOne(t *testing.T) {
 	t.Parallel()
 
-	page := deskWithMark(t, aNote, &mark.Continuation{}, false)
+	page := deskWithMark(t, &mark.Continuation{}, false)
 	if strings.Contains(page, "data-home-continue") {
 		t.Error("the desk draws a way back when the reader has kept no place")
 	}
@@ -76,8 +76,7 @@ func TestADeskWithNoMarkSaysNothingAboutOne(t *testing.T) {
 func TestTheDeskOffersTheKeptPlaceBack(t *testing.T) {
 	t.Parallel()
 
-	page := deskWithMark(t, aNote,
-		keptIn("Notes/alpha.md", "alpha", 320, identityOf(aNote)), true)
+	page := deskWithMark(t, keptIn("Notes/alpha.md", "alpha", 320, identityOf(aNote)), true)
 
 	if !strings.Contains(page, "data-home-continue") {
 		t.Fatal("the desk offers no way back to the place that was kept")
@@ -102,8 +101,7 @@ func TestTheDeskOffersTheKeptPlaceBack(t *testing.T) {
 func TestAChangedNoteIsSaidAndStillOffered(t *testing.T) {
 	t.Parallel()
 
-	page := deskWithMark(t, aNote,
-		keptIn("Notes/alpha.md", "alpha", 320, strings.Repeat("f", 64)), true)
+	page := deskWithMark(t, keptIn("Notes/alpha.md", "alpha", 320, strings.Repeat("f", 64)), true)
 
 	if !strings.Contains(page, wording.MarkNoteChanged.In(wording.ZhHant)) {
 		t.Error("the note changed since the place was kept and the row says nothing about it")
@@ -119,8 +117,7 @@ func TestAChangedNoteIsSaidAndStillOffered(t *testing.T) {
 func TestAMarkedNoteThatIsGoneSaysSo(t *testing.T) {
 	t.Parallel()
 
-	page := deskWithMark(t, aNote,
-		keptIn("Notes/vanished.md", "somewhere", 10, strings.Repeat("a", 64)), true)
+	page := deskWithMark(t, keptIn("Notes/vanished.md", "somewhere", 10, strings.Repeat("a", 64)), true)
 
 	if !strings.Contains(page, wording.MarkNoteGone.In(wording.ZhHant)) {
 		t.Error("the marked note is gone and the row does not say so")

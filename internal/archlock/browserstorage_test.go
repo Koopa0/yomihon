@@ -93,9 +93,9 @@ var jsIdentifier = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 // templates, and the table has to name each one exactly once and name nothing
 // else.
 //
-// A build constraint such as yomihon_nodurable shares the cookie prefix and is
-// not a cookie. It cannot reach this check: a constraint is a comment, and what
-// is collected here is string literals from the syntax tree. The set equality
+// A build constraint that shares the cookie prefix is not a cookie. It cannot
+// reach this check: a constraint is a comment, and what is collected here is
+// string literals from the syntax tree. The set equality
 // below is what proves that structurally — if one ever did leak in, the set
 // would differ from the declared one and this would go red rather than growing
 // a row nobody wrote.

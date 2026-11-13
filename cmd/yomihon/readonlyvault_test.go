@@ -24,32 +24,37 @@ import (
 // modification time.
 func vaultState(t *testing.T, root string) map[string]string {
 	t.Helper()
+	pinned, err := os.OpenRoot(root)
+	if err != nil {
+		t.Fatalf("open the vault under %s: %v", root, err)
+	}
+	defer func() {
+		if closeErr := pinned.Close(); closeErr != nil {
+			t.Errorf("close the vault under %s: %v", root, closeErr)
+		}
+	}()
 	state := map[string]string{}
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
+	walkErr := fs.WalkDir(pinned.FS(), ".", func(rel string, d fs.DirEntry, entryErr error) error {
+		if entryErr != nil {
+			return entryErr
 		}
-		info, err := os.Lstat(path)
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, path)
+		info, err := pinned.Lstat(rel)
 		if err != nil {
 			return err
 		}
 		entry := fmt.Sprintf("%v %d %s", info.Mode(), info.Size(), info.ModTime().UTC().Format("2006-01-02T15:04:05.000000000"))
 		if d.Type().IsRegular() {
-			data, err := os.ReadFile(path) // #nosec G304 -- a path walked under t.TempDir
+			data, err := pinned.ReadFile(rel)
 			if err != nil {
 				return err
 			}
 			entry += fmt.Sprintf(" %x", sha256.Sum256(data))
 		}
-		state[filepath.ToSlash(rel)] = entry
+		state[rel] = entry
 		return nil
 	})
-	if err != nil {
-		t.Fatalf("record the vault under %s: %v", root, err)
+	if walkErr != nil {
+		t.Fatalf("record the vault under %s: %v", root, walkErr)
 	}
 	return state
 }
