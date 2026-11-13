@@ -27,6 +27,8 @@ const SITES = [
   'rapid-change-keeps-both',
   'applies-and-stores',
   'size-and-typeface-together',
+  'section-buttons-apply-and-store',
+  'section-buttons-need-no-server',
   'refusal-puts-the-choice-back',
   'a-kept-choice-clears-the-sentence',
 ];
@@ -95,6 +97,28 @@ const MUTATIONS = {
     target: 'size-and-typeface-together',
     apply: rewriteModule("      setPreference('font', value);\n", '      root.dataset.font = value;\n', 'the typeface write'),
   },
+  // The row for the buttons beside sections reaches the root and the cookie
+  // through the same door as every other choice. A write that sets the root
+  // and forgets the cookie leaves the next page in the other state.
+  'section-buttons-store-nothing': {
+    target: 'section-buttons-apply-and-store',
+    apply: rewriteModule(
+      "      setPreference('sectionbuttons', value);\n",
+      '      root.dataset.sectionbuttons = value;\n',
+      'the section buttons write',
+    ),
+  },
+  // A row the script has no entry for is asked of the server instead: the page
+  // is left for a post and a redirect, which is how the interface language
+  // behaves and how this row must not.
+  'section-buttons-asks-the-server': {
+    target: 'section-buttons-need-no-server',
+    apply: rewriteModule(
+      "    sectionbuttons(value) {\n      setPreference('sectionbuttons', value);\n    },\n",
+      '',
+      'the section buttons entry among the choices the script carries out',
+    ),
+  },
   // The one the whole refusal path rests on: believing the write instead of
   // reading it back leaves a refused choice looking chosen.
   'skip-the-read-back': {
@@ -157,6 +181,7 @@ const rootState = (page) =>
       font: root.dataset.font ?? '',
       ruby: root.dataset.ruby ?? '',
       shortcuts: root.dataset.singleKeyShortcuts ?? '',
+      sectionbuttons: root.dataset.sectionbuttons ?? '',
     };
   });
 
@@ -210,12 +235,16 @@ try {
   const fields = await page.evaluate(() =>
     [...document.querySelectorAll('[data-pref-field]')].map((f) => f.dataset.prefField),
   );
-  for (const needed of ['theme', 'textsize', 'font', 'ruby', 'shortcuts']) {
+  for (const needed of ['theme', 'textsize', 'font', 'ruby', 'shortcuts', 'sectionbuttons']) {
     if (!fields.includes(needed)) broken(`the page carries no ${needed} choice, so nothing below is being tested`);
   }
   const onArrival = await cookies(context);
-  for (const name of ['yomihon_theme', 'yomihon_textsize', 'yomihon_font']) {
+  for (const name of ['yomihon_theme', 'yomihon_textsize', 'yomihon_font', 'yomihon_sectionbuttons']) {
     if (onArrival[name]) broken(`${name} was already stored on arrival, so a stored value proves nothing`);
+  }
+  const arrived = await rootState(page);
+  if (arrived.sectionbuttons !== 'always' || (await checkedValue(page, 'sectionbuttons')) !== 'always') {
+    broken(`a browser storing nothing arrives with the buttons beside sections at ${arrived.sectionbuttons || 'nothing'}, want the default always`);
   }
 
   // ── Nothing is asked of the server ──────────────────────────────────────
@@ -288,6 +317,38 @@ try {
     fail(
       'size-and-typeface-together',
       `picking a typeface put the size back to ${afterBoth.textsize}/${both.yomihon_textsize}, want the xl picked before it`,
+    );
+  }
+
+  // ── The buttons beside sections: held back, then shown again ─────────────
+  // Both options store a value, the default one included: choosing "always"
+  // after "hover" has to leave a cookie saying so, since deleting it would be
+  // a second way of holding the same answer.
+  const postedBefore = posted.length;
+  await pick(page, 'sectionbuttons', 'hover');
+  await page.waitForTimeout(200);
+  if (posted.length !== postedBefore) {
+    fail('section-buttons-need-no-server', `picking the buttons beside sections sent ${posted.length - postedBefore} POST to /preferences, want none`);
+  }
+  if (new URL(page.url()).pathname !== new URL(landed).pathname) {
+    fail('section-buttons-need-no-server', `picking the buttons beside sections left the page for ${page.url()}, want to stay on ${landed}`);
+  }
+  const held = await cookies(context);
+  const afterHeld = await rootState(page);
+  if (afterHeld.sectionbuttons !== 'hover' || held.yomihon_sectionbuttons !== 'hover') {
+    fail(
+      'section-buttons-apply-and-store',
+      `the buttons beside sections picked as hover left the page at ${afterHeld.sectionbuttons || 'nothing'} and stored ${held.yomihon_sectionbuttons || 'nothing'}, want hover in both`,
+    );
+  }
+  await pick(page, 'sectionbuttons', 'always');
+  await page.waitForTimeout(200);
+  const shown = await cookies(context);
+  const afterShown = await rootState(page);
+  if (afterShown.sectionbuttons !== 'always' || shown.yomihon_sectionbuttons !== 'always') {
+    fail(
+      'section-buttons-apply-and-store',
+      `the buttons beside sections picked as always left the page at ${afterShown.sectionbuttons || 'nothing'} and stored ${shown.yomihon_sectionbuttons || 'nothing'}, want always in both`,
     );
   }
 

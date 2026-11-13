@@ -157,14 +157,13 @@ the browser or operating system's speech service.
 ## Browser state
 
 Cookies and session storage hold the reading choices and where the reader had
-the left rail. Six cookies carry the choices, and the server writes
-every one of them at `/preferences`. Four of the
-six also have a control in the header that the page's own script answers
-directly: the desk, the text size, the furigana and the shortcuts, written
-under the same names and for the same year, so a choice made with script and
-one made without expire together. The typeface and the language have no header
-control, and nothing but the server writes them. Three `sessionStorage` keys
-carry the rail.
+the left rail. Eight cookies carry the choices, and the server writes
+every one of them at `/preferences`. Every one but the interface language is
+also written by the page's own script when a choice is picked, under the same
+name and for the same year, so a choice made with script and one made without
+expire together. The language is the exception: its words are the server's,
+and nothing but the server writes it. Three `sessionStorage` keys carry the
+rail.
 
 | Kept in the browser | What it holds | How long |
 |---|---|---|
@@ -174,6 +173,7 @@ carry the rail.
 | `yomihon_font` | The typeface, `serif`, `sans` or `kai`; no value is the serif face as well | A year from the last write |
 | `yomihon_ruby` | Whether furigana show, `on` or `off` | A year from the last write |
 | `yomihon_rail` | Whether the left column is shown or folded to a strip on wide windows, `open` or `collapsed` | A year from the last write |
+| `yomihon_sectionbuttons` | When the buttons beside each section are drawn, `always` or `hover`; no value shows them always | A year from the last write |
 | `yomihon_shortcuts` | Whether single-key shortcuts answer, `on` or `off` | A year from the last write |
 | `yomihon.nav` | Which folders of the left rail the reader opened or closed, one true-or-false each | Until the tab closes |
 | `yomihon.nav.filter` | The text the reader typed into the rail's filter box, kept as typed so a narrowing survives opening a note | Until the tab closes |
@@ -197,8 +197,8 @@ carry the rail.
   typed that browser storage holds: yomihon itself writes no note title or body
   there, and the only vault names it keeps are the paths that say which course
   or folder a rail's open or scrolled state belongs to. All of it clears — the
-  settings page's return to defaults drops the six cookies, and the browser's
-  own controls drop all nine.
+  settings page's return to defaults drops the eight cookies, and the browser's
+  own controls drop all eleven.
 
 No hosted reader exists for a user's own vault; a vault stays on the machine
 that reads it. One public instance exists over this repository's own sample
