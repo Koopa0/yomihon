@@ -145,6 +145,7 @@ probes=(
   # either would meet a page the fixture alone does not explain.
   "course-cover.mjs|/courses/Maps/branches.md"
   "reader-mark.mjs|/notes/Notes/reading-fidelity.md"
+  "kept-place-size.mjs|/"
 )
 
 # The audit's plain run includes its canary; mutation jobs retain the targeted
@@ -160,6 +161,7 @@ behavior_only=(
 leaves_a_place=(
   "course-cover.mjs"
   "reader-mark.mjs"
+  "kept-place-size.mjs"
 )
 
 fail() {

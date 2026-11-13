@@ -3,13 +3,18 @@
 // is set larger than anything else there and is 28px; the answers under it
 // are rows with no line between them. The whole-folder page is about what the
 // folder has to say, so its name is the largest text on it and no figure or
-// group name is set above that. The size is what the browser computed,
+// group name is set above that. The desk of a reader who kept no place is
+// about the courses, so they are the largest text on it and set at least as
+// large as a page title is. (The desk with a place kept is measured by
+// kept-place-size.mjs, which has to run after a place has been kept.) The size
+// is what the browser computed,
 // read off every piece of visible text on the page and compared, so a heading
 // restored to its old size or a result title enlarged is read as the loss it is
 // whatever class it wears.
 //
 // Env: YOMIHON_BASE and MUTATE. MUTATE=list prints every self-test mode.
 import { arrived } from './support/arrival.mjs';
+import { readSizes } from './support/text-sizes.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
@@ -18,7 +23,8 @@ const MUTATE = process.env.MUTATE || '';
 const QUERY_SITE = 'the-query-is-the-largest-text-on-the-search-page';
 const RULES_SITE = 'results-have-no-line-between-them';
 const HEALTH_SITE = 'the-page-name-is-the-largest-text-on-the-health-page';
-const SITES = [QUERY_SITE, RULES_SITE, HEALTH_SITE];
+const DESK_SITE = 'the-courses-are-the-largest-text-on-a-desk-with-no-place';
+const SITES = [QUERY_SITE, RULES_SITE, HEALTH_SITE, DESK_SITE];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -51,6 +57,8 @@ const MUTATIONS = {
   'enlarge-a-result-title': { target: QUERY_SITE, apply: appendStyle('.y-result__title{font-size:3rem}') },
   // The query put back at the size of body text.
   'shrink-the-query': { target: QUERY_SITE, apply: appendStyle('.y-searchpage__form input{font-size:1rem}') },
+  // The courses set at body size: a desk that opens on nothing in particular.
+  'shrink-the-lead-courses': { target: DESK_SITE, apply: appendStyle('.y-modeblock--lead .ui-navitem{font-size:1rem}') },
   // A group's name set at a figure's size: the page's own name is outshouted.
   'enlarge-a-group-name': { target: HEALTH_SITE, apply: appendStyle('.y-healthgroup__title{font-size:3rem}') },
   // A hairline under every hit, which is the line the answer was drawn with.
@@ -78,30 +86,6 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   console.error(`largest-text: unknown MUTATE mode ${MUTATE}`);
   process.exit(2);
 }
-
-// Every piece of text a reader can see, with the size the browser set it at:
-// an element's own words, or the value or hint of a field. Text clipped to a
-// pixel for a listener, and anything not drawn, is not text a reader sees.
-const readSizes = (page) => page.evaluate(() => {
-  const found = [];
-  const seen = (element) => {
-    const rect = element.getBoundingClientRect();
-    return rect.width > 2 && rect.height > 2 && element.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
-  };
-  for (const element of document.body.querySelectorAll('*')) {
-    if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'].includes(element.tagName)) continue;
-    const own = [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim() !== '');
-    const field = element.matches('input, textarea') && (element.value !== '' || element.placeholder !== '');
-    if (!own && !field) continue;
-    if (!seen(element)) continue;
-    found.push({
-      size: Number.parseFloat(getComputedStyle(element).fontSize),
-      what: `${element.tagName.toLowerCase()}${element.className ? `.${String(element.className).trim().split(/\s+/).join('.')}` : ''}`,
-      words: (element.value || element.textContent || '').trim().slice(0, 30),
-    });
-  }
-  return found;
-});
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
@@ -153,8 +137,23 @@ try {
     fail(HEALTH_SITE, `${outsized[0].what} (${JSON.stringify(outsized[0].words)}) is set at ${outsized[0].size}px, not smaller than the ${name}px name of the page`);
   }
 
+  const desk = await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  if (desk?.status() !== 200) broken(`/ answered ${desk?.status()}, want 200`);
+  await arrived(page);
+  await page.evaluate(() => document.fonts.ready);
+  if (await page.locator('[data-home-continue]').count() !== 0) broken('the fixture already holds a kept place, so this is not the desk of a reader who kept none');
+  const deskSizes = await readSizes(page, '.y-modeblock--lead');
+  const leading = deskSizes.filter((text) => text.inside);
+  if (leading.length === 0) fail(DESK_SITE, 'the desk of a reader who kept no place does not open on the courses');
+  const leadSize = Math.max(...leading.map((text) => text.size));
+  if (leadSize < 28) fail(DESK_SITE, `the courses are set at ${leadSize}px on a desk with no place kept, want at least 28px`);
+  const overtaking = deskSizes.filter((text) => !text.inside && text.size >= leadSize).sort((a, b) => b.size - a.size);
+  if (overtaking.length > 0) {
+    fail(DESK_SITE, `${overtaking[0].what} (${JSON.stringify(overtaking[0].words)}) is set at ${overtaking[0].size}px, not smaller than the ${leadSize}px courses`);
+  }
+
   await context.close();
-  console.log(`PASS largest-text: the query is 28px, the largest text on the search page, over ${hits} hits drawn with no line between them; the name of the health page, ${name}px, is larger than every group name and figure under it`);
+  console.log(`PASS largest-text: the query is 28px, the largest text on the search page, over ${hits} hits drawn with no line between them; the name of the health page, ${name}px, is larger than every group name and figure under it; the courses, ${leadSize}px, are the largest text on a desk with no place kept`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
