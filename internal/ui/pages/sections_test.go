@@ -275,7 +275,8 @@ func TestASectionHoldsAClosedQuestionOnlyUnderItsOwnHeading(t *testing.T) {
 	t.Parallel()
 
 	const body = `<h3 id="a" data-level="2">A</h3><h4 id="a1" data-level="3">A1</h4><details data-callout="question"><summary>Q</summary></details>` +
-		`<h3 id="b" data-level="2">B</h3><details data-callout="question" open><summary>Q</summary></details><details data-callout="note"><summary>N</summary></details>`
+		`<h3 id="b" data-level="2">B</h3><details data-callout="question" open><summary>Q</summary></details><details data-callout="note"><summary>N</summary></details>` +
+		`<h3 id="c" data-level="2">C</h3><details data-callout="question"><summary>Q</summary></details>`
 	for _, tc := range []struct {
 		section string
 		want    bool
@@ -284,6 +285,7 @@ func TestASectionHoldsAClosedQuestionOnlyUnderItsOwnHeading(t *testing.T) {
 		{"a", true},
 		{"a1", true},
 		{"b", false},
+		{"c", true},
 		{"missing", false},
 	} {
 		if got := HoldsClosedQuestion(body, tc.section); got != tc.want {

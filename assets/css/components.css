@@ -2676,25 +2676,20 @@ button.y-freshness__action {
   font-size: var(--fs-12);
 }
 
-/* Two notes side by side have a column each and no room beside either: the
-   margin stays at the end of the heading's line. */
-.y-compare__column .y-margin {
-  position: static;
-  width: auto;
-}
-
 /* The room beside the reading column: the column, the gap and the margin the
    block reserves, and the gutter the column's box keeps at its left, must all
-   fit in the container. Each text size changes the column, so each has its own
+   fit in the container. It is asked of a note that stands alone in the window:
+   two notes side by side have a column each and no room beside either, so their
+   margins stay at the end of their headings' lines. Each text size changes the column, so each has its own
    width to ask for. The shared rules are the same three times over because a
    container query cannot name a custom property. */
 @container y-main (min-width: 58.875rem) {
-  :root:not([data-textsize='l'], [data-textsize='xl']) .y-article .y-sect {
+  :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-sect {
     align-items: start;
     display: block;
   }
 
-  :root:not([data-textsize='l'], [data-textsize='xl']) .y-article .y-margin {
+  :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin {
     flex-direction: column;
     gap: 4px 0;
     inset-block-start: 0.35em;
@@ -2703,28 +2698,28 @@ button.y-freshness__action {
     width: var(--margin-col);
   }
 
-  :root:not([data-textsize='l'], [data-textsize='xl']) .y-article .y-margin > * {
+  :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin > * {
     align-self: flex-start;
   }
 
-  :root:not([data-textsize='l'], [data-textsize='xl']) .y-article .y-margin__act {
+  :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin__act {
     margin-inline-start: -6px;
     min-height: 28px;
   }
 
-  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-article .y-margin__act:not([aria-pressed='true']) {
+  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--dur-base) linear;
   }
 
-  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-article .y-sect:hover .y-margin__act {
+  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
     opacity: 1;
     pointer-events: auto;
     transition-delay: var(--dur-hover-wait);
   }
 
-  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-article .y-sect:has(:focus-visible) .y-margin__act {
+  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
     opacity: 1;
     pointer-events: auto;
     transition-delay: initial;
@@ -2732,12 +2727,12 @@ button.y-freshness__action {
 }
 
 @container y-main (min-width: 63.625rem) {
-  :root[data-textsize='l'] .y-article .y-sect {
+  :root[data-textsize='l'] .y-main > .y-article .y-sect {
     align-items: start;
     display: block;
   }
 
-  :root[data-textsize='l'] .y-article .y-margin {
+  :root[data-textsize='l'] .y-main > .y-article .y-margin {
     flex-direction: column;
     gap: 4px 0;
     inset-block-start: 0.35em;
@@ -2746,28 +2741,28 @@ button.y-freshness__action {
     width: var(--margin-col);
   }
 
-  :root[data-textsize='l'] .y-article .y-margin > * {
+  :root[data-textsize='l'] .y-main > .y-article .y-margin > * {
     align-self: flex-start;
   }
 
-  :root[data-textsize='l'] .y-article .y-margin__act {
+  :root[data-textsize='l'] .y-main > .y-article .y-margin__act {
     margin-inline-start: -6px;
     min-height: 28px;
   }
 
-  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-article .y-margin__act:not([aria-pressed='true']) {
+  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--dur-base) linear;
   }
 
-  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-article .y-sect:hover .y-margin__act {
+  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
     opacity: 1;
     pointer-events: auto;
     transition-delay: var(--dur-hover-wait);
   }
 
-  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-article .y-sect:has(:focus-visible) .y-margin__act {
+  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
     opacity: 1;
     pointer-events: auto;
     transition-delay: initial;
@@ -2775,12 +2770,12 @@ button.y-freshness__action {
 }
 
 @container y-main (min-width: 68.375rem) {
-  :root[data-textsize='xl'] .y-article .y-sect {
+  :root[data-textsize='xl'] .y-main > .y-article .y-sect {
     align-items: start;
     display: block;
   }
 
-  :root[data-textsize='xl'] .y-article .y-margin {
+  :root[data-textsize='xl'] .y-main > .y-article .y-margin {
     flex-direction: column;
     gap: 4px 0;
     inset-block-start: 0.35em;
@@ -2789,28 +2784,28 @@ button.y-freshness__action {
     width: var(--margin-col);
   }
 
-  :root[data-textsize='xl'] .y-article .y-margin > * {
+  :root[data-textsize='xl'] .y-main > .y-article .y-margin > * {
     align-self: flex-start;
   }
 
-  :root[data-textsize='xl'] .y-article .y-margin__act {
+  :root[data-textsize='xl'] .y-main > .y-article .y-margin__act {
     margin-inline-start: -6px;
     min-height: 28px;
   }
 
-  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-article .y-margin__act:not([aria-pressed='true']) {
+  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
     opacity: 0;
     pointer-events: none;
     transition: opacity var(--dur-base) linear;
   }
 
-  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-article .y-sect:hover .y-margin__act {
+  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
     opacity: 1;
     pointer-events: auto;
     transition-delay: var(--dur-hover-wait);
   }
 
-  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-article .y-sect:has(:focus-visible) .y-margin__act {
+  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
     opacity: 1;
     pointer-events: auto;
     transition-delay: initial;
@@ -2820,7 +2815,7 @@ button.y-freshness__action {
 /* A touch screen has nothing to rest on a heading, so the buttons are drawn
    whatever the setting. */
 @media (pointer: coarse) {
-  :root[data-sectionbuttons='hover'] .y-article .y-margin__act {
+  :root[data-sectionbuttons='hover'] .y-main .y-article .y-margin__act {
     opacity: 1;
     pointer-events: auto;
   }
@@ -5409,8 +5404,11 @@ a.y-facetrow:hover {
   white-space: nowrap;
 }
 
+/* The course page's sidebar opens on this label, which stands at the header's
+   line like the first words of a lesson's or a file's: an indent of its own put
+   them eight pixels in from where every other page's sidebar starts. */
 .y-syl-raillabel {
-  padding: 0 8px 6px;
+  padding: 0 0 6px;
 }
 
 .y-syl-raillabel--gap {
@@ -6415,6 +6413,8 @@ samp,
   .y-rail-left,
   .y-inlineaids,
   .y-related,
+  .y-margin,
+  .y-predict,
   .y-searchdialog,
   .y-nav-scrim,
   .y-skiplink,

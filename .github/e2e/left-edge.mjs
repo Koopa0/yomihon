@@ -7,11 +7,11 @@
 //
 // It also holds the sidebar to the window's side. In a window wider than the
 // two columns want, the sidebar still starts at the window's left side, and on
-// the pages whose sidebar opens on a title, a book's or a folder's, that title
-// stands as far in from there as the header's first control does, so the two
-// read as one line down the page. A shell capped and centred on its own measure
-// would stand well in from the side at that width, and a sidebar padded on its
-// own would drift off the header's line.
+// the pages whose sidebar opens on a title, a book's or a folder's, or on a
+// course's label, those words stand as far in from there as the header's first
+// control does, so the two read as one line down the page. A shell capped and
+// centred on its own measure would stand well in from the side at that width,
+// and a sidebar padded on its own would drift off the header's line.
 //
 // Env: YOMIHON_BASE and MUTATE.
 import { chromium } from 'playwright-core';
@@ -26,10 +26,11 @@ const WITH_SIDEBAR = [
   ['a search', '/search?q=alpha', '.y-searchpage h1.y-title'],
   ['a file', '/notes/Notes/plain.txt', '.y-article h1.y-title'],
 ];
-// The pages whose sidebar opens on a title set at the header's inset. The
-// others open on a part head or a summary, which stands a chevron further in.
-const OPENS_ON_A_TITLE = new Set(['a lesson', 'a file']);
-const TITLES = '.y-railbook__title, .y-here__label';
+// The pages whose sidebar opens on a title, or on the label a course's does,
+// set at the header's inset. The others open on a part head or a summary, which
+// stands a chevron further in.
+const OPENS_ON_A_TITLE = new Set(['a lesson', 'a course', 'a file']);
+const TITLES = '.y-railbook__title, .y-here__label, .y-syl-raillabel';
 const WITHOUT_SIDEBAR = [
   ['the desk', '/', '.y-home h1.y-title'],
   ['a shelf', '/courses', '.y-home h1.y-title'],
@@ -46,6 +47,7 @@ const MODES = {
   'centre-the-shell-again': { css: '.y-shell{margin-inline:auto;max-width:1280px}', group: 'window-edge' },
   'crowd-the-sidebar-against-the-edge': { css: ':root{--rail-pad-start:6px}', group: 'window-edge' },
   'pad-the-sidebar-past-the-header': { css: '.y-rail-left{padding-left:44px}', group: 'window-edge' },
+  'indent-the-course-label': { css: '.y-syl-raillabel{padding-left:8px !important}', group: 'window-edge' },
 };
 
 if (MUTATE === 'list') {
