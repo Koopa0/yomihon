@@ -1,7 +1,8 @@
 // Browser lock for the header row: it carries only what reading needs. To the
 // right of the wordmark there is the furigana switch on a page that has
-// furigana, the bookmark for keeping a reading place, the search, and the way
-// to the settings — in that order and nothing else, at every width. Everything
+// furigana, the search, the bookmark for keeping a reading place, and the way
+// to the settings — in that order, which is the design's, and nothing else, at
+// every width. Everything
 // a reader sets once and leaves alone lives on the settings page.
 //
 // What is asked here is what a reader can see and reach, measured rather than
@@ -37,7 +38,7 @@ const RUBY = '[data-ruby-toggle]';
 const MARK = '.y-headermark [data-mark-button]';
 const SEARCH = '[data-search-open]';
 const SETTINGS = '.y-prefslink';
-const CLUSTER = [RUBY, MARK, SEARCH, SETTINGS];
+const CLUSTER = [RUBY, SEARCH, MARK, SETTINGS];
 
 const SITES = [
   'reading-place-reachable',
@@ -127,6 +128,13 @@ const MUTATIONS = {
     target: 'saved-label-stays-out-of-the-row',
     on: 'note',
     apply: (page) => injectRule(page, '.y-headermark__said', '.y-headermark__said { position: static !important; }'),
+  },
+  // The bookmark stands ahead of the search again, the order the row drew
+  // before the design's order was kept.
+  'put-the-bookmark-ahead-of-the-search': {
+    target: 'cluster-holds-only-what-reading-needs',
+    on: 'note',
+    apply: (page) => injectRule(page, '.y-headermark', `.y-headermark { order: -1; }`),
   },
   // The cluster's order changes: the search moves to the end of the row.
   'move-search-past-settings': {
@@ -470,10 +478,10 @@ try {
     const walked = [];
     for (let press = 0; press < 3; press += 1) {
       await note.keyboard.press('Tab');
-      walked.push(await note.evaluate((selectors) => selectors.findIndex((selector) => document.activeElement?.matches(selector) ?? false), [MARK, SEARCH, SETTINGS]));
+      walked.push(await note.evaluate((selectors) => selectors.findIndex((selector) => document.activeElement?.matches(selector) ?? false), [SEARCH, MARK, SETTINGS]));
     }
     if (walked.join(',') !== '0,1,2') {
-      fail('keyboard-walks-the-cluster', `${language}: tabbing from the wordmark reached ${JSON.stringify(walked)}, want the bookmark, the search and the settings in turn (-1 is somewhere else)`);
+      fail('keyboard-walks-the-cluster', `${language}: tabbing from the wordmark reached ${JSON.stringify(walked)}, want the search, the bookmark and the settings in turn (-1 is somewhere else)`);
     }
     await context.close();
 

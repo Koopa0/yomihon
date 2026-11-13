@@ -140,14 +140,6 @@ templ header(c Chrome) {
 				<span class="y-rubybtn__label y-rubybtn__label--short" aria-hidden="true">{ wording.FuriganaLabelShort.In(c.Lang) }</span>
 			</button>
 		}
-		// The reader's own verb on the note in front of them. It is in the
-		// header because the header is the piece of the page that stays put
-		// while the note scrolls: a control the reader has to travel to records
-		// where travelling to it left them, not where they were reading. It is
-		// the page's only face of the verb, at every width.
-		if c.Mark != nil {
-			@headerMark(c.Mark, c.Lang)
-		}
 		// Native invokers open the palette without script. The script keeps a
 		// listener for engines without invokers; the link works without either.
 		<button class="y-searchbtn" type="button" command="show-modal" commandfor="_y-search-dialog" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>
@@ -156,6 +148,14 @@ templ header(c Chrome) {
 			<span class="ui-kbd">⌘K</span>
 		</button>
 		<noscript><a class="y-searchfallback" href="/search">{ wording.SearchTitle.In(c.Lang) }</a></noscript>
+		// The reader's own verb on the note in front of them. It is in the
+		// header because the header is the piece of the page that stays put
+		// while the note scrolls: a control the reader has to travel to records
+		// where travelling to it left them, not where they were reading. It is
+		// the page's only face of the verb, at every width.
+		if c.Mark != nil {
+			@headerMark(c.Mark, c.Lang)
+		}
 		// The way to the reading choices. It carries the page the reader is on,
 		// so applying a choice returns them to it. Where the row is narrow the
 		// word gives way to a mark of three sliders — not a gear, which promises

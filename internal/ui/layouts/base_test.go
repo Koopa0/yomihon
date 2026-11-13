@@ -430,9 +430,9 @@ func TestBaseStampsTheColumnStateOnTheRoot(t *testing.T) {
 // uses while reading, in the order that keeps the fixed ones still. The theme,
 // the text size, the language, the whole-folder view and the keyboard help are
 // reached elsewhere, so none of their hooks may come back to the row; the
-// furigana switch and the bookmark are drawn only when the page says so, and
-// stand before the search entry and the way to the choices, so a page that
-// draws neither moves nothing else.
+// furigana switch and the bookmark are drawn only when the page says so. The
+// order is the design's: the furigana switch, the search, the bookmark, the
+// way to the choices.
 func TestHeaderCarriesOnlyWhatReadingNeeds(t *testing.T) {
 	t.Parallel()
 	mark := &MarkOffer{Path: "a.md", Identity: "abc", Endpoint: "/marks"}
@@ -443,10 +443,10 @@ func TestHeaderCarriesOnlyWhatReadingNeeds(t *testing.T) {
 	}{
 		{name: "a page with neither", chrome: Chrome{}, want: []string{"y-searchbtn", "y-prefslink"}},
 		{name: "a page with readings", chrome: Chrome{Readings: true}, want: []string{"y-rubybtn", "y-searchbtn", "y-prefslink"}},
-		{name: "a note offering a mark", chrome: Chrome{Mark: mark}, want: []string{"y-headermark", "y-searchbtn", "y-prefslink"}},
-		{name: "a note with both", chrome: Chrome{Readings: true, Mark: mark}, want: []string{"y-rubybtn", "y-headermark", "y-searchbtn", "y-prefslink"}},
+		{name: "a note offering a mark", chrome: Chrome{Mark: mark}, want: []string{"y-searchbtn", "y-headermark", "y-prefslink"}},
+		{name: "a note with both", chrome: Chrome{Readings: true, Mark: mark}, want: []string{"y-rubybtn", "y-searchbtn", "y-headermark", "y-prefslink"}},
 	}
-	controls := []string{"y-rubybtn", "y-headermark", "y-searchbtn", "y-prefslink"}
+	controls := []string{"y-rubybtn", "y-searchbtn", "y-headermark", "y-prefslink"}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
