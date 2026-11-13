@@ -197,13 +197,14 @@ const MUTATIONS = {
     contexts: ['search'],
     apply: weakenStylesheet('app.css', '.y-searchresults[aria-busy="true"] .y-result__meta{opacity:0.58}'),
   },
-  // A mark that inherits faint path-line ink through the gold wash lands
-  // under 4.5:1 on every ground the row sits on. The lock composites the
-  // translucent background first, and visits hover and busy, not only idle.
-  'inherit-mark-ink': {
+  // A mark inked in the outline grey, a line colour rather than a text one,
+  // lands under 4.5:1 once its wash is composited over the row. The lock
+  // composites the translucent background first, and visits hover and busy,
+  // not only idle.
+  'outline-mark-ink': {
     target: 'mark-aa',
     contexts: ['search'],
-    apply: weakenStylesheet('app.css', '.yomihon mark{color:inherit}'),
+    apply: weakenStylesheet('app.css', '.yomihon mark{color:var(--outline)}'),
   },
   // The word a course row prints for a status that needs noticing is the
   // faintest ink the interface has, on a row that is painted over by the
