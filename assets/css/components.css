@@ -924,8 +924,14 @@ html:not([data-js]) .y-rubybtn {
   font-weight: var(--fw-semibold);
 }
 
+/* The sidebar's rows are shorter than the two rem a door is drawn at beside a
+   title in the reading column, so here the door takes the row's own height: a
+   door taller than its row hangs out of it, and covers the top of the next row,
+   the one the pointer is going to. */
 .y-railtoc .y-toc__list .y-toc__door {
   background: var(--rail-ground);
+  height: auto;
+  inset-block: 0;
 }
 
 .y-railtoc .y-toc__row--end {
