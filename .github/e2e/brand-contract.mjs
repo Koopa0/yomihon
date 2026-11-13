@@ -73,6 +73,30 @@ const rewriteSVGPart = (part, replacement, target) => ({
   },
 });
 
+// Rewrites one rule of the served stylesheet. The needle must match exactly
+// once, or the mutation is reported as not applied rather than guessed at.
+const rewriteStylesheet = (needle, replacement, target) => ({
+  target,
+  before: async (page) => {
+    let calls = 0;
+    let matches = 0;
+    await page.route('**/static/app.css{,?*}', async (route) => {
+      if (new URL(route.request().url()).pathname !== '/static/app.css') return route.continue();
+      const response = await route.fetch();
+      const original = await response.text();
+      const found = [...original.matchAll(needle)].length;
+      calls += 1;
+      matches += found;
+      await route.fulfill({ response, body: found === 1 ? original.replace(needle, replacement) : original });
+    });
+    return () => {
+      if (calls === 0) return 'the stylesheet was never requested';
+      if (matches !== calls) return `the stylesheet needle matched ${matches} times across ${calls} responses`;
+      return '';
+    };
+  },
+});
+
 const changeOne = async (page, selector, change) => {
   const changed = await page.evaluate(({ selector: selected, change: operation }) => {
     const elements = [...document.querySelectorAll(selected)];
@@ -159,6 +183,20 @@ const MUTATIONS = {
       await page.addStyleTag({ content: ':root[data-theme="light"] .y-brand__mark { background: #F5F1E6 !important; }' });
     },
   },
+  // The system-dark rule loses its guard, so a stored light on a dark desk
+  // gets the tile too.
+  'widen-system-dark-tile': rewriteStylesheet(
+    /:root:not\(\[data-theme='light'\]\) \.y-brand__mark \{/g,
+    ':root .y-brand__mark {',
+    'light-mark-bare',
+  ),
+  // The system-dark rule loses its media query, so a reader with no stored
+  // choice on a light desk gets the tile too.
+  'unscope-system-dark-tile': rewriteStylesheet(
+    /@media \(prefers-color-scheme: dark\) \{(\s*:root:not\(\[data-theme='light'\]\) \.y-brand__mark \{)/g,
+    '@media all {$1',
+    'light-mark-bare',
+  ),
   'drop-dark-tile': {
     target: 'mark-ground',
     after: (page) => injectRule(page, '.y-brand__mark', 'background: transparent !important;'),
@@ -246,11 +284,13 @@ const analyseSVG = async (source) => {
     page: color('#282A2D'),
     ribbon: color('#536D85'),
   };
-  // The two fills sit close enough that a fixed distance would credit page
-  // pixels to the ribbon, so each opaque pixel goes to whichever approved
-  // colour it is nearest. The source palette is locked exactly by the SVG
-  // grammar test; this rendered lock asks whether each part still leaves an
-  // attributable pixel after real browser antialiasing.
+  // The two fills are about 119 apart, so a fixed distance alone would credit
+  // page pixels to the ribbon: each opaque pixel goes to whichever approved
+  // colour it is nearest, and only when that colour is within 120 of it, so
+  // a pixel of neither colour counts for neither part. The source palette is
+  // locked exactly by the SVG grammar test; this rendered lock asks whether
+  // each part still leaves a perceptually attributable pixel after real
+  // browser antialiasing.
   const attribute = (pixels) => {
     const counts = Object.fromEntries(Object.keys(palettes).map((part) => [part, 0]));
     for (let i = 0; i < pixels.length; i += 4) {
@@ -264,7 +304,7 @@ const analyseSVG = async (source) => {
           nearest = part;
         }
       }
-      counts[nearest] += 1;
+      if (best <= 120) counts[nearest] += 1;
     }
     return counts;
   };
@@ -437,7 +477,7 @@ try {
       }
     }
   }
-  if (analysis.page.components !== 1 || analysis.page.height < 120 || analysis.page.width < 120) {
+  if (analysis.page.components !== 1 || analysis.page.height < 150 || analysis.page.width < 120) {
     fail('page-is-one-face', `page mask = ${JSON.stringify(analysis.page)}, want one face spanning the mark`);
   }
   // The drawn channel is about thirty pixels at 256px, three in the 24px
@@ -448,15 +488,18 @@ try {
   }
 
   await page.emulateMedia({ forcedColors: 'none' });
-  // Each way a theme arrives: a stored light, a stored dark, and no stored
-  // choice on a dark desk.
+  // Each way a theme arrives: a stored choice on either desk, and no stored
+  // choice, which leaves <html> without data-theme, on either desk.
   const themes = [
-    { name: 'light', theme: 'light', scheme: 'light' },
-    { name: 'dark', theme: 'dark', scheme: 'light' },
-    { name: 'system dark', theme: null, scheme: 'dark' },
+    { name: 'light', theme: 'light', scheme: 'light', light: true },
+    { name: 'light on a dark desk', theme: 'light', scheme: 'dark', light: true },
+    { name: 'system light', theme: null, scheme: 'light', light: true },
+    { name: 'dark', theme: 'dark', scheme: 'light', light: false },
+    { name: 'dark on a dark desk', theme: 'dark', scheme: 'dark', light: false },
+    { name: 'system dark', theme: null, scheme: 'dark', light: false },
   ];
   const grounds = {};
-  for (const { name, theme, scheme } of themes) {
+  for (const { name, theme, scheme, light } of themes) {
     await page.emulateMedia({ colorScheme: scheme });
     await page.evaluate((selected) => {
       if (selected === null) delete document.documentElement.dataset.theme;
@@ -493,8 +536,8 @@ try {
       };
     });
     if (!mark.visible) fail('theme-mark', `header mark is not a visible 24px projection in ${name} theme`);
-    if (name === 'light' && mark.background !== 'rgba(0, 0, 0, 0)') {
-      fail('light-mark-bare', `header mark background in the light theme = ${mark.background}, want none`);
+    if (light && mark.background !== 'rgba(0, 0, 0, 0)') {
+      fail('light-mark-bare', `header mark background in the ${name} theme = ${mark.background}, want none`);
     }
     const luminance = (rgb) => {
       const [r, g, b] = rgb.map((value) => {
