@@ -71,10 +71,12 @@ const appendRule = (rule, read, wanted) => async (page) => {
   };
 };
 
-// Rewrites one served page. needle must be found, so a self-test that quietly
-// died against rewritten markup turns red here rather than passing as a
-// regression that walked through.
-const rewritePage = (match, needle, replacement) => async (page) => {
+// Rewrites one served page: the first place the needle is found, or every place
+// it is found when all is set, as a regression that touches every way into a
+// course has to. needle must be found, so a self-test that quietly died against
+// rewritten markup turns red here rather than passing as a regression that
+// walked through.
+const rewritePage = (match, needle, replacement, all = false) => async (page) => {
   let hits = 0;
   await page.route(match, async (route) => {
     const response = await route.fetch();
@@ -84,20 +86,23 @@ const rewritePage = (match, needle, replacement) => async (page) => {
       return;
     }
     hits += 1;
-    await route.fulfill({ response, body: body.replace(needle, replacement) });
+    await route.fulfill({ response, body: all ? body.replaceAll(needle, replacement) : body.replace(needle, replacement) });
   });
   return async () => (hits === 0 ? `nothing served carried ${JSON.stringify(needle)}` : '');
 };
 
 const MUTATIONS = {
-  // Takes the reader's lesson back out of the way into the course, which is
-  // the whole of how the page knows where they are.
+  // Takes the reader's lesson back out of every way into the course (the
+  // sidebar's folded name, its title, the link at the foot of the lesson), which
+  // is the whole of how the page knows where they are. Only the first would be
+  // a link the walk may not take.
   'drop-the-name-from-the-link': {
     target: 'the-course-marks-the-lesson-it-was-reached-from',
     apply: rewritePage(
       (url) => url.pathname === PAGE,
       `href="${COURSE_PATH}?from=`,
       `href="${COURSE_PATH}" data-dropped="`,
+      true,
     ),
   },
   // Marks a row on a course nobody arrived at from a lesson, which is the

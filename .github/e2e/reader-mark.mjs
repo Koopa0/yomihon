@@ -209,7 +209,7 @@ const MUTATIONS = {
   'land-past-a-missing-anchor': {
     target: 'a-missing-anchor-lands-at-the-top',
     apply: rewriteModule(
-      '    if (!anchor) return;',
+      '    if (!anchor) {\n      reveal();\n      return;\n    }',
       '    if (!anchor) { /* land anyway */ }',
       'the guard on an anchor the note no longer carries',
     ),
