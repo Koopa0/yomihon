@@ -47,9 +47,5 @@ func TestOpeningSentence(t *testing.T) {
 }
 
 func longClause() string {
-	out := ""
-	for range 60 {
-		out += "very long clause "
-	}
-	return out
+	return strings.Repeat("very long clause ", 60)
 }

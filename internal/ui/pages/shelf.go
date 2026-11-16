@@ -207,7 +207,7 @@ type ShelfOrderChoice struct {
 // openRowAttrs states what kind of thing an open row is, so a check names the
 // kind by what it is rather than by the words, which change with the language,
 // and marks the row as the desk's or the shelf's own, as every other row is.
-func openRowAttrs(row Row, onDesk bool) templ.Attributes {
+func openRowAttrs(row *Row, onDesk bool) templ.Attributes {
 	attrs := templ.Attributes{"data-open-kind": "mark"}
 	switch {
 	case row.Fault:
