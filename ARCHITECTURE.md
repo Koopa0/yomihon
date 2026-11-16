@@ -75,7 +75,7 @@ Retries back off to a minute; a metadata-visible change can trigger an earlier a
 
 The [rendering pipeline][render] protects code and comments, handles the vault's Markdown dialect, resolves links and embeds, and produces HTML through Goldmark and Chroma. It then assigns heading anchors, builds the table of contents, and resolves local asset URLs. `templ` supplies the surrounding reading interface. Authored HTML enters through an inert subset: ruby survives, while executable and navigating markup is displayed as text.
 
-The [resolver][graph] recognizes filename stems, filenames, paths, and frontmatter aliases, folded by NFC and case. A frontmatter `title` is a display name, not an additional link key. Resolution returns a unique target, no target, or all ambiguous candidates. A title-only match can explain a broken link, but does not silently repair it. Fragment handling belongs to rendering rather than name lookup.
+The [resolver][graph] recognizes filename stems, filenames, paths, and frontmatter aliases, folded by NFC and case. A note's title is its first H1 and a display name, not an additional link key. Resolution returns a unique target, no target, or all ambiguous candidates. A title-only match can explain a broken link, but does not silently repair it. Fragment handling belongs to rendering rather than name lookup.
 
 Transclusion stops after one level. An embed inside an excerpt becomes a link, bounding recursive and cyclic expansion. A missing requested section or block produces a diagnostic instead of widening the excerpt to the whole note. Footnotes receive region-specific identities when several bodies share a page. The rendered excerpt identities also let freshness checks notice changes in material the host note embeds.
 
