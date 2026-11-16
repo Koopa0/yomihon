@@ -55,12 +55,52 @@ function initFigures(preferences) {
   };
 }
 
+// A mat holding a drawing wider than itself scrolls sideways. A scroller that
+// holds a frame cannot be reached from the keyboard on its own, so a mat that
+// overflows takes a place in the tab order, and is named by the drawing it
+// holds so that place is said. The place is held only while it overflows: a
+// stop that moves nothing is noise on every page where the drawing fits. The
+// name stays once given, since it describes the drawing and not the width.
+function initMats() {
+  if (typeof ResizeObserver === 'undefined') return;
+  const mats = document.querySelectorAll('.mat');
+  if (mats.length === 0) return;
+  const held = new WeakSet();
+  const settle = (mat) => {
+    const scrolls = mat.scrollWidth - mat.clientWidth > 1;
+    if (scrolls === held.has(mat)) return;
+    if (!scrolls) {
+      held.delete(mat);
+      mat.removeAttribute('tabindex');
+      return;
+    }
+    held.add(mat);
+    mat.setAttribute('tabindex', '0');
+    const drawing = mat.firstElementChild;
+    const name = (drawing?.getAttribute('alt') || drawing?.getAttribute('title') || '').trim();
+    if (name !== '') {
+      mat.setAttribute('role', 'group');
+      mat.setAttribute('aria-label', name);
+    }
+  };
+  // The mat changes size with the window and its drawing with its load, so both
+  // are watched.
+  const watch = new ResizeObserver((entries) => {
+    for (const entry of entries) settle(entry.target.closest('.mat'));
+  });
+  for (const mat of mats) {
+    watch.observe(mat);
+    if (mat.firstElementChild) watch.observe(mat.firstElementChild);
+  }
+}
+
 // preferences reports the theme the reader is actually looking at and says when
 // it moves. A diagram is drawn in that theme's colours, so it is part of the
 // prose rather than chrome around it, and it cannot sit a frame behind the page
 // it is printed on. A figure is told the theme too, so it can follow it.
 export async function initDiagrams(preferences) {
   const retheme = initFigures(preferences);
+  initMats();
   const blocks = document.querySelectorAll('.mermaid-diagram');
   if (blocks.length === 0) {
     preferences.onThemeChange(retheme);

@@ -394,7 +394,7 @@ func TestEveryKindIsATableUnderItsOwnNameWithOnlyItsExplanationFolded(t *testing
 				}
 				section := sections[0]
 				kind := healthRows(&view, lang)[0].Kind
-				if m := groupTitle.FindStringSubmatch(section); m == nil || html.UnescapeString(strings.TrimSpace(tagOrSpace.ReplaceAllString(m[1], " "))) != kind.title(lang) {
+				if m := groupTitle.FindStringSubmatch(section); len(m) < 2 || html.UnescapeString(strings.TrimSpace(tagOrSpace.ReplaceAllString(m[1], " "))) != kind.title(lang) {
 					t.Errorf("%s: the group is not named %q: %s", lang, kind.title(lang), section)
 				}
 				fold, table, found := strings.Cut(section, "</details>")

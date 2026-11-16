@@ -1150,7 +1150,7 @@ func openRow(row Row, lang wording.Lang, onDesk bool) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.RenderAttributes(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_ElementWriter, "div", openRowAttrs(row, onDesk))
+			templ_7745c5c3_Err = templruntime.RenderAttributes(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_ElementWriter, "div", openRowAttrs(&row, onDesk))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

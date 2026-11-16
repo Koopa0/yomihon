@@ -10,10 +10,10 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-func renderHome(t *testing.T, v HomeView, lang wording.Lang) string {
+func renderHome(t *testing.T, v *HomeView, lang wording.Lang) string {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := Home(v, layouts.Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
+	if err := Home(*v, layouts.Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render Home: %v", err)
 	}
 	// The header carries the product's one search; what the page itself draws
@@ -25,8 +25,8 @@ func renderHome(t *testing.T, v HomeView, lang wording.Lang) string {
 	return page
 }
 
-func keptView() HomeView {
-	return HomeView{Continue: ContinueRow{
+func keptView() *HomeView {
+	return &HomeView{Continue: ContinueRow{
 		Show: true, Title: "Alpha", Href: "/notes/a.md?at=40#cancel", Kicker: "A course · Part one",
 		Section: RowPlace{Text: "Cancel"},
 	}}
@@ -38,7 +38,7 @@ func keptView() HomeView {
 func TestTheDeskDrawsNoSearchField(t *testing.T) {
 	t.Parallel()
 
-	for name, v := range map[string]HomeView{"fresh": {}, "kept": keptView()} {
+	for name, v := range map[string]*HomeView{"fresh": {}, "kept": keptView()} {
 		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 			page := renderHome(t, v, lang)
 			for _, field := range []string{"<search", `type="search"`, `action="/search"`, "<form", "<input", "y-homesearch"} {
@@ -58,7 +58,7 @@ func TestTheDeskNamesItselfAsALabelOrNotAtAll(t *testing.T) {
 
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		name := wording.HomeTitle.In(lang)
-		if page := renderHome(t, HomeView{}, lang); !strings.Contains(page, `<h1 class="y-title y-desklabel">`+name+`</h1>`) {
+		if page := renderHome(t, &HomeView{}, lang); !strings.Contains(page, `<h1 class="y-title y-desklabel">`+name+`</h1>`) {
 			t.Errorf("%s desk with no place kept does not name itself as a label: %q", lang, page)
 		}
 		page := renderHome(t, keptView(), lang)
@@ -113,7 +113,7 @@ func TestTheCoursesLeadTheDeskOfAReaderWhoKeptNoPlace(t *testing.T) {
 	courses := DeskBlock{Mode: courseMode, Shelf: Shelf{Title: "Courses", Href: "/courses", Rows: []Row{{Text: "Go", Href: "/courses/go.md"}}}}
 	maps := DeskBlock{Mode: mapMode, Shelf: Shelf{Title: "Maps", Href: "/maps", Rows: []Row{{Text: "M", Href: "/notes/m.md"}}}}
 
-	fresh := renderHome(t, HomeView{Blocks: []DeskBlock{courses, maps}}, wording.En)
+	fresh := renderHome(t, &HomeView{Blocks: []DeskBlock{courses, maps}}, wording.En)
 	lead := between(t, fresh, `<div class="y-homelead">`, "</div>")
 	if !strings.Contains(lead, `data-home-block="courses"`) || !strings.Contains(lead, "y-modeblock--lead") {
 		t.Errorf("a desk with no place kept does not open on the courses: %s", lead)
@@ -121,7 +121,11 @@ func TestTheCoursesLeadTheDeskOfAReaderWhoKeptNoPlace(t *testing.T) {
 	if strings.Count(fresh, `data-home-block="courses"`) != 1 {
 		t.Errorf("the courses are drawn more than once: %s", fresh)
 	}
-	if strings.Contains(fresh[strings.Index(fresh, `class="y-homegrid"`):], "y-modeblock--lead") {
+	_, grid, ok := strings.Cut(fresh, `class="y-homegrid"`)
+	if !ok {
+		t.Fatalf("a desk with courses and maps draws no grid: %s", fresh)
+	}
+	if strings.Contains(grid, "y-modeblock--lead") {
 		t.Errorf("a block inside the grid is drawn as the lead: %s", fresh)
 	}
 
@@ -133,7 +137,7 @@ func TestTheCoursesLeadTheDeskOfAReaderWhoKeptNoPlace(t *testing.T) {
 
 	empty := courses
 	empty.Shelf.Rows = nil
-	if page := renderHome(t, HomeView{Blocks: []DeskBlock{empty, maps}}, wording.En); strings.Contains(page, "y-homelead") {
+	if page := renderHome(t, &HomeView{Blocks: []DeskBlock{empty, maps}}, wording.En); strings.Contains(page, "y-homelead") {
 		t.Errorf("a vault with no course to open leads with one: %s", page)
 	}
 }
@@ -146,7 +150,7 @@ func TestTheDeskLeadsToTheHealthViewAndCountsNothing(t *testing.T) {
 	t.Parallel()
 
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-		page := renderHome(t, HomeView{}, lang)
+		page := renderHome(t, &HomeView{}, lang)
 		_, rest, ok := strings.Cut(page, `class="y-deskhealth"`)
 		if !ok {
 			t.Fatalf("%s desk has no way to the health view", lang)

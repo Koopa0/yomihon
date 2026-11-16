@@ -273,14 +273,31 @@ func mutableProbeEntries(entries, classified []string) []string {
 // the plain expectations and leave every mutation expectation.
 func probeBehaviorOnlyMembers(t *testing.T, source []byte) []string {
 	t.Helper()
-	const start = "\nbehavior_only=(\n"
+	return probeDeclaredMembers(t, source, "behavior_only")
+}
+
+// The probes that leave a kept reading place behind, in the order the runner
+// requires the registry to end with. Nothing here names them: a probe that
+// joins the declaration joins every expectation derived from it.
+func probeKeptPlaceMembers(t *testing.T, source []byte) []string {
+	t.Helper()
+	members := probeDeclaredMembers(t, source, "leaves_a_place")
+	if len(members) == 0 {
+		t.Fatal("production leaves_a_place declaration names no probe")
+	}
+	return members
+}
+
+func probeDeclaredMembers(t *testing.T, source []byte, array string) []string {
+	t.Helper()
+	start := "\n" + array + "=(\n"
 	if strings.Count(string(source), start) != 1 {
-		t.Fatal("production runner has no unique readable behavior_only declaration")
+		t.Fatalf("production runner has no unique readable %s declaration", array)
 	}
 	_, body, _ := strings.Cut(string(source), start)
 	body, _, found := strings.Cut(body, "\n)\n")
 	if !found {
-		t.Fatal("production behavior_only declaration has no end")
+		t.Fatalf("production %s declaration has no end", array)
 	}
 	pattern := regexp.MustCompile(`^"([^"|]+\.mjs)"$`)
 	var members []string
@@ -291,7 +308,7 @@ func probeBehaviorOnlyMembers(t *testing.T, source []byte) []string {
 		}
 		match := pattern.FindStringSubmatch(line)
 		if match == nil {
-			t.Fatalf("unreadable behavior_only member %q", line)
+			t.Fatalf("unreadable %s member %q", array, line)
 		}
 		members = append(members, match[1])
 	}
@@ -479,17 +496,18 @@ func expectedProbeTrace(entries []string, mutate bool, overrides map[string][]st
 // Uneven lists and a growing registry expose omissions hidden by equal counts.
 func TestProbeMutationShards(t *testing.T) {
 	entries, source := probeRunnerSource(t)
+	keptAt := len(entries) - len(probeKeptPlaceMembers(t, source))
 	t.Run("whole registry", func(t *testing.T) { checkProbeShardUnion(t, entries, source, nil, nil) })
 	t.Run("bounded registry", func(t *testing.T) {
 		bounded := slices.Clone(entries[:10])
 		classified := probeBehaviorOnlyMembers(t, source)
-		for _, entry := range entries[10 : len(entries)-2] {
+		for _, entry := range entries[10:keptAt] {
 			probe, _, _ := strings.Cut(entry, "|")
 			if slices.Contains(classified, probe) {
 				bounded = append(bounded, entry)
 			}
 		}
-		bounded = append(bounded, entries[len(entries)-2:]...)
+		bounded = append(bounded, entries[keptAt:]...)
 		prefix, body, found := strings.Cut(string(source), "\nprobes=(\n")
 		if !found {
 			t.Fatal("registry start unavailable")
@@ -507,9 +525,9 @@ func TestProbeMutationShards(t *testing.T) {
 	})
 	t.Run("growing registry", func(t *testing.T) {
 		extra := []string{"future-a.mjs|/future?a=one", "future-b.mjs|/future?b=two"}
-		grown := append(slices.Clone(entries[:len(entries)-2]), extra...)
-		grown = append(grown, entries[len(entries)-2:]...)
-		before := "  \"" + entries[len(entries)-2] + "\""
+		grown := append(slices.Clone(entries[:keptAt]), extra...)
+		grown = append(grown, entries[keptAt:]...)
+		before := "  \"" + entries[keptAt] + "\""
 		after := "  \"" + extra[0] + "\"\n  \"" + extra[1] + "\"\n" + before
 		if strings.Count(string(source), before) != 1 {
 			t.Fatal("growth fixture has no unique registry site")
@@ -549,7 +567,14 @@ func checkProbeShardUnion(t *testing.T, entries []string, source []byte, overrid
 	counts := map[string]int{}
 	owners := map[string]int{}
 	loads := []int{}
-	tailNames := []string{"course-cover.mjs", "reader-mark.mjs"}
+	tailNames := probeKeptPlaceMembers(t, source)
+	tailModes := 0
+	for _, entry := range mutable {
+		probe, _, _ := strings.Cut(entry, "|")
+		if slices.Contains(tailNames, probe) {
+			tailModes += len(modes[probe])
+		}
+	}
 	for shard := 1; shard <= 4; shard++ {
 		fixture := newProbeRunnerFixture(t, entries, source)
 		for probe, names := range modes {
@@ -615,8 +640,23 @@ func checkProbeShardUnion(t *testing.T, entries []string, source []byte, overrid
 		t.Errorf("caught: avoidable mode imbalance: %v", loads)
 	}
 	if len(replies) == 0 {
-		for i, shard := range []int{1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 4} {
-			item := want[i]
+		// Shard 4 starts with the kept-place work already on it, so shards 1 to 3
+		// take ordinary work alone until they carry as much, and then all four
+		// take turns. A registry too small to show every turn shows the ones it has.
+		var ordinary []string
+		for _, item := range want {
+			probe, _, _ := strings.Cut(item, "|")
+			if !slices.Contains(tailNames, probe) {
+				ordinary = append(ordinary, item)
+			}
+		}
+		var wantOwners []int
+		for range tailModes {
+			wantOwners = append(wantOwners, 1, 2, 3)
+		}
+		wantOwners = append(wantOwners, 1, 2, 3, 4)
+		for i, shard := range wantOwners[:min(len(wantOwners), len(ordinary))] {
+			item := ordinary[i]
 			if owners[item] != shard {
 				t.Errorf("caught: deterministic tail-prefilled ownership %q=%d, want %d", item, owners[item], shard)
 			}
@@ -628,37 +668,56 @@ func checkProbeShardUnion(t *testing.T, entries []string, source []byte, overrid
 func TestProbeMutationShardFailures(t *testing.T) {
 	entries, source := probeRunnerSource(t)
 	first, _, _ := strings.Cut(entries[0], "|")
-	modes := []string{}
-	for i := range 30 {
-		modes = append(modes, "m"+strconv.Itoa(i))
-	}
 	cases := []struct {
-		mode   string
 		reply  probeReply
 		reason string
 	}{
-		{"m0", probeReply{status: 0}, "exited 0, want 1"},
-		{"m3", probeReply{status: 2}, "exited 2, want 1"},
-		{"m6", probeReply{status: 7}, "exited 7, want 1"},
-		{"m9", probeReply{status: 1, stdout: new("")}, "missing exact stdout line 'MUTATE-RESULT: caught m9'"},
-		{"m12", probeReply{status: 1, stdout: new("MUTATE-RESULT: caught other\n")}, "missing exact stdout line 'MUTATE-RESULT: caught m12'"},
-		{"m16", probeReply{status: 1, stdout: new("MUTATE-RESULT: caught m16-longer\n")}, "missing exact stdout line 'MUTATE-RESULT: caught m16'"},
-		{"m20", probeReply{status: 1, stdout: new(""), stderr: "MUTATE-RESULT: caught m20\n"}, "missing exact stdout line 'MUTATE-RESULT: caught m20'"},
+		{probeReply{status: 0}, "exited 0, want 1"},
+		{probeReply{status: 2}, "exited 2, want 1"},
+		{probeReply{status: 7}, "exited 7, want 1"},
+		{probeReply{status: 1, stdout: new("")}, "missing exact stdout line 'MUTATE-RESULT: caught {mode}'"},
+		{probeReply{status: 1, stdout: new("MUTATE-RESULT: caught other\n")}, "missing exact stdout line 'MUTATE-RESULT: caught {mode}'"},
+		{probeReply{status: 1, stdout: new("MUTATE-RESULT: caught {mode}-longer\n")}, "missing exact stdout line 'MUTATE-RESULT: caught {mode}'"},
+		{probeReply{status: 1, stdout: new(""), stderr: "MUTATE-RESULT: caught {mode}\n"}, "missing exact stdout line 'MUTATE-RESULT: caught {mode}'"},
+	}
+	// Shards 1 to 3 take three modes for each one the kept-place probes carry
+	// (two each from the double) before shard 1 meets a round of four, so this
+	// many modes leave shard 1 more than the failures below need.
+	var modes []string
+	for i := range 6*len(probeKeptPlaceMembers(t, source)) + 4*len(cases) {
+		modes = append(modes, "m"+strconv.Itoa(i))
+	}
+	listing := probeReply{probe: first, mode: "list", stdout: new(strings.Join(modes, "\n") + "\n")}
+	restored := newProbeRunnerFixture(t, entries, source)
+	restored.reply(t, listing)
+	positive, _ := restored.run(t, []string{"--mutate", "--shard", "1"}, true)
+	// The failing modes are the first ones shard 1 runs, read from a run that
+	// fails nothing, so that no count of the work in front of them is kept here.
+	var owned []string
+	for _, item := range positive.Trace {
+		if parts := strings.Split(item, "|"); parts[0] == first && parts[2] != "list" {
+			owned = append(owned, parts[2])
+		}
+	}
+	if len(owned) < len(cases) {
+		t.Fatalf("shard 1 runs %d modes of %s, fewer than the %d failures to place", len(owned), first, len(cases))
 	}
 	fixture := newProbeRunnerFixture(t, entries, source)
-	fixture.reply(t, probeReply{probe: first, mode: "list", stdout: new(strings.Join(modes, "\n") + "\n")})
+	fixture.reply(t, listing)
 	expectedFailures := []string{}
-	for _, tt := range cases {
+	for i, tt := range cases {
+		mode := owned[i]
 		reply := tt.reply
 		reply.probe = first
-		reply.mode = tt.mode
+		reply.mode = mode
+		if reply.stdout != nil {
+			reply.stdout = new(strings.ReplaceAll(*reply.stdout, "{mode}", mode))
+		}
+		reply.stderr = strings.ReplaceAll(reply.stderr, "{mode}", mode)
 		fixture.reply(t, reply)
-		expectedFailures = append(expectedFailures, first+" MUTATE="+tt.mode+": "+tt.reason)
+		expectedFailures = append(expectedFailures, first+" MUTATE="+mode+": "+strings.ReplaceAll(tt.reason, "{mode}", mode))
 	}
 	got, output := fixture.run(t, []string{"--mutate", "--shard", "1"}, true)
-	restored := newProbeRunnerFixture(t, entries, source)
-	restored.reply(t, probeReply{probe: first, mode: "list", stdout: new(strings.Join(modes, "\n") + "\n")})
-	positive, _ := restored.run(t, []string{"--mutate", "--shard", "1"}, true)
 	if got.Status != 1 || len(got.Success) != 0 {
 		t.Errorf("caught: selected failures reported success: %#v; %s", got, output)
 	}
@@ -689,13 +748,20 @@ func TestProbeMutationShardSelectors(t *testing.T) {
 
 func TestProbeMutationShardRegistry(t *testing.T) {
 	entries, source := probeRunnerSource(t)
+	keptAt := len(entries) - len(probeKeptPlaceMembers(t, source))
+	swapped := func(i, j int) []string {
+		out := slices.Clone(entries)
+		out[i], out[j] = out[j], out[i]
+		return out
+	}
 	cases := []struct {
 		name    string
 		entries []string
 	}{
 		{name: "empty"},
 		{name: "duplicate", entries: append([]string{entries[0]}, entries...)},
-		{name: "wrong kept-place suffix", entries: append(append(slices.Clone(entries[:len(entries)-2]), entries[len(entries)-1]), entries[len(entries)-2])},
+		{name: "wrong kept-place suffix", entries: swapped(len(entries)-2, len(entries)-1)},
+		{name: "ordinary probe inside kept-place suffix", entries: swapped(keptAt-1, keptAt)},
 	}
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {

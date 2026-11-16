@@ -162,8 +162,13 @@ func TestOpenThoughtsEmptySaysWhatTheShelfHolds(t *testing.T) {
 		if !strings.Contains(page, wording.OpenThoughtsLede.In(lang)) {
 			t.Errorf("%s: the lede does not say the shelf holds marks and unfinished thoughts", lang.Tag())
 		}
-		main, _, _ := strings.Cut(page[strings.Index(page, "<main"):], "</main>")
-		if digits := regexp.MustCompile(`[0-9]+`).FindString(regexp.MustCompile(`<[^>]*>`).ReplaceAllString(main, " ")); digits != "" {
+		start := strings.Index(page, "<main")
+		if start < 0 {
+			t.Errorf("%s: the page has no main element to count numbers in", lang.Tag())
+			continue
+		}
+		main, _, _ := strings.Cut(page[start:], "</main>")
+		if digits := regexp.MustCompile(`\d+`).FindString(regexp.MustCompile(`<[^>]*>`).ReplaceAllString(main, " ")); digits != "" {
 			t.Errorf("%s: the empty shelf states a number, and the shelf counts nothing: %q", lang.Tag(), digits)
 		}
 		if strings.Contains(page, wording.OpenThoughtsMarksEmpty.In(lang)) {

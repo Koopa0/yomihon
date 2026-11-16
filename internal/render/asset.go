@@ -69,6 +69,26 @@ func resolveAssetHrefs(htmlOut, noteRelPath string, files Files, lang wording.La
 	})
 }
 
+// loneDrawing matches a paragraph that holds one SVG the vault serves and
+// nothing else, which is how the renderer writes a drawing on a line of its own
+// whether the author wrote ![](…) or ![[…]]. Only the path decides: a query or a
+// fragment after the extension is the picture's own, and one before it is not
+// part of the path. It reads what this package wrote, as localImageSrc does, so
+// it relies on the same two facts: the tag is emitted with src first, and no ">"
+// appears inside an attribute value.
+var loneDrawing = regexp.MustCompile(`<p>(<img src="/raw/[^"?#]*\.(?i:svg)(?:[?#][^"]*)?"[^>]*>)</p>`)
+
+// matLoneDrawings sets every SVG that stands alone in its paragraph on a mat,
+// the ground an author's vector drawing sits on: it is drawn for a light
+// ground, and a dark page would make a hole of it. A raster picture or a
+// photograph is not that and is left as it is, and so is a drawing inside a
+// sentence, which is part of the sentence. A drawing the vault does not hold
+// arrives wrapped in its own marker by resolveAssetHrefs and is not matched:
+// there is nothing to set down.
+func matLoneDrawings(htmlOut string) string {
+	return loneDrawing.ReplaceAllString(htmlOut, `<p class="mat">$1</p>`)
+}
+
 // missingImage marks a picture whose file the vault does not hold. The tag is
 // kept exactly as it was resolved — the address is what the author wrote and
 // the browser's own broken-image mark is part of what the reader sees — and the

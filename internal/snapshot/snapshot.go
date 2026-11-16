@@ -1093,7 +1093,7 @@ func buildGeneration(
 	if hasConceptType {
 		coverage.conceptType = schema.NormalizeWord(conceptType)
 	}
-	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titles, capabilities.Navigation, coverage)
+	health := newHealth(g.ordered, links, graphIndex, planned, backlinks, capabilities.Artifacts, titles, capabilities.Navigation, &coverage)
 	health.NavigationFaults = navigation.CoreFaults()
 	health.FrontmatterUnreadable, health.SchemaFaults = schemaFaultRows(g.ordered, g.findings, g.readings)
 	gen := &Generation{
