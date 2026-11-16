@@ -10,7 +10,10 @@
 // resting while the page scrolls. And none of this costs the reader a search
 // result: the words beside a heading are drawn from attributes, because text
 // between a heading and the paragraph after it makes a browser's landing on the
-// heading miss.
+// heading miss. The shapes that say a section is marked, and where the reader
+// left off, are fills, which forced colors replaces with the page's own ground,
+// so they are drawn in a system color; and a touch screen, which has nothing to
+// rest on a heading, is shown the buttons whatever the setting.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note with several sections in a vault whose
 // contract names a place to write a thought), and MUTATE. MUTATE=list prints
@@ -28,6 +31,9 @@ const SITES = [
   'a-mark-and-its-day-are-in-the-page',
   'the-status-line-lapses',
   'the-buttons-follow-the-setting',
+  'a-touch-screen-is-shown-the-buttons',
+  'the-diamond-keeps-its-shape-in-forced-colors',
+  'the-bookmark-keeps-its-shape-in-forced-colors',
   'a-landing-on-a-heading-survives',
 ];
 
@@ -119,6 +125,21 @@ const MUTATIONS = {
   'draw-the-hover-buttons-with-no-dwell': {
     target: 'the-buttons-follow-the-setting',
     apply: addRule(':root[data-sectionbuttons="hover"] .y-article .y-sect:hover .y-margin__act{transition-delay:0s !important}'),
+  },
+  // A touch screen is asked to hover first, whatever the reader chose.
+  'hide-the-buttons-from-touch': {
+    target: 'a-touch-screen-is-shown-the-buttons',
+    apply: addRule('@media (pointer: coarse){:root[data-sectionbuttons="hover"] .y-article .y-margin__act:not([aria-pressed="true"]){opacity:0 !important;pointer-events:none !important}}'),
+  },
+  // The diamond is back to the fill forced colors replaces with the ground.
+  'lose-the-diamond-in-forced-colors': {
+    target: 'the-diamond-keeps-its-shape-in-forced-colors',
+    apply: addRule('@media (forced-colors: active){.y-margin .y-margin__act[aria-pressed="true"]::before{background:currentcolor !important;forced-color-adjust:auto !important}}'),
+  },
+  // The bookmark is back to the fill forced colors replaces with the ground.
+  'lose-the-bookmark-in-forced-colors': {
+    target: 'the-bookmark-keeps-its-shape-in-forced-colors',
+    apply: addRule('@media (forced-colors: active){.y-margin .y-margin__place::before{background:currentcolor !important;forced-color-adjust:auto !important}}'),
   },
   // Words as text between a heading and the paragraph after it.
   'put-the-words-in-text-beside-the-heading': {
@@ -281,6 +302,61 @@ try {
     await hover.context.close();
   }
 
+  // A touch screen has no pointer to rest on a heading, so with the setting on
+  // hover it is still shown every button.
+  {
+    const touch = await open({ hasTouch: true });
+    await touch.context.addCookies([{ name: 'yomihon_sectionbuttons', value: 'hover', url: BASE }]);
+    await touch.page.goto(BASE + PAGE, { waitUntil: 'load' });
+    const held = await touch.page.evaluate(() => {
+      const button = document.querySelector('[data-section-mark][aria-pressed="false"]');
+      return {
+        coarse: matchMedia('(pointer: coarse)').matches,
+        setting: document.documentElement.dataset.sectionbuttons,
+        beside: getComputedStyle(document.querySelector('.y-margin')).position === 'absolute',
+        opacity: Number(getComputedStyle(button).opacity),
+        events: getComputedStyle(button).pointerEvents,
+      };
+    });
+    if (!held.coarse || held.setting !== 'hover') broken(`the touch context answers ${JSON.stringify(held)}, want a coarse pointer and the hover setting`);
+    if (!held.beside) broken('the margin stands at the end of its heading, where the setting never hides a button, so nothing here is asked of touch');
+    if (held.opacity < 1 || held.events === 'none') fail('a-touch-screen-is-shown-the-buttons', `on a touch screen with the setting on hover an unmarked button rests at ${JSON.stringify({ opacity: held.opacity, events: held.events })}, want drawn and pressable`);
+    await touch.context.close();
+  }
+
+  // Forced colors replaces a fill with the page's own ground, so each shape is
+  // drawn in a system color or is not there. The first section holds the mark
+  // this probe pressed; the place is drawn by script, so it is shown for the read.
+  {
+    const forced = await open({ forcedColors: 'active' });
+    await forced.page.goto(BASE + PAGE, { waitUntil: 'load' });
+    await settled(forced.page, first, true);
+    const fills = await forced.page.evaluate((selector) => {
+      const resolve = (keyword) => {
+        const span = document.createElement('span');
+        span.style.color = keyword;
+        document.body.append(span);
+        const resolved = getComputedStyle(span).color;
+        span.remove();
+        return resolved;
+      };
+      const place = document.querySelector('[data-section-place]');
+      place.hidden = false;
+      return {
+        active: matchMedia('(forced-colors: active)').matches,
+        canvas: resolve('Canvas'),
+        highlight: resolve('Highlight'),
+        diamond: getComputedStyle(document.querySelector(selector), '::before').backgroundColor,
+        bookmark: getComputedStyle(place, '::before').backgroundColor,
+      };
+    }, first);
+    if (!fills.active) broken('forced colors did not become active, so no fill can be judged');
+    if (fills.canvas === fills.highlight) broken(`forced colors resolve Canvas and Highlight alike (${fills.canvas}), so a fill cannot be told from the ground`);
+    if (fills.diamond === fills.canvas) fail('the-diamond-keeps-its-shape-in-forced-colors', `under forced colors the diamond beside a marked section is filled ${fills.diamond}, the page's own ground ${fills.canvas}, so the shape is gone`);
+    if (fills.bookmark === fills.canvas) fail('the-bookmark-keeps-its-shape-in-forced-colors', `under forced colors the bookmark beside the place left off at is filled ${fills.bookmark}, the page's own ground ${fills.canvas}, so the shape is gone`);
+    await forced.context.close();
+  }
+
   // A search result lands on a heading by the text that follows it.
   {
     const landing = await open();
@@ -296,7 +372,7 @@ try {
     if (placed.scrollY < 100 || placed.top < 0 || placed.top > placed.height) fail('a-landing-on-a-heading-survives', `following a result that names the heading left the page at ${JSON.stringify(placed)}, the heading out of the window`);
     await landing.context.close();
   }
-  console.log('PASS section-marks: the name never changes with the mark; the mark and its day are in the page with no script; the status line lapses; the buttons are quiet by default and wait out a dwell on hover; a result still lands on a heading');
+  console.log('PASS section-marks: the name never changes with the mark; the mark and its day are in the page with no script; the status line lapses; the buttons are quiet by default and wait out a dwell on hover, and a touch screen is shown them; the diamond and the bookmark keep their shape in forced colors; a result still lands on a heading');
 } catch (error) {
   console.error(error.message);
   if (error instanceof NotApplied) {

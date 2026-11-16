@@ -94,6 +94,17 @@ const MUTATIONS = {
     target: 'controls-leave-the-text-alone',
     apply: addRule('.y-article .y-margin{position:absolute !important;inset-inline-start:0 !important;inset-block-start:0 !important;width:100% !important}.y-article .y-sect{position:relative}'),
   },
+  // The margin is wider than the window at a laptop's width, so the page grows
+  // sideways.
+  'widen-the-page-with-the-margin': {
+    target: 'controls-leave-the-text-alone',
+    apply: addRule('@media (min-width: 1000px){.y-margin{min-width:700px}}'),
+  },
+  // The same at a phone's width, where the margin stands under its heading.
+  'widen-the-phone-with-the-margin': {
+    target: 'controls-leave-the-text-alone',
+    apply: addRule('@media (max-width: 600px){.y-margin{min-width:700px}}'),
+  },
   // Arriving at the end of the note keeps a mark nobody asked for.
   'keep-a-mark-on-reaching-the-end': {
     target: 'nothing-is-written',

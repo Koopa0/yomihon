@@ -2710,7 +2710,9 @@ button.y-freshness__action {
    two notes side by side have a column each and no room beside either, so their
    margins stay at the end of their headings' lines. Each text size changes the column, so each has its own
    width to ask for. The shared rules are the same three times over because a
-   container query cannot name a custom property. */
+   container query cannot name a custom property. Only a pointer that can rest
+   on a heading hides the buttons until it does: a touch screen has nothing to
+   rest, so the buttons are drawn whatever the setting. */
 @container y-main (min-width: 58.875rem) {
   :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-sect {
     align-items: start;
@@ -2735,10 +2737,12 @@ button.y-freshness__action {
     min-height: 28px;
   }
 
-  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--dur-base) linear;
+  @media (pointer: fine) {
+    :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--dur-base) linear;
+    }
   }
 
   :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
@@ -2778,10 +2782,12 @@ button.y-freshness__action {
     min-height: 28px;
   }
 
-  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--dur-base) linear;
+  @media (pointer: fine) {
+    :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--dur-base) linear;
+    }
   }
 
   :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
@@ -2821,10 +2827,12 @@ button.y-freshness__action {
     min-height: 28px;
   }
 
-  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity var(--dur-base) linear;
+  @media (pointer: fine) {
+    :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--dur-base) linear;
+    }
   }
 
   :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
@@ -2837,15 +2845,6 @@ button.y-freshness__action {
     opacity: 1;
     pointer-events: auto;
     transition-delay: initial;
-  }
-}
-
-/* A touch screen has nothing to rest on a heading, so the buttons are drawn
-   whatever the setting. */
-@media (pointer: coarse) {
-  :root[data-sectionbuttons='hover'] .y-main .y-article .y-margin__act {
-    opacity: 1;
-    pointer-events: auto;
   }
 }
 
@@ -6507,11 +6506,14 @@ samp,
     display: none;
   }
 
-  /* A bookmark is a fill, and a fill is what forced colours takes away. The
-     reader's chosen highlight keeps it a shape to be seen. */
+  /* A bookmark is a fill, and a fill is what forced colours takes away; so is
+     the diamond beside a section the reader is unsure of. The reader's chosen
+     highlight keeps each a shape to be seen. */
   .y-keptmark,
   [data-mark-kept] [data-mark-button]::before,
-  [data-uncertainty-control] .y-xbtn[aria-pressed='true']::before {
+  [data-uncertainty-control] .y-xbtn[aria-pressed='true']::before,
+  .y-margin .y-margin__act[aria-pressed='true']::before,
+  .y-margin .y-margin__place::before {
     background: Highlight;
     forced-color-adjust: none;
   }
