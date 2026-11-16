@@ -120,6 +120,7 @@ func TestNoRouteWritesIntoTheVault(t *testing.T) {
 		"/search?q=channel",
 		"/search?q=draft%3Atrue",
 		"/search/results?q=channel",
+		mark.Address,
 		mark.UncertaintyAddress,
 		address("/notes/", lesson),
 		address("/notes/", draft),

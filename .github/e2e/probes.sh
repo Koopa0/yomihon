@@ -150,6 +150,8 @@ probes=(
   "course-cover.mjs|/courses/Maps/branches.md"
   "reader-mark.mjs|/notes/Notes/reading-fidelity.md"
   "kept-place-size.mjs|/"
+  "kept-place-first-frame.mjs|/"
+  "kept-place-after-back.mjs|/"
 )
 
 # The audit's plain run includes its canary; mutation jobs retain the targeted
@@ -166,6 +168,8 @@ leaves_a_place=(
   "course-cover.mjs"
   "reader-mark.mjs"
   "kept-place-size.mjs"
+  "kept-place-first-frame.mjs"
+  "kept-place-after-back.mjs"
 )
 
 fail() {

@@ -80,6 +80,10 @@ About those rows:
   marks file, withheld paths included, to any local client that asks, as it
   hands every note to the reading room; the privacy declaration binds the
   command line, not the loopback port.
+- **`GET /marks` is not filtered either.** It answers the note path and the
+  anchor of the kept place, withheld paths included, to any local client that
+  asks, and tells the browser not to keep the answer. A page shown again from a
+  cache draws the place from it.
 - **Uncertainty marks promise a location, not recovery.** A renamed source,
   changed heading, or new sentence from an interactive control may leave the
   saved location unavailable or pointing at different content. There is no

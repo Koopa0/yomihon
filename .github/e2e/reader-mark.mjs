@@ -136,6 +136,12 @@ const rewriteDesk = (pattern, replacement, label) => async (page) => {
 const dropSecondPost = () => async (page) => {
   let seen = 0;
   await page.route('**/marks', async (route) => {
+    // The page also reads the place from this address when it loads, and that
+    // read is neither the first mark nor its replacement.
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
     seen += 1;
     if (seen >= 2) {
       await route.fulfill({ status: 204, body: '' });
@@ -395,7 +401,7 @@ const keepThePlace = async (page, path, { tamperIdentity = false, narrow = null,
     });
   }
   const posted = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === '/marks',
+    (response) => new URL(response.url()).pathname === '/marks' && response.request().method() === 'POST',
     { timeout: 4000 },
   ).catch(() => null);
   await button.click();
@@ -514,7 +520,7 @@ try {
           node.dataset.probeOffset = String(top - anchorTop);
         }, { capture: true, once: true });
       }, expectedAnchor);
-      const posted = page.waitForResponse((response) => new URL(response.url()).pathname === '/marks');
+      const posted = page.waitForResponse((response) => new URL(response.url()).pathname === '/marks' && response.request().method() === 'POST');
       await button.click();
       const response = await posted;
       checkProof(proof);
