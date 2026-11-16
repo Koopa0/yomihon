@@ -1,5 +1,5 @@
 // Authored image fields survive rendering; loaded pictures keep their natural
-// ratio inside the responsive reading column, where a picture on a mat may run
+// ratio inside the responsive reading column, where a drawing on a mat may run
 // to the mat's floor and no further. Each fault rewrites one served declaration or image field, and the
 // oracle reads the real loaded image after page arrival has settled.
 import { arrived } from './support/arrival.mjs';
@@ -133,7 +133,7 @@ try {
       // column caps its width. Smaller mismatched hints exercise the browser's
       // loaded natural ratio, while their original HTML fields stay intact.
       assert('ratio', boxes[5] && Math.abs(boxes[5].height - boxes[5].width * 600 / 800) <= 1, `800x600 image lost its loaded ratio: ${boxes[5]?.width}x${boxes[5]?.height}`);
-      // A picture alone in its paragraph sits on a mat, which scrolls: it is
+      // A drawing (an SVG) alone in its paragraph sits on a mat, which scrolls: it is
       // held at the mat's floor rather than shrunk to a narrow column, so it may
       // be wider than the column while the mat that holds it is not.
       const floor = 560;
