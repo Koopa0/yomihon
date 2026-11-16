@@ -584,7 +584,7 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 			Kind:    DiagRenderFailed,
 			Message: fmt.Sprintf("markdown render failed: %v", err),
 		})
-		return Result{HTML: "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: col.diags}
+		return Result{HTML: codeCopySlot + "<pre>" + html.EscapeString(body) + "</pre>", Diagnostics: col.diags}
 	}
 
 	named := nameTaskLabels(buf.String(), marks.inline, page.lang)

@@ -2459,6 +2459,63 @@ func TestTheFuriganaControlFollowsTheReadings(t *testing.T) {
 	}
 }
 
+// TestAPageHoldsItsLayoutStillForAReturningReader holds what the server draws
+// so that the page script finishes is the page the browser first laid out. The
+// browser puts a returning reader back against that first layout, so a code
+// block's control and a diagram that arrive afterwards move what is under them:
+// every block stands after a slot for its control, and a page with a diagram
+// tells the browser, before its first style, to hold each at the height it was
+// last drawn. A page with neither says nothing of the kind, and the two
+// notes of a comparison are asked about separately.
+func TestAPageHoldsItsLayoutStillForAReturningReader(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for name, body := range map[string]string{
+		"README.md":  "# Vault\n",
+		"plain.md":   "# Plain\n\nordinary prose.\n",
+		"drawn.md":   "# Drawn\n\n```mermaid\ngraph TD\n  A --> B\n```\n\n```go\npackage main\n```\n\n    indented\n",
+		"partner.md": "# Partner\n\nordinary prose.\n",
+	} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+	srv := newServer(t, root)
+	const heights = `sessionStorage.getItem("yomihon.diagramHeights")`
+
+	for _, tt := range []struct {
+		name  string
+		path  string
+		reads int
+	}{
+		{name: "a note with a diagram", path: "/notes/drawn.md", reads: 1},
+		{name: "a note without one", path: "/notes/plain.md", reads: 0},
+		{name: "a comparison whose first note has one", path: "/compare/drawn.md?with=partner.md", reads: 1},
+		{name: "a comparison whose second note has one", path: "/compare/partner.md?with=drawn.md", reads: 1},
+		{name: "a comparison with none", path: "/compare/plain.md?with=partner.md", reads: 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			code, body := get(t, srv.Client(), srv.URL+tt.path)
+			if code != http.StatusOK {
+				t.Fatalf("GET %s status = %d, want 200", tt.path, code)
+			}
+			if got := strings.Contains(body, "mermaid-diagram"); got != (tt.reads > 0) {
+				t.Fatalf("GET %s: the fixture does not match what the test assumes", tt.path)
+			}
+			if got := strings.Count(body, heights); got != tt.reads {
+				t.Errorf("GET %s reads the remembered diagram heights %d times, want %d", tt.path, got, tt.reads)
+			}
+			if tt.reads > 0 && strings.Index(body, heights) > strings.Index(body, `<link rel="stylesheet"`) {
+				t.Errorf("GET %s reads the remembered heights after its first stylesheet", tt.path)
+			}
+			if got, want := strings.Count(body, `<div class="y-codecopy-slot"></div><pre`), strings.Count(body, "<pre"); got != want {
+				t.Errorf("GET %s has %d blocks after a slot for their control, want all %d", tt.path, got, want)
+			}
+		})
+	}
+}
+
 // TestAnOverCapNotePageIsTheFilePage is the page-side of the bound. A note
 // past MaxSourceBytes is the same file-information page an over-cap non-note
 // already got: size named, raw-bytes link, body not carried. It is not a 404

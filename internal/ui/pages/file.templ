@@ -14,6 +14,7 @@ import (
 // and no status.
 templ File(v FileView, c layouts.Chrome) {
 	{{ c.Readings = render.CarriesReadings(v.BodyHTML) }}
+	{{ c.Diagrams = render.CarriesDiagrams(v.BodyHTML) }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell">

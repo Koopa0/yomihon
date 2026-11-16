@@ -96,6 +96,51 @@ func TestBaseCarriesOnlyTheScriptedMarkRulesImportMapAndModuleEntry(t *testing.T
 	}
 }
 
+// A page that carries a diagram tells the browser, before the first style, how
+// tall each was drawn the last time this tab had it, and no other page runs
+// anything of the kind. The script has to come before the first stylesheet for
+// the same reason the mark does: the browser lays the page out against the
+// first one, and a height that arrives after it is a height that moves the
+// reader.
+func TestBaseHoldsDiagramsAtTheirLastHeightOnlyOnAPageThatCarriesThem(t *testing.T) {
+	t.Parallel()
+	const heights = `sessionStorage.getItem("yomihon.diagramHeights")`
+	for _, tt := range []struct {
+		name     string
+		diagrams bool
+		want     int
+	}{
+		{name: "a page with a diagram", diagrams: true, want: 1},
+		{name: "a page without one", diagrams: false, want: 0},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := Base(Chrome{Title: "測試", Nonce: "response-nonce", Diagrams: tt.diagrams}).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render base: %v", err)
+			}
+			html := buf.String()
+			if got := strings.Count(html, heights); got != tt.want {
+				t.Fatalf("Base(Diagrams: %v) reads the remembered heights %d times, want %d; html = %q", tt.diagrams, got, tt.want, html)
+			}
+			if got, want := strings.Count(html, "<script"), 4+tt.want; got != want {
+				t.Errorf("Base(Diagrams: %v) script elements = %d, want %d; html = %q", tt.diagrams, got, want, html)
+			}
+			if !tt.diagrams {
+				return
+			}
+			at := strings.Index(html, heights)
+			start := strings.LastIndex(html[:at], "<script")
+			if !strings.HasPrefix(html[start:], `<script nonce="response-nonce">`) {
+				t.Errorf("Base() heights script opens %q, want the response nonce; html = %q", html[start:start+40], html)
+			}
+			if firstStyle := strings.Index(html, `<link rel="stylesheet"`); at > firstStyle {
+				t.Errorf("Base() reads the heights at %d, after the first stylesheet at %d; the first layout would not see them; html = %q", at, firstStyle, html)
+			}
+		})
+	}
+}
+
 // The favicon sits on a browser's tab, where no stylesheet gives the mark a
 // ground, so it draws the mark on its paper tile; the header's mark is the
 // canonical file, which the stylesheet seats on that tile itself in the dark

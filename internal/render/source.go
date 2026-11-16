@@ -95,6 +95,10 @@ var lexerAliases = map[string]string{
 // build file reads as what it is; an unrecognized name falls back to plain text.
 // The formatter escapes the source, so a file carrying markup is shown, not run.
 func SourceHTML(filename, source string) string {
+	return codeCopySlot + sourceMarkup(filename, source)
+}
+
+func sourceMarkup(filename, source string) string {
 	lexer := lexerFor(filename)
 	iterator, err := chroma.Coalesce(lexer).Tokenise(nil, source)
 	if err != nil {

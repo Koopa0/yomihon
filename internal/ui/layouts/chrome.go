@@ -37,6 +37,11 @@ type Chrome struct {
 	// it from what it rendered, as it decides Mark; every other page leaves it
 	// false and draws no such switch.
 	Readings bool
+	// Diagrams is whether the page carries a diagram the browser will draw, and
+	// so whether its head says how tall each was drawn the last time this tab
+	// had it. The page decides it from what it rendered, as it decides
+	// Readings.
+	Diagrams bool
 	// TextSize scales the reading column: "m" (the default measure), "l", or
 	// "xl". It tunes presentation only — the charter's bounded reading
 	// preferences — and the chrome around the article keeps its own size.

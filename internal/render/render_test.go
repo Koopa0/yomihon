@@ -1803,7 +1803,7 @@ func TestMermaidFenceRendersDiagramDiv(t *testing.T) {
 	src := "graph TD\n  A[\"a & b\"] --> B{decide?}"
 	got := r.HTML("note.md", "", "```mermaid\n"+src+"\n```\n", wording.ZhHant)
 
-	wantText := `<div class="mermaid-diagram" data-mermaid-code="graph+TD%0A++A%5B%22a+%26+b%22%5D+--%3E+B%7Bdecide%3F%7D">graph TD
+	wantText := `<div class="mermaid-diagram" data-mermaid-key="97f4d27385da5f98" data-mermaid-code="graph+TD%0A++A%5B%22a+%26+b%22%5D+--%3E+B%7Bdecide%3F%7D">graph TD
   A[&#34;a &amp; b&#34;] --&gt; B{decide?}</div>`
 	if !strings.Contains(got.HTML, wantText) {
 		t.Errorf("HTML().HTML missing the expected mermaid-diagram div; HTML:\n%s\nwant substring:\n%s", got.HTML, wantText)
