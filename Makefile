@@ -275,7 +275,7 @@ screenshots:
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
 	YOMIHON_FIXTURE=examples/vault bash .github/e2e/serve.sh "$$tmp/yomihon" 19761 -- sh -c '\
-	  LANG_CHOICE=en PAGE_PATH="/notes/Lessons/L01%20Point%20yomihon%20at%20a%20folder.md" \
+	  LANG_CHOICE=en PAGE_PATH="/notes/Lessons/L02%20Add%20a%20contract.md" \
 	    OUT=.github/media/reading-en.png node .github/screenshot.mjs && \
 	  LANG_CHOICE=zh-Hant PAGE_PATH="/notes/Lessons/japanese/J01%20找到書的位置.md" \
 	    OUT=.github/media/reading-zh-TW.png node .github/screenshot.mjs'
