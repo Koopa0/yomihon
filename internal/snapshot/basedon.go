@@ -154,9 +154,11 @@ func projectBasedOn(n *vault.Note, idx *graph.Index) []nav.NoteRef {
 
 // Prerequisites are the notes the author named in prerequisites as ones to know
 // before this one, in declaration order. A value that placed exactly one note is
-// that note's name and path; anything else stays the author's own text with no
-// path, never a guessed address. A repeat of a note or of a text already listed
-// is kept only the first time.
+// that note's name and path; anything else stays words with no path, never a
+// guessed address, and the words are the display text the author wrote or else
+// the name they pointed at, without the brackets of the link syntax. A value that
+// places the note itself is not a prerequisite of it and is left out. A repeat of
+// a note or of a text already listed is kept only the first time.
 func (g *Generation) Prerequisites(relPath string) []nav.NoteRef {
 	if g == nil {
 		return nil
@@ -175,14 +177,42 @@ func (g *Generation) Prerequisites(relPath string) []nav.NoteRef {
 	seen := make(map[string]bool)
 	for _, value := range values {
 		ref, ok := declaredSource(g.graph, value)
+		if !ok || (ref.RelPath != "" && ref.RelPath == relPath) {
+			continue
+		}
+		if ref.RelPath == "" {
+			ref.Name = unplacedName(value)
+		}
 		key := declaredSourceKey(ref)
-		if !ok || seen[key] {
+		if ref.Name == "" || seen[key] {
 			continue
 		}
 		seen[key] = true
 		out = append(out, ref)
 	}
 	return out
+}
+
+// unplacedName is what a reader is shown for a value that placed no note: text
+// the author wrote as plain words stays as written, and a link that placed
+// nothing is its display text, or its target when it had none, so the syntax
+// that made it a link is never printed.
+func unplacedName(value string) string {
+	written := strings.TrimSpace(value)
+	opened, isLink := strings.CutPrefix(written, "[[")
+	if !isLink {
+		return written
+	}
+	inner := strings.TrimSuffix(opened, "]]")
+	link, ok := graph.ParseWikilink(inner)
+	switch {
+	case link.Aliased:
+		return link.Display
+	case ok:
+		return link.Target
+	default:
+		return strings.TrimSpace(inner)
+	}
 }
 
 // basedOnValues reads based_on the way the reading path is allowed to: the

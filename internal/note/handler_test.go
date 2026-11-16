@@ -2656,6 +2656,56 @@ func TestPrerequisitesAreLinksToTheNotesTheyNameAndTextWhereTheyNameNone(t *test
 	}
 }
 
+// TestPrerequisitesThatPlaceNoNoteAreWordsAndNeverTheSyntaxOfALink holds what a
+// reader is shown for each way a prerequisite can fail to name one note: the
+// note itself is not listed, and a link to nothing, to two notes, or written as
+// plain words is the words the author gave it, the display text where there was
+// one and the name pointed at where there was not, with no brackets.
+func TestPrerequisitesThatPlaceNoNoteAreWordsAndNeverTheSyntaxOfALink(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for rel, content := range map[string]string{
+		"Writing/Needs.md": "---\ntype: writing\nprerequisites:\n" +
+			"  - \"[[Writing/Needs]]\"\n" +
+			"  - \"[[Needs|this very note]]\"\n" +
+			"  - \"[[Writing/Basics]]\"\n" +
+			"  - \"[[No such note]]\"\n" +
+			"  - \"[[No such note|what the author called it]]\"\n" +
+			"  - \"[[Twin]]\"\n" +
+			"  - \"[[Twin|either twin]]\"\n" +
+			"  - \"plain words\"\n---\n# Needs\n\nbody\n",
+		"Writing/Basics.md": "---\ntype: writing\n---\n# Basics\n\nbody\n",
+		"Writing/Twin.md":   "---\ntype: writing\n---\n# Twin\n\nbody\n",
+		"Notes/Twin.md":     "---\ntype: writing\n---\n# Twin\n\nbody\n",
+	} {
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	srv := newServer(t, root)
+
+	page := fetchAs(t, srv, "/notes/Writing/Needs.md", wording.ZhHant)
+	want := `<dt lang="zh-Hant">先備知識</dt><dd><ul class="y-notefacts__links" role="list">` +
+		`<li><a href="/notes/Writing/Basics.md">Basics</a></li>` +
+		`<li><span>No such note</span></li>` +
+		`<li><span>what the author called it</span></li>` +
+		`<li><span>Twin</span></li>` +
+		`<li><span>either twin</span></li>` +
+		`<li><span>plain words</span></li></ul></dd>`
+	if !strings.Contains(page, want) {
+		_, facts, _ := strings.Cut(page, `<dt lang="zh-Hant">先備知識</dt>`)
+		facts, _, _ = strings.Cut(facts, "</dd>")
+		t.Errorf("the prerequisites are not, in order, the one note placed and the words of each that placed none, with the note itself left out;\nwant %s\ngot  <dt lang=\"zh-Hant\">先備知識</dt>%s</dd>", want, facts)
+	}
+	if strings.Contains(page, "[[") || strings.Contains(page, "]]") {
+		t.Errorf("the page prints the brackets of a link that placed no note")
+	}
+}
+
 // fetchAs reads one page in the interface language a reader chose.
 func fetchAs(t *testing.T, srv *httptest.Server, path string, lang wording.Lang) string {
 	t.Helper()
