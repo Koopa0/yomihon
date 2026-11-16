@@ -173,7 +173,7 @@ templ ShelfPage(s Shelf, lang wording.Lang) {
 // whose note or place is gone — and is written as text rather than as a link,
 // with the one removal the reader has for it.
 templ openRow(row Row, lang wording.Lang, onDesk bool) {
-	<div class="y-openitem" { openRowAttrs(row, onDesk)... }>
+	<div class="y-openitem" { openRowAttrs(&row, onDesk)... }>
 		<p class="y-openitem__meta">
 			if row.Mark != "" {
 				<span class={ "y-openitem__tag", templ.KV("y-openitem__tag--thought", row.Thought), templ.KV("y-openitem__tag--fault", row.Fault) }>{ row.Mark }</span>

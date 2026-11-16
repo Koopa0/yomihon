@@ -172,7 +172,7 @@ func (h *Health) Empty() bool {
 // newHealth gathers the whole-folder view from projections this generation
 // already built, through the same extractor as every other link answer here.
 // links is what each note cites, by path, as it was read when the note was.
-func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef, roles schema.NavigationRoles, coverage mapCoverage) Health {
+func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index, planned judge.Planned, back *Backlinks, policy schema.ArtifactPolicy, titles map[string][]nav.NoteRef, roles schema.NavigationRoles, coverage *mapCoverage) Health {
 	var h Health
 	h.EmptyBranches = emptyBranchRows(coverage.maps)
 	var uncited []nav.NoteRef
@@ -264,7 +264,7 @@ func emptyBranchRows(maps []nav.Map) []HealthEmptyBranch {
 // order. A concept is reached by a map when a note of a map type cites it; one
 // cited only by other notes is still waiting to be placed on one. Notes outside
 // the knowledge layer and declared non-instances are no concepts of this vault.
-func unmappedConcepts(notes []*vault.Note, back *Backlinks, policy schema.ArtifactPolicy, roles schema.NavigationRoles, coverage mapCoverage) []nav.NoteRef {
+func unmappedConcepts(notes []*vault.Note, back *Backlinks, policy schema.ArtifactPolicy, roles schema.NavigationRoles, coverage *mapCoverage) []nav.NoteRef {
 	if coverage.conceptType == "" {
 		return nil
 	}
