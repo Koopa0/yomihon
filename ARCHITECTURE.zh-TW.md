@@ -75,7 +75,7 @@ Wikilink 表示引用，`based_on` 宣告來源，學習路徑則安排課程順
 
 [渲染流程][render]先保護程式碼與註解，處理 vault 的 Markdown 語法、連結與嵌入，再由 Goldmark 與 Chroma 產生 HTML。接著配置標題錨點、建立目錄並解析本地資源 URL，周圍的閱讀介面由 `templ` 輸出。原文 HTML 只允許不具執行能力的子集：保留 ruby 等閱讀標記，會執行程式或控制導覽的 markup 則顯示為文字。
 
-[連結解析器][graph]識別檔名、不含副檔名的檔名、路徑與 frontmatter aliases，並使用 NFC 與大小寫正規化。Frontmatter 的 `title` 是顯示名稱，不會自動成為連結 key。解析結果分為唯一目標、無目標與多個候選。只符合 title 的情況可以解釋連結為何失敗，但不會暗中替作者修正。章節與區塊片段由渲染層處理，不屬於名稱查找。
+[連結解析器][graph]識別檔名、不含副檔名的檔名、路徑與 frontmatter aliases，並使用 NFC 與大小寫正規化。筆記的標題是第一個 H1，是顯示名稱，不會自動成為連結 key。解析結果分為唯一目標、無目標與多個候選。只符合 title 的情況可以解釋連結為何失敗，但不會暗中替作者修正。章節與區塊片段由渲染層處理，不屬於名稱查找。
 
 筆記嵌入只展開一層。嵌入內容裡的另一個 embed 會成為連結，限制遞迴與循環展開。指定的章節或區塊不存在時，顯示診斷，不擅自改為整篇筆記。多份內容共用一頁時，註腳依區域區分身分；已渲染片段的身分也讓 freshness 檢查能發現被引用內容的變化。
 
@@ -121,7 +121,7 @@ Wikilink 表示引用，`based_on` 宣告來源，學習路徑則安排課程順
 
 ## 8. 命令與輸出隱私
 
-![Vault 契約提供閱讀與生命週期宣告；命令輸出另外經過隱私與來源檢查。](docs/architecture/05-contract-and-commands.png)
+![Vault 契約的宣告供閱讀視圖與命令檢查使用；命令輸出另外經過隱私與來源檢查。](docs/architecture/05-contract-and-commands.png)
 
 [`check`、`coverage` 與 `exists`][commands] 各自開啟 vault，執行獨立的唯讀操作。它們共用解析、連結與契約語意，不呼叫 HTTP server，也不建立閱讀標記。[`left-open`][left-open] 是唯一談讀者的命令：它建立與 server 相同的讀取世代，只讀不寫地讀取「還不確定」標記，列出「還沒想通的」書架所列的同一份選取結果。
 

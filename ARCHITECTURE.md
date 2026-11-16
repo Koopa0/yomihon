@@ -75,7 +75,7 @@ Retries back off to a minute; a metadata-visible change can trigger an earlier a
 
 The [rendering pipeline][render] protects code and comments, handles the vault's Markdown dialect, resolves links and embeds, and produces HTML through Goldmark and Chroma. It then assigns heading anchors, builds the table of contents, and resolves local asset URLs. `templ` supplies the surrounding reading interface. Authored HTML enters through an inert subset: ruby survives, while executable and navigating markup is displayed as text.
 
-The [resolver][graph] recognizes filename stems, filenames, paths, and frontmatter aliases, folded by NFC and case. A frontmatter `title` is a display name, not an additional link key. Resolution returns a unique target, no target, or all ambiguous candidates. A title-only match can explain a broken link, but does not silently repair it. Fragment handling belongs to rendering rather than name lookup.
+The [resolver][graph] recognizes filename stems, filenames, paths, and frontmatter aliases, folded by NFC and case. A note's title is its first H1 and a display name, not an additional link key. Resolution returns a unique target, no target, or all ambiguous candidates. A title-only match can explain a broken link, but does not silently repair it. Fragment handling belongs to rendering rather than name lookup.
 
 Transclusion stops after one level. An embed inside an excerpt becomes a link, bounding recursive and cyclic expansion. A missing requested section or block produces a diagnostic instead of widening the excerpt to the whole note. Footnotes receive region-specific identities when several bodies share a page. The rendered excerpt identities also let freshness checks notice changes in material the host note embeds.
 
@@ -121,7 +121,7 @@ The reading page polls for freshness rather than treating its displayed text as 
 
 ## 8. Commands and output privacy
 
-![The vault contract supplies reading and lifecycle declarations; command output additionally passes privacy and source checks.](docs/architecture/05-contract-and-commands.png)
+![The vault contract's declarations feed the reading projections and the command judge; command output additionally passes privacy and source checks.](docs/architecture/05-contract-and-commands.png)
 
 [`check`, `coverage`, and `exists`][commands] open the vault as independent read-only actions. They use the same parsing, resolution, and declaration semantics without calling the HTTP server or creating reader marks. [`left-open`][left-open] is the one command about the reader: it builds the same reading generation the server does, reads the uncertainty marks without writing them, and lists what the "What you left open" shelf lists, from the same selection.
 
