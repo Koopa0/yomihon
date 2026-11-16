@@ -309,8 +309,14 @@ func TestEveryFramedFigureSitsOnAMat(t *testing.T) {
 	if got := strings.Count(page, `</iframe></div><p class="figure-embed__print">`); got != frames {
 		t.Errorf("%d mats close right after their frame and before the printed stand-in, want %d", got, frames)
 	}
-	refused := page[strings.Index(page, `figure-embed--refused`):]
-	refused = refused[:strings.Index(refused, "</div>")]
+	_, refused, found := strings.Cut(page, `figure-embed--refused`)
+	if !found {
+		t.Fatal("the page has no refused figure, so there is no stand-in to check for a mat")
+	}
+	refused, _, found = strings.Cut(refused, "</div>")
+	if !found {
+		t.Fatal("the refused figure's stand-in is never closed")
+	}
 	if strings.Contains(refused, "mat") {
 		t.Errorf("a refused figure's stand-in is on a mat:\n%s", refused)
 	}

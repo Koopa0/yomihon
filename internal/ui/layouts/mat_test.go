@@ -99,6 +99,21 @@ func TestAMatIsToneAndEightPixelsWrittenOnce(t *testing.T) {
 	}
 }
 
+// TestAMatIsDrawnAsAFrameWhenForcedColoursFlattenItsTone holds the one place
+// a mat has a line. Its tone is a background, which forced colours replaces, so
+// with the tone gone nothing would mark where the drawing's ground begins; the
+// edge is then drawn as a frame in the system's text colour, and only then.
+func TestAMatIsDrawnAsAFrameWhenForcedColoursFlattenItsTone(t *testing.T) {
+	t.Parallel()
+	rules := componentRules(t)
+
+	if got := theOne(t, rules, matSelector, "").values("border"); len(got) != 0 {
+		t.Errorf("%s declares border: %q outside forced colours, want none, because the mat's edge is its tone", matSelector, got)
+	}
+	forced := theOne(t, rules, matSelector, "@media (forced-colors: active)")
+	wantValue(t, forced, "border", "1px solid CanvasText", "forced colours takes the tone away, and the system's text colour is the one edge it leaves")
+}
+
 // TestAMatHoldsAWideDrawingAtItsFloorAndScrolls holds the reason the mat
 // scrolls. A drawing wider than the screen was shrunk to fit, which took its
 // words below the size anyone can read; the mat now holds it at a floor and
