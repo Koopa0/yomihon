@@ -19,7 +19,9 @@ import (
 // sectionVault writes a source note with two sections, the first holding a
 // question that starts closed, and the thoughts a reader wrote about it: one
 // about the whole note and one about the first section, each with a draft's
-// opening line and then the reader's own words.
+// opening line and then the reader's own words. Two notes that are not thoughts
+// cite the same note and the same section, which only a thought may do in the
+// margin.
 func sectionVault(t *testing.T) (root string, contract *schema.Contract) {
 	t.Helper()
 	root = t.TempDir()
@@ -29,12 +31,23 @@ func sectionVault(t *testing.T) (root string, contract *schema.Contract) {
 			"I have not grasped the split between the two signals. A second sentence that is not shown.\n",
 		"Thought on first.md": "---\ntype: writing\ncreated: 2026-10-31\nbased_on: \"[[Source#First]]\"\n---\n" +
 			"\n看答案前，我的想法：\n\nI thought cancel() already stopped it. Then I read on.\n",
+		"Lesson on whole.md": "---\ntype: lesson\ncreated: 2026-11-03\nbased_on: \"[[Source]]\"\n---\n" +
+			"A lesson that is not a thought cites the whole note.\n",
+		"Lesson on first.md": "---\ntype: lesson\ncreated: 2026-11-04\nbased_on: \"[[Source#First]]\"\n---\n" +
+			"A lesson that is not a thought cites the first section.\n",
 	}
 	for rel, content := range files {
 		if err := os.WriteFile(filepath.Join(root, rel), []byte(content), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
+	return root, sectionContract(t)
+}
+
+// sectionContract is the shared contract with writing notes as the thoughts, so
+// a reader's thought is a note a fixture can write.
+func sectionContract(t *testing.T) *schema.Contract {
+	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		t.Fatal(err)
@@ -43,11 +56,11 @@ func sectionVault(t *testing.T) (root string, contract *schema.Contract) {
 	if err = os.WriteFile(path, []byte(writingHoldsTheThoughtRole(t, string(data))), 0o600); err != nil { // #nosec G703 -- a temporary file this test just named
 		t.Fatal(err)
 	}
-	contract, err = schema.LoadFile(path)
+	contract, err := schema.LoadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return root, contract
+	return contract
 }
 
 // readerSession is the server a reader has open over the vault and the marks
@@ -140,6 +153,11 @@ func TestAReaderWhoLeftAnUncertaintyFindsTheSectionAndTheirThoughtTheNextDay(t *
 	if strings.Contains(section, "A second sentence") {
 		t.Errorf("more than the first sentence of a thought reached the margin")
 	}
+	// A note that cites the section without being a thought of the contract's
+	// type is not the reader's thought about it.
+	if strings.Contains(section, "Lesson%20on%20first") || strings.Contains(section, "A lesson that is not a thought") {
+		t.Errorf("a note that is not a thought stands in the margin of the section it cites:\n%s", section)
+	}
 	// Another section was not marked, and holds none of it.
 	_, rest, _ := strings.Cut(page, `<h3 data-mark-anchor id="second"`)
 	if !strings.Contains(rest, `data-section-anchor="second" aria-pressed="false" aria-label="還不確定" data-text="還不確定" disabled></button>`) || strings.Contains(rest, `datetime="`+day+`"`) {
@@ -149,6 +167,9 @@ func TestAReaderWhoLeftAnUncertaintyFindsTheSectionAndTheirThoughtTheNextDay(t *
 	title := page[strings.Index(page, `<h1 id="source"`):strings.Index(page, `<h3 data-mark-anchor id="first"`)]
 	if !strings.Contains(title, `<time datetime="2026-11-02"></time> <a class="y-margin__opening" href="/notes/Thought%20on%20whole.md" aria-label="I have not grasped the split between the two signals." data-text="I have not grasped the split between the two signals."></a>`) {
 		t.Errorf("the thought about the whole note is not beside the title:\n%s", title)
+	}
+	if strings.Contains(title, "Lesson%20on%20whole") || strings.Contains(title, "A lesson that is not a thought") {
+		t.Errorf("a note that is not a thought stands beside the title of the note it cites:\n%s", title)
 	}
 }
 
@@ -221,5 +242,32 @@ func TestASectionsMarkIsAnAnchorThePageRenders(t *testing.T) {
 	}
 	if anchors != 2 {
 		t.Errorf("the page offers %d section buttons, want one for each of the two sections", anchors)
+	}
+}
+
+// TestAHeadingWithNoWordsHasNoMargin holds that a margin stands beside a section
+// a reader can name: a heading written with no text is no place to mark, and a
+// thought about it would be offered under no name. The sections around it keep
+// theirs.
+func TestAHeadingWithNoWordsHasNoMargin(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	body := "---\ntype: lesson\n---\n# Source\n\nIntro.\n\n##\n\nUnder nothing.\n\n## Named\n\nText.\n\n##   \n\nUnder blanks.\n"
+	if err := os.WriteFile(filepath.Join(root, "Source.md"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	mux, _ := readerSession(t, root, sectionContract(t), t.TempDir(), nil)
+
+	page := serve(t, mux, http.MethodGet, "/notes/Source.md", "").Body.String()
+	_, article, _ := strings.Cut(page, `<article`)
+	article, _, _ = strings.Cut(article, `</article>`)
+	if got := strings.Count(article, "data-section-margin"); got != 1 {
+		t.Errorf("the page draws %d section margins, want one, beside the only section with a name:\n%s", got, article)
+	}
+	if !strings.Contains(page, `data-section-anchor="named"`) {
+		t.Errorf("the section with a name has no mark button")
+	}
+	if got := strings.Count(article, `<div class="y-sect"><h3`); got != 1 {
+		t.Errorf("%d headings are wrapped as sections, want only the one with a name", got)
 	}
 }

@@ -30,6 +30,9 @@ const maxOpeningRunes = 120
 // the body with the margins in it and the title's thoughts, which the page draws
 // itself.
 //
+// A heading written with no words has no margin: it names nothing to mark or to
+// write about.
+//
 // Everything it shows is read from this generation and the reader's own marks,
 // so the page says on arrival what a second reading would find, without a script.
 func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *snapshot.Reading, result *render.Result, idPrefix string, lang wording.Lang, door bool, place *mark.Continuation) (body string, title []pages.ThoughtLine) {
@@ -43,6 +46,9 @@ func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *
 	}
 	marked := h.marksIn(n.RelPath)
 	for _, entry := range result.Outline() {
+		if strings.TrimSpace(entry.Text) == "" {
+			continue
+		}
 		at, isMarked := marked[strings.TrimPrefix(entry.ID, idPrefix)]
 		plan.Sections[entry.ID] = pages.SectionMargin{Text: entry.Text, Marked: isMarked, MarkedOn: at}
 	}
