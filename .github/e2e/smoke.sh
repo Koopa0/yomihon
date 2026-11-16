@@ -28,9 +28,9 @@ fail() {
   exit 1
 }
 
-# One named site per way into the library, plus the search block, one content
-# marker that only the fixture vault's rendered README can supply, and the
-# quiet row that leads from the desk to the library's health. The live verdict
+# One named site per way into the library, one content marker that only the
+# fixture vault's rendered README can supply, and the quiet row that leads from
+# the desk to the library's health. The live verdict
 # and its self-test share this table, so neither can silently stop checking
 # one of them.
 #
@@ -42,14 +42,13 @@ home_markers=(
   'maps|data-home-block="maps"'
   'reports|data-home-block="reports"'
   'folders|data-home-block="folders"'
-  'search|data-home-block="search"'
   'vault-readme|data-home-readme'
   'desk-health|data-home-health'
 )
 
 # This is a set comparison, not an order oracle: deleting a marker from the
 # live table must not also delete its self-test by construction.
-required_home_sites=(courses maps reports folders search vault-readme desk-health)
+required_home_sites=(courses maps reports folders vault-readme desk-health)
 
 # The rail, checked where it now lives: beside the thing being read. The map
 # tree marker is what proves a tree rendered rather than an empty group.

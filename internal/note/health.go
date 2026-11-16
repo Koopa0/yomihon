@@ -42,6 +42,8 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		FrontmatterUnreadable: healthNoteFindings(found.FrontmatterUnreadable, articleLang),
 		SchemaFaults:          healthEnumFindings(healthNoteFindings(found.SchemaFaults, articleLang), snap, lang, contract),
 		NavigationFaults:      healthNavigationFaults(found.NavigationFaults, articleLang),
+		UnmappedConcepts:      noteRefs(found.UnmappedConcepts, articleLang),
+		EmptyBranches:         healthEmptyBranches(found.EmptyBranches, articleLang),
 		InstanceScopeUnknown:  found.InstanceScopeUnknown,
 		// A folder that declared no vocabulary has no schema findings to
 		// report, and that is an answer rather than a failure — the view says
@@ -64,6 +66,17 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	if err := pages.Health(view, layouts.ChromeFromRequest(r, wording.HealthTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write health page", "error", err)
 	}
+}
+
+// healthEmptyBranches carries each map that has a heading no note stands under
+// across to the page, marked with the language its author wrote it in.
+func healthEmptyBranches(found []snapshot.HealthEmptyBranch, articleLang pages.ArticleLanguageFor) []snapshot.HealthEmptyBranch {
+	out := make([]snapshot.HealthEmptyBranch, len(found))
+	for i, branch := range found {
+		branch.Map = noteRef(branch.Map, articleLang)
+		out[i] = branch
+	}
+	return out
 }
 
 // healthNoteFindings carries the gathered notes the schema had something to say

@@ -11,8 +11,18 @@ type ContinueRow struct {
 	// advertisement for a control that lives on another page.
 	Show bool
 	// Title is the note to return to, or its path where the note is gone and
-	// there is no title left to read.
+	// there is no title left to read. It is the largest text on the desk.
 	Title string
+	// Language is the tag the note declared, so the title is read in the
+	// language its author wrote it in.
+	Language string
+	// Kicker says where the note sits: the course and the part of it, or the
+	// folder for a note no course walks. Empty where the note is gone.
+	Kicker         string
+	KickerLanguage string
+	// Section is the heading the mark was kept under, empty when the mark names
+	// the note as a whole or the heading is gone.
+	Section RowPlace
 	// Href is where the row leads: the note, the anchor the mark named, and
 	// the distance below it. It is empty where the note is no longer in the
 	// vault, and the row is then a sentence rather than a link.

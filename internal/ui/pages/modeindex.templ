@@ -15,6 +15,7 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 		<main id="_y-main" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
 			<div class="y-home">
 				@indexHead(v.Count, v.Shelf.Title, v.Shelf.Lede, c.Lang)
+				@shelfOrder(v.Order, indexHref(v.Mode))
 				if v.Notice != "" {
 					@nothingToShow(nothingNotice{Kind: v.Mode, Fault: true}) {
 						<p>{ v.Notice }</p>
@@ -25,7 +26,7 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 				} else if len(v.Shelf.Rows) == 0 && v.Shelf.Empty != "" {
 					<p class="y-homeempty" data-index-empty>{ v.Shelf.Empty }</p>
 				}
-				@ShelfPage(v.Shelf)
+				@ShelfPage(v.Shelf, c.Lang)
 				{ children... }
 			</div>
 		</main>

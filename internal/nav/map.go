@@ -18,6 +18,19 @@ type Map struct {
 	Domain   string
 	Type     string
 	Branches []Branch
+	// Empty are the headings the tree leaves out because no note stands under
+	// them, at any depth, in document order. A branch is kept for the reader to
+	// follow only where something is there to follow; these are the ones that
+	// are waiting for a note, which the whole-folder page says rather than the
+	// map's own tree.
+	Empty []EmptyBranch
+}
+
+// EmptyBranch is one heading of a map with no note under it or under any
+// heading beneath it.
+type EmptyBranch struct {
+	Heading string
+	Level   int
 }
 
 // Branch is one heading in a map, holding the resolved wikilinks that sit
@@ -58,6 +71,7 @@ func cloneMaps(source []Map) []Map {
 	cloned := slices.Clone(source)
 	for i := range cloned {
 		cloned[i].Branches = cloneBranches(source[i].Branches)
+		cloned[i].Empty = slices.Clone(source[i].Empty)
 	}
 	return cloned
 }
@@ -83,12 +97,16 @@ func parseMap(
 	facts map[string]noteFacts,
 	policy schema.ArtifactPolicy,
 ) Map {
+	roots := buildBranchTree(n.Body, idx, facts, policy)
+	// Read before the pruning, which takes these nodes out of the tree.
+	empty := emptyBranches(roots, nil)
 	return Map{
 		Title:    graph.TitleOf(n.RelPath, n.Body),
 		RelPath:  n.RelPath,
 		Domain:   n.Domain,
 		Type:     n.Type(),
-		Branches: parseBranches(n.Body, idx, facts, policy),
+		Branches: convertBranches(pruneBranches(roots)),
+		Empty:    empty,
 	}
 }
 
@@ -101,23 +119,33 @@ type branchNode struct {
 	sub     []*branchNode
 }
 
-// parseBranches builds a map's tree from the body alone, naming no file and no
-// heading. A heading at level >= 2 opens a branch nested under the nearest
-// shallower open heading; an H1 is the document title and is ignored, mirroring
-// the reading page's leading-H1 removal. Every live wikilink under the open
-// heading becomes an entry: the same scan a study path already uses, so a
-// link in a list item, a heading, prose, or a table counts, and a link inside
-// a fence, a code span, an authored HTML block, or an Obsidian comment does
-// not. Headings read those same skip zones, so a line skipped for a link is
-// skipped for a heading. Pruning every heading with no entry beneath it
-// leaves a map's pure-prose headings out without naming them; only resolved
-// governed rows survive.
+// parseBranches builds a map's tree from the body alone: the headings that have
+// a note under them, and those notes.
 func parseBranches(
 	body string,
 	idx *graph.Index,
 	facts map[string]noteFacts,
 	policy schema.ArtifactPolicy,
 ) []Branch {
+	return convertBranches(pruneBranches(buildBranchTree(body, idx, facts, policy)))
+}
+
+// buildBranchTree reads every heading of a map and the notes under each, naming
+// no file and no heading. A heading at level >= 2 opens a branch nested under
+// the nearest shallower open heading; an H1 is the document title and is
+// ignored, mirroring the reading page's leading-H1 removal. Every live wikilink
+// under the open heading becomes an entry: the same scan a study path already
+// uses, so a link in a list item, a heading, prose, or a table counts, and a
+// link inside a fence, a code span, an authored HTML block, or an Obsidian
+// comment does not. Headings read those same skip zones, so a line skipped for
+// a link is skipped for a heading. Only resolved governed rows become entries.
+// The tree is not pruned: which headings hold nothing is for the caller to ask.
+func buildBranchTree(
+	body string,
+	idx *graph.Index,
+	facts map[string]noteFacts,
+	policy schema.ArtifactPolicy,
+) []*branchNode {
 	var roots []*branchNode
 	var stack []*branchNode
 	links, zones := sequence.LiveScan(body)
@@ -131,7 +159,24 @@ func parseBranches(
 		stack = openBranch(&roots, stack, headingLabel(strings.TrimSpace(h.Text)), h.Level)
 	}
 	attachLiveLinks(stack, links, &next, len(body), idx, facts, policy)
-	return convertBranches(pruneBranches(roots))
+	return roots
+}
+
+// emptyBranches lists, depth first and in document order, every heading with no
+// entry under it or under any heading beneath it.
+func emptyBranches(nodes []*branchNode, out []EmptyBranch) []EmptyBranch {
+	for _, n := range nodes {
+		if !hasEntries(n) {
+			out = append(out, EmptyBranch{Heading: n.heading, Level: n.level})
+		}
+		out = emptyBranches(n.sub, out)
+	}
+	return out
+}
+
+// hasEntries reports whether a heading or any heading beneath it holds a note.
+func hasEntries(n *branchNode) bool {
+	return len(n.entries) > 0 || slices.ContainsFunc(n.sub, hasEntries)
 }
 
 // attachLiveLinks appends every still-unread live link that begins before

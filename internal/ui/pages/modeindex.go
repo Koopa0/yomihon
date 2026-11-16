@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -41,6 +42,9 @@ type ListIndexView struct {
 	// such as the reader's own marks. It carries its complete translated words.
 	Notice string
 	Shelf  Shelf
+	// Order is how the reader may reorder the rows; empty where there is one
+	// order.
+	Order ShelfOrder
 }
 
 // RecentBlock is what changed last, and the words the list is entitled to. It
@@ -455,6 +459,10 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 	folderIndex := NewFolderIndex(model, contract, lang, articleLang)
 	pathBlock := deskBlock(&pathIndex)
 	mapBlock := deskBlock(&mapIndex)
+	// A map's branches are the shape of its subject, which its own page lists
+	// and the desk does not count: a figure beside each map would read as how
+	// much of it is left. A course's lesson count stays, being its extent.
+	mapBlock.Shelf.Rows = unmarked(mapBlock.Shelf.Rows)
 	if withheld {
 		withhold(&pathBlock.Shelf)
 		withhold(&mapBlock.Shelf)
@@ -477,6 +485,17 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 		return []DeskBlock{folderBlock, pathBlock, mapBlock, reportBlock}
 	}
 	return []DeskBlock{pathBlock, mapBlock, reportBlock, folderBlock}
+}
+
+// unmarked is rows without the measure each carries, in a copy: the rows of a
+// shelf are shared by every view of it built for one request and are never
+// written, so a view that wants fewer things says so on its own.
+func unmarked(rows []Row) []Row {
+	out := slices.Clone(rows)
+	for i := range out {
+		out[i].Mark = ""
+	}
+	return out
 }
 
 // withholdListing takes back what a page may not claim about a declaration that

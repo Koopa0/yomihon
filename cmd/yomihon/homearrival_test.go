@@ -55,8 +55,8 @@ func homeSite(t *testing.T, files map[string]string) http.Handler {
 }
 
 // TestPlainFolderHomeLeadsWithFoldersAndStaysReadable follows a populated
-// folder that has no contract from Home to a note, to search, and to the three
-// organised modes.
+// folder that has no contract from Home to a note, to a search for its term,
+// and to the three organised modes.
 func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 	t.Parallel()
 	site := homeSite(t, map[string]string{
@@ -78,8 +78,8 @@ func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 		t.Errorf("%s does not carry the note body", noteHref)
 	}
 
-	if !strings.Contains(home, `<form class="y-homesearch" method="get" action="/search">`) {
-		t.Error("Home lacks the native GET form to /search")
+	if _, desk, _ := strings.Cut(home, `id="_y-main"`); strings.Contains(desk, "<form") || strings.Contains(desk, `type="search"`) {
+		t.Error("Home draws a search field of its own, and the header carries the one search")
 	}
 	results := readingPage(t, site, "/search?q=UmbrellaRule")
 	if !strings.Contains(results, `href="`+noteHref) {

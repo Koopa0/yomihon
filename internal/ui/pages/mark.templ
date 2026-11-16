@@ -2,23 +2,30 @@ package pages
 
 import "github.com/koopa0/yomihon/internal/wording"
 
-// continueRow returns the reader to the place they kept. It is one row rather
-// than a block: there is one mark, and a list of one is a list the reader has
-// to read before finding it holds nothing they did not already know.
+// continueRow is the desk's way back to the place the reader kept, and the
+// largest thing on it: the reader came back for this place, so its name is set
+// at the size a page's own title is, with where it sits above it and the
+// heading the mark was kept under below. The way back is one link, the
+// bookmark leading the verb, drawn as the course page draws its own. The title
+// is not a second link: the desk offers exactly one way back.
 //
-// The link is drawn with the reader's bookmark. The heading over it already
-// says what it is, so the bookmark is decoration here.
+// A row whose note is gone is a sentence and offers no link.
 templ continueRow(row ContinueRow, lang wording.Lang) {
 	if row.Show {
 		<section class="y-continue" data-home-continue aria-labelledby="home-continue-title">
-			<h2 class="ui-side__label" id="home-continue-title">{ wording.ContinueReading.In(lang) }</h2>
+			<p class="y-offscreen">{ wording.MarkKeptHere.In(lang) }</p>
+			if row.Kicker != "" {
+				<p class="y-continue__kicker" { authoredLanguageAttrs(row.KickerLanguage)... }>{ row.Kicker }</p>
+			}
+			<h2 class="y-continue__title" id="home-continue-title" { authoredLanguageAttrs(row.Language)... }>{ row.Title }</h2>
+			if row.Section.Text != "" {
+				<p class="y-continue__section" { authoredLanguageAttrs(row.Section.Language)... }>{ row.Section.Text }</p>
+			}
 			if row.Href != "" {
-				<a class="y-continue__note" href={ templ.URL(row.Href) } data-continue-link>
+				<a class="y-continue__note" href={ templ.URL(row.Href) } aria-describedby="home-continue-title" data-continue-link>
 					<span class="y-keptmark" aria-hidden="true"></span>
-					{ row.Title }
+					<span class="y-cover__verb">{ wording.ContinueReading.In(lang) }</span>
 				</a>
-			} else {
-				<span class="y-continue__note">{ row.Title }</span>
 			}
 			if row.Notice != "" {
 				<p class="y-continue__notice">{ row.Notice }</p>

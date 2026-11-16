@@ -20,7 +20,7 @@ const SITES = [
   'map-page-unwritten-kept',
   'path-page-unresolved-kept',
   'path-page-noninstance-kept',
-  'home-start-top',
+  'home-draws-no-search-field',
 ];
 
 class LockFired extends Error {
@@ -91,11 +91,11 @@ const MUTATIONS = {
     target: 'path-page-noninstance-kept',
     apply: rewritePath(STUDY_PAGE, (body) => body.replaceAll('Template-only lesson', 'Removed non-instance row')),
   },
-  'autofocus-home-search': {
-    target: 'home-start-top',
-    apply: rewritePath(HOME, (body) => body.replaceAll(
-      'placeholder="搜尋…" aria-label="搜尋">',
-      'placeholder="搜尋…" aria-label="搜尋" autofocus>',
+  'draw-a-search-field-on-home': {
+    target: 'home-draws-no-search-field',
+    apply: rewritePath(HOME, (body) => body.replace(
+      '<div class="y-home">',
+      '<div class="y-home"><form method="get" action="/search"><input type="search" name="q" aria-label="Search"></form>',
     )),
   },
 };
@@ -161,9 +161,9 @@ try {
   await page.goto(BASE + HOME, { waitUntil: 'domcontentloaded' });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const homeMain = page.locator('main.y-main');
-  const homeSearch = page.locator('form.y-homesearch input[type="search"]');
-  if (await homeMain.count() !== 1 || await homeSearch.count() !== 1 || await homeSearch.getAttribute('autofocus') !== null || await homeMain.evaluate((element) => element.scrollTop) !== 0) {
-    fail('home-start-top', 'Home did not start at the top without native search autofocus at 1270×720');
+  const homeSearch = page.locator('main.y-main input[type="search"]');
+  if (await homeMain.count() !== 1 || await homeSearch.count() !== 0 || await homeMain.evaluate((element) => element.scrollTop) !== 0) {
+    fail('home-draws-no-search-field', 'Home drew a search field of its own, or did not start at the top, at 1270×720: the header carries the one search');
   }
 
   await page.goto(BASE + MAP_PAGE, { waitUntil: 'domcontentloaded' });

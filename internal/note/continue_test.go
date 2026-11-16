@@ -162,3 +162,48 @@ func rowOf(page string) string {
 	before, _, _ := strings.Cut(after, "</section>")
 	return before
 }
+
+// TestTheKeptPlaceSaysWhereItSitsAndWhichHeadingItWasKeptUnder holds the two
+// lines around the name of the place: the course and the part of it above, and
+// the heading the mark was kept under below. A note no course walks says the
+// folder it is in instead, and a mark that names the note as a whole says no
+// heading.
+func TestTheKeptPlaceSaysWhereItSitsAndWhichHeadingItWasKeptUnder(t *testing.T) {
+	t.Parallel()
+
+	lesson := "---\nslug: listed\ntype: lesson\ncreated: 2026-06-01\n---\n# Listed\n\nOpening.\n\n## Cancel the work\n\nBody.\n"
+	notes := map[string]string{
+		"Maps/Course.md":    "---\ntype: study-path\ncreated: 2026-06-01\n---\n# Course\n\n## unit | Unit one | 單元一 {sequence=primary}\n\n- [[Listed]]\n",
+		"Writing/Listed.md": lesson,
+		"Notes/Plain.md":    "---\ntype: note\n---\n# Plain\n\nWords.\n",
+	}
+	desk := func(rel, anchor string) string {
+		kept := keptIn(rel, anchor, 0, identityOf(notes[rel]))
+		srv := newServerWithMark(t, writeNotes(t, notes), loadHomeContract(t), loadHomeContract(t).Governance(),
+			func() (mark.Continuation, bool) { return *kept, true })
+		code, page := get(t, srv.Client(), srv.URL+"/")
+		if code != http.StatusOK {
+			t.Fatalf("GET the desk = %d, want 200", code)
+		}
+		return rowOf(page)
+	}
+
+	inCourse := desk("Writing/Listed.md", "cancel-the-work")
+	for _, want := range []string{
+		`<p class="y-continue__kicker">Course · Unit one</p>`,
+		`id="home-continue-title">Listed</h2>`,
+		`<p class="y-continue__section">Cancel the work</p>`,
+	} {
+		if !strings.Contains(inCourse, want) {
+			t.Errorf("the kept place in a course lacks %q; row:\n%s", want, inCourse)
+		}
+	}
+	whole := desk("Writing/Listed.md", "")
+	if strings.Contains(whole, "y-continue__section") {
+		t.Errorf("a mark on the whole note names a heading; row:\n%s", whole)
+	}
+	outside := desk("Notes/Plain.md", "")
+	if !strings.Contains(outside, `<p class="y-continue__kicker">Notes</p>`) {
+		t.Errorf("a note no course walks does not say its folder; row:\n%s", outside)
+	}
+}

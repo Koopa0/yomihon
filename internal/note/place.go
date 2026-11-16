@@ -8,6 +8,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -104,6 +105,22 @@ func (p *placeResolver) label(rel, anchor string, lang wording.Lang) pages.RowPl
 		return pages.RowPlace{Text: fmt.Sprintf(wording.PracticeCardLabelFmt.In(lang), place.card), Language: lang.Tag()}
 	}
 	return place.label
+}
+
+// opening is the first sentence of the section anchor names, read from the note
+// as it stands, and empty for the whole note, for the title's anchor and for a
+// practice card, which has no fixed text: the sentence on a card is a
+// combination made when the page is opened.
+func (p *placeResolver) opening(rel, anchor string) string {
+	if anchor == "" || !p.hasPlace(rel, anchor) || anchor == p.titleAnchor(rel) {
+		return ""
+	}
+	n := p.note(rel)
+	place := n.anchors[anchor]
+	if place.heading == "" || place.card > 0 {
+		return ""
+	}
+	return render.SectionSentence(n.reading.Body, place.heading)
 }
 
 // MarkedLocation is what one marked location names in a generation, in the

@@ -162,8 +162,8 @@ var (
 		"These notes' frontmatter could not be read: it is not valid YAML, or it opens with --- on line 1 and the closing --- never comes. The body still reads and the links still resolve, but nothing they declare could be judged.")
 
 	HealthSchemaTitle = both(
-		"schema 有話說的筆記",
-		"Notes the schema has something to say about")
+		"不符合 schema 的筆記",
+		"Notes that don't meet the schema")
 
 	HealthSchemaLede = both(
 		"這些筆記的 frontmatter 讀得出來，但有 schema 不接受的地方。每一篇的細節在它自己的頁面上。",

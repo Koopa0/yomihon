@@ -280,28 +280,31 @@ func TestExampleVaultExplainsDraftsOnTheCourseRoute(t *testing.T) {
 	}
 }
 
-// TestExampleVaultSearchReachesTheDraftsNote submits the same native GET form
-// Home draws and follows the result to the note on drafts.
+// TestExampleVaultSearchReachesTheDraftsNote submits the native GET form the
+// search page draws and follows the result to the note on drafts.
 func TestExampleVaultSearchReachesTheDraftsNote(t *testing.T) {
 	t.Parallel()
 	site := exampleSite(t)
 	for _, reader := range exampleReaders {
 		t.Run(string(reader.lang), func(t *testing.T) {
 			t.Parallel()
-			home := readingPageIn(t, site, "/", reader.lang)
-			form := elementStart(t, home, `<form class="y-homesearch"`)
+			asked := readingPageIn(t, site, "/search", reader.lang)
+			form := elementStart(t, asked, `<form class="y-searchpage__form"`)
 			if method, _ := attr(form, "method"); method != "get" {
-				t.Errorf("Home search method = %q, want get", method)
+				t.Errorf("search page method = %q, want get", method)
 			}
 			if action, _ := attr(form, "action"); action != "/search" {
-				t.Errorf("Home search action = %q, want /search", action)
+				t.Errorf("search page action = %q, want /search", action)
 			}
-			formBody := elementInner(t, home, `<form class="y-homesearch"`)
+			formBody := elementInner(t, asked, `<form class="y-searchpage__form"`)
 			if !strings.Contains(formBody, `name="q"`) {
-				t.Error("Home search form has no q field")
+				t.Error("search page form has no q field")
 			}
 			if !strings.Contains(words(formBody), reader.search) {
-				t.Errorf("Home search button does not say %q; form text = %q", reader.search, words(formBody))
+				t.Errorf("search page button does not say %q; form text = %q", reader.search, words(formBody))
+			}
+			if home := readingPageIn(t, site, "/", reader.lang); strings.Contains(elementInner(t, home, `<main`), `type="search"`) {
+				t.Error("Home draws a search field of its own")
 			}
 
 			results := readingPageIn(t, site, "/search?q="+url.QueryEscape(reader.query), reader.lang)

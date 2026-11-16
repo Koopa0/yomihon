@@ -2,6 +2,7 @@ package note_test
 
 import (
 	"fmt"
+	"html"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -251,21 +252,23 @@ func TestHealthPageGathersWhatTheNotesKnow(t *testing.T) {
 	}
 }
 
-// healthSectionBody returns every row of the health page's findings table that
-// reports one kind of finding, failing when there are none — a page that
-// stopped reporting a kind must not read as a page whose rows are correctly
-// absent. The rows are bounded by their own cells, so a name appearing in
-// another kind's row cannot stand in for one this kind left out.
+// healthSectionBody returns every row of the health page's table for one kind
+// of finding, failing when there are none — a page that stopped reporting a kind
+// must not read as a page whose rows are correctly absent. The rows are bounded
+// by the group that is named for the kind, so a name appearing in another
+// kind's table cannot stand in for one this kind left out.
 func healthSectionBody(t *testing.T, body, title string) string {
 	t.Helper()
 	if !strings.Contains(body, title) {
 		t.Fatalf("the health page says nothing at all about %q", title)
 	}
 	var rows []string
-	for _, row := range findingsRow.FindAllString(body, -1) {
-		if strings.Contains(row, `<span class="y-findings__kind">`+title+`</span>`) {
-			rows = append(rows, row)
+	for _, group := range strings.Split(body, `<section class="y-healthgroup"`)[1:] {
+		heading, _, _ := strings.Cut(group, "</h2>")
+		if !strings.HasSuffix(heading, ">"+html.EscapeString(title)) {
+			continue
 		}
+		rows = append(rows, findingsRow.FindAllString(group, -1)...)
 	}
 	if len(rows) == 0 {
 		t.Fatalf("the findings table has no row reporting %q", title)

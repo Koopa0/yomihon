@@ -28,7 +28,7 @@ func BenchmarkGatherFindings(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		found := GatherFindings(snap)
-		if found.Total() < 0 {
+		if findingLists(&found) < 0 {
 			b.Fatal("negative total")
 		}
 	}

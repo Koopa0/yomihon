@@ -216,9 +216,11 @@ templ Search(v SearchView, c layouts.Chrome) {
 				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results?facets=1" data-live-search-sync-url>
 					// The page opens by saying which page it is, so arriving by
 					// ear lands on something other than an unexplained text
-					// field. The count is already stated above the hits, so this
-					// says only that.
-					<h1 class="y-title">{ wording.SearchTitle.In(c.Lang) }</h1>
+					// field. It says that to the listener alone: what a reader
+					// came to look at is the field they type in, which is the
+					// largest thing on the page, and the count is already stated
+					// above the hits.
+					<h1 class="y-offscreen y-offscreen--block">{ wording.SearchTitle.In(c.Lang) }</h1>
 					// The field is not focused on arrival. Inside the palette that
 					// is the whole point — it opens on a keystroke and the reader
 					// is already typing — but this page is reached deliberately,
@@ -300,8 +302,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 										{ r.RelPath }
 									}
 									if r.Draft {
-										<span class="y-result__sep" aria-hidden="true">·</span>
-										{ wording.Draft.In(lang) }
+										<span class="ui-status">{ wording.Draft.In(lang) }</span>
 									}
 									if r.File {
 										<span class="y-result__sep" aria-hidden="true">·</span>

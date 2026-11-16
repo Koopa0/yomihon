@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/a-h/templ"
 
@@ -260,13 +261,6 @@ func (r *healthRow) fileKey() healthFileKey {
 	return healthFileKey{relPath: r.File.RelPath, filePath: r.FilePath}
 }
 
-// healthTally is one kind of finding present on the page, with how many of it
-// there are. The guide under the table is made of these.
-type healthTally struct {
-	Kind  healthKind
-	Count int
-}
-
 // healthPageSize is how many findings one page of the table holds. A finding
 // row is one line at a desk and a stack of four on a phone, so twenty-five is
 // about two screen-heights either way: the strip under the table is reached in
@@ -291,22 +285,56 @@ func healthRange(strip *Pager, lang wording.Lang) string {
 	return fmt.Sprintf(wording.HealthRangeFmt.In(lang), strip.First+1, strip.Last, strip.Total)
 }
 
-// rows is the whole table: every finding the view holds, one row per file per
-// kind, ordered by what the request asked for. Several findings of one kind
+// rows is the whole report: every finding the view holds, one row per file per
+// kind, gathered by kind in the order the kinds are declared in and ordered
+// inside each kind by what the request asked for. Several findings of one kind
 // about one file share a row and are counted there, so a file carrying twelve
 // broken links is one line a reader can act on rather than twelve.
+//
+// The kinds never mix: a report read by group has no row of one kind between
+// two of another, so what a request orders is how the rows of one kind stand
+// among themselves.
 func (v *HealthView) rows(lang wording.Lang) []healthRow {
 	out := v.gather(lang)
-	switch v.Sort {
-	case HealthByFile:
-		slices.SortStableFunc(out, func(a, b healthRow) int { return cmp.Compare(a.subject(), b.subject()) })
-	case HealthBySeverity:
-		slices.SortStableFunc(out, func(a, b healthRow) int { return cmp.Compare(b.weight(), a.weight()) })
-	case HealthByCount:
-		slices.SortStableFunc(out, func(a, b healthRow) int { return cmp.Compare(b.Count, a.Count) })
-	case HealthByFinding:
-	}
+	slices.SortStableFunc(out, func(a, b healthRow) int {
+		if a.Kind != b.Kind {
+			return cmp.Compare(a.Kind, b.Kind)
+		}
+		switch v.Sort {
+		case HealthByFile:
+			return cmp.Compare(a.subject(), b.subject())
+		case HealthBySeverity:
+			return cmp.Compare(b.weight(), a.weight())
+		case HealthByCount:
+			return cmp.Compare(b.Count, a.Count)
+		case HealthByFinding:
+		}
+		return 0
+	})
 	return out
+}
+
+// healthGroup is the consecutive rows of one kind, which the page draws as one
+// table under the kind's own heading.
+type healthGroup struct {
+	Kind healthKind
+	Rows []healthRow
+}
+
+// healthGroups divides rows already gathered by kind into the groups they
+// form, in the order they stand. A page of a long report holds only the stretch
+// of a group that falls on it, so a group split by the page's edge is drawn on
+// both sides of it under the same heading.
+func healthGroups(rows []healthRow) []healthGroup {
+	var groups []healthGroup
+	for i := range rows {
+		if n := len(groups); n > 0 && groups[n-1].Kind == rows[i].Kind {
+			groups[n-1].Rows = append(groups[n-1].Rows, rows[i])
+			continue
+		}
+		groups = append(groups, healthGroup{Kind: rows[i].Kind, Rows: []healthRow{rows[i]}})
+	}
+	return groups
 }
 
 // gather builds the rows in the page's own order, which is the order the kinds
@@ -456,25 +484,6 @@ func machineDetail(text string) []healthDetail {
 	return []healthDetail{{Text: text, Machine: true}}
 }
 
-// healthTallies is what the guide explains: every kind of finding present,
-// in the page's own order, with how many of it the table holds. The numbers
-// are counted off the rows rather than off the lists behind them, so the
-// heading a reader checks against and the lines they count cannot disagree.
-func healthTallies(rows []healthRow) []healthTally {
-	total := make(map[healthKind]int, len(healthKinds))
-	for i := range rows {
-		row := &rows[i]
-		total[row.Kind] += row.Count
-	}
-	out := make([]healthTally, 0, len(healthKinds))
-	for _, kind := range healthKinds {
-		if count := total[kind]; count > 0 {
-			out = append(out, healthTally{Kind: kind, Count: count})
-		}
-	}
-	return out
-}
-
 // healthWeightTally is one weight the judge names, and how many findings in
 // the table carry it — the same number a reader summing the count column by
 // hand over every row of that weight would reach.
@@ -520,9 +529,10 @@ func healthShapeOf(rows []healthRow) healthShape {
 	return healthShape{Total: total, Weights: weights, Files: len(files)}
 }
 
-// kindLede is what the guide says a kind of finding means. All but one are a
-// fixed sentence; the unreadable files also say how old the rest of the page
-// is, which only this view knows.
+// kindLede is what a group's explanation says a kind of finding means. It is a
+// fixed sentence for every kind, and nothing in it is a finding: what is found,
+// and how current it is, stand in the group's own lines and never behind the
+// fold.
 func (v *HealthView) kindLede(kind healthKind, lang wording.Lang) string {
 	switch kind {
 	case healthBlocked:
@@ -556,26 +566,34 @@ func (v *HealthView) clean() bool {
 		v.InstanceScopeUnknown == "" && v.SchemaScopeUnknown == ""
 }
 
-// blockedLede states what the blocked list means for the reader, and how
-// current the page behind it is.
+// blockedLede states what the blocked list means for the reader.
 func (v *HealthView) blockedLede(lang wording.Lang) string {
-	lede := wording.BlockedLede.In(lang)
 	parsed := 0
 	for _, source := range v.Blocked {
 		if source.ParsePanic {
 			parsed++
 		}
 	}
-	if parsed > 0 {
-		lede = wording.MixedBlockedLede.In(lang)
-		if parsed == len(v.Blocked) {
-			lede = wording.ParseBlockedLede.In(lang)
-		}
+	switch {
+	case parsed == 0:
+		return wording.BlockedLede.In(lang)
+	case parsed == len(v.Blocked):
+		return wording.ParseBlockedLede.In(lang)
+	}
+	return wording.MixedBlockedLede.In(lang)
+}
+
+// kindStanding is what a group says about itself that is a fact and not an
+// explanation, and is therefore never folded away: how old the rest of the page
+// is, for the files that could not be read. It is empty for every other kind.
+func (v *HealthView) kindStanding(kind healthKind, lang wording.Lang) string {
+	if kind != healthBlocked {
+		return ""
 	}
 	if v.LastComplete == "" {
-		return lede + wording.BlockedNeverComplete.In(lang)
+		return strings.TrimSpace(wording.BlockedNeverComplete.In(lang))
 	}
-	return lede + fmt.Sprintf(wording.BlockedLastCompleteFmt.In(lang), v.LastComplete)
+	return strings.TrimSpace(fmt.Sprintf(wording.BlockedLastCompleteFmt.In(lang), v.LastComplete))
 }
 
 // navigationRows link each omitted tree to the note that remains readable.

@@ -180,8 +180,13 @@ func TestLeftOpenListsWhatTheShelfShowsInItsOrder(t *testing.T) {
 	}
 	page := openThoughtPage(t, site, "/open-thoughts", "en")
 	var shelf []string
-	for _, row := range regexp.MustCompile(`<a [^>]*href="/notes/([^"]*)"[^>]*data-index-row`).FindAllStringSubmatch(page, -1) {
-		address, err := url.PathUnescape(row[1])
+	name := regexp.MustCompile(`class="y-openitem__name" href="/notes/([^"]*)"`)
+	for _, row := range strings.Split(page, "data-index-row")[1:] {
+		found := name.FindStringSubmatch(row)
+		if found == nil {
+			t.Fatalf("a shelf row leads nowhere, which none of this fixture's rows does:\n%s", row)
+		}
+		address, err := url.PathUnescape(found[1])
 		if err != nil {
 			t.Fatal(err)
 		}

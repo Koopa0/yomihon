@@ -44,8 +44,8 @@ func TestRootNoticeReachesTheShellWithoutChangingFindingCounts(t *testing.T) {
 	if diff := cmp.Diff(want, found.Root); diff != "" {
 		t.Fatalf("shell root projection (-want +got):\n%s", diff)
 	}
-	if found.Total() != 0 {
-		t.Fatalf("root notice counted as %d finding rows", found.Total())
+	if total := findingLists(&found); total != 0 {
+		t.Fatalf("root notice counted as %d finding rows", total)
 	}
 	found.Root.SelectedPath = "caller mutation"
 	if diff := cmp.Diff(want, GatherFindings(view).Root); diff != "" {
