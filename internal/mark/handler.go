@@ -1,6 +1,7 @@
 package mark
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -23,7 +24,8 @@ const maxFormBytes = 4096
 // written twice is one that drifts.
 const Address = "/marks"
 
-// Handler serves the one route a mark reaches the process through.
+// Handler serves the one route a mark reaches the process through, and the one
+// a page reads the kept place back from.
 //
 // A page cannot write a file, so the mark travels over a route of its own on
 // the same loopback listener, with a body cap and a replace-by-rename
@@ -57,7 +59,32 @@ func NewHandler(file *File, places Places, log *slog.Logger) *Handler {
 
 // Register mounts the route.
 func (h *Handler) Register(mux *http.ServeMux) {
+	mux.HandleFunc("GET "+Address, h.held)
 	mux.HandleFunc("POST "+Address, h.set)
+}
+
+// held answers where the place kept now is, for a page that was drawn before it
+// was last set: one shown again from the browser's cache is the page of the
+// visit before, and what it draws of the place is that visit's. It names the
+// note and the anchor, which is all a page needs to tell whether the place is
+// in it and where, and answers no content where none is kept — the answer for a
+// file that is missing, cannot be read or is in a shape this version does not
+// recognise alike. The browser is told not to keep the answer: one that was
+// kept would be the staleness this exists to remove.
+func (h *Handler) held(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	kept, ok := h.file.Continuation()
+	if !ok {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	if err := json.NewEncoder(w).Encode(struct {
+		Path   string `json:"path"`
+		Anchor string `json:"anchor"`
+	}{Path: kept.RelPath, Anchor: kept.Anchor}); err != nil {
+		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "send the kept place", "error", err)
+	}
 }
 
 // set keeps the place this submission names, replacing whatever was kept

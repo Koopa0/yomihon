@@ -6,6 +6,10 @@
 // below it the window sits. A pixel alone would not survive a change of text
 // size or typeface, and a mark is meant to survive days.
 //
+// A page is drawn from the place the server held when it was made, and a page
+// the browser shows again is older than that. So the place is also read back
+// from the server whenever a page is shown, and drawn as it is now.
+//
 // The control exists only where this runs, which is why the page hides it
 // until this file marks the document. What it sends is where the window is,
 // and a browser with no script has no such thing to send.
@@ -88,17 +92,21 @@ export function lapse(said) {
   );
 }
 
-// A press that kept the place is also the place now being in this note, so every
-// face of the control draws the bookmark the way the server draws it for a note
-// that already held one. A face that is a toggle says so in its pressed state
-// too, which is what a screen reader is told by.
-function say(control, words, kept) {
-  if (kept) {
-    for (const face of document.querySelectorAll('[data-mark-control]')) {
-      face.dataset.markKept = '';
-      face.querySelector('[data-mark-button][aria-pressed]')?.setAttribute('aria-pressed', 'true');
-    }
+// drawKept says on every face of the control whether the place kept is in this
+// note, the way the server draws it for a note that already held one. A face that
+// is a toggle says so in its pressed state too, which is what a screen reader is
+// told by.
+function drawKept(kept) {
+  for (const face of document.querySelectorAll('[data-mark-control]')) {
+    face.toggleAttribute('data-mark-kept', kept);
+    face.querySelector('[data-mark-button][aria-pressed]')?.setAttribute('aria-pressed', String(kept));
   }
+}
+
+// A press that kept the place is also the place now being in this note, so every
+// face of the control draws it.
+function say(control, words, kept) {
+  if (kept) drawKept(true);
   const said = control.querySelector('[data-mark-said]');
   if (!said) return;
   clearTimeout(saidTimers.get(said));
@@ -127,7 +135,12 @@ function showPlace(anchor) {
   held?.querySelector('[data-section-place]')?.removeAttribute('hidden');
 }
 
+// How many times this document has kept a place. A reading of where the place is
+// that began before a press is older than the press, and is not drawn after it.
+let presses = 0;
+
 async function keep(control) {
+  presses += 1;
   const place = positionNow();
   const body = new URLSearchParams({
     path: control.dataset.markPath ?? '',
@@ -150,16 +163,71 @@ async function keep(control) {
   say(control, kept ? control.dataset.markSaved : control.dataset.markFailed, kept);
 }
 
+// recall draws the place as the server holds it now. A page is drawn from the
+// file as it stood when the page was made, so one that is shown again from the
+// browser's HTTP cache, or fetched ahead of the visit, is older than the place
+// the reader last left, and one restored from the back/forward cache is older
+// still and runs nothing of its own. What is asked is where the place is, and the
+// answer is drawn as the server draws it for a note that holds the place, or taken
+// down where the place is in another note or in none.
+//
+// A page that cannot be answered keeps what it was drawn with, which is what the
+// server last knew.
+async function recall() {
+  const face = document.querySelector('[data-mark-control]');
+  const endpoint = face?.dataset.markEndpoint;
+  if (!endpoint) return;
+  const asked = presses;
+  let held;
+  try {
+    const response = await fetch(endpoint, {
+      cache: 'no-store',
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return;
+    held = response.status === 204 ? null : await response.json();
+  } catch {
+    return;
+  }
+  if (presses !== asked) return;
+  const here = held !== null && held.path === face.dataset.markPath;
+  drawKept(here);
+  showPlace(here ? held.anchor : '');
+}
+
+// afterBrowserPlacement calls back once the browser has finished moving the
+// window to the address's fragment. It does that on its own, when the document
+// has been parsed, which is after this file first runs, and a page placed
+// before the move is moved off its place by it. DOMContentLoaded is dispatched
+// just ahead of the move, so what a task queued from it does comes after; the
+// load event is the latest this waits, for a document whose parsing was over
+// before this file ran.
+function afterBrowserPlacement(then) {
+  let called = false;
+  const once = () => {
+    if (called) return;
+    called = true;
+    then();
+  };
+  if (document.readyState === 'complete') {
+    setTimeout(once);
+    return;
+  }
+  document.addEventListener('DOMContentLoaded', () => setTimeout(once), { once: true });
+  window.addEventListener('load', once, { once: true });
+}
+
 // land finishes the return to a kept place the address asked for. The browser
-// has already gone to the fragment; what is left is the distance below it,
+// goes to the fragment by itself; what is left is the distance below it,
 // measured from the same anchor the mark was taken against.
 //
 // The head script held the column out of sight for this document, so every way
-// out of here reveals it, and it is revealed as soon as the page has been
-// placed once: the first frame the reader sees is then already at the place.
-// The two later placements stay because the page can still change height after
-// that, and they correct the place without anything having been seen at the
-// wrong one.
+// out of here reveals it. The distance is applied once the browser has moved to
+// the fragment, and the column is revealed in the same task: the first frame
+// the reader sees is then already at the place, where revealing it as soon as
+// this file ran showed the heading for a frame and then moved. The two later
+// placements stay because the page can still change height after that, and they
+// correct the place without anything having been seen at the wrong one.
 //
 // The query is spent whatever happens to the number in it, so a reload after
 // landing is an ordinary reading of the note rather than a second return.
@@ -204,8 +272,10 @@ function land() {
   const apply = () => {
     window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);
   };
-  apply();
-  reveal();
+  afterBrowserPlacement(() => {
+    apply();
+    reveal();
+  });
   // The column's own measurements settle a frame or two after this file first
   // runs — a web font arrives, a diagram takes its height — and a position
   // applied before that lands against a page that has since moved.
@@ -223,6 +293,10 @@ function land() {
 
 export function initMark() {
   land();
+  recall();
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) recall();
+  });
   for (const control of document.querySelectorAll('[data-mark-control]')) {
     const button = control.querySelector('[data-mark-button]');
     if (!button) continue;

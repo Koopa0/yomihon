@@ -574,22 +574,146 @@ func TestTheRouteRefusesABodyBeyondItsCap(t *testing.T) {
 	}
 }
 
-// TestOnlyPostReachesTheRoute holds the method. A place is a change, and a
-// change does not answer a GET.
-func TestOnlyPostReachesTheRoute(t *testing.T) {
+// TestOnlyPostChangesThePlace holds the methods. A place is a change, and only
+// a POST makes one; GET reads it, and anything else is refused with the two the
+// route does answer named.
+func TestOnlyPostChangesThePlace(t *testing.T) {
+	t.Parallel()
+
+	for _, method := range []string{http.MethodPut, http.MethodDelete, http.MethodPatch} {
+		t.Run(method, func(t *testing.T) {
+			t.Parallel()
+			file, handler := newHandler(t)
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequestWithContext(t.Context(), method, mark.Address, strings.NewReader(aPost("Notes/alpha.md", "a").Encode()))
+			request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			handler.ServeHTTP(recorder, request)
+			response := recorder.Result()
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			if response.StatusCode != http.StatusMethodNotAllowed {
+				t.Errorf("%s %s = %d, want %d", method, mark.Address, response.StatusCode, http.StatusMethodNotAllowed)
+			}
+			if got, want := response.Header.Get("Allow"), "GET, HEAD, POST"; got != want {
+				t.Errorf("%s %s Allow = %q, want %q", method, mark.Address, got, want)
+			}
+			if _, ok := file.Continuation(); ok {
+				t.Errorf("%s kept a place", method)
+			}
+		})
+	}
+}
+
+// get asks the route where the place kept now is.
+func get(t *testing.T, handler http.Handler) *http.Response {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, mark.Address, http.NoBody))
+	return recorder.Result()
+}
+
+// TestTheRouteSaysWhereThePlaceIsKept holds what a page shown again from the
+// browser's cache is given to draw from: the note and the anchor of the place
+// kept now, and nothing the page has to be trusted with beyond them. The answer
+// must not be one the browser keeps, or the page would be redrawn from the
+// staleness this reads past.
+func TestTheRouteSaysWhereThePlaceIsKept(t *testing.T) {
 	t.Parallel()
 
 	_, handler := newHandler(t)
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, httptest.NewRequestWithContext(t.Context(), http.MethodGet, mark.Address, http.NoBody))
-	response := recorder.Result()
+	if status, body := replyTo(t, handler, aPost("Notes/alpha.md", "first-heading")); status != http.StatusNoContent {
+		t.Fatalf("POST %s = %d %q, want %d", mark.Address, status, body, http.StatusNoContent)
+	}
+	response := get(t, handler)
 	defer func() {
 		if err := response.Body.Close(); err != nil {
 			t.Error(err)
 		}
 	}()
-	if response.StatusCode == http.StatusNoContent || response.StatusCode == http.StatusOK {
-		t.Errorf("GET %s = %d, want a refusal", mark.Address, response.StatusCode)
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s = %d, want %d", mark.Address, response.StatusCode, http.StatusOK)
+	}
+	if got, want := response.Header.Get("Cache-Control"), "no-store"; got != want {
+		t.Errorf("GET %s Cache-Control = %q, want %q", mark.Address, got, want)
+	}
+	if got, want := response.Header.Get("Content-Type"), "application/json; charset=utf-8"; got != want {
+		t.Errorf("GET %s Content-Type = %q, want %q", mark.Address, got, want)
+	}
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatalf("read the reply: %v", err)
+	}
+	if diff := cmp.Diff(`{"path":"Notes/alpha.md","anchor":"first-heading"}`+"\n", string(body)); diff != "" {
+		t.Errorf("GET %s body (-want +got):\n%s", mark.Address, diff)
+	}
+
+	// Keeping another place replaces the first, and the answer follows.
+	if status, body := replyTo(t, handler, aPost("Notes/beta.md", "")); status != http.StatusNoContent {
+		t.Fatalf("POST %s = %d %q, want %d", mark.Address, status, body, http.StatusNoContent)
+	}
+	again := get(t, handler)
+	defer func() {
+		if closeErr := again.Body.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	}()
+	body, err = io.ReadAll(again.Body)
+	if err != nil {
+		t.Fatalf("read the reply: %v", err)
+	}
+	if diff := cmp.Diff(`{"path":"Notes/beta.md","anchor":""}`+"\n", string(body)); diff != "" {
+		t.Errorf("GET %s after keeping another place (-want +got):\n%s", mark.Address, diff)
+	}
+}
+
+// TestTheRouteSaysNothingWhereNoPlaceIsKept holds the other answer: no content,
+// not an empty note name, so a page cannot take silence for a place. A file the
+// reader damaged answers the same, and the read changes nothing.
+func TestTheRouteSaysNothingWhereNoPlaceIsKept(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body *string
+	}{
+		{"no file at all", nil},
+		{"a file that is not JSON", new("this is not a file yomihon wrote\n")},
+		{"a place the shape refuses", new(`{"version":1,"continuation":{"path":"../outside.md","offset":0,"identity":"` + anIdentity + `"}}`)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			file, handler := newHandler(t)
+			if tt.body != nil {
+				if err := os.MkdirAll(filepath.Dir(file.Path()), 0o700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(file.Path(), []byte(*tt.body), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			response := get(t, handler)
+			defer func() {
+				if err := response.Body.Close(); err != nil {
+					t.Error(err)
+				}
+			}()
+			if response.StatusCode != http.StatusNoContent {
+				t.Errorf("GET %s (%s) = %d, want %d", mark.Address, tt.name, response.StatusCode, http.StatusNoContent)
+			}
+			if got, want := response.Header.Get("Cache-Control"), "no-store"; got != want {
+				t.Errorf("GET %s (%s) Cache-Control = %q, want %q", mark.Address, tt.name, got, want)
+			}
+			if body, err := io.ReadAll(response.Body); err != nil || len(body) != 0 {
+				t.Errorf("GET %s (%s) sent %q, %v, want an empty body", mark.Address, tt.name, body, err)
+			}
+			if _, ok := file.Continuation(); ok {
+				t.Errorf("reading the place (%s) kept one", tt.name)
+			}
+		})
 	}
 }
 

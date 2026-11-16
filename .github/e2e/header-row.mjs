@@ -212,7 +212,7 @@ const MUTATIONS = {
     before: (page) => rewriteScript(
       page,
       '**/mark.js{,?*}',
-      "?.setAttribute('aria-pressed', 'true');",
+      "?.setAttribute('aria-pressed', String(kept));",
       ';',
     ),
   },

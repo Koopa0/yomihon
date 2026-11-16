@@ -216,7 +216,7 @@ const keepThePlace = async (page, path) => {
   }
   await page.evaluate((y) => window.scrollTo(0, y), SCROLL_TO);
   const stored = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === '/marks',
+    (response) => new URL(response.url()).pathname === '/marks' && response.request().method() === 'POST',
     { timeout: 4000 },
   ).catch(() => null);
   await control.locator('[data-mark-button]').click();

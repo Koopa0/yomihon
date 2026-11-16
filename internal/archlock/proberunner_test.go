@@ -499,9 +499,18 @@ func TestProbeMutationShards(t *testing.T) {
 	keptAt := len(entries) - len(probeKeptPlaceMembers(t, source))
 	t.Run("whole registry", func(t *testing.T) { checkProbeShardUnion(t, entries, source, nil, nil) })
 	t.Run("bounded registry", func(t *testing.T) {
-		bounded := slices.Clone(entries[:10])
+		// Shard 4 starts with the kept-place work on it, so a balanced split
+		// needs shards 1 to 3 to be able to take as much ordinary work. The
+		// double lists seven modes for the first probe and two for every other,
+		// and each kept-place probe puts two on shard 4: the bound keeps three
+		// times that much, however many such probes the registry holds.
+		ordinaryEntries := 10
+		for 7+2*(ordinaryEntries-1) < 6*len(probeKeptPlaceMembers(t, source)) {
+			ordinaryEntries++
+		}
+		bounded := slices.Clone(entries[:ordinaryEntries])
 		classified := probeBehaviorOnlyMembers(t, source)
-		for _, entry := range entries[10:keptAt] {
+		for _, entry := range entries[ordinaryEntries:keptAt] {
 			probe, _, _ := strings.Cut(entry, "|")
 			if slices.Contains(classified, probe) {
 				bounded = append(bounded, entry)
