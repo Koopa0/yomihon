@@ -1,5 +1,9 @@
 // Code stays selectable without scripting. The controls are inert server
 // prototypes until this initializer can give each readable block its own act.
+// The server leaves a slot before each block and the control takes its place,
+// so the page keeps the same elements and the browser's record of where a
+// reader left off still names the same one. A block with no control gives its
+// slot up.
 export function initCodeCopy() {
   function enhance(container) {
     for (const block of container.querySelectorAll('pre')) {
@@ -38,8 +42,11 @@ export function initCodeCopy() {
           button.disabled = false;
         }
       });
-      block.before(fragment);
+      const slot = block.previousElementSibling;
+      if (slot?.matches('.y-codecopy-slot')) slot.replaceWith(fragment);
+      else block.before(fragment);
     }
+    for (const slot of container.querySelectorAll('.y-codecopy-slot')) slot.remove();
   }
 
   enhance(document);

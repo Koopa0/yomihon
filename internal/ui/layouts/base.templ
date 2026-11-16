@@ -57,6 +57,37 @@ templ Base(c Chrome) {
 					if (new URLSearchParams(location.search).has("at")) d.dataset.arrival = "kept";
 				}
 			</script>
+			// A diagram is drawn after the page is laid out, and the browser puts a
+			// returning reader's position back against that first layout, so a
+			// drawing that arrives later moves everything under it away from where
+			// the reader left off. The drawing remembers how tall each diagram
+			// came to, for this tab and this window; a page that comes back says so
+			// here, before its first layout, and the stylesheet holds each
+			// diagram's place at that height until it is drawn. Only a page that
+			// carries a diagram says anything.
+			if c.Diagrams {
+				<script nonce={ c.Nonce }>
+					{
+						try {
+							const d = document.documentElement;
+							const kept = JSON.parse(sessionStorage.getItem("yomihon.diagramHeights") || "null");
+							const layout = [innerWidth, d.dataset.textsize, d.dataset.font, d.dataset.rail, d.dataset.sectionbuttons].join("|");
+							if (kept && kept.layout === layout) {
+								const rules = Object.entries(kept.heights)
+									.filter(([key, px]) => /^[0-9a-f]+$/.test(key) && Number.isFinite(px))
+									.map(([key, px]) => "[data-mermaid-key=\"" + key + "\"]{--diagram-height:" + px + "px}");
+								if (rules.length > 0) {
+									const sheet = document.createElement("style");
+									sheet.textContent = rules.join("");
+									document.head.append(sheet);
+								}
+							}
+						} catch {
+							// A tab without storage has no heights; the diagrams are drawn as they always were.
+						}
+					}
+				</script>
+			}
 			// Every page change is a whole new document, so the wait between a
 			// press and the page is the server's render time plus the trip. These
 			// rules let the browser spend that time before the press: it fetches

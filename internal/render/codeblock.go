@@ -21,6 +21,7 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/renderer"
+	goldmarkhtml "github.com/yuin/goldmark/renderer/html"
 	"github.com/yuin/goldmark/util"
 )
 
@@ -165,12 +166,46 @@ func matchedLexer(filename string) chroma.Lexer {
 	return lexerFiles.lookup(filename, lexers.Match)
 }
 
-// codeBlockRenderer renders a fenced code block via chroma in place of
-// goldmark's own default plain <pre><code> output.
-type codeBlockRenderer struct{}
+// codeCopySlot is the place a code block's copy control will take. The control
+// is script's to give, and a script that inserted it beside the block would add
+// an element to the page after the browser had already put the reader's
+// position back: the browser names where a reader left off by the elements
+// above it, counted from the top of their parent, and a count that has grown
+// since is a different place. The slot is that element, drawn by the server and
+// replaced in kind, so the page has the same elements and the same height
+// before and after script, and what the stylesheet holds for it is the control's
+// own height.
+const codeCopySlot = `<div class="y-codecopy-slot"></div>`
 
-func (codeBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
+// codeBlockRenderer renders a fenced code block via chroma in place of
+// goldmark's own default plain <pre><code> output, and an indented one with the
+// default's own markup. Both stand after a slot for the copy control.
+type codeBlockRenderer struct {
+	indented renderer.NodeRendererFunc
+}
+
+func newCodeBlockRenderer() codeBlockRenderer {
+	defaults := defaultRenderers{}
+	goldmarkhtml.NewRenderer().RegisterFuncs(defaults)
+	r := codeBlockRenderer{indented: defaults[ast.KindCodeBlock]}
+	if r.indented == nil {
+		panic("render: newCodeBlockRenderer requires a non-nil goldmark code block renderer")
+	}
+	return r
+}
+
+func (r codeBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer) {
 	reg.Register(ast.KindFencedCodeBlock, renderCodeBlock)
+	reg.Register(ast.KindCodeBlock, r.renderIndentedCodeBlock)
+}
+
+func (r codeBlockRenderer) renderIndentedCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
+	if entering {
+		if err := writeStrings(w, codeCopySlot); err != nil {
+			return ast.WalkStop, err
+		}
+	}
+	return r.indented(w, source, n, entering)
 }
 
 // renderCodeBlock writes one fenced code block's highlighted HTML. An empty or
@@ -185,6 +220,10 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 		// Unreachable in practice; skipping the node degrades gracefully rather
 		// than letting one odd node fail the whole render.
 		return ast.WalkContinue, nil
+	}
+
+	if err := writeStrings(w, codeCopySlot); err != nil {
+		return ast.WalkStop, err
 	}
 
 	var src strings.Builder
@@ -322,6 +361,6 @@ type codeBlockExtension struct{}
 
 func (codeBlockExtension) Extend(m goldmark.Markdown) {
 	m.Renderer().AddOptions(renderer.WithNodeRenderers(
-		util.Prioritized(codeBlockRenderer{}, 200),
+		util.Prioritized(newCodeBlockRenderer(), 200),
 	))
 }

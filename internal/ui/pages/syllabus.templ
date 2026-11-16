@@ -17,6 +17,7 @@ import (
 // shipped y-* / ui-* classes; no inline style.
 templ Syllabus(v PathView, c layouts.Chrome) {
 	{{ c.Readings = render.CarriesReadings(v.OpeningHTML) }}
+	{{ c.Diagrams = render.CarriesDiagrams(v.OpeningHTML) }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
