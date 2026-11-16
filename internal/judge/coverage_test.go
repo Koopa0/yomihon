@@ -10,88 +10,52 @@ import (
 // atlasContract declares a vault whose maps are called "atlas". A vault is free
 // to name its map types anything its contract lists, so the coverage face has
 // to read the vocabulary from the contract rather than recognise a fixed set.
-const atlasContract = `schema_version = "1"
+const atlasContract = `schema_version = "2"
+
+[folders]
+checked = ["Concepts", "Atlases"]
+templates = []
 
 [enums]
-type = ["concept", "atlas"]
-
-[enums.status]
-note = ["draft", "ready"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "status", "based_on"]
+common = ["type", "based_on"]
+required = ["type"]
+
+[types.concept]
+
+[types.atlas]
+role = "map"
 
 [rules]
 concept_requires_provenance = ["based_on"]
 
-[scan]
-knowledge_dirs = ["Concepts", "Atlases"]
-skip_basenames = []
-
-[navigation]
-path_types = []
-map_types = ["atlas"]
-
-[artifacts]
-non_instance_dirs = []
-
 [privacy]
 never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "ready"
-applies_to = ["*"]
-from = ["draft"]
-owner = ["koopa"]
 `
 
 // noConceptContract declares a vault with no concept type at all: its notes are
 // called "note" and its maps "atlas". Nothing in it can be a concept, so the
 // concept tally has nothing to be about.
-const noConceptContract = `schema_version = "1"
+const noConceptContract = `schema_version = "2"
+
+[folders]
+checked = ["Notes", "Atlases"]
+templates = []
 
 [enums]
-type = ["note", "atlas"]
-
-[enums.status]
-note = ["draft", "ready"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "status"]
+common = ["type"]
+required = ["type"]
 
-[scan]
-knowledge_dirs = ["Notes", "Atlases"]
-skip_basenames = []
+[types.note]
 
-[navigation]
-path_types = []
-map_types = ["atlas"]
-
-[artifacts]
-non_instance_dirs = []
+[types.atlas]
+role = "map"
 
 [privacy]
 never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
-
-[[lifecycle]]
-status = "ready"
-applies_to = ["*"]
-from = ["draft"]
-owner = ["koopa"]
 `
 
 // TestCoverageMountsOnContractMapTypes asserts a concept is mounted by an edge
@@ -103,8 +67,8 @@ func TestCoverageMountsOnContractMapTypes(t *testing.T) {
 
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, atlasContract)
-	write(t, root, "Concepts/Slice.md", "---\ntitle: Slice\ntype: concept\nbased_on:\n  - \"[[Go Atlas]]\"\n---\n\nBody.\n")
-	write(t, root, "Atlases/Go Atlas.md", "---\ntitle: Go Atlas\ntype: atlas\n---\n\n- [[Slice]]\n")
+	write(t, root, "Concepts/Slice.md", "---\ntype: concept\nbased_on:\n  - \"[[Go Atlas]]\"\n---\n# Slice\n\nBody.\n")
+	write(t, root, "Atlases/Go Atlas.md", "---\ntype: atlas\n---\n# Go Atlas\n\n- [[Slice]]\n")
 
 	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
@@ -129,8 +93,8 @@ func TestCoveragePendingMountIsANonMapReference(t *testing.T) {
 
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, atlasContract)
-	write(t, root, "Concepts/Idea.md", "---\ntitle: Idea\ntype: concept\nbased_on:\n  - \"[[Nowhere]]\"\n---\n\nBody.\n")
-	write(t, root, "Concepts/Seed.md", "---\ntitle: Seed\ntype: concept\nbased_on:\n  - \"[[Idea]]\"\n---\n\nBody.\n")
+	write(t, root, "Concepts/Idea.md", "---\ntype: concept\nbased_on:\n  - \"[[Nowhere]]\"\n---\n# Idea\n\nBody.\n")
+	write(t, root, "Concepts/Seed.md", "---\ntype: concept\nbased_on:\n  - \"[[Idea]]\"\n---\n# Seed\n\nBody.\n")
 
 	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
@@ -155,7 +119,7 @@ func TestCoverageWithholdsTheRouteFromAnUndeclaredType(t *testing.T) {
 
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, atlasContract)
-	write(t, root, "Concepts/Brief.md", "---\ntitle: Brief\ntype: research-brief\n---\n\nBody.\n")
+	write(t, root, "Concepts/Brief.md", "---\ntype: research-brief\n---\n# Brief\n\nBody.\n")
 
 	got, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
@@ -177,8 +141,8 @@ func TestCoverageSaysSoWhenNoConceptTypeIsDeclared(t *testing.T) {
 
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, noConceptContract)
-	write(t, root, "Notes/Alpha.md", "---\ntitle: Alpha\ntype: note\n---\n\nBody.\n")
-	write(t, root, "Atlases/Go Atlas.md", "---\ntitle: Go Atlas\ntype: atlas\n---\n\n- [[Alpha]]\n")
+	write(t, root, "Notes/Alpha.md", "---\ntype: note\n---\n# Alpha\n\nBody.\n")
+	write(t, root, "Atlases/Go Atlas.md", "---\ntype: atlas\n---\n# Go Atlas\n\n- [[Alpha]]\n")
 
 	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {

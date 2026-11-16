@@ -43,7 +43,7 @@ func (a scanAuthority) domainRoots() domainRoots {
 	if a.contract == nil {
 		return nil
 	}
-	return a.contract.Definition().Rules.DomainEqualsFolderUnder
+	return a.contract.Domains().Roots()
 }
 
 func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority, error) {

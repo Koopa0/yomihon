@@ -22,7 +22,7 @@ import (
 func TestAnUnpairedFormattingTagStaysInsideItsNote(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeVaultNote(t, root, "Notes/Formatting.md", "---\ntitle: Formatting\n---\n"+
+	writeVaultNote(t, root, "Notes/Formatting.md", "---\n---\n# Formatting\n\n"+
 		"Paired <u>kept</u> words, see [[Unwritten]].\n\n"+
 		"para <u>open\n\n"+
 		"Later prose.\n\n"+

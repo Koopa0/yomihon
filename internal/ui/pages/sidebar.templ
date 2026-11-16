@@ -9,7 +9,7 @@ import (
 )
 
 // sidebar is the left navigation rail the reading surfaces mount: the note,
-// folder, file, search, report, health, not-found and status-recovery pages.
+// folder, file, search, report, health and not-found pages.
 // The desk and the mode pages carry no rail at all, and the course page draws
 // its own. It is ordered for a daily reader: a filter box shipped hidden, the
 // "here" list of the current note's siblings, Paths and Maps, recent Journal
@@ -17,7 +17,7 @@ import (
 // expanded. It takes one resolved Sidebar, so a report builds it with no
 // current note and every branch renders closed. A nil model renders nothing.
 templ sidebar(sb Sidebar, c layouts.Chrome) {
-	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.LibraryNavigation.In(c.Lang) }>
+	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.VaultNavigation.In(c.Lang) }>
 		@railHead(c, true)
 		<div class="y-railbody" id="_y-nav-rail-body">
 			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
@@ -33,7 +33,7 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 				if faults := sb.CapabilityFaults(c.Lang); len(faults) > 0 {
 					<div class="y-railsep" aria-hidden="true"></div>
 					<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="_y-sidebar-navigation-diagnostics-title">
-						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.PathsAndMaps.In(c.Lang) }</h2>
+						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.CoursesAndMaps.In(c.Lang) }</h2>
 						for _, fault := range faults {
 							<p>
 								@browserDiagnostic(fault.Summary, fault.Detail)
@@ -46,7 +46,7 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 					<details open?={ sb.pathsChainOpen() } data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
 						<summary class="y-railsummary">
 							@chevron()
-							{ wording.Paths.In(c.Lang) }
+							{ wording.Courses.In(c.Lang) }
 						</summary>
 						<div class="y-railgroup">
 							for _, step := range sb.Steps {
@@ -160,7 +160,7 @@ templ pathTree(sb Sidebar, c layouts.Chrome, p nav.Path) {
 			<span class="y-railitem__name">{ p.Title }</span>
 		</summary>
 		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(syllabusHref(p.RelPath)) }>{ wording.ContentsLink.In(c.Lang) }</a>
+			<a class="y-railitem__full" href={ templ.URL(courseHref(p.RelPath)) }>{ wording.ContentsLink.In(c.Lang) }</a>
 			for _, g := range p.Groups {
 				@pathGroupNode(sb, c, p.RelPath, childChain(nil, g.Name), g)
 			}
@@ -206,15 +206,13 @@ templ pathGroupItems(sb Sidebar, c layouts.Chrome, pathRel string, chain []strin
 // names its lessons before they are written, so a row for an unwritten one is
 // the ordinary state of a course being taught rather than a fault in it.
 //
-// Neither this row nor a map's shows a status badge for the note being read.
-// The page already states that status twice from a live read of the note's own
-// line, and the generation republishes on its own cadence, so a third copy
-// would disagree with both right after a transition. The badge is still drawn,
-// hidden, wherever the row would otherwise print one, because a row without it
-// is wider for its name: the name wrapped in a different place on the note being
-// read than on the lessons beside it, and the rows moved by a line each time the
-// reader went from one to the next. A note at a settled status prints no badge
-// at all, being the ordinary state.
+// A row marks only a draft: a finished note prints no badge at all, being the
+// ordinary state. Neither this row nor a map's shows the badge for the note
+// being read, whose own page already says it is a draft. The badge is still
+// drawn, hidden, wherever the row would otherwise print one, because a row
+// without it is wider for its name: the name wrapped in a different place on
+// the note being read than on the lessons beside it, and the rows moved by a
+// line each time the reader went from one to the next.
 templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
 	if entry.Kind == nav.EntryResolved {
 		<a
@@ -224,8 +222,8 @@ templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
 			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
-			if entry.Status != "" && !entry.Settled {
-				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ entry.Status }</span>
+			if entry.Draft {
+				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ wording.Draft.In(c.Lang) }</span>
 			}
 		</a>
 	} else {
@@ -275,8 +273,8 @@ templ entryLink(sb Sidebar, c layouts.Chrome, entry nav.MapEntry) {
 		>
 			<span class="y-navdot" aria-hidden="true"></span>
 			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
-			if entry.Status != "" && !entry.Settled {
-				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ entry.Status }</span>
+			if entry.Draft {
+				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ wording.Draft.In(c.Lang) }</span>
 			}
 		</a>
 	} else {

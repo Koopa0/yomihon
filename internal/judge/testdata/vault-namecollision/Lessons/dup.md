@@ -1,5 +1,5 @@
 ---
-title: Lessons 的 dup
 ---
+# Lessons 的 dup
 
 The other one.

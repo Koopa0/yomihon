@@ -45,7 +45,7 @@ func TestFrontmatterRuntimeExplanationBoundaries(t *testing.T) {
 				if diff := cmp.Diff(wantRail, [2]string{summary, detail}); diff != "" {
 					t.Errorf("FrontmatterExplanation(%q) mismatch (-want +got):\n%s", tc.diagnostic, diff)
 				}
-				gotSchema := SchemaSentence(chrome.lang, "schema.frontmatter", "", tc.diagnostic, "")
+				gotSchema := SchemaSentence(chrome.lang, "schema.frontmatter", "", tc.diagnostic)
 				if diff := cmp.Diff(wantSchema, gotSchema); diff != "" {
 					t.Errorf("SchemaSentence(%q) mismatch (-want +got):\n%s", tc.diagnostic, diff)
 				}

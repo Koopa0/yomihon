@@ -1,8 +1,5 @@
 ---
-title: Go 並行入門
 type: study-path
-status: ready
-topics: [Go, 並行, goroutine, channel]
 created: 2026-09-22
 lang: zh-Hant
 ---

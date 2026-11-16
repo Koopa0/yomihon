@@ -1,6 +1,5 @@
 ---
-title: "Unlisted"
 type: lesson
-status: draft
 ---
+# Unlisted
 body

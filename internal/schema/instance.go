@@ -9,24 +9,7 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-const (
-	// These are said only about a contract that exists and left the section
-	// out; a folder carrying no contract declares nothing and reports nothing.
-	undeclaredNavigationDiagnostic = "contract declares no navigation roles; Paths and Maps disabled until it does"
-	undeclaredArtifactDiagnostic   = "contract declares no artifact policy; instance projections disabled until it does"
-	staleArtifactDiagnostic        = "vault artifact policy source changed after startup; instance projections disabled until restart"
-)
-
-type navigationSection struct {
-	PathTypes  []string `toml:"path_types"`
-	MapTypes   []string `toml:"map_types"`
-	JournalDir string   `toml:"journal_dir"`
-	AnswerType string   `toml:"answer_type"`
-}
-
-type artifactSection struct {
-	NonInstanceDirs []string `toml:"non_instance_dirs"`
-}
+const staleArtifactDiagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
 
 // NavigationRoles classifies note types used for ordered study paths and
 // general maps; its membership sets cannot be changed after loading. The zero
@@ -226,71 +209,42 @@ func (p ArtifactPolicy) Capture() ArtifactPolicy {
 	}}
 }
 
-func deriveNavigationRoles(
-	section *navigationSection,
-	enumTypes []string,
-	pathTypesDefined bool,
-	mapTypesDefined bool,
-) NavigationRoles {
-	// A contract that exists and omits the section left an input out, which is
-	// the operator's news; the silent zero value belongs to a folder with no
-	// contract at all.
-	if section == nil {
-		return NavigationRoles{claim: Rejected(undeclaredNavigationDiagnostic)}
-	}
-	switch {
-	case !pathTypesDefined && !mapTypesDefined:
-		return invalidNavigationRoles(`missing required keys "path_types", "map_types"`)
-	case !pathTypesDefined:
-		return invalidNavigationRoles(`missing required key "path_types"`)
-	case !mapTypesDefined:
-		return invalidNavigationRoles(`missing required key "map_types"`)
-	}
-	known := make(map[string]struct{}, len(enumTypes))
-	for _, noteType := range enumTypes {
-		known[noteType] = struct{}{}
-	}
-	paths := make(map[string]struct{}, len(section.PathTypes))
-	for _, noteType := range section.PathTypes {
-		if _, ok := known[noteType]; !ok {
-			return invalidNavigationRoles("path type %q is not declared in enums.type", noteType)
+// deriveNavigationRoles reads the roles the contract gave its types. A role it
+// does not know, or a second type holding a role only one may hold, closes
+// navigation rather than refusing the contract: the check report says so, and
+// the reader still opens everything it can read.
+func deriveNavigationRoles(types []typeDefinition) NavigationRoles {
+	sets := roleSets{paths: map[string]struct{}{}, maps: map[string]struct{}{}}
+	holders := map[Role]string{}
+	for _, def := range types {
+		switch def.role {
+		case "":
+			continue
+		case RoleCourse:
+			sets.paths[def.name] = struct{}{}
+		case RoleMap:
+			sets.maps[def.name] = struct{}{}
+		case RoleLesson, RoleThought:
+			if holder, taken := holders[def.role]; taken {
+				return invalidNavigationRoles("types %q and %q both hold the %s role, which one type holds", holder, def.name, def.role)
+			}
+			holders[def.role] = def.name
+		default:
+			return invalidNavigationRoles("type %q has the unknown role %q", def.name, string(def.role))
 		}
-		if _, duplicate := paths[noteType]; duplicate {
-			return invalidNavigationRoles("path type %q is declared more than once", noteType)
-		}
-		paths[noteType] = struct{}{}
 	}
-	mapTypes := make(map[string]struct{}, len(section.MapTypes))
-	for _, noteType := range section.MapTypes {
-		if _, ok := known[noteType]; !ok {
-			return invalidNavigationRoles("map type %q is not declared in enums.type", noteType)
-		}
-		if _, duplicate := mapTypes[noteType]; duplicate {
-			return invalidNavigationRoles("map type %q is declared more than once", noteType)
-		}
-		if _, pathType := paths[noteType]; pathType {
-			return invalidNavigationRoles("type %q is declared as both a path and a map", noteType)
-		}
-		mapTypes[noteType] = struct{}{}
-	}
-	return NavigationRoles{sets: &roleSets{paths: paths, maps: mapTypes}, claim: heldClaim()}
+	sets.lesson = holders[RoleLesson]
+	sets.answer = holders[RoleThought]
+	return NavigationRoles{sets: &sets, claim: heldClaim()}
 }
 
 func invalidNavigationRoles(format string, args ...any) NavigationRoles {
 	return NavigationRoles{claim: Rejected(fmt.Sprintf("invalid navigation roles: "+format+"; Paths and Maps disabled", args...))}
 }
 
-func deriveArtifactPolicy(section *artifactSection, nonInstanceDirsDefined bool, source policySource) ArtifactPolicy {
-	// An existing contract that omits the section left an input out; a folder
-	// with no contract yields the silent zero value.
-	if section == nil {
-		return ArtifactPolicy{state: &artifactPolicyState{claim: Rejected(undeclaredArtifactDiagnostic)}}
-	}
-	if !nonInstanceDirsDefined {
-		return ArtifactPolicy{state: &artifactPolicyState{claim: Rejected(`invalid artifact policy: missing required key "non_instance_dirs"`)}}
-	}
-	dirs := make([]string, 0, len(section.NonInstanceDirs))
-	for _, original := range section.NonInstanceDirs {
+func deriveArtifactPolicy(templates []string, source policySource) ArtifactPolicy {
+	dirs := make([]string, 0, len(templates))
+	for _, original := range templates {
 		normalized, ok := normalizeDeclaredDir(original)
 		if !ok {
 			return invalidArtifactPolicy(original)
@@ -306,6 +260,6 @@ func deriveArtifactPolicy(section *artifactSection, nonInstanceDirsDefined bool,
 
 func invalidArtifactPolicy(value string) ArtifactPolicy {
 	return ArtifactPolicy{state: &artifactPolicyState{
-		claim: Rejected(fmt.Sprintf("invalid artifact policy: non_instance_dirs contains %q", value)),
+		claim: Rejected(fmt.Sprintf("invalid artifact policy: templates contains %q", value)),
 	}}
 }

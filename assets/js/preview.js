@@ -180,10 +180,9 @@ export function initPreview() {
   // click, so a card on it would be a second affordance on one element.
   const links = [...root.querySelectorAll('.y-prose a.wikilink:not(.concept-link)')].filter(eligible);
 
-  // The sources a claim declares sit in the rail, which is outside the main
-  // element, and in the disclosure the narrow layout folds above the text,
-  // which is inside it, so they are asked for by their own block rather than
-  // by widening the root. The outline, the course navigation, the list of
+  // The sources a claim declares sit in the block that ends the note, after
+  // the prose and not in it, so they are asked for by their own block rather
+  // than by widening the root. The outline, the course navigation, the list of
   // notes citing this one and the list of notes that declare this one as their
   // source are not this note's declared sources and are never asked. The last
   // shares the block's class, so it is excluded by the attribute the renderer

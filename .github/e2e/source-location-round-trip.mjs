@@ -2,9 +2,8 @@
 // reader follows them: from the claim to the Methods passage of its source,
 // back to the claim, then on to the Limitations passage, and a section the
 // source no longer has keeping its address as written and opening the source
-// from the top with its reason in view. It
-// runs at a wide and a phone width, where the list sits in the rail and in a
-// disclosure respectively.
+// from the top with its reason in view. It runs at a wide and a phone width,
+// where the list sits in the same place, the block that ends the note.
 //
 // The server-rendered half of the promise (anchors checked against the
 // captured generation, authored order, fallback words) is held by Go tests;
@@ -64,19 +63,19 @@ const SOURCE_LINK = `href="${SOURCE}`;
 const MUTATIONS = {
   'drop-methods-fragment': {
     target: 'fragment-methods',
-    apply: rewrite(CLAIM_ROUTE, `${SOURCE_LINK}#methods"`, `${SOURCE_LINK}"`, 2, 'Methods location link'),
+    apply: rewrite(CLAIM_ROUTE, `${SOURCE_LINK}#methods"`, `${SOURCE_LINK}"`, 1, 'Methods location link'),
   },
   'swap-limitations-target': {
     target: 'fragment-limitations',
-    apply: rewrite(CLAIM_ROUTE, `.md#limitations"`, `.md#methods"`, 2, 'Limitations location link'),
+    apply: rewrite(CLAIM_ROUTE, `.md#limitations"`, `.md#methods"`, 1, 'Limitations location link'),
   },
   'drop-missing-fragment': {
     target: 'fallback-address',
-    apply: rewrite(CLAIM_ROUTE, `${SOURCE_LINK}#missing"`, `${SOURCE_LINK}"`, 2, 'missing section link'),
+    apply: rewrite(CLAIM_ROUTE, `${SOURCE_LINK}#missing"`, `${SOURCE_LINK}"`, 1, 'missing section link'),
   },
   'hide-fallback-reason': {
     target: 'fallback-reason',
-    apply: rewrite(CLAIM_ROUTE, '<span class="y-basedon__reason">', '<span class="y-basedon__reason" hidden>', 2, 'fallback reason'),
+    apply: rewrite(CLAIM_ROUTE, '<span class="y-basedon__reason">', '<span class="y-basedon__reason" hidden>', 1, 'fallback reason'),
   },
   // A page script that pushes a second history entry for the address it is
   // already at makes Back stay on the source page.
@@ -116,13 +115,10 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-// openSources returns the one source list a reader can see, opening the
-// narrow layout's disclosure when that is where it sits.
+// openSources returns the one source list a reader can see. It sits in the
+// block that ends the note at every width, so there is no disclosure to open
+// and a second copy of the list anywhere on the page is a break.
 const openSources = async (page) => {
-  const disclosure = page.locator('details.y-toc-inline').filter({ has: page.locator('.y-basedon') }).first();
-  if (await disclosure.count() && await disclosure.isVisible() && !(await disclosure.evaluate((el) => el.open))) {
-    await disclosure.locator('summary').click();
-  }
   const list = page.locator('.y-basedon:visible');
   if (await list.count() !== 1) broken(`${await list.count()} source lists are visible, want 1`);
   return list;

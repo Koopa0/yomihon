@@ -20,24 +20,25 @@ reading page, and gets it well — no marker is needed to be read, linked,
 searched or rendered.
 
 **Everything beyond that is declared, never inferred.** yomihon reads no
-structure, and no claim about a note's quality or status, out of heading
-wording, list punctuation, or indentation. When it cannot determine a
+structure, and no claim about a note's quality or whether it is finished, out of
+heading wording, list punctuation, or indentation. When it cannot determine a
 projection it keeps the prose, stops, and reports. It never guesses and never
-flattens, and the one field it ever writes into your vault is `status` — the
-section below says what that means and what it refuses. Where a reader keeps a
-reading place, or marks a location "Not sure yet", that goes in a file of
-yomihon's own outside the vault. No command reads the kept place; one command,
-`left-open`, reads the marked locations, and only to list them.
+flattens, and it never writes into your vault: a note changes only where you
+edit it. Where a reader keeps a reading place, or marks a location "Not sure
+yet", that goes in a file of yomihon's own outside the vault. No command reads
+the kept place; one command, `left-open`, reads the marked locations, and only
+to list them.
 
 Everything below assumes a `yomihon` on your `PATH`. There is no `--version`
 to ask; this page's probe is how you find out what the one you have can see.
 `yomihon serve` runs until you stop it, so the recipes that use it are two
 things to do, not one line to paste.
 
-The contract (`<vault>/System/schemas/vault-schema.toml`) owns types, fields,
-statuses, the scan and privacy boundaries, and which types form courses and
-maps. Every vault's is different; `examples/vault` in this repository ships a
-small working one. The code owns the dialect, the study-path grammar, link
+The contract (`<vault>/System/schemas/vault-schema.toml`) owns the folders it
+checks, the note types and the role each plays in courses and maps, which of
+yomihon's fields a note may write and the values some may take, and the privacy
+boundary. Every vault's is different; `examples/vault` in this repository ships
+a small working one. The code owns the dialect, the study-path grammar, link
 resolution and search. Where this page and `yomihon check` disagree, `check` is
 right.
 
@@ -54,8 +55,9 @@ Four habits, and they are the whole of it:
 
 1. **You settle the filename before the title,** because the filename is what a
    `[[link]]` resolves against and the title is not.
-2. **You open the vault's contract before choosing frontmatter,** because the
-   legal keys and values are declared per vault and there is no default set.
+2. **You open the vault's contract before choosing frontmatter,** because
+   which of yomihon's fields a note may write, and which values some may take,
+   is declared per vault.
 3. **You declare structure rather than implying it** — a course is a list with
    a role written on each branch, not an arrangement a reader can see.
 4. **You run `yomihon check` before you call a note done,** because the ways
@@ -79,7 +81,7 @@ errors both.
 
 To gate on course structure, use `--deny warn --all` on the path you touched.
 `--all` restores the link and course findings that touch nothing inside
-`[scan] knowledge_dirs`, which the default report drops. What it cannot do is
+`[folders] checked`, which the default report drops. What it cannot do is
 make the frontmatter rules judge a note filed outside that layer — those never
 ran, and no flag starts them; `references/diagnostics.md` owns the difference.
 
@@ -93,8 +95,9 @@ catches. The severity model is in `references/diagnostics.md`.
 When the command cannot run at all it exits 2 with **empty stdout** and the
 reason on stderr. On a vault that otherwise looks healthy the cause is almost
 always a contract yomihon could not use — most often one carrying no
-`[privacy]` section, but any refused contract reads the same, because a
-contract it could not load has granted nothing. `check` will not say which:
+`[privacy]` section, or one written for another contract format, but any
+refused contract reads the same, because a contract it could not load has
+granted nothing. `check` will not say which:
 naming the reason would quote the contract back out under the very policy that
 is missing. Read it where reading is the point:
 
@@ -123,7 +126,7 @@ zero course findings on a healthy vault is exactly what a blind binary prints
 on any vault.
 
 The probe below writes its own vault — contract and all — so nothing it says
-depends on your contract's spellings, scan directories or privacy policy, and a
+depends on your contract's spellings, checked folders or privacy policy, and a
 wrong answer is about the binary rather than about your notes. It reads the
 **exit code and the stderr line**, never stdout, because every refusal prints
 nothing at all on stdout and a check that reads stdout scores a refusal as a
@@ -137,32 +140,15 @@ clean report:
 probe=$(mktemp -d)
 mkdir -p "$probe/System/schemas"
 cat > "$probe/System/schemas/vault-schema.toml" <<'TOML'
-schema_version = "1"
-[enums]
-type = ["probe"]
-[enums.status]
-note = ["draft"]
-[fields]
-known = ["title", "type", "status"]
-[navigation]
-path_types = ["probe"]
-map_types = []
-[artifacts]
-non_instance_dirs = []
+schema_version = "2"
+[types.probe]
+role = "course"
 [privacy]
 never_egress_dirs = []
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-initial = true
-from = []
-owner = ["author"]
 TOML
 cat > "$probe/Probe.md" <<'MD'
 ---
-title: Probe
 type: probe
-status: draft
 ---
 
 ## Undeclared
@@ -193,7 +179,7 @@ accident:
 | **blind** | exit 0: it accepted `path.role_missing` as a real rule id and then reported none where one is guaranteed. Trust none of its quiet course reports |
 | **too old** | exit 2, `unknown --deny` on stderr: it has never heard of this rule, which is the plainest answer the probe can give you |
 | **no binary** | exit 127 |
-| **refused** | exit 2 with any other message: it could not read the probe vault and has said nothing about its rules. The message is printed for you |
+| **refused** | exit 2 with any other message: it could not read the probe vault and has said nothing about its rules. A binary built before the contract format `schema_version = "2"` lands here too, because it cannot use that contract. The message is printed for you |
 
 Keeping stderr is what separates the last three, and it is the difference
 between telling a reader their binary is out of date and sending them to debug
@@ -210,7 +196,7 @@ anything else:
   finding is due — *blind*.
 
 A third shows why `--all` is in the command, and carries a side effect worth
-naming. Add a `[scan]` table with `knowledge_dirs = ["Elsewhere"]` and drop
+naming. Add a `[folders]` table with `checked = ["Elsewhere"]` and drop
 `--all`: the finding is discarded for touching nothing inside the knowledge
 layer, and the verdict is *blind*; put `--all` back and it is *proven* again.
 That contract also earns a `schema.unmatched_knowledge_dir`, because the probe
@@ -225,26 +211,33 @@ yomihon left-open --root <vault> --format json
 ```
 
 One JSON object per line, newest first: each location the reader marked "Not
-sure yet" (`"kind":"location"`) and each note of the contract's answer type
-still in a status the contract declares initial (`"kind":"thought"`). It is the
-"What you left open" shelf, read by the same selection. A location carries
-`path`, `anchor`, `anchor_text`, `title`, `wikilink` and `create_time`; a
-thought carries `path`, `title`, `status`, `wikilink` and `update_date`. A
-field with no value is left out, except a lost location's `anchor`. `wikilink` is written with its brackets, the
+sure yet" (`"kind":"location"`) and each note of the type that holds the
+contract's `thought` role that declares `draft: true` (`"kind":"thought"`). It
+is the "What you left open" shelf, read by the same selection. A location
+carries `path`, `anchor`, `anchor_text`, `title`, `wikilink` and `create_time`;
+a thought carries `path`, `title`, `wikilink` and `create_date`. A field with no
+value is left out, except a lost location's `anchor`. A `title` is the note's
+first `#` heading and is left out when it has none; the file name never stands
+in. A thought's `create_date` is the day its own `created` field declares, and
+that day is what orders thoughts among the marks: a thought that declares none
+is listed after every dated item. `wikilink` is written with its brackets, the
 form a `based_on` takes, and is left out wherever it could point somewhere
 else — a heading another heading of the note shares, or a path a link cannot
 spell back. A location whose note or heading is gone is still listed, with
 `lost` saying `note` or `location` and `anchor` present but empty: an anchor
 is made from a heading's words, and with the heading gone nothing is left to
-check them against. A mark in a folder the contract leaves out of the scan is
-not listed. No note body is in the output beyond the words of a heading or
-practice card and the declared title; read the note through its path when
-you need it.
+check them against. A mark in a folder the contract keeps out of the scan
+(`[folders] ignored`) is not listed. No note body is in the output beyond the
+words of a heading or practice card and the title; read the note through its
+path when you need it.
 
 Use it to pick up where the reader stopped understanding, not to decide for
 them: a marked location is a question the reader has not asked yet, and
-whether a thought is finished is theirs to say through its `status`. The
-command changes nothing — it sets and clears no mark and writes no file.
+whether a thought is finished is theirs to say, by taking `draft: true` out of
+it. The command changes nothing — it sets and clears no mark and writes no
+file. An empty list is not a finding either way: reading that left no mark is
+complete reading, and a mark is a lead to investigate, not a verdict on the
+lesson it sits in (`references/writing-for-the-reader.md`).
 
 Exit codes: `0` with the list, an empty one included · `2` the command could
 not run. stdout is the list alone. When no location is listed, stderr says
@@ -267,35 +260,57 @@ that only looks like a Latin one, such as Cyrillic `Р`, is not recognised.
 Plain words that merely share a withheld note's file name are the author's own
 and are listed as written.
 
-## Frontmatter: the contract decides, and you may not invent a field
+## Frontmatter: a closed list, and the contract chooses from it
 
-Open the vault's contract before choosing a single key. There is no default
-field set, no key that is safe because it looks ordinary, and no value you can
-reason your way to: `[fields] known` lists the keys any note may carry and
-`[fields] lesson_only` the further ones only a lesson may, and a key on neither
-list is an error even when nothing would have read it. That rule catches people
-twice — once on a field they invented, and once on a field a yomihon capability
-really does read, which still has to be declared before writing it does
-anything.
+yomihon defines the fields a note may carry, and the list is closed. A key
+outside it is `schema.unknown_key`, an error, even when nothing would have read
+it; there is no key that is safe because it looks ordinary and none to invent.
+The fields:
 
-Three things about a contract you have not seen before are worth knowing in
-advance, because each makes a legal-looking note wrong:
+| Field | What it is |
+|---|---|
+| `type` | which of the contract's note types this is. Always allowed |
+| `aliases` | further names a `[[link]]` resolves against. Always allowed |
+| `draft` | `true` says the note is still being written. Always allowed; see below |
+| `based_on` | the note or notes this one is written from, each quoted: `["[[Note]]"]`. `provenance.unresolved` reports one that reaches nothing |
+| `lang` | the language of the note's own text, as a BCP 47 tag such as `zh-Hant` or `ja`; `schema.language` reports a malformed one |
+| `created` | the day the note was made, `2026-11-12`. It dates a report and orders the thoughts `left-open` lists |
+| `slug` | a lesson's stable key. The type that holds the `lesson` role must write it |
+| `level` | how much the lesson assumes. When `[enums] level` lists values, it is one of them |
+| `prerequisites`, `verified_on`, `verified_with` | allowed, and read by nothing yet: no page shows them and no command checks them |
 
-- a status can be legal for one type and an error on another;
-- a key a lesson may carry may be forbidden to every other type;
-- a note outside the directories the contract calls knowledge is read and
-  linked and searched, but is not judged — so silence over it is not a verdict.
+`type`, `draft`, `aliases` and Obsidian's own `tags` and `cssclasses` need no
+listing. Every other field a note writes has to be listed by the contract
+first: `[fields] common` for any note, a type's own `fields` for that type
+alone. A contract whose field lists name anything that is neither in the table
+nor one of Obsidian's, `title` and `domain` included, is refused whole.
 
-`references/frontmatter.md` is every table, what each one does to a note you are
-writing, and the two sections whose *absence* quietly closes a capability
-rather than failing the load.
+Open the vault's contract before choosing a key, and expect three things from a
+contract you have not seen, because each makes a legal-looking note wrong:
 
-`status` is the one field yomihon writes itself, under the contract's
-`[[lifecycle]]`, and it rewrites the value alone — the rest of that line, the
-comment you left on it and the quoting you chose all survive. `published` is
-the exception it will not make: it records a publication outside the vault that
-nothing here can attest, so the control is never offered and a request for it
-is refused. It is set by hand.
+- a field can be legal on one type and unknown on another, and `created` and
+  `lang` count only when `[fields] common` lists them;
+- a note whose `type` the contract does not declare has its type-only fields
+  left unjudged and reported once as `schema.type_dependent`;
+- a note outside the folders the contract calls checked is read and linked and
+  searched, but is not judged, so silence over it is not a verdict.
+
+A note writes no title and no domain. Its title is its first `#` heading, or
+its file name when it has none. Its domain is the folder it sits in below a
+root `[folders] domain_from` names, and a note directly under a root has none,
+with nothing reported about it. Writing `title` or `domain` is
+`schema.unknown_key`.
+
+A finished note writes no `draft` at all; `draft: false` says the same. Taking
+`draft: true` out of a note, or putting it back, is done in your editor:
+nothing else records how far along a note is, and no command or button does it
+for you. A `draft` written as anything but `true` or `false` is `schema.draft`.
+When one note replaces another, the old one is deleted and its name goes into
+the new one's `aliases`; `references/writing-for-the-reader.md` has the rule
+and when it does not apply.
+
+`references/frontmatter.md` is every table of the contract, what each one does
+to a note you are writing, and what happens when one is missing.
 
 ## Names are keys; titles are not
 
@@ -303,12 +318,13 @@ is refused. It is set by hand.
 |---|---|
 | Exact lookup | four forms of the note's location — filename stem, filename, vault-relative path stem, that path — plus any `aliases` |
 | Slash target with no exact claimant | complete path suffix at a `/` boundary, such as `[[Atlas/README]]` for `Notes/Projects/Atlas/README.md`; one candidate links, several stay ambiguous |
-| Never resolves against | the frontmatter `title`. A link written against a title finds nothing; `check` names it `link.title_not_alias` and tells you which note you meant |
+| Never resolves against | a note's title, which is its first `#` heading. A link written against a title finds nothing; `check` names it `link.title_not_alias` and tells you which note you meant |
 | Two files, one name | every `[[link]]` to it is ambiguous and yomihon refuses to guess: nothing links, a span lists the candidates. Original key collisions produce `collision.name`, but only for a name some `[[link]]` or `![[embed]]` is written against (files that share a name and are linked by path or not at all draw nothing); suffix lookup adds no collision keys. Two notes declaring one alias is `collision.alias` |
 | Normalisation | trimmed, NFC, compared without regard to case, so `[[L01]]` and `[[l01]]` are one key and two files differing only in case collide |
 
 Give a note a name unique in the vault; add an alias when a second spelling
-should work; use a distinguishing parent-folder suffix or the full vault-relative
+should work, or when the note an old name belonged to has been deleted and this
+one took its place; use a distinguishing parent-folder suffix or the full vault-relative
 path when a generic name is unavoidable. Existing keys and aliases win before
 suffix lookup. Fragments, embeds, and how to mark a link as owed rather than
 broken are in `references/names-and-links.md`.
@@ -346,7 +362,7 @@ collide. Beyond that:
 | `![[name.html]]` | a **figure**: the file in a frame of its own | see "Figures" below; a figure whose markup reaches outside it is not shown, and a stand-in names why. `![alt](name.html)` stays an ordinary link |
 | `![alt](pic.png)` | an image | a remote destination becomes an explicit link, never a request; a destination that is neither local nor http shows the alt text alone |
 | `## 標題` | a heading with an anchor | letters and digits, with the marks written on them, survive; other characters collapse to `-`, and a repeated slug bumps `-2`, `-3` until it is free |
-| `<!-- read-aloud: zh-Hant -->` | a speech control on the next paragraph | accepts any well-formed BCP 47 tag, such as `ja`, `zh-Hant`, `en` or `fr`, and gives the paragraph its canonical language. Write `zh-Hant` for Traditional Chinese passages; `zh` alone selects Simplified-script voices through likely subtags. A malformed value is **deleted from the page**, not escaped or visible. Controls appear only on a `type: lesson` note outside `[artifacts] non_instance_dirs`; elsewhere a valid marker remains an invisible HTML comment. A device without a local voice for the passage's language uses the existing unavailable message; `und` requires a local default voice. Locality rests on the browser's report |
+| `<!-- read-aloud: zh-Hant -->` | a speech control on the next paragraph | accepts any well-formed BCP 47 tag, such as `ja`, `zh-Hant`, `en` or `fr`, and gives the paragraph its canonical language. Write `zh-Hant` for Traditional Chinese passages; `zh` alone selects Simplified-script voices through likely subtags. A malformed value is **deleted from the page**, not escaped or visible. Controls appear only on a note of the type that holds the `lesson` role, outside the `[folders] templates` directories; elsewhere a valid marker remains an invisible HTML comment. A device without a local voice for the passage's language uses the existing unavailable message; `und` requires a local default voice. Locality rests on the browser's report |
 | `[[#Section]]` | **same-page link** | a heading in the current note takes the same id as its contents entry; an alias keeps its authored label. A missing section keeps its address, renders degraded, and draws a page diagnostic. In a transcluded excerpt the link names the source note. Same-note block references and embeds still draw only their display text; the judge does not check same-note links |
 | `> [!quote] [[Note]]` | **plain text** | every callout shell's title is escaped, not parsed, including a neutral shell for an unknown type; a wikilink, an HTML tag, emphasis, a code span, a markdown link or an image there draws `callout.title_markup` — move the markup into the body |
 
@@ -456,31 +472,31 @@ second reader does.
 
 ## Being findable
 
-Six filter keys:
+Five filter keys:
 
-`type:` · `status:` · `domain:` · `slug:` · `topic:` · `folder:`
+`type:` · `draft:` · `domain:` · `slug:` · `folder:`
 
 | Property | Behaviour |
 |---|---|
 | Case | **lowercase only.** `Type:lesson` is not a filter — it degrades to a literal token searched as text |
 | Repeated key | **AND.** Two `type:` filters both have to hold, so they are jointly unsatisfiable rather than last-wins |
-| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, Unicode simple case folding without multi-rune expansion). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `topic:` is membership of the folded topics |
-| Unknown prefix | named back to the reader with all six offered, and the term is searched as text rather than dropped |
+| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, Unicode simple case folding without multi-rune expansion). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `domain:` is the folder name under a `domain_from` root, not a field the note writes |
+| Unknown prefix | named back to the reader with all five offered, and the term is searched as text rather than dropped |
 | Quoting | `"…"`, `「…」`, `『…』` — at the start of a field, or straight after a recognised key and its colon |
-| Indexed | title, aliases, declared topics, frontmatter tags, body plain text and the vault-relative path are free-text searchable; type, status, domain and slug are reachable only through their own filter. An alias hit is filed with the title hits |
+| Indexed | title, aliases, frontmatter tags, body plain text and the vault-relative path are free-text searchable; type, domain and slug are reachable only through their own filter, and `draft:true` or `draft:false` selects by the draft flag. An alias hit is filed with the title hits |
 | Tag shorthand | Frontmatter tags also answer bare words and one leading `#` as tag shorthand. Every token must match the same declared tag. The answering tag is shown in its original spelling; queries against other fields keep their literal hashes. There is no `tag:` filter or note-head tag display |
 | CJK | no segmenter: a folded literal substring, and a newline between two Han or Kana runes is dropped |
-| Ranking | nine fixed groups: note title/alias, note body, note topic, note tag, file title, file body, file topic, note path and file path. Frontmatter tags rank below body and topic hits; inline tags are not indexed as metadata. Inside a group, notes in the directories the contract calls knowledge come before those outside, then vault reading order. A title that is exactly the query under that fold leads. There is no score |
+| Ranking | seven fixed groups: note title/alias, note body, note tag, file title, file body, note path and file path. Frontmatter tags rank below body hits; inline tags are not indexed as metadata. Inside a group, notes inside `[folders] checked` come before those outside, then vault reading order. A title that is exactly the query under that fold leads. There is no score |
 
 ## Study paths: sequence is declared, never inferred
 
 Two gates run before any of the grammar below, and both are silent when unmet —
 the body can be perfect and nothing projects.
 
-1. **The note's `type` must be listed under `[navigation] path_types`** in the
-   contract. A note whose type is not listed answers nothing at
-   `/syllabus/<its path>` and enters no count, whatever it contains. Maps are
-   gated the same way by `map_types`.
+1. **The note's `type` must hold the `course` role** in the contract
+   (`[types.<name>] role = "course"`). A note whose type holds no such role
+   answers nothing at `/courses/<its path>` and enters no count, whatever it
+   contains. Maps are gated the same way by the `map` role.
 2. **A map is not a study path.** Maps, reports and ordinary notes do not read
    this syntax at all, and the marker does not show up on their pages either:
    it is stripped wherever it could have declared something, so it vanishes
@@ -516,8 +532,8 @@ course, not after the count comes out wrong.
 
 ## Maps: grouping without ordering
 
-A map is the other declared collection: a note whose type is on
-`[navigation] map_types`, holding links grouped under headings rather than put
+A map is the other declared collection: a note whose type holds the `map` role
+(`[types.<name>] role = "map"`), holding links grouped under headings rather than put
 in order. It has branches, not lessons — no count of lessons, no prev/next, and
 no sequence grammar.
 
@@ -525,9 +541,9 @@ The thing to know before writing one is that **no rule judges a map's shape.**
 A heading whose links all point at nothing, or sit somewhere the scanner does
 not read, simply disappears from the map and is reported by nobody. You find
 that out by looking at `/maps`, where such a map reads *0 branches*, not by
-running `check`. What counts as a branch, what counts as an entry, what
-`map_kind` is for, and what listing a note on a map changes about
-`yomihon coverage` are in `references/maps.md`.
+running `check`. What counts as a branch, what counts as an entry, and what
+listing a note on a map changes about `yomihon coverage` are in
+`references/maps.md`.
 
 ## One note into a course, end to end
 
@@ -536,13 +552,14 @@ in this order, and only the last is about the course:
 
 1. **The filename**, because it is the key a `[[link]]` will be typed against,
    and the title is not.
-2. **The frontmatter**, every key traced to a table in the contract rather than
-   chosen — `[fields] required` for what must be there, `[fields] lesson_only`
-   for the extras a lesson may carry, `[enums.status]` for the value, `[rules]`
-   for the shape of it.
-3. **The directory**, one `[scan] knowledge_dirs` names — because outside it
-   the frontmatter rules judge nothing, and silence there is not a pass.
-4. **The study path's own type**, which has to be on `[navigation] path_types`.
+2. **The frontmatter**, every key traced to the closed field list and to the
+   contract rather than chosen — `[fields] common` and the type's own `fields`
+   for what may be written, `[fields] required` and the type's `required` for
+   what must be there, `[enums]` for the values, the type's `slug_pattern` for
+   the shape of the slug.
+3. **The folder**, one `[folders] checked` names — because outside it the
+   frontmatter rules judge nothing, and silence there is not a pass.
+4. **The study path's own type**, which has to hold the `course` role.
    This is the gate that fails most quietly: get it wrong and the note is fine,
    the page renders, and the course simply does not exist.
 5. **One row on a branch that already declares its role**, opening with the
@@ -591,8 +608,8 @@ below is not something `check` will do for you.**
 2. `--deny warn --all` on that path exits 0. The threshold covers errors too,
    so one run says you invented no field, wrote no value the contract does not
    declare, and left no branch undeclared — **of a note the schema rules
-   reach**. If it is filed outside `[scan] knowledge_dirs` this proves none of
-   that, and the repair is to move it, not to add a flag.
+   reach**. If it is filed outside `[folders] checked` this proves none of that,
+   and the repair is to move it, not to add a flag.
 3. If the note is a lesson, a study path lists it — in the same change.
 4. If the note is a lesson, it asks the reader something before it tells them —
    a judgement about the lesson rather than a fault in it, which is why nothing
@@ -604,7 +621,7 @@ below is not something `check` will do for you.**
    against `references/writing-for-the-reader.md`, because nothing else checks
    those rules.
 8. **Look at the projection, because no command reports it.** Open the course
-   at `/syllabus/<the path's path>` and the count is what you meant; a map you
+   at `/courses/<the path's path>` and the count is what you meant; a map you
    wrote is at `/maps` with the branches you expected. A 404 or a number one
    short is the only sign of the quietest fault there is — a note whose type
-   never reached `[navigation]`.
+   holds no `course` role.

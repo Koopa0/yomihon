@@ -18,18 +18,18 @@ type ArticleLanguage struct {
 }
 
 // ArticleLanguage returns the contract-derived article-language resolver. The
-// field is authoritative only when the universal fields.known vocabulary
-// declares "lang"; a lesson-only declaration cannot describe every note.
+// field is authoritative only when fields.common declares "lang"; a
+// declaration on one type cannot describe every note.
 func (c *Contract) ArticleLanguage() ArticleLanguage {
 	if c == nil {
 		return ArticleLanguage{}
 	}
-	return ArticleLanguage{declared: slices.Contains(c.definition.Fields.Known, articleLanguageField)}
+	return ArticleLanguage{declared: slices.Contains(c.common, articleLanguageField)}
 }
 
 // Declared reports whether the contract gave the article-language field
 // authority. A face that needs to know whether to judge the field at all asks
-// here rather than re-reading fields.known for the same word.
+// here rather than re-reading fields.common for the same word.
 func (l ArticleLanguage) Declared() bool {
 	return l.declared
 }

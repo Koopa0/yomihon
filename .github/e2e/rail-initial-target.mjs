@@ -1,6 +1,6 @@
 // Arrival must find the current lesson without moving the reading surface.
 // Without scripting the stylesheet's initial target does it; with scripting the
-// rail module does it once. The control loads the same document with both
+// page's own rail script does it once, before anything is painted. The control loads the same document with both
 // removed, so fragment positioning is compared with the browser's own landing.
 import { chromium } from 'playwright-core';
 import { arrived } from './support/arrival.mjs';
@@ -14,7 +14,7 @@ const CURRENT = `${RAIL} .ui-navitem[aria-current="page"]`;
 // Each way the row is placed, and the line that removing it takes away.
 const PLACERS = {
   stylesheet: { glob: '**/app.css{,?*}', needle: '    scroll-initial-target: nearest;\n' },
-  script: { glob: '**/rail.js{,?*}', needle: '  if (rail) revealCurrent(rail);\n' },
+  script: { glob: '**/notes/**', needle: 'else if (place.bottom > bottom) rail.scrollTop += place.top - top;' },
 };
 const MODES = {
   'remove-initial-target': ['stylesheet'],
@@ -36,8 +36,8 @@ const fail = (message) => { throw new LockFired(`FAIL rail-initial-target: ${mes
 const broken = (message) => { throw new Error(`BROKEN rail-initial-target: ${message}`); };
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
-// A script is only fetched where scripting runs, so a placer is removed, and
-// its removal proved, only where the page would load it.
+// The script placer is part of the document, so it is removed from the
+// document's response, and only where scripting runs.
 const open = async (path, options, remove) => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 800 }, ...options });
   const page = await context.newPage();

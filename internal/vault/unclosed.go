@@ -11,8 +11,8 @@ import (
 // whole file for body text.
 //
 // It answers beside SplitFrontmatter and never inside it. The split's contract
-// is shared with the status write path, which must keep reading an unterminated
-// opening fence as no block at all; this is only the question a reader asks
+// is shared with every reader, which must keep reading an unterminated opening
+// fence as no block at all; this is only the question a reader asks
 // afterwards, of the bytes that came back as no block, whether the author
 // plainly meant one. It takes the closing verdict from SplitFrontmatter itself,
 // so what it calls unclosed is exactly what the readers did not close.

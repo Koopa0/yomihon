@@ -2,13 +2,13 @@ This vault's contract does not accept a fileable check report, so this body is n
 
 # yomihon check
 
-9 findings — **3 error**, **6 warn**, 0 hidden.
+7 findings — **1 error**, **6 warn**, 0 hidden.
 
 ## Debt by domain
 
 | domain | error | warn |
 |---|--:|--:|
-| golang | 3 | 5 |
+| golang | 1 | 5 |
 | japanese | 0 | 1 |
 
 ## Most leveraged (create one, resolve many)
@@ -18,8 +18,7 @@ This vault's contract does not accept a fileable check report, so this body is n
 
 ## golang
 
-- `error` ×2 frontmatter "aliases" is not a known field — Concepts/golang/Map.md
-- `error` status "bogus" is not a valid status — Concepts/golang/Bad.md
+- `error` frontmatter "status" is not a known field — Concepts/golang/Bad.md
 - `warn` ×2 [\[Foo]\] resolves to no note — Concepts/golang/Map.md
 - `warn` ×2 alias "shared" is declared by 2 notes, so [\[shared]\] cannot resolve deterministically — Concepts/golang/Map.md
 - `warn` [\[Bar]\] resolves to no note — Concepts/golang/Slice.md

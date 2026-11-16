@@ -1,10 +1,9 @@
 # Data inventory
 
 What yomihon holds, derives, and emits. The product is a single-user local
-process: it reads a vault, serves `127.0.0.1`, writes one frontmatter field
-into a note and three files of its own outside any vault — two reader-state
-files and a record of approved figures — and makes no network call of any
-kind. A figure the owner approved runs its scripts in the browser, where they
+process: it reads a vault and writes nothing into it, serves `127.0.0.1`,
+writes three files of its own outside any vault — two reader-state files and a
+record of approved figures — and makes no network call of any kind. A figure the owner approved runs its scripts in the browser, where they
 can reach the network; the threat model says through which channels. There is no telemetry, analytics, metrics or trace exporter,
 crash reporter, account, or remote log sink, and no application-level
 encryption at rest, backup, or secure erasure. Host disk encryption, vault
@@ -13,12 +12,11 @@ this document.
 
 | Data | Where it lives | How long | Who can reach it |
 |---|---|---|---|
-| Vault files — body, frontmatter, path, attachments, contract-private content | The vault, which stays the truth; yomihon never deletes one | Vault and sync policy own it | The same OS account, and any client that can open the loopback port |
+| Vault files — body, frontmatter, path, attachments, contract-private content | The vault, which stays the truth; yomihon never writes, renames or deletes one | Vault and sync policy own it | The same OS account, and any client that can open the loopback port |
 | `System/schemas/vault-schema.toml`, the machine authority | The vault; `internal/schema` is its only reader | Vault policy | As above |
 | Parsed notes, rendered HTML, diagnostics, graph, search index | Process memory, rebuilt from the vault | Until the snapshot is replaced or the process exits | The process and the request being served |
-| HTTP method, path, query, headers, status and mark forms; CLI flags and arguments | Request and output buffers | The request or action | The local caller |
-| A rewritten note and its adjacent `.yomihon-status-*.tmp` | The vault directory | Until the rename; a crash can strand the temporary file | The filesystem and the requester |
-| `slog` records: address, vault root, contract state, scan and render failures, selected status paths; a marks file's own absolute path when reading or writing it fails, and the note path the caller submitted when a continuation mark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
+| HTTP method, path, query, headers, mark forms; CLI flags and arguments | Request and output buffers | The request or action | The local caller |
+| `slog` records: address, vault root, contract state, scan and render failures; a marks file's own absolute path when reading or writing it fails, and the note path the caller submitted when a continuation mark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
 | The reader's continuation — `reader.json` and its adjacent `.reader-*.json`, under `os.UserConfigDir()`/`yomihon`/one directory per vault, holding that vault's absolute path and one continuation point: a note path, an anchor id, a distance below it, the content identity of the bytes that were on screen, and when it was set | The platform's configuration directory, never the vault | Until the reader keeps another place or deletes the file; yomihon never expires one. A crash between the temporary file being created and renamed into place can strand the temporary file, holding that same content, and nothing removes it | The same OS account |
 | The reader's uncertainty marks — `uncertainty.json` and its adjacent `.uncertainty-*.json` in the same per-vault directory. Each array entry contains only `path`, `anchor`, and `time`; no body, chosen sentence, content identity, or source version is saved | The platform's configuration directory, never the vault | Until the reader toggles that location off or deletes the file; no expiry or automatic recovery. A crash can strand a temporary file containing the same location records | The same OS account; the local reading client receives them from `GET /uncertainties`; `yomihon left-open` writes the ones outside withheld ground to its caller |
 | The figure approvals — `figures.json` and its adjacent `.figures-*.json` in the same per-vault directory. Each entry is a figure's vault path, the SHA-256 of the bytes approved, and when; the file also names the vault's absolute path. No figure content is copied | The platform's configuration directory, never the vault | Until `yomihon revoke-figure` removes an entry or the file is deleted; an approval stops applying, without being removed, the moment the figure's bytes change | The same OS account. The reading server reads it on each page and each frame request and never writes it; `approve-figure` and `revoke-figure` write it, owner-only, by sibling-file rename. `check`, `coverage` and `exists` never read it |
@@ -30,15 +28,6 @@ this document.
   request buffers as any other query and reaches no process yomihon starts.
 
 About those rows:
-
-- **A read-only note is not replaced.** A status flip checks the captured
-  file's owner-write bit after the existing note and transition validation.
-  If that bit is clear, the note and its siblings stay unchanged: no status
-  temporary file is prepared and no success receipt is minted, even when the
-  directory is writable. Readable notes still show their current status.
-  Change permissions outside yomihon and reload before choosing a transition.
-  This honors the owner's intent; it is not an effective ACL/group-access
-  check or protection against a malicious process running as the same user.
 
 - **An unreadable approvals file approves nothing.** A missing file is no
   approval; one that cannot be read or carries an unknown shape is reported,
@@ -54,11 +43,12 @@ About those rows:
   deleting the per-vault directory clears both.
 - **`yomihon left-open` hands the reader's marks to whoever runs it.** It lists
   each marked location — the note's path, the anchor and the words of the
-  heading or practice card it names, the note's declared title, a wikilink,
-  and the time the mark was made, in UTC — and each thought still in a status
-  the contract declares initial, with its path, declared title, status and
-  declared date. No body text is included beyond the words of a heading or
-  practice card and the declared title. The vault is scanned whole, withheld
+  heading or practice card it names, the note's title, a wikilink,
+  and the time the mark was made, in UTC — and each thought that still
+  declares `draft: true`, with its path, title and the day its `created` field
+  declares. A title is the note's first `#` heading, and is left out when there
+  is none. No body text is included beyond the words of a heading or
+  practice card and the title. The vault is scanned whole, withheld
   ground included, as every command scans it; an item whose path is under the
   contract's `never_egress_dirs` is left out before anything about it is
   resolved into the output, and so is a location whose heading or note title,
@@ -99,8 +89,7 @@ About those rows:
   by the next toggle. The independent file also survives older versions
   replacing `reader.json`.
 - **Nothing is request-logged.** Note bodies and raw search queries never reach
-  a log. A failed query records its byte count and filter keys; a failed status
-  write records its path, from, to, and error.
+  a log. A failed query records its byte count and filter keys.
 - **A local reader may see any vault file, private paths included**, because
   local reading is the product. Agent output is filtered instead: the
   contract's `[privacy]` never-egress directories are scanned so links resolve,
@@ -127,27 +116,32 @@ The withholding applies to the agent-facing commands only: the HTTP reading room
 ## Optional thought notes
 
 The "Leave a thought" handoff requires an explicit role in the vault's own
-`System/schemas/vault-schema.toml`. Add `answer_type` to its existing
-`[navigation]` table, using a member already declared in `[enums].type`.
-For a vault that already declares the type `note`, the added line is:
+`System/schemas/vault-schema.toml`. Give one of its note types the `thought`
+role, and list `based_on` among that type's fields, which the role requires.
+For a vault that declares a type named `thought`, the table is:
 
 ```toml
-answer_type = "note"
+[types.thought]
+role = "thought"
+fields = ["based_on"]
 ```
 
-This setting is optional and has no default. Missing or invalid authority
-keeps the handoff unavailable; an ordinary document and a lesson use the same
-mechanism. Installing yomihon does not modify the reader's private contract or
-add a new note type. The vault owner makes this opt-in edit.
+This setting is optional and has no default. A contract that gives no type the
+role, or one that cannot be used, keeps the handoff unavailable; an ordinary
+document and a lesson use the same mechanism. Installing yomihon does not
+modify the reader's private contract or add a new note type. The vault owner
+makes this opt-in edit.
 
-The proposed Markdown contains only fields whose values can be derived from
-the existing contract and source, plus a `based_on: "[[source#section]]"` link
-when opened for a section, or a source-only link for a whole document. If the
-role has no initial lifecycle state or more than one, the status line is
-omitted. Unknown required values are omitted too; the existing judge reports missing
-fields after the reader saves the note. There are no prompt excerpts,
-before/after templates, or required-field pickers. The reader's editor owns
-the template, words, remaining fields, and save operation.
+The proposed Markdown is frontmatter of three fields and nothing else: `type`,
+the type that holds the role; `draft: true`; and a `based_on:
+"[[source#section]]"` link when opened for a section, or a source-only link for
+a whole document. It carries no title, because a note's title is its first
+heading and the file name it is saved under. The thought stays on the shelf of
+what the reader left open until they remove `draft: true` in their editor. A
+field the contract also requires of the type is not proposed; `yomihon check`
+reports it missing after the reader saves the note. There are no prompt
+excerpts, before/after templates, or required-field pickers. The reader's
+editor owns the template, words, remaining fields, and save operation.
 
 ## Read-aloud
 
@@ -163,14 +157,13 @@ the browser or operating system's speech service.
 ## Browser state
 
 Cookies and session storage hold the reading choices and where the reader had
-the left rail. Six cookies carry the choices, and the server writes
-every one of them at `/preferences`. Four of the
-six also have a control in the header that the page's own script answers
-directly: the desk, the text size, the furigana and the shortcuts, written
-under the same names and for the same year, so a choice made with script and
-one made without expire together. The typeface and the language have no header
-control, and nothing but the server writes them. Two `sessionStorage` keys
-carry the rail.
+the left rail. Eight cookies carry the choices, and the server writes
+every one of them at `/preferences`. Every one but the interface language is
+also written by the page's own script when a choice is picked, under the same
+name and for the same year, so a choice made with script and one made without
+expire together. The language is the exception: its words are the server's,
+and nothing but the server writes it. Three `sessionStorage` keys carry the
+rail.
 
 | Kept in the browser | What it holds | How long |
 |---|---|---|
@@ -180,9 +173,11 @@ carry the rail.
 | `yomihon_font` | The typeface, `serif`, `sans` or `kai`; no value is the serif face as well | A year from the last write |
 | `yomihon_ruby` | Whether furigana show, `on` or `off` | A year from the last write |
 | `yomihon_rail` | Whether the left column is shown or folded to a strip on wide windows, `open` or `collapsed` | A year from the last write |
+| `yomihon_sectionbuttons` | When the buttons beside each section are drawn, `always` or `hover`; no value shows them always | A year from the last write |
 | `yomihon_shortcuts` | Whether single-key shortcuts answer, `on` or `off` | A year from the last write |
 | `yomihon.nav` | Which folders of the left rail the reader opened or closed, one true-or-false each | Until the tab closes |
 | `yomihon.nav.filter` | The text the reader typed into the rail's filter box, kept as typed so a narrowing survives opening a note | Until the tab closes |
+| `yomihon.railTop` | How far the left rail was scrolled when a page was left, and which rail it was scrolled in — a course's own vault path, or the kind of rail — so the next page of the same rail starts where it was | Until the tab closes |
 
 - **The cookies go to the loopback listener and nowhere else.** Each carries
   `Path=/` and `SameSite=Lax`, and is deliberately neither `Secure` nor
@@ -192,16 +187,18 @@ carry the rail.
   can therefore read them. A cookie is scoped by host rather than by port, so
   anything else served from `127.0.0.1` to the same browser can read them too —
   the same local surface the threat model already accepts.
-- **The two session keys are sent nowhere at all.** `sessionStorage` is never
-  attached to a request: the rail's state and the filter text stay in the tab
-  holding them and go when it closes.
+- **The three session keys are sent nowhere at all.** `sessionStorage` is never
+  attached to a request: the rail's state, its scroll position and the filter
+  text stay in the tab holding them and go when it closes.
 - **`yomihon.nav.filter` holds the reader's own words.** Every other entry in
   the table is a value yomihon offered and the reader picked; the filter box
   keeps what they typed, as they typed it, which is usually part of the name of
-  a note or folder they were looking for. That is the only vault-shaped text in
-  browser storage: yomihon itself writes no note path, title, or body there.
-  All of it clears — the settings page's return to defaults drops the six
-  cookies, and the browser's own controls drop all eight.
+  a note or folder they were looking for. That is the only text the reader
+  typed that browser storage holds: yomihon itself writes no note title or body
+  there, and the only vault names it keeps are the paths that say which course
+  or folder a rail's open or scrolled state belongs to. All of it clears — the
+  settings page's return to defaults drops the eight cookies, and the browser's
+  own controls drop all eleven.
 
 No hosted reader exists for a user's own vault; a vault stays on the machine
 that reads it. One public instance exists over this repository's own sample

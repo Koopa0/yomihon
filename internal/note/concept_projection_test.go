@@ -29,7 +29,7 @@ func TestConceptSheetKeepsPunctuationDistinctConceptsSeparate(t *testing.T) {
 	if err := os.MkdirAll(lessonDir, 0o750); err != nil {
 		t.Fatalf("mkdir lesson: %v", err)
 	}
-	lessonBody := "---\ntitle: Collision lesson\ntype: lesson\nstatus: draft\n---\n\nSee [[A-B]] and [[A B]].\n"
+	lessonBody := "---\ntype: lesson\n---\n# Collision lesson\n\nSee [[A-B]] and [[A B]].\n"
 	if err := os.WriteFile(filepath.Join(lessonDir, "Collision.md"), []byte(lessonBody), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}

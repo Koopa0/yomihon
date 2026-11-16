@@ -79,25 +79,3 @@ func TestFreshnessAttrsStampTranscludedContentOnlyWhereItExists(t *testing.T) {
 		t.Errorf("a page that transcluded nothing stamps data-freshness-embeds = %v; the attribute must be absent", got)
 	}
 }
-
-// TestFreshnessAttrsCarryTheWriteHoldSentence pins the sentence the status
-// faces show beside their disabled controls once the watch has learned the
-// page is behind the file. The client reads it off the column like every other
-// sentence of the watch, so a column without it would disable the controls
-// and explain nothing.
-func TestFreshnessAttrsCarryTheWriteHoldSentence(t *testing.T) {
-	t.Parallel()
-	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-		t.Run(string(lang), func(t *testing.T) {
-			t.Parallel()
-			attrs := freshnessAttrs(&NoteView{RelPath: "Writing/note.md", ContentIdentity: "3f2a"}, lang)
-			want := wording.FreshnessWriteHold.In(lang)
-			if want == "" {
-				t.Fatal("the write-hold sentence is empty in this language, so the assertion below cannot mean anything")
-			}
-			if attrs["data-freshness-writehold"] != want {
-				t.Errorf("data-freshness-writehold = %v, want %q", attrs["data-freshness-writehold"], want)
-			}
-		})
-	}
-}

@@ -54,15 +54,11 @@ func (r existsReport) found() bool {
 	return len(r.Matches) > 0 || r.Withheld
 }
 
-// existsLookup looks query up across every note's filename, title, aliases, and
-// English title. The first pass keys both sides the way the resolver keys
-// names. A second pass runs the same fields through lexical.Fold, and any hit
-// that was not already exact is a near match. A note that exposes the name on
-// more than one field yields one match per field. Matches are ordered by path,
-// then field. title_en is matched only when the contract declares it for that
-// note's type — fields.known, or a per-type list such as fields.lesson_only on
-// a lesson. A field check would call unknown is not a name this oracle may
-// report.
+// existsLookup looks query up across every note's filename, title and aliases.
+// The first pass keys both sides the way the resolver keys names. A second pass
+// runs the same fields through lexical.Fold, and any hit that was not already
+// exact is a near match. A note that exposes the name on more than one field
+// yields one match per field. Matches are ordered by path, then field.
 func existsLookup(notes []note, query string, authority scanAuthority) existsReport {
 	key := normalizeKey(query)
 	foldKey := lexical.Fold(query)
@@ -71,8 +67,7 @@ func existsLookup(notes []note, query string, authority scanAuthority) existsRep
 	withheld := false
 	for i := range notes {
 		n := &notes[i]
-		known := knownFrontmatter(authority, n.noteType)
-		exact := noteMatches(n, key, known)
+		exact := noteMatches(n, key)
 		if !authority.egressAllowed(n.path) {
 			// A contract-private note never describes itself here: no path, no
 			// field, no value. That it answers to the name is still reported,
@@ -85,7 +80,7 @@ func existsLookup(notes []note, query string, authority scanAuthority) existsRep
 			continue
 		}
 		matches = append(matches, exact...)
-		near = append(near, withoutExact(noteMatchesFolded(n, foldKey, known), exact)...)
+		near = append(near, withoutExact(noteMatchesFolded(n, foldKey), exact)...)
 	}
 	sortExistsMatches(matches)
 	sortExistsMatches(near)
@@ -126,19 +121,18 @@ func appendExistsPaths(report *existsReport, notes []note, idx *graph.Index, aut
 }
 
 // noteMatches returns every field of n that exposes the normalized key: its
-// filename stem, full filename, title, each alias, and English title when
-// the contract declares title_en for this note's type.
-func noteMatches(n *note, key string, known []string) []existsMatch {
-	return collectFieldMatches(n, key, known, normalizeKey)
+// filename stem, full filename, title and each alias.
+func noteMatches(n *note, key string) []existsMatch {
+	return collectFieldMatches(n, key, normalizeKey)
 }
 
 // noteMatchesFolded is the second pass: the same fields, keyed through the
 // search index's fold rather than the resolver key.
-func noteMatchesFolded(n *note, key string, known []string) []existsMatch {
-	return collectFieldMatches(n, key, known, lexical.Fold)
+func noteMatchesFolded(n *note, key string) []existsMatch {
+	return collectFieldMatches(n, key, lexical.Fold)
 }
 
-func collectFieldMatches(n *note, key string, known []string, fold func(string) string) []existsMatch {
+func collectFieldMatches(n *note, key string, fold func(string) string) []existsMatch {
 	var matches []existsMatch
 	stem := filenameStem(n.path)
 	if fold(stem) == key {
@@ -157,9 +151,6 @@ func collectFieldMatches(n *note, key string, known []string, fold func(string) 
 		if fold(alias) == key {
 			matches = append(matches, existsMatch{Path: n.path, Field: "alias", Value: alias})
 		}
-	}
-	if n.titleEn != "" && slices.Contains(known, "title_en") && fold(n.titleEn) == key {
-		matches = append(matches, existsMatch{Path: n.path, Field: "title_en", Value: n.titleEn})
 	}
 	return matches
 }
@@ -188,22 +179,6 @@ func sortExistsMatches(matches []existsMatch) {
 		}
 		return strings.Compare(a.Field, b.Field)
 	})
-}
-
-// knownFrontmatter is the contract's declared frontmatter set for one note
-// type: the shared fields.known list, plus the per-type list only when that
-// type is the one the list applies to (today fields.lesson_only on a lesson).
-// A nil contract declares no field, so title_en cannot match.
-func knownFrontmatter(authority scanAuthority, noteType string) []string {
-	if authority.contract == nil {
-		return nil
-	}
-	fields := authority.contract.Definition().Fields
-	lessonType, _ := authority.contract.LessonType()
-	if noteType == lessonType {
-		return slices.Concat(fields.Known, fields.LessonOnly)
-	}
-	return fields.Known
 }
 
 // filename is the last path segment of a vault-relative, forward-slash path.

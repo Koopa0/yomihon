@@ -31,12 +31,12 @@ func TestHealthExcludesEveryDeclaredNavigationEntryFromIslands(t *testing.T) {
 				t.Fatalf("map fixture roles (-want +got):\n%s", diff)
 			}
 			for _, typ := range append(roles.PathTypes(), roles.MapTypes()...) {
-				writeNote(t, root, "Writing/"+typ+".md", "---\ntitle: Entry "+typ+"\ntype: "+typ+"\ndomain: golang\nstatus: archived\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n## Unit\n- [[Listed]]\n")
+				writeNote(t, root, "Writing/"+typ+".md", "---\ntype: "+typ+"\ncreated: 2026-06-01\n---\n\n# Entry "+typ+"\n\n## Unit\n- [[Listed]]\n")
 			}
-			writeNote(t, root, "Writing/Listed.md", "---\ntitle: Listed\nslug: listed\ntype: lesson\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nLesson text.\n")
+			writeNote(t, root, "Writing/Listed.md", "---\nslug: listed\ntype: lesson\ncreated: 2026-06-01\n---\n\nLesson text.\n")
 			want := []HealthIslandGroup{}
 			if unlisted {
-				writeNote(t, root, "Maps/Unlisted.md", "---\ntitle: Unlisted\nslug: unlisted\ntype: lesson\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\nLesson text.\n")
+				writeNote(t, root, "Maps/Unlisted.md", "---\nslug: unlisted\ntype: lesson\ncreated: 2026-06-01\n---\n\nLesson text.\n")
 				want = []HealthIslandGroup{{Dir: "Maps", Notes: []nav.NoteRef{{Name: "Unlisted", RelPath: "Maps/Unlisted.md"}}}}
 			}
 			store, _ := newTestStore(t, root, contract)
@@ -49,16 +49,18 @@ func TestHealthExcludesEveryDeclaredNavigationEntryFromIslands(t *testing.T) {
 
 func TestHealthEntryExemptionUsesTheContractAndKeepsCitationFaults(t *testing.T) {
 	t.Parallel()
+	const defaultRoles = "[types.study-path]\nrole = \"course\"\n\n[types.moc]\nrole = \"map\"\n\n[types.source-map]\nrole = \"map\"\n\n[types.topic-map]\nrole = \"map\"\n"
+	const lessonRole = "[types.lesson]\nrole = \"lesson\"\n"
 	for _, tt := range []struct {
-		name, section, mapType string
-		islands                []nav.NoteRef
+		name, roles, lessonRole, mapType string
+		islands                          []nav.NoteRef
 	}{
-		{name: "default roles", section: "[navigation]\npath_types = [\"study-path\"]\nmap_types = [\"moc\", \"source-map\", \"topic-map\"]\njournal_dir = \"Diary\"\n", islands: []nav.NoteRef{{Name: "Ordinary", RelPath: "Maps/Ordinary.md"}}},
-		{name: "type case is not guessed", section: "[navigation]\npath_types = [\"study-path\"]\nmap_types = [\"moc\", \"source-map\", \"topic-map\"]\njournal_dir = \"Diary\"\n", mapType: "MOC", islands: []nav.NoteRef{{Name: "Map", RelPath: "Maps/Map.md"}, {Name: "Ordinary", RelPath: "Maps/Ordinary.md"}}},
-		{name: "reassigned roles", section: "[navigation]\npath_types = [\"source-map\"]\nmap_types = [\"lesson\"]\njournal_dir = \"Diary\"\n", islands: []nav.NoteRef{{Name: "Map", RelPath: "Maps/Map.md"}, {Name: "Path", RelPath: "Maps/Path.md"}}},
-		{name: "empty roles", section: "[navigation]\npath_types = []\nmap_types = []\njournal_dir = \"Diary\"\n", islands: []nav.NoteRef{{Name: "Map", RelPath: "Maps/Map.md"}, {Name: "Ordinary", RelPath: "Maps/Ordinary.md"}, {Name: "Path", RelPath: "Maps/Path.md"}}},
-		{name: "undeclared roles", islands: []nav.NoteRef{{Name: "Map", RelPath: "Maps/Map.md"}, {Name: "Ordinary", RelPath: "Maps/Ordinary.md"}, {Name: "Path", RelPath: "Maps/Path.md"}}},
-		{name: "rejected roles", section: "[navigation]\npath_types = [\"not-a-type\"]\nmap_types = []\njournal_dir = \"Diary\"\n", islands: []nav.NoteRef{{Name: "Map", RelPath: "Maps/Map.md"}, {Name: "Ordinary", RelPath: "Maps/Ordinary.md"}, {Name: "Path", RelPath: "Maps/Path.md"}}},
+		{name: "default roles", roles: defaultRoles, islands: []nav.NoteRef{{Name: "Ordinary", RelPath: "Maps/Ordinary.md"}}},
+		{name: "type case is not guessed", roles: defaultRoles, mapType: "MOC", islands: []nav.NoteRef{{Name: "Map", RelPath: "Maps/Map.md"}, {Name: "Ordinary", RelPath: "Maps/Ordinary.md"}}},
+		{name: "reassigned roles", roles: "[types.study-path]\n\n[types.moc]\n\n[types.source-map]\nrole = \"course\"\n\n[types.topic-map]\n", lessonRole: "[types.lesson]\nrole = \"map\"\n", islands: []nav.NoteRef{{Name: "Map", RelPath: "Maps/Map.md"}, {Name: "Path", RelPath: "Maps/Path.md"}}},
+		{name: "empty roles", roles: "[types.study-path]\n\n[types.moc]\n\n[types.source-map]\n\n[types.topic-map]\n", islands: []nav.NoteRef{{Name: "Map", RelPath: "Maps/Map.md"}, {Name: "Ordinary", RelPath: "Maps/Ordinary.md"}, {Name: "Path", RelPath: "Maps/Path.md"}}},
+		{name: "a second thought type rejects the roles", roles: "[types.study-path]\nrole = \"thought\"\n\n[types.moc]\nrole = \"map\"\n\n[types.source-map]\nrole = \"map\"\n\n[types.topic-map]\nrole = \"map\"\n", islands: []nav.NoteRef{{Name: "Map", RelPath: "Maps/Map.md"}, {Name: "Ordinary", RelPath: "Maps/Ordinary.md"}, {Name: "Path", RelPath: "Maps/Path.md"}}},
+		{name: "rejected roles", roles: "[types.study-path]\nrole = \"not-a-role\"\n\n[types.moc]\nrole = \"map\"\n\n[types.source-map]\nrole = \"map\"\n\n[types.topic-map]\nrole = \"map\"\n", islands: []nav.NoteRef{{Name: "Map", RelPath: "Maps/Map.md"}, {Name: "Ordinary", RelPath: "Maps/Ordinary.md"}, {Name: "Path", RelPath: "Maps/Path.md"}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -73,11 +75,15 @@ func TestHealthEntryExemptionUsesTheContractAndKeepsCitationFaults(t *testing.T)
 			if err != nil {
 				t.Fatal(err)
 			}
-			const old = "[navigation]\npath_types = [\"study-path\"]\nmap_types = [\"moc\", \"source-map\", \"topic-map\"]\njournal_dir = \"Diary\"\n"
-			if strings.Count(string(data), old) != 1 {
-				t.Fatal("navigation fixture section is not unique")
+			text := string(data)
+			if strings.Count(text, defaultRoles) != 1 || strings.Count(text, lessonRole) != 1 {
+				t.Fatal("role fixture declarations are not unique")
 			}
-			if writeErr := os.WriteFile(file, []byte(strings.Replace(string(data), old, tt.section, 1)), 0o600); writeErr != nil { // #nosec G703 -- file is the contract written under this test's TempDir
+			text = strings.Replace(text, defaultRoles, tt.roles, 1)
+			if tt.lessonRole != "" {
+				text = strings.Replace(text, lessonRole, tt.lessonRole, 1)
+			}
+			if writeErr := os.WriteFile(file, []byte(text), 0o600); writeErr != nil { // #nosec G703 -- file is the contract written under this test's TempDir
 				t.Fatal(writeErr)
 			}
 			contract, err := schema.Load(root)
@@ -90,7 +96,7 @@ func TestHealthEntryExemptionUsesTheContractAndKeepsCitationFaults(t *testing.T)
 				{path: "Maps/Ordinary.md", typ: "lesson", slug: "slug: ordinary\n", body: "Ordinary text.\n"},
 				{path: "Writing/Listed.md", typ: "lesson", slug: "slug: listed\n", body: "Listed text.\n"},
 			} {
-				writeNote(t, root, note.path, "---\ntitle: Note\ntype: \""+note.typ+"\"\ndomain: golang\nstatus: archived\ncreated: 2026-06-01\nupdated: 2026-06-01\n"+note.slug+"---\n\n"+note.body)
+				writeNote(t, root, note.path, "---\ntype: \""+note.typ+"\"\ncreated: 2026-06-01\n"+note.slug+"---\n\n"+note.body)
 			}
 			store, _ := newTestStore(t, root, contract)
 			health := store.Current().Health()

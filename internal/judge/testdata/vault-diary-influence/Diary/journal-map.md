@@ -1,6 +1,5 @@
 ---
-title: A Private Journal Map
 type: moc
-domain: golang
 ---
+# A Private Journal Map
 today I filed [[Journal Mounted]] under a map I keep in my journal

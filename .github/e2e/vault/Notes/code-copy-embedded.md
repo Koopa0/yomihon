@@ -1,9 +1,9 @@
 ---
-title: Code copy embedded
 type: concept
 based_on: "[[Notes/alpha]]"
-domain: golang
+
 ---
+# Code copy embedded
 
 ```text
 embedded <-

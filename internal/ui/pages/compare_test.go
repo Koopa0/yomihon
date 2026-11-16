@@ -25,19 +25,17 @@ func comparedNote(prefix, title, relPath, language string) NoteView {
 		RelPath:  relPath,
 		Language: language,
 		Type:     "lesson",
-		Status:   "draft",
-		Governed: true,
+		Draft:    true,
 		IDPrefix: prefix,
 		BodyHTML: `<h2 id="` + prefix + `ledger" data-level="1">Ledger</h2><p><a href="#` + prefix + `ledger">back up</a></p>`,
 		TOC:      []render.TOCEntry{{Level: 1, Text: "Ledger", ID: prefix + "ledger"}},
 		SchemaNotices: [][]wording.SchemaPart{
 			{{Text: "the contract does not know "}, {Text: "unknown_key", Code: true}},
 		},
-		BasedOn:     []snapshot.DeclaredSource{{Name: "Source", RelPath: "Writing/Source.md"}},
-		Pair:        nav.NoteRef{Name: "The other half", RelPath: "Writing/Other.md"},
-		Next:        nav.NoteRef{Name: "Next one", RelPath: "Writing/Next.md"},
-		StepsLabel:  "接著讀",
-		Transitions: []Transition{{To: "ready"}},
+		BasedOn:    []snapshot.DeclaredSource{{Name: "Source", RelPath: "Writing/Source.md"}},
+		Pair:       nav.NoteRef{Name: "The other half", RelPath: "Writing/Other.md"},
+		Next:       nav.NoteRef{Name: "Next one", RelPath: "Writing/Next.md"},
+		StepsLabel: "接著讀",
 	}
 }
 
@@ -45,9 +43,7 @@ func comparedNote(prefix, title, relPath, language string) NoteView {
 // reader holding two notes side by side is reading each of those notes, not a
 // second rendering of them that is free to drift. Each column is compared
 // against the article component rendered on its own in the id space that column
-// occupies. A column drops the write face structurally, by passing nothing
-// where the note's own page passes the status bar in. It also sits one heading
-// level below the comparison, while its authored levels and section addresses
+// occupies. A column also sits one heading level below the comparison, while its authored levels and section addresses
 // stay unchanged.
 //
 // The article counts are asserted first: without them a comparison of two empty
@@ -67,7 +63,7 @@ func TestACompareColumnIsTheNotesOwnArticle(t *testing.T) {
 		t.Fatalf("the side-by-side page draws %d articles, want one per note", got)
 	}
 
-	alone := renderedBytes(t, templ.WithChildren(t.Context(), statusBar(a, lang)), noteArticle(a, lang))
+	alone := renderedBytes(t, t.Context(), noteArticle(a, lang))
 	if diff := cmp.Diff(alone, articleAt(t, page, 0)); diff != "" {
 		t.Errorf("the note page's article is not the component it draws (-component +page):\n%s", diff)
 	}
@@ -78,22 +74,6 @@ func TestACompareColumnIsTheNotesOwnArticle(t *testing.T) {
 		if diff := cmp.Diff(want, articleAt(t, compared, ordinal)); diff != "" {
 			t.Errorf("column %d is not %s read alone (-component +column):\n%s", ordinal, column.Title, diff)
 		}
-	}
-}
-
-// TestACompareColumnCarriesNoWriteFace is the other half of the same promise,
-// asserted on the words rather than on the shape: adjudication happens on a
-// note's own page, and the status word here is shown, not offered.
-func TestACompareColumnCarriesNoWriteFace(t *testing.T) {
-	t.Parallel()
-	a := comparedNote("a-", "Cutover", "Writing/Cutover.md", "en")
-	b := comparedNote("b-", "切換", "Writing/Cutoverzh.md", "zh-Hant")
-	compared := renderedBytes(t, t.Context(), Compare(CompareView{A: a, B: b}, recordedChrome()))
-	if strings.Contains(compared, `action="/status"`) {
-		t.Error("a column offers a control that would write a status")
-	}
-	if got := strings.Count(compared, `class="y-sealbar"`); got != 0 {
-		t.Errorf("the page draws %d status bars, want none", got)
 	}
 }
 

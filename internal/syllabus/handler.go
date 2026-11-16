@@ -9,6 +9,7 @@ package syllabus
 import (
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -27,8 +28,8 @@ import (
 // answer because a page that took them from two readings of the published
 // pointer can state a course's names from one version of the vault and its
 // declared languages from another. Deriving the shell here instead is not open
-// to this package: the projection also needs the write authority, which the
-// study-path face has no other reason to hold.
+// to this package: the projection also needs the contract authority, which
+// the study-path face has no other reason to hold.
 type RequestSnapshot struct {
 	Shell      nav.Shell
 	Generation *snapshot.Generation
@@ -39,15 +40,14 @@ type RequestSnapshot struct {
 	Kept   mark.Continuation
 	Marked bool
 
-	// Status answers which note type this vault files its course members as.
-	// It may be absent, and the listening page then teaches nothing rather
+	// Authority answers which note type this vault files its course members
+	// as. It may be absent, and the listening page then teaches nothing rather
 	// than guessing at the name.
-	Status LessonTypes
+	Authority LessonTypes
 }
 
-// LessonTypes is the read-only sliver of the status projection this face
-// needs, declared at the consumer so a page that only reads does not put the
-// component able to change the vault inside its import closure.
+// LessonTypes is the sliver of the contract authority this face needs,
+// declared at the consumer.
 type LessonTypes interface {
 	// IsLessonType reports whether noteType is the type the vault files its
 	// course members as.
@@ -72,12 +72,45 @@ func New(current func() RequestSnapshot, log *slog.Logger) *Handler {
 	return &Handler{current: current, log: log}
 }
 
-// Register mounts the study-path index, one study path's own page, and that
-// path read aloud.
+// The addresses a course answers at. A course used to be a study path with a
+// syllabus page, and a reader may still hold a link or a bookmark written then:
+// both old addresses answer with a permanent redirect to the same place under
+// the new one, and nothing is served at them.
+const (
+	coursesIndex = "/courses"
+	courseRoute  = "/courses/"
+
+	retiredIndex = "/paths"
+	retiredRoute = "/syllabus/"
+)
+
+// Register mounts the course index, one course's own page, and that course read
+// aloud, and the two retired addresses that lead to the first two.
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("GET /paths", h.index)
-	mux.HandleFunc("GET /syllabus/{path...}", h.show)
+	mux.HandleFunc("GET "+coursesIndex, h.index)
+	mux.HandleFunc("GET "+courseRoute+"{path...}", h.show)
+	mux.HandleFunc("GET "+retiredIndex, movedTo(coursesIndex))
+	mux.HandleFunc("GET "+retiredRoute+"{path...}", movedTo(courseRoute))
 	mux.HandleFunc("GET /listen/{path...}", h.listen)
+}
+
+// movedTo answers a retired address with a permanent redirect to the address
+// that replaced it. The part of the path after the retired prefix and the whole
+// query are carried over untouched and still escaped, so a course whose name
+// needed escaping, and the "from" a note names itself with, arrive intact.
+func movedTo(target string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		where := target
+		if target == courseRoute {
+			where += strings.TrimPrefix(r.URL.EscapedPath(), retiredRoute)
+		}
+		if r.URL.RawQuery != "" {
+			where += "?" + r.URL.RawQuery
+		}
+		// The target always begins with the fixed address of the course routes,
+		// so no part of the request can make it leave this server.
+		http.Redirect(w, r, where, http.StatusMovedPermanently) // #nosec G710 -- where starts with a constant path on this server
+	}
 }
 
 // show renders the study-path whose vault path matches the request. An unknown
@@ -103,7 +136,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	// is compared against the rows this course already lists, so a note the
 	// course does not teach — and a reader who arrived from the desk carrying
 	// nothing — marks no row.
-	cover := pages.CourseCover{Here: vault.NormalizeNFC(r.URL.Query().Get(pages.SyllabusFromParam))}
+	cover := pages.CourseCover{Here: vault.NormalizeNFC(r.URL.Query().Get(pages.CourseFromParam))}
 	cover.OpeningHTML, cover.OpeningLanguage = h.opening(request.Generation, rel, lang)
 	// The page that plays the course is offered only where it has something to
 	// play, which is asked of the same reading of each lesson that page makes.
@@ -140,7 +173,7 @@ func (h *Handler) refuseCourse(w http.ResponseWriter, r *http.Request, shell *na
 	}
 	view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(*shell, "")}
 	// The title names which route refused; the page below it is shared.
-	chrome := layouts.ChromeFromRequest(r, wording.PathNotFound.In(lang))
+	chrome := layouts.ChromeFromRequest(r, wording.CourseNotFound.In(lang))
 	if err := pages.WriteNotFound(r.Context(), w, view, chrome); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write "+face+" not-found page", "path", rel, "error", err)
 	}

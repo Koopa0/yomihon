@@ -213,21 +213,21 @@ func TestFingerprint(t *testing.T) {
 			want: "v1:c6a289a5d2524c77",
 		},
 		{
-			// check.jsonl line 2.
+			// check.jsonl line 4.
 			name:   "plain link target (link.broken)",
 			ruleID: "link.broken", path: "Concepts/golang/A.md", target: "Ghost",
 			want: "v1:1e6dec2ff85a905f",
 		},
 		{
 			// A CJK target hashes as its raw UTF-8 bytes — check.jsonl
-			// line 3.
+			// line 5.
 			name:   "CJK target (link.title_not_alias)",
 			ruleID: "link.title_not_alias", path: "Concepts/golang/A.md", target: "Go Slice 內部結構",
 			want: "v1:f4980b309f407345",
 		},
 		{
 			// A provenance reference keeps its [[...]] wrapper —
-			// check.jsonl line 4.
+			// check.jsonl line 6.
 			name:   "raw wikilink target (provenance.unresolved)",
 			ruleID: "provenance.unresolved", path: "Concepts/golang/B.md", target: "[[Missing]]",
 			want: "v1:9c0a72924642edb4",
@@ -235,28 +235,30 @@ func TestFingerprint(t *testing.T) {
 		{
 			// A schema finding feeds the field name and violating value
 			// joined by the separator, so the separator byte appears
-			// inside a part — schema.jsonl line 1.
+			// inside a part. Taken from the schema golden before the status
+			// enum was retired; the vector stands on its own.
 			name:   "embedded separator (schema.enum)",
 			ruleID: "schema.enum", path: "Concepts/golang/Bad.md", target: "status\x1fbogus",
 			want: "v1:c86353e56e0bc094",
 		},
 		{
-			// An empty violating value leaves the separator trailing —
-			// schema.jsonl line 2.
+			// An empty violating value leaves the separator trailing. Taken
+			// from the schema golden before the domain field was retired.
 			name:   "trailing separator (schema.required)",
 			ruleID: "schema.required", path: "Concepts/golang/Bad.md", target: "domain\x1f",
 			want: "v1:2856d81293513cdc",
 		},
 		{
 			// A finding with no field feeds an empty field name, so the
-			// target begins with the separator — schema.jsonl line 3.
+			// target begins with the separator — schema.jsonl line 2.
 			name:   "leading separator, no field (schema.unknown_key)",
 			ruleID: "schema.unknown_key", path: "Concepts/golang/Bad.md", target: "\x1fextra",
 			want: "v1:78fe6de614452605",
 		},
 		{
 			// An unlisted lesson feeds the lesson path and the syllabus
-			// path — maps.jsonl line 1.
+			// path. Taken from the maps golden before its courses moved
+			// into the lesson folders.
 			name:   "two paths (map.disk_unlisted)",
 			ruleID: "map.disk_unlisted", path: "Writing/lessons/golang/L1.md", target: "Maps/paths/Go Path.md",
 			want: "v1:184c0b31f8c4aaeb",

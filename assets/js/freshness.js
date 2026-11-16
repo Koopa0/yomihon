@@ -14,10 +14,8 @@ const POLL_MS = 5000;
 // bannerBeside puts the notice above the article, as a status live region: it
 // appears while the reader is somewhere in the prose, so a reader who is not
 // looking at the top of the column — or not looking at all — is told the same
-// way. The flip receipt is a live region too, but the two never speak at once:
-// the receipt says its sentence on arrival and never changes, while this one
-// first gets words only after the file moves under an open page. Once it
-// offers the reload there is nothing further to learn, because a later edit
+// way. It first gets words only after the file moves under an open page. Once
+// it offers the reload there is nothing further to learn, because a later edit
 // does not change what the sentence says.
 function bannerBeside(column, article) {
   let banner = null;
@@ -93,118 +91,12 @@ function bannerBeside(column, article) {
   };
 }
 
-// holdInvitation gates the recovery page's way back to the note. Sending a
-// reader into the same bytes a write was just refused against would stage that
-// refusal a second time, so the link waits until the reading generation holds
-// at least the version the refused write saw. Nothing here latches on a version
-// change: unlike the banner's sentence, a released link can be owed the wait
-// again the moment the file moves once more.
-function holdInvitation(column) {
-  // The words are the server's, read off the page the same way the banner's are.
-  const preparingTitle = column.dataset.freshnessHoldtitle;
-  const preparingDetail = column.dataset.freshnessHolddetail;
-  const goneTitle = column.dataset.freshnessGonetitle;
-  const goneDetail = column.dataset.freshnessGone;
-  const link = column.querySelector('a.y-recovery__action[href^="/notes/"]');
-  if (!link) return null;
-  const href = link.getAttribute('href');
-  const label = link.textContent;
-  let note = null;
-
-  function hold(linkText, explanation) {
-    if (!note) {
-      note = document.createElement('p');
-      note.className = 'y-freshness';
-      link.insertAdjacentElement('afterend', note);
-    }
-    // Dropping href rather than styling a dead control: an anchor without one
-    // is not activated by a click, by Enter, or by a middle button either.
-    link.removeAttribute('href');
-    link.setAttribute('aria-disabled', 'true');
-    link.textContent = linkText;
-    note.textContent = explanation;
-  }
-
-  function release() {
-    if (!note) return;
-    link.setAttribute('href', href);
-    link.removeAttribute('aria-disabled');
-    link.textContent = label;
-    note.remove();
-    note = null;
-  }
-
-  return (state) => {
-    if (state === 'preparing') {
-      hold(preparingTitle, preparingDetail);
-      return false;
-    }
-    if (state === 'gone') {
-      hold(goneTitle, goneDetail);
-      return true;
-    }
-    if (state === 'unchanged' || state === 'stale') release();
-    return false;
-  };
-}
-
-// holdRulings parks the status controls once the page knows the words it
-// shows have moved on — in its own file, or in a note it excerpts — or the
-// file is not there any more: a press from there would make a ruling over
-// words the reader has not seen. Where only an excerpt moved, the host's
-// identity still matches and the write face would accept the press, so
-// parking here is the only guard. The controls keep their explanation
-// beside them, read off the column like every other sentence of the watch,
-// and a reload re-renders them live — which is what the sentence asks for.
-// Both answers that park them are latched by the banner, so nothing here
-// needs a way back.
-function holdRulings(column) {
-  const explanation = column.dataset.freshnessWritehold;
-  let held = false;
-  return (state) => {
-    if (held || (state !== 'stale' && state !== 'gone')) return;
-    held = true;
-    const faces = new Set();
-    for (const form of document.querySelectorAll('form.y-statusform')) {
-      for (const button of form.querySelectorAll('button')) button.disabled = true;
-      const face = form.closest('.y-statuspanel, .y-sealbar');
-      if (face) faces.add(face);
-    }
-    if (!explanation) return;
-    for (const face of faces) {
-      const note = document.createElement('p');
-      note.className = face.classList.contains('y-sealbar')
-        ? 'y-sealbar__notice y-statusflag'
-        : 'y-statuspanel__notice y-statusflag';
-      note.textContent = explanation;
-      face.append(note);
-    }
-  };
-}
-
-// stripFlipReceiptQuery drops the arrival-only ?from= token once the receipt
-// has landed. The server needs it to mint the sentence; keeping it in the
-// address bar would suggest a replay the write path has already refused.
-function stripFlipReceiptQuery() {
-  const receipt = document.querySelector('.y-flipreceipt');
-  if (!receipt) return;
-  const address = new URL(location.href);
-  if (!address.searchParams.has('from')) return;
-  address.searchParams.delete('from');
-  history.replaceState(history.state, '', address);
-}
-
 export function initFreshness() {
-  stripFlipReceiptQuery();
   const column = document.querySelector('[data-freshness-path][data-freshness-identity]');
   if (!column) return;
   const path = column.dataset.freshnessPath;
   const identity = column.dataset.freshnessIdentity;
   if (!path || !identity) return;
-  // The status the page printed beside the title, rendered by the server. The
-  // identity leaves that one value out, so the ask carries it separately; the
-  // recovery column stamps no status and asks about its identity alone.
-  const printedStatus = column.dataset.freshnessStatus;
   // The identity of what every embed on this page came to, stamped only on a
   // page that carries an embed. The host's identity cannot cover those bytes,
   // nor their not being there, so without this half of the ask neither an edit
@@ -212,21 +104,17 @@ export function initFreshness() {
   const transcluded = column.dataset.freshnessEmbeds;
 
   const article = column.querySelector('.y-article');
-  const present = article ? bannerBeside(column, article) : holdInvitation(column);
-  if (!present) return;
-  const rulings = article ? holdRulings(column) : null;
+  if (!article) return;
+  const present = bannerBeside(column, article);
 
   const segments = path.split('/').map(encodeURIComponent).join('/');
-  const statusQuery =
-    printedStatus === undefined ? '' : `&status=${encodeURIComponent(printedStatus)}`;
   const embedsQuery = transcluded ? `&embeds=${encodeURIComponent(transcluded)}` : '';
-  const endpoint = `/freshness/${segments}?identity=${encodeURIComponent(identity)}${statusQuery}${embedsQuery}`;
+  const endpoint = `/freshness/${segments}?identity=${encodeURIComponent(identity)}${embedsQuery}`;
   let latched = false;
   let timer = null;
   // The one request that may be open. A watch that is called off has to reach
   // the question it already asked, not only the ones it has not asked yet: an
-  // answer landing on a page the reader has left parks the write face and
-  // latches the banner with nothing on screen to say why, and a request still
+  // answer landing on a page the reader has left latches the banner with nothing on screen to say why, and a request still
   // open is one of the things that keeps a document out of the store the back
   // button reads from.
   let activeController = null;
@@ -247,8 +135,7 @@ export function initFreshness() {
       return (await response.text()).trim();
     } catch {
       // A network blip is not news about the file, and neither is a question
-      // this page withdrew. Saying nothing is the same refusal the write face
-      // makes when it cannot confirm what it replaces.
+      // this page withdrew, so nothing is said.
       return null;
     } finally {
       if (activeController === requestController) activeController = null;
@@ -275,10 +162,8 @@ export function initFreshness() {
     // leave the page as it stands and keep the question open.
     if (state === null || state === 'unreadable') return;
     // Asked again, because the page may have settled while this answer was on
-    // its way: once one answer has latched there is nothing further to learn,
-    // and acting on a second would rule twice over one change.
+    // its way: once one answer has latched there is nothing further to learn.
     if (latched) return;
-    if (rulings) rulings(state);
     if (present(state)) {
       latched = true;
       stop();

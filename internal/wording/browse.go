@@ -50,7 +50,7 @@ var (
 	FileKindDocument    = both("文件", "Document")
 	SkippedDocumentNote = both(
 		"這份文件不在書庫的索引與診斷範圍內。",
-		"This document is outside the library's index and diagnostics.",
+		"This document is outside the vault's index and diagnostics.",
 	)
 )
 

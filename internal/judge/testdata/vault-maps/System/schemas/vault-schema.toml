@@ -1,0 +1,55 @@
+schema_version = "2"
+
+[folders]
+checked = ["Writing"]
+templates = ["System/templates"]
+journal = "Diary"
+domain_from = ["Writing/lessons"]
+skipped_files = ["README.md"]
+frontmatter_optional = true
+
+[enums]
+domain = ["golang", "japanese", "meta"]
+
+[fields]
+common = ["type", "aliases", "lang", "created", "based_on"]
+required = ["type", "created"]
+
+[types.inbox]
+
+[types.transcript]
+
+[types.source-note]
+
+[types.concept]
+
+[types.writing]
+
+[types.lesson]
+role = "lesson"
+fields = ["slug"]
+slug_pattern = '^[a-z0-9]+(-[a-z0-9]+)*$'
+
+[types.system]
+
+[types.guide]
+
+[types.template]
+
+[types.moc]
+role = "map"
+
+[types.source-map]
+role = "map"
+
+[types.study-path]
+role = "course"
+
+[types.topic-map]
+role = "map"
+
+[rules]
+concept_requires_provenance = ["based_on", "source_locator"]
+
+[privacy]
+never_egress_dirs = []

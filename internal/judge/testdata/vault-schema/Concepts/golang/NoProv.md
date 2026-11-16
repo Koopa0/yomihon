@@ -1,7 +1,5 @@
 ---
-title: P
 type: concept
-domain: golang
-status: seedling
 ---
+# P
 body

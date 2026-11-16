@@ -6,7 +6,7 @@ import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/syllabus/Maps/branches.md';
+const PAGE = process.env.PAGE_PATH || '/courses/Maps/branches.md';
 const MUTATE = process.env.MUTATE || '';
 const SITE = 'branch-heading-reflows-at-320';
 const NAMES = [

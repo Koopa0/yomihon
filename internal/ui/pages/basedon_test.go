@@ -50,12 +50,15 @@ func TestDeclaredSourceAndTextCitationLabelsDiffer(t *testing.T) {
 	if !strings.Contains(noteHTML, `href="/notes/Concepts/yomihon/Source`) {
 		t.Error("a resolved source is not a link on the note page")
 	}
-	railStart := strings.Index(noteHTML, `<aside class="y-rail-right"`)
-	if railStart < 0 {
-		t.Fatal("the note page has no right rail")
+	endStart := strings.Index(noteHTML, `<div class="y-related"`)
+	if endStart < 0 {
+		t.Fatal("the note page has no block at the end of the text")
 	}
-	if !strings.Contains(noteHTML[railStart:], `class="y-basedon"`) {
-		t.Error("the wide rail has no declared-source block")
+	if !strings.Contains(noteHTML[endStart:], `class="y-basedon"`) {
+		t.Error("the end of the text has no declared-source block")
+	}
+	if strings.Contains(noteHTML, "y-rail-right") {
+		t.Error("the note page draws a right rail")
 	}
 
 	var healthBuf bytes.Buffer
@@ -168,7 +171,7 @@ func TestDeclaredSourceRowsCarryWhatTheCardReads(t *testing.T) {
 	}
 	html := buf.String()
 
-	// The rail and the disclosure the narrow layout folds draw each list once.
+	// The end of the text draws each list once, at every width.
 	blocks := regexp.MustCompile(`(?s)<nav class="y-basedon"([^>]*)>(.*?)</nav>`).FindAllStringSubmatch(html, -1)
 	anchor := regexp.MustCompile(`<a class="([^"]*)" href="([^"]*)"`)
 	var own, declaring int
@@ -212,10 +215,10 @@ func TestDeclaredSourceRowsCarryWhatTheCardReads(t *testing.T) {
 			t.Errorf("rows the card must refuse (-want +got):\n%s", diff)
 		}
 	}
-	if own != 2 {
-		t.Errorf("the note draws %d source lists of its own, want 2 (rail and disclosure)", own)
+	if own != 1 {
+		t.Errorf("the note draws %d source lists of its own, want 1", own)
 	}
-	if declaring != 2 {
-		t.Errorf("the note draws %d lists of notes declaring it, want 2 (rail and disclosure)", declaring)
+	if declaring != 1 {
+		t.Errorf("the note draws %d lists of notes declaring it, want 1", declaring)
 	}
 }

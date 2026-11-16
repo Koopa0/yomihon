@@ -15,7 +15,7 @@ func TestOperatorShapedTermsKeepTheirLiteralMeaning(t *testing.T) {
 		{name: "flag and disjunction", raw: "goroutine -channel OR -channel", terms: []string{"goroutine", "-channel", "or", "-channel"}, operators: []string{"-channel", "OR"}},
 		{name: "explicit quotes", raw: `"OR" 「-flag」`, terms: []string{"or", "-flag"}},
 		{name: "lowercase and ordinary dash", raw: "or -", terms: []string{"or", "-"}},
-		{name: "filter value", raw: "topic:-flag OR", terms: []string{"or"}, operators: []string{"OR"}},
+		{name: "filter value", raw: "domain:-flag OR", terms: []string{"or"}, operators: []string{"OR"}},
 		{name: "fullwidth is still a literal", raw: "ＯＲ", terms: []string{"or"}},
 	}
 	for _, tt := range tests {

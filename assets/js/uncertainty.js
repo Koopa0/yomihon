@@ -1,10 +1,21 @@
+import { lapse } from './mark.js';
+
+// The day a mark was made, as the page prints it: the stored time's own date, or
+// today's where the mark was made a moment ago.
+const dayOf = (time) => time.slice(0, 10);
+const today = () => {
+  const now = new Date();
+  const two = (n) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}`;
+};
+
 // A mark records a location, never the sentence choices currently on a card.
 export function initUncertainty() {
   const articles = [...document.querySelectorAll('[data-uncertainty-endpoint]:not([data-uncertainty-remove])')];
   const removals = [...document.querySelectorAll('[data-uncertainty-remove]')];
   if (articles.length === 0 && removals.length === 0) return;
   const endpoint = (articles[0] || removals[0]).dataset.uncertaintyEndpoint;
-  const keys = new Set();
+  const keys = new Map();
   let controls = [];
   let available = false;
   const keyOf = (path, anchor) => JSON.stringify([path, anchor]);
@@ -12,7 +23,7 @@ export function initUncertainty() {
     .then(async (response) => {
       if (!response.ok) throw new Error('marks unavailable');
       const marks = await response.json();
-      for (const mark of marks) keys.add(keyOf(mark.path, mark.anchor));
+      for (const mark of marks) keys.set(keyOf(mark.path, mark.anchor), dayOf(mark.time));
       available = true;
     })
     .catch(() => {});
@@ -43,7 +54,7 @@ export function initUncertainty() {
       button.disabled = true;
       try {
         const result = await toggle(path, anchor);
-        if (result.marked) keys.add(key);
+        if (result.marked) keys.set(key, today());
         else keys.delete(key);
         if (!result.marked) {
           said.textContent = button.dataset.uncertaintyCleared;
@@ -62,7 +73,6 @@ export function initUncertainty() {
     const words = {
       uncertaintyLang: article.dataset.uncertaintyLang,
       uncertaintyLabel: article.dataset.uncertaintyLabel,
-      uncertaintyClearLabel: article.dataset.uncertaintyClearLabel,
       uncertaintyScope: article.dataset.uncertaintyScope,
       uncertaintyUnavailable: article.dataset.uncertaintyUnavailable,
       uncertaintySaved: article.dataset.uncertaintySaved,
@@ -89,9 +99,7 @@ export function initUncertainty() {
     container.append(group);
     controls.push({ key, button });
     const reflect = () => {
-      const marked = keys.has(key);
-      button.setAttribute('aria-pressed', String(marked));
-      button.textContent = marked ? words.uncertaintyClearLabel : words.uncertaintyLabel;
+      button.setAttribute('aria-pressed', String(keys.has(key)));
     };
     ready.then(() => {
       button.disabled = !available;
@@ -105,7 +113,7 @@ export function initUncertainty() {
       }
       try {
         const result = await toggle(path, anchor);
-        if (result.marked) keys.add(key);
+        if (result.marked) keys.set(key, today());
         else keys.delete(key);
         said.textContent = result.marked ? words.uncertaintySaved : words.uncertaintyCleared;
       } catch {
@@ -114,15 +122,58 @@ export function initUncertainty() {
         for (const control of controls) {
           if (control.key !== key) continue;
           control.button.disabled = false;
-          const marked = keys.has(key);
-          control.button.setAttribute('aria-pressed', String(marked));
-          control.button.textContent = marked ? words.uncertaintyClearLabel : words.uncertaintyLabel;
+          control.button.setAttribute('aria-pressed', String(keys.has(key)));
         }
       }
     });
   }
 
+  // Beside every section the page already drew the button, with the mark and its
+  // day where the reader left one. What is left to do is to make it work, and to
+  // set what was drawn against what the file says now.
+  function bindSection(article, button) {
+    const anchor = button.dataset.sectionAnchor;
+    const key = keyOf(article.dataset.uncertaintyPath, anchor);
+    const margin = button.closest('[data-section-margin]');
+    const said = margin.querySelector('[data-section-said]');
+    const date = margin.querySelector('[data-section-date]');
+    const reflect = () => {
+      const day = keys.get(key);
+      button.setAttribute('aria-pressed', String(day !== undefined));
+      date.hidden = day === undefined;
+      if (day !== undefined) date.dateTime = day;
+    };
+    const say = (words) => {
+      said.textContent = words;
+      lapse(said);
+    };
+    ready.then(() => {
+      button.disabled = false;
+      if (available) reflect();
+      else button.setAttribute('aria-disabled', 'true');
+    });
+    button.addEventListener('click', async () => {
+      if (button.getAttribute('aria-disabled') === 'true') {
+        if (!available) say(article.dataset.uncertaintyUnavailable);
+        return;
+      }
+      button.setAttribute('aria-disabled', 'true');
+      try {
+        const result = await toggle(article.dataset.uncertaintyPath, anchor);
+        if (result.marked) keys.set(key, today());
+        else keys.delete(key);
+        say(result.marked ? article.dataset.uncertaintySaved : article.dataset.uncertaintyCleared);
+      } catch {
+        say(article.dataset.uncertaintyFailed);
+      } finally {
+        button.removeAttribute('aria-disabled');
+        reflect();
+      }
+    });
+  }
+
   for (const article of articles) {
+    for (const button of article.querySelectorAll('[data-section-mark]')) bindSection(article, button);
     for (const card of article.querySelectorAll('.y-slotcard')) {
       const heading = card.querySelector('.y-slotcard__abstract[id]');
       if (!heading) continue;

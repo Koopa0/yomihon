@@ -14,9 +14,9 @@ func reportFile(path, markdown string) capturedFile {
 	return capturedFile{path: path, note: vault.Parse(path, []byte(markdown))}
 }
 
-// TestAReportIsCalledByWhatItSays pins the order a report is named in: its
-// frontmatter title first, then the first level-one heading its body opens on,
-// and only then its file; a report that says nothing still has words.
+// TestAReportIsCalledByWhatItSays pins the order a report is named in: the
+// first level-one heading its body opens on, and only then its file; a report
+// that says nothing still has words.
 func TestAReportIsCalledByWhatItSays(t *testing.T) {
 	t.Parallel()
 
@@ -27,9 +27,9 @@ func TestAReportIsCalledByWhatItSays(t *testing.T) {
 		want string
 	}{
 		{
-			name: "a frontmatter title is what a written report is called",
+			name: "a title the frontmatter writes is no name for a report",
 			file: reportFile(dir+"audit.md", "---\ntitle: Vault audit\n---\n# A different heading\n"),
-			want: "Vault audit",
+			want: "A different heading",
 		},
 		{
 			name: "with no title the first level-one heading is the name",
@@ -91,19 +91,6 @@ func TestAReportIsCalledByWhatItSays(t *testing.T) {
 	}
 }
 
-// TestNoteTitleStaysTheFrontmatterTitleOrTheFile keeps the report's reading of a
-// heading out of the note model. A note is called by its frontmatter title or
-// its file everywhere else in the product, and only a report's shelf also
-// reads the heading.
-func TestNoteTitleStaysTheFrontmatterTitleOrTheFile(t *testing.T) {
-	t.Parallel()
-
-	note := vault.Parse("System/reports/2026-09-22 review.md", []byte("# A heading the note model does not read\n"))
-	if got, want := note.Title(), "2026-09-22 review"; got != want {
-		t.Errorf("Note.Title() = %q, want %q", got, want)
-	}
-}
-
 // TestSharedReportTitlesAreToldApart pins what keeps two reports that carry
 // one title from reading alike. Both stay on the shelf; each gets a qualifier,
 // which is its day when that day is its own among the reports sharing the
@@ -130,7 +117,7 @@ func TestSharedReportTitlesAreToldApart(t *testing.T) {
 			name: "two reports with no day are told apart by their files",
 			files: []capturedFile{
 				reportFile(dir+"alpha.md", "# Review\n"),
-				reportFile(dir+"beta.md", "---\ntitle: Review\n---\n"),
+				reportFile(dir+"beta.md", "Review\n======\n"),
 			},
 			want: map[string]string{"alpha.md": "alpha.md", "beta.md": "beta.md"},
 		},

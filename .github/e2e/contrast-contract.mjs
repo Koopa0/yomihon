@@ -77,12 +77,11 @@ const AA = 4.5;
 // lighter of them would say nothing about the other.
 const NON_TEXT = 3;
 // Each field draws its focus line along one edge, and that edge is where the
-// line is looked for. The two page fields are boxes, outlined all round, and
-// are read across their left edge; the palette's field is the panel's head,
-// with no box of its own, and draws its line under it, so it is read upward
-// from its bottom edge.
+// line is looked for. The page field is a box, outlined all round, and is read
+// across its left edge; the palette's field is the panel's head, with no box
+// of its own, and draws its line under it, so it is read upward from its
+// bottom edge.
 const FOCUS_FIELDS = [
-  { name: 'the desk field', path: '/', field: '.y-homesearch', input: '.y-homesearch input', ground: '--elevated', edge: 'left' },
   { name: 'the search page field', path: '/search', field: '.y-searchpage__form', input: '.y-searchpage__form input', ground: '--panel', edge: 'left' },
   { name: 'the palette field', path: '/', field: '.y-searchdialog__form', input: '.y-searchdialog__input', ground: '--panel', edge: 'bottom', palette: true },
 ];
@@ -237,7 +236,7 @@ const MUTATIONS = {
   'focus-outline-fades-light': {
     target: 'light-focus-outline',
     contexts: ['focus'],
-    apply: weakenStylesheet('app.css', ':root[data-theme="light"] .y-homesearch:focus-within,:root[data-theme="light"] .y-searchdialog__form:focus-within,:root[data-theme="light"] .y-searchpage__form:focus-within{outline-color:var(--border)}'),
+    apply: weakenStylesheet('app.css', ':root[data-theme="light"] .y-searchdialog__form:focus-within,:root[data-theme="light"] .y-searchpage__form:focus-within{outline-color:var(--border)}'),
   },
   // The palette's field draws its focus as the line under it rather than an
   // outline, so the outline modes above never reach it; this is its own.
@@ -249,7 +248,7 @@ const MUTATIONS = {
   'focus-outline-fades-dark': {
     target: 'dark-focus-outline',
     contexts: ['focus'],
-    apply: weakenStylesheet('app.css', ':root[data-theme="dark"] .y-homesearch:focus-within,:root[data-theme="dark"] .y-searchdialog__form:focus-within,:root[data-theme="dark"] .y-searchpage__form:focus-within{outline-color:var(--border)}'),
+    apply: weakenStylesheet('app.css', ':root[data-theme="dark"] .y-searchdialog__form:focus-within,:root[data-theme="dark"] .y-searchpage__form:focus-within{outline-color:var(--border)}'),
   },
 };
 
@@ -945,7 +944,7 @@ try {
     await context.close();
   }
 
-  // The quiet word a course row prints beside a lesson that is not yet settled,
+  // The quiet word a course row prints beside a lesson that is still a draft,
   // and the link back to the place the reader kept, each wearing the production
   // classes. The row is read idle and under the hover wash it is painted over;
   // the link on the raised panel the desk gives it.
@@ -956,7 +955,7 @@ try {
     if (!response || response.status() !== 200) broken(`status fixture navigation returned ${response?.status() ?? 'no response'}, want 200`);
 
     proveApplied('status-label-aa', 'status');
-    const row = '<a class="y-lesson" href="#"><span class="y-navdot" aria-hidden="true"></span><span class="y-lesson__title">Alpha</span><span class="y-lesson__aside"><span class="ui-status">draft</span></span></a>';
+    const row = '<a class="y-lesson" href="#"><span class="y-navdot" aria-hidden="true"></span><span class="y-lesson__title">Alpha</span><span class="y-lesson__aside"><span class="ui-status">草稿</span></span></a>';
     for (const theme of ['light', 'dark']) {
       const result = await measurePlanted(page, theme, row, '.ui-status', ['--overlay']);
       if (result.issue) broken(`status label ${theme}: ${result.issue}`);

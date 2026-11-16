@@ -1,7 +1,7 @@
-9 findings: 3 error, 6 warn, 0 hidden (0 planned forward-refs, 0 external paths)
+7 findings: 1 error, 6 warn, 0 hidden (0 planned forward-refs, 0 external paths)
 
 debt by domain:
-  golang               3 error · 5 warn
+  golang               1 error · 5 warn
   japanese             0 error · 1 warn
 
 most leveraged (create one, resolve many):
@@ -9,8 +9,7 @@ most leveraged (create one, resolve many):
   ×2 [[Foo]] (broken) — golang
 
 ▌ golang
-  [error] ×2 frontmatter "aliases" is not a known field  (Concepts/golang/Map.md)
-  [error] status "bogus" is not a valid status  (Concepts/golang/Bad.md)
+  [error] frontmatter "status" is not a known field  (Concepts/golang/Bad.md)
   [warn] ×2 [[Foo]] resolves to no note  (Concepts/golang/Map.md)
   [warn] ×2 alias "shared" is declared by 2 notes, so [[shared]] cannot resolve deterministically  (Concepts/golang/Map.md)
   [warn] [[Bar]] resolves to no note  (Concepts/golang/Slice.md)

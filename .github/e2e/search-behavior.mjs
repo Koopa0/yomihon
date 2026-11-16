@@ -1,4 +1,5 @@
-// Behavior lock: Home starts at the top and stays a plain GET form; /search and
+// Behavior lock: Home draws no search field of its own, the header carrying the
+// one search the product has; /search and
 // the command palette update in place from the lexical-results endpoint, and
 // /search's own address follows its settled results in place — including a
 // local clear, which drops q so a reload cannot restore the query the reader
@@ -30,9 +31,7 @@ const SITES = [
   'reopening-answers-the-query-in-the-box',
   'late-close-keeps-the-reopened-request',
   'announcement-quotes-the-query',
-  'home-starts-at-top',
-  'home-does-not-take-focus',
-  'home-remains-plain-get',
+  'home-draws-no-search-field',
   'page-live-results',
   'page-url-follows-results',
   'page-url-drops-cleared-query',
@@ -172,91 +171,35 @@ const MUTATIONS = {
     target: 'reopening-answers-the-query-in-the-box',
     before: reopenWithoutAsking,
   },
-  'home-autofocus': {
-    target: 'home-does-not-take-focus',
+  // A field of the desk's own comes back, in the shape it had: a plain GET
+  // form in a search landmark, ahead of the ways in.
+  'draw-a-search-field-on-home': {
+    target: 'home-draws-no-search-field',
     before: rewriteHome([
       {
-        needle: 'name="q" placeholder="搜尋…" aria-label="搜尋">',
-        replacement: 'name="q" placeholder="搜尋…" aria-label="搜尋" autofocus>',
+        needle: '<div class="y-home">',
+        replacement: '<div class="y-home"><search><form method="get" action="/search"><input type="search" name="q" aria-label="搜尋"> <button type="submit">搜尋</button></form></search>',
+        expected: 1,
       },
     ], 'Home document'),
   },
-  'scroll-home-main': {
-    target: 'home-starts-at-top',
-    after: async (page) => {
-      // The document is the scroller, so this moves the document. Mutating
-      // .y-main would leave the probe green whatever happened, which is what
-      // it did the first time this layout changed underneath it.
-      const state = await page.evaluate(() => {
-        const overflow = document.createElement('div');
-        overflow.style.blockSize = '2000px';
-        overflow.dataset.e2eScrollMutation = '';
-        document.body.append(overflow);
-        document.documentElement.style.scrollBehavior = 'auto';
-        document.scrollingElement.scrollTop = 80;
-        return {
-          scrollTop: document.scrollingElement.scrollTop,
-          marked: overflow.hasAttribute('data-e2e-scroll-mutation'),
-        };
-      });
-      return () => state.marked && state.scrollTop > 0 ? '' : `the document stayed at ${state.scrollTop} after the scroll mutation`;
-    },
-  },
-  'focus-home-without-scroll': {
-    target: 'home-does-not-take-focus',
-    before: rewriteScript([
-      {
-        needle: '  const search = initSearch();',
-        replacement: "  document.querySelector('[data-home-block=\"search\"] input[name=\"q\"]')?.focus({ preventScroll: true });\n  const search = initSearch();",
-      },
-    ], 'Home focus script', 'yomihon.js'),
-  },
-  'enhance-home-search': {
-    target: 'home-remains-plain-get',
-    before: rewriteHome([
-      {
-        needle: 'class="y-homesearchrow" data-home-block="search"',
-        replacement: 'class="y-homesearchrow" data-home-block="search" data-live-search data-live-search-endpoint="/search/results"',
-        expected: 1,
-      },
-      {
-        needle: 'class="y-homesearch" method="get" action="/search"',
-        replacement: 'class="y-homesearch" method="get" action="/search" data-live-search-form',
-        expected: 1,
-      },
-      {
-        needle: 'name="q" placeholder="搜尋…" aria-label="搜尋">',
-        replacement: 'name="q" placeholder="搜尋…" aria-label="搜尋" data-live-search-input>',
-        expected: 1,
-      },
-      {
-        // The status and the results go inside the search landmark, which is
-        // the element the enhancement scopes itself to. They sat before a
-        // closing section when the desk's search was a block; the row has none,
-        // and appending after the landmark would put them outside the scope.
-        needle: '<button type="submit" class="y-xbtn">搜尋</button></form>',
-        replacement: '<button type="submit" class="y-xbtn">搜尋</button></form><p class="y-live-search__status" data-live-search-status role="status" aria-live="polite" aria-atomic="true"></p><div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div>',
-        expected: 1,
-      },
-    ], 'Home plain search'),
-  },
-  'post-home-form': {
+  'post-the-search-page-form': {
     target: 'button-submits-get',
-    before: rewriteHome([
+    before: rewriteSearchPage([
       {
-        needle: 'class="y-homesearch" method="get" action="/search"',
-        replacement: 'class="y-homesearch" method="post" action="/search"',
+        needle: 'class="y-searchpage__form" method="get" action="/search"',
+        replacement: 'class="y-searchpage__form" method="post" action="/search"',
       },
-    ], 'Home GET form'),
+    ], 'search-page GET form'),
   },
-  'drop-home-query-name': {
+  'rename-the-search-page-query': {
     target: 'button-submits-get',
-    before: rewriteHome([
+    before: rewriteSearchPage([
       {
-        needle: 'name="q" placeholder="搜尋…" aria-label="搜尋">',
-        replacement: 'name="query" placeholder="搜尋…" aria-label="搜尋">',
+        needle: 'type="search" name="q" value=""',
+        replacement: 'type="search" name="query" value=""',
       },
-    ], 'Home query field'),
+    ], 'search-page query field'),
   },
   'page-wrong-endpoint': {
     target: 'page-live-results',
@@ -443,9 +386,9 @@ const MUTATIONS = {
   'disable-search-button': {
     target: 'button-submits-get',
     after: async (page) => {
-      const button = page.locator('[data-home-block="search"] button[type="submit"]');
+      const button = page.locator('.y-searchpage button[type="submit"]');
       const count = await button.count();
-      if (count !== 1) return () => `Home submit button count was ${count}, want 1`;
+      if (count !== 1) return () => `search-page submit button count was ${count}, want 1`;
       await button.evaluate((element) => { element.type = 'button'; });
       return () => '';
     },
@@ -650,57 +593,16 @@ const withDeadline = (promise, message, timeout = 3000) => Promise.race([
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  // Home top at the viewport that reproduced the autofocus scroll.
+  // The desk asks for no search of its own: the header carries the one search
+  // the product has, and a second field on the page asked for as much of it as
+  // any of the ways in. Nothing in the main region is a search field or a form
+  // that leads to the search route.
   {
-    const site = 'home-starts-at-top';
+    const site = 'home-draws-no-search-field';
     const { context, page } = await start(browser, site);
     try {
-      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      // The document is the scroller for prose, so arriving at the top is a
-      // fact about the document. Asking .y-main would answer zero whatever
-      // happened, because it no longer scrolls at all.
-      const scrollTop = await page.evaluate(() => document.scrollingElement.scrollTop);
-      if (scrollTop !== 0) fail(site, `document.scrollTop = ${scrollTop}, want 0 at 1270x720`);
-    } finally {
-      await context.close();
-    }
-  }
-
-  // Home opens on the ways into the library, not on a text field: avoiding
-  // scroll is not enough if a script still steals focus with preventScroll.
-  // The search field must remain unfocused.
-  {
-    const site = 'home-does-not-take-focus';
-    const scope = '[data-home-block="search"]';
-    const { context, page } = await start(browser, site);
-    try {
-      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      const focused = await page.locator(`${scope} input[name="q"]`).evaluate((element) => document.activeElement === element);
-      if (focused) fail(site, 'the Home search input took initial focus');
-    } finally {
-      await context.close();
-    }
-  }
-
-  // Home is intentionally not a live-search surface. Cross the same debounce
-  // window used by the enhanced fields and prove typing stays local: no
-  // fragment request, no result region, no navigation.
-  {
-    const site = 'home-remains-plain-get';
-    const scope = '[data-home-block="search"]';
-    const { context, page } = await start(browser, site, { clock: true });
-    try {
-      const initialURL = page.url();
-      const requests = resultRequests(page);
-      await page.locator(`${scope} input[type="search"]`).fill(QUERY);
-      await page.clock.runFor(DEBOUNCE_MS);
-      await page.clock.resume();
-      await page.waitForTimeout(500);
-      if (requests.length !== 0) fail(site, `Home issued ${requests.length} live-result request(s), want 0`);
-      if (await page.locator(`${scope} [data-live-search], ${scope} [data-live-search-results], ${scope} [data-live-search-status]`).count() !== 0) {
-        fail(site, 'Home gained live-search hooks or a dynamic result region');
-      }
-      if (page.url() !== initialURL) fail(site, 'Home navigated from input alone');
+      const own = await page.locator('main input[type="search"], main form[action="/search"], main search').count();
+      if (own !== 0) fail(site, `Home draws ${own} search element(s) of its own, want none`);
     } finally {
       await context.close();
     }
@@ -1215,8 +1117,8 @@ try {
 
   {
     const site = 'button-submits-get';
-    const scope = '[data-home-block="search"]';
-    const { context, page } = await start(browser, site);
+    const scope = '.y-searchpage';
+    const { context, page } = await start(browser, site, { path: '/search' });
     try {
       await page.locator(`${scope} input[type="search"]`).fill(QUERY);
       const requestPromise = page.waitForRequest((request) => request.isNavigationRequest() && new URL(request.url()).pathname === '/search');
@@ -1520,7 +1422,7 @@ try {
     }
   }
 
-  console.log('PASS search-behavior: a reopened palette answers its own box; a controlled late close preserves its pending request; a query is announced as typed; the form fits 320px in both languages; Home top/focus/plain GET; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
+  console.log('PASS search-behavior: a reopened palette answers its own box; a controlled late close preserves its pending request; a query is announced as typed; the form fits 320px in both languages; Home draws no search field; two painted live scopes; page URL sync including clear; dialog clear keeps the page URL; debounce; abort/stale guards; count/error status; the kept-rows label follows the box; hits open at the match on both surfaces; native and no-JS GET');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

@@ -1,7 +1,7 @@
 ---
 type: study-path
-title: Long rail
-domain: golang
+
+
 ---
 
 # Long rail

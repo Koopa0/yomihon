@@ -1,12 +1,8 @@
 ---
-title: 把 yomihon 指向你的資料夾
 type: lesson
-status: ready
-domain: yomihon
 slug: point-at-your-own-folder
 level: fundamental
 created: 2026-09-22
-updated: 2026-09-22
 lang: zh-Hant
 ---
 
@@ -20,4 +16,4 @@ yomihon ~/notes
 
 標頭的 `EN` 切換介面語言，正文不會翻譯。筆記可用契約允許的 `lang` 欄位宣告語言，例如 `zh-Hant` 或 `ja`。
 
-狀態控制、課程、地圖與命令列報告需要 [[知識庫契約]]。設定步驟見 [[L02 Add a contract]]。
+課程、地圖與命令列報告需要 [[知識庫契約]]。設定步驟見 [[L02 Add a contract]]。

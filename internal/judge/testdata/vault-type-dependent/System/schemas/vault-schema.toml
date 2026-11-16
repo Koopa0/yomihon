@@ -1,29 +1,23 @@
-schema_version = "1"
+schema_version = "2"
+
+[folders]
+checked = ["Notes"]
+templates = []
 
 [enums]
-type = ["lesson", "memo", "café"]
-[enums.status]
-note = ["draft"]
-lesson = ["draft"]
+
 [fields]
-required = ["title", "type"]
-known = ["title", "type", "status", "domain"]
-lesson_only = ["level", "slug"]
-[fields.status_group]
-lesson = ["lesson"]
-[rules]
-slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
-[scan]
-knowledge_dirs = ["Notes"]
-[navigation]
-path_types = []
-map_types = []
-[artifacts]
-non_instance_dirs = []
+common = ["type"]
+required = ["type"]
+
+[types.lesson]
+role = "lesson"
+fields = ["level", "slug"]
+slug_pattern = '^[a-z0-9]+(-[a-z0-9]+)*$'
+
+[types.memo]
+
+[types."café"]
+
 [privacy]
 never_egress_dirs = ["Private"]
-[[lifecycle]]
-status = "draft"
-applies_to = ["lesson", "memo", "café"]
-from = []
-owner = []

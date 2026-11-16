@@ -1,6 +1,5 @@
 ---
-title: Public Map
 type: moc
-domain: golang
 ---
+# Public Map
 a public map that mounts [[Public Mounted]]

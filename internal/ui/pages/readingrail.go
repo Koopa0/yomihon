@@ -29,6 +29,10 @@ type ReadingRail struct {
 	// kept in a note the book does not teach marks nothing.
 	KeptNote string
 
+	// note is the page this rail is drawn beside, which the row that is the note
+	// opens into the contents of. It is nil on a rail drawn for no note.
+	note *NoteView
+
 	book      *nav.Path
 	neighbors nav.Neighbors
 	// place is where the note sits in the book: its part, and what a side
@@ -100,6 +104,43 @@ func (r *ReadingRail) HereShelf(lang wording.Lang) Shelf {
 		})
 	}
 	return Shelf{Title: hereLabel(r.hereDir, lang), Href: folderHref(r.hereDir), Rows: rows}
+}
+
+// where is how the rail of a note in no course says where it is: the folder's
+// own path, or the word for the vault's root where the note sits at the top.
+func (r *ReadingRail) where(lang wording.Lang) string {
+	if r.hereDir == "" {
+		return wording.VaultRoot.In(lang)
+	}
+	return r.hereDir
+}
+
+// railSpineView is the name a rail keeps on its folded edge and where that name
+// leads.
+type railSpineView struct {
+	Title string
+	Href  string
+}
+
+// spine is what this rail is called when it is folded to a strip: the course's
+// own title, the folder's path, or the reports. A rail that has none to give
+// draws nothing there.
+func (r *ReadingRail) spine(lang wording.Lang) railSpineView {
+	switch r.Kind {
+	case ReadingRailBook:
+		if r.book != nil {
+			return railSpineView{Title: r.book.Title, Href: courseHrefFrom(r.book.RelPath, r.CurrentPath)}
+		}
+	case ReadingRailFolder:
+		if r.Model != nil {
+			return railSpineView{Title: r.where(lang), Href: folderHref(r.hereDir)}
+		}
+	case ReadingRailReports:
+		if r.Model != nil {
+			return railSpineView{Title: wording.Reports.In(lang), Href: indexHref(reportMode)}
+		}
+	}
+	return railSpineView{}
 }
 
 func (r *ReadingRail) current(relPath string) bool {

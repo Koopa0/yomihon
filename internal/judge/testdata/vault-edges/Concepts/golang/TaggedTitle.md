@@ -1,5 +1,5 @@
 ---
 type: concept
-title: !!binary Zm9v
 ---
+# Zm9v
 body

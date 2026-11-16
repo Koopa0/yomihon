@@ -1,0 +1,46 @@
+# yomihon vault contract for Koopa0/learning.
+# yomihon reads this file and never writes it; tools/vault.py keeps the notes
+# in line with it. Read with: yomihon serve --root <this repo>
+#
+# 需要新載入器：這份契約是欄位重新設計後的形狀（[types]、[folders]、通用 [enums]），
+# 只有欄位重新設計之後的 yomihon 讀得懂；在那之前的 binary 會以 schema_version 不符拒絕。
+# yomihon 與本 repo 同日切換。
+#
+# frontmatter 只放作者對這篇筆記的主張。title 取第一個 H1，domain 取 courses/ 下的資料夾，
+# 兩者都不寫。完成與否看 PR：合併進 main 就是完成；還沒寫完的筆記寫 `draft: true`。
+
+schema_version = "2"
+
+[folders]
+checked = ["courses"]
+templates = ["prompts"]
+domain_from = ["courses"]
+frontmatter_optional = true
+
+[enums]
+type = ["lesson", "study-path", "outline"]
+domain = ["go", "sql", "system-design", "dsa", "llm", "ai", "backend", "rust"]
+level = ["基礎", "中階", "資深", "前沿", "深入專題"]
+
+[fields]
+# 封閉清單：所有類型都可寫的欄位。tags、aliases、cssclasses 是 Obsidian 保留名，放行不解讀。
+common = ["type", "aliases", "draft", "lang", "created"]
+
+[types.lesson]
+role = "lesson"
+required = ["slug"]
+fields = ["slug", "level", "prerequisites", "verified_on", "verified_with", "based_on"]
+# A module's slug is its stable dispatch key (independent of its path): C2-L1-04, C4-題庫-P01, or the two
+# mock exams named before the numbering settled.
+# 拆章保留原 slug；新章加 -part-02..99，另在 tools/lesson-splits.json 明確登記。
+slug_pattern = '^(C[1-8]-(L[1-4]|D)-[0-9]{2}(-part-(0[2-9]|[1-9][0-9]))?|C4-題庫-P[0-9]{2}|C6-L1-EXAM|C7-L1-模擬考)$'
+
+[types.study-path]
+# 主題為結構容器；推薦閱讀 primary、選讀 local，難度放在條目 metadata。
+role = "course"
+
+[types.outline]
+# outline 是各課的大綱頁：不是一課，不佔 slug，也不列進學習路徑；沒有 yomihon 行為，所以不寫 role。
+
+[privacy]
+never_egress_dirs = []

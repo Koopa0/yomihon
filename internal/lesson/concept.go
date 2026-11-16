@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -51,7 +52,7 @@ func NewConceptIndex(notes []*vault.Note) (ConceptIndex, error) {
 		}
 		idx.byPath[relPath] = conceptSource{
 			id:    conceptID(relPath),
-			title: note.Title(),
+			title: graph.TitleOf(note.RelPath, note.Body),
 			body:  note.Body,
 		}
 	}

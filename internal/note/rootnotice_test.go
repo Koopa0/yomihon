@@ -31,7 +31,7 @@ func TestRootReplacementReachesBothPagesInBothLanguages(t *testing.T) {
 		t.Fatal(err)
 	}
 	reader := openReadingVault(t, root)
-	writer := openStatusWriter(t, reader, nil, schema.Governance{})
+	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Governance{}) }
 	if err := os.Rename(root, root+".old"); err != nil {
 		t.Fatal(err)
 	}
@@ -46,10 +46,9 @@ func TestRootReplacementReachesBothPagesInBothLanguages(t *testing.T) {
 	}
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source: reader, VaultName: shell.VaultName(reader.Name()), Status: writer.Authority,
-		Snapshot: func() *snapshot.Generation { return store.Current() }, ObservedStatus: writer.ObservedStatus,
-		ConsumeReceipt: writer.ConsumeReceipt,
-		Continuation:   func() (mark.Continuation, bool) { return mark.Continuation{}, false }, Log: log,
+		Source: reader, VaultName: shell.VaultName(reader.Name()), Authority: authority,
+		Snapshot:     func() *snapshot.Generation { return store.Current() },
+		Continuation: func() (mark.Continuation, bool) { return mark.Continuation{}, false }, Log: log,
 	}).Register(mux)
 	for _, state := range []string{"changed", "missing", "restored"} {
 		if state == "missing" {

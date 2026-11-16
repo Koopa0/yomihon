@@ -3,8 +3,6 @@ package nav
 import (
 	"slices"
 	"testing"
-
-	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // Maps sharing a domain and a title are told apart only by where they live,
@@ -14,12 +12,15 @@ import (
 func TestMapsSharingDomainAndTitleFollowReadingOrder(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeNavFixture(t, root, "Concepts/Target.md", "---\ntitle: Target\ntype: concept\nstatus: growing\n---\nbody\n")
+	writeNavFixture(t, root, "Concepts/Target.md", "---\ntype: concept\n---\n# Target\n\nbody\n")
 	for _, rel := range []string{"Maps/Untitled 2.md", "Maps/TODO.md", "Maps/Untitled.md", "Maps/index.md"} {
-		writeNavFixture(t, root, rel, "---\ntitle: Shelf\ntype: moc\ndomain: golang\n---\n## Shelf\n- [[Target]]\n")
+		writeNavFixture(t, root, rel, "---\ntype: moc\n---\n# Shelf\n\n## Shelf\n- [[Target]]\n")
 	}
-	roles, policy := testCapabilities(t)
-	model := capturedModel(t, root, roles, schema.KnowledgeScope{}, policy, nil)
+	domains := map[string]string{}
+	for _, rel := range []string{"Maps/Untitled 2.md", "Maps/TODO.md", "Maps/Untitled.md", "Maps/index.md"} {
+		domains[rel] = "golang"
+	}
+	model := capturedModelWithDomains(t, root, domains)
 	var got []string
 	for _, m := range model.Maps() {
 		got = append(got, m.RelPath)

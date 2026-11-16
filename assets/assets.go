@@ -45,13 +45,16 @@ import "embed"
 //     references to their byte-versioned URLs before hashing; nothing generates or
 //     minifies it, so `go build ./...` needs no prior css step.
 //
-//   - brand/yomihon-mark.svg — the single canonical, hand-authored brand
-//     mark. The same embedded bytes are served to every product projection;
-//     there are no independently redrawn favicon or header variants.
+//   - brand/yomihon-mark.svg — the canonical, hand-authored brand mark, which
+//     the header and the README draw. brand/yomihon-mark-on-paper.svg is the
+//     same two paths on a paper-coloured rounded tile, for the places a stylesheet
+//     cannot give the mark a ground: the favicon and the README under a dark
+//     colour scheme. Its mark paths are the canonical ones, byte for byte, and
+//     a test holds them to that; nothing else is drawn twice.
 //
 //   - fonts/ — the self-hosted woff2 (Geist, Geist Mono, Newsreader),
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
 //     request ever leaves the machine.
 //
-//go:embed js/yomihon.js js/codecopy.js js/preferences.js js/drawer.js js/rail.js js/sidebar.js js/rail-filter.js js/contents.js js/freshness.js js/langform.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mark.js js/preview.js js/thought.js js/uncertainty.js js/mermaid css/reset.css css/fonts.css css/tokens.css css/components.css fonts brand/yomihon-mark.svg
+//go:embed js/yomihon.js js/codecopy.js js/preferences.js js/drawer.js js/rail.js js/sidebar.js js/rail-filter.js js/contents.js js/freshness.js js/langform.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/mark.js js/preview.js js/thought.js js/uncertainty.js js/mermaid css/reset.css css/fonts.css css/tokens.css css/components.css fonts brand/yomihon-mark.svg brand/yomihon-mark-on-paper.svg
 var Files embed.FS

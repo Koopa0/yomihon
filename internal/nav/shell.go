@@ -5,8 +5,7 @@ import "github.com/koopa0/yomihon/internal/schema"
 // Shell is the snapshot-derived state shared by the topbar and sidebar, handed
 // to a handler as one value so navigation and the governed flag cannot come
 // from different snapshot reads. Governed says whether anything claimed
-// authority over this vault; it gates every surface that would otherwise name a
-// status the vault never declared.
+// authority over this vault.
 type Shell struct {
 	Nav      *Model
 	Governed bool

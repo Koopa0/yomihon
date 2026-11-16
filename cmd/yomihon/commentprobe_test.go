@@ -27,7 +27,7 @@ const (
 
 // TestPathsCountAgreesWithWhatThePageShows is the fixture pair the ruling
 // named: two study-paths identical except that one closes the comment. The
-// page hides everything after an unclosed %%; /paths used to count the parked
+// page hides everything after an unclosed %%; /courses used to count the parked
 // rows anyway. Both courses now show 2 課, and each note's article names
 // only the two lessons written before the mark.
 func TestPathsCountAgreesWithWhatThePageShows(t *testing.T) {
@@ -45,14 +45,14 @@ func TestPathsCountAgreesWithWhatThePageShows(t *testing.T) {
 		}
 	})
 
-	paths := readingPage(t, site, "/paths")
+	paths := readingPage(t, site, "/courses")
 	for _, title := range []string{closedProbeTitle, unclosedProbeTitle} {
 		card := indexCard(t, paths, title)
 		if !strings.Contains(card, "2 課") {
-			t.Errorf("/paths lists %q as %q, want 2 課", title, card)
+			t.Errorf("/courses lists %q as %q, want 2 課", title, card)
 		}
 		if strings.Contains(card, "4 課") {
-			t.Errorf("/paths still counts the rows a comment hid on %q: %q", title, card)
+			t.Errorf("/courses still counts the rows a comment hid on %q: %q", title, card)
 		}
 	}
 
@@ -81,13 +81,13 @@ func writeCommentProbeVault(t *testing.T, root string) {
 	}
 	files := map[string]string{
 		schema.ContractRelPath: string(contract),
-		"Maps/Closed probe.md": "---\ntitle: " + closedProbeTitle + "\ntype: study-path\n---\n\n" +
+		"Maps/Closed probe.md": "---\ntype: study-path\n---\n\n" +
 			probeCourse + "%%\n",
-		"Maps/Unclosed probe.md": "---\ntitle: " + unclosedProbeTitle + "\ntype: study-path\n---\n\n" +
+		"Maps/Unclosed probe.md": "---\ntype: study-path\n---\n\n" +
 			probeCourse,
-		"Writing/" + visibleLessonOne + ".md": "---\ntitle: " + visibleLessonOne + "\ntype: lesson\nstatus: draft\n---\n\nbody\n",
-		"Writing/" + visibleLessonTwo + ".md": "---\ntitle: " + visibleLessonTwo + "\ntype: lesson\nstatus: draft\n---\n\nbody\n",
-		"Writing/" + hiddenLessonOne + ".md":  "---\ntitle: " + hiddenLessonOne + "\ntype: lesson\nstatus: draft\n---\n\nbody\n",
+		"Writing/" + visibleLessonOne + ".md": "---\ntype: lesson\n---\n\nbody\n",
+		"Writing/" + visibleLessonTwo + ".md": "---\ntype: lesson\n---\n\nbody\n",
+		"Writing/" + hiddenLessonOne + ".md":  "---\ntype: lesson\n---\n\nbody\n",
 	}
 	for rel, body := range files {
 		full := filepath.Join(root, filepath.FromSlash(rel))
@@ -104,11 +104,11 @@ func indexCard(t *testing.T, page, title string) string {
 	t.Helper()
 	at := strings.Index(page, title)
 	if at < 0 {
-		t.Fatalf("no /paths card for %q; page = %q", title, page)
+		t.Fatalf("no /courses card for %q; page = %q", title, page)
 	}
 	end := strings.Index(page[at:], "</a>")
 	if end < 0 {
-		t.Fatalf("unterminated /paths card for %q", title)
+		t.Fatalf("unterminated /courses card for %q", title)
 	}
 	return page[at : at+end]
 }

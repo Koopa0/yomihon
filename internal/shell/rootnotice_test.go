@@ -10,7 +10,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -40,16 +39,16 @@ func TestRootNoticeReachesTheShellWithoutChangingFindingCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	view := store.Current().Capture()
-	found := GatherFindings(status.Authority{}, view)
+	found := GatherFindings(view)
 	want := &snapshot.RootNotice{SelectedPath: root, OpenedName: reader.Name()}
 	if diff := cmp.Diff(want, found.Root); diff != "" {
 		t.Fatalf("shell root projection (-want +got):\n%s", diff)
 	}
-	if found.Total() != 0 {
-		t.Fatalf("root notice counted as %d finding rows", found.Total())
+	if total := findingLists(&found); total != 0 {
+		t.Fatalf("root notice counted as %d finding rows", total)
 	}
 	found.Root.SelectedPath = "caller mutation"
-	if diff := cmp.Diff(want, GatherFindings(status.Authority{}, view).Root); diff != "" {
+	if diff := cmp.Diff(want, GatherFindings(view).Root); diff != "" {
 		t.Fatalf("gathered root notice changed the live fact (-want +got):\n%s", diff)
 	}
 }

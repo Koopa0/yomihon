@@ -18,19 +18,19 @@ func TestExcludedDirectoryIsUnseenLikeAHiddenOne(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	writeNote(t, root, "Concepts/Alpha.md", "---\ntitle: Alpha\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Concepts/Alpha.md", "---\ntype: concept\n---\nbody\n")
 	writeNote(t, root, "Concepts/there.png", "not really a picture\n")
 	writeNote(t, root, "Concepts/lab/there.png", "not really a picture\n")
-	writeNote(t, root, "Concepts/lab/Beta.md", "---\ntitle: Beta\ntype: concept\nstatus: draft\n---\nbody\n")
+	writeNote(t, root, "Concepts/lab/Beta.md", "---\ntype: concept\n---\nbody\n")
 
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		t.Fatalf("read contract fixture: %v", err)
 	}
-	const needle = "[scan]\n"
-	text := strings.Replace(string(data), needle, needle+"exclude_dirs = [\"Concepts/lab\"]\n", 1)
+	const needle = "[folders]\n"
+	text := strings.Replace(string(data), needle, needle+"ignored = [\"Concepts/lab\"]\n", 1)
 	if text == string(data) {
-		t.Fatal("the contract fixture does not contain the scan needle")
+		t.Fatal("the contract fixture does not contain the folders needle")
 	}
 	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	if err = os.MkdirAll(filepath.Dir(contractPath), 0o750); err != nil {

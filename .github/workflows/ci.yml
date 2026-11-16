@@ -168,11 +168,8 @@ jobs:
   # The full analysis, generation, race, and fuzz gates run once on Linux. A
   # real Darwin runner also executes the complete suite. Windows builds and
   # vets every package, compiles every test, then drives its product-specific
-  # contract: the lexical reader remains available while status publication
-  # fails before filesystem access.
-  # Supported-platform write tests are intentionally not executed on a kernel
-  # where those features are unavailable; the focused runtime contract below
-  # is stronger evidence than skipping inside hundreds of unrelated tests.
+  # contract: the reading server answers every route and writes nothing into
+  # the vault.
   portable-core:
     strategy:
       fail-fast: false
@@ -193,12 +190,6 @@ jobs:
       - name: Vet every package
         run: go vet ./...
 
-      # The platform-boundary files hide behind this tag, so plain vet never
-      # reads them and the cross-builds compile no tests. The Make target has
-      # run both since those files existed; this is the runner catching up.
-      - name: Vet every package behind the durability tag
-        run: go vet -tags yomihon_nodurable ./...
-
       - name: Race-test every package
         if: runner.os != 'Windows'
         run: go test -race ./... -count=1
@@ -207,28 +198,18 @@ jobs:
         if: runner.os == 'Windows'
         run: go test ./... -run '^$' -count=1
 
-      # The boundary tests are asked for by name before they are run. A -run
+      # The contract test is asked for by name before it is run. A -run
       # pattern that matches nothing is not an error to Go and exits 0 without
-      # testing anything, so a renamed test would quietly turn this contract
-      # into a green no-op — the same loss the fuzz job guards against by
-      # discovering its targets. Demanding at least one match is not enough:
-      # the pattern spans two packages, and renaming one package's tests would
-      # leave the step green behind the other package's. Every test the step
-      # exists to run is therefore named here, and a rename reds it until the
-      # name here follows. A test added later still runs under the pattern, so
-      # the list is a floor rather than an inventory to keep exact.
-      - name: Drive the Windows reader and status-write boundary
+      # testing anything, so a renamed test would quietly turn this step into a
+      # green no-op; the name here has to follow a rename.
+      - name: Drive the Windows reader over a vault it must not write
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          listed=$(go test ./... -run '^TestUnsupportedPlatform' -list '^TestUnsupportedPlatform')
+          listed=$(go test ./cmd/yomihon -list '^TestNoRouteWritesIntoTheVault$')
           printf '%s\n' "$listed"
-          for name in TestUnsupportedPlatformKeepsReaderOpenAndStatusWritesClosed \
-                      TestUnsupportedPlatformClosesWriteFaceBeforeFilesystem \
-                      TestUnsupportedPlatformPOSTIsAnUnchangedServiceRefusal; do
-            printf '%s\n' "$listed" | grep -qx "$name" || { echo "$name is not among the listed tests; the boundary step would leave its contract unrun" >&2; exit 1; }
-          done
-          go test ./... -run '^TestUnsupportedPlatform' -count=1
+          printf '%s\n' "$listed" | grep -qx TestNoRouteWritesIntoTheVault || { echo "TestNoRouteWritesIntoTheVault is not among the listed tests; this step would leave its contract unrun" >&2; exit 1; }
+          go test ./cmd/yomihon -run '^TestNoRouteWritesIntoTheVault$' -count=1
 
 
 

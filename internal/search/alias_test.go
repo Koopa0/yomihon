@@ -1,6 +1,7 @@
 package search
 
 import (
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // aliasServer answers over notes whose aliases are the only place a term
@@ -17,18 +19,18 @@ import (
 func aliasServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Concepts/Goroutine.md", Title: "Goroutine", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Goroutine.md", Title: "Goroutine", NoteType: "concept", Draft: true,
 			Aliases: []string{"green thread"}, PlainText: "a unit of concurrency"},
-		{RelPath: "Concepts/Pointer.md", Title: "Pointer", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Pointer.md", Title: "Pointer", NoteType: "concept", Draft: true,
 			Aliases: []string{"指標"}, PlainText: "an address held as a value"},
-		{RelPath: "Concepts/Kana.md", Title: "Kana", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Kana.md", Title: "Kana", NoteType: "concept", Draft: true,
 			Aliases: []string{"かな"}, PlainText: "a syllabary"},
-		{RelPath: "Concepts/Plain.md", Title: "Plain", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Plain.md", Title: "Plain", NoteType: "concept", Draft: true,
 			PlainText: "no alias at all"},
 		// Two names, and the query names the second: with one alias apiece,
 		// "the name that matched" and "the first name" are the same string,
 		// and a row that always showed the first would look correct.
-		{RelPath: "Concepts/Several.md", Title: "Several", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Several.md", Title: "Several", NoteType: "concept", Draft: true,
 			Aliases: []string{"first name", "second name"}, PlainText: "unrelated"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()
@@ -120,9 +122,9 @@ func TestAnAliasHitRanksWithTheTitleItStandsFor(t *testing.T) {
 	t.Parallel()
 
 	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Concepts/Mentions.md", Title: "Mentions", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Mentions.md", Title: "Mentions", NoteType: "concept", Draft: true,
 			PlainText: "this body happens to say green thread in passing"},
-		{RelPath: "Concepts/Named.md", Title: "Named", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Named.md", Title: "Named", NoteType: "concept", Draft: true,
 			Aliases: []string{"green thread"}, PlainText: "unrelated words"},
 	}, validArtifactPolicy(t))
 
@@ -151,4 +153,78 @@ func elementText(t *testing.T, row, class string) string {
 		t.Fatalf("the %s element is never closed: %q", class, row)
 	}
 	return row[at : at+end]
+}
+
+func getSearch(t *testing.T, srv *httptest.Server, query string, lang wording.Lang) string {
+	t.Helper()
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/search?q="+query, http.NoBody)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	if lang == wording.En {
+		req.Header.Set("Cookie", wording.CookieName+"="+string(wording.En))
+	}
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("GET: %v", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return string(body)
+}
+
+// TestAnAliasLabelIsSaidInTheReadersLanguage holds the word that introduces
+// the answering name to the page's language: a label written in one would
+// leave the other reader looking at a title that does not match.
+func TestAnAliasLabelIsSaidInTheReadersLanguage(t *testing.T) {
+	t.Parallel()
+	srv := aliasServer(t)
+
+	zh := elementText(t, resultRow(t, getSearch(t, srv, "green+thread", wording.ZhHant), "Concepts/Goroutine.md"), "y-result__alias")
+	if !strings.Contains(zh, wording.ResultAliasLabel.In(wording.ZhHant)) {
+		t.Errorf("the default page does not introduce the name in Traditional Chinese: %q", zh)
+	}
+	en := elementText(t, resultRow(t, getSearch(t, srv, "green+thread", wording.En), "Concepts/Goroutine.md"), "y-result__alias")
+	if !strings.Contains(en, wording.ResultAliasLabel.In(wording.En)) {
+		t.Errorf("the English page does not introduce the name in English: %q", en)
+	}
+	if strings.Contains(en, wording.ResultAliasLabel.In(wording.ZhHant)) {
+		t.Errorf("the English page still carries the Traditional Chinese label: %q", en)
+	}
+}
+
+// TestAnAliasLabelKeepsTheAuthorsSpelling is the display half of the fold.
+// Matching reads the folded alias, so a lowercase query finds the note; the
+// row must still print the name the way its author wrote it.
+func TestAnAliasLabelKeepsTheAuthorsSpelling(t *testing.T) {
+	t.Parallel()
+	idx := lexical.NewIndex([]lexical.Document{
+		{RelPath: "Notes/Palette.md", Title: "Palette", NoteType: "concept", Draft: true,
+			Aliases: []string{"Colour Theory"}, PlainText: "unrelated prose"},
+	}, validArtifactPolicy(t))
+	mux := http.NewServeMux()
+	NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
+	}, slog.New(slog.DiscardHandler)).Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	_, body := getBody(t, srv.Client(), srv.URL+"/search?q=colour+theory")
+	named := elementText(t, resultRow(t, body, "Notes/Palette.md"), "y-result__alias")
+	if !strings.Contains(named, "Colour") || !strings.Contains(named, "Theory") {
+		t.Errorf("the row does not show Colour Theory as written: %q", named)
+	}
+	if strings.Contains(named, "colour theory") {
+		t.Errorf("the label printed the fold, not the author's spelling: %q", named)
+	}
 }

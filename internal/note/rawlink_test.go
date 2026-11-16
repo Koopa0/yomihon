@@ -20,7 +20,7 @@ func TestNotePageOffersTheFileItIsShowing(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	const body = "---\ntitle: 索引筆記\n---\n\n見 [[別的]]。\n"
+	const body = "---\n---\n# 索引筆記\n\n見 [[別的]]。\n"
 	if err := os.WriteFile(filepath.Join(root, "索引筆記.md"), []byte(body), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}

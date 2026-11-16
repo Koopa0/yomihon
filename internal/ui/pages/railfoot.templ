@@ -5,11 +5,12 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// railFoot is where a left rail ends: which folder the reader is in, and how
-// large it is. Both are otherwise pages away, and the rail is the one surface
-// every reading page carries. What the judging face has to say about the folder
-// is not said here: it is the author's maintenance view rather than part of
-// reading, and the desk carries the way to it.
+// railFoot is where a left rail ends: which folder the reader is in. It states
+// no count of what the folder holds and none of what the check found in it: a
+// figure that follows the reader down every page of a course is a gauge of how
+// much is left, and the rail is for finding the way. How large the folder is
+// is one press away on the desk, and what the check has to say about it is on
+// the page that reports it, which the desk carries the way to.
 //
 // It is one component drawn by all three rails, and at narrow widths the same
 // element becomes the drawer, so the foot of the drawer is this foot and cannot
@@ -20,6 +21,5 @@ templ railFoot(v nav.Vault, lang wording.Lang) {
 	<div class="y-railsep" aria-hidden="true"></div>
 	<div class="y-railfoot" data-rail-foot>
 		<p class="y-railfoot__name">{ libraryName(v.Name, lang) }</p>
-		<p class="y-railfoot__size">{ plural(v.Notes, wording.NoteCountOne, wording.NoteCountMany, lang) }</p>
 	</div>
 }

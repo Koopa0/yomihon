@@ -23,8 +23,8 @@ const (
 	FileInfo     FileKind = "info"
 )
 
-// FileView is everything the file page needs. There is no status, transition or
-// diagnostic: the write face has no opinion about a file that is not a note.
+// FileView is everything the file page needs. There is no draft mark or
+// diagnostic: a file that is not a note declares neither.
 // SourceHTML is set only for FileSource and holds already-escaped output.
 // BodyHTML is set only for FileDocument and holds the rendered Markdown, the
 // same markup a note's reading column is given.

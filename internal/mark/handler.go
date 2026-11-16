@@ -26,9 +26,9 @@ const Address = "/marks"
 // Handler serves the one route a mark reaches the process through.
 //
 // A page cannot write a file, so the mark travels over a route of its own on
-// the same loopback listener, with the body cap and the replace-by-rename
-// discipline the status write already has. It is not a face an agent has any
-// business calling: like the status write, this endpoint is the reader's.
+// the same loopback listener, with a body cap and a replace-by-rename
+// discipline. It is not a face an agent has any business calling: this
+// endpoint is the reader's.
 //
 // It keeps a place only in a note the vault holds now, asked of the same Places
 // the uncertainty route asks. The path is the one field of a mark that can reach

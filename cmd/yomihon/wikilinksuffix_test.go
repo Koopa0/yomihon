@@ -14,8 +14,8 @@ func TestCommandExistsPathSuffix(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	for rel, body := range map[string]string{
-		"Notes/Atlas/Page.md":     "---\ntitle: Page\n---\nbody\n",
-		"Diary/Private/Hidden.md": "---\ntitle: Private\n---\nbody\n",
+		"Notes/Atlas/Page.md":     "# Page\n\nbody\n",
+		"Diary/Private/Hidden.md": "# Private\n\nbody\n",
 	} {
 		suffixCommandWrite(t, root, rel, body)
 	}

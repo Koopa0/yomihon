@@ -100,6 +100,13 @@ func (p Phrase) In(lang Lang) string {
 	return p.zhHant
 }
 
+// Says reports whether text is this phrase in either language. A line a reader
+// kept in a note they wrote may be in the language the interface spoke when they
+// saved it, which is not necessarily the one it speaks now.
+func (p Phrase) Says(text string) bool {
+	return text == p.zhHant || text == p.en
+}
+
 // JoinGuide chains an empty-state sentence and the step that follows it.
 // Chinese closes the first clause with a full stop and needs no gap; English
 // needs a space so the two sentences do not run together.

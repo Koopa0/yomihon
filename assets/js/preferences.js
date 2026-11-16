@@ -143,7 +143,7 @@ export function initPreferences() {
     writeRuby(root.dataset.ruby === 'off' ? 'on' : 'off');
   });
 
-  // The page a reader sets the reading on. Its choices are the same six, so
+  // The page a reader sets the reading on. Its choices are the same ones, so
   // they leave through the doors above rather than through a second way of
   // storing the same thing. The form those radios sit in stays underneath,
   // unchanged and unused here: it is what applies a choice for a browser
@@ -173,6 +173,9 @@ export function initPreferences() {
     },
     ruby: writeRuby,
     rail: writeRail,
+    sectionbuttons(value) {
+      setPreference('sectionbuttons', value);
+    },
     shortcuts: writeShortcuts,
   };
 
@@ -301,6 +304,9 @@ export function initPreferences() {
       delete root.dataset.font;
     }
     root.dataset.singleKeyShortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';
+    // Only the literal "hover" is hover, matching the server's stamp: any other
+    // cookie, or none, shows the buttons all the time.
+    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') === 'hover' ? 'hover' : 'always';
     // The column is put in its stored state at once. The fold answers a
     // reader's press with a transition, and a restore is not a press: the
     // stylesheet is told to hold still for the length of the write, which is

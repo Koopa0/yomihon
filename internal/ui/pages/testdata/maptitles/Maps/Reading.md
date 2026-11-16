@@ -1,7 +1,7 @@
 ---
-title: Reading map
 type: moc
 ---
+# Reading map
 
 ## Notes
 

@@ -250,14 +250,14 @@ func ModelCapabilityFaults(model *nav.Model, lang wording.Lang) []CapabilityFaul
 	artifact := model.ArtifactClosure()
 	switch {
 	case navigation.Closed() && artifact.Closed() && navigation.Diagnostic() == artifact.Diagnostic():
-		return []CapabilityFault{{Summary: wording.PathsMapsAndArtifactsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
+		return []CapabilityFault{{Summary: wording.CoursesMapsAndArtifactsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
 	case navigation.Closed() && artifact.Closed():
 		return []CapabilityFault{
-			{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()},
+			{Summary: wording.CoursesAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()},
 			{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact.Diagnostic()},
 		}
 	case navigation.Closed():
-		return []CapabilityFault{{Summary: wording.PathsAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
+		return []CapabilityFault{{Summary: wording.CoursesAndMapsUnavailable.In(lang), Detail: navigation.Diagnostic()}}
 	case artifact.Closed():
 		return []CapabilityFault{{Summary: wording.ArtifactsUnavailable.In(lang), Detail: artifact.Diagnostic()}}
 	default:
@@ -331,44 +331,6 @@ func FooterSequence(rail *ReadingRail, lang wording.Lang) Foot {
 	}
 	prev, next := rail.Model.FolderStep(rail.CurrentPath)
 	return Foot{Prev: prev, Next: next, Label: wording.FolderAdjacency.In(lang)}
-}
-
-// RunningHead is the line above the title of a note the reading rail resolved a
-// book for, the way a printed page carries the book's name at its top: the
-// path's own title, the part the note sits in, and for a lesson of a side branch
-// the word saying so. The whole line leads to the path's contents, with the
-// note marked on it.
-type RunningHead struct {
-	Title string
-	Href  string
-	// Part is empty where the note sits in no named part.
-	Part   string
-	Branch bool
-}
-
-// Text is the line as it reads, its parts joined by the middle dot the interface
-// puts between facts.
-func (h RunningHead) Text(lang wording.Lang) string {
-	branch := ""
-	if h.Branch {
-		branch = wording.BranchTag.In(lang)
-	}
-	return joinMarks(h.Title, h.Part, branch)
-}
-
-// RunningHeadOf answers the running head of the note the rail is for. ok is
-// false for a note the resolved book does not walk, and the page then keeps the
-// folder's breadcrumb: a note in no path has no book to be a page of.
-func RunningHeadOf(rail *ReadingRail) (head RunningHead, ok bool) {
-	if rail == nil || rail.neighbors.PathRelPath == "" {
-		return RunningHead{}, false
-	}
-	return RunningHead{
-		Title:  rail.neighbors.PathTitle,
-		Href:   syllabusHrefFrom(rail.neighbors.PathRelPath, rail.CurrentPath),
-		Part:   rail.place.Part,
-		Branch: rail.place.OnBranch,
-	}, true
 }
 
 // stepWordPrev and stepWordNext name a footer step for the order it walks: a

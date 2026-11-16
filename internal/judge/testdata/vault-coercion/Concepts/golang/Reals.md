@@ -1,12 +1,11 @@
 ---
-title: X
 type: concept
-domain: golang
 source_locator: x
-status: 1.50
-source_kind: 1e3
-source_provider: .5
+verified_with: 1.50
+verified_on: 1e3
+prerequisites: .5
 level: 3.14
-map_kind: .inf
+slug: .inf
 ---
+# X
 body

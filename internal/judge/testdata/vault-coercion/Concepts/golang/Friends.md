@@ -1,12 +1,11 @@
 ---
-title: X
 type: concept
-domain: golang
 source_locator: x
-status: yes
-source_kind: no
-source_provider: on
+verified_with: yes
+verified_on: no
+prerequisites: on
 level: off
-map_kind: Yes
+slug: Yes
 ---
+# X
 body

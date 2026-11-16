@@ -13,16 +13,11 @@ func TestAuthoredDateField(t *testing.T) {
 		want     string
 	}{
 		{name: "no contract", contract: nil, want: ""},
-		{name: "declares neither", contract: &Contract{definition: Definition{Fields: Fields{Known: []string{"title"}}}}, want: ""},
-		{name: "declares created", contract: &Contract{definition: Definition{Fields: Fields{Known: []string{"title", "created"}}}}, want: "created"},
-		{name: "declares updated", contract: &Contract{definition: Definition{Fields: Fields{Known: []string{"title", "updated"}}}}, want: "updated"},
-		// One field answers for the whole vault, so a shelf's date column
-		// carries one meaning. Where both are declared it is the day the note
-		// was made, which is what dates a report.
-		{name: "declares both", contract: &Contract{definition: Definition{Fields: Fields{Known: []string{"updated", "created"}}}}, want: "created"},
-		// A lesson-only declaration cannot describe every note, and a report
+		{name: "common without created", contract: &Contract{common: []string{"type"}}, want: ""},
+		{name: "common declares created", contract: &Contract{common: []string{"type", "created"}}, want: "created"},
+		// A declaration on one type cannot describe every note, and a report
 		// is not a lesson.
-		{name: "lesson-only created", contract: &Contract{definition: Definition{Fields: Fields{LessonOnly: []string{"created"}}}}, want: ""},
+		{name: "created on one type only", contract: &Contract{types: []typeDefinition{{name: "lesson", fields: []string{"created"}}}}, want: ""},
 	}
 
 	for _, tt := range tests {
@@ -52,7 +47,7 @@ func TestAuthoredDateRequiresContractAuthority(t *testing.T) {
 
 func TestAuthoredDateResolve(t *testing.T) {
 	t.Parallel()
-	dated := (&Contract{definition: Definition{Fields: Fields{Known: []string{"created"}}}}).AuthoredDate()
+	dated := (&Contract{common: []string{"created"}}).AuthoredDate()
 	tests := []struct {
 		name        string
 		frontmatter map[string]any
@@ -90,12 +85,12 @@ func TestAuthoredDateResolve(t *testing.T) {
 	}
 }
 
-// TestAuthoredDateReadsOnlyTheDeclaredField keeps the second field silent
-// while the first holds authority: a vault dated by created that also writes
-// updated is dated by one of them, not by whichever a note happens to carry.
+// TestAuthoredDateReadsOnlyTheDeclaredField keeps every other date-shaped key
+// silent: a vault dated by created is dated by it, not by whichever such key a
+// note happens to carry.
 func TestAuthoredDateReadsOnlyTheDeclaredField(t *testing.T) {
 	t.Parallel()
-	dated := (&Contract{definition: Definition{Fields: Fields{Known: []string{"created", "updated"}}}}).AuthoredDate()
+	dated := (&Contract{common: []string{"created"}}).AuthoredDate()
 	got, err := dated.Resolve(map[string]any{"updated": "2026-08-31"})
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)

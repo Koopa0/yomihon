@@ -19,8 +19,8 @@
 // to be usable by one: the interface language cannot be changed by any script,
 // because the words on a rendered page are the server's, and a page that works
 // without scripting for the hardest of these choices may as well work without
-// it for all of them. Where a script is running, five of the six choices reach
-// the same cookies as the reader picks them, without asking this side for
+// it for all of them. Where a script is running, every choice but the language
+// reaches the same cookies as the reader picks it, without asking this side for
 // anything; the language still comes back here, because only this side can
 // rewrite the words. What the page marks on each option so the other side can
 // do that — which values a cookie may carry, and which option answers for a
@@ -39,8 +39,8 @@ import (
 )
 
 const (
-	// formMaxBytes bounds a submitted body. Six enumerated values and one
-	// same-site path never come near this; what the page renders is under a
+	// formMaxBytes bounds a submitted body. A few short enumerated values and
+	// one same-site path never come near this; what the page renders is under a
 	// hundred bytes plus the address the reader is returning to.
 	formMaxBytes = 4096
 
@@ -238,6 +238,19 @@ var choices = []choice{
 		inForce: func(c *layouts.Chrome) string { return c.Rail },
 	},
 	{
+		// The row names itself and carries no sentence under it: the two
+		// options say what each does, and a sentence for it is wording no one
+		// has approved.
+		name:   "sectionbuttons",
+		cookie: "yomihon_sectionbuttons",
+		legend: wording.PrefSectionButtons,
+		labels: map[string]wording.Phrase{
+			"always": wording.PrefSectionButtonsAlways,
+			"hover":  wording.PrefSectionButtonsHover,
+		},
+		inForce: func(c *layouts.Chrome) string { return c.SectionButtons },
+	},
+	{
 		name:   "shortcuts",
 		cookie: "yomihon_shortcuts",
 		legend: wording.PrefShortcuts,
@@ -256,9 +269,10 @@ var choices = []choice{
 }
 
 // honouredValues answers, for every cookie this page writes, the values it may
-// carry. Five of them come from the shell's own table, which is where a reader
-// gets to say what a stored value means; the sixth is the interface language,
-// whose two values belong to the dictionary the words themselves come from.
+// carry. All but one come from the shell's own table, which is where a reader
+// gets to say what a stored value means; the exception is the interface
+// language, whose two values belong to the dictionary the words themselves come
+// from.
 func honouredValues() map[string][]string {
 	stored := layouts.Preferences()
 	out := make(map[string][]string, len(stored)+1)
@@ -270,10 +284,10 @@ func honouredValues() map[string][]string {
 }
 
 // unsetOptions answers, for every cookie this page writes, the option a
-// browser storing nothing here is shown as having chosen. Five of them come
+// browser storing nothing here is shown as having chosen. All but one come
 // from the shell's own table, which is where a stored value's absence is given
-// its meaning; the sixth is the interface language, whose absence reads as the
-// language the dictionary starts in.
+// its meaning; the exception is the interface language, whose absence reads as
+// the language the dictionary starts in.
 //
 // An empty answer means the shell falls back to no value at all, and the
 // choice's own whenUnset names what the reader is in fact looking at.

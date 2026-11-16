@@ -1,17 +1,13 @@
 // Behavior lock: pages that still mount the whole-vault sidebar — search among
-// them — keep Paths-before-Maps-before-Journal order, start Journal collapsed,
-// and open the map that holds the note a recovery page names.
+// them — keep Paths-before-Maps-before-Journal order and start Journal
+// collapsed.
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/search';
-const STATUS = '/status';
-const RECOVERY_NOTE = 'Notes/alpha.md';
-const READING_MAP = 'Maps/reading.md';
 const MUTATE = process.env.MUTATE || '';
 const SITES = [
   'group-order',
-  'map-open',
   'journal-collapsed',
 ];
 
@@ -31,18 +27,10 @@ const fail = (site, message) => {
 const broken = (message) => { throw new ProbeBroken(`BROKEN vault-sidebar: ${message}`); };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED vault-sidebar: ${message}`); };
 
-const fetchSameOrigin = (route) => route.fetch({
-  headers: {
-    ...route.request().headers(),
-    origin: BASE,
-    'sec-fetch-site': 'same-origin',
-  },
-});
-
 const rewritePath = (path, transform) => async (page) => {
   let applied = false;
   await page.route(BASE + path, async (route) => {
-    const response = route.request().method() === 'POST' ? await fetchSameOrigin(route) : await route.fetch();
+    const response = await route.fetch();
     const original = await response.text();
     const body = transform(original);
     if (body !== original) applied = true;
@@ -58,12 +46,6 @@ const MUTATIONS = {
       .replaceAll('data-sidebar-group="paths"', 'data-sidebar-group="swap"')
       .replaceAll('data-sidebar-group="maps"', 'data-sidebar-group="paths"')
       .replaceAll('data-sidebar-group="swap"', 'data-sidebar-group="maps"')),
-  },
-  'close-current-map': {
-    target: 'map-open',
-    apply: rewritePath(STATUS, (body) => body
-      .replace(new RegExp(`<details open data-map-tree="${READING_MAP.replace('/', '\\/')}"`, 'g'), `<details data-map-tree="${READING_MAP}"`)
-      .replaceAll(` data-chain data-key="map:${READING_MAP}"`, ` data-key="map:${READING_MAP}"`)),
   },
   'open-journal': {
     target: 'journal-collapsed',
@@ -93,24 +75,6 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-const submitRecovery = async (page) => {
-  await page.evaluate(({ base, notePath }) => {
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = `${base}/status`;
-    for (const [name, value] of [['path', notePath], ['from', 'draft'], ['to', '']]) {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = name;
-      input.value = value;
-      form.appendChild(input);
-    }
-    document.body.appendChild(form);
-    form.submit();
-  }, { base: BASE, notePath: RECOVERY_NOTE });
-  await page.waitForURL(`${BASE}${STATUS}`, { waitUntil: 'domcontentloaded' });
-};
-
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
@@ -130,19 +94,9 @@ try {
   if (await journal.count() !== 1) broken('the vault sidebar has no Journal group');
   if (await journal.evaluate((el) => el.open)) fail('journal-collapsed', 'Journal starts open');
 
-  await submitRecovery(page);
-
-  const recoverySidebar = page.locator('aside.y-rail-left');
-  if (await recoverySidebar.count() !== 1) broken('the recovery page has no single vault sidebar');
-  const map = recoverySidebar.locator(`details[data-map-tree="${READING_MAP}"]`);
-  if (await map.count() !== 1) broken(`the recovery sidebar has no ${READING_MAP} disclosure`);
-  if (!await map.evaluate((el) => el.open)) {
-    fail('map-open', 'the map containing the recovery note is closed');
-  }
-
   if (proof && !proof()) notApplied(`the ${MUTATE} mutation changed nothing in the response it targeted`);
 
-  console.log('PASS vault-sidebar: search keeps vault drawer order and collapsed Journal; recovery opens the note\'s map');
+  console.log('PASS vault-sidebar: search keeps vault drawer order and collapsed Journal');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

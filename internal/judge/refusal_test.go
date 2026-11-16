@@ -37,10 +37,7 @@ var everyCommand = []string{"check", "coverage", "exists"}
 func TestAnAbsentContractIsNotAnUnusableOne(t *testing.T) {
 	t.Parallel()
 
-	base, err := os.ReadFile("testdata/vault-supersession/System/schemas/vault-schema.toml")
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
+	base := []byte(contractFixture(t, nil))
 	folders := []struct {
 		name  string
 		build func(*testing.T) string
@@ -56,7 +53,10 @@ func TestAnAbsentContractIsNotAnUnusableOne(t *testing.T) {
 			build: func(t *testing.T) string {
 				t.Helper()
 				root := t.TempDir()
-				contract := bytes.Replace(bytes.Clone(base), []byte("[privacy]\nnever_egress_dirs = []\n\n"), nil, 1)
+				contract := bytes.Replace(bytes.Clone(base), []byte("[privacy]\nnever_egress_dirs = []\n"), nil, 1)
+				if bytes.Equal(contract, base) {
+					t.Fatal("the contract fixture carries no privacy table to remove")
+				}
 				write(t, root, schema.ContractRelPath, string(contract))
 				return root
 			},
@@ -113,10 +113,7 @@ func TestAnAbsentContractIsNotAnUnusableOne(t *testing.T) {
 func TestAnUnusableContractIsRedactedWhateverIsWrongWithIt(t *testing.T) {
 	t.Parallel()
 
-	base, err := os.ReadFile("testdata/vault-supersession/System/schemas/vault-schema.toml")
-	if err != nil {
-		t.Fatalf("ReadFile() error = %v", err)
-	}
+	base := []byte(contractFixture(t, nil))
 	states := []struct {
 		name   string
 		mutate func([]byte) []byte
@@ -226,10 +223,7 @@ func TestTheAuthorityIsRecheckedAfterThePayloadExists(t *testing.T) {
 			t.Parallel()
 
 			root := t.TempDir()
-			contract, err := os.ReadFile("testdata/vault-supersession/System/schemas/vault-schema.toml")
-			if err != nil {
-				t.Fatalf("ReadFile() error = %v", err)
-			}
+			contract := []byte(contractFixture(t, nil))
 			write(t, root, schema.ContractRelPath, string(contract))
 			contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 

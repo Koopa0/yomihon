@@ -36,8 +36,7 @@ func pathVault(t *testing.T, title, tag string) string {
 	if err := os.MkdirAll(mapsDir, 0o750); err != nil {
 		t.Fatalf("mkdir Maps: %v", err)
 	}
-	path := "---\ntitle: " + title + "\ntype: study-path\ndomain: golang\nstatus: evergreen\n" +
-		"created: 2026-06-01\nupdated: 2026-06-01\nlang: " + tag + "\n---\n\n" +
+	path := "---\ntype: study-path\ncreated: 2026-06-01\nlang: " + tag + "\n---\n\n# " + title + "\n\n" +
 		"## data | Data | 資料\n\n### text | Text | 文字 {sequence=primary}\n\n- [[Slices]]\n"
 	if err := os.WriteFile(filepath.Join(mapsDir, "Path.md"), []byte(path), 0o600); err != nil {
 		t.Fatalf("write the study-path: %v", err)
@@ -139,9 +138,9 @@ func TestThePathIndexReadsOneGeneration(t *testing.T) {
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 
-			code, page := get(t, srv.Client(), srv.URL+"/paths")
+			code, page := get(t, srv.Client(), srv.URL+"/courses")
 			if code != http.StatusOK {
-				t.Fatalf("GET /paths status = %d, want 200", code)
+				t.Fatalf("GET /courses status = %d, want 200", code)
 			}
 			const want = `<span class="y-row__title" lang="ja">Japanese title</span>`
 			if got := rowTitleSpan(t, page); got != want {

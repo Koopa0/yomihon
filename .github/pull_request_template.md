@@ -30,9 +30,9 @@ failure you watched before the fix. A test you have never seen fail is not a
 lock, and a build error is not a red test. One line each:
 
 ```text
-TestFlipRefusesHardLinkedNote: red on main — Flip(hard-linked note) = <nil>,
-want note has more than one name; green here, and both names still hold the
-pre-flip bytes.
+TestTheWriteGuardCatchesEveryShapeOfWrite: red on main — the guard let "a
+confined write through a rooted directory" past; green here, and the write in
+internal/mark is still the only one counted.
 ```
 
 If your change alters no behavior — a typo, a comment, a rename — skip the
@@ -41,7 +41,7 @@ locks.
 Then name the gate you ran, precisely. `make verify` is the gate CI runs, and
 it needs more than a Go toolchain: `make tools`, Node, ShellCheck, and an
 installed Chrome. A scoped
-`go test ./internal/status/` is worth reporting, but it is not a verify exit
+`go test ./internal/mark/` is worth reporting, but it is not a verify exit
 code.
 
 Do not weaken a gate, a golden file, or a test oracle to reach green.
@@ -66,7 +66,7 @@ taking the one that is easier to implement or to test.
 
 Four things move only on the maintainer's word: what yomihon takes a vault's
 `System/schemas/vault-schema.toml` to mean, the frozen bytes under
-`internal/judge/testdata/`, the single status write in `internal/status`, and
+`internal/judge/testdata/`, the guarantee that nothing writes into the vault, and
 the loopback-only listener with no outbound call. If your change needs one of
 them, say so here and open the pull request anyway.
 -->

@@ -10,7 +10,7 @@ import (
 // carrying the reader's own presentation choices, the head, the shared header,
 // the search dialog, and the script that enhances all of it. A page supplies
 // its own body as children; nothing above that body varies by page, which is
-// what lets the chrome hold still while a navigation transition runs.
+// what lets the chrome stay where it is from one page to the next.
 templ Base(c Chrome) {
 	<!DOCTYPE html>
 	<html
@@ -21,6 +21,7 @@ templ Base(c Chrome) {
 		data-ruby={ c.Ruby }
 		data-textsize={ c.TextSize }
 		data-rail={ c.Rail }
+		data-sectionbuttons={ c.SectionButtons }
 		if c.Font != "" {
 			data-font={ c.Font }
 		}
@@ -37,36 +38,23 @@ templ Base(c Chrome) {
 			// stay. A browser with scripting off never runs this and keeps the
 			// unscripted layout.
 			//
-			// The same lines say when this document is not the answer to a press,
-			// so the content's arrival is not played for it: a page the browser
-			// prepared before anyone asked for it, until the reader does ask, one
-			// reached by going back or forward, one reloaded, and one opened at a
-			// place in it: by a heading's address, by a stretch of text, which no
-			// script can read from the location but the navigation can, or by the
-			// distance below an anchor that a kept place carries in its query. A
-			// reload brings back the page already being read, at the place it was
-			// read, so nothing new arrives, and the arrival is a scale that would
-			// move the text the reader is looking at, as it would at any place.
-			// They are written once, as data attributes for the stylesheet, which
-			// is where the arrival lives; a condition the stylesheet worked out for
-			// itself would stop and start matching as the reader moved about the
-			// page, and play the arrival again each time. The way in is not called
-			// nav: the drawer already keeps that name on the root, and its first
-			// write would overwrite this one.
+			// A page change plays no animation, so there is nothing else to tell
+			// a document apart by: the one other mark is for a reader returning
+			// to a kept place. That place is a distance below an anchor, carried
+			// in the query, and only script can apply it once the anchor has been
+			// measured. The mark holds the column out of sight until the page's
+			// module has scrolled to the place and removed it, so the first frame
+			// painted is the final one; the stylesheet reveals the column on a
+			// timer if the module never runs. It is written once, as a data
+			// attribute, because a condition the stylesheet worked out for itself
+			// would stop and start matching as the reader moved about the page.
+			// The way in is not called nav: the drawer already keeps that name on
+			// the root, and its first write would overwrite this one.
 			<script nonce={ c.Nonce }>
 				{
 					const d = document.documentElement;
 					d.dataset.js = "on";
-					const entry = performance.getEntriesByType("navigation")[0];
-					const kept = new URLSearchParams(location.search).has("at");
-					if (entry?.type === "back_forward") d.dataset.arrival = "traverse";
-					else if (entry?.type === "reload") d.dataset.arrival = "reload";
-					else if (kept || entry?.name.includes("#"))
-						d.dataset.arrival = "place";
-					if (document.prerendering) {
-						d.dataset.prerender = "";
-						document.onprerenderingchange = () => delete d.dataset.prerender;
-					}
+					if (new URLSearchParams(location.search).has("at")) d.dataset.arrival = "kept";
 				}
 			</script>
 			// Every page change is a whole new document, so the wait between a
@@ -85,7 +73,7 @@ templ Base(c Chrome) {
 			// not know the relation ignores it and paints as it always did.
 			<link rel="expect" href="#_y-main" blocking="render"/>
 			<title>{ c.Title } — yomihon</title>
-			<link rel="icon" type="image/svg+xml" href={ templ.URL(c.Assets.URL("yomihon-mark.svg")) }/>
+			<link rel="icon" type="image/svg+xml" href={ templ.URL(c.Assets.URL("yomihon-mark-on-paper.svg")) }/>
 			<link rel="preload" as="font" type="font/woff2" href={ templ.URL(c.Assets.URL("fonts/Geist-Variable.woff2")) } crossorigin/>
 			<link rel="preload" as="font" type="font/woff2" href={ templ.URL(c.Assets.URL("fonts/GeistMono-Variable.woff2")) } crossorigin/>
 			<link rel="preload" as="font" type="font/woff2" href={ templ.URL(c.Assets.URL("fonts/Newsreader-Latin-Variable.woff2")) } crossorigin/>
@@ -153,15 +141,6 @@ templ header(c Chrome) {
 				<span class="y-rubybtn__label y-rubybtn__label--short" aria-hidden="true">{ wording.FuriganaLabelShort.In(c.Lang) }</span>
 			</button>
 		}
-		// The reader's own verb on the note in front of them. It is in the
-		// header because the header is the piece of the page that stays put
-		// while the note scrolls: a control the reader has to travel to records
-		// where travelling to it left them, not where they were reading. From
-		// the width the reading rail is drawn at, the rail carries the same
-		// control and this one steps aside, so a reader is never shown two.
-		if c.Mark != nil {
-			@headerMark(c.Mark, c.Lang)
-		}
 		// Native invokers open the palette without script. The script keeps a
 		// listener for engines without invokers; the link works without either.
 		<button class="y-searchbtn" type="button" command="show-modal" commandfor="_y-search-dialog" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>
@@ -170,6 +149,14 @@ templ header(c Chrome) {
 			<span class="ui-kbd">⌘K</span>
 		</button>
 		<noscript><a class="y-searchfallback" href="/search">{ wording.SearchTitle.In(c.Lang) }</a></noscript>
+		// The reader's own verb on the note in front of them. It is in the
+		// header because the header is the piece of the page that stays put
+		// while the note scrolls: a control the reader has to travel to records
+		// where travelling to it left them, not where they were reading. It is
+		// the page's only face of the verb, at every width.
+		if c.Mark != nil {
+			@headerMark(c.Mark, c.Lang)
+		}
 		// The way to the reading choices. It carries the page the reader is on,
 		// so applying a choice returns them to it. Where the row is narrow the
 		// word gives way to a mark of three sliders — not a gear, which promises
@@ -183,21 +170,18 @@ templ header(c Chrome) {
 	</header>
 }
 
-// headerMark is the second face of one control: the same hooks the reading
-// rail's carries, so the same client module finds it, posts the same place to
-// the same route, and says the same sentence back. Nothing about it is a
-// second implementation — a copy would be a second way for the two faces to
-// disagree about what a kept place is.
+// headerMark is the control for keeping a place: a bookmark with its words
+// beside it where the row has the width, and the bookmark alone where it does
+// not, its words then being its name. Its pressed state says whether the place
+// already kept is in this very note, and a press on it while pressed keeps the
+// place again, where the reader now is.
 //
-// In the row it is a bookmark rather than a sentence, so its words are its
-// name and its pressed state says whether the place already kept is in this
-// very note. A press on it while pressed keeps the place again, where the
-// reader now is, as the rail's button does.
-//
-// The sentence about a place living on one machine is not repeated here. It is
-// said on the desk beside the place it describes, where the reader is asking
-// the question it answers; under a row this narrow it would be two lines of
-// explanation hanging over the note.
+// The sentence a press earns is a small label that hangs under the row, or over
+// the wordmark where the row is narrow, and goes by itself after a few seconds.
+// It is positioned out of the row's flow, so it neither covers the title nor
+// moves the search entry beside it, and it is said once here: the sentence about
+// a place living on one machine is said on the desk, beside the place it
+// describes, where the reader is asking the question it answers.
 templ headerMark(mark *MarkOffer, lang wording.Lang) {
 	<div
 		class="y-headermark"
@@ -211,6 +195,7 @@ templ headerMark(mark *MarkOffer, lang wording.Lang) {
 	>
 		<button class="y-iconbtn y-headermark__button" type="button" data-mark-button aria-pressed={ strconv.FormatBool(mark.Kept) } aria-label={ wording.MarkSetControl.In(lang) } title={ wording.MarkSetControl.In(lang) }>
 			<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M6 3h12v18l-6-4.5L6 21z"></path></svg>
+			<span class="y-headermark__label" aria-hidden="true">{ wording.MarkSetControl.In(lang) }</span>
 		</button>
 		@Reply("y-headermark__said", templ.Attributes{"data-mark-said": true})
 	</div>

@@ -83,13 +83,13 @@ func TestConcurrentReadersCannotMutateAGeneration(t *testing.T) {
 						continue
 					}
 					answer.Results[0].Title = "mutated"
-					counts, err := request.Search().CountByTypeStatus()
+					drafts, err := request.Search().Search(lexical.Parse("draft:true"), -1)
 					if err != nil {
-						t.Errorf("CountByTypeStatus() error = %v", err)
+						t.Errorf("Search(draft:true) error = %v", err)
 						continue
 					}
-					for pair := range counts {
-						counts[pair] = 0
+					for i := range drafts.Results {
+						drafts.Results[i].Draft = false
 					}
 
 					slot, ok := request.Slots().Lookup("lesson-l01")

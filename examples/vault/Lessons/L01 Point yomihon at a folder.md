@@ -1,13 +1,9 @@
 ---
-title: L01 Point yomihon at a folder
+aliases: [Building yomihon from source]
 type: lesson
-status: ready
-domain: yomihon
 slug: l01-point-at-a-folder
 level: fundamental
-supersedes: ["Building yomihon from source"]
 created: 2026-09-22
-updated: 2026-09-22
 lang: en
 ---
 
@@ -26,6 +22,6 @@ rules. [[L02 Add a contract]] shows the setup.
 
 | What works with no contract | What needs one |
 | --- | --- |
-| Reading, rendering, folders | Status control |
-| Wikilinks and backlinks | Study paths and maps |
-| Full-text search | Contract-based diagnostics and CLI reports |
+| Reading, rendering, folders | Study paths and maps |
+| Wikilinks and backlinks | Contract-based diagnostics and CLI reports |
+| Full-text search | Your thoughts on the shelf of what you left open |

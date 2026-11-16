@@ -4,14 +4,12 @@
 package pages
 
 import (
-	"cmp"
 	"fmt"
 	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -217,15 +215,15 @@ func compareHref(a, b string) string {
 	return VaultHref("/compare/", a) + "?" + url.Values{CompareWithParam: {b}}.Encode()
 }
 
-// syllabusHref builds the study-path page URL for a vault-relative path.
-func syllabusHref(p string) string { return VaultHref("/syllabus/", p) }
+// courseHref builds the course page URL for a vault-relative path.
+func courseHref(p string) string { return VaultHref("/courses/", p) }
 
-// SyllabusFromParam names the note a reader opened a course from. The link is
+// CourseFromParam names the note a reader opened a course from. The link is
 // written here and read by the route that answers it, so the two ends share one
 // spelling rather than agreeing by hand.
-const SyllabusFromParam = "from"
+const CourseFromParam = "from"
 
-// syllabusHrefFrom is the way into a course from a note being read, naming that
+// courseHrefFrom is the way into a course from a note being read, naming that
 // note so the course can mark where in it the reader is standing. "from" is
 // already this interface's word for the value a reader arrived with, and the
 // note is named by its vault path rather than by its reading address: the page
@@ -236,22 +234,11 @@ const SyllabusFromParam = "from"
 // Nothing follows the value: it is compared with what the course already holds
 // and is never rendered as a link or an address, so a value naming anything
 // else falls through to marking no row at all.
-func syllabusHrefFrom(pathRel, noteRel string) string {
+func courseHrefFrom(pathRel, noteRel string) string {
 	if noteRel == "" {
-		return syllabusHref(pathRel)
+		return courseHref(pathRel)
 	}
-	return syllabusHref(pathRel) + "?" + url.Values{SyllabusFromParam: {noteRel}}.Encode()
-}
-
-// statusHref builds the search URL filtered to one status, with url.Values
-// escaping the colon: /search?q=status%3Adraft. The key comes from the package
-// that owns the filter grammar, so a link this page draws cannot outlive the
-// filter it names. The ":" between key and value is that package's grammar
-// too and is still written here; it is left because a separator has no name to
-// ask for, and moving the whole query-building over would put the page's own
-// escaping decisions inside the parser.
-func statusHref(status string) string {
-	return "/search?" + url.Values{"q": {lexical.StatusFilterKey + ":" + status}}.Encode()
+	return courseHref(pathRel) + "?" + url.Values{CourseFromParam: {noteRel}}.Encode()
 }
 
 // plural picks the phrase that agrees with n. Chinese does not inflect a noun
@@ -261,20 +248,6 @@ func plural(n int, one, many wording.Phrase, lang wording.Lang) string {
 		return fmt.Sprintf(one.In(lang), n)
 	}
 	return fmt.Sprintf(many.In(lang), n)
-}
-
-// countUnit is the plural phrase after its digits, so a visible tally can
-// keep the number on screen and put the unit in the accessibility tree
-// without an aria-label on a role-less span.
-func countUnit(n int, one, many wording.Phrase, lang wording.Lang) string {
-	_, unit, _ := strings.Cut(plural(n, one, many, lang), strconv.Itoa(n))
-	return unit
-}
-
-// statusChipLabel names one square of the lifecycle block, saying in words that
-// a note carries no status rather than leaving the square blank.
-func statusChipLabel(status string, lang wording.Lang) string {
-	return cmp.Or(status, wording.NoStatusStated.In(lang))
 }
 
 // facetRowLabel names what following the row does, since the row itself shows
@@ -324,22 +297,4 @@ func searchHref(q string) string {
 // address every other search link is written with.
 func SearchPageHref(q string, n PageNumber) string {
 	return "/search?" + url.Values{"q": {q}, "page": {n.String()}}.Encode()
-}
-
-// LifecycleItem is one row of the folder index's status distribution: a status
-// the contract declares and its live snapshot count. Every status is listed
-// here, settled or not, because the distribution is where each note is.
-type LifecycleItem struct {
-	Name  string
-	Count int
-	// Unknown is set where no type carrying this status declares it, so the
-	// chip carries the note page's amber flag and stays a link.
-	Unknown bool
-	// Href is where the chip leads, empty for a chip standing for notes with
-	// no status to query — a link to a query no note answers is an offer the
-	// folder cannot keep.
-	Href string
-	// Label is what the chip reads when it stands for something other than a
-	// declared status.
-	Label string
 }

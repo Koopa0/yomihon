@@ -40,15 +40,15 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 	}
 }
 
-// syllabusHead is the cover: the path kicker, the title, the note's own
-// preface, the derived metarow (how large the course is, how much of it hangs
-// in side branches, how many of its entries are not yet settled), and the one
-// verb that opens the course with, where something is marked, the way to hear
-// it. No path dek (subtitle) is rendered: there is no backing field for it, and
-// no data means no render — the same treatment the reading page gives a note's
-// subtitle.
+// syllabusHead is the cover: the title, the note's own preface, the derived
+// metarow (how large the course is, how much of it hangs in side branches, how
+// many of its entries are still drafts), and the one verb that opens the course
+// with, where something is marked, the way to hear it. Nothing stands above the
+// title: the sidebar already names the course, so a kicker over it would say so
+// twice. No path dek (subtitle) is rendered: there is no backing field for it,
+// and no data means no render — the same treatment the reading page gives a
+// note's subtitle.
 templ syllabusHead(v PathView, lang wording.Lang) {
-	<div class="y-syl-kicker">{ wording.SyllabusKicker.In(lang) }</div>
 	<h1 class="y-title">{ v.Title }</h1>
 	// The author's own words about the course: what a note that opens on its
 	// title keeps under it, or what stands above the first heading of one that
@@ -68,12 +68,11 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 			}
 			<span>{ figure }</span>
 		}
-		// The exception and not the rule: a course whose entries are all settled
-		// says nothing here, and so does one whose contract settles no status,
-		// because the count would then be every entry.
-		if note := v.UnsettledNote(lang); note != "" {
+		// The exception and not the rule: a course with no draft says nothing
+		// here.
+		if note := v.DraftsNote(lang); note != "" {
 			<span aria-hidden="true">·</span>
-			<span class="y-syl-unsettled" data-course-unsettled>{ note }</span>
+			<span class="y-syl-drafts" data-course-drafts>{ note }</span>
 		}
 	</div>
 	// The ways in belong to a path that has something to walk. The condition is
@@ -91,6 +90,12 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 					data-course-action={ v.Action.Token() }
 					href={ templ.URL(v.Action.Href) }
 				>
+					// The reader's own bookmark leads the verb that returns them to
+					// their place, on the desk's way back as here. Starting a course
+					// has no place to return to, so it carries none.
+					if v.Action.Continuing {
+						<span class="y-keptmark" aria-hidden="true"></span>
+					}
 					<span class="y-cover__verb">{ v.Action.Verb(lang) }</span>
 					if v.Action.Lesson != "" {
 						<span class="y-cover__lesson" { authoredLanguageAttrs(v.Action.LessonLanguage)... }>{ v.Action.Lesson }</span>
@@ -285,8 +290,8 @@ templ moduleHeadingContent(sec PathBranchView, lang wording.Lang) {
 // words beside the point are unchanged by it; where the reader stands is not a
 // claim about what they have finished.
 //
-// The status at the row's far end is the exception: a lesson at a settled
-// status prints none. The bookmark beside it is the reader's own, and marks the
+// The draft label at the row's far end is the exception: a finished lesson
+// prints none. The bookmark beside it is the reader's own, and marks the
 // one lesson they left off in.
 templ entryRow(l PathEntryView, lang wording.Lang) {
 	if l.Kind == nav.EntryResolved {
@@ -296,13 +301,13 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 				<span class="y-lesson__title" { authoredLanguageAttrs(l.Language)... }>{ l.Name }</span>
 				@glossRunIn(l)
 			</span>
-			if l.Kept || l.labelled() {
+			if l.Kept || l.Draft {
 				<span class="y-lesson__aside">
 					if l.Kept {
 						@keptPlace(lang)
 					}
-					if l.labelled() {
-						<span class="ui-status">{ l.Status }</span>
+					if l.Draft {
+						<span class="ui-status">{ wording.Draft.In(lang) }</span>
 					}
 				</span>
 			}
@@ -330,15 +335,16 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 // progress bar.
 templ syllabusRail(v PathView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
-	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.StudyPathNav.In(lang) }>
+	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.CourseNav.In(lang) }>
 		@railHead(c, false)
+		@railSpine(railSpineView{Title: v.Title, Href: courseHref(v.RelPath)})
 		<div class="y-railbody" id="_y-nav-rail-body">
-			<div class="ui-side__label y-syl-raillabel">{ wording.StudyPaths.In(lang) }</div>
+			<div class="ui-side__label y-syl-raillabel">{ wording.Courses.In(lang) }</div>
 			for _, p := range v.Paths {
 				@pathSwitch(p)
 			}
 			if len(v.Branches) > 0 {
-				<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">{ wording.ThisPath.In(lang) }</div>
+				<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">{ wording.ThisCourse.In(lang) }</div>
 				for _, sec := range v.Branches {
 					<a class="ui-navitem" href={ templ.URL("#" + sec.Anchor) }>
 						<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
@@ -362,7 +368,7 @@ templ pathSwitch(p PathLink) {
 			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>
 		</span>
 	} else {
-		<a class="ui-navitem" href={ templ.URL(syllabusHref(p.RelPath)) }>
+		<a class="ui-navitem" href={ templ.URL(courseHref(p.RelPath)) }>
 			@pathIcon()
 			<span class="y-pathitem__name">{ p.Title }</span>
 			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>

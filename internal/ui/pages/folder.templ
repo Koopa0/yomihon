@@ -33,7 +33,7 @@ templ Folder(v FolderView, c layouts.Chrome) {
 				if len(v.Shelf.Rows) == 0 {
 					<p class="y-homeempty" data-index-empty>{ v.Shelf.Empty }</p>
 				}
-				@ShelfPage(v.Shelf)
+				@ShelfPage(v.Shelf, c.Lang)
 			</div>
 		</main>
 	}

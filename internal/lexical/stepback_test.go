@@ -100,14 +100,14 @@ func TestStepBacksKeepAQuotedFilterValueSpelled(t *testing.T) {
 	t.Parallel()
 
 	idx := NewIndex([]Document{
-		{RelPath: "Notes/a.md", Title: "A", Topics: []string{"functional programming"}, PlainText: "semantic things sit here and retrieval happens later"},
-		{RelPath: "Notes/b.md", Title: "B", PlainText: "semantic retrieval together, but no topic at all"},
+		{RelPath: "Notes/a.md", Title: "A", Domain: "functional programming", PlainText: "semantic things sit here and retrieval happens later"},
+		{RelPath: "Notes/b.md", Title: "B", PlainText: "semantic retrieval together, but in no domain at all"},
 	}, schema.ArtifactPolicy{})
 
-	got := idx.StepBacks(`topic:"functional programming" semantic retrieval`)
+	got := idx.StepBacks(`domain:"functional programming" semantic retrieval`)
 	want := []StepBack{
-		{Query: `topic:"functional programming" semantic`, Count: 1},
-		{Query: `topic:"functional programming" retrieval`, Count: 1},
+		{Query: `domain:"functional programming" semantic`, Count: 1},
+		{Query: `domain:"functional programming" retrieval`, Count: 1},
 	}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("StepBacks() mismatch (-want +got):\n%s", diff)

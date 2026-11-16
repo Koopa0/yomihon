@@ -97,3 +97,25 @@ func TestTheFootLeavesTheHealthViewToTheDesk(t *testing.T) {
 		}
 	}
 }
+
+// TestTheFootStatesNoCount holds the foot to the folder's name. A figure for
+// how many notes the folder holds followed the reader down every page of a
+// course as a gauge of how much was left, and the rail is for finding the way.
+// The number is set to one that nothing else on the foot could spell, so a
+// count printed in any words is found.
+func TestTheFootStatesNoCount(t *testing.T) {
+	t.Parallel()
+
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		var buf bytes.Buffer
+		if err := railFoot(nav.Vault{Name: "example-vault", Notes: 4817}, lang).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render: %v", err)
+		}
+		foot := buf.String()
+		for _, gone := range []string{"4817", "y-railfoot__size"} {
+			if strings.Contains(foot, gone) {
+				t.Errorf("the foot in %s still carries %q: %q", lang, gone, foot)
+			}
+		}
+	}
+}

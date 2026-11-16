@@ -15,8 +15,8 @@ func TestCheckCLIRecognizesReferenceSequenceDeny(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 			exit := runCommand(t.Context(), "check", []string{"--root", root, "--format=json", "--all", "--deny", deny}, &stdout, &stderr, false)
 			t.Log("hit: reference sequence CLI reached")
-			if exit != 1 || stderr.Len() != 0 || strings.Count(stdout.String(), `"rule_id":"schema.reference_nested_sequence"`) != 2 {
-				t.Errorf("caught: reference CLI deny %q = exit %d, stdout %q, stderr %q; want exit 1, two findings and no stderr", deny, exit, stdout.String(), stderr.String())
+			if exit != 1 || stderr.Len() != 0 || strings.Count(stdout.String(), `"rule_id":"schema.reference_nested_sequence"`) != 1 {
+				t.Errorf("caught: reference CLI deny %q = exit %d, stdout %q, stderr %q; want exit 1, one finding and no stderr", deny, exit, stdout.String(), stderr.String())
 			}
 		})
 	}

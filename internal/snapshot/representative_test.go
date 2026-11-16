@@ -47,10 +47,10 @@ func newRepresentativeFixture(tb testing.TB, notes int) *representativeFixture {
 	for i := range notes - 2 {
 		name := fmt.Sprintf("Note-%05d", i)
 		body := fmt.Sprintf("\n## Reading\n\n這段文字談的是閱讀與連結。 A paragraph keeps Latin words beside CJK text. sourcebody%05d\n\nSee [[Note-%05d]] and [[Note-%05d]].\n\n```go\nfmt.Println(\"read\")\n```\n", i, (i+1)%(notes-2), (i+2)%(notes-2))
-		sources["Concepts/golang/"+name+".md"] = representativeFrontmatter(name, "concept") + "source_locator: synthetic benchmark\n---\n" + body
+		sources["Concepts/golang/"+name+".md"] = representativeFrontmatter("concept") + "source_locator: synthetic benchmark\n---\n" + body
 	}
-	sources[representativePath] = representativeFrontmatter("Benchmark Path", "study-path") + "---\n\n## Course {sequence=primary}\n\n- [[Note-00000]]\n- [[Note-00001]]\n"
-	sources[representativeMap] = representativeFrontmatter("Benchmark Topic", "topic-map") + "---\n\n## Topic\n\n- [[Note-00000]]\n- [[Note-00001]]\n"
+	sources[representativePath] = representativeFrontmatter("study-path") + "---\n\n## Course {sequence=primary}\n\n- [[Note-00000]]\n- [[Note-00001]]\n"
+	sources[representativeMap] = representativeFrontmatter("topic-map") + "---\n\n## Topic\n\n- [[Note-00000]]\n- [[Note-00001]]\n"
 	for rel, content := range sources {
 		writeBenchNote(tb, root, rel, content)
 	}
@@ -76,12 +76,8 @@ func newRepresentativeFixture(tb testing.TB, notes int) *representativeFixture {
 	return &representativeFixture{root: root, sources: sources, notes: notes, contract: contract, reader: reader}
 }
 
-func representativeFrontmatter(title, kind string) string {
-	status := "archived"
-	if kind == "concept" {
-		status = "seedling"
-	}
-	return "---\ntitle: " + title + "\ntype: " + kind + "\ndomain: golang\nstatus: " + status + "\ncreated: 2026-01-01\nupdated: 2026-01-01\n"
+func representativeFrontmatter(kind string) string {
+	return "---\ntype: " + kind + "\ndraft: false\ncreated: 2026-01-01\n"
 }
 
 func representativeGeneration(tb testing.TB, f *representativeFixture) *Store {
@@ -259,7 +255,7 @@ func TestRepresentativeSnapshotRejectsInvalidFixture(t *testing.T) {
 			case "extra source":
 				writeBenchNote(t, f.root, "Notes/Unexpected.md", "an unexpected source\n")
 			case "invalid schema":
-				f.sources[target] = strings.Replace(f.sources[target], "status: seedling", "status: invalid-fixture", 1)
+				f.sources[target] = strings.Replace(f.sources[target], "draft: false", "draft: invalid-fixture", 1)
 				writeBenchNote(t, f.root, target, f.sources[target])
 			case "missing primary sequence":
 				f.sources[representativePath] = strings.Replace(f.sources[representativePath], " {sequence=primary}", "", 1)

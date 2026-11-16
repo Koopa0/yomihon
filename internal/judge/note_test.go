@@ -35,7 +35,7 @@ func TestParseNote(t *testing.T) {
 			wantFrontmatter: map[string]fmValue{
 				"title": {scalar: "X", scalarIsString: true},
 				"type":  {scalar: "concept", scalarIsString: true},
-				"tags":  {list: []string{"a", "b/c"}, stringList: []string{"a", "b/c"}, isList: true},
+				"tags":  {list: []string{"a", "b/c"}, isList: true},
 			},
 		},
 		{
@@ -72,12 +72,11 @@ func TestFmValue(t *testing.T) {
 		wantScalar   string
 		wantIsScalar bool
 		wantPresent  bool
-		wantStrings  []string
 	}{
-		{name: "non-empty scalar", value: fmValue{scalar: "x", scalarIsString: true}, wantScalar: "x", wantIsScalar: true, wantPresent: true, wantStrings: []string{"x"}},
+		{name: "non-empty scalar", value: fmValue{scalar: "x", scalarIsString: true}, wantScalar: "x", wantIsScalar: true, wantPresent: true},
 		{name: "empty scalar", value: fmValue{scalar: ""}, wantScalar: "", wantIsScalar: true, wantPresent: false},
 		{name: "coerced scalar", value: fmValue{scalar: "7"}, wantScalar: "7", wantIsScalar: true, wantPresent: true},
-		{name: "non-empty list", value: fmValue{list: []string{"a", "7"}, stringList: []string{"a"}, isList: true}, wantScalar: "", wantIsScalar: false, wantPresent: true, wantStrings: []string{"a"}},
+		{name: "non-empty list", value: fmValue{list: []string{"a", "7"}, isList: true}, wantScalar: "", wantIsScalar: false, wantPresent: true},
 		{name: "empty list", value: fmValue{list: nil, isList: true}, wantScalar: "", wantIsScalar: false, wantPresent: false},
 	}
 	for _, tt := range tests {
@@ -89,9 +88,6 @@ func TestFmValue(t *testing.T) {
 			}
 			if got := tt.value.present(); got != tt.wantPresent {
 				t.Errorf("present() = %v, want %v", got, tt.wantPresent)
-			}
-			if got := tt.value.stringValues(); !slices.Equal(got, tt.wantStrings) {
-				t.Errorf("stringValues() = %v, want %v", got, tt.wantStrings)
 			}
 		})
 	}

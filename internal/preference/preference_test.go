@@ -233,6 +233,8 @@ var storedChoices = map[string][]string{
 	"ruby":      {"on", "off"},
 	"shortcuts": {"on", "off"},
 	"rail":      {"open", "collapsed"},
+
+	"sectionbuttons": {"always", "hover"},
 }
 
 // cookieFor is the cookie each field lands in, again spelled out rather than
@@ -247,6 +249,8 @@ var cookieFor = map[string]string{
 	"ruby":      "yomihon_ruby",
 	"shortcuts": "yomihon_shortcuts",
 	"rail":      "yomihon_rail",
+
+	"sectionbuttons": "yomihon_sectionbuttons",
 }
 
 // TestApplyingAChoiceStoresItAndReturnsTheReader pins the whole no-script path
@@ -303,8 +307,8 @@ func TestApplyingAChoiceStoresItAndReturnsTheReader(t *testing.T) {
 			})
 		}
 	}
-	if stored != 16 {
-		t.Errorf("the table covers %d stored values, want the 16 the page offers", stored)
+	if stored != 18 {
+		t.Errorf("the table covers %d stored values, want the 18 the page offers", stored)
 	}
 }
 
@@ -325,6 +329,8 @@ func TestAValueNoChoiceOffersIsRefusedWithNothingStored(t *testing.T) {
 		"ruby":      {"", "ON", "yes"},
 		"shortcuts": {"", "OFF", "true"},
 		"rail":      {"", "Collapsed", "closed"},
+
+		"sectionbuttons": {"", "Hover", "on-hover", "never"},
 	}
 	for field, offered := range storedChoices {
 		if len(refused[field]) < 3 {
@@ -396,6 +402,7 @@ func TestResetClearsEveryStoredChoice(t *testing.T) {
 		"yomihon_lang",
 		"yomihon_rail",
 		"yomihon_ruby",
+		"yomihon_sectionbuttons",
 		"yomihon_shortcuts",
 		"yomihon_textsize",
 		"yomihon_theme",
@@ -550,12 +557,12 @@ func TestOneSubmissionSavesEveryChoiceItCarries(t *testing.T) {
 			form: url.Values{
 				"lang": {"en"}, "theme": {"light"}, "textsize": {"l"},
 				"font": {"kai"}, "ruby": {"off"}, "shortcuts": {"off"},
-				"rail": {"collapsed"}, "next": {"/notes/A.md"},
+				"rail": {"collapsed"}, "sectionbuttons": {"hover"}, "next": {"/notes/A.md"},
 			},
 			want: map[string]string{
 				"yomihon_lang": "en", "yomihon_theme": "light", "yomihon_textsize": "l",
 				"yomihon_font": "kai", "yomihon_ruby": "off", "yomihon_shortcuts": "off",
-				"yomihon_rail": "collapsed",
+				"yomihon_rail": "collapsed", "yomihon_sectionbuttons": "hover",
 			},
 		},
 		{
@@ -652,7 +659,7 @@ func TestAMethodThisAddressDoesNotServeIsRefused(t *testing.T) {
 }
 
 // TestASubmissionLargerThanAChoiceIsRefused keeps the body bound where the
-// page's own form puts it: six short enumerated values and one return address.
+// page's own form puts it: a few short enumerated values and one return address.
 // Nothing a rendered form sends comes close, so a body past the bound was built
 // by hand.
 func TestASubmissionLargerThanAChoiceIsRefused(t *testing.T) {
@@ -982,6 +989,7 @@ func TestExactlyOneOptionIsMarkedForEachChoice(t *testing.T) {
 			want: map[string]string{
 				"lang": "zh-Hant", "theme": "system", "textsize": "m",
 				"font": "serif", "ruby": "on", "shortcuts": "on", "rail": "open",
+				"sectionbuttons": "always",
 			},
 		},
 		{
@@ -994,10 +1002,12 @@ func TestExactlyOneOptionIsMarkedForEachChoice(t *testing.T) {
 				"yomihon_ruby=off",
 				"yomihon_shortcuts=off",
 				"yomihon_rail=collapsed",
+				"yomihon_sectionbuttons=hover",
 			},
 			want: map[string]string{
 				"lang": "en", "theme": "dark", "textsize": "xl",
 				"font": "kai", "ruby": "off", "shortcuts": "off", "rail": "collapsed",
+				"sectionbuttons": "hover",
 			},
 		},
 		{
@@ -1006,10 +1016,12 @@ func TestExactlyOneOptionIsMarkedForEachChoice(t *testing.T) {
 				"yomihon_theme=chartreuse",
 				"yomihon_font=chartreuse",
 				"yomihon_textsize=chartreuse",
+				"yomihon_sectionbuttons=chartreuse",
 			},
 			want: map[string]string{
 				"lang": "zh-Hant", "theme": "system", "textsize": "m",
 				"font": "serif", "ruby": "on", "shortcuts": "on", "rail": "open",
+				"sectionbuttons": "always",
 			},
 		},
 	}

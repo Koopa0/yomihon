@@ -25,7 +25,7 @@ import (
 // measures it names a month outright and says the same thing tomorrow.
 func (h *Handler) journal(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	// The entries, their days and the language each was written in all come
 	// from this one reading of the published pointer. Taken twice, a rebuild
 	// between them puts one entry's title in another generation's month.

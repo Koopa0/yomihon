@@ -19,16 +19,16 @@ import (
 // numbered from one per card.
 func comparePairVault() map[string]string {
 	lesson := func(title, lang, extra, section, body string) string {
-		return "---\ntitle: " + title + "\ntype: lesson\ndomain: japanese\nstatus: draft\n" +
-			"created: 2026-06-01\nupdated: 2026-06-01\nlang: " + lang + "\nslug: " + strings.ToLower(title) + "\n" +
-			"unknown_to_the_contract: yes\n" + extra + "---\n\n" +
+		return "---\ntype: lesson\n" +
+			"created: 2026-06-01\nlang: " + lang + "\nslug: " + strings.ToLower(title) + "\n" +
+			"unknown_to_the_contract: yes\n" + extra + "---\n# " + title + "\n\n" +
 			body + "[^one]\n\nGo to [that part](#" + section + ").\n\n" +
 			"## Ledger\n\nThe heading both halves keep.\n\n" +
 			"## " + strings.ToUpper(section[:1]) + section[1:] + "\n\nThe other one.\n\n" +
 			"[^one]: The note's own footnote.\n"
 	}
 	return map[string]string{
-		"Writing/Cutover.md": lesson("Cutover", "en", "", "afterward", "The original half"),
+		"Writing/Cutover.md": lesson("Cutover", "en", "draft: true\n", "afterward", "The original half"),
 		"Writing/Cutoverzh.md": lesson("Cutoverzh", "zh-Hant",
 			"based_on: \"[[Cutover]]\"\n", "afterward", "The translated half"),
 		"System/slots/cutover.yaml": "lesson: Cutover\nslug: cutover\ntitle: Cutover\npatterns:\n" +
@@ -144,11 +144,11 @@ func captured(re *regexp.Regexp, in string) []string {
 	return out
 }
 
-// TestACompareColumnLinksBackAndShowsItsStatus holds the two things the page
-// adds around a note it otherwise reproduces: the way to the note's own page,
-// where it can be adjudicated, and the status word it carries now. No control
-// that could change that word appears here.
-func TestACompareColumnLinksBackAndShowsItsStatus(t *testing.T) {
+// TestACompareColumnLinksBackAndKeepsItsDraftMark holds what the page adds
+// around a note it otherwise reproduces — the way to the note's own page — and
+// what it keeps from that page: a draft carries its mark in its own column, and
+// a finished note beside it carries none.
+func TestACompareColumnLinksBackAndKeepsItsDraftMark(t *testing.T) {
 	t.Parallel()
 	srv := newServerWithContract(t, writeNotes(t, comparePairVault()), loadHomeContract(t))
 	code, body := get(t, srv.Client(), srv.URL+compareAddress)
@@ -160,11 +160,11 @@ func TestACompareColumnLinksBackAndShowsItsStatus(t *testing.T) {
 			t.Errorf("no column links back to its own page: %s missing", back)
 		}
 	}
-	if got := strings.Count(body, `<span class="ui-status">draft</span>`); got != 2 {
-		t.Errorf("the page shows %d status words, want one per column", got)
+	if column := columnOf(t, body, columnAMark, columnBMark); !strings.Contains(column, "data-note-draft") {
+		t.Error("the draft's column does not carry its draft mark")
 	}
-	if strings.Contains(body, `action="/status"`) {
-		t.Error("a column offers a control that would write a status; adjudication belongs on the note's own page")
+	if column := columnOf(t, body, columnBMark, "</main>"); strings.Contains(column, "data-note-draft") {
+		t.Error("the finished note's column carries a draft mark")
 	}
 }
 
@@ -218,8 +218,8 @@ func TestComparingWithoutASecondNoteReadsTheFirstAlone(t *testing.T) {
 // contract asks for so the only thing under test is which other note is
 // offered beside it.
 func pairNote(title, language, extra string) string {
-	return "---\ntitle: " + title + "\ntype: lesson\ndomain: japanese\nstatus: draft\n" +
-		"created: 2026-06-01\nupdated: 2026-06-01\nlang: " + language + "\n" + extra + "---\n\nbody\n"
+	return "---\ntype: lesson\n" +
+		"created: 2026-06-01\nlang: " + language + "\n" + extra + "---\n# " + title + "\n\nbody\n"
 }
 
 // offeredPartner is the note a reading page offers to be read beside, or "".

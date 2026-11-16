@@ -25,7 +25,7 @@ func TestReferenceSequenceNoticeKeepsTheNoteReadable(t *testing.T) {
 		t.Run(shape.name, func(t *testing.T) {
 			t.Parallel()
 			const rel = "Concepts/golang/Probe.md"
-			root := writeOneNote(t, rel, "---\ntitle: Probe\ntype: concept\ndomain: golang\nstatus: seedling\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: "+shape.value+"\n---\n\nReadable reference body.\n")
+			root := writeOneNote(t, rel, "---\ntype: concept\ncreated: 2026-06-01\nbased_on: "+shape.value+"\n---\n\nReadable reference body.\n")
 			server := newServerWithContract(t, root, loadHomeContract(t))
 			for _, language := range []struct {
 				lang  string
@@ -79,21 +79,19 @@ func TestReferenceSequenceConfiguredSystemNoticeAndMixedSource(t *testing.T) {
 	for _, shape := range []struct {
 		name     string
 		noteType string
-		status   string
 		fields   string
 		want     []string
 	}{
-		{name: "system draft mixed and replacement", noteType: "system", status: "draft", fields: "based_on: [\"[[Good]]\", [Bad]]\nlineage: [[New]]\n", want: []string{"based_on", "lineage"}},
-		{name: "system archived mixed and replacement", noteType: "system", status: "archived", fields: "based_on: [\"[[Good]]\", [Bad]]\nlineage: [[New]]\n", want: []string{"based_on", "lineage"}},
-		{name: "knowledge mixed", noteType: "memo", status: "draft", fields: "based_on: [\"[[Good]]\", [Bad]]\n", want: []string{"based_on"}},
-		{name: "system quoted", noteType: "system", status: "draft", fields: "based_on: [\"[[Good]]\"]\nlineage: [\"[[Good]]\"]\n"},
+		{name: "system mixed and related", noteType: "system", fields: "based_on: [\"[[Good]]\", [Bad]]\nrelated: [[New]]\n", want: []string{"based_on", "related"}},
+		{name: "knowledge mixed", noteType: "memo", fields: "based_on: [\"[[Good]]\", [Bad]]\n", want: []string{"based_on"}},
+		{name: "system quoted", noteType: "system", fields: "based_on: [\"[[Good]]\"]\nrelated: [\"[[Good]]\"]\n"},
 	} {
 		t.Run(shape.name, func(t *testing.T) {
 			t.Parallel()
 			const rel = "Concepts/Probe.md"
 			root := writeNotes(t, map[string]string{
-				rel:               "---\ntitle: Probe\ntype: " + shape.noteType + "\nstatus: " + shape.status + "\n" + shape.fields + "---\n\nReadable reference body.\n",
-				"Sources/Good.md": "---\ntitle: Good\ntype: memo\nstatus: draft\n---\n\nThe real declared source.\n",
+				rel:               "---\ntype: " + shape.noteType + "\n" + shape.fields + "---\n\nReadable reference body.\n",
+				"Sources/Good.md": "---\ntype: memo\n---\n\nThe real declared source.\n",
 			})
 			data, err := os.ReadFile(filepath.Join("..", "judge", "testdata", "vault-reference-sequence", "System", "schemas", "vault-schema.toml"))
 			if err != nil {
@@ -101,9 +99,7 @@ func TestReferenceSequenceConfiguredSystemNoticeAndMixedSource(t *testing.T) {
 			}
 			declaration := string(data)
 			for _, replacement := range [][2]string{
-				{`type = ["concept", "lesson", "memo"]`, `type = ["concept", "lesson", "memo", "system"]`},
-				{"[enums.status]\n", "[enums.status]\nsystem = [\"draft\", \"archived\"]\n"},
-				{"[fields.status_group]\n", "[fields.status_group]\nsystem = [\"system\"]\n"},
+				{"[types.memo]\n", "[types.memo]\n\n[types.system]\n"},
 			} {
 				if strings.Count(declaration, replacement[0]) != 1 {
 					t.Fatalf("contract replacement %q has no unique declaration", replacement[0])

@@ -1,12 +1,11 @@
 ---
-title: X
 type: concept
-domain: golang
 source_locator: x
-status: "True"
-source_kind: '007'
-source_provider: "1_000"
+verified_with: "True"
+verified_on: '007'
+prerequisites: "1_000"
 level: "yes"
-map_kind: "false"
+slug: "false"
 ---
+# X
 body

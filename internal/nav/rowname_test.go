@@ -108,3 +108,63 @@ func TestAMapNamesAResolvedRowByTheSameRuleAsACourse(t *testing.T) {
 		t.Errorf("map row names (-want +got):\n%s", diff)
 	}
 }
+
+// TestRowsAndShelvesAreNamedByTheFirstHeading reads a vault end to end: a
+// lesson that opens on a level-one heading is listed by it, a lesson with only
+// a frontmatter title is listed by its link text, a course and a map are
+// titled by their own headings, and the recent-notes summary names a note the
+// same way.
+func TestRowsAndShelvesAreNamedByTheFirstHeading(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Concepts/headed.md", "---\ntype: concept\n---\n# Heading words\n\nbody\n")
+	writeNavFixture(t, root, "Concepts/written.md", "---\ntype: concept\ntitle: Written words\n---\nbody\n")
+	writeNavFixture(t, root, "Maps/course-file.md", "---\ntype: study-path\n---\n# The course\n\n## Lessons {sequence=primary}\n\n1. [[headed]]\n2. [[written]]\n")
+	writeNavFixture(t, root, "Maps/map-file.md", "---\ntype: moc\n---\n# The map\n\n## Notes\n\n- [[headed]]\n- [[written]]\n")
+	model := capturedModelWithDomains(t, root, nil)
+
+	paths := model.Paths()
+	if len(paths) != 1 {
+		t.Fatalf("Paths() = %d, want 1", len(paths))
+	}
+	if paths[0].Title != "The course" {
+		t.Errorf("course title = %q, want its heading", paths[0].Title)
+	}
+	var rows []string
+	for _, item := range paths[0].Groups[0].Items {
+		rows = append(rows, item.Entry.Name)
+	}
+	if diff := cmp.Diff([]string{"Heading words", "written"}, rows); diff != "" {
+		t.Errorf("course rows (-want +got):\n%s", diff)
+	}
+
+	maps := model.Maps()
+	if len(maps) != 1 {
+		t.Fatalf("Maps() = %d, want 1", len(maps))
+	}
+	if maps[0].Title != "The map" {
+		t.Errorf("map title = %q, want its heading", maps[0].Title)
+	}
+	var mapRows []string
+	for _, entry := range maps[0].Branches[0].Entries {
+		mapRows = append(mapRows, entry.Name)
+	}
+	if diff := cmp.Diff([]string{"Heading words", "written"}, mapRows); diff != "" {
+		t.Errorf("map rows (-want +got):\n%s", diff)
+	}
+
+	summaries := map[string]string{}
+	for _, n := range model.KnowledgeNotes() {
+		summaries[n.RelPath] = n.Title
+	}
+	want := map[string]string{
+		"Concepts/headed.md":  "Heading words",
+		"Concepts/written.md": "written",
+		"Maps/course-file.md": "The course",
+		"Maps/map-file.md":    "The map",
+	}
+	if diff := cmp.Diff(want, summaries); diff != "" {
+		t.Errorf("KnowledgeNotes titles (-want +got):\n%s", diff)
+	}
+}

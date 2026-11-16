@@ -21,11 +21,11 @@ func TestAResultFoundByItsPathShowsWhereItMatched(t *testing.T) {
 	idx := lexical.NewIndex([]lexical.Document{
 		// The term is in the path and nowhere in the words, which is the whole
 		// shape being tested: a hit with no snippet to explain it.
-		{RelPath: "Pharmacology/Notes.md", Title: "Opening", NoteType: "concept", Status: "draft",
+		{RelPath: "Pharmacology/Notes.md", Title: "Opening", NoteType: "concept", Draft: true,
 			PlainText: "nothing here repeats the folder name"},
 		// The control: matched by its words, so its own snippet already says
 		// why, and its path has no business being marked.
-		{RelPath: "Concepts/Other.md", Title: "Other", NoteType: "concept", Status: "draft",
+		{RelPath: "Concepts/Other.md", Title: "Other", NoteType: "concept", Draft: true,
 			PlainText: "this one mentions pharmacology in its body"},
 	}, validArtifactPolicy(t))
 	mux := http.NewServeMux()

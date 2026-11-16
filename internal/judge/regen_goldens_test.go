@@ -32,7 +32,7 @@ var engineGoldens = []struct {
 	{fixture: "testdata/vault-namecollision", golden: "testdata/golden/namecollision.jsonl"},
 	{fixture: "testdata/vault-report", golden: "testdata/golden/report.jsonl"},
 	{fixture: "testdata/vault-report-hidden", golden: "testdata/golden/report-hidden.jsonl"},
-	{fixture: "testdata/vault-supersession", golden: "testdata/golden/supersession.jsonl"},
+	{fixture: "testdata/vault-alias-based-on", golden: "testdata/golden/alias-based-on.jsonl"},
 	{fixture: "testdata/vault-comment-scope", golden: "testdata/golden/comment-scope.jsonl"},
 	{fixture: "testdata/vault-namecollision-privacy", golden: "testdata/golden/namecollision-privacy.jsonl", private: []string{"Private"}},
 	{fixture: "testdata/vault-diary", golden: "testdata/golden/diary.jsonl", private: []string{"Diary"}},
@@ -49,7 +49,6 @@ var schemaGoldens = []struct {
 	{fixture: "testdata/vault-schema", golden: "testdata/golden/schema.jsonl"},
 	{fixture: "testdata/vault-coercion", golden: "testdata/golden/coercion.jsonl"},
 	{fixture: "testdata/vault-strictness", golden: "testdata/golden/strictness.jsonl"},
-	{fixture: "testdata/vault-status-unreachable", golden: "testdata/golden/status-unreachable.jsonl"},
 	{fixture: "testdata/vault-unclosed", golden: "testdata/golden/unclosed.jsonl"},
 	{fixture: "testdata/vault-reference-sequence", golden: "testdata/golden/reference-sequence.jsonl"},
 }
@@ -139,10 +138,7 @@ func TestRegenerateGoldens(t *testing.T) {
 		if err != nil {
 			t.Fatalf("schema.Load(%q): %v", tt.fixture, err)
 		}
-		findings, err := checkSchema(notes, s)
-		if err != nil {
-			t.Fatalf("checkSchema(%q): %v", tt.fixture, err)
-		}
+		findings := checkSchema(notes, s)
 		sortFindings(findings)
 		var buf bytes.Buffer
 		if err := WriteJSONL(&buf, findings); err != nil {
@@ -163,7 +159,7 @@ func TestRegenerateGoldens(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema.Load(%q): %v", hiddenRoot, err)
 	}
-	hiddenRoots := domainRoots(hiddenContract.Definition().Rules.DomainEqualsFolderUnder)
+	hiddenRoots := domainRoots(hiddenContract.Domains().Roots())
 	hiddenBody := []byte(humanReport(hiddenFindings, hiddenRoots))
 	const hiddenGolden = "testdata/golden/report-hidden-human.golden"
 	if writeErr := os.WriteFile(hiddenGolden, hiddenBody, 0o600); writeErr != nil {
@@ -180,7 +176,7 @@ func TestRegenerateGoldens(t *testing.T) {
 	if err != nil {
 		t.Fatalf("schema.Load(%q): %v", reportRoot, err)
 	}
-	roots := domainRoots(contract.Definition().Rules.DomainEqualsFolderUnder)
+	roots := domainRoots(contract.Domains().Roots())
 	reportFaces := []struct {
 		golden string
 		body   []byte

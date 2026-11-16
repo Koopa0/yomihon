@@ -1,0 +1,20 @@
+schema_version = "2"
+
+[folders]
+checked = ["Notes", "Thoughts"]
+templates = []
+
+[enums]
+
+[fields]
+common = ["type", "aliases", "based_on"]
+required = ["type"]
+
+[types.note]
+
+[types.thought]
+role = "thought"
+fields = ["based_on"]
+
+[privacy]
+never_egress_dirs = []

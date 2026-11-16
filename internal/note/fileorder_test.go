@@ -28,7 +28,7 @@ func TestFolderRepliesUseReadingOrder(t *testing.T) {
 		}
 		// A title deliberately unrelated to the filename keeps file order
 		// distinct from sorting the reader's authored title.
-		if err := os.WriteFile(full, []byte("---\ntitle: The same authored title\n---\n\nA reading.\n"), 0o600); err != nil {
+		if err := os.WriteFile(full, []byte("---\n---\n# The same authored title\n\nA reading.\n"), 0o600); err != nil {
 			t.Fatalf("WriteFile(%q): %v", rel, err)
 		}
 	}

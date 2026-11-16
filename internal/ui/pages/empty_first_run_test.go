@@ -98,15 +98,15 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 				for _, block := range blocks {
 					modes = append(modes, block.Mode)
 				}
-				wantOrder := "paths,maps,reports,folders"
+				wantOrder := "courses,maps,reports,folders"
 				if tt.contract == ContractAbsent {
-					wantOrder = "folders,paths,maps,reports"
+					wantOrder = "folders,courses,maps,reports"
 				}
 				if got := strings.Join(modes, ","); got != wantOrder {
 					t.Errorf("desk mode order = %q, want %q", got, wantOrder)
 				}
 				for _, block := range blocks {
-					if block.Mode != pathMode && block.Mode != mapMode && block.Mode != folderMode {
+					if block.Mode != courseMode && block.Mode != mapMode && block.Mode != folderMode {
 						continue
 					}
 					want := tt.path(lang)
@@ -153,39 +153,25 @@ func silent(wording.Lang) string { return "" }
 // travels the way a vault's own words travel.
 func declaringContract(t *testing.T, pathType string, mapTypes ...string) schema.NavigationRoles {
 	t.Helper()
-	declared := append([]string{pathType}, mapTypes...)
-	quoted := func(words []string) string { return `"` + strings.Join(words, `", "`) + `"` }
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := `schema_version = "1"
+	var contractText strings.Builder
+	contractText.WriteString(`schema_version = "2"
 
-[enums]
-type = [` + quoted(declared) + `]
-
-[enums.status]
-note = ["draft"]
+[folders]
+checked = ["Notes"]
+templates = ["System/templates"]
 
 [fields]
-required = ["title", "type"]
-known = ["title", "type"]
+common = ["type"]
+required = ["type"]
 
-[rules]
-
-[scan]
-knowledge_dirs = ["Notes"]
-
-[navigation]
-path_types = [` + quoted([]string{pathType}) + `]
-map_types = [` + quoted(mapTypes) + `]
-
-[artifacts]
-non_instance_dirs = ["System/templates"]
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
-`
+[types.` + pathType + `]
+role = "course"
+`)
+	for _, mapType := range mapTypes {
+		contractText.WriteString("\n[types." + mapType + "]\nrole = \"map\"\n")
+	}
+	text := contractText.String()
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatalf("write contract: %v", err)
 	}
@@ -270,7 +256,7 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 			folder:   guide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext),
 		},
 	} {
-		for _, mode := range []string{pathMode, mapMode, folderMode} {
+		for _, mode := range []string{courseMode, mapMode, folderMode} {
 			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 				t.Run(tt.name+"/"+mode+"/"+string(lang), func(t *testing.T) {
 					t.Parallel()

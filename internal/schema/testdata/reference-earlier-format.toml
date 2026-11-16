@@ -1,0 +1,68 @@
+# yomihon vault contract for Koopa0/learning.
+# yomihon reads this file and never writes it; tools/vault.py keeps the notes
+# in line with it. Read with: yomihon serve --root <this repo>
+
+schema_version = "1"
+
+[enums]
+# outline 是各課的大綱頁：不是一課，不佔 slug，也不列進學習路徑。
+type = ["lesson", "study-path", "outline"]
+domain = ["go", "sql", "system-design", "dsa", "llm", "ai", "backend", "rust"]
+level = ["基礎", "中階", "資深", "前沿", "深入專題"]
+
+[enums.status]
+# draft: still being written or failed review; ready: merged after review.
+note = ["draft", "ready", "archived"]
+
+[fields]
+required = ["title", "type", "status", "domain"]
+known = ["title", "aliases", "type", "status", "domain", "tags", "lang"]
+lesson_only = [
+  "slug", "level", "interview_frequency", "prerequisites", "sources",
+  "verified_on", "estimated_hours", "go_version", "postgresql_version", "rust_version",
+  "editorial_version",
+]
+
+[rules]
+# A module's slug is its stable dispatch key (independent of its path): C2-L1-04, C4-題庫-P01, or the two
+# mock exams named before the numbering settled.
+# 拆章保留原 slug；新章加 -part-02..99，另在 tools/lesson-splits.json 明確登記。
+slug_pattern = '^(C[1-8]-(L[1-4]|D)-[0-9]{2}(-part-(0[2-9]|[1-9][0-9]))?|C4-題庫-P[0-9]{2}|C6-L1-EXAM|C7-L1-模擬考)$'
+domain_equals_folder_under = ["courses"]
+
+[scan]
+knowledge_dirs = ["courses"]
+no_frontmatter_is_legal = true
+
+[navigation]
+# 主題為結構容器；推薦閱讀 primary、選讀 local，難度放在條目 metadata。
+path_types = ["study-path"]
+map_types = []
+
+[artifacts]
+non_instance_dirs = ["prompts"]
+
+[privacy]
+never_egress_dirs = []
+
+[[lifecycle]]
+status = "draft"
+applies_to = ["*"]
+initial = true
+from = ["ready"]
+owner = ["codex"]
+
+[[lifecycle]]
+status = "ready"
+applies_to = ["*"]
+initial = false
+from = ["draft"]
+owner = ["koopa"]
+settled = true
+
+[[lifecycle]]
+status = "archived"
+applies_to = ["*"]
+initial = false
+from = ["*"]
+owner = ["koopa"]

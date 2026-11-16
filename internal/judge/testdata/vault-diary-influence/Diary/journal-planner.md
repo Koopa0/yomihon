@@ -1,7 +1,7 @@
 ---
-title: A Private Planning Note
 type: transcript
 ---
+# A Private Planning Note
 notes to myself about what I still want to write.
 
 ## 缺口

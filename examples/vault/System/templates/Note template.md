@@ -1,8 +1,6 @@
 ---
-title: Note template
 type: note
-status: draft
-domain: go
+draft: true
 lang: en
 ---
 

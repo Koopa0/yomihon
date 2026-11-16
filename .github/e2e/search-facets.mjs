@@ -86,7 +86,7 @@ const MUTATIONS = {
   // The narrowed search a row leads to, pointed at the unnarrowed query.
   'send-the-row-to-the-unnarrowed-search': {
     target: 'count-keeps-its-promise',
-    apply: rewriteAll('+status%3Adraft', '', 1, 'row href rewrite'),
+    apply: rewriteAll('+type%3Alesson', '', 1, 'row href rewrite'),
   },
   // Held open at phone width, where it pushes the results the reader came for
   // off the first screen.

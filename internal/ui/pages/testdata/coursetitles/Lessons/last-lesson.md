@@ -1,6 +1,5 @@
 ---
-title: "Last: The Final Lesson"
 type: lesson
-status: draft
 ---
+# Last: The Final Lesson
 body

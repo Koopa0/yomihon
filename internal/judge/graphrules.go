@@ -42,10 +42,10 @@ func runGraphRules(a *action, idx *graph.Index) []Finding {
 		fragmentFindings(notes, a.unreadable, idx),
 		collisionAlias(aliases),
 		collisionName(notes, idx, aliases, authority, a.partialCorpus()),
-		provenanceUnresolved(notes, idx, slugs, authority.contract),
-		mapDiskMismatch(notes, idx, authority.roles(), authority.contract, lessonType),
+		provenanceUnresolved(notes, idx, slugs),
+		aliasResolvedBasedOn(notes, idx, authority),
+		mapDiskMismatch(notes, idx, authority.roles(), lessonType),
 		pathFindings(notes, authority.roles()),
-		supersessionFindings(notes, idx, authority),
 	)
 }
 
@@ -72,8 +72,8 @@ func titleIndex(notes []note, authority scanAuthority) map[string][]string {
 	return idx
 }
 
-// slugIndex maps a lesson slug to its note path. Supersession references name a
-// slug, not a filename, so they resolve here rather than through the resolver.
+// slugIndex maps a lesson slug to its note path. A reference may name a slug,
+// not a filename, so it resolves here rather than through the resolver.
 // A repeated slug keeps the last note, matching the reference reading.
 func slugIndex(notes []note, authority scanAuthority) map[string]string {
 	idx := make(map[string]string)
@@ -369,22 +369,18 @@ type referenceField struct {
 	sourceRule string
 }
 
-// provenanceUnresolved reports configured provenance and replacement-ledger
-// references that resolve to no note. The fixed based_on and related fields
-// retain the inherited judge contract — the requirement that they resolve is
-// the product's own, declared by no contract key, so they cite the product;
-// replacement field names come only from the loaded vault contract's
-// supersession table, which is the authority those findings cite.
+// provenanceUnresolved reports provenance references that resolve to no note.
+// The requirement that based_on and related resolve is the product's own,
+// declared by no contract key, so the findings cite the product.
 func provenanceUnresolved(
 	notes []note,
 	idx *graph.Index,
 	slugs map[string]string,
-	contract *schema.Contract,
 ) []Finding {
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
-		for _, field := range noteReferenceFields(n, contract) {
+		for _, field := range noteReferenceFields(n) {
 			for _, value := range field.values {
 				if !provenanceResolves(idx, slugs, value) {
 					out = append(out, provenanceFinding(n, field.name, value, field.sourceRule))
@@ -396,56 +392,12 @@ func provenanceUnresolved(
 }
 
 // noteReferenceFields is the shared selection and authority for reference
-// resolution and YAML-shape diagnostics. Provenance requirements do not
-// declare additional reference fields.
-func noteReferenceFields(n *note, contract *schema.Contract) []referenceField {
-	fields := []referenceField{
+// resolution and YAML-shape diagnostics.
+func noteReferenceFields(n *note) []referenceField {
+	return []referenceField{
 		{name: "based_on", values: n.basedOn, sourceRule: sourceYomihon},
 		{name: "related", values: n.related, sourceRule: sourceYomihon},
 	}
-	if vocabulary, ok := supersessionForNote(contract, n); ok {
-		lessonType, _ := contract.LessonType()
-		fields = appendConfiguredReferences(fields, n, vocabulary, lessonType)
-	}
-	return fields
-}
-
-func supersessionForNote(contract *schema.Contract, n *note) (schema.Supersession, bool) {
-	if contract.StatusGroup(n.noteType) == "" {
-		return schema.Supersession{}, false
-	}
-	return contract.Supersession()
-}
-
-func appendConfiguredReferences(
-	fields []referenceField,
-	n *note,
-	vocabulary schema.Supersession,
-	lessonType string,
-) []referenceField {
-	configured := []string{vocabulary.GeneralLinkField}
-	if n.noteType == lessonType {
-		configured = []string{vocabulary.PredecessorField, vocabulary.SuccessorField}
-	}
-	for _, field := range configured {
-		if field == "based_on" || field == "related" {
-			continue
-		}
-		fields = append(fields, referenceField{
-			name:       field,
-			values:     frontmatterStringValues(n, field),
-			sourceRule: sourceContractSupersession,
-		})
-	}
-	return fields
-}
-
-func frontmatterStringValues(n *note, field string) []string {
-	value, ok := n.frontmatter[field]
-	if !ok {
-		return nil
-	}
-	return value.stringValues()
 }
 
 // provenanceResolves reports whether a provenance value resolves, either as a
@@ -488,6 +440,65 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 	}
 }
 
+// aliasResolvedBasedOn reports a thought's based_on that reaches its note only
+// through an alias. A note that was replaced is deleted and its old name goes
+// into its successor's aliases, so the citation still resolves; but the
+// thought was written about the text of the note it named, and that text is
+// gone. The reader may never have read what the name now leads to. Only a
+// thought is asked: it is the one note whose reaction is evidence about the
+// words it cites.
+func aliasResolvedBasedOn(notes []note, idx *graph.Index, authority scanAuthority) []Finding {
+	thought := authority.roles().AnswerType()
+	if thought == "" {
+		return nil
+	}
+	var out []Finding
+	for i := range notes {
+		n := &notes[i]
+		if n.noteType != thought {
+			continue
+		}
+		for _, value := range n.basedOn {
+			target, ok := basedOnTarget(value)
+			if !ok {
+				continue
+			}
+			if resolved, viaAlias := idx.ResolvesOnlyByAlias(target); viaAlias {
+				out = append(out, aliasResolvedFinding(n, value, resolved))
+			}
+		}
+	}
+	return out
+}
+
+// basedOnTarget is the name a based_on value cites: the words inside its
+// wikilink brackets, or the bare value, with any |display, #heading or ^block
+// taken off the way a body link is read.
+func basedOnTarget(value string) (string, bool) {
+	v := strings.TrimSpace(value)
+	inner := v
+	if len(v) >= 4 && strings.HasPrefix(v, "[[") && strings.HasSuffix(v, "]]") {
+		inner = v[2 : len(v)-2]
+	}
+	return stripTarget(inner)
+}
+
+func aliasResolvedFinding(n *note, value, resolved string) Finding {
+	return Finding{
+		RuleID:          "provenance.alias_resolved",
+		Severity:        SeverityWarn,
+		Path:            n.path,
+		Field:           new("based_on"),
+		Message:         "based_on -> " + value + " resolves only through an alias",
+		Evidence:        "the cited name is an alias of another note, not the name of a file, so the note it reaches may have replaced the one this thought was written from",
+		SuggestedAction: "read the note the alias leads to and cite it by its own name, or rewrite the thought against it",
+		SourceRule:      sourceYomihon,
+		Target:          new(value),
+		ResolvedTo:      new(resolved),
+		Fingerprint:     fingerprint("provenance.alias_resolved", n.path, value),
+	}
+}
+
 // mapDiskMismatch reconciles study-paths against the lessons on disk. Its
 // first direction reports a syllabus link that resolves to nothing; its
 // second reports a lesson of a domain that no study path of that domain
@@ -495,15 +506,12 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 // second walk, so a lesson another parallel path owns is not unlisted.
 // The second walk emits one finding per such lesson, attached to the first
 // path of the domain in check order — the file the reader opens next to add
-// the lesson. A lesson still carrying the status a lesson starts at is
-// expected work-in-progress and is not reported at all; which word that is
-// comes from the contract, so a vault that starts its lessons somewhere else
-// gets the same quiet.
+// the lesson. A lesson declared a draft is expected work-in-progress and is
+// not reported at all.
 func mapDiskMismatch(
 	notes []note,
 	idx *graph.Index,
 	roles schema.NavigationRoles,
-	contract *schema.Contract,
 	lessonType string,
 ) []Finding {
 	byDomain := lessonsByDomain(notes, lessonType)
@@ -540,8 +548,6 @@ func mapDiskMismatch(
 			syllabus,
 			byDomain[syllabus.domain],
 			listedByDomain[syllabus.domain],
-			contract,
-			lessonType,
 		)...)
 	}
 	return out
@@ -592,26 +598,20 @@ func reconcileSyllabus(syllabus *note, idx *graph.Index) (map[string]bool, []Fin
 }
 
 // unlistedLessons reports each lesson of the syllabus's domain that no study
-// path of that domain lists and that has left the status a lesson is given
-// first. The listed set is the domain union, already collected. The caller
-// invokes this once per domain, against the first path in check order, so one
-// unlisted lesson is one finding.
+// path of that domain lists and that is not a draft. The listed set is the
+// domain union, already collected. The caller invokes this once per domain,
+// against the first path in check order, so one unlisted lesson is one finding.
 //
-// The contract decides which status a lesson starts at, so a vault spelling
-// that word its own way is read the way it wrote it. A lesson carrying a
-// status this vault never declared for a lesson has started nowhere and is
-// reported like any other.
+// A lesson the author declared a draft is expected work in progress, so it is
+// not reported until the flag comes off.
 func unlistedLessons(
 	syllabus *note,
 	lessons []*note,
 	listed map[string]bool,
-	contract *schema.Contract,
-	lessonType string,
 ) []Finding {
 	var out []Finding
 	for _, lesson := range lessons {
-		expected := contract.StartsAt(lessonType, lesson.status)
-		if !listed[lesson.path] && !expected {
+		if !listed[lesson.path] && !lesson.draft {
 			out = append(out, diskUnlisted(syllabus, lesson))
 		}
 	}

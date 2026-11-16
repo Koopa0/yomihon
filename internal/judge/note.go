@@ -7,6 +7,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/sequence"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -34,16 +35,20 @@ type note struct {
 	// renderer to read. Frontmatter-only lint does not retain or inspect it.
 	body string
 
-	title      string
-	titleEn    string
-	aliases    []string
-	noteType   string
-	domain     string
-	status     string
-	sourceKind string
-	slug       string
-	basedOn    []string
-	related    []string
+	// title is the words of the body's first level-1 heading, which is the
+	// note's title; empty where the note has no such heading or its body was
+	// not read. A note writes no title in its frontmatter.
+	title    string
+	aliases  []string
+	noteType string
+	// domain is the first folder below a root the contract derives domains
+	// from. The parse cannot know it, so the run fills it in.
+	domain string
+	slug   string
+	// draft is whether the frontmatter holds the boolean true for draft.
+	draft   bool
+	basedOn []string
+	related []string
 
 	wikilinks         []wikiLink
 	pathRefs          []pathRef
@@ -74,7 +79,6 @@ type note struct {
 type fmValue struct {
 	scalar            string
 	list              []string
-	stringList        []string
 	isList            bool
 	scalarIsString    bool
 	hasNestedSequence bool
@@ -95,18 +99,6 @@ func (v fmValue) present() bool {
 		return len(v.list) > 0
 	}
 	return v.scalar != ""
-}
-
-// stringValues returns only genuine YAML strings. Unlike scalar and list,
-// these values are not coerced from numbers, booleans, or nulls.
-func (v fmValue) stringValues() []string {
-	if v.isList {
-		return v.stringList
-	}
-	if v.scalarIsString && v.scalar != "" {
-		return []string{v.scalar}
-	}
-	return nil
 }
 
 // parseNote splits a file's leading frontmatter and reads it into the note
@@ -143,6 +135,9 @@ func readNote(rel string, data []byte, marks *plannedMarks) note {
 	if marks != nil {
 		body := string(block.Body)
 		n.body = body
+		if heading, ok := graph.FirstH1(body); ok {
+			n.title = heading
+		}
 		facts := inspectBody(body, marks.heading)
 		n.wikilinks = extractWikilinksFrom(body, block.BodyStartLine, &facts)
 		n.pathRefs, n.images, n.unusedDefinitions = extractReferencesFrom(body, block.BodyStartLine, facts.comments)
@@ -171,8 +166,8 @@ func readNote(rel string, data []byte, marks *plannedMarks) note {
 }
 
 // readTypedFields fills the note's typed graph fields from the parsed
-// frontmatter. Each reads only a genuine string value: a title, alias or slug
-// the core schema would resolve to a number, boolean or null is dropped.
+// frontmatter. Each reads only a genuine string value: an alias or slug the
+// core schema would resolve to a number, boolean or null is dropped.
 func readTypedFields(n *note, doc *yaml.Node) {
 	root := doc
 	if doc.Kind == yaml.DocumentNode {
@@ -184,25 +179,27 @@ func readTypedFields(n *note, doc *yaml.Node) {
 	if root.Kind != yaml.MappingNode {
 		return
 	}
-	n.title = strField(root, "title")
-	n.titleEn = strField(root, "title_en")
 	n.aliases = listField(root, "aliases")
 	n.noteType = strField(root, "type")
-	n.domain = strField(root, "domain")
-	n.status = strField(root, "status")
-	n.sourceKind = strField(root, "source_kind")
 	n.slug = strField(root, "slug")
+	n.draft = boolTrue(root, schema.DraftField)
 	n.basedOn = listField(root, "based_on")
 	n.related = listField(root, "related")
 }
 
-// statusWord is a note's status folded to the spelling a contract's declared
-// values already carry, the contract having folded them as it read them. A
-// rule comparing the two then answers about the status word rather than about
-// the bytes a filesystem or an editor handed over. The raw value stays on the
-// note: a finding quotes the note as written.
-func statusWord(n *note) string {
-	return schema.NormalizeWord(n.status)
+// boolTrue reads a key as the YAML boolean true, and anything else, including
+// a string that spells it, as not.
+func boolTrue(m *yaml.Node, key string) bool {
+	v, ok := mappingValue(m, key)
+	if !ok {
+		return false
+	}
+	v = resolveAlias(v)
+	if v.Kind != yaml.ScalarNode || v.Style&(yaml.DoubleQuotedStyle|yaml.SingleQuotedStyle|yaml.LiteralStyle|yaml.FoldedStyle) != 0 {
+		return false
+	}
+	var value bool
+	return v.Decode(&value) == nil && v.Tag == "!!bool" && value
 }
 
 // mappingValue returns the value node for a top-level key, or false when the
@@ -384,18 +381,14 @@ func nodeValue(n *yaml.Node) fmValue {
 	switch n.Kind {
 	case yaml.SequenceNode:
 		items := make([]string, 0, len(n.Content))
-		stringItems := make([]string, 0, len(n.Content))
 		hasNestedSequence := false
 		for _, item := range n.Content {
 			if resolveAlias(item).Kind == yaml.SequenceNode {
 				hasNestedSequence = true
 			}
 			items = append(items, scalarText(item))
-			if value, ok := asString(item); ok && value != "" {
-				stringItems = append(stringItems, value)
-			}
 		}
-		return fmValue{list: items, stringList: stringItems, isList: true, hasNestedSequence: hasNestedSequence}
+		return fmValue{list: items, isList: true, hasNestedSequence: hasNestedSequence}
 	case yaml.ScalarNode:
 		_, scalarIsString := asString(n)
 		return fmValue{scalar: scalarText(n), scalarIsString: scalarIsString}

@@ -78,32 +78,32 @@ func TestCheckBuildsSecondaryEvidenceOnlyFromEgressAllowedNotes(t *testing.T) {
 	root := t.TempDir()
 	writeTestContract(t, root, []string{"Restricted"})
 	write(t, root, publicA, `---
-title: Public A
 aliases: [shared]
 ---
+# Public A
 `)
 	write(t, root, publicB, `---
-title: Shared Title
 aliases: [shared]
 ---
+# Shared Title
 `)
 	write(t, root, linker, `---
-title: Linker
 ---
+# Linker
 
 [[Shared Title]]
 `)
 	write(t, root, source, `---
-title: Source
 based_on: [restricted-slug]
 ---
+# Source
 `)
 	write(t, root, "Restricted/Hidden.md", `---
-title: Shared Title
 aliases: [shared]
 type: lesson
 slug: restricted-slug
 ---
+# Shared Title
 `)
 
 	findings, err := Check(t.Context(), root)
@@ -153,8 +153,8 @@ func TestCheckDoesNotInspectOrReportEgressDeniedPathTargets(t *testing.T) {
 			root := t.TempDir()
 			writeTestContract(t, root, []string{"Restricted"})
 			write(t, root, "Concepts/golang/Public.md", `---
-title: Public
 ---
+# Public
 
 [private target](../../Restricted/secret.md)
 `)

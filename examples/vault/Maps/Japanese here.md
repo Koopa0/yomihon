@@ -1,12 +1,10 @@
 ---
-title: 日文閱讀
 type: moc
-status: ready
-map_kind: topic
 created: 2026-09-22
-updated: 2026-09-22
 lang: zh-Hant
 ---
+
+# 日文閱讀
 
 從能指出證據的短句開始，再讀聲音與意象更濃縮的詩。
 

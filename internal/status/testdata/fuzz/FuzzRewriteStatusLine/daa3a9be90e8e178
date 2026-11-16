@@ -1,3 +1,0 @@
-go test fuzz v1
-[]byte("---\nstatus: \u00a0\n---")
-byte('B')

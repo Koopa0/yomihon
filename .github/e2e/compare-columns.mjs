@@ -206,7 +206,7 @@ const MUTATIONS = {
   // stops being the note.
   'break-column-identity': {
     target: 'column-is-the-note',
-    apply: rewritePage('<details class="y-toc-inline">', '<details class="y-toc-inline" data-broken>', 'the disclosure marker'),
+    apply: rewritePage('<div class="y-related" id="b-_y-end"', '<div class="y-related" data-broken id="b-_y-end"', 'the end block marker'),
   },
   // The levelling that answers the press, gone: the control still takes its
   // pressed state and the other column stays where it was.
@@ -258,18 +258,6 @@ const articleOf = (html, from) => {
   const end = html.indexOf('</article>', at);
   if (end < 0) return '';
   return html.slice(at, end + '</article>'.length);
-};
-
-// upToTheWriteFace drops the one thing a column does not carry. The note's own
-// page ends its article with the status face; a column passes nothing where the
-// page passes that in, so the comparison stops where the face begins. The
-// closing tag comes off first, or the column — which has no face to cut at —
-// would keep a close the note's own article no longer has.
-const upToTheWriteFace = (article) => {
-  const close = '</article>';
-  const body = article.endsWith(close) ? article.slice(0, -close.length) : article;
-  const at = body.indexOf('<section class="y-sealbar"');
-  return at < 0 ? body : body.slice(0, at);
 };
 
 const boxOf = (locator) => locator.evaluate((element) => {
@@ -391,7 +379,16 @@ try {
   if (!renamed.includes(columnPrefix) || !aloneHTML.includes(alonePrefix)) {
     fail('column-is-the-note', 'the per-column mark prefix does not match the IDs of that reading');
   }
-  if (upToTheWriteFace(renamed.replace(columnPrefix, alonePrefix)) !== upToTheWriteFace(nestedArticle(aloneHTML))) {
+  // A column has no sidebar beside it, so its contents are folded into the
+  // article instead; that row is the one thing it adds to the note, and it
+  // has to list what the note's own sidebar lists.
+  const folded = /<div class="y-inlineaids"[^>]*>[\s\S]*?<\/details><\/div>/.exec(renamed)?.[0] ?? '';
+  const sidebar = /<nav class="y-railtoc"[^>]*>[\s\S]*?<\/nav>/.exec(alone)?.[0] ?? '';
+  const entries = (html) => [...html.matchAll(/<a href="#([^"]*)"(?: lang="[^"]*")? data-level="(\d)">([^<]*)<\/a>/g)].map((m) => `${m[1]}|${m[2]}|${m[3]}`);
+  if (folded === '' || sidebar === '' || JSON.stringify(entries(folded)) !== JSON.stringify(entries(sidebar))) {
+    fail('column-is-the-note', `the column's folded contents ${JSON.stringify(entries(folded))} are not what the note's own sidebar lists ${JSON.stringify(entries(sidebar))}`);
+  }
+  if (renamed.replace(folded, '').replace(columnPrefix, alonePrefix) !== nestedArticle(aloneHTML)) {
     fail('column-is-the-note', 'the second column is not what the note reads as on its own page');
   }
 

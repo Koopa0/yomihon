@@ -102,17 +102,17 @@ type Finding struct {
 // it, an anchor a table really declares, or the product itself.
 const (
 	// sourceContract is the vault's machine contract, for the frontmatter
-	// rules that read its type, field and status declarations.
+	// rules that read its type and field declarations.
 	sourceContract = "vault-schema.toml"
 	// sourceContractRules is its [rules] table, for a rule that enforces a
 	// key that table declares.
 	sourceContractRules = "vault-schema.toml#rules"
-	// sourceContractScan is its [scan] table, which declares the knowledge
+	// sourceContractFolders is its [folders] table, which declares the
 	// directories the frontmatter rules govern.
-	sourceContractScan = "vault-schema.toml#scan"
-	// sourceContractSupersession is its [supersession] table, which names
-	// the replacement-ledger fields and the archived status.
-	sourceContractSupersession = "vault-schema.toml#supersession"
+	sourceContractFolders = "vault-schema.toml#folders"
+	// sourceContractTypes is its [types] tables, which declare each note
+	// type's role, fields and slug pattern.
+	sourceContractTypes = "vault-schema.toml#types"
 	// sourceYomihon is the product itself, for the rules that are its own
 	// dialect — link resolution, name and alias collisions, reference and path
 	// liveness, and the study-path grammar. No vault artifact declares them;

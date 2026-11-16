@@ -12,7 +12,7 @@ import (
 
 // FuzzParse keeps the lexical grammar deterministic and ownership-safe across
 // arbitrary query text. Every whitespace token must be classified exactly once
-// as either bare text or one of the six structured filters.
+// as either bare text or one of the structured filters.
 func FuzzParse(f *testing.F) {
 	f.Add("")
 	f.Add("深度 type:lesson 工作 folder:Writing/")

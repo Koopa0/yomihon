@@ -12,12 +12,8 @@ import (
 // are what decide whether each finding is a tracked forward-reference or a
 // warning.
 const bilingualGapNote = `---
-title: Gaps
 type: writing
-domain: golang
-status: draft
 created: 2026-01-01
-updated: 2026-01-01
 ---
 
 todo: [[MissingTodo]]
@@ -123,12 +119,8 @@ func TestDecomposedHeadingHitsComposedGapMark(t *testing.T) {
 	}
 
 	note := `---
-title: Gaps
 type: writing
-domain: golang
-status: draft
 created: 2026-01-01
-updated: 2026-01-01
 ---
 
 ## ` + lueckeDecomposed + `
@@ -139,12 +131,12 @@ updated: 2026-01-01
 	write(t, root, gapNotePath, note)
 	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
 		[2]string{
-			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			`knowledge_dirs = ["Writing"]`,
+			`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			`checked = ["Writing"]`,
 		},
 		[2]string{
-			"forbid_tag_with_slash = true",
-			"forbid_tag_with_slash = true\nplanned_gap_marks = [\"" + lueckeComposed + "\"]\nplanned_inline_marks = []",
+			"concept_requires_provenance = [\"based_on\", \"source_locator\"]",
+			"concept_requires_provenance = [\"based_on\", \"source_locator\"]\nplanned_gap_marks = [\"" + lueckeComposed + "\"]\nplanned_inline_marks = []",
 		},
 	))
 
@@ -166,14 +158,14 @@ func bilingualGapVault(t *testing.T, rulesExtra string) string {
 	write(t, root, gapNotePath, bilingualGapNote)
 	replacements := [][2]string{
 		{
-			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			`knowledge_dirs = ["Writing"]`,
+			`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			`checked = ["Writing"]`,
 		},
 	}
 	if rulesExtra != "" {
 		replacements = append(replacements, [2]string{
-			"forbid_tag_with_slash = true",
-			"forbid_tag_with_slash = true\n" + rulesExtra,
+			"concept_requires_provenance = [\"based_on\", \"source_locator\"]",
+			"concept_requires_provenance = [\"based_on\", \"source_locator\"]\n" + rulesExtra,
 		})
 	}
 	write(t, root, schema.ContractRelPath, contractFixture(t, nil, replacements...))
@@ -312,16 +304,16 @@ func TestACommentedHeadingBoundsNoGapSection(t *testing.T) {
 func gapSectionVault(t *testing.T, ledgerBody string) string {
 	t.Helper()
 	root := t.TempDir()
-	write(t, root, citerNotePath, plannedFixtureNote("Citer", "See [[Ghost]]."))
-	write(t, root, ledgerNotePath, plannedFixtureNote("Ledger", ledgerBody))
+	write(t, root, citerNotePath, plannedFixtureNote("See [[Ghost]]."))
+	write(t, root, ledgerNotePath, plannedFixtureNote(ledgerBody))
 	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
 		[2]string{
-			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			`knowledge_dirs = ["Writing"]`,
+			`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			`checked = ["Writing"]`,
 		},
 		[2]string{
-			"forbid_tag_with_slash = true",
-			"forbid_tag_with_slash = true\nplanned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []",
+			"concept_requires_provenance = [\"based_on\", \"source_locator\"]",
+			"concept_requires_provenance = [\"based_on\", \"source_locator\"]\nplanned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []",
 		},
 	))
 	return root
@@ -334,29 +326,25 @@ func gapSectionVault(t *testing.T, ledgerBody string) string {
 func quotedPlannedVault(t *testing.T, ledgerBody string) string {
 	t.Helper()
 	root := t.TempDir()
-	write(t, root, citerNotePath, plannedFixtureNote("Citer", "See [[Ghost]]."))
-	write(t, root, ledgerNotePath, plannedFixtureNote("Ledger", ledgerBody))
+	write(t, root, citerNotePath, plannedFixtureNote("See [[Ghost]]."))
+	write(t, root, ledgerNotePath, plannedFixtureNote(ledgerBody))
 	write(t, root, schema.ContractRelPath, contractFixture(t, nil,
 		[2]string{
-			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			`knowledge_dirs = ["Writing"]`,
+			`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			`checked = ["Writing"]`,
 		},
 		[2]string{
-			"forbid_tag_with_slash = true",
-			"forbid_tag_with_slash = true\nplanned_gap_marks = []\nplanned_inline_marks = [\"todo\"]",
+			"concept_requires_provenance = [\"based_on\", \"source_locator\"]",
+			"concept_requires_provenance = [\"based_on\", \"source_locator\"]\nplanned_gap_marks = []\nplanned_inline_marks = [\"todo\"]",
 		},
 	))
 	return root
 }
 
-func plannedFixtureNote(title, body string) string {
+func plannedFixtureNote(body string) string {
 	return `---
-title: ` + title + `
 type: writing
-domain: golang
-status: draft
 created: 2026-01-01
-updated: 2026-01-01
 ---
 
 ` + body + "\n"

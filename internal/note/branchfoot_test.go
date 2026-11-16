@@ -36,7 +36,7 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 		}
 	}
 	lesson := func(title string) string {
-		return "---\ntitle: " + title + "\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+		return "---\ntype: lesson\n---\n# " + title + "\n\nbody\n"
 	}
 	const dir = "Writing/lessons/golang/"
 	write(dir+"Setup.md", lesson("Setup"))
@@ -45,8 +45,8 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 	write(dir+"Wrapping up.md", lesson("Wrapping up"))
 	write(dir+"Epilogue.md", lesson("Epilogue"))
 	// In the same folder, taught by nothing.
-	write(dir+"Zebra.md", "---\ntitle: Zebra\ntype: note\ndomain: golang\n---\n\nbody\n")
-	write("Maps/Go course.md", "---\ntitle: Go course\ntype: study-path\ndomain: golang\n---\n\n"+
+	write(dir+"Zebra.md", "---\ntype: note\n---\n# Zebra\n\nbody\n")
+	write("Maps/Go course.md", "---\ntype: study-path\n---\n# Go course\n\n"+
 		"## start | Start | 開始 {sequence=primary}\n\n"+
 		"- [[Setup]]\n"+
 		"- [[Basics]]\n"+
@@ -75,14 +75,10 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 	}
 
 	branch := page(dir + "Extra.md")
-	for _, want := range []string{
-		// The line above the title: the book, its part, and the word for a branch,
-		// as one link to the contents with this lesson marked.
-		`<div class="y-crumbs y-crumbs--course"><a class="y-crumbs__link" href="/syllabus/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FExtra.md">Go course · Start · 支線</a></div>`,
-	} {
-		if !strings.Contains(branch, want) {
-			t.Errorf("the branch lesson's head does not carry %q", want)
-		}
+	// Nothing stands above the title: the sidebar says which course and which
+	// part, so the line that used to name them is gone.
+	if strings.Contains(branch, "y-crumbs") {
+		t.Errorf("the branch lesson's head still draws a running head or a path above its title")
 	}
 	branchFoot := foot(branch)
 	for _, want := range []string{
@@ -100,7 +96,7 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 	anchorFoot := foot(page(dir + "Basics.md"))
 	for _, want := range []string{
 		// The course is named by the title alone, as a link to its contents.
-		`<p class="y-steps__source"><a class="y-steps__path" href="/syllabus/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FBasics.md">Go course</a></p>`,
+		`<p class="y-steps__source"><a class="y-steps__path" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FBasics.md">Go course</a></p>`,
 		`href="/notes/Writing/lessons/golang/Wrapping%20up.md" rel="next"`,
 		`<p class="y-steps__aside"><span class="y-steps__asidelabel">支線：</span><a class="y-steps__asidelink" href="/notes/Writing/lessons/golang/Extra.md">Extra</a></p>`,
 	} {
@@ -114,7 +110,7 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 	last := foot(page(dir + "Epilogue.md"))
 	for _, want := range []string{
 		`y-steps__link--back" href="/notes/Writing/lessons/golang/Wrapping%20up.md"`,
-		`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/syllabus/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FEpilogue.md"><span class="y-steps__role">回到目錄</span></a>`,
+		`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FEpilogue.md"><span class="y-steps__role">回到目錄</span></a>`,
 	} {
 		if !strings.Contains(last, want) {
 			t.Errorf("the last branch lesson does not carry %q; foot = %q", want, last)

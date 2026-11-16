@@ -32,7 +32,7 @@ func TestASymlinkOutOfTheVaultIsNeitherIndexedNorServed(t *testing.T) {
 	root := t.TempDir()
 	writeDeskFixture(t, root)
 	outside := filepath.Join(t.TempDir(), "private.md")
-	note := "---\ntitle: Private\ntype: concept\nstatus: draft\n---\n\n" + needle + "\n"
+	note := "---\ntype: concept\n---\n\n# Private\n\n" + needle + "\n"
 	if err := os.WriteFile(outside, []byte(note), 0o600); err != nil {
 		t.Fatalf("write the outside file: %v", err)
 	}

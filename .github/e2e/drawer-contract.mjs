@@ -23,10 +23,6 @@ const SCRIM = '[data-nav-close]';
 const FILTER = '[data-nav-filter]';
 const SKIP_LINK = '.y-skiplink';
 const MAIN = '#_y-main';
-// The status write bar is a sibling of the shell, not part of the article, and it
-// is visible at exactly the widths where the drawer exists. It paints under the
-// scrim, so it belongs in the same enumeration as the other covered regions.
-const SEALBAR = '.y-sealbar';
 
 const SITES = [
   'server-nav-state-free',
@@ -351,7 +347,7 @@ try {
       fail('server-nav-state-free', 'server markup stamped data-nav even though only the enhancement runtime owns drawer state');
     }
     if (!(await page.$(RAIL))) broken('the no-JS page has no #_y-nav-rail');
-    const link = page.locator(`${RAIL} a[href]:not([aria-current="page"])`).first();
+    const link = page.locator(`${RAIL} a[href]:not(.y-railspine):not([aria-current="page"])`).first();
     if (await link.count() !== 1) broken('the no-JS rail has no non-current navigation link to exercise');
     const hit = await link.evaluate((el) => {
       const rect = el.getBoundingClientRect();
@@ -404,18 +400,17 @@ try {
     // The page behind a closed drawer is the page. Leaving it inert after the
     // drawer shuts would lock the reader out of everything with nothing on
     // screen to say why, so the live case is asserted before the modal one.
-    const shell = await page.evaluate(({ main, skip, seal }) => {
+    const shell = await page.evaluate(({ main, skip }) => {
       const found = {
         main: document.querySelectorAll(main).length,
         skip: document.querySelectorAll(skip).length,
-        seal: document.querySelectorAll(seal).length,
       };
-      return { ...found, inert: [...document.querySelectorAll(`${main}, ${skip}, ${seal}`)].map((element) => element.inert) };
-    }, { main: MAIN, skip: SKIP_LINK, seal: SEALBAR });
+      return { ...found, inert: [...document.querySelectorAll(`${main}, ${skip}`)].map((element) => element.inert) };
+    }, { main: MAIN, skip: SKIP_LINK });
     // An absent region would make every check below vacuously true, so its
     // absence is a broken probe rather than a passing page.
-    if (shell.main !== 1 || shell.skip !== 1 || shell.seal !== 1) {
-      broken(`the page has ${shell.main} main landmarks, ${shell.skip} skip links and ${shell.seal} status bars, want 1 of each`);
+    if (shell.main !== 1 || shell.skip !== 1) {
+      broken(`the page has ${shell.main} main landmarks and ${shell.skip} skip links, want 1 of each`);
     }
     if (shell.inert.some(Boolean)) {
       fail('closed-background-live', `a closed drawer leaves the page inert: ${JSON.stringify(shell.inert)}`);
@@ -447,13 +442,13 @@ try {
     // The scrim dims the article; only this takes it out of the tree. Without
     // it a reading cursor walks straight into the page the curtain covers,
     // which is the one thing the curtain is there to prevent.
-    const behind = await page.evaluate(({ main, skip, seal }) => (
-      [...document.querySelectorAll(`${main}, ${skip}, ${seal}`)].map((element) => element.inert)
-    ), { main: MAIN, skip: SKIP_LINK, seal: SEALBAR });
+    const behind = await page.evaluate(({ main, skip }) => (
+      [...document.querySelectorAll(`${main}, ${skip}`)].map((element) => element.inert)
+    ), { main: MAIN, skip: SKIP_LINK });
     // The expected count comes from the closed-state tally rather than from
     // behind itself: comparing a length to its own length can never fail, and
     // deriving it also catches a region that disappears between the two states.
-    if (behind.length !== shell.main + shell.skip + shell.seal || !behind.every(Boolean)) {
+    if (behind.length !== shell.main + shell.skip || !behind.every(Boolean)) {
       fail('open-background-inert', `an open drawer leaves the page in the tree: ${JSON.stringify(behind)}`);
     }
 
@@ -513,7 +508,7 @@ try {
       const rail = document.querySelector('#_y-nav-rail');
       if (!rail || rail.querySelector('[data-e2e-focus-refusal]')) return;
       let refused = 0;
-      for (const row of rail.querySelectorAll('a[href]')) {
+      for (const row of rail.querySelectorAll('a[href]:not(.y-railspine)')) {
         row.focus();
         if (document.activeElement !== row) refused += 1;
       }
@@ -527,7 +522,7 @@ try {
     const refusedRows = await page.evaluate(() => {
       const before = document.activeElement;
       let refused = 0;
-      for (const row of document.querySelectorAll('#_y-nav-rail a[href]')) {
+      for (const row of document.querySelectorAll('#_y-nav-rail a[href]:not(.y-railspine)')) {
         row.focus();
         if (document.activeElement !== row) refused += 1;
       }
@@ -540,7 +535,7 @@ try {
     const focusableRows = await page.evaluate(() => {
       const before = document.activeElement;
       let count = 0;
-      for (const row of document.querySelectorAll('#_y-nav-rail a[href]')) {
+      for (const row of document.querySelectorAll('#_y-nav-rail a[href]:not(.y-railspine)')) {
         row.focus();
         if (document.activeElement === row) count += 1;
       }
@@ -661,7 +656,7 @@ try {
     // The declined Escape leaves the spaces where they were, by design; they
     // are cleared here so the cases below start from an unnarrowed rail.
     await filter.fill('');
-    await page.$eval(`${RAIL} a[href]`, (link) => link.focus());
+    await page.$eval(`${RAIL} a[href]:not(.y-railspine)`, (link) => link.focus());
     await page.keyboard.press('Escape');
     await closeState(page, 'escape-focus-return', 'Escape');
 

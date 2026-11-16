@@ -1,0 +1,179 @@
+// Behavior lock for what each page is about being the largest text on it. The
+// search page is about what the reader is looking for, so the query they type
+// is set larger than anything else there and is 28px; the answers under it
+// are rows with no line between them. The whole-folder page is about what the
+// folder has to say, so its name is the largest text on it and no figure or
+// group name is set above that. The desk of a reader who kept no place is
+// about the courses, so they are the largest text on it and set at least as
+// large as a page title is. (The desk with a place kept is measured by
+// kept-place-size.mjs, which has to run after a place has been kept.) The size
+// is what the browser computed,
+// read off every piece of visible text on the page and compared, so a heading
+// restored to its old size or a result title enlarged is read as the loss it is
+// whatever class it wears.
+//
+// Env: YOMIHON_BASE and MUTATE. MUTATE=list prints every self-test mode.
+import { arrived } from './support/arrival.mjs';
+import { readSizes } from './support/text-sizes.mjs';
+import { chromium } from 'playwright-core';
+
+const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+const MUTATE = process.env.MUTATE || '';
+
+const QUERY_SITE = 'the-query-is-the-largest-text-on-the-search-page';
+const RULES_SITE = 'results-have-no-line-between-them';
+const HEALTH_SITE = 'the-page-name-is-the-largest-text-on-the-health-page';
+const DESK_SITE = 'the-courses-are-the-largest-text-on-a-desk-with-no-place';
+const SITES = [QUERY_SITE, RULES_SITE, HEALTH_SITE, DESK_SITE];
+
+class LockFired extends Error {
+  constructor(site, message) {
+    super(message);
+    this.site = site;
+  }
+}
+class ProbeBroken extends Error {}
+class NotApplied extends Error {}
+
+const fail = (site, message) => { throw new LockFired(site, `FAIL largest-text: ${message}`); };
+const broken = (message) => { throw new ProbeBroken(`BROKEN largest-text: ${message}`); };
+const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED largest-text: ${message}`); };
+
+// Appends a rule to the product's own stylesheet, past the layer it declares,
+// so the injected rule outranks what it stands in for without an importance
+// flag: the shape a regression written into the stylesheet itself would have.
+const appendStyle = (css) => (page) => {
+  let seen = 0;
+  return page.route('**/static/app.css{,?*}', async (route) => {
+    const response = await route.fetch();
+    const original = await response.text();
+    seen += 1;
+    await route.fulfill({ response, body: `${original}\n${css}\n` });
+  }).then(() => () => (seen > 0 ? '' : 'the stylesheet was never requested, so the rule reached no page'));
+};
+
+const MUTATIONS = {
+  // A result title set at a heading's size: the answer outshouts the question.
+  'enlarge-a-result-title': { target: QUERY_SITE, apply: appendStyle('.y-result__title{font-size:3rem}') },
+  // The query put back at the size of body text.
+  'shrink-the-query': { target: QUERY_SITE, apply: appendStyle('.y-searchpage__form input{font-size:1rem}') },
+  // The courses set at body size: a desk that opens on nothing in particular.
+  'shrink-the-lead-courses': { target: DESK_SITE, apply: appendStyle('.y-modeblock--lead .ui-navitem{font-size:1rem}') },
+  // A group's name set at a figure's size: the page's own name is outshouted.
+  'enlarge-a-group-name': { target: HEALTH_SITE, apply: appendStyle('.y-healthgroup__title{font-size:3rem}') },
+  // A hairline under every hit, which is the line the answer was drawn with.
+  'rule-between-results': { target: RULES_SITE, apply: appendStyle('.y-result{border-bottom:1px solid #000}') },
+};
+
+for (const [name, mode] of Object.entries(MUTATIONS)) {
+  if (!SITES.includes(mode.target)) {
+    console.error(`largest-text: mutation ${name} aims at unknown site ${mode.target}`);
+    process.exit(2);
+  }
+}
+for (const site of SITES) {
+  if (!Object.values(MUTATIONS).some((mode) => mode.target === site)) {
+    console.error(`largest-text: assertion site ${site} has no mutation`);
+    process.exit(2);
+  }
+}
+
+if (MUTATE === 'list') {
+  for (const name of Object.keys(MUTATIONS)) console.log(name);
+  process.exit(0);
+}
+if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
+  console.error(`largest-text: unknown MUTATE mode ${MUTATE}`);
+  process.exit(2);
+}
+
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+try {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+  const proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
+  const response = await page.goto(`${BASE}/search?q=alpha`, { waitUntil: 'load' });
+  if (response?.status() !== 200) broken(`/search?q=alpha answered ${response?.status()}, want 200`);
+  await arrived(page);
+  await page.evaluate(() => document.fonts.ready);
+  if (proof) {
+    const issue = proof();
+    if (issue) notApplied(`${MUTATE}: ${issue}`);
+  }
+
+  const query = await page.locator('.y-searchpage__form input').evaluate((input) => Number.parseFloat(getComputedStyle(input).fontSize));
+  if (!(query > 0)) broken('the search page draws no query field to measure');
+  const sizes = await readSizes(page);
+  const others = sizes.filter((text) => text.what !== 'input.' && !text.what.startsWith('input'));
+  const larger = others.filter((text) => text.size > query);
+  if (query !== 28) {
+    fail(QUERY_SITE, `the query is set at ${query}px, want 28px`);
+  }
+  if (larger.length > 0) {
+    const [first] = larger.sort((a, b) => b.size - a.size);
+    fail(QUERY_SITE, `${first.what} (${JSON.stringify(first.words)}) is set at ${first.size}px, larger than the 28px query the page is about`);
+  }
+
+  const hits = await page.locator('.y-result').count();
+  if (hits < 2) broken(`the search for alpha has ${hits} hits, too few for a line between them to be read`);
+  const lines = await page.locator('.y-result').evaluateAll((rows) => rows.map((row) => {
+    const style = getComputedStyle(row);
+    return { top: style.borderTopWidth, bottom: style.borderBottomWidth };
+  }));
+  const drawn = lines.filter((line) => line.top !== '0px' || line.bottom !== '0px');
+  if (drawn.length > 0) {
+    fail(RULES_SITE, `${drawn.length} of ${hits} hits are drawn with a line: ${JSON.stringify(drawn[0])}`);
+  }
+
+  const health = await page.goto(`${BASE}/health`, { waitUntil: 'load' });
+  if (health?.status() !== 200) broken(`/health answered ${health?.status()}, want 200`);
+  await arrived(page);
+  await page.evaluate(() => document.fonts.ready);
+  const name = await page.locator('h1').first().evaluate((heading) => Number.parseFloat(getComputedStyle(heading).fontSize));
+  const healthSizes = (await readSizes(page)).filter((text) => !text.what.startsWith('h1'));
+  if (healthSizes.length < 5) broken(`the health page draws ${healthSizes.length} pieces of text besides its name, too few to compare with`);
+  const outsized = healthSizes.filter((text) => text.size >= name).sort((a, b) => b.size - a.size);
+  if (outsized.length > 0) {
+    fail(HEALTH_SITE, `${outsized[0].what} (${JSON.stringify(outsized[0].words)}) is set at ${outsized[0].size}px, not smaller than the ${name}px name of the page`);
+  }
+
+  const desk = await page.goto(`${BASE}/`, { waitUntil: 'load' });
+  if (desk?.status() !== 200) broken(`/ answered ${desk?.status()}, want 200`);
+  await arrived(page);
+  await page.evaluate(() => document.fonts.ready);
+  if (await page.locator('[data-home-continue]').count() !== 0) broken('the fixture already holds a kept place, so this is not the desk of a reader who kept none');
+  const deskSizes = await readSizes(page, '.y-modeblock--lead');
+  const leading = deskSizes.filter((text) => text.inside);
+  if (leading.length === 0) fail(DESK_SITE, 'the desk of a reader who kept no place does not open on the courses');
+  const leadSize = Math.max(...leading.map((text) => text.size));
+  if (leadSize < 28) fail(DESK_SITE, `the courses are set at ${leadSize}px on a desk with no place kept, want at least 28px`);
+  const overtaking = deskSizes.filter((text) => !text.inside && text.size >= leadSize).sort((a, b) => b.size - a.size);
+  if (overtaking.length > 0) {
+    fail(DESK_SITE, `${overtaking[0].what} (${JSON.stringify(overtaking[0].words)}) is set at ${overtaking[0].size}px, not smaller than the ${leadSize}px courses`);
+  }
+
+  await context.close();
+  console.log(`PASS largest-text: the query is 28px, the largest text on the search page, over ${hits} hits drawn with no line between them; the name of the health page, ${name}px, is larger than every group name and figure under it; the courses, ${leadSize}px, are the largest text on a desk with no place kept`);
+} catch (err) {
+  if (err instanceof NotApplied) {
+    console.error(err.message);
+    console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
+    process.exitCode = 2;
+  } else if (err instanceof LockFired) {
+    console.error(err.message);
+    if (MUTATE) {
+      const { target } = MUTATIONS[MUTATE];
+      if (err.site === target) console.log(`MUTATE-RESULT: caught ${MUTATE}`);
+      else console.error(`no catch: ${MUTATE} targets ${target}, but ${err.site} fired first`);
+    }
+    process.exitCode = 1;
+  } else if (err instanceof ProbeBroken) {
+    console.error(err.message);
+    process.exitCode = 1;
+  } else {
+    console.error(err);
+    process.exitCode = 1;
+  }
+} finally {
+  await browser.close();
+}

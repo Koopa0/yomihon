@@ -5,7 +5,9 @@ import (
 	"testing"
 )
 
-func TestAnswerTypeRequiresExplicitEnumMember(t *testing.T) {
+const thoughtType = "[types.thought]\nrole = \"thought\"\nfields = [\"based_on\"]\n"
+
+func TestAnswerTypeIsTheTypeHoldingTheThoughtRole(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
@@ -14,20 +16,15 @@ func TestAnswerTypeRequiresExplicitEnumMember(t *testing.T) {
 		want        string
 	}{
 		{name: "absent"},
-		{name: "declared", declaration: `answer_type = "lesson"`, want: "lesson"},
-		{name: "another member", declaration: `answer_type = "moc"`, want: "moc"},
-		{name: "empty", declaration: `answer_type = ""`},
-		{name: "undeclared", declaration: `answer_type = "note"`},
-		{name: "case differs", declaration: `answer_type = "Lesson"`},
-		{name: "list", declaration: `answer_type = ["lesson"]`},
-		{name: "boolean", declaration: `answer_type = true`},
-		{name: "number", declaration: `answer_type = 1`},
-		{name: "table", declaration: `answer_type = { type = "lesson" }`},
+		{name: "declared", declaration: thoughtType, want: "thought"},
+		{name: "another name", declaration: "[types.reflection]\nrole = \"thought\"\nfields = [\"based_on\"]\n", want: "reflection"},
+		{name: "a plain type", declaration: "[types.thought]\nfields = [\"based_on\"]\n"},
+		{name: "role in another case", declaration: "[types.thought]\nrole = \"Thought\"\nfields = [\"based_on\"]\n"},
+		{name: "role held twice", declaration: thoughtType + "[types.reflection]\nrole = \"thought\"\nfields = [\"based_on\"]\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			data := answerContract(tt.declaration)
-			contract, err := loadContractBytes(t, []byte(data))
+			contract, err := loadContractBytes(t, []byte(answerContract(tt.declaration)))
 			if err != nil {
 				t.Fatalf("LoadFile() error = %v", err)
 			}
@@ -41,8 +38,8 @@ func TestAnswerTypeRequiresExplicitEnumMember(t *testing.T) {
 func TestAnswerTypeDoesNotReplaceOtherNavigationDeclarations(t *testing.T) {
 	t.Parallel()
 
-	for _, declaration := range []string{"", `answer_type = "lesson"`} {
-		t.Run(declaration, func(t *testing.T) {
+	for _, declaration := range []string{"", thoughtType} {
+		t.Run(strings.TrimSpace(declaration), func(t *testing.T) {
 			t.Parallel()
 			contract, err := loadContractBytes(t, []byte(answerContract(declaration)))
 			if err != nil {
@@ -59,14 +56,15 @@ func TestAnswerTypeDoesNotReplaceOtherNavigationDeclarations(t *testing.T) {
 	}
 }
 
-func TestAnswerTypeUnknownNavigationKeyClosesRole(t *testing.T) {
+func TestAnswerTypeUnknownRoleClosesIt(t *testing.T) {
 	t.Parallel()
-	contract, err := loadContractBytes(t, []byte(answerContract("answer_type = \"lesson\"\nanswer_types = [\"moc\"]")))
+	data := answerContract(thoughtType + "[types.extra]\nrole = \"answers\"\n")
+	contract, err := loadContractBytes(t, []byte(data))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := contract.NavigationRoles().AnswerType(); got != "" {
-		t.Errorf("AnswerType() = %q despite unknown navigation key", got)
+		t.Errorf("AnswerType() = %q despite an unknown role beside it", got)
 	}
 }
 
@@ -81,17 +79,16 @@ func TestAnswerTypeHasNoFabricatedAuthority(t *testing.T) {
 
 func TestAnswerTypeAcceptsDeclaredUnicodeWord(t *testing.T) {
 	t.Parallel()
-	data := strings.Replace(validContractV1, `type = ["lesson", "study-path", "moc"]`, `type = ["lesson", "study-path", "moc", "réponse"]`, 1)
-	data = strings.Replace(data, "[navigation]\n", "[navigation]\nanswer_type = \"réponse\"\n", 1)
+	data := answerContract("[types.\"re\u0301ponse\"]\nrole = \"thought\"\nfields = [\"based_on\"]\n")
 	contract, err := loadContractBytes(t, []byte(data))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := contract.NavigationRoles().AnswerType(); got != "r\u00e9ponse" {
-		t.Errorf("AnswerType() = %q, want declared enum member", got)
+		t.Errorf("AnswerType() = %q, want the declared type in its folded spelling", got)
 	}
 }
 
 func answerContract(declaration string) string {
-	return strings.Replace(validContractV1, "[navigation]\n", "[navigation]\njournal_dir = \"Diary\"\n"+declaration+"\n", 1)
+	return strings.Replace(validContract, "[rules]\n", declaration+"\n[rules]\n", 1)
 }

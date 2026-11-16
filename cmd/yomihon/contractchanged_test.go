@@ -42,9 +42,9 @@ func TestAContractEditedUnderARunningInstanceSaysToRestart(t *testing.T) {
 	})
 
 	surfaces := []struct{ name, target string }{
-		{"the course page", "/syllabus/Maps/study.md"},
+		{"the course page", "/courses/Maps/study.md"},
 		{"the course read aloud", "/listen/Maps/study.md"},
-		{"the paths index", "/paths"},
+		{"the course index", "/courses"},
 		{"the maps index", "/maps"},
 		{"the desk", "/"},
 	}
@@ -92,7 +92,7 @@ func TestAContractEditedUnderARunningInstanceSaysToRestart(t *testing.T) {
 						t.Errorf("%s in %s prints the diagnostic constant (%q)", surface.name, lang, raw)
 					}
 				}
-				if strings.HasPrefix(surface.target, "/syllabus/") || strings.HasPrefix(surface.target, "/listen/") {
+				if strings.HasPrefix(surface.target, "/courses/") || strings.HasPrefix(surface.target, "/listen/") {
 					// The course exists; yomihon has stopped using what names
 					// it. Neither a 404 nor its sentence about a mistyped
 					// address is true of that.

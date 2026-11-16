@@ -1,9 +1,9 @@
 ---
-title: Reading Scale
 type: concept
-domain: japanese
+
 based_on: "[[は]]"
 ---
+# Reading Scale
 
 Read the receive operator `<-` and the reading beside its word.
 

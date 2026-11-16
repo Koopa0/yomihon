@@ -280,10 +280,8 @@ type NoteSummary struct {
 	Title   string
 	RelPath string
 	Type    string
-	Status  string
-	// Settled is whether the contract declares Status settled, the resting
-	// state of a finished note, so a list shows no label for it.
-	Settled  bool
+	// Draft is whether the note declares itself unfinished.
+	Draft    bool
 	Modified time.Time
 }
 
@@ -388,7 +386,6 @@ func New(
 	journal schema.JournalDir,
 	articleLang schema.ArticleLanguage,
 	dated schema.AuthoredDate,
-	settlement schema.Settlement,
 ) *Model {
 	if resolver == nil {
 		panic("nav: New requires a non-nil *graph.Index")
@@ -413,7 +410,7 @@ func New(
 			note:     note,
 		})
 	}
-	return newModel(files, resolver, roles, scope, policy, journal, articleLang, dated, settlement, coreWalkers{path: buildPath, mapping: parseMap})
+	return newModel(files, resolver, roles, scope, policy, journal, articleLang, dated, coreWalkers{path: buildPath, mapping: parseMap})
 }
 
 // capturedFile is the portion of a scanner observation used by navigation.
@@ -433,7 +430,6 @@ func newModel(
 	journal schema.JournalDir,
 	articleLang schema.ArticleLanguage,
 	dated schema.AuthoredDate,
-	settlement schema.Settlement,
 	walkers coreWalkers,
 ) *Model {
 	paths := make([]string, 0, len(files))
@@ -455,7 +451,7 @@ func newModel(
 	// The recent-notes summary is collected in every contract state; paths and
 	// maps exist only as a contract's own classification, so either closed
 	// declaration ends the build with none of them.
-	facts, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy, settlement)
+	facts, mapNotes, knowledgeNotes := collectNavigationNotes(files, roles, scope, policy)
 	for p, tag := range langs {
 		known := facts[p]
 		known.language = tag
@@ -468,7 +464,7 @@ func newModel(
 	}
 
 	for _, n := range mapNotes {
-		ref := NoteRef{Name: n.Title(), RelPath: n.RelPath, Language: facts[n.RelPath].language}
+		ref := NoteRef{Name: graph.TitleOf(n.RelPath, n.Body), RelPath: n.RelPath, Language: facts[n.RelPath].language}
 		if roles.IsPathType(n.Type()) {
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
@@ -479,11 +475,6 @@ func newModel(
 			}); fault != nil {
 				m.coreFaults = append(m.coreFaults, *fault)
 				continue
-			}
-			// A contract that settles no status has no exceptions to count:
-			// every lesson with a status would be one.
-			if !settlement.Declared() {
-				path.Unsettled = 0
 			}
 			m.paths = append(m.paths, path)
 			continue
@@ -514,14 +505,13 @@ func newModel(
 	return m
 }
 
-// noteFacts is what a row that resolves to a note reads off it: the status
-// badge, the declared article language, the declared title a course names the
+// noteFacts is what a row that resolves to a note reads off it: whether it is
+// a draft, the declared article language, the declared title a course names the
 // lesson by, and the type it declares. Each is empty when the note declares
 // none. They travel as one value so a builder cannot be handed one of them in
 // place of another.
 type noteFacts struct {
-	status   string
-	settled  bool
+	draft    bool
 	language string
 	title    string
 	// noteType is the type the note declares, which is how a course tells a
@@ -537,7 +527,6 @@ func collectNavigationNotes(
 	roles schema.NavigationRoles,
 	scope schema.KnowledgeScope,
 	policy schema.ArtifactPolicy,
-	settlement schema.Settlement,
 ) (facts map[string]noteFacts, mapNotes []*vault.Note, knowledgeNotes []NoteSummary) {
 	facts = make(map[string]noteFacts)
 	for _, file := range files {
@@ -549,20 +538,19 @@ func collectNavigationNotes(
 		if n == nil {
 			continue
 		}
-		// The declared title only: Note.Title falls back to the file stem,
+		// The heading's title only: the title falls back to the file stem,
 		// which would name a course row by its file again.
-		title, _ := n.Text("title")
-		facts[p] = noteFacts{status: n.Status(), settled: settlement.Settled(n.Status()), title: title, noteType: n.Type()}
+		title, _ := graph.FirstH1(n.Body)
+		facts[p] = noteFacts{draft: schema.Draft(n.Frontmatter), title: title, noteType: n.Type()}
 		// Membership is the vault's own declaration, not whether a note happens
 		// to carry a type: a note without frontmatter is still one its author
 		// wrote and still the newest thing they changed.
 		if scope.Includes(p) {
 			knowledgeNotes = append(knowledgeNotes, NoteSummary{
-				Title:    n.Title(),
+				Title:    graph.TitleOf(n.RelPath, n.Body),
 				RelPath:  p,
 				Type:     n.Type(),
-				Status:   n.Status(),
-				Settled:  settlement.Settled(n.Status()),
+				Draft:    schema.Draft(n.Frontmatter),
 				Modified: file.modified,
 			})
 		}
@@ -669,37 +657,17 @@ func buildReports(files []capturedFile, dated schema.AuthoredDate) []Report {
 	return reports
 }
 
-// writtenReportTitle is what a Markdown report calls itself: the title its
-// frontmatter declares, else the first level-one heading its body opens on,
-// else the file's own name. Reading the heading is the report shelf's own
-// business — a note is called by its frontmatter title or its file everywhere
-// else — so Note.Title stays what it is and this reads past it.
+// writtenReportTitle is what a Markdown report calls itself: the first level-one
+// heading its body opens on, else the file's own name. The words travel as the
+// author typed them, collapsed onto one line, as the line a report opens with
+// does: a shelf that stripped Markdown out of a title would be a second
+// renderer.
 func writtenReportTitle(file capturedFile, stem string) string {
 	if file.note == nil {
 		return stem
 	}
-	if title, _ := file.note.Text("title"); title != "" {
-		return title
-	}
-	return cmp.Or(firstTitleHeading(file.note.Body), stem)
-}
-
-// firstTitleHeading is the words of the first level-one heading in body that
-// has any, read the way the page that displays the note reads headings: a
-// heading inside fenced code or an authored HTML block is not one, and a
-// heading underlined with = is. The words travel as the author typed them,
-// collapsed onto one line, as the line a report opens with does: a shelf that
-// stripped Markdown out of a title would be a second renderer.
-func firstTitleHeading(body string) string {
-	for _, heading := range graph.Headings(body, graph.LineSkipZones(body)) {
-		if heading.Level != 1 {
-			continue
-		}
-		if words := strings.Join(strings.Fields(heading.Text), " "); words != "" {
-			return words
-		}
-	}
-	return ""
+	title, _ := graph.FirstH1(file.note.Body)
+	return cmp.Or(title, stem)
 }
 
 // qualifySharedTitles gives each report that shares its title with another the

@@ -26,8 +26,8 @@ func fragmentSplitVault(t *testing.T) string {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("Concepts/井號#筆記.md", "---\ntitle: 井號#筆記\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nbody\n")
-	write("Concepts/入口.md", "---\ntitle: 入口\ntype: concept\ndomain: golang\nstatus: draft\n---\n\n見 [[井號#筆記]]，以及 [[根本沒寫的筆記]]。\n")
+	write("Concepts/井號#筆記.md", "---\ntype: concept\n---\n# 井號#筆記\n\nbody\n")
+	write("Concepts/入口.md", "---\ntype: concept\n---\n# 入口\n\n見 [[井號#筆記]]，以及 [[根本沒寫的筆記]]。\n")
 	return root
 }
 

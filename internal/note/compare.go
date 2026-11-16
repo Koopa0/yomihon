@@ -20,7 +20,7 @@ import (
 
 // compare shows two notes at once, the path naming the first and the query the
 // second. It writes no note; local location marks remain available in either
-// column, independently of the status write face.
+// column.
 //
 // The page needs two notes it can render. Where it has only one — the query
 // named nothing, named this same note, or named something this generation
@@ -31,7 +31,7 @@ import (
 func (h *Handler) compare(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	rel := vault.NormalizeNFC(r.PathValue("path"))
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
 	if !servable(rel) {
 		h.showNotFound(w, r, r.URL.Path, authority, snap)

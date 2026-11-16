@@ -54,14 +54,14 @@ func TestFrontmatterTagEvidence(t *testing.T) {
 		{name: "tag and alias never combine", frontmatter: "tags: [haiku]\naliases: [poetry]", query: "haiku poetry", want: []Result{}},
 		{name: "body wins", frontmatter: "tags: [haiku]", body: "haiku", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Snippet: "haiku", Landing: "haiku", LandingBare: "haiku"}}},
 		{name: "malformed frontmatter keeps body", frontmatter: "tags: [haiku", body: "haiku", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Snippet: "haiku", Landing: "haiku", LandingBare: "haiku"}}},
-		{name: "topic wins", frontmatter: "topics: [haiku]\ntags: [haiku]", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Topic: "haiku"}}},
+		{name: "a topics key is no evidence", frontmatter: "topics: [haiku]\ntags: [haiku]", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Tag: "haiku"}}},
 		{name: "alias wins", frontmatter: "aliases: [haiku]\ntags: [haiku]", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Alias: "haiku"}}},
 		{name: "title wins", frontmatter: "tags: [quiet]", query: "quiet", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			note := vault.Parse("Notes/Quiet.md", []byte("---\ntitle: Quiet\n"+tt.frontmatter+"\n---\n"+tt.body))
+			note := vault.Parse("Notes/Quiet.md", []byte("---\n"+tt.frontmatter+"\n---\n"+tt.body))
 			idx := NewIndex([]Document{DocumentFromNote(note)}, schema.ArtifactPolicy{})
 			got := searchResults(t, idx, Parse(tt.query))
 			if diff := cmp.Diff(tt.want, got); diff != "" {
@@ -74,9 +74,9 @@ func TestFrontmatterTagEvidence(t *testing.T) {
 func TestTagShorthandLeavesOtherEvidenceLiteral(t *testing.T) {
 	t.Parallel()
 	idx := NewIndex([]Document{
-		DocumentFromNote(vault.Parse("Notes/Bare.md", []byte("---\ntitle: haiku\n---\nhaiku"))),
-		DocumentFromNote(vault.Parse("Notes/Tagged.md", []byte("---\ntitle: Quiet\ntags: [haiku]\n---\nUnrelated."))),
-		DocumentFromNote(vault.Parse("Notes/Literal.md", []byte("---\ntitle: Literal\n---\n#haiku"))),
+		DocumentFromNote(vault.Parse("Notes/Bare.md", []byte("# haiku\n\nhaiku"))),
+		DocumentFromNote(vault.Parse("Notes/Tagged.md", []byte("---\ntags: [haiku]\n---\nUnrelated."))),
+		DocumentFromNote(vault.Parse("Notes/Literal.md", []byte("#haiku"))),
 	}, schema.ArtifactPolicy{})
 	want := []string{"Notes/Literal.md", "Notes/Tagged.md"}
 	if diff := cmp.Diff(want, paths(searchResults(t, idx, Parse("#haiku")))); diff != "" {

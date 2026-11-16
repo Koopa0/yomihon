@@ -14,11 +14,12 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// railFoot is where a left rail ends: which folder the reader is in, and how
-// large it is. Both are otherwise pages away, and the rail is the one surface
-// every reading page carries. What the judging face has to say about the folder
-// is not said here: it is the author's maintenance view rather than part of
-// reading, and the desk carries the way to it.
+// railFoot is where a left rail ends: which folder the reader is in. It states
+// no count of what the folder holds and none of what the check found in it: a
+// figure that follows the reader down every page of a course is a gauge of how
+// much is left, and the rail is for finding the way. How large the folder is
+// is one press away on the desk, and what the check has to say about it is on
+// the page that reports it, which the desk carries the way to.
 //
 // It is one component drawn by all three rails, and at narrow widths the same
 // element becomes the drawer, so the foot of the drawer is this foot and cannot
@@ -49,26 +50,13 @@ func railFoot(v nav.Vault, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(libraryName(v.Name, lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railfoot.templ`, Line: 22, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railfoot.templ`, Line: 23, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</p><p class=\"y-railfoot__size\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(plural(v.Notes, wording.NoteCountOne, wording.NoteCountMany, lang))
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railfoot.templ`, Line: 23, Col: 98}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</p></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</p></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

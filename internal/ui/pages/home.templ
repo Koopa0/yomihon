@@ -53,9 +53,6 @@ type HomeView struct {
 	// Continue is the way back to the place the reader kept, drawn ahead of
 	// the four ways in. A reader who kept none gets no row.
 	Continue ContinueRow
-	// Findings is how many things the health page has to report about this
-	// folder, counted the way that page counts its own rows.
-	Findings int
 }
 
 // HomeNote is one item in the recently-changed block. Modified is the compact
@@ -64,17 +61,11 @@ type HomeNote struct {
 	Title   string
 	RelPath string
 	Type    string
-	Status  string
-	// Settled is whether the contract declares Status settled, the resting
-	// state of a finished note, so the row prints no status for it.
-	Settled    bool
+	// Draft is whether the note declares itself unfinished, the one note the
+	// row marks.
+	Draft      bool
 	Modified   string
 	ModifiedAt string
-
-	// StatusOutsideEnum marks a note whose status value the contract does not
-	// declare for its type — the per-note question the reading page and the
-	// search row ask, not the distribution chip's aggregated one.
-	StatusOutsideEnum bool
 
 	// Language is the note's own declared BCP 47 tag when the contract gave
 	// the field authority and the frontmatter carried a valid value. Empty
@@ -90,29 +81,32 @@ templ Home(v HomeView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<main id="_y-main" tabindex="-1" class="y-main y-deskmain">
 			<div class="y-home">
-				<header class="y-home__head">
-					<h1 class="y-title">{ wording.HomeTitle.In(c.Lang) }</h1>
-				</header>
-				// One row rather than a fifth block. The four ways in are what
-				// the desk is for; a field is how a reader who already knows
-				// what they want skips them, and it asked for as much of the
-				// screen as any of them. The form itself stays whole: it is a
-				// plain GET that works with no script at all, and the palette
-				// in the header opens the same search for a reader who has one.
-				<search class="y-homesearchrow" data-home-block="search">
-					<form class="y-homesearch" method="get" action="/search">
-						<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-						<input type="search" name="q" placeholder={ wording.SearchNotesPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) }/>
-						<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
-					</form>
-				</search>
-				// Ahead of the four ways in, because a reader who left a place
-				// came back for it and the four are what they walk past when
-				// they did not.
+				// The desk's name is a label, never the loudest thing on it: what
+				// stands first is the place the reader kept, or the courses. With
+				// a place kept the heading is left for the listener alone.
+				if v.Continue.Show {
+					<h1 class="y-offscreen y-offscreen--block">{ wording.HomeTitle.In(c.Lang) }</h1>
+				} else {
+					<h1 class="y-title y-desklabel">{ wording.HomeTitle.In(c.Lang) }</h1>
+				}
+				// There is no search field here: the header carries the one
+				// search the product has, and a second field on the page asked
+				// for as much of it as any of the ways in.
+				//
+				// Ahead of the ways in, because a reader who left a place came
+				// back for it and the ways in are what they walk past when they
+				// did not.
 				@continueRow(v.Continue, c.Lang)
+				for _, block := range v.Blocks {
+					if v.leads(&block) {
+						<div class="y-homelead">
+							@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang, true)
+						</div>
+					}
+				}
 				<div class="y-homegrid">
 					if v.OpenThoughts.Title != "" {
-						@ShelfBlock(v.OpenThoughts, "open-thoughts", OpenThoughtsHomeRows, c.Lang) {
+						@ShelfBlock(v.OpenThoughts, "open-thoughts", OpenThoughtsHomeRows, c.Lang, false) {
 							if v.OpenThoughtsFault != "" {
 								@nothingToShow(nothingNotice{Kind: "open-thoughts", Fault: true}) {
 									<p>{ v.OpenThoughtsFault }</p>
@@ -121,7 +115,9 @@ templ Home(v HomeView, c layouts.Chrome) {
 						}
 					}
 					for _, block := range v.Blocks {
-						@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang)
+						if !v.leads(&block) {
+							@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang, false)
+						}
 					}
 				</div>
 				// Below the four ways in the page stops being about reading and
@@ -177,7 +173,7 @@ templ Home(v HomeView, c layouts.Chrome) {
 						<a href={ templ.URL(notesHref(HomeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
 					</p>
 				}
-				@deskHealth(v.Findings, c.Lang)
+				@deskHealth(c.Lang)
 			</div>
 		</main>
 	}
@@ -187,17 +183,12 @@ templ Home(v HomeView, c layouts.Chrome) {
 // page rather than part of reading, so it is the desk's last line and a quiet
 // one. It is drawn whether or not anything is found, because a way in that
 // came and went with the findings would be missing exactly when a reader went
-// looking for it to confirm there are none. The count is the ink of the line
-// around it: the colour that says something needs attention belongs to the
-// page it leads to, where the findings are listed and can be acted on.
-templ deskHealth(findings int, lang wording.Lang) {
-	<p class="y-deskhealth" data-home-health data-home-health-findings={ strconv.Itoa(findings) }>
-		<a href="/health">
-			<span>{ wording.HealthTitle.In(lang) }</span>
-			if findings > 0 {
-				<span class="y-deskhealth__count">{ plural(findings, wording.LibraryFindingOne, wording.LibraryFindingMany, lang) }</span>
-			}
-		</a>
+// looking for it to confirm there are none. It names the page and says nothing
+// of what is on it: the desk is not where a reader is told how many things are
+// wrong with the vault, and a number here would turn a way in into a debt.
+templ deskHealth(lang wording.Lang) {
+	<p class="y-deskhealth" data-home-health>
+		<a href="/health">{ wording.HealthTitle.In(lang) }</a>
 	</p>
 }
 
@@ -208,27 +199,4 @@ templ homeBlockHead(id, title, note string) {
 			<p>{ note }</p>
 		}
 	</header>
-}
-
-// lifecycleChipBody is what every chip shows, link or not, so a chip that is
-// not a link cannot drift into looking different from one that is.
-templ lifecycleChipBody(it LifecycleItem, lang wording.Lang) {
-	<span class="y-navdot" aria-hidden="true"></span>
-	<span>{ statusChipLabel(it.Name, lang) }</span>
-	if it.Unknown {
-		@statusOutsideEnumMark(lang)
-	}
-	<span class="y-homechip__count">{ strconv.Itoa(it.Count) }<span class="y-offscreen">{ countUnit(it.Count, wording.NoteCountOne, wording.NoteCountMany, lang) }</span></span>
-}
-
-// unstatedChipBody is what a cell shows when it stands for notes carrying no
-// status. It has no status dot, there being no status for one to mark, and its
-// words come from where a blank status has always taken them.
-templ unstatedChipBody(it LifecycleItem, lang wording.Lang) {
-	if it.Label != "" {
-		<span>{ it.Label }</span>
-	} else {
-		<span>{ statusChipLabel(it.Name, lang) }</span>
-	}
-	<span class="y-homechip__count">{ strconv.Itoa(it.Count) }<span class="y-offscreen">{ countUnit(it.Count, wording.NoteCountOne, wording.NoteCountMany, lang) }</span></span>
 }

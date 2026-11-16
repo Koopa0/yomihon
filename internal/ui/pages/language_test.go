@@ -47,13 +47,11 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 				RelPath:      "Writing/lessons/japanese/L01.md",
 				Language:     "ja",
 				Type:         "lesson",
-				Status:       "draft",
+				Draft:        true,
 				ObsidianHref: "obsidian://open?path=/vault/Writing/lessons/japanese/L01.md",
 				Stale:        true,
-				Updated:      "2026-07-10",
-				UpdatedAt:    "2026-07-10",
-				Governed:     true,
-				Transitions:  []Transition{{To: "ready"}},
+				VerifiedOn:   "2026-07-10",
+				VerifiedAt:   "2026-07-10",
 				SchemaNotices: [][]wording.SchemaPart{{
 					{Text: "mystery_key", Code: true},
 					{Text: " is not a field the schema knows."},
@@ -70,17 +68,17 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 			html := buf.String()
 			for _, want := range []string{
 				`<article class="y-article" lang="ja">`,
-				`<div id="_y-schema-notices" lang="` + tt.tag + `">`,
-				// The head's dt is yomihon's own word for the fact and declares
-				// the interface language; the dd right after it is the note's own
+				`<div lang="` + tt.tag + `"><p class="y-statuspanel__notice y-statusflag">`,
+				// The fact's dt is yomihon's own word for it and declares the
+				// interface language; the dd right after it is the note's own
 				// path and carries none — the literal string between them is the
 				// proof, since a lang attribute sneaking onto the <a> would break
 				// this exact match.
-				`<dt lang="` + tt.tag + `">` + wording.RawFile.In(tt.lang) + `</dt><dd><a href="/raw/Writing/lessons/japanese/L01.md">`,
-				`<a class="y-metarow__raw" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
+				`<dt lang="` + tt.tag + `">` + wording.RawFile.In(tt.lang) + `</dt><dd><a class="y-notefacts__path" href="/raw/Writing/lessons/japanese/L01.md">`,
+				`<a class="y-notefacts__door" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
 				`<p class="y-fileinfo__note" lang="` + tt.tag + `" data-note-stale>`,
 				`<nav class="y-steps y-steps--course" lang="` + tt.tag + `" aria-label="Japanese course">`,
-				`<section class="y-sealbar" lang="` + tt.tag + `" aria-labelledby="_y-status-bar-label"`,
+				`<span class="ui-status" lang="` + tt.tag + `" data-note-draft>` + wording.Draft.In(tt.lang) + `</span>`,
 				`<span class="y-steps__name" lang="ja">L00 はじめに</span>`,
 				`<span class="y-steps__name">L02</span>`,
 			} {
@@ -88,22 +86,22 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 					t.Errorf("the reading page is missing %q; html = %q", want, html)
 				}
 			}
-			// The date is the one interface word in the file row with no class
-			// naming it, so the row is read out and asked directly. Nothing in
-			// it may still be announced in the note's language.
-			at := strings.Index(html, `<details class="y-metarow"`)
+			// The facts stand inside the end of the text, which restores the
+			// interface's language inside an article written in the note's own,
+			// so nothing in them may still be announced in the note's language.
+			at := strings.Index(html, `class="y-facts"`)
 			if at < 0 {
-				t.Fatalf("the reading page carries no file row; html = %q", html)
+				t.Fatalf("the reading page carries no facts; html = %q", html)
 			}
-			row, _, closed := strings.Cut(html[at:], "</details>")
+			facts, _, closed := strings.Cut(html[at:], "</dl>")
 			if !closed {
-				t.Fatalf("the file row never closes; html = %q", html)
+				t.Fatalf("the facts never close; html = %q", html)
 			}
-			if !strings.Contains(row, `<span lang="`+tt.tag+`">`) {
-				t.Errorf("the file row's date does not declare the interface language %q; row = %q", tt.tag, row)
+			if strings.Contains(facts, `lang="ja"`) {
+				t.Errorf("the facts announce yomihon's own words in the note's language; facts = %q", facts)
 			}
-			if strings.Contains(row, `lang="ja"`) {
-				t.Errorf("the file row announces yomihon's own words in the note's language; row = %q", row)
+			if end := strings.Index(html, `class="y-related"`); end < 0 || !strings.Contains(html[end:at], `lang="`+tt.tag+`"`) {
+				t.Errorf("the end of the text does not restore the interface language %q before the facts", tt.tag)
 			}
 		})
 	}
@@ -132,7 +130,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 		{
 			name: "search",
 			render: func(buf *bytes.Buffer) error {
-				return SearchResults(SearchView{Query: "needle", Diagnostic: "technical diagnostic", Governed: true}, wording.ZhHant).Render(t.Context(), buf)
+				return SearchResults(SearchView{Query: "needle", Diagnostic: "technical diagnostic"}, wording.ZhHant).Render(t.Context(), buf)
 			},
 			want:      []string{"依欄位篩選目前無法使用", "狀態與類型資料目前無法使用", `lang="en"`},
 			forbidden: []string{"Metadata search unavailable", "Search is temporarily unavailable"},
@@ -146,32 +144,19 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 			forbidden: []string{`title="Target is ambiguous"`, ">ambiguous</span>"},
 		},
 		{
-			name: "write and render diagnostics",
+			name: "render diagnostics",
 			render: func(buf *bytes.Buffer) error {
 				view := NoteView{
-					WriteDiagnostic: "technical write diagnostic",
-					Diagnostic:      "frontmatter is not valid YAML: detail",
+					Diagnostic: "frontmatter is not valid YAML: detail",
 					RenderDiagnostics: []render.Diagnostic{{
 						Kind:    render.DiagWikilinkBroken,
 						Target:  "Missing",
 						Message: "wikilink does not resolve",
 					}},
 				}
-				// The panel is asked in the state the page draws it in: a
-				// folder with a lifecycle, and a frontmatter that was read.
-				// A note carrying an unread frontmatter has no status to act
-				// on, so the page shows the diagnostics and no panel at all,
-				// and asking for both from one note asks for a page that does
-				// not exist.
-				governed := view
-				governed.Governed = true
-				governed.Diagnostic = ""
-				if err := statusPanel(governed, wording.ZhHant).Render(t.Context(), buf); err != nil {
-					return err
-				}
 				return diagnostics(view, wording.ZhHant).Render(t.Context(), buf)
 			},
-			want:      []string{"生命週期寫入目前無法使用", "frontmatter 不是有效的 YAML", "這個 wikilink 或嵌入的目標尚未建立", `lang="en"`},
+			want:      []string{"frontmatter 不是有效的 YAML", "這個 wikilink 或嵌入的目標尚未建立", `lang="en"`},
 			forbidden: []string{"Diagnostics", "Contract unavailable", "not a governable artifact"},
 		},
 	}

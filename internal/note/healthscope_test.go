@@ -19,8 +19,8 @@ func scopeVault(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	for _, n := range []struct{ rel, body string }{
-		{"System/templates/T1.md", "---\ntitle: T1\ntype: template\n---\n\n見 [[PLACEHOLDER-SLOT]]。\n"},
-		{"Concepts/golang/Real.md", "---\ntitle: Real\ntype: concept\ndomain: golang\nstatus: draft\ncreated: 2026-06-01\nupdated: 2026-06-01\nbased_on: \"[[Real]]\"\n---\n\nbody\n"},
+		{"System/templates/T1.md", "---\ntype: template\n---\n# T1\n\n見 [[PLACEHOLDER-SLOT]]。\n"},
+		{"Concepts/golang/Real.md", "---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[Real]]\"\n---\n# Real\n\nbody\n"},
 	} {
 		full := filepath.Join(root, filepath.FromSlash(n.rel))
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
@@ -96,11 +96,11 @@ func TestHealthSaysWhenItCouldNotEvaluate(t *testing.T) {
 func TestHealthNamesTheClaimThatActuallyFailed(t *testing.T) {
 	t.Parallel()
 
-	contract := loadHomeContractWithArtifactSection(t, "[artifacts]\nnon_instance_dirs = [\"../outside\"]\n")
+	contract := loadHomeContractWithArtifactSection(t, "templates = [\"../outside\"]\n")
 	srv := newServerWithContract(t, scopeVault(t), contract)
 
 	_, page := get(t, srv.Client(), srv.URL+"/health")
-	if !strings.Contains(page, "non_instance_dirs") {
+	if !strings.Contains(page, `templates contains &#34;../outside&#34;`) && !strings.Contains(page, `templates contains "../outside"`) {
 		t.Error("the page does not name what actually failed")
 	}
 	if strings.Contains(page, "無法讀取") {

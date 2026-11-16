@@ -17,7 +17,7 @@ import (
 
 func TestSearchShowsTheAnsweringFrontmatterTag(t *testing.T) {
 	t.Parallel()
-	note := vault.Parse("Notes/Tagged.md", []byte("---\ntitle: Quiet\ntags: [unrelated, Haiku, 'École ＡBC', 'X <b>& fragment']\n---\nOther prose."))
+	note := vault.Parse("Notes/Tagged.md", []byte("---\ntags: [unrelated, Haiku, 'École ＡBC', 'X <b>& fragment']\n---\n# Quiet\n\nOther prose."))
 	idx := lexical.NewIndex([]lexical.Document{lexical.DocumentFromNote(note)}, schema.ArtifactPolicy{})
 	mux := http.NewServeMux()
 	NewHandler(func() RequestSnapshot {

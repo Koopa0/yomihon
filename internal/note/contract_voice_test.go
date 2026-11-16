@@ -13,7 +13,7 @@ import (
 
 // writePlainFolder builds an ordinary folder of ordinary notes with no
 // System/schemas/vault-schema.toml anywhere under it. Nothing here ever claimed
-// authority, so the write face has nothing to write against.
+// authority.
 func writePlainFolder(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -34,11 +34,10 @@ func writePlainFolder(t *testing.T) string {
 }
 
 // TestChromeCarriesNoGovernanceVoice locks the browser chrome to silence about
-// the write face on every kind of folder. The keyboard help documents reading
-// keys only — no shortcut writes a status — so the panel names no
-// certification key on a governed folder, and a folder with no vault contract
-// gets no substitute sentence about a face it lacks: the status faces on the
-// pages that have them carry the whole story.
+// governance on every kind of folder. The keyboard help documents reading keys
+// only, so the panel names no certification key on a governed folder, and a
+// folder with no vault contract gets no substitute sentence about the contract
+// it lacks on every page.
 func TestChromeCarriesNoGovernanceVoice(t *testing.T) {
 	t.Parallel()
 
@@ -89,7 +88,7 @@ func TestChromeCarriesNoGovernanceVoice(t *testing.T) {
 				`class="y-kbdhelp__note"`,
 			} {
 				if strings.Contains(body, unwanted) {
-					t.Errorf("GET / body carries %q, want the chrome silent about the write face", unwanted)
+					t.Errorf("GET / body carries %q, want the chrome silent about governance", unwanted)
 				}
 			}
 		})

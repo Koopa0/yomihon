@@ -53,11 +53,6 @@ type SearchView struct {
 	// has no column to put them in.
 	Facets []SearchFacet
 
-	// Governed says this generation has a lifecycle contract behind it, which
-	// gates the advice offered when nothing matched: a status filter is only
-	// worth suggesting where statuses exist.
-	Governed bool
-
 	// Sidebar is the resolved left navigation, built where every other page
 	// builds it, so arriving at a search never strands the reader in a
 	// chromeless view.
@@ -65,7 +60,7 @@ type SearchView struct {
 }
 
 // SearchResult is one rendered hit: the entry's path (linked), display title,
-// status, and a context snippet.
+// whether it is a draft, and a context snippet.
 type SearchResult struct {
 	RelPath string
 	Title   string
@@ -73,8 +68,9 @@ type SearchResult struct {
 	// the field authority and the frontmatter carried a valid value. Empty
 	// otherwise, so a listing inherits the page language rather than guessing.
 	Language string
-	Status   string
-	Snippet  string
+	// Draft is whether the note declares itself unfinished.
+	Draft   bool
+	Snippet string
 
 	// SnippetRuns is the snippet cut into the stretches that matched the query
 	// and the stretches that did not, so the page can mark the words the reader
@@ -93,22 +89,12 @@ type SearchResult struct {
 	// note's other names would otherwise see nothing of what they typed.
 	AliasRuns []SnippetRun
 
-	// TopicRuns is the declared subject that answered the query where title,
-	// alias and body did not. A topic-only hit has no snippet, so without this
-	// the query word appears nowhere on the row.
-	TopicRuns []SnippetRun
-
 	// TagRuns names the frontmatter tag that answered a tag-only query.
 	TagRuns []SnippetRun
 
-	// File marks a hit that is a vault file rather than a note, named on the row
-	// so a missing status does not read as a note's status gone missing.
+	// File marks a hit that is a vault file rather than a note, named on the
+	// row so it does not read as a note.
 	File bool
-
-	// StatusOutsideEnum marks a hit whose status value the contract does not
-	// declare for this note's type, so a value nothing allows does not look
-	// exactly like one everything does.
-	StatusOutsideEnum bool
 
 	// Landing is the first-block stretch a browser text directive can find
 	// for a body hit. Empty when the row has no body match, or when a
@@ -199,11 +185,6 @@ type SearchFacetRow struct {
 	// back out of it rather than further in.
 	Active bool
 
-	// OutsideEnum marks a value no note type carrying it declares, so a value
-	// nothing allows does not look exactly like one everything does. It is the
-	// same verdict the result rows wear, reached the same way.
-	OutsideEnum bool
-
 	// Unstated marks the row standing for the hits that declared no value for
 	// this key. It is kept off the values rather than sorted among them,
 	// because "no domain declared" is not a domain.
@@ -235,9 +216,11 @@ templ Search(v SearchView, c layouts.Chrome) {
 				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results?facets=1" data-live-search-sync-url>
 					// The page opens by saying which page it is, so arriving by
 					// ear lands on something other than an unexplained text
-					// field. The count is already stated above the hits, so this
-					// says only that.
-					<h1 class="y-title">{ wording.SearchTitle.In(c.Lang) }</h1>
+					// field. It says that to the listener alone: what a reader
+					// came to look at is the field they type in, which is the
+					// largest thing on the page, and the count is already stated
+					// above the hits.
+					<h1 class="y-offscreen y-offscreen--block">{ wording.SearchTitle.In(c.Lang) }</h1>
 					// The field is not focused on arrival. Inside the palette that
 					// is the whole point — it opens on a keystroke and the reader
 					// is already typing — but this page is reached deliberately,
@@ -318,12 +301,8 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 									} else {
 										{ r.RelPath }
 									}
-									if r.Status != "" {
-										<span class="y-result__sep" aria-hidden="true">·</span>
-										{ r.Status }
-										if r.StatusOutsideEnum {
-											@statusOutsideEnumMark(lang)
-										}
+									if r.Draft {
+										<span class="ui-status">{ wording.Draft.In(lang) }</span>
 									}
 									if r.File {
 										<span class="y-result__sep" aria-hidden="true">·</span>
@@ -332,13 +311,6 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 									if r.FromFence {
 										<span class="y-result__sep" aria-hidden="true">·</span>
 										<span class="y-result__source">{ wording.ResultSourceLabel.In(lang) }</span>
-									}
-									if len(r.TopicRuns) > 0 {
-										<span class="y-result__sep" aria-hidden="true">·</span>
-										<span class="y-result__topic">
-											{ wording.ResultTopicLabel.In(lang) }
-											@hitRuns(r.TopicRuns)
-										</span>
 									}
 									if len(r.TagRuns) > 0 {
 										<span class="y-result__sep" aria-hidden="true">·</span>
@@ -402,11 +374,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 							}
 						</p>
 					}
-					if v.Governed {
-						<p class="y-nothing__hint">{ wording.SearchScopeHintWithStatus.In(lang) }<code>status:draft</code>{ wording.SearchScopeHintAfterCommand.In(lang) }</p>
-					} else {
-						<p class="y-nothing__hint">{ wording.SearchScopeHint.In(lang) }</p>
-					}
+					<p class="y-nothing__hint">{ wording.SearchScopeHint.In(lang) }</p>
 				}
 			} else {
 				// Nothing has been asked yet, and a blank page is the one moment
@@ -504,9 +472,6 @@ templ searchFacets(facets []SearchFacet, lang wording.Lang) {
 // arms above cannot drift into showing different things.
 templ facetRowBody(row SearchFacetRow, lang wording.Lang) {
 	<span class="y-facetrow__label">{ row.Label }</span>
-	if row.OutsideEnum {
-		@statusOutsideEnumMark(lang)
-	}
 	<span class="y-facetrow__count" data-facet-count={ strconv.Itoa(row.Count) }>
 		{ fmt.Sprintf(wording.FacetCountFmt.In(lang), row.Count) }
 	</span>

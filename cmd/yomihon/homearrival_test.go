@@ -18,7 +18,7 @@ const readingClubNote = "# Reading club\n\nBring a notebook.\n\nUmbrellaRule: If
 
 // homeBlockMarker matches the ways in the desk draws. The search row carries
 // the same attribute but is not a way in, so it is left out.
-var homeBlockMarker = regexp.MustCompile(`data-home-block="(folders|paths|maps|reports)"`)
+var homeBlockMarker = regexp.MustCompile(`data-home-block="(folders|courses|maps|reports)"`)
 
 // homeBlockOrder is the order the desk draws its ways in.
 func homeBlockOrder(page string) []string {
@@ -55,8 +55,8 @@ func homeSite(t *testing.T, files map[string]string) http.Handler {
 }
 
 // TestPlainFolderHomeLeadsWithFoldersAndStaysReadable follows a populated
-// folder that has no contract from Home to a note, to search, and to the three
-// organised modes.
+// folder that has no contract from Home to a note, to a search for its term,
+// and to the three organised modes.
 func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 	t.Parallel()
 	site := homeSite(t, map[string]string{
@@ -65,7 +65,7 @@ func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 	})
 	home := readingPage(t, site, "/")
 
-	if got, want := homeBlockOrder(home), []string{"folders", "paths", "maps", "reports"}; !slices.Equal(got, want) {
+	if got, want := homeBlockOrder(home), []string{"folders", "courses", "maps", "reports"}; !slices.Equal(got, want) {
 		t.Errorf("plain folder Home blocks = %v, want %v", got, want)
 	}
 
@@ -78,15 +78,15 @@ func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 		t.Errorf("%s does not carry the note body", noteHref)
 	}
 
-	if !strings.Contains(home, `<form class="y-homesearch" method="get" action="/search">`) {
-		t.Error("Home lacks the native GET form to /search")
+	if _, desk, _ := strings.Cut(home, `id="_y-main"`); strings.Contains(desk, "<form") || strings.Contains(desk, `type="search"`) {
+		t.Error("Home draws a search field of its own, and the header carries the one search")
 	}
 	results := readingPage(t, site, "/search?q=UmbrellaRule")
 	if !strings.Contains(results, `href="`+noteHref) {
 		t.Errorf("searching Home's term does not reach %s", noteHref)
 	}
 
-	for _, mode := range []string{"paths", "maps", "reports"} {
+	for _, mode := range []string{"courses", "maps", "reports"} {
 		if !strings.Contains(deskBlockMarkup(t, home, mode), `href="/`+mode+`"`) {
 			t.Errorf("the %s block does not link to /%s", mode, mode)
 		}
@@ -127,7 +127,7 @@ func TestGovernedHomeKeepsItsOrder(t *testing.T) {
 		schema.ContractRelPath: string(contract),
 		"Reading club.md":      readingClubNote,
 	})
-	if got, want := homeBlockOrder(readingPage(t, site, "/")), []string{"paths", "maps", "reports", "folders"}; !slices.Equal(got, want) {
+	if got, want := homeBlockOrder(readingPage(t, site, "/")), []string{"courses", "maps", "reports", "folders"}; !slices.Equal(got, want) {
 		t.Errorf("governed Home blocks = %v, want %v", got, want)
 	}
 }

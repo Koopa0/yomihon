@@ -43,7 +43,7 @@ func TestTypeDependentGeneration(t *testing.T) {
 	if mkdirErr := fixture.MkdirAll("Notes", 0o750); mkdirErr != nil {
 		t.Fatalf("create notes directory: %v", mkdirErr)
 	}
-	if writeErr := fixture.WriteFile(rel, []byte("---\ntitle: Invalid type\ntype: Lesson\nlevel: fundamental\nslug: invalid-type\n---\n\nBody.\n"), 0o600); writeErr != nil {
+	if writeErr := fixture.WriteFile(rel, []byte("---\ntype: Lesson\nlevel: fundamental\nslug: invalid-type\n---\n# Invalid type\n\nBody.\n"), 0o600); writeErr != nil {
 		t.Fatalf("write fixture note: %v", writeErr)
 	}
 	store, _ := newTestStore(t, root, contract)

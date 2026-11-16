@@ -61,8 +61,8 @@ func TestSyllabusUsesTheBranchTreeAsItsHeadingOutline(t *testing.T) {
 }
 
 // TestBuildPathView pins the pure transform's contract: a branch's total counts
-// linked and warning rows, Unsettled counts only the main line's resolved
-// lessons whose status the contract does not settle, and document order is
+// linked and warning rows, Drafts counts only the main line's resolved
+// lessons that declare draft: true, and document order is
 // preserved at every level. The fixture is two parts, one
 // with a module and one with entries attached directly (no module), so the
 // tallies and the modules count are hand-derivable and non-tautological.
@@ -83,7 +83,7 @@ func TestBuildPathView(t *testing.T) {
 		"\t\t- [[Tuning]]\n" +
 		"- [[Template]]\n" +
 		"- [[Unwritten]]\n"
-	path := buildSettledTestPath(t, body)
+	path := buildTestPath(t, body)
 
 	got := BuildPathView(&path, []nav.Path{path}, &CourseCover{})
 
@@ -106,10 +106,9 @@ func TestBuildPathView(t *testing.T) {
 		// The one row the side branch lists is counted beside the course and
 		// never in it.
 		Branched: 1,
-		// Arrays is the one main-line lesson at a status the contract does not
-		// settle. Tuning is draft too, but it hangs on a side branch, outside the
-		// five lessons Entries counts.
-		Unsettled: 1,
+		// Arrays is the one main-line draft. Tuning is a draft too, but it hangs
+		// on a side branch, outside the five lessons Entries counts.
+		Drafts: 1,
 		// No place was kept, so the cover starts the course at its first stop.
 		Action: CourseAction{Href: "/notes/Writing/Slices.md"},
 		Branches: []PathBranchView{
@@ -118,8 +117,8 @@ func TestBuildPathView(t *testing.T) {
 				Items: []PathItemView{{Branch: &PathBranchView{
 					Heading: "Text", Depth: 1,
 					Items: []PathItemView{
-						{Entry: &PathEntryView{Name: "Slices", RelPath: "Writing/Slices.md", Href: "/notes/Writing/Slices.md", Status: "ready", Settled: true, Number: 1}},
-						{Entry: &PathEntryView{Name: "Arrays", RelPath: "Writing/Arrays.md", Href: "/notes/Writing/Arrays.md", Status: "draft", Number: 2}},
+						{Entry: &PathEntryView{Name: "Slices", RelPath: "Writing/Slices.md", Href: "/notes/Writing/Slices.md", Number: 1}},
+						{Entry: &PathEntryView{Name: "Arrays", RelPath: "Writing/Arrays.md", Href: "/notes/Writing/Arrays.md", Draft: true, Number: 2}},
 					},
 				}}},
 			},
@@ -134,11 +133,11 @@ func TestBuildPathView(t *testing.T) {
 					// lesson — and it numbers its own rows from one, never
 					// sharing the main line's count.
 					{Entry: &PathEntryView{
-						Name: "GC", RelPath: "Writing/GC.md", Href: "/notes/Writing/GC.md", Status: "ready", Settled: true, Number: 3,
+						Name: "GC", RelPath: "Writing/GC.md", Href: "/notes/Writing/GC.md", Number: 3,
 						Branches: []PathBranchView{{
 							Heading: "選修", Depth: 1, Local: true,
 							Items: []PathItemView{
-								{Entry: &PathEntryView{Name: "Tuning", RelPath: "Writing/Tuning.md", Href: "/notes/Writing/Tuning.md", Status: "draft", Number: 1}},
+								{Entry: &PathEntryView{Name: "Tuning", RelPath: "Writing/Tuning.md", Href: "/notes/Writing/Tuning.md", Draft: true, Number: 1}},
 							},
 						}},
 					}},
@@ -358,60 +357,15 @@ func TestRoman(t *testing.T) {
 	}
 }
 
-// buildTestPath builds the fixture course under a contract that declares no
-// settled status, so every status stays marked, as it did before the key.
+// buildTestPath builds the fixture course under the shared test contract.
 func buildTestPath(t *testing.T, body string, extra ...map[string]string) nav.Path {
 	t.Helper()
 	return buildPathUnder(t, loadTestContract(t), body, extra...)
 }
 
-// buildSettledTestPath builds the same course under a contract that settles
-// ready, which is how an ordinary vault now reads: finished lessons unmarked.
-func buildSettledTestPath(t *testing.T, body string) nav.Path {
-	t.Helper()
-	return buildPathUnder(t, settledTestContract(t, "ready"), body)
-}
-
 func loadTestContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	contract, err := schema.LoadFile(filepath.Join("..", "..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("schema.LoadFile = %v", err)
-	}
-	return contract
-}
-
-// settledTestContract is the shared test contract with settled written on the
-// lifecycle row of each named status. The rows are edited in text rather than
-// by a second contract file, so the two cannot drift apart, and a status that
-// names no row fails the test instead of settling nothing.
-func settledTestContract(t *testing.T, settled ...string) *schema.Contract {
-	t.Helper()
-	base, err := os.ReadFile(filepath.Join("..", "..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("read the shared contract: %v", err)
-	}
-	const header = "\n[[lifecycle]]\n"
-	rows := strings.Split(string(base), header)
-	matched := map[string]bool{}
-	for i := 1; i < len(rows); i++ {
-		for _, status := range settled {
-			if strings.HasPrefix(rows[i], `status = "`+status+`"`) {
-				rows[i] = strings.TrimRight(rows[i], "\n") + "\nsettled = true\n"
-				matched[status] = true
-			}
-		}
-	}
-	for _, status := range settled {
-		if !matched[status] {
-			t.Fatalf("the shared contract has no lifecycle row for %q, so nothing would be settled", status)
-		}
-	}
-	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err = os.WriteFile(path, []byte(strings.Join(rows, header)), 0o600); err != nil { // #nosec G703 -- a fixed contract path under this test's own temporary directory
-		t.Fatalf("write the settled contract: %v", err)
-	}
-	contract, err := schema.LoadFile(path)
 	if err != nil {
 		t.Fatalf("schema.LoadFile = %v", err)
 	}
@@ -428,11 +382,11 @@ func buildPathUnder(t *testing.T, contract *schema.Contract, body string, extra 
 	root := t.TempDir()
 	files := map[string]string{
 		"Maps/Go path.md":              "---\ntitle: Go path\ntype: study-path\ndomain: golang\n---\n\n" + body,
-		"Writing/Slices.md":            "---\ntitle: Slices\ntype: lesson\nstatus: ready\n---\nbody\n",
-		"Writing/Arrays.md":            "---\ntitle: Arrays\ntype: lesson\nstatus: draft\n---\nbody\n",
-		"Writing/GC.md":                "---\ntitle: GC\ntype: lesson\nstatus: ready\n---\nbody\n",
-		"Writing/Tuning.md":            "---\ntitle: Tuning\ntype: lesson\nstatus: draft\n---\nbody\n",
-		"System/templates/Template.md": "---\ntitle: Template\ntype: lesson\nstatus: draft\n---\nbody\n",
+		"Writing/Slices.md":            "---\ntitle: Slices\ntype: lesson\n---\nbody\n",
+		"Writing/Arrays.md":            "---\ntitle: Arrays\ntype: lesson\ndraft: true\n---\nbody\n",
+		"Writing/GC.md":                "---\ntitle: GC\ntype: lesson\ndraft: false\n---\nbody\n",
+		"Writing/Tuning.md":            "---\ntitle: Tuning\ntype: lesson\ndraft: true\n---\nbody\n",
+		"System/templates/Template.md": "---\ntitle: Template\ntype: lesson\ndraft: true\n---\nbody\n",
 	}
 	for _, m := range extra {
 		maps.Copy(files, m)
@@ -474,9 +428,7 @@ func buildPathUnder(t *testing.T, contract *schema.Contract, body string, extra 
 		scan.Files(), notes, graph.New(noteList, nil),
 		contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(),
 		contract.JournalDir(),
-		contract.ArticleLanguage(), contract.AuthoredDate(),
-		contract.Settlement(),
-	)
+		contract.ArticleLanguage(), contract.AuthoredDate())
 	paths := model.Paths()
 	if len(paths) != 1 {
 		t.Fatalf("fixture produced %d study paths, want 1", len(paths))
@@ -908,7 +860,6 @@ func TestSyllabusSaysNothingIsOver(t *testing.T) {
 	}{
 		{"ReadAloudFinished", wording.ReadAloudFinished},
 		{"DiagHighlightFailed", wording.DiagHighlightFailed},
-		{"WriteFailed", wording.WriteFailed},
 	} {
 		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 			if !finishedInWords.MatchString(claim.phrase.In(lang)) {
@@ -956,29 +907,29 @@ func TestTheKickerAboveACourseTitleEndsOnItsLastWord(t *testing.T) {
 	t.Parallel()
 
 	kicker := regexp.MustCompile(`<div class="y-syl-kicker">([^<]*)</div>`)
-	pages := map[string]func(wording.Lang) templ.Component{
-		"syllabus": func(lang wording.Lang) templ.Component {
-			return Syllabus(PathView{Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md"}, layouts.Chrome{Lang: lang})
-		},
-		"listen": func(lang wording.Lang) templ.Component {
-			return Listen(ListenView{Title: "Path", PathHref: "/syllabus/Maps/Path.md"}, layouts.Chrome{Lang: lang})
-		},
-	}
-	want := map[wording.Lang]string{wording.ZhHant: "學習路徑", wording.En: "Study path"}
+	want := map[wording.Lang]string{wording.ZhHant: "課程", wording.En: "Course"}
 
-	for name, page := range pages {
-		for lang, words := range want {
-			var out bytes.Buffer
-			if err := page(lang).Render(t.Context(), &out); err != nil {
-				t.Fatalf("render the %s page in %s: %v", name, lang, err)
-			}
-			found := kicker.FindAllStringSubmatch(out.String(), -1)
-			if len(found) != 1 {
-				t.Fatalf("the %s page in %s carries %d kickers, want 1; html = %q", name, lang, len(found), out.String())
-			}
-			if got := found[0][1]; got != words {
-				t.Errorf("the %s page in %s opens on %q, want %q", name, lang, got, words)
-			}
+	// The course page carries none: its sidebar names the course, and a line
+	// over the title would say so a second time. The page that reads a course
+	// aloud has no sidebar, so it keeps the one.
+	for lang, words := range want {
+		var out bytes.Buffer
+		if err := Listen(ListenView{Title: "Path", PathHref: "/courses/Maps/Path.md"}, layouts.Chrome{Lang: lang}).Render(t.Context(), &out); err != nil {
+			t.Fatalf("render the listen page in %s: %v", lang, err)
+		}
+		found := kicker.FindAllStringSubmatch(out.String(), -1)
+		if len(found) != 1 {
+			t.Fatalf("the listen page in %s carries %d kickers, want 1; html = %q", lang, len(found), out.String())
+		}
+		if got := found[0][1]; got != words {
+			t.Errorf("the listen page in %s opens on %q, want %q", lang, got, words)
+		}
+		var cover bytes.Buffer
+		if err := Syllabus(PathView{Title: "Path", RelPath: "Maps/Path.md", GuideHref: "/notes/Maps/Path.md"}, layouts.Chrome{Lang: lang}).Render(t.Context(), &cover); err != nil {
+			t.Fatalf("render the course page in %s: %v", lang, err)
+		}
+		if got := kicker.FindAllString(cover.String(), -1); len(got) != 0 {
+			t.Errorf("the course page in %s carries a kicker over its title, which the sidebar has already said: %v", lang, got)
 		}
 	}
 }
@@ -1012,7 +963,7 @@ func TestACourseActionSpacesItsArrowFromItsWords(t *testing.T) {
 		{
 			name: "listen",
 			page: func(lang wording.Lang) templ.Component {
-				return Listen(ListenView{Title: "Path", PathHref: "/syllabus/Maps/Path.md"}, layouts.Chrome{Lang: lang})
+				return Listen(ListenView{Title: "Path", PathHref: "/courses/Maps/Path.md"}, layouts.Chrome{Lang: lang})
 			},
 			want: map[wording.Lang][]string{
 				wording.ZhHant: {"目錄 "},

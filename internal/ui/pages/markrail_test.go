@@ -10,16 +10,12 @@ import (
 )
 
 // TestTheMarkControlSurvivesANoteWithNoOtherAids is the reader's verb's own
-// layout lock, and it is about the rail existing rather than about the control
-// rendering.
-//
-// The right rail is dropped whole — the shell takes a modifier class that
-// hides it at every width — for a note carrying no reading aids. What counts
-// as an aid is the outline, the diagnostics, the declared sources, and the
-// cited-by block, and the last of those is shown only once some note in the
-// folder cites another. So a vault with no wikilink in it yet has no aids on
-// any note, which is the ordinary state of a new one: the control was drawn
-// into a column nobody could see, at 1600 as surely as at 320.
+// layout lock. The control lives in the header, which every reading page has,
+// so it is drawn whatever else the note carries: a vault with no wikilink in it
+// yet has no cited-by block on any note and a short note has no outline, which
+// is the ordinary state of a new vault, and the control must still be there.
+// It is drawn once, because a second face would be a second way for two copies
+// to disagree about what a kept place is.
 //
 // Every fixture the recorded pages and the browser probe use carries aids, so
 // nothing else in the tree asks this question.
@@ -29,22 +25,17 @@ func TestTheMarkControlSurvivesANoteWithNoOtherAids(t *testing.T) {
 	// A note in a folder that has no links yet: no outline, no diagnostics, no
 	// declared sources, and nothing cites anything, so citedByShown is false.
 	bare := NoteView{
-		Governed:        true,
 		Title:           "T",
 		RelPath:         "a.md",
-		Status:          "draft",
 		ContentIdentity: "abc123",
 		MarkAddress:     "/marks",
 		VaultHasLinks:   false,
 	}
-	if bare.citedByShown() {
-		t.Fatal("this fixture was meant to have no cited-by block, so it is not the case this test is about")
+	if bare.citedByShown() || bare.endShown() {
+		t.Fatal("this fixture was meant to have no aids at all, so it is not the case this test is about")
 	}
 	if !bare.offersMark() {
 		t.Fatal("this fixture was meant to be able to offer a mark, so it is not the case this test is about")
-	}
-	if !bare.hasAids() {
-		t.Error("a note that can offer to keep the reader's place counts as carrying an aid, and this one reports none")
 	}
 
 	var buf bytes.Buffer
@@ -52,33 +43,27 @@ func TestTheMarkControlSurvivesANoteWithNoOtherAids(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	page := buf.String()
-	if strings.Contains(page, "y-shell--rail-empty") {
-		t.Error("the shell drops the right rail on a note whose only aid is the control for keeping a reading place, which hides that control at every width")
+	if got := strings.Count(page, "data-mark-control"); got != 1 {
+		t.Errorf("the page draws the control for keeping a reading place %d times, want once in the header", got)
 	}
-	if !strings.Contains(page, "data-mark-control") {
-		t.Error("the page draws no control for keeping a reading place")
-	}
-	// The same offer reaches the header, which is the face the widths with no
-	// rail have. The reading page is the only surface that hands the chrome
-	// one, so this is where the two faces are answered together or not at all.
 	if !strings.Contains(page, "y-headermark") {
-		t.Error("the page offers the control in the rail and not in the header, so a reader below the rail's width can reach neither")
+		t.Error("the page draws the control outside the header, where it would be reached by travelling and keep that place instead of the reader's")
+	}
+	if strings.Contains(page, "y-rail-right") {
+		t.Error("the page draws a right rail; the contents are in the sidebar and everything else is at the end of the text")
 	}
 }
 
-// TestANoteThatCannotOfferAMarkStillCollapsesItsRail holds the other side, so
-// the rule above cannot be satisfied by never collapsing. A page with no
-// identity to bind a mark to — a stale reading, a file with no frontmatter —
-// offers no control, and a rail holding nothing else is still dropped.
-func TestANoteThatCannotOfferAMarkStillCollapsesItsRail(t *testing.T) {
+// TestANoteThatCannotOfferAMarkDrawsNoControl holds the other side, so the rule
+// above cannot be satisfied by always drawing one. A page with no identity to
+// bind a mark to — a stale reading, a file with no frontmatter — offers no
+// control.
+func TestANoteThatCannotOfferAMarkDrawsNoControl(t *testing.T) {
 	t.Parallel()
 
-	stale := NoteView{Governed: true, Title: "T", RelPath: "a.md", Status: "draft", MarkAddress: "/marks"}
+	stale := NoteView{Title: "T", RelPath: "a.md", MarkAddress: "/marks"}
 	if stale.offersMark() {
 		t.Fatal("this fixture was meant to have no identity to bind a mark to")
-	}
-	if stale.hasAids() {
-		t.Error("a note with no aids and no mark to offer reports aids anyway, so the rail would never collapse")
 	}
 
 	var buf bytes.Buffer
@@ -86,9 +71,6 @@ func TestANoteThatCannotOfferAMarkStillCollapsesItsRail(t *testing.T) {
 		t.Fatalf("render: %v", err)
 	}
 	page := buf.String()
-	if !strings.Contains(page, "y-shell--rail-empty") {
-		t.Error("the shell keeps an empty right rail on a note with nothing to put in it")
-	}
 	if strings.Contains(page, "data-mark-control") {
 		t.Error("the page offers to keep a place it has no identity to bind")
 	}

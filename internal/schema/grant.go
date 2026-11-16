@@ -205,7 +205,7 @@ type Capabilities struct {
 	Journal    JournalDir
 	Language   ArticleLanguage
 	Dated      AuthoredDate
-	Settlement Settlement
+	Domains    Domains
 }
 
 // Capabilities resolves this contract's declarations against what the folder
@@ -214,9 +214,9 @@ type Capabilities struct {
 // authority and could not be read closes every projection, its sets unknown.
 //
 // Each withheld capability carries the vault-level sentence rather than
-// silence. Language, Dated and Settlement are the exceptions: none has an
+// silence. Language, Dated and Domains are the exceptions: none has an
 // Available or Diagnostic for a claim to feed, so each returns the same "not
-// declared" zero value. Journal is optional inside [navigation]: an unclaimed directory is an
+// declared" zero value. Journal is optional: an unclaimed directory is an
 // empty shelf.
 func (c *Contract) Capabilities(g Governance) Capabilities {
 	if !g.Trustworthy() {
@@ -234,6 +234,6 @@ func (c *Contract) Capabilities(g Governance) Capabilities {
 		Journal:    c.JournalDir(),
 		Language:   c.ArticleLanguage(),
 		Dated:      c.AuthoredDate(),
-		Settlement: c.Settlement(),
+		Domains:    c.Domains(),
 	}
 }

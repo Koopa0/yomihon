@@ -16,9 +16,16 @@ import (
 	"testing"
 )
 
+const (
+	brandMarkFile        = "yomihon-mark.svg"
+	brandMarkOnPaperFile = "yomihon-mark-on-paper.svg"
+)
+
 const validBrandSVGFixture = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path data-brand-part="page" fill="#282A2D" d="M0 0Z"/><path data-brand-part="ribbon" fill="#536D85" d="M1 1Z"/></svg>`
 
-func TestBrandDirectoryContainsExactlyCanonicalSVG(t *testing.T) {
+const validOnPaperSVGFixture = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><path data-brand-part="tile" fill="#F5F1E6" d="M2 2Z"/><path data-brand-part="page" fill="#282A2D" d="M0 0Z"/><path data-brand-part="ribbon" fill="#536D85" d="M1 1Z"/></svg>`
+
+func TestBrandDirectoryContainsExactlyTheTwoBrandFiles(t *testing.T) {
 	t.Parallel()
 
 	entries, err := os.ReadDir("brand")
@@ -33,22 +40,22 @@ func TestBrandDirectoryContainsExactlyCanonicalSVG(t *testing.T) {
 		}
 		names = append(names, entry.Name())
 	}
-	if want := []string{"yomihon-mark.svg"}; !slices.Equal(names, want) {
-		t.Errorf("brand asset files = %q, want exact canonical set %q", names, want)
+	if want := []string{brandMarkOnPaperFile, brandMarkFile}; !slices.Equal(names, want) {
+		t.Errorf("brand asset files = %q, want exact set %q", names, want)
 	}
 }
 
 func TestBrandMarkIsEmbeddedAndUsesRestrictedSVGGrammar(t *testing.T) {
 	t.Parallel()
 
-	data, err := Files.ReadFile("brand/yomihon-mark.svg")
+	data, err := Files.ReadFile("brand/" + brandMarkFile)
 	if err != nil {
 		t.Fatalf("read embedded brand mark: %v", err)
 	}
 	if validationErr := validateBrandMarkSVG(data); validationErr != nil {
 		t.Errorf("brand mark violates the restricted passive SVG grammar: %v", validationErr)
 	}
-	disk, err := os.ReadFile("brand/yomihon-mark.svg")
+	disk, err := os.ReadFile("brand/" + brandMarkFile)
 	if err != nil {
 		t.Fatalf("read tracked brand mark: %v", err)
 	}
@@ -57,21 +64,83 @@ func TestBrandMarkIsEmbeddedAndUsesRestrictedSVGGrammar(t *testing.T) {
 	}
 }
 
-func TestReadmeStartsWithCanonicalBrandHeading(t *testing.T) {
+func TestBrandMarkOnPaperIsEmbeddedAndUsesRestrictedSVGGrammar(t *testing.T) {
 	t.Parallel()
 
-	readme, err := os.ReadFile("../README.md")
+	data, err := Files.ReadFile("brand/" + brandMarkOnPaperFile)
 	if err != nil {
-		t.Fatalf("read repository README: %v", err)
+		t.Fatalf("read embedded brand mark on paper: %v", err)
 	}
-	const heading = `<h1><img src="assets/brand/yomihon-mark.svg" width="36" height="36" alt="" aria-hidden="true"> yomihon</h1>`
-	firstLine, _, _ := strings.Cut(string(readme), "\n")
-	if firstLine != heading {
-		t.Errorf("README first line = %q, want rendered canonical brand heading %q", firstLine, heading)
+	if validationErr := validateBrandMarkOnPaperSVG(data); validationErr != nil {
+		t.Errorf("brand mark on paper violates the restricted passive SVG grammar: %v", validationErr)
 	}
-	const source = `src="assets/brand/yomihon-mark.svg"`
-	if got := strings.Count(string(readme), source); got != 1 {
-		t.Errorf("README canonical brand projections = %d, want one exact %q", got, source)
+	disk, err := os.ReadFile("brand/" + brandMarkOnPaperFile)
+	if err != nil {
+		t.Fatalf("read tracked brand mark on paper: %v", err)
+	}
+	if !bytes.Equal(data, disk) {
+		t.Error("embedded brand mark on paper differs from the tracked SVG")
+	}
+}
+
+// The on-paper file is the canonical mark seated on a tile, not a second
+// drawing of it. Reading the mark's two paths out of both files keeps a hand
+// edit to one from leaving the favicon and the header showing two different
+// marks.
+func TestBrandMarkOnPaperDrawsTheCanonicalMark(t *testing.T) {
+	t.Parallel()
+
+	canonical, err := os.ReadFile("brand/" + brandMarkFile)
+	if err != nil {
+		t.Fatalf("read canonical brand mark: %v", err)
+	}
+	onPaper, err := os.ReadFile("brand/" + brandMarkOnPaperFile)
+	if err != nil {
+		t.Fatalf("read brand mark on paper: %v", err)
+	}
+	canonicalPaths, err := parseBrandSVG(canonical, canonicalBrandParts)
+	if err != nil {
+		t.Fatalf("parse canonical brand mark: %v", err)
+	}
+	onPaperPaths, err := parseBrandSVG(onPaper, onPaperBrandParts)
+	if err != nil {
+		t.Fatalf("parse brand mark on paper: %v", err)
+	}
+	if got := onPaperPaths[1:]; !slices.Equal(got, canonicalPaths) {
+		t.Errorf("brand mark on paper draws %+v over its tile, want the canonical mark %+v", got, canonicalPaths)
+	}
+}
+
+// Both READMEs open with the same heading: the canonical mark, and under a
+// dark colour scheme the mark on its paper tile, because the canonical page
+// shape is nearly the ink of GitHub's dark ground.
+func TestReadmesStartWithTheBrandHeading(t *testing.T) {
+	t.Parallel()
+
+	const heading = `<h1><picture><source media="(prefers-color-scheme: dark)" srcset="assets/brand/` + brandMarkOnPaperFile + `"><img src="assets/brand/` + brandMarkFile + `" width="36" height="36" alt="" aria-hidden="true"></picture> yomihon</h1>`
+	for _, name := range []string{"README.md", "README.zh-TW.md"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			readme, err := os.ReadFile("../" + name) // #nosec G304 -- one of the two README names this test lists
+			if err != nil {
+				t.Fatalf("read repository %s: %v", name, err)
+			}
+			firstLine, _, _ := strings.Cut(string(readme), "\n")
+			if firstLine != heading {
+				t.Errorf("%s first line = %q, want rendered brand heading %q", name, firstLine, heading)
+			}
+			for _, projection := range []string{`src="assets/brand/` + brandMarkFile + `"`, `srcset="assets/brand/` + brandMarkOnPaperFile + `"`} {
+				if got := strings.Count(string(readme), projection); got != 1 {
+					t.Errorf("%s brand projections of %s = %d, want one", name, projection, got)
+				}
+			}
+			for _, file := range []string{brandMarkFile, brandMarkOnPaperFile} {
+				if _, err := os.Stat("brand/" + file); err != nil {
+					t.Errorf("%s names brand file %s, which is not in the brand directory: %v", name, file, err)
+				}
+			}
+		})
 	}
 }
 
@@ -122,27 +191,111 @@ func TestBrandMarkValidatorAcceptsValidStructure(t *testing.T) {
 	}
 }
 
-func validateBrandMarkSVG(data []byte) error {
-	const namespace = "http://www.w3.org/2000/svg"
-	wantPaths := []struct {
-		part string
-		fill string
+func TestBrandMarkOnPaperValidatorRejectsNonConformingSVG(t *testing.T) {
+	t.Parallel()
+
+	const tilePath = `<path data-brand-part="tile" fill="#F5F1E6" d="M2 2Z"/>`
+	const pagePath = `<path data-brand-part="page" fill="#282A2D" d="M0 0Z"/>`
+	tests := []struct {
+		name string
+		svg  string
 	}{
-		{part: "page", fill: "#282A2D"},
-		{part: "ribbon", fill: "#536D85"},
+		{name: "script", svg: strings.Replace(validOnPaperSVGFixture, `</svg>`, `<script/></svg>`, 1)},
+		{name: "external use", svg: strings.Replace(validOnPaperSVGFixture, `</svg>`, `<use href="https://example.com/mark.svg#shape"/></svg>`, 1)},
+		{name: "raster image", svg: strings.Replace(validOnPaperSVGFixture, `</svg>`, `<image href="data:image/png;base64,AA=="/></svg>`, 1)},
+		{name: "style element", svg: strings.Replace(validOnPaperSVGFixture, `</svg>`, `<style>path{fill:red}</style></svg>`, 1)},
+		{name: "mask", svg: strings.Replace(validOnPaperSVGFixture, `</svg>`, `<mask id="m"/></svg>`, 1)},
+		{name: "text", svg: strings.Replace(validOnPaperSVGFixture, `</svg>`, `<text>yomihon</text></svg>`, 1)},
+		{name: "metadata", svg: strings.Replace(validOnPaperSVGFixture, `</svg>`, `<metadata>generator</metadata></svg>`, 1)},
+		{name: "nested group", svg: strings.Replace(validOnPaperSVGFixture, tilePath, `<g>`+tilePath+`</g>`, 1)},
+		{name: "fourth path", svg: strings.Replace(validOnPaperSVGFixture, `</svg>`, `<path data-brand-part="extra" fill="#282A2D" d="M3 3Z"/></svg>`, 1)},
+		{name: "tile painted over the mark", svg: strings.Replace(strings.Replace(validOnPaperSVGFixture, tilePath, ``, 1), `</svg>`, tilePath+`</svg>`, 1)},
+		{name: "tile after the page", svg: strings.Replace(strings.Replace(validOnPaperSVGFixture, tilePath, ``, 1), pagePath, pagePath+tilePath, 1)},
+		{name: "wrong tile part", svg: strings.Replace(validOnPaperSVGFixture, `data-brand-part="tile"`, `data-brand-part="ground"`, 1)},
+		{name: "wrong tile color", svg: strings.Replace(validOnPaperSVGFixture, `#F5F1E6`, `#F5F1E7`, 1)},
+		{name: "dark tile", svg: strings.Replace(validOnPaperSVGFixture, `#F5F1E6`, `#282A2D`, 1)},
+		{name: "wrong page color", svg: strings.Replace(validOnPaperSVGFixture, `#282A2D`, `#2A2A2D`, 1)},
+		{name: "wrong ribbon color", svg: strings.Replace(validOnPaperSVGFixture, `#536D85`, `#536D86`, 1)},
+		{name: "missing tile", svg: strings.Replace(validOnPaperSVGFixture, tilePath, ``, 1)},
+		{name: "missing ribbon", svg: strings.Replace(validOnPaperSVGFixture, `<path data-brand-part="ribbon" fill="#536D85" d="M1 1Z"/>`, ``, 1)},
+		{name: "canonical mark without a tile", svg: validBrandSVGFixture},
+		{name: "wrong view box", svg: strings.Replace(validOnPaperSVGFixture, `viewBox="0 0 64 64"`, `viewBox="0 0 32 32"`, 1)},
+		{name: "event handler", svg: strings.Replace(validOnPaperSVGFixture, `d="M2 2Z"`, `d="M2 2Z" onload="alert(1)"`, 1)},
+		{name: "style attribute", svg: strings.Replace(validOnPaperSVGFixture, `d="M2 2Z"`, `d="M2 2Z" style="opacity:.5"`, 1)},
+		{name: "href attribute", svg: strings.Replace(validOnPaperSVGFixture, `d="M2 2Z"`, `d="M2 2Z" href="https://example.com"`, 1)},
+		{name: "attribute order", svg: strings.Replace(validOnPaperSVGFixture, `data-brand-part="tile" fill="#F5F1E6" d="M2 2Z"`, `fill="#F5F1E6" data-brand-part="tile" d="M2 2Z"`, 1)},
+		{name: "empty tile path", svg: strings.Replace(validOnPaperSVGFixture, `d="M2 2Z"`, `d=""`, 1)},
+		{name: "comment", svg: strings.Replace(validOnPaperSVGFixture, `</svg>`, `<!-- generated --></svg>`, 1)},
+		{name: "processing instruction", svg: `<?xml version="1.0"?>` + validOnPaperSVGFixture},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if err := validateBrandMarkOnPaperSVG([]byte(tt.svg)); err == nil {
+				t.Errorf("validateBrandMarkOnPaperSVG() accepted non-conforming %s content", tt.name)
+			}
+		})
+	}
+}
+
+func TestBrandMarkOnPaperValidatorAcceptsValidStructure(t *testing.T) {
+	t.Parallel()
+
+	if err := validateBrandMarkOnPaperSVG([]byte(validOnPaperSVGFixture)); err != nil {
+		t.Fatalf("validateBrandMarkOnPaperSVG() rejected the on-paper structure: %v", err)
+	}
+}
+
+// Each file has its own grammar; the canonical validator must not take the
+// tiled file as its own, or the canonical mark's lock would quietly widen.
+func TestBrandMarkValidatorRejectsTheOnPaperStructure(t *testing.T) {
+	t.Parallel()
+
+	if err := validateBrandMarkSVG([]byte(validOnPaperSVGFixture)); err == nil {
+		t.Error("validateBrandMarkSVG() accepted the on-paper structure as the canonical mark")
+	}
+}
+
+// brandPath is one painted path of a brand file as the grammar names it: the
+// part it draws, its fill, and its geometry.
+type brandPath struct {
+	part string
+	fill string
+	d    string
+}
+
+var (
+	canonicalBrandParts = []brandPath{{part: "page", fill: "#282A2D"}, {part: "ribbon", fill: "#536D85"}}
+	onPaperBrandParts   = []brandPath{{part: "tile", fill: "#F5F1E6"}, {part: "page", fill: "#282A2D"}, {part: "ribbon", fill: "#536D85"}}
+)
+
+func validateBrandMarkSVG(data []byte) error {
+	_, err := parseBrandSVG(data, canonicalBrandParts)
+	return err
+}
+
+func validateBrandMarkOnPaperSVG(data []byte) error {
+	_, err := parseBrandSVG(data, onPaperBrandParts)
+	return err
+}
+
+// parseBrandSVG checks data against the restricted passive grammar for wantPaths,
+// which names each direct path child in drawing order, and returns the paths it
+// read.
+func parseBrandSVG(data []byte, wantPaths []brandPath) ([]brandPath, error) {
+	const namespace = "http://www.w3.org/2000/svg"
 
 	decoder := xml.NewDecoder(bytes.NewReader(data))
 	depth := 0
 	roots := 0
-	paths := 0
+	var paths []brandPath
 	for {
 		token, err := decoder.Token()
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("decode XML: %w", err)
+			return nil, fmt.Errorf("decode XML: %w", err)
 		}
 
 		switch value := token.(type) {
@@ -152,49 +305,49 @@ func validateBrandMarkSVG(data []byte) error {
 			case depth == 1 && value.Name.Space == namespace && value.Name.Local == "svg":
 				roots++
 				if roots != 1 {
-					return fmt.Errorf("root count = %d, want 1", roots)
+					return nil, fmt.Errorf("root count = %d, want 1", roots)
 				}
 				if err := validateBrandSVGRootAttributes(value.Attr); err != nil {
-					return err
+					return nil, err
 				}
 			case depth == 2 && value.Name.Space == namespace && value.Name.Local == "path":
-				if paths >= len(wantPaths) {
-					return fmt.Errorf("path count exceeds %d", len(wantPaths))
+				if len(paths) >= len(wantPaths) {
+					return nil, fmt.Errorf("path count exceeds %d", len(wantPaths))
 				}
-				want := wantPaths[paths]
+				want := wantPaths[len(paths)]
 				if err := validateBrandSVGPathAttributes(value.Attr, want.part, want.fill); err != nil {
-					return fmt.Errorf("%s path: %w", want.part, err)
+					return nil, fmt.Errorf("%s path: %w", want.part, err)
 				}
-				paths++
+				paths = append(paths, brandPath{part: want.part, fill: want.fill, d: value.Attr[2].Value})
 			default:
-				return fmt.Errorf("element at depth %d = {%s}%s, want svg with two direct path children only", depth, value.Name.Space, value.Name.Local)
+				return nil, fmt.Errorf("element at depth %d = {%s}%s, want svg with %d direct path children only", depth, value.Name.Space, value.Name.Local, len(wantPaths))
 			}
 		case xml.EndElement:
 			depth--
 			if depth < 0 {
-				return fmt.Errorf("unexpected closing element {%s}%s", value.Name.Space, value.Name.Local)
+				return nil, fmt.Errorf("unexpected closing element {%s}%s", value.Name.Space, value.Name.Local)
 			}
 		case xml.CharData:
 			if strings.TrimSpace(string(value)) != "" {
-				return errors.New("character data is forbidden")
+				return nil, errors.New("character data is forbidden")
 			}
 		case xml.Comment:
-			return errors.New("comments are forbidden")
+			return nil, errors.New("comments are forbidden")
 		case xml.Directive:
-			return errors.New("directives are forbidden")
+			return nil, errors.New("directives are forbidden")
 		case xml.ProcInst:
-			return errors.New("processing instructions are forbidden")
+			return nil, errors.New("processing instructions are forbidden")
 		default:
-			return fmt.Errorf("unsupported XML token %T", token)
+			return nil, fmt.Errorf("unsupported XML token %T", token)
 		}
 	}
 	if depth != 0 {
-		return fmt.Errorf("final XML depth = %d, want 0", depth)
+		return nil, fmt.Errorf("final XML depth = %d, want 0", depth)
 	}
-	if roots != 1 || paths != len(wantPaths) {
-		return fmt.Errorf("svg/path count = %d/%d, want 1/%d", roots, paths, len(wantPaths))
+	if roots != 1 || len(paths) != len(wantPaths) {
+		return nil, fmt.Errorf("svg/path count = %d/%d, want 1/%d", roots, len(paths), len(wantPaths))
 	}
-	return nil
+	return paths, nil
 }
 
 func validateBrandSVGRootAttributes(attrs []xml.Attr) error {

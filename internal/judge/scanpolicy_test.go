@@ -11,75 +11,49 @@ import (
 // frontmatterContract is a vault of plain notes with one knowledge directory.
 // The caller substitutes the scan declaration, which is the only thing under
 // test here.
-const frontmatterContract = `schema_version = "1"
+const frontmatterContract = `schema_version = "2"
 
-[enums]
-type = ["note"]
-
-[enums.status]
-note = ["draft"]
-
-[fields]
-required = ["title", "type"]
-known = ["title", "type", "status"]
-
-[scan]
-knowledge_dirs = ["Notes"]
-skip_basenames = []
+[folders]
+checked = ["Notes"]
+templates = []
+skipped_files = []
 SCAN_DECLARATION
 
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = []
-
-[privacy]
-never_egress_dirs = []
-
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
-`
-
-// inboxContract declares one required field set for ordinary notes and a
-// different one for undefined-shape captures, so the two cannot be satisfied by
-// the same note.
-const inboxContract = `schema_version = "1"
-
 [enums]
-type = ["inbox", "note"]
-
-[enums.status]
-note = ["draft"]
 
 [fields]
-required = ["title", "type", "status"]
-required_inbox = ["title", "created"]
-known = ["title", "type", "status", "created"]
+common = ["type"]
+required = ["type"]
 
-[scan]
-knowledge_dirs = ["Inbox", "Notes"]
-skip_basenames = []
-
-[navigation]
-path_types = []
-map_types = []
-
-[artifacts]
-non_instance_dirs = []
+[types.note]
 
 [privacy]
 never_egress_dirs = []
+`
 
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
+// inboxContract declares one required field set for every note and one more
+// field a capture must carry, so the two sets cannot be satisfied by the same
+// note.
+const inboxContract = `schema_version = "2"
+
+[folders]
+checked = ["Inbox", "Notes"]
+templates = []
+
+[enums]
+
+[fields]
+common = ["type", "created"]
+required = ["type", "created"]
+
+[types.inbox]
+fields = ["level"]
+required = ["level"]
+
+[types.note]
+
+[privacy]
+never_egress_dirs = []
 `
 
 // TestCheckHonoursNoFrontmatterDeclaration asserts a vault that says a note
@@ -96,8 +70,8 @@ func TestCheckHonoursNoFrontmatterDeclaration(t *testing.T) {
 		wantFault   bool
 	}{
 		{name: "undeclared", declaration: "", wantFault: false},
-		{name: "declared legal", declaration: "no_frontmatter_is_legal = true", wantFault: false},
-		{name: "declared not legal", declaration: "no_frontmatter_is_legal = false", wantFault: true},
+		{name: "declared legal", declaration: "frontmatter_optional = true", wantFault: false},
+		{name: "declared not legal", declaration: "frontmatter_optional = false", wantFault: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -106,8 +80,8 @@ func TestCheckHonoursNoFrontmatterDeclaration(t *testing.T) {
 			write(t, root, schema.ContractRelPath,
 				strings.Replace(frontmatterContract, "SCAN_DECLARATION", tt.declaration, 1))
 			write(t, root, "Notes/Raw.md", "just a transcript\nno fence\n")
-			write(t, root, "Notes/Unclosed.md", "---\ntitle: Unclosed\ntype: note\n")
-			write(t, root, "Notes/Whole.md", "---\ntitle: Whole\ntype: note\n---\n\nBody.\n")
+			write(t, root, "Notes/Unclosed.md", "---\ntype: note\n")
+			write(t, root, "Notes/Whole.md", "---\ntype: note\n---\n# Whole\n\nBody.\n")
 
 			got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 			if err != nil {
@@ -131,66 +105,18 @@ func TestCheckHonoursNoFrontmatterDeclaration(t *testing.T) {
 	}
 }
 
-// TestCheckHoldsCapturesToTheGeneralSetWhenNoInboxSetIsDeclared asserts a vault
-// that never declared what a capture must carry keeps holding one to the same
-// fields as any other note, with the domain waiver it has always had. Silence
-// about captures is not a licence to require nothing of them.
-func TestCheckHoldsCapturesToTheGeneralSetWhenNoInboxSetIsDeclared(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	write(t, root, schema.ContractRelPath,
-		strings.Replace(inboxContract, "required_inbox = [\"title\", \"created\"]\n", "", 1))
-	write(t, root, "Inbox/Bare.md", "---\ntitle: Bare\ntype: inbox\n---\n")
-
-	got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCheck() error = %v", err)
-	}
-	if !bytes.Contains(got, []byte(`"path":"Inbox/Bare.md","field":"status","message":"status is required"`)) {
-		t.Errorf("a capture escaped the general required set:\n%s", got)
-	}
-}
-
-// TestCheckDemandsDomainWhenTheInboxSetNamesIt asserts a contract that lists
-// domain among the fields a capture must carry gets it demanded. The waiver
-// that spares a capture from being classified by knowledge domain belongs to a
-// vault that said nothing about captures; it does not survive a vault that
-// spelled the set out and put domain in it.
-func TestCheckDemandsDomainWhenTheInboxSetNamesIt(t *testing.T) {
-	t.Parallel()
-
-	contract := strings.Replace(inboxContract,
-		`required_inbox = ["title", "created"]`, `required_inbox = ["title", "domain"]`, 1)
-	contract = strings.Replace(contract,
-		`known = ["title", "type", "status", "created"]`,
-		`known = ["title", "type", "status", "created", "domain"]`, 1)
-
-	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, contract)
-	write(t, root, "Inbox/Bare.md", "---\ntitle: Bare\ntype: inbox\n---\n")
-
-	got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
-	if err != nil {
-		t.Fatalf("RunCheck() error = %v", err)
-	}
-	if !bytes.Contains(got, []byte(`"path":"Inbox/Bare.md","field":"domain","message":"domain is required"`)) {
-		t.Errorf("the declared inbox set asked for domain and it was waived away:\n%s", got)
-	}
-}
-
-// TestCheckHonoursRequiredInbox asserts the contract's inbox required-field set
-// governs an undefined-shape capture, in both directions: a field the general
-// set requires is not demanded of a capture, and a field the inbox set requires
-// is.
-func TestCheckHonoursRequiredInbox(t *testing.T) {
+// TestCheckHonoursATypesOwnRequiredFields asserts a type's own required set is
+// added to the one every note answers to, in both directions: a capture carries
+// the general set like any other note and the field its type adds, and an
+// ordinary note is not asked for the field only captures need.
+func TestCheckHonoursATypesOwnRequiredFields(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	write(t, root, schema.ContractRelPath, inboxContract)
-	write(t, root, "Inbox/Complete.md", "---\ntitle: Complete\ntype: inbox\ncreated: 2026-01-01\n---\n")
-	write(t, root, "Inbox/Bare.md", "---\ntitle: Bare\ntype: inbox\n---\n")
-	write(t, root, "Notes/Plain.md", "---\ntitle: Plain\ntype: note\n---\n")
+	write(t, root, "Inbox/Complete.md", "---\ntype: inbox\ncreated: 2026-01-01\nlevel: first\n---\n")
+	write(t, root, "Inbox/Bare.md", "---\ntype: inbox\n---\n")
+	write(t, root, "Notes/Plain.md", "---\ntype: note\n---\n")
 
 	got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil {
@@ -202,24 +128,29 @@ func TestCheckHonoursRequiredInbox(t *testing.T) {
 		line string
 	}{
 		{
-			name: "a capture carrying the inbox set is not faulted",
+			name: "a capture carrying both sets is not faulted",
 			want: false,
 			line: `"path":"Inbox/Complete.md"`,
 		},
 		{
-			name: "a capture is not asked for a field only ordinary notes need",
-			want: false,
-			line: `"path":"Inbox/Bare.md","field":"status"`,
-		},
-		{
-			name: "a capture missing a field the inbox set requires is faulted",
+			name: "a capture still answers to the general set",
 			want: true,
 			line: `"path":"Inbox/Bare.md","field":"created","message":"created is required"`,
 		},
 		{
+			name: "a capture missing the field its type requires is faulted",
+			want: true,
+			line: `"path":"Inbox/Bare.md","field":"level","message":"level is required"`,
+		},
+		{
 			name: "an ordinary note still answers to the general set",
 			want: true,
-			line: `"path":"Notes/Plain.md","field":"status","message":"status is required"`,
+			line: `"path":"Notes/Plain.md","field":"created","message":"created is required"`,
+		},
+		{
+			name: "an ordinary note is not asked for the field only captures need",
+			want: false,
+			line: `"path":"Notes/Plain.md","field":"level"`,
 		},
 	}
 	for _, tt := range tests {

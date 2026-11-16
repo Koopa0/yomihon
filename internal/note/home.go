@@ -5,10 +5,12 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"path"
 	"slices"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/shell"
@@ -23,7 +25,7 @@ import (
 // a read face: no status forms or write capability enter the view.
 func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	authority := h.sources.Status()
+	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
 	// The desk links to the folder's own introduction rather than reprinting
 	// it, so nothing here renders it and its absence is not news.
@@ -52,17 +54,14 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	// One cause is not quoted: a contract that changed after yomihon read it is
 	// said in the reader's own words, once, whichever of the three carries it.
 	fault, restart := statedAsFaults(lang,
-		faultCause{authority.Diagnostic(lang), authority.Claim().Reason()},
+		faultCause{authority.Diagnostic(), authority.Claim().Reason()},
 		faultCause{visibleNav.NavigationClosure().Diagnostic(), visibleNav.NavigationClosure().Reason()},
 		faultCause{visibleNav.ArtifactClosure().Diagnostic(), visibleNav.ArtifactClosure().Reason()},
 	)
 	privacy := snap.PrivacyPolicy().Claim()
 	privacyFault, privacyRestart := statedAsFaults(lang, faultCause{privacy.Diagnostic(), privacy.Reason()})
-	// Counted by the call the health page lists its rows from, so the number
-	// at the foot of the desk and the table it leads to are one instrument.
-	found := shell.GatherFindings(authority, snap)
 	kept, hasMark := h.sources.Continuation()
-	open, openFault := h.openThoughtShelf(r.Context(), snap, lang, pages.OpenThoughtsHomeRows)
+	open, openFault := h.openThoughtShelf(snap, lang, pages.OpenThoughtsHomeRows, pages.OpenNewest)
 	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
 		open = pages.Shelf{}
 	}
@@ -78,8 +77,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		Notices:           folderNotices(fresh.Collision, fresh.Root, lang),
 		Blocks:            blocks,
 		ReadmeMissing:     !hasReadme,
-		Continue:          continueRow(&kept, hasMark, snap, lang),
-		Findings:          found.Total(),
+		Continue:          continueRow(&kept, hasMark, snap, visibleNav, lang),
 	}
 	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write home page", "error", err)
@@ -94,7 +92,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 // against whatever the folder holds a moment later. An identity that no longer
 // matches still goes to the mark: it is the reader's own best pointer, and the
 // sentence says why the place may have moved rather than withholding it.
-func continueRow(kept *mark.Continuation, hasMark bool, snap *snapshot.Generation, lang wording.Lang) pages.ContinueRow {
+func continueRow(kept *mark.Continuation, hasMark bool, snap *snapshot.Generation, model *nav.Model, lang wording.Lang) pages.ContinueRow {
 	if !hasMark {
 		return pages.ContinueRow{}
 	}
@@ -105,14 +103,39 @@ func continueRow(kept *mark.Continuation, hasMark bool, snap *snapshot.Generatio
 		return pages.ContinueRow{Show: true, Title: kept.RelPath, Notice: wording.MarkNoteGone.In(lang)}
 	}
 	row := pages.ContinueRow{
-		Show:  true,
-		Title: cmp.Or(reading.Title, kept.RelPath),
-		Href:  pages.ResumeHref(kept.RelPath, kept.Anchor, kept.Offset),
+		Show:     true,
+		Title:    cmp.Or(reading.Title, kept.RelPath),
+		Language: reading.Language,
+		Href:     pages.ResumeHref(kept.RelPath, kept.Anchor, kept.Offset),
+		Section:  newPlaceResolver(snap).label(kept.RelPath, kept.Anchor, lang),
 	}
+	row.Kicker, row.KickerLanguage = continueKicker(model, snap, kept.RelPath)
 	if hex.EncodeToString(reading.ContentIdentity[:]) != kept.Identity {
 		row.Notice = wording.MarkNoteChanged.In(lang)
 	}
 	return row
+}
+
+// continueKicker says where the kept note sits: the course that walks it and
+// the part of that course, and for a note no course walks the folder it is in.
+// A note two courses walk is placed in the first, as the course page that
+// leads to it is.
+func continueKicker(model *nav.Model, snap *snapshot.Generation, rel string) (kicker, language string) {
+	if steps := model.PathNeighbors(rel); len(steps) > 0 {
+		parts := []string{steps[0].PathTitle}
+		if place, ok := model.PathPlace(rel, steps[0].PathRelPath); ok && place.Part != "" {
+			parts = append(parts, place.Part)
+		}
+		language = ""
+		if note, ok := snap.Note(steps[0].PathRelPath); ok {
+			language = note.Language
+		}
+		return strings.Join(parts, " · "), language
+	}
+	if dir := path.Dir(rel); dir != "." {
+		return dir, ""
+	}
+	return "", ""
 }
 
 // degradedNotice states, in the reader's language, that the snapshot behind

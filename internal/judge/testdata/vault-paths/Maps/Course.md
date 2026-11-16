@@ -1,5 +1,5 @@
 ---
-title: Course
+
 type: study-path
 ---
 

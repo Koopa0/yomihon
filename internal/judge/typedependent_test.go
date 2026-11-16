@@ -36,25 +36,16 @@ func TestTypeDependentFrontmatter(t *testing.T) {
 		{name: "numeric scalar", frontmatter: "type: 7\nslug: invalid-type\n", want: []string{"schema.enum:type:7", "schema.type_dependent:type:7"}},
 		{name: "boolean scalar", frontmatter: "type: true\nslug: invalid-type\n", want: []string{"schema.enum:type:true", "schema.type_dependent:type:true"}},
 		{name: "NFC declared type", frontmatter: "type: cafe\u0301\nslug: valid-lesson\n", want: []string{"schema.unknown_key::slug"}},
-		{name: "independent required field", frontmatter: "title: ''\ntype: Lesson\nslug: invalid-type\n", want: []string{"schema.enum:type:Lesson", "schema.required:title:", "schema.type_dependent:type:Lesson"}},
+		{name: "independent unknown title", frontmatter: "title: Probe\ntype: Lesson\nslug: invalid-type\n", want: []string{"schema.enum:type:Lesson", "schema.unknown_key::title", "schema.type_dependent:type:Lesson"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			contract := typeDependentContract(t, root, "")
-			data := []byte("---\ntitle: Probe\n" + tt.frontmatter + "---\n\nBody.\n")
-			if strings.Contains(tt.frontmatter, "title: ''") {
-				data = []byte("---\n" + tt.frontmatter + "---\n\nBody.\n")
-			}
+			data := []byte("---\n" + tt.frontmatter + "---\n\n# Probe\n\nBody.\n")
 			write(t, root, "Notes/Probe.md", string(data))
-			linted, err := LintFrontmatter("Notes/Probe.md", data, contract)
-			if err != nil {
-				t.Fatalf("LintFrontmatter() error = %v", err)
-			}
-			linter, err := NewFrontmatterLinter(contract)
-			if err != nil {
-				t.Fatalf("NewFrontmatterLinter() error = %v", err)
-			}
+			linted := LintFrontmatter("Notes/Probe.md", data, contract)
+			linter := NewFrontmatterLinter(contract)
 			checked, err := Check(t.Context(), root)
 			if err != nil {
 				t.Fatalf("Check() error = %v", err)
@@ -134,14 +125,11 @@ func TestTypeDependentPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load private fixture contract: %v", err)
 	}
-	write(t, root, "Notes/Clean.md", "---\ntitle: Clean\ntype: memo\n---\n")
+	write(t, root, "Notes/Clean.md", "---\ntype: memo\n---\n")
 	const privatePath = "Notes/Private/Secret.md"
-	const body = "---\ntitle: Secret\ntype: Lesson\nslug: secret\n---\n"
+	const body = "---\ntype: Lesson\nslug: secret\n---\n"
 	write(t, root, privatePath, body)
-	findings, err := LintFrontmatter(privatePath, []byte(body), contract)
-	if err != nil {
-		t.Fatalf("lint private fixture: %v", err)
-	}
+	findings := LintFrontmatter(privatePath, []byte(body), contract)
 	var rules []string
 	for _, finding := range findings {
 		rules = append(rules, string(finding.RuleID))
@@ -163,23 +151,14 @@ func TestTypeDependentPrivacy(t *testing.T) {
 func TestTypeDependentContractBoundaries(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	contract := typeDependentContract(t, root, "empty")
-	got, err := LintFrontmatter("Notes/Probe.md", []byte("---\ntitle: Probe\ntype: Lesson\nslug: x\n---\n"), contract)
-	if err != nil {
-		t.Fatalf("LintFrontmatter() error = %v", err)
-	}
+	contract := typeDependentContract(t, root, "slug only")
+	got := LintFrontmatter("Notes/Probe.md", []byte("---\ntype: Lesson\nlevel: x\n---\n"), contract)
+	var rules []string
 	for _, finding := range got {
-		if finding.RuleID == "schema.type_dependent" {
-			t.Errorf("caught: empty lesson-only declaration defers a field: %#v", finding)
-		}
+		rules = append(rules, string(finding.RuleID))
 	}
-	data, err := os.ReadFile("testdata/vault-type-dependent/System/schemas/vault-schema.toml")
-	if err != nil {
-		t.Fatalf("read contract: %v", err)
-	}
-	write(t, root, schema.ContractRelPath, strings.Replace(string(data), `known = ["title", "type", "status", "domain"]`, `known = ["title", "type", "status", "domain", "slug"]`, 1))
-	if _, err := schema.Load(root); err == nil || !strings.Contains(err.Error(), "overlap") {
-		t.Errorf("schema.Load(overlapping known and lesson-only) error = %v, want overlap rejection", err)
+	if diff := cmp.Diff([]string{"schema.enum", "schema.unknown_key"}, rules); diff != "" {
+		t.Errorf("caught: a field no type lists was deferred rather than called unknown (-want +got):\n%s", diff)
 	}
 }
 
@@ -192,18 +171,18 @@ func TestTypeDependentAdditionalDeclaredFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read contract: %v", err)
 	}
-	declaration := strings.Replace(string(data), `lesson_only = ["level", "slug"]`, `lesson_only = ["level", "slug", "exercise"]`, 1)
-	declaration = strings.Replace(declaration, `type = ["lesson", "memo", "café"]`, "type = [\"lesson\", \"memo\", \"café\"]\ndomain = [\"allowed\"]", 1)
+	if strings.Count(string(data), `fields = ["level", "slug"]`) != 1 || strings.Count(string(data), "[enums]\n") != 1 {
+		t.Fatal("fixture contract has no unique lesson field list or enum table")
+	}
+	declaration := strings.Replace(string(data), `fields = ["level", "slug"]`, `fields = ["level", "slug", "verified_on"]`, 1)
+	declaration = strings.Replace(declaration, "[enums]\n", "[enums]\nlevel = [\"fundamental\"]\n", 1)
 	write(t, root, schema.ContractRelPath, declaration)
 	contract, err := schema.Load(root)
 	if err != nil {
 		t.Fatalf("schema.Load() error = %v", err)
 	}
-	body := []byte("---\ntitle: Probe\ntype: Lesson\nslug: x\nlevel: x\nexercise: x\ndomain: other\n---\n")
-	findings, err := LintFrontmatter("Notes/Probe.md", body, contract)
-	if err != nil {
-		t.Fatalf("LintFrontmatter() error = %v", err)
-	}
+	body := []byte("---\ntype: Lesson\nslug: x\nlevel: x\nverified_on: x\n---\n")
+	findings := LintFrontmatter("Notes/Probe.md", body, contract)
 	var got []string
 	for _, finding := range findings {
 		field := ""
@@ -212,7 +191,7 @@ func TestTypeDependentAdditionalDeclaredFields(t *testing.T) {
 		}
 		got = append(got, string(finding.RuleID)+":"+field)
 	}
-	want := []string{"schema.enum:type", "schema.enum:domain", "schema.type_dependent:type"}
+	want := []string{"schema.enum:type", "schema.enum:level", "schema.type_dependent:type"}
 	slices.Sort(got)
 	slices.Sort(want)
 	if diff := cmp.Diff(want, got); diff != "" {
@@ -226,8 +205,11 @@ func typeDependentContract(t *testing.T, root, mode string) *schema.Contract {
 	if err != nil {
 		t.Fatalf("read contract: %v", err)
 	}
-	if mode == "empty" {
-		data = []byte(strings.Replace(string(data), `lesson_only = ["level", "slug"]`, "lesson_only = []", 1))
+	if mode == "slug only" {
+		if strings.Count(string(data), `fields = ["level", "slug"]`) != 1 {
+			t.Fatal("fixture contract has no unique lesson field list")
+		}
+		data = []byte(strings.Replace(string(data), `fields = ["level", "slug"]`, `fields = ["slug"]`, 1))
 	}
 	write(t, root, schema.ContractRelPath, string(data))
 	contract, err := schema.Load(root)

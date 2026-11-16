@@ -6,15 +6,9 @@ import (
 	"time"
 )
 
-// The two frontmatter fields a contract can date a note by, in the order they
-// are looked for. A contract declaring both is read for the day the note was
-// made, because that is what dates a report; one declaring only the second is
-// read for that instead. One field answers for the whole vault, so a listing's
-// date column carries one meaning rather than two true figures under one name.
-const (
-	createdField = "created"
-	updatedField = "updated"
-)
+// createdField is the frontmatter field a contract dates a note by: the day
+// the note was made, which is also what dates a report.
+const createdField = "created"
 
 // AuthoredDate resolves the day a note declares for itself, through whichever
 // frontmatter field the vault contract gave authority to. Its zero value
@@ -24,24 +18,19 @@ type AuthoredDate struct {
 	field string
 }
 
-// AuthoredDate returns the contract-derived date resolver. A field is
-// authoritative only when the universal fields.known vocabulary declares it; a
-// lesson-only declaration cannot describe every note.
+// AuthoredDate returns the contract-derived date resolver. The field is
+// authoritative only when fields.common declares it; a declaration on one type
+// cannot describe every note.
 func (c *Contract) AuthoredDate() AuthoredDate {
-	if c == nil {
+	if c == nil || !slices.Contains(c.common, createdField) {
 		return AuthoredDate{}
 	}
-	for _, field := range []string{createdField, updatedField} {
-		if slices.Contains(c.definition.Fields.Known, field) {
-			return AuthoredDate{field: field}
-		}
-	}
-	return AuthoredDate{}
+	return AuthoredDate{field: createdField}
 }
 
 // Field names the frontmatter field this contract dates a note by, and is empty
-// where the contract declared neither. A surface that has to say how it knows a
-// day asks here rather than re-reading fields.known for the same two words.
+// where the contract declared none. A surface that has to say how it knows a
+// day asks here rather than re-reading fields.common for the same word.
 func (d AuthoredDate) Field() string {
 	return d.field
 }

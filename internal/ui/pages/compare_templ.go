@@ -44,9 +44,8 @@ const (
 )
 
 // Compare is two notes read beside one another: each column the ordinary
-// reading rendering of its note, with its status word shown and no control to
-// change it. Adjudication happens on a note's own page, which each column links
-// back to.
+// reading rendering of its note, each column linking back to that note's own
+// page.
 //
 // Neither rail is drawn. Two reading columns need the width, and one rail
 // beside two notes could not say which of them it spoke for.
@@ -88,7 +87,7 @@ func Compare(v CompareView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templruntime.NewAttributeExpression(lang.Tag()).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 50, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 49, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -101,7 +100,7 @@ func Compare(v CompareView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.CompareColumns.In(lang)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 50, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 49, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {
@@ -122,7 +121,7 @@ func Compare(v CompareView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL("#" + CompareAnchorA)).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 51, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 50, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 				if templ_7745c5c3_Err != nil {
@@ -153,7 +152,7 @@ func Compare(v CompareView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(v.A.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 51, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 50, Col: 125}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -174,7 +173,7 @@ func Compare(v CompareView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL("#" + CompareAnchorB)).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 52, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 51, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 				if templ_7745c5c3_Err != nil {
@@ -205,7 +204,7 @@ func Compare(v CompareView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(v.B.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 52, Col: 125}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 51, Col: 125}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -218,7 +217,7 @@ func Compare(v CompareView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(wording.CompareAlign.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 56, Col: 122}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 55, Col: 122}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -231,7 +230,7 @@ func Compare(v CompareView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templruntime.NewAttributeExpression(lang.Tag()).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 58, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 57, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
 			if templ_7745c5c3_Err != nil {
@@ -244,7 +243,7 @@ func Compare(v CompareView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(wording.CompareTitleFmt.In(lang), v.A.Title, v.B.Title))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 58, Col: 116}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 57, Col: 116}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -314,14 +313,14 @@ func Compare(v CompareView, c layouts.Chrome) templ.Component {
 	})
 }
 
-// compareColumn is one note in its column: the way back to its own page and the
-// status it carries now, then the note exactly as its own page renders it.
+// compareColumn is one note in its column: the way back to its own page, then
+// the note exactly as its own page renders it.
 //
 // The head sits outside the article on purpose. Everything inside is the note's
 // own, so a reader can trust that what they are reading here is what they would
-// read alone, with its headings one level below the comparison. The two things
-// this page adds are stated above it, where they belong to the page rather than
-// to the note.
+// read alone, with its headings one level below the comparison. What this page
+// adds is stated above it, where it belongs to the page rather than to the
+// note.
 // data-note-column marks one of the notes a page holds more than one of. The
 // contents tracking inside a column then answers for that note's headings
 // alone, and the control that keeps the columns level moves one against the
@@ -354,7 +353,7 @@ func compareColumn(v NoteView, anchor string, lang wording.Lang) templ.Component
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templruntime.NewAttributeExpression(anchor).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 86, Col: 21}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 85, Col: 21}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
 		if templ_7745c5c3_Err != nil {
@@ -367,7 +366,7 @@ func compareColumn(v NoteView, anchor string, lang wording.Lang) templ.Component
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templruntime.NewAttributeExpression(lang.Tag()).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 87, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 86, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var14)
 		if templ_7745c5c3_Err != nil {
@@ -380,7 +379,7 @@ func compareColumn(v NoteView, anchor string, lang wording.Lang) templ.Component
 		var templ_7745c5c3_Var15 string
 		templ_7745c5c3_Var15, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(notesHref(v.RelPath))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 88, Col: 69}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 87, Col: 69}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var15)
 		if templ_7745c5c3_Err != nil {
@@ -393,36 +392,13 @@ func compareColumn(v NoteView, anchor string, lang wording.Lang) templ.Component
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(wording.CompareOpenAlone.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 88, Col: 107}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 87, Col: 107}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</a> ")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if v.Status != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "<span class=\"ui-status\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var17 string
-			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(v.Status)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/compare.templ`, Line: 90, Col: 38}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</span>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</a></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -430,7 +406,7 @@ func compareColumn(v NoteView, anchor string, lang wording.Lang) templ.Component
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</section>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</section>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

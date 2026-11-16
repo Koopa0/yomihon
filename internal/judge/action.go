@@ -117,6 +117,7 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 		hooks.afterScan()
 	}
 	marks := plannedMarksFrom(a.authority.contract)
+	domains := a.authority.contract.Domains()
 	parse := parseNoteWithMarks
 	if hooks.parseNote != nil {
 		parse = hooks.parseNote
@@ -146,6 +147,7 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 			a.unreadable = append(a.unreadable, unreadableEntry{path: relPath, cause: parseErr})
 			continue
 		}
+		parsed.domain = domains.Of(relPath)
 		a.notes = append(a.notes, parsed)
 	}
 	// A judgement needs something to be about. Where every read failed there is

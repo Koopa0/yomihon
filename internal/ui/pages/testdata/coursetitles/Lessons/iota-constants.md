@@ -1,6 +1,5 @@
 ---
-title: "iota: The Compile-Time Constant Generator"
 type: lesson
-status: draft
 ---
+# iota: The Compile-Time Constant Generator
 body

@@ -49,21 +49,17 @@ func (j JournalDir) Contains(rel string) bool {
 	return pathHasFoldedPrefix(vault.NormalizeNFC(rel), j.dir)
 }
 
-func deriveJournalDir(section *navigationSection, journalDefined bool) JournalDir {
-	if section == nil || !journalDefined {
+func deriveJournalDir(dir string, defined bool) JournalDir {
+	if !defined {
 		return JournalDir{}
 	}
-	normalized, ok := normalizeDeclaredDir(section.JournalDir)
+	normalized, ok := normalizeDeclaredDir(dir)
 	if !ok {
-		return invalidJournalDir(section.JournalDir)
+		return invalidJournalDir(dir)
 	}
 	return JournalDir{dir: normalized, claim: heldClaim()}
 }
 
 func invalidJournalDir(value string) JournalDir {
-	return JournalDir{claim: Rejected(fmt.Sprintf("invalid journal directory: journal_dir contains %q", value))}
-}
-
-func journalTypeError(key string) JournalDir {
-	return JournalDir{claim: Rejected(fmt.Sprintf("invalid journal directory: key %q has incompatible TOML type", key))}
+	return JournalDir{claim: Rejected(fmt.Sprintf("invalid journal directory: journal contains %q", value))}
 }

@@ -166,13 +166,8 @@ templ-fmt-check:
 templ-gen-check:
 	go tool templ generate -check -path internal/ui
 
-# The second pass compiles the yomihon_nodurable configuration, which also
-# selects the platform-boundary test files hiding behind it on the supported
-# platforms. Without it a break inside those files is invisible to every
-# local gate: plain vet skips them and the cross-builds compile no tests.
 vet:
 	@$(call owned-go-list); go vet $$list
-	@$(call owned-go-list); go vet -tags yomihon_nodurable $$list
 
 staticcheck:
 	@$(call require-go-tool,staticcheck,honnef.co/go/tools,$(STATICCHECK_VERSION))
@@ -280,7 +275,7 @@ screenshots:
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
 	YOMIHON_FIXTURE=examples/vault bash .github/e2e/serve.sh "$$tmp/yomihon" 19761 -- sh -c '\
-	  LANG_CHOICE=en PAGE_PATH="/notes/Lessons/L01%20Point%20yomihon%20at%20a%20folder.md" \
+	  LANG_CHOICE=en PAGE_PATH="/notes/Lessons/L02%20Add%20a%20contract.md" \
 	    OUT=.github/media/reading-en.png node .github/screenshot.mjs && \
 	  LANG_CHOICE=zh-Hant PAGE_PATH="/notes/Lessons/japanese/J01%20找到書的位置.md" \
 	    OUT=.github/media/reading-zh-TW.png node .github/screenshot.mjs'

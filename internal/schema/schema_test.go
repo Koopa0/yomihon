@@ -2,12 +2,10 @@ package schema_test
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -42,31 +40,30 @@ func TestDefinitionIsDetached(t *testing.T) {
 	contract := loadFixture(t)
 	mutated := contract.Definition()
 
-	mutated.Enums.Type[0] = "changed"
-	mutated.Enums.Domain[0] = "changed"
-	mutated.Enums.SourceKind[0] = "changed"
-	mutated.Enums.SourceProvider[0] = "changed"
-	mutated.Enums.Level[0] = "changed"
-	mutated.Enums.MapKind[0] = "changed"
-	mutated.Enums.Status["note"][0] = "changed"
+	lesson := slices.IndexFunc(mutated.Types, func(def schema.TypeDefinition) bool { return def.Name == "lesson" })
+	if lesson < 0 || len(mutated.Types[lesson].Fields) == 0 || len(mutated.Enums) == 0 {
+		t.Fatal("fixture declares no lesson fields or enums; the detachment claim would be vacuous")
+	}
+	mutated.Types[0].Name = "changed"
+	mutated.Types[lesson].Fields[0] = "changed"
+	mutated.Types[lesson].SlugPattern = "changed"
+	mutated.Enums[0].Values[0] = "changed"
 
+	mutated.Fields.Common[0] = "changed"
 	mutated.Fields.Required[0] = "changed"
-	mutated.Fields.RequiredInbox[0] = "changed"
-	mutated.Fields.DomainExempt[0] = "changed"
-	mutated.Fields.Known[0] = "changed"
-	mutated.Fields.LessonOnly[0] = "changed"
-	mutated.Fields.StatusGroup["lesson"][0] = "changed"
 
-	mutated.Rules.DomainEqualsFolderUnder[0] = "changed"
 	mutated.Rules.ConceptRequiresProvenance[0] = "changed"
 	mutated.Rules.PlannedGapMarks[0] = "changed"
 	mutated.Rules.PlannedInlineMarks[0] = "changed"
 
+	mutated.Folders.Checked[0] = "changed"
+	mutated.Folders.Templates[0] = "changed"
+	mutated.Folders.DomainFrom[0] = "changed"
+	mutated.Folders.SkippedFiles[0] = "changed"
+	mutated.Folders.Journal = "changed"
+
 	if diff := cmp.Diff(want, contract.Definition()); diff != "" {
 		t.Errorf("Definition() changed after caller mutation (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff(schema.ScanPolicy{}, contract.Definition().Scan); diff != "" {
-		t.Errorf("Definition().Scan handed out the raw scan declaration (-want +got):\n%s", diff)
 	}
 }
 
@@ -114,25 +111,6 @@ func TestDefaultPlannedMarksAreDetached(t *testing.T) {
 	}
 }
 
-// TestInboxRequiredFieldsIsDetached asserts a caller that edits the returned
-// list edits its own copy, the same guarantee Definition() gives.
-func TestInboxRequiredFieldsIsDetached(t *testing.T) {
-	t.Parallel()
-
-	contract := loadFixture(t)
-	_, want, _ := contract.InboxRequiredFields()
-	_, mutated, _ := contract.InboxRequiredFields()
-	if len(mutated) == 0 {
-		t.Fatal("fixture declares no inbox required fields; the detachment claim would be vacuous")
-	}
-	mutated[0] = "changed"
-
-	_, got, _ := contract.InboxRequiredFields()
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("InboxRequiredFields() changed after caller mutation (-want +got):\n%s", diff)
-	}
-}
-
 // TestSkipBasenamesIsDetached asserts a caller that edits the returned list
 // edits its own copy, the same guarantee Definition() gives.
 func TestSkipBasenamesIsDetached(t *testing.T) {
@@ -142,7 +120,7 @@ func TestSkipBasenamesIsDetached(t *testing.T) {
 	want := slices.Clone(contract.SkipBasenames())
 	mutated := contract.SkipBasenames()
 	if len(mutated) == 0 {
-		t.Fatal("fixture declares no skip_basenames; the detachment claim would be vacuous")
+		t.Fatal("fixture declares no skipped_files; the detachment claim would be vacuous")
 	}
 	mutated[0] = "changed"
 
@@ -187,23 +165,14 @@ func TestZeroContractCarriesNoAuthority(t *testing.T) {
 	if got := contract.Version(); got != "" {
 		t.Errorf("Version() = %q, want empty", got)
 	}
-	if got := contract.StageCount(); got != 0 {
-		t.Errorf("StageCount() = %d, want 0", got)
+	if got := contract.EnumValues("type"); got != nil {
+		t.Errorf(`EnumValues("type") = %v, want nil`, got)
 	}
-	if got := contract.StatusGroup(""); got != "" {
-		t.Errorf(`StatusGroup("") = %q, want empty`, got)
+	if got := contract.RequiredFields("lesson"); got != nil {
+		t.Errorf(`RequiredFields("lesson") = %v, want nil`, got)
 	}
-	if got := contract.JudgedStatusGroup("unknown"); got != "" {
-		t.Errorf("JudgedStatusGroup(unknown) = %q, want empty", got)
-	}
-	if got := contract.Statuses(""); got != nil {
-		t.Errorf(`Statuses("") = %v, want nil`, got)
-	}
-	if _, ok := contract.Stage("lesson", "draft"); ok {
-		t.Error("Stage() on zero Contract = true, want false")
-	}
-	if err := contract.Transition("lesson", "draft", "ready"); !errors.Is(err, schema.ErrUnknownStatus) {
-		t.Errorf("Transition() on zero Contract = %v, want %v", err, schema.ErrUnknownStatus)
+	if got := contract.TypeRole("lesson"); got != "" {
+		t.Errorf(`TypeRole("lesson") = %q, want empty`, got)
 	}
 	if contract.NavigationRoles().Available() {
 		t.Error("NavigationRoles() on zero Contract is available")
@@ -230,15 +199,36 @@ func loadFixture(t *testing.T) *schema.Contract {
 	return s
 }
 
-func loadContractText(t *testing.T, navigation, artifacts string) *schema.Contract {
+// navigationTypes gives each navigation role one type, and the map role two.
+const navigationTypes = `
+[types.lesson]
+role = "lesson"
+fields = ["slug"]
+
+[types.study-path]
+role = "course"
+
+[types.moc]
+role = "map"
+
+[types.topic-map]
+role = "map"
+`
+
+func loadContractText(t *testing.T, folders string) *schema.Contract {
 	t.Helper()
-	return loadContractTextWithPrivacy(t, navigation, artifacts, "")
+	return loadContractTextWithPrivacy(t, folders, "")
 }
 
-func loadContractTextWithPrivacy(t *testing.T, navigation, artifacts, privacy string) *schema.Contract {
+func loadContractTextWithPrivacy(t *testing.T, folders, privacy string) *schema.Contract {
+	t.Helper()
+	return loadText(t, contractText(folders, navigationTypes, privacy))
+}
+
+func loadText(t *testing.T, text string) *schema.Contract {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	if err := os.WriteFile(path, []byte(contractText(navigation, artifacts, privacy)), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatalf("WriteFile(%q) = %v", path, err)
 	}
 	s, err := schema.LoadFile(path)
@@ -253,10 +243,7 @@ func loadContractTextWithPrivacy(t *testing.T, navigation, artifacts, privacy st
 // them went with the corpus they fingerprinted; a caller that needs a different
 // contract writes one rather than passing the same two strings back in.
 const (
-	semanticArtifactSection = `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`
+	semanticFolderLines    = "templates = [\"System/templates\"]\n"
 	semanticPrivacySection = `
 [privacy]
 never_egress_dirs = ["Private"]
@@ -270,7 +257,7 @@ func loadSemanticRootContract(t *testing.T) (string, *schema.Contract) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("MkdirAll(%q) = %v", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte(contractText("", semanticArtifactSection, semanticPrivacySection)), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
+	if err := os.WriteFile(path, []byte(contractText(semanticFolderLines, navigationTypes, semanticPrivacySection)), 0o600); err != nil { // #nosec G703 -- path is rooted in t.TempDir
 		t.Fatalf("WriteFile(%q) = %v", path, err)
 	}
 	s, err := schema.Load(root)
@@ -280,44 +267,24 @@ func loadSemanticRootContract(t *testing.T) (string, *schema.Contract) {
 	return root, s
 }
 
-func contractText(navigation, artifacts, privacy string) string {
-	return `schema_version = "1"
+// contractText writes a contract whose [folders] table carries the knowledge
+// layer and the given lines, followed by the given type tables and privacy
+// section.
+func contractText(folders, types, privacy string) string {
+	return `schema_version = "2"
 
-[enums]
-type = ["lesson", "study-path", "moc", "topic-map"]
-
-[enums.status]
-note = ["draft"]
-
+[folders]
+checked = ["Writing"]
+` + folders + `
 [fields]
-required = ["title", "type"]
-known = ["title", "type"]
-
-[rules]
-slug_pattern = "^[a-z]+$"
-
-[scan]
-knowledge_dirs = ["Writing"]
-` + navigation + artifacts + privacy + `
-[[lifecycle]]
-status = "draft"
-applies_to = ["*"]
-from = []
-owner = ["koopa"]
-`
+common = ["type"]
+` + types + privacy
 }
 
 func TestLoadFileDerivesValidCapabilities(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractTextWithPrivacy(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc", "topic-map"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
+	s := loadContractTextWithPrivacy(t, `templates = ["System/templates"]`, `
 [privacy]
 never_egress_dirs = ["Private"]
 `)
@@ -333,7 +300,10 @@ never_egress_dirs = ["Private"]
 		t.Error("NavigationRoles().IsMapType() = false for a declared map type, want true")
 	}
 	if roles.IsPathType("lesson") || roles.IsMapType("lesson") {
-		t.Error("NavigationRoles() classifies undeclared type \"lesson\", want neither role")
+		t.Error("NavigationRoles() classifies the lesson type as a path or a map, want neither role")
+	}
+	if !roles.IsLessonType("lesson") {
+		t.Error("NavigationRoles().IsLessonType(\"lesson\") = false, want true")
 	}
 
 	policy := s.ArtifactPolicy()
@@ -427,7 +397,7 @@ func TestLoadReaderRejectsSymlinkedContract(t *testing.T) {
 		t.Fatalf("mkdir contract parent: %v", err)
 	}
 	outside := filepath.Join(t.TempDir(), "contract.toml")
-	if err := os.WriteFile(outside, []byte(contractText("", "", "")), 0o600); err != nil {
+	if err := os.WriteFile(outside, []byte(contractText("", navigationTypes, "")), 0o600); err != nil {
 		t.Fatalf("write outside contract: %v", err)
 	}
 	if err := os.Symlink(outside, contractPath); err != nil {
@@ -720,25 +690,33 @@ func TestPrivacyPolicySourceDriftLatchIsConcurrentSafe(t *testing.T) {
 	}
 }
 
+// TestLoadFileMissingOptionalSections pins what a contract that writes no
+// template folders, no role and no privacy section declares. The first two are
+// empty sets read cleanly; the privacy section is the one a governed vault owes,
+// so its absence is the fail-closed sentence.
 func TestLoadFileMissingOptionalSections(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, "", "")
+	s := loadText(t, contractText("", "", ""))
 	roles := s.NavigationRoles()
-	if roles.Available() {
-		t.Fatal("NavigationRoles().Available() = true, want false")
+	if !roles.Available() || !roles.Trustworthy() {
+		t.Fatalf("NavigationRoles() of a contract with no roles: available %t, trustworthy %t, want both", roles.Available(), roles.Trustworthy())
 	}
-	const wantNavigation = "contract declares no navigation roles; Paths and Maps disabled until it does"
-	if got := roles.Diagnostic(); got != wantNavigation {
-		t.Errorf("NavigationRoles().Diagnostic() = %q, want %q", got, wantNavigation)
+	if got := roles.Diagnostic(); got != "" {
+		t.Errorf("NavigationRoles().Diagnostic() = %q, want empty", got)
+	}
+	if roles.IsPathType("study-path") || roles.IsMapType("moc") || roles.AnswerType() != "" {
+		t.Error("NavigationRoles() of a contract with no roles classifies a type")
 	}
 	policy := s.ArtifactPolicy()
-	if policy.Available() {
-		t.Fatal("ArtifactPolicy().Available() = true, want false")
+	if !policy.Available() || !policy.Trustworthy() {
+		t.Fatalf("ArtifactPolicy() of a contract with no template folders: available %t, trustworthy %t, want both", policy.Available(), policy.Trustworthy())
 	}
-	const wantArtifact = "contract declares no artifact policy; instance projections disabled until it does"
-	if got := policy.Diagnostic(); got != wantArtifact {
-		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want %q", got, wantArtifact)
+	if got := policy.Diagnostic(); got != "" {
+		t.Errorf("ArtifactPolicy().Diagnostic() = %q, want empty", got)
+	}
+	if policy.IsNonInstance("System/templates/card.md") {
+		t.Error("ArtifactPolicy().IsNonInstance() = true with no template folders, want false")
 	}
 
 	privacy := s.PrivacyPolicy()
@@ -752,17 +730,8 @@ func TestLoadFileMissingOptionalSections(t *testing.T) {
 	if privacy.EgressAllowed("Public/note.md") {
 		t.Error("unavailable PrivacyPolicy().EgressAllowed() = true, want fail-closed false")
 	}
-	for _, trustworthy := range []struct {
-		name string
-		got  bool
-	}{
-		{"navigation roles", roles.Trustworthy()},
-		{"artifact policy", policy.Trustworthy()},
-		{"privacy policy", privacy.Trustworthy()},
-	} {
-		if trustworthy.got {
-			t.Errorf("%s of a contract that omitted the section is trustworthy; the operator meant to govern something yomihon cannot read", trustworthy.name)
-		}
+	if privacy.Trustworthy() {
+		t.Error("privacy policy of a contract that omitted the section is trustworthy; the operator meant to govern something yomihon cannot read")
 	}
 }
 
@@ -816,7 +785,7 @@ func TestStaleArtifactPolicyStopsClassifying(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := contractText("", "\n[artifacts]\nnon_instance_dirs = [\"System/templates\"]\n", "")
+	text := contractText("templates = [\"System/templates\"]\n", navigationTypes, "")
 	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 		t.Fatalf("write contract: %v", err)
 	}
@@ -849,7 +818,7 @@ func TestStaleArtifactPolicyStopsClassifying(t *testing.T) {
 func TestPrivacyPolicyRejectsOmittedRequiredKey(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractTextWithPrivacy(t, "", "", "\n[privacy]\n")
+	s := loadContractTextWithPrivacy(t, "", "\n[privacy]\n")
 	policy := s.PrivacyPolicy()
 	if policy.Available() {
 		t.Fatal("PrivacyPolicy().Available() = true, want false")
@@ -866,7 +835,7 @@ func TestPrivacyPolicyRejectsOmittedRequiredKey(t *testing.T) {
 func TestPrivacyPolicyNormalizesAndMatchesComponentPrefixes(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractTextWithPrivacy(t, "", "", `
+	s := loadContractTextWithPrivacy(t, "", `
 [privacy]
 never_egress_dirs = ["Private/./Journal", "私有"]
 `)
@@ -908,7 +877,7 @@ func TestPrivacyPolicyKeepsDirectoriesThatOnlyLookUnusual(t *testing.T) {
 		t.Run(strconv.Quote(value), func(t *testing.T) {
 			t.Parallel()
 			section := fmt.Sprintf("\n[privacy]\nnever_egress_dirs = [%s]\n", strconv.Quote(value))
-			s := loadContractTextWithPrivacy(t, "", "", section)
+			s := loadContractTextWithPrivacy(t, "", section)
 			policy := s.PrivacyPolicy()
 			if !policy.Available() {
 				t.Fatalf("PrivacyPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
@@ -934,7 +903,7 @@ func TestPrivacyPolicyRejectsUnsafeDirectories(t *testing.T) {
 		t.Run(strconv.Quote(value), func(t *testing.T) {
 			t.Parallel()
 			section := fmt.Sprintf("\n[privacy]\nnever_egress_dirs = [%s]\n", strconv.Quote(value))
-			s := loadContractTextWithPrivacy(t, "", "", section)
+			s := loadContractTextWithPrivacy(t, "", section)
 			policy := s.PrivacyPolicy()
 			if policy.Available() {
 				t.Fatal("PrivacyPolicy().Available() = true, want false")
@@ -949,233 +918,60 @@ func TestPrivacyPolicyRejectsUnsafeDirectories(t *testing.T) {
 	}
 }
 
-func TestCapabilitiesRejectOmittedRequiredKeys(t *testing.T) {
+// TestNavigationRolesRejectRoleAnomalies holds where a role the reader cannot
+// honour lands: the role sets close with a sentence naming the types, and the
+// contract still loads, so every other capability stays open.
+func TestNavigationRolesRejectRoleAnomalies(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name           string
-		navigation     string
-		artifacts      string
-		capability     func(*schema.Contract) (bool, string)
-		otherAvailable func(*schema.Contract) bool
-		wantDiagnostic string
+	for _, tt := range []struct {
+		name  string
+		types string
+		named []string
 	}{
 		{
-			name: "navigation path types",
-			navigation: `
-[navigation]
-map_types = ["moc"]
-`,
-			artifacts: `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`,
-			capability: func(s *schema.Contract) (bool, string) {
-				roles := s.NavigationRoles()
-				return roles.Available(), roles.Diagnostic()
-			},
-			otherAvailable: func(s *schema.Contract) bool { return s.ArtifactPolicy().Available() },
-			wantDiagnostic: `invalid navigation roles: missing required key "path_types"; Paths and Maps disabled`,
+			name:  "unknown role",
+			types: navigationTypes + "\n[types.extra]\nrole = \"chapter\"\n",
+			named: []string{`"extra"`, `"chapter"`},
 		},
 		{
-			name: "navigation map types",
-			navigation: `
-[navigation]
-path_types = ["study-path"]
-`,
-			artifacts: `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`,
-			capability: func(s *schema.Contract) (bool, string) {
-				roles := s.NavigationRoles()
-				return roles.Available(), roles.Diagnostic()
-			},
-			otherAvailable: func(s *schema.Contract) bool { return s.ArtifactPolicy().Available() },
-			wantDiagnostic: `invalid navigation roles: missing required key "map_types"; Paths and Maps disabled`,
+			name:  "two lesson types",
+			types: navigationTypes + "\n[types.module]\nrole = \"lesson\"\nfields = [\"slug\"]\n",
+			named: []string{`"lesson"`, `"module"`},
 		},
 		{
-			name: "navigation both keys",
-			navigation: `
-[navigation]
-`,
-			artifacts: `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`,
-			capability: func(s *schema.Contract) (bool, string) {
-				roles := s.NavigationRoles()
-				return roles.Available(), roles.Diagnostic()
-			},
-			otherAvailable: func(s *schema.Contract) bool { return s.ArtifactPolicy().Available() },
-			wantDiagnostic: `invalid navigation roles: missing required keys "path_types", "map_types"; Paths and Maps disabled`,
+			name:  "two thought types",
+			types: navigationTypes + "\n[types.thought]\nrole = \"thought\"\nfields = [\"based_on\"]\n\n[types.reflection]\nrole = \"thought\"\nfields = [\"based_on\"]\n",
+			named: []string{`"thought"`, `"reflection"`},
 		},
-		{
-			name: "artifact directories",
-			navigation: `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-`,
-			artifacts: `
-[artifacts]
-`,
-			capability: func(s *schema.Contract) (bool, string) {
-				policy := s.ArtifactPolicy()
-				return policy.Available(), policy.Diagnostic()
-			},
-			otherAvailable: func(s *schema.Contract) bool { return s.NavigationRoles().Available() },
-			wantDiagnostic: `invalid artifact policy: missing required key "non_instance_dirs"`,
-		},
-	}
-	for _, tt := range tests {
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			s := loadContractText(t, tt.navigation, tt.artifacts)
-			available, diagnostic := tt.capability(s)
-			if available {
-				t.Fatal("capability Available() = true with omitted required key, want false")
+			s := loadText(t, contractText(`templates = ["System/templates"]`, tt.types, ""))
+			roles := s.NavigationRoles()
+			if roles.Available() || roles.Trustworthy() {
+				t.Fatalf("NavigationRoles(): available %t, trustworthy %t, want neither", roles.Available(), roles.Trustworthy())
 			}
-			if diagnostic != tt.wantDiagnostic {
-				t.Errorf("capability Diagnostic() = %q, want %q", diagnostic, tt.wantDiagnostic)
+			for _, name := range tt.named {
+				if got := roles.Diagnostic(); !strings.Contains(got, name) {
+					t.Errorf("NavigationRoles().Diagnostic() = %q, want %s named", got, name)
+				}
 			}
-			if !tt.otherAvailable(s) {
-				t.Error("independent capability Available() = false, want true")
+			if roles.IsPathType("study-path") || roles.IsMapType("moc") || roles.IsLessonType("lesson") || roles.AnswerType() != "" {
+				t.Error("NavigationRoles() kept part of a role set it rejected, want the entire set unavailable")
+			}
+			if !s.ArtifactPolicy().Available() {
+				t.Errorf("ArtifactPolicy().Available() = false after rejected roles, diagnostic %q", s.ArtifactPolicy().Diagnostic())
 			}
 		})
-	}
-}
-
-func TestNavigationRolesRejectUnknownPathType(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `
-[navigation]
-path_types = ["unknown-path"]
-map_types = ["moc"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
-	roles := s.NavigationRoles()
-	if roles.Available() {
-		t.Fatal("NavigationRoles().Available() = true, want false")
-	}
-	if got := roles.Diagnostic(); !strings.Contains(got, `"unknown-path"`) {
-		t.Errorf("NavigationRoles().Diagnostic() = %q, want offending type named", got)
-	}
-	if roles.IsMapType("moc") {
-		t.Error("NavigationRoles().IsMapType(\"moc\") = true after invalid path type, want entire role set unavailable")
-	}
-	if !s.ArtifactPolicy().Available() {
-		t.Errorf("ArtifactPolicy().Available() = false after invalid navigation roles, diagnostic %q", s.ArtifactPolicy().Diagnostic())
-	}
-}
-
-func TestNavigationRolesRejectUnknownMapType(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["unknown-map"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
-	roles := s.NavigationRoles()
-	if roles.Available() {
-		t.Fatal("NavigationRoles().Available() = true, want false")
-	}
-	if got := roles.Diagnostic(); !strings.Contains(got, `"unknown-map"`) {
-		t.Errorf("NavigationRoles().Diagnostic() = %q, want offending type named", got)
-	}
-	if roles.IsPathType("study-path") {
-		t.Error("NavigationRoles().IsPathType(\"study-path\") = true after invalid map type, want entire role set unavailable")
-	}
-}
-
-func TestNavigationRolesRejectDuplicatePathType(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path", "study-path"]
-map_types = ["moc"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
-	roles := s.NavigationRoles()
-	if roles.Available() {
-		t.Fatal("NavigationRoles().Available() = true, want false")
-	}
-	if got := roles.Diagnostic(); !strings.Contains(got, `"study-path"`) {
-		t.Errorf("NavigationRoles().Diagnostic() = %q, want duplicate type named", got)
-	}
-	if roles.IsMapType("moc") {
-		t.Error("NavigationRoles().IsMapType(\"moc\") = true after duplicate path type, want entire role set unavailable")
-	}
-}
-
-func TestNavigationRolesRejectDuplicateMapType(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc", "moc"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
-	roles := s.NavigationRoles()
-	if roles.Available() {
-		t.Fatal("NavigationRoles().Available() = true, want false")
-	}
-	if got := roles.Diagnostic(); !strings.Contains(got, `"moc"`) {
-		t.Errorf("NavigationRoles().Diagnostic() = %q, want duplicate type named", got)
-	}
-	if roles.IsPathType("study-path") {
-		t.Error("NavigationRoles().IsPathType(\"study-path\") = true after duplicate map type, want entire role set unavailable")
-	}
-}
-
-func TestNavigationRolesRejectPathMapOverlap(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["study-path", "moc"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
-	roles := s.NavigationRoles()
-	if roles.Available() {
-		t.Fatal("NavigationRoles().Available() = true, want false")
-	}
-	if got := roles.Diagnostic(); !strings.Contains(got, `"study-path"`) {
-		t.Errorf("NavigationRoles().Diagnostic() = %q, want overlapping type named", got)
-	}
-	if roles.IsMapType("moc") || roles.IsPathType("study-path") {
-		t.Error("NavigationRoles() retained a partial role after path/map overlap, want entire role set unavailable")
 	}
 }
 
 func TestJournalDirIsUnclaimedWhenUndeclared(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
+	s := loadContractText(t, `templates = ["System/templates"]`)
 	journal := s.JournalDir()
 	if journal.Claim().Claimed() {
 		t.Fatal("JournalDir() claims a declaration the contract never wrote")
@@ -1187,25 +983,17 @@ non_instance_dirs = ["System/templates"]
 		t.Error("an undeclared journal is untrustworthy; empty is the true answer")
 	}
 	if journal.Contains("Diary/today.md") {
-		t.Error("JournalDir().Contains() = true with no journal_dir, want empty projection")
+		t.Error("JournalDir().Contains() = true with no journal, want empty projection")
 	}
 	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false after optional journal_dir omitted, diagnostic %q", s.NavigationRoles().Diagnostic())
+		t.Errorf("NavigationRoles().Available() = false after optional journal omitted, diagnostic %q", s.NavigationRoles().Diagnostic())
 	}
 }
 
 func TestJournalDirProjectsTheDeclaredDirectory(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-journal_dir = "Diary"
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
+	s := loadContractText(t, `journal = "Diary"`)
 	journal := s.JournalDir()
 	if !journal.Available() {
 		t.Fatalf("JournalDir().Available() = false, diagnostic %q", journal.Diagnostic())
@@ -1221,15 +1009,7 @@ non_instance_dirs = ["System/templates"]
 func TestJournalDirRejectsInvalidDirectory(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-journal_dir = "../Diary"
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
+	s := loadContractText(t, `journal = "../Diary"`)
 	journal := s.JournalDir()
 	if journal.Available() {
 		t.Fatal("JournalDir().Available() = true, want false")
@@ -1241,75 +1021,14 @@ non_instance_dirs = ["System/templates"]
 		t.Error("a rejected journal directory still contains a path")
 	}
 	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false after invalid journal_dir, diagnostic %q", s.NavigationRoles().Diagnostic())
-	}
-}
-
-func TestJournalDirClosesOnUnknownNavigationKeys(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-journal_dir = "Diary"
-bogus = 1
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
-	journal := s.JournalDir()
-	if journal.Trustworthy() {
-		t.Fatal("JournalDir().Trustworthy() = true after an unknown [navigation] key")
-	}
-	if journal.Available() {
-		t.Fatal("JournalDir().Available() = true after an unknown [navigation] key")
-	}
-	got := journal.Diagnostic()
-	want := s.NavigationRoles().Diagnostic()
-	if got == "" || got != want {
-		t.Errorf("JournalDir().Diagnostic() = %q, NavigationRoles().Diagnostic() = %q, want the same closed sentence", got, want)
-	}
-	if !strings.Contains(got, "navigation.bogus") {
-		t.Errorf("JournalDir().Diagnostic() = %q, want the unknown key named", got)
-	}
-}
-
-func TestJournalDirTypeErrorLeavesRolesAvailable(t *testing.T) {
-	t.Parallel()
-
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-journal_dir = ["Diary"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
-	journal := s.JournalDir()
-	if journal.Available() {
-		t.Fatal("JournalDir().Available() = true, want false")
-	}
-	if got := journal.Diagnostic(); !strings.Contains(got, "navigation.journal_dir") {
-		t.Errorf("JournalDir().Diagnostic() = %q, want the journal_dir key named", got)
-	}
-	if !s.NavigationRoles().Available() {
-		t.Errorf("NavigationRoles().Available() = false after journal_dir type error, diagnostic %q", s.NavigationRoles().Diagnostic())
+		t.Errorf("NavigationRoles().Available() = false after invalid journal, diagnostic %q", s.NavigationRoles().Diagnostic())
 	}
 }
 
 func TestArtifactPolicyRejectsEmptyDirectory(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-`, `
-[artifacts]
-non_instance_dirs = [""]
-`)
+	s := loadContractText(t, `templates = [""]`)
 	policy := s.ArtifactPolicy()
 	if policy.Available() {
 		t.Fatal("ArtifactPolicy().Available() = true, want false")
@@ -1325,14 +1044,7 @@ non_instance_dirs = [""]
 func TestArtifactPolicyRejectsCurrentDirectory(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = []
-map_types = []
-`, `
-[artifacts]
-non_instance_dirs = ["."]
-`)
+	s := loadContractText(t, `templates = ["."]`)
 	policy := s.ArtifactPolicy()
 	if policy.Available() {
 		t.Fatal("ArtifactPolicy().Available() = true, want false")
@@ -1345,14 +1057,7 @@ non_instance_dirs = ["."]
 func TestArtifactPolicyRejectsParentDirectory(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = []
-map_types = []
-`, `
-[artifacts]
-non_instance_dirs = [".."]
-`)
+	s := loadContractText(t, `templates = [".."]`)
 	policy := s.ArtifactPolicy()
 	if policy.Available() {
 		t.Fatal("ArtifactPolicy().Available() = true, want false")
@@ -1365,14 +1070,7 @@ non_instance_dirs = [".."]
 func TestArtifactPolicyRejectsAbsoluteDirectory(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = []
-map_types = []
-`, `
-[artifacts]
-non_instance_dirs = ["/System/templates"]
-`)
+	s := loadContractText(t, `templates = ["/System/templates"]`)
 	policy := s.ArtifactPolicy()
 	if policy.Available() {
 		t.Fatal("ArtifactPolicy().Available() = true, want false")
@@ -1385,14 +1083,7 @@ non_instance_dirs = ["/System/templates"]
 func TestArtifactPolicyRejectsBackslashDirectory(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = []
-map_types = []
-`, `
-[artifacts]
-non_instance_dirs = ["System\\templates"]
-`)
+	s := loadContractText(t, `templates = ["System\\templates"]`)
 	policy := s.ArtifactPolicy()
 	if policy.Available() {
 		t.Fatal("ArtifactPolicy().Available() = true, want false")
@@ -1419,14 +1110,7 @@ func TestArtifactPolicyRejectsNonLocalNormalizedDirectory(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			s := loadContractText(t, `
-[navigation]
-path_types = []
-map_types = []
-`, fmt.Sprintf(`
-[artifacts]
-non_instance_dirs = [%s]
-`, strconv.Quote(tt.directory)))
+			s := loadContractText(t, fmt.Sprintf(`templates = [%s]`, strconv.Quote(tt.directory)))
 			policy := s.ArtifactPolicy()
 			if policy.Available() {
 				t.Fatal("ArtifactPolicy().Available() = true, want false")
@@ -1448,14 +1132,7 @@ func TestArtifactPolicyKeepsDirectoriesThatOnlyLookUnusual(t *testing.T) {
 	for _, value := range []string{`./System/templates`, `System/templates/`, `System//./templates`} {
 		t.Run(strconv.Quote(value), func(t *testing.T) {
 			t.Parallel()
-			s := loadContractText(t, `
-[navigation]
-path_types = []
-map_types = []
-`, fmt.Sprintf(`
-[artifacts]
-non_instance_dirs = [%s]
-`, strconv.Quote(value)))
+			s := loadContractText(t, fmt.Sprintf(`templates = [%s]`, strconv.Quote(value)))
 			policy := s.ArtifactPolicy()
 			if !policy.Available() {
 				t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
@@ -1470,14 +1147,7 @@ non_instance_dirs = [%s]
 func TestArtifactPolicyNormalizesAndMatchesComponentPrefixes(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = []
-map_types = []
-`, `
-[artifacts]
-non_instance_dirs = ["System//./templates", "Cafe\u0301/models"]
-`)
+	s := loadContractText(t, `templates = ["System//./templates", "Cafe\u0301/models"]`)
 	policy := s.ArtifactPolicy()
 	if !policy.Available() {
 		t.Fatalf("ArtifactPolicy().Available() = false, diagnostic %q", policy.Diagnostic())
@@ -1513,10 +1183,7 @@ non_instance_dirs = ["System//./templates", "Cafe\u0301/models"]
 func TestDirectoryPoliciesShareCaseFoldedIdentity(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractTextWithPrivacy(t, "", `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`, `
+	s := loadContractTextWithPrivacy(t, `templates = ["System/templates"]`, `
 [privacy]
 never_egress_dirs = ["Private", "Straße"]
 `)
@@ -1590,8 +1257,8 @@ never_egress_dirs = ["Private", "Straße"]
 func TestKnowledgeScopeFoldsOnlyTheFirstSegment(t *testing.T) {
 	t.Parallel()
 
-	const declared = `knowledge_dirs = ["Writing"]`
-	const widened = `knowledge_dirs = ["Writing", "だ体"]`
+	const declared = `checked = ["Writing"]`
+	const widened = `checked = ["Writing", "だ体"]`
 	text := strings.Replace(contractText("", "", ""), declared, widened, 1)
 	if !strings.Contains(text, widened) {
 		t.Fatalf("fixture drift: the base contract no longer declares %s", declared)
@@ -1647,19 +1314,19 @@ func TestKnowledgeScopeFoldsOnlyTheFirstSegment(t *testing.T) {
 }
 
 // TestKnowledgeScopeIncludesEverythingWhenUndeclared pins the empty-set
-// polarity: omitting scan.knowledge_dirs and writing [] are the same
+// polarity: omitting folders.checked and writing [] are the same
 // declaration — no layer — and no layer excludes nothing.
 func TestKnowledgeScopeIncludesEverythingWhenUndeclared(t *testing.T) {
 	t.Parallel()
 
-	const declared = `knowledge_dirs = ["Writing"]`
+	const declared = `checked = ["Writing"]`
 	tests := []struct {
 		name string
 		from string
 		to   string
 	}{
 		{name: "omitted", from: declared + "\n", to: ""},
-		{name: "empty list", from: declared, to: `knowledge_dirs = []`},
+		{name: "empty list", from: declared, to: `checked = []`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1704,10 +1371,7 @@ func TestKnowledgeScopeIncludesEverythingWhenUndeclared(t *testing.T) {
 func TestPrivacyResolvesDottedPathsWhileArtifactMembershipDoesNot(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractTextWithPrivacy(t, "", `
-[artifacts]
-non_instance_dirs = ["System/templates", "だ体"]
-`, `
+	s := loadContractTextWithPrivacy(t, `templates = ["System/templates", "だ体"]`, `
 [privacy]
 never_egress_dirs = ["Private", "だ体"]
 `)
@@ -1774,23 +1438,16 @@ never_egress_dirs = ["Private", "だ体"]
 func TestCapabilitiesAllowEmptyLists(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = []
-map_types = []
-`, `
-[artifacts]
-non_instance_dirs = []
-`)
+	s := loadText(t, contractText(`templates = []`, "\n[types.note]\n", ""))
 	roles := s.NavigationRoles()
 	if !roles.Available() {
 		t.Fatalf("NavigationRoles().Available() = false, diagnostic %q", roles.Diagnostic())
 	}
 	if got := roles.Diagnostic(); got != "" {
-		t.Errorf("NavigationRoles().Diagnostic() = %q with explicit empty lists, want empty", got)
+		t.Errorf("NavigationRoles().Diagnostic() = %q with no role given, want empty", got)
 	}
-	if roles.IsPathType("study-path") || roles.IsMapType("moc") {
-		t.Error("NavigationRoles() classifies a type with empty role lists, want neither role")
+	if roles.IsPathType("note") || roles.IsMapType("note") || roles.IsLessonType("note") {
+		t.Error("NavigationRoles() classifies a type no role was given to, want neither role")
 	}
 	policy := s.ArtifactPolicy()
 	if !policy.Available() {
@@ -1807,20 +1464,18 @@ non_instance_dirs = []
 func TestNavigationRolesRemainDerivedAfterDefinitionMutation(t *testing.T) {
 	t.Parallel()
 
-	s := loadContractText(t, `
-[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-`, `
-[artifacts]
-non_instance_dirs = ["System/templates"]
-`)
+	s := loadContractText(t, `templates = ["System/templates"]`)
 	definition := s.Definition()
-	definition.Enums.Type = []string{"lesson"}
+	for i := range definition.Types {
+		definition.Types[i].Role = ""
+	}
 
 	roles := s.NavigationRoles()
 	if !roles.IsPathType("study-path") || !roles.IsMapType("moc") {
-		t.Error("NavigationRoles() changed after mutating Definition.Enums.Type, want load-time derived membership")
+		t.Error("NavigationRoles() changed after mutating Definition.Types, want load-time derived membership")
+	}
+	if got := s.TypeRole("study-path"); got != schema.RoleCourse {
+		t.Errorf("TypeRole(study-path) = %q after mutating Definition.Types, want %q", got, schema.RoleCourse)
 	}
 }
 
@@ -1834,229 +1489,6 @@ func TestCapabilitiesExposeNoMutableBackingCollections(t *testing.T) {
 				t.Errorf("%s.%s exposes mutable %s backing state", typ.Name(), field.Name, field.Type.Kind())
 			}
 		}
-	}
-}
-
-func TestSystemDocumentGroupPinned(t *testing.T) {
-	t.Parallel()
-
-	if got := schema.SystemDocumentGroup; got != "system" {
-		t.Errorf("SystemDocumentGroup = %q, want %q", got, "system")
-	}
-}
-
-// TestStatusValuesAreNeverHardcodedOutsideSchema guards the single-source rule
-// for the status state machine. The legal status values are defined once, in
-// the vault contract that this package alone reads; no other package in this
-// module — cmd included — may pin one of those values as a string literal in
-// its logic. Naming the value as a const, at any scope, is allowed — that is a
-// single named reference, not a second copy of the value set — so only literals
-// used directly in expressions are flagged. The judge package is exempt: it
-// reproduces, byte for byte, a frozen external contract whose rule constants
-// happen to be status values, pinned by its golden files rather than derived
-// from this contract. Generated files are exempt too, except the templ
-// outputs: they embed each template source's expression literals
-// deterministically, so scanning them covers the templates without parsing
-// templ syntax. The forbidden set is the union of the fixture contract and the
-// example contract shipped for new vaults, so a value present in either is
-// guarded and the test behaves the same on every machine, with or without the
-// real vault. That union is also the guard's whole reach: an operator's own
-// contract may declare a value neither file lists, and such a value would pass
-// unguarded — which is why the fixture carries every status word the product
-// itself names, the reserved publication value included.
-// The set is the bare status words, so an unrelated literal equal
-// to one — a log line, a class name — would also trip this guard; that
-// trade-off is accepted, since restricting the match to literals compared
-// against a status-typed value is far harder to express and the words rarely
-// collide.
-func TestStatusValuesAreNeverHardcodedOutsideSchema(t *testing.T) {
-	t.Parallel()
-	root := moduleRoot(t)
-	forbidden := map[string]bool{}
-	for _, contractPath := range []string{
-		filepath.Join("testdata", "contract.toml"),
-		filepath.Join(root, "examples", "vault", "System", "schemas", "vault-schema.toml"),
-	} {
-		s, err := schema.LoadFile(contractPath)
-		if err != nil {
-			t.Fatalf("LoadFile(%q) = %v", contractPath, err)
-		}
-		for _, group := range s.Definition().Enums.Status {
-			for _, value := range group {
-				forbidden[value] = true
-			}
-		}
-	}
-
-	fset := token.NewFileSet()
-	var violations []string
-	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			// schema owns the contract; judge reproduces a frozen external one
-			// whose rule constants happen to be status values. node_modules
-			// holds runner-local lint tooling, not module sources.
-			switch {
-			case path == filepath.Join(root, ".git"),
-				d.Name() == "node_modules",
-				path == filepath.Join(root, "internal", "schema"),
-				path == filepath.Join(root, "internal", "judge"):
-				return filepath.SkipDir
-			}
-			// A directory carrying its own go.mod is a separate module, so its
-			// sources are not the ones this rule governs and a file there that
-			// fails to parse would fail this test for a reason outside the tree
-			// it speaks for. The boundary is the go.mod, not a directory name,
-			// so a second nested module needs no edit here.
-			if path != root {
-				if _, statErr := os.Stat(filepath.Join(path, "go.mod")); statErr == nil {
-					return filepath.SkipDir
-				}
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		f, perr := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.SkipObjectResolution)
-		if perr != nil {
-			return fmt.Errorf("parse %s: %w", path, perr)
-		}
-		if ast.IsGenerated(f) && !strings.HasSuffix(path, "_templ.go") {
-			return nil
-		}
-		// A status value on the right of a const declaration names the value in
-		// one place; that is the allowed form, at any scope. A single pre-order
-		// walk records each const's literal positions before it reaches them as
-		// children, so a package-level or function-local const is exempt while
-		// every other literal is flagged.
-		named := map[token.Pos]bool{}
-		ast.Inspect(f, func(n ast.Node) bool {
-			switch node := n.(type) {
-			case *ast.GenDecl:
-				if node.Tok != token.CONST {
-					return true
-				}
-				for _, spec := range node.Specs {
-					vs, ok := spec.(*ast.ValueSpec)
-					if !ok {
-						continue
-					}
-					for _, value := range vs.Values {
-						if lit, ok := value.(*ast.BasicLit); ok {
-							named[lit.ValuePos] = true
-						}
-					}
-				}
-			case *ast.BasicLit:
-				if node.Kind != token.STRING || named[node.ValuePos] {
-					return true
-				}
-				value, uerr := strconv.Unquote(node.Value)
-				if uerr != nil || !forbidden[value] {
-					return true
-				}
-				violations = append(violations, fmt.Sprintf("%s: %q", fset.Position(node.ValuePos), value))
-			}
-			return true
-		})
-		return nil
-	})
-	if walkErr != nil {
-		t.Fatalf("walk module: %v", walkErr)
-	}
-	if len(violations) > 0 {
-		t.Errorf("a status value is defined only in the vault contract, but these string literals hardcode one outside internal/schema — name it as a const or move the decision behind this package:\n%s",
-			strings.Join(violations, "\n"))
-	}
-}
-
-// moduleRoot walks up from the test's working directory to the directory
-// holding go.mod, so the status-literal guard covers the whole module — cmd,
-// tools, and the templ outputs — rather than only the tree beneath internal/.
-func moduleRoot(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
-	}
-	for {
-		if _, statErr := os.Stat(filepath.Join(dir, "go.mod")); statErr == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("module root: go.mod not found above the working directory")
-		}
-		dir = parent
-	}
-}
-
-func TestStatusGroup(t *testing.T) {
-	t.Parallel()
-	s := loadFixture(t)
-
-	tests := []struct {
-		noteType string
-		want     string
-	}{
-		{"lesson", "lesson"},
-		{"system", "system"},
-		{"guide", "system"},
-		{"concept", "note"},
-		{"writing", "note"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.noteType, func(t *testing.T) {
-			t.Parallel()
-			if got := s.StatusGroup(tt.noteType); got != tt.want {
-				t.Errorf("StatusGroup(%q) = %q, want %q", tt.noteType, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestStatuses(t *testing.T) {
-	t.Parallel()
-	s := loadFixture(t)
-
-	got := s.Statuses("lesson")
-	want := []string{"imported", "draft", "ready", "published", "archived"}
-	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("Statuses(\"lesson\") mismatch (-want +got):\n%s", diff)
-	}
-}
-
-func TestTransition(t *testing.T) {
-	t.Parallel()
-	s := loadFixture(t)
-
-	tests := []struct {
-		name    string
-		typ     string
-		from    string
-		to      string
-		wantErr error
-	}{
-		{"lesson imported→draft", "lesson", "imported", "draft", nil},
-		{"lesson draft→ready", "lesson", "draft", "ready", nil},
-		{"skip an intermediate status", "lesson", "imported", "ready", schema.ErrIllegalTransition},
-		{"archived from anywhere", "concept", "seedling", "archived", nil},
-		{"initial captured", "transcript", "", "captured", nil},
-		{"non-initial needs predecessor", "source-note", "", "cleaned", schema.ErrIllegalTransition},
-		{"undefined status for type", "concept", "seedling", "ready", schema.ErrUnknownStatus},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			err := s.Transition(tt.typ, tt.from, tt.to)
-			if !errors.Is(err, tt.wantErr) {
-				t.Errorf("Transition(%q, %q, %q) = %v, want %v",
-					tt.typ, tt.from, tt.to, err, tt.wantErr)
-			}
-		})
 	}
 }
 
@@ -2180,15 +1612,44 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			}
 			return ""
 		},
-		"StageCount": func() string {
-			if got := c.StageCount(); got != 0 {
-				return fmt.Sprintf("StageCount() = %d, want 0", got)
+		"EnumValues": func() string {
+			for _, field := range []string{"type", "domain", "level", "unknown"} {
+				if got := c.EnumValues(field); got != nil {
+					return fmt.Sprintf("EnumValues(%q) = %v, want nil", field, got)
+				}
 			}
 			return ""
 		},
-		"Supersession": func() string {
-			if got, declared := c.Supersession(); declared || got != (schema.Supersession{}) {
-				return fmt.Sprintf("Supersession() = (%+v, %t), want the zero vocabulary and false", got, declared)
+		"FieldStanding": func() string {
+			for _, key := range []string{"type", "draft", "tags", "slug", "title"} {
+				if got := c.FieldStanding("lesson", key); got != schema.FieldUnknown {
+					return fmt.Sprintf("FieldStanding(lesson, %q) = %v, want FieldUnknown: no contract lists a field here", key, got)
+				}
+			}
+			return ""
+		},
+		"RequiredFields": func() string {
+			if got := c.RequiredFields("lesson"); got != nil {
+				return fmt.Sprintf("RequiredFields(lesson) = %v, want nil", got)
+			}
+			return ""
+		},
+		"SlugPattern": func() string {
+			if pattern, ok := c.SlugPattern("lesson"); ok || pattern != nil {
+				return fmt.Sprintf("SlugPattern(lesson) = (%v, %t), want (nil, false)", pattern, ok)
+			}
+			return ""
+		},
+		"TypeRole": func() string {
+			if got := c.TypeRole("lesson"); got != "" {
+				return fmt.Sprintf("TypeRole(lesson) = %q, want empty", got)
+			}
+			return ""
+		},
+		"Domains": func() string {
+			domains := c.Domains()
+			if got := domains.Of("Concepts/golang/a.md"); got != "" || domains.Roots() != nil {
+				return fmt.Sprintf("Domains() = roots %v, Of() = %q, want no root and no domain", domains.Roots(), got)
 			}
 			return ""
 		},
@@ -2201,12 +1662,6 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		"LessonType": func() string {
 			if name, declared := c.LessonType(); declared || name == "" {
 				return fmt.Sprintf("LessonType() = (%q, %t), want the name it looks for and false", name, declared)
-			}
-			return ""
-		},
-		"InboxRequiredFields": func() string {
-			if _, fields, declared := c.InboxRequiredFields(); declared || fields != nil {
-				return fmt.Sprintf("InboxRequiredFields() = (%v, %t), want no fields and false", fields, declared)
 			}
 			return ""
 		},
@@ -2300,88 +1755,6 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 			if dated.Declared() || dated.Field() != "" || day != "" || err != nil {
 				return fmt.Sprintf("AuthoredDate() = %q and resolves (%q, %v), want no field and no day: no contract dates a note here",
 					dated.Field(), day, err)
-			}
-			return ""
-		},
-		"StatusGroup": func() string {
-			if got := c.StatusGroup("lesson"); got != "" {
-				return fmt.Sprintf("StatusGroup() = %q, want empty", got)
-			}
-			if got := c.StatusGroup(""); got != "" {
-				return fmt.Sprintf("StatusGroup(%q) = %q, want empty", "", got)
-			}
-			return ""
-		},
-		"Statuses": func() string {
-			if got := c.Statuses("lesson"); got != nil {
-				return fmt.Sprintf("Statuses() = %v, want nil", got)
-			}
-			return ""
-		},
-		"EnumValues": func() string {
-			for _, field := range []string{"type", "status", "unknown"} {
-				if got := c.EnumValues(field, "lesson"); got != nil {
-					return fmt.Sprintf("EnumValues(%q, %q) = %v, want nil", field, "lesson", got)
-				}
-			}
-			return ""
-		},
-		"JudgedStatusGroup": func() string {
-			for _, kind := range []string{"", "lesson", "undeclared"} {
-				if got := c.JudgedStatusGroup(kind); got != "" {
-					return fmt.Sprintf("JudgedStatusGroup(%q) = %q, want empty", kind, got)
-				}
-			}
-			return ""
-		},
-		"StatusesInGroup": func() string {
-			if got := c.StatusesInGroup("note"); got != nil {
-				return fmt.Sprintf("StatusesInGroup() = %v, want nil", got)
-			}
-			return ""
-		},
-		"Stage": func() string {
-			if got, ok := c.Stage("lesson", "draft"); ok {
-				return fmt.Sprintf("Stage() = (%+v, true), want no lifecycle row", got)
-			}
-			return ""
-		},
-		"StartsAt": func() string {
-			if c.StartsAt("lesson", "draft") {
-				return "StartsAt() calls a status a starting point with no lifecycle behind it"
-			}
-			return ""
-		},
-		"DeclaresInitial": func() string {
-			if c.DeclaresInitial("lesson", "draft") {
-				return "DeclaresInitial() assigns an explicit initial state without a contract"
-			}
-			return ""
-		},
-		"Settled": func() string {
-			if c.Settled("ready") {
-				return "Settled() calls a status settled with no lifecycle behind it"
-			}
-			return ""
-		},
-		"DeclaresSettled": func() string {
-			if c.DeclaresSettled() {
-				return "DeclaresSettled() reports a declaration in a vault no contract governs"
-			}
-			return ""
-		},
-		"Settlement": func() string {
-			if got := c.Settlement(); got.Declared() || got.Settled("ready") {
-				return fmt.Sprintf("Settlement() = declared %v, ready settled %v, want neither: no contract declares anything here", got.Declared(), got.Settled("ready"))
-			}
-			return ""
-		},
-		"Transition": func() string {
-			if err := c.Transition("lesson", "draft", "ready"); !errors.Is(err, schema.ErrUnknownStatus) {
-				return fmt.Sprintf("Transition() error = %v, want one wrapping ErrUnknownStatus", err)
-			}
-			if err := c.Transition("lesson", "", "draft"); !errors.Is(err, schema.ErrUnknownStatus) {
-				return fmt.Sprintf("Transition() into an initial status error = %v, want one wrapping ErrUnknownStatus", err)
 			}
 			return ""
 		},

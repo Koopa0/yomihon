@@ -86,8 +86,8 @@ func writeTestContract(tb testing.TB, root string, privateDirs []string) {
 	}
 	write(tb, root, schema.ContractRelPath, contractFixture(tb, privateDirs,
 		[2]string{
-			`knowledge_dirs = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
-			"knowledge_dirs = [" + strings.Join(quoted, ", ") + "]",
+			`checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]`,
+			"checked = [" + strings.Join(quoted, ", ") + "]",
 		}))
 }
 
@@ -117,7 +117,7 @@ func fixtureKnowledgeDirs(tb testing.TB, root string) []string {
 // TestFixtureKnowledgeDirsNamesTheDirectoriesOnDisk is the lock on
 // writeTestContract's knowledge layer: the helper names every top-level
 // directory already on disk, sorted, and nothing else. Returning nil for a
-// vault that holds folders would write knowledge_dirs = [] and this comparison
+// vault that holds folders would write checked = [] and this comparison
 // would go red.
 func TestFixtureKnowledgeDirsNamesTheDirectoriesOnDisk(t *testing.T) {
 	t.Parallel()

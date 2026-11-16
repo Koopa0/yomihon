@@ -1,11 +1,14 @@
 import { performance } from 'node:perf_hooks';
 import { errors } from 'playwright-core';
 
-// Host polling also advances when application scripting is disabled. One
-// deadline bounds both browser evaluation and retries.
+// A page is ready to be read once its application stylesheet has been applied
+// and, for a return to a kept place, the module that scrolls to the place has
+// revealed the column. A page change plays no animation, so there is nothing
+// else to wait out. Host polling also advances when application scripting is
+// disabled. One deadline bounds both browser evaluation and retries.
 export const arrived = async (page, timeout = 3000) => {
   const deadline = performance.now() + timeout;
-  let last = { appCSS: null, animations: null };
+  let last = { appCSS: null, held: null };
   let timer;
   let expired = false;
   const timeoutError = () => new errors.TimeoutError(
@@ -23,18 +26,12 @@ export const arrived = async (page, timeout = 3000) => {
           const url = new URL(sheet.href);
           return url.origin === location.origin && url.pathname === '/static/app.css';
         });
-        const animations = document.getAnimations()
-          .filter((animation) => animation.animationName === 'y-come-forward')
-          .map((animation) => ({ state: animation.playState, pending: animation.pending }));
-        function arrivalReady() {
-          return appCSS && !animations.some((animation) =>
-            animation.pending || ['running', 'paused'].includes(animation.state));
-        }
+        const held = document.documentElement.dataset.arrival !== undefined;
         // Read the boolean inside the browser before Playwright can await a
         // Promise returned by a faulty async predicate.
-        return { ready: Boolean(arrivalReady()), appCSS, animations };
+        return { ready: Boolean(appCSS && !held), appCSS, held };
       });
-      last = { appCSS: result.appCSS, animations: result.animations };
+      last = { appCSS: result.appCSS, held: result.held };
       checkDeadline();
       if (result.ready) return;
       await new Promise((resolve) => setTimeout(resolve, Math.min(50, deadline - performance.now())));

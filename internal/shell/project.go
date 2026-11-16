@@ -1,7 +1,7 @@
-// Package shell projects the navigation and lifecycle state shared by every
+// Package shell projects the navigation and contract state shared by every
 // full-page reading surface. It stands alone rather than beside the nav.Shell
 // it returns because the navigation model cannot import the generation and the
-// write face that feed it. The command projects one for the faces that never
+// contract authority that feed it. The command projects one for the faces that never
 // import this package — search and reports are handed the result — while the
 // note face builds its own, several times over, from the same call.
 package shell
@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 )
 
 // VaultName reduces the folder the server was pointed at to the name a reader
@@ -31,14 +31,14 @@ func VaultName(path string) string {
 	}
 }
 
-// Project derives one shell from one vault snapshot and the lifecycle view
+// Project derives one shell from one vault snapshot and the contract authority
 // captured for the same request, reading no source of its own. It takes the
 // artifact authority from the snapshot rather than from its caller so that the
 // signature cannot express a mismatched pair. vaultName is the folder's own
 // name, already reduced to something a reader recognises by VaultName.
-func Project(vaultName string, lifecycle status.Authority, snap *snapshot.Generation) nav.Shell {
+func Project(vaultName string, authority schema.Authority, snap *snapshot.Generation) nav.Shell {
 	policy := snap.ArtifactPolicy()
-	governed := lifecycle.Governed()
+	governed := authority.Governed()
 	projected := nav.Shell{
 		Nav:      snap.Navigation(),
 		Governed: governed,
@@ -49,7 +49,7 @@ func Project(vaultName string, lifecycle status.Authority, snap *snapshot.Genera
 	}
 	// Either authority refusing closes the instance-derived navigation and
 	// counts: the two are sampled at different instants and both must answer.
-	if claim := lifecycle.Claim(); !claim.Trustworthy() {
+	if claim := authority.Claim(); !claim.Trustworthy() {
 		return projected.WithoutInstanceProjections(claim)
 	}
 	if !policy.Trustworthy() {

@@ -1,7 +1,7 @@
 // Package schema loads the vault's machine-readable contract
-// (System/schemas/vault-schema.toml) and answers status state-machine
-// questions. It is the only package allowed to read that contract: nowhere
-// else holds a second copy of an enum, a field list, or a lifecycle rule.
+// (System/schemas/vault-schema.toml). It is the only package allowed to read
+// that contract: nowhere else holds a second copy of an enum, a field list, or
+// the role a note type plays.
 package schema
 
 import (
@@ -26,38 +26,34 @@ import (
 const (
 	// ContractRelPath is where the contract lives inside the vault.
 	ContractRelPath  = "System/schemas/vault-schema.toml"
-	supportedVersion = "1"
+	supportedVersion = "2"
 
-	// PublishedStatus records a completed publication outside the vault.
-	// Nothing here can attest one, so no control offers a transition to it and
-	// the write face refuses one; the value enters a note by hand.
-	PublishedStatus = "published"
-
-	// SystemDocumentGroup is the status group holding a vault's own working
-	// documents rather than knowledge it wrote. Membership is the contract's
-	// answer under fields.status_group; only the group's name is pinned here,
-	// because nothing in the contract marks a group as holding documents. A
-	// vault that files those types under another name still takes the full
-	// knowledge-note rules.
-	SystemDocumentGroup = "system"
-
-	// conceptType is the note type a vault-schema.toml reserves for distilled
-	// ideas, spelled once so no face keeps a second copy.
+	// conceptType is the note type name yomihon reserves for distilled ideas,
+	// spelled once so no face keeps a second copy. It is a name, not a role: a
+	// contract that wants the concept sheets and the coverage report declares
+	// a type of that name.
 	conceptType = "concept"
 
-	// lessonType is the note type a vault-schema.toml reserves for the notes a
-	// course is made of, spelled once for the same reason as the two above.
+	// lessonType is the type name a note is read as when no contract names a
+	// type with the lesson role, so a note that calls itself a lesson keeps its
+	// reading aids in a folder that declared nothing.
 	lessonType = "lesson"
-
-	// inboxType is the note type a vault-schema.toml reserves for captures
-	// whose shape is not yet decided.
-	inboxType = "inbox"
 )
 
-// Sentinel errors for state-machine answers. Callers match with errors.Is.
-var (
-	ErrUnknownStatus     = errors.New("status not defined for this type")
-	ErrIllegalTransition = errors.New("transition not allowed by lifecycle")
+// Role is what a note type does in the reader, which a contract states beside
+// the type. A type with no role is a plain note.
+type Role string
+
+const (
+	// RoleLesson marks the notes a course is made of: each carries a slug.
+	RoleLesson Role = "lesson"
+	// RoleCourse marks an ordered study path over lessons.
+	RoleCourse Role = "course"
+	// RoleMap marks a general map of notes.
+	RoleMap Role = "map"
+	// RoleThought marks a reader's own source-linked thoughts, the notes the
+	// shelf of what is left open is made of.
+	RoleThought Role = "thought"
 )
 
 // The heading and inline marks a contract that omits the keys is loaded with.
@@ -86,77 +82,141 @@ func DefaultPlannedInlineMarks() []string {
 // no authority; load one with [Load], [LoadFile], or [LoadReader]. A nil
 // *Contract answers as an ungoverned vault: every method is safe to call and
 // returns what a folder that declared nothing declares — no version, no
-// vocabulary, no capability, no legal transition.
+// vocabulary, no capability.
 type Contract struct {
-	version         string
-	definition      Definition
-	stages          []Stage
-	initialDeclared bool
+	version    string
+	types      []typeDefinition
+	typeByName map[string]int
+	enums      []enumDefinition
+	common     []string
+	required   []string
+	rules      Rules
+	folders    Folders
 
 	navigationRoles NavigationRoles
 	knowledgeScope  KnowledgeScope
 	artifactPolicy  ArtifactPolicy
 	privacyPolicy   PrivacyPolicy
 	journalDir      JournalDir
-	metadata        contractMetadata
 	written         writtenKeys
 
-	statusGroupByType map[string]string
-	statusesByGroup   map[string][]string
-	stageByTypeStatus map[lifecycleKey]Stage
-	settlement        Settlement
+	// provenanceFields are the fields the concept rule names, which that type
+	// may carry beside the fields it lists.
+	provenanceFields []string
 }
 
-// Definition is a detached copy of the contract's declarative vocabulary and
-// validation policy. Mutating it never changes the loaded [Contract].
+type typeDefinition struct {
+	name        string
+	role        Role
+	required    []string
+	fields      []string
+	slugPattern *regexp.Regexp
+	slugText    string
+}
+
+type enumDefinition struct {
+	field  string
+	values []string
+}
+
+// Definition is a detached copy of the contract's declarative vocabulary.
+// Mutating it never changes the loaded [Contract].
 type Definition struct {
-	Enums  Enums      `toml:"enums"`
-	Fields Fields     `toml:"fields"`
-	Rules  Rules      `toml:"rules"`
-	Scan   ScanPolicy `toml:"scan"`
+	Types   []TypeDefinition
+	Enums   []EnumDefinition
+	Fields  FieldDefinition
+	Rules   Rules
+	Folders Folders
+}
+
+// TypeDefinition is one note type as the contract declares it.
+type TypeDefinition struct {
+	Name        string
+	Role        Role
+	Required    []string
+	Fields      []string
+	SlugPattern string
+}
+
+// EnumDefinition is the vocabulary a contract gives one frontmatter field, or
+// the derived domain.
+type EnumDefinition struct {
+	Field  string
+	Values []string
+}
+
+// FieldDefinition holds the fields every type may carry and the ones every
+// note must carry.
+type FieldDefinition struct {
+	Common   []string
+	Required []string
+}
+
+// Rules holds the structural rules a contract still states beside its types.
+type Rules struct {
+	ConceptRequiresProvenance []string
+	PlannedGapMarks           []string
+	PlannedInlineMarks        []string
+}
+
+// Folders are the directories and file names the contract names by what they
+// are for. Which of them the contract wrote is not recoverable from here: a
+// field left out and a field written empty read the same.
+type Folders struct {
+	Checked             []string
+	Ignored             []string
+	Templates           []string
+	Journal             string
+	DomainFrom          []string
+	SkippedFiles        []string
+	FrontmatterOptional bool
 }
 
 type contractFile struct {
-	Definition
+	Version string              `toml:"schema_version"`
+	Folders folderSection       `toml:"folders"`
+	Enums   map[string][]string `toml:"enums"`
+	Fields  fieldSection        `toml:"fields"`
+	Types   map[string]typeFile `toml:"types"`
+	Rules   ruleSection         `toml:"rules"`
+	Privacy toml.Primitive      `toml:"privacy"`
+}
 
-	Version string `toml:"schema_version"`
+type folderSection struct {
+	Checked             []string `toml:"checked"`
+	Ignored             []string `toml:"ignored"`
+	Templates           []string `toml:"templates"`
+	Journal             string   `toml:"journal"`
+	DomainFrom          []string `toml:"domain_from"`
+	SkippedFiles        []string `toml:"skipped_files"`
+	FrontmatterOptional bool     `toml:"frontmatter_optional"`
+}
 
-	// The coordination keys are named so strict decoding accepts a contract
-	// that carries them; nothing here reads them back.
-	AlignedWith          string               `toml:"aligned_with"`
-	GeneratedAtMustMatch bool                 `toml:"generated_at_must_match"`
-	Navigation           toml.Primitive       `toml:"navigation"`
-	Artifacts            toml.Primitive       `toml:"artifacts"`
-	Privacy              toml.Primitive       `toml:"privacy"`
-	Supersession         *supersessionSection `toml:"supersession"`
-	Lifecycle            []rawLifecycleStage  `toml:"lifecycle"`
+type fieldSection struct {
+	Common   []string `toml:"common"`
+	Required []string `toml:"required"`
+}
+
+type typeFile struct {
+	Role        string   `toml:"role"`
+	Required    []string `toml:"required"`
+	Fields      []string `toml:"fields"`
+	SlugPattern string   `toml:"slug_pattern"`
+}
+
+type ruleSection struct {
+	ConceptRequiresProvenance []string `toml:"concept_requires_provenance"`
+	PlannedGapMarks           []string `toml:"planned_gap_marks"`
+	PlannedInlineMarks        []string `toml:"planned_inline_marks"`
 }
 
 // writtenKeys records which optional keys the contract wrote down. Each holds
 // a value that is also its Go zero value, so absence has to be recorded
 // separately from a key written as false or as an empty list.
 type writtenKeys struct {
-	noFrontmatterIsLegal bool
-	requiredInbox        bool
-	plannedGapMarks      bool
-	plannedInlineMarks   bool
-}
-
-// contractMetadata retains the supersession vocabulary the replacement ledger
-// is validated against.
-type contractMetadata struct {
-	supersession *supersessionSection
-}
-
-type navigationPrimitives struct {
-	PathTypes  toml.Primitive `toml:"path_types"`
-	MapTypes   toml.Primitive `toml:"map_types"`
-	JournalDir toml.Primitive `toml:"journal_dir"`
-	AnswerType toml.Primitive `toml:"answer_type"`
-}
-
-type artifactPrimitives struct {
-	NonInstanceDirs toml.Primitive `toml:"non_instance_dirs"`
+	frontmatterOptional bool
+	plannedGapMarks     bool
+	plannedInlineMarks  bool
 }
 
 type privacyPrimitives struct {
@@ -164,96 +224,8 @@ type privacyPrimitives struct {
 }
 
 type contractUnknownKeys struct {
-	core       []string
-	navigation []string
-	artifacts  []string
-	privacy    []string
-}
-
-type supersessionSection struct {
-	PredecessorField string `toml:"predecessor_field"`
-	SuccessorField   string `toml:"successor_field"`
-	GeneralLinkField string `toml:"general_link_field"`
-	ArchivedStatus   string `toml:"archived_status"`
-}
-
-type rawLifecycleStage struct {
-	Status    *string   `toml:"status"`
-	AppliesTo *[]string `toml:"applies_to"`
-	Initial   *bool     `toml:"initial"`
-	From      *[]string `toml:"from"`
-	Owner     *[]string `toml:"owner"`
-	Settled   *bool     `toml:"settled"`
-}
-
-type lifecycleKey struct {
-	noteType string
-	status   string
-}
-
-// Enums holds the value vocabularies declared for frontmatter fields.
-// Optional flat vocabularies constrain values only when nonempty; type and
-// grouped status retain their dedicated validation rules.
-type Enums struct {
-	Type           []string            `toml:"type"`
-	Domain         []string            `toml:"domain"`
-	SourceKind     []string            `toml:"source_kind"`
-	SourceProvider []string            `toml:"source_provider"`
-	Level          []string            `toml:"level"`
-	MapKind        []string            `toml:"map_kind"`
-	Status         map[string][]string `toml:"status"`
-}
-
-// Fields describes required and known frontmatter keys.
-type Fields struct {
-	Required      []string            `toml:"required"`
-	RequiredInbox []string            `toml:"required_inbox"`
-	DomainExempt  []string            `toml:"domain_exempt_types"`
-	Known         []string            `toml:"known"`
-	LessonOnly    []string            `toml:"lesson_only"`
-	StatusGroup   map[string][]string `toml:"status_group"`
-}
-
-// Rules holds structural rules beyond plain enums.
-type Rules struct {
-	DomainEqualsFolderUnder   []string `toml:"domain_equals_folder_under"`
-	ConceptRequiresProvenance []string `toml:"concept_requires_provenance"`
-	SlugPattern               string   `toml:"slug_pattern"`
-	ForbidTagWithSlash        bool     `toml:"forbid_tag_with_slash"`
-	PlannedGapMarks           []string `toml:"planned_gap_marks"`
-	PlannedInlineMarks        []string `toml:"planned_inline_marks"`
-}
-
-// ScanPolicy is the checker's default scan policy (tool policy, not schema fact).
-type ScanPolicy struct {
-	KnowledgeDirs        []string `toml:"knowledge_dirs"`
-	SkipBasenames        []string `toml:"skip_basenames"`
-	ExcludeDirs          []string `toml:"exclude_dirs"`
-	NoFrontmatterIsLegal bool     `toml:"no_frontmatter_is_legal"`
-}
-
-// Stage is one lifecycle entry: a status, the types it applies to, whether a
-// note may start there, its legal predecessor states, and who may set it.
-// "*" in From or AppliesTo means any.
-//
-// Initial and From answer separate questions. A contract naming the initial
-// key states both; one that names it nowhere has Initial inferred from an
-// empty or wildcard From.
-type Stage struct {
-	Status    string   `toml:"status"`
-	AppliesTo []string `toml:"applies_to"`
-	Initial   bool     `toml:"initial"`
-	From      []string `toml:"from"`
-	Owner     []string `toml:"owner"`
-}
-
-// Supersession names the frontmatter fields and archive status that form the
-// vault's explicit replacement ledger.
-type Supersession struct {
-	PredecessorField string
-	SuccessorField   string
-	GeneralLinkField string
-	ArchivedStatus   string
+	core    []string
+	privacy []string
 }
 
 // ContractAbsent reports whether err from Load, LoadFile, or LoadReader means
@@ -314,6 +286,27 @@ func LoadReader(ctx context.Context, reader *vault.Reader) (*Contract, error) {
 	return contract, nil
 }
 
+// checkVersion reads the contract's schema_version before anything else is
+// decoded, so a contract written for another version is refused with the one
+// sentence that names the mismatch. Decoded further, it would be reported as
+// whichever of its tables this version no longer has.
+func checkVersion(data []byte) error {
+	var probe struct {
+		Version string `toml:"schema_version"`
+	}
+	meta, err := toml.Decode(string(data), &probe)
+	if err != nil {
+		return err
+	}
+	if !meta.IsDefined("schema_version") {
+		return errors.New(`missing required key "schema_version"`)
+	}
+	if probe.Version != supportedVersion {
+		return fmt.Errorf("unsupported schema_version %q; supported version is %q", probe.Version, supportedVersion)
+	}
+	return nil
+}
+
 func decodeContract(data []byte, source policySource) (*Contract, error) {
 	if err := checkContractDepth(data); err != nil {
 		return nil, err
@@ -321,74 +314,60 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	if err := validateDistinctKeys(data); err != nil {
 		return nil, err
 	}
+	if err := checkVersion(data); err != nil {
+		return nil, err
+	}
 	var decoded contractFile
 	tomlMeta, err := toml.Decode(string(data), &decoded)
 	if err != nil {
 		return nil, err
 	}
-	contract := &Contract{
-		version:    decoded.Version,
-		definition: decoded.Definition,
-		written: writtenKeys{
-			noFrontmatterIsLegal: tomlMeta.IsDefined("scan", "no_frontmatter_is_legal"),
-			requiredInbox:        tomlMeta.IsDefined("fields", "required_inbox"),
-			plannedGapMarks:      tomlMeta.IsDefined("rules", "planned_gap_marks"),
-			plannedInlineMarks:   tomlMeta.IsDefined("rules", "planned_inline_marks"),
-		},
-		metadata: contractMetadata{supersession: decoded.Supersession},
-	}
-	applyPlannedMarkDefaults(&contract.definition.Rules, contract.written)
-	if !tomlMeta.IsDefined("schema_version") {
-		return nil, errors.New(`missing required key "schema_version"`)
-	}
-	if contract.version != supportedVersion {
-		return nil, fmt.Errorf("unsupported schema_version %q; supported version is %q", contract.version, supportedVersion)
-	}
-	navigation, navigationTypeErrorKey, journalTypeErrorKey := decodeNavigationSection(&tomlMeta, decoded.Navigation)
-	artifacts, artifactTypeErrorKey := decodeArtifactSection(&tomlMeta, decoded.Artifacts)
 	privacy, privacyTypeErrorKey := decodePrivacySection(&tomlMeta, decoded.Privacy)
 	unknown := classifyUnknownKeys(tomlMeta.Undecoded())
 	if len(unknown.core) > 0 {
 		slices.Sort(unknown.core)
-		return nil, fmt.Errorf("unknown core keys: %s", formatContractKeys(unknown.core))
+		return nil, fmt.Errorf("unknown keys: %s", formatContractKeys(unknown.core))
 	}
-	if len(decoded.Lifecycle) == 0 {
-		return nil, errors.New("no lifecycle stages")
+
+	contract := &Contract{
+		version: decoded.Version,
+		common:  slices.Clone(decoded.Fields.Common),
+		written: writtenKeys{
+			frontmatterOptional: tomlMeta.IsDefined("folders", "frontmatter_optional"),
+			plannedGapMarks:     tomlMeta.IsDefined("rules", "planned_gap_marks"),
+			plannedInlineMarks:  tomlMeta.IsDefined("rules", "planned_inline_marks"),
+		},
+		required: slices.Clone(decoded.Fields.Required),
+		rules: Rules{
+			ConceptRequiresProvenance: slices.Clone(decoded.Rules.ConceptRequiresProvenance),
+			PlannedGapMarks:           slices.Clone(decoded.Rules.PlannedGapMarks),
+			PlannedInlineMarks:        slices.Clone(decoded.Rules.PlannedInlineMarks),
+		},
+		folders: Folders{
+			Checked:             slices.Clone(decoded.Folders.Checked),
+			Ignored:             slices.Clone(decoded.Folders.Ignored),
+			Templates:           slices.Clone(decoded.Folders.Templates),
+			Journal:             decoded.Folders.Journal,
+			DomainFrom:          slices.Clone(decoded.Folders.DomainFrom),
+			SkippedFiles:        slices.Clone(decoded.Folders.SkippedFiles),
+			FrontmatterOptional: decoded.Folders.FrontmatterOptional,
+		},
 	}
-	contract.initialDeclared = decoded.Lifecycle[0].Initial != nil
-	contract.stages, err = decodeLifecycleStages(decoded.Lifecycle)
-	if err != nil {
-		return nil, err
+	applyPlannedMarkDefaults(&contract.rules, contract.written)
+	if duplicate, found := firstRepeated(decoded.Enums["type"]); found {
+		return nil, fmt.Errorf("enums.type: duplicate value %q", duplicate)
 	}
-	foldDeclaredWords(contract, navigation)
-	contract.settlement = deriveSettlement(decoded.Lifecycle, contract.stages)
+	contract.declareTypes(decoded.Types, decoded.Enums, tomlMeta.Keys())
+	contract.declareEnums(decoded.Enums)
+	foldDeclaredWords(contract)
 	if err := validateContractSemantics(contract); err != nil {
 		return nil, err
 	}
-	contract.navigationRoles = resolveNavigationRoles(
-		navigation,
-		navigationTypeErrorKey,
-		unknown.navigation,
-		contract.definition.Enums.Type,
-		&tomlMeta,
-	)
-	contract.navigationRoles = contract.navigationRoles.withAnswerType(navigation, unknown.navigation, contract.definition.Enums.Type)
-	contract.navigationRoles = contract.navigationRoles.withLessonType(contract.LessonType())
-	contract.knowledgeScope = deriveKnowledgeScope(contract.definition.Scan.KnowledgeDirs)
-	contract.journalDir = resolveJournalDir(
-		navigation,
-		journalTypeErrorKey,
-		navigationTypeErrorKey,
-		unknown.navigation,
-		&tomlMeta,
-	)
-	contract.artifactPolicy = resolveArtifactPolicy(
-		artifacts,
-		artifactTypeErrorKey,
-		unknown.artifacts,
-		source,
-		&tomlMeta,
-	)
+
+	contract.navigationRoles = deriveNavigationRoles(contract.types)
+	contract.knowledgeScope = deriveKnowledgeScope(contract.folders.Checked)
+	contract.journalDir = deriveJournalDir(contract.folders.Journal, tomlMeta.IsDefined("folders", "journal"))
+	contract.artifactPolicy = deriveArtifactPolicy(contract.folders.Templates, source)
 	contract.privacyPolicy = resolvePrivacyPolicy(
 		privacy,
 		privacyTypeErrorKey,
@@ -399,95 +378,77 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	return contract, nil
 }
 
-func decodeLifecycleStages(rows []rawLifecycleStage) ([]Stage, error) {
-	// Which reading this contract asked for; the first row decides.
-	declared := len(rows) > 0 && rows[0].Initial != nil
-	stages := make([]Stage, len(rows))
-	for i, row := range rows {
-		ordinal := i + 1
-		switch {
-		case row.Status == nil:
-			return nil, fmt.Errorf(`lifecycle row %d: missing required key "status"`, ordinal)
-		case row.AppliesTo == nil:
-			return nil, fmt.Errorf(`lifecycle row %d: missing required key "applies_to"`, ordinal)
-		case row.From == nil:
-			return nil, fmt.Errorf(`lifecycle row %d: missing required key "from"`, ordinal)
-		case row.Owner == nil:
-			return nil, fmt.Errorf(`lifecycle row %d: missing required key "owner"`, ordinal)
-		}
-		from := slices.Clone(*row.From)
-		initial, err := resolveInitial(row, ordinal, declared, from)
-		if err != nil {
-			return nil, err
-		}
-		stages[i] = Stage{
-			Status:    *row.Status,
-			AppliesTo: slices.Clone(*row.AppliesTo),
-			Initial:   initial,
-			From:      from,
-			Owner:     slices.Clone(*row.Owner),
+// declareTypes lists the contract's note types in the order they were written.
+// A type is declared by its own [types.<name>] table or by a place in
+// enums.type, so a plain type with nothing to say needs no table of its own.
+func (c *Contract) declareTypes(tables map[string]typeFile, enums map[string][]string, keys []toml.Key) {
+	var names []string
+	add := func(name string) {
+		if !slices.Contains(names, name) {
+			names = append(names, name)
 		}
 	}
-	return stages, nil
+	for _, name := range enums["type"] {
+		add(name)
+	}
+	for _, key := range keys {
+		if len(key) >= 2 && key[0] == "types" {
+			add(key[1])
+		}
+	}
+	c.types = make([]typeDefinition, 0, len(names))
+	c.typeByName = make(map[string]int, len(names))
+	for _, name := range names {
+		table := tables[name]
+		def := typeDefinition{
+			name:     name,
+			role:     Role(table.Role),
+			required: slices.Clone(table.Required),
+			fields:   slices.Clone(table.Fields),
+			slugText: table.SlugPattern,
+		}
+		c.typeByName[name] = len(c.types)
+		c.types = append(c.types, def)
+	}
 }
 
-// resolveInitial answers whether a note may be given this row's status as its
-// first one. declared says the file names the key at all, decided by its first
-// row; a file naming it on some rows and not others is refused, because it
-// would be read two ways at once.
-func resolveInitial(row rawLifecycleStage, ordinal int, declared bool, from []string) (bool, error) {
-	if (row.Initial != nil) != declared {
-		return false, fmt.Errorf(
-			`lifecycle row %d: the "initial" key is set on some rows and not others; a contract states it on every row or on none`,
-			ordinal,
-		)
+// declareEnums keeps every vocabulary, sorted by field name so the order a
+// note's values are checked in does not depend on map iteration, leaving out
+// the type list, which the types themselves carry.
+func (c *Contract) declareEnums(enums map[string][]string) {
+	fields := make([]string, 0, len(enums))
+	for field := range enums {
+		if field != "type" {
+			fields = append(fields, field)
+		}
 	}
-	if !declared {
-		return len(from) == 0 || slices.Contains(from, "*"), nil
+	slices.Sort(fields)
+	c.enums = make([]enumDefinition, 0, len(fields))
+	for _, field := range fields {
+		c.enums = append(c.enums, enumDefinition{field: field, values: slices.Clone(enums[field])})
 	}
-	if !*row.Initial && len(from) == 0 {
-		return false, fmt.Errorf(
-			`lifecycle row %d: status %q declares initial = false and names no predecessor, so nothing could ever reach it`,
-			ordinal, NormalizeWord(*row.Status),
-		)
-	}
-	return *row.Initial, nil
 }
 
 // foldDeclaredWords folds every word this contract declares to one spelling, so
 // a note's own value is the only side left to fold when something compares the
 // two. A contract is written in an editor and a note's frontmatter is read back
 // off a filesystem, and the two hand over different byte strings for the same
-// word; a lookup keyed on the bytes then loses that note's whole lifecycle.
-// This runs before the contract is validated, so a contract declaring one word
+// word; a lookup keyed on the bytes then loses that note's whole type. This
+// runs before the contract is validated, so a contract declaring one word
 // twice is refused as the duplicate it is. Case is left alone: two words
-// differing only in case are two declarations the contract meant, and the
-// lifecycle wildcard is ASCII and passes through as itself.
-func foldDeclaredWords(contract *Contract, navigation *navigationSection) {
-	enums := &contract.definition.Enums
-	for _, words := range [][]string{
-		enums.Type, enums.Domain, enums.SourceKind,
-		enums.SourceProvider, enums.Level, enums.MapKind,
-	} {
-		foldWords(words)
+// differing only in case are two declarations the contract meant.
+func foldDeclaredWords(contract *Contract) {
+	for i := range contract.types {
+		contract.types[i].name = NormalizeWord(contract.types[i].name)
 	}
-	for _, statuses := range enums.Status {
-		foldWords(statuses)
+	for i := range contract.enums {
+		foldWords(contract.enums[i].values)
 	}
-	for _, noteTypes := range contract.definition.Fields.StatusGroup {
-		foldWords(noteTypes)
-	}
-	foldWords(contract.definition.Fields.DomainExempt)
-	for i := range contract.stages {
-		stage := &contract.stages[i]
-		stage.Status = NormalizeWord(stage.Status)
-		foldWords(stage.AppliesTo)
-		foldWords(stage.From)
-	}
-	if navigation != nil {
-		foldWords(navigation.PathTypes)
-		foldWords(navigation.MapTypes)
-		navigation.AnswerType = NormalizeWord(navigation.AnswerType)
+	contract.typeByName = make(map[string]int, len(contract.types))
+	for i := range contract.types {
+		if _, duplicate := contract.typeByName[contract.types[i].name]; !duplicate {
+			contract.typeByName[contract.types[i].name] = i
+		}
 	}
 }
 
@@ -495,81 +456,6 @@ func foldWords(words []string) {
 	for i, word := range words {
 		words[i] = NormalizeWord(word)
 	}
-}
-
-func decodeNavigationSection(
-	metadata *toml.MetaData,
-	primitive toml.Primitive,
-) (section *navigationSection, rolesTypeErrorKey, journalTypeErrorKey string) {
-	if !metadata.IsDefined("navigation") {
-		return nil, "", ""
-	}
-	var fields navigationPrimitives
-	if err := metadata.PrimitiveDecode(primitive, &fields); err != nil {
-		return nil, "navigation", "navigation"
-	}
-	section = &navigationSection{}
-	if metadata.IsDefined("navigation", "path_types") {
-		if err := metadata.PrimitiveDecode(fields.PathTypes, &section.PathTypes); err != nil {
-			rolesTypeErrorKey = "navigation.path_types"
-		}
-	}
-	if metadata.IsDefined("navigation", "map_types") {
-		if err := metadata.PrimitiveDecode(fields.MapTypes, &section.MapTypes); err != nil && rolesTypeErrorKey == "" {
-			rolesTypeErrorKey = "navigation.map_types"
-		}
-	}
-	if metadata.IsDefined("navigation", "journal_dir") {
-		if err := metadata.PrimitiveDecode(fields.JournalDir, &section.JournalDir); err != nil {
-			journalTypeErrorKey = "navigation.journal_dir"
-		}
-	}
-	if metadata.IsDefined("navigation", "answer_type") {
-		if err := metadata.PrimitiveDecode(fields.AnswerType, &section.AnswerType); err != nil {
-			section.AnswerType = ""
-		}
-	}
-	return section, rolesTypeErrorKey, journalTypeErrorKey
-}
-
-func resolveJournalDir(
-	section *navigationSection,
-	journalTypeErrorKey string,
-	rolesTypeErrorKey string,
-	unknownKeys []string,
-	metadata *toml.MetaData,
-) JournalDir {
-	if journalTypeErrorKey != "" {
-		return journalTypeError(journalTypeErrorKey)
-	}
-	if rolesTypeErrorKey != "" {
-		return JournalDir{claim: invalidNavigationRoles("key %q has incompatible TOML type", rolesTypeErrorKey).Claim()}
-	}
-	if len(unknownKeys) > 0 {
-		slices.Sort(unknownKeys)
-		return JournalDir{claim: invalidNavigationRoles("unknown keys %s", formatContractKeys(unknownKeys)).Claim()}
-	}
-	return deriveJournalDir(section, metadata.IsDefined("navigation", "journal_dir"))
-}
-
-func decodeArtifactSection(
-	metadata *toml.MetaData,
-	primitive toml.Primitive,
-) (section *artifactSection, typeErrorKey string) {
-	if !metadata.IsDefined("artifacts") {
-		return nil, ""
-	}
-	var fields artifactPrimitives
-	if err := metadata.PrimitiveDecode(primitive, &fields); err != nil {
-		return nil, "artifacts"
-	}
-	section = &artifactSection{}
-	if metadata.IsDefined("artifacts", "non_instance_dirs") {
-		if err := metadata.PrimitiveDecode(fields.NonInstanceDirs, &section.NonInstanceDirs); err != nil {
-			return nil, "artifacts.non_instance_dirs"
-		}
-	}
-	return section, ""
 }
 
 func decodePrivacySection(
@@ -595,65 +481,13 @@ func decodePrivacySection(
 func classifyUnknownKeys(keys []toml.Key) contractUnknownKeys {
 	var unknown contractUnknownKeys
 	for _, key := range keys {
-		switch key[0] {
-		case "navigation":
-			unknown.navigation = append(unknown.navigation, key.String())
-		case "artifacts":
-			unknown.artifacts = append(unknown.artifacts, key.String())
-		case "privacy":
+		if key[0] == "privacy" {
 			unknown.privacy = append(unknown.privacy, key.String())
-		default:
-			unknown.core = append(unknown.core, key.String())
+			continue
 		}
+		unknown.core = append(unknown.core, key.String())
 	}
 	return unknown
-}
-
-func resolveNavigationRoles(
-	section *navigationSection,
-	typeErrorKey string,
-	unknownKeys []string,
-	enumTypes []string,
-	metadata *toml.MetaData,
-) NavigationRoles {
-	if typeErrorKey != "" {
-		return invalidNavigationRoles("key %q has incompatible TOML type", typeErrorKey)
-	}
-	if len(unknownKeys) > 0 {
-		slices.Sort(unknownKeys)
-		return invalidNavigationRoles("unknown keys %s", formatContractKeys(unknownKeys))
-	}
-	return deriveNavigationRoles(
-		section,
-		enumTypes,
-		metadata.IsDefined("navigation", "path_types"),
-		metadata.IsDefined("navigation", "map_types"),
-	)
-}
-
-func resolveArtifactPolicy(
-	section *artifactSection,
-	typeErrorKey string,
-	unknownKeys []string,
-	source policySource,
-	metadata *toml.MetaData,
-) ArtifactPolicy {
-	if typeErrorKey != "" {
-		return ArtifactPolicy{state: &artifactPolicyState{
-			claim: Rejected(fmt.Sprintf("invalid artifact policy: key %q has incompatible TOML type", typeErrorKey)),
-		}}
-	}
-	if len(unknownKeys) > 0 {
-		slices.Sort(unknownKeys)
-		return ArtifactPolicy{state: &artifactPolicyState{
-			claim: Rejected("invalid artifact policy: unknown keys " + formatContractKeys(unknownKeys)),
-		}}
-	}
-	return deriveArtifactPolicy(
-		section,
-		metadata.IsDefined("artifacts", "non_instance_dirs"),
-		source,
-	)
 }
 
 func resolvePrivacyPolicy(
@@ -788,55 +622,42 @@ func formatContractKeys(keys []string) string {
 }
 
 func validateContractSemantics(contract *Contract) error {
-	if err := validateEnums(&contract.definition.Enums); err != nil {
+	if err := validateTypes(contract); err != nil {
 		return err
 	}
-	if err := validateFields(&contract.definition.Enums, &contract.definition.Fields); err != nil {
+	if err := validateEnums(contract); err != nil {
 		return err
 	}
-	if err := validateStatusGroups(&contract.definition.Enums, contract.definition.Fields.StatusGroup); err != nil {
+	if err := validateFieldLists(contract); err != nil {
 		return err
 	}
-	if err := validateRules(&contract.definition.Enums, &contract.definition.Fields, &contract.definition.Rules); err != nil {
+	if err := validateRules(contract); err != nil {
 		return err
 	}
-	if err := validateScan(&contract.definition.Scan); err != nil {
-		return err
-	}
-	if err := compileLifecycle(contract); err != nil {
-		return err
-	}
-	return validateSupersession(contract)
+	return validateFolders(&contract.folders)
 }
 
-func validateEnums(enums *Enums) error {
-	lists := []struct {
-		name   string
-		values []string
-	}{
-		{name: "enums.type", values: enums.Type},
-		{name: "enums.domain", values: enums.Domain},
-		{name: "enums.source_kind", values: enums.SourceKind},
-		{name: "enums.source_provider", values: enums.SourceProvider},
-		{name: "enums.level", values: enums.Level},
-		{name: "enums.map_kind", values: enums.MapKind},
-	}
-	for _, list := range lists {
-		if err := validateUniqueStrings(list.name, list.values); err != nil {
-			return err
+func validateTypes(contract *Contract) error {
+	seen := make(map[string]struct{}, len(contract.types))
+	for _, def := range contract.types {
+		if def.name == "" {
+			return errors.New("types: empty type name")
 		}
+		if _, duplicate := seen[def.name]; duplicate {
+			return fmt.Errorf("types: duplicate type %q", def.name)
+		}
+		seen[def.name] = struct{}{}
 	}
+	return nil
+}
 
-	groups := make([]string, 0, len(enums.Status))
-	for group := range enums.Status {
-		groups = append(groups, group)
-	}
-	slices.Sort(groups)
-	for _, group := range groups {
-		if group == "" {
-			return errors.New("enums.status: empty group name")
+func validateEnums(contract *Contract) error {
+	for _, enum := range contract.enums {
+		name := "enums." + enum.field
+		if enum.field != domainField && !slices.Contains(Fields(), enum.field) {
+			return fmt.Errorf("%s: %q is not a field yomihon defines or derives", name, enum.field)
 		}
-		if err := validateUniqueStrings(fmt.Sprintf("enums.status.%q", group), enums.Status[group]); err != nil {
+		if err := validateUniqueStrings(name, enum.values); err != nil {
 			return err
 		}
 	}
@@ -857,113 +678,16 @@ func validateUniqueStrings(name string, values []string) error {
 	return nil
 }
 
-func validateFields(enums *Enums, fields *Fields) error {
-	lists := []struct {
-		name   string
-		values []string
-	}{
-		{name: "fields.required", values: fields.Required},
-		{name: "fields.required_inbox", values: fields.RequiredInbox},
-		{name: "fields.known", values: fields.Known},
-		{name: "fields.lesson_only", values: fields.LessonOnly},
-		{name: "fields.domain_exempt_types", values: fields.DomainExempt},
-	}
-	for _, list := range lists {
-		if err := validateUniqueStrings(list.name, list.values); err != nil {
-			return err
-		}
-	}
-
-	known := stringSet(fields.Known)
-	if err := validateSubset("fields.required", fields.Required, "fields.known", known); err != nil {
-		return err
-	}
-	if err := validateSubset("fields.required_inbox", fields.RequiredInbox, "fields.known", known); err != nil {
-		return err
-	}
-
-	lessonOnly := stringSet(fields.LessonOnly)
-	for _, field := range fields.Known {
-		if _, overlap := lessonOnly[field]; overlap {
-			return fmt.Errorf("fields.known and fields.lesson_only overlap at %q", field)
-		}
-	}
-
-	types := stringSet(enums.Type)
-	if err := validateSubset("fields.domain_exempt_types", fields.DomainExempt, "enums.type", types); err != nil {
-		return err
-	}
-	if len(fields.RequiredInbox) > 0 {
-		if _, ok := types[inboxType]; !ok {
-			return errors.New(`fields.required_inbox requires enums.type to contain "inbox"`)
-		}
-	}
-	if len(fields.LessonOnly) > 0 {
-		if _, ok := types["lesson"]; !ok {
-			return errors.New(`fields.lesson_only requires enums.type to contain "lesson"`)
-		}
-	}
-	return nil
-}
-
-func stringSet(values []string) map[string]struct{} {
-	set := make(map[string]struct{}, len(values))
+// firstRepeated returns the first non-empty value a list writes twice.
+func firstRepeated(values []string) (string, bool) {
+	seen := make(map[string]struct{}, len(values))
 	for _, value := range values {
-		set[value] = struct{}{}
+		if _, duplicate := seen[value]; duplicate && value != "" {
+			return value, true
+		}
+		seen[value] = struct{}{}
 	}
-	return set
-}
-
-func validateSubset(name string, values []string, setName string, set map[string]struct{}) error {
-	for _, value := range values {
-		if _, ok := set[value]; !ok {
-			return fmt.Errorf("%s: value %q is not listed in %s", name, value, setName)
-		}
-	}
-	return nil
-}
-
-func validateStatusGroups(enums *Enums, statusGroups map[string][]string) error {
-	if _, ok := enums.Status["note"]; !ok {
-		return errors.New(`enums.status: missing required group "note"`)
-	}
-
-	groups := make([]string, 0, len(statusGroups))
-	for group := range statusGroups {
-		groups = append(groups, group)
-	}
-	slices.Sort(groups)
-
-	types := stringSet(enums.Type)
-	assigned := make(map[string]string)
-	for _, group := range groups {
-		if group == "" {
-			return errors.New("fields.status_group: empty group name")
-		}
-		if _, ok := enums.Status[group]; !ok {
-			return fmt.Errorf("fields.status_group: unknown status group %q", group)
-		}
-		name := fmt.Sprintf("fields.status_group.%q", group)
-		mappedTypes := statusGroups[group]
-		if err := validateUniqueStrings(name, mappedTypes); err != nil {
-			return err
-		}
-		if err := validateSubset(name, mappedTypes, "enums.type", types); err != nil {
-			return err
-		}
-		for _, noteType := range mappedTypes {
-			if previous, exists := assigned[noteType]; exists {
-				return fmt.Errorf(
-					"fields.status_group: type %q is assigned to both %q and %q",
-					noteType,
-					previous,
-					group,
-				)
-			}
-			assigned[noteType] = group
-		}
-	}
-	return nil
+	return "", false
 }
 
 func applyPlannedMarkDefaults(rules *Rules, written writtenKeys) {
@@ -975,57 +699,75 @@ func applyPlannedMarkDefaults(rules *Rules, written writtenKeys) {
 	}
 }
 
-func validateRules(enums *Enums, fields *Fields, rules *Rules) error {
-	if err := validateDomainRoots(rules.DomainEqualsFolderUnder); err != nil {
-		return err
-	}
+func validateRules(contract *Contract) error {
+	rules := &contract.rules
 	if err := validateUniqueStrings("rules.planned_gap_marks", rules.PlannedGapMarks); err != nil {
 		return err
 	}
 	if err := validateUniqueStrings("rules.planned_inline_marks", rules.PlannedInlineMarks); err != nil {
 		return err
 	}
-
 	if err := validateUniqueStrings("rules.concept_requires_provenance", rules.ConceptRequiresProvenance); err != nil {
 		return err
 	}
-	types := stringSet(enums.Type)
-	if _, hasConcept := types[conceptType]; hasConcept && len(rules.ConceptRequiresProvenance) == 0 {
-		return errors.New(`rules.concept_requires_provenance must not be empty when enums.type contains "concept"`)
-	}
-	known := stringSet(fields.Known)
-	lessonOnly := stringSet(fields.LessonOnly)
 	for _, field := range rules.ConceptRequiresProvenance {
-		if _, excluded := lessonOnly[field]; excluded {
-			return fmt.Errorf("rules.concept_requires_provenance: value %q is listed in fields.lesson_only", field)
+		if shutProvenanceNames(field) {
+			return fmt.Errorf("rules.concept_requires_provenance: %q is a field yomihon builds in, derives or has removed", field)
 		}
-		if _, ok := known[field]; !ok {
-			return fmt.Errorf("rules.concept_requires_provenance: value %q is not listed in fields.known", field)
+	}
+	if _, hasConcept := contract.typeByName[conceptType]; hasConcept && len(rules.ConceptRequiresProvenance) == 0 {
+		return errors.New(`rules.concept_requires_provenance must not be empty when the types include "concept"`)
+	}
+	if _, hasConcept := contract.typeByName[conceptType]; hasConcept {
+		contract.provenanceFields = slices.Clone(rules.ConceptRequiresProvenance)
+	}
+	return nil
+}
+
+func validateFolders(folders *Folders) error {
+	if err := validateDomainRoots(folders.DomainFrom); err != nil {
+		return err
+	}
+	if err := validateUniqueStrings("folders.checked", folders.Checked); err != nil {
+		return err
+	}
+	for _, dir := range folders.Checked {
+		if !validTopLevelComponent(dir) {
+			return fmt.Errorf("folders.checked: unsafe top-level component %q", dir)
 		}
 	}
 
-	if _, hasLesson := types["lesson"]; hasLesson {
-		if rules.SlugPattern == "" {
-			return errors.New(`rules.slug_pattern must not be empty when enums.type contains "lesson"`)
+	if err := validateUniqueStrings("folders.skipped_files", folders.SkippedFiles); err != nil {
+		return err
+	}
+	for _, basename := range folders.SkippedFiles {
+		if !validBasename(basename) {
+			return fmt.Errorf("folders.skipped_files: invalid basename %q", basename)
 		}
-		if _, err := regexp.Compile(rules.SlugPattern); err != nil {
-			return fmt.Errorf("rules.slug_pattern: invalid regular expression: %w", err)
+	}
+
+	if err := validateUniqueStrings("folders.ignored", folders.Ignored); err != nil {
+		return err
+	}
+	for _, pattern := range folders.Ignored {
+		if fault := vault.ValidExcludePattern(pattern); fault != "" {
+			return fmt.Errorf("folders.ignored: pattern %q %s", pattern, fault)
 		}
 	}
 	return nil
 }
 
 func validateDomainRoots(roots []string) error {
-	if err := validateUniqueStrings("rules.domain_equals_folder_under", roots); err != nil {
+	if err := validateUniqueStrings("folders.domain_from", roots); err != nil {
 		return err
 	}
 	for i, dir := range roots {
 		if !validDomainRoot(dir) {
-			return fmt.Errorf("rules.domain_equals_folder_under: unsafe relative directory path %q", dir)
+			return fmt.Errorf("folders.domain_from: unsafe relative directory path %q", dir)
 		}
 		for _, previous := range roots[:i] {
 			if pathHasFoldedPrefix(dir, previous) || pathHasFoldedPrefix(previous, dir) {
-				return fmt.Errorf("rules.domain_equals_folder_under: overlapping roots %q and %q", previous, dir)
+				return fmt.Errorf("folders.domain_from: overlapping roots %q and %q", previous, dir)
 			}
 		}
 	}
@@ -1071,327 +813,12 @@ func validTopLevelComponent(value string) bool {
 		!strings.ContainsAny(value, `/\`)
 }
 
-func validateScan(scan *ScanPolicy) error {
-	if err := validateUniqueStrings("scan.knowledge_dirs", scan.KnowledgeDirs); err != nil {
-		return err
-	}
-	for _, dir := range scan.KnowledgeDirs {
-		if !validTopLevelComponent(dir) {
-			return fmt.Errorf("scan.knowledge_dirs: unsafe top-level component %q", dir)
-		}
-	}
-
-	if err := validateUniqueStrings("scan.skip_basenames", scan.SkipBasenames); err != nil {
-		return err
-	}
-	for _, basename := range scan.SkipBasenames {
-		if !validBasename(basename) {
-			return fmt.Errorf("scan.skip_basenames: invalid basename %q", basename)
-		}
-	}
-
-	if err := validateUniqueStrings("scan.exclude_dirs", scan.ExcludeDirs); err != nil {
-		return err
-	}
-	for _, pattern := range scan.ExcludeDirs {
-		if fault := vault.ValidExcludePattern(pattern); fault != "" {
-			return fmt.Errorf("scan.exclude_dirs: pattern %q %s", pattern, fault)
-		}
-	}
-	return nil
-}
-
 func validBasename(value string) bool {
 	return value != "" &&
 		value != "." &&
 		value != ".." &&
 		!strings.ContainsRune(value, 0) &&
 		!strings.ContainsAny(value, `/\`)
-}
-
-func compileLifecycle(contract *Contract) error {
-	statusSets := compileLifecycleStatusLookups(contract)
-	declaredTypes := stringSet(contract.definition.Enums.Type)
-	contract.stageByTypeStatus = make(map[lifecycleKey]Stage)
-	rowByKey := make(map[lifecycleKey]int)
-	for i := range contract.stages {
-		row := i + 1
-		stage := &contract.stages[i]
-		applicableTypes, err := lifecycleApplicableTypes(contract, row, stage, declaredTypes)
-		if err != nil {
-			return err
-		}
-		for _, noteType := range applicableTypes {
-			statusSet := statusSets[contract.statusGroupByType[noteType]]
-			if err := validateLifecycleStageForType(row, stage, noteType, statusSet); err != nil {
-				return err
-			}
-			if err := indexLifecycleStage(contract, rowByKey, row, noteType, stage); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func compileLifecycleStatusLookups(contract *Contract) map[string]map[string]struct{} {
-	contract.statusGroupByType = make(map[string]string, len(contract.definition.Enums.Type))
-	for _, noteType := range contract.definition.Enums.Type {
-		contract.statusGroupByType[noteType] = "note"
-	}
-	for group, noteTypes := range contract.definition.Fields.StatusGroup {
-		for _, noteType := range noteTypes {
-			contract.statusGroupByType[noteType] = group
-		}
-	}
-
-	contract.statusesByGroup = make(map[string][]string, len(contract.definition.Enums.Status))
-	statusSets := make(map[string]map[string]struct{}, len(contract.definition.Enums.Status))
-	for group, statuses := range contract.definition.Enums.Status {
-		declared := slices.Clone(statuses)
-		contract.statusesByGroup[group] = declared
-		statusSets[group] = stringSet(declared)
-	}
-	return statusSets
-}
-
-func lifecycleApplicableTypes(
-	contract *Contract,
-	row int,
-	stage *Stage,
-	declaredTypes map[string]struct{},
-) ([]string, error) {
-	if strings.TrimSpace(stage.Status) == "" {
-		return nil, fmt.Errorf("lifecycle row %d: status must not be blank", row)
-	}
-	if len(stage.AppliesTo) == 0 {
-		return nil, fmt.Errorf("lifecycle row %d: applies_to must not be empty", row)
-	}
-	if err := validateLifecycleValues(row, "applies_to", stage.AppliesTo, true); err != nil {
-		return nil, err
-	}
-	if err := validateLifecycleValues(row, "from", stage.From, true); err != nil {
-		return nil, err
-	}
-	if err := validateLifecycleValues(row, "owner", stage.Owner, false); err != nil {
-		return nil, err
-	}
-	if len(stage.AppliesTo) == 1 && stage.AppliesTo[0] == "*" {
-		return contract.definition.Enums.Type, nil
-	}
-	for _, noteType := range stage.AppliesTo {
-		if _, ok := declaredTypes[noteType]; !ok {
-			return nil, fmt.Errorf(
-				"lifecycle row %d applies_to: type %q is not listed in enums.type",
-				row,
-				noteType,
-			)
-		}
-	}
-	return stage.AppliesTo, nil
-}
-
-func validateLifecycleStageForType(
-	row int,
-	stage *Stage,
-	noteType string,
-	statusSet map[string]struct{},
-) error {
-	if _, ok := statusSet[stage.Status]; !ok {
-		return fmt.Errorf(
-			"lifecycle row %d: status %q is not legal for type %q",
-			row,
-			stage.Status,
-			noteType,
-		)
-	}
-	if len(stage.From) == 1 && stage.From[0] == "*" {
-		return nil
-	}
-	for _, predecessor := range stage.From {
-		if _, ok := statusSet[predecessor]; !ok {
-			return fmt.Errorf(
-				"lifecycle row %d from: status %q is not legal for type %q",
-				row,
-				predecessor,
-				noteType,
-			)
-		}
-	}
-	return nil
-}
-
-func indexLifecycleStage(
-	contract *Contract,
-	rowByKey map[lifecycleKey]int,
-	row int,
-	noteType string,
-	stage *Stage,
-) error {
-	key := lifecycleKey{noteType: noteType, status: stage.Status}
-	if previous, overlap := rowByKey[key]; overlap {
-		return fmt.Errorf(
-			"lifecycle rows %d and %d overlap for type %q and status %q",
-			previous,
-			row,
-			noteType,
-			stage.Status,
-		)
-	}
-	rowByKey[key] = row
-	compiled := cloneStage(stage)
-	contract.stageByTypeStatus[key] = compiled
-	return nil
-}
-
-func validateLifecycleValues(row int, field string, values []string, wildcard bool) error {
-	seen := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("lifecycle row %d %s: blank value", row, field)
-		}
-		if _, duplicate := seen[value]; duplicate {
-			return fmt.Errorf("lifecycle row %d %s: duplicate value %q", row, field, value)
-		}
-		seen[value] = struct{}{}
-	}
-	if wildcard && len(values) > 1 && slices.Contains(values, "*") {
-		return fmt.Errorf(`lifecycle row %d %s: wildcard "*" must be the only value`, row, field)
-	}
-	return nil
-}
-
-// cloneStage copies a row so callers cannot reach each other's slices. Every
-// field is named: one added to Stage and forgotten here would read as its zero
-// value wherever the contract is consulted.
-func cloneStage(stage *Stage) Stage {
-	return Stage{
-		Status:    stage.Status,
-		AppliesTo: slices.Clone(stage.AppliesTo),
-		Initial:   stage.Initial,
-		From:      slices.Clone(stage.From),
-		Owner:     slices.Clone(stage.Owner),
-	}
-}
-
-func validateSupersession(contract *Contract) error {
-	section := contract.metadata.supersession
-	if section == nil {
-		return nil
-	}
-	if err := validateSupersessionFields(contract, section); err != nil {
-		return err
-	}
-	return validateSupersessionLifecycle(contract, section.ArchivedStatus)
-}
-
-func validateSupersessionFields(contract *Contract, section *supersessionSection) error {
-	values := []struct {
-		name  string
-		value string
-	}{
-		{name: "predecessor_field", value: section.PredecessorField},
-		{name: "successor_field", value: section.SuccessorField},
-		{name: "general_link_field", value: section.GeneralLinkField},
-		{name: "archived_status", value: section.ArchivedStatus},
-	}
-	for _, field := range values {
-		if field.value == "" {
-			return fmt.Errorf("supersession.%s must not be empty", field.name)
-		}
-	}
-
-	switch {
-	case section.PredecessorField == section.SuccessorField:
-		return errors.New(`supersession fields "predecessor_field" and "successor_field" must be distinct`)
-	case section.PredecessorField == section.GeneralLinkField:
-		return errors.New(`supersession fields "predecessor_field" and "general_link_field" must be distinct`)
-	case section.SuccessorField == section.GeneralLinkField:
-		return errors.New(`supersession fields "successor_field" and "general_link_field" must be distinct`)
-	}
-
-	lessonOnly := stringSet(contract.definition.Fields.LessonOnly)
-	if _, ok := lessonOnly[section.PredecessorField]; !ok {
-		return fmt.Errorf(
-			"supersession.predecessor_field: value %q is not listed in fields.lesson_only",
-			section.PredecessorField,
-		)
-	}
-	if _, ok := lessonOnly[section.SuccessorField]; !ok {
-		return fmt.Errorf(
-			"supersession.successor_field: value %q is not listed in fields.lesson_only",
-			section.SuccessorField,
-		)
-	}
-	known := stringSet(contract.definition.Fields.Known)
-	if _, ok := known[section.GeneralLinkField]; !ok {
-		return fmt.Errorf(
-			"supersession.general_link_field: value %q is not listed in fields.known",
-			section.GeneralLinkField,
-		)
-	}
-	return nil
-}
-
-func validateSupersessionLifecycle(contract *Contract, archivedStatus string) error {
-	archivedStatusKnown := false
-	for _, statuses := range contract.definition.Enums.Status {
-		if slices.Contains(statuses, archivedStatus) {
-			archivedStatusKnown = true
-			break
-		}
-	}
-	if !archivedStatusKnown {
-		return fmt.Errorf(
-			"supersession.archived_status: value %q is not listed in enums.status",
-			archivedStatus,
-		)
-	}
-	for _, noteType := range contract.definition.Enums.Type {
-		if err := validateSupersessionType(contract, noteType, archivedStatus); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func validateSupersessionType(contract *Contract, noteType, archivedStatus string) error {
-	group := contract.statusGroupByType[noteType]
-	statuses := contract.statusesByGroup[group]
-	if !slices.Contains(statuses, archivedStatus) {
-		return fmt.Errorf(
-			"supersession.archived_status: value %q is not legal for type %q",
-			archivedStatus,
-			noteType,
-		)
-	}
-	archived, ok := contract.stageByTypeStatus[lifecycleKey{
-		noteType: noteType,
-		status:   archivedStatus,
-	}]
-	if !ok {
-		return fmt.Errorf(
-			"supersession.archived_status: no lifecycle row applies to type %q and status %q",
-			noteType,
-			archivedStatus,
-		)
-	}
-	if slices.Contains(archived.From, "*") {
-		return nil
-	}
-	for _, predecessor := range statuses {
-		if predecessor == archivedStatus {
-			continue
-		}
-		if !slices.Contains(archived.From, predecessor) {
-			return fmt.Errorf(
-				"supersession archived stage for type %q does not accept predecessor %q",
-				noteType,
-				predecessor,
-			)
-		}
-	}
-	return nil
 }
 
 // Version returns the contract format version, empty for a vault no contract
@@ -1404,15 +831,46 @@ func (c *Contract) Version() string {
 }
 
 // Definition returns a detached copy of the contract's declarative
-// vocabulary and validation policy. The scan declaration is not copied:
-// knowledge-layer membership is [KnowledgeScope], skip_basenames is
-// [Contract.SkipBasenames], and exclude_dirs is [Contract.ScanBoundary]. A
-// vault no contract governs declares an empty vocabulary.
+// vocabulary. Knowledge-layer membership is [KnowledgeScope], skipped files
+// are [Contract.SkipBasenames], and ignored directories are
+// [Contract.ScanBoundary]; the folders carry what was written. A vault no
+// contract governs declares an empty vocabulary.
 func (c *Contract) Definition() Definition {
 	if c == nil {
 		return Definition{}
 	}
-	return cloneDefinition(&c.definition)
+	out := Definition{
+		Types:  make([]TypeDefinition, len(c.types)),
+		Enums:  make([]EnumDefinition, len(c.enums)),
+		Fields: FieldDefinition{Common: slices.Clone(c.common), Required: slices.Clone(c.required)},
+		Rules: Rules{
+			ConceptRequiresProvenance: slices.Clone(c.rules.ConceptRequiresProvenance),
+			PlannedGapMarks:           slices.Clone(c.rules.PlannedGapMarks),
+			PlannedInlineMarks:        slices.Clone(c.rules.PlannedInlineMarks),
+		},
+		Folders: Folders{
+			Checked:             slices.Clone(c.folders.Checked),
+			Ignored:             slices.Clone(c.folders.Ignored),
+			Templates:           slices.Clone(c.folders.Templates),
+			Journal:             c.folders.Journal,
+			DomainFrom:          slices.Clone(c.folders.DomainFrom),
+			SkippedFiles:        slices.Clone(c.folders.SkippedFiles),
+			FrontmatterOptional: c.folders.FrontmatterOptional,
+		},
+	}
+	for i, def := range c.types {
+		out.Types[i] = TypeDefinition{
+			Name:        def.name,
+			Role:        def.role,
+			Required:    slices.Clone(def.required),
+			Fields:      slices.Clone(def.fields),
+			SlugPattern: def.slugText,
+		}
+	}
+	for i, enum := range c.enums {
+		out.Enums[i] = EnumDefinition{Field: enum.field, Values: slices.Clone(enum.values)}
+	}
+	return out
 }
 
 // PlannedMarks returns detached copies of the heading and inline marks this
@@ -1424,75 +882,8 @@ func (c *Contract) PlannedMarks() (heading, inline []string) {
 	if c == nil {
 		return nil, nil
 	}
-	return slices.Clone(c.definition.Rules.PlannedGapMarks),
-		slices.Clone(c.definition.Rules.PlannedInlineMarks)
-}
-
-// StageCount returns the number of lifecycle rows declared by the contract.
-func (c *Contract) StageCount() int {
-	if c == nil {
-		return 0
-	}
-	return len(c.stages)
-}
-
-func cloneDefinition(source *Definition) Definition {
-	return Definition{
-		Enums: Enums{
-			Type:           slices.Clone(source.Enums.Type),
-			Domain:         slices.Clone(source.Enums.Domain),
-			SourceKind:     slices.Clone(source.Enums.SourceKind),
-			SourceProvider: slices.Clone(source.Enums.SourceProvider),
-			Level:          slices.Clone(source.Enums.Level),
-			MapKind:        slices.Clone(source.Enums.MapKind),
-			Status:         cloneStringSliceMap(source.Enums.Status),
-		},
-		Fields: Fields{
-			Required:      slices.Clone(source.Fields.Required),
-			RequiredInbox: slices.Clone(source.Fields.RequiredInbox),
-			DomainExempt:  slices.Clone(source.Fields.DomainExempt),
-			Known:         slices.Clone(source.Fields.Known),
-			LessonOnly:    slices.Clone(source.Fields.LessonOnly),
-			StatusGroup:   cloneStringSliceMap(source.Fields.StatusGroup),
-		},
-		Rules: Rules{
-			DomainEqualsFolderUnder:   slices.Clone(source.Rules.DomainEqualsFolderUnder),
-			ConceptRequiresProvenance: slices.Clone(source.Rules.ConceptRequiresProvenance),
-			SlugPattern:               source.Rules.SlugPattern,
-			ForbidTagWithSlash:        source.Rules.ForbidTagWithSlash,
-			PlannedGapMarks:           slices.Clone(source.Rules.PlannedGapMarks),
-			PlannedInlineMarks:        slices.Clone(source.Rules.PlannedInlineMarks),
-		},
-	}
-}
-
-func cloneStringSliceMap(source map[string][]string) map[string][]string {
-	if source == nil {
-		return nil
-	}
-	cloned := make(map[string][]string, len(source))
-	for key, values := range source {
-		cloned[key] = slices.Clone(values)
-	}
-	return cloned
-}
-
-// Supersession returns the configured replacement-ledger vocabulary, or false
-// when the contract declares none.
-func (c *Contract) Supersession() (Supersession, bool) {
-	if c == nil {
-		return Supersession{}, false
-	}
-	section := c.metadata.supersession
-	if section == nil {
-		return Supersession{}, false
-	}
-	return Supersession{
-		PredecessorField: section.PredecessorField,
-		SuccessorField:   section.SuccessorField,
-		GeneralLinkField: section.GeneralLinkField,
-		ArchivedStatus:   section.ArchivedStatus,
-	}, true
+	return slices.Clone(c.rules.PlannedGapMarks),
+		slices.Clone(c.rules.PlannedInlineMarks)
 }
 
 // ConceptType returns the note type a vault files as its distilled ideas, and
@@ -1502,38 +893,35 @@ func (c *Contract) ConceptType() (name string, declared bool) {
 	if c == nil {
 		return conceptType, false
 	}
-	return conceptType, slices.Contains(c.definition.Enums.Type, conceptType)
+	_, declared = c.typeByName[conceptType]
+	return conceptType, declared
 }
 
 // LessonType returns the note type a vault files its course members as, and
-// whether this contract declares it at all. The name comes back either way, so
+// whether this contract declares it at all: the type that holds the lesson
+// role. Without one the name comes back as the one a note calls itself by, so
 // a caller can say which type it looked for.
 func (c *Contract) LessonType() (name string, declared bool) {
 	if c == nil {
 		return lessonType, false
 	}
-	return lessonType, slices.Contains(c.definition.Enums.Type, lessonType)
-}
-
-// InboxRequiredFields returns the note type a vault reserves for captures whose
-// shape is not yet decided, the fields it requires of one, and whether the
-// contract declared that requirement at all. An explicitly empty list is still
-// a declaration: it says a capture is required to carry nothing.
-func (c *Contract) InboxRequiredFields() (noteType string, fields []string, declared bool) {
-	if c == nil {
-		return inboxType, nil, false
+	for _, def := range c.types {
+		if def.role == RoleLesson {
+			return def.name, true
+		}
 	}
-	return inboxType, slices.Clone(c.definition.Fields.RequiredInbox), c.written.requiredInbox
+	return lessonType, false
 }
 
 // RequiresFrontmatter reports whether this vault treats a note carrying no
-// frontmatter block as a fault. Only a contract that wrote the scan declaration
-// down and set it against legality asks for that; silence is not a prohibition.
+// frontmatter block as a fault. Only a contract that wrote
+// folders.frontmatter_optional down and set it against legality asks for that;
+// silence is not a prohibition.
 func (c *Contract) RequiresFrontmatter() bool {
 	if c == nil {
 		return false
 	}
-	return c.written.noFrontmatterIsLegal && !c.definition.Scan.NoFrontmatterIsLegal
+	return c.written.frontmatterOptional && !c.folders.FrontmatterOptional
 }
 
 // DeclaresType reports whether noteType is listed in the contract's own type
@@ -1542,7 +930,8 @@ func (c *Contract) DeclaresType(noteType string) bool {
 	if c == nil {
 		return false
 	}
-	return slices.Contains(c.definition.Enums.Type, NormalizeWord(noteType))
+	_, ok := c.typeByName[NormalizeWord(noteType)]
+	return ok
 }
 
 // NavigationRoles returns the contract-derived navigation role capability.
@@ -1568,7 +957,7 @@ func (c *Contract) SkipBasenames() []string {
 	if c == nil {
 		return nil
 	}
-	return slices.Clone(c.definition.Scan.SkipBasenames)
+	return slices.Clone(c.folders.SkippedFiles)
 }
 
 // SkipsBasename reports whether relPath's final segment is one of the
@@ -1582,7 +971,7 @@ func (c *Contract) SkipsBasename(relPath string) bool {
 	if _, after, found := strings.CutLast(relPath, "/"); found {
 		base = after
 	}
-	return slices.Contains(c.definition.Scan.SkipBasenames, base)
+	return slices.Contains(c.folders.SkippedFiles, base)
 }
 
 // ScanBoundary returns the directories this vault's scan keeps out, as the
@@ -1592,7 +981,7 @@ func (c *Contract) ScanBoundary() vault.Boundary {
 	if c == nil {
 		return vault.Boundary{}
 	}
-	return vault.NewBoundary(c.definition.Scan.ExcludeDirs)
+	return vault.NewBoundary(c.folders.Ignored)
 }
 
 // ArtifactPolicy returns the contract-derived artifact policy capability.
@@ -1619,130 +1008,13 @@ func (c *Contract) PrivacyPolicy() PrivacyPolicy {
 	return c.privacyPolicy
 }
 
-// StatusGroup returns which status enum group applies to a declared note type.
-// An empty note type selects the default "note" group for aggregate views.
-// An undeclared non-empty type returns "".
-func (c *Contract) StatusGroup(noteType string) string {
-	if c == nil || c.version == "" {
-		return ""
-	}
-	if noteType == "" {
-		return "note"
-	}
-	if group, declared := c.statusGroupByType[NormalizeWord(noteType)]; declared {
-		return group
-	}
-	return ""
-}
-
-// JudgedStatusGroup returns the status group the checker uses for this type.
-// An undeclared type reads against the general note group without gaining
-// lifecycle authority. A vault without a contract supplies no judging group.
-func (c *Contract) JudgedStatusGroup(noteType string) string {
-	if c == nil || c.version == "" {
-		return ""
-	}
-	if group := c.StatusGroup(noteType); group != "" {
-		return group
-	}
-	return "note"
-}
-
-// Statuses returns the legal status values for a declared note type. An empty
-// note type selects the default "note" group; an undeclared type returns nil,
-// and so does a vault no contract governs.
-func (c *Contract) Statuses(noteType string) []string {
-	if c == nil {
-		return nil
-	}
-	return slices.Clone(c.statusesByGroup[c.StatusGroup(noteType)])
-}
-
-// StatusesInGroup returns the legal status values a status group declares, for
-// a caller that has already resolved the group a note reads against. The values
-// carry the spelling every comparison uses, so a caller folds only the value it
-// is judging. A group the contract does not declare returns nil.
-func (c *Contract) StatusesInGroup(group string) []string {
-	if c == nil {
-		return nil
-	}
-	return slices.Clone(c.statusesByGroup[group])
-}
-
 // NormalizeWord is the one spelling rule for a word a contract declares —
-// a type, a status, any other enum value. Every comparison against a declared
-// word goes through it: the contract's own values once as they are loaded, and
-// a note's value as it is judged. A word arrives decomposed from the filesystem
-// and composed from an editor and the search index, so the bytes are folded
-// before anything compares them. Case is deliberately not folded — two words
+// a type, any enum value. Every comparison against a declared word goes
+// through it: the contract's own values once as they are loaded, and a note's
+// value as it is judged. A word arrives decomposed from the filesystem and
+// composed from an editor and the search index, so the bytes are folded before
+// anything compares them. Case is deliberately not folded — two words
 // differing only in case are two declarations the contract meant.
 func NormalizeWord(s string) string {
 	return vault.NormalizeNFC(s)
-}
-
-// Stage returns the lifecycle entry for setting status on a note of the
-// given type, or false when the contract defines none.
-func (c *Contract) Stage(noteType, status string) (Stage, bool) {
-	stage, ok := c.stage(noteType, status)
-	if !ok {
-		return Stage{}, false
-	}
-	return cloneStage(&stage), true
-}
-
-func (c *Contract) stage(noteType, status string) (Stage, bool) {
-	if c == nil {
-		return Stage{}, false
-	}
-	key := lifecycleKey{noteType: NormalizeWord(noteType), status: NormalizeWord(status)}
-	stage, ok := c.stageByTypeStatus[key]
-	return stage, ok
-}
-
-// StartsAt reports whether a note of the given type may be given this status
-// as its first one, which is how a face asks "has anyone offered this yet"
-// without writing a word down. The lifecycle rows name those statuses: a
-// contract states it with the initial key, or has it read off a row naming no
-// predecessor. A status the contract does not declare for this type is not one
-// of them, and neither is any status in a vault no contract governs. Both
-// arguments are folded to the spelling the contract's own values carry, so a
-// caller may pass a note's value as the file spelled it.
-func (c *Contract) StartsAt(noteType, status string) bool {
-	stage, ok := c.stage(noteType, status)
-	return ok && stage.Initial
-}
-
-// Transition reports whether a note of the given type may move from one status
-// to another. An empty from means the note is being given its initial status.
-// Lifecycle owner lists are declarative data and play no part. The returned
-// error wraps one of the package sentinels; a vault no contract governs refuses
-// every move as an unknown status.
-func (c *Contract) Transition(noteType, from, to string) error {
-	// The sources agree about the word without agreeing about its bytes.
-	from, to = NormalizeWord(from), NormalizeWord(to)
-	st, ok := c.stage(noteType, to)
-	if !ok {
-		return fmt.Errorf("%w: %q for type %q", ErrUnknownStatus, to, noteType)
-	}
-	if from != "" {
-		if !slices.Contains(c.statusesByGroup[c.StatusGroup(noteType)], from) {
-			return fmt.Errorf("%w: current status %q for type %q", ErrUnknownStatus, from, noteType)
-		}
-	}
-	if from == to {
-		return fmt.Errorf("%w: %s → %s for type %q is a no-op", ErrIllegalTransition, from, to, noteType)
-	}
-	switch {
-	case from == "":
-		// A status can be both a place to begin and a place to come back to,
-		// so this is the row's own declaration, not its predecessor list.
-		if !st.Initial {
-			return fmt.Errorf("%w: %q is not an initial status for type %q", ErrIllegalTransition, to, noteType)
-		}
-	case slices.Contains(st.From, from) || slices.Contains(st.From, "*"):
-		// legal predecessor
-	default:
-		return fmt.Errorf("%w: %s → %s for type %q", ErrIllegalTransition, from, to, noteType)
-	}
-	return nil
 }

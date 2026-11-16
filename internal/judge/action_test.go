@@ -28,7 +28,7 @@ func TestJudgeActionPinsOneRootAcrossRenameAndReplacement(t *testing.T) {
 	parent := t.TempDir()
 	root := filepath.Join(parent, "vault")
 	writeTestContract(t, root, nil)
-	write(t, root, "Notes/Pinned.md", "---\ntitle: Pinned\n---\n")
+	write(t, root, "Notes/Pinned.md", "---\n---\n# Pinned\n")
 	moved := filepath.Join(parent, "selected-vault")
 
 	stdout, err := runPrepared(t.Context(), t, "exists", root, "Pinned",
@@ -45,7 +45,7 @@ func TestJudgeActionPinsOneRootAcrossRenameAndReplacement(t *testing.T) {
 			if err := os.WriteFile(contractPath, append(contract, '\n'), 0o600); err != nil { // #nosec G703 -- contractPath is rooted in this test's private TempDir
 				t.Fatalf("WriteFile(replacement contract) error = %v", err)
 			}
-			write(t, root, "Notes/Replacement.md", "---\ntitle: Replacement\n---\n")
+			write(t, root, "Notes/Replacement.md", "---\n---\n# Replacement\n")
 		}}, nil)
 	if err != nil {
 		t.Fatalf("exists on a pinned root error = %v", err)
@@ -75,7 +75,7 @@ func TestJudgeActionReadsNFDEntryThroughCapturedRawSpelling(t *testing.T) {
 	if raw == canonical {
 		t.Fatal("NFD fixture did not decompose")
 	}
-	write(t, root, raw, "---\ntitle: Caf\u00e9\n---\n")
+	write(t, root, raw, "---\n---\n# Caf\u00e9\n")
 
 	stdout, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "Caf\u00e9", Format: FormatJSON})
 	if err != nil {
@@ -148,8 +148,8 @@ func TestUnreadableCauseIsTheSameWordsWhereverTheGateRuns(t *testing.T) {
 
 	root := t.TempDir()
 	writeTestContract(t, root, nil)
-	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
-	write(t, root, "Notes/bad.md", "---\ntitle: Unreadable\n---\n")
+	write(t, root, "Notes/ok.md", "---\n---\n# Readable\n")
+	write(t, root, "Notes/bad.md", "---\n---\n# Unreadable\n")
 	if !unreadable(t, filepath.Join(root, "Notes", "bad.md")) {
 		// Skipping would leave the sentence unpinned on the very system that
 		// could not hold it, which is the one worth hearing about.
@@ -227,8 +227,8 @@ func TestJudgeNamesTheFileItCouldNotRead(t *testing.T) {
 
 			root := t.TempDir()
 			writeTestContract(t, root, nil)
-			write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
-			write(t, root, "Notes/bad.md", "---\ntitle: Unreadable\n---\n")
+			write(t, root, "Notes/ok.md", "---\n---\n# Readable\n")
+			write(t, root, "Notes/bad.md", "---\n---\n# Unreadable\n")
 			if !unreadable(t, filepath.Join(root, "Notes", "bad.md")) {
 				t.Fatal("this process can still read a file it took every permission from, so the refusal under test cannot be observed here")
 			}
@@ -261,8 +261,8 @@ func TestJudgeWithholdsAnUnreadableFileUnderAPrivateDirectory(t *testing.T) {
 
 			root := t.TempDir()
 			writeTestContract(t, root, []string{"Diary"})
-			write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
-			write(t, root, "Diary/2026-08-27.md", "---\ntitle: Private\n---\n")
+			write(t, root, "Notes/ok.md", "---\n---\n# Readable\n")
+			write(t, root, "Diary/2026-08-27.md", "---\n---\n# Private\n")
 			if !unreadable(t, filepath.Join(root, "Diary", "2026-08-27.md")) {
 				t.Fatal("this process can still read a file it took every permission from, so the refusal under test cannot be observed here")
 			}
@@ -293,9 +293,9 @@ func TestJudgeWithholdsAPrivateDirectoryTheScanCouldNotEnter(t *testing.T) {
 
 	root := t.TempDir()
 	writeTestContract(t, root, []string{"だ体"})
-	write(t, root, "Notes/ok.md", "---\ntitle: Readable\n---\n")
+	write(t, root, "Notes/ok.md", "---\n---\n# Readable\n")
 	decomposed := norm.NFD.String("だ体")
-	write(t, root, decomposed+"/private.md", "---\ntitle: Private\n---\n")
+	write(t, root, decomposed+"/private.md", "---\n---\n# Private\n")
 	if !unreadable(t, filepath.Join(root, decomposed)) {
 		t.Skip("filesystem permissions do not make the directory unreadable for this process")
 	}
@@ -339,7 +339,7 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 				if err := os.Rename(path, path+".old"); err != nil {
 					t.Fatalf("Rename(leaf) error = %v", err)
 				}
-				write(t, root, "Notes/Target.md", "---\ntitle: Replacement\n---\n")
+				write(t, root, "Notes/Target.md", "---\n---\n# Replacement\n")
 			},
 		},
 		{
@@ -353,7 +353,7 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 				if err := os.Rename(parent, parent+"-old"); err != nil {
 					t.Fatalf("Rename(parent) error = %v", err)
 				}
-				write(t, root, "Notes/Target.md", "---\ntitle: Replacement\n---\n")
+				write(t, root, "Notes/Target.md", "---\n---\n# Replacement\n")
 			},
 		},
 	}
@@ -375,8 +375,8 @@ func TestJudgeActionRejectsSourceSwapWithoutPayload(t *testing.T) {
 
 					root := t.TempDir()
 					writeTestContract(t, root, nil)
-					write(t, root, "Notes/Target.md", "---\ntitle: Target\n---\n")
-					write(t, root, swap.keep, "---\ntitle: Keep\n---\n")
+					write(t, root, "Notes/Target.md", "---\n---\n# Target\n")
+					write(t, root, swap.keep, "---\n---\n# Keep\n")
 
 					stdout, err := runPrepared(t.Context(), t, command.name, root, "Target",
 						actionHooks{afterScan: func() { swap.swap(t, root) }}, nil)
@@ -416,8 +416,8 @@ func TestJudgeCommandsScanOnceAndReadEachMarkdownOnce(t *testing.T) {
 
 			root := t.TempDir()
 			writeTestContract(t, root, nil)
-			write(t, root, "Notes/A.md", "---\ntitle: A\n---\n")
-			write(t, root, "Notes/B.md", "---\ntitle: B\n---\n")
+			write(t, root, "Notes/A.md", "---\n---\n# A\n")
+			write(t, root, "Notes/B.md", "---\n---\n# B\n")
 
 			scans := 0
 			reads := make(map[string]int)
@@ -565,7 +565,7 @@ func TestAScanStopsWhenTheCallerGivesUp(t *testing.T) {
 
 	root := t.TempDir()
 	writeTestContract(t, root, nil)
-	write(t, root, "Notes/one.md", "---\ntitle: One\n---\nbody\n")
+	write(t, root, "Notes/one.md", "---\n---\n# One\nbody\n")
 
 	if _, err := Check(t.Context(), root); err != nil {
 		t.Fatalf("Check() on a live context error = %v; the fixture has to succeed or the cancelled case proves nothing", err)
@@ -695,8 +695,8 @@ func TestAbortWithholdsAPathTheContractHasSinceWithdrawn(t *testing.T) {
 				if !st.noContract {
 					writeTestContract(t, root, st.privateFrom)
 				}
-				write(t, root, sentinelPath, "---\ntitle: PrivateSentinel\n---\n")
-				write(t, root, "Notes/Target.md", "---\ntitle: Target\n---\n")
+				write(t, root, sentinelPath, "---\n---\n# PrivateSentinel\n")
+				write(t, root, "Notes/Target.md", "---\n---\n# Target\n")
 				sentinel := filepath.Join(root, filepath.FromSlash(sentinelPath))
 
 				_, err := runPrepared(t.Context(), t, command, root, "Target",

@@ -74,11 +74,11 @@ func leftOpenVault(t *testing.T) (root, configDir string) {
 	root, configDir = t.TempDir(), t.TempDir()
 	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n\n## Twice\n\none\n\n## Twice\n\ntwo\n")
-	putOpenThoughtFile(t, root, "Titled.md", "---\ntitle: Titled\n---\n# Titled\n\nbody\n")
-	putOpenThoughtFile(t, root, "Inside/Thought.md", openThoughtNote("A thought", "reflection", "started", "2026-09-06"))
-	putOpenThoughtFile(t, root, "Outside/Alternate.md", openThoughtNote("Alternative initial", "reflection", "revisit", "2026-09-08"))
-	putOpenThoughtFile(t, root, "Inside/Done.md", openThoughtNote("Done note", "reflection", "settled", "2026-09-10"))
-	putOpenThoughtFile(t, root, "Inside/Undated.md", "---\ntitle: Undated\ntype: reflection\nstatus: started\n---\nA thought.\n")
+	putOpenThoughtFile(t, root, "Titled.md", "# Titled\n\nbody\n")
+	putOpenThoughtFile(t, root, "Inside/Thought.md", openThoughtNote("A thought", "reflection", draftFlag, "2026-09-06"))
+	putOpenThoughtFile(t, root, "Outside/Alternate.md", openThoughtNote("Outside the layer", "reflection", draftFlag, "2026-09-08"))
+	putOpenThoughtFile(t, root, "Inside/Done.md", openThoughtNote("Done note", "reflection", "draft: false\n", "2026-09-10"))
+	putOpenThoughtFile(t, root, "Inside/Undated.md", "---\ntype: reflection\ndraft: true\n---\n# Undated\n\nA thought.\n")
 	leftOpenMarks(t, root, configDir,
 		mark.Uncertainty{RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(7)},
 		// Marked west of UTC on the evening before: the list says the moment in
@@ -123,6 +123,38 @@ func TestLeftOpenWritesTheGoldenList(t *testing.T) {
 	}
 }
 
+// A title is the note's first level-one heading and nothing else: not a
+// heading inside a fence, not a lesser heading, not a title the frontmatter
+// writes, and not the file name when the note has no such heading.
+func TestLeftOpenTitlesANoteOnlyByItsFirstHeading(t *testing.T) {
+	t.Parallel()
+	root, configDir := t.TempDir(), t.TempDir()
+	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
+	putOpenThoughtFile(t, root, "Inside/Unheaded.md", "---\ntype: reflection\ndraft: true\ncreated: 2026-09-04\n---\nWords only.\n\n## A lesser heading\n")
+	putOpenThoughtFile(t, root, "Inside/Fenced.md", "---\ntype: reflection\ndraft: true\ncreated: 2026-09-03\n---\n```\n# Inside a fence\n```\n\n# Past the fence\n")
+	putOpenThoughtFile(t, root, "Inside/Written.md", "---\ntitle: Written above\ntype: reflection\ndraft: true\ncreated: 2026-09-02\n---\n# Said in the body\n")
+	putOpenThoughtFile(t, root, "Plain.md", "Words.\n\n## Part\n\nmore\n")
+	leftOpenMarks(t, root, configDir, mark.Uncertainty{RelPath: "Plain.md", Anchor: "part", At: leftOpenDay(1)})
+	got := leftOpen(t, root, configDir, "--format", "json")
+	if got.exit != 0 {
+		t.Fatalf("left-open exit %d: %s", got.exit, got.stderr)
+	}
+	titles := map[string]any{}
+	for _, item := range leftOpenItems(t, got.stdout) {
+		path, _ := item["path"].(string) //nolint:errcheck // a missing path shows in the diff
+		titles[path] = item["title"]
+	}
+	want := map[string]any{
+		"Inside/Unheaded.md": nil,
+		"Inside/Fenced.md":   "Past the fence",
+		"Inside/Written.md":  "Said in the body",
+		"Plain.md":           nil,
+	}
+	if diff := cmp.Diff(want, titles); diff != "" {
+		t.Errorf("caught: a title came from somewhere other than the first level-one heading (-want +got):\n%s", diff)
+	}
+}
+
 // The shelf and the command answer from one selection. Read in shelf order,
 // every row the page links to and every item the command lists name the same
 // note, in the same order.
@@ -133,9 +165,9 @@ func TestLeftOpenListsWhatTheShelfShowsInItsOrder(t *testing.T) {
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
 	putOpenThoughtFile(t, root, "Other.md", "# Other\n")
 	for i, rel := range []string{"Inside/A.md", "Inside/B.md", "Outside/C.md"} {
-		putOpenThoughtFile(t, root, rel, openThoughtNote("Thought "+rel, "reflection", "started", leftOpenDay(2*i+2).Format(time.DateOnly)))
+		putOpenThoughtFile(t, root, rel, openThoughtNote("Thought "+rel, "reflection", draftFlag, leftOpenDay(2*i+2).Format(time.DateOnly)))
 	}
-	putOpenThoughtFile(t, root, "Inside/Same day.md", openThoughtNote("Same day", "reflection", "revisit", leftOpenDay(4).Format(time.DateOnly)))
+	putOpenThoughtFile(t, root, "Inside/Same day.md", openThoughtNote("Same day", "reflection", draftFlag, leftOpenDay(4).Format(time.DateOnly)))
 	site, marks := openThoughtSite(t, root)
 	for _, kept := range []mark.Uncertainty{
 		{RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(5)},
@@ -148,8 +180,13 @@ func TestLeftOpenListsWhatTheShelfShowsInItsOrder(t *testing.T) {
 	}
 	page := openThoughtPage(t, site, "/open-thoughts", "en")
 	var shelf []string
-	for _, row := range regexp.MustCompile(`<a [^>]*href="/notes/([^"]*)"[^>]*data-index-row`).FindAllStringSubmatch(page, -1) {
-		address, err := url.PathUnescape(row[1])
+	name := regexp.MustCompile(`class="y-openitem__name" href="/notes/([^"]*)"`)
+	for _, row := range strings.Split(page, "data-index-row")[1:] {
+		found := name.FindStringSubmatch(row)
+		if found == nil {
+			t.Fatalf("a shelf row leads nowhere, which none of this fixture's rows does:\n%s", row)
+		}
+		address, err := url.PathUnescape(found[1])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -203,26 +240,25 @@ func leftOpenPrivateVault(t *testing.T) (root, configDir string) {
 	root, configDir = t.TempDir(), t.TempDir()
 	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
-	putOpenThoughtFile(t, root, "Inside/Visible.md", openThoughtNote("Visible thought", "reflection", "started", "2026-09-01"))
+	putOpenThoughtFile(t, root, "Inside/Visible.md", openThoughtNote("Visible thought", "reflection", draftFlag, "2026-09-01"))
 	putOpenThoughtFile(t, root, "Private/Secret plan.md", "# Secret plan\n\n## Hidden heading\n\nwords\n")
-	putOpenThoughtFile(t, root, "Private/Hidden thought.md", openThoughtNote("Hidden thought", "reflection", "started", "2026-09-02"))
+	putOpenThoughtFile(t, root, "Private/Hidden thought.md", openThoughtNote("Hidden thought", "reflection", draftFlag, "2026-09-02"))
 	putOpenThoughtFile(t, root, "Inside/Cites private.md",
-		"---\ntitle: Cites quietly\ntype: reflection\nstatus: started\nupdated: 2026-09-03\nbased_on: '[[Private/Secret plan#Hidden heading]]'\n---\nA thought.\n")
+		"---\ntype: reflection\ndraft: true\ncreated: 2026-09-03\nbased_on: '[[Private/Secret plan#Hidden heading]]'\n---\n# Cites quietly\n\nA thought.\n")
 	putOpenThoughtFile(t, root, "Public.md", "# Public\n\n## About [[Private/Secret plan]]\n\nwords\n")
-	// A title is frontmatter, not body: the link it writes is its own, and no
-	// link in the body says it.
+	// The only link to withheld ground is the one the title writes, and it
+	// cites no heading the anchor could be made from.
 	putOpenThoughtFile(t, root, "Inside/Titled cite.md",
-		"---\ntitle: \"On [[Private/Secret plan]]\"\ntype: reflection\nstatus: started\nupdated: 2026-09-07\n---\nA thought.\n")
-	putOpenThoughtFile(t, root, "Retitled.md", "---\ntitle: \"Re [[Private/Secret plan]]\"\n---\n# Re\n\n## Sec\n\nwords\n")
+		"---\ntype: reflection\ndraft: true\ncreated: 2026-09-07\n---\n# On [[Private/Secret plan]]\n\nA thought.\n")
+	putOpenThoughtFile(t, root, "Retitled.md", "# Re [[Private/Secret plan]]\n\n## Sec\n\nwords\n")
 	// A title is never rendered, so Markdown that would hide a link on a page
 	// — a code span, a backslash — hides nothing in the list, and a Markdown
 	// link names its destination as plainly as a wikilink does.
 	putOpenThoughtFile(t, root, "Private/Caf\u00e9.md", "# Caf\u00e9\n")
 	for i, title := range leftOpenRawTitles {
-		// %q writes a YAML double-quoted scalar: Go's escapes are YAML's.
 		putOpenThoughtFile(t, root, fmt.Sprintf("Inside/Raw %d.md", i),
-			fmt.Sprintf("---\ntitle: %q\ntype: reflection\nstatus: started\nupdated: 2026-09-07\n---\nA thought.\n", title))
-		putOpenThoughtFile(t, root, fmt.Sprintf("Raw %d.md", i), fmt.Sprintf("---\ntitle: %q\n---\n# Raw\n\n## Sec\n\nwords\n", title))
+			fmt.Sprintf("---\ntype: reflection\ndraft: true\ncreated: 2026-09-07\n---\n# %s\n\nA thought.\n", title))
+		putOpenThoughtFile(t, root, fmt.Sprintf("Raw %d.md", i), fmt.Sprintf("# %s\n\n## Sec\n\nwords\n", title))
 		marks = append(marks, mark.Uncertainty{RelPath: fmt.Sprintf("Raw %d.md", i), Anchor: "sec", At: leftOpenDay(7)})
 	}
 	// The heading the anchor was made from has been rewritten since; the
@@ -334,7 +370,7 @@ func TestLeftOpenSaysNothingOfWithheldGround(t *testing.T) {
 // body excerpt — is a second path or vault text the list does not hand out.
 var leftOpenKeys = map[string][]string{
 	"location": {"anchor", "anchor_text", "create_time", "kind", "lost", "path", "title", "wikilink"},
-	"thought":  {"kind", "path", "status", "title", "update_date", "wikilink"},
+	"thought":  {"create_date", "kind", "path", "title", "wikilink"},
 }
 
 func TestLeftOpenCarriesNoFieldBeyondItsOwn(t *testing.T) {
@@ -392,7 +428,7 @@ func TestLeftOpenWithheldReadFailureIsSilent(t *testing.T) {
 	root, configDir := leftOpenPrivateVault(t)
 	before := leftOpen(t, root, configDir, "--format", "json")
 	locked := filepath.Join(root, "Private", "Locked plan.md")
-	putOpenThoughtFile(t, root, "Private/Locked plan.md", openThoughtNote("Locked", "reflection", "started", "2026-09-09"))
+	putOpenThoughtFile(t, root, "Private/Locked plan.md", openThoughtNote("Locked", "reflection", draftFlag, "2026-09-09"))
 	if err := os.Chmod(locked, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -448,7 +484,7 @@ func TestLeftOpenRefusesAListMissingAnUnreadableNote(t *testing.T) {
 	t.Parallel()
 	root, configDir := leftOpenPrivateVault(t)
 	locked := filepath.Join(root, "Inside", "Locked.md")
-	putOpenThoughtFile(t, root, "Inside/Locked.md", openThoughtNote("Locked", "reflection", "started", "2026-09-09"))
+	putOpenThoughtFile(t, root, "Inside/Locked.md", openThoughtNote("Locked", "reflection", draftFlag, "2026-09-09"))
 	if err := os.Chmod(locked, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -488,7 +524,7 @@ func TestLeftOpenRefusesWithoutPrivacyAuthority(t *testing.T) {
 				putOpenThoughtFile(t, root, schema.ContractRelPath, tt.contract)
 			}
 			putOpenThoughtFile(t, root, "Source.md", "# Source\n")
-			putOpenThoughtFile(t, root, "Inside/Thought.md", openThoughtNote("A thought", "reflection", "started", "2026-09-01"))
+			putOpenThoughtFile(t, root, "Inside/Thought.md", openThoughtNote("A thought", "reflection", draftFlag, "2026-09-01"))
 			leftOpenMarks(t, root, configDir, mark.Uncertainty{RelPath: "Source.md", At: leftOpenDay(1)})
 			got := leftOpen(t, root, configDir, "--format", "json")
 			if got.exit != 2 || got.stdout != "" {
@@ -691,12 +727,12 @@ func TestLeftOpenRefusesANoteWhoseFrontmatterCannotBeRead(t *testing.T) {
 	for _, tt := range []struct {
 		name, content string
 	}{
-		{name: "unclosed quotation", content: "---\ntitle: \"Broken\ntype: reflection\nstatus: started\n---\nA thought.\n"},
-		{name: "unclosed status list", content: "---\ntitle: Broken\ntype: reflection\nstatus: [started\n---\nA thought.\n"},
-		{name: "unclosed fence", content: "---\ntitle: Broken\ntype: reflection\nstatus: started\nA thought.\n"},
-		{name: "status not text", content: "---\ntitle: Broken\ntype: reflection\nstatus: [started]\n---\nA thought.\n"},
-		{name: "type a list", content: "---\ntitle: Broken\ntype: [reflection]\nstatus: started\n---\nA thought.\n"},
-		{name: "type a number", content: "---\ntitle: Broken\ntype: 1\nstatus: started\n---\nA thought.\n"},
+		{name: "unclosed quotation", content: "---\naliases: \"Broken\ntype: reflection\ndraft: true\n---\n# Broken\n\nA thought.\n"},
+		{name: "unclosed draft list", content: "---\ntype: reflection\ndraft: [true\n---\n# Broken\n\nA thought.\n"},
+		{name: "unclosed fence", content: "---\ncreated: 2026-09-01\ntype: reflection\ndraft: true\nA thought.\n"},
+		{name: "draft not a boolean", content: "---\ntype: reflection\ndraft: \"true\"\n---\n# Broken\n\nA thought.\n"},
+		{name: "type a list", content: "---\ntype: [reflection]\ndraft: true\n---\n# Broken\n\nA thought.\n"},
+		{name: "type a number", content: "---\ntype: 1\ndraft: true\n---\n# Broken\n\nA thought.\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -728,13 +764,17 @@ func TestLeftOpenHumanViewEscapesControlCharacters(t *testing.T) {
 	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n")
 	putOpenThoughtFile(t, root, "Inside/Loud.md",
-		"---\ntitle: \"\\e]0;pwned\\a \\e[2J\\u202Eevil\\x85\\u200E\\u200F\\u061C\"\ntype: reflection\nstatus: started\nupdated: 2026-09-02\n---\nA thought.\n")
-	putOpenThoughtFile(t, root, "Inside/a\n2099-01-01  thought   Inside/Forged.md  Forged (started).md",
-		openThoughtNote("Two lines", "reflection", "started", "2026-09-01"))
+		"---\ntype: reflection\ndraft: true\ncreated: 2026-09-02\n---\n# \x1b]0;pwned\a \x1b[2J\u202Eevil\u200E\u200F\u061C\n\nA thought.\n")
+	// A title's whitespace is collapsed, so a next-line character reaches the
+	// list through a path instead.
+	putOpenThoughtFile(t, root, "Inside/b\u0085c.md", openThoughtNote("Next line", "reflection", draftFlag, "2026-09-03"))
+	putOpenThoughtFile(t, root, "Inside/a\n2099-01-01  thought   Inside/Forged.md  Forged.md",
+		openThoughtNote("Two lines", "reflection", draftFlag, "2026-09-01"))
 	got := leftOpen(t, root, configDir, "--format", "human")
 	want := leftOpenResult{
-		stdout: "2026-09-02  thought   Inside/Loud.md  \\u001b]0;pwned\\u0007 \\u001b[2J\\u202eevil\\u0085\\u200e\\u200f\\u061c  (started)\n" +
-			"2026-09-01  thought   Inside/a\\n2099-01-01  thought   Inside/Forged.md  Forged (started).md  Two lines  (started)\n",
+		stdout: "2026-09-03  thought   Inside/b\\u0085c.md  Next line\n" +
+			"2026-09-02  thought   Inside/Loud.md  \\u001b]0;pwned\\u0007 \\u001b[2J\\u202eevil\\u200e\\u200f\\u061c\n" +
+			"2026-09-01  thought   Inside/a\\n2099-01-01  thought   Inside/Forged.md  Forged.md  Two lines\n",
 		stderr: "yomihon: no location is listed; there is no \"Not sure yet\" marks file for this folder as spelled\n",
 	}
 	if diff := cmp.Diff(want, got, cmp.AllowUnexported(leftOpenResult{})); diff != "" {
@@ -755,25 +795,27 @@ func TestLeftOpenRefusesAnUnopenableRootWithoutNamingIt(t *testing.T) {
 }
 
 // Words an author writes without link syntax are the author's own and are
-// listed as written, a withheld note's bare file name included: filtering
+// listed unfiltered, a withheld note's bare file name included: filtering
 // every title that happens to share a word with a withheld note would empty
-// lists for reasons nobody could see. These are the boundary the
-// documentation states, so a change to it shows here.
-func TestLeftOpenListsAnAuthorsPlainWordsAsWritten(t *testing.T) {
+// lists for reasons nobody could see. A title is its heading's words with
+// their whitespace collapsed, so a tab arrives as one space and a heading
+// ends at its line. These are the boundary the documentation states, so a
+// change to it shows here.
+func TestLeftOpenListsAnAuthorsPlainWordsUnfiltered(t *testing.T) {
 	t.Parallel()
 	root, configDir := t.TempDir(), t.TempDir()
 	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	putOpenThoughtFile(t, root, "Private/Secret plan.md", "# Secret plan\n")
-	plain := []string{
+	written := []string{
 		"Secret plan",
 		"On [x](Secret plan.md)",
 		"On Priv\nate/Secret plan",
 		"On Private\t/Secret plan",
 		"Private matters",
 	}
-	for i, title := range plain {
+	for i, title := range written {
 		putOpenThoughtFile(t, root, fmt.Sprintf("Inside/Plain %d.md", i),
-			fmt.Sprintf("---\ntitle: %q\ntype: reflection\nstatus: started\nupdated: 2026-09-0%d\n---\nA thought.\n", title, i+1))
+			fmt.Sprintf("---\ntype: reflection\ndraft: true\ncreated: 2026-09-0%d\n---\n# %s\n\nA thought.\n", i+1, title))
 	}
 	got := leftOpen(t, root, configDir, "--format", "json")
 	var titles []string
@@ -782,7 +824,14 @@ func TestLeftOpenListsAnAuthorsPlainWordsAsWritten(t *testing.T) {
 		titles = append(titles, title)
 	}
 	slices.Reverse(titles)
-	if diff := cmp.Diff(plain, titles); diff != "" {
+	listed := []string{
+		"Secret plan",
+		"On [x](Secret plan.md)",
+		"On Priv",
+		"On Private /Secret plan",
+		"Private matters",
+	}
+	if diff := cmp.Diff(listed, titles); diff != "" {
 		t.Errorf("caught: an author's plain words were filtered (-want +got):\n%s", diff)
 	}
 }
@@ -809,7 +858,7 @@ func TestLeftOpenMatchesAWithheldDirectoryOnlyAsAName(t *testing.T) {
 		"On Cafe\ufe0f\u0301/menu",
 	} {
 		putOpenThoughtFile(t, root, fmt.Sprintf("Inside/Named %d.md", i),
-			fmt.Sprintf("---\ntitle: %q\ntype: reflection\nstatus: started\nupdated: 2026-09-%02d\n---\nA thought.\n", title, i+1))
+			fmt.Sprintf("---\ntype: reflection\ndraft: true\ncreated: 2026-09-%02d\n---\n# %s\n\nA thought.\n", i+1, title))
 	}
 	got := leftOpen(t, root, configDir, "--format", "json")
 	var titles []string

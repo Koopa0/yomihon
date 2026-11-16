@@ -37,9 +37,8 @@ func FaultOf(diagnostic string, reason schema.Reason, lang wording.Lang) (quoted
 //
 // It is not a not-found page and must not be answered as one. The course a
 // reader asked for was there a moment ago, so the address is not what is wrong,
-// and a 404 saying so sends them looking for a typo. The status is the one the
-// write face already answers with when the same cause stops it: the instance is
-// refusing until it is started again.
+// and a 404 saying so sends them looking for a typo. The instance is refusing
+// until it is started again.
 func WriteContractChanged(
 	ctx context.Context,
 	w http.ResponseWriter,

@@ -1,7 +1,7 @@
 ---
-title: Kana
+
 type: concept
-domain: japanese
+
 source_locator: Genki I
 ---
 

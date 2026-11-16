@@ -24,14 +24,14 @@ func TestExcludedDirectoriesAreUnseenLikeHiddenOnes(t *testing.T) {
 
 	root := t.TempDir()
 	contract := strings.Replace(skipBasenameLockContract,
-		`skip_basenames = ["README.md"]`, "skip_basenames = [\"README.md\"]\nexclude_dirs = [\"courses/*/lab\"]", 1)
+		`skipped_files = ["README.md"]`, "skipped_files = [\"README.md\"]\nignored = [\"courses/*/lab\"]", 1)
 	files := map[string]string{
 		schema.ContractRelPath:             contract,
-		"Notes/Kept.md":                    "---\ntitle: Kept\ntype: note\nstatus: draft\n---\nKept body.\n",
+		"Notes/Kept.md":                    "---\ntype: note\n---\n# Kept\n\nKept body.\n",
 		"courses/C1/lab/main.go":           "package main // " + excludeDirsSentinel + "\n",
 		"courses/C2/lab/main.go":           "package main\n",
-		"courses/C1/lab/Inside.md":         "---\ntitle: Inside\ntype: note\nstatus: draft\n---\n" + excludeDirsSentinel + "\n",
-		"courses/C1/modules/Lesson.md":     "---\ntitle: Lesson\ntype: note\nstatus: draft\n---\nLesson body.\n",
+		"courses/C1/lab/Inside.md":         "---\ntype: note\n---\n# Inside\n\n" + excludeDirsSentinel + "\n",
+		"courses/C1/modules/Lesson.md":     "---\ntype: note\n---\n# Lesson\n\nLesson body.\n",
 		"courses/C1/.hidden/main.go":       "package main\n",
 		"courses/C1/modules/lab/Shown.txt": "shown\n",
 	}

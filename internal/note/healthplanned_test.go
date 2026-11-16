@@ -28,8 +28,8 @@ func TestHealthOmitsNameUnderDeclaredNonDefaultGapMark(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	write("Maps/ledger.md", "---\ntitle: Ledger\ntype: topic-map\ndomain: golang\n---\n\n## Gaps\n- Ghost\n")
-	write("Concepts/citer.md", "---\ntitle: Citer\ntype: concept\ndomain: golang\nstatus: draft\n---\n\nSee [[Ghost]] and [[Nowhere]].\n")
+	write("Maps/ledger.md", "---\ntype: topic-map\n---\n# Ledger\n\n## Gaps\n- Ghost\n")
+	write("Concepts/citer.md", "---\ntype: concept\n---\n# Citer\n\nSee [[Ghost]] and [[Nowhere]].\n")
 
 	srv := newServerWithContract(t, root, loadHomeContractWithRules(t,
 		"planned_gap_marks = [\"Gaps\"]\nplanned_inline_marks = []"))
@@ -52,7 +52,7 @@ func loadHomeContractWithRules(t *testing.T, extraRules string) *schema.Contract
 	if err != nil {
 		t.Fatalf("read schema test contract: %v", err)
 	}
-	const needle = "forbid_tag_with_slash = true"
+	const needle = `concept_requires_provenance = ["based_on", "source_locator"]`
 	text := strings.Replace(string(base), needle, needle+"\n"+extraRules, 1)
 	if text == string(base) {
 		t.Fatal("the contract fixture does not contain the rules needle")

@@ -32,9 +32,9 @@ func TestParse(t *testing.T) {
 			want:  &Query{tokens: []string{"深度", "工作"}, filters: []Filter{{Key: "type", Value: "lesson"}}},
 		},
 		{
-			name:  "9 repeated topic key is AND",
-			input: "topic:a topic:b",
-			want:  &Query{filters: []Filter{{Key: "topic", Value: "a"}, {Key: "topic", Value: "b"}}},
+			name:  "9 repeated domain key is AND",
+			input: "domain:a domain:b",
+			want:  &Query{filters: []Filter{{Key: "domain", Value: "a"}, {Key: "domain", Value: "b"}}},
 		},
 		{
 			name:  "10 repeated type key",
@@ -44,8 +44,9 @@ func TestParse(t *testing.T) {
 		{name: "11 folder drops trailing slash and keeps its names as written", input: "folder:Writing/", want: &Query{filters: []Filter{{Key: "folder", Value: "Writing"}}}},
 		{name: "12 slug splits on first colon", input: "slug:a:b", want: &Query{filters: []Filter{{Key: "slug", Value: "a:b"}}}},
 		{name: "13 unknown key is bare token and is remembered as one", input: "foo:bar", want: &Query{tokens: []string{"foo:bar"}, unknownKeys: []string{"foo"}}},
+		{name: "13b topic is an unknown key", input: "topic:kanji", want: &Query{tokens: []string{"topic:kanji"}, unknownKeys: []string{"topic"}}},
 		{name: "14 classify before fold", input: "Type:lesson", want: &Query{tokens: []string{"type:lesson"}, unknownKeys: []string{"Type"}}},
-		{name: "15 empty filter value", input: "status:", want: &Query{filters: []Filter{{Key: "status", Value: ""}}}},
+		{name: "15 empty filter value", input: "draft:", want: &Query{filters: []Filter{{Key: "draft", Value: ""}}}},
 		{name: "16 literal percent", input: "%", want: &Query{tokens: []string{"%"}}},
 		{name: "17 percent inside token", input: "100%", want: &Query{tokens: []string{"100%"}}},
 		{name: "18 domain nfc value", input: "domain:日本語", want: &Query{filters: []Filter{{Key: "domain", Value: "日本語"}}}},
@@ -124,13 +125,13 @@ func TestParseQuotedPhrase(t *testing.T) {
 		{name: "quotes pressed against words group nothing and splice nothing", input: `sem"antic ret"rieval`, want: &Query{tokens: []string{`sem"antic`, `ret"rieval`}}},
 		{
 			name:  "quoting a value keeps the filter and carries the space",
-			input: `topic:"functional programming"`,
-			want:  &Query{filters: []Filter{{Key: "topic", Value: "functional programming"}}},
+			input: `domain:"functional programming"`,
+			want:  &Query{filters: []Filter{{Key: "domain", Value: "functional programming"}}},
 		},
 		{
 			name:  "corner brackets quote a value the same way",
-			input: "topic:「深度 工作」",
-			want:  &Query{filters: []Filter{{Key: "topic", Value: "深度 工作"}}},
+			input: "domain:「深度 工作」",
+			want:  &Query{filters: []Filter{{Key: "domain", Value: "深度 工作"}}},
 		},
 		{
 			name:  "a quoted single-word value is still a filter",
@@ -144,15 +145,15 @@ func TestParseQuotedPhrase(t *testing.T) {
 		},
 		{
 			name:  "quoting the key makes the whole field text",
-			input: `"topic:functional programming"`,
-			want:  &Query{tokens: []string{"topic:functional programming"}},
+			input: `"domain:functional programming"`,
+			want:  &Query{tokens: []string{"domain:functional programming"}},
 		},
 		{
 			name:  "a quoted value beside a phrase leaves the phrase a token",
-			input: `topic:"functional programming" "semantic retrieval"`,
+			input: `domain:"functional programming" "semantic retrieval"`,
 			want: &Query{
 				tokens:  []string{"semantic retrieval"},
-				filters: []Filter{{Key: "topic", Value: "functional programming"}},
+				filters: []Filter{{Key: "domain", Value: "functional programming"}},
 			},
 		},
 	}
@@ -191,9 +192,9 @@ func TestFilterCapabilityClassification(t *testing.T) {
 		wantFilter bool
 	}{
 		{name: "type metadata", key: "type", wantKind: filterMetadata, wantFilter: true},
-		{name: "status metadata", key: "status", wantKind: filterMetadata, wantFilter: true},
+		{name: "draft metadata", key: "draft", wantKind: filterMetadata, wantFilter: true},
 		{name: "domain metadata", key: "domain", wantKind: filterMetadata, wantFilter: true},
-		{name: "topic metadata", key: "topic", wantKind: filterMetadata, wantFilter: true},
+		{name: "topic is not a filter", key: "topic", wantKind: filterUnknown, wantFilter: false},
 		{name: "slug metadata", key: "slug", wantKind: filterMetadata, wantFilter: true},
 		{name: "folder path", key: "folder", wantKind: filterPath, wantFilter: true},
 		{name: "bare token", key: "unknown", wantKind: filterUnknown, wantFilter: false},

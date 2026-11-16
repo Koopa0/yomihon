@@ -1,9 +1,9 @@
 // Behavior lock for the card over a claim's declared sources: a reader checking
 // a claim rests on the Methods or Limitations row of its source list and sees
-// that passage beside the row, without leaving the claim. It runs where the
-// list sits in the rail and where it sits in the disclosure above the text,
-// because they are two copies of one list and two different places to be
-// reached from.
+// that passage beside the row, without leaving the claim. It runs at a wide and
+// a phone width, where the list sits in the same place, the block that ends the
+// note, because a window is where a reader reaches it from and a layout that
+// reworked the block at one width would leave the other unasked.
 //
 // What must not open a card matters as much as what does: a row whose place the
 // source lacks (its address falls back to the top of the file, and the card
@@ -33,7 +33,7 @@ const SITES = [
   'the-whole-source-row-opens-the-top-of-the-source',
   'compare-column-source-opens',
   'compare-column-missing-location-opens-nothing',
-  'narrow-inline-source-opens',
+  'narrow-source-opens',
   'missing-location-opens-nothing',
   'outline-and-navigation-open-nothing',
   'escape-dismisses-a-source-card',
@@ -80,17 +80,19 @@ const rewriteStylesheet = (needle, replacement) => rewriteAsset('**/static/app.c
 const SOURCE_SELECTOR = "'.y-basedon:not([data-declared-by]) a.ui-navitem'";
 
 const MUTATIONS = {
-  // The list is looked for inside the main element only, which is the barrier
-  // that kept the rail out: at the narrow width the inline copy still sits in
-  // main, so this is caught by the wide run's first site.
-  'find-sources-only-inside-main': {
+  // The list is looked for in the text only, the way a module that narrowed
+  // its search to the prose would: the block that ends the note stands after
+  // the prose, not in it, so no row opens a card. Caught by the wide run's
+  // first site.
+  'find-sources-only-in-the-text': {
     target: 'source-opens-on-hover',
-    apply: rewriteModule('const sources = [...document.querySelectorAll(', 'const sources = [...root.querySelectorAll('),
+    apply: rewriteModule(SOURCE_SELECTOR, "'.y-prose .y-basedon:not([data-declared-by]) a.ui-navitem'"),
   },
-  // Only the rail is asked, so the copy inside the disclosure never opens one.
-  'find-sources-only-in-the-rail': {
-    target: 'narrow-inline-source-opens',
-    apply: rewriteModule(SOURCE_SELECTOR, "'.y-rail-right .y-basedon:not([data-declared-by]) a.ui-navitem'"),
+  // The list is found on a wide window only, the way a module that wired the
+  // list through a layout test would: at the phone width no row opens a card.
+  'find-sources-only-on-a-wide-window': {
+    target: 'narrow-source-opens',
+    apply: rewriteModule(SOURCE_SELECTOR, "(innerWidth < 600 ? '.y-nothing-here' : '.y-basedon:not([data-declared-by]) a.ui-navitem')"),
   },
   'ignore-the-keyboard': {
     target: 'source-opens-on-focus',
@@ -273,23 +275,16 @@ const bring = async (page, link, how) => {
 const pointerOnto = (page, link) => bring(page, link, 'pointer');
 const focusOnto = (page, link) => bring(page, link, 'keyboard');
 
-// The one source list a reader can see, opening the narrow layout's disclosure
-// when that is where it sits.
+// The one source list a reader can see. It sits in the block that ends the note
+// at every width, so there is nothing to open first and a second copy of it
+// anywhere on the page is a break.
 const openSources = async (page) => {
-  const disclosure = page.locator('details.y-toc-inline').filter({ has: page.locator('.y-basedon') }).first();
-  if ((await disclosure.count()) && (await disclosure.isVisible()) && !(await disclosure.evaluate((el) => el.open))) {
-    await disclosure.locator('summary').click();
-    // The disclosure opens with a short animation, and a list it has not yet
-    // opened is not a list a reader can see.
-    await page.locator('.y-basedon:not([data-declared-by]):visible').first().waitFor({ timeout: 3000 });
-  }
   const list = page.locator('.y-basedon:not([data-declared-by]):visible');
   if ((await list.count()) !== 1) broken(`${await list.count()} source lists are visible at ${page.url()} (${page.viewportSize()?.width}px), want 1`);
   return list;
 };
 
-// The first of the matches a reader can see: the aids exist twice on a note
-// page, once in the rail and once in the disclosure the narrow layout folds.
+// The first of the matches a reader can see.
 const visibleOne = async (locator, what) => {
   for (const link of await locator.all()) {
     if (await link.evaluate((el) => el.offsetParent !== null)) return link;
@@ -326,7 +321,7 @@ const journey = async (browser, width, placement) => {
     const limitations = await row(list, 'Study limitations');
 
     // Hover on a source section row.
-    const openSite = placement === 'inline' ? 'narrow-inline-source-opens' : 'source-opens-on-hover';
+    const openSite = placement === 'narrow' ? 'narrow-source-opens' : 'source-opens-on-hover';
     await pointerOnto(page, methods);
     proveApplied(openSite);
     if (!(await settles(page, true, 4000))) {
@@ -430,7 +425,7 @@ const journey = async (browser, width, placement) => {
 
     // The claim's own navigation: the sidebar's row for the source, and the
     // link to the next note. Wide only: the sidebar is a drawer at phone width.
-    if (placement === 'rail') {
+    if (placement === 'wide') {
       const before = requests.length;
       const outside = [];
       for (const link of await page.locator('a.ui-navitem[href$="source-locations-source.md"], a.y-steps__link').all()) {
@@ -631,13 +626,13 @@ const touch = async (browser) => {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  await journey(browser, 1600, 'rail');
-  await journey(browser, 390, 'inline');
+  await journey(browser, 1600, 'wide');
+  await journey(browser, 390, 'narrow');
   await citedByAndOutline(browser);
   await compare(browser);
   await activation(browser);
   await touch(browser);
-  console.log('PASS source-preview: a declared source opens a card at its cited passage from the rail and from the disclosure, the missing location, navigation and cited-by open none, and following the row is one activation');
+  console.log('PASS source-preview: a declared source opens a card at its cited passage at a wide and a narrow width, the missing location, navigation and cited-by open none, and following the row is one activation');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

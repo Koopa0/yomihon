@@ -134,7 +134,7 @@ func TestNavigationFaultOrderAndUnavailableControls(t *testing.T) {
 
 func faultModel(t *testing.T, walkers coreWalkers, state string) *Model {
 	t.Helper()
-	files := []capturedFile{{path: "Concepts/Target.md", note: vault.Parse("Concepts/Target.md", []byte("---\ntitle: Target\ntype: concept\n---\nbody\n"))}}
+	files := []capturedFile{{path: "Concepts/Target.md", note: vault.Parse("Concepts/Target.md", []byte("---\ntype: concept\n---\n# Target\n\nbody\n"))}}
 	for _, name := range []string{"A", "B", "C"} {
 		for _, kind := range []string{"map", "path"} {
 			typ, heading := "moc", "## Shelf"
@@ -142,7 +142,7 @@ func faultModel(t *testing.T, walkers coreWalkers, state string) *Model {
 				typ, heading = "study-path", "## Shelf {sequence=primary}"
 			}
 			rel := "Maps/" + name + "-" + kind + ".md"
-			n := vault.Parse(rel, []byte(fmt.Sprintf("---\ntitle: %s-%s\ntype: %s\nlang: ja\n---\n%s\n- [[Target]]\n", name, kind, typ, heading)))
+			n := vault.Parse(rel, []byte(fmt.Sprintf("---\ntype: %s\nlang: ja\n---\n# %s-%s\n\n%s\n- [[Target]]\n", typ, name, kind, heading)))
 			files = append(files, capturedFile{path: rel, note: n})
 		}
 	}
@@ -157,20 +157,20 @@ func faultModel(t *testing.T, walkers coreWalkers, state string) *Model {
 	}
 	policy := contract.ArtifactPolicy()
 	if state == "closed" {
-		roles = loadCapabilityContract(t, `[navigation]
-path_types = ["missing-type"]
-map_types = ["moc"]
-`, `[artifacts]
-non_instance_dirs = ["System/templates"]
+		roles = loadCapabilityContract(t, `
+[types.concept]
+
+[types.study-path]
+role = "missing-role"
+
+[types.moc]
+role = "map"
+`, `templates = ["System/templates"]
 `).NavigationRoles()
 	}
 	if state == "non-instance" {
-		policy = loadCapabilityContract(t, `[navigation]
-path_types = ["study-path"]
-map_types = ["moc"]
-`, `[artifacts]
-non_instance_dirs = ["Maps"]
+		policy = loadCapabilityContract(t, "", `templates = ["Maps"]
 `).ArtifactPolicy()
 	}
-	return newModel(files, graph.New(notes, nil), roles, contract.KnowledgeScope(), policy, contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), contract.Settlement(), walkers)
+	return newModel(files, graph.New(notes, nil), roles, contract.KnowledgeScope(), policy, contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate(), walkers)
 }

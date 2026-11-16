@@ -8,37 +8,20 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// When a search finds nothing, the page offers a way to narrow it. Offering to
-// narrow by lifecycle status only helps where statuses exist: a reader whose
-// folder carries no contract followed that suggestion, matched nothing again,
-// and was handed the identical sentence a second time — the page teaching a
-// filter it had already made useless.
-func TestEmptySearchOffersLifecycleFilterOnlyWhereLifecycleExists(t *testing.T) {
+// When a search finds nothing, the page advises fewer or different words and
+// teaches no lifecycle filter: the reading pages hold no status to narrow by.
+func TestEmptySearchAdvisesWithoutAStatusFilter(t *testing.T) {
 	t.Parallel()
-	tests := []struct {
-		name       string
-		governed   bool
-		wantOffer  bool
-		wantAlways string
-	}{
-		{name: "a governed vault has statuses to filter by", governed: true, wantOffer: true, wantAlways: "請試較少或不同的詞"},
-		{name: "a plain folder has none", governed: false, wantOffer: false, wantAlways: "請試較少或不同的詞"},
+	var buf bytes.Buffer
+	if err := SearchResults(SearchView{Query: "沒有這個詞"}, wording.ZhHant).Render(t.Context(), &buf); err != nil {
+		t.Fatalf("SearchResults(...).Render() error = %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			var buf bytes.Buffer
-			if err := SearchResults(SearchView{Query: "沒有這個詞", Governed: tt.governed}, wording.ZhHant).Render(t.Context(), &buf); err != nil {
-				t.Fatalf("SearchResults(...).Render() error = %v", err)
-			}
-			got := buf.String()
-			if !strings.Contains(got, tt.wantAlways) {
-				t.Errorf("SearchResults(governed=%v) lost the advice that always applies (%q)", tt.governed, tt.wantAlways)
-			}
-			if offered := strings.Contains(got, "status:draft"); offered != tt.wantOffer {
-				t.Errorf("SearchResults(governed=%v) offered the status filter = %v, want %v", tt.governed, offered, tt.wantOffer)
-			}
-		})
+	got := buf.String()
+	if !strings.Contains(got, "請試較少或不同的詞") {
+		t.Errorf("SearchResults lost the advice that always applies; html = %q", got)
+	}
+	if strings.Contains(got, "status:") {
+		t.Errorf("SearchResults still teaches a status filter; html = %q", got)
 	}
 }
 

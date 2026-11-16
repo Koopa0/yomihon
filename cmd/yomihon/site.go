@@ -11,7 +11,6 @@ import (
 
 	"github.com/koopa0/yomihon/internal/asset"
 	"github.com/koopa0/yomihon/internal/mark"
-	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/preference"
@@ -21,7 +20,6 @@ import (
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/status"
 	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -40,7 +38,6 @@ type readingSite struct {
 	// compiles but never executes, so "delete it and see what breaks" reports
 	// nothing here and is wrong.
 	snapshots *snapshot.Store
-	writer    *status.Writer
 	source    *vault.Reader
 	cancel    context.CancelFunc
 	watchers  sync.WaitGroup
@@ -96,10 +93,9 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	switch {
 	case schema.ContractAbsent(err):
 		// A folder that carries no contract is not a folder in trouble. It has
-		// no lifecycle to govern, which is the ordinary shape of any directory
-		// yomihon is pointed at, so it is reported as the fact it is: reading
-		// and search are whole, the write face has nothing to write against.
-		log.Info("no vault contract; reading and search only, no write face",
+		// no contract to govern it, which is the ordinary shape of any
+		// directory yomihon is pointed at, so it is reported as the fact it is.
+		log.Info("no vault contract",
 			"path", schema.ContractRelPath)
 		contract = nil
 		governance = schema.Ungoverned()
@@ -108,12 +104,11 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		// folder claimed governance and then failed to deliver it. Carrying that
 		// distinction past startup is what keeps the two folders from rendering
 		// the same page.
-		log.Warn("vault contract unavailable; write face is closed (fail-closed)", "error", err)
+		log.Warn("vault contract unavailable", "error", err)
 		contract = nil
 		governance = schema.Unreadable(err)
 	default:
-		log.Info("vault contract loaded",
-			"version", contract.Version(), "lifecycle_stages", contract.StageCount())
+		log.Info("vault contract loaded", "version", contract.Version())
 		logPolicyFaults(log, contract)
 		governance = contract.Governance()
 		// The contract was read through this reader, so its scan boundary is
@@ -121,15 +116,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		source.SetBoundary(contract.ScanBoundary())
 	}
 
-	writer, err := status.Open(source, contract, governance, log)
-	if err != nil {
-		return nil, fmt.Errorf("open status writer: %w", err)
-	}
-	defer func() {
-		if resultErr != nil {
-			resultErr = errors.Join(resultErr, writer.Close())
-		}
-	}()
+	authority := func() schema.Authority { return schema.CaptureAuthority(contract, governance) }
 	store, err := snapshot.New(ctx, source, log, contract, governance)
 	if err != nil {
 		return nil, err
@@ -141,13 +128,9 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	// The opened object and its startup name stay fixed even when the selecting
 	// path changes. The scanner reports that divergence separately.
 	vaultName := shell.VaultName(source.Name())
-	shellProvider := func() nav.Shell {
-		return shell.Project(vaultName, writer.Authority(), store.Current().Capture())
-	}
 	searchProvider := func() search.RequestSnapshot {
-		authority := writer.Authority()
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority, snap), Status: authority}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap)}
 	}
 	// The marks a reader leaves are kept for the root the vault capability was
 	// actually taken on, which is the resolved absolute path rather than the
@@ -188,12 +171,12 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	// that page is drawn from rather than asked for separately.
 	pathProvider := func() syllabus.RequestSnapshot {
 		snap := store.Current().Capture()
-		authority := writer.Authority()
+		captured := authority()
 		kept, marked := keptPlace()
 		return syllabus.RequestSnapshot{
-			Shell:      shell.Project(vaultName, authority, snap),
+			Shell:      shell.Project(vaultName, captured, snap),
 			Generation: snap,
-			Status:     authority,
+			Authority:  captured,
 			Kept:       kept,
 			Marked:     marked,
 		}
@@ -204,10 +187,8 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		Source:             source,
 		Contract:           contract,
 		VaultName:          vaultName,
-		Status:             writer.Authority,
+		Authority:          authority,
 		Snapshot:           store.Current,
-		ObservedStatus:     writer.ObservedStatus,
-		ConsumeReceipt:     writer.ConsumeReceipt,
 		Continuation:       keptPlace,
 		MarkAddress:        markAddress,
 		UncertaintyAddress: uncertaintyAddress,
@@ -216,7 +197,6 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 		Log:                log,
 	})
 	readers.Register(mux)
-	status.NewHandler(writer, shellProvider, log).Register(mux)
 	if marks != nil {
 		mark.NewHandler(marks, readers, log).Register(mux)
 		mark.NewUncertaintyHandler(marks, readers, log).Register(mux)
@@ -234,7 +214,6 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	site := &readingSite{
 		handler:   origin.LoopbackOnly(handler),
 		snapshots: store,
-		writer:    writer,
 		source:    source,
 		cancel:    cancel,
 	}
@@ -296,9 +275,6 @@ func (site *readingSite) close() error {
 		}
 		site.watchers.Wait()
 		site.requests.Wait()
-		if site.writer != nil {
-			site.closeErr = errors.Join(site.closeErr, site.writer.Close())
-		}
 		if site.source != nil {
 			site.closeErr = errors.Join(site.closeErr, site.source.Close())
 		}

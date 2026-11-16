@@ -35,14 +35,12 @@ type PathView struct {
 	Unit nav.Unit
 	// Entries is the course's planned total, the main line only and a
 	// planned-but-unwritten entry included, and Branched how many the side
-	// branches list between them, which never join it. Unsettled is how many of
-	// the main line's entries carry a status the contract does not settle: what
-	// is still to be finished, which says nothing about how far the reader has
-	// come. It is zero when every entry is settled, and for a contract that
-	// settles no status, where it would say nothing.
-	Entries   int
-	Branched  int
-	Unsettled int
+	// branches list between them, which never join it. Drafts is how many of
+	// the main line's entries declare draft: true: what is still to be
+	// finished, which says nothing about how far the reader has come.
+	Entries  int
+	Branched int
+	Drafts   int
 
 	// Vault is the folder this course sits in, which the rail's foot states.
 	// The reading rail builds one of these views for its own book and states
@@ -220,14 +218,12 @@ type PathEntryView struct {
 	// place in.
 	RelPath string
 	Href    string
-	Status  string
-	// Settled is whether the contract declares Status settled, the resting
-	// state of a finished lesson. The row prints its status only when it is
-	// not, so what a reader sees on a row is the exception.
-	Settled bool
+	// Draft is whether the lesson declares itself unfinished. Only a draft
+	// prints a label, so what a reader sees on a row is the exception.
+	Draft bool
 	// Here marks the lesson the reader is at. It says where they are standing,
 	// never how far they have come: the words beside the row stay the
-	// contract's, and a course carries no reading of its own about which
+	// author's, and a course carries no reading of its own about which
 	// lessons are behind the reader.
 	Here bool
 	// Kept marks the lesson holding the place the reader deliberately left off
@@ -252,12 +248,6 @@ type PathEntryView struct {
 	// inside the same list item, so the line the main line is read along
 	// passes beside them instead of stopping where they begin.
 	Branches []PathBranchView
-}
-
-// labelled reports whether the row prints its status: only an exception does,
-// a lesson at a status the contract settles being the ordinary state.
-func (e *PathEntryView) labelled() bool {
-	return e.Status != "" && !e.Settled
 }
 
 // PathRunView is one uninterrupted stretch of what a branch lists: a run of
@@ -360,7 +350,7 @@ func BuildPathView(current *nav.Path, all []nav.Path, cover *CourseCover) PathVi
 		Unit:            current.Unit,
 		Entries:         current.Planned,
 		Branched:        current.Branched,
-		Unsettled:       current.Unsettled,
+		Drafts:          current.Drafts,
 		OpeningHTML:     cover.OpeningHTML,
 		OpeningLanguage: cover.OpeningLanguage,
 	}
@@ -425,13 +415,13 @@ func (v *PathView) Extent(lang wording.Lang) []string {
 	return figures
 }
 
-// UnsettledNote is the exception the head states after the extent, in the noun
+// DraftsNote is the exception the head states after the extent, in the noun
 // the path is read in, or empty where there is none to state.
-func (v *PathView) UnsettledNote(lang wording.Lang) string {
-	if v.Unsettled == 0 {
+func (v *PathView) DraftsNote(lang wording.Lang) string {
+	if v.Drafts == 0 {
 		return ""
 	}
-	return fmt.Sprintf(unitWords(v.Unit).UnsettledFmt.In(lang), v.Unsettled)
+	return fmt.Sprintf(unitWords(v.Unit).DraftsFmt.In(lang), v.Drafts)
 }
 
 // buildAppendix draws a top-level section the author declared out of the
@@ -598,8 +588,7 @@ func buildPathEntry(entry *nav.PathEntry, cover *CourseCover) PathEntryView {
 	}
 	v.RelPath = entry.RelPath
 	v.Href = notesHref(entry.RelPath)
-	v.Status = entry.Status
-	v.Settled = entry.Settled
+	v.Draft = entry.Draft
 	v.Here = cover.Here != "" && entry.RelPath == cover.Here
 	v.Kept = cover.KeptNote != "" && entry.RelPath == cover.KeptNote
 	return v

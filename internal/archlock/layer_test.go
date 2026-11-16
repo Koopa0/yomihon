@@ -55,7 +55,6 @@ var faceAdapterPackages = []string{
 	"internal/search",
 	"internal/shell",
 	"internal/sourcebytes",
-	"internal/status",
 	"internal/syllabus",
 }
 

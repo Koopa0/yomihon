@@ -3,8 +3,12 @@ package note_test
 import (
 	"maps"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 // TestThePageOffersOneStepOnwardInTheFoot holds one reading page to one order
@@ -21,7 +25,7 @@ func TestThePageOffersOneStepOnwardInTheFoot(t *testing.T) {
 		primaryNext = "/notes/Writing/lessons/golang/Primary%20next.md"
 	)
 	body := func(title string) string {
-		return "---\ntitle: " + title + "\ntype: lesson\ndomain: golang\nstatus: draft\n---\n\nbody\n"
+		return "---\ntype: lesson\n---\n# " + title + "\n\nbody\n"
 	}
 	// The folder sorts Current, Folder next, Other next, Primary next, so the
 	// file beside this one is never the lesson any course teaches next.
@@ -31,8 +35,9 @@ func TestThePageOffersOneStepOnwardInTheFoot(t *testing.T) {
 		"Writing/lessons/golang/Other next.md":   body("Other next"),
 		"Writing/lessons/golang/Primary next.md": body("Primary next"),
 	}
-	syllabus := func(title, domain, second string) string {
-		return "---\ntitle: " + title + "\ntype: study-path\ndomain: " + domain + "\n---\n\n" +
+	// A course's domain is the folder it sits in, as a lesson's is.
+	syllabus := func(title, second string) string {
+		return "---\ntype: study-path\n---\n# " + title + "\n\n" +
 			"## Part {sequence=primary}\n\n- [[Current]]\n- [[" + second + "]]\n"
 	}
 
@@ -47,8 +52,8 @@ func TestThePageOffersOneStepOnwardInTheFoot(t *testing.T) {
 		{
 			name: "two courses teach it and one of them is its own",
 			courses: map[string]string{
-				"Maps/Primary path.md":   syllabus("Primary path", "golang", "Primary next"),
-				"Maps/Secondary path.md": syllabus("Secondary path", "japanese", "Other next"),
+				"Maps/golang/Primary path.md":     syllabus("Primary path", "Primary next"),
+				"Maps/japanese/Secondary path.md": syllabus("Secondary path", "Other next"),
 			},
 			wantKind: "book",
 			wantFoot: primaryNext,
@@ -56,7 +61,7 @@ func TestThePageOffersOneStepOnwardInTheFoot(t *testing.T) {
 		{
 			name: "one course teaches it",
 			courses: map[string]string{
-				"Maps/Primary path.md": syllabus("Primary path", "golang", "Primary next"),
+				"Maps/golang/Primary path.md": syllabus("Primary path", "Primary next"),
 			},
 			wantKind: "book",
 			wantFoot: primaryNext,
@@ -67,8 +72,8 @@ func TestThePageOffersOneStepOnwardInTheFoot(t *testing.T) {
 			// and the foot has to walk it too.
 			name: "two courses teach it and neither is its own",
 			courses: map[string]string{
-				"Maps/Primary path.md":   syllabus("Primary path", "japanese", "Primary next"),
-				"Maps/Secondary path.md": syllabus("Secondary path", "meta", "Other next"),
+				"Maps/japanese/Primary path.md": syllabus("Primary path", "Primary next"),
+				"Maps/meta/Secondary path.md":   syllabus("Secondary path", "Other next"),
 			},
 			wantKind: "folder",
 			wantFoot: folderNext,
@@ -80,7 +85,7 @@ func TestThePageOffersOneStepOnwardInTheFoot(t *testing.T) {
 			files := make(map[string]string, len(notes)+len(tt.courses))
 			maps.Copy(files, notes)
 			maps.Copy(files, tt.courses)
-			srv := newServerWithContract(t, writeNotes(t, files), loadHomeContract(t))
+			srv := newServerWithContract(t, writeNotes(t, files), loadHomeContractWithDomainRoots(t, `["Writing/lessons", "Maps"]`))
 
 			code, page := get(t, srv.Client(), srv.URL+current)
 			if code != http.StatusOK {
@@ -130,4 +135,27 @@ func linkHref(t *testing.T, markup string, at int) string {
 		t.Fatalf("the step onward has an unterminated address; markup = %q", markup)
 	}
 	return value[:end]
+}
+
+// loadHomeContractWithDomainRoots is the shared contract with its domain roots
+// replaced by roots, a TOML list.
+func loadHomeContractWithDomainRoots(t *testing.T, roots string) *schema.Contract {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("read schema test contract: %v", err)
+	}
+	const declaration = `domain_from = ["Concepts"]`
+	if strings.Count(string(data), declaration) != 1 {
+		t.Fatal("the contract fixture does not declare its domain roots once")
+	}
+	path := filepath.Join(t.TempDir(), "vault-schema.toml")
+	if writeErr := os.WriteFile(path, []byte(strings.Replace(string(data), declaration, "domain_from = "+roots, 1)), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under this test's TempDir
+		t.Fatalf("write contract: %v", writeErr)
+	}
+	contract, err := schema.LoadFile(path)
+	if err != nil {
+		t.Fatalf("LoadFile(%q) = %v", path, err)
+	}
+	return contract
 }

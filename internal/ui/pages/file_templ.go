@@ -51,7 +51,7 @@ func File(v FileView, c layouts.Chrome) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"y-nav-scrim\" data-nav-close></div><div class=\"y-shell y-shell--rail-empty\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"y-nav-scrim\" data-nav-close></div><div class=\"y-shell\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

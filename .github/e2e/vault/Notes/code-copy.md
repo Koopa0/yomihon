@@ -1,8 +1,8 @@
 ---
-title: Code copy
+
 type: concept
 based_on: "[[Notes/alpha]]"
-domain: golang
+
 ---
 
 # Code copy

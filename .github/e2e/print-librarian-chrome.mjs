@@ -2,9 +2,11 @@
 // #148 asks for rendered print output, not each element's own computed display:
 // a surface hidden only by an ancestor can still report display:block on itself.
 //
-// On screen the opening column carries path crumbs, the type and Obsidian
-// metarow, and folder previous/next. In print media those three stay off the
-// sheet; course lesson-order prev/next may remain.
+// On screen a file's opening column carries path crumbs and the type and
+// Obsidian metarow, and a note carries its facts and aids at the end, the
+// margins beside its sections and the line above a question, and a folder's
+// notes carry previous/next. In print media all of those stay off the sheet;
+// course lesson-order prev/next may remain.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note with folder siblings), and MUTATE.
 // MUTATE=list prints every watched regression.
@@ -13,11 +15,13 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const FOLDER_PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const COURSE_PAGE = '/notes/Notes/alpha.md';
+const FILE_PAGE = '/notes/Notes/plain.txt';
 const MUTATE = process.env.MUTATE || '';
 
 const SITES = [
   'crumbs-off-paper',
   'metarow-off-paper',
+  'note-facts-and-margins-off-paper',
   'folder-steps-off-paper',
   'course-steps-on-paper',
   'course-actions-off-paper',
@@ -68,6 +72,14 @@ const MUTATIONS = {
   'drop-hide-metarow': {
     target: 'metarow-off-paper',
     apply: weakenStylesheet('@media print{.y-metarow{display:block !important}}'),
+  },
+  'drop-hide-note-facts': {
+    target: 'note-facts-and-margins-off-paper',
+    apply: weakenStylesheet('@media print{.y-related{display:flex !important}}'),
+  },
+  'drop-hide-section-margins': {
+    target: 'note-facts-and-margins-off-paper',
+    apply: weakenStylesheet('@media print{.y-margin,.y-predict{display:flex !important}}'),
   },
   'drop-hide-folder-steps': {
     target: 'folder-steps-off-paper',
@@ -143,11 +155,10 @@ try {
   // pass print hide for the wrong reason — the page was empty of chrome to
   // begin with.
   await page.emulateMedia({ media: 'screen' });
-  if (!(await laidOut(page.locator('.y-crumbs')))) {
-    broken('the folder note paints no path crumbs on screen, so print hide cannot be judged');
-  }
-  if (!(await laidOut(page.locator('.y-metarow')))) {
-    broken('the folder note paints no metarow on screen, so print hide cannot be judged');
+  for (const surface of ['.y-related .y-facts', '.y-margin__act', '.y-predict']) {
+    if (!(await laidOut(page.locator(surface)))) {
+      broken(`the folder note paints no ${surface} on screen, so print hide cannot be judged`);
+    }
   }
   const folderSteps = page.locator('nav.y-steps:not(.y-steps--course)');
   if (!(await laidOut(folderSteps))) {
@@ -155,14 +166,31 @@ try {
   }
 
   await page.emulateMedia({ media: 'print' });
+  for (const surface of ['.y-related', '.y-margin', '.y-predict']) {
+    if (await laidOut(page.locator(surface))) {
+      fail('note-facts-and-margins-off-paper', `${surface} still lays out on paper`);
+    }
+  }
+  if (await laidOut(folderSteps)) {
+    fail('folder-steps-off-paper', 'folder previous/next still lay out on paper');
+  }
+
+  // A note carries no line above its title, so the path crumbs are read on the
+  // page that still has them: the file page.
+  await page.goto(BASE + FILE_PAGE, { waitUntil: 'domcontentloaded' });
+  await page.emulateMedia({ media: 'screen' });
+  if (!(await laidOut(page.locator('.y-crumbs')))) {
+    broken('the file page paints no path crumbs on screen, so print hide cannot be judged');
+  }
+  if (!(await laidOut(page.locator('.y-metarow')))) {
+    broken('the file page paints no metarow on screen, so print hide cannot be judged');
+  }
+  await page.emulateMedia({ media: 'print' });
   if (await laidOut(page.locator('.y-crumbs'))) {
     fail('crumbs-off-paper', 'path crumbs still lay out on paper');
   }
   if (await laidOut(page.locator('.y-metarow'))) {
     fail('metarow-off-paper', 'the type and Obsidian metarow still lay out on paper');
-  }
-  if (await laidOut(folderSteps)) {
-    fail('folder-steps-off-paper', 'folder previous/next still lay out on paper');
   }
 
   await page.goto(BASE + COURSE_PAGE, { waitUntil: 'domcontentloaded' });
@@ -172,7 +200,7 @@ try {
   }
 
   await page.emulateMedia({ media: 'screen' });
-  await page.goto(BASE + '/syllabus/Maps/listen.md', { waitUntil: 'load' });
+  await page.goto(BASE + '/courses/Maps/listen.md', { waitUntil: 'load' });
   const actions = page.locator('.y-cover__open, .y-syl-read');
   if (await actions.count() !== 3) broken('course fixture must offer the course verb and both the note and listening links');
   for (const action of await actions.all()) {

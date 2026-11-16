@@ -17,7 +17,7 @@ func TestReferenceSequenceSentence(t *testing.T) {
 	} {
 		t.Run(string(tt.lang), func(t *testing.T) {
 			t.Parallel()
-			got := SchemaSentence(tt.lang, "schema.reference_nested_sequence", "based_on", "", "")
+			got := SchemaSentence(tt.lang, "schema.reference_nested_sequence", "based_on", "")
 			t.Log("hit: reference sequence wording reached")
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("caught: reference repair sentence (-want +got):\n%s", diff)
@@ -32,7 +32,7 @@ func TestReferenceSequenceSentenceKeepsAuthoredFieldAsText(t *testing.T) {
 	for _, lang := range []Lang{ZhHant, En} {
 		t.Run(string(lang), func(t *testing.T) {
 			t.Parallel()
-			parts := SchemaSentence(lang, "schema.reference_nested_sequence", field, "", "")
+			parts := SchemaSentence(lang, "schema.reference_nested_sequence", field, "")
 			var got []string
 			for _, part := range parts {
 				if part.Code {

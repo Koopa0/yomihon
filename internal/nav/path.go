@@ -33,14 +33,12 @@ type Path struct {
 	// Unit is the noun the path's entries are counted and stepped in, decided
 	// once for the whole path from the types of the notes it lists.
 	Unit Unit
-	// Unsettled is how many of the main line's lessons carry a status the
-	// contract does not declare settled: the lessons still to be finished. It
-	// counts out of the same lessons Planned counts, so it can never exceed
-	// it, and a lesson that reaches no note or states no status is not one of
-	// them. It is not progress — a lesson leaves it by being settled and
-	// returns to it by being reopened — and it is zero for a contract that
-	// declares no settled status at all, where every lesson would be one.
-	Unsettled int
+	// Drafts is how many of the main line's lessons declare draft: true:
+	// the lessons still to be finished. It counts out of the same lessons
+	// Planned counts, so it can never exceed it, and a lesson that reaches no
+	// note is not one of them. It is not progress — a lesson leaves it when its
+	// author removes the flag and returns to it when they write it again.
+	Drafts int
 	// Diagnostics is everything the grammar left the author to decide, so a
 	// reading surface can tell a course that plans nothing from one whose
 	// structure could not be read.
@@ -233,10 +231,9 @@ type PathEntry struct {
 
 	Kind    EntryKind
 	RelPath string
-	Status  string
-	// Settled is whether the contract declares Status settled, the resting
-	// state of a finished note, so a row shows no label for it.
-	Settled    bool
+	// Draft is whether the note the row reaches declares itself unfinished,
+	// the one note a row marks.
+	Draft      bool
 	Language   string
 	Candidates []string
 }
@@ -257,9 +254,9 @@ func buildPath(
 ) Path {
 	doc := sequence.Parse(n.Body, n.BodyLine)
 	p := Path{
-		Title:       n.Title(),
+		Title:       graph.TitleOf(n.RelPath, n.Body),
 		RelPath:     n.RelPath,
-		Domain:      n.Domain(),
+		Domain:      n.Domain,
 		Type:        n.Type(),
 		Diagnostics: doc.Diagnostics,
 	}
@@ -269,7 +266,7 @@ func buildPath(
 	main, locals, branched := projectStops(p.Groups)
 	p.Planned = main.planned
 	p.Branched = branched
-	p.Unsettled = main.unsettled
+	p.Drafts = main.drafts
 	if len(main.stops) > 0 {
 		p.components = append(p.components, main.stops)
 		p.info = append(p.info, componentInfo{parts: main.parts, asides: main.asides})
@@ -369,8 +366,7 @@ func buildPathEntry(
 	if entry.Kind == EntryResolved {
 		entry.RelPath = res.RelPath
 		known := facts[res.RelPath]
-		entry.Status = known.status
-		entry.Settled = known.settled
+		entry.Draft = known.draft
 		entry.Language = known.language
 		entry.Name = rowName(candidateLink(c), known.title)
 	}
@@ -410,12 +406,12 @@ func candidateLink(c *sequence.Candidate) sequence.Link {
 }
 
 // mainLine is the primary walk's result: how many lessons the course plans,
-// the resolved stops a reader can actually open, and how many of those are not
-// at a status the contract settles.
+// the resolved stops a reader can actually open, and how many of those are
+// drafts.
 type mainLine struct {
-	planned   int
-	unsettled int
-	stops     []NoteRef
+	planned int
+	drafts  int
+	stops   []NoteRef
 	// parts and asides are what componentInfo keeps for the main line: the part
 	// of each stop, and the side branches hanging from it.
 	parts  []string
@@ -496,8 +492,8 @@ func (w *stopWalk) primary(g *PathGroup) {
 				here = rowPlace{stop: len(w.main.stops), ref: ref, openable: true}
 				w.main.stops = append(w.main.stops, ref)
 				w.main.parts = append(w.main.parts, w.part)
-				if item.Entry.Status != "" && !item.Entry.Settled {
-					w.main.unsettled++
+				if item.Entry.Draft {
+					w.main.drafts++
 				}
 			}
 			here.after = len(w.main.stops)

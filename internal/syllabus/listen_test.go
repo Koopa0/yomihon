@@ -89,7 +89,7 @@ func listenServer(t *testing.T, root string, status syllabus.LessonTypes) *httpt
 		return syllabus.RequestSnapshot{
 			Shell:      nav.Shell{Nav: snap.Navigation(), Governed: true},
 			Generation: snap,
-			Status:     status,
+			Authority:  status,
 		}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
@@ -180,7 +180,7 @@ func TestACourseThatMarksNothingSaysSo(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET the listening page status = %d, want 200", code)
 	}
-	if !strings.Contains(page, "這條路徑沒有標記朗讀的段落。") {
+	if !strings.Contains(page, "這個課程沒有標記朗讀的段落。") {
 		t.Errorf("a course with nothing marked says nothing about it; its own column reads %q", listenColumn(t, page))
 	}
 	for _, absent := range []string{"data-tts=", "data-readaloud-controls", "data-readaloud-bar"} {
@@ -212,7 +212,7 @@ func TestAnUnknownCourseRefusesTheWayTheCoursePageDoes(t *testing.T) {
 	t.Parallel()
 
 	srv := listenServer(t, listenVault(t), lessonTypes("lesson"))
-	for _, target := range []string{"/listen/Maps/nothing-here.md", "/syllabus/Maps/nothing-here.md"} {
+	for _, target := range []string{"/listen/Maps/nothing-here.md", "/courses/Maps/nothing-here.md"} {
 		code, page := get(t, srv.Client(), srv.URL+target)
 		if code != http.StatusNotFound {
 			t.Errorf("GET %s status = %d, want 404", target, code)
@@ -240,11 +240,10 @@ func TestTheListeningPageNamesALessonAsTheCoursePageDoes(t *testing.T) {
 		}
 	}
 	lesson := func(name, title string) {
-		head := "---\n"
+		head := "---\ntype: lesson\ncreated: 2026-06-01\n---\n\n"
 		if title != "" {
-			head += "title: \"" + title + "\"\n"
+			head += "# " + title + "\n\n"
 		}
-		head += "type: lesson\ndomain: golang\nstatus: ready\ncreated: 2026-06-01\nupdated: 2026-06-01\n---\n\n"
 		body := head + "<!-- read-aloud: ja -->\nいち。\n"
 		if err := os.WriteFile(filepath.Join(lessonDir, name+".md"), []byte(body), 0o600); err != nil {
 			t.Fatalf("write %s: %v", name, err)
@@ -345,7 +344,7 @@ func TestTheCoverOffersListeningExactlyWhereTheListeningPageHasSomethingToPlay(t
 
 			_, listenPage := get(t, srv.Client(), srv.URL+"/listen/Maps/Path.md")
 			plays := strings.Contains(listenPage, "data-tts=")
-			_, cover := get(t, srv.Client(), srv.URL+"/syllabus/Maps/Path.md")
+			_, cover := get(t, srv.Client(), srv.URL+"/courses/Maps/Path.md")
 			offers := strings.Contains(cover, `href="/listen/Maps/Path.md"`)
 
 			if plays != tt.want {
@@ -391,7 +390,7 @@ func TestMixedAuthoredLanguagesReachCourseListeningInOrder(t *testing.T) {
 			t.Errorf("caught: excluded course paragraph became playable: %q", withheld)
 		}
 	}
-	code, cover := get(t, srv.Client(), srv.URL+"/syllabus/Maps/Path.md")
+	code, cover := get(t, srv.Client(), srv.URL+"/courses/Maps/Path.md")
 	if code != http.StatusOK || !strings.Contains(cover, `href="/listen/Maps/Path.md"`) {
 		t.Error("caught: mixed language course offer disagrees with playable output")
 	}

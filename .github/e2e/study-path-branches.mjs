@@ -14,8 +14,8 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const MUTATE = process.env.MUTATE || '';
 
-const PATH_INDEX = '/paths';
-const COURSE_PAGE = '/syllabus/Maps/branches.md';
+const PATH_INDEX = '/courses';
+const COURSE_PAGE = '/courses/Maps/branches.md';
 const SECOND_LESSON = '/notes/Course/C02.md';
 const SIDE_LESSON = '/notes/Course/S01.md';
 const MAP_PAGE = '/notes/Maps/reading.md';
@@ -28,7 +28,7 @@ const SITES = [
   'main-line-steps-over-the-side-branch',
   'side-branch-does-not-rejoin',
   'side-branch-offers-a-labelled-way-back-and-on',
-  'a-lesson-names-its-book-above-its-title',
+  'a-lesson-names-its-book-in-the-sidebar',
   'declared-out-stays-out',
   'declared-out-is-in-no-course',
   'general-maps-unchanged',
@@ -95,10 +95,10 @@ const MUTATIONS = {
     target: 'side-branch-offers-a-labelled-way-back-and-on',
     apply: rewriteDocument(SIDE_LESSON, 'y-steps__link--onward', 'y-steps__link--detached', 'side-branch article foot'),
   },
-  // A lesson of the course loses the line that names its book.
-  'drop-the-running-head': {
-    target: 'a-lesson-names-its-book-above-its-title',
-    apply: rewriteDocument(SECOND_LESSON, 'y-crumbs--course', 'y-crumbs--plain', 'second lesson article head'),
+  // A lesson of the course loses the title that names its book in the sidebar.
+  'drop-the-book-title': {
+    target: 'a-lesson-names-its-book-in-the-sidebar',
+    apply: rewriteDocument(SECOND_LESSON, 'class="y-railbook__title"', 'class="y-railbook__untitled"', 'second lesson sidebar'),
   },
   'rejoin-the-side-branch': {
     target: 'side-branch-does-not-rejoin',
@@ -175,7 +175,7 @@ try {
   // that is planned and unwritten. The side branch and the routine block are
   // not it.
   await page.goto(BASE + PATH_INDEX, { waitUntil: 'domcontentloaded' });
-  const row = page.locator('main a[href="/syllabus/Maps/branches.md"]');
+  const row = page.locator('main a[href="/courses/Maps/branches.md"]');
   if (await row.count() !== 1) broken(`the course index lists the branch course ${await row.count()} times, want 1`);
   const listed = (await row.innerText()).match(/(\d+)\s*課/);
   if (!listed) broken(`the course index row shows no lesson count: ${JSON.stringify(await row.innerText())}`);
@@ -188,7 +188,7 @@ try {
   // study path lists two concept notes, a note outside the governed set and a
   // lesson nobody wrote, so it is the case a noun chosen without looking at
   // what the rows reached would get wrong.
-  const notes = page.locator('main a[href="/syllabus/Maps/study.md"]');
+  const notes = page.locator('main a[href="/courses/Maps/study.md"]');
   if (await notes.count() !== 1) broken(`the course index lists the study path ${await notes.count()} times, want 1`);
   const notesRow = await notes.innerText();
   if (!/4\s*篇/.test(notesRow) || notesRow.includes('課')) {
@@ -303,29 +303,47 @@ try {
     fail('side-branch-offers-a-labelled-way-back-and-on', 'the lesson the side branch hangs from does not point at it');
   }
 
-  // Every lesson of the course names its book above its title, as a link to the
-  // contents; a side branch's lesson says so. A note in no course keeps the
-  // folder's breadcrumb.
-  const headOf = async (path) => {
+  // Every lesson of the course names its book in the sidebar, in the serif face,
+  // as a link to the contents, and a side branch's lesson sits under the heading
+  // that says so. Nothing stands above the title of any note.
+  const sidebarOf = async (path) => {
     await page.goto(BASE + path, { waitUntil: 'domcontentloaded' });
-    return page.locator('.y-article .y-crumbs--course a.y-crumbs__link');
+    return page.evaluate(() => {
+      const title = document.querySelector('.y-railbook__title');
+      const row = document.querySelector('.y-railbook .ui-navitem[aria-current="page"]');
+      const parts = [];
+      for (let node = row?.closest('details'); node; node = node.parentElement?.closest('details')) {
+        parts.unshift(node.querySelector(':scope > summary')?.textContent.trim() ?? '');
+      }
+      return {
+        title: title?.textContent.trim() ?? null,
+        href: title?.getAttribute('href') ?? null,
+        face: title ? getComputedStyle(title).fontFamily : null,
+        parts,
+        above: document.querySelectorAll('.y-article .y-crumbs').length,
+        first: document.querySelector('.y-article')?.firstElementChild?.tagName ?? null,
+      };
+    });
   };
-  const mainHead = await headOf(SECOND_LESSON);
-  if (await mainHead.count() !== 1 || (await mainHead.innerText()).trim() !== 'Branch Course · 主線') {
-    fail('a-lesson-names-its-book-above-its-title',
-      `the second lesson's running head reads ${JSON.stringify(await mainHead.allInnerTexts())}, want "Branch Course · 主線"`);
+  const mainSidebar = await sidebarOf(SECOND_LESSON);
+  if (mainSidebar.title !== 'Branch Course' || !mainSidebar.href?.startsWith(COURSE_PAGE)) {
+    fail('a-lesson-names-its-book-in-the-sidebar',
+      `the second lesson's sidebar names ${JSON.stringify(mainSidebar.title)} leading to ${JSON.stringify(mainSidebar.href)}, want "Branch Course" leading to the course contents`);
   }
-  if (!(await mainHead.getAttribute('href')).startsWith(COURSE_PAGE)) {
-    fail('a-lesson-names-its-book-above-its-title', 'the running head does not lead to the course contents');
+  if (!/serif|Newsreader/i.test(mainSidebar.face ?? '')) {
+    fail('a-lesson-names-its-book-in-the-sidebar', `the course's name is set in ${JSON.stringify(mainSidebar.face)}, want the serif face`);
   }
-  const sideHead = await headOf(SIDE_LESSON);
-  if ((await sideHead.innerText()).trim() !== 'Branch Course · 主線 · 支線') {
-    fail('a-lesson-names-its-book-above-its-title',
-      `the side branch's running head reads ${JSON.stringify(await sideHead.allInnerTexts())}, want "Branch Course · 主線 · 支線"`);
+  if (mainSidebar.above !== 0 || mainSidebar.first !== 'H1') {
+    fail('a-lesson-names-its-book-in-the-sidebar', `the lesson's article opens on ${mainSidebar.first} with ${mainSidebar.above} lines above its title, want the title itself`);
+  }
+  const sideSidebar = await sidebarOf(SIDE_LESSON);
+  if (!sideSidebar.parts.some((part) => part.includes('支線'))) {
+    fail('a-lesson-names-its-book-in-the-sidebar',
+      `the side branch's lesson sits under ${JSON.stringify(sideSidebar.parts)}, want a heading that says it is a branch`);
   }
   await page.goto(BASE + ROUTINE_LESSON, { waitUntil: 'domcontentloaded' });
-  if (await page.locator('.y-article .y-crumbs--course').count() !== 0) {
-    fail('a-lesson-names-its-book-above-its-title', 'a lesson declared out of the course carries a running head naming it');
+  if (await page.locator('.y-railbook').count() !== 0) {
+    fail('a-lesson-names-its-book-in-the-sidebar', 'a lesson declared out of the course carries a book in its sidebar naming it');
   }
 
   // Narrowing courses must not narrow maps: a general map still lists what it
