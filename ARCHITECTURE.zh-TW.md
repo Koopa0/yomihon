@@ -121,7 +121,7 @@ Wikilink 表示引用，`based_on` 宣告來源，學習路徑則安排課程順
 
 ## 8. 命令與輸出隱私
 
-![Vault 契約提供閱讀與生命週期宣告；命令輸出另外經過隱私與來源檢查。](docs/architecture/05-contract-and-commands.png)
+![Vault 契約的宣告供閱讀視圖與命令檢查使用；命令輸出另外經過隱私與來源檢查。](docs/architecture/05-contract-and-commands.png)
 
 [`check`、`coverage` 與 `exists`][commands] 各自開啟 vault，執行獨立的唯讀操作。它們共用解析、連結與契約語意，不呼叫 HTTP server，也不建立閱讀標記。[`left-open`][left-open] 是唯一談讀者的命令：它建立與 server 相同的讀取世代，只讀不寫地讀取「還不確定」標記，列出「還沒想通的」書架所列的同一份選取結果。
 

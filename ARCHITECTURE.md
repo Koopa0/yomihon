@@ -121,7 +121,7 @@ The reading page polls for freshness rather than treating its displayed text as 
 
 ## 8. Commands and output privacy
 
-![The vault contract supplies reading and lifecycle declarations; command output additionally passes privacy and source checks.](docs/architecture/05-contract-and-commands.png)
+![The vault contract's declarations feed the reading projections and the command judge; command output additionally passes privacy and source checks.](docs/architecture/05-contract-and-commands.png)
 
 [`check`, `coverage`, and `exists`][commands] open the vault as independent read-only actions. They use the same parsing, resolution, and declaration semantics without calling the HTTP server or creating reader marks. [`left-open`][left-open] is the one command about the reader: it builds the same reading generation the server does, reads the uncertainty marks without writing them, and lists what the "What you left open" shelf lists, from the same selection.
 
