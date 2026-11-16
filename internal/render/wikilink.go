@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"hash/fnv"
 	"html"
 	"net/url"
 	"path"
@@ -706,6 +707,24 @@ func tryOpenFence(st *preprocessState) bool {
 	return true
 }
 
+// diagramKey names a diagram by its source, in hexadecimal so a stylesheet can
+// select on it without escaping. The browser remembers how tall it drew each
+// diagram under this name, so a page that comes back is laid out with the
+// diagram already at that height.
+func diagramKey(source string) string {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(source)) // best-effort: a hash.Hash64 write never fails
+	return strconv.FormatUint(h.Sum64(), 16)
+}
+
+// CarriesDiagrams reports whether rendered HTML holds a diagram the browser will
+// draw, which is what makes a page worth telling the browser how tall it drew
+// them last time. Only the placeholder consumeMermaid writes counts: an authored
+// tag of the same class reaches the page escaped.
+func CarriesDiagrams(htmlOut string) bool {
+	return strings.Contains(htmlOut, `<div class="mermaid-diagram" data-mermaid-key="`)
+}
+
 // consumeMermaid consumes a ```mermaid fence up to and including its closing
 // fence and replaces the block with a div.mermaid-diagram placeholder carrying
 // the raw source twice: HTML-escaped as the element's text, which is what a
@@ -724,7 +743,8 @@ func consumeMermaid(st *preprocessState, marker byte, openerLen int) {
 	}
 	//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; url.QueryEscape's output charset (letters, digits, "-_.~%+") never needs further escaping
 	block := fmt.Sprintf(
-		`<div class="mermaid-diagram" data-mermaid-code="%s">%s</div>`,
+		`<div class="mermaid-diagram" data-mermaid-key="%s" data-mermaid-code="%s">%s</div>`,
+		diagramKey(src),
 		url.QueryEscape(src),
 		html.EscapeString(src),
 	)

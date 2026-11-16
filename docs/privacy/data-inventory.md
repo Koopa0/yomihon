@@ -160,14 +160,14 @@ the browser or operating system's speech service.
 
 ## Browser state
 
-Cookies and session storage hold the reading choices and where the reader had
-the left rail. Eight cookies carry the choices, and the server writes
+Cookies and session storage hold the reading choices, where the reader had
+the left rail, and how tall the diagrams on a page came out. Eight cookies carry the choices, and the server writes
 every one of them at `/preferences`. Every one but the interface language is
 also written by the page's own script when a choice is picked, under the same
 name and for the same year, so a choice made with script and one made without
 expire together. The language is the exception: its words are the server's,
 and nothing but the server writes it. Three `sessionStorage` keys carry the
-rail.
+rail and one carries the diagram heights.
 
 | Kept in the browser | What it holds | How long |
 |---|---|---|
@@ -182,6 +182,7 @@ rail.
 | `yomihon.nav` | Which folders of the left rail the reader opened or closed, one true-or-false each | Until the tab closes |
 | `yomihon.nav.filter` | The text the reader typed into the rail's filter box, kept as typed so a narrowing survives opening a note | Until the tab closes |
 | `yomihon.railTop` | How far the left rail was scrolled when a page was left, and which rail it was scrolled in — a course's own vault path, or the kind of rail — so the next page of the same rail starts where it was | Until the tab closes |
+| `yomihon.diagramHeights` | How tall each diagram came out when it was drawn, under a short hash of its source, and the window width and reading choices it was measured in, so a page the reader comes back to holds each diagram at that height before it is drawn again | Until the tab closes |
 
 - **The cookies go to the loopback listener and nowhere else.** Each carries
   `Path=/` and `SameSite=Lax`, and is deliberately neither `Secure` nor
@@ -191,9 +192,10 @@ rail.
   can therefore read them. A cookie is scoped by host rather than by port, so
   anything else served from `127.0.0.1` to the same browser can read them too —
   the same local surface the threat model already accepts.
-- **The three session keys are sent nowhere at all.** `sessionStorage` is never
-  attached to a request: the rail's state, its scroll position and the filter
-  text stay in the tab holding them and go when it closes.
+- **The session keys are sent nowhere at all.** `sessionStorage` is never
+  attached to a request: the rail's state, its scroll position, the filter
+  text and the diagram heights stay in the tab holding them and go when it
+  closes.
 - **`yomihon.nav.filter` holds the reader's own words.** Every other entry in
   the table is a value yomihon offered and the reader picked; the filter box
   keeps what they typed, as they typed it, which is usually part of the name of

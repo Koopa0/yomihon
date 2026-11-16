@@ -1828,7 +1828,8 @@ html[data-js][data-arrival='kept'] .y-main {
   white-space: pre-wrap;
 }
 
-.y-codecopy {
+.y-codecopy,
+.y-codecopy-slot {
   display: none;
 }
 
@@ -1840,7 +1841,17 @@ html[data-js][data-arrival='kept'] .y-main {
   margin-top: var(--sp-block);
 }
 
-.y-codecopy + pre {
+/* The server draws the slot and the script replaces it with the control, so a
+   block's neighbours are the same elements, at the same height, before the
+   script and after it. The height is the control's own: .y-xbtn is 32px. */
+:root[data-js='on'] :is(.y-article, .y-syl) .y-codecopy-slot {
+  block-size: 32px;
+  display: block;
+  margin-top: var(--sp-block);
+}
+
+.y-codecopy + pre,
+:root[data-js='on'] :is(.y-article, .y-syl) .y-codecopy-slot + pre {
   margin-top: 8px;
 }
 
@@ -2372,7 +2383,12 @@ button.y-freshness__action {
   animation: y-shimmer 1.4s linear infinite;
   background: linear-gradient(100deg, var(--panel) 40%, var(--elevated) 50%, var(--panel) 60%);
   background-size: 200% 100%;
+  /* The height this diagram came to when the tab last drew it, which the head
+     sets where it knows one. The source under the shimmer is invisible, so
+     holding the box at that height hides nothing. */
+  block-size: var(--diagram-height, auto);
   color: transparent;
+  overflow: hidden;
 }
 /* Never inside a hover card. The client binds the diagram renderer once, over
    the document it booted on, and a card's prose arrives long afterwards — so
@@ -2385,7 +2401,9 @@ button.y-freshness__action {
   animation-name: none;
   background-color: var(--panel);
   background-image: none;
+  block-size: auto;
   color: var(--fg-subtle);
+  overflow: auto;
 }
 
 [data-js][data-mermaid-error] .y-prose .mermaid-diagram:not(:has(svg)),
@@ -6673,6 +6691,7 @@ samp,
      rule came before them, regardless of its own specificity. */
   /* Machinery that only answers to a pointer leaves no trace on paper. */
   .y-codecopy,
+  .y-codecopy-slot,
   .y-header,
   .y-rail-left,
   .y-inlineaids,

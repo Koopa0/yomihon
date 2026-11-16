@@ -150,7 +150,7 @@ func TestCalloutIdentifierFenceKeepsLiteralSyntax(t *testing.T) {
 			t.Parallel()
 			body := "```\n> [!" + typ + "] Code\n```\n"
 			got := r.HTML("note.md", "", body, wording.En)
-			want := `<pre class="chroma"><code><span class="line"><span class="cl">&gt; [!` + typ + "] Code\n</span></span></code></pre>"
+			want := `<div class="y-codecopy-slot"></div><pre class="chroma"><code><span class="line"><span class="cl">&gt; [!` + typ + "] Code\n</span></span></code></pre>"
 			if diff := cmp.Diff(want, got.HTML); diff != "" {
 				t.Errorf("fenced callout HTML (-want +got):\n%s", diff)
 			}

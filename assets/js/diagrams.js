@@ -94,6 +94,36 @@ function initMats() {
   }
 }
 
+// How tall each diagram came to, kept for this tab so that a page the reader
+// comes back to is laid out with the diagram already that tall: the browser puts
+// the reader's position back against the first layout, and a diagram drawn after
+// that moves everything below it. The page's head reads this before that layout
+// and holds each diagram's place; heights are only good for the window and
+// settings they were measured in, so the layout is kept beside them.
+const HEIGHTS_KEY = 'yomihon.diagramHeights';
+const HEIGHTS_KEPT = 128;
+
+function rememberHeights(blocks) {
+  const root = document.documentElement;
+  const layout = [innerWidth, root.dataset.textsize, root.dataset.font, root.dataset.rail, root.dataset.sectionbuttons].join('|');
+  try {
+    let kept = JSON.parse(sessionStorage.getItem(HEIGHTS_KEY) || 'null');
+    if (kept?.layout !== layout) kept = { layout, heights: {} };
+    for (const block of blocks) {
+      const key = block.dataset.mermaidKey;
+      const height = block.getBoundingClientRect().height;
+      if (!key || !block.querySelector('svg') || height === 0) continue;
+      delete kept.heights[key];
+      kept.heights[key] = Math.round(height * 100) / 100;
+    }
+    const keys = Object.keys(kept.heights);
+    for (const key of keys.slice(0, Math.max(0, keys.length - HEIGHTS_KEPT))) delete kept.heights[key];
+    sessionStorage.setItem(HEIGHTS_KEY, JSON.stringify(kept));
+  } catch {
+    // A tab without storage keeps nothing; the next page draws its diagrams as it always did.
+  }
+}
+
 // preferences reports the theme the reader is actually looking at and says when
 // it moves. A diagram is drawn in that theme's colours, so it is part of the
 // prose rather than chrome around it, and it cannot sit a frame behind the page
@@ -170,6 +200,7 @@ export async function initDiagrams(preferences) {
         console.warn('[yomihon] mermaid diagram failed to render:', error);
       }
     }
+    rememberHeights(blocks);
   }
 
   let drawing = draw();

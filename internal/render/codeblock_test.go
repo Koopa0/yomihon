@@ -263,3 +263,66 @@ func scopeAt(t *testing.T, css, opener string) (enclosing []string, body string)
 	t.Fatalf("scope %q is never closed:\n%s", opener, css)
 	return nil, ""
 }
+
+// TestEveryCodeBlockStandsAfterASlotForItsCopyControl holds the page's elements
+// still while script gives each block its control. The control takes a slot the
+// server drew, so the page has the same elements before script and after it; a
+// block the renderer wrote without one would have the control inserted beside
+// it later, which moves every element after it one place along and with them
+// the place a returning reader's browser looks for. The blocks differ in how
+// they are written, since each kind has its own way to produce its markup.
+func TestEveryCodeBlockStandsAfterASlotForItsCopyControl(t *testing.T) {
+	t.Parallel()
+	const slot = `<div class="y-codecopy-slot"></div>`
+	r := newRenderer(t, nil, nil, nil)
+
+	for _, tt := range []struct {
+		name string
+		html string
+	}{
+		{name: "a fence with a known language", html: r.HTML("note.md", "", "```go\npackage main\n```\n", wording.ZhHant).HTML},
+		{name: "a fence with no language", html: r.HTML("note.md", "", "```\nplain\n```\n", wording.ZhHant).HTML},
+		{name: "an indented block", html: r.HTML("note.md", "", "Before.\n\n    indented\n\nAfter.\n", wording.ZhHant).HTML},
+		{name: "a whole file read as source", html: render.SourceHTML("main.go", "package main\n")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := strings.Count(tt.html, "<pre"); got != 1 {
+				t.Fatalf("the fixture holds %d blocks, want 1: %s", got, tt.html)
+			}
+			if got := strings.Count(tt.html, slot+"<pre"); got != 1 {
+				t.Errorf("blocks standing directly after a slot = %d, want 1: %s", got, tt.html)
+			}
+			if got := strings.Count(tt.html, slot); got != 1 {
+				t.Errorf("slots = %d, want 1: %s", got, tt.html)
+			}
+		})
+	}
+}
+
+// TestCarriesDiagramsSeesOnlyThePlaceholderTheRendererWrites keeps the page's
+// answer to "is there a diagram to draw" the same as the browser's: an authored
+// tag of the same class reaches the page escaped, and the browser draws nothing
+// for it.
+func TestCarriesDiagramsSeesOnlyThePlaceholderTheRendererWrites(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	for _, tt := range []struct {
+		name string
+		body string
+		want bool
+	}{
+		{name: "a mermaid fence", body: "```mermaid\ngraph TD\n  A --> B\n```\n", want: true},
+		{name: "prose only", body: "Nothing to draw.\n", want: false},
+		{name: "an authored tag of the same class", body: "<div class=\"mermaid-diagram\" data-mermaid-key=\"1\">x</div>\n", want: false},
+		{name: "the class named in a code span", body: "`<div class=\"mermaid-diagram\" data-mermaid-key=\"1\">`\n", want: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			html := r.HTML("note.md", "", tt.body, wording.ZhHant).HTML
+			if got := render.CarriesDiagrams(html); got != tt.want {
+				t.Errorf("CarriesDiagrams(%q) = %v, want %v", html, got, tt.want)
+			}
+		})
+	}
+}
