@@ -9,7 +9,10 @@ const MUTATE = process.env.MUTATE || '';
 const MODE = 'drop-task-label';
 const NOTE = '/notes/Notes/reading-fidelity.md';
 const FIGURES = '/notes/Notes/figures.md';
-const PAGES = ['/', NOTE, '/courses/Maps/branches.md', FIGURES];
+// A note with sections, a closed question and a thought of the reader's own, so the
+// margins beside its sections and the facts at its end are audited too.
+const SECTIONS = '/notes/Notes/Reading%20flow.md';
+const PAGES = ['/', NOTE, '/courses/Maps/branches.md', FIGURES, SECTIONS];
 // A figure's frame runs with scripting off, so axe cannot run inside it: its
 // timers never fire there, and the per-frame runner injected into one never
 // finishes. The single-pass runner audits the page and every frame element

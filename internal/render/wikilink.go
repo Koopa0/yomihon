@@ -751,7 +751,7 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 			Message: fmt.Sprintf("unknown callout type %q; rendered as a neutral callout", typ),
 		})
 	}
-	if title == "" {
+	if _, labelled := calloutLabel(typ, bucket); title == "" && (!labelled || !namesItsLabel(typ)) {
 		title = defaultTitle
 	}
 	titleHTML, openingID := html.EscapeString(title), ""
@@ -777,7 +777,7 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 	// own because it has its own fence state, its own reading of which lines an
 	// indented code block shows as written, and its own diagnostic budget; the
 	// two scans plant into one marker table.
-	open, closing := calloutShell(bucket, fold, titleHTML)
+	open, closing := calloutShell(bucket, typ, fold, calloutOpening(typ, bucket, col.page.lang), titleHTML)
 	openMark := st.marks.plantBlock(open)
 	if openingID != "" {
 		if st.marks.blockAnchors == nil {

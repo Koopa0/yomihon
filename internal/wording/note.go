@@ -19,20 +19,19 @@ var (
 // the ordinary state and carries no mark.
 var Draft = both("草稿", "Draft")
 
-// NoteLanguage labels the head's language row: the BCP 47 tag a note declares
+// NoteLanguage labels the facts' language row: the BCP 47 tag a note declares
 // for its own authored content, distinct from PrefLanguage, which names the
 // interface's own language preference.
 var NoteLanguage = both("語言", "Language")
 
-// The label on the metarow's date. The two are two different claims: the
-// first is the author's own declared update, the second the file's recorded
-// change time, shown when the note declares no readable update date. They are
-// kept apart because a fresh checkout stamps every file with one moment, and
-// calling that moment the author's update would put words in their mouth.
-var (
-	UpdatedOn     = both("更新於", "Updated")
-	FileChangedOn = both("檔案變更於", "File changed")
-)
+// VerifiedOn labels the day the note's author wrote down as the one they last
+// checked it. It is their statement, said as theirs, and nothing here confirms
+// it.
+var VerifiedOn = both("作者寫的查證日", "Checked on, as the author wrote it")
+
+// Prerequisites labels the notes the author named as ones to know before this
+// one.
+var Prerequisites = both("先備知識", "Prerequisites")
 
 // NoteEmptyBody states what the article would otherwise leave blank after the
 // renderer has consumed metadata and any duplicate opening title.

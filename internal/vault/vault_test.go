@@ -546,6 +546,37 @@ func TestCreated(t *testing.T) {
 	}
 }
 
+// TestVerifiedOnIsTheDayTheAuthorWroteAndNothingElseStandsInForIt holds the one
+// date the reading page shows as the note's: read as created is, from an
+// unquoted or a quoted day, and the zero time for anything else — a creation
+// date, an update date, prose, or a list do not stand in for it.
+func TestVerifiedOnIsTheDayTheAuthorWroteAndNothingElseStandsInForIt(t *testing.T) {
+	t.Parallel()
+	day := time.Date(2026, time.July, 20, 0, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		raw  string
+		want time.Time
+	}{
+		{name: "an unquoted day", raw: "---\nverified_on: 2026-07-20\n---\nbody\n", want: day},
+		{name: "a quoted day", raw: "---\nverified_on: \"2026-07-20\"\n---\nbody\n", want: day},
+		{name: "a creation date is not a checked day", raw: "---\ncreated: 2026-07-20\n---\nbody\n"},
+		{name: "an update date is not a checked day", raw: "---\nupdated: 2026-07-20\n---\nbody\n"},
+		{name: "prose is the zero time", raw: "---\nverified_on: last week\n---\nbody\n"},
+		{name: "a list is the zero time", raw: "---\nverified_on:\n  - 2026-07-20\n---\nbody\n"},
+		{name: "no frontmatter is the zero time", raw: "body only\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := vault.Parse("A.md", []byte(tt.raw)).VerifiedOn()
+			if !got.Equal(tt.want) {
+				t.Errorf("VerifiedOn() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestParseLeavesTheDomainEmpty pins that a domain is never read off the note:
 // a frontmatter domain key and a folder that looks like a domain both leave it
 // empty, because only a reader holding the contract knows which folders name

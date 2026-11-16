@@ -36,6 +36,9 @@ type Reading struct {
 	// Created is the note's own declared creation date, zero when the
 	// frontmatter carries none.
 	Created time.Time
+	// VerifiedOn is the day the author declared they last checked the note, zero
+	// when the frontmatter carries none. It is their word, not a finding.
+	VerifiedOn time.Time
 	// ContentIdentity is vault.ContentIdentity over the source bytes this
 	// projection was captured from, so a page can tell whether the disk still
 	// carries what it shows.
@@ -67,6 +70,7 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 		LanguageDiagnostic: diagnostic,
 		HasFrontmatter:     parsed.HasFrontmatter,
 		Created:            parsed.Created(),
+		VerifiedOn:         parsed.VerifiedOn(),
 		ContentIdentity:    vault.ContentIdentity(data),
 		// Asked only of a note with no block, where the answer can be yes, so a
 		// note that did parse is not scanned a second time for it.

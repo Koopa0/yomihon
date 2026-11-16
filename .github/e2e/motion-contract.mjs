@@ -21,8 +21,7 @@
 // fall outside the focus ring of a row at that edge, which nothing in the
 // row's own style would report, since the ring is still drawn either way.
 //
-// Env: YOMIHON_BASE, PAGE_PATH (a lesson carrying a folding metadata row, the
-// inline reading aids, and a concept term), and MUTATE.
+// Env: YOMIHON_BASE, PAGE_PATH (a lesson with a concept term), and MUTATE.
 // MUTATE=list prints every watched regression.
 import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
@@ -36,20 +35,17 @@ const COMPARE = '/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md';
 const SHEET = '[data-concept-sheet]';
 const CONCEPT = '[data-concept]';
 
-// The widest a note is still drawn in its narrow form. From 1280px the facts
-// stand open beside the title, so the disclosure that folds them is not laid
-// out; one pixel under is the widest width that has it.
+// A width just under where a note stands in its wide form, which is where the
+// compared notes and the folded contents they carry are measured.
 const NARROW_NOTE = 1279;
 
-// The three folds the interface owns, with the page and width each one is
-// actually reachable on. The metadata row rides the note, and is folded below
-// 1280px; the folded contents ride a column of the page that holds two notes,
-// the one place a note's contents are not in a sidebar beside it; the value
-// column has a summary to press only below 900px, since the search page holds
-// it open and takes the control away where the results have a column beside
-// them.
+// The folds the interface owns, with the page and width each one is actually
+// reachable on. The folded contents ride a column of the page that holds two
+// notes, the one place a note's contents are not in a sidebar beside it; the
+// value column has a summary to press only below 900px, since the search page
+// holds it open and takes the control away where the results have a column
+// beside them.
 const FOLDS = [
-  { key: 'metadata row', path: null, width: NARROW_NOTE, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
   { key: 'folded contents', path: COMPARE, width: NARROW_NOTE, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
   { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets', wrapper: '.y-facets::details-content' },
 ];
@@ -57,14 +53,13 @@ const FOLDS = [
 // Every fold kind the cut is declared for, each with the page and width it
 // renders at. The ring-and-cut check below cannot assume any one of these
 // keeps a focusable row close enough to its own edge for a cut to ever reach
-// it — the metadata row's own first row moved inward once the note head
-// became a dl (#627) — so every kind is measured, and the clip check runs on
+// it — a fold's own first row can move inward once the markup around it
+// changes — so every kind is measured, and the clip check runs on
 // each one whose row still stands within its own ring's reach, not only the
 // first: a clip on any fold that qualifies is a real regression, and a fold
 // this run skips over would let one walk past unseen.
 const RING_CANDIDATES = [
   { key: 'rail groups', path: null, width: 1280, selector: '.y-rail-left details', wrapper: '.y-rail-left details::details-content' },
-  { key: 'metadata row', path: null, width: NARROW_NOTE, selector: 'details.y-metarow', wrapper: '.y-metarow::details-content' },
   { key: 'folded contents', path: COMPARE, width: NARROW_NOTE, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
   { key: 'search value column', path: SEARCH, width: 900, selector: 'details.y-facets', wrapper: '.y-facets::details-content' },
 ];
@@ -74,8 +69,8 @@ const RING_CANDIDATES = [
 // on the search page, and the narrow width swaps the rail for a drawer, so it
 // resolves different rules over the same markup.
 const QUIET_STOPS = [
-  { name: `the note at ${NARROW_NOTE}px`, path: null, width: NARROW_NOTE, folds: ['details.y-metarow'] },
-  { name: 'the note at 390px', path: null, width: 390, folds: ['details.y-metarow'] },
+  { name: `the note at ${NARROW_NOTE}px`, path: null, width: NARROW_NOTE, folds: [] },
+  { name: 'the note at 390px', path: null, width: 390, folds: [] },
   { name: `the compared notes at ${NARROW_NOTE}px`, path: COMPARE, width: NARROW_NOTE, folds: ['details.y-toc-inline'] },
   { name: 'the search page at 900px', path: SEARCH, width: 900, folds: ['details.y-facets'] },
 ];
@@ -150,8 +145,8 @@ const MUTATIONS = {
   // a pass, which is why the height is sampled instead.
   'snap-a-fold-open': {
     target: 'folds-open-by-growing',
-    css: '.y-metarow::details-content{interpolate-size:numeric-only !important}',
-    wanted: { selector: '.y-metarow::details-content', property: 'interpolate-size' },
+    css: '.y-toc-inline::details-content{interpolate-size:numeric-only !important}',
+    wanted: { selector: '.y-toc-inline::details-content', property: 'interpolate-size' },
   },
   // One fold left out of the reduced-motion lines. The blanket cannot reach
   // ::details-content, so a fold missing from that list keeps its motion for
@@ -202,8 +197,8 @@ for (const site of SITES) {
     process.exit(2);
   }
 }
-if (FOLDS.length !== 3) {
-  console.error(`motion-contract: the fold table names ${FOLDS.length} folds, want the three the interface owns`);
+if (FOLDS.length !== 2) {
+  console.error(`motion-contract: the fold table names ${FOLDS.length} folds, want the two the interface owns`);
   process.exit(2);
 }
 {
@@ -512,7 +507,7 @@ try {
     const response = await page.goto(BASE + (fold.path ?? PAGE), { waitUntil: 'load' });
     if (!response || response.status() !== 200) broken(`the page carrying the ${fold.key} answered ${response?.status() ?? 'nothing'}, want 200`);
     await confirm(page, 'moving');
-    if (fold.selector === 'details.y-metarow' || fold.selector === 'details.y-toc-inline') await arrived(page);
+    if (fold.selector === 'details.y-toc-inline') await arrived(page);
     const reading = await cutAndRing(page, fold);
     if (reading.missing) broken(`the ${fold.key} is not on the page at ${fold.width}px`);
     if (reading.noRow) broken(`the ${fold.key} holds nothing a keyboard can reach, so it cannot say whether a ring survives`);

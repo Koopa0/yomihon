@@ -254,8 +254,9 @@ func TestTheContentsRowThatLeadsDownIsNamedByWhatItLeadsTo(t *testing.T) {
 		}
 	}
 
-	// A note with no aids ends on its text and the contents have no row to lead
-	// to it.
+	// A note with no aids ends on its text, and the facts that follow it are not
+	// a place the contents lead to: the contents have no row, and the block
+	// carries no address for one to name.
 	bare := NoteView{RelPath: "Notes/T.md", TOC: toc, BodyHTML: "<p>body</p>"}
 	if bare.endShown() {
 		t.Fatal("this fixture was meant to end on its text")
@@ -263,110 +264,8 @@ func TestTheContentsRowThatLeadsDownIsNamedByWhatItLeadsTo(t *testing.T) {
 	if contents := renderedHTML(t, railContents(&bare, wording.En)); strings.Contains(contents, "_y-end") {
 		t.Errorf("the contents lead to an end the note does not have:\n%s", contents)
 	}
-	if page := renderedHTML(t, noteArticle(bare, wording.En)); strings.Contains(page, "y-related") {
-		t.Errorf("a note with no aids ends on a block anyway:\n%s", page)
-	}
-}
-
-// TestNoteMetarowOmitsAMissingDate holds the one dateless case: a view built
-// with no date at all renders no time element and neither label, rather than
-// an empty claim. Every served note has a scanned file behind it, so the case
-// is a generation that could not produce the file's identity — and a blank
-// beats a fabricated moment.
-func TestNoteMetarowOmitsAMissingDate(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	view := NoteView{Title: "A", RelPath: "Writing/A.md"}
-	if err := Note(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render note: %v", err)
-	}
-	html := buf.String()
-	at := strings.Index(html, `class="y-metarow"`)
-	if at < 0 {
-		t.Fatalf("the page carries no metarow; html = %q", html)
-	}
-	metarow := html[at:]
-	if end := strings.Index(metarow, "</details>"); end >= 0 {
-		metarow = metarow[:end]
-	}
-	if strings.Contains(metarow, "<time") {
-		t.Errorf("a dateless view still renders a time element; metarow = %q", metarow)
-	}
-	for _, label := range []string{"更新於", "檔案變更於", "Updated", "File changed"} {
-		if strings.Contains(metarow, label) {
-			t.Errorf("a dateless view still carries the label %q; metarow = %q", label, metarow)
-		}
-	}
-}
-
-// TestNoteFileRowKeepsItsAddressBehindAClosedSummary holds the opening the
-// reading page is built to give: a title, one quiet line, then the prose. The
-// line is a native disclosure that starts closed and carries the two facts a
-// reader wants at a glance; the note's address and the two doors out of the
-// page wait inside it.
-//
-// A closed disclosure keeps its content in the document, so the doors are
-// asked for by the exact address each one resolves to. Nothing here depends on
-// a script: opening the line is the browser's own behaviour.
-func TestNoteFileRowKeepsItsAddressBehindAClosedSummary(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	view := NoteView{
-		Title:        "L01",
-		Type:         "lesson",
-		RelPath:      "Writing/lessons/go/L01.md",
-		Updated:      "2026-07-10",
-		UpdatedAt:    "2026-07-10",
-		ObsidianHref: "obsidian://open?path=/vault/Writing/lessons/go/L01.md",
-	}
-	if err := Note(view, layouts.Chrome{}).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render note: %v", err)
-	}
-	html := buf.String()
-
-	at := strings.Index(html, `<details class="y-metarow"`)
-	if at < 0 {
-		t.Fatalf("the file row is not a disclosure; html = %q", html)
-	}
-	row, _, closed := strings.Cut(html[at:], "</details>")
-	if !closed {
-		t.Fatalf("the file row never closes; html = %q", html)
-	}
-	// Read the attribute out of the opening tag rather than matching a whole
-	// tag as a substring: open arrives wherever the serializer puts it, and a
-	// pattern that fixes its neighbours matches nothing in any regression.
-	tag, _, tagClosed := strings.Cut(row, ">")
-	if !tagClosed {
-		t.Fatalf("the disclosure's opening tag never closes; row = %q", row)
-	}
-	if strings.Contains(tag, " open") {
-		t.Errorf("the file row starts expanded, so the opening column is not calm; tag = %q", tag)
-	}
-
-	summary, body, split := strings.Cut(row, "</summary>")
-	if !split {
-		t.Fatalf("the file row has no summary, so nothing says what it holds; row = %q", row)
-	}
-	for _, want := range []string{
-		`<span class="ui-type">lesson</span>`,
-		`<time datetime="2026-07-10">2026-07-10</time>`,
-	} {
-		if !strings.Contains(summary, want) {
-			t.Errorf("the closed line is missing the fact %q; summary = %q", want, summary)
-		}
-	}
-	for _, want := range []string{
-		`<dd><a href="/raw/Writing/lessons/go/L01.md">Writing/lessons/go/L01.md</a></dd>`,
-		`href="obsidian://open?path=/vault/Writing/lessons/go/L01.md"`,
-	} {
-		if !strings.Contains(body, want) {
-			t.Errorf("opening the file row would not reach %q; body = %q", want, body)
-		}
-	}
-	for _, moved := range []string{"/raw/", "obsidian://", "Writing/lessons/go/L01.md"} {
-		if strings.Contains(summary, moved) {
-			t.Errorf("%q is still on the closed line; summary = %q", moved, summary)
-		}
+	if page := renderedHTML(t, noteArticle(bare, wording.En)); strings.Contains(page, "_y-end") || !strings.Contains(page, `<div class="y-related" lang="en"><div class="y-facts">`) {
+		t.Errorf("a note with no aids does not end on its facts alone, with no address:\n%s", page)
 	}
 }
 

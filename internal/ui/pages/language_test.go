@@ -50,8 +50,8 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 				Draft:        true,
 				ObsidianHref: "obsidian://open?path=/vault/Writing/lessons/japanese/L01.md",
 				Stale:        true,
-				Updated:      "2026-07-10",
-				UpdatedAt:    "2026-07-10",
+				VerifiedOn:   "2026-07-10",
+				VerifiedAt:   "2026-07-10",
 				SchemaNotices: [][]wording.SchemaPart{{
 					{Text: "mystery_key", Code: true},
 					{Text: " is not a field the schema knows."},
@@ -69,13 +69,13 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 			for _, want := range []string{
 				`<article class="y-article" lang="ja">`,
 				`<div lang="` + tt.tag + `"><p class="y-statuspanel__notice y-statusflag">`,
-				// The head's dt is yomihon's own word for the fact and declares
-				// the interface language; the dd right after it is the note's own
+				// The fact's dt is yomihon's own word for it and declares the
+				// interface language; the dd right after it is the note's own
 				// path and carries none — the literal string between them is the
 				// proof, since a lang attribute sneaking onto the <a> would break
 				// this exact match.
-				`<dt lang="` + tt.tag + `">` + wording.RawFile.In(tt.lang) + `</dt><dd><a href="/raw/Writing/lessons/japanese/L01.md">`,
-				`<a class="y-metarow__raw" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
+				`<dt lang="` + tt.tag + `">` + wording.RawFile.In(tt.lang) + `</dt><dd><a class="y-notefacts__path" href="/raw/Writing/lessons/japanese/L01.md">`,
+				`<a class="y-notefacts__door" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
 				`<p class="y-fileinfo__note" lang="` + tt.tag + `" data-note-stale>`,
 				`<nav class="y-steps y-steps--course" lang="` + tt.tag + `" aria-label="Japanese course">`,
 				`<span class="ui-status" lang="` + tt.tag + `" data-note-draft>` + wording.Draft.In(tt.lang) + `</span>`,
@@ -86,22 +86,22 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 					t.Errorf("the reading page is missing %q; html = %q", want, html)
 				}
 			}
-			// The date is the one interface word in the file row with no class
-			// naming it, so the row is read out and asked directly. Nothing in
-			// it may still be announced in the note's language.
-			at := strings.Index(html, `<details class="y-metarow"`)
+			// The facts stand inside the end of the text, which restores the
+			// interface's language inside an article written in the note's own,
+			// so nothing in them may still be announced in the note's language.
+			at := strings.Index(html, `class="y-facts"`)
 			if at < 0 {
-				t.Fatalf("the reading page carries no file row; html = %q", html)
+				t.Fatalf("the reading page carries no facts; html = %q", html)
 			}
-			row, _, closed := strings.Cut(html[at:], "</details>")
+			facts, _, closed := strings.Cut(html[at:], "</dl>")
 			if !closed {
-				t.Fatalf("the file row never closes; html = %q", html)
+				t.Fatalf("the facts never close; html = %q", html)
 			}
-			if !strings.Contains(row, `<span lang="`+tt.tag+`">`) {
-				t.Errorf("the file row's date does not declare the interface language %q; row = %q", tt.tag, row)
+			if strings.Contains(facts, `lang="ja"`) {
+				t.Errorf("the facts announce yomihon's own words in the note's language; facts = %q", facts)
 			}
-			if strings.Contains(row, `lang="ja"`) {
-				t.Errorf("the file row announces yomihon's own words in the note's language; row = %q", row)
+			if end := strings.Index(html, `class="y-related"`); end < 0 || !strings.Contains(html[end:at], `lang="`+tt.tag+`"`) {
+				t.Errorf("the end of the text does not restore the interface language %q before the facts", tt.tag)
 			}
 		})
 	}

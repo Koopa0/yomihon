@@ -21,7 +21,7 @@ skipped_files = ["README.md"]
 domain = ["golang", "japanese"]
 
 [fields]
-common = ["type", "aliases", "lang", "created", "based_on"]
+common = ["type", "aliases", "lang", "created", "based_on", "verified_on", "prerequisites"]
 required = ["type"]
 
 [types.concept]
@@ -45,6 +45,9 @@ role = "map"
 role = "course"
 
 [types.system]
+
+[types.thought]
+role = "thought"
 
 [types.topic-map]
 role = "map"

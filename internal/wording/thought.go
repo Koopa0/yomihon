@@ -34,3 +34,21 @@ var DeclaredBy = both("以這篇為來源的筆記", "Notes based on this")
 
 // WholeSource labels a declaration that names no narrower location.
 var WholeSource = both("整篇", "Whole note")
+
+// ThoughtLabel names a thought of the reader's own wherever one is listed beside
+// the text it answers: its first sentence stands after it.
+var ThoughtLabel = both("想法", "Thought")
+
+// PredictHint is said directly above a closed question fold, whether or not the
+// reader answers: it names the one moment a guess is honest, which is before the
+// answer is open. Nothing here asks for a reply.
+var PredictHint = both("看答案前，可以先試著回答", "You can try answering before you open the answer")
+
+// PredictThought is the link on that line that starts a thought of the reader's
+// own about the section the question is in.
+var PredictThought = both("寫成想法", "Write it as a thought")
+
+// ThoughtBeforeAnswer is the line a thought draft opens with when its section
+// holds a closed question fold, so the guess is written under it before the
+// answer is read.
+var ThoughtBeforeAnswer = both("看答案前，我的想法：", "My thoughts before opening the answer:")

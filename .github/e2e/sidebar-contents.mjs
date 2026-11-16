@@ -9,12 +9,9 @@
 // keyboard: focus brings it into the part of the window the sidebar shows, under
 // the header and not under the row that sticks to the sidebar's top.
 //
-// A heading in the contents is one row, and the door beside it that leaves a
-// thought on that section shares the row: at the row's end and inside it, drawn
-// only where a pointer can reveal it (on hover and on focus), taking no width
-// of its own there, so the heading's link runs the whole row and a long heading
-// wraps where it would with no door at all. Under a coarse pointer the door is
-// always drawn and keeps its own width, and does not widen the phone.
+// A heading in the contents is one row and the row is its link: the door that
+// leaves a thought on a section stands in that section's own margin, beside its
+// heading in the text, and the sidebar carries none.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a lesson with an outline and every aid), and
 // MUTATE.
@@ -29,7 +26,7 @@ const LEADS = 'last-row-leads-to-the-end';
 const ENDS = 'the-end-block-stays';
 const ORDER = 'aids-in-one-order';
 const NO_RAIL = 'no-right-rail';
-const DOORS = 'contents-door-shares-its-row';
+const NO_DOORS = 'contents-rows-carry-no-door';
 const REACH = 'every-contents-row-is-reachable';
 
 // The text a mutation plants, the response it is planted in, and the site of
@@ -43,17 +40,9 @@ const MODES = {
   // A sidebar that is as tall as its contents and sticks to the window has
   // nothing to scroll with: the rows past the window's bottom are out of reach.
   'let-the-sidebar-outgrow-the-window': { css: '.y-rail-left{height:auto !important;overflow:visible !important}', site: REACH },
-  // A row that stacks its children puts the door under the heading link: the
-  // doubled list the door was folded into the row to end.
-  'restore-the-separate-door-row': { css: '.y-toc__row:has(.y-toc__door){display:block}.y-toc__list .y-toc__door{position:static;width:100%}', site: DOORS },
-  // Gives the door its own strip again beside the heading, drawn or not.
-  'reserve-the-door-strip': { css: '.y-toc__list .y-toc__door{flex:none;min-width:28px;position:static}', site: DOORS },
-  // A door taller than the heading it sits in hangs out of its row and covers the top of the next one.
-  'let-the-door-hang-out-of-its-row': { css: '.y-railtoc .y-toc__list .y-toc__door{height:2rem !important;inset-block:auto !important;inset-block-start:0 !important}', site: DOORS },
-  'draw-the-door-at-rest': { css: '.y-toc__list .y-toc__door{opacity:1 !important}', site: DOORS },
-  'never-draw-the-door': { css: '.y-toc__list .y-toc__door{opacity:0 !important}', site: DOORS },
-  'hide-the-door-from-touch': { css: '@media (pointer:coarse){.y-toc__list .y-toc__door{opacity:0 !important}}', site: DOORS },
-  'widen-the-phone-with-the-door': { css: '@media (pointer:coarse){.y-toc__list .y-toc__door{width:600px}}', site: DOORS },
+  // A door stood up again in a row of the contents: the sidebar says the same
+  // thing the section's own margin does.
+  'put-a-door-back-in-the-end-row': { document: ['</a></div></div></nav>', '</a><a class="y-toc__door" href="/thought/Notes/x.md" aria-label="Leave a thought"></a></div></div></nav>'], site: NO_DOORS },
 };
 
 if (MUTATE === 'list') {
@@ -115,25 +104,7 @@ const open = async (width, height, touch = false) => {
 };
 
 // Which of the end block's blocks a child is, in the order the page draws them.
-const RANKS = ['y-pair', 'y-basedon', 'y-basedon-declared', 'y-citedby', 'y-diag'];
-
-// The fixture's contract names no answer type, so its pages draw no thought
-// doors, and naming one would change the outline every other probe counts and
-// walks. The rows are the product's own, one per heading; each is given the
-// door the template would write into it, so what is measured is the product's
-// stylesheet against a row that holds a door. The door's markup is locked by
-// the render test in internal/ui/pages. The row that leads to the end block
-// has no door in the template, so it is given none.
-const standUpDoors = (page) => page.evaluate(() => {
-  const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H8l-5 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
-  const rows = document.querySelectorAll('.y-railtoc .y-toc__row:not(.y-toc__row--end)');
-  for (const row of rows) {
-    row.insertAdjacentHTML('beforeend', `<a class="y-toc__door" href="/thought/probe" aria-label="Leave a thought: ${row.firstElementChild.textContent}">${icon}</a>`);
-  }
-  return rows.length;
-});
-
-const opacityOf = (locator) => locator.evaluate((element) => getComputedStyle(element).opacity);
+const RANKS = ['y-pair', 'y-basedon', 'y-basedon-declared', 'y-citedby', 'y-diag', 'y-facts'];
 
 try {
   console.log(`sidebar-contents: Chrome ${browser.version()}`);
@@ -185,47 +156,20 @@ try {
   if (contents.last.text !== end.first) fail(LEADS, `the last contents row says ${JSON.stringify(contents.last.text)}, but the block it leads to opens with ${JSON.stringify(end.first)}`);
   const ranks = end.kids.map((kid) => RANKS.indexOf(kid));
   if (end.kids.length < 4 || ranks.includes(-1) || ranks.some((rank, i) => i > 0 && rank < ranks[i - 1])) {
-    fail(ORDER, `the end block holds ${JSON.stringify(end.kids)}, want the note to read beside, the sources, the notes declared on it, the notes citing it, and the findings, in that order`);
+    fail(ORDER, `the end block holds ${JSON.stringify(end.kids)}, want the note to read beside, the sources, the notes declared on it, the notes citing it, the findings and the facts, in that order`);
   }
   console.log(`sidebar-contents: ${contents.headings.length} headings and a last row ${JSON.stringify(contents.last.text)}; the end block holds ${end.kids.join(', ')}`);
 
   // Following the last row lands on the end block, under the header.
-  await page.locator('.y-railtoc .y-toc__row--end a').click();
+  await page.locator('.y-railtoc .y-toc__row--end a').first().click();
   await page.waitForFunction(() => document.getElementById('_y-end').getBoundingClientRect().top < innerHeight);
   const landed = await page.evaluate(() => ({ top: document.getElementById('_y-end').getBoundingClientRect().top, header: document.querySelector('.y-header').getBoundingClientRect().bottom }));
   if (landed.top < landed.header - 1) fail(LEADS, `following the last row parks the end block at ${landed.top}px, under the ${landed.header}px header`);
 
-  // The doors. Where a pointer can reveal one it is not drawn at rest, takes no
-  // width of its own, and is drawn on hover and on focus; the row it sits in is
-  // as tall as the heading's link and holds the door at its end.
-  if (await standUpDoors(page) < 2) broken(`${PAGE} has fewer than two headings, so there is no row to measure`);
-  const rows = page.locator('.y-rail-left .y-railtoc .y-toc__row:not(.y-toc__row--end)');
-  const rowCount = await rows.count();
-  for (let i = 0; i < rowCount; i += 1) {
-    const shape = await rows.nth(i).evaluate((row) => {
-      const box = (element) => element.getBoundingClientRect();
-      const door = row.querySelector('.y-toc__door');
-      return { row: box(row), link: box(row.firstElementChild), door: box(door), opacity: getComputedStyle(door).opacity, doors: row.querySelectorAll('.y-toc__door').length };
-    });
-    if (shape.doors !== 1) broken(`contents row ${i + 1} holds ${shape.doors} doors, want 1`);
-    if (shape.row.height > shape.link.height + 1) {
-      fail(DOORS, `contents row ${i + 1} is ${shape.row.height}px tall around a ${shape.link.height}px heading link, so its door is a row of its own`);
-    }
-    if (!(shape.door.left >= shape.row.left && shape.door.right <= shape.row.right + 1 && shape.door.right >= shape.row.right - 1 && shape.door.top >= shape.row.top - 1 && shape.door.bottom <= shape.row.bottom + 1)) {
-      fail(DOORS, `contents row ${i + 1} does not hold its door at the row's end, inside it: ${JSON.stringify(shape)}`);
-    }
-    if (shape.link.width < shape.row.width - 1) {
-      fail(DOORS, `contents row ${i + 1} gives its heading ${shape.link.width}px of a ${shape.row.width}px row, so the door's hidden strip still narrows the heading`);
-    }
-    if (shape.opacity !== '0') fail(DOORS, `contents row ${i + 1} draws its door (opacity ${shape.opacity}) with no pointer on the row and no focus in it`);
-  }
-  const door = page.locator('.y-railtoc .y-toc__door').first();
-  await rows.first().hover();
-  if (await opacityOf(door) !== '1') fail(DOORS, 'hovering a contents row does not draw its door');
-  await page.mouse.move(900, 500);
-  if (await opacityOf(door) !== '0') fail(DOORS, 'the door stays drawn after the pointer leaves its row');
-  await door.focus();
-  if (await opacityOf(door) !== '1') fail(DOORS, 'focus inside a contents row does not draw its door');
+  // The contents' rows are their links and nothing else: no door to a thought
+  // beside a heading, and none leading anywhere under /thought/.
+  const doored = await page.evaluate(() => [...document.querySelectorAll('.y-rail-left .y-railtoc .y-toc__row')].filter((row) => row.children.length !== 1 || row.querySelector('[href^="/thought/"]')).length);
+  if (doored > 0) fail(NO_DOORS, `${doored} rows of the contents hold more than their link or lead to a thought`);
   wide.proof();
   await wide.context.close();
 
@@ -264,40 +208,7 @@ try {
   short.proof();
   await short.context.close();
 
-  // Under a coarse pointer there is no hover to reveal a door with, so each is
-  // always drawn, keeps its own width beside the heading, and stays inside the
-  // sidebar the drawer opens: nothing in it, and nothing under it, is widened.
-  const touch = await open(390, 844, true);
-  await touch.page.evaluate(() => document.fonts.ready);
-  await standUpDoors(touch.page);
-  await touch.page.locator('[data-nav-toggle]').click();
-  await touch.page.waitForFunction(() => document.documentElement.dataset.nav === 'open');
-  const first = touch.page.locator('.y-railtoc .y-toc__door').first();
-  await first.waitFor({ state: 'visible' });
-  const phone = await touch.page.evaluate(() => {
-    // A box pinned to the viewport is the gauge the document's own width is
-    // judged against: nothing that widens the page can be what widened it.
-    const gauge = document.createElement('div');
-    gauge.style.cssText = 'position:fixed;inset:0;pointer-events:none';
-    document.body.append(gauge);
-    const viewport = gauge.getBoundingClientRect().width;
-    gauge.remove();
-    const rail = document.querySelector('.y-rail-left');
-    const door = document.querySelector('.y-railtoc .y-toc__door').getBoundingClientRect();
-    return {
-      coarse: matchMedia('(pointer: coarse)').matches,
-      page: document.documentElement.scrollWidth - viewport,
-      rail: rail.scrollWidth - rail.clientWidth,
-      past: door.right - rail.getBoundingClientRect().right,
-    };
-  });
-  if (!phone.coarse) broken('the phone context does not report a coarse pointer');
-  if (await opacityOf(first) !== '1') fail(DOORS, 'under a coarse pointer the door is not drawn without a hover');
-  if (phone.page > 0 || phone.rail > 0 || phone.past > 0) fail(DOORS, `the doors widen the phone: the page by ${phone.page}px, the sidebar's own scroll width by ${phone.rail}px, the door past the sidebar's edge by ${phone.past}px`);
-  touch.proof();
-  await touch.context.close();
-
-  console.log('PASS sidebar-contents: the contents hang under the note in the sidebar and end on a row that leads to the end block, which holds every other aid in one order at every width, with no right rail; each heading is one row that holds its own door');
+  console.log('PASS sidebar-contents: the contents hang under the note in the sidebar and end on a row that leads to the end block, which holds every other aid in one order at every width, with no right rail; each heading is one row that is its link');
 } catch (error) {
   console.error(error.message);
   if (error instanceof NotApplied) {

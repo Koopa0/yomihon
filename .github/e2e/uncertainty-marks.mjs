@@ -69,7 +69,7 @@ const MUTATIONS = {
   },
   'forget-stored-marks-on-load': {
     target: 'slot-mark-survives-reload',
-    apply: rewriteModule('for (const mark of marks) keys.add(keyOf(mark.path, mark.anchor));', 'void marks;', 'the read of stored marks'),
+    apply: rewriteModule('for (const mark of marks) keys.set(keyOf(mark.path, mark.anchor), dayOf(mark.time));', 'void marks;', 'the read of stored marks'),
   },
   'concept-mark-names-the-lesson': {
     target: 'concept-mark-names-its-source',

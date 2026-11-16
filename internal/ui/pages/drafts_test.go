@@ -202,25 +202,26 @@ func TestTheRecentListMarksOnlyDrafts(t *testing.T) {
 	}
 }
 
-// TestTheNoteHeadMarksADraftInEachOfItsCopies holds the quiet word a draft
-// carries under its title. The head is drawn twice — the narrow disclosure and
-// the wide-open copy, CSS choosing one — so a draft carries the mark once in
-// each, in the interface's language, and a finished note carries none.
-func TestTheNoteHeadMarksADraftInEachOfItsCopies(t *testing.T) {
+// TestTheNoteFactsMarkADraftOnceAndTheHeadCarriesNone holds the quiet word a
+// draft carries among the facts at the end of the text: once, in the
+// interface's language, with nothing under the title, and none at all on a
+// finished note.
+func TestTheNoteFactsMarkADraftOnceAndTheHeadCarriesNone(t *testing.T) {
 	t.Parallel()
 
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-		draft := renderComponent(t, articleHead(NoteView{Title: "A", RelPath: "a.md", Type: "note", Draft: true}, lang))
-		if got := strings.Count(draft, "data-note-draft"); got != 2 {
-			t.Errorf("%s: a draft's head carries %d marks, want one in each of its two copies", lang.Tag(), got)
+		view := NoteView{Title: "A", RelPath: "a.md", Type: "note", Draft: true}
+		if head := renderComponent(t, articleHead(view, lang)); strings.Contains(head, "data-note-draft") {
+			t.Errorf("%s: the draft's mark stands under the title: %s", lang.Tag(), head)
 		}
+		draft := renderComponent(t, noteFacts(view, lang))
 		mark := `<span class="ui-status" lang="` + lang.Tag() + `" data-note-draft>` + wording.Draft.In(lang) + `</span>`
-		if got := strings.Count(draft, mark); got != 2 {
-			t.Errorf("%s: the head's mark is not %q in both copies: %s", lang.Tag(), mark, draft)
+		if got := strings.Count(draft, mark); got != 1 {
+			t.Errorf("%s: the facts carry the mark %d times, want once as %q: %s", lang.Tag(), got, mark, draft)
 		}
-		finished := renderComponent(t, articleHead(NoteView{Title: "A", RelPath: "a.md", Type: "note"}, lang))
+		finished := renderComponent(t, noteFacts(NoteView{Title: "A", RelPath: "a.md", Type: "note"}, lang))
 		if strings.Contains(finished, "data-note-draft") || strings.Contains(finished, "ui-status") {
-			t.Errorf("%s: a finished note's head carries a mark: %s", lang.Tag(), finished)
+			t.Errorf("%s: a finished note's facts carry a mark: %s", lang.Tag(), finished)
 		}
 	}
 }

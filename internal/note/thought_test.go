@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestThoughtMarkdownContainsOnlyTheTypeTheDraftFlagAndTheSource(t *testing.T) {
@@ -16,7 +17,7 @@ func TestThoughtMarkdownContainsOnlyTheTypeTheDraftFlagAndTheSource(t *testing.T
 				RelPath: "Sources/Book.md", Type: sourceType, Domain: "japanese",
 				Title: "Do not copy this title", Body: "Do not copy this prompt or answer",
 			}
-			got := thoughtMarkdown("writing", source, "Chapter one")
+			got := thoughtMarkdown("writing", source, "Chapter one", wording.ZhHant, false)
 			const want = "---\ntype: \"writing\"\ndraft: true\nbased_on: \"[[Sources/Book#Chapter one]]\"\n---\n"
 			if got != want {
 				t.Errorf("thoughtMarkdown() = %q, want %q", got, want)
@@ -31,7 +32,7 @@ func TestThoughtMarkdownContainsOnlyTheTypeTheDraftFlagAndTheSource(t *testing.T
 // written whatever the contract lists, and no status line is written.
 func TestThoughtMarkdownStartsUnfinished(t *testing.T) {
 	t.Parallel()
-	got := thoughtMarkdown("writing", &snapshot.Reading{RelPath: "Source.md"}, "")
+	got := thoughtMarkdown("writing", &snapshot.Reading{RelPath: "Source.md"}, "", wording.ZhHant, false)
 	if !strings.Contains(got, "\ndraft: true\n") {
 		t.Errorf("thoughtMarkdown() = %q, want draft: true written", got)
 	}
@@ -45,7 +46,7 @@ func TestThoughtMarkdownStartsUnfinished(t *testing.T) {
 // is the folder it lands in, so neither is a line of the frontmatter.
 func TestThoughtMarkdownWritesNoTitleOrDomain(t *testing.T) {
 	t.Parallel()
-	got := thoughtMarkdown("writing", &snapshot.Reading{RelPath: "Source.md", Domain: "japanese", Title: "A title"}, "")
+	got := thoughtMarkdown("writing", &snapshot.Reading{RelPath: "Source.md", Domain: "japanese", Title: "A title"}, "", wording.ZhHant, false)
 	for _, line := range []string{"title:", "domain:"} {
 		if strings.Contains(got, line) {
 			t.Errorf("thoughtMarkdown() = %q, want no %s line", got, line)
@@ -61,7 +62,7 @@ func TestThoughtMarkdownWritesHeadingTextNotItsID(t *testing.T) {
 		{"A | B # C [x] ^d", `[[Source#A B C x d]]`},
 		{"", `[[Source]]`},
 	} {
-		got := thoughtMarkdown("writing", &snapshot.Reading{RelPath: "Source.md"}, tc.heading)
+		got := thoughtMarkdown("writing", &snapshot.Reading{RelPath: "Source.md"}, tc.heading, wording.ZhHant, false)
 		if !strings.Contains(got, `based_on: "`+tc.want+`"`) {
 			t.Errorf("heading %q: thoughtMarkdown() = %q, want based_on %s", tc.heading, got, tc.want)
 		}
@@ -71,7 +72,7 @@ func TestThoughtMarkdownWritesHeadingTextNotItsID(t *testing.T) {
 func TestThoughtMarkdownQuotesSourceWithoutInjectingFrontmatter(t *testing.T) {
 	t.Parallel()
 	source := &snapshot.Reading{RelPath: "Sources/quote\" and & plus+.md"}
-	got := thoughtMarkdown("writing", source, "")
+	got := thoughtMarkdown("writing", source, "", wording.ZhHant, false)
 	const want = "---\ntype: \"writing\"\ndraft: true\nbased_on: \"[[Sources/quote\\\" and & plus+]]\"\n---\n"
 	if got != want {
 		t.Errorf("thoughtMarkdown() = %q, want %q", got, want)

@@ -89,21 +89,17 @@ func fenceDiagLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	return wording.DiagRiskyFence.In(lang)
 }
 
-// noteDateLabel names the claim the metarow's date makes: the author's declared
-// update, or the file's recorded change time where the note declares none.
-func noteDateLabel(v *NoteView, lang wording.Lang) string {
-	if v.UpdatedFromFile {
-		return wording.FileChangedOn.In(lang)
-	}
-	return wording.UpdatedOn.In(lang)
+// factsShown reports whether the end of the note has a fact to draw: the same
+// ones noteFacts gates row by row, so a note with none of them draws no block
+// for them. A draft always has a path, so its mark is drawn whenever it is owed.
+func (v *NoteView) factsShown() bool {
+	return v.Draft || v.factRows()
 }
 
-// headFactsShown reports whether the head has any fact to draw as a
-// description list: the same four fields noteFacts gates row by row, so a
-// note with none of them draws neither the disclosure nor the open copy. A
-// draft always has a path, so its mark is drawn whenever it is owed.
-func (v *NoteView) headFactsShown() bool {
-	return v.Type != "" || v.Updated != "" || v.Language != "" || v.RelPath != ""
+// factRows reports whether the facts have a row to draw, so a draft with nothing
+// else to say is one word and not an empty list.
+func (v *NoteView) factRows() bool {
+	return v.Type != "" || v.Language != "" || v.RelPath != "" || v.VerifiedOn != "" || len(v.Prerequisites) > 0
 }
 
 // authoredLanguageAttrs states the language the note's author wrote in, only
@@ -219,6 +215,15 @@ func (v *NoteView) diagCount() int {
 // leads to an end it does not have.
 func (v *NoteView) endShown() bool {
 	return v.Pair.RelPath != "" || len(v.BasedOn) > 0 || len(v.DeclaredBy) > 0 || v.citedByShown() || v.diagCount() > 0
+}
+
+// endAttrs are the end block's id and its place in the tab order, which only a
+// block the sidebar leads to carries: a block no row points at needs no address.
+func (v *NoteView) endAttrs() templ.Attributes {
+	if !v.endShown() {
+		return nil
+	}
+	return templ.Attributes{"id": v.endID(), "tabindex": "-1"}
 }
 
 // endName is the end block's id, which the sidebar's last contents row leads

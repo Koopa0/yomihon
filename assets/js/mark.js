@@ -66,7 +66,7 @@ function positionNow() {
 const SAID_FOR = 4000;
 const saidTimers = new WeakMap();
 
-function lapse(said) {
+export function lapse(said) {
   clearTimeout(saidTimers.get(said));
   delete said.dataset.replyFading;
   saidTimers.set(
@@ -108,6 +108,25 @@ function say(control, words, kept) {
   if (words) lapse(said);
 }
 
+// showPlace draws the mark of the place kept in the margin of the section that
+// holds it, and takes it off every other: a reader keeps one place, so the page
+// shows one. The section is the last heading at or above the anchor, which is how
+// the server chose it for a note that already held the place.
+function showPlace(anchor) {
+  const article = readingColumn();
+  if (!article) return;
+  for (const label of article.querySelectorAll('[data-section-place]')) label.hidden = true;
+  const element = anchor ? document.getElementById(anchor) : null;
+  if (!element) return;
+  let held = null;
+  for (const section of article.querySelectorAll('.y-prose .y-sect')) {
+    const heading = section.firstElementChild;
+    if (heading !== element && !(heading.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)) break;
+    held = section;
+  }
+  held?.querySelector('[data-section-place]')?.removeAttribute('hidden');
+}
+
 async function keep(control) {
   const place = positionNow();
   const body = new URLSearchParams({
@@ -127,6 +146,7 @@ async function keep(control) {
   } catch {
     kept = false;
   }
+  if (kept) showPlace(place.anchor);
   say(control, kept ? control.dataset.markSaved : control.dataset.markFailed, kept);
 }
 

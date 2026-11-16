@@ -1,0 +1,83 @@
+package pages
+
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// sectionMargin is what stands beside one section's heading: the two things a
+// reader can do about it and the record of what they did before. It follows the
+// heading in the document, so a keyboard meets it right after the section's
+// name and before its words. Its labels are the interface's and say so, because
+// the article around it speaks the note's own language.
+//
+// None of the margin's words is a text node. A browser lands a search result on
+// a heading by reading the text that follows it, and text between a heading and
+// the paragraph after it, which is what a margin placed after the heading would
+// be, makes every landing on a heading miss. So each word is drawn from the
+// attribute beside it by the stylesheet, and the name an assistive technology
+// reads is the attribute itself (aria-label), the same words, never hidden from
+// it. What the reader types or does here is another matter: a sentence the
+// control earns is a real text node, and arrives only after they acted.
+//
+// "Not sure yet" is one fixed name for one toggle: the pressed state says
+// whether the section is marked, and the name never changes with it. A page
+// with no script cannot keep a mark, so a section that is not marked draws no
+// button there (the stylesheet hides it until the document says it can run), and
+// a marked one still shows the mark and its day beside a button that does
+// nothing yet.
+templ sectionMargin(id string, m *SectionMargin, p *SectionPlan) {
+	<div class="y-margin" lang={ p.Lang.Tag() } data-section-margin>
+		if p.Marks {
+			<button type="button" class="y-margin__act" data-section-mark data-section-anchor={ trimID(id, p.IDPrefix) } aria-pressed={ strconv.FormatBool(m.Marked) } aria-label={ wording.UncertaintyControl.In(p.Lang) } data-text={ wording.UncertaintyControl.In(p.Lang) } disabled></button>
+			<time class="y-margin__date" data-section-date hidden?={ !m.Marked } datetime={ dateOf(m.MarkedOn) }></time>
+		}
+		if p.Door {
+			<a class="y-margin__act" href={ templ.URL(thoughtHref(p.RelPath, trimID(id, p.IDPrefix))) } aria-label={ fmt.Sprintf(wording.ThoughtSectionFmt.In(p.Lang), m.Text) } data-text={ wording.ThoughtDoor.In(p.Lang) }></a>
+		}
+		for i := range m.Thoughts {
+			@thoughtLine(&m.Thoughts[i], p.Lang)
+		}
+		<p class="y-margin__place" data-section-place hidden?={ id != p.place } data-text={ wording.MarkKeptHere.In(p.Lang) }></p>
+		if p.Marks {
+			@layouts.Reply("y-margin__said", templ.Attributes{"data-section-said": ""}) {
+			}
+		}
+	</div>
+}
+
+// titleMargin stands beside the title of a note that the reader has thoughts
+// about as a whole, the way a section's margin stands beside its heading.
+templ titleMargin(thoughts []ThoughtLine, lang wording.Lang) {
+	<div class="y-margin" lang={ lang.Tag() }>
+		for i := range thoughts {
+			@thoughtLine(&thoughts[i], lang)
+		}
+	</div>
+}
+
+// thoughtLine is one thought of the reader's own, shown where it was left: the
+// word for what it is, the day it was begun, and its first sentence as a link to
+// it. Nothing here is hidden from a screen reader and nothing is drawn only for
+// the eye: the line is a record the reader is meant to meet again. The words are
+// drawn from attributes, for the reason sectionMargin gives.
+templ thoughtLine(t *ThoughtLine, lang wording.Lang) {
+	<p class="y-margin__mine">
+		<span class="y-margin__tag" lang={ lang.Tag() } data-text={ wording.ThoughtLabel.In(lang) }></span>
+		if !t.On.IsZero() {
+			<time datetime={ dateOf(t.On) }></time>
+		}
+		<a class="y-margin__opening" href={ templ.URL(t.Href) } aria-label={ t.Opening } data-text={ t.Opening } { authoredLanguageAttrs(t.Language)... }></a>
+	</p>
+}
+
+// predictPrompt is said directly above a question that starts closed. It names
+// when a guess is honest — before the answer is open — and offers the one way to
+// write it down. It asks for nothing: the line is there whether or not the
+// reader answers, and reading on is the same as ever.
+templ predictPrompt(href string, lang wording.Lang) {
+	<p class="y-predict" lang={ lang.Tag() }>{ wording.PredictHint.In(lang) } <a href={ templ.URL(href) }>{ wording.PredictThought.In(lang) }</a></p>
+}
