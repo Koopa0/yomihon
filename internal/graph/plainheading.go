@@ -57,28 +57,37 @@ func PlainHeadingWords(raw string) string {
 	doc := headingInline.Parse(text.NewReader(src))
 	var b strings.Builder
 	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) { //nolint:errcheck // the visitor never returns an error
-		if !entering {
-			return ast.WalkContinue, nil
-		}
-		switch n := n.(type) {
-		case *ast.Text:
-			b.Write(util.ResolveEntityNames(util.UnescapePunctuations(n.Segment.Value(src))))
-			if n.SoftLineBreak() || n.HardLineBreak() {
-				b.WriteByte(' ')
-			}
-		case *ast.String:
-			b.Write(n.Value)
-		case *ast.AutoLink:
-			b.Write(n.Label(src))
-		case *ast.RawHTML:
-			for i := range n.Segments.Len() {
-				segment := n.Segments.At(i)
-				if tag := segment.Value(src); !inertTagInHeading.Match(tag) {
-					b.Write(tag)
-				}
-			}
+		if entering {
+			writeHeadingNode(&b, n, src)
 		}
 		return ast.WalkContinue, nil
 	})
 	return strings.Join(strings.Fields(b.String()), " ")
+}
+
+// writeHeadingNode writes the words one inline node contributes to a heading.
+func writeHeadingNode(b *strings.Builder, n ast.Node, src []byte) {
+	switch n := n.(type) {
+	case *ast.Text:
+		value := n.Segment.Value(src)
+		// Code is literal: an entity or a backslash in it is what was typed.
+		if n.Parent().Kind() != ast.KindCodeSpan {
+			value = util.ResolveEntityNames(util.UnescapePunctuations(value))
+		}
+		b.Write(value)
+		if n.SoftLineBreak() || n.HardLineBreak() {
+			b.WriteByte(' ')
+		}
+	case *ast.String:
+		b.Write(n.Value)
+	case *ast.AutoLink:
+		b.Write(n.Label(src))
+	case *ast.RawHTML:
+		for i := range n.Segments.Len() {
+			segment := n.Segments.At(i)
+			if tag := segment.Value(src); !inertTagInHeading.Match(tag) {
+				b.Write(tag)
+			}
+		}
+	}
 }

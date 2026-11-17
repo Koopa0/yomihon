@@ -152,3 +152,22 @@ func TestFirstH1ReportsWhetherTheBodyHasOne(t *testing.T) {
 		t.Errorf("FirstH1(a heading only inside a comment) = %q, %v, want no heading", got, ok)
 	}
 }
+
+func TestTitleKeepsWhatACodeSpanHoldsLiterally(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ name, body, want string }{
+		{"an entity in a code span is text", "# Use `&amp;` literally\n", "Use &amp; literally"},
+		{"a backslash in a code span stays", "# Path `a\\*b` here\n", "Path a\\*b here"},
+		{"an entity outside code resolves", "# Fish &amp; chips\n", "Fish & chips"},
+		{"an escape outside code resolves", "# Cost \\*each\\*\n", "Cost *each*"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := TitleOf(&vault.Note{RelPath: "a.md", Body: tt.body}); got != tt.want {
+				t.Errorf("TitleOf(%q) = %q, want %q", tt.body, got, tt.want)
+			}
+		})
+	}
+}

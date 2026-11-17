@@ -40,6 +40,28 @@ type DisplaySpan struct {
 	Deleted    bool
 }
 
+// PlainProjectionOfPage is PlainProjection for a note as its page shows it. The
+// page drops the heading its title was read from, whichever block that is, so
+// the block holding it stops being a heading the corpus vouches for, and the
+// decision is the page's own (removeBodyFirstH1), not one made again here.
+func PlainProjectionOfPage(title, body string) Projection {
+	projection := PlainProjection(body)
+	if !DropsTitleHeading(title, body) {
+		return projection
+	}
+	words := foldSpace(title)
+	start := 0
+	for i := range projection.Blocks {
+		block := &projection.Blocks[i]
+		if block.HeadingLevel == 1 && foldSpace(projection.Text[start:block.End]) == words {
+			block.Heading = false
+			break
+		}
+		start = block.End
+	}
+	return projection
+}
+
 // PlainProjection returns the searchable corpus with note display annotations.
 func PlainProjection(body string) Projection {
 	var emissions []sourceEmission

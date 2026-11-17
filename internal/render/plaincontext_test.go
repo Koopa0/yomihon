@@ -14,6 +14,7 @@ func TestPlainBlockLocalContexts(t *testing.T) {
 	tests := []struct {
 		name, body, plain string
 		heading           bool
+		headingLevel      int
 		verbatim          bool
 		ranges            [][2]int
 		// end is the first block's end where it is not the whole text.
@@ -21,10 +22,10 @@ func TestPlainBlockLocalContexts(t *testing.T) {
 	}{
 		// A heading's own words are what the contents list repeats, so it
 		// offers no range even when it is shown as written.
-		{name: "ordinary heading", body: "## 等待者應該放在哪裡？\n", plain: "等待者應該放在哪裡？", heading: true},
+		{name: "ordinary heading", body: "## 等待者應該放在哪裡？\n", plain: "等待者應該放在哪裡？", heading: true, headingLevel: 2},
 		{name: "strike keeps the source delimiters", body: "~~取消工作。~~\n", plain: "~~取消工作。~~", ranges: [][2]int{{2, 2 + len("取消工作。")}}},
 		{name: "trimming shifts coordinates", body: "\n\n~~取消工作。~~\n\n", plain: "~~取消工作。~~", ranges: [][2]int{{2, 2 + len("取消工作。")}}},
-		{name: "consumed role offers no context", body: "## 等待者 {sequence=primary}\n", plain: "等待者 {sequence=primary}"},
+		{name: "consumed role offers no context", body: "## 等待者 {sequence=primary}\n", plain: "等待者 {sequence=primary}", headingLevel: 2},
 		{name: "unknown inline node offers no context", body: "![等待者](diagram.svg)取消工作。\n", plain: "等待者取消工作。"},
 		{name: "ruby offers no context", body: "<ruby>今日<rt>きょう</rt></ruby>取消工作。\n", plain: "今日取消工作。\nきょう"},
 		// Entities and escapes contribute the characters the page shows.
@@ -38,7 +39,7 @@ func TestPlainBlockLocalContexts(t *testing.T) {
 		{name: "a bare www address", body: "See www.example.com now.\n", plain: "See www.example.com now.", verbatim: true},
 		{name: "a footnote reference", body: "Text[^1] here.\n\n[^1]: The note.\n", plain: "Text here.\nThe note.", end: len("Text here.")},
 		{name: "inline html", body: "Some <b>bold</b> words.\n", plain: "Some bold words."},
-		{name: "a heading holding an entity reference", body: "## X &amp; place\n", plain: "X & place", heading: true},
+		{name: "a heading holding an entity reference", body: "## X &amp; place\n", plain: "X & place", heading: true, headingLevel: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -51,7 +52,7 @@ func TestPlainBlockLocalContexts(t *testing.T) {
 			if tt.end != 0 {
 				end = tt.end
 			}
-			want := render.Block{End: end, Verbatim: tt.verbatim, Heading: tt.heading, ContextRanges: tt.ranges}
+			want := render.Block{End: end, Verbatim: tt.verbatim, Heading: tt.heading, HeadingLevel: tt.headingLevel, ContextRanges: tt.ranges}
 			// Ruby readings form their own block after the visible sentence.
 			if tt.name == "ruby offers no context" {
 				want.End = len("今日取消工作。")
