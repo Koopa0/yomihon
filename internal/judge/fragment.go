@@ -395,7 +395,7 @@ func markdownFragmentFindings(notes []note, unreadable []unreadableEntry, idx *g
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
-		if !authority.egressAllowed(n.path) {
+		if !authority.gate.Allows(n.path) {
 			continue
 		}
 		for _, ref := range n.pathRefs {

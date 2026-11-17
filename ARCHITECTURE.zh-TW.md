@@ -134,7 +134,7 @@ Wikilink 表示引用，`based_on` 宣告來源，學習路徑則安排課程順
 
 指定範圍的 `check` 仍先建立整個根目錄的連結圖，再篩選診斷。輸入不完整不代表不存在：`exists` 可以回報已找到的筆記，但若無法讀取的來源可能改變答案，就拒絕回報不存在；`coverage` 也不會把局部資料當完整統計。存在性結果是一項觀察，不會保留檔名，阻止編輯器隨後建立檔案。[規則清單][judge-rules]列出各項診斷及其依據。
 
-契約中的 [`privacy.never_egress_dirs`][privacy] 控制這些命令的輸出（`marks` 在解析任何內容之前就丟掉被扣住的項目，因為錨點就是標題文字），**不會**對本機閱讀介面隱藏目錄。命令需要有效的契約與隱私宣告，先準備輸出，再驗證來源仍然有效，才交付結果。無法確立依據時，拒絕操作，不將受保護的契約內容引述到輸出通道。[命令邊界][adjudicate]區分結果內容與工具失敗。
+契約中的 [`privacy.never_egress_dirs`][privacy] 控制這些命令的輸出（`marks` 在解析任何內容之前就丟掉被扣住的項目，因為錨點就是標題文字），**不會**對本機閱讀介面隱藏目錄。命令需要有效的契約與隱私宣告，先準備輸出，再驗證來源仍然有效，才交付結果。無法確立依據時，拒絕操作，不將受保護的契約內容引述到輸出通道。[`internal/egress`][egress] 是唯一向規則檔詢問什麼被扣住的地方，也是輸出唯一的出口：命令在那裡開一道閘，輸出組好之後，只有經過這道閘封存的內容才能寫出。[命令邊界][adjudicate]區分結果內容與工具失敗。
 
 機器格式中，`check` 與 `marks` 使用 JSON Lines，`coverage` 與 `exists` 使用 JSON；終端機預設顯示人讀格式。Exit `1` 代表命中指定門檻或查無筆記，`2` 代表呼叫方式錯誤或工具失敗；`marks` 不使用 `1`，標記檔或筆記讀不到時以 `2` 拒絕，不交出殘缺清單。沒有符合的 deny 政策時，出現診斷本身不等於 exit `1`。Golden fixtures 固定輸出欄位與原因字串，供呼叫端依賴。外部 agent 可以使用這些命令，再透過自己的工具編輯；yomihon 不執行模型，也不自動修復它們產生的內容。
 
@@ -202,6 +202,7 @@ Loopback 與瀏覽器來源保護不會驗證本機操作者的身分。透過�
 [note]: internal/note/handler.go
 [commands]: internal/judge/command.go
 [adjudicate]: cmd/yomihon/adjudicate.go
+[egress]: internal/egress
 [marks]: cmd/yomihon/leftopen.go
 [judge-rules]: docs/judge-rules.md
 [origin]: internal/origin/origin.go

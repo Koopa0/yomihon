@@ -41,7 +41,7 @@ func TestARefusedNavigationTableFailsTheGateOfTheRulesItSilenced(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, exit, err := RunCheck(t.Context(), &CheckOptions{Root: tt.root, Format: FormatHuman, All: true, Deny: tt.deny})
+			_, exit, err := checkBytes(t.Context(), &CheckOptions{Root: tt.root, Format: FormatHuman, All: true, Deny: tt.deny})
 			if err != nil {
 				t.Fatalf("RunCheck(%q, deny %v) error = %v", tt.root, tt.deny, err)
 			}

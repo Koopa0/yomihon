@@ -33,7 +33,7 @@ func TestTheReportGroupsByTheFoldersTheContractDeclares(t *testing.T) {
 	write(t, root, "Ideas/golang/Cited.md",
 		"---\ntype: concept\ncreated: 2026-06-01\nbased_on: \"[[Cited]]\"\n---\n# Cited\n\nsee [[Nowhere]]\n")
 
-	stdout, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
+	stdout, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
 	if err != nil {
 		t.Fatalf("RunCheck: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestRunCheckDomainHeadings(t *testing.T) {
 			))
 			// Legal no-frontmatter notes still yield an actionable broken link.
 			write(t, root, tt.path, "see [[Nowhere]]\n")
-			stdout, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
+			stdout, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
 			if err != nil {
 				t.Fatalf("RunCheck() error = %v", err)
 			}

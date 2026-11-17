@@ -137,7 +137,7 @@ func dropEgressDenied(findings []Finding, authority scanAuthority) []Finding {
 // link resolved to. The link's own target text is the citing author's words
 // and is deliberately not counted.
 func touchesEgressDenied(f *Finding, authority scanAuthority) bool {
-	denied := func(relPath string) bool { return !authority.egressAllowed(relPath) }
+	denied := func(relPath string) bool { return !authority.gate.Allows(relPath) }
 	if anyTouchedPath(f, denied) {
 		return true
 	}
@@ -160,7 +160,7 @@ func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authorit
 		if prefixes[i] == "" {
 			return nil, fmt.Errorf("path filter %q resolves to no path; give a vault-relative path", p)
 		}
-		if prefixes[i] != vaultRoot && !authority.egressAllowed(prefixes[i]) {
+		if prefixes[i] != vaultRoot && !authority.gate.Allows(prefixes[i]) {
 			return nil, fmt.Errorf("path filter %q lies under a directory this vault's rules file withholds from agent-facing output; the scope was scanned but nothing from it can be reported, and an empty answer would read as a clean verdict", p)
 		}
 		if !scan.Contains(prefixes[i]) {

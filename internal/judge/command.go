@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/sequence"
 )
 
@@ -149,31 +150,33 @@ type preparedCommand struct {
 	action *action
 }
 
-// finish re-validates the contract authority and closes the observation, once.
-// The action field is the latch: a payload whose observation has already been
-// finished cannot be published a second time on an authority nobody rechecked.
-func (p *preparedCommand) finish() error {
+// seal looks at the rules file again, closes the observation and makes the
+// payload, once. The action field is the latch: a payload whose observation has
+// already been sealed cannot be published a second time on an authority nobody
+// rechecked.
+func (p *preparedCommand) seal() (egress.Payload, error) {
 	if p.action == nil {
-		return errVaultScan
+		return egress.Payload{}, errVaultScan
 	}
 	a := p.action
 	p.action = nil
-	return a.finish()
+	return a.seal(p.stdout)
 }
 
 // RunCheck scans the vault and renders the findings. It returns the bytes to
 // print and the exit code: 1 when a finding gates, 0 otherwise. An unknown
 // --deny token, an unreadable baseline, or a scan failure is returned as an
 // error, which the caller turns into a tool-error exit.
-func RunCheck(ctx context.Context, o *CheckOptions) (stdout []byte, exit int, err error) {
+func RunCheck(ctx context.Context, o *CheckOptions) (stdout egress.Payload, exit int, err error) {
 	prepared, err := prepareCheck(ctx, o)
 	if err != nil {
-		return nil, 0, err
+		return egress.Payload{}, 0, err
 	}
-	if err := prepared.finish(); err != nil {
-		return nil, 0, err
+	payload, err := prepared.seal()
+	if err != nil {
+		return egress.Payload{}, 0, err
 	}
-	return prepared.stdout, prepared.exit, nil
+	return payload, prepared.exit, nil
 }
 
 func prepareCheck(ctx context.Context, o *CheckOptions) (preparedCommand, error) {
@@ -239,15 +242,16 @@ type CoverageOptions struct {
 // RunCoverage computes and renders coverage. It always exits 0 — coverage
 // reports state, it never gates. A scan or serialization failure is returned as
 // an error.
-func RunCoverage(ctx context.Context, o *CoverageOptions) (stdout []byte, exit int, err error) {
+func RunCoverage(ctx context.Context, o *CoverageOptions) (stdout egress.Payload, exit int, err error) {
 	prepared, err := prepareCoverage(ctx, o)
 	if err != nil {
-		return nil, 0, err
+		return egress.Payload{}, 0, err
 	}
-	if err := prepared.finish(); err != nil {
-		return nil, 0, err
+	payload, err := prepared.seal()
+	if err != nil {
+		return egress.Payload{}, 0, err
 	}
-	return prepared.stdout, prepared.exit, nil
+	return payload, prepared.exit, nil
 }
 
 func prepareCoverage(ctx context.Context, o *CoverageOptions) (preparedCommand, error) {
@@ -293,15 +297,16 @@ type ExistsOptions struct {
 // a match exists and 1 when none does, so a caller can gate a
 // write-if-absent on the exit code alone. A scan or serialization failure is
 // returned as an error.
-func RunExists(ctx context.Context, o *ExistsOptions) (stdout []byte, exit int, err error) {
+func RunExists(ctx context.Context, o *ExistsOptions) (stdout egress.Payload, exit int, err error) {
 	prepared, err := prepareExists(ctx, o)
 	if err != nil {
-		return nil, 0, err
+		return egress.Payload{}, 0, err
 	}
-	if err := prepared.finish(); err != nil {
-		return nil, 0, err
+	payload, err := prepared.seal()
+	if err != nil {
+		return egress.Payload{}, 0, err
 	}
-	return prepared.stdout, prepared.exit, nil
+	return payload, prepared.exit, nil
 }
 
 func prepareExists(ctx context.Context, o *ExistsOptions) (preparedCommand, error) {

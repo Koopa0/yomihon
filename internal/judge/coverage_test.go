@@ -70,7 +70,7 @@ func TestCoverageMountsOnContractMapTypes(t *testing.T) {
 	write(t, root, "Concepts/Slice.md", "---\ntype: concept\nbased_on:\n  - \"[[Go Atlas]]\"\n---\n# Slice\n\nBody.\n")
 	write(t, root, "Atlases/Go Atlas.md", "---\ntype: atlas\n---\n# Go Atlas\n\n- [[Slice]]\n")
 
-	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
@@ -96,7 +96,7 @@ func TestCoveragePendingMountIsANonMapReference(t *testing.T) {
 	write(t, root, "Concepts/Idea.md", "---\ntype: concept\nbased_on:\n  - \"[[Nowhere]]\"\n---\n# Idea\n\nBody.\n")
 	write(t, root, "Concepts/Seed.md", "---\ntype: concept\nbased_on:\n  - \"[[Idea]]\"\n---\n# Seed\n\nBody.\n")
 
-	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
@@ -121,7 +121,7 @@ func TestCoverageWithholdsTheRouteFromAnUndeclaredType(t *testing.T) {
 	write(t, root, schema.ContractRelPath, atlasContract)
 	write(t, root, "Concepts/Brief.md", "---\ntype: research-brief\n---\n# Brief\n\nBody.\n")
 
-	got, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	got, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
@@ -144,7 +144,7 @@ func TestCoverageSaysSoWhenNoConceptTypeIsDeclared(t *testing.T) {
 	write(t, root, "Notes/Alpha.md", "---\ntype: note\n---\n# Alpha\n\nBody.\n")
 	write(t, root, "Atlases/Go Atlas.md", "---\ntype: atlas\n---\n# Go Atlas\n\n- [[Alpha]]\n")
 
-	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
@@ -157,7 +157,7 @@ func TestCoverageSaysSoWhenNoConceptTypeIsDeclared(t *testing.T) {
 		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
 	}
 
-	human, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatHuman})
+	human, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatHuman})
 	if err != nil {
 		t.Fatalf("RunCoverage(human) error = %v", err)
 	}

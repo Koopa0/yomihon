@@ -64,7 +64,7 @@ func TestMarkdownCheckReportFrontmatterTheVaultAccepts(t *testing.T) {
 	t.Run("undeclared report is told, not filed as a failing note", func(t *testing.T) {
 		t.Parallel()
 		root := writeLeftoverLockVault(t, leftoverLockContract, map[string]string{"Notes/Kept.md": kept})
-		out, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatMarkdown})
+		out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatMarkdown})
 		if err != nil {
 			t.Fatalf("RunCheck() error = %v", err)
 		}
@@ -91,7 +91,7 @@ func TestMarkdownCheckReportFrontmatterTheVaultAccepts(t *testing.T) {
 		t.Parallel()
 		contractText := strings.Replace(leftoverLockContract, "[types.note]\n", "[types.note]\n\n[types.report]\n", 1)
 		root := writeLeftoverLockVault(t, contractText, map[string]string{"Notes/Kept.md": kept})
-		out, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatMarkdown})
+		out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatMarkdown})
 		if err != nil {
 			t.Fatalf("RunCheck() error = %v", err)
 		}
@@ -155,7 +155,7 @@ func TestExistsNeverMatchesTitleEn(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := writeLeftoverLockVault(t, tt.contract(t), map[string]string{tt.path: tt.body})
-			out, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "English Name", Format: FormatJSON})
+			out, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "English Name", Format: FormatJSON})
 			if err != nil {
 				t.Fatalf("RunExists() error = %v", err)
 			}
@@ -166,7 +166,7 @@ func TestExistsNeverMatchesTitleEn(t *testing.T) {
 				t.Errorf("exists matched title_en:\n%s", out)
 			}
 
-			out, exit, err = RunExists(t.Context(), &ExistsOptions{Root: root, Name: "Local Name", Format: FormatJSON})
+			out, exit, err = existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "Local Name", Format: FormatJSON})
 			if err != nil {
 				t.Fatalf("RunExists(Local Name) error = %v", err)
 			}

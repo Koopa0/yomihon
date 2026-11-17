@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lexical"
 )
@@ -72,7 +73,7 @@ func existsLookup(notes []note, query string, authority scanAuthority) existsRep
 	for i := range notes {
 		n := &notes[i]
 		exact := noteMatches(n, key)
-		if !authority.egressAllowed(n.path) {
+		if !authority.gate.Allows(n.path) {
 			// A contract-private note never describes itself here: no path, no
 			// field, no value. That it answers to the name is still reported,
 			// because the alternative tells the caller the name is free. A
@@ -112,7 +113,7 @@ func appendExistsPaths(report *existsReport, notes []note, idx *graph.Index, aut
 		if !slices.Contains(paths, n.path) {
 			continue
 		}
-		if !authority.egressAllowed(n.path) {
+		if !authority.gate.Allows(n.path) {
 			report.Withheld = true
 			continue
 		}
@@ -219,7 +220,7 @@ func notesAmong(matches []existsMatch) int {
 func renderExists(r existsReport) string {
 	var s strings.Builder
 	if r.NoRules {
-		s.WriteString(NoRulesFile + "\n")
+		s.WriteString(egress.NoRulesFile + "\n")
 	}
 	if !r.found() {
 		fmt.Fprintf(&s, "\"%s\" does not exist\n", r.Query)

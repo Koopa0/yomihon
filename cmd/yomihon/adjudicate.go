@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -65,7 +66,7 @@ func runCommand(
 	}
 	format := judge.ResolveFormat(parsed.format, stdoutIsTerminal)
 
-	var payload []byte
+	var payload egress.Payload
 	var exit int
 	switch command {
 	case "check":
@@ -89,7 +90,7 @@ func runCommand(
 	if err != nil {
 		return commandError(stderr, err)
 	}
-	if _, err := stdout.Write(payload); err != nil {
+	if _, err := payload.WriteTo(stdout); err != nil {
 		return commandError(stderr, fmt.Errorf("write output: %w", err))
 	}
 	return exit
@@ -237,11 +238,11 @@ func (args *commandArgs) setFlag(name, value string) error {
 // redaction these commands refuse: what they withhold is an account of an
 // existing file's keys, which is vault content, and a path is not.
 func contractGuidance(err error) string {
-	if mismatch, ok := errors.AsType[*judge.RulesVersionError](err); ok {
+	if mismatch, ok := errors.AsType[*egress.RulesVersionError](err); ok {
 		return versionGuidance(mismatch)
 	}
 	switch {
-	case errors.Is(err, judge.ErrPrivacyAuthorityUnavailable):
+	case errors.Is(err, egress.ErrUnavailable):
 		return "  The rules file is at " + schema.ContractRelPath + " and yomihon could not use it.\n" +
 			"  The reason is not printed here: this command's output is written for a program to\n" +
 			"  read, and stating the reason would quote the rules back out under exactly the\n" +
@@ -257,7 +258,7 @@ func contractGuidance(err error) string {
 // carries: a plain version number, a line number and the supported version, so
 // nothing of the vault's own words is printed under a policy that could not be
 // read.
-func versionGuidance(mismatch *judge.RulesVersionError) string {
+func versionGuidance(mismatch *egress.RulesVersionError) string {
 	var declares, change string
 	switch {
 	case mismatch.Missing:

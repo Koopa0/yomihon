@@ -53,7 +53,7 @@ func TestRunExistsPathSuffixKeepsMetadataAndPrivacy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.query, func(t *testing.T) {
 			t.Parallel()
-			got, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: tt.query, Format: FormatJSON})
+			got, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: tt.query, Format: FormatJSON})
 			if err != nil {
 				t.Fatalf("RunExists() error = %v", err)
 			}
@@ -100,7 +100,7 @@ func TestRunExistsPathSuffixSelectionIncludesUnprojectableIdentities(t *testing.
 			prepared, err := prepareExistsWithHooks(t.Context(), &ExistsOptions{Root: root, Name: "Notes/Atlas/README.md", Format: FormatJSON}, hooks)
 			t.Log("invoked: actual suffix resolution contract")
 			if tt.panicNote && err == nil {
-				if finishErr := prepared.finish(); finishErr != nil {
+				if _, finishErr := prepared.seal(); finishErr != nil {
 					t.Fatalf("finish unexpected positive observation: %v", finishErr)
 				}
 				t.Fatalf("caught: unreadable exact claimant discarded: got payload %q", prepared.stdout)
@@ -114,7 +114,7 @@ func TestRunExistsPathSuffixSelectionIncludesUnprojectableIdentities(t *testing.
 			if err != nil {
 				t.Fatalf("prepareExists() error = %v", err)
 			}
-			if err := prepared.finish(); err != nil {
+			if _, err := prepared.seal(); err != nil {
 				t.Fatal(err)
 			}
 			want := "{\"query\":\"Notes/Atlas/README.md\",\"matches\":[]}\n"
@@ -200,7 +200,7 @@ func TestRunExistsPathSuffix(t *testing.T) {
 			if tt.format == FormatJSON {
 				want += "\n"
 			}
-			got, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: tt.name, Format: tt.format})
+			got, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: tt.name, Format: tt.format})
 			if err != nil {
 				t.Fatalf("RunExists() error = %v", err)
 			}
@@ -227,7 +227,7 @@ func TestRunExistsPathSuffixResourcePriority(t *testing.T) {
 	write(t, root, "Assets/chart.svg", "resource")
 	write(t, root, "Notes/Assets/chart.svg.md", "---\n---\n# Competing note\nbody\n")
 	write(t, root, schema.ContractRelPath, contractFixture(t, nil))
-	got, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "Assets/chart.svg", Format: FormatJSON})
+	got, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "Assets/chart.svg", Format: FormatJSON})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func TestRunCheckPathSuffixConsumers(t *testing.T) {
 	write(t, root, "A/Shared/Twin.md", "body\n")
 	write(t, root, "B/Shared/Twin.md", "body\n")
 	write(t, root, "Notes/Container/Page.md", "![[Atlas/README#Part]]\n")
-	got, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, All: true, Format: FormatJSON})
+	got, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, All: true, Format: FormatJSON})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +304,7 @@ func TestRunCoveragePathSuffix(t *testing.T) {
 	write(t, root, "Atlases/Map.md", "---\ntype: atlas\nbased_on: '[[Atlas/Page]]'\n---\n# Map\n[[Shared/Twin]]\n")
 	write(t, root, "Concepts/A/Shared/Twin.md", "---\ntype: concept\n---\n# A\nbody\n")
 	write(t, root, "Concepts/B/Shared/Twin.md", "---\ntype: concept\n---\n# B\nbody\n")
-	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatal(err)
 	}

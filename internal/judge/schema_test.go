@@ -158,7 +158,7 @@ never_egress_dirs = []
 			t.Run("check", func(t *testing.T) {
 				t.Parallel()
 
-				got, exit, err := RunCheck(t.Context(), &CheckOptions{
+				got, exit, err := checkBytes(t.Context(), &CheckOptions{
 					Root:   root,
 					Deny:   []string{"error"},
 					Format: FormatJSON,

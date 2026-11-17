@@ -118,7 +118,7 @@ func TestReferenceSequenceCommandPrivacyAndDeny(t *testing.T) {
 			if tt.wantRows == 0 {
 				wantPrivateReferenceFindings(t, root, tt.path)
 			}
-			output, exit, runErr := RunCheck(t.Context(), &CheckOptions{Root: root, All: true, Deny: tt.deny, Format: FormatJSON})
+			output, exit, runErr := checkBytes(t.Context(), &CheckOptions{Root: root, All: true, Deny: tt.deny, Format: FormatJSON})
 			if runErr != nil {
 				t.Fatalf("caught: reference rule command refused: %v", runErr)
 			}

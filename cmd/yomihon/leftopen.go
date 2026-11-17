@@ -7,22 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"io"
 	"log/slog"
-	"net/url"
 	"os"
-	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
-	"golang.org/x/text/unicode/norm"
-
-	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/note"
@@ -197,7 +189,7 @@ func (r *openRequest) run(ctx context.Context, stdout, stderr io.Writer) int {
 	if err != nil {
 		return commandError(stderr, err)
 	}
-	if _, err := stdout.Write(payload); err != nil {
+	if _, err := payload.WriteTo(stdout); err != nil {
 		return commandError(stderr, fmt.Errorf("write output: %w", err))
 	}
 	if notice != "" {
@@ -206,65 +198,75 @@ func (r *openRequest) run(ctx context.Context, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// list builds the payload under the contract's privacy authority and checks
-// that authority again before handing it over. notice is the one line that
+// list builds the payload under the privacy gate and seals it, which looks at
+// the rules file again once the payload exists. notice is the one line that
 // says why no marked location is listed, when that is so.
-func (r *openRequest) list(ctx context.Context) (payload []byte, notice string, err error) {
+func (r *openRequest) list(ctx context.Context) (payload egress.Payload, notice string, err error) {
 	source, err := vault.Open(r.root)
 	if err != nil {
-		return nil, "", errOpenRoot
+		return egress.Payload{}, "", errOpenRoot
 	}
 	defer func() {
 		if closeErr := source.Close(); closeErr != nil && err == nil {
-			payload, notice, err = nil, "", errOpenScan
+			payload, notice, err = egress.Payload{}, "", errOpenScan
 		}
 	}()
-	contract, privacy, err := openRules(ctx, source)
+	gate, err := egress.Open(ctx, source, judge.LinkTargets)
 	if err != nil {
-		return nil, "", err
-	}
-	if refused := openAuthority(privacy); refused != nil {
-		return nil, "", refused
+		return egress.Payload{}, "", openRefusal(err)
 	}
 	r.rulesRead()
-	source.SetBoundary(contract.ScanBoundary())
+	rules := gate.Rules()
+	source.SetBoundary(rules.ScanBoundary())
 	// The generation logs what it reads by path, private ground included, and
 	// this face's stderr goes to the program that called it. Nothing it would
 	// say is this command's answer, so it says it to no one.
-	store, err := snapshot.New(ctx, source, slog.New(slog.DiscardHandler), contract, contract.Governance())
+	store, err := snapshot.New(ctx, source, slog.New(slog.DiscardHandler), rules, rules.Governance())
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, "", ctxErr
+			return egress.Payload{}, "", ctxErr
 		}
-		return nil, "", errOpenScan
+		return egress.Payload{}, "", errOpenScan
 	}
 	snap := store.Current().Capture()
-	allowed := openAllowed(privacy, snap)
+	allowed := gate.Readable(snap)
 	if missing := openUnreadable(snap, allowed); missing != nil {
-		return nil, "", missing
+		return egress.Payload{}, "", missing
 	}
 	kept, stored, err := r.marks(source.Name())
 	if err != nil {
-		return nil, "", err
+		return egress.Payload{}, "", err
 	}
-	entries := openEntries(snap, privacy, kept, allowed)
+	entries := openEntries(snap, gate, kept, allowed)
 	if r.afterAssemble != nil {
 		r.afterAssemble()
 	}
-	// The list was assembled under the authority read at the start. If the
-	// contract changed since, what it withholds may have changed with it, so
-	// the list is handed over only while that same source still stands.
-	if refused := openAuthority(privacy); refused != nil {
-		return nil, "", refused
-	}
-	payload, err = encodeOpen(entries, r.format)
+	data, err := encodeOpen(entries, r.format)
 	if err != nil {
-		return nil, "", err
+		return egress.Payload{}, "", err
 	}
-	if privacy.WithoutRules() && r.format != judge.FormatJSON {
-		payload = append([]byte(judge.NoRulesFile+"\n"), payload...)
+	if gate.WithoutRules() && r.format != judge.FormatJSON {
+		data = append([]byte(egress.NoRulesFile+"\n"), data...)
+	}
+	// The list was assembled under the rules file read at the start. If it
+	// changed since, what it withholds may have changed with it, so the list
+	// is handed over only while that same source still stands.
+	payload, err = gate.Seal(data)
+	if err != nil {
+		return egress.Payload{}, "", openRefusal(err)
 	}
 	return payload, openNotice(entries, stored), nil
+}
+
+// openRefusal is the refusal this command gives for one the gate gave. Only a
+// rules file that leaves out the [privacy] section is explained, since its repair
+// quotes nothing the vault wrote; any other fault would be explained by
+// quoting the rules file back out.
+func openRefusal(err error) error {
+	if errors.Is(err, egress.ErrUndeclared) {
+		return errOpenUndeclaredPrivacy
+	}
+	return err
 }
 
 // openNotice is the line for a list that holds no location, decided on what
@@ -278,54 +280,6 @@ func openNotice(entries []openEntry, stored bool) string {
 		return openNoMarksFileNotice
 	default:
 		return openNoMarksNotice
-	}
-}
-
-// openRules reads the rules file and the privacy policy this command is bound
-// by. A refusal says no more than the other commands do.
-func openRules(ctx context.Context, source *vault.Reader) (*schema.Contract, schema.PrivacyPolicy, error) {
-	contract, privacy, err := schema.LoadForAgents(ctx, source)
-	switch {
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		return nil, privacy, err
-	case errors.Is(err, schema.ErrRulesFileNearby):
-		return nil, privacy, judge.ErrRulesFileNearby
-	case errors.Is(err, schema.ErrRulesFileUnknown):
-		return nil, privacy, judge.ErrRulesFileUnknown
-	case err != nil:
-		// The loader's words name the contract's keys, which is vault content
-		// this face has no authority yet to repeat; RefusalFor says only what
-		// may be said.
-		return nil, privacy, judge.RefusalFor(err)
-	}
-	return contract, privacy, nil
-}
-
-// openAuthority is the contract state this command needs before it may say a
-// path to a program: a privacy declaration that loaded and whose source is
-// unchanged. Only the missing section is explained; any other fault would be
-// explained by quoting the contract back out.
-func openAuthority(policy schema.PrivacyPolicy) error {
-	privacy := policy.ValidateSource()
-	switch {
-	case privacy.RulesFileNearby():
-		return judge.ErrRulesFileNearby
-	case privacy.Available():
-		return nil
-	case privacy.Undeclared():
-		return errOpenUndeclaredPrivacy
-	default:
-		return judge.ErrPrivacyAuthorityUnavailable
-	}
-}
-
-// openAllowed is the gate every item's path passes before anything about it is
-// resolved into the output: the privacy declaration lets it out and the scan
-// looks there. The generation's scan answers for the last, since it knows what
-// its walk left out by the vault's .gitignore as well as by the contract.
-func openAllowed(privacy schema.PrivacyPolicy, snap *snapshot.Generation) func(string) bool {
-	return func(rel string) bool {
-		return privacy.EgressAllowed(rel) && !snap.OutsideScan(rel)
 	}
 }
 
@@ -387,32 +341,31 @@ type openEntry struct {
 // is allowed. That gate runs before the item is resolved any further: a
 // location's anchor is its heading's words made into an id, so resolving one
 // in withheld ground and then hiding the heading would still have said it.
-func openEntries(snap *snapshot.Generation, privacy schema.PrivacyPolicy, kept []mark.Mark, allowed func(string) bool) []openEntry {
+func openEntries(snap *snapshot.Generation, gate *egress.Gate, kept []mark.Mark, allowed func(string) bool) []openEntry {
 	var entries []openEntry
-	withheldDirs := privacy.WithheldDirs()
 	for _, item := range snap.OpenItems(note.OpenMarks(kept)) {
 		if !allowed(item.Path()) {
 			continue
 		}
 		if item.Note != nil {
-			if thought, ok := openThoughtEntry(snap, item.Note, allowed, withheldDirs); ok {
+			if thought, ok := openThoughtEntry(snap, gate, item.Note, allowed); ok {
 				entries = append(entries, openEntry{thought: &thought})
 			}
 			continue
 		}
-		if location, ok := openLocationEntry(snap, item.Mark, allowed, withheldDirs); ok {
+		if location, ok := openLocationEntry(snap, gate, item.Mark); ok {
 			entries = append(entries, openEntry{location: &location})
 		}
 	}
 	return entries
 }
 
-func openThoughtEntry(snap *snapshot.Generation, reading *snapshot.Reading, allowed func(string) bool, withheldDirs []string) (openThought, bool) {
+func openThoughtEntry(snap *snapshot.Generation, gate *egress.Gate, reading *snapshot.Reading, allowed func(string) bool) (openThought, bool) {
 	// A thought citing withheld ground is withheld whole: the citation is the
 	// shelf's own row text, and leaving it out would still list a thought whose
 	// title is often its source's name.
 	title := snap.DeclaredTitle(reading.RelPath)
-	if !snap.BasedOnWithin(reading.RelPath, allowed) || namesWithheld(snap, title, reading.Body, allowed, withheldDirs) {
+	if !snap.BasedOnWithin(reading.RelPath, allowed) || gate.Spells(title, reading.Body, snap) {
 		return openThought{}, false
 	}
 	entry := openThought{
@@ -425,7 +378,7 @@ func openThoughtEntry(snap *snapshot.Generation, reading *snapshot.Reading, allo
 	return entry, true
 }
 
-func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allowed func(string) bool, withheldDirs []string) (openLocation, bool) {
+func openLocationEntry(snap *snapshot.Generation, gate *egress.Gate, kept *snapshot.OpenMark) (openLocation, bool) {
 	// The command speaks English, so a card with no pattern of its own is named
 	// in the English the page would use.
 	located := note.LocateMark(snap, kept.RelPath, kept.Anchor, wording.En)
@@ -435,7 +388,7 @@ func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allow
 		title = snap.DeclaredTitle(kept.RelPath)
 	}
 	for _, words := range []string{title, located.AnchorText} {
-		if words != "" && namesWithheld(snap, words, reading.Body, allowed, withheldDirs) {
+		if words != "" && gate.Spells(words, reading.Body, snap) {
 			return openLocation{}, false
 		}
 	}
@@ -462,32 +415,6 @@ func openLocationEntry(snap *snapshot.Generation, kept *snapshot.OpenMark, allow
 		entry.Anchor = &anchor
 	}
 	return entry, true
-}
-
-// namesWithheld reports whether text cites, or spells a link name body cites,
-// that could reach withheld ground. A heading or a title is the author's
-// words, and a wikilink inside one is shown as the name it was written with,
-// so a heading citing a withheld note would say that note's path in the list —
-// and its anchor, made from the same words, would say it again. A title is
-// its note's first heading as written, so the links it writes are read from the
-// title itself; a marked location's heading arrives rendered, so its links are
-// found in body.
-func namesWithheld(snap *snapshot.Generation, text, body string, allowed func(string) bool, withheldDirs []string) bool {
-	if spellsWithheldDir(text, withheldDirs) {
-		return true
-	}
-	targets := slices.Concat(judge.LinkTargets(text), rawLinkTargets(text))
-	if slices.ContainsFunc(targets, func(target string) bool { return !snap.NameWithin(target, allowed) }) {
-		return true
-	}
-	folded := graph.FoldFragment(text)
-	for _, target := range judge.LinkTargets(body) {
-		name := graph.FoldFragment(strings.TrimSpace(target))
-		if name != "" && strings.Contains(folded, name) && !snap.NameWithin(target, allowed) {
-			return true
-		}
-	}
-	return false
 }
 
 func encodeOpen(entries []openEntry, format judge.Format) ([]byte, error) {
@@ -521,211 +448,6 @@ func encodeOpen(entries []openEntry, format judge.Format) ([]byte, error) {
 	default:
 		panic("main: unknown Format: " + format.String())
 	}
-}
-
-// rawLinkTargets is every name text spells as a link, read as plain text
-// rather than as Markdown: a title is written out as it stands, so a code span
-// or a backslash that keeps a page from rendering a link keeps nothing out of
-// the list. It takes the target of each [[…]], with any alias, heading or
-// block part cut away; the destination of each inline link ](…) and of each
-// reference definition [label]: …, read by CommonMark's rule for a link
-// destination; and each HTML href. A destination is taken as written and
-// percent-decoded. One that climbs out of its folder needs no resolving here:
-// NameWithin's gate refuses any path that climbs.
-func rawLinkTargets(text string) []string {
-	var targets []string
-	for rest := text; ; {
-		_, after, found := strings.Cut(rest, "[[")
-		if !found {
-			break
-		}
-		rest = after
-		inner, _, closed := strings.Cut(after, "]]")
-		if !closed {
-			break
-		}
-		if i := strings.LastIndex(inner, "[["); i >= 0 {
-			inner = inner[i+len("[["):]
-		}
-		name, _, _ := strings.Cut(inner, "|")
-		name, _, _ = strings.Cut(name, "#")
-		name, _, _ = strings.Cut(name, "^")
-		targets = append(targets, name)
-	}
-	var destinations []string
-	for rest := text; ; {
-		_, after, found := strings.Cut(rest, "](")
-		if !found {
-			break
-		}
-		rest = after
-		destinations = append(destinations, linkDestination(after))
-	}
-	for _, definition := range referenceDefinition.FindAllStringSubmatch(text, -1) {
-		destinations = append(destinations, linkDestination(definition[1]))
-	}
-	for _, href := range htmlHref.FindAllStringSubmatch(text, -1) {
-		destinations = append(destinations, href[1]+href[2]+href[3])
-	}
-	for _, destination := range destinations {
-		destination, _, _ = strings.Cut(destination, "#")
-		destination, _, _ = strings.Cut(destination, "?")
-		targets = append(targets, destination)
-		if decoded, err := url.PathUnescape(destination); err == nil {
-			targets = append(targets, decoded)
-		}
-	}
-	return targets
-}
-
-var (
-	// referenceDefinition is a line [label]: destination, up to three spaces in.
-	referenceDefinition = regexp.MustCompile(`(?m)^ {0,3}\[[^\]]+\]:[ \t]*(.*)$`)
-	// htmlHref is an href attribute's value, double-, single- or unquoted.
-	htmlHref = regexp.MustCompile(`(?i)\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))`)
-)
-
-// linkDestination is the link destination that starts text, by CommonMark's
-// rule: after any leading space, a destination opened by < runs to the >
-// that closes it, spaces included; any other runs to the first space or
-// control character, or to a ) that closes no ( it opened. A backslash escapes
-// the character after it.
-func linkDestination(text string) string {
-	text = strings.TrimLeft(text, " \t\n")
-	var b strings.Builder
-	if rest, angled := strings.CutPrefix(text, "<"); angled {
-		for i := 0; i < len(rest); i++ {
-			switch c := rest[i]; {
-			case c == '\\' && i+1 < len(rest):
-				i++
-				b.WriteByte(rest[i])
-			case c == '>' || c == '\n':
-				return b.String()
-			default:
-				b.WriteByte(c)
-			}
-		}
-		return b.String()
-	}
-	depth := 0
-	for i := 0; i < len(text); i++ {
-		switch c := text[i]; {
-		case c == '\\' && i+1 < len(text):
-			i++
-			b.WriteByte(text[i])
-		case c <= ' ' || c == 0x7f:
-			return b.String()
-		case c == '(':
-			depth++
-			b.WriteByte(c)
-		case c == ')':
-			if depth == 0 {
-				return b.String()
-			}
-			depth--
-			b.WriteByte(c)
-		default:
-			b.WriteByte(c)
-		}
-	}
-	return b.String()
-}
-
-// spellsWithheldDir reports whether text, read past the ways it can be
-// disguised, spells a withheld directory as a name followed by a slash: at
-// the start of the text or after a character that is neither a letter nor a
-// digit, so that "AI/" is matched and "OpenAI/" is not. This holds whatever
-// syntax the text is written in, so a title naming withheld ground in plain
-// words is withheld with the rest. A withheld note's full path contains its
-// directory and a slash, so this covers every such path too. A note's bare
-// file name is not matched: the author's own words that happen to share one
-// are listed as written. The boundary is judged on the folded text, after
-// what draws nothing is gone, so an invisible letter cannot stand in front of
-// the name.
-func spellsWithheldDir(text string, withheldDirs []string) bool {
-	folded := foldDisguises(text)
-	for _, dir := range withheldDirs {
-		name := foldDisguises(dir) + "/"
-		for from := 0; ; {
-			at := strings.Index(folded[from:], name)
-			if at < 0 {
-				break
-			}
-			at += from
-			before, _ := utf8.DecodeLastRuneInString(folded[:at])
-			if at == 0 || !unicode.IsLetter(before) && !unicode.IsNumber(before) {
-				return true
-			}
-			from = at + 1
-		}
-	}
-	return false
-}
-
-// foldDisguises reads text past what would hide a word from a comparison:
-// HTML character references and percent-escapes, decoded until nothing more
-// decodes; characters that draw nothing — format characters, variation
-// selectors, other default-ignorable code points — dropped before the text
-// is composed and again after; compatibility forms, such as fullwidth letters,
-// made plain by NFKC; combining marks left after that dropped; a backslash
-// and the solidus's look-alikes read as a slash; and case folded. A letter of
-// another script that only looks like a Latin one is not read as that letter.
-func foldDisguises(text string) string {
-	for range 4 {
-		decoded := percentDecode(html.UnescapeString(text))
-		if decoded == text {
-			break
-		}
-		text = decoded
-	}
-	text = norm.NFKC.String(strings.Map(dropDrawsNothing, text))
-	return strings.Map(func(r rune) rune {
-		switch {
-		case unicode.Is(unicode.Mn, r):
-			return -1
-		case r == '\\', r == 0x2044, r == 0x2215, r == 0x2571, r == 0x29f8:
-			return '/'
-		}
-		return foldRune(dropDrawsNothing(r))
-	}, text)
-}
-
-// dropDrawsNothing drops a character that draws nothing where it stands.
-func dropDrawsNothing(r rune) rune {
-	if r < 0 || unicode.In(r, unicode.Cf, unicode.Variation_Selector, unicode.Other_Default_Ignorable_Code_Point) {
-		return -1
-	}
-	return r
-}
-
-// percentDecode replaces each %XX escape in text with the byte it names,
-// leaving any % that does not begin one as it stands.
-func percentDecode(text string) string {
-	if !strings.Contains(text, "%") {
-		return text
-	}
-	var b strings.Builder
-	for i := 0; i < len(text); i++ {
-		if text[i] == '%' && i+2 < len(text) {
-			if value, err := strconv.ParseUint(text[i+1:i+3], 16, 8); err == nil {
-				b.WriteByte(byte(value))
-				i += 2
-				continue
-			}
-		}
-		b.WriteByte(text[i])
-	}
-	return b.String()
-}
-
-// foldRune is the smallest rune of r's case-folding orbit, so two strings
-// strings.EqualFold calls equal map to the same runes.
-func foldRune(r rune) rune {
-	smallest := r
-	for f := unicode.SimpleFold(r); f != r; f = unicode.SimpleFold(f) {
-		smallest = min(smallest, f)
-	}
-	return smallest
 }
 
 // The terminal view's own words. A thought that declares no date shows a run
