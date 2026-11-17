@@ -435,16 +435,28 @@ type sourceObservation struct {
 // Path returns the NFC, slash-form vault-relative identity of e.
 func (e Entry) Path() string { return e.path }
 
-// Open pins root and returns its read capability.
-func Open(root string) (*Reader, error) {
+// ResolveRoot is the one spelling of a vault's folder: absolute, cleaned and
+// followed through every symlink. selected is the path before the symlinks are
+// followed. A folder reached by two paths is one vault, so whatever names a
+// vault, its marks directory included, names it by resolved.
+func ResolveRoot(root string) (selected, resolved string, err error) {
 	absolute, err := filepath.Abs(root)
 	if err != nil {
-		return nil, fmt.Errorf("open vault root: %w", err)
+		return "", "", fmt.Errorf("open vault root: %w", err)
 	}
-	selected := filepath.Clean(absolute)
-	absolute, err = filepath.EvalSymlinks(selected)
+	selected = filepath.Clean(absolute)
+	resolved, err = filepath.EvalSymlinks(selected)
 	if err != nil {
-		return nil, fmt.Errorf("open vault root: %w", err)
+		return "", "", fmt.Errorf("open vault root: %w", err)
+	}
+	return selected, resolved, nil
+}
+
+// Open pins root and returns its read capability.
+func Open(root string) (*Reader, error) {
+	selected, absolute, err := ResolveRoot(root)
+	if err != nil {
+		return nil, err
 	}
 	opened, err := os.OpenRoot(absolute)
 	if err != nil {
