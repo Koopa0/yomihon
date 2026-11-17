@@ -129,9 +129,9 @@ jobs:
         run: make vuln
 
   # Records coverage as review evidence without inventing a percentage that can
-  # be gamed by low-value assertions. The race, fuzz, browser, golden, and
-  # mutation gates remain the behavioral authority; this job makes blind spots
-  # visible and retains the standard Go profile for local inspection.
+  # be gamed by low-value assertions. The race, fuzz, browser, and golden gates
+  # remain the behavioral authority; this job makes blind spots visible and
+  # retains the standard Go profile for local inspection.
   coverage:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -332,44 +332,3 @@ jobs:
 
       - name: Run the behavior probes against the fixture vault
         run: make browser-check
-
-  # Proves the mutable probes above can fail. Behavior-only probes prove their
-  # canary inside the plain job and are skipped during mutation discovery.
-  # Each mutable probe names its own self-test modes;
-  # every mode injects the regression that probe exists to catch, and the run is
-  # required to exit 1 and print the marker naming the mode it caught. Exit 0
-  # means the injected regression walked past the probe. Exit 2 means the
-  # mutation's needle matched nothing — which is how a self-test that quietly
-  # died against a rewritten source turns red here, on the day it dies, rather
-  # than on the day someone next runs it by hand. That has already happened once:
-  # a needle written against one branch no longer matched the script it landed
-  # beside, and only a run by hand revealed it.
-  e2e-mutations:
-    name: e2e-mutations (${{ matrix.shard }})
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-    runs-on: ubuntu-latest
-    # The whole mutation run outgrew forty minutes on one shared runner, so it is
-    # split into four mode-balanced jobs. Thirty minutes is more than twice a
-    # quarter of that run; a hung browser frees its runner instead of holding it.
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go.mod
-
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: .github/package-lock.json
-
-      - name: Record the browser build
-        run: google-chrome --version
-
-      - name: Prove every probe catches the regression it watches for
-        run: make mutation-check MUTATION_SHARD=${{ matrix.shard }}

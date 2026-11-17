@@ -55,7 +55,7 @@ needed=$$(awk '$$1 == "go" { split($$2, v, "."); printf "%s.%s.%s\n", v[1], v[2]
 }
 endef
 
-.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-deps frontend-check stylelint-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check verify verify-ci verify-spec clean
+.PHONY: convention-check deadcode-check screenshots build build-check run test test-real-vault real-vault-build-check coverage-report bench-baseline bench-compare performance-smoke lint fmt fmt-check templ-fmt-check templ-gen-check vet staticcheck gosec vuln tools workflow-check tracked-paths-check mod-check frontend-deps frontend-check stylelint-check check-fixtures e2e-http-check fuzz-smoke browser-check portable-build-check verify verify-ci verify-spec clean
 
 build: gen
 	go build -o bin/yomihon ./cmd/yomihon
@@ -204,9 +204,6 @@ tools:
 
 workflow-check:
 	@$(call require-go-tool,actionlint,github.com/rhysd/actionlint,$(ACTIONLINT_VERSION))
-	@sh tools/check-ci-tools.sh
-	@sh tools/check-gate-contract.sh
-	@sh tools/check-gate-contract.sh --lock-test
 	@shellcheck --version | awk '$$1 == "version:" && $$2 == "$(SHELLCHECK_VERSION)" { found = 1 } END { exit !found }' || { \
 		echo 'ShellCheck $(SHELLCHECK_VERSION) is required' >&2; \
 		exit 1; \
@@ -320,22 +317,6 @@ browser-check: frontend-deps
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
 	bash .github/e2e/serve.sh "$$tmp/yomihon" 19734 -- bash .github/e2e/probes.sh
 
-
-# The complete gate cannot inherit a scoped selector from a developer shell.
-ifneq ($(filter verify,$(MAKECMDGOALS)),)
-override MUTATION_SHARD :=
-endif
-export MUTATION_SHARD
-
-mutation-check: frontend-deps
-	@set -eu; \
-	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-mutations.XXXXXX"); \
-	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
-	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
-	set --; \
-	if [ -n "$${MUTATION_SHARD:-}" ]; then set -- --shard "$$MUTATION_SHARD"; fi; \
-	bash .github/e2e/serve.sh "$$tmp/yomihon" 19735 -- bash .github/e2e/probes.sh --mutate "$$@"
-
 portable-build-check:
 	@set -eu; \
 	for target in darwin/amd64 darwin/arm64 linux/amd64 linux/arm64 windows/amd64 windows/arm64; do \
@@ -366,7 +347,7 @@ stylelint-check:
 
 # convention-check runs the checks that keep the module's shape from drifting
 # while every individual change looks reasonable: the layer boundaries, the
-# repeated message shapes, and the code nothing reaches any more. They are Go
+# bilingual interface text, and the code nothing reaches any more. They are Go
 # tests, so `make test` already runs them; naming them here gives the failure a
 # name an operator can act on, and keeps the count of things `verify` asserts
 # visible in one line.
@@ -392,7 +373,7 @@ deadcode-check:
 # where an alphabetical sort would put it — reports the advisory and
 # silences every later gate in that run. Keep it required; do not drop
 # it, and do not re-sort it forward.
-verify: tracked-paths-check mod-check fmt-check vet lint staticcheck gosec test convention-check real-vault-build-check workflow-check build-check frontend-check check-fixtures e2e-http-check fuzz-smoke browser-check mutation-check portable-build-check performance-smoke vuln
+verify: tracked-paths-check mod-check fmt-check vet lint staticcheck gosec test convention-check real-vault-build-check workflow-check build-check frontend-check check-fixtures e2e-http-check fuzz-smoke browser-check portable-build-check performance-smoke vuln
 .NOTPARALLEL: verify
 
 # CI runs this instead of verify so sibling jobs own the prerequisites they

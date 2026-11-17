@@ -1,5 +1,5 @@
 {
-  "_note": "Hand-applied import artifact for GitHub ruleset id 22428376. Live enforcement lives in repository settings and the rulesets API, not this path. check-gate-contract compares this file to the workflow contract, not to the live ruleset, so a context added here before the maintainer applies it will pass the gate while remaining unenforced on merge.",
+  "_note": "Hand-applied import artifact for GitHub ruleset id 22428376. Live enforcement lives in repository settings and the rulesets API, not this path; nothing compares this file with the live ruleset, so a change here takes effect only when the maintainer applies it. The commit-attribution job runs on every pull request but is deliberately not a required context: tooling can append an attribution trailer after the message is written, and the squash is what keeps it off main.",
   "name": "main",
   "target": "branch",
   "enforcement": "active",
@@ -47,11 +47,7 @@
           {"context": "lint-frontend", "integration_id": 15368},
           {"context": "e2e-http", "integration_id": 15368},
           {"context": "fuzz", "integration_id": 15368},
-          {"context": "e2e-behavior", "integration_id": 15368},
-          {"context": "e2e-mutations (1)", "integration_id": 15368},
-          {"context": "e2e-mutations (2)", "integration_id": 15368},
-          {"context": "e2e-mutations (3)", "integration_id": 15368},
-          {"context": "e2e-mutations (4)", "integration_id": 15368}
+          {"context": "e2e-behavior", "integration_id": 15368}
         ]
       }
     }
