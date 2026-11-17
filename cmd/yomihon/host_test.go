@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net"
 	"net/http"
 	"net/netip"
@@ -26,8 +27,14 @@ import (
 
 // nextBlock hands each test a block of ports of its own. The vaults a test adds
 // take the ports above its starting one, and the list probes them by binding, so
-// two tests whose starting ports sit side by side would take each other's.
-var nextBlock atomic.Int32
+// two tests whose starting ports sit side by side would take each other's. The
+// first block is chosen at random for each run, since several runs of these tests
+// share a machine, and each counting up from the same port would meet.
+var nextBlock = func() *atomic.Int32 {
+	var first atomic.Int32
+	first.Store(int32(rand.IntN(800))) // #nosec G115 -- a number below 800
+	return &first
+}()
 
 const portsPerTest = 40
 
