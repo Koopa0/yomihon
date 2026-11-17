@@ -264,6 +264,29 @@ type scanState struct {
 	contains map[string]struct{}
 	problems []Diagnostic
 	skipped  []SkipDiagnostic
+	// leftOut holds the topmost folders and the single files the walk passed
+	// over by a rule of its own: the built-in folder names and the vault's
+	// .gitignore. They are kept so a link into one is told apart from a link
+	// to a file that is gone.
+	leftOut map[string]struct{}
+}
+
+// leaves reports whether canonicalPath is a path the walk left out by rule,
+// or lies beneath a folder it did.
+func (s *scanState) leaves(canonicalPath string) bool {
+	if len(s.leftOut) == 0 {
+		return false
+	}
+	for i := range canonicalPath {
+		if canonicalPath[i] != '/' {
+			continue
+		}
+		if _, ok := s.leftOut[canonicalPath[:i]]; ok {
+			return true
+		}
+	}
+	_, ok := s.leftOut[canonicalPath]
+	return ok
 }
 
 // Files returns the observed regular files in canonical path order.
@@ -292,15 +315,16 @@ func (s Scan) Entry(canonicalPath string) (Entry, bool) {
 }
 
 // OutsideScan reports whether relPath lies beyond what this scan looked at:
-// beyond the dot-name rule every scan follows and beyond the directories the
-// boundary in force when it ran excluded. It is the question [OutsideScan]
-// answers, put to the scan that actually ran. A zero Scan looked at nothing
-// and applies the dot-name rule alone.
+// beyond the dot-name rule every scan follows, beyond the directories the
+// boundary in force when it ran excluded, and beyond what the walk left out by
+// its own rules, the built-in folder names and the vault's .gitignore. It is
+// the question [OutsideScan] answers, put to the scan that actually ran. A zero
+// Scan looked at nothing and applies the dot-name rule alone.
 func (s Scan) OutsideScan(relPath string) bool {
 	if s.state == nil {
 		return OutsideScan(relPath)
 	}
-	return s.state.boundary.OutsideScan(relPath)
+	return s.state.boundary.OutsideScan(relPath) || s.state.leaves(relPath)
 }
 
 // Contains reports whether canonicalPath was observed as a directory or a
@@ -521,8 +545,9 @@ func (r *Reader) Close() error {
 	return r.root.Close()
 }
 
-// ScanAvailable observes every usable regular entry that is neither dot-named
-// nor under a directory the boundary excludes. Nested paths that cannot be
+// ScanAvailable observes every usable regular entry that is neither dot-named,
+// nor under a directory the boundary excludes, nor left out by the vault's
+// .gitignore or the built-in folder names. Nested paths that cannot be
 // observed are recorded as problems while usable neighbors remain available.
 // Root errors, cancellation, and canonical collisions fail the scan without
 // returning a partial value.
@@ -530,8 +555,9 @@ func (r *Reader) ScanAvailable(ctx context.Context) (Scan, error) {
 	return r.scan(ctx, scanAvailable)
 }
 
-// ScanComplete observes every regular entry that is neither dot-named nor
-// under a directory the boundary excludes. Any observation error fails the scan
+// ScanComplete observes every regular entry that is neither dot-named, nor
+// under a directory the boundary excludes, nor left out by the vault's
+// .gitignore or the built-in folder names. Any observation error fails the scan
 // without returning a partial value.
 func (r *Reader) ScanComplete(ctx context.Context) (Scan, error) {
 	return r.scan(ctx, scanComplete)
@@ -551,12 +577,24 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 	boundary := r.currentBoundary()
 	walk := sourceWalk{
 		token:        r.token,
+		root:         r.root,
 		boundary:     boundary,
 		completeness: completeness,
 		seen:         make(map[string]string),
 		directories:  make(map[string]fs.FileInfo),
 		contains:     map[string]struct{}{".": {}},
+		leftOut:      make(map[string]struct{}),
 	}
+	rules, err := r.readIgnoreRules(ctx)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return Scan{}, ctxErr
+		}
+		if problem := walk.problem(ignoreFile, nil, err); problem != nil {
+			return Scan{}, fmt.Errorf("read vault ignore rules: %w", problem)
+		}
+	}
+	walk.ignore = rules
 	err = fs.WalkDir(r.root.FS(), ".", func(raw string, d fs.DirEntry, walkErr error) error {
 		return walk.visit(ctx, raw, d, walkErr)
 	})
@@ -591,6 +629,7 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 		contains: walk.contains,
 		problems: walk.problems,
 		skipped:  walk.skipped,
+		leftOut:  walk.leftOut,
 	}}, nil
 }
 
@@ -603,11 +642,14 @@ const (
 
 type sourceWalk struct {
 	token        *readerToken
+	root         *os.Root
 	boundary     Boundary
+	ignore       ignoreRules
 	completeness scanCompleteness
 	seen         map[string]string
 	directories  map[string]fs.FileInfo
 	contains     map[string]struct{}
+	leftOut      map[string]struct{}
 	entries      []Entry
 	problems     []Diagnostic
 	skipped      []SkipDiagnostic
@@ -630,8 +672,11 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 		return nil
 	}
 	canonical := NormalizeNFC(filepath.ToSlash(raw))
-	if d.IsDir() && w.boundary.excludes(canonical) {
-		return fs.SkipDir
+	if w.passesOver(raw, canonical, d) {
+		if d.IsDir() {
+			return fs.SkipDir
+		}
+		return nil
 	}
 	if err := recordCanonicalPath(w.seen, raw, canonical); err != nil {
 		return err

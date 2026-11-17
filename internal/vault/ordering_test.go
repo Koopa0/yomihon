@@ -54,18 +54,33 @@ func TestPathsSortTheWayTheirNumbersRead(t *testing.T) {
 			want:  []string{"一年之計.md", "一期一會.md"},
 		},
 		{
-			// 零 opens a number wherever it stands, so a folder of Go notes
-			// would otherwise open with 零值設計 as though it were note zero.
-			// Where one side spells a number and the other does not, the
-			// number goes last, and that answer is what these two hold.
-			name:  "a numeral opening an ordinary word does not jump the notes above it",
-			paths: []string{"Go 零值設計.md", "Go Array.md", "Go CGO.md"},
-			want:  []string{"Go Array.md", "Go CGO.md", "Go 零值設計.md"},
+			// 零 opens a number wherever it stands. Where one side spells a
+			// number and the other does not, the number goes first, so 零值設計
+			// leads its neighbours the way a note zero would; ranking only the
+			// Arabic digits first would close a cycle with the numerals.
+			name:  "a numeral opening an ordinary word is read as the number it is",
+			paths: []string{"Go Array.md", "Go 零值設計.md", "Go CGO.md"},
+			want:  []string{"Go 零值設計.md", "Go Array.md", "Go CGO.md"},
 		},
 		{
-			name:  "a date sorts after the words, for the same reason",
-			paths: []string{"2026-07-30.md", "README.md", "Notes.md"},
-			want:  []string{"Notes.md", "README.md", "2026-07-30.md"},
+			name:  "numbered notes lead the words around them",
+			paths: []string{"README.md", "10-appendix.md", "Notes.md", "02-setup.md", "01-intro.md"},
+			want:  []string{"01-intro.md", "02-setup.md", "10-appendix.md", "Notes.md", "README.md"},
+		},
+		{
+			name:  "a date sorts before the words, for the same reason",
+			paths: []string{"README.md", "2026-07-30.md", "Notes.md"},
+			want:  []string{"2026-07-30.md", "Notes.md", "README.md"},
+		},
+		{
+			name:  "a number after a shared prefix leads the words there too",
+			paths: []string{"Chapter Intro.md", "Chapter 10.md", "Chapter 2.md"},
+			want:  []string{"Chapter 2.md", "Chapter 10.md", "Chapter Intro.md"},
+		},
+		{
+			name:  "folders are ordered by their leading number before their files are",
+			paths: []string{"notes/a.md", "10 Archive/z.md", "2 Areas/b.md"},
+			want:  []string{"2 Areas/b.md", "10 Archive/z.md", "notes/a.md"},
 		},
 		{
 			// A digit belonging to another script is text here. Reading it as
@@ -76,7 +91,7 @@ func TestPathsSortTheWayTheirNumbersRead(t *testing.T) {
 			// Chinese numerals; the rest is a character like any other.
 			name:  "a digit from another script sorts as the character it looks like",
 			paths: []string{"２.md", "٢.md", "1.md", "a.md"},
-			want:  []string{"a.md", "٢.md", "２.md", "1.md"},
+			want:  []string{"1.md", "a.md", "٢.md", "２.md"},
 		},
 	}
 	for _, tt := range tests {

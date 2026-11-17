@@ -12,6 +12,11 @@ import (
 
 const markdownFaultAttr = "yomihonMarkdownFault"
 
+// markdownUnlinkedAttr marks a link into a place the scan does not look. The
+// page keeps its label and drops the link: no route serves what is there, so
+// an anchor would only lead to a not-found page.
+const markdownUnlinkedAttr = "yomihonMarkdownUnlinked"
+
 type markdownFault struct {
 	reason string
 	class  string
@@ -28,7 +33,11 @@ func (r *Pipeline) resolveMarkdownLinks(doc ast.Node, owner string, col *collect
 		}
 		written := string(link.Destination)
 		result := graph.ResolveMarkdown(owner, written, func(p string) bool { return !r.files.OutsideScan(p) }, func(p string) bool { return !r.files.MissingFile(p) })
-		if !result.Local || result.Invalid || result.Withheld {
+		if result.Withheld {
+			link.SetAttributeString(markdownUnlinkedAttr, true)
+			return ast.WalkContinue, nil
+		}
+		if !result.Local || result.Invalid {
 			return ast.WalkContinue, nil
 		}
 		if result.Kind == graph.KindUnique {

@@ -33,6 +33,10 @@ var (
 type scanAuthority struct {
 	contract *schema.Contract
 	privacy  schema.PrivacyPolicy
+	// scan is the observation the judge works from, set once it has run. It
+	// knows what the walk left out by its own rules, which the contract's
+	// boundary cannot.
+	scan vault.Scan
 }
 
 // domainRoots are the folders the contract declares a note's own folder names
@@ -86,9 +90,10 @@ func (a scanAuthority) validate() error {
 }
 
 // outsideScan reports whether relPath lies where this vault's scan does not
-// look: under a dot-prefixed name or a directory the contract excludes.
+// look: under a dot-prefixed name, a directory the contract excludes, or
+// anything the walk left out by the vault's .gitignore or its built-in rules.
 func (a scanAuthority) outsideScan(relPath string) bool {
-	return a.contract.ScanBoundary().OutsideScan(relPath)
+	return a.contract.ScanBoundary().OutsideScan(relPath) || a.scan.OutsideScan(relPath)
 }
 
 // readable reports whether a link may be followed to relPath at all: the

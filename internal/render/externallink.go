@@ -76,6 +76,9 @@ func (r externalLinkRenderer) renderLink(w util.BufWriter, source []byte, node a
 		if value, found := n.AttributeString(markdownFaultAttr); found {
 			return renderMarkdownFault(w, node, value, entering)
 		}
+		if _, found := n.AttributeString(markdownUnlinkedAttr); found {
+			return ast.WalkContinue, nil
+		}
 	}
 	if !ok || !leavesTheLibrary(n.Destination) {
 		return r.link(w, source, node, entering)

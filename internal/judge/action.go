@@ -113,6 +113,7 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 	if err != nil {
 		return nil, a.abort(scanStopped(err, a.authority))
 	}
+	a.authority.scan = a.scan
 	if hooks.afterScan != nil {
 		hooks.afterScan()
 	}

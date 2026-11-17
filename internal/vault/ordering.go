@@ -20,9 +20,10 @@ var chineseUnits = map[rune]int{'十': 10, '百': 100, '千': 1000}
 
 // ComparePaths orders every list of vault paths by each segment's stem, then
 // extension. Case is folded with Unicode simple folding, and runs of digits
-// retain their numeric reading. Numbers sort after text: mixing code-point
+// retain their numeric reading. Numbers sort before text, so 01-intro and
+// 2026-07-30 lead a folder the way its reader numbered them. Mixing code-point
 // order with numeric order would let Latin letters, Chinese numerals and ASCII
-// digits close a cycle. The original bytes settle a tie only after every
+// digits close a cycle, so the two kinds are ranked as whole classes. The original bytes settle a tie only after every
 // segment agrees, so case and leading zeros cannot outrank a later filename.
 func ComparePaths(a, b string) int {
 	left, right := a, b
@@ -71,9 +72,9 @@ func comparePathPart(a, b string) int {
 		// number reading, and one that disagrees closes a cycle.
 		if (aw > 0) != (bw > 0) {
 			if aw > 0 {
-				return 1
+				return -1
 			}
-			return -1
+			return 1
 		}
 		if c := cmp.Compare(foldPathRune(ar[i]), foldPathRune(br[j])); c != 0 {
 			return c

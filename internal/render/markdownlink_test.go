@@ -80,24 +80,39 @@ func TestMarkdownLinksKeepLabelsAndSourceOwnership(t *testing.T) {
 }
 
 // beyondScan answers for a vault whose scan does not look under Host/lab,
-// whether because the contract excludes it or because it is hidden.
+// whether because the contract excludes it, the vault's .gitignore names it,
+// or it is hidden.
 type beyondScan struct{ markdownFiles }
 
-func (beyondScan) OutsideScan(p string) bool { return strings.HasPrefix(p, "Host/lab/") }
+func (beyondScan) OutsideScan(p string) bool {
+	return p == "Host/lab" || strings.HasPrefix(p, "Host/lab/") || strings.Contains("/"+p, "/.")
+}
 
-func TestMarkdownLinkIntoAPlaceTheScanDoesNotLookIsLeftAsWritten(t *testing.T) {
+// No route serves what the scan did not look at, so an anchor to it is a
+// not-found page. The reader keeps the words of the link and loses the link.
+func TestMarkdownLinkIntoAPlaceTheScanDoesNotLookKeepsOnlyItsLabel(t *testing.T) {
 	t.Parallel()
-	files := beyondScan{markdownFiles{"Host/lab/run.md": true, "Host/other.md": true}}
+	files := beyondScan{markdownFiles{"Host/lab/run.md": true, "Host/lab/data.csv": true, "Host/.config/x.md": true, "Host/other.md": true}}
 	r := render.New(graph.BuildFromNotes([]graph.NoteInput{{RelPath: "Host/other.md"}}, nil), transclusions(nil), noTitles{}, files)
-	got := r.HTML("Host/here.md", "", "[run](lab/run.md) [other](other.md)\n", wording.En)
-	if want := `<a href="lab/run.md">run</a>`; !strings.Contains(got.HTML, want) {
-		t.Errorf("a link beyond the scan was rewritten or faulted; want %q in:\n%s", want, got.HTML)
-	}
-	if want := `<a href="/notes/Host/other.md">other</a>`; !strings.Contains(got.HTML, want) {
-		t.Errorf("a link inside the scan was not rewritten; want %q in:\n%s", want, got.HTML)
-	}
-	if len(got.Diagnostics) != 0 {
-		t.Errorf("diagnostics = %+v, want none", got.Diagnostics)
+	for _, tt := range []struct{ name, body, want string }{
+		{name: "a note", body: "[run](lab/run.md)", want: "<p>run</p>"},
+		{name: "a file that is not a note", body: "[data](lab/data.csv)", want: "<p>data</p>"},
+		{name: "a folder", body: "[the lab](lab/)", want: "<p>the lab</p>"},
+		{name: "a hidden folder", body: "[config](.config/x.md)", want: "<p>config</p>"},
+		{name: "a formatted label", body: "[**run**](lab/run.md \"title\")", want: "<p><strong>run</strong></p>"},
+		{name: "a fragment on it", body: "[run](lab/run.md#top)", want: "<p>run</p>"},
+		{name: "a link inside the scan beside it", body: "[run](lab/run.md) [other](other.md)", want: `<p>run <a href="/notes/Host/other.md">other</a></p>`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := r.HTML("Host/here.md", "", tt.body+"\n", wording.En)
+			if want := tt.want + "\n"; got.HTML != want {
+				t.Errorf("html = %q, want %q", got.HTML, want)
+			}
+			if len(got.Diagnostics) != 0 {
+				t.Errorf("diagnostics = %+v, want none", got.Diagnostics)
+			}
+		})
 	}
 }
 
