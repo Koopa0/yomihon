@@ -115,7 +115,7 @@ const whitePaper = ":root[data-paper='shiro']"
 
 var whitePaperTokens = map[string]bool{
 	"--bg": true, "--panel": true, "--selected": true,
-	"--overlay": true, "--code-ground": true, "--mat": true,
+	"--overlay": true, "--code-ground": true, "--mat": true, "--endpaper": true,
 }
 
 // oneThemeColourIn returns the first colour a value writes outside

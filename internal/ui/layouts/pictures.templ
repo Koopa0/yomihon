@@ -1,0 +1,21 @@
+package layouts
+
+// icon, still, endpaper and ornament are the markup of the pictures;
+// pictures.go decides which names reach them. Each is a mask over the ink of its
+// place, so what a page writes is a name and nothing else: which file a name
+// means is in the generated assets/css/art.css.
+templ icon(name string) {
+	<span class="y-icon" data-icon={ name } aria-hidden="true"></span>
+}
+
+templ still(name string) {
+	<div class="y-still" data-still={ name } aria-hidden="true"></div>
+}
+
+templ endpaper(pattern string) {
+	<div class="y-endpaper" data-endpaper={ pattern } aria-hidden="true"></div>
+}
+
+templ ornament() {
+	<div class="y-ornament" aria-hidden="true"></div>
+}

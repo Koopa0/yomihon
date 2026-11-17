@@ -353,8 +353,17 @@ it by hand: edit the source, regenerate, and commit the output with it:
 | --- | --- | --- |
 | `internal/ui/**/*_templ.go` | the matching `.templ` file | `make gen` |
 
-The stylesheets under `assets/css/` are not generated: `internal/asset` joins
-them as they are, so editing one needs no regeneration.
+The stylesheets under `assets/css/` are not generated, except `art.css`:
+`internal/asset` joins them as they are, so editing one needs no regeneration.
+
+The pictures under `assets/icons` and `assets/art`, and `assets/css/art.css`
+that names them, are generated too but sit outside the table, because CI cannot
+regenerate them: they are cut from the design team's PNGs, which are not in
+version control. `go run .github/art-import/main.go <art-in directory>` makes
+them, and `.github/art-import/inputs.sha256` names the bytes it made them from.
+`go test ./assets` holds the committed files to the `SHA256SUMS` list beside
+them, so a hand edit is caught there. Rerunning on the same inputs writes the
+same bytes.
 
 Continuous integration regenerates everything in the table and fails on any
 difference, so a hand edit is caught, not merged. `make fmt` formats the

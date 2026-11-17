@@ -8903,3 +8903,45 @@ samp,
     min-height: 44px;
   }
 }
+
+/* The pictures a page asks for by name: layouts.Icon, Still, Endpaper and
+   Ornament. Each is a mask over the ink of the place it sits in, so one file
+   serves the light theme and the dark; which file a name means is in art.css,
+   which is generated. */
+.y-icon {
+  background-color: currentColor;
+  display: inline-block;
+  flex: none;
+  height: var(--icon-size);
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+  vertical-align: middle;
+  width: var(--icon-size);
+}
+
+.y-still {
+  aspect-ratio: 8 / 5;
+  background-color: var(--fg);
+  display: block;
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+  width: var(--still-w);
+}
+
+.y-endpaper {
+  background-color: var(--endpaper);
+  display: block;
+  height: var(--endpaper-h);
+  mask-repeat: repeat;
+  width: 100%;
+}
+
+.y-ornament {
+  background-color: var(--fg-faint);
+  display: block;
+  height: 16px;
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+  width: 64px;
+}
