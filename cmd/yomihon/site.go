@@ -12,6 +12,7 @@ import (
 	"github.com/koopa0/yomihon/internal/asset"
 	"github.com/koopa0/yomihon/internal/course"
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/approval"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/preference"
@@ -75,7 +76,7 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 // own, and nowhere in the vault itself. Only serving builds one. The
 // adjudication commands answer about the vault, never about the reader, and
 // never open this; marks answers about the reader without it, reading the
-// question marks through mark.File, and the two figure commands open it to
+// question marks through mark.Store, and the two figure commands open it to
 // approve and revoke.
 func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logger) (*readingSite, error) {
 	source, err := vault.Open(root)
@@ -153,21 +154,25 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 	keptPlace := func() (mark.Bookmark, bool) { return mark.Bookmark{}, false }
 	markAddress := ""
 	questionAddress := ""
-	var questions func() ([]mark.Question, error)
+	var questions func() ([]mark.Mark, error)
 	var figureApproved func(string, [sha256.Size]byte) (render.Approval, error)
-	var marks *mark.File
+	var marks *mark.Store
 	if configDir != "" {
-		if marks, err = mark.New(configDir, source.Name()); err != nil {
-			return nil, fmt.Errorf("name the reader's marks file: %w", err)
+		if marks, err = mark.Open(configDir, source.Name()); err != nil {
+			return nil, fmt.Errorf("name the reader's marks: %w", err)
 		}
-		keptPlace = marks.Bookmark
-		markAddress = mark.Address
-		questionAddress = mark.QuestionAddress
-		questions = marks.Questions
+		approvals, approvalsErr := approval.Open(configDir, source.Name())
+		if approvalsErr != nil {
+			return nil, fmt.Errorf("name the figure approvals: %w", approvalsErr)
+		}
+		keptPlace = bookmarkFrom(marks, log)
+		markAddress = mark.Paths.Bookmark
+		questionAddress = mark.Paths.Question
+		questions = func() ([]mark.Mark, error) { return marks.List(mark.Question) }
 		// Approvals are read, never written, by the reading server: only the
 		// approval command at a terminal writes them. A page and a frame ask
 		// on every request, so an approval or a revocation needs no restart.
-		figureApproved = figureApprovalFrom(marks)
+		figureApproved = figureApprovalFrom(approvals)
 		store.ApproveFiguresBy(figureApproved)
 	} else {
 		log.Warn("no reading place can be kept; the reading room is unaffected",
@@ -207,7 +212,6 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 	readers.Register(mux)
 	if marks != nil {
 		mark.NewHandler(marks, readers, log).Register(mux)
-		mark.NewQuestionHandler(marks, readers, log).Register(mux)
 	}
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
@@ -229,10 +233,24 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 	return site, nil
 }
 
-// figureApprovalFrom reads where an approval stands from the marks directory.
-func figureApprovalFrom(marks *mark.File) func(string, [sha256.Size]byte) (render.Approval, error) {
+// bookmarkFrom reads the bookmark kept for reading outside any course. A file
+// that cannot be read is logged and answers no bookmark: the page asks on the
+// reader's behalf, and there is nowhere to continue from.
+func bookmarkFrom(marks *mark.Store, log *slog.Logger) func() (mark.Bookmark, bool) {
+	return func() (mark.Bookmark, bool) {
+		kept, found, err := marks.Bookmark(mark.NoCourse)
+		if err != nil {
+			log.Warn("read the bookmark", "directory", marks.Dir(), "error", err)
+			return mark.Bookmark{}, false
+		}
+		return kept, found
+	}
+}
+
+// figureApprovalFrom reads where an approval stands from the approvals file.
+func figureApprovalFrom(approvals *approval.Store) func(string, [sha256.Size]byte) (render.Approval, error) {
 	return func(rel string, sum [sha256.Size]byte) (render.Approval, error) {
-		approved, lapsed, err := marks.FigureApproved(rel, sum)
+		approved, lapsed, err := approvals.Approved(rel, sum)
 		switch {
 		case err != nil:
 			return render.Unapproved, err

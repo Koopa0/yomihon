@@ -1,146 +1,228 @@
-// Package mark keeps the places a reader meant to come back to.
+// Package mark keeps what a reader leaves in the notes: highlights, questions,
+// thoughts and bookmarks.
 //
-// A note's status is the author's word about the material and never the
-// reader's own progress, so a reader who stops in the middle of one needs a
-// bookmark mark of their own. There is one bookmark in total: setting
-// another replaces it. It records where to land rather than anything about
-// what was understood — the
-// id of the nearest anchor above where the reader stopped, how far below it
-// they were, and the identity of the bytes that were on screen — because a
-// mark meant to survive days has to survive a change of text size or typeface,
-// and a pixel alone does not.
+// A mark is the reader's, never the author's: a note's status is the author's
+// word about the material, and a mark is the reader's word about their own
+// reading. It lives in files of yomihon's own, under the configuration
+// directory the platform gives the person running it, one directory per vault.
+// The vault therefore keeps no field of it, no folder needs an ignore entry,
+// two machines never write one file between them, and the scanner never meets
+// it. What it costs is that a mark does not travel: one left on this machine is
+// invisible on the next, which the interface says in words rather than leaving
+// the reader to find out.
 //
-// It lives in a file of yomihon's own, under the configuration directory the
-// platform gives the person running it, one directory per vault. The vault
-// therefore keeps exactly one written field and nothing else, no folder needs
-// an ignore entry, two machines never write one file between them, and the
-// scanner never meets this. What it costs is that a mark does not travel: one
-// left on this machine is invisible on the next, which the interface says in
-// words rather than leaving the reader to find out.
+// Marks are in marks.json, each with the note, the id of the nearest anchor
+// above it, and, for a span of text, the words chosen and a little of what
+// surrounds them, so a mark can find its place again after the note is edited.
+// Bookmarks are in progress.json, one for each course and one for reading
+// outside any course. Both are replaced whole through confdir, and a file that
+// cannot be read is kept as it is and reported, never replaced by the next
+// mark.
 //
-// Question marks accumulate separately in a second file. Each holds only
-// a path, anchor and time; it makes no promise to recover a changed source.
-// Unlike bookmark storage, unreadable question storage is preserved
-// and reported rather than replaced by the next mark.
+// Files an earlier version wrote, reader.json and uncertainty.json, are read
+// and converted when the new file is not there yet, and are never touched. See
+// migrate.go.
 //
-// The reading server writes both files. The marks command, which answers
-// about the reader, reads the question file and never writes either.
-//
-// A third file in the same directory holds the figures the owner approved to
-// run their scripts: each a path and the SHA-256 of the exact bytes approved.
-// It is a record about the reader's own browser rather than about the vault,
-// which is why it lives here and not in the vault: the reading server only
-// reads it, and only the approve-figure and revoke-figure commands write it.
-// No HTTP route writes it.
-//
-// The adjudication commands — check, coverage, exists — never read any of
-// these files: what they answer is about the vault, and this is about the
-// reader.
+// The reading server writes them. The marks command, which answers about the
+// reader, reads and never writes. The adjudication commands — check, coverage,
+// exists — never read any of it: what they answer is about the vault, and this
+// is about the reader.
 package mark
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
-	"path/filepath"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// ErrInvalid means the submitted mark is not a shape this file can hold. The
+// ErrInvalid means the submitted mark is not a shape these files can hold. The
 // wrapped sentence names the part that was refused. Nothing is written: a mark
 // is one value, and half of one would send the reader somewhere nobody chose.
 var ErrInvalid = errors.New("the mark is not a shape this file can hold")
 
-// ErrNotNamed means the marks file was asked for without both of the things
-// that name it: where this platform keeps a program's own files, and which
-// vault the marks belong to.
-var ErrNotNamed = errors.New("the marks file needs a configuration directory and a vault root")
+// ErrUnreadable means a stored file cannot be read safely: it is damaged, in a
+// shape this version does not know, or longer than anything written here. The
+// file is left as it is so the reader can recover it, and what depends on it
+// is refused rather than answered from nothing.
+var ErrUnreadable = errors.New("the marks cannot be read")
 
-// documentVersion is the shape the file is written in and the only one read
-// back. A file carrying any other number is treated as holding no mark and is
-// replaced whole by the next one, which is what this number is for: it refuses
-// a shape rather than converting it.
-const documentVersion = 1
+// ErrNotNamed means a Store was asked for without both of the things that name
+// it: where this platform keeps a program's own files, and which vault the
+// marks belong to.
+var ErrNotNamed = confdir.ErrNotNamed
 
-// fileName is the marks file inside this vault's own directory.
-const fileName = "reader.json"
+// Kind is what a mark is.
+type Kind string
 
-// directoryNameLength is how much of the vault digest names the directory.
-// Half of the digest distinguishes any two folders a person has, and a
-// directory name is read by people who have to find it to delete it.
-const directoryNameLength = 32
+// The kinds a reader can leave on a span of text or on a whole section.
+const (
+	// Highlight is a span of text the reader picked out. It writes nothing.
+	Highlight Kind = "highlight"
+	// Question is a place the reader does not understand yet, with a reason
+	// they may give, open until they resolve it.
+	Question Kind = "question"
+	// Thought is something the reader wrote beside a span or a section.
+	Thought Kind = "thought"
+)
 
 // The bounds a stored mark is held to. They are the size of the things
-// themselves — an anchor is an id the renderer wrote, an offset is a distance
-// down one document — so a value beyond them was not produced by a reading
-// page and is refused rather than stored and handed back later.
+// themselves — an anchor is an id the renderer wrote, a quote is a paragraph at
+// most — so a value beyond them was not produced by a reading page and is
+// refused rather than stored and handed back later.
 const (
 	maxRelPathBytes = 1024
 	maxAnchorBytes  = 256
+	maxQuoteBytes   = 8 << 10
+	maxContextBytes = 512
+	maxReasonBytes  = 4 << 10
+	maxBodyBytes    = 32 << 10
 	maxOffset       = 1 << 24
 	identityLength  = 2 * sha256.Size
 )
 
-// Bookmark is the place a reader deliberately left off at. It is a
-// position and nothing more: no judgement about the note, no history, and no
-// second one.
-type Bookmark struct {
+// MaxMarks bounds how many marks are kept at once. A reader marks a few hundred
+// places in a long reading; the bound keeps an unbounded stream of requests from
+// growing a file that every later request reads whole.
+const MaxMarks = 5000
+
+// Mark is one thing a reader left in a note.
+type Mark struct {
+	// ID names this mark for as long as it exists. It is assigned by Add.
+	ID   string `json:"id"`
+	Kind Kind   `json:"kind"`
 	// RelPath is the note, as a vault-relative slash path in NFC — the same
 	// spelling every other face here uses, so a mark and a page name one note.
-	RelPath string
-	// Anchor is the id of the nearest anchor above where the reader stopped —
-	// any rendered id the authored body carries: a heading or block address
-	// on most notes, and a footnote reference or a container elsewhere. The
-	// nearest one is the most precise thing the page can name at that point,
-	// whatever kind of element carries it. It is empty where the position had
-	// none above it, which a short note ordinarily has; Offset is then
-	// measured from the top of the document, and the mark keeps the weaker
-	// promise a pixel can keep.
-	Anchor string
-	// Offset is how far below Anchor the reader was when they set the mark.
-	// Landing scrolls to Anchor and adds it.
-	Offset int
-	// Identity is the content identity of the bytes the reader was looking at,
-	// as lowercase hex: the SHA-256 of every byte of the file. A mark whose
-	// identity no longer matches still points at the note — it is the reader's
-	// best pointer — and the row that offers it says the note has changed.
-	Identity string
-	// At is when the mark was set.
-	At time.Time
+	RelPath string `json:"path"`
+	// Anchor is the id of the nearest anchor above the mark — any rendered id
+	// the authored body carries: a heading or block address on most notes, a
+	// footnote or a container elsewhere. It is empty where nothing above it has
+	// one, and the mark then names the note as a whole.
+	Anchor string `json:"anchor,omitempty"`
+	// Quote is the words the reader chose, and Before and After a little of
+	// what stood on either side of them. A mark that finds its place again
+	// does so by these. A mark of a whole section has none of the three.
+	Quote  string `json:"quote,omitempty"`
+	Before string `json:"before,omitempty"`
+	After  string `json:"after,omitempty"`
+	// Identity is the content identity of the note's bytes when the mark was
+	// made, as lowercase hex: the SHA-256 of every byte of the file.
+	Identity string `json:"identity,omitempty"`
+	// Reason is why a question is one, in the reader's words. It may be empty.
+	Reason string `json:"reason,omitempty"`
+	// Body is what a thought says. It is never empty.
+	Body string `json:"body,omitempty"`
+	// ResolvedAt is when a question stopped being one; zero while it is open.
+	ResolvedAt time.Time `json:"resolved,omitzero"`
+	// At is when the mark was made.
+	At time.Time `json:"at"`
 }
 
-// Directory is where this vault's marks file sits inside configDir.
-//
-// The name is derived from the vault root rather than spelled from it: a path
-// is not a safe directory name, and two vaults must land in two directories.
-// The root is normalized to NFC first, because a folder reached by two
-// spellings of the same name is one vault and would otherwise be given two
-// directories with two different marks in them. The name says nothing about
-// which vault it belongs to, which is what the vault field inside the file is
-// for — a person who has to find the right directory opens one file.
-func Directory(configDir, vaultRoot string) string {
-	sum := sha256.Sum256([]byte(vault.NormalizeNFC(vaultRoot)))
-	return filepath.Join(configDir, "yomihon", hex.EncodeToString(sum[:])[:directoryNameLength])
-}
-
-// validate reports whether c is a mark this file may hold, naming the part it
-// refuses. The checks are the file's own: what reaches here came in over a
-// route anyone on this machine can post to, and a value stored unchecked is
-// handed back to a later reading page as though a reader had chosen it.
-func validate(c *Bookmark) error {
+// validateMark reports whether m is a mark these files may hold, naming the
+// part it refuses. The checks are the file's own: what reaches here came in
+// over a route anyone on this machine can post to, and a value stored
+// unchecked is handed back to a later reading page as though a reader had
+// chosen it.
+func validateMark(m *Mark) error {
+	if m == nil {
+		return fmt.Errorf("%w: no mark", ErrInvalid)
+	}
+	if !isID(m.ID) {
+		return fmt.Errorf("%w: the id is not 32 lowercase hex digits", ErrInvalid)
+	}
+	if err := validateKind(m); err != nil {
+		return err
+	}
+	if err := validatePath(m.RelPath); err != nil {
+		return err
+	}
+	if err := ValidateAnchor(m.Anchor); err != nil {
+		return err
+	}
+	if err := validateWords(m); err != nil {
+		return err
+	}
 	switch {
-	case c.RelPath == "" || len(c.RelPath) > maxRelPathBytes:
+	case m.Identity != "" && !isContentIdentity(m.Identity):
+		return fmt.Errorf("%w: the identity is not a content identity", ErrInvalid)
+	case m.At.IsZero():
+		return fmt.Errorf("%w: the mark has no time", ErrInvalid)
+	}
+	return nil
+}
+
+// validateKind holds what a kind may carry: a highlight is a span and says
+// nothing, a question may give a reason and be resolved, a thought says
+// something.
+func validateKind(m *Mark) error {
+	switch m.Kind {
+	case Highlight:
+		if m.Quote == "" {
+			return fmt.Errorf("%w: a highlight is a span of text", ErrInvalid)
+		}
+		if m.Reason != "" || m.Body != "" || !m.ResolvedAt.IsZero() {
+			return fmt.Errorf("%w: a highlight carries no reason, body or resolution", ErrInvalid)
+		}
+	case Question:
+		if m.Body != "" {
+			return fmt.Errorf("%w: a question carries no body", ErrInvalid)
+		}
+	case Thought:
+		if m.Body == "" {
+			return fmt.Errorf("%w: a thought says something", ErrInvalid)
+		}
+		if m.Reason != "" || !m.ResolvedAt.IsZero() {
+			return fmt.Errorf("%w: a thought carries no reason or resolution", ErrInvalid)
+		}
+	default:
+		return fmt.Errorf("%w: %q is not a kind of mark", ErrInvalid, string(m.Kind))
+	}
+	return nil
+}
+
+// validateWords holds the text a mark carries to its size and to being text.
+func validateWords(m *Mark) error {
+	for _, field := range []struct {
+		name  string
+		value string
+		limit int
+	}{
+		{"the quote", m.Quote, maxQuoteBytes},
+		{"the words before it", m.Before, maxContextBytes},
+		{"the words after it", m.After, maxContextBytes},
+		{"the reason", m.Reason, maxReasonBytes},
+		{"the body", m.Body, maxBodyBytes},
+	} {
+		switch {
+		case !utf8.ValidString(field.value) || strings.ContainsRune(field.value, 0):
+			return fmt.Errorf("%w: %s is not text", ErrInvalid, field.name)
+		case len(field.value) > field.limit:
+			return fmt.Errorf("%w: %s is too long", ErrInvalid, field.name)
+		}
+	}
+	if m.Quote == "" && (m.Before != "" || m.After != "") {
+		return fmt.Errorf("%w: words around nothing", ErrInvalid)
+	}
+	return nil
+}
+
+// validatePath reports whether p is a note path these files may hold.
+func validatePath(p string) error {
+	switch {
+	case !utf8.ValidString(p):
+		return fmt.Errorf("%w: the note path is not valid UTF-8", ErrInvalid)
+	case p == "" || len(p) > maxRelPathBytes:
 		return fmt.Errorf("%w: the note path is empty or too long", ErrInvalid)
-	case !fs.ValidPath(c.RelPath) || c.RelPath == ".":
-		return fmt.Errorf("%w: %q is not a local vault-relative path", ErrInvalid, c.RelPath)
-	case strings.ContainsFunc(c.RelPath, origin.EndsALine):
+	case !fs.ValidPath(p) || p == ".":
+		return fmt.Errorf("%w: %q is not a local vault-relative path", ErrInvalid, p)
+	case strings.ContainsFunc(p, origin.EndsALine):
 		// fs.ValidPath lets a NUL or a line break through, and a path that
 		// holds a control character is not one line of text to put on the
 		// desk. Almost no note carries one in its name. A file whose own name
@@ -148,26 +230,17 @@ func validate(c *Bookmark) error {
 		// offered the control on its page, and pressing it is refused here
 		// with the rest; the cost is accepted because such names are very
 		// rare.
-		return fmt.Errorf("%w: %q carries a control character", ErrInvalid, c.RelPath)
-	case c.RelPath != vault.NormalizeNFC(c.RelPath):
-		return fmt.Errorf("%w: %q is not written in NFC", ErrInvalid, c.RelPath)
-	}
-	if err := ValidateAnchor(c.Anchor); err != nil {
-		return err
-	}
-	switch {
-	case c.Offset < 0 || c.Offset > maxOffset:
-		return fmt.Errorf("%w: the offset is outside one document", ErrInvalid)
-	case !isContentIdentity(c.Identity):
-		return fmt.Errorf("%w: the identity is not a content identity", ErrInvalid)
+		return fmt.Errorf("%w: %q carries a control character", ErrInvalid, p)
+	case p != vault.NormalizeNFC(p):
+		return fmt.Errorf("%w: %q is not written in NFC", ErrInvalid, p)
 	}
 	return nil
 }
 
-// ValidateAnchor reports whether an anchor can be stored in a reader mark.
-// Empty is valid when no accepted ID precedes the reading position. Values
-// must be valid UTF-8, fit within 256 bytes, and contain no fragment delimiters,
-// spaces or ASCII control characters. A refusal wraps ErrInvalid.
+// ValidateAnchor reports whether an anchor can be stored in a mark. Empty is
+// valid when no accepted ID precedes the position. Values must be valid UTF-8,
+// fit within 256 bytes, and contain no fragment delimiters, spaces or ASCII
+// control characters. A refusal wraps ErrInvalid.
 func ValidateAnchor(anchor string) error {
 	switch {
 	case !utf8.ValidString(anchor):
@@ -180,8 +253,8 @@ func ValidateAnchor(anchor string) error {
 	return nil
 }
 
-// isNotAnchorRune reports whether r cannot appear in an anchor this file
-// stores. An id the renderer wrote holds no space, no control character and no
+// isNotAnchorRune reports whether r cannot appear in an anchor these files
+// store. An id the renderer wrote holds no space, no control character and no
 // character that would end the fragment of an address it is later put into.
 func isNotAnchorRune(r rune) bool {
 	switch r {
@@ -194,7 +267,16 @@ func isNotAnchorRune(r rune) bool {
 // isContentIdentity reports whether s is a content identity written as
 // lowercase hex, which is the one spelling the reading page stamps.
 func isContentIdentity(s string) bool {
-	if len(s) != identityLength {
+	return isHex(s, identityLength)
+}
+
+// isID reports whether s is a mark id: 32 lowercase hex digits.
+func isID(s string) bool {
+	return isHex(s, 32)
+}
+
+func isHex(s string, length int) bool {
+	if len(s) != length {
 		return false
 	}
 	for _, r := range s {

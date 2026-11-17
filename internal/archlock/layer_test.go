@@ -50,6 +50,8 @@ var faceAdapterPackages = []string{
 	"internal/asset",
 	"internal/course",
 	"internal/mark",
+	"internal/mark/approval",
+	"internal/mark/confdir",
 	"internal/note",
 	"internal/preference",
 	"internal/report",

@@ -15,7 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/figure"
-	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/approval"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -127,15 +127,15 @@ func runFigureCommand(ctx context.Context, command string, args []string, stdio 
 	}()
 	// The same namespace the reading server keeps its marks under: the
 	// resolved root, so two spellings of one folder are one vault.
-	marks, err := mark.New(configDir, source.Name())
+	approvals, err := approval.Open(configDir, source.Name())
 	if err != nil {
 		stdio.faultf("%v", err)
 		return 2
 	}
 	if command == revokeFigureCommand {
-		return revokeFigure(marks, rel, stdio)
+		return revokeFigure(approvals, rel, stdio)
 	}
-	return approveFigure(ctx, source, marks, rel, stdio, now)
+	return approveFigure(ctx, source, approvals, rel, stdio, now)
 }
 
 // figureArgs reads [--root <dir>] <path>. The path is vault-relative, written
@@ -177,7 +177,7 @@ func figureArgs(command string, args []string) (root, rel string, err error) {
 // the person types its opening digits back. The digest recorded is the digest
 // of the bytes shown, so a file changed after the read is not what was
 // approved and does not run.
-func approveFigure(ctx context.Context, source *vault.Reader, marks *mark.File, rel string, stdio *figureIO, now func() time.Time) int {
+func approveFigure(ctx context.Context, source *vault.Reader, approvals *approval.Store, rel string, stdio *figureIO, now func() time.Time) int {
 	data, err := readServedFigure(ctx, source, rel)
 	if err != nil {
 		stdio.faultf("%v", err)
@@ -213,7 +213,7 @@ func approveFigure(ctx context.Context, source *vault.Reader, marks *mark.File, 
 		stdio.sayf("%s\n", figureNotApproved)
 		return 1
 	}
-	if err := marks.ApproveFigure(rel, inspection.Sum, now()); err != nil {
+	if err := approvals.Approve(rel, inspection.Sum, now()); err != nil {
 		stdio.faultf("%v", err)
 		return 2
 	}
@@ -221,8 +221,8 @@ func approveFigure(ctx context.Context, source *vault.Reader, marks *mark.File, 
 	return 0
 }
 
-func revokeFigure(marks *mark.File, rel string, stdio *figureIO) int {
-	revoked, err := marks.RevokeFigure(rel)
+func revokeFigure(approvals *approval.Store, rel string, stdio *figureIO) int {
+	revoked, err := approvals.Revoke(rel)
 	if err != nil {
 		stdio.faultf("%v", err)
 		return 2

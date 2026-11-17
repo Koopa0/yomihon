@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/yomihon/internal/mark"
@@ -50,7 +51,7 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 			log := slog.New(slog.DiscardHandler)
 			store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 			authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
-			marks, err := mark.New(t.TempDir(), source.Name())
+			marks, err := mark.Open(t.TempDir(), source.Name())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -59,12 +60,12 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 				Source: source, Authority: authority,
 				Snapshot: func() *snapshot.Generation { return current },
 
-				Bookmark: noMark, Questions: marks.Questions,
-				QuestionAddress: mark.QuestionAddress, Log: log,
+				Bookmark: noMark, Questions: func() ([]mark.Mark, error) { return marks.List(mark.Question) },
+				QuestionAddress: mark.Paths.Question, Log: log,
 			})
 			mux := http.NewServeMux()
 			handler.Register(mux)
-			mark.NewQuestionHandler(marks, handler, log).Register(mux)
+			mark.NewHandler(marks, handler, log).Register(mux)
 			form := url.Values{"path": {rel}, "anchor": {"chapter"}}.Encode()
 			if diff := cmp.Diff("{\"marked\":true}\n", lostMarkRequest(t, mux, http.MethodPost, "/questions", form, tt.lang)); diff != "" {
 				t.Fatalf("add mark mismatch (-want +got):\n%s", diff)
@@ -200,7 +201,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 			log := slog.New(slog.DiscardHandler)
 			first, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 			authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
-			marks, err := mark.New(t.TempDir(), source.Name())
+			marks, err := mark.Open(t.TempDir(), source.Name())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -216,10 +217,10 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 					return first.Current()
 				},
 
-				Bookmark: noMark, Questions: marks.Questions,
-				QuestionAddress: mark.QuestionAddress, Log: log,
+				Bookmark: noMark, Questions: func() ([]mark.Mark, error) { return marks.List(mark.Question) },
+				QuestionAddress: mark.Paths.Question, Log: log,
 			})
-			marked, err := marks.ToggleQuestion(&mark.Question{RelPath: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, func(u *mark.Question) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
+			marked, err := marks.Toggle(&mark.Mark{Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, func(u *mark.Mark) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -227,7 +228,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 				t.Fatal("initial real mark was not added")
 			}
 			initial := http.NewServeMux()
-			mark.NewQuestionHandler(marks, handler, log).Register(initial)
+			mark.NewHandler(marks, handler, log).Register(initial)
 			assertLostMarkPair(t, initial, "en", "Source.md", "chapter")
 			if writeErr := os.WriteFile(file, []byte("---\n---\n# Later title\n\n## Renamed\n"), 0o600); writeErr != nil {
 				t.Fatal(writeErr)
@@ -260,7 +261,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 
 func assertLostMarkPair(t *testing.T, mux http.Handler, lang, rel, anchor string) {
 	t.Helper()
-	var held []mark.Question
+	var held []mark.Mark
 	listed := lostMarkRequest(t, mux, http.MethodGet, "/questions", "", lang)
 	if err := json.Unmarshal([]byte(listed), &held); err != nil {
 		t.Fatal(err)
@@ -298,7 +299,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
-	marks, err := mark.New(t.TempDir(), source.Name())
+	marks, err := mark.Open(t.TempDir(), source.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,18 +308,18 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 		Source: source, Authority: authority,
 		Snapshot: func() *snapshot.Generation { return current },
 
-		Bookmark: noMark, Questions: marks.Questions,
-		QuestionAddress: mark.QuestionAddress, Log: log,
+		Bookmark: noMark, Questions: func() ([]mark.Mark, error) { return marks.List(mark.Question) },
+		QuestionAddress: mark.Paths.Question, Log: log,
 	})
-	for _, kept := range []mark.Question{
-		{RelPath: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
-		{RelPath: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{RelPath: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{RelPath: "A.md", Anchor: "beta", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{RelPath: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{RelPath: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
+	for _, kept := range []mark.Mark{
+		{Kind: mark.Question, RelPath: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
+		{Kind: mark.Question, RelPath: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: mark.Question, RelPath: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: mark.Question, RelPath: "A.md", Anchor: "beta", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: mark.Question, RelPath: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: mark.Question, RelPath: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
 	} {
-		marked, markErr := marks.ToggleQuestion(&kept, func(u *mark.Question) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
+		marked, markErr := marks.Toggle(&kept, func(u *mark.Mark) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
 		if markErr != nil {
 			t.Fatal(markErr)
 		}
@@ -326,19 +327,19 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 			t.Fatalf("initial mark %s #%s was not added", kept.RelPath, kept.Anchor)
 		}
 	}
-	held, err := marks.Questions()
+	held, err := marks.List(mark.Question)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantStored := []mark.Question{
-		{RelPath: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
-		{RelPath: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{RelPath: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{RelPath: "A.md", Anchor: "beta", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{RelPath: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-		{RelPath: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
+	wantStored := []mark.Mark{
+		{Kind: mark.Question, RelPath: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
+		{Kind: mark.Question, RelPath: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: mark.Question, RelPath: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: mark.Question, RelPath: "A.md", Anchor: "beta", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: mark.Question, RelPath: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		{Kind: mark.Question, RelPath: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
 	}
-	if diff := cmp.Diff(wantStored, held); diff != "" {
+	if diff := cmp.Diff(wantStored, held, cmpopts.IgnoreFields(mark.Mark{}, "ID")); diff != "" {
 		t.Fatalf("initial complete stored sort fixture mismatch (-want +got):\n%s", diff)
 	}
 	if removeErr := os.Remove(filepath.Join(root, "Missing.md")); removeErr != nil {
@@ -351,7 +352,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	current = rebuilt.Current()
 	mux := http.NewServeMux()
 	handler.Register(mux)
-	mark.NewQuestionHandler(marks, handler, log).Register(mux)
+	mark.NewHandler(marks, handler, log).Register(mux)
 	for _, tt := range []struct {
 		lang  string
 		count string
@@ -390,17 +391,25 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	}
 }
 
-func lostMarkRecords(t *testing.T, mux http.Handler, lang string) []mark.Question {
+func lostMarkRecords(t *testing.T, mux http.Handler, lang string) []mark.Mark {
 	t.Helper()
 	listed := lostMarkRequest(t, mux, http.MethodGet, "/questions", "", lang)
-	var held []mark.Question
-	if err := json.Unmarshal([]byte(listed), &held); err != nil {
+	var sent []struct {
+		Path   string    `json:"path"`
+		Anchor string    `json:"anchor"`
+		Time   time.Time `json:"time"`
+	}
+	if err := json.Unmarshal([]byte(listed), &sent); err != nil {
 		t.Fatal(err)
+	}
+	held := make([]mark.Mark, len(sent))
+	for i, entry := range sent {
+		held[i] = mark.Mark{Kind: mark.Question, RelPath: entry.Path, Anchor: entry.Anchor, At: entry.Time}
 	}
 	return held
 }
 
-func assertLostMarksUnchanged(t *testing.T, mux http.Handler, lang string, want []mark.Question) {
+func assertLostMarksUnchanged(t *testing.T, mux http.Handler, lang string, want []mark.Mark) {
 	t.Helper()
 	if diff := cmp.Diff(want, lostMarkRecords(t, mux, lang)); diff != "" {
 		t.Errorf("caught: reading changed complete stored marks (-want +got):\n%s", diff)

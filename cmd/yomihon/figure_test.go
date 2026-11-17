@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/approval"
 )
 
 const approvalFigure = "<!doctype html><p>x</p><script>fetch('https://outside.test/a')</script>\n"
@@ -50,11 +50,11 @@ func approvedHere(t *testing.T, root, configDir string) bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	marks, err := mark.New(configDir, resolved)
+	marks, err := approval.Open(configDir, resolved)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ok, _, err := marks.FigureApproved("Figures/moving.html", sha256.Sum256([]byte(approvalFigure)))
+	ok, _, err := marks.Approved("Figures/moving.html", sha256.Sum256([]byte(approvalFigure)))
 	if err != nil {
 		t.Fatal(err)
 	}

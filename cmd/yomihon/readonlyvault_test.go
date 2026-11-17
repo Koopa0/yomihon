@@ -120,8 +120,8 @@ func TestNoRouteWritesIntoTheVault(t *testing.T) {
 		"/search?q=channel",
 		"/search?q=draft%3Atrue",
 		"/search/results?q=channel",
-		mark.Address,
-		mark.QuestionAddress,
+		mark.Paths.Bookmark,
+		mark.Paths.Question,
 		address("/notes/", lesson),
 		address("/notes/", draft),
 		address("/notes/", thought),
@@ -144,9 +144,9 @@ func TestNoRouteWritesIntoTheVault(t *testing.T) {
 		target string
 		form   url.Values
 	}{
-		{mark.Address, url.Values{"path": {lesson}, "offset": {"0"}, "identity": {identity}}},
-		{mark.QuestionAddress, url.Values{"path": {lesson}, "anchor": {""}}},
-		{mark.QuestionAddress, url.Values{"path": {draft}, "anchor": {""}}},
+		{mark.Paths.Bookmark, url.Values{"path": {lesson}, "offset": {"0"}, "identity": {identity}}},
+		{mark.Paths.Question, url.Values{"path": {lesson}, "anchor": {""}}},
+		{mark.Paths.Question, url.Values{"path": {draft}, "anchor": {""}}},
 		{"/preferences", url.Values{"theme": {"dark"}}},
 	} {
 		if code := serve(http.MethodPost, write.target, write.form.Encode()); code >= http.StatusBadRequest && code != http.StatusSeeOther {
@@ -180,7 +180,7 @@ func TestNoRouteWritesIntoTheVault(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("read the configuration directory: %v", err)
 	}
-	for _, want := range []string{"reader.json", "uncertainty.json"} {
+	for _, want := range []string{"marks.json", "progress.json"} {
 		if !strings.Contains(strings.Join(kept, " "), want) {
 			t.Errorf("the configuration directory holds %v and no %s, so the writes above never happened and this test proves nothing", kept, want)
 		}

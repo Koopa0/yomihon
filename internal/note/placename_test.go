@@ -27,11 +27,11 @@ func TestOpenThoughtsNamesShownPlacesInTheirOwnLanguage(t *testing.T) {
 		Snapshot: func() *snapshot.Generation { return store.Current() },
 
 		Bookmark: noMark, Log: log,
-		Questions: func() ([]mark.Question, error) {
-			return []mark.Question{
-				{RelPath: "Writing/Cutoverzh.md", Anchor: "ledger", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-				{RelPath: "Writing/Cutoverzh.md", Anchor: "slot-pattern-1", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
-				{RelPath: "Writing/Cutoverzh.md", Anchor: "slot-pattern-2", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+		Questions: func() ([]mark.Mark, error) {
+			return []mark.Mark{
+				{Kind: mark.Question, RelPath: "Writing/Cutoverzh.md", Anchor: "ledger", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+				{Kind: mark.Question, RelPath: "Writing/Cutoverzh.md", Anchor: "slot-pattern-1", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
+				{Kind: mark.Question, RelPath: "Writing/Cutoverzh.md", Anchor: "slot-pattern-2", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
 			}, nil
 		},
 	})

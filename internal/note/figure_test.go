@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/approval"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
@@ -58,9 +58,9 @@ func figureVault(t *testing.T) string {
 }
 
 // newFigureServer serves root through the production policy seam, with
-// approvals read from marks (nil for a process that keeps none, as the public
+// approvals read from the approval store (nil for a process that keeps none, as the public
 // instance's sample vault has none).
-func newFigureServer(t *testing.T, root string, marks *mark.File) *httptest.Server {
+func newFigureServer(t *testing.T, root string, marks *approval.Store) *httptest.Server {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
@@ -68,7 +68,7 @@ func newFigureServer(t *testing.T, root string, marks *mark.File) *httptest.Serv
 	var approved func(string, [sha256.Size]byte) (render.Approval, error)
 	if marks != nil {
 		approved = func(rel string, sum [sha256.Size]byte) (render.Approval, error) {
-			ok, lapsed, err := marks.FigureApproved(rel, sum)
+			ok, lapsed, err := marks.Approved(rel, sum)
 			switch {
 			case err != nil:
 				return render.Unapproved, err
@@ -97,9 +97,9 @@ func newFigureServer(t *testing.T, root string, marks *mark.File) *httptest.Serv
 	return srv
 }
 
-func approvalsFor(t *testing.T) *mark.File {
+func approvalsFor(t *testing.T) *approval.Store {
 	t.Helper()
-	marks, err := mark.New(t.TempDir(), "/vaults/figures")
+	marks, err := approval.Open(t.TempDir(), "/vaults/figures")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func approvalsFor(t *testing.T) *mark.File {
 func TestAFigureWithoutApprovalIsServedWithoutScript(t *testing.T) {
 	t.Parallel()
 	root := figureVault(t)
-	for name, marks := range map[string]*mark.File{
+	for name, marks := range map[string]*approval.Store{
 		"no approvals kept":          nil,
 		"approvals kept, none given": approvalsFor(t),
 	} {
@@ -154,7 +154,7 @@ func TestAnApprovedFigureRunsOnlyItsOwnScripts(t *testing.T) {
 	t.Parallel()
 	root := figureVault(t)
 	marks := approvalsFor(t)
-	if err := marks.ApproveFigure("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure)), time.Now()); err != nil {
+	if err := marks.Approve("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure)), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	srv := newFigureServer(t, root, marks)
@@ -179,10 +179,10 @@ func TestUnreadableApprovalsServeNoScript(t *testing.T) {
 	t.Parallel()
 	root := figureVault(t)
 	marks := approvalsFor(t)
-	if err := marks.ApproveFigure("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure)), time.Now()); err != nil {
+	if err := marks.Approve("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure)), time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(marks.ApprovalsPath(), []byte("{"), 0o600); err != nil {
+	if err := os.WriteFile(marks.Path(), []byte("{"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	srv := newFigureServer(t, root, marks)
@@ -256,7 +256,7 @@ func TestTheReadingPageFramesEachFigure(t *testing.T) {
 		t.Error("an unapproved figure's frame admits scripts")
 	}
 
-	if err := marks.ApproveFigure("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure)), time.Now()); err != nil {
+	if err := marks.Approve("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure)), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	_, _, page = fetch(t, srv.Client(), srv.URL+"/notes/host.md")
@@ -276,7 +276,7 @@ func TestTheReadingPageFramesEachFigure(t *testing.T) {
 
 	// An approval of other bytes at the same path is one that lapsed when
 	// the file changed, and the page says so instead of how to approve.
-	if err := marks.ApproveFigure("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure+" ")), time.Now()); err != nil {
+	if err := marks.Approve("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure+" ")), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	_, _, page = fetch(t, srv.Client(), srv.URL+"/notes/host.md")
@@ -330,7 +330,7 @@ func TestAHoverCardNeverFramesAFigure(t *testing.T) {
 	t.Parallel()
 	root := figureVault(t)
 	marks := approvalsFor(t)
-	if err := marks.ApproveFigure("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure)), time.Now()); err != nil {
+	if err := marks.Approve("Figures/moving.html", sha256.Sum256([]byte(scriptedFigure)), time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	srv := newFigureServer(t, root, marks)
