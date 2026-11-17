@@ -4,6 +4,7 @@ import (
 	"iter"
 	"maps"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -78,16 +79,17 @@ func (p Planned) Has(target string) bool {
 	return p.names[graph.NormalizeKey(target)]
 }
 
-// LinkTargets returns the wikilink targets body cites, in document order,
-// leaving out the ones a reader never wrote: a link inside a code fence or span
-// is quoted syntax, one inside an Obsidian comment is content the author took
-// back, and a bare anchor names no note. It is exported so the reading face
-// builds its reverse link graph from this same reading.
-func LinkTargets(body string) []string {
+// LinkTargets returns the wikilinks body cites, in document order, each with
+// the bytes it occupies, leaving out the ones a reader never wrote: a link
+// inside a code fence or span is quoted syntax, one inside an Obsidian comment
+// is content the author took back, and a bare anchor names no note. It is
+// exported so the reading face builds its reverse link graph from this same
+// reading, and it is what an egress gate reads links with.
+func LinkTargets(body string) []egress.Link {
 	links := extractWikilinks(body, 1)
-	targets := make([]string, 0, len(links))
+	cited := make([]egress.Link, 0, len(links))
 	for _, link := range links {
-		targets = append(targets, link.target)
+		cited = append(cited, egress.Link{Target: link.target, Start: link.start, End: link.end})
 	}
-	return targets
+	return cited
 }

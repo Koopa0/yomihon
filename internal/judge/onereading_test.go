@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/render"
@@ -104,7 +105,7 @@ func TestBothFacesReadOneSetOfCitations(t *testing.T) {
 
 	// A body that named nothing either engine parses would let both lists be
 	// empty and the comparison pass having compared nothing.
-	adjudicated := judge.LinkTargets(citationSurface)
+	adjudicated := egress.Targets(judge.LinkTargets(citationSurface))
 	if len(adjudicated) == 0 {
 		t.Fatalf("the body names no citation at all, so this check compares nothing")
 	}
