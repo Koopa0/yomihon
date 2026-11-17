@@ -72,6 +72,10 @@ type Block struct {
 	// the heading alone cannot tell the list's copy from the body's. Such a
 	// block offers no ContextRanges for the same reason.
 	Heading bool
+
+	// HeadingLevel is the level of the heading this block is, and zero for any
+	// other block, whether or not the page shows the heading as written.
+	HeadingLevel int
 }
 
 // PlainBlocks returns the searchable text of a note body, one Block per
@@ -267,7 +271,7 @@ func shiftBlocks(blocks []Block, lead, length int) []Block {
 			out[n-1].Verbatim = out[n-1].Verbatim && b.Verbatim
 			continue
 		}
-		out = append(out, Block{End: adj, Verbatim: b.Verbatim, ContextRanges: shiftRanges(b.ContextRanges, lead, length), Heading: b.Heading})
+		out = append(out, Block{End: adj, Verbatim: b.Verbatim, ContextRanges: shiftRanges(b.ContextRanges, lead, length), Heading: b.Heading, HeadingLevel: b.HeadingLevel})
 	}
 	return out
 }
@@ -337,7 +341,7 @@ func (w *plainWalk) completedBlock(s string, start, end int) Block {
 		// they vouch for nothing beside a match in it.
 		contexts = nil
 	}
-	return Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading}
+	return Block{End: end, Verbatim: verbatim, ContextRanges: contexts, Heading: heading, HeadingLevel: w.headingLevel}
 }
 
 // localContextRanges keeps text between strike delimiters in its original

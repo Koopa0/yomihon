@@ -597,14 +597,10 @@ func pairedSpans(offs []int) [][2]int {
 // from frontmatter and PlainText from the render AST. A note with malformed
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
-	projection := render.PlainProjection(n.Body)
-	title := graph.TitleOf(n.RelPath, n.Body)
-	if len(projection.Blocks) > 0 && render.DropsTitleHeading(title, n.Body) {
-		// That heading opens the body, so it is the first block. The page
-		// shows it as the title instead, and neither the body nor the
-		// contents list carries a copy to tell apart.
-		projection.Blocks[0].Heading = false
-	}
+	title := graph.TitleOf(n)
+	// The page shows the heading its title was read from as the title instead,
+	// so neither the body nor the contents list carries a copy to tell apart.
+	projection := render.PlainProjectionOfPage(title, n.Body)
 	return Document{
 		RelPath:      n.RelPath,
 		Title:        title,

@@ -263,7 +263,7 @@ func (g *Generation) BasedOn(relPath string) []nav.NoteRef {
 	if g == nil {
 		return nil
 	}
-	return projectBasedOn(g.parsed[relPath], g.graph)
+	return projectBasedOn(g.parsed[relPath], g.graph, g.pathTitle)
 }
 
 // BasedOnBy returns the notes that declared relPath in their own based_on, by

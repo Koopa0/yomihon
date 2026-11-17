@@ -40,14 +40,14 @@ func (g *Generation) BasedOnDeclarations(rel string) []string {
 	return slices.Clone(basedOnValues(g.parsed[rel]))
 }
 
-// DeclaredTitle is the title rel's own first heading declares, empty when it
-// has none. A reading's Title falls back to the file name, which is a path
-// rather than a title.
+// DeclaredTitle is the title rel's author wrote, a first heading or else a
+// frontmatter title, empty when it has neither. A reading's Title falls back to
+// the file name, which is a path rather than a title.
 func (g *Generation) DeclaredTitle(rel string) string {
 	if g == nil || g.parsed[rel] == nil {
 		return ""
 	}
-	title, _ := graph.FirstH1(g.parsed[rel].Body)
+	title, _ := graph.WrittenTitle(g.parsed[rel])
 	return title
 }
 

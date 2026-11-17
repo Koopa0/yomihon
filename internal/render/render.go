@@ -343,12 +343,12 @@ func (r *Pipeline) ExcerptHTMLIn(region, relPath, title, body string, lang wordi
 func (r *Pipeline) htmlIn(region, relPath, title, body string, page *composition) Result {
 	lang := page.lang
 	stripped, comments := stripBody(body)
-	source, titleAnchor, dropped := removeBodyFirstH1(title, stripped.text)
+	source, titleAnchor, first, dropped := removeBodyFirstH1(title, stripped.text)
 	address := stripped.address
-	if dropped >= 0 {
+	if dropped > 0 {
 		// The heading came out of the text, so it comes out of the geometry
 		// beside it: the two are read by line number together.
-		address = slices.Delete(slices.Clone(address), dropped, dropped+1)
+		address = slices.Delete(slices.Clone(address), first+1, first+dropped)
 	}
 	res := r.renderBody(&bodyInput{path: relPath, text: source, address: address, original: body, onPage: region == hostRegion}, embedsAllowed, page, region)
 	res.Diagnostics = append(res.Diagnostics, commentDiagnostics(comments)...)
@@ -592,42 +592,36 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 	return Result{HTML: htmlOut, Blocks: blocks, Diagnostics: col.diags}
 }
 
-// DropsTitleHeading reports whether the page removes body's leading level-1
-// heading because the page's title already says it. A reader of the page then
+// DropsTitleHeading reports whether the page removes body's title heading
+// because the page's title already says it. A reader of the page then
 // meets those words only as the title, never as a heading of the body.
 func DropsTitleHeading(title, body string) bool {
 	stripped, _ := stripBody(body)
-	_, _, dropped := removeBodyFirstH1(title, stripped.text)
-	return dropped >= 0
+	_, _, _, dropped := removeBodyFirstH1(title, stripped.text)
+	return dropped > 0
 }
 
-// removeBodyFirstH1 drops a leading level-1 ATX heading when the page already
-// shows that same text as its title. A title is read from its heading with the
-// closing marks taken off and white space folded, so the comparison is made on
-// those words. Only the very first non-blank line qualifies,
-// and a note displayed under its filename keeps its heading. The second return is
-// the anchor that heading would have been given, and only when one was removed:
-// the title is then the only thing on the page still saying those words. The
-// third return is the line the removal took out, or -1 when it took none, so
-// anything read alongside this body by line number can lose the same one.
-func removeBodyFirstH1(title, body string) (stripped, anchor string, dropped int) {
-	lines := strings.Split(body, "\n")
-	i := 0
-	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
-		i++
+// removeBodyFirstH1 drops the level-1 heading a page's title was read from,
+// wherever the body keeps it and however it is written: marked or underlined,
+// indented, after other text, with bold or code marks in its words. The page
+// shows those words once, as its title, and the comparison is made on the plain
+// words both sides read. A page titled from something else keeps its heading.
+// The second return is the anchor that heading would have been given, and only
+// when one was removed: the title is then the only thing on the page still
+// saying those words. The heading's first line stays as a blank one, so text
+// either side of it is not run into one paragraph. The third and fourth are the
+// first line the removal emptied and how many lines it covered, none when it
+// took none, so anything read alongside this body by line number can lose the
+// same ones after the first.
+func removeBodyFirstH1(title, body string) (stripped, anchor string, first, count int) {
+	heading, ok := graph.FirstTitleHeading(body)
+	if !ok || foldSpace(heading.Words) != foldSpace(title) {
+		return body, "", 0, 0
 	}
-	if i >= len(lines) || !strings.HasPrefix(lines[i], "# ") {
-		return body, "", -1
-	}
-	heading := strings.TrimSpace(strings.TrimPrefix(lines[i], "# "))
-	words := heading
-	if marked := graph.ATXHeading.FindStringSubmatch(lines[i]); marked != nil {
-		words = marked[2]
-	}
-	if foldSpace(words) != foldSpace(title) {
-		return body, "", -1
-	}
-	return strings.Join(slices.Delete(slices.Clone(lines), i, i+1), "\n"), graph.SectionID(words), i
+	lines := slices.Clone(strings.Split(body, "\n"))
+	lines[heading.Line] = ""
+	lines = slices.Delete(lines, heading.Line+1, heading.Line+heading.Lines)
+	return strings.Join(lines, "\n"), graph.SectionID(heading.Words), heading.Line, heading.Lines
 }
 
 // foldSpace is a heading's words with every run of white space as one space,

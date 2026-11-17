@@ -1,6 +1,10 @@
 package graph
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/koopa0/yomihon/internal/vault"
+)
 
 func TestTitleOf(t *testing.T) {
 	t.Parallel()
@@ -18,7 +22,14 @@ func TestTitleOf(t *testing.T) {
 		{"a heading inside a code fence is code", "Notes/a.md", "```sh\n# not a title\n```\n\n# The real one\n", "The real one"},
 		{"a heading inside an authored HTML block is not one", "Notes/a.md", "<!--\n# hidden\n-->\n\n# Shown\n", "Shown"},
 		{"an underlined heading is a level-one heading", "Notes/a.md", "Underlined title\n================\n\nBody.\n", "Underlined title"},
-		{"a heading's words travel as typed, closing marks aside", "Notes/a.md", "#   Spaced   **words**   ##\n", "Spaced **words**"},
+		{"a heading's words are the ones a reader sees, closing marks aside", "Notes/a.md", "#   Spaced   **words**   ##\n", "Spaced words"},
+		{"bold and code marks are not part of the title", "Notes/a.md", "# The **bold** `code` title\n", "The bold code title"},
+		{"a link and a wikilink name their words", "Notes/a.md", "# [Docs](https://example.com) and [[Other|alias]]\n", "Docs and alias"},
+		{"an escaped mark is the character it escapes", "Notes/a.md", "# Cost \\*not bold\\*\n", "Cost *not bold*"},
+		{"an underlined heading over two lines is one title", "Notes/a.md", "First line\nsecond line\n===\n", "First line second line"},
+		{"only the last closing run is marks", "Notes/a.md", "# a b #  #\n", "a b #"},
+		{"a run that is the whole of the words is text", "Notes/a.md", "# #\n", "#"},
+		{"an indented marked heading is read", "Notes/a.md", "   # Indented\n", "Indented"},
 		{"a heading with no words is passed over", "Notes/a.md", "# \n\n# Second\n", "Second"},
 		{"no heading falls back to the file name", "Notes/vault-check.md", "Just prose.\n", "vault-check"},
 		{"a note with no body is called by its file", "Notes/deep/empty.md", "", "empty"},
@@ -28,8 +39,54 @@ func TestTitleOf(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := TitleOf(tt.rel, tt.body); got != tt.want {
+			if got := TitleOf(&vault.Note{RelPath: tt.rel, Body: tt.body}); got != tt.want {
 				t.Errorf("TitleOf(%q, %q) = %q, want %q", tt.rel, tt.body, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTitleOfReadsTheDeclaredTitleBeforeTheFileName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		note vault.Note
+		want string
+	}{
+		{"a heading outranks a declared title", vault.Note{RelPath: "a.md", Frontmatter: map[string]any{"title": "Declared"}, Body: "# Heading\n"}, "Heading"},
+		{"a declared title outranks the file name", vault.Note{RelPath: "dir/a.md", Frontmatter: map[string]any{"title": "  Declared   title "}, Body: "Prose.\n"}, "Declared title"},
+		{"a blank declared title falls through", vault.Note{RelPath: "dir/a.md", Frontmatter: map[string]any{"title": "  "}}, "a"},
+		{"a declared title that is not text falls through", vault.Note{RelPath: "dir/a.md", Frontmatter: map[string]any{"title": 42}}, "a"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := TitleOf(&tt.note); got != tt.want {
+				t.Errorf("TitleOf = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFirstTitleHeadingSaysWhichLinesItTakes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		body string
+		want TitleHeading
+	}{
+		{"a marked heading is one line", "intro\n\n# Title\n", TitleHeading{Words: "Title", Line: 2, Lines: 1}},
+		{"an underlined heading takes its underline", "Title\n=====\n", TitleHeading{Words: "Title", Line: 0, Lines: 2}},
+		{"a heading over two lines takes both and the underline", "a\nb\n===\n", TitleHeading{Words: "a b", Line: 0, Lines: 3}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := FirstTitleHeading(tt.body)
+			if !ok || got != tt.want {
+				t.Errorf("FirstTitleHeading(%q) = %+v, %v, want %+v", tt.body, got, ok, tt.want)
 			}
 		})
 	}
@@ -60,7 +117,7 @@ func TestTitleSkipsWhatTheReaderNeverSees(t *testing.T) {
 		{"an authored HTML comment opened mid-line hides its lines", "text <!--\n# hidden\n-->\n# Real Title\n", "Real Title"},
 		{"a comment marker inside a code fence is code", "```\n%%\n```\n\n# Real Title\n", "Real Title"},
 		{"a comment marker in a code span on a prose line is code", "Use `%%` to comment.\n\n# Real Title\n", "Real Title"},
-		{"a comment marker in a code span in the title is part of it", "# Use `%%` marks\n", "Use `%%` marks"},
+		{"a comment marker in a code span in the title is part of it", "# Use `%%` marks\n", "Use %% marks"},
 		{"a heading inside a math block is hidden", "$$\n# not heading\n$$\n\n# Real Title\n", "Real Title"},
 		{"a one-line math block hides nothing after it", "Cost $$x$$ here.\n\n# Real Title\n", "Real Title"},
 		{"a math marker with no partner is text", "$$ only once\n\n# Real Title\n", "Real Title"},
@@ -75,7 +132,7 @@ func TestTitleSkipsWhatTheReaderNeverSees(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := TitleOf("Notes/a.md", tt.body); got != tt.want {
+			if got := TitleOf(&vault.Note{RelPath: "Notes/a.md", Body: tt.body}); got != tt.want {
 				t.Errorf("TitleOf(%q) = %q, want %q", tt.body, got, tt.want)
 			}
 		})
@@ -93,5 +150,24 @@ func TestFirstH1ReportsWhetherTheBodyHasOne(t *testing.T) {
 	}
 	if got, ok := FirstH1("%%\n# hidden\n%%\n"); ok || got != "" {
 		t.Errorf("FirstH1(a heading only inside a comment) = %q, %v, want no heading", got, ok)
+	}
+}
+
+func TestTitleKeepsWhatACodeSpanHoldsLiterally(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ name, body, want string }{
+		{"an entity in a code span is text", "# Use `&amp;` literally\n", "Use &amp; literally"},
+		{"a backslash in a code span stays", "# Path `a\\*b` here\n", "Path a\\*b here"},
+		{"an entity outside code resolves", "# Fish &amp; chips\n", "Fish & chips"},
+		{"an escape outside code resolves", "# Cost \\*each\\*\n", "Cost *each*"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := TitleOf(&vault.Note{RelPath: "a.md", Body: tt.body}); got != tt.want {
+				t.Errorf("TitleOf(%q) = %q, want %q", tt.body, got, tt.want)
+			}
+		})
 	}
 }

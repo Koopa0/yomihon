@@ -6,33 +6,81 @@ import (
 
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
+
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// FirstH1 returns the words of the first level-1 heading in body, read by the
-// same line walk every face reads headings with, over the text a reader is
-// shown: a heading inside a fence or an authored HTML block is not one, and
-// neither is one inside an Obsidian comment or a math block. A heading with no
-// words is passed over.
-func FirstH1(body string) (string, bool) {
-	shown := withoutHiddenText(body)
+// TitleHeading is the first level-1 heading a reader is shown: the plain words
+// the page and every list call the note by, and the source lines the heading
+// occupies, so the page can leave it out where the title already says it.
+type TitleHeading struct {
+	Words string
+	// Line is the zero-based index of the heading's first source line, and Lines
+	// how many it spans: one for a marked heading, the words' lines and the
+	// underline for an underlined one.
+	Line, Lines int
+}
+
+// FirstTitleHeading reads the first level-1 heading of body over the text a
+// reader is shown: a heading inside a fence or an authored HTML block is not
+// one, and neither is one inside an Obsidian comment or a math block. A heading
+// with no words is passed over. The lines it reports are lines of body, since
+// what is hidden keeps its line breaks.
+func FirstTitleHeading(body string) (TitleHeading, bool) {
+	return titleHeadingIn(withoutHiddenText(body))
+}
+
+func titleHeadingIn(shown string) (TitleHeading, bool) {
+	lines := strings.Split(shown, "\n")
 	for _, heading := range Headings(shown, LineSkipZones(shown)) {
 		if heading.Level != 1 {
 			continue
 		}
-		if words := strings.Join(strings.Fields(heading.Text), " "); words != "" {
-			return words, true
+		words := PlainHeadingWords(heading.Text)
+		if words == "" {
+			continue
 		}
+		span := 1
+		if !ATXHeading.MatchString(lines[heading.Line]) {
+			span = strings.Count(heading.Text, "\n") + 2
+		}
+		return TitleHeading{Words: words, Line: heading.Line, Lines: span}, true
+	}
+	return TitleHeading{}, false
+}
+
+// FirstH1 returns the plain words of the first level-1 heading in body, as
+// FirstTitleHeading reads it.
+func FirstH1(body string) (string, bool) {
+	heading, ok := FirstTitleHeading(body)
+	return heading.Words, ok
+}
+
+// WrittenTitle is the title a note's author wrote for it: the plain words of
+// its first level-1 heading, else its frontmatter title. It is false for a
+// note that wrote neither, which a list names by something other than its file.
+func WrittenTitle(n *vault.Note) (string, bool) {
+	if heading, ok := FirstH1(n.Body); ok {
+		return heading, true
+	}
+	if declared, _ := n.Text("title"); strings.TrimSpace(declared) != "" {
+		return strings.Join(strings.Fields(declared), " "), true
 	}
 	return "", false
 }
 
-// TitleOf is the title a note is read by: the words of its first level-1
-// heading, and when it has none the file name without its extension. A note
-// writes no title of its own.
-func TitleOf(relPath, body string) string {
-	if heading, ok := FirstH1(body); ok {
-		return heading
+// TitleOf is the title a note is read by: what WrittenTitle finds, and when the
+// author wrote none the file name without its extension.
+func TitleOf(n *vault.Note) string {
+	if title, ok := WrittenTitle(n); ok {
+		return title
 	}
+	return FileStem(n.RelPath)
+}
+
+// FileStem is a note's file name without its directory and its .md extension,
+// the title a note with neither heading nor declared title is read by.
+func FileStem(relPath string) string {
 	base := relPath
 	if _, after, found := strings.CutLast(relPath, "/"); found {
 		base = after

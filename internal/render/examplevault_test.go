@@ -325,7 +325,7 @@ func loadExampleVault(t *testing.T) *exampleVault {
 	pipeline := New(graph.New(notes, resources), transcluded(bodies), noDeclaredTitles{}, holdsEverything{})
 	var pages strings.Builder
 	for _, note := range notes {
-		result := pipeline.HTML(note.RelPath, graph.TitleOf(note.RelPath, note.Body), note.Body, wording.En)
+		result := pipeline.HTML(note.RelPath, graph.TitleOf(note), note.Body, wording.En)
 		pages.WriteString(result.HTML)
 		// Read-aloud reaches a reader on a governed lesson and nowhere else,
 		// so the marker only counts where the note page would honour it.
@@ -515,7 +515,7 @@ func TestTheShippedHaikuQuoteTitleIsPlainText(t *testing.T) {
 	}
 
 	got := New(graph.New(nil, nil), transcluded{}, noDeclaredTitles{}, holdsEverything{}).
-		HTML(note.RelPath, graph.TitleOf(note.RelPath, note.Body), note.Body, wording.En).HTML
+		HTML(note.RelPath, graph.TitleOf(note), note.Body, wording.En).HTML
 	title, body, ok := calloutTitleAndBody(got)
 	if !ok {
 		t.Fatalf("the haiku note no longer opens with a quote callout:\n%s", got)

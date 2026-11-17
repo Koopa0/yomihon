@@ -985,3 +985,36 @@ func TestFirstExcerptMarkKeepsItsSourceInterval(t *testing.T) {
 		})
 	}
 }
+
+// TestDocumentFromNoteDropsTheTitleHeadingWhereverItSits holds that the search
+// corpus stops vouching for the heading the page drops as its title, whether it
+// opens the body or follows other text, and keeps a heading the page keeps.
+func TestDocumentFromNoteDropsTheTitleHeadingWhereverItSits(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"opening":       "# Quorum reads\n\nbody text\n",
+		"after prose":   "An opening line.\n\n# Quorum reads\n\nbody text\n",
+		"after heading": "## Background\n\nan opening line\n\n# Quorum reads\n\nbody text\n",
+		"setext, later": "An opening line.\n\nQuorum reads\n============\n\nbody text\n",
+	} {
+		doc := DocumentFromNote(&vault.Note{RelPath: "Notes/q.md", Body: body})
+		start := 0
+		for _, block := range doc.Blocks {
+			if strings.TrimSpace(doc.PlainText[start:block.End]) == "Quorum reads" && block.Heading {
+				t.Errorf("%s: the title heading is still a heading block in the corpus", name)
+			}
+			start = block.End
+		}
+	}
+	kept := DocumentFromNote(&vault.Note{RelPath: "Notes/q.md", Body: "# Title\n\n## Quorum reads\n\nbody\n"})
+	headings := 0
+	for _, block := range kept.Blocks {
+		if block.Heading {
+			headings++
+		}
+	}
+	if headings != 1 {
+		t.Errorf("a section heading the page keeps: %d heading blocks, want 1", headings)
+	}
+}

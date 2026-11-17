@@ -89,7 +89,7 @@ These values belong to the starter. For your own course, choose values your adap
 
 The fields a note may carry are a closed list that yomihon defines: `type`, `aliases`, `draft`, `based_on`, `lang`, `created`, `slug`, `level`, `prerequisites`, `verified_on` and `verified_with`. Obsidian's own `tags` and `cssclasses` also pass. Your contract chooses which of them each type of note may write, and `yomihon check` reports any other key as `schema.unknown_key`. [The frontmatter reference](../skills/yomihon/references/frontmatter.md) says what each field does.
 
-A note writes no title and no domain. Its title is its first `#` heading, or its file name when it has none. Its domain is the folder it sits in, below a root the contract names in `folders.domain_from`.
+A note's title is its first `#` heading, else the `title` its frontmatter writes, else its file name; the reader uses a `title` although it is not on the closed list, so `yomihon check` still reports it. A note writes no domain; its domain is the folder it sits in, below a root the contract names in `folders.domain_from`.
 
 A note you have not finished says `draft: true`. Delete the line when it is done; a note with no `draft` is finished. yomihon marks drafts quietly and never edits your notes, so this change is yours to make in your editor.
 

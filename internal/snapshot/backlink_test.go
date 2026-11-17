@@ -71,3 +71,25 @@ func parse(t *testing.T, relPath, body string) *vault.Note {
 	t.Helper()
 	return vault.Parse(relPath, []byte(body))
 }
+
+// TestBacklinksNameACitingNoteByItsTitle holds that the list of notes citing
+// one calls each by its title, and sorts by what it shows.
+func TestBacklinksNameACitingNoteByItsTitle(t *testing.T) {
+	t.Parallel()
+
+	notes := []*vault.Note{
+		parse(t, "Concepts/target.md", "the cited note\n"),
+		parse(t, "Concepts/z-file.md", "# A title\n\nsee [[target]]\n"),
+		parse(t, "Concepts/a-file.md", "---\ntitle: Z title\n---\nsee [[target]]\n"),
+		parse(t, "Concepts/m-file.md", "see [[target]]\n"),
+	}
+	b := newBacklinks(notes, linksOf(notes), graph.New(notes, nil))
+	want := []nav.NoteRef{
+		{Name: "A title", RelPath: "Concepts/z-file.md"},
+		{Name: "m-file", RelPath: "Concepts/m-file.md"},
+		{Name: "Z title", RelPath: "Concepts/a-file.md"},
+	}
+	if diff := cmp.Diff(want, b.To("Concepts/target.md")); diff != "" {
+		t.Errorf("To() (-want +got):\n%s", diff)
+	}
+}

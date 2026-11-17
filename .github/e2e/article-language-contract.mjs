@@ -23,7 +23,7 @@ const SEARCH_DECLARED = '/search?q=L01';
 const FOLDERS = '/folders/Writing/lessons/japanese';
 // The complete Japanese fixture member set, displayed by filename in folders.
 // The code-copy lesson has no language declaration and stays outside this set.
-const JAPANESE_FOLDER_TITLES = ['L01', 'L02', 'Practice only'];
+const JAPANESE_FOLDER_TITLES = ['L01 わたしは学生です', 'L02 三つの段落', 'Practice only'];
 const SEARCH_UNDECLARED = '/search?q=type%3Aconcept%20%E3%81%AF';
 const UNDECLARED_NOTE = '/notes/Concepts/japanese/%E3%81%AF.md';
 const MUTATE = process.env.MUTATE || '';

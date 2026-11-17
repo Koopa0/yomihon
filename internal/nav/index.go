@@ -102,11 +102,11 @@ func (m *Model) Siblings(relPath string) (dir string, notes []NoteRef) {
 
 // buildDirNotes groups every listed file by its directory, keeping the captured
 // reading order so the grouping matches the folder tree.
-func buildDirNotes(paths []string, langs map[string]string) map[string][]NoteRef {
+func buildDirNotes(paths []string, langs, titles map[string]string) map[string][]NoteRef {
 	byDir := make(map[string][]NoteRef)
 	for _, p := range paths {
 		dir, base := splitDir(p)
-		byDir[dir] = append(byDir[dir], NoteRef{Name: displayName(base), RelPath: p, Language: langs[p]})
+		byDir[dir] = append(byDir[dir], NoteRef{Name: listName(p, base, titles), RelPath: p, Language: langs[p]})
 	}
 	return byDir
 }

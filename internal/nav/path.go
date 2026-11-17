@@ -221,7 +221,7 @@ func buildPath(
 ) Course {
 	doc := sequence.Parse(n.Body, n.BodyLine)
 	p := Course{
-		Title:       graph.TitleOf(n.RelPath, n.Body),
+		Title:       graph.TitleOf(n),
 		RelPath:     n.RelPath,
 		Domain:      n.Domain,
 		Type:        n.Type(),

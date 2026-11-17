@@ -199,7 +199,7 @@ func newHealth(notes []*vault.Note, links map[string][]string, idx *graph.Index,
 		if policy.IsNonInstance(n.RelPath) {
 			continue
 		}
-		from := nav.NoteRef{Name: nav.Label(n.RelPath), RelPath: n.RelPath}
+		from := nav.NoteRef{Name: graph.TitleOf(n), RelPath: n.RelPath}
 		seen := make(map[string]bool)
 		for _, target := range links[n.RelPath] {
 			switch {
@@ -283,7 +283,7 @@ func unmappedConcepts(notes []*vault.Note, back *Backlinks, policy schema.Artifa
 		if slices.ContainsFunc(back.To(n.RelPath), func(citer nav.NoteRef) bool { return roles.IsMapType(types[citer.RelPath]) }) {
 			continue
 		}
-		out = append(out, nav.NoteRef{Name: nav.Label(n.RelPath), RelPath: n.RelPath})
+		out = append(out, nav.NoteRef{Name: graph.TitleOf(n), RelPath: n.RelPath})
 	}
 	slices.SortFunc(out, func(a, b nav.NoteRef) int { return vault.ComparePaths(a.RelPath, b.RelPath) })
 	return out

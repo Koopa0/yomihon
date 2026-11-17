@@ -52,7 +52,7 @@ func NewConceptIndex(notes []*vault.Note) (ConceptIndex, error) {
 		}
 		idx.byPath[relPath] = conceptSource{
 			id:    conceptID(relPath),
-			title: graph.TitleOf(note.RelPath, note.Body),
+			title: graph.TitleOf(note),
 			body:  note.Body,
 		}
 	}

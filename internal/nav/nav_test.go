@@ -713,7 +713,7 @@ func TestNewBuildsJournalFromCapturedMtimes(t *testing.T) {
 		for day := 7; day >= 1; day-- {
 			rel := fmt.Sprintf("Diary/2026-07-%02d.md", day)
 			name := fmt.Sprintf("2026-07-%02d", day)
-			want = append(want, JournalEntry{Title: name, RelPath: rel, Modified: mtimes[rel], Date: name})
+			want = append(want, JournalEntry{Title: fmt.Sprintf("Day %d", day), RelPath: rel, Modified: mtimes[rel], Date: name})
 		}
 		if diff := cmp.Diff(want, model.Journal()); diff != "" {
 			t.Errorf("New Journal mismatch (-want +got):\n%s", diff)
@@ -1572,7 +1572,7 @@ func TestBuildFolderTree(t *testing.T) {
 	}
 	wantRoot := []NoteRef{{Name: "CLAUDE", RelPath: "CLAUDE.md"}}
 
-	folders, rootNotes := buildFolderTree(paths, nil)
+	folders, rootNotes := buildFolderTree(paths, nil, nil)
 	if diff := cmp.Diff(wantFolders, folders); diff != "" {
 		t.Errorf("buildFolderTree folders mismatch (-want +got):\n%s", diff)
 	}
@@ -1597,7 +1597,7 @@ func TestAnUnlistedTopLevelFolderSortsAfterTheLifecycle(t *testing.T) {
 		"Writing/w.md",
 	}
 
-	folders, rootNotes := buildFolderTree(paths, nil)
+	folders, rootNotes := buildFolderTree(paths, nil, nil)
 	if len(rootNotes) != 0 {
 		t.Fatalf("buildFolderTree rootNotes = %v, want none", rootNotes)
 	}
@@ -1641,7 +1641,7 @@ func TestLifecycleOrderSortsListedFixtureFoldersBeforeUnlistedOnes(t *testing.T)
 		t.Fatalf("examples/vault holds listed=%v unlisted=%v; both sides are required or the claim is vacuous", listed, unlisted)
 	}
 
-	folders, _ := buildFolderTree(paths, nil)
+	folders, _ := buildFolderTree(paths, nil, nil)
 	got := make([]string, 0, len(folders))
 	for _, folder := range folders {
 		got = append(got, folder.Name)
@@ -1823,7 +1823,7 @@ func TestSiblings(t *testing.T) {
 		"Concepts/rust/Bar.md",
 		"README.md",
 	}
-	m := &Model{dirNotes: buildDirNotes(paths, nil)}
+	m := &Model{dirNotes: buildDirNotes(paths, nil, nil)}
 
 	tests := []struct {
 		name      string
@@ -1875,7 +1875,7 @@ func TestShelfFolders(t *testing.T) {
 		"Outside/cOnCePtS/other.md",
 		"System/nested/repair.md",
 	} {
-		writeNavFixture(t, root, rel, "# Reading\n")
+		writeNavFixture(t, root, rel, "Reading.\n")
 	}
 	allFolders := []Folder{
 		{Name: "Maps", RelPath: "Maps", Notes: []NoteRef{{Name: "overview", RelPath: "Maps/overview.md"}}},
@@ -2543,8 +2543,8 @@ func TestAFolderPageOrdersItsSubfoldersTheWayItOrdersItsNotes(t *testing.T) {
 	// builder preserves insertion order below the top level, so a fixture that
 	// listed them already sorted would pass with the sort deleted.
 	paths := []string{"Writing/第10週/b.md", "Writing/第9週/a.md"}
-	folders, rootNotes := buildFolderTree(paths, nil)
-	model := &Model{dirNotes: buildDirNotes(paths, nil), folders: folders, rootNotes: rootNotes}
+	folders, rootNotes := buildFolderTree(paths, nil, nil)
+	model := &Model{dirNotes: buildDirNotes(paths, nil, nil), folders: folders, rootNotes: rootNotes}
 
 	_, subfolders, ok := model.Directory("Writing")
 	if !ok {

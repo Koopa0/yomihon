@@ -518,7 +518,6 @@ func TestTitleAnchorIsOnlyClaimedForARemovedHeading(t *testing.T) {
 	}{
 		{name: "no opening heading at all", title: "Glass Tide", body: "Just prose.\n"},
 		{name: "an opening heading that says something else", title: "Glass Tide", body: "# Salt Quay\n\nProse.\n"},
-		{name: "a heading that is not the first thing in the body", title: "Glass Tide", body: "Prose.\n\n# Glass Tide\n"},
 		{name: "a lower-level opening heading", title: "Glass Tide", body: "## Glass Tide\n\nProse.\n"},
 	}
 	for _, tt := range tests {
@@ -1776,6 +1775,29 @@ func TestBodyFirstH1RemovedOnlyWhenTrulyFirst(t *testing.T) {
 		got := r.HTML("note.md", "Frontmatter Title", "# A different opening\n\nbody\n", wording.ZhHant)
 		if !strings.Contains(got.HTML, "A different opening") {
 			t.Errorf("a heading that does not repeat the title must be kept; HTML:\n%s", got.HTML)
+		}
+	})
+
+	// A note whose title was read from a heading shows those words once, however
+	// the heading is written, and shows no mark of its syntax.
+	t.Run("the title heading is dropped in every form it is written", func(t *testing.T) {
+		t.Parallel()
+		for name, body := range map[string]string{
+			"after other text":   "An opening line.\n\n# Title\n\nbody text\n",
+			"underlined":         "Title\n=====\n\nbody text\n",
+			"indented":           "   # Title\n\nbody text\n",
+			"with bold and code": "# **Ti**`tle`\n\nbody text\n",
+		} {
+			got := r.HTML("note.md", "Title", body, wording.ZhHant)
+			if strings.Contains(got.HTML, "<h1") || strings.Contains(got.HTML, "Ti") {
+				t.Errorf("%s: the title heading is still on the page:\n%s", name, got.HTML)
+			}
+			if !strings.Contains(got.HTML, "body text") {
+				t.Errorf("%s: the body is gone:\n%s", name, got.HTML)
+			}
+			if got.TitleAnchor != "title" {
+				t.Errorf("%s: TitleAnchor = %q, want title", name, got.TitleAnchor)
+			}
 		}
 	})
 

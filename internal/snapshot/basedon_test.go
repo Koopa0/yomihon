@@ -92,7 +92,7 @@ func TestProjectBasedOn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := projectBasedOn(byPath[tt.relPath], idx)
+			got := projectBasedOn(byPath[tt.relPath], idx, nav.Label)
 			if diff := cmp.Diff(tt.want, got); diff != "" {
 				t.Errorf("projectBasedOn(%q) mismatch (-want +got):\n%s", tt.relPath, diff)
 			}
@@ -177,5 +177,31 @@ func TestGenerationBasedOnByInvertsTheDeclaration(t *testing.T) {
 		if got := gen.BasedOnBy(rel); got != nil {
 			t.Errorf("BasedOnBy(%q) = %+v, want nothing", rel, got)
 		}
+	}
+}
+
+// TestBasedOnNamesNotesByTheirTitle holds that a source and a note declaring it
+// are named by title, and only a note nothing resolves to keeps the author's words.
+func TestBasedOnNamesNotesByTheirTitle(t *testing.T) {
+	t.Parallel()
+
+	notes := []*vault.Note{
+		parse(t, "Concepts/source.md", "# The Source\n\nbody\n"),
+		parse(t, "Concepts/z-derived.md", "---\nbased_on: \"[[source]]\"\ntitle: Derived Note\n---\nbody\n"),
+		parse(t, "Concepts/a-orphan.md", "---\nbased_on: \"[[nothing here]]\"\n---\nbody\n"),
+	}
+	idx := graph.New(notes, nil)
+	titles := titlesOf(notes)
+
+	wantSources := []nav.NoteRef{{Name: "The Source", RelPath: "Concepts/source.md"}}
+	if diff := cmp.Diff(wantSources, projectBasedOn(notes[1], idx, titles)); diff != "" {
+		t.Errorf("projectBasedOn() (-want +got):\n%s", diff)
+	}
+	wantDeclaring := []nav.NoteRef{{Name: "Derived Note", RelPath: "Concepts/z-derived.md"}}
+	if diff := cmp.Diff(wantDeclaring, newBasedOnBy(notes, idx).of("Concepts/source.md")); diff != "" {
+		t.Errorf("of() (-want +got):\n%s", diff)
+	}
+	if got := projectBasedOn(notes[2], idx, titles); len(got) != 1 || got[0].RelPath != "" || got[0].Name != "[[nothing here]]" {
+		t.Errorf("an unresolved value = %+v, want the author's own words and no path", got)
 	}
 }
