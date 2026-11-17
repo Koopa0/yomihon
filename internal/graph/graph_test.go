@@ -131,12 +131,13 @@ func TestNewOwnsAliasExtractionFromParsedNotes(t *testing.T) {
 	}
 }
 
-// TestAliasesContributeOnlyFromAStringList pins the tolerant reading of the
-// frontmatter aliases field: a plain list is the one shape that contributes
-// resolution keys, and inside it the string members. Any other shape — a bare
-// scalar, a mapping — silently costs the note its alias keys and nothing else;
-// the note's own filename keys survive whatever the field holds.
-func TestAliasesContributeOnlyFromAStringList(t *testing.T) {
+// TestAliasesContributeFromTextOrAListOfText pins the tolerant reading of the
+// frontmatter aliases field: a name written as one piece of text is a list of
+// one, as the check reads it, and a plain list contributes its string members.
+// Any other shape, a mapping among them, silently costs the note its alias keys
+// and nothing else; the note's own filename keys survive whatever the field
+// holds.
+func TestAliasesContributeFromTextOrAListOfText(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -146,9 +147,9 @@ func TestAliasesContributeOnlyFromAStringList(t *testing.T) {
 		unresolved []string
 	}{
 		{
-			name:       "a bare scalar contributes nothing",
-			aliases:    "solo name",
-			unresolved: []string{"solo name"},
+			name:     "a bare scalar is a list of one",
+			aliases:  "solo name",
+			resolved: []string{"solo name"},
 		},
 		{
 			name:       "a mapping contributes nothing",

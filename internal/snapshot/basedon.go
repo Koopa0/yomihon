@@ -216,20 +216,13 @@ func unplacedName(value string) string {
 	}
 }
 
-// basedOnValues reads based_on the way the reading path is allowed to: the
-// list form first, then a lone string. Strings does not take a scalar, and
-// authors write both shapes.
+// basedOnValues reads based_on as a list or as one string, since authors write
+// both shapes.
 func basedOnValues(n *vault.Note) []string {
 	if n == nil {
 		return nil
 	}
-	if values := n.Strings("based_on"); values != nil {
-		return values
-	}
-	if s, ok := n.Text("based_on"); ok {
-		return []string{s}
-	}
-	return nil
+	return n.ListOrText("based_on")
 }
 
 // titleFunc names the note at a path by its title, and a path that holds none

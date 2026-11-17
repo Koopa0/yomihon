@@ -130,38 +130,35 @@ func parseFrontmatter(rel string, data []byte) note {
 // readNote is the one parse behind both. It extracts the body only when it is
 // given the marks to extract it against; nil reads the frontmatter alone.
 func readNote(rel string, data []byte, marks *plannedMarks) note {
-	block, found := vault.SplitFrontmatter(data)
+	parsed, doc := vault.ParseWithTree(rel, data)
 	n := note{path: rel}
 	if marks != nil {
-		body := string(block.Body)
+		body := parsed.Body
 		n.body = body
 		if heading, ok := graph.FirstH1(body); ok {
 			n.title = heading
 		}
 		facts := inspectBody(body, marks.heading)
-		n.wikilinks = extractWikilinksFrom(body, block.BodyStartLine, &facts)
-		n.pathRefs, n.images, n.unusedDefinitions = extractReferencesFrom(body, block.BodyStartLine, facts.comments)
+		n.wikilinks = extractWikilinksFrom(body, parsed.BodyLine, &facts)
+		n.pathRefs, n.images, n.unusedDefinitions = extractReferencesFrom(body, parsed.BodyLine, facts.comments)
 		n.plannedNames = extractPlannedNamesFrom(body, *marks, &facts)
-		n.calloutTitles = extractCalloutTitlesFrom(body, block.BodyStartLine, facts.comments)
-		n.sequence = sequence.Parse(body, block.BodyStartLine)
+		n.calloutTitles = extractCalloutTitlesFrom(body, parsed.BodyLine, facts.comments)
+		n.sequence = sequence.Parse(body, parsed.BodyLine)
 		n.sectionAnchors, n.excerptSectionAnchors, n.blockAddresses = anchorSurfaceFrom(body, facts.comments)
 	}
-	if !found {
+	if !parsed.HasFrontmatter {
 		n.noFrontmatter = true
 		n.unclosedFrontmatter = vault.OpensUnclosedFrontmatter(data)
 		return n
 	}
-	var doc yaml.Node
-	if err := yaml.Unmarshal(block.Content, &doc); err != nil {
+	// A block that is not YAML has no tree. A repeated key, in a nested mapping
+	// too, is refused the same way.
+	if doc == nil || hasDuplicateKey(doc) {
 		n.badFrontmatter = true
 		return n
 	}
-	if hasDuplicateKey(&doc) {
-		n.badFrontmatter = true
-		return n
-	}
-	n.frontmatter = buildFrontmatter(&doc)
-	readTypedFields(&n, &doc)
+	n.frontmatter = buildFrontmatter(doc)
+	readTypedFields(&n, doc)
 	return n
 }
 

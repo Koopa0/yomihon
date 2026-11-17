@@ -6,7 +6,7 @@
 // component and refuses the moment an object stops being the one observed, so
 // a rename under a reader's feet costs the read rather than yielding bytes.
 // Broken frontmatter is recorded on the note itself rather than returned as
-// an error.
+// an error. Frontmatter is decoded here and nowhere else.
 package vault
 
 import (
@@ -46,12 +46,29 @@ type Note struct {
 // becomes the note's FMDiagnostic rather than an error. A found block sets
 // HasFrontmatter even when the map stays nil.
 func Parse(rel string, data []byte) *Note {
+	n, _ := ParseWithTree(rel, data)
+	return n
+}
+
+// ParseWithTree is Parse that also hands back the YAML document the
+// frontmatter was read from, which keeps what the map cannot: each scalar as
+// the author wrote it, and whether a value is a scalar or a list. It is the one
+// place a note's frontmatter is decoded, so the map and the tree describe one
+// document. They do not type a bare scalar alike: the map types it as yaml.v3
+// does, so a date is a time, and the tree leaves the typing to its reader.
+//
+// The tree is nil for a note with no block and for a block that is not YAML. It
+// is set for any block that is, including one whose document is not a mapping:
+// there the map stays nil and FMDiagnostic says so, as a decode into a map
+// always has. A reader that has no use for the tree calls Parse and the tree is
+// dropped with the parse.
+func ParseWithTree(rel string, data []byte) (*Note, *yaml.Node) {
 	n := &Note{RelPath: rel}
 	block, found := SplitFrontmatter(data)
 	n.Body = string(block.Body)
 	n.BodyLine = block.BodyStartLine
 	if !found {
-		return n
+		return n, nil
 	}
 	n.HasFrontmatter = true
 	content := block.Content
@@ -61,13 +78,23 @@ func Parse(rel string, data []byte) *Note {
 	if newlines := bytes.Count(data[:block.ContentStart], []byte("\n")); newlines > 0 {
 		content = slices.Concat(bytes.Repeat([]byte("\n"), newlines), block.Content)
 	}
-	var fields map[string]any
-	if err := yaml.Unmarshal(content, &fields); err != nil {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(content, &doc); err != nil {
 		n.FMDiagnostic = fmt.Sprintf("frontmatter is not valid YAML: %v", err)
-		return n
+		return n, nil
+	}
+	// A block of blank lines or comments holds no document. There is no map to
+	// make of it, which is what decoding it into a map has always answered.
+	if doc.Kind == 0 {
+		return n, &doc
+	}
+	var fields map[string]any
+	if err := doc.Decode(&fields); err != nil {
+		n.FMDiagnostic = fmt.Sprintf("frontmatter is not valid YAML: %v", err)
+		return n, &doc
 	}
 	n.Frontmatter = fields
-	return n
+	return n, &doc
 }
 
 // Text reads one frontmatter value the vault writes as text, reporting
@@ -96,6 +123,17 @@ func (n *Note) Strings(key string) []string {
 	return out
 }
 
+// ListOrText is Strings for a name a note may write as one piece of text where
+// it has one: "aliases: Name" is a list of one, as Obsidian and the check read
+// it. It is not the default for every list, because a key such as tags decides
+// for itself what a lone value is evidence of.
+func (n *Note) ListOrText(key string) []string {
+	if text, ok := n.Frontmatter[key].(string); ok {
+		return []string{text}
+	}
+	return n.Strings(key)
+}
+
 // Type is the frontmatter type, empty when absent.
 func (n *Note) Type() string {
 	t, _ := n.Text("type")
@@ -105,7 +143,7 @@ func (n *Note) Type() string {
 // Aliases are the other names this note answers to, in declaration order, and
 // nothing when it declared none. Link resolution and search both read these.
 func (n *Note) Aliases() []string {
-	return n.Strings("aliases")
+	return n.ListOrText("aliases")
 }
 
 // Created is the note's declared creation date, or the zero time when the
