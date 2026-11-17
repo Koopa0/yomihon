@@ -66,6 +66,8 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		open = pages.Shelf{}
 	}
 	view := pages.HomeView{
+		VaultName:         visible.Vault.Name,
+		VaultPath:         h.sources.Source.Name(),
 		Fault:             fault,
 		Restart:           restart,
 		OpenThoughts:      open,

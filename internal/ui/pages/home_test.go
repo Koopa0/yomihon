@@ -171,6 +171,32 @@ func TestTheDeskLeadsToTheHealthViewAndCountsNothing(t *testing.T) {
 	}
 }
 
+// TestTheDeskSaysWhichFolderItIsOfJustAboveItsLastLine holds the line that
+// names the folder and where it is. It sits before the way to the health view,
+// which stays the desk's last line, and a desk with neither fact draws none.
+func TestTheDeskSaysWhichFolderItIsOfJustAboveItsLastLine(t *testing.T) {
+	t.Parallel()
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		page := renderHome(t, &HomeView{VaultName: "Notes <&>", VaultPath: "/home/reader/notes"}, lang)
+		line, _, ok := strings.Cut(page, `class="y-deskhealth"`)
+		if !ok {
+			t.Fatalf("%s desk has no way to the health view", lang)
+		}
+		_, line, ok = strings.Cut(line, `data-home-vault`)
+		if !ok {
+			t.Fatalf("%s desk does not say which folder it is of, or says it after its last line", lang)
+		}
+		for _, want := range []string{"<span>Notes &lt;&amp;&gt;</span>", "<code>/home/reader/notes</code>"} {
+			if !strings.Contains(line, want) {
+				t.Errorf("%s desk line does not carry %q: %q", lang, want, line)
+			}
+		}
+		if page := renderHome(t, &HomeView{}, lang); strings.Contains(page, "data-home-vault") {
+			t.Errorf("%s desk with no name and no path draws the line anyway", lang)
+		}
+	}
+}
+
 // TestTheDeskDoesNotCountAMapsBranches holds that a map is listed on the desk
 // by its name alone, while a course keeps the lesson count that is its extent.
 func TestTheDeskDoesNotCountAMapsBranches(t *testing.T) {

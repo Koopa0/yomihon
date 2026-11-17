@@ -35,7 +35,9 @@ func VaultName(path string) string {
 // captured for the same request, reading no source of its own. It takes the
 // artifact authority from the snapshot rather than from its caller so that the
 // signature cannot express a mismatched pair. vaultName is the folder's own
-// name, already reduced to something a reader recognises by VaultName.
+// name, already reduced to something a reader recognises by VaultName; the name
+// the shell shows is the title the snapshot's README wrote when it has one, and
+// this otherwise.
 func Project(vaultName string, authority schema.Authority, snap *snapshot.Generation) nav.Shell {
 	policy := snap.ArtifactPolicy()
 	governed := authority.Governed()
@@ -44,7 +46,7 @@ func Project(vaultName string, authority schema.Authority, snap *snapshot.Genera
 		Governed:     governed,
 		OtherVersion: authority.VersionMismatch() != nil,
 		Vault: nav.Vault{
-			Name:  vaultName,
+			Name:  snap.VaultTitle(vaultName),
 			Notes: snap.NoteCount(),
 		},
 	}

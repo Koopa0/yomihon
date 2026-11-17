@@ -4529,7 +4529,8 @@ a.y-facetrow:hover {
 /* The desk's last line, the way to the whole-folder view. It is the quietest
    line on the page, and it names the page without saying what is on it: the
    colour that asks for attention is the health page's own. */
-.y-deskhealth {
+.y-deskhealth,
+.y-deskvault {
   color: var(--fg-subtle);
   font-family: var(--font-sans);
   font-size: var(--fs-13);
@@ -4546,6 +4547,20 @@ a.y-facetrow:hover {
 
 .y-deskhealth a:hover {
   color: var(--fg);
+}
+
+/* Which folder this desk is of: the same quiet line as the one under it, with
+   the path in the mono face and left to break where the folder names do. */
+.y-deskvault {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+
+.y-deskvault code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 1180px) {

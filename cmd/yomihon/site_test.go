@@ -210,6 +210,45 @@ func TestARulesFileForAnotherVersionIsReadAsNoRulesFile(t *testing.T) {
 	}
 }
 
+// TestTheDeskNamesTheFolderByItsReadmeAndSaysWhereItIs holds the wiring from
+// the folder that was opened to the line at the foot of the desk: the name is
+// the README's first heading, and the path is where the folder really is.
+func TestTheDeskNamesTheFolderByItsReadmeAndSaysWhereItIs(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Field Notes\n\nWords.\n"), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
+		t.Fatalf("write README: %v", err)
+	}
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+	resolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(%q): %v", root, err)
+	}
+
+	home := httptest.NewRecorder()
+	site.ServeHTTP(home, siteRequest(t, http.MethodGet, "/", http.NoBody))
+	if home.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want %d", home.Code, http.StatusOK)
+	}
+	_, line, ok := strings.Cut(home.Body.String(), "data-home-vault")
+	if !ok {
+		t.Fatal("the desk does not say which folder it is of")
+	}
+	for _, want := range []string{"<span>Field Notes</span>", "<code>" + resolved + "</code>"} {
+		if !strings.Contains(line, want) {
+			t.Errorf("the desk line does not carry %q", want)
+		}
+	}
+}
+
 // TestContractAbsenceIsNotReportedAsAFault locks the difference between a
 // folder that never declared a contract and one whose declaration is broken.
 // Both used to arrive here as the same warning, and the absent case additionally
