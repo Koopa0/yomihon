@@ -389,13 +389,7 @@ func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) (err er
 		// A list too long to read, or not a file, is never read in whole and
 		// never opened; it is renamed, which is all that can be done with it.
 		// Any other damaged list is kept as the bytes it had.
-		var asideErr error
-		if raw == nil {
-			asideErr = confdir.SetAside(s.dir, listFile, damagedFile)
-		} else {
-			asideErr = confdir.Replace(s.dir, damagedFile, raw)
-		}
-		if asideErr != nil {
+		if asideErr := s.setAside(raw); asideErr != nil {
 			return fmt.Errorf("set the damaged list of vaults aside: %w", asideErr)
 		}
 		list = nil
@@ -434,4 +428,13 @@ func abandoned(holder []byte, age time.Duration) bool {
 	pid, _, _ := strings.Cut(string(holder), " ")
 	n, err := strconv.Atoi(pid)
 	return err == nil && !processAlive(n)
+}
+
+// setAside keeps a damaged list for the reader to open: the bytes it had, or,
+// when it was never read (raw is nil), the file itself, renamed.
+func (s *Store) setAside(raw []byte) error {
+	if raw == nil {
+		return confdir.SetAside(s.dir, listFile, damagedFile)
+	}
+	return confdir.Replace(s.dir, damagedFile, raw)
 }
