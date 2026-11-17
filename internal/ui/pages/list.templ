@@ -1,0 +1,145 @@
+package pages
+
+import (
+	"strconv"
+
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// ListBar is the line above a list: what heads it, a field to narrow it, what
+// the page can unfold, and the order it is in. Each part is drawn only when the
+// list has something for it to do.
+templ ListBar(l List, lang wording.Lang) {
+	if l.Label != "" || l.Filter != nil || l.Toggle.Text != "" || (l.Count == "" && len(l.Switch.Choices) > 0) {
+		<form class={ "y-listbar", templ.KV("y-listbar--ruled", l.Ruled) } method="get" role="search" data-list-bar>
+			if l.Label != "" {
+				<span class={ "y-listbar__label", templ.KV("y-listbar__label--authored", l.LabelAuthored) }>{ l.Label }</span>
+				if l.LabelCount != "" {
+					<span class="y-lgroup__count y-listbar__count">{ l.LabelCount }</span>
+				}
+			}
+			if l.Filter != nil {
+				@listFilter(l.Filter, lang)
+			}
+			if l.Toggle.Text != "" {
+				<a class="y-listbar__toggle" href={ templ.URL(l.Toggle.Href) } data-list-link>{ l.Toggle.Text }</a>
+			}
+			if l.Count == "" && len(l.Switch.Choices) > 0 {
+				@listSwitch(l.Switch)
+			}
+			for _, kv := range l.Keep {
+				<input type="hidden" name={ kv.Name } value={ kv.Value }/>
+			}
+		</form>
+	}
+}
+
+// listSwitch is the choice of order: the buttons that say which order the list
+// is in and take it to another.
+templ listSwitch(s ListSwitch) {
+	<span class="y-seg" role="group">
+		for _, c := range s.Choices {
+			<a href={ templ.URL(c.Href) } data-list-link aria-pressed={ strconv.FormatBool(c.Pressed) }>{ c.Text }</a>
+		}
+	</span>
+}
+
+templ listFilter(f *ListFilter, lang wording.Lang) {
+	<input
+		class="y-listfilter"
+		type="search"
+		name="filter"
+		value={ f.Value }
+		placeholder={ f.Hint }
+		aria-label={ wording.FilterField.In(lang) }
+		autocomplete="off"
+		enterkeyhint="search"
+		data-list-filter
+		data-list-fragment={ f.Action }
+	/>
+}
+
+// ListBody is the groups of a list, or what it says when there are none. It is
+// the part a filter replaces, so it stands alone.
+templ ListBody(l List, lang wording.Lang) {
+	<div class={ "y-listbody", templ.KV("y-listbody--wide", l.Wide) } data-list-body>
+		for _, g := range l.Groups {
+			@listGroup(g)
+		}
+		if len(l.Groups) == 0 && l.Cleared.Text != "" {
+			<p class="y-listcleared">
+				<span>{ l.Cleared.Text }</span>
+				<a href={ templ.URL(l.Cleared.Href) } data-list-link>{ wording.ClearFilter.In(lang) }</a>
+			</p>
+		} else if len(l.Groups) == 0 && l.Empty != "" {
+			<p class="y-homeempty" data-index-empty>{ l.Empty }</p>
+		}
+	</div>
+}
+
+// List draws a list: its bar, then its groups.
+templ ListView(l List, lang wording.Lang) {
+	<div class="y-list2" data-list>
+		if l.Count != "" {
+			<div class="y-countline">
+				<p class="y-indexcount">{ l.Count }</p>
+				if len(l.Switch.Choices) > 0 {
+					@listSwitch(l.Switch)
+				}
+			</div>
+		}
+		@ListBar(l, lang)
+		@ListBody(l, lang)
+	</div>
+}
+
+templ listGroup(g ListGroup) {
+	<section class={ "y-lgroup", templ.KV("y-lgroup--headed", g.Heading != "") }>
+		if g.Heading != "" && g.Href != "" {
+			<a class="y-lgroup__link" href={ templ.URL(g.Href) }>
+				<header class="y-lgroup__head">
+					@listGroupHead(g)
+				</header>
+			</a>
+		} else if g.Heading != "" {
+			<header class="y-lgroup__head">
+				@listGroupHead(g)
+				if g.Action.Text != "" {
+					<a class="y-lgroup__action" href={ templ.URL(g.Action.Href) } data-list-link>{ g.Action.Text }</a>
+				}
+			</header>
+		}
+		for _, row := range g.Rows {
+			@listRow(row)
+		}
+	</section>
+}
+
+templ listGroupHead(g ListGroup) {
+	<h2 class={ "y-lgroup__name", templ.KV("y-lgroup__name--authored", g.Authored) }>{ g.Heading }</h2>
+	if g.Count != "" {
+		<span class="y-lgroup__count">{ g.Count }</span>
+	}
+}
+
+templ listRow(r ListRow) {
+	<a class={ "y-lrow", templ.KV("y-lrow--folder", r.Folder) } href={ templ.URL(r.Href) } data-list-row>
+		<span class="y-lrow__title" { authoredLanguageAttrs(r.Language)... }>
+			if r.Match != "" {
+				{ r.Before }<span class="y-lrow__hit">{ r.Match }</span>{ r.After }
+			} else {
+				{ r.Title }
+			}
+		</span>
+		if r.Draft {
+			<span class="y-lrow__tag">{ r.DraftWord }</span>
+		}
+		if r.Fact != "" {
+			if r.FactTime != "" {
+				<time class="y-lrow__fact" datetime={ r.FactTime }>{ r.Fact }</time>
+			} else {
+				<span class="y-lrow__fact">{ r.Fact }</span>
+			}
+		}
+	</a>
+}

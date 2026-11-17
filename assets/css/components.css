@@ -363,16 +363,14 @@ samp {
   width: 6px;
 }
 
-.y-lesson .ui-status,
-.y-homenote__meta .ui-status {
+.y-lesson .ui-status {
   background: none;
   color: var(--fg-subtle);
   padding: 0;
   white-space: nowrap;
 }
 
-.y-lesson .ui-status::before,
-.y-homenote__meta .ui-status::before {
+.y-lesson .ui-status::before {
   display: none;
 }
 
@@ -4321,9 +4319,7 @@ a.y-facetrow:hover {
   padding: var(--sp-5) 0 0;
 }
 
-.y-homeblock--recent {
-  grid-column: span 7;
-}
+
 
 /* The four ways in sit two by two; the desk's own search field is not one of
    them and takes the width under them. */
@@ -4429,9 +4425,7 @@ a.y-facetrow:hover {
   text-decoration: none;
 }
 
-.y-shelfblocks {
-  margin-top: var(--sp-6);
-}
+
 /* A fault the whole page is subject to is full-width news, and it reads as a
    sentence rather than a column of items. Without a track of its own it auto-
    places into a single twelfth and the message renders as an unreadable
@@ -4475,66 +4469,23 @@ a.y-facetrow:hover {
   margin: var(--sp-1) 0 0;
 }
 
-.y-homerecent {
-  display: flex;
-  flex-direction: column;
-}
 
-.y-homenote {
-  align-items: center;
-  border-top: 1px solid var(--border-faint);
-  display: flex;
-  gap: var(--sp-4);
-  min-width: 0;
-  padding: var(--sp-3) 2px;
-}
 
-.y-homenote:first-child {
-  border-top: 0;
-}
 
-.y-homenote:hover .y-homenote__title {
-  color: var(--link);
-}
 
-.y-homenote__main {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
 
-.y-homenote__title {
-  color: var(--fg);
-  font-family: var(--font-serif);
-  font-size: var(--fs-14);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-.y-homenote__path {
-  color: var(--fg-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-.y-homenote__meta {
-  align-items: center;
-  display: flex;
-  flex: none;
-  gap: 9px;
-}
 
-.y-homenote__meta time {
-  color: var(--fg-muted);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-}
+
+
+
+
+
+
+
+
+
 
 /* The way to the folder's own README closes the desk. It is set in the reading
    measure, and it begins where everything stacked above it begins: centred, its
@@ -4585,7 +4536,6 @@ a.y-facetrow:hover {
 }
 
 @media (max-width: 1180px) {
-  .y-homeblock--recent,
   .y-modeblock {
     grid-column: 1 / -1;
   }
@@ -6037,7 +5987,6 @@ pre,
 samp,
 .y-fileinfo__list dd,
 .y-findings__path,
-.y-homenote__path,
 .y-notefacts__path,
 .y-result__meta {
   text-autospace: no-autospace;
@@ -6566,14 +6515,9 @@ samp,
     text-align: left;
   }
 
-  .y-homenote {
-    align-items: flex-start;
-  }
+  
 
-  .y-homenote__meta {
-    align-items: flex-end;
-    flex-direction: column;
-  }
+  
 
   .y-module {
     padding-left: var(--sp-4);
@@ -7949,13 +7893,13 @@ samp,
 /* One folder seen whole. A reading page, not a file manager: no sizes, no
    dates, no sort controls — the captured order, which is the folder's own. */
 .y-crumbs__link {
-  color: inherit;
-  text-decoration: none;
+  color: var(--fg-muted);
+  text-decoration: underline;
+  text-underline-offset: var(--sp-1);
 }
 
 .y-crumbs__link:hover {
   color: var(--fg);
-  text-decoration: underline;
 }
 
 /* A folder's README stands in front of its listing as its first paragraph,
@@ -8502,4 +8446,338 @@ samp,
 .y-question-removal button:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* ============================================================
+   Lists (lists-and-search.md §2): one rule for every list. A row is one line
+   of the reader's own words with one fact at its far end; a group is a heading
+   over a run of rows; a bar above them holds the filter and the order.
+   ============================================================ */
+.y-list2 {
+  margin-top: var(--sp-7);
+}
+
+/* The page's count line, with the order at its far end on the same baseline;
+   the list begins a fixed step below it. */
+.y-countline {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  margin-bottom: var(--sp-7);
+}
+
+.y-countline .y-indexcount {
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+.y-countline .y-seg {
+  margin-inline-start: auto;
+}
+
+.y-listbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2) var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+/* When the bar is the list's head, its rule closes it across every column. */
+.y-listbar--ruled {
+  border-bottom: 1px solid var(--line-strong);
+  margin-bottom: 0;
+  padding-bottom: var(--sp-2);
+}
+
+.y-listbar--ruled + .y-listbody > .y-lgroup:first-child {
+  border-top: 0;
+}
+
+.y-listbar__label {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+}
+
+.y-listbar__label--authored {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+  line-height: 28px;
+}
+
+/* The count beside a head label is a quiet fact, not a second label. */
+.y-listbar .y-listbar__count {
+  margin-inline: calc(-1 * var(--sp-2)) 0;
+}
+
+.y-listfilter {
+  background: transparent;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  height: 32px;
+  margin-inline-start: auto;
+  padding: 0 var(--sp-3);
+  width: var(--field-w);
+}
+
+.y-listbar__toggle,
+.y-lgroup__action,
+.y-seg a {
+  align-items: center;
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  display: inline-flex;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  min-height: 32px;
+  padding: 0 var(--sp-3);
+  text-decoration: none;
+}
+
+.y-listbar__toggle:hover,
+.y-lgroup__action:hover,
+.y-seg a:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.y-seg {
+  align-items: center;
+  display: inline-flex;
+}
+
+/* In the bar the toggle and the order sit at the far end, after whatever is
+   already there; the filter takes the slack when it is. */
+.y-listbar > .y-listbar__toggle,
+.y-listbar > .y-seg {
+  margin-inline-start: auto;
+}
+
+.y-listfilter ~ .y-listbar__toggle,
+.y-listfilter ~ .y-seg,
+.y-listbar__toggle ~ .y-seg {
+  margin-inline-start: 0;
+}
+
+.y-seg a[aria-pressed='true'] {
+  background: var(--selected);
+  color: var(--on-selected);
+  font-weight: var(--fw-semibold);
+}
+
+.y-listbody {
+  min-width: 0;
+}
+
+.y-lgroup {
+  break-inside: avoid-column;
+}
+
+/* One group alone may run on into the second column; only a group among others
+   keeps whole. */
+.y-lgroup:only-child {
+  break-inside: auto;
+}
+
+.y-lgroup + .y-lgroup {
+  margin-top: var(--sp-6);
+}
+
+.y-lgroup:not(.y-lgroup--headed) {
+  border-top: 1px solid var(--line-strong);
+}
+
+.y-lgroup__head {
+  align-items: baseline;
+  border-bottom: 1px solid var(--line-strong);
+  display: flex;
+  padding: var(--sp-2) 0;
+}
+
+.y-lgroup__name {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  line-height: 20px;
+  margin: 0;
+}
+
+.y-lgroup__name--authored {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+  line-height: 28px;
+}
+
+.y-lgroup__count {
+  color: var(--fg-subtle);
+  flex: none;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-regular);
+  margin-inline-start: auto;
+}
+
+.y-lgroup__action {
+  margin-inline-start: var(--sp-4);
+}
+
+/* A heading that is a link is one target from edge to edge, count included,
+   and answers a pointer as a row does; its rule stays on the words' edge. */
+.y-lgroup__link {
+  color: inherit;
+  display: block;
+  margin-inline: calc(-1 * var(--sp-3));
+  text-decoration: none;
+}
+
+.y-lgroup__link .y-lgroup__head {
+  border-bottom: 0;
+  padding-inline: var(--sp-3);
+  position: relative;
+}
+
+.y-lgroup__link .y-lgroup__head::after {
+  border-bottom: 1px solid var(--line-strong);
+  bottom: 0;
+  content: '';
+  inset-inline: var(--sp-3);
+  position: absolute;
+}
+
+.y-lgroup__link:hover {
+  background: var(--wash);
+}
+
+.y-lgroup__link:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+/* The wash a pointer brings reaches past the words on both sides, and the
+   hairline stays on the words' edge: the row is pulled out by the wash's
+   reach and its own padding brings the words back. */
+.y-lrow {
+  align-items: baseline;
+  color: var(--fg);
+  display: flex;
+  margin-inline: calc(-1 * var(--sp-3));
+  padding: var(--sp-3);
+  position: relative;
+  text-decoration: none;
+}
+
+.y-lrow::after {
+  border-bottom: 1px solid var(--line);
+  bottom: 0;
+  content: '';
+  inset-inline: var(--sp-3);
+  position: absolute;
+}
+
+.y-lrow:hover {
+  background: var(--wash);
+}
+
+.y-lrow:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
+}
+
+.y-lrow__title {
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+  line-height: 28px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.y-lrow--folder .y-lrow__title::before {
+  color: var(--fg-subtle);
+  content: '› ';
+}
+
+.y-lrow__hit {
+  font-weight: var(--fw-semibold);
+}
+
+.y-lrow__tag {
+  color: var(--fg-muted);
+  flex: none;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  margin-inline-start: var(--sp-2);
+}
+
+.y-lrow__fact {
+  color: var(--fg-subtle);
+  flex: none;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  margin-inline-start: auto;
+  padding-inline-start: var(--sp-4);
+  white-space: nowrap;
+}
+
+.y-listcleared {
+  align-items: baseline;
+  color: var(--fg-muted);
+  display: flex;
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+  gap: var(--sp-4);
+  margin: var(--sp-5) 0 0;
+}
+
+.y-listcleared a {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+}
+
+@media (min-width: 1024px) {
+  .y-listbody--wide {
+    column-count: 2;
+    column-gap: var(--sp-7);
+  }
+}
+
+@media (max-width: 720px), (pointer: coarse) {
+  .y-listbar__toggle,
+  .y-seg a {
+    min-height: 44px;
+  }
+
+  /* A group head is one height with or without a control: the control's hit
+     area overflows it instead of growing it. */
+  .y-lgroup__action {
+    margin-block: -12px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 720px) {
+  .y-listfilter {
+    font-size: var(--fs-16);
+    height: 44px;
+    margin-inline-start: 0;
+    width: 100%;
+  }
+
+  .y-lrow {
+    min-height: 44px;
+  }
 }

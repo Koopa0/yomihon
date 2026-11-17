@@ -111,10 +111,14 @@ func buildVault(t *testing.T) (root string, model *nav.Model) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	mtimes := map[string]time.Time{
-		"Diary/2026-07-09.md": time.Date(2026, time.July, 9, 8, 0, 0, 0, time.UTC),
-		"Diary/2026-07-10.md": time.Date(2026, time.July, 10, 8, 0, 0, 0, time.UTC),
+	// A date a recording draws must not depend on the day the test runs or the
+	// zone it runs in, so every file starts at local midday on one day.
+	mtimes := map[string]time.Time{}
+	for rel := range files {
+		mtimes[rel] = time.Date(2026, time.July, 1, 12, 0, 0, 0, time.Local)
 	}
+	mtimes["Diary/2026-07-09.md"] = time.Date(2026, time.July, 9, 8, 0, 0, 0, time.UTC)
+	mtimes["Diary/2026-07-10.md"] = time.Date(2026, time.July, 10, 8, 0, 0, 0, time.UTC)
 	for rel, modified := range mtimes {
 		full := filepath.Join(root, filepath.FromSlash(rel))
 		if err := os.Chtimes(full, modified, modified); err != nil {

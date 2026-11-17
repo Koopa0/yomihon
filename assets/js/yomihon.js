@@ -9,6 +9,7 @@ import { initDrawer } from './drawer.js';
 import { initFreshness } from './freshness.js';
 import { initLangForm } from './langform.js';
 import { initLesson } from './lesson.js';
+import { initList } from './list.js';
 import { initMark } from './mark.js';
 import { initPreferences } from './preferences.js';
 import { initPreview } from './preview.js';
@@ -36,6 +37,7 @@ function init() {
   initShortcuts({ drawer, rail, sidebar, search });
   const enhanceCodeCopy = initCodeCopy();
   initLesson(enhanceCodeCopy);
+  initList();
   initMark();
   initThought();
   initQuestion();

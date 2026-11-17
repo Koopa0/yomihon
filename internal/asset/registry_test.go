@@ -52,6 +52,7 @@ func TestProductScriptRegistryIsExact(t *testing.T) {
 		"freshness.js",
 		"langform.js",
 		"lesson.js",
+		"list.js",
 		"mark.js",
 		"preferences.js",
 		"preview.js",

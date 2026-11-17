@@ -8,16 +8,35 @@ var (
 	SubfolderCountOne  = both("%d 個資料夾", "%d folder")
 	SubfolderCountMany = both("%d 個資料夾", "%d folders")
 	// CountJoin sits between the folders and the notes a level holds.
-	CountJoin           = both("、", ", ")
+	CountJoin           = both(" · ", " · ")
 	FolderNoteCountOne  = both("%d 篇", "%d note")
 	FolderNoteCountMany = both("%d 篇", "%d notes")
 	FolderEmpty         = both("這個資料夾是空的。", "This folder is empty.")
 	// RootNotes names the markdown files that sit at the vault root, so the
 	// folder shelf does not read them as another folder.
-	RootNotes = both("根目錄筆記", "Root notes")
+	RootNotes = both("最上層的筆記", "Top-level notes")
 	// OtherFiles names the files a folder holds that are not notes. They stay
 	// listed, and they are not counted as 篇.
 	OtherFiles = both("其他檔案", "Other files")
+)
+
+// What a list says about its own order and its own length.
+var (
+	AllNotes      = both("全部 %d 篇", "All %d notes")
+	NotesGroup    = both("筆記", "Notes")
+	TopLevel      = both("最上層", "Top level")
+	SortByName    = both("依名稱", "By name")
+	SortByOrder   = both("依順序", "In order")
+	SortByTitle   = both("依標題", "By title")
+	SortByRecent  = both("依最近變更", "By latest change")
+	MonthHeading  = both("%d 月", "Month %d")
+	FilterNotes   = both("篩選 %s 篇", "Filter %s notes")
+	ExpandFolders = both("展開資料夾", "Open the folders")
+	FoldFolders   = both("收起資料夾", "Close the folders")
+	ClearFilter   = both("清除篩選", "Clear the filter")
+	NoMatch       = both("沒有符合「%s」的筆記", `No note matches "%s"`)
+	// FilterField labels the field for a reader who cannot see its hint.
+	FilterField = both("篩選這個列表", "Filter this list")
 )
 
 // A file yomihon has no reader for: it says so, and offers the bytes.
@@ -92,9 +111,6 @@ var (
 	)
 	LeaveThisPage = both("離開這一頁", "Leave this page")
 	BackHome      = both("返回閱讀桌", "Back to the desk")
-	// BackToFolders climbs out of one level of the tree to the listing of all
-	// of it, which is where the crumbs above it stop.
-	BackToFolders = both("返回資料夾", "Back to folders")
 )
 
 // What the raw-bytes routes say when they cannot answer. These reach a reader

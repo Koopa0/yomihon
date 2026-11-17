@@ -87,7 +87,7 @@ const rewritePath = (path, needle, replacement, label, want = 1) => async (page)
 };
 
 const rewriteFolderTitles = async (page) => {
-  const opening = '<span class="y-row__title" lang="ja">';
+  const opening = '<span class="y-lrow__title" lang="ja">';
   const needles = JAPANESE_FOLDER_TITLES.map((title) => `${opening}${title}</span>`);
   let requests = 0;
   let matches = [];
@@ -128,7 +128,7 @@ const readListingLanguages = () => ({
     text: element.querySelector('.y-result__title')?.textContent,
     lang: element.querySelector('.y-result__title')?.getAttribute('lang'),
   })),
-  folderTitles: Array.from(document.querySelectorAll('.y-row__title'), (element) => ({
+  folderTitles: Array.from(document.querySelectorAll('.y-lrow__title'), (element) => ({
     text: element.textContent,
     lang: element.getAttribute('lang'),
   })),
