@@ -1,32 +1,21 @@
 package pages
 
 import (
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// Folder lists one level of the vault's directories. It is a reading page, not
-// a file manager: no sizes, no dates, no sorting controls, just the order the
-// folder is in.
-//
-// It carries no left rail. A shelf page is the listing itself, and a rail
-// beside it would be that listing a second time, in a narrower column.
+// Folder lists one level of the vault's directories. It carries no left rail:
+// the sidebar already holds the folders, and the list here is the level the
+// reader chose.
 templ Folder(v FolderView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<main id="_y-main" tabindex="-1" class="y-main y-deskmain">
 			<div class="y-home">
 				<header class="y-home__head">
-					if len(v.Crumbs) > 0 {
-						<div class="y-crumbs">
-							for i, crumb := range v.Crumbs {
-								if i > 0 {
-									<span class="y-crumbs__sep" aria-hidden="true">/</span>
-								}
-								<a class="y-crumbs__link" href={ templ.URL(folderHref(crumb.RelPath)) }>{ crumb.Name }</a>
-							}
-						</div>
-					}
-					<h1 class="y-title">{ v.Shelf.Title }</h1>
+					@crumbTrail(v.Crumbs, c.Lang)
+					<h1 class="y-title">{ v.Title }</h1>
 					if v.Cover.HTML != "" {
 						<div class="y-cover">
 							@templ.Raw(v.Cover.HTML)
@@ -38,13 +27,23 @@ templ Folder(v FolderView, c layouts.Chrome) {
 					if v.Count != "" {
 						<p class="y-indexcount">{ v.Count }</p>
 					}
-					<a class="y-back" href={ templ.URL(indexHref(folderMode)) }>{ wording.BackToFolders.In(c.Lang) }</a>
 				</header>
-				if len(v.Shelf.Rows) == 0 {
-					<p class="y-homeempty" data-index-empty>{ v.Shelf.Empty }</p>
-				}
-				@ShelfPage(v.Shelf, c.Lang)
+				@ListView(v.List, c.Lang)
 			</div>
 		</main>
+	}
+}
+
+// crumbTrail is the way up from a folder: the vault, then each folder above.
+templ crumbTrail(crumbs []nav.NoteRef, lang wording.Lang) {
+	if len(crumbs) > 0 {
+		<nav class="y-crumbs" aria-label={ wording.Folders.In(lang) }>
+			for i, crumb := range crumbs {
+				if i > 0 {
+					<span class="y-crumbs__sep" aria-hidden="true">›</span>
+				}
+				<a class="y-crumbs__link" href={ templ.URL(crumbHref(crumb.RelPath)) }>{ crumb.Name }</a>
+			}
+		</nav>
 	}
 }

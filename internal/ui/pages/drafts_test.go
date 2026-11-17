@@ -183,25 +183,6 @@ func TestTheVaultSidebarMarksOnlyDrafts(t *testing.T) {
 	}
 }
 
-func TestTheRecentListMarksOnlyDrafts(t *testing.T) {
-	t.Parallel()
-
-	recent := NewRecentBlock([]HomeNote{
-		{Title: "Finished", RelPath: "A.md"},
-		{Title: "Open", RelPath: "B.md", Draft: true},
-	}, true, false, wording.En)
-	html := renderComponent(t, shelfKeeping(recent, layouts.Chrome{Lang: wording.En}))
-
-	if got := strings.Count(html, `class="ui-status"`); got != 1 {
-		t.Errorf("the recent list prints %d marks, want 1: the draft's", got)
-	}
-	_, open, _ := strings.Cut(html, `href="/notes/B.md"`)
-	open, _, _ = strings.Cut(open, "</a>")
-	if !strings.Contains(open, `<span class="ui-status">Draft</span>`) {
-		t.Errorf("the recent list does not mark the draft: %s", html)
-	}
-}
-
 // TestTheNoteFactsMarkADraftOnceAndTheHeadCarriesNone holds the quiet word a
 // draft carries among the facts at the end of the text: once, in the
 // interface's language, with nothing under the title, and none at all on a

@@ -270,8 +270,23 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 	name := nav.Label(dir)
 	lang := origin.Language(r)
 	notes, cover := h.folderCover(snap, dir, notes, lang)
-	view := pages.NewFolderLevel(dir, name, notes, subfolders, lang, articleLanguageLookup(snap))
+	view := pages.NewFolderLevel(&pages.FolderInput{
+		Dir: dir, Name: name, VaultName: h.sources.VaultName,
+		Notes: notes, Subfolders: subfolders,
+		Model: pageShell.Nav, Query: pages.ParseListQuery(r.URL.Query()), Now: time.Now(),
+		Lang: lang, ArticleLang: articleLanguageLookup(snap),
+	})
 	view.Cover = cover
+	if r.URL.Query().Get("fragment") == "1" {
+		// The script asks for the list alone, to put in place of the one it has.
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if err := pages.ListBody(view.List, lang).Render(r.Context(), w); err != nil {
+			h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write folder list", "path", dir, "error", err)
+		}
+		return
+	}
 	if err := pages.Folder(view, layouts.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write folder page", "path", dir, "error", err)
 	}

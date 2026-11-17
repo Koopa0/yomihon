@@ -37,6 +37,13 @@ export function initShortcuts({ drawer, rail, sidebar, search }) {
     if (root.dataset.singleKeyShortcuts === 'off') return;
     if (typing || document.querySelector('dialog[open]')) return;
     if (event.key === '/') {
+      // A page that is a list has its own field, and it is the nearer one.
+      const listFilter = document.querySelector('[data-list-filter]');
+      if (listFilter) {
+        event.preventDefault();
+        listFilter.focus();
+        return;
+      }
       if (sidebar.canFocusFilter()) {
         event.preventDefault();
         if (drawer.isNarrow() && !drawer.isOpen()) drawer.open();

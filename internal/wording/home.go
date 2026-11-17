@@ -18,24 +18,6 @@ var (
 	HomeFaultsLede    = both("書庫宣告了無法履行的事", "The vault declares something it cannot honour")
 	HomeFaultsBrowser = both("有些頁面因此看不到。", "Some pages cannot be shown because of it.")
 	HomeDegradedTitle = both("讀不進來的檔案", "Files that could not be read")
-	FolderRecentTitle = both("最近變更", "Recently changed")
-	// The scoped ledes name the set the block lists — the contract's declared
-	// knowledge layer — so the list does not read as the whole folder. A folder that declared no layer lists everything and
-	// carries no lede: the heading already says what the list is, and naming
-	// a layer there would invent a rule its owner never wrote.
-	FolderRecentLedeScoped = both(
-		"知識層資料夾中",
-		"In the declared knowledge folders",
-	)
-	FolderTiedTitle = both("排不出先後的筆記", "Notes with identical timestamps")
-	FolderTiedLede  = both(
-		"所以下面的順序沒有意義。",
-		"So the order below means nothing.",
-	)
-	FolderTiedLedeScoped = both(
-		"知識層資料夾中",
-		"In the declared knowledge folders",
-	)
 )
 
 // NoStructureRead marks a study-path card whose zero is a fault rather than

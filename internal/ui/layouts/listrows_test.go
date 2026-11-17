@@ -35,7 +35,7 @@ func TestAStatusIsNeutralWhereverItIsDrawn(t *testing.T) {
 	t.Parallel()
 
 	rules := componentRules(t)
-	for _, context := range []string{".y-lesson", ".y-homenote__meta"} {
+	for _, context := range []string{".y-lesson"} {
 		t.Run(context, func(t *testing.T) {
 			t.Parallel()
 			word := onlyRule(t, rules, context+" .ui-status")

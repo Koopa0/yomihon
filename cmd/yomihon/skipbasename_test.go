@@ -80,8 +80,9 @@ func TestSkipBasenamesAreNotNotes(t *testing.T) {
 	if strings.Contains(folders, `href="/notes/README.md"`) {
 		t.Errorf("GET /folders still shelves the skipped basename; page = %q", folders)
 	}
-	if !strings.Contains(folders, `href="/notes/Notes/Kept.md"`) {
-		t.Errorf("GET /folders lost the kept note; page = %q", folders)
+	folder := readingPage(t, site, "/folders/Notes")
+	if !strings.Contains(folder, `href="/notes/Notes/Kept.md"`) {
+		t.Errorf("GET /folders/Notes lost the kept note; page = %q", folder)
 	}
 
 	search := readingPage(t, site, "/search?q="+skipBasenameLockSentinel)

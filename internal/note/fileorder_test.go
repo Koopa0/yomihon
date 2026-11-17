@@ -93,7 +93,7 @@ func TestFolderRepliesUseReadingOrder(t *testing.T) {
 						}
 						row, href := false, ""
 						for _, attr := range tok.Attr {
-							if attr.Key == "data-index-row" {
+							if attr.Key == "data-list-row" {
 								row = true
 							}
 							if attr.Key == "href" {

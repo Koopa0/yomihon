@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -45,40 +46,6 @@ type ListIndexView struct {
 	// Order is how the reader may reorder the rows; empty where there is one
 	// order.
 	Order ShelfOrder
-}
-
-// RecentBlock is what changed last, and the words the list is entitled to. It
-// belongs to the folder mode rather than to the desk because it describes how
-// the files are kept, which is a different question from what there is to read.
-//
-// The heading and the sentence are chosen together, because they answer one
-// question between them: what this list may promise. They are chosen once, at
-// the moment the notes are known, so no later reader has to work out which
-// pairing applies.
-type RecentBlock struct {
-	Title string
-	Lede  string
-	Notes []HomeNote
-}
-
-// NewRecentBlock builds that list with the words it can stand behind. A fresh
-// clone stamps every file with one moment: where the recorded times separate
-// nothing, the block says so instead of promising recency. Where the contract
-// declares a knowledge layer the list covers that layer and the sentence names
-// it, so the list does not read as the whole folder.
-func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) RecentBlock {
-	block := RecentBlock{Title: wording.FolderTiedTitle.In(lang), Notes: notes}
-	switch {
-	case ordered && scoped:
-		block.Title, block.Lede = wording.FolderRecentTitle.In(lang), wording.FolderRecentLedeScoped.In(lang)
-	case ordered:
-		block.Title = wording.FolderRecentTitle.In(lang)
-	case scoped:
-		block.Lede = wording.FolderTiedLedeScoped.In(lang)
-	default:
-		block.Lede = wording.FolderTiedLede.In(lang)
-	}
-	return block
 }
 
 // NewPathIndex builds the study-path index. The measure is the course's extent
@@ -585,3 +552,106 @@ func joinMarks(parts ...string) string {
 
 // indexHref is where a mode block's heading leads.
 func indexHref(mode string) string { return "/" + mode }
+
+// FolderIndexView is the page of every folder: a two-level table of contents,
+// the vault's top folders as headings and their folders as rows.
+type FolderIndexView struct {
+	Title string
+	Count string
+	// Fault and Restart say why the page may be missing something, as every
+	// index states it.
+	Fault   string
+	Restart string
+	List    List
+}
+
+// topLevelHidden is the folder yomihon keeps its own files in, which the
+// table of contents does not list.
+const topLevelHidden = "System"
+
+// listableFolders drops what a reader never browses to: yomihon's own folder,
+// dot-folders and folders that hold no note.
+func listableFolders(folders []nav.Folder) []nav.Folder {
+	out := make([]nav.Folder, 0, len(folders))
+	for i := range folders {
+		if folders[i].Name == topLevelHidden || strings.HasPrefix(folders[i].Name, ".") || folders[i].NoteCount() == 0 {
+			continue
+		}
+		f := folders[i]
+		f.Subfolders = listableFolders(f.Subfolders)
+		out = append(out, f)
+	}
+	return out
+}
+
+func countFolders(folders []nav.Folder) int {
+	total := len(folders)
+	for i := range folders {
+		total += countFolders(folders[i].Subfolders)
+	}
+	return total
+}
+
+// NewFolderIndexView builds the table of contents.
+func NewFolderIndexView(model *nav.Model, contract ContractState, q ListQuery, now time.Time, lang wording.Lang) FolderIndexView {
+	top := listableFolders(model.ShelfFolders())
+	rootNotes, _ := splitNotesAndFiles(model.RootNotes())
+	total := countNotes(model.RootNotes(), top)
+
+	view := FolderIndexView{Title: wording.Folders.In(lang)}
+	view.Count = folderCount(total, countFolders(top), lang)
+	empty := emptySentence(contract, wording.JoinGuide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext, lang), lang)
+	if contract == ContractAbsent {
+		empty = wording.JoinGuide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext, lang)
+	}
+	view.List = List{Empty: empty, Wide: len(top) > 0}
+	if len(top) > 0 {
+		view.List.Switch = ListSwitchFor(indexHref(folderMode), q.Sort, "", false, wording.SortByName, lang)
+	}
+
+	type heading struct {
+		folder ListFolder
+		nested []ListFolder
+	}
+	headings := make([]heading, 0, len(top))
+	for i := range top {
+		h := heading{folder: ListFolder{Name: top[i].Name, RelPath: top[i].RelPath, Notes: top[i].NoteCount(), Latest: model.Latest(&top[i])}}
+		for j := range top[i].Subfolders {
+			sub := &top[i].Subfolders[j]
+			h.nested = append(h.nested, ListFolder{Name: sub.Name, RelPath: sub.RelPath, Notes: sub.NoteCount(), Latest: model.Latest(sub)})
+		}
+		headings = append(headings, h)
+	}
+	order := SortFolders(func() []ListFolder {
+		all := make([]ListFolder, len(headings))
+		for i := range headings {
+			all[i] = headings[i].folder
+		}
+		return all
+	}(), q.Sort)
+	for _, f := range order {
+		at := slices.IndexFunc(headings, func(h heading) bool { return h.folder.RelPath == f.RelPath })
+		h := headings[at]
+		view.List.Groups = append(view.List.Groups, ListGroup{
+			Heading:  h.folder.Name,
+			Href:     folderHref(h.folder.RelPath),
+			Authored: true,
+			Count:    noteCountFact(h.folder.Notes, lang),
+			Rows:     FolderRows(h.nested, q.Sort, now, lang),
+		})
+	}
+	if len(rootNotes) > 0 {
+		notes := make([]ListNote, len(rootNotes))
+		for i, n := range rootNotes {
+			listed := model.Listed(n.RelPath)
+			notes[i] = ListNote{Title: n.Name, RelPath: n.RelPath, Language: n.Language, Draft: listed.Draft, Modified: listed.Modified}
+		}
+		orderNotes(notes, q.Sort)
+		g := ListGroup{Rows: noteListRows(notes, q.Sort == SortByRecent, now, lang)}
+		if len(top) > 0 {
+			g.Heading, g.Count = wording.RootNotes.In(lang), Thousands(len(rootNotes))
+		}
+		view.List.Groups = append(view.List.Groups, g)
+	}
+	return view
+}

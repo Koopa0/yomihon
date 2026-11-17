@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
@@ -240,8 +241,8 @@ func TestFolderIndexLabelsRootNotesAsTheirOwnGroup(t *testing.T) {
 		lang wording.Lang
 		want string
 	}{
-		{wording.ZhHant, "根目錄筆記"},
-		{wording.En, "Root notes"},
+		{wording.ZhHant, "最上層的筆記"},
+		{wording.En, "Top-level notes"},
 	} {
 		view := NewFolderIndex(model, ContractGoverning, tt.lang, nil)
 		at := -1
@@ -270,21 +271,18 @@ func TestFolderLevelLabelsOtherFilesAndLeavesThemUncounted(t *testing.T) {
 		{Name: "note", RelPath: "Attachments/note.md"},
 		{Name: "scan.pdf", RelPath: "Attachments/scan.pdf"},
 	}
-	zh := NewFolderLevel("Attachments", "Attachments", files, nil, wording.ZhHant, nil)
-	if zh.Count != "1 篇" {
-		t.Errorf("folder level count = %q, want notes only", zh.Count)
-	}
-	wantZH := []Row{
-		{Text: "note", Href: "/notes/Attachments/note.md"},
-		{Text: "其他檔案", Heading: true},
-		{Text: "scan.pdf", Href: "/notes/Attachments/scan.pdf"},
-	}
-	if diff := cmp.Diff(wantZH, zh.Shelf.Rows); diff != "" {
-		t.Errorf("folder level rows (zh) mismatch (-want +got):\n%s", diff)
-	}
-	en := NewFolderLevel("Attachments", "Attachments", files, nil, wording.En, nil)
-	if en.Shelf.Rows[1].Text != "Other files" || !en.Shelf.Rows[1].Heading {
-		t.Errorf("folder level (%s) other-files label = %+v, want Other files", wording.En, en.Shelf.Rows)
+	for _, tt := range []struct {
+		lang  wording.Lang
+		other string
+	}{{wording.ZhHant, "其他檔案"}, {wording.En, "Other files"}} {
+		view := NewFolderLevel(&FolderInput{Dir: "Attachments", Name: "Attachments", Notes: files, Model: &nav.Model{}, Now: time.Now(), Lang: tt.lang})
+		if tt.lang == wording.ZhHant && view.Count != "1 篇" {
+			t.Errorf("folder level count = %q, want notes only", view.Count)
+		}
+		last := view.List.Groups[len(view.List.Groups)-1]
+		if last.Heading != tt.other || len(last.Rows) != 1 || last.Rows[0].Title != "scan.pdf" {
+			t.Errorf("folder level (%s) other-files group = %+v, want %q holding scan.pdf", tt.lang, last, tt.other)
+		}
 	}
 }
 
@@ -303,7 +301,7 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 		{courseMode, ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
 		{mapMode, ListIndex(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil), layouts.Chrome{})},
 		{reportMode, ListIndex(NewReportIndex(model.Reports(), wording.ZhHant, nil), layouts.Chrome{})},
-		{folderMode, FolderIndex(NewFolderIndex(model, ContractGoverning, wording.ZhHant, nil), RecentBlock{}, layouts.Chrome{})},
+		{folderMode, FolderIndex(NewFolderIndexView(model, ContractGoverning, ListQuery{}, time.Now(), wording.ZhHant), layouts.Chrome{})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.mode, func(t *testing.T) {
@@ -314,35 +312,6 @@ func TestEveryModeIndexNamesItself(t *testing.T) {
 			}
 			if want := `data-index="` + tt.mode + `"`; !strings.Contains(buf.String(), want) {
 				t.Errorf("the %s index does not carry %s", tt.mode, want)
-			}
-		})
-	}
-}
-
-// TestRecentBlockNamesItsReachBesideANarrowedShelf holds the sentence under
-// the recent list to the shelf beside it: a shelf narrowed to the declared
-// layer names that set, and an unscoped ordered shelf carries no sentence —
-// the heading already says what the list is.
-func TestRecentBlockNamesItsReachBesideANarrowedShelf(t *testing.T) {
-	t.Parallel()
-	notes := []HomeNote{{Title: "n"}}
-	for _, tt := range []struct {
-		name    string
-		ordered bool
-		scoped  bool
-		lang    wording.Lang
-		want    string
-	}{
-		{name: "ordered scoped zh", ordered: true, scoped: true, lang: wording.ZhHant, want: "知識層資料夾中"},
-		{name: "ordered scoped en", ordered: true, scoped: true, lang: wording.En, want: "In the declared knowledge folders"},
-		{name: "ordered unscoped zh", ordered: true, scoped: false, lang: wording.ZhHant, want: ""},
-		{name: "ordered unscoped en", ordered: true, scoped: false, lang: wording.En, want: ""},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := NewRecentBlock(notes, tt.ordered, tt.scoped, tt.lang)
-			if got.Lede != tt.want {
-				t.Errorf("lede = %q, want %q", got.Lede, tt.want)
 			}
 		})
 	}

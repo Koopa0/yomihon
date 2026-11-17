@@ -60,11 +60,11 @@ func TestFolderCountLeavesOutATermThatIsZero(t *testing.T) {
 		lang           wording.Lang
 		want           string
 	}{
-		{3, 2, wording.ZhHant, "2 個資料夾、3 篇"},
+		{3, 2, wording.ZhHant, "2 個資料夾 · 3 篇"},
 		{0, 2, wording.ZhHant, "2 個資料夾"},
 		{3, 0, wording.ZhHant, "3 篇"},
 		{0, 0, wording.ZhHant, ""},
-		{1, 1, wording.En, "1 folder, 1 note"},
+		{1, 1, wording.En, "1 folder · 1 note"},
 		{0, 2, wording.En, "2 folders"},
 	}
 	for _, tt := range tests {

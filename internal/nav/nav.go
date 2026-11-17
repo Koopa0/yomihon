@@ -99,6 +99,8 @@ type Model struct {
 	// dirNotes maps a directory's rel-path to every file the desk can open
 	// inside it, notes and the rest. Read it through Siblings.
 	dirNotes map[string][]NoteRef
+	// listed is what a listing says of a file beside its name, by path.
+	listed map[string]ListedFile
 }
 
 // NavigationClosure reports whether paths and maps were withheld, and why.
@@ -446,6 +448,14 @@ func newModel(
 	titles := noteTitles(files)
 	m.folders, m.rootNotes = buildFolderTree(paths, langs, titles)
 	m.dirNotes = buildDirNotes(paths, langs, titles)
+	m.listed = make(map[string]ListedFile, len(files))
+	for _, file := range files {
+		listed := ListedFile{Modified: file.modified}
+		if file.note != nil {
+			listed.Draft = schema.Draft(file.note.Frontmatter)
+		}
+		m.listed[file.path] = listed
+	}
 	m.navigation = Close(roles.Claim())
 	m.artifact = Close(policy.Claim())
 	m.journal = Close(journal.Claim())
@@ -921,4 +931,47 @@ func listName(p, base string, titles map[string]string) string {
 func Label(relPath string) string {
 	_, base := splitDir(relPath)
 	return displayName(base)
+}
+
+// ListedFile is what a listing says of a file beside its name.
+type ListedFile struct {
+	// Modified is when the file last changed on disk; zero when unknown.
+	Modified time.Time
+	// Draft is whether the note declares itself unfinished.
+	Draft bool
+}
+
+// Listed is what a listing says of the file at relPath, the zero value for a
+// path the vault does not hold.
+func (m *Model) Listed(relPath string) ListedFile { return m.listed[relPath] }
+
+// Latest is the newest change among the files folder holds at every depth,
+// zero when none carries a time.
+func (m *Model) Latest(folder *Folder) time.Time {
+	var latest time.Time
+	for _, note := range folder.Notes {
+		if at := m.listed[note.RelPath].Modified; at.After(latest) {
+			latest = at
+		}
+	}
+	for i := range folder.Subfolders {
+		if at := m.Latest(&folder.Subfolders[i]); at.After(latest) {
+			latest = at
+		}
+	}
+	return latest
+}
+
+// NoteCount is the notes folder holds at every depth.
+func (f *Folder) NoteCount() int {
+	total := 0
+	for _, note := range f.Notes {
+		if vault.IsMarkdown(note.RelPath) {
+			total++
+		}
+	}
+	for i := range f.Subfolders {
+		total += f.Subfolders[i].NoteCount()
+	}
+	return total
 }

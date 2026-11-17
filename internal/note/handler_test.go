@@ -1182,15 +1182,14 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 			t.Errorf("the desk lost %q to a contract failure; reading never depends on one", want)
 		}
 	}
-	// The shelf keeps its own reading: a contract that could not be read closes
-	// the distribution and leaves the recent list, which never depended on one.
+	// The folder index keeps its own reading: a contract that could not be read
+	// closes the distribution and leaves the folders, which never depended on one.
 	shelfCode, shelfBody := get(t, srv.Client(), srv.URL+"/folders")
 	if shelfCode != http.StatusOK {
 		t.Fatalf("GET /folders status = %d, want 200", shelfCode)
 	}
-	shelf := html.UnescapeString(shelfBody)
-	if !strings.Contains(shelf, `data-home-block="recent"`) {
-		t.Error("the shelf lost the recent list to a contract failure; reading never depends on one")
+	if !strings.Contains(shelfBody, `data-index="folders"`) {
+		t.Error("the folder index was lost to a contract failure; reading never depends on one")
 	}
 }
 
@@ -1239,9 +1238,9 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 		want string
 	}{
 		// The desk lists ways in rather than notes, so the needle for a
-		// captured generation is a link the shelf's own recent list put there
-		// rather than a wikilink resolved inside a body.
-		{name: "shelf", path: "/folders", want: `href="/notes/Concepts/Target.md"`},
+		// captured generation is a link a folder's own list put there rather
+		// than a wikilink resolved inside a body.
+		{name: "folder", path: "/folders/Concepts", want: `href="/notes/Concepts/Target.md"`},
 		{name: "note", path: "/notes/README.md", want: `<a href="/notes/Concepts/Target.md" class="wikilink">Target</a>`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1414,13 +1413,9 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 	}
 }
 
-// TestEveryBlockIsBuiltFromTheSnapshot pins three blocks beyond their site
-// markers. Recently changed is read from the folder index: the newest seven
-// typed notes in mtime order, with no block of notes by status beside it.
-// Study paths is read from the desk,
-// where it states how large a course is rather than how much of it is done. The
-// recent section is scoped by its own section marker, never by whichever block
-// happens to follow it.
+// TestEveryBlockIsBuiltFromTheSnapshot pins the desk's study-path block beyond
+// its site marker: it states how large a course is rather than how much of it
+// is done.
 func TestEveryBlockIsBuiltFromTheSnapshot(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -1474,39 +1469,11 @@ func TestEveryBlockIsBuiltFromTheSnapshot(t *testing.T) {
 	}
 
 	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.Client(), srv.URL+"/folders")
-	if code != http.StatusOK {
-		t.Fatalf("GET /folders status = %d, want 200", code)
-	}
 	deskCode, desk := get(t, srv.Client(), srv.URL+"/")
 	if deskCode != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", deskCode)
 	}
 
-	recent := homeSection(t, body, `data-home-block="recent"`)
-	if got := strings.Count(recent, "data-home-recent-note"); got != 7 {
-		t.Errorf("recent note rows = %d, want 7", got)
-	}
-	previous := -1
-	for i := 7; i >= 1; i-- {
-		marker := fmt.Sprintf("Note %d", i)
-		at := strings.Index(recent, marker)
-		if at < 0 {
-			t.Errorf("recent section is missing %q", marker)
-			continue
-		}
-		if previous >= 0 && at <= previous {
-			t.Errorf("recent section order places %q at %d after the prior newer note at %d", marker, at, previous)
-		}
-		previous = at
-	}
-	if strings.Contains(recent, "Note 0") {
-		t.Error("recent section includes the eighth-newest note, want the newest seven")
-	}
-
-	if strings.Contains(body, `data-home-block="lifecycle"`) {
-		t.Error("the folder index still draws a block of notes by status")
-	}
 	paths := homeSection(t, desk, `data-home-block="courses"`)
 	// The block says how big a course is, not how much of it is done. The
 	// figure that used to sit here counted lessons awaiting a human's final
@@ -1583,40 +1550,21 @@ body
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	code, body := get(t, srv.Client(), srv.URL+"/folders")
+	code, _ := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
 		t.Fatalf("GET /folders status = %d, want 200", code)
-	}
-	section := html.UnescapeString(homeSection(t, body, `data-home-block="recent"`))
-	if !strings.Contains(section, ">A<") {
-		t.Errorf("captured-open recent block lost its instance projection: %q", section)
 	}
 	if writeErr := os.WriteFile(contractPath, append(contractBytes, '\n'), 0o600); writeErr != nil { // #nosec G703 -- path is a fixed basename under t.TempDir
 		t.Fatalf("change contract between requests: %v", writeErr)
 	}
 
-	code, body = get(t, srv.Client(), srv.URL+"/folders")
+	code, body := get(t, srv.Client(), srv.URL+"/folders")
 	if code != http.StatusOK {
 		t.Fatalf("second GET /folders status = %d, want 200", code)
 	}
 	const diagnostic = "vault artifact policy source changed after startup; instance projections disabled until restart"
 	page := html.UnescapeString(body)
 	assertCauseStatedOnce(t, page, diagnostic)
-	// The recent list is plain reading — names and scan times — and stays,
-	// but it stops citing the knowledge layer: that citation is the drifted
-	// contract's own claim.
-	recent := homeSection(t, page, `data-home-block="recent"`)
-	if !strings.Contains(recent, ">A<") {
-		t.Errorf("the recent list closed with the drifted authority; section = %q", recent)
-	}
-	if strings.Contains(recent, "知識層") {
-		t.Errorf("the recent block cites a knowledge layer after authority drift; section = %q", recent)
-	}
-	// The row keeps the author's own draft flag: it needs no vocabulary, so
-	// a drifted contract has nothing to withhold it on.
-	if !strings.Contains(recent, wording.Draft.In(wording.ZhHant)) {
-		t.Errorf("the note's draft mark is hidden after drift; section = %q", recent)
-	}
 	// The folder listing still offers the way down to the note: ordinary
 	// browsing never depended on the artifact policy, and the level holding it
 	// is one row away.
@@ -1663,20 +1611,14 @@ func TestTheArtifactPolicyDegradesInstanceProjections(t *testing.T) {
 				t.Errorf("the desk still lists courses without a usable artifact policy; block = %q", block)
 			}
 			assertCauseStatedOnce(t, body, tt.want)
-			shelfCode, shelfPage := get(t, srv.Client(), srv.URL+"/folders")
-			if shelfCode != http.StatusOK {
-				t.Fatalf("GET /folders status = %d, want 200", shelfCode)
+			// Plain reading stays: the folder's own list keeps the note and its
+			// draft mark, which the artifact declaration has no say over.
+			folderCode, folderPage := get(t, srv.Client(), srv.URL+"/folders/Writing")
+			if folderCode != http.StatusOK {
+				t.Fatalf("GET /folders/Writing status = %d, want 200", folderCode)
 			}
-			shelf := html.UnescapeString(shelfPage)
-			// The recent list is plain reading and stays, without the
-			// knowledge-layer citation: the citation belongs to the same
-			// contract whose artifact declaration was refused.
-			recent := homeSection(t, shelf, `data-home-block="recent"`)
-			if !strings.Contains(recent, "Draft") {
-				t.Errorf("the recent list closed with the artifact policy; section = %q", recent)
-			}
-			if strings.Contains(recent, "知識層") {
-				t.Errorf("the recent block cites a knowledge layer beside a refused declaration; section = %q", recent)
+			if !strings.Contains(folderPage, `href="/notes/Writing/Draft.md"`) {
+				t.Errorf("the folder list closed with the artifact policy; page = %q", folderPage)
 			}
 		})
 	}
@@ -1706,9 +1648,8 @@ func TestANavigationFailureLeavesArtifactAggregatesOperational(t *testing.T) {
 	if shelfCode != http.StatusOK {
 		t.Fatalf("GET /folders status = %d, want 200", shelfCode)
 	}
-	recent := homeSection(t, shelfPage, `data-home-block="recent"`)
-	if !strings.Contains(recent, "Aggregate sentinel") || strings.Contains(recent, "data-home-recent-diagnostic") {
-		t.Errorf("Recent degraded with navigation roles; section = %q", recent)
+	if !strings.Contains(shelfPage, `href="/folders/Writing"`) {
+		t.Error("the folder index lost its folders with navigation roles")
 	}
 	body := html.UnescapeString(page)
 	if block := homeSection(t, body, `data-home-block="courses"`); strings.Contains(block, "data-desk-item") {
@@ -1756,39 +1697,6 @@ func TestHomeStudyPathsReportsBothCapabilityFailures(t *testing.T) {
 	}
 	if block := homeSection(t, body, `data-home-block="courses"`); strings.Contains(block, "data-desk-item") {
 		t.Error("Study Paths listed under two rejected declarations")
-	}
-}
-
-func TestAValidPolicyExcludesNonInstancesFromRecent(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Vault\n"), 0o600); err != nil {
-		t.Fatalf("write README: %v", err)
-	}
-	for rel, title := range map[string]string{
-		"Writing/Instance.md":          "Governed draft sentinel",
-		"System/templates/Template.md": "LOUD TEMPLATE DRAFT SENTINEL",
-	} {
-		path := filepath.Join(root, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-			t.Fatalf("mkdir %s: %v", rel, err)
-		}
-		content := fmt.Sprintf("---\ntype: writing\n---\n# %s\n\nbody\n", title)
-		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", rel, err)
-		}
-	}
-	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, page := get(t, srv.Client(), srv.URL+"/folders")
-	if code != http.StatusOK {
-		t.Fatalf("GET /folders status = %d, want 200", code)
-	}
-	recent := homeSection(t, page, `data-home-block="recent"`)
-	if !strings.Contains(recent, "Governed draft sentinel") {
-		t.Error("Recent is missing the governed instance")
-	}
-	if strings.Contains(recent, "LOUD TEMPLATE DRAFT SENTINEL") {
-		t.Error("Recent includes a non-instance template")
 	}
 }
 
@@ -2793,148 +2701,6 @@ func fetchAs(t *testing.T, srv *httptest.Server, path string, lang wording.Lang)
 	return string(raw)
 }
 
-// TestTheRecentListStatesItsKnowledgeScope holds the folder index's recent
-// list to its own scope, stated where the reader reads it: the declared
-// knowledge folders, so the list does not read as the whole folder.
-func TestTheRecentListStatesItsKnowledgeScope(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
-	for rel, at := range map[string]time.Time{
-		"Writing/Inside.md": base.Add(24 * time.Hour),
-		"Attic/Outside.md":  base,
-	} {
-		full := filepath.Join(root, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-			t.Fatalf("mkdir for %s: %v", rel, err)
-		}
-		title := strings.TrimSuffix(filepath.Base(rel), ".md")
-		content := "---\ntype: writing\n---\n# " + title + "\n\nbody\n"
-		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", rel, err)
-		}
-		if err := os.Chtimes(full, at, at); err != nil {
-			t.Fatalf("set %s mtime: %v", rel, err)
-		}
-	}
-	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.Client(), srv.URL+"/folders")
-	if code != http.StatusOK {
-		t.Fatalf("GET /folders status = %d, want 200", code)
-	}
-
-	recent := homeSection(t, body, `data-home-block="recent"`)
-	if !strings.Contains(recent, "Inside") {
-		t.Fatalf("the recent block does not list the knowledge-layer note; section = %q", recent)
-	}
-	if strings.Contains(recent, "Outside") {
-		t.Errorf("the recent block lists a note outside the knowledge layer; section = %q", recent)
-	}
-	if !strings.Contains(recent, "知識層資料夾中") {
-		t.Errorf("the recent block does not state its scope; section = %q", recent)
-	}
-	if strings.Contains(recent, wording.FolderTiedTitle.In(wording.ZhHant)) {
-		t.Errorf("distinct times still read as a tie; section = %q", recent)
-	}
-}
-
-// TestASingleNoteClaimsNoTimestampTie holds the tie notice to vaults where
-// it is true. With one note there is one recorded time and nothing for it to
-// equal, yet the page said "these files carry identical timestamps" — a
-// sentence about files that do not exist. One note is trivially the most
-// recently changed thing, so the ordinary heading stands and the tie sentence
-// stays off the page.
-func TestASingleNoteClaimsNoTimestampTie(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	content := "---\ntype: writing\n---\n# Only\n\nbody\n"
-	if err := os.WriteFile(filepath.Join(root, "Only.md"), []byte(content), 0o600); err != nil {
-		t.Fatalf("write note: %v", err)
-	}
-	srv := newServer(t, root)
-	code, body := get(t, srv.Client(), srv.URL+"/folders")
-	if code != http.StatusOK {
-		t.Fatalf("GET /folders status = %d, want 200", code)
-	}
-	recent := homeSection(t, body, `data-home-block="recent"`)
-	if strings.Contains(recent, "時間戳相同") || strings.Contains(recent, wording.FolderTiedTitle.In(wording.ZhHant)) {
-		t.Errorf("a single-note vault claims a timestamp tie; section = %q", recent)
-	}
-	if !strings.Contains(recent, `<h2 id="folders-recent-title">`+wording.FolderRecentTitle.In(wording.ZhHant)+`</h2>`) {
-		t.Errorf("a single-note vault does not carry the ordinary recency heading; section = %q", recent)
-	}
-}
-
-// TestTiedTimesStillSaySoWithinTheirScope pins the tie notice itself: on
-// a knowledge-scoped vault whose files all carry one moment, the block still
-// says the times separate nothing — and now names the scope it lists, since
-// the tie changes nothing about which files these are.
-func TestTiedTimesStillSaySoWithinTheirScope(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	stamp := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
-	for _, rel := range []string{"Writing/A.md", "Writing/B.md"} {
-		full := filepath.Join(root, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-			t.Fatalf("mkdir for %s: %v", rel, err)
-		}
-		title := strings.TrimSuffix(filepath.Base(rel), ".md")
-		content := "---\ntype: writing\n---\n# " + title + "\n\nbody\n"
-		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", rel, err)
-		}
-		if err := os.Chtimes(full, stamp, stamp); err != nil {
-			t.Fatalf("set %s mtime: %v", rel, err)
-		}
-	}
-	srv := newServerWithContract(t, root, loadHomeContract(t))
-	code, body := get(t, srv.Client(), srv.URL+"/folders")
-	if code != http.StatusOK {
-		t.Fatalf("GET /folders status = %d, want 200", code)
-	}
-	recent := homeSection(t, body, `data-home-block="recent"`)
-	if !strings.Contains(recent, wording.FolderTiedTitle.In(wording.ZhHant)) ||
-		!strings.Contains(recent, wording.FolderTiedLedeScoped.In(wording.ZhHant)) {
-		t.Errorf("tied times in a scoped list do not name the tie and its scope; section = %q", recent)
-	}
-}
-
-// TestAnUnscopedVaultClaimsNoKnowledgeLayer holds the scope phrase to
-// vaults that declared one. A folder without a contract lists everything, and
-// a lede naming a knowledge layer there would invent a rule its owner never
-// wrote. The heading stands alone: a second sentence that restates it is not
-// written.
-func TestAnUnscopedVaultClaimsNoKnowledgeLayer(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
-	for rel, at := range map[string]time.Time{"A.md": base, "B.md": base.Add(time.Hour)} {
-		content := "---\ntype: writing\n---\n# " + strings.TrimSuffix(rel, ".md") + "\n\nbody\n"
-		full := filepath.Join(root, rel)
-		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", rel, err)
-		}
-		if err := os.Chtimes(full, at, at); err != nil {
-			t.Fatalf("set %s mtime: %v", rel, err)
-		}
-	}
-	srv := newServer(t, root)
-	code, body := get(t, srv.Client(), srv.URL+"/folders")
-	if code != http.StatusOK {
-		t.Fatalf("GET /folders status = %d, want 200", code)
-	}
-	recent := homeSection(t, body, `data-home-block="recent"`)
-	if !strings.Contains(recent, wording.FolderRecentTitle.In(wording.ZhHant)) {
-		t.Errorf("an unscoped vault lost the recency heading; section = %q", recent)
-	}
-	if strings.Contains(recent, "知識層") {
-		t.Errorf("an unscoped vault's recent block names a knowledge layer; section = %q", recent)
-	}
-	if strings.Contains(recent, "最近改動過的筆記") {
-		t.Errorf("an unscoped vault still paraphrases its own heading; section = %q", recent)
-	}
-}
-
 // TestHomeStudyPathCardSeparatesTheTwoZeroes tells apart the two courses that
 // plan nothing. A path whose note lists lessons the grammar could not read is
 // marked — the zero is a fault to repair, and the card used to look exactly
@@ -3001,144 +2767,6 @@ func TestHomeStudyPathCardSeparatesTheTwoZeroes(t *testing.T) {
 	}
 	if strings.Contains(working, "未讀到課程結構") {
 		t.Errorf("a working course is marked as unreadable; card = %q", working)
-	}
-}
-
-// TestAnUnscopedTieKeepsThePlainNotice completes the lede's four states: a
-// folder that declared no knowledge layer and whose files carry one moment
-// gets the tie notice exactly as before, with no scope phrase — every clause
-// of the sentence true of the page it sits on.
-func TestAnUnscopedTieKeepsThePlainNotice(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	stamp := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
-	for _, rel := range []string{"A.md", "B.md"} {
-		content := "---\ntype: writing\n---\n# " + strings.TrimSuffix(rel, ".md") + "\n\nbody\n"
-		full := filepath.Join(root, rel)
-		if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", rel, err)
-		}
-		if err := os.Chtimes(full, stamp, stamp); err != nil {
-			t.Fatalf("set %s mtime: %v", rel, err)
-		}
-	}
-	srv := newServer(t, root)
-	code, body := get(t, srv.Client(), srv.URL+"/folders")
-	if code != http.StatusOK {
-		t.Fatalf("GET /folders status = %d, want 200", code)
-	}
-	recent := homeSection(t, body, `data-home-block="recent"`)
-	if !strings.Contains(recent, "<p>"+wording.FolderTiedLede.In(wording.ZhHant)) {
-		t.Errorf("an unscoped tie lost its consequence notice; section = %q", recent)
-	}
-	if strings.Contains(recent, "知識層") {
-		t.Errorf("an unscoped tie names a knowledge layer; section = %q", recent)
-	}
-}
-
-// TestAnUnreadableContractKeepsTheRecentListUnscoped pins the degradation
-// direction for a contract that exists and cannot be parsed. A folder with no
-// contract at all lists everything it holds; a folder whose contract broke
-// used to list nothing — so the vault most in need of repair was the one the
-// page refused to show, and the operator mending the toml lost the reading
-// surface they were mending it with. The broken contract still closes what a
-// contract answers for — the study paths — and
-// the parse error stays on the page; the recent list is plain reading and
-// stays, with the plain lede, because a knowledge layer this contract declared
-// is a claim nothing can vouch for now.
-func TestAnUnreadableContractKeepsTheRecentListUnscoped(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	base := time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)
-	files := map[string]struct {
-		content string
-		at      time.Time
-	}{
-		"README.md":                    {content: "# Vault\n", at: base},
-		"Concepts/Legal.md":            {content: "---\ntype: concept\ndraft: true\n---\n# Legal concept\n\nbody\n", at: base.Add(2 * time.Hour)},
-		"System/templates/Template.md": {content: "---\ntype: concept\n---\n# Template note\n\nbody\n", at: base.Add(time.Hour)},
-	}
-	for rel, file := range files {
-		full := filepath.Join(root, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-			t.Fatalf("mkdir for %s: %v", rel, err)
-		}
-		if err := os.WriteFile(full, []byte(file.content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", rel, err)
-		}
-		if err := os.Chtimes(full, file.at, file.at); err != nil {
-			t.Fatalf("set %s mtime: %v", rel, err)
-		}
-	}
-	srv := newServerWithGovernance(t, root, nil, schema.Unreadable(
-		errors.New("toml: line 42: expected a key separator"),
-	))
-	code, body := get(t, srv.Client(), srv.URL+"/")
-	if code != http.StatusOK {
-		t.Fatalf("GET / status = %d, want 200", code)
-	}
-	page := html.UnescapeString(body)
-
-	// The parse error is still the page's one loud sentence.
-	assertCauseStatedOnce(t, page, "toml: line 42")
-	// What a contract answers for stays closed.
-	if block := homeSection(t, page, `data-home-block="courses"`); strings.Contains(block, "data-desk-item") {
-		t.Errorf("the desk still lists courses under an unreadable contract; block = %q", block)
-	}
-	shelfCode, shelfBody := get(t, srv.Client(), srv.URL+"/folders")
-	if shelfCode != http.StatusOK {
-		t.Fatalf("GET /folders status = %d, want 200", shelfCode)
-	}
-	shelf := html.UnescapeString(shelfBody)
-	// Plain reading stays: the recent list, over everything readable, because
-	// the exclusions the contract would have declared are unknown rather than
-	// empty — and unknown may not silently hide files either.
-	recent := homeSection(t, shelf, `data-home-block="recent"`)
-	for _, want := range []string{"Legal concept", "Template note"} {
-		if !strings.Contains(recent, want) {
-			t.Errorf("recent block is missing %q; section = %q", want, recent)
-		}
-	}
-	// No scoped lede: the knowledge layer is this contract's own
-	// declaration, and this contract cannot vouch for it. The heading
-	// already says what the list is.
-	if strings.Contains(recent, "最近改動過的筆記") {
-		t.Errorf("an unreadable contract's recent block still paraphrases its heading; section = %q", recent)
-	}
-	if strings.Contains(recent, "知識層") {
-		t.Errorf("an unreadable contract's recent block cites a knowledge layer; section = %q", recent)
-	}
-	// The author's draft flag is the note's own and needs no vocabulary, so
-	// an unreadable contract does not hide it.
-	if !strings.Contains(recent, wording.Draft.In(wording.ZhHant)) {
-		t.Errorf("the note's draft mark is hidden; section = %q", recent)
-	}
-}
-
-// TestABrokenContractOverAFolderWithNoNotesDrawsNoRecentBlock covers the two
-// answers that shape together: the reason the contract could not be read is on
-// the page, and the recent list is absent because there is no note to list —
-// not because the failure took it away. A block drawn empty beside that reason
-// would read as a second account of the same hole.
-func TestABrokenContractOverAFolderWithNoNotesDrawsNoRecentBlock(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("not markdown\n"), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
-	}
-	srv := newServerWithGovernance(t, root, nil, schema.Unreadable(
-		errors.New("toml: line 42: expected a key separator"),
-	))
-	code, body := get(t, srv.Client(), srv.URL+"/folders")
-	if code != http.StatusOK {
-		t.Fatalf("GET /folders status = %d, want 200", code)
-	}
-	page := html.UnescapeString(body)
-	if !strings.Contains(page, "toml: line 42") {
-		t.Fatalf("the parse error is missing; page = %q", page)
-	}
-	if strings.Contains(page, `data-home-block="recent"`) {
-		t.Error("the folder index renders a recent block for a folder with no markdown")
 	}
 }
 

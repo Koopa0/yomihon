@@ -98,7 +98,6 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 
 	root, model := buildVault(t)
 	current := "Writing/lessons/go/L01.md"
-	shelfIndex, shelfRecent := recordedShelfView(model)
 	course := newRecordedCourse(t, root, model)
 	branchModel := footVault(t)
 
@@ -204,10 +203,9 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"journal-index-page-english", JournalIndex(recordedJournalView(recordedEnglishChrome().Lang), recordedEnglishChrome())},
 		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
 		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
-		{"folder-index-fault-head", ListIndex(recordedFaultedModeIndexView(model), recordedChrome())},
+		{"folder-index-fault-head", FolderIndex(recordedFaultedFolderIndexView(model), recordedChrome())},
 		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
-		{"folder-index-page", FolderIndex(NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), RecentBlock{}, recordedChrome())},
-		{"folder-index-shelf", FolderIndex(shelfIndex, shelfRecent, recordedChrome())},
+		{"folder-index-page", FolderIndex(NewFolderIndexView(model, ContractGoverning, ListQuery{}, recordedNow, recordedChrome().Lang), recordedChrome())},
 		// The surfaces that have nothing to show, in both languages. Each of
 		// them is a branch the recordings above never reach — the search fixture
 		// finds notes, the health fixture has faults, and the desk fixture fills
@@ -704,17 +702,6 @@ func recordedWithheldHomeView(model *nav.Model) HomeView {
 	return view
 }
 
-// recordedShelfView is the folder index carrying its recent-notes block, one
-// row a draft and one finished, so the recording shows the mark and its
-// absence side by side.
-func recordedShelfView(model *nav.Model) (ListIndexView, RecentBlock) {
-	recent := NewRecentBlock([]HomeNote{
-		{Title: "L01", RelPath: "Writing/lessons/go/L01.md", Type: "lesson", Draft: true, Modified: "2026-07-10", ModifiedAt: "2026-07-10"},
-		{Title: "C01", RelPath: "Concepts/go/C01.md", Type: "concept", Modified: "2026-07-09", ModifiedAt: "2026-07-09"},
-	}, true, true, recordedChrome().Lang)
-	return NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil), recent
-}
-
 // recordedReportIndexView carries every answer a report row can give in the
 // column a reader scans, none of which the shared fixture vault has: a report
 // with a day of its own and the line it opens with, a report that wrote no day
@@ -801,12 +788,11 @@ func recordedWithheldIndexView() ListIndexView {
 	return NewMapIndex(nil, schema.NavigationRoles{}, nav.Close(schema.Rejected("the contract could not be read")), ContractGoverning, recordedChrome().Lang, nil)
 }
 
-// recordedFaultedModeIndexView is a mode index whose fault is stated below an
-// intact head — kicker, title, and count still show. internal/note/index.go
-// reaches this by setting view.Fault after NewFolderIndex without calling
-// withholdListing; no ListIndex constructor produces it on its own.
-func recordedFaultedModeIndexView(model *nav.Model) ListIndexView {
-	view := NewFolderIndex(model, ContractGoverning, recordedChrome().Lang, nil)
+// recordedFaultedFolderIndexView is the folder index whose fault is stated
+// below an intact head: internal/note/index.go sets view.Fault after building
+// the view.
+func recordedFaultedFolderIndexView(model *nav.Model) FolderIndexView {
+	view := NewFolderIndexView(model, ContractGoverning, ListQuery{}, recordedNow, recordedChrome().Lang)
 	view.Fault = "artifact unavailable"
 	return view
 }
@@ -923,12 +909,11 @@ func recordedFileView(model *nav.Model) FileView {
 	}
 }
 
-// recordedFolderView is one level with both kinds of row: a folder carrying
-// what is under it, and a file that opens onto itself.
-func recordedFolderView(*nav.Model) FolderView {
-	return NewFolderLevel("Writing/lessons", "lessons",
-		[]nav.NoteRef{{Name: "L01", RelPath: "Writing/lessons/L01.md"}},
-		[]nav.Folder{{
+func recordedFolderView(model *nav.Model) FolderView {
+	return NewFolderLevel(&FolderInput{
+		Dir: "Writing/lessons", Name: "lessons", VaultName: "Vault",
+		Notes: []nav.NoteRef{{Name: "L01", RelPath: "Writing/lessons/L01.md"}},
+		Subfolders: []nav.Folder{{
 			Name:    "go",
 			RelPath: "Writing/lessons/go",
 			Notes: []nav.NoteRef{
@@ -936,8 +921,13 @@ func recordedFolderView(*nav.Model) FolderView {
 				{Name: "L03", RelPath: "Writing/lessons/go/L03.md"},
 			},
 		}},
-		recordedChrome().Lang, nil)
+		Model: model, Now: recordedNow, Lang: recordedChrome().Lang,
+	})
 }
+
+// recordedNow is the day every recording is made on, so a date that reads
+// differently in another year is the same in every recording.
+var recordedNow = time.Date(2026, time.November, 18, 12, 0, 0, 0, time.UTC)
 
 // recordedSearchView takes the language because the column's headings and
 // its not-stated cell are written before the view leaves the handler:

@@ -259,6 +259,7 @@
      of Chinese or Japanese stays easy to carry from its end to the start of
      the next, and it grows and shrinks with the reader's chosen text size so a
      larger setting costs words a line rather than the line's length. */
+  --field-w: 240px;
   --measure-read: calc(var(--fs-ed-17) * 38);
   --gutter-read: 48px;
   --measure-list: 896px;
