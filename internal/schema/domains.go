@@ -202,36 +202,45 @@ func pin(pinned, pinnedBy map[string]string, key, domain, pattern string) string
 	return ""
 }
 
-// assignPatterns gives each domain its endpaper: the one it pinned, else the
-// lowest not taken by a pin, in the order the domains are listed. With nothing
-// pinned the first domain has endpaper-01 and the second endpaper-02, which is
-// the design's rule; a domain left with none once the twelve are given out has
-// no entry.
+// assignPatterns gives each domain its endpaper: the one it pinned, else the one
+// at its own place in the list, the first domain's endpaper-01 and the second's
+// endpaper-02, which is the design's rule. A pin takes a pattern from the domain
+// whose place it is, and that domain, and one placed past the twelfth, then take
+// the lowest pattern still free, in the order they are listed. So pinning one
+// domain moves no other that kept its own place; a domain left with none once
+// the twelve are given out has no entry.
 func assignPatterns(order []string, pinned map[string]string) map[string]string {
 	taken := map[string]bool{}
 	for _, pattern := range pinned {
 		taken[pattern] = true
 	}
-	next := 1
-	nextFree := func() string {
-		for ; next <= patternCount; next++ {
-			name := fmt.Sprintf("endpaper-%02d", next)
-			if !taken[name] {
-				next++
-				return name
-			}
-		}
-		return ""
-	}
 	patterns := map[string]string{}
-	for _, domain := range order {
+	var displaced []string
+	for place, domain := range order {
+		if _, listed := patterns[domain]; listed {
+			continue
+		}
 		if pattern, ok := pinned[domain]; ok {
 			patterns[domain] = pattern
 			continue
 		}
-		if pattern := nextFree(); pattern != "" {
-			patterns[domain] = pattern
+		own := fmt.Sprintf("endpaper-%02d", place+1)
+		if place < patternCount && !taken[own] {
+			patterns[domain] = own
+			taken[own] = true
+			continue
 		}
+		displaced = append(displaced, domain)
+	}
+	free := 1
+	for _, domain := range displaced {
+		for ; free <= patternCount && taken[fmt.Sprintf("endpaper-%02d", free)]; free++ {
+		}
+		if free > patternCount {
+			break
+		}
+		patterns[domain] = fmt.Sprintf("endpaper-%02d", free)
+		taken[patterns[domain]] = true
 	}
 	return patterns
 }

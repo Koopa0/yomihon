@@ -183,13 +183,16 @@ optional too.
 | `name_zh`, `name_en` | the same for one language, winning over `name` for it |
 | `pattern` | the endpaper the domain's courses are printed on, `endpaper-01` to `endpaper-12` |
 
-A domain that pins no pattern takes the lowest one no other domain pinned, in
-the order `[enums] domain` lists the domains, so with nothing pinned the first
-domain has `endpaper-01` and the second `endpaper-02`. Only twelve domains have
-one. A table that pins a pattern that does not exist, pins one pattern for two
+A domain that pins no pattern takes the one at its own place in
+`[enums] domain`, so with nothing pinned the first domain has `endpaper-01` and
+the second `endpaper-02`. A pin takes a pattern from the domain whose place it
+is, and that domain takes the lowest pattern no domain has; no other domain
+changes. Only twelve domains have one.
+
+A table that pins a pattern that does not exist, pins one pattern for two
 domains, or is written for a domain `[enums] domain` does not list is
 `schema.domain_table`, an error against the rules file; it pins nothing, so every
-domain takes the pattern its place in the list gives it, and the names still
+domain takes the pattern at its own place in the list, and the names still
 apply. The finding does not name the domain, because a domain is a folder's
 name. A key the table does not define is refused with the rest of the rules file.
 

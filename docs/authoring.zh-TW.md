@@ -89,7 +89,7 @@ An optional explanation for readers who want more detail.
 
 筆記能寫的欄位是 yomihon 定義的封閉清單：`type`、`aliases`、`draft`、`based_on`、`lang`、`created`、`slug`、`level`、`prerequisites`、`verified_on` 與 `verified_with`；Obsidian 自己的 `tags` 與 `cssclasses` 也放行。契約決定每一種筆記能寫其中哪些，清單以外的鍵，`yomihon check` 一律以 `schema.unknown_key` 回報。[frontmatter 參考](../skills/yomihon/references/frontmatter.md)說明每個欄位的作用。
 
-筆記不寫標題，也不寫領域。標題是內文第一個 `#` 標題，沒有就用檔名；領域是筆記所在的資料夾，取契約在 `folders.domain_from` 指名的根目錄底下那一層。規則檔可以用選填的 `[domains.<名稱>]` 為領域取名、指定見返し：`name` 對所有語言，`name_zh` 與 `name_en` 只對一種語言，`pattern` 是 `endpaper-01` 到 `endpaper-12` 之一。不寫就顯示資料夾名稱，並依 `[enums] domain` 的順序取下一個見返し；無法使用的表，`yomihon check` 以 `schema.domain_table` 報告。
+筆記不寫標題，也不寫領域。標題是內文第一個 `#` 標題，沒有就用檔名；領域是筆記所在的資料夾，取契約在 `folders.domain_from` 指名的根目錄底下那一層。規則檔可以用選填的 `[domains.<名稱>]` 為領域取名、指定見返し：`name` 對所有語言，`name_zh` 與 `name_en` 只對一種語言，`pattern` 是 `endpaper-01` 到 `endpaper-12` 之一。不寫就顯示資料夾名稱，並取它在 `[enums] domain` 中那個位置的見返し；無法使用的表，`yomihon check` 以 `schema.domain_table` 報告。
 
 還沒寫完的筆記寫 `draft: true`，寫完就刪掉這一行；沒有 `draft` 就是完成。yomihon 只會安靜地標出草稿，絕不改你的筆記，所以這個變更要你在編輯器裡自己做。
 

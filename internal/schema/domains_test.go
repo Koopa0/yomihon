@@ -95,7 +95,7 @@ name_en = "Japanese"
 	}
 }
 
-func TestAPinnedPatternIsUsedAndTheRestTakeTheLowestFree(t *testing.T) {
+func TestAPinnedPatternIsUsedAndTheDomainWhosePlaceItWasTakesTheLowestFree(t *testing.T) {
 	t.Parallel()
 
 	domains := loadWithDomains(t, `
@@ -112,6 +112,55 @@ pattern = "endpaper-03"
 	}
 	if !domains.Claim().Trustworthy() {
 		t.Errorf("Claim() = %+v, want a table read cleanly", domains.Claim())
+	}
+}
+
+// domainsListed is a rules file listing the domains d01, d02, … and the
+// patterns they have once the tables in tables are read.
+func domainsListed(t *testing.T, count int, tables string) (domains schema.Domains, names []string) {
+	t.Helper()
+	var listed []string
+	for i := 1; i <= count; i++ {
+		names = append(names, fmt.Sprintf("d%02d", i))
+		listed = append(listed, fmt.Sprintf("%q", names[i-1]))
+	}
+	text := strings.Replace(fixtureText(t), `domain = ["golang", "japanese", "meta"]`, "domain = ["+strings.Join(listed, ", ")+"]", 1)
+	return loadText(t, text+"\n"+tables).Domains(), names
+}
+
+// A pin moves no domain but the one whose place it took: a reader would see the
+// cover of a course they did not touch change if it did.
+func TestPinningOneDomainMovesNoOtherThatKeptItsPlace(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name   string
+		count  int
+		tables string
+		want   []string
+	}{
+		{"the third pinned past the others", 6, "[domains.d03]\npattern = \"endpaper-09\"\n",
+			[]string{"endpaper-01", "endpaper-02", "endpaper-09", "endpaper-04", "endpaper-05", "endpaper-06"}},
+		{"the third pinned, and the ninth's place taken", 10, "[domains.d03]\npattern = \"endpaper-09\"\n",
+			[]string{"endpaper-01", "endpaper-02", "endpaper-09", "endpaper-04", "endpaper-05", "endpaper-06", "endpaper-07", "endpaper-08", "endpaper-03", "endpaper-10"}},
+		{"the fifth pinned to the first's place", 6, "[domains.d05]\npattern = \"endpaper-01\"\n",
+			[]string{"endpaper-05", "endpaper-02", "endpaper-03", "endpaper-04", "endpaper-01", "endpaper-06"}},
+		{"two displaced take the lowest free in order", 6, "[domains.d05]\npattern = \"endpaper-01\"\n\n[domains.d06]\npattern = \"endpaper-02\"\n",
+			[]string{"endpaper-05", "endpaper-06", "endpaper-03", "endpaper-04", "endpaper-01", "endpaper-02"}},
+		{"nothing pinned", 4, "[domains.d02]\nname = \"Two\"\n",
+			[]string{"endpaper-01", "endpaper-02", "endpaper-03", "endpaper-04"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			domains, names := domainsListed(t, tt.count, tt.tables)
+			if !domains.Claim().Trustworthy() {
+				t.Fatalf("Claim() = %+v, want a table read cleanly", domains.Claim())
+			}
+			if got := patterns(domains, names...); fmt.Sprint(got) != fmt.Sprint(tt.want) {
+				t.Errorf("Pattern() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
@@ -207,6 +256,19 @@ func TestOnlyTwelveDomainsHaveAnEndpaper(t *testing.T) {
 		asked = append(asked, fmt.Sprintf("d%02d", i))
 	}
 	if got := patterns(domains, asked...); fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Errorf("Pattern() = %v, want %v", got, want)
+	}
+}
+
+// A thirteenth domain has none even when a pin has freed a pattern its place
+// would have wanted: the twelve are the twelve, and a pin only moves them.
+func TestAPinDoesNotGiveAThirteenthDomainAnEndpaper(t *testing.T) {
+	t.Parallel()
+
+	domains, names := domainsListed(t, 13, "[domains.d02]\npattern = \"endpaper-12\"\n")
+	got := patterns(domains, names...)
+	want := []string{"endpaper-01", "endpaper-12", "endpaper-03", "endpaper-04", "endpaper-05", "endpaper-06", "endpaper-07", "endpaper-08", "endpaper-09", "endpaper-10", "endpaper-11", "endpaper-02", ""}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
 		t.Errorf("Pattern() = %v, want %v", got, want)
 	}
 }

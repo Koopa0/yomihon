@@ -43,7 +43,7 @@ level = ["fundamental", "intermediate"]
 # A domain may be given a name for the reader, in every language or in one, and
 # the endpaper its courses are printed on, endpaper-01 to endpaper-12. All of it
 # is optional: a domain left out shows its folder's name and takes the next
-# endpaper its place in the list above gives it.
+# endpaper at its own place in the list above.
 [domains.japanese]
 name = "Japanese"
 name_zh = "日文"
