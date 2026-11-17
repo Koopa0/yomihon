@@ -175,6 +175,7 @@
   --lh-read: 1.8;   /* CJK prose floor (≥1.8) */
   --lh-cjk: 2;      /* ruby-safe reading measure */
   --lh-latin: 1.7647; /* 17px body on a 30px line, where the article is positively Latin */
+  --lh-ed-15: 1.8667; /* 15px Mincho on a 28px line */
 
   /* Spacing: nine steps on a base of four, and the only spacing the
      stylesheets use beside a 1px or 2px line. Within a control take the
