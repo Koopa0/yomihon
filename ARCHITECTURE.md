@@ -36,12 +36,12 @@ A selected descriptor survives a rename, but does not freeze bytes another progr
 
 `internal/schema` reads the TOML contract and exposes the declarations used by navigation and validation. Features consume those declarations instead of maintaining independent lists of note types and fields. The template directories distinguish readable material from governed note instances; `folders.checked` limits what is judged without hiding other files from browsing.
 
-| Contract condition | Reading behavior |
+| Rules file condition | Reading behavior |
 | --- | --- |
-| No contract | Plain-folder reading, text search, and link diagnostics remain available. Contract-dependent operations are unavailable. |
-| Contract cannot be loaded | Reading continues with a visible governance fault. |
-| Contract loads, but a policy is invalid | The affected capability is withheld rather than treating missing authority as permission. |
-| Contract bytes change after loading | Source-bound artifact and privacy authorities are revoked; restart loads the new declarations. |
+| No rules file, and none above or inside the folder | Everything is read: courses, units, indexes and thoughts by the built-in type names, text search and link diagnostics. Nothing is withheld, so `check`, `coverage`, `exists` and `marks` answer for every note and say so first; `check` skips the checks that need note types. |
+| Rules file cannot be loaded | Reading continues with a visible governance fault. |
+| Rules file loads, but a policy is invalid | The affected capability is withheld rather than treating missing authority as permission. |
+| Rules file bytes change after loading | Source-bound artifact and privacy authorities are revoked; restart loads the new declarations. |
 
 The contract is loaded at startup, not hot-reloaded alongside notes. Policy checks can refuse a transiently unreadable source for one operation; observing changed bytes latches the old authority closed. This avoids combining old rules with a newly edited policy. See [startup][site], [artifact authority][artifact-policy], and [privacy authority][privacy].
 
@@ -134,7 +134,7 @@ The reading page polls for freshness rather than treating its displayed text as 
 
 A scoped `check` still constructs the whole-root graph before filtering findings. Incomplete input is not evidence of absence: `exists` may report a known match, but refuses a negative answer when unreadable sources could change it. `coverage` refuses a partial census. An existence answer is an observation, not a reservation against an editor creating a file afterwards. The [rule inventory][judge-rules] names each finding and its authority.
 
-The contract's [`privacy.never_egress_dirs`][privacy] controls these command outputs; `marks` drops a withheld item before resolving anything about it, since an anchor is its heading's words. It does **not** hide those directories from the local reading interface. Commands require valid contract and privacy authority, prepare their output, and revalidate authority before returning the payload. If authority cannot be established, they refuse without quoting protected contract contents into the output channel. The [command boundary][adjudicate] separates payloads from tool failures.
+The contract's [`privacy.never_egress_dirs`][privacy] controls these command outputs; `marks` drops a withheld item before resolving anything about it, since an anchor is its heading's words. It does **not** hide those directories from the local reading interface. Commands require a rules file whose privacy authority is valid, or none at all, prepare their output, and revalidate authority before returning the payload; a rules file that appears while a command runs withdraws the payload. If authority cannot be established, they refuse without quoting protected rules file contents into the output channel. The [command boundary][adjudicate] separates payloads from tool failures.
 
 Machine output is JSON Lines for `check` and `marks` and JSON for `coverage` and `exists`; terminal output defaults to the human view. Exit `1` means a configured gate or a negative existence result, while `2` means invalid invocation or a tool failure; `marks` never exits `1`, and refuses with `2` rather than list around a marks file or note it could not read. A finding alone does not imply exit `1` without a matching deny policy. Golden fixtures preserve output fields and reason strings for callers. External agents can consume these commands and edit through their own tools; yomihon neither runs a model nor repairs their output.
 

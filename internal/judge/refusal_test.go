@@ -22,19 +22,16 @@ import (
 // once and each engine has to reach the same verdict about it.
 var everyCommand = []string{"check", "coverage", "exists"}
 
-// TestAnAbsentContractIsNotAnUnusableOne is the difference between a folder
-// that declared nothing and a folder whose declaration could not be honoured.
-// Both refusals stand — these three commands judge notes against a vocabulary,
-// and there is none here — but the first is the ordinary shape of any directory
-// yomihon is pointed at, and telling its owner that an authority is
-// "unavailable" names a fault that does not exist and a role that is not
-// theirs.
+// TestOnlyAFolderWithNoRulesFileIsRead is the difference between a folder that
+// declared nothing and a folder whose declaration could not be honoured. The
+// first is read and withholds nothing; the second is refused, because what it
+// withholds is ground this process never learned.
 //
-// The refusal for a contract that exists still refuses to say why, which the
+// The refusal for a rules file that exists still refuses to say why, which the
 // redaction test below pins. This one runs either side of that line: the branch
-// that answers for an absent contract must not turn a contract yomihon could
-// not decode into a claim that the folder carries none.
-func TestAnAbsentContractIsNotAnUnusableOne(t *testing.T) {
+// that answers for an absent rules file must not turn one yomihon could not
+// decode into a claim that the folder carries none.
+func TestOnlyAFolderWithNoRulesFileIsRead(t *testing.T) {
 	t.Parallel()
 
 	base := []byte(contractFixture(t, nil))
@@ -43,11 +40,6 @@ func TestAnAbsentContractIsNotAnUnusableOne(t *testing.T) {
 		build func(*testing.T) string
 		want  error
 	}{
-		{
-			name:  "no contract at all",
-			build: func(t *testing.T) string { t.Helper(); return t.TempDir() },
-			want:  ErrNoVaultContract,
-		},
 		{
 			name: "contract without a privacy policy",
 			build: func(t *testing.T) string {
@@ -242,5 +234,133 @@ func TestTheAuthorityIsRecheckedAfterThePayloadExists(t *testing.T) {
 				t.Errorf("%s error = %v, want %v", command, err, ErrPrivacyAuthorityUnavailable)
 			}
 		})
+	}
+}
+
+// TestAFolderWithNoRulesFileWithholdsNothing is the other half of the promise:
+// what a rules file does not withhold, a folder with no rules file does not
+// either, so every command answers for every note, including the ones under a
+// directory a rules file would plausibly have named. Each command also says so,
+// first, in the form a person reads.
+func TestAFolderWithNoRulesFileWithholdsNothing(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write(t, root, "Private/Secret.md", "---\n---\n# Secret\n\nSee [[Missing]].\n")
+	write(t, root, "Notes/Open.md", "---\n---\n# Open\n")
+
+	exists, err := runExistsText(t, root, "Secret")
+	if err != nil {
+		t.Fatalf("exists over a folder with no rules file: %v", err)
+	}
+	for _, want := range []string{NoRulesFile, "Private/Secret.md"} {
+		if !strings.Contains(exists, want) {
+			t.Errorf("exists output is missing %q:\n%s", want, exists)
+		}
+	}
+	if strings.Contains(exists, "withholds") {
+		t.Errorf("exists says something is withheld in a folder that declared nothing:\n%s", exists)
+	}
+
+	out, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
+	if err != nil {
+		t.Fatalf("check over a folder with no rules file: %v", err)
+	}
+	if exit != 1 && exit != 0 {
+		t.Errorf("check exit = %d", exit)
+	}
+	if first, _, _ := strings.Cut(string(out), "\n"); first != noRulesChecks {
+		t.Errorf("check opens with %q, want %q", first, noRulesChecks)
+	}
+	if !strings.Contains(string(out), "Private/Secret.md") {
+		t.Errorf("check does not reach a note under Private/ in a folder with no rules file:\n%s", out)
+	}
+
+	coverage, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatHuman})
+	if err != nil {
+		t.Fatalf("coverage over a folder with no rules file: %v", err)
+	}
+	if first, _, _ := strings.Cut(string(coverage), "\n"); !strings.HasPrefix(first, NoRulesFile) {
+		t.Errorf("coverage opens with %q, want it to open with %q", first, NoRulesFile)
+	}
+}
+
+// runExistsText runs exists in the human form over root and returns what it
+// printed.
+func runExistsText(t *testing.T, root, name string) (string, error) {
+	t.Helper()
+	out, _, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: name, Format: FormatHuman})
+	return string(out), err
+}
+
+// A command started from a folder inside a vault, or above one, is not started
+// from a folder with no rules file. Every shape of that is refused before any
+// byte is produced, for each command that speaks to a program, because the
+// withheld folder the rules name would otherwise be read as an ordinary one.
+func TestAFolderInsideOrAboveAVaultIsRefusedByEveryCommand(t *testing.T) {
+	t.Parallel()
+
+	rules := contractFixture(t, []string{"Diary"})
+	shapes := []struct {
+		name  string
+		build func(t *testing.T) string
+	}{
+		{"started inside the folder the rules withhold", func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			write(t, wrap, "v/"+schema.ContractRelPath, rules)
+			write(t, wrap, "v/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			return filepath.Join(wrap, "v", "Diary")
+		}},
+		{"started two folders inside the vault", func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			write(t, wrap, "v/"+schema.ContractRelPath, rules)
+			write(t, wrap, "v/Diary/2026/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			return filepath.Join(wrap, "v", "Diary", "2026")
+		}},
+		{"started one folder above a vault", func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			write(t, wrap, "v/"+schema.ContractRelPath, rules)
+			write(t, wrap, "v/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			return wrap
+		}},
+		{"started above a vault nested below the root", func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			write(t, wrap, "a/b/v/"+schema.ContractRelPath, rules)
+			write(t, wrap, "a/b/v/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			return wrap
+		}},
+	}
+	commands := []struct {
+		name string
+		run  func(root string) ([]byte, int, error)
+	}{
+		{"check", func(root string) ([]byte, int, error) {
+			return RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+		}},
+		{"coverage", func(root string) ([]byte, int, error) {
+			return RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+		}},
+		{"exists", func(root string) ([]byte, int, error) {
+			return RunExists(t.Context(), &ExistsOptions{Root: root, Name: "Secret Plan", Format: FormatJSON})
+		}},
+	}
+	for _, shape := range shapes {
+		for _, command := range commands {
+			t.Run(shape.name+"/"+command.name, func(t *testing.T) {
+				t.Parallel()
+				root := shape.build(t)
+				stdout, _, err := command.run(root)
+				if !errors.Is(err, ErrRulesFileNearby) {
+					t.Errorf("%s error = %v, want ErrRulesFileNearby", command.name, err)
+				}
+				if len(stdout) != 0 {
+					t.Errorf("caught: %s wrote %d bytes before refusing a folder inside or above a vault: %q", command.name, len(stdout), stdout)
+				}
+			})
+		}
 	}
 }

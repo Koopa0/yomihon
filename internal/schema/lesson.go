@@ -6,8 +6,9 @@ package schema
 // and nowhere else. A contract that gives no type the lesson role has none, and
 // so does the zero value.
 func (r NavigationRoles) IsLessonType(noteType string) bool {
-	if r.sets == nil || r.sets.lesson == "" {
+	if r.sets == nil {
 		return false
 	}
-	return NormalizeWord(noteType) == r.sets.lesson
+	_, ok := r.sets.units[NormalizeWord(noteType)]
+	return ok
 }

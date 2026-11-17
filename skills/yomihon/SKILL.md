@@ -34,7 +34,7 @@ to ask; this page's probe is how you find out what the one you have can see.
 `yomihon serve` runs until you stop it, so the recipes that use it are two
 things to do, not one line to paste.
 
-The contract (`<vault>/System/schemas/vault-schema.toml`) owns the folders it
+The rules file (`<vault>/System/schemas/vault-schema.toml`) owns the folders it
 checks, the note types and the role each plays in courses and maps, which of
 yomihon's fields a note may write and the values some may take, and the privacy
 boundary. Every vault's is different; `examples/vault` in this repository ships
@@ -55,7 +55,7 @@ Four habits, and they are the whole of it:
 
 1. **You settle the filename before the title,** because the filename is what a
    `[[link]]` resolves against and the title is not.
-2. **You open the vault's contract before choosing frontmatter,** because
+2. **You open the vault's rules file before choosing frontmatter,** because
    which of yomihon's fields a note may write, and which values some may take,
    is declared per vault.
 3. **You declare structure rather than implying it** — a course is a list with
@@ -92,13 +92,22 @@ rather than nested rows, which `references/study-paths.md` shows passing in
 silence; and a lesson you never listed, which `course.disk_unlisted` almost never
 catches. The severity model is in `references/diagnostics.md`.
 
+A folder with **no rules file** is read, not refused, unless a rules file lies above it or inside it: a command started inside a vault's folder, or above one, is refused, because the rules that govern it are not the ones it would read. Run it from the vault's own folder or pass that folder as `--root`. Nothing is withheld,
+because nothing declared anything to withhold, and the report says so first:
+`No rules file in this folder: nothing is withheld. The checks that need note
+types did not run.` The frontmatter rules are those checks, so a quiet report
+over such a folder says nothing about frontmatter. The course and index rules do
+run, by the built-in type names `course` and `study-path`, `index`, `moc` and
+`map`, and `unit` and `lesson`. The `json` format carries no such line, since a
+program reads each of its lines as a finding.
+
 When the command cannot run at all it exits 2 with **empty stdout** and the
 reason on stderr. On a vault that otherwise looks healthy the cause is almost
-always a contract yomihon could not use — most often one carrying no
-`[privacy]` section, or one written for another contract format, but any
-refused contract reads the same, because a contract it could not load has
+always a rules file yomihon could not use — most often one carrying no
+`[privacy]` section, or one written for another rules file format, but any
+refused rules file reads the same, because a rules file it could not load has
 granted nothing. `check` will not say which:
-naming the reason would quote the contract back out under the very policy that
+naming the reason would quote the rules file back out under the very policy that
 is missing. Read it where reading is the point:
 
 ```bash
@@ -125,8 +134,8 @@ Prove it against a tree built to fail, never against the vault you are judging:
 zero course findings on a healthy vault is exactly what a blind binary prints
 on any vault.
 
-The probe below writes its own vault — contract and all — so nothing it says
-depends on your contract's spellings, checked folders or privacy policy, and a
+The probe below writes its own vault — rules file and all — so nothing it says
+depends on your rules file's spellings, checked folders or privacy policy, and a
 wrong answer is about the binary rather than about your notes. It reads the
 **exit code and the stderr line**, never stdout, because every refusal prints
 nothing at all on stdout and a check that reads stdout scores a refusal as a
@@ -179,11 +188,11 @@ accident:
 | **blind** | exit 0: it accepted `course.role_missing` as a real rule id and then reported none where one is guaranteed. Trust none of its quiet course reports |
 | **too old** | exit 2, `unknown --deny` on stderr: it has never heard of this rule, which is the plainest answer the probe can give you |
 | **no binary** | exit 127 |
-| **refused** | exit 2 with any other message: it could not read the probe vault and has said nothing about its rules. A binary built before the contract format `schema_version = "2"` lands here too, because it cannot use that contract. The message is printed for you |
+| **refused** | exit 2 with any other message: it could not read the probe vault and has said nothing about its rules. A binary built before the rules file format `schema_version = "2"` lands here too, because it cannot use that rules file. The message is printed for you |
 
 Keeping stderr is what separates the last three, and it is the difference
 between telling a reader their binary is out of date and sending them to debug
-a contract. Do not run this under `set -e`: *proven* is the verdict that exits
+a rules file. Do not run this under `set -e`: *proven* is the verdict that exits
 non-zero, so `set -e` would abort on success and leave the good news silent.
 
 **Watch it fail before you trust it.** Two mutations do that without touching
@@ -199,7 +208,7 @@ A third shows why `--all` is in the command, and carries a side effect worth
 naming. Add a `[folders]` table with `checked = ["Elsewhere"]` and drop
 `--all`: the finding is discarded for touching nothing inside the knowledge
 layer, and the verdict is *blind*; put `--all` back and it is *proven* again.
-That contract also earns a `schema.unmatched_knowledge_dir`, because the probe
+That rules file also earns a `schema.unmatched_knowledge_dir`, because the probe
 tree has no `Elsewhere` — which is exactly why this gate names a rule id rather
 than `--deny warn`. A severity threshold would have turned that injected error
 into a false *proven*.
@@ -212,7 +221,7 @@ yomihon marks --root <vault> --format json
 
 One JSON object per line, newest first: each location the reader marked "Not
 sure yet" (`"kind":"location"`) and each note of the type that holds the
-contract's `thought` role that declares `draft: true` (`"kind":"thought"`). It
+rules file's `thought` role that declares `draft: true` (`"kind":"thought"`). It
 is the My marks page, read by the same selection. A location
 carries `path`, `anchor`, `anchor_text`, `title`, `wikilink` and `create_time`;
 a thought carries `path`, `title`, `wikilink` and `create_date`. A field with no
@@ -226,7 +235,7 @@ else — a heading another heading of the note shares, or a path a link cannot
 spell back. A location whose note or heading is gone is still listed, with
 `lost` saying `note` or `location` and `anchor` present but empty: an anchor
 is made from a heading's words, and with the heading gone nothing is left to
-check them against. A mark in a folder the contract keeps out of the scan
+check them against. A mark in a folder the rules file keeps out of the scan
 (`[folders] ignored`) is not listed. No note body is in the output beyond the
 words of a heading or practice card and the title; read the note through its
 path when you need it.
@@ -247,8 +256,10 @@ hand over a partial list: an unreadable marks file, a note outside withheld
 ground that could not be read or whose frontmatter could not be read, or no
 configuration directory to find the marks in. Any note outside withheld ground
 whose frontmatter cannot be read stops it, whatever that note's type, and the
-refusal names the note; mend that note and run it again. It also refuses without a
-contract that declares `[privacy]`, and nothing under a directory that
+refusal names the note; mend that note and run it again. It refuses when a
+rules file exists and declares no `[privacy]`; a folder with no rules file at
+all is listed in full, and says so first outside the `json` format. With a rules
+file that declares `[privacy]`, nothing under a directory that
 declaration withholds is listed, counted or hinted at, including a thought
 whose title or `based_on` points there and a location whose heading or note
 title does. A title or heading points there when it links there in any link
@@ -260,7 +271,7 @@ that only looks like a Latin one, such as Cyrillic `Р`, is not recognised.
 Plain words that merely share a withheld note's file name are the author's own
 and are listed as written.
 
-## Frontmatter: a closed list, and the contract chooses from it
+## Frontmatter: a closed list, and the rules file chooses from it
 
 yomihon defines the fields a note may carry, and the list is closed. A key
 outside it is `schema.unknown_key`, an error, even when nothing would have read
@@ -269,7 +280,7 @@ The fields:
 
 | Field | What it is |
 |---|---|
-| `type` | which of the contract's note types this is. Always allowed |
+| `type` | which of the rules file's note types this is. Always allowed |
 | `aliases` | further names a `[[link]]` resolves against. Always allowed |
 | `draft` | `true` says the note is still being written. Always allowed; see below |
 | `based_on` | the note or notes this one is written from, each quoted: `["[[Note]]"]`. `provenance.unresolved` reports one that reaches nothing |
@@ -280,19 +291,19 @@ The fields:
 | `prerequisites`, `verified_on`, `verified_with` | allowed, and read by nothing yet: no page shows them and no command checks them |
 
 `type`, `draft`, `aliases` and Obsidian's own `tags` and `cssclasses` need no
-listing. Every other field a note writes has to be listed by the contract
+listing. Every other field a note writes has to be listed by the rules file
 first: `[fields] common` for any note, a type's own `fields` for that type
-alone. A contract whose field lists name anything that is neither in the table
+alone. A rules file whose field lists name anything that is neither in the table
 nor one of Obsidian's, `title` and `domain` included, is refused whole.
 
-Open the vault's contract before choosing a key, and expect three things from a
-contract you have not seen, because each makes a legal-looking note wrong:
+Open the vault's rules file before choosing a key, and expect three things from a
+rules file you have not seen, because each makes a legal-looking note wrong:
 
 - a field can be legal on one type and unknown on another, and `created` and
   `lang` count only when `[fields] common` lists them;
-- a note whose `type` the contract does not declare has its type-only fields
+- a note whose `type` the rules file does not declare has its type-only fields
   left unjudged and reported once as `schema.type_dependent`;
-- a note outside the folders the contract calls checked is read and linked and
+- a note outside the folders the rules file calls checked is read and linked and
   searched, but is not judged, so silence over it is not a verdict.
 
 A note writes no title and no domain. Its title is its first `#` heading, or
@@ -309,7 +320,7 @@ When one note replaces another, the old one is deleted and its name goes into
 the new one's `aliases`; `references/writing-for-the-reader.md` has the rule
 and when it does not apply.
 
-`references/frontmatter.md` is every table of the contract, what each one does
+`references/frontmatter.md` is every table of the rules file, what each one does
 to a note you are writing, and what happens when one is missing.
 
 ## Names are keys; titles are not
@@ -480,7 +491,7 @@ Five filter keys:
 |---|---|
 | Case | **lowercase only.** `Type:lesson` is not a filter — it degrades to a literal token searched as text |
 | Repeated key | **AND.** Two `type:` filters both have to hold, so they are jointly unsatisfiable rather than last-wins |
-| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, Unicode simple case folding without multi-rune expansion). Values are not validated against the contract. `folder:` matches at a `/` boundary after that fold; `domain:` is the folder name under a `domain_from` root, not a field the note writes |
+| Values | folded the same way matching folds text (NFC, fullwidth ASCII narrowed, Unicode simple case folding without multi-rune expansion). Values are not validated against the rules file. `folder:` matches at a `/` boundary after that fold; `domain:` is the folder name under a `domain_from` root, not a field the note writes |
 | Unknown prefix | named back to the reader with all five offered, and the term is searched as text rather than dropped |
 | Quoting | `"…"`, `「…」`, `『…』` — at the start of a field, or straight after a recognised key and its colon |
 | Indexed | title, aliases, frontmatter tags, body plain text and the vault-relative path are free-text searchable; type, domain and slug are reachable only through their own filter, and `draft:true` or `draft:false` selects by the draft flag. An alias hit is filed with the title hits |
@@ -493,7 +504,7 @@ Five filter keys:
 Two gates run before any of the grammar below, and both are silent when unmet —
 the body can be perfect and nothing projects.
 
-1. **The note's `type` must hold the `course` role** in the contract
+1. **The note's `type` must hold the `course` role** in the rules file
    (`[types.<name>] role = "course"`). A note whose type holds no such role
    answers nothing at `/courses/<its path>` and enters no count, whatever it
    contains. Maps are gated the same way by the `map` role.
@@ -553,7 +564,7 @@ in this order, and only the last is about the course:
 1. **The filename**, because it is the key a `[[link]]` will be typed against,
    and the title is not.
 2. **The frontmatter**, every key traced to the closed field list and to the
-   contract rather than chosen — `[fields] common` and the type's own `fields`
+   rules file rather than chosen — `[fields] common` and the type's own `fields`
    for what may be written, `[fields] required` and the type's `required` for
    what must be there, `[enums]` for the values, the type's `slug_pattern` for
    the shape of the slug.
@@ -576,7 +587,7 @@ fault carries that title for broken links; `references/names-and-links.md`
 owns it.)
 
 `references/worked-example.md` is this walk done for real against the vault
-this repository ships — every contract table it draws on, the counts before and
+this repository ships — every rules file table it draws on, the counts before and
 after, and the verbatim output of each way of getting it wrong.
 
 ## What goes wrong most
@@ -606,7 +617,7 @@ below is not something `check` will do for you.**
    run with a binary the probe above called *proven*. Name the path you
    touched; the whole vault will have findings that are not yours.
 2. `--deny warn --all` on that path exits 0. The threshold covers errors too,
-   so one run says you invented no field, wrote no value the contract does not
+   so one run says you invented no field, wrote no value the rules file does not
    declare, and left no branch undeclared — **of a note the schema rules
    reach**. If it is filed outside `[folders] checked` this proves none of that,
    and the repair is to move it, not to add a flag.

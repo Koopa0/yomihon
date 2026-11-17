@@ -29,6 +29,10 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 	// a contract and read back through it, so a word the interface spelled for
 	// itself cannot pass for one a vault declared.
 	declared := declaringContract(t, "trail-guide", "chart", "atlas")
+	// A folder with no rules file reads the built-in types, and its shelves say
+	// those words. They are written out here, not taken from the package.
+	var none *schema.Contract
+	builtIn := none.NavigationRoles()
 	folderGuide := guide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext)
 	cases := []struct {
 		name     string
@@ -41,9 +45,9 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 		{
 			name:     "folder with no contract",
 			contract: ContractAbsent,
-			roles:    declared,
-			path:     guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
-			mapState: guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
+			roles:    builtIn,
+			path:     declaredGuide("course", "study-path"),
+			mapState: declaredGuide("index", "map", "moc"),
 			folder:   guide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext),
 		},
 		{
@@ -107,8 +111,12 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 					modes = append(modes, block.Mode)
 				}
 				wantOrder := "courses,indexes,reports,folders"
-				if tt.contract == ContractAbsent || tt.contract == ContractOtherVersion {
+				if tt.contract == ContractOtherVersion {
 					wantOrder = "folders,courses,indexes,reports"
+				}
+				if tt.contract == ContractAbsent {
+					// Nothing to explain an empty block with, so only the way in is drawn.
+					wantOrder = "folders"
 				}
 				if got := strings.Join(modes, ","); got != wantOrder {
 					t.Errorf("desk mode order = %q, want %q", got, wantOrder)
@@ -199,7 +207,6 @@ role = "course"
 // reader a recovery that is not theirs.
 var everyEmptyStep = []wording.Phrase{
 	wording.FolderIndexUngovernedNext,
-	wording.IndexUngovernedNext,
 	wording.RestartYomihon,
 	wording.IndexDeclaredEmptyNext,
 }
@@ -235,9 +242,11 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 	t.Parallel()
 
 	declared := declaringContract(t, "trail-guide", "chart", "atlas")
+	var none *schema.Contract
 	for _, tt := range []struct {
 		name     string
 		contract ContractState
+		roles    schema.NavigationRoles
 		path     func(lang wording.Lang) string
 		mapState func(lang wording.Lang) string
 		folder   func(lang wording.Lang) string
@@ -245,8 +254,9 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 		{
 			name:     "no contract in the folder",
 			contract: ContractAbsent,
-			path:     guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
-			mapState: guide(wording.IndexUngoverned, wording.IndexUngovernedNext),
+			roles:    none.NavigationRoles(),
+			path:     declaredGuide("course", "study-path"),
+			mapState: declaredGuide("index", "map", "moc"),
 			folder:   guide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext),
 		},
 		{
@@ -259,6 +269,7 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 		{
 			name:     "contract this process never loaded",
 			contract: ContractUnloaded,
+			roles:    declared,
 			path:     guide(wording.IndexContractUnloaded, wording.RestartYomihon),
 			mapState: guide(wording.IndexContractUnloaded, wording.RestartYomihon),
 			folder:   guide(wording.IndexContractUnloaded, wording.RestartYomihon),
@@ -266,6 +277,7 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 		{
 			name:     "contract that declares what fills each shelf",
 			contract: ContractGoverning,
+			roles:    declared,
 			path:     declaredGuide("trail-guide"),
 			mapState: declaredGuide("atlas", "chart"),
 			folder:   guide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext),
@@ -276,7 +288,7 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 				t.Run(tt.name+"/"+mode+"/"+string(lang), func(t *testing.T) {
 					t.Parallel()
 					var buf bytes.Buffer
-					view := emptyIndexView(mode, declared, tt.contract, lang)
+					view := emptyIndexView(mode, tt.roles, tt.contract, lang)
 					if err := ListIndex(view, layouts.Chrome{Lang: lang}).Render(t.Context(), &buf); err != nil {
 						t.Fatalf("render: %v", err)
 					}
@@ -451,5 +463,55 @@ func TestWithheldNavigationLeavesTheEmptySlotSilent(t *testing.T) {
 	}
 	if view.Count != "" {
 		t.Errorf("withheld path index still carried a count: %q", view.Count)
+	}
+}
+
+// A folder with no rules file has nothing to explain an empty block with, so
+// the desk draws only what it holds: the way in, and each kind of thing the
+// folder actually has. The same desk over a folder with a rules file keeps all
+// four, which the first test above holds.
+func TestADeskForAFolderWithNoRulesFileDrawsOnlyWhatItHolds(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name  string
+		files map[string]string
+		want  string
+	}{
+		{
+			name:  "notes and nothing else",
+			files: map[string]string{"Notes/A.md": "# A\n"},
+			want:  "folders",
+		},
+		{
+			name: "a course",
+			files: map[string]string{
+				"Notes/Unit.md": "---\ntype: unit\n---\n# Unit\n",
+				"Notes/Go.md":   "---\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Unit]]\n",
+			},
+			want: "folders,courses",
+		},
+		{
+			name: "a course and an index",
+			files: map[string]string{
+				"Notes/Unit.md":  "---\ntype: unit\n---\n# Unit\n",
+				"Notes/Go.md":    "---\ntype: course\n---\n## Course {sequence=primary}\n- [[Unit]]\n",
+				"Notes/Index.md": "---\ntype: moc\n---\n- [[Unit]]\n",
+			},
+			want: "folders,courses,indexes",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			snap := ungovernedSnapshot(t, tt.files)
+			blocks := NewDeskBlocks(snap.Navigation(), snap.NavigationRoles(), ContractAbsent, wording.En, nil)
+			var modes []string
+			for _, block := range blocks {
+				modes = append(modes, block.Mode)
+			}
+			if got := strings.Join(modes, ","); got != tt.want {
+				t.Errorf("desk blocks = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

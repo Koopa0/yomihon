@@ -17,11 +17,13 @@ Open `http://127.0.0.1:9610` to read, browse folders and search. Starting the
 server leaves the notes unchanged. Keep the command running while you read;
 press `Ctrl+C` in the terminal to stop it.
 
-[[The vault contract]] enables features that depend on declared types and
-rules. [[L02 Add a contract]] shows the setup.
+[[The vault contract]] checks notes against declared types and rules, and
+decides what the command line withholds. [[L02 Add a contract]] shows the setup.
 
-| What works with no contract | What needs one |
+| What works with no rules file | What a rules file adds |
 | --- | --- |
-| Reading, rendering, folders | Study paths and maps |
-| Wikilinks and backlinks | Contract-based diagnostics and CLI reports |
-| Full-text search | Your thoughts on the shelf of what you left open |
+| Reading, rendering, folders | The note types, fields and values `check` accepts |
+| Wikilinks and backlinks | Directories the command line withholds |
+| Full-text search | Your own names for courses, units, indexes and thoughts |
+| Courses, units and indexes, by the type a note names | |
+| Your marks and your thoughts | |

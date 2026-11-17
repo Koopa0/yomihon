@@ -270,11 +270,11 @@ func TestJoinGuide(t *testing.T) {
 			want:  "No files are listed here. Add a .md file to the folder yomihon is reading.",
 		},
 		{
-			name:  "english ungoverned",
-			state: IndexUngoverned,
-			step:  IndexUngovernedNext,
+			name:  "english folder with no rules file",
+			state: FolderIndexEmpty,
+			step:  FolderIndexUngovernedNext,
 			lang:  En,
-			want:  "This folder has no rules file yet. Add System/schemas/vault-schema.toml.",
+			want:  "No files are listed here. Use your editor to add a .md file to this folder and start reading; no rules file is needed.",
 		},
 		{
 			name:  "chinese governed folder",

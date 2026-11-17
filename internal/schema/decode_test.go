@@ -319,11 +319,11 @@ func classifyDecodeError(err error) string {
 		return "unsupported-version"
 	case strings.HasPrefix(message, "unknown keys: "):
 		return "unknown-core"
-	case strings.HasPrefix(message, "contract keys differ only by letter case: "):
+	case strings.HasPrefix(message, "rules file keys differ only by letter case: "):
 		return "folded-keys"
-	case strings.HasPrefix(message, "contract nests deeper than "):
+	case strings.HasPrefix(message, "rules file nests deeper than "):
 		return "too-deep"
-	case strings.HasPrefix(message, "contract is larger than "):
+	case strings.HasPrefix(message, "rules file is larger than "):
 		return "too-large"
 	case strings.HasPrefix(message, "toml:"):
 		return "toml-decode"

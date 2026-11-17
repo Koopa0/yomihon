@@ -17,13 +17,13 @@ quoted ones as the shape of the answer.
 
 ## A map is declared, not recognised
 
-A note becomes a map when its `type` holds the `map` role in the contract
+A note becomes a map when its `type` holds the `map` role in the rules file
 (`[types.<name>] role = "map"`). This is the same silent gate that stands in
 front of study paths: a note whose type holds no such role is read, linked and
 searched like any other note, and is not a map, however map-shaped its body is.
 Nothing reports it, because nothing is wrong with it.
 
-In this repository's `examples/vault` the contract says:
+In this repository's `examples/vault` the rules file says:
 
 ```toml
 [types.study-path]
@@ -183,10 +183,10 @@ The `yomihon` row now has **0 mounted and 1 pending-mount**: Frontmatter still
 has incoming links, but no map inside the knowledge layer reaches it. The Go
 and Japanese concepts stay mounted through their own maps. A map outside
 `[folders] checked` cannot mount a concept, and neither can a note the
-privacy contract withholds.
+privacy rules file withholds.
 
 Two limits worth knowing before you read a number here. `concept` is yomihon's
-own spelling and cannot be renamed: your contract decides whether the type
+own spelling and cannot be renamed: your rules file decides whether the type
 exists, not what it is called. A vault that declares no `concept` type is told
 so rather than handed a tally of zero —
 
@@ -199,7 +199,7 @@ could not run.
 
 ## Before calling a map done
 
-1. The note's `type` is one the contract gives the `map` role.
+1. The note's `type` is one the rules file gives the `map` role.
 2. The map appears at `/maps`, with the branch count you expected. A heading
    you meant to be a branch and cannot find there carries no resolved entry.
 3. `yomihon check --root <vault> --format json <the map>` is quiet — which

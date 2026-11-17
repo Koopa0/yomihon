@@ -1925,12 +1925,12 @@ func TestTheRailHeadingOfARootNoteAnswers(t *testing.T) {
 	}
 }
 
-// TestTheDeskDrawsItsWaysInForAFolderHoldingNothing covers the first minute of
-// a vault: a folder with nothing in it at all. All four ways in are drawn, each
-// stating its own measure and its own sentence, and none of them offers a row.
-// An empty folder is where a reader starts, not a failure to report, and the
-// four sentences are the whole of what the desk has to say about it.
-func TestTheDeskDrawsItsWaysInForAFolderHoldingNothing(t *testing.T) {
+// TestTheDeskDrawsOnlyTheWayInForAFolderHoldingNothing covers the first minute
+// of a vault: a folder with nothing in it at all, and no rules file. The desk
+// draws the one way in, which says where to begin, and none of the ways that
+// would only report an absence: a course, an index or a report the folder does
+// not have is not a failure to report. None of them offers a row.
+func TestTheDeskDrawsOnlyTheWayInForAFolderHoldingNothing(t *testing.T) {
 	t.Parallel()
 
 	srv := newServer(t, t.TempDir())
@@ -1938,10 +1938,16 @@ func TestTheDeskDrawsItsWaysInForAFolderHoldingNothing(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	for _, mode := range []string{"courses", "indexes", "reports", "folders"} {
-		if !strings.Contains(body, `data-home-block="`+mode+`"`) {
-			t.Errorf("the desk lost its %s block over a folder holding nothing", mode)
+	if !strings.Contains(body, `data-home-block="folders"`) {
+		t.Error("the desk lost its way in over a folder holding nothing")
+	}
+	for _, mode := range []string{"courses", "indexes", "reports"} {
+		if strings.Contains(body, `data-home-block="`+mode+`"`) {
+			t.Errorf("the desk draws an empty %s block for a folder with no rules file", mode)
 		}
+	}
+	if strings.Contains(body, "vault-schema.toml") {
+		t.Error("the desk asks a folder with no rules file to add one")
 	}
 	if strings.Contains(body, "data-desk-item") {
 		t.Error("the desk offers a way on for a folder holding nothing")

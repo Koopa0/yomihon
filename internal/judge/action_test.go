@@ -473,7 +473,11 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 	forbiddenQualified := map[string]bool{
 		"vault.List": true, "vault.ListStrict": true, "vault.ReadNote": true,
 		"schema.Load": true, "schema.LoadFile": true,
-		"os.Open": true, "os.OpenFile": true, "os.OpenRoot": true,
+		// LoadForAgents is the one way in: it alone tells an absent rules file
+		// from one that could not be read, and a second reader would have to
+		// make that call again.
+		"schema.LoadReader": true,
+		"os.Open":           true, "os.OpenFile": true, "os.OpenRoot": true,
 		"os.ReadDir": true, "os.Stat": true, "os.Lstat": true,
 		"os.Readlink": true, "os.DirFS": true,
 		"filepath.Join": true, "filepath.FromSlash": true,
@@ -508,7 +512,7 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 			if owner != nil {
 				qualified := owner.Name + "." + selector.Sel.Name
 				switch qualified {
-				case "vault.Open", "schema.LoadReader":
+				case "vault.Open", "schema.LoadForAgents":
 					counts[qualified]++
 				case "os.ReadFile":
 					counts[qualified]++
@@ -540,11 +544,11 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 		t.Errorf("production path bypasses = %v, want none", forbidden)
 	}
 	wantCounts := map[string]int{
-		"vault.Open":        1,
-		"schema.LoadReader": 1,
-		"ScanComplete":      1,
-		"ReadFile":          1,
-		"os.ReadFile":       1,
+		"vault.Open":           1,
+		"schema.LoadForAgents": 1,
+		"ScanComplete":         1,
+		"ReadFile":             1,
+		"os.ReadFile":          1,
 	}
 	if diff := cmp.Diff(wantCounts, counts); diff != "" {
 		t.Errorf("rooted read call sites mismatch (-want +got):\n%s", diff)
@@ -650,9 +654,10 @@ func TestAbortWithholdsAPathTheContractHasSinceWithdrawn(t *testing.T) {
 		narrow bool
 		// removeFile makes the next read of the already-scanned sentinel fail.
 		removeFile bool
-		// noContract starts the run with no contract at all.
-		noContract bool
-		want       error
+		// contractAppears starts the run with no rules file and has one written
+		// after the scan, which says nothing is withheld until then.
+		contractAppears bool
+		want            error
 		// namesSentinel is whether the refusal may spell the withdrawn path.
 		namesSentinel bool
 	}{
@@ -680,9 +685,12 @@ func TestAbortWithholdsAPathTheContractHasSinceWithdrawn(t *testing.T) {
 			want:   ErrPrivacyAuthorityUnavailable,
 		},
 		{
-			name:       "no contract at all",
-			noContract: true,
-			want:       ErrNoVaultContract,
+			// A folder with no rules file withheld nothing when the run began; a
+			// rules file written since may withhold this very note, so the run
+			// that listed it under the first reading may not hand it over.
+			name:            "no rules file at the start, one written mid-run",
+			contractAppears: true,
+			want:            ErrPrivacyAuthorityUnavailable,
 		},
 	}
 
@@ -692,7 +700,7 @@ func TestAbortWithholdsAPathTheContractHasSinceWithdrawn(t *testing.T) {
 				t.Parallel()
 
 				root := t.TempDir()
-				if !st.noContract {
+				if !st.contractAppears {
 					writeTestContract(t, root, st.privateFrom)
 				}
 				write(t, root, sentinelPath, "---\n---\n# PrivateSentinel\n")
@@ -701,7 +709,7 @@ func TestAbortWithholdsAPathTheContractHasSinceWithdrawn(t *testing.T) {
 
 				_, err := runPrepared(t.Context(), t, command, root, "Target",
 					actionHooks{afterScan: func() {
-						if st.narrow {
+						if st.narrow || st.contractAppears {
 							writeTestContract(t, root, []string{sentinelDir})
 						}
 						if st.removeFile {

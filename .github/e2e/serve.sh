@@ -32,8 +32,8 @@ ready_status() {
 # require the real server startup log to say that contract loading succeeded.
 contract_log_error() {
   local content="$1" loaded unavailable
-  loaded="$(grep -cF 'msg="vault contract loaded"' <<<"$content" || true)"
-  unavailable="$(grep -cF 'msg="vault contract unavailable"' <<<"$content" || true)"
+  loaded="$(grep -cF 'msg="rules file loaded"' <<<"$content" || true)"
+  unavailable="$(grep -cF 'msg="rules file unavailable"' <<<"$content" || true)"
   if [ "$unavailable" -ne 0 ]; then
     echo "the server reported the fixture contract unavailable"
     return 1
@@ -106,17 +106,17 @@ self_test() {
     fi
   done
 
-  if ! contract_log_error 'time=2026-07-17T00:00:00Z level=INFO msg="vault contract loaded" version=2'; then
+  if ! contract_log_error 'time=2026-07-17T00:00:00Z level=INFO msg="rules file loaded" version=2'; then
     echo "  SELF-TEST FAIL: one successful contract load was refused" >&2
     failures=1
   else
     echo "  ok: one successful contract load -> accepted"
   fi
   for entry in \
-    'unavailable|the server reported the fixture contract unavailable|time=2026-07-17T00:00:00Z level=WARN msg="vault contract unavailable" error=invalid' \
+    'unavailable|the server reported the fixture contract unavailable|time=2026-07-17T00:00:00Z level=WARN msg="rules file unavailable" error=invalid' \
     'missing|reported 0 successful fixture contract loads|time=2026-07-17T00:00:00Z level=INFO msg="scanner ready"' \
-    'duplicated|reported 2 successful fixture contract loads|time=2026-07-17T00:00:00Z level=INFO msg="vault contract loaded" version=1
-time=2026-07-17T00:00:01Z level=INFO msg="vault contract loaded" version=1'; do
+    'duplicated|reported 2 successful fixture contract loads|time=2026-07-17T00:00:00Z level=INFO msg="rules file loaded" version=1
+time=2026-07-17T00:00:01Z level=INFO msg="rules file loaded" version=1'; do
     code="${entry%%|*}"
     entry="${entry#*|}"
     want="${entry%%|*}"
@@ -139,7 +139,7 @@ time=2026-07-17T00:00:01Z level=INFO msg="vault contract loaded" version=1'; do
     echo "  ok: one exact listener bind -> accepted"
   fi
   for entry in \
-    'missing|reported 0 serving lines|time=2026-07-17T00:00:00Z level=INFO msg="vault contract loaded" version=1' \
+    'missing|reported 0 serving lines|time=2026-07-17T00:00:00Z level=INFO msg="rules file loaded" version=1' \
     'wrong-address|0 exact binds|time=2026-07-17T00:00:00Z level=INFO msg="yomihon serving" addr=127.0.0.1:19734 vault=/tmp/fixture' \
     'duplicated|reported 2 serving lines|time=2026-07-17T00:00:00Z level=INFO msg="yomihon serving" addr=127.0.0.1:19733 vault=/tmp/fixture
 time=2026-07-17T00:00:01Z level=INFO msg="yomihon serving" addr=127.0.0.1:19733 vault=/tmp/fixture'; do

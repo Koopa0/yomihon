@@ -723,7 +723,7 @@ func TestLoadFileMissingOptionalSections(t *testing.T) {
 	if privacy.Available() {
 		t.Fatal("PrivacyPolicy().Available() = true, want false")
 	}
-	const wantPrivacy = "contract declares no privacy policy; agent-facing output disabled until it does"
+	const wantPrivacy = "the rules file declares no privacy policy; agent-facing output disabled until it does"
 	if got := privacy.Diagnostic(); got != wantPrivacy {
 		t.Errorf("PrivacyPolicy().Diagnostic() = %q, want %q", got, wantPrivacy)
 	}
@@ -1691,11 +1691,19 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		},
 		"Capabilities": func() string {
 			caps := c.Capabilities(schema.Ungoverned())
-			if caps.Navigation.Available() || caps.Knowledge.Available() || caps.Artifacts.Available() || caps.Journal.Available() {
-				return "Capabilities() claims a declared set for a vault nothing governs"
+			if !caps.Navigation.Available() || !caps.Artifacts.Available() {
+				return "Capabilities() withholds the built-in roles or the artifact policy from a vault nothing governs"
 			}
-			if caps.Navigation.Claim().Claimed() || caps.Artifacts.Claim().Claimed() || caps.Journal.Claim().Claimed() {
-				return "Capabilities() reports a withheld declaration where none was ever made"
+			if caps.Knowledge.Available() || caps.Journal.Available() {
+				return "Capabilities() claims a declared knowledge layer or journal for a vault nothing governs"
+			}
+			for name, claim := range map[string]schema.Claim{
+				"Navigation": caps.Navigation.Claim(), "Artifacts": caps.Artifacts.Claim(),
+				"Knowledge": caps.Knowledge.Claim(), "Journal": caps.Journal.Claim(),
+			} {
+				if claim.Diagnostic() != "" || !claim.Trustworthy() {
+					return fmt.Sprintf("Capabilities().%s reports a withheld declaration where none was ever made", name)
+				}
 			}
 			return ""
 		},
@@ -1707,11 +1715,26 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		},
 		"NavigationRoles": func() string {
 			roles := c.NavigationRoles()
-			if roles.Available() || roles.IsPathType("study-path") || roles.IsMapType("moc") {
-				return "NavigationRoles() claims a declared role set"
+			for _, word := range []string{"course", "study-path"} {
+				if !roles.IsPathType(word) {
+					return fmt.Sprintf("NavigationRoles().IsPathType(%q) = false, want the built-in course type", word)
+				}
 			}
-			if got := roles.AnswerType(); got != "" {
-				return fmt.Sprintf("NavigationRoles().AnswerType() = %q, want no declared answer role", got)
+			for _, word := range []string{"index", "moc", "map"} {
+				if !roles.IsMapType(word) {
+					return fmt.Sprintf("NavigationRoles().IsMapType(%q) = false, want the built-in index type", word)
+				}
+			}
+			for _, word := range []string{"unit", "lesson"} {
+				if !roles.IsLessonType(word) {
+					return fmt.Sprintf("NavigationRoles().IsLessonType(%q) = false, want the built-in unit type", word)
+				}
+			}
+			if roles.IsPathType("note") || roles.IsMapType("note") || roles.IsLessonType("note") {
+				return "NavigationRoles() gives an ordinary note type a role"
+			}
+			if got := roles.AnswerType(); got != "thought" {
+				return fmt.Sprintf("NavigationRoles().AnswerType() = %q, want the built-in %q", got, "thought")
 			}
 			return ""
 		},
@@ -1723,8 +1746,8 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 		},
 		"ArtifactPolicy": func() string {
 			policy := c.ArtifactPolicy()
-			if policy.Available() || policy.IsNonInstance("System/templates/x.md") {
-				return "ArtifactPolicy() claims a declared exclusion set"
+			if !policy.Available() || policy.IsNonInstance("System/templates/x.md") {
+				return "ArtifactPolicy() must be available and hold no note apart from the instances"
 			}
 			return ""
 		},

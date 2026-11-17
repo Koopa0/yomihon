@@ -90,13 +90,6 @@ type openThought struct {
 }
 
 var (
-	// errOpenNoContract is the refusal for a folder with no contract. The
-	// command answers a program, and without the contract's privacy
-	// declaration nothing grants it a path to say.
-	errOpenNoContract = errors.New(
-		"this folder has no rules file, " + schema.ContractRelPath + ", and " + openCommand +
-			" lists nothing for a program to read until one declares [privacy]")
-
 	// errOpenUndeclaredPrivacy is the refusal for a contract that leaves the
 	// privacy section out. The repair is named in full because it quotes
 	// nothing the vault wrote: the section is simply missing.
@@ -215,16 +208,11 @@ func (r *openRequest) list(ctx context.Context) (payload []byte, notice string, 
 			payload, notice, err = nil, "", errOpenScan
 		}
 	}()
-	contract, err := schema.LoadReader(ctx, source)
+	contract, privacy, err := openRules(ctx, source)
 	if err != nil {
-		if schema.ContractAbsent(err) {
-			return nil, "", errOpenNoContract
-		}
-		// The loader's words name the contract's keys, which is vault content
-		// this face has no authority yet to repeat.
-		return nil, "", judge.RefusalFor(err)
+		return nil, "", err
 	}
-	if refused := openAuthority(contract); refused != nil {
+	if refused := openAuthority(privacy); refused != nil {
 		return nil, "", refused
 	}
 	source.SetBoundary(contract.ScanBoundary())
@@ -239,7 +227,7 @@ func (r *openRequest) list(ctx context.Context) (payload []byte, notice string, 
 		return nil, "", errOpenScan
 	}
 	snap := store.Current().Capture()
-	allowed := openAllowed(contract, snap)
+	allowed := openAllowed(privacy, snap)
 	if missing := openUnreadable(snap, allowed); missing != nil {
 		return nil, "", missing
 	}
@@ -247,19 +235,22 @@ func (r *openRequest) list(ctx context.Context) (payload []byte, notice string, 
 	if err != nil {
 		return nil, "", err
 	}
-	entries := openEntries(snap, contract, kept, allowed)
+	entries := openEntries(snap, privacy, kept, allowed)
 	if r.afterAssemble != nil {
 		r.afterAssemble()
 	}
 	// The list was assembled under the authority read at the start. If the
 	// contract changed since, what it withholds may have changed with it, so
 	// the list is handed over only while that same source still stands.
-	if refused := openAuthority(contract); refused != nil {
+	if refused := openAuthority(privacy); refused != nil {
 		return nil, "", refused
 	}
 	payload, err = encodeOpen(entries, r.format)
 	if err != nil {
 		return nil, "", err
+	}
+	if privacy.WithoutRules() && r.format != judge.FormatJSON {
+		payload = append([]byte(judge.NoRulesFile+"\n"), payload...)
 	}
 	return payload, openNotice(entries, stored), nil
 }
@@ -278,12 +269,28 @@ func openNotice(entries []openEntry, stored bool) string {
 	}
 }
 
+// openRules reads the rules file and the privacy policy this command is bound
+// by. A refusal says no more than the other commands do.
+func openRules(ctx context.Context, source *vault.Reader) (*schema.Contract, schema.PrivacyPolicy, error) {
+	contract, privacy, err := schema.LoadForAgents(ctx, source)
+	switch {
+	case errors.Is(err, schema.ErrRulesFileNearby):
+		return nil, privacy, judge.ErrRulesFileNearby
+	case err != nil:
+		// The loader's words name the contract's keys, which is vault content
+		// this face has no authority yet to repeat; RefusalFor says only what
+		// may be said.
+		return nil, privacy, judge.RefusalFor(err)
+	}
+	return contract, privacy, nil
+}
+
 // openAuthority is the contract state this command needs before it may say a
 // path to a program: a privacy declaration that loaded and whose source is
 // unchanged. Only the missing section is explained; any other fault would be
 // explained by quoting the contract back out.
-func openAuthority(contract *schema.Contract) error {
-	privacy := contract.PrivacyPolicy().ValidateSource()
+func openAuthority(policy schema.PrivacyPolicy) error {
+	privacy := policy.ValidateSource()
 	switch {
 	case privacy.Available():
 		return nil
@@ -298,8 +305,7 @@ func openAuthority(contract *schema.Contract) error {
 // resolved into the output: the privacy declaration lets it out and the scan
 // looks there. The generation's scan answers for the last, since it knows what
 // its walk left out by the vault's .gitignore as well as by the contract.
-func openAllowed(contract *schema.Contract, snap *snapshot.Generation) func(string) bool {
-	privacy := contract.PrivacyPolicy()
+func openAllowed(privacy schema.PrivacyPolicy, snap *snapshot.Generation) func(string) bool {
 	return func(rel string) bool {
 		return privacy.EgressAllowed(rel) && !snap.OutsideScan(rel)
 	}
@@ -363,9 +369,9 @@ type openEntry struct {
 // is allowed. That gate runs before the item is resolved any further: a
 // location's anchor is its heading's words made into an id, so resolving one
 // in withheld ground and then hiding the heading would still have said it.
-func openEntries(snap *snapshot.Generation, contract *schema.Contract, kept []mark.Mark, allowed func(string) bool) []openEntry {
+func openEntries(snap *snapshot.Generation, privacy schema.PrivacyPolicy, kept []mark.Mark, allowed func(string) bool) []openEntry {
 	var entries []openEntry
-	withheldDirs := contract.PrivacyPolicy().WithheldDirs()
+	withheldDirs := privacy.WithheldDirs()
 	for _, item := range snap.OpenItems(note.OpenMarks(kept)) {
 		if !allowed(item.Path()) {
 			continue

@@ -65,7 +65,7 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 		if fault.diagnostic == "" {
 			continue
 		}
-		log.Warn("vault contract policy unavailable",
+		log.Warn("rules file policy unavailable",
 			"capability", fault.capability, "reason", fault.diagnostic)
 	}
 }
@@ -105,7 +105,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 		// A folder that carries no contract is not a folder in trouble. It has
 		// no contract to govern it, which is the ordinary shape of any
 		// directory yomihon is pointed at, so it is reported as the fact it is.
-		log.Info("no vault contract",
+		log.Info("no rules file",
 			"path", schema.ContractRelPath)
 		contract = nil
 		governance = schema.Ungoverned()
@@ -121,11 +121,11 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 		// folder claimed governance and then failed to deliver it. Carrying that
 		// distinction past startup is what keeps the two folders from rendering
 		// the same page.
-		log.Warn("vault contract unavailable", "error", err)
+		log.Warn("rules file unavailable", "error", err)
 		contract = nil
 		governance = schema.Unreadable(err)
 	default:
-		log.Info("vault contract loaded", "version", contract.Version())
+		log.Info("rules file loaded", "version", contract.Version())
 		logPolicyFaults(log, contract)
 		governance = contract.Governance()
 		// The contract was read through this reader, so its scan boundary is

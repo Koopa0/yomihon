@@ -307,9 +307,9 @@ func TestContractAbsenceIsNotReportedAsAFault(t *testing.T) {
 			})
 
 			lines := logged.lines()
-			got, ok := levelFor(lines, "contract")
+			got, ok := levelFor(lines, "rules file")
 			if !ok {
-				t.Fatalf("startup logged nothing about the contract; log = %v", lines)
+				t.Fatalf("startup logged nothing about the rules file; log = %v", lines)
 			}
 			if got != tt.wantLevel {
 				t.Errorf("contract log level = %s, want %s (log = %v)", got, tt.wantLevel, lines)

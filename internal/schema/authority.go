@@ -16,10 +16,15 @@ type Authority struct {
 // CaptureAuthority reads the contract's artifact policy against its source
 // once and returns the view one request answers from. A nil contract is either
 // a folder that never claimed authority or one whose contract could not be
-// read; governance says which.
+// read; governance says which. The first holds every readable note as an
+// ordinary instance, because it declared no template directory to hold apart.
+// The second closes the view, since it claimed a policy it could not deliver.
 func CaptureAuthority(contract *Contract, governance Governance) Authority {
 	if contract == nil {
-		return Authority{governance: governance}
+		if governance.Governed() {
+			return Authority{governance: governance}
+		}
+		return Authority{policy: noRulesArtifactPolicy(), governance: governance}
 	}
 	return Authority{contract: contract, policy: contract.ArtifactPolicy().Capture(), governance: governance}
 }
@@ -52,7 +57,7 @@ func (a Authority) VersionMismatch() *VersionError {
 
 // Closed reports whether this captured view cannot classify note instances.
 func (a Authority) Closed() bool {
-	return a.contract == nil || !a.policy.Available()
+	return !a.policy.Available()
 }
 
 // Diagnostic explains why this captured view is closed. It is empty both when
@@ -70,8 +75,13 @@ func (a Authority) Policy() ArtifactPolicy {
 // course members as. The name comes from the contract layer, which spells it
 // once; whether this folder declares the type is deliberately not asked, since
 // a note that calls itself a lesson gets the reading aids either way and a
-// folder with no contract would otherwise lose them.
+// folder with no contract would otherwise lose them. A folder with no rules
+// file reads the built-in names, so a note that calls itself a unit is one as
+// well; a rules file that could not be read gives that name no standing.
 func (a Authority) IsLessonType(noteType string) bool {
+	if a.contract == nil && a.policy.Available() {
+		return builtInNavigationRoles().IsLessonType(noteType)
+	}
 	lesson, _ := a.contract.LessonType()
 	return noteType == lesson
 }

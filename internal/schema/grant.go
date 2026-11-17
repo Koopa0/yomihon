@@ -174,7 +174,7 @@ func unreadableClaim(err error) Claim {
 // unreadableDiagnostic is the operator's own line; a surface speaking to a
 // reader uses the reason instead.
 func unreadableDiagnostic(err error) string {
-	const sentence = "the vault contract could not be read"
+	const sentence = "the rules file could not be read"
 	if err == nil {
 		return sentence
 	}

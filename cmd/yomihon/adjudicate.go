@@ -87,13 +87,6 @@ func runCommand(
 		return commandError(stderr, fmt.Errorf("unknown command %q", command))
 	}
 	if err != nil {
-		// check is the only command whose positionals name scope inside the
-		// vault rather than the vault itself, so only its error can earn the
-		// extra sentence checkError adds; coverage and exists get the plain
-		// refusal.
-		if command == "check" {
-			return checkError(stderr, err, parsed.root, parsed.positionals)
-		}
 		return commandError(stderr, err)
 	}
 	if _, err := stdout.Write(payload); err != nil {
@@ -248,15 +241,6 @@ func contractGuidance(err error) string {
 		return versionGuidance(mismatch)
 	}
 	switch {
-	case errors.Is(err, judge.ErrNoVaultContract):
-		return "  yomihon reads " + schema.ContractRelPath + " for the note types, fields and\n" +
-			"  roles that check, coverage and exists judge against, and for the directories\n" +
-			"  whose contents must never leave this machine. A folder carrying no such file has\n" +
-			"  declared nothing, and these three commands have no vocabulary to answer in.\n" +
-			"  Reading and search need none of it: yomihon <dir>\n" +
-			"  /health shows link findings even when the folder has no rules file.\n" +
-			"  A starter is examples/vault/System/schemas/vault-schema.toml in the source archive\n" +
-			"  at https://github.com/koopa0/yomihon/releases; choose your binary's release.\n"
 	case errors.Is(err, judge.ErrPrivacyAuthorityUnavailable):
 		return "  The rules file is at " + schema.ContractRelPath + " and yomihon could not use it.\n" +
 			"  The reason is not printed here: this command's output is written for a program to\n" +
@@ -266,25 +250,6 @@ func contractGuidance(err error) string {
 	default:
 		return ""
 	}
-}
-
-// misplacedVault reports the first positional that is itself a folder
-// carrying a vault contract, so a reader who typed the vault in check's scope
-// position is told which word to move rather than only that the folder they
-// stood in declared nothing. It stats for the contract file's existence and
-// nothing more — never opens or reads it — so a folder already refused for
-// having no contract is asked nothing more than that. Its positionals always
-// arrive already refused for the absolute-path shape scopeIsNotTheVaultItself
-// owns, since checkError, its only caller, runs after that refusal has had
-// its chance.
-func misplacedVault(root string, positionals []string) (string, bool) {
-	for _, p := range positionals {
-		info, err := os.Stat(filepath.Join(root, p, schema.ContractRelPath)) // #nosec G703 -- root and the positional are both the operator's own CLI arguments; checked only for existence to shape a refusal, never opened
-		if err == nil && !info.IsDir() {
-			return p, true
-		}
-	}
-	return "", false
 }
 
 // versionGuidance says what differs between a rules file and the version this
@@ -320,21 +285,4 @@ func commandError(stderr io.Writer, err error) int {
 		_, _ = fmt.Fprint(stderr, guidance) //nolint:errcheck // the same already-failing channel
 	}
 	return 2
-}
-
-// checkError is commandError's counterpart for check: the only command whose
-// positionals name scope inside the vault rather than the vault itself, so a
-// judge.ErrNoVaultContract from it may mean one of them was the vault all
-// along. root and positionals are check's own resolved invocation, needed for
-// nothing this function does beyond that one guess.
-func checkError(stderr io.Writer, err error, root string, positionals []string) int {
-	exit := commandError(stderr, err)
-	if errors.Is(err, judge.ErrNoVaultContract) {
-		if p, ok := misplacedVault(root, positionals); ok {
-			hint := "  " + p + " carries a rules file of its own, which makes it a vault rather\n" +
-				"  than a path inside one: pass it as --root " + p + " instead.\n"
-			_, _ = fmt.Fprint(stderr, hint) //nolint:errcheck // the same already-failing channel
-		}
-	}
-	return exit
 }

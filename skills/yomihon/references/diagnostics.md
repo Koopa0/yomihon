@@ -21,7 +21,7 @@ yomihon check --root <vault> [--format json|human|md] [--all]
 |---|---|
 | `--root` | the vault to judge. Without it, the folder you are standing in is the vault |
 | `[path...]` | narrows the judging to part of that vault. Written the way the vault spells it, relative to the root — `Notes`, or `Notes/topic.md`. An absolute path is not a second way to say `--root`, and is refused |
-| `--format` | `json` is one compact object per line, the machine format. `human` is a terminal summary grouped by domain. `md` is a fileable report body — it opens by saying whether this vault's contract would accept it as a note. Without the flag, a pipe gets `json` and a terminal gets `human` |
+| `--format` | `json` is one compact object per line, the machine format. `human` is a terminal summary grouped by domain. `md` is a fileable report body — it opens by saying whether this vault's rules file would accept it as a note. Without the flag, a pipe gets `json` and a terminal gets `human` |
 | `--deny` | a severity (`error`, `warn`, `info`) or an exact rule id, repeatable. A severity is a **threshold**, not a match: `--deny warn` fails on warnings and on errors, and `--deny info` fails on anything at all. A value that is neither is refused rather than ignored |
 | `--all` | restores findings that touch nothing inside `[folders] checked`. It changes what is **reported**, never what is judged — see below |
 | `--baseline` | a previous run's JSONL, subtracted by `fingerprint`, so only new findings are reported and gated. You write one by keeping a `--format json` run: `yomihon check --root <vault> --format json > baseline.jsonl`. It is version-locked; see the refusals below |
@@ -42,7 +42,7 @@ The knowledge layer cuts twice, and the two cuts are not the same:
 - **The frontmatter rules — every `schema.` rule — judge only files inside
   `[folders] checked.`** A note outside it is never judged by them, and
   `--all` restores nothing, because nothing ran. Put an invented key, a `level`
-  its contract does not list and a missing `slug` on one lesson, file it under
+  its rules file does not list and a missing `slug` on one lesson, file it under
   `Archive/`, and `check` prints nothing about it with or without `--all`; move
   the same bytes into `Notes/` and three errors appear. There is no flag for
   this. The repair is to file the note where the rules reach.
@@ -64,7 +64,7 @@ is why the entry point's probe reads `$?`:
 | Refusal | Why |
 |---|---|
 | no `System/schemas/vault-schema.toml` | the folder has declared no vocabulary to judge against |
-| a contract yomihon could not use | permission to report is positive authority, and a contract it could not load has granted none. This disables `check`, `coverage` and `exists` for the whole vault |
+| a rules file yomihon could not use | permission to report is positive authority, and a rules file it could not load has granted none. This disables `check`, `coverage` and `exists` for the whole vault |
 | a `[path...]` inside a `[privacy] never_egress_dirs` directory | that ground is scanned, but nothing from it may be reported, and an empty answer would read as a clean verdict |
 | a `[path...]` written as an absolute path | a filter names part of the vault from the vault's own root; the vault itself goes after `--root` |
 | a `--deny` value that is neither a severity nor a real rule id | a typo fails loudly instead of quietly disabling the gate |
@@ -78,10 +78,10 @@ and it is wider than it looks. It prints
 yomihon: privacy authority unavailable; agent-facing output disabled
 ```
 
-for **any** contract that did not load — a missing `[privacy]` section is
+for **any** rules file that did not load — a missing `[privacy]` section is
 merely the commonest, and a `[fields] required` naming a key that
 `[fields] common` does not list reads exactly the same. It deliberately says no more, because
-the reason would quote the contract back out under the very policy that is
+the reason would quote the rules file back out under the very policy that is
 missing. One command tells you which:
 
 ```bash
@@ -91,8 +91,8 @@ yomihon serve --root <vault>
 The reason is on the page, and in a startup log line that names it outright:
 
 ```
-level=WARN msg="vault contract unavailable"
-  error="decode vault contract: fields.required: \"slug\" is not listed in fields.common"
+level=WARN msg="rules file unavailable"
+  error="decode rules file: fields.required: \"slug\" is not listed in fields.common"
 ```
 
 ## The shape of one finding
@@ -118,16 +118,16 @@ reading before arguing with a finding:
 
 | Value | Meaning |
 |---|---|
-| `vault-schema.toml` | the finding came out of reading the contract's frontmatter declarations |
+| `vault-schema.toml` | the finding came out of reading the rules file's frontmatter declarations |
 | `vault-schema.toml#rules` | its `[rules]` table |
 | `vault-schema.toml#folders` | its `[folders]` table |
 | `vault-schema.toml#types` | its `[types]` tables |
 | `yomihon` | the product's own dialect — link resolution, collisions, reference liveness, the study-path grammar. No vault artifact declares these |
 
 A finding that says `yomihon` is never one you can argue with by editing the
-contract. The reverse does not hold as neatly, and two rules are the reason:
+rules file. The reverse does not hold as neatly, and two rules are the reason:
 `schema.frontmatter` and `schema.language` both carry `vault-schema.toml`, and
-neither is a value your contract chose — one says the YAML did not parse and
+neither is a value your rules file chose — one says the YAML did not parse and
 the other that `lang` is not a well-formed BCP 47 tag. What they share with the
 rest of the table is where they were reached from, not who set the bar.
 
@@ -154,18 +154,18 @@ so silence there is not a verdict.
 
 | `rule_id` | What it means | `source_rule` |
 |---|---|---|
-| `schema.required` | a key `[fields] required`, or the `required` list of the note's own `[types.<name>]`, names is absent. `field` says which | contract |
-| `schema.unknown_key` | a key outside the closed field list: the fields yomihon defines that this note's type allows (`[fields] common` and its `[types.<name>] fields`), `type`, `draft`, and the names Obsidian reserves (`tags`, `aliases`, `cssclasses`). `title` and `domain` are derived, not fields, so writing either is this finding | contract |
-| `schema.enum` | a value outside the list `[enums]` declares for the field, or a `type` the contract does not declare, or, for `field` `domain`, a folder under a `[folders] domain_from` root that the `[enums] domain` list does not name. For `domain` there is no frontmatter to fix: the note's domain is its folder's name, so move the note into a folder named for a declared domain, or add the name to `[enums] domain`. Read the message's own wording | contract |
-| `schema.type_dependent` | a present, non-empty scalar `type` is undeclared and the note carries keys that some type lists in its `[types.<name>] fields`. Those keys are unjudged until `type` is valid; this one explanation replaces their false `schema.unknown_key` findings. The type's `schema.enum`, genuinely unknown keys, and independent checks still apply | contract |
-| `schema.draft` | `draft` is anything but the boolean `true` or `false` — text such as `"yes"`, a list, or an empty value. yomihon defines the flag itself, so the check holds whether or not the contract lists it | contract |
-| `schema.frontmatter` | the frontmatter is not valid YAML, or it opens on line 1 with a `key:` line and never closes (a lost closing `---`). Everything else about the note is unjudgeable until this is fixed | contract |
-| `schema.language` | `lang` is not a valid BCP 47 tag | contract |
+| `schema.required` | a key `[fields] required`, or the `required` list of the note's own `[types.<name>]`, names is absent. `field` says which | rules file |
+| `schema.unknown_key` | a key outside the closed field list: the fields yomihon defines that this note's type allows (`[fields] common` and its `[types.<name>] fields`), `type`, `draft`, and the names Obsidian reserves (`tags`, `aliases`, `cssclasses`). `title` and `domain` are derived, not fields, so writing either is this finding | rules file |
+| `schema.enum` | a value outside the list `[enums]` declares for the field, or a `type` the rules file does not declare, or, for `field` `domain`, a folder under a `[folders] domain_from` root that the `[enums] domain` list does not name. For `domain` there is no frontmatter to fix: the note's domain is its folder's name, so move the note into a folder named for a declared domain, or add the name to `[enums] domain`. Read the message's own wording | rules file |
+| `schema.type_dependent` | a present, non-empty scalar `type` is undeclared and the note carries keys that some type lists in its `[types.<name>] fields`. Those keys are unjudged until `type` is valid; this one explanation replaces their false `schema.unknown_key` findings. The type's `schema.enum`, genuinely unknown keys, and independent checks still apply | rules file |
+| `schema.draft` | `draft` is anything but the boolean `true` or `false` — text such as `"yes"`, a list, or an empty value. yomihon defines the flag itself, so the check holds whether or not the rules file lists it | rules file |
+| `schema.frontmatter` | the frontmatter is not valid YAML, or it opens on line 1 with a `key:` line and never closes (a lost closing `---`). Everything else about the note is unjudgeable until this is fixed | rules file |
+| `schema.language` | `lang` is not a valid BCP 47 tag | rules file |
 | `schema.slug` | the slug does not match the `slug_pattern` of the note's type | `#types` |
-| `schema.provenance` | a note of the `concept` type carries none of the provenance fields `[rules] concept_requires_provenance` names. Its message is a frozen sentence, `frontmatter concept has neither based_on nor source_locator`, and those two words are in the message rather than in your contract: the fields actually demanded are whichever your contract lists, and `source_locator` is not even a legal key in the vault this repository ships. The list may name fields beside the ones yomihon defines, but not a built-in, derived or removed one (`type`, `draft`, `tags`, `aliases`, `cssclasses`, `title`, `domain`, or a name earlier contracts allowed that yomihon has dropped): the contract is refused at load. Read the contract, not the message | `#rules` |
+| `schema.provenance` | a note of the `concept` type carries none of the provenance fields `[rules] concept_requires_provenance` names. Its message is a frozen sentence, `frontmatter concept has neither based_on nor source_locator`, and those two words are in the message rather than in your rules file: the fields actually demanded are whichever your rules file lists, and `source_locator` is not even a legal key in the vault this repository ships. The list may name fields beside the ones yomihon defines, but not a built-in, derived or removed one (`type`, `draft`, `tags`, `aliases`, `cssclasses`, `title`, `domain`, or a name earlier rules files allowed that yomihon has dropped): the rules file is refused at load. Read the rules file, not the message | `#rules` |
 | `schema.reference_nested_sequence` | an item in a recognized reference list is itself a YAML list, including an alias to a list. One finding names each affected `field` | `yomihon` |
-| `schema.navigation_unavailable` | a type role in the contract could not be used (a role that is none of `lesson`, `course`, `map`, `thought`, or a second type holding the `lesson` or the `thought` role), so no note type is a course or a map and the course and map rules, including every study-path rule, skipped every note. Its `path` is the contract file, and it does not quote the contract; denying any of the rules it silenced fails the gate through it | contract |
-| `schema.unmatched_knowledge_dir` | `[folders] checked` names a directory this vault does not have, so the frontmatter rules reach nothing there. The fault is in the contract, not in a note | `#folders` |
+| `schema.navigation_unavailable` | a type role in the rules file could not be used (a role that is none of `lesson`, `course`, `map`, `thought`, or a second type holding the `lesson` or the `thought` role), so no note type is a course or a map and the course and map rules, including every study-path rule, skipped every note. Its `path` is the rules file, and it does not quote it; denying any of the rules it silenced fails the gate through it | rules file |
+| `schema.unmatched_knowledge_dir` | `[folders] checked` names a directory this vault does not have, so the frontmatter rules reach nothing there. The fault is in the rules file, not in a note | `#folders` |
 
 For `schema.reference_nested_sequence`, quote the reference: write
 `based_on: ["[[Note]]"]` or `based_on: ["Note"]`. YAML reads the unquoted
@@ -227,7 +227,7 @@ explains the words. All `warn`.
 | `rule_id` | Severity | What it means |
 |---|---|---|
 | `scan.skipped` | warn | the scan saw a path and read nothing from it, because a note is read only out of a regular file. A symbolic link is the usual cause: it holds no note, answers no link, and appears in no listing |
-| `scan.unreadable` | error | the scan saw the file and the read could not open it — a permission taken away is the usual cause — so nothing was judged from it. The rest of the vault is still judged, but the five rules that conclude something is *nowhere* say nothing for that run: see below. Restore read access and judge again. A file under a `[privacy] never_egress_dirs` directory carries no path here and one fixed sentence in place of the reason, because both would describe ground the contract closed |
+| `scan.unreadable` | error | the scan saw the file and the read could not open it — a permission taken away is the usual cause — so nothing was judged from it. The rest of the vault is still judged, but the five rules that conclude something is *nowhere* say nothing for that run: see below. Restore read access and judge again. A file under a `[privacy] never_egress_dirs` directory carries no path here and one fixed sentence in place of the reason, because both would describe ground the rules file closed |
 | `callout.title_markup` | info | a recognised callout's title carries markup — a wikilink, an HTML tag, emphasis, a code span, a markdown link or an image. Titles are escaped, not parsed, so it would render as visible text. Move it into the body |
 
 ### What a file nobody could read takes with it
@@ -275,7 +275,7 @@ esac
 ```
 
 `exists "$name" || write_the_note` is the shape to avoid: it takes the write
-branch on a refusal, so a vault whose contract merely stopped loading grows a
+branch on a refusal, so a vault whose rules file merely stopped loading grows a
 second note under a name that already exists.
 
 A note inside a `[privacy] never_egress_dirs` directory is the case to get

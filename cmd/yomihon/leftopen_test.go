@@ -418,6 +418,87 @@ func TestLeftOpenChecksAuthorityAgainAfterAssembly(t *testing.T) {
 	}
 }
 
+// The marks command started from a folder inside a vault, or above one, is not
+// started from a folder with no rules file. Each shape is refused before any
+// list is built, since the withheld folder the vault's rules name would
+// otherwise be listed as an ordinary one.
+func TestLeftOpenRefusesAFolderInsideOrAboveAVault(t *testing.T) {
+	t.Parallel()
+	// A thought is what a folder with no rules file lists, so a leak shows up as
+	// this one's path on stdout.
+	hidden := openThoughtNote("Hidden thought", "thought", draftFlag, "2026-09-02")
+	shapes := []struct {
+		name  string
+		build func(t *testing.T) string
+	}{
+		{"started inside the folder the rules withhold", func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			putOpenThoughtFile(t, wrap, "v/"+schema.ContractRelPath, leftOpenContract)
+			putOpenThoughtFile(t, wrap, "v/Private/Hidden thought.md", hidden)
+			return filepath.Join(wrap, "v", "Private")
+		}},
+		{"started two folders inside the vault", func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			putOpenThoughtFile(t, wrap, "v/"+schema.ContractRelPath, leftOpenContract)
+			putOpenThoughtFile(t, wrap, "v/Private/2026/Hidden thought.md", hidden)
+			return filepath.Join(wrap, "v", "Private", "2026")
+		}},
+		{"started one folder above a vault", func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			putOpenThoughtFile(t, wrap, "v/"+schema.ContractRelPath, leftOpenContract)
+			putOpenThoughtFile(t, wrap, "v/Private/Hidden thought.md", hidden)
+			return wrap
+		}},
+		{"started above a vault nested below the root", func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			putOpenThoughtFile(t, wrap, "a/b/v/"+schema.ContractRelPath, leftOpenContract)
+			putOpenThoughtFile(t, wrap, "a/b/v/Private/Hidden thought.md", hidden)
+			return wrap
+		}},
+	}
+	for _, shape := range shapes {
+		t.Run(shape.name, func(t *testing.T) {
+			t.Parallel()
+			root := shape.build(t)
+			var stdout, stderr bytes.Buffer
+			request := openRequest{root: root, configDir: t.TempDir(), format: judge.FormatJSON}
+			exit := request.run(t.Context(), &stdout, &stderr)
+			if exit != 2 || stdout.Len() != 0 {
+				t.Errorf("caught: marks listed from a folder inside or above a vault: exit %d, stdout %q", exit, stdout.String())
+			}
+			if !strings.Contains(stderr.String(), judge.ErrRulesFileNearby.Error()) {
+				t.Errorf("stderr = %q, want the refusal that names a rules file above or inside", stderr.String())
+			}
+		})
+	}
+}
+
+// A folder with no rules file withheld nothing when the list was assembled. A
+// rules file written since may withhold exactly what was listed, so the list is
+// not handed over: the command refuses, as it does when a rules file changes.
+func TestLeftOpenRefusesWhenARulesFileAppearsAfterAssembly(t *testing.T) {
+	t.Parallel()
+	root, configDir := t.TempDir(), t.TempDir()
+	putOpenThoughtFile(t, root, "Source.md", "# Source\n")
+	putOpenThoughtFile(t, root, "Private/Thought.md", openThoughtNote("A private thought", "thought", draftFlag, "2026-09-01"))
+	leftOpenMarks(t, root, configDir, mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)})
+	var stdout, stderr bytes.Buffer
+	request := openRequest{root: root, configDir: configDir, format: judge.FormatJSON, afterAssemble: func() {
+		putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
+	}}
+	exit := request.run(t.Context(), &stdout, &stderr)
+	if exit != 2 || stdout.Len() != 0 {
+		t.Errorf("caught: a rules file that appeared after assembly still got the list: exit %d, stdout %q", exit, stdout.String())
+	}
+	if !strings.Contains(stderr.String(), judge.ErrPrivacyAuthorityUnavailable.Error()) {
+		t.Errorf("stderr = %q, want the privacy refusal", stderr.String())
+	}
+}
+
 // A withheld note that cannot be read changes nothing: not the list, not the
 // exit, and no line names it. The vault generation logs such a read by path,
 // so its logger must say nothing anywhere this process writes.
@@ -513,7 +594,6 @@ func TestLeftOpenRefusesWithoutPrivacyAuthority(t *testing.T) {
 		contract string // empty writes no contract at all
 		want     string
 	}{
-		{name: "no contract", want: "yomihon: this folder has no rules file, System/schemas/vault-schema.toml, and marks lists nothing for a program to read until one declares [privacy]\n"},
 		{name: "no privacy section", contract: undeclared, want: "yomihon: the rules file declares no privacy policy, so marks lists nothing for a program to read; add a [privacy] table with never_egress_dirs = [] to System/schemas/vault-schema.toml, naming in that list any directory whose notes must never leave this machine\n"},
 		{name: "invalid privacy section", contract: strings.Replace(openThoughtContract, "never_egress_dirs = []", `never_egress_dirs = ["../Quoted secret"]`, 1), want: "yomihon: privacy authority unavailable; agent-facing output disabled\n"},
 	} {
@@ -537,6 +617,35 @@ func TestLeftOpenRefusesWithoutPrivacyAuthority(t *testing.T) {
 				t.Errorf("caught: the refusal quotes the contract back: %q", got.stderr)
 			}
 		})
+	}
+}
+
+// A folder with no rules file is read: it declared nothing, so nothing is
+// withheld, and the list says so first where a person reads it. The machine
+// form is the list alone.
+func TestLeftOpenReadsAFolderWithNoRulesFile(t *testing.T) {
+	t.Parallel()
+	root, configDir := t.TempDir(), t.TempDir()
+	putOpenThoughtFile(t, root, "Source.md", "# Source\n")
+	putOpenThoughtFile(t, root, "Private/Thought.md", openThoughtNote("Under a directory a rules file might withhold", "thought", draftFlag, "2026-09-01"))
+	leftOpenMarks(t, root, configDir, mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)})
+
+	machine := leftOpen(t, root, configDir, "--format", "json")
+	if machine.exit != 0 {
+		t.Fatalf("exit = %d, stderr %q; want 0", machine.exit, machine.stderr)
+	}
+	for _, want := range []string{"Source.md", "Private/Thought.md"} {
+		if !strings.Contains(machine.stdout, want) {
+			t.Errorf("the list is missing %q although no rules file withholds it:\n%s", want, machine.stdout)
+		}
+	}
+	if strings.Contains(machine.stdout, judge.NoRulesFile) {
+		t.Errorf("the sentence for a person is in the machine form:\n%s", machine.stdout)
+	}
+
+	human := leftOpen(t, root, configDir, "--format", "human")
+	if first, _, _ := strings.Cut(human.stdout, "\n"); first != judge.NoRulesFile {
+		t.Errorf("the list opens with %q, want %q", first, judge.NoRulesFile)
 	}
 }
 

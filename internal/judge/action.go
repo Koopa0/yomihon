@@ -279,10 +279,9 @@ func (a *action) finish() error {
 // than a run that succeeds would.
 //
 // Authority that never loaded has nothing to recheck, and its own refusal is
-// what the caller is owed: a folder carrying no contract has to keep saying so
-// rather than report a privacy authority it never had.
+// what the caller is owed rather than a privacy authority it never had.
 func (a *action) abort(cause error) error {
-	if a.authority.contract != nil {
+	if a.authority.loaded {
 		if authorityErr := a.authority.validate(); authorityErr != nil {
 			cause = authorityErr
 		}

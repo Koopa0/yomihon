@@ -61,8 +61,10 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	privacy := snap.PrivacyPolicy().Claim()
 	privacyFault, privacyRestart := statedAsFaults(lang, faultCause{privacy.Diagnostic(), privacy.Reason()})
 	kept, hasMark := h.sources.Bookmark()
-	open, openFault := h.openThoughtShelf(snap, lang, pages.OpenThoughtsHomeRows, pages.OpenNewest)
-	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
+	open, openFault := h.openThoughtShelf(snap, authority.Governed(), lang, pages.OpenThoughtsHomeRows, pages.OpenNewest)
+	// An empty block is not drawn where nothing declared the shelf: no answer
+	// role, or no rules file, which reads the built-in one.
+	if (snap.NavigationRoles().AnswerType() == "" || !authority.Governed()) && len(open.Rows) == 0 && openFault == "" {
 		open = pages.Shelf{}
 	}
 	view := pages.HomeView{

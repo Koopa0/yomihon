@@ -22,7 +22,7 @@ func (h *Handler) openThoughts(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	snap := h.sources.Snapshot().Capture()
 	order := pages.ParseOpenOrder(r.URL.Query().Get("order"))
-	shelf, fault := h.openThoughtShelf(snap, lang, 0, order)
+	shelf, fault := h.openThoughtShelf(snap, h.sources.Authority().Governed(), lang, 0, order)
 	view := pages.ListIndexView{Mode: "marks", Notice: fault, Shelf: shelf, Order: openOrderChoices(order, lang)}
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write open thoughts", "error", err)
@@ -61,17 +61,19 @@ type openThoughtCandidate struct {
 // bounds the rows returned; zero means all of them.
 //
 // A vault whose contract declares the role says so in the lede; one that does
-// not keeps the marks-only sentence. The shelf states no count: how many things
-// were left open is not a debt the page presents.
-func (h *Handler) openThoughtShelf(snap *snapshot.Generation, lang wording.Lang, limit int, order pages.OpenOrder) (shelf pages.Shelf, fault string) {
+// not keeps the marks-only sentence. A folder with no rules file declares
+// nothing and reads the built-in role, so it keeps the marks-only sentence
+// until a note of that type is actually open. The shelf states no count: how
+// many things were left open is not a debt the page presents.
+func (h *Handler) openThoughtShelf(snap *snapshot.Generation, governed bool, lang wording.Lang, limit int, order pages.OpenOrder) (shelf pages.Shelf, fault string) {
 	shelf = pages.Shelf{
 		Title: wording.OpenThoughtsTitle.In(lang), Href: openThoughtsAddress, Open: true,
 		Lede: wording.OpenThoughtsMarksLede.In(lang), Empty: wording.OpenThoughtsMarksEmpty.In(lang),
 	}
-	if snap.NavigationRoles().AnswerType() != "" {
+	candidates, fault := h.openCandidates(snap, lang)
+	if snap.NavigationRoles().AnswerType() != "" && (governed || slices.ContainsFunc(candidates, func(c openThoughtCandidate) bool { return c.note != nil })) {
 		shelf.Lede, shelf.Empty = wording.OpenThoughtsLede.In(lang), ""
 	}
-	candidates, fault := h.openCandidates(snap, lang)
 	orderOpenCandidates(candidates, order)
 	shelf.Rows = openRows(candidates, limit, lang, snap, newPlaceResolver(snap))
 	if fault != "" {
