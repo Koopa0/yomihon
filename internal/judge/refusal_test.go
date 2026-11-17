@@ -2,6 +2,7 @@ package judge
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -362,6 +363,13 @@ func TestAFolderInsideOrAboveAVaultIsRefusedByEveryCommand(t *testing.T) {
 			linkTo(t, shared, filepath.Join(wrap, "Vs", "System"))
 			return wrap
 		}},
+		{"above a vault whose System is a file", false, func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			write(t, wrap, "Vf/System", "not a folder\n")
+			write(t, wrap, "Vf/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			return wrap
+		}},
 		{"above a vault whose rules file an ignore rule hides from the scan", false, func(t *testing.T) string {
 			t.Helper()
 			wrap := t.TempDir()
@@ -412,7 +420,7 @@ func TestAFolderInsideOrAboveAVaultIsRefusedByEveryCommand(t *testing.T) {
 				if len(stdout) != 0 {
 					t.Errorf("caught: %s wrote %d bytes before refusing a folder inside or above a vault: %q", command.name, len(stdout), stdout)
 				}
-				if err != nil && (strings.Contains(err.Error(), root) || strings.Contains(err.Error(), "Vu") || strings.Contains(err.Error(), "Vs") || strings.Contains(err.Error(), "System")) {
+				if err != nil && (strings.Contains(err.Error(), root) || strings.Contains(err.Error(), "Vu") || strings.Contains(err.Error(), "Vs") || strings.Contains(err.Error(), "Vf") || strings.Contains(err.Error(), "System")) {
 					t.Errorf("%s refusal names a path: %q", command.name, err.Error())
 				}
 			})
@@ -442,4 +450,54 @@ func lockDir(t *testing.T, dir string) {
 			t.Errorf("restore %q: %v", dir, err)
 		}
 	})
+}
+
+// The first look at the folder ends before the notes are read, and a vault moved
+// in between (a sync client, a checkout, a mv) would be read as ordinary ground.
+// The hook puts one there at that moment, with no wait to hope for: after the
+// rules are read and before the walk the output is read from. The refusal has to
+// come from what that walk entered.
+func TestAVaultMovedInAfterTheFirstLookIsRefusedByEveryCommand(t *testing.T) {
+	t.Parallel()
+	rules := contractFixture(t, []string{"Diary"})
+	for _, command := range everyCommand {
+		t.Run(command, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			write(t, root, "Notes/a.md", "# a\n")
+			hooks := actionHooks{afterAuthority: func() {
+				write(t, root, "Later/"+schema.ContractRelPath, rules)
+				write(t, root, "Later/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			}}
+			stdout, err := runPrepared(t.Context(), t, command, root, "Secret Plan", hooks, nil)
+			if !errors.Is(err, ErrRulesFileNearby) {
+				t.Errorf("caught: %s error = %v, want ErrRulesFileNearby for a vault that appeared after the first look", command, err)
+			}
+			if len(stdout) != 0 {
+				t.Errorf("caught: %s wrote %d bytes read from a folder that holds a rules file: %q", command, len(stdout), stdout)
+			}
+		})
+	}
+}
+
+// A stopped command is the reader's own doing and gets its own words, not the
+// refusal about a rules file that never failed.
+func TestACancelledCommandIsNotAPrivacyRefusal(t *testing.T) {
+	t.Parallel()
+	for _, command := range everyCommand {
+		t.Run(command, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			write(t, root, "Notes/a.md", "# a\n")
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+			_, err := runPrepared(ctx, t, command, root, "a", actionHooks{}, nil)
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("%s error = %v, want context.Canceled", command, err)
+			}
+			if errors.Is(err, ErrPrivacyAuthorityUnavailable) {
+				t.Errorf("caught: %s reported a stopped command as an unavailable privacy authority", command)
+			}
+		})
+	}
 }

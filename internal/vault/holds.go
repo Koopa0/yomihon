@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // A folder is only known to have no rules file when the places a rules file
@@ -50,40 +51,74 @@ func (r *Reader) AncestorHolds(rel string) (bool, error) {
 // does not enter at all (dot-named, ignored, or kept out by the boundary) is not
 // looked in: none of its notes is read, so none can reach an output. A directory
 // that is entered and cannot be listed answers with an error.
+//
+// It also leaves the reader watching for rel, so this is the first look and not
+// the only one: see WatchFor.
 func (r *Reader) HoldsBelow(ctx context.Context, rel string) (bool, error) {
-	look := &lookFor{parts: strings.Split(rel, "/")}
-	if _, err := r.scanLooking(ctx, scanAvailable, look); err != nil {
+	r.WatchFor(rel)
+	if _, err := r.scan(ctx, scanAvailable); err != nil {
 		return false, err
 	}
-	return look.found, look.err
+	return r.Watched()
 }
 
-// lookFor is the search a walk makes in every directory it enters.
-type lookFor struct {
+// WatchFor makes every walk of this Reader from now on note whether a folder it
+// enters holds rel, in the one listing of that folder the walk reads anyway. A
+// look made once and finished before the notes are read leaves a window in which
+// a vault moved in is read as ordinary ground; a look made by the walk the notes
+// are read from has none, because the folder it asked is the folder it read.
+// Watched reports what the walks have found.
+func (r *Reader) WatchFor(rel string) {
+	r.watch.Store(&rulesWatch{parts: strings.Split(rel, "/")})
+}
+
+// Watched reports whether any walk since WatchFor entered a folder that holds the
+// watched path, or entered one it could not list. Both answers stay once given.
+// A Reader that was never asked to watch answers no.
+func (r *Reader) Watched() (held bool, err error) {
+	if r == nil {
+		return false, errors.New("no vault root")
+	}
+	watch := r.watch.Load()
+	if watch == nil {
+		return false, nil
+	}
+	return watch.result()
+}
+
+// rulesWatch is what a Reader's walks have found of the one path they were asked
+// to watch for.
+type rulesWatch struct {
 	parts []string
+	mu    sync.Mutex
 	found bool
 	err   error
 }
 
 // lookIn asks one entered directory, by its raw listing, for the path.
-func (w *sourceWalk) lookIn(dir string) {
-	if w.look == nil || w.look.found || w.look.err != nil {
+func (w *rulesWatch) lookIn(fsys fs.FS, dir string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.found || w.err != nil {
 		return
 	}
-	held, err := holdsFolded(w.root.FS(), dir, w.look.parts)
-	if err != nil {
-		w.look.err = err
-		return
-	}
-	w.look.found = held
+	held, err := holdsFolded(fsys, dir, w.parts)
+	w.found, w.err = held, err
+}
+
+func (w *rulesWatch) result() (held bool, err error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.found, w.err
 }
 
 // holdsFolded reports whether dir, in fsys, holds parts as a path with any part
 // at any letter case. A name is matched however many entries fold to it, since a
 // case-sensitive filesystem keeps System and system apart and a synced vault may
-// carry either. Whatever stands where a part should be counts, and so does a
-// symlink at any level: a link is a rules file somebody shared, and following it
-// out of the folder is not this look's to do.
+// carry either. Whatever stands where a part should be counts: a symlink at any
+// level is a rules file somebody shared, and following it out of the folder is
+// not this look's to do, and a file where a folder should be is refused as the
+// loader refuses it at the root.
 func holdsFolded(fsys fs.FS, dir string, parts []string) (bool, error) {
 	entries, err := fs.ReadDir(fsys, dir)
 	if err != nil {
@@ -93,11 +128,8 @@ func holdsFolded(fsys fs.FS, dir string, parts []string) (bool, error) {
 		if !strings.EqualFold(entry.Name(), parts[0]) {
 			continue
 		}
-		if len(parts) == 1 || entry.Type()&fs.ModeSymlink != 0 {
+		if len(parts) == 1 || !entry.IsDir() {
 			return true, nil
-		}
-		if !entry.IsDir() {
-			continue
 		}
 		if held, holdErr := holdsFolded(fsys, joinSlash(dir, entry.Name()), parts[1:]); holdErr != nil || held {
 			return held, holdErr

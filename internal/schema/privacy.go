@@ -50,6 +50,9 @@ type privacyPolicyState struct {
 	// of a folder that carries none. It is what ValidateSource asks again.
 	absence *vault.Reader
 	stale   atomic.Bool
+	// nearby is set with stale when the policy was withdrawn because a walk of
+	// the folder entered one that holds a rules file.
+	nearby atomic.Bool
 }
 
 // Claim reports how far the privacy declaration got.
@@ -73,6 +76,14 @@ func (p PrivacyPolicy) Available() bool {
 // repair — declaring the section — quotes nothing the vault wrote.
 func (p PrivacyPolicy) Undeclared() bool {
 	return p.state != nil && p.state.undeclared && !p.state.stale.Load()
+}
+
+// RulesFileNearby reports whether the policy was withdrawn because a folder the
+// command read holds a rules file, which the policy was taken without knowing:
+// the withheld ground it names is in the output already. It is the one
+// withdrawal a command may name, since it quotes nothing the vault wrote.
+func (p PrivacyPolicy) RulesFileNearby() bool {
+	return p.state != nil && p.state.nearby.Load()
 }
 
 // Trustworthy reports whether the never-egress set may be reasoned over.
@@ -165,7 +176,11 @@ func (p PrivacyPolicy) WithoutRules() bool {
 	return p.state != nil && p.state.absence != nil && p.Available()
 }
 
-// revalidateAbsence asks again whether the rules file is still not there.
+// revalidateAbsence asks again whether the rules file is still not there, at
+// the root and in every folder the reader's walks have entered since: those
+// walks are what the output was read from, so a vault moved in after the first
+// look and before they reached it is found here, in the listing that found its
+// notes.
 func (p PrivacyPolicy) revalidateAbsence() PrivacyPolicy {
 	_, err := p.state.absence.Lookup(ContractRelPath)
 	switch {
@@ -174,9 +189,18 @@ func (p PrivacyPolicy) revalidateAbsence() PrivacyPolicy {
 		// withholds is not known here, so nothing may go out under a policy that
 		// came before it.
 		p.state.stale.Store(true)
+		return p
 	case errors.Is(err, fs.ErrNotExist):
 	default:
 		return PrivacyPolicy{state: &privacyPolicyState{claim: unreadableClaim(err)}}
+	}
+	held, watchErr := p.state.absence.Watched()
+	switch {
+	case held:
+		p.state.nearby.Store(true)
+		p.state.stale.Store(true)
+	case watchErr != nil:
+		return PrivacyPolicy{state: &privacyPolicyState{claim: unreadableClaim(watchErr)}}
 	}
 	return p
 }

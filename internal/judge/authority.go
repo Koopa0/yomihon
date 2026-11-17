@@ -118,6 +118,12 @@ func (a scanAuthority) noRules() bool {
 
 func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority, error) {
 	contract, privacy, err := schema.LoadForAgents(ctx, reader)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		// A stopped command is not a fault in the rules file, and a reader who
+		// interrupted it is owed their own words rather than the privacy
+		// refusal.
+		return scanAuthority{}, err
+	}
 	if errors.Is(err, schema.ErrRulesFileNearby) {
 		return scanAuthority{}, ErrRulesFileNearby
 	}
@@ -147,6 +153,9 @@ func (a scanAuthority) roles() schema.NavigationRoles {
 
 func (a scanAuthority) validate() error {
 	privacy := a.privacy.ValidateSource()
+	if privacy.RulesFileNearby() {
+		return ErrRulesFileNearby
+	}
 	if !privacy.Available() {
 		return ErrPrivacyAuthorityUnavailable
 	}

@@ -104,6 +104,9 @@ type Reader struct {
 	// is itself read through this Reader, so the boundary cannot be known when
 	// the Reader opens and is installed once the contract has been read.
 	boundary atomic.Pointer[Boundary]
+	// watch is the path every walk of this Reader notes the folders it enters
+	// for, once WatchFor has been asked.
+	watch atomic.Pointer[rulesWatch]
 }
 
 // File is an opened regular file selected through a Reader. Its descriptor
@@ -568,11 +571,6 @@ func (r *Reader) ScanComplete(ctx context.Context) (Scan, error) {
 }
 
 func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan, error) {
-	return r.scanLooking(ctx, completeness, nil)
-}
-
-// scanLooking is scan that also makes look in every directory it enters.
-func (r *Reader) scanLooking(ctx context.Context, completeness scanCompleteness, look *lookFor) (Scan, error) {
 	if r == nil || r.root == nil {
 		return Scan{}, fmt.Errorf("vault reader is closed: %w", fs.ErrClosed)
 	}
@@ -589,7 +587,7 @@ func (r *Reader) scanLooking(ctx context.Context, completeness scanCompleteness,
 		root:         r.root,
 		boundary:     boundary,
 		completeness: completeness,
-		look:         look,
+		watch:        r.watch.Load(),
 		seen:         make(map[string]string),
 		directories:  make(map[string]fs.FileInfo),
 		contains:     map[string]struct{}{".": {}},
@@ -656,7 +654,7 @@ type sourceWalk struct {
 	boundary     Boundary
 	ignore       ignoreRules
 	completeness scanCompleteness
-	look         *lookFor
+	watch        *rulesWatch
 	seen         map[string]string
 	directories  map[string]fs.FileInfo
 	contains     map[string]struct{}
@@ -714,6 +712,14 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 	w.entries = append(w.entries, Entry{token: w.token, rawPath: raw, path: canonical, observed: observed})
 	w.contains[canonical] = struct{}{}
 	return nil
+}
+
+// lookIn has the reader's watch, if it has one, ask a directory this walk has
+// entered.
+func (w *sourceWalk) lookIn(dir string) {
+	if w.watch != nil {
+		w.watch.lookIn(w.root.FS(), dir)
+	}
 }
 
 // skipKind says which member of the closed set a directory entry falls in.

@@ -50,6 +50,8 @@ func TestAncestorHoldsFindsWhatGovernsAFolderFromAbove(t *testing.T) {
 		{name: "two folders below the vault", file: "v/" + rulesPath, open: "v/Diary/2026", want: true},
 		{name: "the same path at other letter cases", file: "v/system/Schemas/VAULT-SCHEMA.TOML", open: "v/Diary", want: true},
 		{name: "a directory where the file would be", file: "v/" + rulesPath + "/inner.md", open: "v/Diary", want: true},
+		{name: "a file where the System folder would be", file: "v/System", open: "v/Diary", want: true},
+		{name: "a file where the schemas folder would be", file: "v/System/schemas", open: "v/Diary", want: true},
 		{name: "a rules file beside the folder and not above it", file: "v/" + rulesPath, open: "w", want: false},
 		{name: "an unrelated System folder above", file: "v/System/notes.md", open: "v/Diary", want: false},
 		{name: "nothing above", file: "v/Notes/a.md", open: "v/Diary", want: false},
@@ -165,6 +167,8 @@ func TestHoldsBelowFindsARulesFileTheScanDoesNotList(t *testing.T) {
 		{name: "the System folder is a symlink", shared: []string{"schemas/vault-schema.toml"}, links: [][2]string{{"", "v/System"}}, want: true},
 		{name: "an ignore rule hides the schemas folder from the scan", files: []string{"v/" + rulesPath, "v/Diary/a.md"}, ignore: "schemas/\n", want: true},
 		{name: "a folder deep in the tree", files: []string{"a/b/c/" + rulesPath}, want: true},
+		{name: "a file where the System folder would be", files: []string{"v/System"}, want: true},
+		{name: "a file where the schemas folder would be", files: []string{"v/System/schemas"}, want: true},
 		{name: "no rules file anywhere", files: []string{"v/Notes/a.md"}, want: false},
 		{name: "an unrelated System folder", files: []string{"v/System/notes.md"}, want: false},
 		{name: "a dot-directory is not entered, so it is not looked in", files: []string{".hidden/" + rulesPath}, want: false},
@@ -219,4 +223,85 @@ func TestHoldsBelowRefusesAFolderItCannotList(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The look made before the notes are read is not the only one. A vault moved in
+// after it and before the walk that reads the notes reaches that folder is read
+// as ordinary ground unless the walk itself asks, so every walk of a watching
+// Reader notes what the folders it enters hold.
+func TestAWatchingReaderNotesWhatALaterWalkEnters(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a vault that appears after the first look is found by the next walk", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		touch(t, dir, "Notes/a.md")
+		reader := openVault(t, dir)
+		if held, err := reader.HoldsBelow(t.Context(), rulesPath); err != nil || held {
+			t.Fatalf("HoldsBelow() = %t, %v, want false, nil", held, err)
+		}
+		touch(t, dir, "Later/"+rulesPath)
+		touch(t, dir, "Later/Diary/secret.md")
+		if held, err := reader.Watched(); err != nil || held {
+			t.Fatalf("Watched() before another walk = %t, %v, want false, nil: nothing has entered the new folder yet", held, err)
+		}
+		if _, err := reader.ScanComplete(t.Context()); err != nil {
+			t.Fatalf("ScanComplete() error = %v", err)
+		}
+		if held, err := reader.Watched(); err != nil || !held {
+			t.Errorf("Watched() after the walk = %t, %v, want true: the walk entered a folder that holds a rules file", held, err)
+		}
+	})
+
+	t.Run("what was found stays found", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		touch(t, dir, "v/"+rulesPath)
+		reader := openVault(t, dir)
+		if held, err := reader.HoldsBelow(t.Context(), rulesPath); err != nil || !held {
+			t.Fatalf("HoldsBelow() = %t, %v, want true", held, err)
+		}
+		if err := os.RemoveAll(filepath.Join(dir, "v")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := reader.ScanComplete(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if held, err := reader.Watched(); err != nil || !held {
+			t.Errorf("Watched() = %t, %v after the folder left, want true: a rules file seen is a rules file seen", held, err)
+		}
+	})
+
+	t.Run("a folder a later walk enters and cannot list is an error", func(t *testing.T) {
+		if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+			t.Skip("directory permissions do not hold here")
+		}
+		dir := t.TempDir()
+		touch(t, dir, "Notes/a.md")
+		reader := openVault(t, dir)
+		if _, err := reader.HoldsBelow(t.Context(), rulesPath); err != nil {
+			t.Fatal(err)
+		}
+		touch(t, dir, "Later/Diary/secret.md")
+		restoreAfter(t, filepath.Join(dir, "Later"), 0o000)
+		if _, err := reader.ScanAvailable(t.Context()); err != nil {
+			t.Fatalf("ScanAvailable() error = %v, want the walk to record the folder as a problem and go on", err)
+		}
+		if _, err := reader.Watched(); err == nil {
+			t.Error("Watched() error = nil, want one: a folder the walk entered could not be listed")
+		}
+	})
+
+	t.Run("a reader never asked to watch notes nothing", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		touch(t, dir, "v/"+rulesPath)
+		reader := openVault(t, dir)
+		if _, err := reader.ScanComplete(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if held, err := reader.Watched(); held || err != nil {
+			t.Errorf("Watched() = %t, %v, want false, nil", held, err)
+		}
+	})
 }

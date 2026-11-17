@@ -143,6 +143,62 @@ func TestARulesFileThatAppearsWithdrawsAnAbsentPolicy(t *testing.T) {
 	}
 }
 
+// A vault moved into the folder after the first look and before the walk that
+// reads the notes is read as ordinary ground unless that walk asks too. The
+// policy is withdrawn by what the walks entered, which is what the output was
+// read from; a folder no walk entered gave the output nothing.
+func TestAFolderAWalkEntersThatHoldsARulesFileWithdrawsAnAbsentPolicy(t *testing.T) {
+	t.Parallel()
+	appear := func(t *testing.T, root string) {
+		t.Helper()
+		for rel, content := range map[string]string{
+			"Later/" + ContractRelPath: "schema_version = \"2\"\n",
+			"Later/Diary/secret.md":    "# secret\n",
+		} {
+			full := filepath.Join(root, filepath.FromSlash(rel))
+			if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+				t.Fatalf("MkdirAll() error = %v", err)
+			}
+			if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
+				t.Fatalf("WriteFile() error = %v", err)
+			}
+		}
+	}
+
+	t.Run("a walk that entered it", func(t *testing.T) {
+		t.Parallel()
+		reader, root := openAbsentReader(t, map[string]string{"Notes/a.md": "# a\n"})
+		_, policy, err := LoadForAgents(t.Context(), reader)
+		if err != nil || !policy.WithoutRules() {
+			t.Fatalf("LoadForAgents() = %v, WithoutRules() = %t, want the policy of a folder with no rules file", err, policy.WithoutRules())
+		}
+		appear(t, root)
+		if _, scanErr := reader.ScanComplete(t.Context()); scanErr != nil {
+			t.Fatalf("ScanComplete() error = %v", scanErr)
+		}
+		got := policy.ValidateSource()
+		if got.Available() || got.EgressAllowed("Later/Diary/secret.md") {
+			t.Errorf("Available() = %t, EgressAllowed() = %t, want the output withdrawn: a walk read notes from a folder that holds a rules file", got.Available(), got.EgressAllowed("Later/Diary/secret.md"))
+		}
+		if !got.RulesFileNearby() {
+			t.Error("RulesFileNearby() = false, want true: the withdrawal is the one a command may name")
+		}
+	})
+
+	t.Run("no walk entered it", func(t *testing.T) {
+		t.Parallel()
+		reader, root := openAbsentReader(t, map[string]string{"Notes/a.md": "# a\n"})
+		_, policy, err := LoadForAgents(t.Context(), reader)
+		if err != nil {
+			t.Fatalf("LoadForAgents() error = %v", err)
+		}
+		appear(t, root)
+		if got := policy.ValidateSource(); !got.Available() || got.RulesFileNearby() {
+			t.Errorf("Available() = %t, RulesFileNearby() = %t, want the policy to stand: nothing has been read from the new folder", got.Available(), got.RulesFileNearby())
+		}
+	})
+}
+
 func TestAnAbsentPolicyIsWithdrawnWhenTheRulesPathCannotBeTold(t *testing.T) {
 	t.Parallel()
 	reader, root := openAbsentReader(t, map[string]string{"Notes/a.md": "# a\n"})

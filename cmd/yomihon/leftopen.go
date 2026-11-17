@@ -133,6 +133,10 @@ type openRequest struct {
 	// was: the marks cannot be found, and a list without them is incomplete.
 	noConfigDir string
 	format      judge.Format
+	// afterRules runs once the rules are read and before the vault is read for
+	// the list. Nothing in production sets it; a test puts a rules file where
+	// the list is about to be read from.
+	afterRules func()
 	// afterAssemble runs once the output is assembled and before the authority
 	// it was assembled under is checked again. Nothing in production sets it;
 	// a test drives a contract change through that moment with it.
@@ -181,6 +185,13 @@ func parseOpenArgs(args []string, stdoutIsTerminal bool) (openRequest, error) {
 	return openRequest{root: parsed.root, format: format}, nil
 }
 
+// rulesRead calls the test's seam between the rules and the list when it set one.
+func (r *openRequest) rulesRead() {
+	if r.afterRules != nil {
+		r.afterRules()
+	}
+}
+
 func (r *openRequest) run(ctx context.Context, stdout, stderr io.Writer) int {
 	payload, notice, err := r.list(ctx)
 	if err != nil {
@@ -215,6 +226,7 @@ func (r *openRequest) list(ctx context.Context) (payload []byte, notice string, 
 	if refused := openAuthority(privacy); refused != nil {
 		return nil, "", refused
 	}
+	r.rulesRead()
 	source.SetBoundary(contract.ScanBoundary())
 	// The generation logs what it reads by path, private ground included, and
 	// this face's stderr goes to the program that called it. Nothing it would
@@ -274,6 +286,8 @@ func openNotice(entries []openEntry, stored bool) string {
 func openRules(ctx context.Context, source *vault.Reader) (*schema.Contract, schema.PrivacyPolicy, error) {
 	contract, privacy, err := schema.LoadForAgents(ctx, source)
 	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return nil, privacy, err
 	case errors.Is(err, schema.ErrRulesFileNearby):
 		return nil, privacy, judge.ErrRulesFileNearby
 	case errors.Is(err, schema.ErrRulesFileUnknown):
@@ -294,6 +308,8 @@ func openRules(ctx context.Context, source *vault.Reader) (*schema.Contract, sch
 func openAuthority(policy schema.PrivacyPolicy) error {
 	privacy := policy.ValidateSource()
 	switch {
+	case privacy.RulesFileNearby():
+		return judge.ErrRulesFileNearby
 	case privacy.Available():
 		return nil
 	case privacy.Undeclared():
