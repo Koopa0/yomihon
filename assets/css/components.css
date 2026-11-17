@@ -506,7 +506,7 @@ samp {
   gap: var(--sp-2);
   height: 32px;
   min-width: 214px;
-  padding: 0 var(--sp-2) 0 var(--sp-3);
+  padding: 0 var(--sp-3);
 }
 
 .y-searchbtn:hover {
@@ -579,7 +579,7 @@ html:not([data-js]) .y-rubybtn {
 .y-rubybtn {
   --switch-inset: 8px;
   gap: var(--sp-2);
-  padding: 0 var(--switch-inset) 0 var(--sp-2);
+  padding: 0 var(--switch-inset) 0 var(--sp-3);
   position: relative;
   width: auto;
 }
@@ -925,7 +925,7 @@ html:not([data-js]) .y-rubybtn {
 .y-where {
   display: flex;
   flex-direction: column;
-  padding: var(--sp-3) 0 var(--sp-1);
+  padding: var(--sp-3) 0 var(--sp-2);
 }
 
 .y-where__label {
@@ -1069,7 +1069,7 @@ html:not([data-js]) .y-rubybtn {
   font-size: var(--fs-14);
   margin: var(--sp-2) 0 var(--sp-1);
   outline: none;
-  padding: var(--sp-1) var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
   width: 100%;
 }
 
@@ -1104,7 +1104,7 @@ html:not([data-js]) .y-rubybtn {
   font-weight: var(--fw-semibold);
   line-height: 1.25rem;
   overflow: hidden;
-  padding: var(--sp-3) 0 var(--sp-1);
+  padding: var(--sp-3) 0 var(--sp-2);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1113,7 +1113,7 @@ html:not([data-js]) .y-rubybtn {
 .y-tree {
   border-left: 1px solid var(--line);
   margin-left: var(--sp-2);
-  padding-left: var(--sp-2);
+  padding-left: var(--sp-3);
 }
 
 .y-navmark {
@@ -1436,7 +1436,7 @@ html[data-js][data-arrival='kept'] .y-main {
 
 .y-notefacts {
   display: grid;
-  gap: var(--sp-1) var(--sp-5);
+  gap: var(--sp-2) var(--sp-5);
   grid-template-columns: 11em minmax(0, 1fr);
   margin: 0;
 }
@@ -1463,15 +1463,14 @@ html[data-js][data-arrival='kept'] .y-main {
 }
 
 .y-notefacts a {
-  color: var(--fg-subtle);
+  color: var(--link);
   text-decoration: underline;
-  text-decoration-color: var(--line-strong);
+  text-decoration-color: var(--link-line);
   text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  text-underline-offset: 0.24em;
 }
 
 .y-notefacts a:hover {
-  color: var(--fg);
   text-decoration-color: currentcolor;
 }
 
@@ -1874,11 +1873,11 @@ html[data-js][data-arrival='kept'] .y-main {
 }
 
 /* The highlighter's own palette is a separate sheet drawn for a white page;
-   code here is set in the reading room's inks instead. Keywords are the ink a
-   step heavier, strings the sage, comments the quiet ink, numbers and named
-   constants the blue the room already uses for a topic, and functions and
-   built-ins a step down from the ink. Each is a token, so each follows the
-   theme with no rule of its own for dark, and the rules stand outside the
+   code here is set in the reading room's inks instead, with no blue and no red.
+   Keywords are the ink a step heavier, strings their own green, comments the
+   quiet ink, numbers, constants and operators the ink, and functions and
+   built-ins a step down from it. Each is a token, so each follows the theme
+   with no rule of its own for dark, and the rules stand outside the
    highlighter's layer, so they apply after both of its dark scopes. Paper
    keeps the highlighter's light palette, which is what it was drawn for. */
 @media not print {
@@ -1888,15 +1887,15 @@ html[data-js][data-arrival='kept'] .y-main {
   }
 
   .chroma :is(.s, .s1, .s2, .sa, .sb, .sc, .sd, .se, .sh, .si, .sr, .ss, .sx, .dl) {
-    color: var(--sage);
+    color: var(--code-string);
   }
 
   .chroma :is(.c, .c1, .ch, .cm, .cp, .cpf, .cs) {
     color: var(--fg-subtle);
   }
 
-  .chroma :is(.m, .mb, .mf, .mh, .mi, .mo, .il, .no) {
-    color: var(--slot-topic);
+  .chroma :is(.m, .mb, .mf, .mh, .mi, .mo, .il, .no, .o, .ow) {
+    color: var(--fg);
   }
 
   .chroma :is(.nb, .nf) {
@@ -1928,7 +1927,7 @@ html[data-js][data-arrival='kept'] .y-main {
   font-family: var(--font-sans);
   font-size: inherit;
   font-weight: var(--fw-semibold);
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
   text-align: left;
 }
 
@@ -1938,7 +1937,7 @@ html[data-js][data-arrival='kept'] .y-main {
   font-family: var(--font-serif);
   font-size: inherit;
   font-variant-numeric: tabular-nums;
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
 }
 
 /* A table reading starts above ten pixels at the smallest editorial step,
@@ -2159,7 +2158,7 @@ button.y-freshness__action {
   color: var(--fg-muted);
   font-family: var(--font-mono);
   font-size: var(--fs-12);
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
 }
 
 /* What an author drew sits on a mat: an SVG alone in its paragraph, or a
@@ -3032,7 +3031,7 @@ button.y-freshness__action {
 .y-diag {
   background: var(--warn-bg);
   border-radius: var(--r-lg);
-  padding: var(--sp-3) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
 }
 
 .y-diag__label {
@@ -3123,7 +3122,7 @@ button.y-freshness__action {
   align-items: center;
   border-radius: var(--r-sm);
   display: flex;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   height: 44px;
   outline: 1px solid var(--outline);
   outline-offset: -1px;
@@ -3266,7 +3265,7 @@ button.y-freshness__action {
   max-height: min(52vh, 480px);
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0 var(--sp-1) var(--sp-3);
+  padding: 0 var(--sp-2) var(--sp-3);
 }
 
 .y-searchdialog .y-results {
@@ -3304,8 +3303,8 @@ button.y-freshness__action {
   display: flex;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  gap: var(--sp-3);
-  padding: var(--sp-2) var(--sp-4);
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
 }
 
 /* ============================================================
@@ -3351,14 +3350,14 @@ button.y-freshness__action {
   display: flex;
   font-size: var(--fs-13);
   gap: var(--sp-1);
-  padding: var(--sp-1) var(--sp-1);
+  padding: var(--sp-2) var(--sp-1);
 }
 
 .y-facets__body {
   display: flex;
   flex-direction: column;
   gap: var(--sp-4);
-  padding: var(--sp-1) var(--sp-1) 0;
+  padding: var(--sp-2) var(--sp-1) 0;
 }
 
 .y-facetgroup__head {
@@ -3385,7 +3384,7 @@ button.y-freshness__action {
   display: flex;
   font-size: var(--fs-13);
   gap: var(--sp-2);
-  padding: var(--sp-1) var(--sp-1);
+  padding: var(--sp-1) var(--sp-2);
 }
 /* stylelint-disable-next-line selector-no-qualifying-type -- an empty facet
    query renders this class on a span, not an anchor, so it has nothing to
@@ -3803,7 +3802,7 @@ a.y-facetrow:hover {
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
   min-height: 32px;
-  padding: 0 var(--sp-2);
+  padding: 0 var(--sp-3);
 }
 
 .y-ttsbar button:hover:not(:disabled) {
@@ -3956,7 +3955,7 @@ a.y-facetrow:hover {
   display: inline-flex;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  gap: var(--sp-1);
+  gap: var(--sp-2);
 }
 
 .y-slotfield__label::before {
@@ -3969,14 +3968,14 @@ a.y-facetrow:hover {
 }
 
 .y-slotselect {
-  background: var(--elevated);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--fg);
   cursor: pointer;
   font-family: var(--font-serif);
   font-size: var(--fs-14);
-  padding: var(--sp-1) var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
 }
 /* Where the customizable-select API is present, the closed control keeps the
    native styling above and the picker it opens is branded to match. Opt both
@@ -4022,7 +4021,7 @@ a.y-facetrow:hover {
     border-radius: var(--r-sm);
     color: var(--fg);
     cursor: pointer;
-    padding: var(--sp-1) var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
   }
 
   .y-slotselect option:hover {
@@ -4469,7 +4468,7 @@ a.y-facetrow:hover {
   display: flex;
   gap: var(--sp-4);
   min-width: 0;
-  padding: var(--sp-2) 2px;
+  padding: var(--sp-3) 2px;
 }
 
 .y-homenote:first-child {
@@ -4583,9 +4582,9 @@ a.y-facetrow:hover {
   display: inline-flex;
   font-family: var(--font-sans);
   font-size: var(--fs-14);
-  margin: var(--sp-4) calc(-1 * var(--sp-2)) 0;
+  margin: var(--sp-4) calc(-1 * var(--sp-3)) 0;
   min-height: 32px;
-  padding: 0 var(--sp-2);
+  padding: 0 var(--sp-3);
 }
 
 .y-back:hover {
@@ -4613,7 +4612,7 @@ a.y-facetrow:hover {
   border-radius: var(--r-sm);
   display: flex;
   gap: var(--sp-4);
-  padding: var(--sp-3) 0;
+  padding: var(--sp-4) 0;
 }
 
 .y-row:hover,
@@ -4761,7 +4760,7 @@ a.y-facetrow:hover {
   flex-wrap: wrap;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  gap: 2px var(--sp-2);
+  gap: 2px var(--sp-3);
   line-height: 1.6;
   margin: 0;
 }
@@ -4800,7 +4799,7 @@ a.y-facetrow:hover {
   cursor: pointer;
   font: inherit;
   min-height: 32px;
-  padding: 0 var(--sp-2);
+  padding: 0 var(--sp-3);
 }
 
 .y-order button:hover {
@@ -4989,7 +4988,7 @@ a.y-facetrow:hover {
   color: var(--fg);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
-  padding-bottom: var(--sp-2);
+  padding-bottom: var(--sp-3);
   text-align: left;
 }
 
@@ -4998,7 +4997,7 @@ a.y-facetrow:hover {
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-weight: var(--fw-regular);
-  padding: 0 0 var(--sp-1);
+  padding: 0 0 var(--sp-2);
   text-align: left;
 }
 
@@ -5105,7 +5104,7 @@ a.y-facetrow:hover {
 
 .y-fileinfo__list {
   display: grid;
-  gap: var(--sp-1) 20px;
+  gap: var(--sp-2) 20px;
   grid-template-columns: auto 1fr;
   margin: 0;
 }
@@ -5184,7 +5183,7 @@ a.y-facetrow:hover {
   margin: 0;
   overflow-wrap: anywhere;
   overflow-x: auto;
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-4);
   white-space: pre-wrap;
 }
 
@@ -5203,7 +5202,7 @@ a.y-facetrow:hover {
 .y-recovery__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   margin: var(--sp-6) 0 0;
 }
 /* The reader's blue is kept for their own marks, so the way out
@@ -5703,7 +5702,7 @@ a.y-facetrow:hover {
    line like the first words of a lesson's or a file's: an indent of its own put
    them eight pixels in from where every other page's sidebar starts. */
 .y-syl-raillabel {
-  padding: 0 0 var(--sp-1);
+  padding: 0 0 var(--sp-2);
 }
 
 .y-syl-raillabel--gap {
@@ -5739,7 +5738,7 @@ a.y-facetrow:hover {
   color: inherit;
   display: block;
   overflow-wrap: anywhere;
-  padding: var(--sp-3) var(--sp-1);
+  padding: var(--sp-3) var(--sp-2);
   text-decoration: none;
 }
 
@@ -5783,7 +5782,7 @@ a.y-facetrow:hover {
   display: flex;
   flex-wrap: wrap;
   margin: var(--sp-5) 0 var(--sp-1);
-  row-gap: var(--sp-2);
+  row-gap: var(--sp-3);
 }
 
 /* The verb and the lesson beside it are one line that wraps rather than one
@@ -5791,7 +5790,7 @@ a.y-facetrow:hover {
    are being sent back to, and a name cut short is no answer at all. */
 .y-cover__open {
   align-items: baseline;
-  background: var(--elevated);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--fg);
@@ -6176,7 +6175,7 @@ samp,
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   margin: var(--sp-2) 20px 0;
-  padding: var(--sp-1) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
 }
 
 [data-js] .y-compare__align {
@@ -6241,7 +6240,7 @@ samp,
   align-items: center;
   border-bottom: 1px solid var(--border-faint);
   display: flex;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   justify-content: space-between;
   padding: var(--sp-3) 28px;
 }
@@ -6289,7 +6288,7 @@ samp,
     font-size: var(--fs-12);
     max-width: 50%;
     overflow: hidden;
-    padding: var(--sp-3) var(--sp-3);
+    padding: var(--sp-3);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -7074,7 +7073,7 @@ samp,
   flex-wrap: wrap;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  gap: var(--sp-1) var(--sp-2);
+  gap: var(--sp-2) var(--sp-3);
   margin: var(--sp-4) 0 0;
 }
 
@@ -7237,7 +7236,7 @@ samp,
    background graphics drops it with it. */
 .y-severity {
   align-items: center;
-  background: var(--elevated);
+  background: transparent;
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   color: var(--fg-subtle);
@@ -7356,7 +7355,7 @@ samp,
   display: flex;
   flex-wrap: wrap;
   gap: 2px var(--sp-3);
-  padding: var(--sp-1) 0;
+  padding: var(--sp-2) 0;
 }
 
 .y-healthlist__branch {
@@ -7390,16 +7389,16 @@ samp,
   flex-wrap: wrap;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  gap: var(--sp-1) var(--sp-1);
+  gap: var(--sp-1) var(--sp-2);
   margin: var(--sp-5) 0 0;
-  padding-top: var(--sp-3);
+  padding-top: var(--sp-4);
 }
 
 .y-pager__pages {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-1);
+  gap: var(--sp-1) var(--sp-2);
   list-style: none;
   margin: 0;
   padding: 0;
@@ -7414,13 +7413,13 @@ samp,
   display: inline-flex;
   justify-content: center;
   min-height: 32px;
-  padding: 0 var(--sp-2);
+  padding: 0 var(--sp-3);
   text-decoration: none;
 }
 
 .y-pager__page {
   min-width: 32px;
-  padding: 0 var(--sp-1);
+  padding: 0 var(--sp-2);
 }
 
 .y-pager__step:hover,
@@ -7496,7 +7495,7 @@ samp,
   }
 
   .y-findings tbody tr {
-    padding: var(--sp-2) 0;
+    padding: var(--sp-3) 0;
   }
 
   .y-findings tbody td {
@@ -7555,7 +7554,7 @@ samp,
   line-height: 1.25rem;
   min-height: 32px;
   min-width: 32px;
-  padding: var(--sp-1) var(--sp-2);
+  padding: var(--sp-2);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -7612,7 +7611,7 @@ samp,
   display: block;
   font-size: var(--fs-12);
   margin: var(--sp-3) 0 0;
-  padding-top: var(--sp-2);
+  padding-top: var(--sp-3);
   text-decoration: none;
 }
 
@@ -7744,7 +7743,7 @@ samp,
    them, because it belongs to all of them: a button inside a panel would read
    as that panel's, which is what it used to be and what discarded the rest. */
 .y-prefs__apply {
-  background: var(--elevated);
+  background: transparent;
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   color: var(--fg);
@@ -7752,7 +7751,7 @@ samp,
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   margin: var(--sp-4) 0 0;
-  padding: var(--sp-1) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
 }
 
 .y-prefs__apply:hover {
@@ -7768,7 +7767,7 @@ samp,
 }
 
 .y-prefs__return {
-  background: var(--elevated);
+  background: transparent;
   border: 1px solid var(--border-strong);
   border-radius: var(--r-sm);
   color: var(--fg);
@@ -7776,7 +7775,7 @@ samp,
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   margin: var(--sp-4) 0 0;
-  padding: var(--sp-1) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
   text-decoration: none;
 }
 
@@ -7827,7 +7826,7 @@ samp,
 
 .y-prefs__storage ul {
   display: grid;
-  gap: var(--sp-1);
+  gap: var(--sp-2);
   list-style: none;
   margin: var(--sp-3) 0 0;
   padding: 0;
@@ -8027,7 +8026,7 @@ samp,
   display: block;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  padding: var(--sp-1) var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
   text-decoration: none;
 }
 
@@ -8087,7 +8086,7 @@ samp,
   opacity: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: var(--sp-3) var(--sp-4);
+  padding: var(--sp-4);
   position: fixed;
   position-anchor: --y-preview-anchor;
   position-area: block-end span-inline-end;
@@ -8181,7 +8180,7 @@ samp,
 
 .y-headermark__button {
   gap: var(--sp-2);
-  padding: 0 var(--sp-2) 0 var(--sp-2);
+  padding: 0 var(--sp-3) 0 var(--sp-2);
   width: auto;
 }
 
