@@ -443,8 +443,9 @@ func newModel(
 		knowledgeScope: scope,
 	}
 	langs := noteLanguages(files, articleLang)
-	m.folders, m.rootNotes = buildFolderTree(paths, langs)
-	m.dirNotes = buildDirNotes(paths, langs)
+	titles := noteTitles(files)
+	m.folders, m.rootNotes = buildFolderTree(paths, langs, titles)
+	m.dirNotes = buildDirNotes(paths, langs, titles)
 	m.navigation = Close(roles.Claim())
 	m.artifact = Close(policy.Claim())
 	m.journal = Close(journal.Claim())
@@ -464,7 +465,7 @@ func newModel(
 	}
 
 	for _, n := range mapNotes {
-		ref := NoteRef{Name: graph.TitleOf(n.RelPath, n.Body), RelPath: n.RelPath, Language: facts[n.RelPath].language}
+		ref := NoteRef{Name: graph.TitleOf(n), RelPath: n.RelPath, Language: facts[n.RelPath].language}
 		if roles.IsPathType(n.Type()) {
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
@@ -537,16 +538,16 @@ func collectNavigationNotes(
 		if n == nil {
 			continue
 		}
-		// The heading's title only: the title falls back to the file stem,
-		// which would name a course row by its file again.
-		title, _ := graph.FirstH1(n.Body)
+		// The title the author wrote only: the title falls back to the file
+		// stem, which would name a course row by its file again.
+		title, _ := graph.WrittenTitle(n)
 		facts[p] = noteFacts{draft: schema.Draft(n.Frontmatter), title: title, noteType: n.Type()}
 		// Membership is the vault's own declaration, not whether a note happens
 		// to carry a type: a note without frontmatter is still one its author
 		// wrote and still the newest thing they changed.
 		if scope.Includes(p) {
 			knowledgeNotes = append(knowledgeNotes, NoteSummary{
-				Title:    graph.TitleOf(n.RelPath, n.Body),
+				Title:    graph.TitleOf(n),
 				RelPath:  p,
 				Type:     n.Type(),
 				Draft:    schema.Draft(n.Frontmatter),
@@ -600,8 +601,12 @@ func buildJournal(files []capturedFile, journal schema.JournalDir, dated schema.
 			continue
 		}
 		_, base := splitDir(p)
+		title := displayName(base)
+		if file.note != nil {
+			title = graph.TitleOf(file.note)
+		}
 		entries = append(entries, JournalEntry{
-			Title:    displayName(base),
+			Title:    title,
 			RelPath:  p,
 			Modified: file.modified,
 			Date:     noteDay(file, dated),
@@ -665,7 +670,7 @@ func writtenReportTitle(file capturedFile, stem string) string {
 	if file.note == nil {
 		return stem
 	}
-	title, _ := graph.FirstH1(file.note.Body)
+	title, _ := graph.WrittenTitle(file.note)
 	return cmp.Or(title, stem)
 }
 
@@ -816,12 +821,12 @@ func noteLanguages(files []capturedFile, articleLang schema.ArticleLanguage) map
 // Makefile is still a file. It mirrors the directory structure to whatever
 // depth the vault has, inventing no level and capping none. Only the top
 // level is reordered into lifecycleOrder.
-func buildFolderTree(paths []string, langs map[string]string) (folders []Folder, rootNotes []NoteRef) {
+func buildFolderTree(paths []string, langs, titles map[string]string) (folders []Folder, rootNotes []NoteRef) {
 	root := &folderBuilder{subIdx: map[string]*folderBuilder{}}
 	for _, p := range paths {
 		dir, base := splitDir(p)
 		parent := ensureFolder(root, dir)
-		parent.notes = append(parent.notes, NoteRef{Name: displayName(base), RelPath: p, Language: langs[p]})
+		parent.notes = append(parent.notes, NoteRef{Name: listName(p, base, titles), RelPath: p, Language: langs[p]})
 	}
 
 	top := slices.Clone(root.subs)
@@ -890,8 +895,29 @@ func displayName(base string) string {
 	return strings.TrimSuffix(base, ".md")
 }
 
-// Label names a file from its vault-relative path the way every list here names
-// it, so one note cannot appear under two names in two lists.
+// noteTitles is the title each readable note goes by, keyed by path. A file
+// that is not a note has none and is listed by its own name.
+func noteTitles(files []capturedFile) map[string]string {
+	titles := make(map[string]string, len(files))
+	for _, file := range files {
+		if file.note != nil {
+			titles[file.path] = graph.TitleOf(file.note)
+		}
+	}
+	return titles
+}
+
+// listName is what a listing calls the file at p: a note's title, else the
+// file's own name.
+func listName(p, base string, titles map[string]string) string {
+	if title, ok := titles[p]; ok {
+		return title
+	}
+	return displayName(base)
+}
+
+// Label names a file from its vault-relative path by its file name, for the
+// lists that name a note by what a link resolves it by.
 func Label(relPath string) string {
 	_, base := splitDir(relPath)
 	return displayName(base)

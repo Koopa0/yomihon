@@ -107,9 +107,8 @@ func TestCaptureNoteKeepsAFenceNothingClosedApartFromAbsent(t *testing.T) {
 }
 
 // TestAReadingIsTitledByItsFirstHeadingElseItsFile pins where a reading's title
-// comes from: the first level-one heading the body opens on, and the file name
-// when it has none. A title the frontmatter writes is no field and names
-// nothing.
+// comes from: the first level-one heading the body has, else the title its
+// frontmatter writes, else the file name.
 func TestAReadingIsTitledByItsFirstHeadingElseItsFile(t *testing.T) {
 	t.Parallel()
 
@@ -120,8 +119,9 @@ func TestAReadingIsTitledByItsFirstHeadingElseItsFile(t *testing.T) {
 		want string
 	}{
 		{name: "the first heading", rel: "Notes/file name.md", data: "# The heading\n\nbody\n", want: "The heading"},
-		{name: "a frontmatter title is not read", rel: "Notes/file name.md", data: "---\ntitle: Written title\n---\n# The heading\n", want: "The heading"},
-		{name: "no heading is the file name", rel: "Notes/file name.md", data: "---\ntitle: Written title\n---\n## Lesser\n\nbody\n", want: "file name"},
+		{name: "a heading outranks a frontmatter title", rel: "Notes/file name.md", data: "---\ntitle: Written title\n---\n# The heading\n", want: "The heading"},
+		{name: "no heading is the frontmatter title", rel: "Notes/file name.md", data: "---\ntitle: Written title\n---\n## Lesser\n\nbody\n", want: "Written title"},
+		{name: "no heading and no title is the file name", rel: "Notes/file name.md", data: "## Lesser\n\nbody\n", want: "file name"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -162,10 +162,10 @@ func TestAReadingCarriesItsDeclaredCreationDate(t *testing.T) {
 	}
 }
 
-// TestDeclaredTitleIsTheHeadingAlone pins that a generation's declared title is
-// the note's own first heading and nothing else: a note with no heading
-// declares none, even though its reading is still called by its file.
-func TestDeclaredTitleIsTheHeadingAlone(t *testing.T) {
+// TestDeclaredTitleIsWhatTheAuthorWrote pins that a generation's declared title
+// is the note's own first heading or else its frontmatter title: a note with
+// neither declares none, even though its reading is still called by its file.
+func TestDeclaredTitleIsWhatTheAuthorWrote(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -177,17 +177,21 @@ func TestDeclaredTitleIsTheHeadingAlone(t *testing.T) {
 	if got := gen.DeclaredTitle("Notes/headed.md"); got != "A heading" {
 		t.Errorf("DeclaredTitle(headed) = %q, want %q", got, "A heading")
 	}
-	if got := gen.DeclaredTitle("Notes/plain.md"); got != "" {
-		t.Errorf("DeclaredTitle(plain) = %q, want empty: no heading, no declared title", got)
+	if got := gen.DeclaredTitle("Notes/plain.md"); got != "Written title" {
+		t.Errorf("DeclaredTitle(plain) = %q, want the frontmatter title", got)
 	}
-	if reading, ok := gen.Note("Notes/plain.md"); !ok || reading.Title != "plain" {
-		t.Errorf("Note(plain).Title = %q, want the file name", reading.Title)
+	if reading, ok := gen.Note("Notes/plain.md"); !ok || reading.Title != "Written title" {
+		t.Errorf("Note(plain).Title = %q, want the frontmatter title", reading.Title)
+	}
+	writeNote(t, root, "Notes/bare.md", "body\n")
+	store, _ = newTestStore(t, root, testContract(t, root))
+	if got := store.Current().DeclaredTitle("Notes/bare.md"); got != "" {
+		t.Errorf("DeclaredTitle(bare) = %q, want empty: no heading, no declared title", got)
 	}
 }
 
 // TestTitlesAreKeyedByTheDerivedTitle pins the key the title table files a
-// note under: its first heading, else its file name, and never a title its
-// frontmatter writes.
+// note under: its first heading, else its frontmatter title, else its file name.
 func TestTitlesAreKeyedByTheDerivedTitle(t *testing.T) {
 	t.Parallel()
 
@@ -200,11 +204,12 @@ func TestTitlesAreKeyedByTheDerivedTitle(t *testing.T) {
 	want := []nav.NoteRef{
 		{Name: "headed", RelPath: "A/headed.md"},
 		{Name: "Shared Name", RelPath: "B/Shared Name.md"},
+		{Name: "written", RelPath: "C/written.md"},
 	}
 	if diff := cmp.Diff(want, got[graph.NormalizeKey("Shared Name")]); diff != "" {
 		t.Errorf("titlesByName()[shared name] mismatch (-want +got):\n%s", diff)
 	}
-	if _, ok := got[graph.NormalizeKey("written")]; !ok {
-		t.Error("titlesByName() has no entry for a note with no heading under its file name")
+	if _, ok := got[graph.NormalizeKey("written")]; ok {
+		t.Error("titlesByName() files a note with a declared title under its file name")
 	}
 }

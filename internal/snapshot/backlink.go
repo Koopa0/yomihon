@@ -35,7 +35,7 @@ func newBacklinks(notes []*vault.Note, links map[string][]string, idx *graph.Ind
 			}
 			seen[res.RelPath] = true
 			b.byTarget[res.RelPath] = append(b.byTarget[res.RelPath], nav.NoteRef{
-				Name:    nav.Label(n.RelPath),
+				Name:    graph.TitleOf(n),
 				RelPath: n.RelPath,
 			})
 		}

@@ -101,7 +101,7 @@ func parseMap(
 	// Read before the pruning, which takes these nodes out of the tree.
 	empty := emptyBranches(roots, nil)
 	return Map{
-		Title:    graph.TitleOf(n.RelPath, n.Body),
+		Title:    graph.TitleOf(n),
 		RelPath:  n.RelPath,
 		Domain:   n.Domain,
 		Type:     n.Type(),

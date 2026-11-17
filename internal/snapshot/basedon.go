@@ -35,7 +35,7 @@ func (g *Generation) DeclaredSources(relPath string, lang wording.Lang) ([]Decla
 	seen := make(map[string]bool)
 	rendered := make(map[string]render.Result)
 	for _, value := range basedOnValues(g.parsed[relPath]) {
-		ref, ok := declaredSource(g.graph, value)
+		ref, ok := declaredSource(g.graph, g.pathTitle, value)
 		if !ok {
 			continue
 		}
@@ -98,16 +98,17 @@ type basedOnBy struct {
 // pair.
 func newBasedOnBy(notes []*vault.Note, idx *graph.Index) *basedOnBy {
 	b := &basedOnBy{bySource: make(map[string][]nav.NoteRef)}
+	titles := titlesOf(notes)
 	for _, n := range notes {
 		if n == nil {
 			continue
 		}
-		for _, ref := range projectBasedOn(n, idx) {
+		for _, ref := range projectBasedOn(n, idx, titles) {
 			if ref.RelPath == "" || ref.RelPath == n.RelPath {
 				continue
 			}
 			b.bySource[ref.RelPath] = append(b.bySource[ref.RelPath], nav.NoteRef{
-				Name:    nav.Label(n.RelPath),
+				Name:    titles(n.RelPath),
 				RelPath: n.RelPath,
 			})
 		}
@@ -133,7 +134,7 @@ func (b *basedOnBy) of(relPath string) []nav.NoteRef {
 // A unique resolution is a name and a path; anything else keeps the author's
 // own text and no path. Empty members are dropped, and a value that repeats
 // a path or a piece of text already listed is kept only the first time.
-func projectBasedOn(n *vault.Note, idx *graph.Index) []nav.NoteRef {
+func projectBasedOn(n *vault.Note, idx *graph.Index, titles titleFunc) []nav.NoteRef {
 	values := basedOnValues(n)
 	if len(values) == 0 {
 		return nil
@@ -141,7 +142,7 @@ func projectBasedOn(n *vault.Note, idx *graph.Index) []nav.NoteRef {
 	out := make([]nav.NoteRef, 0, len(values))
 	seen := make(map[string]bool)
 	for _, value := range values {
-		ref, ok := declaredSource(idx, value)
+		ref, ok := declaredSource(idx, titles, value)
 		key := declaredSourceKey(ref)
 		if !ok || seen[key] {
 			continue
@@ -176,7 +177,7 @@ func (g *Generation) Prerequisites(relPath string) []nav.NoteRef {
 	var out []nav.NoteRef
 	seen := make(map[string]bool)
 	for _, value := range values {
-		ref, ok := declaredSource(g.graph, value)
+		ref, ok := declaredSource(g.graph, g.pathTitle, value)
 		if !ok || (ref.RelPath != "" && ref.RelPath == relPath) {
 			continue
 		}
@@ -231,7 +232,35 @@ func basedOnValues(n *vault.Note) []string {
 	return nil
 }
 
-func declaredSource(idx *graph.Index, value string) (nav.NoteRef, bool) {
+// titleFunc names the note at a path by its title, and a path that holds none
+// by its file name.
+type titleFunc func(relPath string) string
+
+// titlesOf names each of notes by its title.
+func titlesOf(notes []*vault.Note) titleFunc {
+	byPath := make(map[string]string, len(notes))
+	for _, n := range notes {
+		if n != nil {
+			byPath[n.RelPath] = graph.TitleOf(n)
+		}
+	}
+	return func(relPath string) string {
+		if title, ok := byPath[relPath]; ok {
+			return title
+		}
+		return nav.Label(relPath)
+	}
+}
+
+// pathTitle is titlesOf over the notes this generation holds.
+func (g *Generation) pathTitle(relPath string) string {
+	if n := g.parsed[relPath]; n != nil {
+		return graph.TitleOf(n)
+	}
+	return nav.Label(relPath)
+}
+
+func declaredSource(idx *graph.Index, titles titleFunc, value string) (nav.NoteRef, bool) {
 	written := strings.TrimSpace(value)
 	if written == "" {
 		return nav.NoteRef{}, false
@@ -244,8 +273,8 @@ func declaredSource(idx *graph.Index, value string) (nav.NoteRef, bool) {
 	if res.Kind != graph.KindUnique {
 		return nav.NoteRef{Name: written}, true
 	}
-	// Unique rows use the target's nav.Label, not any |display text the author wrote.
-	return nav.NoteRef{Name: nav.Label(res.RelPath), RelPath: res.RelPath}, true
+	// Unique rows use the target's title, not any |display text the author wrote.
+	return nav.NoteRef{Name: titles(res.RelPath), RelPath: res.RelPath}, true
 }
 
 // basedOnTarget strips a based_on value the way coverage strips one: optional

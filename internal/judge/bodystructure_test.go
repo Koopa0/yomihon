@@ -83,11 +83,13 @@ func separateBodyExtractions(data []byte, marks plannedMarks) note {
 // read by, so a fault in that reading cannot also be in the answer it is held
 // to. It models plain bodies only. A body holding a marker that changes what a
 // reader is shown (a code fence or span, an HTML block or comment, a %% or $$
-// span, or an underline that could turn a paragraph into a heading) is a
-// construct the oracle does not model, and modelled is false: the heading rule
-// for those is held by the cases of graph's TestTitleSkipsWhatTheReaderNeverSees.
+// span, an underline that could turn a paragraph into a heading, or an emphasis,
+// link, escape or character-reference mark that the title's plain words drop)
+// is a construct the oracle does not model, and modelled is false: the rule for
+// those is held by the cases of graph's TestTitleOf and
+// TestTitleSkipsWhatTheReaderNeverSees.
 func titleByHand(body string) (title string, modelled bool) {
-	if strings.ContainsAny(body, "`~<%$=") {
+	if strings.ContainsAny(body, "`~<%$=*_[]&\\") {
 		return "", false
 	}
 	for line := range strings.SplitSeq(body, "\n") {
@@ -97,8 +99,9 @@ func titleByHand(body string) (title string, modelled bool) {
 		}
 		words := strings.Trim(line[indent+2:], " \t")
 		// A closing run of '#' belongs to the heading's marks only when white
-		// space sits before it inside the words; a run that is the whole of
-		// the words, or is glued to text, is text.
+		// space sits before it inside the words, and only the last run is
+		// marks; a run that is the whole of the words, or is glued to text, is
+		// text.
 		if bare := strings.TrimRight(words, "#"); len(bare) < len(words) && bare != "" && strings.ContainsAny(bare[len(bare)-1:], " \t") {
 			words = strings.TrimRight(bare, " \t")
 		}
@@ -132,6 +135,9 @@ func TestTitleByHandReadsTheFirstLevelOneHeading(t *testing.T) {
 		{"a closing run is marks", "# Title ##  \n", "Title", true},
 		{"a closing run glued to text is text", "# Title#\n", "Title#", true},
 		{"a run that is the whole of the words is text", "# #\n", "#", true},
+		{"only the last closing run is marks", "# a b #  #\n", "a b #", true},
+		{"emphasis marks are not modelled", "# **Bold** title\n", "", false},
+		{"a link is not modelled", "# [Docs](x.md)\n", "", false},
 		{"a tab opens the words", "#\tTab title\n", "Tab title", true},
 		{"three spaces of indent are a heading, four are code", "    # Code\n   # Real\n", "Real", true},
 		{"no space after the mark is not a heading", "#Tag\n# Real\n", "Real", true},

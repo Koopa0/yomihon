@@ -33,7 +33,7 @@ const CLEAN_NOTE = '/notes/Notes/Excerpt%20landing.md';
 // that competes with the first of them.
 const START_WORD = 'alpha';
 const END_WORD = 'gamma';
-const RAIL_LABEL = 'alpha';
+const RAIL_LABEL = 'Alpha';
 const NARROW = 390;
 const WIDE = 1600;
 

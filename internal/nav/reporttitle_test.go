@@ -57,9 +57,9 @@ func TestAReportIsCalledByWhatItSays(t *testing.T) {
 			want: "Underlined title",
 		},
 		{
-			name: "a heading's words travel as typed, closing marks aside",
+			name: "a heading's words are the plain ones, closing marks aside",
 			file: reportFile(dir+"review.md", "#   Spaced   **words**   ##\n"),
-			want: "Spaced **words**",
+			want: "Spaced words",
 		},
 		{
 			name: "a heading with no words is passed over",

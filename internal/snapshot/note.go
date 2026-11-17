@@ -59,7 +59,7 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 	}
 	return Reading{
 		RelPath:            parsed.RelPath,
-		Title:              graph.TitleOf(parsed.RelPath, parsed.Body),
+		Title:              graph.TitleOf(parsed),
 		Body:               parsed.Body,
 		Type:               parsed.Type(),
 		Domain:             parsed.Domain,

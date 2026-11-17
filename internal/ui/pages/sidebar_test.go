@@ -339,8 +339,8 @@ func TestSidebarContentGrouping(t *testing.T) {
 		`href="/notes/Maps/Reading%20map.md"`,
 		`>開啟索引</a>`,
 		`data-key="journal"`,
-		`data-sidebar-journal-entry>2026-07-10</a>`,
-		`data-sidebar-journal-entry>2026-07-09</a>`,
+		`data-sidebar-journal-entry>Latest</a>`,
+		`data-sidebar-journal-entry>Earlier</a>`,
 		`data-resolution="unresolved"`,
 		`data-resolution="ambiguous"`,
 		"Unwritten Lesson",
@@ -408,14 +408,14 @@ func TestJournalDrawerShowsTheNewestFewAndOffersTheRest(t *testing.T) {
 		t.Errorf("the drawer lists %d entries, want %d", got, journalRailEntries)
 	}
 	for _, want := range []string{
-		`data-sidebar-journal-entry>2026-07-10</a>`,
-		`data-sidebar-journal-entry>2026-07-04</a>`,
+		`data-sidebar-journal-entry>Latest</a>`,
+		`data-sidebar-journal-entry>Four</a>`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the drawer is missing one of its newest entries: %q", want)
 		}
 	}
-	if strings.Contains(html, `data-sidebar-journal-entry>2026-07-03</a>`) {
+	if strings.Contains(html, `data-sidebar-journal-entry>Three</a>`) {
 		t.Error("the drawer lists past its own limit")
 	}
 	if !strings.Contains(html, `href="/journal" data-sidebar-journal-all>`) {
@@ -655,7 +655,7 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 	here, _, _ = strings.Cut(here, "</nav>")
 	for _, want := range []string{
 		`href="/notes/System/templates/Template%20map.md"`,
-		`href="/notes/System/templates/Template%20target.md"><span>Template target</span></a>`,
+		`href="/notes/System/templates/Template%20target.md"><span>TEMPLATE TARGET SENTINEL</span></a>`,
 	} {
 		if !strings.Contains(here, want) {
 			t.Errorf("the folder holding a non-instance artifact does not offer it: %q", want)

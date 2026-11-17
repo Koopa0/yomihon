@@ -318,8 +318,8 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET the leaf folder status = %d, want 200", code)
 	}
-	second := strings.Index(body, "第二課 空氣")
-	third := strings.Index(body, "第三課 水")
+	second := strings.Index(body, `y-row__title">空氣`)
+	third := strings.Index(body, `y-row__title">水`)
 	if second < 0 || third < 0 {
 		t.Fatalf("the leaf folder page does not list both lessons; body = %q", body)
 	}

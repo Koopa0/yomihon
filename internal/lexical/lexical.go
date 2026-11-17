@@ -598,7 +598,7 @@ func pairedSpans(offs []int) [][2]int {
 // frontmatter contributes empty structured fields; its body text is still indexed.
 func DocumentFromNote(n *vault.Note) Document {
 	projection := render.PlainProjection(n.Body)
-	title := graph.TitleOf(n.RelPath, n.Body)
+	title := graph.TitleOf(n)
 	if len(projection.Blocks) > 0 && render.DropsTitleHeading(title, n.Body) {
 		// That heading opens the body, so it is the first block. The page
 		// shows it as the title instead, and neither the body nor the

@@ -51,7 +51,7 @@ func declaredPlaces(note *vault.Note, index *graph.Index, source string) []Decla
 	var places []DeclaredPlace
 	seen := make(map[DeclaredPlace]bool)
 	for _, value := range basedOnValues(note) {
-		ref, ok := declaredSource(index, value)
+		ref, ok := declaredSource(index, nav.Label, value)
 		if !ok || ref.RelPath != source {
 			continue
 		}

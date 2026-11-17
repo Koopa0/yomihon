@@ -135,7 +135,7 @@ func TestRowsAndShelvesAreNamedByTheFirstHeading(t *testing.T) {
 	for _, item := range paths[0].Groups[0].Items {
 		rows = append(rows, item.Entry.Name)
 	}
-	if diff := cmp.Diff([]string{"Heading words", "written"}, rows); diff != "" {
+	if diff := cmp.Diff([]string{"Heading words", "Written words"}, rows); diff != "" {
 		t.Errorf("course rows (-want +got):\n%s", diff)
 	}
 
@@ -150,7 +150,7 @@ func TestRowsAndShelvesAreNamedByTheFirstHeading(t *testing.T) {
 	for _, entry := range maps[0].Branches[0].Entries {
 		mapRows = append(mapRows, entry.Name)
 	}
-	if diff := cmp.Diff([]string{"Heading words", "written"}, mapRows); diff != "" {
+	if diff := cmp.Diff([]string{"Heading words", "Written words"}, mapRows); diff != "" {
 		t.Errorf("map rows (-want +got):\n%s", diff)
 	}
 
@@ -160,11 +160,51 @@ func TestRowsAndShelvesAreNamedByTheFirstHeading(t *testing.T) {
 	}
 	want := map[string]string{
 		"Concepts/headed.md":  "Heading words",
-		"Concepts/written.md": "written",
+		"Concepts/written.md": "Written words",
 		"Maps/course-file.md": "The course",
 		"Maps/map-file.md":    "The map",
 	}
 	if diff := cmp.Diff(want, summaries); diff != "" {
 		t.Errorf("KnowledgeNotes titles (-want +got):\n%s", diff)
+	}
+}
+
+// TestListsNameANoteByItsTitle holds that the folder tree, a folder's files
+// and the steps between them call a note by its title, and a file that is not a
+// note by its own name.
+func TestListsNameANoteByItsTitle(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeNavFixture(t, root, "Notes/a-file.md", "# **First** title\n\nbody\n")
+	writeNavFixture(t, root, "Notes/b-file.md", "---\ntitle: Second title\n---\nbody\n")
+	writeNavFixture(t, root, "Notes/c-file.md", "body\n")
+	writeNavFixture(t, root, "Notes/diagram.png", "not an image")
+	model := capturedModelWithDomains(t, root, nil)
+
+	want := []NoteRef{
+		{Name: "First title", RelPath: "Notes/a-file.md"},
+		{Name: "Second title", RelPath: "Notes/b-file.md"},
+		{Name: "c-file", RelPath: "Notes/c-file.md"},
+		{Name: "diagram.png", RelPath: "Notes/diagram.png"},
+	}
+	_, siblings := model.Siblings("Notes/a-file.md")
+	if diff := cmp.Diff(want, siblings); diff != "" {
+		t.Errorf("Siblings (-want +got):\n%s", diff)
+	}
+	files, _, _ := model.Directory("Notes")
+	if diff := cmp.Diff(want, files); diff != "" {
+		t.Errorf("Directory (-want +got):\n%s", diff)
+	}
+	folders := model.Folders()
+	if len(folders) != 1 {
+		t.Fatalf("Folders() = %d, want 1", len(folders))
+	}
+	if diff := cmp.Diff(want, folders[0].Notes); diff != "" {
+		t.Errorf("Folders()[0].Notes (-want +got):\n%s", diff)
+	}
+	prev, next := model.FolderStep("Notes/b-file.md")
+	if prev.Name != "First title" || next.Name != "c-file" {
+		t.Errorf("FolderStep = %q and %q, want First title and c-file", prev.Name, next.Name)
 	}
 }

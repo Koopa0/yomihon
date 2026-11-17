@@ -391,7 +391,7 @@ const journey = async (browser, width, placement) => {
     await settles(page, false, 2000);
 
     // The whole-source row asks for no section: the top of the source.
-    const whole = await row(list, /^source-locations-source$/);
+    const whole = await row(list, /^Source locations source$/);
     await pointerOnto(page, whole);
     proveApplied('the-whole-source-row-opens-the-top-of-the-source');
     if (!(await settles(page, true, 4000))) broken('the whole-source row opened no card');

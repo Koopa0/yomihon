@@ -63,7 +63,7 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 	h := newHealth(notes, linksOf(notes), idx, planned, newBacklinks(notes, linksOf(notes), idx), schema.ArtifactPolicy{}, titlesByName(notes), schema.NavigationRoles{}, &mapCoverage{})
 
 	wantTitleOnly := []HealthTitleLink{{
-		From:   nav.NoteRef{Name: "cites title", RelPath: "Concepts/cites title.md"},
+		From:   nav.NoteRef{Name: "Cites Title", RelPath: "Concepts/cites title.md"},
 		Target: "A Written Note",
 		Note:   nav.NoteRef{Name: "written", RelPath: "Concepts/written.md"},
 	}}
@@ -72,8 +72,8 @@ func TestHealthSeparatesTheReasonsACitationFails(t *testing.T) {
 	}
 
 	wantUnwritten := []HealthLink{
-		{From: nav.NoteRef{Name: "cites nothing", RelPath: "Concepts/cites nothing.md"}, Target: "no such name"},
-		{From: nav.NoteRef{Name: "cites shared", RelPath: "Concepts/cites shared.md"}, Target: "Shared Title"},
+		{From: nav.NoteRef{Name: "Cites Nothing", RelPath: "Concepts/cites nothing.md"}, Target: "no such name"},
+		{From: nav.NoteRef{Name: "Cites Shared", RelPath: "Concepts/cites shared.md"}, Target: "Shared Title"},
 	}
 	if diff := cmp.Diff(wantUnwritten, h.Unwritten); diff != "" {
 		t.Errorf("Unwritten mismatch (-want +got):\n%s", diff)
@@ -154,7 +154,7 @@ func TestHealthSparesATitleReferencedNoteWhicheverOrderItIsScannedIn(t *testing.
 			// The citer alone: nothing writes its name down anywhere, while the
 			// target's name is written in the citer either way round.
 			want := []HealthIslandGroup{{Dir: "", Notes: []nav.NoteRef{
-				{Name: nav.Label(tt.citerPath), RelPath: tt.citerPath},
+				{Name: "Citer", RelPath: tt.citerPath},
 			}}}
 			if diff := cmp.Diff(want, h.Islands); diff != "" {
 				t.Errorf("Islands mismatch (-want +got):\n%s", diff)
