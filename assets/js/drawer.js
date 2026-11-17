@@ -2,7 +2,7 @@
 // content; this enhancement owns inertness, focus containment, and restoration.
 export function initDrawer() {
   const root = document.documentElement;
-  const media = window.matchMedia('(max-width: 900px)');
+  const media = window.matchMedia('(max-width: 1023px)');
   const rail = document.querySelector('#_y-nav-rail');
   const toggleButton = document.querySelector('[data-nav-toggle]');
   // What leaves the accessibility tree while the drawer acts as a modal. The

@@ -761,7 +761,7 @@ html:not([data-js]) .y-rubybtn {
   display: none;
 }
 
-@media (min-width: 901px) {
+@media (min-width: 1024px) {
   .y-railhead {
     align-items: center;
     background: var(--rail-ground);
@@ -960,7 +960,7 @@ html:not([data-js]) .y-rubybtn {
   display: none;
 }
 
-@media (min-width: 901px) {
+@media (min-width: 1024px) {
   html[data-rail='collapsed'] .y-railspine {
     color: var(--fg);
     display: flex;
@@ -971,7 +971,7 @@ html:not([data-js]) .y-rubybtn {
 
   .y-railspine__name {
     font-family: var(--font-serif);
-    font-size: var(--fs-15);
+    font-size: var(--fs-14);
     font-weight: var(--fw-medium);
     line-height: 1.2;
     max-block-size: calc(100vh - var(--header-height) - var(--rail-head-height) - 48px);
@@ -1267,8 +1267,9 @@ html:not([data-js]) .y-rubybtn {
    middle of the room, taken as the box's own margin with the gutter that the
    box's text sits in from it already counted, so pages whose gutters differ
    still start their text at the same place. Where the room is narrower than the
-   block the margin is nothing and the column fills it, which is also where the
-   drawer is. */
+   block the margin is nothing and the column fills it. Below 1024, where the
+   column is a drawer, the margin is nothing whatever the room, so the text
+   starts at the page's own side margin. */
 .y-main > :is(.y-article, .y-syl) {
   margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2));
   margin-right: auto;
@@ -2740,139 +2741,148 @@ button.y-freshness__action {
    width to ask for. The shared rules are the same three times over because a
    container query cannot name a custom property. Only a pointer that can rest
    on a heading hides the buttons until it does: a touch screen has nothing to
-   rest, so the buttons are drawn whatever the setting. */
-@container y-main (min-width: 58.875rem) {
-  :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-sect {
-    align-items: start;
-    display: block;
-  }
-
-  :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin {
-    flex-direction: column;
-    gap: var(--sp-1) 0;
-    inset-block-start: 0.35em;
-    inset-inline-start: calc(100% + var(--margin-gap));
-    position: absolute;
-    width: var(--margin-col);
-  }
-
-  :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin > * {
-    align-self: flex-start;
-  }
-
-  :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin__act {
-    margin-inline-start: calc(-1 * var(--sp-1));
-    min-height: 28px;
-  }
-
-  @media (pointer: fine) {
-    :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity var(--dur-base) linear;
+   rest, so the buttons are drawn whatever the setting. The margin is the
+   widest layout's alone (§2.2): below 1280 the actions stand under their
+   section, so the media query is what keeps a drawer-width window, whose main
+   column is wide enough, from drawing it. */
+@media (min-width: 1280px) {
+  @container y-main (min-width: 58.875rem) {
+    :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-sect {
+      align-items: start;
+      display: block;
     }
-  }
 
-  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
-    opacity: 1;
-    pointer-events: auto;
-    transition-delay: var(--dur-hover-wait);
-  }
+    :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin {
+      flex-direction: column;
+      gap: var(--sp-1) 0;
+      inset-block-start: 0.35em;
+      inset-inline-start: calc(100% + var(--margin-gap));
+      position: absolute;
+      width: var(--margin-col);
+    }
 
-  :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
-    opacity: 1;
-    pointer-events: auto;
-    transition-delay: initial;
+    :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin > * {
+      align-self: flex-start;
+    }
+
+    :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin__act {
+      margin-inline-start: calc(-1 * var(--sp-1));
+      min-height: 28px;
+    }
+
+    @media (pointer: fine) {
+      :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--dur-base) linear;
+      }
+    }
+
+    :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
+      opacity: 1;
+      pointer-events: auto;
+      transition-delay: var(--dur-hover-wait);
+    }
+
+    :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
+      opacity: 1;
+      pointer-events: auto;
+      transition-delay: initial;
+    }
   }
 }
 
-@container y-main (min-width: 63.625rem) {
-  :root[data-textsize='l'] .y-main > .y-article .y-sect {
-    align-items: start;
-    display: block;
-  }
-
-  :root[data-textsize='l'] .y-main > .y-article .y-margin {
-    flex-direction: column;
-    gap: var(--sp-1) 0;
-    inset-block-start: 0.35em;
-    inset-inline-start: calc(100% + var(--margin-gap));
-    position: absolute;
-    width: var(--margin-col);
-  }
-
-  :root[data-textsize='l'] .y-main > .y-article .y-margin > * {
-    align-self: flex-start;
-  }
-
-  :root[data-textsize='l'] .y-main > .y-article .y-margin__act {
-    margin-inline-start: calc(-1 * var(--sp-1));
-    min-height: 28px;
-  }
-
-  @media (pointer: fine) {
-    :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity var(--dur-base) linear;
+@media (min-width: 1280px) {
+  @container y-main (min-width: 63.625rem) {
+    :root[data-textsize='l'] .y-main > .y-article .y-sect {
+      align-items: start;
+      display: block;
     }
-  }
 
-  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
-    opacity: 1;
-    pointer-events: auto;
-    transition-delay: var(--dur-hover-wait);
-  }
+    :root[data-textsize='l'] .y-main > .y-article .y-margin {
+      flex-direction: column;
+      gap: var(--sp-1) 0;
+      inset-block-start: 0.35em;
+      inset-inline-start: calc(100% + var(--margin-gap));
+      position: absolute;
+      width: var(--margin-col);
+    }
 
-  :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
-    opacity: 1;
-    pointer-events: auto;
-    transition-delay: initial;
+    :root[data-textsize='l'] .y-main > .y-article .y-margin > * {
+      align-self: flex-start;
+    }
+
+    :root[data-textsize='l'] .y-main > .y-article .y-margin__act {
+      margin-inline-start: calc(-1 * var(--sp-1));
+      min-height: 28px;
+    }
+
+    @media (pointer: fine) {
+      :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--dur-base) linear;
+      }
+    }
+
+    :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
+      opacity: 1;
+      pointer-events: auto;
+      transition-delay: var(--dur-hover-wait);
+    }
+
+    :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
+      opacity: 1;
+      pointer-events: auto;
+      transition-delay: initial;
+    }
   }
 }
 
-@container y-main (min-width: 68.375rem) {
-  :root[data-textsize='xl'] .y-main > .y-article .y-sect {
-    align-items: start;
-    display: block;
-  }
-
-  :root[data-textsize='xl'] .y-main > .y-article .y-margin {
-    flex-direction: column;
-    gap: var(--sp-1) 0;
-    inset-block-start: 0.35em;
-    inset-inline-start: calc(100% + var(--margin-gap));
-    position: absolute;
-    width: var(--margin-col);
-  }
-
-  :root[data-textsize='xl'] .y-main > .y-article .y-margin > * {
-    align-self: flex-start;
-  }
-
-  :root[data-textsize='xl'] .y-main > .y-article .y-margin__act {
-    margin-inline-start: calc(-1 * var(--sp-1));
-    min-height: 28px;
-  }
-
-  @media (pointer: fine) {
-    :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity var(--dur-base) linear;
+@media (min-width: 1280px) {
+  @container y-main (min-width: 68.375rem) {
+    :root[data-textsize='xl'] .y-main > .y-article .y-sect {
+      align-items: start;
+      display: block;
     }
-  }
 
-  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
-    opacity: 1;
-    pointer-events: auto;
-    transition-delay: var(--dur-hover-wait);
-  }
+    :root[data-textsize='xl'] .y-main > .y-article .y-margin {
+      flex-direction: column;
+      gap: var(--sp-1) 0;
+      inset-block-start: 0.35em;
+      inset-inline-start: calc(100% + var(--margin-gap));
+      position: absolute;
+      width: var(--margin-col);
+    }
 
-  :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
-    opacity: 1;
-    pointer-events: auto;
-    transition-delay: initial;
+    :root[data-textsize='xl'] .y-main > .y-article .y-margin > * {
+      align-self: flex-start;
+    }
+
+    :root[data-textsize='xl'] .y-main > .y-article .y-margin__act {
+      margin-inline-start: calc(-1 * var(--sp-1));
+      min-height: 28px;
+    }
+
+    @media (pointer: fine) {
+      :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--dur-base) linear;
+      }
+    }
+
+    :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:hover .y-margin__act {
+      opacity: 1;
+      pointer-events: auto;
+      transition-delay: var(--dur-hover-wait);
+    }
+
+    :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
+      opacity: 1;
+      pointer-events: auto;
+      transition-delay: initial;
+    }
   }
 }
 
@@ -3348,7 +3358,7 @@ button.y-freshness__action {
    keeps its summary, and the reader opens the column themselves, rather than
    being left with a region they can neither see nor reach. */
 .y-facets {
-  margin: 20px 0 0;
+  margin: var(--sp-5) 0 0;
 }
 
 .y-facets__summary {
@@ -3391,6 +3401,7 @@ button.y-freshness__action {
   display: flex;
   font-size: var(--fs-13);
   gap: var(--sp-2);
+  margin-inline: calc(-1 * var(--sp-2));
   padding: var(--sp-1) var(--sp-2);
 }
 /* stylelint-disable-next-line selector-no-qualifying-type -- an empty facet
@@ -3548,7 +3559,7 @@ a.y-facetrow:hover {
 .y-results {
   display: flex;
   flex-direction: column;
-  margin: 20px 0 0;
+  margin: var(--sp-5) 0 0;
 }
 
 /* A hit's words start under the field's own edge, and the wash a pointer
@@ -4307,7 +4318,7 @@ a.y-facetrow:hover {
 .y-homeblock {
   border-top: 1px solid var(--line);
   min-width: 0;
-  padding: 20px 0 0;
+  padding: var(--sp-5) 0 0;
 }
 
 .y-homeblock--recent {
@@ -4769,9 +4780,9 @@ a.y-facetrow:hover {
   color: var(--fg-muted);
   display: -webkit-box;
   font-family: var(--font-serif);
-  font-size: var(--fs-15);
+  font-size: var(--fs-ed-15);
   -webkit-line-clamp: 2;
-  line-height: 1.8;
+  line-height: var(--lh-ed-15);
   margin: 0;
   overflow: hidden;
 }
@@ -4805,7 +4816,7 @@ a.y-facetrow:hover {
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   gap: 2px;
-  margin: 0 0 20px;
+  margin: 0 0 var(--sp-4);
 }
 
 .y-order__label {
@@ -5401,7 +5412,7 @@ a.y-facetrow:hover {
 .y-nothing--fault {
   background: var(--warn-bg);
   border-radius: var(--r-lg);
-  padding: 20px var(--sp-5);
+  padding: var(--sp-5);
 }
 
 .y-nothing--fault .y-nothing__mark,
@@ -5425,7 +5436,7 @@ a.y-facetrow:hover {
   border: 0;
   border-radius: var(--r-lg);
   margin-top: var(--sp-4);
-  padding: 20px var(--sp-5);
+  padding: var(--sp-5);
 }
 
 .y-homeblock--faults .y-nothing {
@@ -5792,17 +5803,20 @@ a.y-facetrow:hover {
   padding: 0;
 }
 
+/* The row's rule is drawn inside its own box, the wash's inset in from each
+   side, so it ends where the heading's rule does and not 8px past it. */
 .y-ref {
-  border-bottom: 1px solid var(--border-faint);
+  background: linear-gradient(var(--border-faint) 0 0) var(--sp-2) 100% / calc(100% - 2 * var(--sp-2)) 1px no-repeat;
   color: inherit;
   display: block;
+  margin-inline: calc(-1 * var(--sp-2));
   overflow-wrap: anywhere;
   padding: var(--sp-3) var(--sp-2);
   text-decoration: none;
 }
 
 .y-ref:hover {
-  background: var(--overlay);
+  background-color: var(--overlay);
 }
 
 .y-ref__title {
@@ -5816,7 +5830,7 @@ a.y-facetrow:hover {
 }
 
 .y-ref--broken:hover {
-  background: none;
+  background-color: transparent;
 }
 
 .y-ref--broken .y-ref__title {
@@ -6386,7 +6400,7 @@ samp,
    the track narrows the panel keeps the width it had and the rail clips it, so
    no row reflows on the way; it fades over the same time and leaves the tree
    at the end, which is what lets the strip hold only the button. */
-@media (min-width: 901px) {
+@media (min-width: 1024px) {
   .y-shell:has(> .y-rail-left),
   .y-shell2:has(> .y-rail-left) {
     transition: grid-template-columns var(--dur-base) var(--ease-standard);
@@ -6451,7 +6465,15 @@ samp,
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
+  /* The page's side margins by width (system.md §2.1): 48 beside the column,
+     32 where the column is a drawer, 20 on a phone. They are set on the root,
+     so every page that reads them narrows together and none restates them. */
+  :root {
+    --gutter-list: var(--gutter-mid);
+    --gutter-read: var(--gutter-mid);
+  }
+
   .y-shell,
   .y-shell2 {
     grid-template-columns: 1fr;
@@ -6459,10 +6481,72 @@ samp,
 
   .y-healthpage,
   .y-home {
-    --gutter-list: 20px;
     padding: var(--sp-6) var(--gutter-list) 120px;
   }
 
+  /* One left edge, 32 in from the window, for every page: with the column a
+     drawer there is no sidebar to stand the block beside, so nothing is
+     centred and the margin column is not drawn (§2.1, §2.2). */
+  .y-main > :is(.y-article, .y-syl, .y-healthpage, .y-searchpage, .y-listen),
+  .y-shell2:has(> .y-rail-left) > .y-main > .y-recovery,
+  .y-shell2:not(:has(> .y-rail-left)) > .y-main > .y-recovery,
+  .y-home,
+  .y-prefs {
+    margin-left: 0;
+  }
+
+  /* The sidebar is ordinary stacked content until the enhancement runtime
+     marks the document. With JS off it therefore remains reachable, and the
+     drawer-only hamburger keeps no dead face in the header. */
+  .y-rail-left {
+    max-height: none;
+    position: static;
+    width: auto;
+  }
+  /* A page with no rail has nothing for the drawer to open. */
+  html[data-js] .yomihon:has(.y-rail-left) .y-hamburger {
+    display: inline-flex;
+  }
+
+  /* The closed drawer waits just off the left edge, and a shadow drawn around
+     it reaches back across that edge into the page as a grey band. The shadow
+     belongs to the open drawer, where it lifts the panel off the page, and it
+     fades with the slide so a closing drawer does not leave it behind. */
+  html[data-js] .y-rail-left {
+    bottom: 0;
+    box-shadow: none;
+    left: 0;
+    max-height: none;
+    position: fixed;
+    top: var(--header-height);
+    transform: translateX(-102%);
+    transition: box-shadow var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
+    width: min(300px, 86vw);
+    z-index: 45;
+  }
+
+  html[data-js][data-nav='open'] .y-rail-left {
+    box-shadow: var(--shadow-2), inset -1px 0 0 light-dark(transparent, var(--line));
+    transform: none;
+  }
+
+  html[data-js][data-nav='open'] .y-nav-scrim {
+    display: block;
+  }
+
+  html[data-js][data-nav='open'] .y-main {
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 720px) {
+  :root {
+    --gutter-list: var(--gutter-phone);
+    --gutter-read: var(--gutter-phone);
+  }
+}
+
+@media (max-width: 900px) {
   .y-homeblock__head {
     align-items: flex-start;
     flex-direction: column;
@@ -6502,48 +6586,6 @@ samp,
   .y-lesson {
     gap: var(--sp-2);
   }
-  /* The sidebar is ordinary stacked content until the enhancement runtime
-     marks the document. With JS off it therefore remains reachable, and the
-     drawer-only hamburger keeps no dead face in the header. */
-  .y-rail-left {
-    max-height: none;
-    position: static;
-    width: auto;
-  }
-  /* A page with no rail has nothing for the drawer to open. */
-  html[data-js] .yomihon:has(.y-rail-left) .y-hamburger {
-    display: inline-flex;
-  }
-
-  /* The closed drawer waits just off the left edge, and a shadow drawn around
-     it reaches back across that edge into the page as a grey band. The shadow
-     belongs to the open drawer, where it lifts the panel off the page, and it
-     fades with the slide so a closing drawer does not leave it behind. */
-  html[data-js] .y-rail-left {
-    bottom: 0;
-    box-shadow: none;
-    left: 0;
-    max-height: none;
-    position: fixed;
-    top: var(--header-height);
-    transform: translateX(-102%);
-    transition: box-shadow var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
-    width: min(300px, 86vw);
-    z-index: 45;
-  }
-
-  html[data-js][data-nav='open'] .y-rail-left {
-    box-shadow: var(--shadow-2);
-    transform: none;
-  }
-
-  html[data-js][data-nav='open'] .y-nav-scrim {
-    display: block;
-  }
-
-  html[data-js][data-nav='open'] .y-main {
-    overflow: hidden;
-  }
 
   .y-searchbtn {
     min-width: 0;
@@ -6553,14 +6595,12 @@ samp,
   .y-searchbtn .ui-kbd {
     display: none;
   }
-  /* The shell narrows as one: the gutter is redeclared and the box follows
-     it, so the line length is still the measure and not what is left over. */
+  /* The side margins narrow with the root; the box only follows them. */
   .y-article,
   .y-listen,
   .y-prefs,
   .y-recovery,
   .y-syl {
-    --gutter-read: 24px;
     padding: var(--sp-6) var(--gutter-read) 120px;
   }
 }
@@ -6585,14 +6625,6 @@ samp,
   .y-rubybtn {
     gap: var(--sp-1);
     padding-left: var(--sp-1);
-  }
-
-  .y-article,
-  .y-listen,
-  .y-prefs,
-  .y-recovery,
-  .y-syl {
-    --gutter-read: 20px;
   }
 
   .y-brand {
@@ -7096,7 +7128,7 @@ samp,
 .y-healthsection--notice {
   background: var(--warn-bg);
   border-radius: var(--r-lg);
-  padding: 20px var(--sp-5);
+  padding: var(--sp-5);
 }
 
 .y-healthsection--notice .y-healthsection__lede {
@@ -7357,7 +7389,7 @@ samp,
 .y-healthgroup__title {
   color: var(--fg);
   font-family: var(--font-serif);
-  font-size: var(--fs-18);
+  font-size: var(--fs-ed-20);
   font-weight: var(--fw-semibold);
   line-height: 1.5;
   margin: 0;
@@ -7712,7 +7744,7 @@ samp,
   grid-template-columns: minmax(0, 1fr) auto;
   margin: 0;
   min-width: 0;
-  padding: 20px 0;
+  padding: var(--sp-4) 0;
 }
 
 .y-prefs__lede + form > .y-preffield:first-child {
@@ -7852,8 +7884,8 @@ samp,
    heading here rather than sitting under nothing. */
 .y-prefs__shortcuts {
   border-top: 1px solid var(--line-faint);
-  margin: 20px 0 0;
-  padding: 20px 0;
+  margin: var(--sp-5) 0 0;
+  padding: var(--sp-5) 0;
 }
 
 .y-prefs__shortcuts h2 {
@@ -7872,7 +7904,7 @@ samp,
 .y-prefs__storage {
   border-top: 1px solid var(--border);
   margin: 42px 0 0;
-  padding-top: 20px;
+  padding-top: var(--sp-5);
 }
 
 .y-prefs__storage h2 {

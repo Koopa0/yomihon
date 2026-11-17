@@ -10,7 +10,7 @@
 // the other's state.
 export function initRail(preferences) {
   const root = document.documentElement;
-  const media = window.matchMedia('(max-width: 900px)');
+  const media = window.matchMedia('(max-width: 1023px)');
   const rail = document.querySelector('#_y-nav-rail');
   const button = document.querySelector('[data-rail-toggle]');
   if (!rail || !button) {

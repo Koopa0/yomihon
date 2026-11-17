@@ -115,7 +115,7 @@ const MUTATIONS = {
   'hide-foot-in-the-drawer': {
     target: 'foot-in-the-drawer',
     apply: appendRule(
-      '@media (max-width: 900px){.y-railfoot{display:none}}',
+      '@media (max-width: 1023px){.y-railfoot{display:none}}',
       '.y-railfoot',
       'display',
       'none',
