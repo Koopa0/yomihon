@@ -22,15 +22,19 @@ func TestBaseDeclaresTraditionalChineseDocumentLanguage(t *testing.T) {
 	}
 }
 
-func TestBaseTitlesThePageWithTheProductNameUnlessTheTitleStandsAlone(t *testing.T) {
+func TestBaseTitlesThePageWithTheVaultsName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		chrome Chrome
 		want   string
 	}{
-		{"a page", Chrome{Title: "Notes & more"}, "<title>Notes &amp; more — yomihon</title>"},
-		{"a title that stands alone", Chrome{Title: "Notes & more", TitleAlone: true}, "<title>Notes &amp; more</title>"},
+		{"a page of a vault", Chrome{Title: "Notes & more", Vault: "技術自學"}, "<title>Notes &amp; more — 技術自學</title>"},
+		{"the vault's own desk", Chrome{Vault: "技術自學"}, "<title>技術自學</title>"},
+		{"a page called what the vault is called", Chrome{Title: "技術自學", Vault: "技術自學"}, "<title>技術自學</title>"},
+		{"a page of a vault with no name", Chrome{Title: "Notes & more"}, "<title>Notes &amp; more</title>"},
+		{"a desk of a vault with no name", Chrome{}, "<title>yomihon</title>"},
+		{"a title that stands alone", Chrome{Title: "Notes & more", Vault: "技術自學", TitleAlone: true}, "<title>Notes &amp; more</title>"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
