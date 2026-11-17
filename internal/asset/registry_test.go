@@ -122,13 +122,13 @@ var unjoinableAtRule = regexp.MustCompile(`@(?:import|charset|namespace)\b`)
 var cssComment = regexp.MustCompile(`(?s)/\*.*?\*/`)
 
 // TestStylesheetIsItsPartsJoinedInOrder holds the one stylesheet the pages link
-// to against the four files it is made of: each present once, in the order the
+// to against the five files it is made of: each present once, in the order the
 // sheet is read, base first and components last. The order is spelled out here
 // rather than read from stylesheetParts, so that changing it in one place is a
 // failure and not two files agreeing with each other.
 func TestStylesheetIsItsPartsJoinedInOrder(t *testing.T) {
 	t.Parallel()
-	order := []string{"css/reset.css", "css/fonts.css", "css/tokens.css", "css/components.css"}
+	order := []string{"css/reset.css", "css/fonts.css", "css/tokens.css", "css/components.css", "css/art.css"}
 
 	mux := http.NewServeMux()
 	Register(mux)
