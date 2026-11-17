@@ -22,22 +22,29 @@ var headingOpening = regexp.MustCompile(`\A[ \t>]*#{1,6}[ \t]*\z`)
 // or hyphen token at the end of line, preserving its case. The caret starts
 // the line or follows an ASCII space or tab; only spaces and tabs may follow
 // the token. It returns an empty string when no supported address is present.
-// A heading whose whole text is the token has nothing to address, so the token
-// is its words and not an address. Code zones and other structural exclusions
-// belong to the caller.
+// A heading line whose whole text is the token has nothing to address, so the
+// token is its words and not an address. Code zones and other structural
+// exclusions belong to the caller.
 func BlockAddress(line string) string {
-	if strings.IndexByte(line, '^') < 0 {
+	address, start := addressToken(line)
+	if address == "" || headingOpening.MatchString(strings.TrimRight(line, " \t")[:start]) {
 		return ""
 	}
-	trimmed := strings.TrimRight(line, " \t")
+	return address
+}
+
+// addressToken is the token grammar alone: the address that ends text and where
+// it starts in the text with its trailing spaces and tabs cut off.
+func addressToken(text string) (address string, start int) {
+	if strings.IndexByte(text, '^') < 0 {
+		return "", 0
+	}
+	trimmed := strings.TrimRight(text, " \t")
 	m := blockMarkerTail.FindStringSubmatchIndex(trimmed)
 	if m == nil {
-		return ""
+		return "", 0
 	}
-	if headingOpening.MatchString(trimmed[:m[2]]) {
-		return ""
-	}
-	return trimmed[m[2]:m[3]]
+	return trimmed[m[2]:m[3]], m[2]
 }
 
 // WithoutBlockAddress returns line without the address that ends it and the
@@ -51,17 +58,21 @@ func WithoutBlockAddress(line string) string {
 	return strings.TrimRight(trimmed[:len(trimmed)-len(address)], " \t")
 }
 
-// WithoutBlockAddresses is WithoutBlockAddress for each line of the text of a
-// heading, which is how a heading written over several lines carries one. A
-// heading that would be left with no words keeps them: a heading is an address
-// only when words come before it.
+// WithoutBlockAddresses is WithoutBlockAddress for each line of the words of a
+// heading, which is how a heading written over several lines carries one. The
+// words stand without their heading marks, so a line that opens with hashes is
+// words and not a heading. A heading that would be left with no words keeps
+// them: a heading is an address only when words come before it.
 func WithoutBlockAddresses(text string) string {
 	if !strings.Contains(text, "^") {
 		return text
 	}
 	lines := strings.Split(text, "\n")
 	for i, line := range lines {
-		lines[i] = WithoutBlockAddress(line)
+		address, start := addressToken(line)
+		if address != "" {
+			lines[i] = strings.TrimRight(strings.TrimRight(line, " \t")[:start], " \t")
+		}
 	}
 	stripped := strings.Join(lines, "\n")
 	if strings.TrimSpace(stripped) == "" {
