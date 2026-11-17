@@ -50,6 +50,7 @@ var faceAdapterPackages = []string{
 	"internal/archlock",
 	"internal/asset",
 	"internal/course",
+	"internal/inspect",
 	"internal/mark",
 	"internal/mark/approval",
 	"internal/mark/confdir",
