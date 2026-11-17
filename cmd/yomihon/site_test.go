@@ -470,6 +470,86 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 	}
 }
 
+// TestTheSiteRefusesAMarkWriteFromAnotherSiteOrAnotherName holds the routes
+// that keep, change, remove and put back a mark to the two protections the
+// bookmark route has, through the assembly: a request a browser labels
+// cross-site is refused before a handler runs, and so is one addressed to
+// a name that is not this machine. Nothing is written for either, and the
+// same four requests from the reader's own page go through.
+func TestTheSiteRefusesAMarkWriteFromAnotherSiteOrAnotherName(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeRecoverySiteFixture(t, root)
+	if err := os.WriteFile(filepath.Join(root, "Plain.md"), []byte("# Plain\n\nThe topic particle marks what the sentence is about.\n"), 0o600); err != nil {
+		t.Fatalf("write a note with words in it: %v", err)
+	}
+	configDir := t.TempDir()
+	site, err := newReadingSite(t.Context(), root, configDir, slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+
+	id := strings.Repeat("a", 32)
+	thought := `{"kind":"thought","path":"Maps/study.md","body":"a thought"}`
+	put := `{"id":"` + id + `","kind":"thought","path":"Maps/study.md","body":"a thought","at":"2026-09-22T11:00:00Z"}`
+	writes := []struct{ method, target, body string }{
+		{http.MethodPost, "/mark", thought},
+		{http.MethodPut, "/mark/" + id, put},
+		{http.MethodPatch, "/mark/" + id, `{"body":"changed"}`},
+		{http.MethodDelete, "/mark/" + id, ""},
+	}
+	send := func(method, target, body, fetchSite, host string) *httptest.ResponseRecorder {
+		t.Helper()
+		req := siteRequest(t, method, target, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		if fetchSite != "" {
+			req.Header.Set("Sec-Fetch-Site", fetchSite)
+		}
+		if host != "" {
+			req.Host = host
+		}
+		recorder := httptest.NewRecorder()
+		site.ServeHTTP(recorder, req)
+		return recorder
+	}
+
+	for _, w := range writes {
+		if got := send(w.method, w.target, w.body, "cross-site", "").Code; got != http.StatusForbidden {
+			t.Errorf("cross-site %s %s = %d, want %d", w.method, w.target, got, http.StatusForbidden)
+		}
+		if got := send(w.method, w.target, w.body, "same-origin", "evil.example").Code; got != http.StatusForbidden {
+			t.Errorf("%s %s addressed to another name = %d, want %d", w.method, w.target, got, http.StatusForbidden)
+		}
+	}
+	if entries, readErr := os.ReadDir(configDir); readErr != nil || len(entries) != 0 {
+		t.Fatalf("the refused requests left %d entries in the configuration directory, %v; want nothing written", len(entries), readErr)
+	}
+
+	// From the reader's own page the same requests are admitted, so the
+	// refusals above are the protections and not routes that are missing.
+	for _, tt := range []struct {
+		method, target, body string
+		want                 int
+	}{
+		{http.MethodPut, "/mark/" + id, put, http.StatusOK},
+		{http.MethodPatch, "/mark/" + id, `{"body":"changed"}`, http.StatusOK},
+		{http.MethodDelete, "/mark/" + id, "", http.StatusOK},
+		{http.MethodPost, "/mark", thought, http.StatusCreated},
+		// Words the note shows are kept, through the reading room's own text of the page.
+		{http.MethodPost, "/mark", `{"kind":"highlight","path":"Plain.md","quote":"topic particle marks"}`, http.StatusCreated},
+		{http.MethodPost, "/mark", `{"kind":"highlight","path":"Plain.md","quote":"words the note never had"}`, http.StatusUnprocessableEntity},
+	} {
+		if got := send(tt.method, tt.target, tt.body, "same-origin", "").Code; got != tt.want {
+			t.Errorf("same-origin %s %s %s = %d, want %d", tt.method, tt.target, tt.body, got, tt.want)
+		}
+	}
+}
+
 // TestTheSiteKeepsNoPlaceInANoteItDoesNotHold drives the production assembly:
 // the route that keeps a reading place is handed the reading room's own answer
 // to whether a note is there. On a shared instance this route is open to anyone

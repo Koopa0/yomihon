@@ -2,12 +2,14 @@ package note
 
 import (
 	"cmp"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -21,6 +23,22 @@ import (
 // language, so any one renders the same set.
 func (h *Handler) HasPlace(rel, anchor string) bool {
 	return newPlaceResolver(h.sources.Snapshot().Capture()).hasPlace(rel, anchor)
+}
+
+// Reading is what a mark is placed in: the words of the note as its page shows
+// them in lang, taken from the sanitised HTML the renderer makes and not from
+// the Markdown, because a reader selects from the page. It is false for a note
+// the vault does not let a reader open.
+func (h *Handler) Reading(rel string, lang wording.Lang) (mark.Page, bool) {
+	snap := h.sources.Snapshot().Capture()
+	n, ok := readableNote(snap, rel)
+	if !ok {
+		return mark.Page{}, false
+	}
+	return mark.Page{
+		Text:     render.TextContent(snap.Render(rel, n.Body, lang).HTML),
+		Identity: hex.EncodeToString(n.ContentIdentity[:]),
+	}, true
 }
 
 // placeResolver owns a request's captured generation and lazily resolves each

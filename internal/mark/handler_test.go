@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // newHandler is the route over a vault that holds every note, so a test that
@@ -457,6 +458,12 @@ type vaultPlaces map[[2]string]bool
 
 func (p vaultPlaces) HasPlace(rel, anchor string) bool {
 	return p == nil || p[[2]string{rel, anchor}]
+}
+
+// Reading is not asked of these tests: the bookmark and question routes find
+// no words. It answers that every note is readable and holds none.
+func (p vaultPlaces) Reading(string, wording.Lang) (mark.Page, bool) {
+	return mark.Page{}, true
 }
 
 // listedQuestion is a question as the list route sends it to a page.
