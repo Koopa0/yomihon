@@ -18,13 +18,31 @@ var chineseDigits = map[rune]int{
 // larger than a thousand appears in a lesson number, so the rest stays text.
 var chineseUnits = map[rune]int{'十': 10, '百': 100, '千': 1000}
 
+// numberingSeparators are the characters that, standing right after a Chinese
+// numeral, say it numbers something: 一、緒論, 二. 方法, 三-結語, 四_附錄, 五 附錄.
+var numberingSeparators = map[rune]bool{'、': true, '.': true, '．': true, '-': true, '_': true, ' ': true}
+
+// numberingCounters are the words a Chinese numeral counts when one follows it
+// directly: 三章, 十二課, 五篇. 單元 is the one of two characters.
+var numberingCounters = map[rune]bool{
+	'章': true, '課': true, '節': true, '篇': true, '回': true,
+	'話': true, '卷': true, '部': true, '期': true, '講': true,
+}
+
 // ComparePaths orders every list of vault paths by each segment's stem, then
 // extension. Case is folded with Unicode simple folding, and runs of digits
 // retain their numeric reading. Numbers sort before text, so 01-intro and
 // 2026-07-30 lead a folder the way its reader numbered them. Mixing code-point
 // order with numeric order would let Latin letters, Chinese numerals and ASCII
-// digits close a cycle, so the two kinds are ranked as whole classes. The original bytes settle a tie only after every
-// segment agrees, so case and leading zeros cannot outrank a later filename.
+// digits close a cycle, so the two kinds are ranked as whole classes.
+//
+// A Chinese numeral is a number only where it looks like numbering; see
+// [looksLikeNumbering]. Anywhere else, as in 零值設計, it is a character like
+// any other and sorts by its code point. A run of ASCII digits is always a
+// number.
+//
+// The original bytes settle a tie only after every segment agrees, so case and
+// leading zeros cannot outrank a later filename.
 func ComparePaths(a, b string) int {
 	left, right := a, b
 	for {
@@ -108,7 +126,32 @@ func numberAt(rs []rune, i int) (value, width int) {
 	if isASCIIDigit(rs[i]) {
 		return asciiNumberAt(rs, i)
 	}
-	return chineseNumberAt(rs, i)
+	value, width = chineseNumberAt(rs, i)
+	if width > 0 && !looksLikeNumbering(rs, i, width) {
+		return 0, 0
+	}
+	return value, width
+}
+
+// looksLikeNumbering reports whether the Chinese numeral spanning
+// rs[start:start+width] numbers something, as 第三 or 一、 or 十二課 do, rather
+// than being a character inside a word, as 零 is in 零值設計 and 一 in 一年之計.
+// It does when 第 comes right before it, when the name ends right after it (the
+// extension's dot or the path's slash follows), or when a separator or a
+// counter comes right after it.
+//
+// The answer depends only on the string the numeral stands in, so two strings
+// are each read the same way whatever they are compared with, and the order
+// stays a total one.
+func looksLikeNumbering(rs []rune, start, width int) bool {
+	if start > 0 && rs[start-1] == '第' {
+		return true
+	}
+	end := start + width
+	if end == len(rs) || numberingSeparators[rs[end]] || numberingCounters[rs[end]] {
+		return true
+	}
+	return rs[end] == '單' && end+1 < len(rs) && rs[end+1] == '元'
 }
 
 // isASCIIDigit reports whether r is one of the ten digits a number is spelled

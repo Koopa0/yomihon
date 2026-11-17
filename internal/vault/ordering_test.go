@@ -49,18 +49,50 @@ func TestPathsSortTheWayTheirNumbersRead(t *testing.T) {
 			want:  []string{"Notes/query-planner.md", "曲目/巴哈.md", "運弓筆記.md"},
 		},
 		{
-			name:  "a numeral inside an ordinary word is still just a number",
-			paths: []string{"一期一會.md", "一年之計.md"},
-			want:  []string{"一年之計.md", "一期一會.md"},
+			name:  "a numeral inside an ordinary word is a character, not a number",
+			paths: []string{"一年之計.md", "Intro.md", "一、緒論.md"},
+			want:  []string{"一、緒論.md", "Intro.md", "一年之計.md"},
 		},
 		{
-			// 零 opens a number wherever it stands. Where one side spells a
-			// number and the other does not, the number goes first, so 零值設計
-			// leads its neighbours the way a note zero would; ranking only the
-			// Arabic digits first would close a cycle with the numerals.
-			name:  "a numeral opening an ordinary word is read as the number it is",
-			paths: []string{"Go Array.md", "Go 零值設計.md", "Go CGO.md"},
-			want:  []string{"Go 零值設計.md", "Go Array.md", "Go CGO.md"},
+			// 零 opens a number only where it numbers something. Opening 零值設計
+			// it does not, so the word sorts by its code points, after the Latin
+			// names beside it, and not above them as though it were note zero.
+			name:  "a numeral opening an ordinary word does not jump the notes above it",
+			paths: []string{"Go 零值設計.md", "Go Array.md", "Go CGO.md"},
+			want:  []string{"Go Array.md", "Go CGO.md", "Go 零值設計.md"},
+		},
+		{
+			// 第 is itself a character, so Zed comes first; after it the numeral
+			// is a number whatever follows, and leads the text beside it.
+			name:  "a numeral after 第 is a number whatever follows it",
+			paths: []string{"第甲.md", "第十名.md", "Zed.md", "第二名.md"},
+			want:  []string{"Zed.md", "第二名.md", "第十名.md", "第甲.md"},
+		},
+		{
+			name:  "a numeral followed by a separator is a number",
+			paths: []string{"Zed.md", "六 f.md", "三、c.md", "五_e.md", "一．a.md", "四-d.md", "二. b.md"},
+			want:  []string{"一．a.md", "二. b.md", "三、c.md", "四-d.md", "五_e.md", "六 f.md", "Zed.md"},
+		},
+		{
+			name: "a numeral followed by a counter is a number",
+			paths: []string{
+				"Zed.md", "十二章.md", "三節.md", "二課.md", "五篇.md", "四回.md",
+				"七話.md", "八卷.md", "九部.md", "六期.md", "十講.md", "一單元.md",
+			},
+			want: []string{
+				"一單元.md", "二課.md", "三節.md", "四回.md", "五篇.md", "六期.md",
+				"七話.md", "八卷.md", "九部.md", "十講.md", "十二章.md", "Zed.md",
+			},
+		},
+		{
+			name:  "a numeral that ends the name is a number",
+			paths: []string{"abc.md", "二.md", "一.md"},
+			want:  []string{"一.md", "二.md", "abc.md"},
+		},
+		{
+			name:  "numerals inside words sort by code point among the words",
+			paths: []string{"零值設計.md", "Zed.md", "三國演義.md", "一年之計.md", "Alpha.md"},
+			want:  []string{"Alpha.md", "Zed.md", "一年之計.md", "三國演義.md", "零值設計.md"},
 		},
 		{
 			name:  "numbered notes lead the words around them",
@@ -124,6 +156,7 @@ func TestComparisonIsTotal(t *testing.T) {
 		"第一課.md", "第1課.md", "第01課.md", "第一課.md", "abc", "", "十", "十十", "百",
 		"一期一會.md", "2.md", "A/z.md", "a/b.md", "K.md", "k.md", "K.md",
 		"Σ.md", "ς.md", "σ.md", "Part01/z.md", "Part1/b.md", "a/", "a", "a\xff", "a\uFFFD",
+		"一、緒論.md", "零值設計.md", "第三課.md", "三國.md", "一單元.md", "一單位.md", "Go 零.md", "Go 零值.md",
 	}
 	for _, a := range paths {
 		for _, b := range paths {
@@ -143,5 +176,93 @@ func TestComparisonIsTotal(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// A Chinese numeral numbers something only where it is written as numbering:
+// after 第, before a separator or a counter, or ending the name. Anywhere else
+// it is a character in a word, and numberAt says so by reading no number there.
+// Arabic digits are numbers wherever they stand.
+func TestChineseNumeralIsANumberOnlyWhereItLooksLikeNumbering(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		text         string
+		at           int
+		value, width int
+	}{
+		{"after 第", "第三課", 1, 3, 1},
+		{"after 第 and ending the name", "第十二", 1, 12, 2},
+		{"after 第 with a plain word following", "第二名", 1, 2, 1},
+		{"before 、", "一、緒論", 0, 1, 1},
+		{"before a full stop", "二. 方法", 0, 2, 1},
+		{"before a full-width stop", "三．結語", 0, 3, 1},
+		{"before a hyphen", "四-附錄", 0, 4, 1},
+		{"before an underscore", "五_附錄", 0, 5, 1},
+		{"before a space", "六 附錄", 0, 6, 1},
+		{"before a counter", "二十三章", 0, 23, 3},
+		{"before 單元", "一單元", 0, 1, 1},
+		{"ending the name", "筆記二", 2, 2, 1},
+		{"opening an ordinary word", "零值設計", 0, 0, 0},
+		{"inside an ordinary word", "Go 零值設計", 3, 0, 0},
+		{"as the first character of an idiom", "一年之計", 0, 0, 0},
+		{"before a character that is not a counter", "三國", 0, 0, 0},
+		{"before 單 that is not 單元", "一單位", 0, 0, 0},
+		{"before a Latin letter", "一a", 0, 0, 0},
+		{"a later numeral of the same run is no rescue", "甲二十三乙", 1, 0, 0},
+		{"Arabic digits need nothing", "3rd", 0, 3, 1},
+		{"Arabic digits after 第 or anywhere", "Go 12 notes", 3, 12, 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			value, width := numberAt([]rune(tt.text), tt.at)
+			if value != tt.value || width != tt.width {
+				t.Errorf("numberAt(%q, %d) = (%d, %d), want (%d, %d)", tt.text, tt.at, value, width, tt.value, tt.width)
+			}
+		})
+	}
+}
+
+// A sort is only as good as the order under it: if three names could close a
+// cycle, the same folder listed in another order would sort differently and
+// nothing would report it. The set mixes every kind of name the numbering rule
+// can tell apart — Arabic numbers, numerals that number, numerals that are
+// characters in a word, and plain words — and every one of its orderings has to
+// sort to the same list, which is also the list a reader expects.
+func TestEveryPermutationOfAMixedSetSortsTheSame(t *testing.T) {
+	t.Parallel()
+	want := []string{
+		"一、緒論.md", "2.md", "10-appendix.md",
+		"Go Array.md", "Go 零值設計.md", "Notes.md", "一年之計.md", "第三課 水.md",
+	}
+	perm := slices.Clone(want)
+	slices.Reverse(perm)
+	seen := 0
+	var generate func(k int)
+	generate = func(k int) {
+		if k == 1 {
+			seen++
+			got := slices.Clone(perm)
+			slices.SortFunc(got, ComparePaths)
+			if !slices.Equal(got, want) {
+				t.Fatalf("sorting %q gave %q, want %q", perm, got, want)
+			}
+			return
+		}
+		generate(k - 1)
+		for i := range k - 1 {
+			// Heap's algorithm: each swap yields an arrangement not yet seen.
+			if k%2 == 0 {
+				perm[i], perm[k-1] = perm[k-1], perm[i]
+			} else {
+				perm[0], perm[k-1] = perm[k-1], perm[0]
+			}
+			generate(k - 1)
+		}
+	}
+	generate(len(perm))
+	if seen != 40320 {
+		t.Errorf("visited %d orderings of %d names, want 40320", seen, len(want))
 	}
 }
