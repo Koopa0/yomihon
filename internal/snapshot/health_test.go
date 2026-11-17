@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -32,7 +33,7 @@ func noteBodies(notes []*vault.Note) iter.Seq[string] {
 func linksOf(notes []*vault.Note) map[string][]string {
 	links := make(map[string][]string, len(notes))
 	for _, n := range notes {
-		links[n.RelPath] = judge.LinkTargets(n.Body)
+		links[n.RelPath] = egress.Targets(judge.LinkTargets(n.Body))
 	}
 	return links
 }

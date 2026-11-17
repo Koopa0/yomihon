@@ -67,14 +67,15 @@ func open(t *testing.T, rules string) (gate *egress.Gate, root string) {
 	return gate, root
 }
 
-var wikilinkPattern = regexp.MustCompile(`\[\[([^\]|#^]+)`)
+var wikilinkPattern = regexp.MustCompile(`!?\[\[([^\]|#^\\]+)[^\]]*\]\]`)
 
-func wikilinks(text string) []string {
-	var targets []string
-	for _, match := range wikilinkPattern.FindAllStringSubmatch(text, -1) {
-		targets = append(targets, match[1])
+// wikilinks is an extractor that reads [[…]] and ![[…]] and nothing else.
+func wikilinks(text string) []egress.Link {
+	var links []egress.Link
+	for _, at := range wikilinkPattern.FindAllStringSubmatchIndex(text, -1) {
+		links = append(links, egress.Link{Target: text[at[2]:at[3]], Start: at[0], End: at[1]})
 	}
-	return targets
+	return links
 }
 
 func TestAFolderWithNoRulesFileWithholdsNothing(t *testing.T) {
@@ -295,9 +296,14 @@ type names struct {
 
 func (n names) OutsideScan(rel string) bool { return n.outside[rel] }
 
+// NameWithin answers as the generation does: a name that is a note's is within
+// when the note is, and one that is nothing's is read as a path, with and
+// without the note extension.
 func (n names) NameWithin(target string, allowed func(rel string) bool) bool {
-	rel, known := n.byName[target]
-	return !known || allowed(rel)
+	if rel, known := n.byName[target]; known {
+		return allowed(rel)
+	}
+	return allowed(target) && allowed(target+".md")
 }
 
 func TestSpellsFindsAWithheldNameInTheWordsOfATitle(t *testing.T) {
@@ -346,9 +352,9 @@ func TestSpellsReadsLinksWithTheExtractorTheGateWasOpenedWith(t *testing.T) {
 	// link; one that reads a title the raw reader would not shows the body
 	// citation is found by the extractor and not by the text.
 	called := 0
-	gate, err := egress.Open(t.Context(), reader, func(text string) []string {
+	gate, err := egress.Open(t.Context(), reader, func(text string) []egress.Link {
 		called++
-		return []string{"Secret Plan"}
+		return []egress.Link{{Target: "Secret Plan", Start: 0, End: len(text)}}
 	})
 	if err != nil {
 		t.Fatal(err)
