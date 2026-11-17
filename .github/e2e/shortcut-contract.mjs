@@ -588,7 +588,7 @@ try {
   // changed. The second press puts the column back, so the questions after
   // this one are asked of the layout they were written for.
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.waitForFunction(() => !window.matchMedia('(max-width: 900px)').matches);
+  await page.waitForFunction(() => !window.matchMedia('(max-width: 1023px)').matches);
   const wideBracket = await dispatch(page, 'keydown', '[');
   after = await state(page);
   await dispatch(page, 'keyup', '[');

@@ -761,7 +761,7 @@ html:not([data-js]) .y-rubybtn {
   display: none;
 }
 
-@media (min-width: 901px) {
+@media (min-width: 1024px) {
   .y-railhead {
     align-items: center;
     background: var(--rail-ground);
@@ -960,7 +960,7 @@ html:not([data-js]) .y-rubybtn {
   display: none;
 }
 
-@media (min-width: 901px) {
+@media (min-width: 1024px) {
   html[data-rail='collapsed'] .y-railspine {
     color: var(--fg);
     display: flex;
@@ -6349,7 +6349,7 @@ samp,
    the track narrows the panel keeps the width it had and the rail clips it, so
    no row reflows on the way; it fades over the same time and leaves the tree
    at the end, which is what lets the strip hold only the button. */
-@media (min-width: 901px) {
+@media (min-width: 1024px) {
   .y-shell:has(> .y-rail-left),
   .y-shell2:has(> .y-rail-left) {
     transition: grid-template-columns var(--dur-base) var(--ease-standard);
@@ -6414,12 +6414,57 @@ samp,
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1023px) {
   .y-shell,
   .y-shell2 {
     grid-template-columns: 1fr;
   }
 
+  /* The sidebar is ordinary stacked content until the enhancement runtime
+     marks the document. With JS off it therefore remains reachable, and the
+     drawer-only hamburger keeps no dead face in the header. */
+  .y-rail-left {
+    max-height: none;
+    position: static;
+    width: auto;
+  }
+  /* A page with no rail has nothing for the drawer to open. */
+  html[data-js] .yomihon:has(.y-rail-left) .y-hamburger {
+    display: inline-flex;
+  }
+
+  /* The closed drawer waits just off the left edge, and a shadow drawn around
+     it reaches back across that edge into the page as a grey band. The shadow
+     belongs to the open drawer, where it lifts the panel off the page, and it
+     fades with the slide so a closing drawer does not leave it behind. */
+  html[data-js] .y-rail-left {
+    bottom: 0;
+    box-shadow: none;
+    left: 0;
+    max-height: none;
+    position: fixed;
+    top: var(--header-height);
+    transform: translateX(-102%);
+    transition: box-shadow var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
+    width: min(300px, 86vw);
+    z-index: 45;
+  }
+
+  html[data-js][data-nav='open'] .y-rail-left {
+    box-shadow: var(--shadow-2);
+    transform: none;
+  }
+
+  html[data-js][data-nav='open'] .y-nav-scrim {
+    display: block;
+  }
+
+  html[data-js][data-nav='open'] .y-main {
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 900px) {
   .y-healthpage,
   .y-home {
     --gutter-list: 20px;
@@ -6464,48 +6509,6 @@ samp,
 
   .y-lesson {
     gap: var(--sp-2);
-  }
-  /* The sidebar is ordinary stacked content until the enhancement runtime
-     marks the document. With JS off it therefore remains reachable, and the
-     drawer-only hamburger keeps no dead face in the header. */
-  .y-rail-left {
-    max-height: none;
-    position: static;
-    width: auto;
-  }
-  /* A page with no rail has nothing for the drawer to open. */
-  html[data-js] .yomihon:has(.y-rail-left) .y-hamburger {
-    display: inline-flex;
-  }
-
-  /* The closed drawer waits just off the left edge, and a shadow drawn around
-     it reaches back across that edge into the page as a grey band. The shadow
-     belongs to the open drawer, where it lifts the panel off the page, and it
-     fades with the slide so a closing drawer does not leave it behind. */
-  html[data-js] .y-rail-left {
-    bottom: 0;
-    box-shadow: none;
-    left: 0;
-    max-height: none;
-    position: fixed;
-    top: var(--header-height);
-    transform: translateX(-102%);
-    transition: box-shadow var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
-    width: min(300px, 86vw);
-    z-index: 45;
-  }
-
-  html[data-js][data-nav='open'] .y-rail-left {
-    box-shadow: var(--shadow-2);
-    transform: none;
-  }
-
-  html[data-js][data-nav='open'] .y-nav-scrim {
-    display: block;
-  }
-
-  html[data-js][data-nav='open'] .y-main {
-    overflow: hidden;
   }
 
   .y-searchbtn {

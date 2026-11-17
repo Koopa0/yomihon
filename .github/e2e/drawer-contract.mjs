@@ -124,11 +124,11 @@ const MUTATIONS = {
   },
   'hide-no-js-sidebar': {
     target: 'no-js-sidebar-navigation',
-    apply: injectDocumentStyle('@media (max-width:900px){.y-rail-left{position:fixed!important;transform:translateX(-102%)!important}}'),
+    apply: injectDocumentStyle('@media (max-width:1023px){.y-rail-left{position:fixed!important;transform:translateX(-102%)!important}}'),
   },
   'show-no-js-hamburger': {
     target: 'no-js-hamburger-hidden',
-    apply: injectDocumentStyle('@media (max-width:900px){.y-hamburger{display:inline-flex!important}}'),
+    apply: injectDocumentStyle('@media (max-width:1023px){.y-hamburger{display:inline-flex!important}}'),
   },
   'suppress-closed-inert': {
     target: 'closed-rail-inert',
@@ -136,7 +136,7 @@ const MUTATIONS = {
   },
   'overlap-toggle-with-focused-skip-link': {
     target: 'focused-skip-link-clears-toggle',
-    apply: injectDocumentStyle('@media (max-width:900px){.y-skiplink{top:8px!important}}'),
+    apply: injectDocumentStyle('@media (max-width:1023px){.y-skiplink{top:8px!important}}'),
   },
   'suppress-open-focus': {
     target: 'open-focus-entry',

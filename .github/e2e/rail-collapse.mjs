@@ -49,25 +49,25 @@ const OPEN = 272;
 const NOTE_OPEN_NARROW = 248;
 const THREE_COLUMNS = 1280;
 
-// The reading measure of a note that declares no language, and a window in the
-// band where the column is open beside text narrower than that measure. From
-// the width where the facts stand open, the text is already at its measure with
-// the column shown, so folding the column there has nothing to give back.
+// The reading measure of a note that declares no language, and a window where
+// the column is open. From the width where the column stands the text is
+// already at its measure beside it, so folding the column gives the text no
+// width back and only moves it.
 const MEASURE = 646;
-const FOLD_WIDTH = 940;
+const FOLD_WIDTH = 1024;
 
 const SITES = [
   'text-returns-to-the-measure',
   'choice-survives-a-reload',
   'first-paint-is-collapsed-without-script',
   'wide-key-leaves-the-drawer-alone',
-  'drawer-key-still-opens-at-900',
+  'drawer-key-still-opens-at-1023',
   'slash-opens-the-column-first',
   'focus-leaves-the-hidden-panel',
   'control-is-a-sticky-sibling',
   'rail-scroll-is-restored',
-  'collapsed-rule-stops-at-901',
-  'crossing-900-leaves-nothing-stale',
+  'collapsed-rule-stops-at-1024',
+  'crossing-1023-leaves-nothing-stale',
   'wide-fold-sets-no-inertness',
   'state-is-told-by-the-control',
   'collapsed-panel-leaves-the-tree',
@@ -209,7 +209,7 @@ const MUTATIONS = {
   },
   // The column key claiming the narrow widths too.
   'arm-the-column-key-at-every-width': {
-    target: 'drawer-key-still-opens-at-900',
+    target: 'drawer-key-still-opens-at-1023',
     apply: rewriteAsset('**/shortcuts.js{,?*}', '      if (drawer.isNarrow()) {', '      if (false) {'),
   },
   // Focus asked of a filter inside a panel nobody can see.
@@ -238,9 +238,9 @@ const MUTATIONS = {
     target: 'rail-scroll-is-restored',
     apply: rewriteAsset('**/rail.js{,?*}', '    rail.scrollTop = scrollTop;\n', ''),
   },
-  // The collapsed rule reaching below 901px, where it would empty the drawer.
-  'collapsed-rule-leaks-below-901': {
-    target: 'collapsed-rule-stops-at-901',
+  // The collapsed rule reaching below 1024px, where it would empty the drawer.
+  'collapsed-rule-leaks-below-1024': {
+    target: 'collapsed-rule-stops-at-1024',
     apply: injectStyle("html[data-rail='collapsed'] .y-railbody{display:none!important}", '.y-railbody'),
   },
   // The desktop fold leaving the rail inert, which the drawer's own rule
@@ -251,7 +251,7 @@ const MUTATIONS = {
   },
   // The drawer's state written when the column is folded.
   'fold-the-column-by-the-drawer-state': {
-    target: 'crossing-900-leaves-nothing-stale',
+    target: 'crossing-1023-leaves-nothing-stale',
     apply: rewriteAsset('**/rail.js{,?*}', "    preferences.writeRail('collapsed');\n", "    preferences.writeRail('collapsed');\n    document.documentElement.dataset.nav = 'open';\n"),
   },
   // The button's state left where it was.
@@ -490,7 +490,7 @@ try {
     const { page, context, checkProof } = await open('text-returns-to-the-measure', PAGE, { width: FOLD_WIDTH });
     await checkProof();
     const before = await geometry(page);
-    if (!before.prose || before.prose.width >= MEASURE) broken(`the fixture page's text is ${before.prose?.width}px wide with the column shown at ${FOLD_WIDTH}, so collapsing it could not widen the text`);
+    if (!before.prose || Math.round(before.prose.width) !== MEASURE) broken(`the fixture page's text is ${before.prose?.width}px wide with the column shown at ${FOLD_WIDTH}, want its measure of ${MEASURE}px`);
     if (Math.round(before.rail.width) !== NOTE_OPEN_NARROW) broken(`the column is ${before.rail.width}px at ${FOLD_WIDTH}, want ${NOTE_OPEN_NARROW}`);
     await key(page, '[');
     await settled(page);
@@ -553,14 +553,14 @@ try {
     await context.close();
   });
 
-  await run('drawer-key-still-opens-at-900', async () => {
-    const { page, context, checkProof } = await open('drawer-key-still-opens-at-900', PAGE, { width: 900 });
+  await run('drawer-key-still-opens-at-1023', async () => {
+    const { page, context, checkProof } = await open('drawer-key-still-opens-at-1023', PAGE, { width: 1023 });
     await checkProof();
     await key(page, '[');
     await page.waitForFunction(() => document.documentElement.dataset.nav === 'open', null, { timeout: 2000 }).catch(() => {});
     const g = await geometry(page);
     if (g.nav !== 'open' || g.state === 'collapsed') {
-      fail('drawer-key-still-opens-at-900', `[ at 900 left nav=${g.nav} and rail=${g.state}, want the drawer open and the column untouched`);
+      fail('drawer-key-still-opens-at-1023', `[ at 1023 left nav=${g.nav} and rail=${g.state}, want the drawer open and the column untouched`);
     }
     await context.close();
   });
@@ -669,58 +669,58 @@ try {
     await context.close();
   });
 
-  await run('collapsed-rule-stops-at-901', async () => {
-    const { page, context, checkProof } = await open('collapsed-rule-stops-at-901', PAGE, { width: 900, collapsed: true });
+  await run('collapsed-rule-stops-at-1024', async () => {
+    const { page, context, checkProof } = await open('collapsed-rule-stops-at-1024', PAGE, { width: 1023, collapsed: true });
     await checkProof();
     const g = await geometry(page);
     if (g.state !== 'collapsed') broken('the page did not carry the collapsed choice');
-    if (g.body.display === 'none') fail('collapsed-rule-stops-at-901', 'at 900 a collapsed choice has emptied the drawer: the panel is not drawn');
+    if (g.body.display === 'none') fail('collapsed-rule-stops-at-1024', 'at 1023 a collapsed choice has emptied the drawer: the panel is not drawn');
     if ((await page.locator(TOGGLE).evaluate((button) => getComputedStyle(button).display)) !== 'none') {
-      fail('collapsed-rule-stops-at-901', 'the fold control is drawn at 900, where the header owns the act');
+      fail('collapsed-rule-stops-at-1024', 'the fold control is drawn at 1023, where the header owns the act');
     }
     await page.locator(NAV_TOGGLE).click();
     await page.waitForFunction(() => document.documentElement.dataset.nav === 'open');
     await page.waitForTimeout(350);
     const drawer = await geometry(page);
     if (drawer.rail.width < 200 || drawer.body.display === 'none') {
-      fail('collapsed-rule-stops-at-901', `the opened drawer is ${drawer.rail.width}px wide and its panel display=${drawer.body.display}`);
+      fail('collapsed-rule-stops-at-1024', `the opened drawer is ${drawer.rail.width}px wide and its panel display=${drawer.body.display}`);
     }
     await context.close();
   });
 
-  await run('crossing-900-leaves-nothing-stale', async () => {
-    const { page, context, checkProof } = await open('crossing-900-leaves-nothing-stale', PAGE, { width: 1281 });
+  await run('crossing-1023-leaves-nothing-stale', async () => {
+    const { page, context, checkProof } = await open('crossing-1023-leaves-nothing-stale', PAGE, { width: 1281 });
     await checkProof();
     await key(page, '[');
     await settled(page);
     let g = await geometry(page);
-    if (g.nav === 'open') fail('crossing-900-leaves-nothing-stale', `folding the column set nav=${g.nav}`);
+    if (g.nav === 'open') fail('crossing-1023-leaves-nothing-stale', `folding the column set nav=${g.nav}`);
     await page.setViewportSize({ width: 800, height: 800 });
-    await page.waitForFunction(() => window.matchMedia('(max-width: 900px)').matches);
+    await page.waitForFunction(() => window.matchMedia('(max-width: 1023px)').matches);
     // The drawer answers the change in a listener of its own, which may run a
     // frame after the query reads true; what is asked is where it settles.
     await page.waitForFunction(() => document.querySelector('#_y-nav-rail').inert === true, null, { timeout: 2000 }).catch(() => {});
     g = await geometry(page);
     if (g.state !== 'collapsed' || g.nav !== 'closed' || g.inert !== true || g.hidden !== 'true') {
-      fail('crossing-900-leaves-nothing-stale', `below 900 rail=${g.state} nav=${g.nav} inert=${g.inert} aria-hidden=${g.hidden}, want collapsed, closed, and a closed drawer`);
+      fail('crossing-1023-leaves-nothing-stale', `at 1023 and below rail=${g.state} nav=${g.nav} inert=${g.inert} aria-hidden=${g.hidden}, want collapsed, closed, and a closed drawer`);
     }
     await page.locator(NAV_TOGGLE).click();
     await page.waitForFunction(() => document.documentElement.dataset.nav === 'open');
     g = await geometry(page);
-    if (g.state !== 'collapsed') fail('crossing-900-leaves-nothing-stale', `opening the drawer set rail=${g.state}`);
+    if (g.state !== 'collapsed') fail('crossing-1023-leaves-nothing-stale', `opening the drawer set rail=${g.state}`);
     await page.setViewportSize({ width: 1281, height: 800 });
-    await page.waitForFunction(() => !window.matchMedia('(max-width: 900px)').matches);
+    await page.waitForFunction(() => !window.matchMedia('(max-width: 1023px)').matches);
     await page.waitForFunction(() => document.querySelector('#_y-nav-rail').inert === false, null, { timeout: 2000 }).catch(() => {});
     await settled(page);
     g = await geometry(page);
     if (g.inert !== false || g.hidden !== null || g.nav !== 'closed' || g.state !== 'collapsed') {
-      fail('crossing-900-leaves-nothing-stale', `back above 900 inert=${g.inert} aria-hidden=${g.hidden} nav=${g.nav} rail=${g.state}, want none of the drawer's marks and the choice kept`);
+      fail('crossing-1023-leaves-nothing-stale', `back at 1024 and above inert=${g.inert} aria-hidden=${g.hidden} nav=${g.nav} rail=${g.state}, want none of the drawer's marks and the choice kept`);
     }
     await key(page, '[');
     await settled(page);
     g = await geometry(page);
     if (g.state !== 'open' || g.nav !== 'closed' || g.inert !== false) {
-      fail('crossing-900-leaves-nothing-stale', `after crossing back, [ left rail=${g.state} nav=${g.nav} inert=${g.inert}`);
+      fail('crossing-1023-leaves-nothing-stale', `after crossing back, [ left rail=${g.state} nav=${g.nav} inert=${g.inert}`);
     }
     await context.close();
   });
@@ -732,7 +732,7 @@ try {
     await settled(page);
     const g = await geometry(page);
     if (g.inert !== false || g.hidden !== null) {
-      fail('wide-fold-sets-no-inertness', `a folded column above 900 has inert=${g.inert} aria-hidden=${g.hidden}; display:none is what removes it from the tree`);
+      fail('wide-fold-sets-no-inertness', `a folded column at 1024 and above has inert=${g.inert} aria-hidden=${g.hidden}; display:none is what removes it from the tree`);
     }
     await context.close();
   });
@@ -837,10 +837,14 @@ try {
   // fold went: an outcome of where the window happened to stop, which a change
   // to any block's height anywhere in the fixture could turn either way.
   await run('reading-position-survives', async () => {
-    for (const width of [901, 1000, 1024]) {
+    for (const width of [1024, 1100, 1279]) {
       const { page, context, checkProof } = await open('reading-position-survives', '/notes/Notes/reading-fidelity.md', { width });
       await checkProof();
       await page.evaluate(() => {
+        // The text is at its measure beside the column from 1024 up, so the
+        // reflow this lock is about needs a reader whose text size makes the
+        // measure wider than the room: the largest step.
+        document.documentElement.dataset.textsize = 'xl';
         const prose = document.querySelector('.y-prose');
         const kids = [...prose.children];
         for (let i = 0; i < 30; i += 1) for (const kid of kids) prose.append(kid.cloneNode(true));
@@ -858,8 +862,8 @@ try {
       // case, or the assertion below would pass for lack of anything to move. The
       // widths above it are asked whichever way they fall, because the measure's
       // edge sits within a few pixels of one of them and moves with the platform.
-      if (width === 901 && !(before.width < MEASURE && after.width > before.width)) {
-        broken(`at 901px the text was ${before.width}px and became ${after.width}px, so this case would not test a reflow`);
+      if (width === 1024 && !(after.width > before.width)) {
+        broken(`at 1024px the text was ${before.width}px and became ${after.width}px, so this case would not test a reflow`);
       }
       if (Math.abs(after.top - before.top) > 2) {
         fail('reading-position-survives', `at ${width}px the paragraph being read moved ${after.top - before.top}px when the column folded`);
@@ -983,10 +987,10 @@ try {
   // note shell narrows below the width where its facts stand open, and the
   // study-path and shared-sidebar shells keep the wide column at every width.
   await run('every-shell-keeps-its-open-width', async () => {
-    for (const width of [901, 1024, THREE_COLUMNS - 1, THREE_COLUMNS, 1281]) {
+    for (const width of [1024, THREE_COLUMNS - 1, THREE_COLUMNS, 1281]) {
       for (const [shape, path] of SHAPES) {
         const { page, context, checkProof } = await open('every-shell-keeps-its-open-width', path, { width });
-        if (shape === 'study path' && width === 901) await checkProof();
+        if (shape === 'study path' && width === 1024) await checkProof();
         const facts = await page.evaluate(() => {
           const shell = document.querySelector('.y-shell, .y-shell2');
           return { note: shell.classList.contains('y-shell'), rail: document.querySelector('#_y-nav-rail').getBoundingClientRect().width };
@@ -1135,7 +1139,7 @@ try {
     await context.close();
   });
 
-  console.log('PASS rail-collapse: the left column folds to a strip above 900px by button, key and filter key, keeps the reader\'s place and the choice, animates only on change, and leaves the drawer whole');
+  console.log('PASS rail-collapse: the left column folds to a strip from 1024px by button, key and filter key, keeps the reader\'s place and the choice, animates only on change, and leaves the drawer whole');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
