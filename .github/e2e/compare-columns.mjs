@@ -165,7 +165,7 @@ const MUTATIONS = {
   // reached on its own rather than after the 1100px one has already fired.
   'wide-column-gutter-on-tablets': {
     target: 'column-reading-gutter',
-    apply: weakenStylesheet('@media (max-width:900px){.y-compare__column .y-article{--gutter-read:28px}}'),
+    apply: weakenStylesheet('@media (max-width:1023px){.y-compare__column .y-article{--gutter-read:28px}}'),
   },
   'let-the-heading-take-a-grid-cell': {
     target: 'columns-side-by-side',
@@ -317,7 +317,7 @@ try {
       const style = getComputedStyle(article);
       return [style.paddingLeft, style.paddingRight];
     }));
-    const expected = width > 1100 ? '28px' : width <= 520 ? '20px' : width <= 900 ? '24px' : '48px';
+    const expected = width > 1100 ? '28px' : width <= 720 ? '20px' : width <= 1023 ? '32px' : '48px';
     if (gutters.length !== 2 || gutters.some(sides => sides.some(side => side !== expected))) {
       fail('column-reading-gutter', `caught: at ${width}px column gutters = ${JSON.stringify(gutters)}, want ${expected} on both sides`);
     }
