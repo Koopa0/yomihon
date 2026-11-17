@@ -740,3 +740,48 @@ func TestABlockAddressIsNeverShown(t *testing.T) {
 		t.Errorf("PlainText = %q, want the code span's caret kept and the address gone", text)
 	}
 }
+
+// TestAHeadingCarryingABlockAddressIsOneNameEverywhere holds that such a
+// heading is named by its words alone wherever a reader or an author reaches
+// it: the id the page stamps, a wikilink, a Markdown link, and an embed of the
+// section all answer to "Heading", and none to the words with the address.
+func TestAHeadingCarryingABlockAddressIsOneNameEverywhere(t *testing.T) {
+	t.Parallel()
+
+	const target = "# T\n\nintro\n\n## Heading ^anchor\n\nSECTION BODY\n\n## Next\n\nafter\n\n## Parent\n\n### Child ^kid\n\nCHILD BODY\n"
+	notes := []graph.NoteInput{{RelPath: "T.md"}}
+	r := newRenderer(t, notes, nil, transclusions{"T.md": target})
+
+	page := r.HTML("T.md", "", target, wording.En)
+	if !strings.Contains(page.HTML, `id="heading"`) || !strings.Contains(page.HTML, `id="^anchor"`) {
+		t.Errorf("the page stamps the heading by its words and keeps the block id; HTML = %s", page.HTML)
+	}
+	for _, id := range page.TOC {
+		if strings.Contains(id.Text, "^") {
+			t.Errorf("the outline names the heading with its address: %q", id.Text)
+		}
+	}
+
+	for name, link := range map[string]struct{ body, lands string }{
+		"wikilink":      {"[[T#Heading]]", `T.md#heading"`},
+		"markdown link": {"[x](T.md#Heading)", `T.md#heading"`},
+		"a path":        {"[[T#Parent#Child]]", `T.md#child"`},
+	} {
+		got := r.HTML("S.md", "", link.body, wording.En)
+		if !strings.Contains(got.HTML, link.lands) {
+			t.Errorf("%s does not land on %s; HTML = %s", name, link.lands, got.HTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("%s drew diagnostics %v", name, got.Diagnostics)
+		}
+	}
+
+	embed := r.HTML("S.md", "", "![[T#Heading]]", wording.En)
+	if !strings.Contains(embed.HTML, "SECTION BODY") || strings.Contains(embed.HTML, "after") || len(embed.Diagnostics) != 0 {
+		t.Errorf("the embed does not cut the section; HTML = %s; diagnostics = %v", embed.HTML, embed.Diagnostics)
+	}
+	child := r.HTML("S.md", "", "![[T#Parent#Child]]", wording.En)
+	if !strings.Contains(child.HTML, "CHILD BODY") || len(child.Diagnostics) != 0 {
+		t.Errorf("the embed by a path does not cut the section; HTML = %s; diagnostics = %v", child.HTML, child.Diagnostics)
+	}
+}
