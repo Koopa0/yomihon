@@ -76,7 +76,7 @@ func TestUnknownCalloutOpeningAddress(t *testing.T) {
 	if diff := cmp.Diff([]string{"^zzz"}, emittedBlockIDs(t, page.HTML)); diff != "" {
 		t.Errorf("caught: unknown opening address no longer reaches its block; emitted ids (-want +got):\n%s", diff)
 	}
-	if strings.Count(page.HTML, `<span id="^zzz">^zzz</span>`) != 1 {
+	if strings.Count(page.HTML, `<span id="^zzz"></span>`) != 1 {
 		t.Errorf("caught: unknown opening address no longer reaches its block; HTML = %q", page.HTML)
 	}
 	if diff := cmp.Diff(render.SourceLocation{Label: "^zzz", Fragment: "^zzz"}, location); diff != "" {
@@ -117,7 +117,7 @@ func TestUnknownCalloutOpeningAddress(t *testing.T) {
 				t.Errorf("caught: unknown opening address no longer reaches its block; emitted ids (-want +got):\n%s", diff)
 			}
 			if tt.name == "canonical folded opening" {
-				for _, kept := range []string{`<details class="callout callout-note" data-callout="zzz">`, `Title <span id="^cafe-1">^CAFE-1</span>`} {
+				for _, kept := range []string{`<details class="callout callout-note" data-callout="zzz">`, `Title <span id="^cafe-1"></span>`} {
 					if !strings.Contains(result.HTML, kept) {
 						t.Errorf("canonical opening lost folded shell/address %q: %s", kept, result.HTML)
 					}
@@ -126,10 +126,10 @@ func TestUnknownCalloutOpeningAddress(t *testing.T) {
 			if tt.literal != "" {
 				assertUnsupportedCalloutOpening(t, &result, tt.body, tt.literal, tt.block)
 			}
-			if tt.name == "opening claims before body" && !strings.Contains(result.HTML, `First <span id="^same">^same</span>`) {
+			if tt.name == "opening claims before body" && !strings.Contains(result.HTML, `First <span id="^same"></span>`) {
 				t.Errorf("caught: unknown opening address no longer reaches its block; first owner HTML = %q", result.HTML)
 			}
-			if tt.name == "earlier paragraph keeps first claim" && !strings.Contains(result.HTML, `<p>First <span id="^same">^same</span></p>`) {
+			if tt.name == "earlier paragraph keeps first claim" && !strings.Contains(result.HTML, `<p>First <span id="^same"></span></p>`) {
 				t.Errorf("caught: unknown opening address no longer reaches its block; first owner HTML = %q", result.HTML)
 			}
 		})

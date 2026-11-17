@@ -280,7 +280,7 @@ func TestReadAloudTextDropsATrailingBlockAddress(t *testing.T) {
 			want: spokenPlain,
 			keep: []string{
 				spoken,
-				`<span id="^rain-1-1">^rain-1-1</span>`,
+				`<span id="^rain-1-1"></span>`,
 			},
 			drop: []string{`data-tts="` + spokenPlain + " ^rain-1-1"},
 		},
@@ -288,7 +288,7 @@ func TestReadAloudTextDropsATrailingBlockAddress(t *testing.T) {
 			name: "the same paragraph, the address on a later line",
 			body: "<!-- read-aloud: ja -->\n" + spoken + "\nあしたは晴れです。 ^rain-1-1\n",
 			want: spokenPlain + "\nあしたは晴れです。",
-			keep: []string{spoken, `<span id="^rain-1-1">^rain-1-1</span>`},
+			keep: []string{spoken, `<span id="^rain-1-1"></span>`},
 			drop: []string{`data-tts="` + spokenPlain + "\nあしたは晴れです。 ^rain-1-1"},
 		},
 		{
@@ -296,7 +296,7 @@ func TestReadAloudTextDropsATrailingBlockAddress(t *testing.T) {
 			body: "先にこの行が名前を取る。 ^same\n\n<!-- read-aloud: ja -->\n" + spoken + " ^same\n",
 			want: spokenPlain,
 			keep: []string{
-				`<span id="^same">^same</span>`,
+				`<span id="^same"></span>`,
 				spoken + " ",
 				"^same",
 			},
@@ -306,7 +306,7 @@ func TestReadAloudTextDropsATrailingBlockAddress(t *testing.T) {
 			name: "a callout body line",
 			body: "> [!note]\n> <!-- read-aloud: ja -->\n> " + spoken + " ^rain-1-1\n",
 			want: spokenPlain,
-			keep: []string{spoken, `<span id="^rain-1-1">^rain-1-1</span>`},
+			keep: []string{spoken, `<span id="^rain-1-1"></span>`},
 			drop: []string{`data-tts="` + spokenPlain + " ^rain-1-1"},
 		},
 		{
@@ -317,8 +317,9 @@ func TestReadAloudTextDropsATrailingBlockAddress(t *testing.T) {
 				"B.md": "<!-- read-aloud: ja -->\n" + spoken + " ^rain-1-1\n",
 			},
 			want: spokenPlain,
-			keep: []string{spoken, "^rain-1-1"},
+			keep: []string{spoken},
 			drop: []string{
+				"^rain-1-1",
 				`id="^rain-1-1"`,
 				`data-tts="` + spokenPlain + " ^rain-1-1",
 			},
@@ -368,7 +369,7 @@ func TestReadAloudTextDropsATrailingBlockAddress(t *testing.T) {
 			name:   "a paragraph that is only an address",
 			body:   "<!-- read-aloud: ja -->\n^only\n",
 			silent: true,
-			keep:   []string{`<span id="^only">^only</span>`},
+			keep:   []string{`<span id="^only"></span>`},
 			drop:   []string{"data-tts"},
 		},
 	}

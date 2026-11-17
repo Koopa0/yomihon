@@ -439,12 +439,16 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 	inFence := false
 	var fenceByte byte
 	var fenceLen int
+	// An address is authoring syntax, so the searchable text leaves it out;
+	// one a code span holds is the author showing it, and stays.
+	owned := CodeSpanOwnedAddresses(lines)
 	// Which lines are indented code is a parse's answer, asked only once a
 	// line looks like a callout opener, since no other rewrite here depends
 	// on it.
 	var code map[int]bool
 	parsed := false
 	for i, line := range lines {
+		original := line
 		switch {
 		case inFence:
 			if fenceCloses(line, fenceByte, fenceLen) {
@@ -460,8 +464,11 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 				code, parsed = codeBlockLines(plainParser, body), true
 			}
 			rewritten.literalRoles[i] = opener && !code[i]
+			if !owned[i] {
+				line = graph.WithoutBlockAddress(line)
+			}
 			lines[i] = plainLine(line, code[i], &wikiLines[i])
-			rewritten.changed[i] = lines[i] != line
+			rewritten.changed[i] = lines[i] != original
 		}
 	}
 	off := 0

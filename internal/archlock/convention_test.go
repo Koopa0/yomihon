@@ -708,8 +708,8 @@ func TestOneOwnerFoldsAFragment(t *testing.T) {
 // The scan is found by the bytes that make it a scan rather than by its type
 // name, since the two copies already disagreed about what to call it. Each
 // row names its owner: the heading, fence, quote-prefix, HTML-block, and
-// Obsidian comment-pairing patterns live in internal/graph/; the callout
-// opening, the closed type list, and the line no address can survive on live
+// Obsidian comment-pairing patterns and the block address grammar live in
+// internal/graph/; the callout opening, the closed type list, and the line no address can survive on live
 // in internal/render/,
 // because only that package holds the vocabulary the page answers to.
 func TestOneOwnerScansALine(t *testing.T) {
@@ -727,7 +727,7 @@ func TestOneOwnerScansALine(t *testing.T) {
 		{"an unpaired Obsidian comment running to the end of the body", "Span{Start: start, Stop: len(body)}", "internal/graph/"},
 		{"the pairing of a closed Obsidian comment mark", "stop = off + end + len(closer)", "internal/graph/"},
 		{"the function that refuses a line no block address can survive on", "func UnanchorableLine(line string) bool", "internal/render/"},
-		{"the grammar that extracts a supported block address", "func BlockAddress(line string) string", "internal/render/"},
+		{"the grammar that extracts a supported block address", "func BlockAddress(line string) string", "internal/graph/"},
 		{"the function that refuses a caret a code span owns as an address", "func CodeSpanOwnedAddresses(lines []string) []bool", "internal/render/"},
 		{"the first group of callout types the page answers to", `"info", "note", "tip", "important", "hint", "abstract", "tldr", "summary", "todo"`, "internal/render/"},
 	} {

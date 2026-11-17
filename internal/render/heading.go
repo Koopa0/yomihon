@@ -51,7 +51,7 @@ func headingInnerText(inner string) string {
 // here too, so a name copied off the contents list cannot be refused for using
 // a second fold.
 func HeadingWords(raw string) string {
-	source := withoutInlineFootnotes(raw)
+	source := withoutInlineFootnotes(graph.WithoutBlockAddresses(raw))
 	var displayed, parseable strings.Builder
 	last := 0
 	for _, token := range graph.WikilinkTokens(source) {

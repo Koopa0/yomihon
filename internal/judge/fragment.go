@@ -174,7 +174,7 @@ func collectBlockAddresses(body string, address []string) []string {
 		}
 		// The shared extractor skips lines without carets before asking its
 		// grammar, so structural questions run only for supported tokens.
-		marker := render.BlockAddress(line)
+		marker := graph.BlockAddress(line)
 		if marker == "" {
 			continue
 		}

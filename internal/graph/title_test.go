@@ -160,6 +160,7 @@ func TestTitleKeepsWhatACodeSpanHoldsLiterally(t *testing.T) {
 		{"an entity in a code span is text", "# Use `&amp;` literally\n", "Use &amp; literally"},
 		{"a backslash in a code span stays", "# Path `a\\*b` here\n", "Path a\\*b here"},
 		{"an entity outside code resolves", "# Fish &amp; chips\n", "Fish & chips"},
+		{"a block address is not part of the title", "# Title ^t-1\n", "Title"},
 		{"an escape outside code resolves", "# Cost \\*each\\*\n", "Cost *each*"},
 	}
 	for _, tt := range tests {

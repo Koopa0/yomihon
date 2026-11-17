@@ -40,12 +40,12 @@ func TestSupportedBlockAddressesOnPageAndExcerpt(t *testing.T) {
 		cut      string
 		found    bool
 	}{
-		{name: "paragraph", line: "Para ^abc-1", fragment: "^abc-1", span: `<span id="^abc-1">^abc-1</span>`, cut: "Para ^abc-1", found: true},
-		{name: "marker only", line: "^abc-1", fragment: "^abc-1", span: `<span id="^abc-1">^abc-1</span>`, cut: "^abc-1", found: true},
-		{name: "tab boundary", line: "Para\t^abc-1", fragment: "^abc-1", span: `<span id="^abc-1">^abc-1</span>`, cut: "Para\t^abc-1", found: true},
-		{name: "trailing spaces and tabs", line: "Para ^abc-1 \t", fragment: "^abc-1", span: `<span id="^abc-1">^abc-1</span>`, cut: "Para ^abc-1 \t", found: true},
-		{name: "ASCII case", line: "Para ^AbC-1", fragment: "^abc-1", span: `<span id="^abc-1">^AbC-1</span>`, cut: "Para ^AbC-1", found: true},
-		{name: "hyphen is significant", line: "Para ^abc-1", fragment: "^abc1", span: `<span id="^abc-1">^abc-1</span>`},
+		{name: "paragraph", line: "Para ^abc-1", fragment: "^abc-1", span: `<span id="^abc-1"></span>`, cut: "Para ^abc-1", found: true},
+		{name: "marker only", line: "^abc-1", fragment: "^abc-1", span: `<span id="^abc-1"></span>`, cut: "^abc-1", found: true},
+		{name: "tab boundary", line: "Para\t^abc-1", fragment: "^abc-1", span: `<span id="^abc-1"></span>`, cut: "Para\t^abc-1", found: true},
+		{name: "trailing spaces and tabs", line: "Para ^abc-1 \t", fragment: "^abc-1", span: `<span id="^abc-1"></span>`, cut: "Para ^abc-1 \t", found: true},
+		{name: "ASCII case", line: "Para ^AbC-1", fragment: "^abc-1", span: `<span id="^abc-1"></span>`, cut: "Para ^AbC-1", found: true},
+		{name: "hyphen is significant", line: "Para ^abc-1", fragment: "^abc1", span: `<span id="^abc-1"></span>`},
 		{name: "underscore", line: "Para ^a_b", fragment: "^a_b", literal: `<p>Para ^a_b</p>`},
 		{name: "dot", line: "Para ^a.b", fragment: "^a.b", literal: `<p>Para ^a.b</p>`},
 		{name: "Unicode", line: "Para ^\u304c", fragment: "^\u304c", literal: "<p>Para ^\u304c</p>"},
@@ -144,10 +144,10 @@ func TestBlockAddressIsAnchoredOnItsBlock(t *testing.T) {
 		name string
 		want string
 	}{
-		{name: "a paragraph", want: `<p>SECOND the addressed paragraph. <span id="^quux">^quux</span></p>`},
-		{name: "a list item", want: `<li>item one <span id="^itm">^itm</span></li>`},
-		{name: "a quoted line", want: `<span id="^qq">^qq</span>`},
-		{name: "a marker written under its block", want: `<span id="^under">^under</span>`},
+		{name: "a paragraph", want: `<p>SECOND the addressed paragraph. <span id="^quux"></span></p>`},
+		{name: "a list item", want: `<li>item one <span id="^itm"></span></li>`},
+		{name: "a quoted line", want: `<span id="^qq"></span>`},
+		{name: "a marker written under its block", want: `<span id="^under"></span>`},
 	}
 	for _, tt := range anchors {
 		if !strings.Contains(page.HTML, tt.want) {
@@ -258,13 +258,13 @@ func TestRepeatedBlockAddressBelongsToTheFirstBlock(t *testing.T) {
 	r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": body})
 	page := r.HTML("B.md", "", body, wording.ZhHant)
 
-	if !strings.Contains(page.HTML, `<p>FIRST paragraph. <span id="^dup">^dup</span></p>`) {
+	if !strings.Contains(page.HTML, `<p>FIRST paragraph. <span id="^dup"></span></p>`) {
 		t.Errorf("the first block did not take the address:\n%s", page.HTML)
 	}
 	if strings.Count(page.HTML, `id="^dup"`) != 1 {
 		t.Errorf("the address is stamped %d times, want once:\n%s", strings.Count(page.HTML, `id="^dup"`), page.HTML)
 	}
-	if !strings.Contains(page.HTML, `<p>SECOND paragraph. <span>^dup</span></p>`) {
+	if !strings.Contains(page.HTML, `<p>SECOND paragraph. <span></span></p>`) {
 		t.Errorf("the second block lost its text:\n%s", page.HTML)
 	}
 }
@@ -459,7 +459,7 @@ func TestInteriorCaretInACodeSpanKeepsTheSpan(t *testing.T) {
 			// swallow an address two paragraphs away from either of them.
 			name:      "an address at the end of its paragraph",
 			body:      "An aside about the ` character.\n\nreal paragraph ^genuine\n\nAnd another ` one.\n",
-			want:      `<span id="^genuine">^genuine</span>`,
+			want:      `<span id="^genuine"></span>`,
 			addressed: true,
 		},
 	}
@@ -584,7 +584,7 @@ func TestCodeSpanWindowStopsAtABlockBoundary(t *testing.T) {
 
 			r := newRenderer(t, []graph.NoteInput{{RelPath: "B.md"}}, nil, transclusions{"B.md": tt.body})
 			page := r.HTML("B.md", "", tt.body, wording.ZhHant)
-			if got := strings.Contains(page.HTML, `<span id="^genuine">^genuine</span>`); got != addressed {
+			if got := strings.Contains(page.HTML, `<span id="^genuine"></span>`); got != addressed {
 				t.Errorf("the page anchors the address = %v, want %v:\n%s", got, addressed, page.HTML)
 			}
 			if tt.owned && !strings.Contains(page.HTML, "<code>left ^genuine right</code>") {
@@ -698,5 +698,90 @@ func TestBlockAddressCostGrowsLinearlyWithTheLinesOfARun(t *testing.T) {
 					lines, smallAllocs, 4*lines, largeAllocs, growth)
 			}
 		})
+	}
+}
+
+// TestABlockAddressIsNeverShown holds that the address an author writes to
+// name a block is syntax, not words: it leaves the page, the preview and the
+// searchable text, while the id it made still answers a link, and a caret the
+// author shows in a code span stays.
+func TestABlockAddressIsNeverShown(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct{ name, body, shown, id string }{
+		{"paragraph", "A claim. ^claim-1\n", "A claim.", "^claim-1"},
+		{"list item", "- item ^item-1\n- other\n", "item", "^item-1"},
+		{"quote", "> quoted ^quote-1\n", "quoted", "^quote-1"},
+		{"heading", "## Heading ^h-1\n\ntext\n", "Heading", "^h-1"},
+		{"known callout title", "> [!note] Title ^callout-1\n> body\n", "Title", ""},
+		{"unknown callout title", "> [!zzz] Title ^callout-1\n> body\n", "Title", "^callout-1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			page := newRenderer(t, nil, nil, nil).HTML("B.md", "", tt.body, wording.En)
+			if strings.Contains(strings.ReplaceAll(page.HTML, `id="^`, `id="`), "^") {
+				t.Errorf("a caret is shown on the page:\n%s", page.HTML)
+			}
+			if tt.id != "" && !strings.Contains(page.HTML, `id="`+tt.id+`"`) {
+				t.Errorf("the page lost the id %q a link reaches:\n%s", tt.id, page.HTML)
+			}
+			if text := render.PlainText(tt.body); strings.Contains(text, "^") || !strings.Contains(text, tt.shown) {
+				t.Errorf("PlainText(%q) = %q, want %q and no caret", tt.body, text, tt.shown)
+			}
+		})
+	}
+
+	page := newRenderer(t, nil, nil, nil).HTML("B.md", "", "Shown `^kept-1` here ^id-1\n", wording.En)
+	if !strings.Contains(page.HTML, "<code>^kept-1</code>") {
+		t.Errorf("a caret in a code span was removed:\n%s", page.HTML)
+	}
+	if text := render.PlainText("Shown `^kept-1` here ^id-1\n"); !strings.Contains(text, "^kept-1") || strings.Contains(text, "^id-1") {
+		t.Errorf("PlainText = %q, want the code span's caret kept and the address gone", text)
+	}
+}
+
+// TestAHeadingCarryingABlockAddressIsOneNameEverywhere holds that such a
+// heading is named by its words alone wherever a reader or an author reaches
+// it: the id the page stamps, a wikilink, a Markdown link, and an embed of the
+// section all answer to "Heading", and none to the words with the address.
+func TestAHeadingCarryingABlockAddressIsOneNameEverywhere(t *testing.T) {
+	t.Parallel()
+
+	const target = "# T\n\nintro\n\n## Heading ^anchor\n\nSECTION BODY\n\n## Next\n\nafter\n\n## Parent\n\n### Child ^kid\n\nCHILD BODY\n"
+	notes := []graph.NoteInput{{RelPath: "T.md"}}
+	r := newRenderer(t, notes, nil, transclusions{"T.md": target})
+
+	page := r.HTML("T.md", "", target, wording.En)
+	if !strings.Contains(page.HTML, `id="heading"`) || !strings.Contains(page.HTML, `id="^anchor"`) {
+		t.Errorf("the page stamps the heading by its words and keeps the block id; HTML = %s", page.HTML)
+	}
+	for _, id := range page.TOC {
+		if strings.Contains(id.Text, "^") {
+			t.Errorf("the outline names the heading with its address: %q", id.Text)
+		}
+	}
+
+	for name, link := range map[string]struct{ body, lands string }{
+		"wikilink":      {"[[T#Heading]]", `T.md#heading"`},
+		"markdown link": {"[x](T.md#Heading)", `T.md#heading"`},
+		"a path":        {"[[T#Parent#Child]]", `T.md#child"`},
+	} {
+		got := r.HTML("S.md", "", link.body, wording.En)
+		if !strings.Contains(got.HTML, link.lands) {
+			t.Errorf("%s does not land on %s; HTML = %s", name, link.lands, got.HTML)
+		}
+		if len(got.Diagnostics) != 0 {
+			t.Errorf("%s drew diagnostics %v", name, got.Diagnostics)
+		}
+	}
+
+	embed := r.HTML("S.md", "", "![[T#Heading]]", wording.En)
+	if !strings.Contains(embed.HTML, "SECTION BODY") || strings.Contains(embed.HTML, "after") || len(embed.Diagnostics) != 0 {
+		t.Errorf("the embed does not cut the section; HTML = %s; diagnostics = %v", embed.HTML, embed.Diagnostics)
+	}
+	child := r.HTML("S.md", "", "![[T#Parent#Child]]", wording.En)
+	if !strings.Contains(child.HTML, "CHILD BODY") || len(child.Diagnostics) != 0 {
+		t.Errorf("the embed by a path does not cut the section; HTML = %s; diagnostics = %v", child.HTML, child.Diagnostics)
 	}
 }
