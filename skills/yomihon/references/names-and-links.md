@@ -105,6 +105,7 @@ a `#` behaves the way you would want and not the other way round.
 | `[[Note\|shown words]]` | — |
 | `[[Note#Heading]]` | the note still links **and the address is kept**: the rendered link is `…/Note.md#heading`, pointing at an anchor that is not there. `link.section_missing`, with `resolved_to` naming the note |
 | `[[Note#^block-id]]` | the fragment is **withdrawn**: the rendered link is `…/Note.md` with nothing after it, and leads to the whole note. `link.block_missing` |
+| `[shown](Note.md#Heading)`, `[shown](#Heading)` | read by the same lookup as `[[Note#Heading]]`, so the heading's words, GitHub's spelling and `#^block-id` all land; one that misses keeps its address, and `link.section_missing` or `link.block_missing` |
 
 That asymmetry is deliberate and is worth remembering, because the two failures
 look identical in the source and behave differently in the browser.

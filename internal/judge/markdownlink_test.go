@@ -14,7 +14,7 @@ import (
 func TestMarkdownPathReferenceKeepsItsWrittenIdentity(t *testing.T) {
 	t.Parallel()
 	got := extractPathRefs("Heading\n\n[missing](Nothing%20here.md?at=1#part)\n", 5)
-	want := []pathRef{{target: "Nothing%20here.md", line: 7, code: false}}
+	want := []pathRef{{target: "Nothing%20here.md", fragment: "part", line: 7, code: false}}
 	if diff := cmp.Diff(want, got, cmp.AllowUnexported(pathRef{})); diff != "" {
 		t.Errorf("encoded Markdown reference (-want +got):\n%s", diff)
 	}

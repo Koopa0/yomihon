@@ -48,8 +48,12 @@ type wikiLink struct {
 // target keeps the authored spelling for the diagnostic's identity.
 type pathRef struct {
 	target string
-	line   int
-	code   bool
+	// fragment is the half after "#" as written, kept for a Markdown link; it is
+	// empty for a code token. A link written as only "#fragment" has an empty
+	// target and names a place in its own note.
+	fragment string
+	line     int
+	code     bool
 }
 
 // imageRef is one Markdown image occurrence. destination is the address as the
@@ -191,9 +195,9 @@ func extractReferencesFrom(body string, bodyStartLine int, comments []byteRange)
 			ledger.use(node.Reference, node.Pos(), node, comments)
 		case *ast.Link:
 			ledger.use(node.Reference, node.Pos(), node, comments)
-			if target, ok := fileLink(string(node.Destination)); ok {
+			if target, fragment, ok := fileLink(string(node.Destination)); ok {
 				if off, ok := inlineOffset(node); ok && !graph.In(comments, off) {
-					refs = append(refs, pathRef{target: target, line: bodyStartLine + strings.Count(body[:off], "\n"), code: false})
+					refs = append(refs, pathRef{target: target, fragment: fragment, line: bodyStartLine + strings.Count(body[:off], "\n"), code: false})
 				}
 			}
 		case *ast.CodeSpan:
@@ -649,14 +653,20 @@ func codeSpanText(n *ast.CodeSpan, src []byte) string {
 }
 
 // fileLink admits a Markdown note path after decoding it once, retaining its
-// original spelling for later findings. A raw #fragment or ?query is omitted
-// before decoding so encoded delimiters remain filename characters.
-func fileLink(dest string) (string, bool) {
+// original spelling for later findings, and the fragment written after it. A
+// raw #fragment or ?query is omitted before decoding so encoded delimiters
+// remain filename characters. A destination that is only a fragment names a
+// place in the note it is written in, and is admitted with an empty target.
+func fileLink(dest string) (target, fragment string, ok bool) {
+	if own, found := strings.CutPrefix(dest, "#"); found {
+		return "", own, own != ""
+	}
 	result := graph.ParseMarkdownPath("source.md", dest)
 	if !result.Checkable {
-		return "", false
+		return "", "", false
 	}
-	return strings.TrimSuffix(dest, result.Suffix), true
+	_, fragment, _ = strings.Cut(result.Suffix, "#")
+	return strings.TrimSuffix(dest, result.Suffix), fragment, true
 }
 
 // backtickPath reports a backticked token that is a relative vault .md path.

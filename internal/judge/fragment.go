@@ -372,3 +372,90 @@ func blockMissing(n *note, link *wikiLink, resolved string) Finding {
 		Fingerprint:     fingerprint(rule, n.path, link.address),
 	}
 }
+
+// markdownFragmentFindings judges the fragment of every Markdown link whose
+// path names a note this run holds, and of every link written as only a
+// fragment, which names a place in its own note. The question goes to the
+// reading page's own lookup, so the page and this face cannot answer it
+// differently, and the finding is the one the page reports for the same link.
+// A target the contract withholds, a note that could not be read, a path that
+// names no note and a source that is itself withheld are not judged: the first
+// two are not this rule's to say, the next has its own finding, and the last
+// is not written about at all.
+func markdownFragmentFindings(notes []note, unreadable []unreadableEntry, idx *graph.Index, scan vault.Scan, authority scanAuthority) []Finding {
+	byPath := make(map[string]*note, len(notes))
+	for i := range notes {
+		byPath[notes[i].path] = &notes[i]
+	}
+	unread := make(map[string]bool, len(unreadable))
+	for _, entry := range unreadable {
+		unread[entry.path] = true
+	}
+	paths := fragmentPaths{idx: idx, notes: byPath, unread: unread}
+	var out []Finding
+	for i := range notes {
+		n := &notes[i]
+		if !authority.egressAllowed(n.path) {
+			continue
+		}
+		for _, ref := range n.pathRefs {
+			rel, ok := markdownFragmentTarget(n.path, &ref, scan, authority)
+			if !ok || byPath[rel] == nil || unread[rel] {
+				continue
+			}
+			if gap := paths.pipeline().FragmentGap(rel, ref.fragment); gap != nil {
+				out = append(out, markdownFragmentMissing(n, &ref, rel, gap))
+			}
+		}
+	}
+	return out
+}
+
+// markdownFragmentTarget is the note a Markdown link's fragment is read in: the
+// one its path resolves to, or the source itself for a link written as only a
+// fragment. ok is false for a reference with no fragment, one written in code,
+// and a path that reaches no single readable note.
+func markdownFragmentTarget(source string, ref *pathRef, scan vault.Scan, authority scanAuthority) (rel string, ok bool) {
+	if ref.code || ref.fragment == "" {
+		return "", false
+	}
+	if ref.target == "" {
+		return source, true
+	}
+	result := graph.ResolveMarkdown(source, ref.target, authority.readable, scan.Contains)
+	if !result.Checkable || result.Withheld || result.Outside || result.Kind != graph.KindUnique {
+		return "", false
+	}
+	return result.RelPath, true
+}
+
+// markdownFragmentMissing is a Markdown link whose note is real and whose
+// section or block is not, under the same rules a wikilink's fragment is
+// judged by. The target is the link as written, fragment included, which is
+// what tells two links to different places in one note apart.
+func markdownFragmentMissing(n *note, ref *pathRef, resolved string, gap *render.Diagnostic) Finding {
+	address := ref.target + "#" + ref.fragment
+	rule := RuleID("link.section_missing")
+	message := "link to " + address + " resolves, but no heading matches \"" + gap.Section + "\""
+	evidence := "the note exists and none of its headings answers the fragment"
+	action := "fix the fragment after #, or add the heading to the target note"
+	if gap.Kind == render.DiagLinkFragmentMissing {
+		rule = "link.block_missing"
+		message = "link to " + address + " resolves, but no line carries the address ^" + gap.Block
+		evidence = "the note exists and no line in it ends with the block address"
+		action = "fix the block name after #^, or write the address at the end of the intended line"
+	}
+	return Finding{
+		RuleID:          rule,
+		Severity:        SeverityWarn,
+		Path:            n.path,
+		Line:            new(ref.line),
+		Message:         message,
+		Evidence:        evidence,
+		SuggestedAction: action,
+		SourceRule:      sourceYomihon,
+		Target:          new(address),
+		ResolvedTo:      new(resolved),
+		Fingerprint:     fingerprint(rule, n.path, address),
+	}
+}
