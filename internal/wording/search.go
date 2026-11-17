@@ -2,8 +2,6 @@ package wording
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 	"strings"
 )
 
@@ -193,37 +191,45 @@ var (
 	FacetCountFmt  = both("%d 筆", "%d")
 )
 
-// facetHeadings names each key a reader narrows by. It is a table rather than
-// a switch because the consumer's test reads the set back to compare it with
-// the grammar's, and it is unexported so the names cannot be rewritten from
-// outside the package that owns them.
-var facetHeadings = map[string]Phrase{
-	"type":   both("類型", "Type"),
-	"domain": both("領域", "Domain"),
-}
-
 // The words a filter row shows for a note type that the rules give a role. Any
 // other type is the vault's own word and is shown as written.
 var (
-	FacetTypeUnit   = both("單元", "Unit")
-	FacetTypeCourse = both("課程", "Course")
-	FacetTypeIndex  = both("索引", "Index")
+	FacetTypeUnit    = both("單元", "Unit")
+	FacetTypeCourse  = both("課程", "Course")
+	FacetTypeIndex   = both("索引", "Index")
+	FacetTypeNote    = both("筆記", "Note")
+	FacetTypeDrill   = both("句型練習", "Sentence practice")
+	FacetTypeThought = both("想法", "Thought")
 )
 
-// FacetHeading names one of the keys a reader narrows by. A key with no name
-// here reads as empty rather than as its own spelling, so a column cannot
-// quietly print a grammar key at a reader; the consumer's test is what keeps
-// the two sets together.
-func FacetHeading(key string, lang Lang) string {
-	heading, ok := facetHeadings[key]
-	if !ok {
-		return ""
-	}
-	return heading.In(lang)
-}
+// The results page's own controls: what the order is by, what the list is
+// narrowed to, and how it goes on.
+var (
+	SearchSortRelevance = both("依相關", "By relevance")
+	SearchSortRecent    = both("依最近變更", "By last change")
+	SearchSortLabel     = both("排序", "Order")
+	SearchKindLabel     = both("種類", "Kind")
+	SearchLocationLabel = both("位置", "Location")
+	SearchAll           = both("全部", "All")
+	SearchTopLevel      = both("最上層", "Top level")
+	SearchShowMoreFmt   = both("再顯示 %d 篇", "Show %d more")
+	SearchShownOfFmt    = both("%s / %s", "%s of %s")
+	SearchNoneFmt       = both("沒有符合「%s」的筆記", "No note matches \"%s\"")
+	SearchDidYouMeanFmt = both("要找的是「%s」嗎？", "Did you mean \"%s\"?")
+	SearchBrowseFolders = both("瀏覽資料夾", "Browse folders")
+	SearchSeeAllFmt     = both("看全部 %s 篇", "See all %s")
+	SearchRecent        = both("最近搜尋", "Recent searches")
+	SearchClear         = both("清除", "Clear")
+	SearchClearField    = both("清除輸入", "Clear the field")
+	SearchCancel        = both("取消", "Cancel")
+)
 
-// FacetHeadingKeys names every key this package can write a heading for, so a
-// consumer can compare that set with the grammar's own.
-func FacetHeadingKeys() []string {
-	return slices.Sorted(maps.Keys(facetHeadings))
-}
+// SearchSearchFor is the row that offers the nearest word in place of a query
+// nothing matched, written as the search it runs.
+var SearchSearchFor = both("搜尋「%s」", "Search for \"%s\"")
+
+// The brackets a results page puts round the query it is titled by.
+var (
+	SearchQueryOpen  = both("「", "\"")
+	SearchQueryClose = both("」", "\"")
+)

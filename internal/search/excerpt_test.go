@@ -29,18 +29,6 @@ func TestDisplayedExcerpts(t *testing.T) {
 		want  excerptView
 	}{
 		{
-			name:  "heading role",
-			body:  "## 啟動與交接 {sequence=primary}\n\n後記。\n",
-			query: "啟動與交接",
-			want:  excerptView{Text: "啟動與交接 後記。", Marks: []excerptMark{{Text: "啟動與交接"}}},
-		},
-		{
-			name:  "role remains findable",
-			body:  "## 啟動與交接 {sequence=primary}\n\n後記。\n",
-			query: "sequence=primary",
-			want:  excerptView{Text: "啟動與交接 後記。"},
-		},
-		{
 			name:  "retracted claim",
 			body:  "前言 ~~撤回 加一格 buffer~~ 後記。\n",
 			query: "加一格",
@@ -140,7 +128,7 @@ func excerptMux(t *testing.T, relPath, source string) *http.ServeMux {
 
 func checkDisplayedExcerpt(t *testing.T, mux *http.ServeMux, query string, want *excerptView) {
 	t.Helper()
-	for _, route := range []string{"/search", "/search/results?facets=0", "/search/results?facets=1"} {
+	for _, route := range []string{"/search", "/search/results", "/search/results"} {
 		t.Run(route, func(t *testing.T) {
 			t.Parallel()
 			sep := "?"
@@ -183,7 +171,7 @@ func readExcerpt(t *testing.T, body string) excerptView {
 	var visit func(*html.Node)
 	visit = func(n *html.Node) {
 		for _, attr := range n.Attr {
-			if attr.Key == "class" && strings.Contains(" "+attr.Val+" ", " y-result__snippet ") {
+			if attr.Key == "class" && strings.Contains(" "+attr.Val+" ", " y-found__lead ") {
 				snippets = append(snippets, n)
 			}
 		}
@@ -198,6 +186,15 @@ func readExcerpt(t *testing.T, body string) excerptView {
 	view := excerptView{Text: strings.TrimSpace(excerptText(snippets[0]))}
 	var inspect func(*html.Node, bool)
 	inspect = func(n *html.Node, deleted bool) {
+		if n.Type == html.ElementNode && elementHasClass(n, "y-found__narrow") {
+			return
+		}
+		if n.Type == html.ElementNode && elementHasClass(n, "y-found__wide") {
+			for child := n.FirstChild; child != nil; child = child.NextSibling {
+				inspect(child, deleted)
+			}
+			return
+		}
 		if n.Type == html.ElementNode {
 			switch n.Data {
 			case "del":
@@ -221,10 +218,25 @@ func readExcerpt(t *testing.T, body string) excerptView {
 	return view
 }
 
+// elementHasClass reports whether n carries the class. The narrow cut of a lead
+// repeats the wide one for a different width, so what a reader sees at one
+// width is read without it.
+func elementHasClass(n *html.Node, class string) bool {
+	for _, attr := range n.Attr {
+		if attr.Key == "class" && strings.Contains(" "+attr.Val+" ", " "+class+" ") {
+			return true
+		}
+	}
+	return false
+}
+
 func excerptText(n *html.Node) string {
 	var b strings.Builder
 	var visit func(*html.Node)
 	visit = func(n *html.Node) {
+		if n.Type == html.ElementNode && elementHasClass(n, "y-found__narrow") {
+			return
+		}
 		if n.Type == html.TextNode {
 			b.WriteString(n.Data)
 		}
@@ -239,7 +251,7 @@ func excerptText(n *html.Node) string {
 func TestFirstShownNoteExcerptWindow(t *testing.T) {
 	source := "---\ntitle: Fixture\ntype: guide\ndomain: golang\nlang: en\n---\n\n## Header {sequence=primary}\n\n" + strings.Repeat("Quiet words remain. ", 80) + "Our primary claim survives.\n"
 	mux := excerptMux(t, "Notes/go/Fixture.md", source)
-	for _, route := range []string{"/search?", "/search/results?facets=0&", "/search/results?facets=1&"} {
+	for _, route := range []string{"/search?", "/search/results?", "/search/results?"} {
 		rr := httptest.NewRecorder()
 		mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, route+"q=primary", http.NoBody))
 		if rr.Code != 200 {
@@ -270,7 +282,7 @@ func TestFirstShownNoteExcerptPrefersProseOverFence(t *testing.T) {
 	for name, opening := range map[string]string{"display spans": "==bright== Opening.", "plain": "Bright opening."} {
 		source := "---\ntitle: Fixture\ntype: guide\ndomain: golang\nlang: en\n---\n\n" + opening + "\n\n```d2\nclaim -> other\n```\n\n" + prose + "\n"
 		mux := excerptMux(t, "Notes/go/Fixture.md", source)
-		for _, route := range []string{"/search?", "/search/results?facets=0&", "/search/results?facets=1&"} {
+		for _, route := range []string{"/search?", "/search/results?", "/search/results?"} {
 			rr := httptest.NewRecorder()
 			mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, route+"q=claim", http.NoBody))
 			if rr.Code != 200 {

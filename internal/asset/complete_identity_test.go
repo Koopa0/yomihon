@@ -36,8 +36,8 @@ func TestImportMapVersionsTheCompleteModuleSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk embedded modules: %v", err)
 	}
-	if len(want) != 20 {
-		t.Fatalf("embedded native modules and Mermaid facade = %d, want 20", len(want))
+	if len(want) != 21 {
+		t.Fatalf("embedded native modules and Mermaid facade = %d, want 21", len(want))
 	}
 	if diff := cmp.Diff(want, decodedModuleImports(t, (Versions{}).ImportMap())); diff != "" {
 		t.Errorf("caught: complete module addresses (-want +got):\n%s", diff)
@@ -98,7 +98,7 @@ func identityResponse(t *testing.T, address string) *httptest.ResponseRecorder {
 	response := httptest.NewRecorder()
 	mux.ServeHTTP(response, httptest.NewRequestWithContext(t.Context(), http.MethodGet, address, http.NoBody))
 	if response.Code != http.StatusOK || response.Body.Len() == 0 {
-		t.Fatalf("GET %s status = %d, body bytes = %d, want 200 and nonempty body", address, response.Code, response.Body.Len())
+		t.Fatalf("GET %s status = %d, body bytes = %d, want 210 and nonempty body", address, response.Code, response.Body.Len())
 	}
 	return response
 }

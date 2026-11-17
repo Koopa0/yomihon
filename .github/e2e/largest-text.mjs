@@ -54,7 +54,7 @@ const appendStyle = (css) => (page) => {
 
 const MUTATIONS = {
   // A result title set at a heading's size: the answer outshouts the question.
-  'enlarge-a-result-title': { target: QUERY_SITE, apply: appendStyle('.y-result__title{font-size:3rem}') },
+  'enlarge-a-result-title': { target: QUERY_SITE, apply: appendStyle('.y-found__title{font-size:3rem}') },
   // The query put back at the size of body text.
   'shrink-the-query': { target: QUERY_SITE, apply: appendStyle('.y-searchpage__form input{font-size:1rem}') },
   // The courses set at body size: a desk that opens on nothing in particular.
@@ -62,7 +62,7 @@ const MUTATIONS = {
   // A group's name set at a figure's size: the page's own name is outshouted.
   'enlarge-a-group-name': { target: HEALTH_SITE, apply: appendStyle('.y-healthgroup__title{font-size:3rem}') },
   // A hairline under every hit, which is the line the answer was drawn with.
-  'rule-between-results': { target: RULES_SITE, apply: appendStyle('.y-result{border-bottom:1px solid #000}') },
+  'rule-between-results': { target: RULES_SITE, apply: appendStyle('.y-found__item{border-bottom:1px solid #000}') },
 };
 
 for (const [name, mode] of Object.entries(MUTATIONS)) {
@@ -114,9 +114,9 @@ try {
     fail(QUERY_SITE, `${first.what} (${JSON.stringify(first.words)}) is set at ${first.size}px, larger than the 28px query the page is about`);
   }
 
-  const hits = await page.locator('.y-result').count();
+  const hits = await page.locator('.y-found__item').count();
   if (hits < 2) broken(`the search for alpha has ${hits} hits, too few for a line between them to be read`);
-  const lines = await page.locator('.y-result').evaluateAll((rows) => rows.map((row) => {
+  const lines = await page.locator('.y-found__item').evaluateAll((rows) => rows.map((row) => {
     const style = getComputedStyle(row);
     return { top: style.borderTopWidth, bottom: style.borderBottomWidth };
   }));

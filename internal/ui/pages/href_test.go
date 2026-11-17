@@ -150,12 +150,12 @@ func TestHitFragment(t *testing.T) {
 			// first. With the same word twice the two are the same string, and
 			// this case would hold whichever end it was written from.
 			name: "the first marked stretch is the destination",
-			hit:  SearchResult{LandingBare: "kafka", SnippetRuns: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " and "}, {Text: "streams", Hit: true}, {Text: " after"}}},
+			hit:  SearchResult{LandingBare: "kafka", Lead: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " and "}, {Text: "streams", Hit: true}, {Text: " after"}}},
 			want: "#:~:text=kafka",
 		},
 		{
 			name: "nothing marked, nowhere to point",
-			hit:  SearchResult{SnippetRuns: []SnippetRun{{Text: "before kafka after"}}},
+			hit:  SearchResult{Lead: []SnippetRun{{Text: "before kafka after"}}},
 			want: "",
 		},
 		{
@@ -164,43 +164,43 @@ func TestHitFragment(t *testing.T) {
 		},
 		{
 			name: "cjk and spaces are escaped",
-			hit:  SearchResult{LandingBare: "位元 運算", SnippetRuns: []SnippetRun{{Text: "位元 運算", Hit: true}}},
+			hit:  SearchResult{LandingBare: "位元 運算", Lead: []SnippetRun{{Text: "位元 運算", Hit: true}}},
 			want: "#:~:text=%E4%BD%8D%E5%85%83%20%E9%81%8B%E7%AE%97",
 		},
 		{
 			name: "a hyphen cannot introduce a prefix or a suffix",
-			hit:  SearchResult{LandingBare: "read-aloud", SnippetRuns: []SnippetRun{{Text: "read-aloud", Hit: true}}},
+			hit:  SearchResult{LandingBare: "read-aloud", Lead: []SnippetRun{{Text: "read-aloud", Hit: true}}},
 			want: "#:~:text=read%2Daloud",
 		},
 		{
 			name: "a comma cannot separate a parameter",
-			hit:  SearchResult{LandingBare: "one, two", SnippetRuns: []SnippetRun{{Text: "one, two", Hit: true}}},
+			hit:  SearchResult{LandingBare: "one, two", Lead: []SnippetRun{{Text: "one, two", Hit: true}}},
 			want: "#:~:text=one%2C%20two",
 		},
 		{
 			name: "an ampersand cannot start a second directive",
-			hit:  SearchResult{LandingBare: "this & that", SnippetRuns: []SnippetRun{{Text: "this & that", Hit: true}}},
+			hit:  SearchResult{LandingBare: "this & that", Lead: []SnippetRun{{Text: "this & that", Hit: true}}},
 			want: "#:~:text=this%20%26%20that",
 		},
 		{
 			name: "a percent sign cannot begin an escape of its own",
-			hit:  SearchResult{LandingBare: "100% done", SnippetRuns: []SnippetRun{{Text: "100% done", Hit: true}}},
+			hit:  SearchResult{LandingBare: "100% done", Lead: []SnippetRun{{Text: "100% done", Hit: true}}},
 			want: "#:~:text=100%25%20done",
 		},
 		{
 			name: "the edges of the term are trimmed, since a term that is not a word matches none",
-			hit:  SearchResult{LandingBare: "  kafka  ", SnippetRuns: []SnippetRun{{Text: "  kafka  ", Hit: true}}},
+			hit:  SearchResult{LandingBare: "  kafka  ", Lead: []SnippetRun{{Text: "  kafka  ", Hit: true}}},
 			want: "#:~:text=kafka",
 		},
 		{
 			name: "a mark holding only spaces is passed over",
-			hit:  SearchResult{LandingBare: "kafka", SnippetRuns: []SnippetRun{{Text: "   ", Hit: true}, {Text: "kafka", Hit: true}}},
+			hit:  SearchResult{LandingBare: "kafka", Lead: []SnippetRun{{Text: "   ", Hit: true}, {Text: "kafka", Hit: true}}},
 			want: "#:~:text=kafka",
 		},
 		{
 			name: "a phrase that spans two blocks names both ends",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "cobalt egret", Hit: true}},
+				Lead:          []SnippetRun{{Text: "cobalt egret", Hit: true}},
 				Landing:       "cobalt",
 				LandingBare:   "cobalt",
 				LandingEnd:    "egret",
@@ -211,7 +211,7 @@ func TestHitFragment(t *testing.T) {
 		{
 			name: "a crossing match with only a last-block stretch names that stretch",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "ghi", Hit: true}},
+				Lead:          []SnippetRun{{Text: "ghi", Hit: true}},
 				LandingEnd:    "ghi",
 				BlockCrossing: true,
 			},
@@ -220,7 +220,7 @@ func TestHitFragment(t *testing.T) {
 		{
 			name: "a crossing match with nothing locatable carries no directive",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "cobalt egret", Hit: true}},
+				Lead:          []SnippetRun{{Text: "cobalt egret", Hit: true}},
 				BlockCrossing: true,
 			},
 			want: "",
@@ -230,7 +230,7 @@ func TestHitFragment(t *testing.T) {
 			// answers for, so the words the match follows go out ahead of it.
 			name: "a crossing match names the words the match follows",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "cobalt egret", Hit: true}},
+				Lead:          []SnippetRun{{Text: "cobalt egret", Hit: true}},
 				Landing:       "cobalt",
 				LandingEnd:    "egret",
 				LandingPrefix: "calls this bird",
@@ -246,7 +246,7 @@ func TestHitFragment(t *testing.T) {
 			// nothing.
 			name: "a hyphen among those words cannot pass for the prefix mark",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "cobalt", Hit: true}},
+				Lead:          []SnippetRun{{Text: "cobalt", Hit: true}},
 				Landing:       "cobalt",
 				LandingEnd:    "egret",
 				LandingPrefix: "the read-aloud button",
@@ -260,7 +260,7 @@ func TestHitFragment(t *testing.T) {
 			// read as one only beside a term from its own block.
 			name: "words from the first block never travel with a last-block term",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "ghi", Hit: true}},
+				Lead:          []SnippetRun{{Text: "ghi", Hit: true}},
 				LandingEnd:    "ghi",
 				LandingPrefix: "abc def",
 				BlockCrossing: true,
@@ -270,7 +270,7 @@ func TestHitFragment(t *testing.T) {
 		{
 			name: "an ordinary hit names the words its match follows too",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "…The evidence records a "}, {Text: "bright crimson", Hit: true}, {Text: " heron."}},
+				Lead:          []SnippetRun{{Text: "…The evidence records a "}, {Text: "bright crimson", Hit: true}, {Text: " heron."}},
 				Landing:       "bright crimson",
 				LandingPrefix: "evidence records a",
 			},
@@ -280,7 +280,7 @@ func TestHitFragment(t *testing.T) {
 			// The index selects the mark and its context before the page encodes it.
 			name: "an earlier copy of the word is not what those words lead to",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "The decoy "}, {Text: "cobalt", Hit: true}, {Text: " sits here. The notebook calls this bird "}, {Text: "cobalt egret", Hit: true}},
+				Lead:          []SnippetRun{{Text: "The decoy "}, {Text: "cobalt", Hit: true}, {Text: " sits here. The notebook calls this bird "}, {Text: "cobalt egret", Hit: true}},
 				Landing:       "cobalt",
 				LandingPrefix: "The decoy",
 			},
@@ -289,7 +289,7 @@ func TestHitFragment(t *testing.T) {
 		{
 			name: "a match that opens its block carries the bare term",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "alpha", Hit: true}},
+				Lead:          []SnippetRun{{Text: "alpha", Hit: true}},
 				Landing:       "alpha",
 				LandingBare:   "alpha",
 				LandingEnd:    "gamma",
@@ -300,7 +300,7 @@ func TestHitFragment(t *testing.T) {
 		{
 			name: "words that collapse to nothing are not written as an empty prefix",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "cobalt", Hit: true}},
+				Lead:          []SnippetRun{{Text: "cobalt", Hit: true}},
 				Landing:       "cobalt",
 				LandingBare:   "cobalt",
 				LandingEnd:    "egret",
@@ -316,7 +316,7 @@ func TestHitFragment(t *testing.T) {
 			// word goes out in its place.
 			name: "a term standing alone is grown to the word the match opened inside",
 			hit: SearchResult{
-				SnippetRuns: []SnippetRun{{Text: "baltine", Hit: true}},
+				Lead:        []SnippetRun{{Text: "baltine", Hit: true}},
 				Landing:     "baltine",
 				LandingBare: "cobaltine",
 			},
@@ -329,7 +329,7 @@ func TestHitFragment(t *testing.T) {
 			// this block already served are unchanged.
 			name: "words ahead of the term leave the match itself named",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "nthanum", Hit: true}},
+				Lead:          []SnippetRun{{Text: "nthanum", Hit: true}},
 				Landing:       "nthanum",
 				LandingBare:   "lanthanum",
 				LandingPrefix: "closes with la",
@@ -343,7 +343,7 @@ func TestHitFragment(t *testing.T) {
 			// the match is not them.
 			name: "a stretch of a script without spaces between words is named as it stands",
 			hit: SearchResult{
-				SnippetRuns: []SnippetRun{{Text: "晴れ", Hit: true}},
+				Lead:        []SnippetRun{{Text: "晴れ", Hit: true}},
 				Landing:     "晴れ",
 				LandingBare: "晴れ",
 			},
@@ -359,7 +359,7 @@ func TestHitFragment(t *testing.T) {
 			// dropped.
 			name: "the far end of a range goes out as the row carries it",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "alpha beta gamm", Hit: true}},
+				Lead:          []SnippetRun{{Text: "alpha beta gamm", Hit: true}},
 				Landing:       "alpha",
 				LandingBare:   "alpha",
 				LandingEnd:    "gamma",
@@ -371,7 +371,7 @@ func TestHitFragment(t *testing.T) {
 		{
 			name: "and so does one travelling alone",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "gh", Hit: true}},
+				Lead:          []SnippetRun{{Text: "gh", Hit: true}},
 				LandingEnd:    "ghi",
 				BlockCrossing: true,
 			},
@@ -383,7 +383,7 @@ func TestHitFragment(t *testing.T) {
 			// opens a word.
 			name: "a first stretch with no standalone form leaves the far end to name it",
 			hit: SearchResult{
-				SnippetRuns:   []SnippetRun{{Text: "cobalt egret", Hit: true}},
+				Lead:          []SnippetRun{{Text: "cobalt egret", Hit: true}},
 				Landing:       "cobalt",
 				LandingEnd:    "egret",
 				BlockCrossing: true,

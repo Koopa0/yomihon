@@ -1193,6 +1193,7 @@ func TestSearchFindsAFileByItsText(t *testing.T) {
 		RelPath:     "Notes/todo.txt",
 		Title:       "todo.txt",
 		Snippet:     "renew the passport before flamingo season",
+		Lead:        Lead{Runs: []ExcerptRun{{Text: "renew the "}, {Text: "passport", Hit: true}, {Text: " before flamingo season"}}},
 		Landing:     "passport",
 		LandingBare: "passport",
 		File:        true,

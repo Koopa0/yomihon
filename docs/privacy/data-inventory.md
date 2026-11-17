@@ -201,6 +201,7 @@ rail and one carries the diagram heights.
 | `yomihon.nav.filter` | The text the reader typed into the rail's filter box, kept as typed so a narrowing survives opening a note | Until the tab closes |
 | `yomihon.railTop` | How far the left rail was scrolled when a page was left, and which rail it was scrolled in — a course's own vault path, or the kind of rail — so the next page of the same rail starts where it was | Until the tab closes |
 | `yomihon.diagramHeights` | How tall each diagram came out when it was drawn, under a short hash of its source, and the window width and reading choices it was measured in, so a page the reader comes back to holds each diagram at that height before it is drawn again | Until the tab closes |
+| `yomihon.recentSearches` | In `localStorage`: the words of the reader's last five searches, newest first, one each; the search panel's Clear removes them | Until the reader clears them |
 
 - **The cookies go to the loopback listener and nowhere else.** Each carries
   `Path=/` and `SameSite=Lax`, and is deliberately neither `Secure` nor
@@ -210,6 +211,13 @@ rail and one carries the diagram heights.
   can therefore read them. A cookie is scoped by host rather than by port, so
   anything else served from `127.0.0.1` to the same browser can read them too —
   the same local surface the threat model already accepts.
+- **The recent searches are sent nowhere.** `localStorage` is never attached
+  to a request, and nothing reads the list but the search panel and the search
+  page, which show it back to the reader. It holds at most five entries, a
+  repeated search moves to the front instead of standing twice, and it stays
+  until the reader clears it. The words are whatever the reader typed, so
+  they may name a person or a subject; a browser's own "clear site data"
+  removes them too.
 - **The session keys are sent nowhere at all.** `sessionStorage` is never
   attached to a request: the rail's state, its scroll position, the filter
   text and the diagram heights stay in the tab holding them and go when it

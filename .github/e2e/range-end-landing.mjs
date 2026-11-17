@@ -175,7 +175,7 @@ const land = async (browser, apply) => {
   const proof = apply ? await apply(page) : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
 
-  const link = page.locator('a.y-result[href*="Audit%20cross%20block"]').first();
+  const link = page.locator('a.y-found__item[href*="Audit%20cross%20block"]').first();
   if (await link.count() !== 1) {
     broken('the fixture search does not offer the note this probe was written around');
   }

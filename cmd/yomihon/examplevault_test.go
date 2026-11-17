@@ -308,14 +308,14 @@ func TestExampleVaultSearchReachesTheDraftsNote(t *testing.T) {
 			}
 
 			results := readingPageIn(t, site, "/search?q="+url.QueryEscape(reader.query), reader.lang)
-			list := elementInner(t, results, `<ol class="y-results"`)
+			list := elementInner(t, results, `<ol class="y-found"`)
 			var row string
 			rows := 0
-			for _, chunk := range strings.Split(list, `<a class="y-result"`)[1:] {
+			for _, chunk := range strings.Split(list, `<a class="y-found__item"`)[1:] {
 				body, _, _ := strings.Cut(chunk, "</a>")
-				if strings.Contains(body, `class="y-result__title" lang="`+string(reader.lang)+`">`+reader.drafts+"</") {
+				if title := foundTitle(body, string(reader.lang)); title == reader.drafts {
 					rows++
-					row = `<a class="y-result"` + body + "</a>"
+					row = `<a class="y-found__item"` + body + "</a>"
 				}
 			}
 			if rows != 1 {
@@ -366,4 +366,16 @@ func TestExampleAssertionsRejectTheOldExplanations(t *testing.T) {
 			}
 		})
 	}
+}
+
+// foundTitle is the words of a result's title, with the marks the query made in
+// it taken out, or empty when the row's title is not written in lang.
+func foundTitle(row, lang string) string {
+	open := `class="y-found__title" lang="` + lang + `">`
+	_, rest, found := strings.Cut(row, open)
+	if !found {
+		return ""
+	}
+	inner, _, _ := strings.Cut(rest, "</span>")
+	return strings.TrimSpace(regexp.MustCompile(`<[^>]*>`).ReplaceAllString(inner, ""))
 }

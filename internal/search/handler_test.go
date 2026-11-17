@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/ui/pages"
+
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/lexical"
@@ -45,7 +47,7 @@ func TestSearchHandler(t *testing.T) {
 		}
 		// y-rail-left is the shared sidebar: the results page renders inside
 		// the same shell as every other page, never a chromeless view.
-		for _, want := range []string{"Kafka Basics", wording.Draft.In(wording.ZhHant), "y-rail-left"} {
+		for _, want := range []string{"Basics", wording.Draft.In(wording.ZhHant), "y-rail-left"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("search page missing %q; body = %q", want, body)
 			}
@@ -57,7 +59,7 @@ func TestSearchHandler(t *testing.T) {
 		for _, want := range []string{
 			// The page asks for the divisions; the command palette, whose own
 			// assertion names this route without the marker, does not.
-			`data-live-search-endpoint="/search/results?facets=1"`,
+			`data-live-search-endpoint="/search/results"`,
 			`data-live-search-form`,
 			`data-live-search-input`,
 			`data-live-search-status`,
@@ -80,7 +82,7 @@ func TestSearchHandler(t *testing.T) {
 		if code != http.StatusOK {
 			t.Fatalf("status = %d, want 200", code)
 		}
-		if !strings.Contains(body, "找不到") {
+		if !strings.Contains(body, "data-search-none") {
 			t.Errorf(`search page missing the Traditional Chinese no-results message; body = %q`, body)
 		}
 		if strings.Contains(body, "data-search-diagnostic") {
@@ -123,7 +125,7 @@ func TestSearchHandlerMetadataDiagnostic(t *testing.T) {
 					t.Errorf("search diagnostic page missing %q; body = %q", want, body)
 				}
 			}
-			if strings.Contains(body, "找不到「") {
+			if strings.Contains(body, "data-search-none") {
 				t.Errorf("search capability diagnostic rendered ordinary no-results copy; body = %q", body)
 			}
 		})
@@ -182,7 +184,7 @@ func TestSearchResultsFragment(t *testing.T) {
 			t.Errorf("search results %s = %q, want %q", name, got, want)
 		}
 	}
-	for _, want := range []string{`data-live-search-results`, `data-result-count="1"`, "Kafka Basics"} {
+	for _, want := range []string{`data-live-search-results`, `data-result-count="1"`, "Basics"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("search results fragment missing %q; body = %q", want, body)
 		}
@@ -224,29 +226,32 @@ func TestSearchResponseIsBounded(t *testing.T) {
 		t.Fatalf("status = %d, want 200", rr.Code)
 	}
 	body := rr.Body.String()
-	if got := strings.Count(body, "<li>"); got != searchPageSize {
-		t.Errorf("rendered result rows = %d, want %d", got, searchPageSize)
-	}
-	if want := fmt.Sprintf("共 207 筆，顯示前 %d 筆", searchPageSize); !strings.Contains(body, want) {
-		t.Errorf("the palette's capped list does not say both numbers; body opens %q", body[:min(len(body), 400)])
-	}
-	if strings.Contains(body, "y-pager") {
-		t.Error("the palette carries a strip of page links, which lead out of the dialog they are drawn in")
-	}
-	// A face with no strip has no page to ask for, so a hand-built request for
-	// one is answered with the opening of the answer rather than with a stretch
-	// the reader could neither reach nor leave.
-	asked := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=needle&page=3", http.NoBody)
-	deep := httptest.NewRecorder()
-	h.results(deep, asked)
-	if got := strings.Count(deep.Body.String(), "<li>"); got != searchPageSize {
-		t.Errorf("the palette answers page=3 with %d rows, want the opening %d", got, searchPageSize)
-	}
-	if deep.Body.String() != body {
-		t.Error("the palette answers page=3 with something other than the opening of the answer")
+	if got := strings.Count(body, `class="y-found__item"`); got != pages.SearchStep {
+		t.Errorf("rendered result rows = %d, want the first %d", got, pages.SearchStep)
 	}
 	if !strings.Contains(body, `data-result-count="207"`) {
 		t.Errorf("the count marker does not carry the true tally; body opens %q", body[:min(len(body), 400)])
+	}
+	for _, want := range []string{"207 篇", "再顯示 20 篇", "20 / 207", `href="/search?q=needle&amp;shown=40"`} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the list does not say %q; body = %q", want, body)
+		}
+	}
+
+	// The count in the address is the list as the reader left it, so coming back
+	// to the page finds the same notes; past the end it is the whole answer.
+	for shown, want := range map[string]int{"40": 40, "200": 200, "999": 207, "nonsense": pages.SearchStep, "5": pages.SearchStep} {
+		more := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=needle&shown="+shown, http.NoBody)
+		again := httptest.NewRecorder()
+		h.results(again, more)
+		if got := strings.Count(again.Body.String(), `class="y-found__item"`); got != want {
+			t.Errorf("shown=%s lays out %d notes, want %d", shown, got, want)
+		}
+	}
+	end := httptest.NewRecorder()
+	h.results(end, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search/results?q=needle&shown=999", http.NoBody))
+	if strings.Contains(end.Body.String(), "y-more") {
+		t.Error("the whole answer still offers to show more")
 	}
 
 	req = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
@@ -255,15 +260,8 @@ func TestSearchResponseIsBounded(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("full page status = %d, want 200", rr.Code)
 	}
-	page := rr.Body.String()
-	if got := strings.Count(page, `class="y-result"`); got != searchPageSize {
-		t.Errorf("the full page renders %d result rows, want %d", got, searchPageSize)
-	}
-	if want := fmt.Sprintf("第 1–%d 筆，共 207 筆", searchPageSize); !strings.Contains(page, want) {
-		t.Errorf("the full page does not name the rows it is showing; want %q", want)
-	}
-	if !strings.Contains(page, `href="/search?page=2&amp;q=needle"`) {
-		t.Error("the full page offers no way to the rest of the answer")
+	if got := strings.Count(rr.Body.String(), `class="y-found__item"`); got != pages.SearchStep {
+		t.Errorf("the full page renders %d result rows, want %d", got, pages.SearchStep)
 	}
 }
 
@@ -316,7 +314,7 @@ func TestSearchResultsFragmentMetadataDiagnostic(t *testing.T) {
 			t.Errorf("results() diagnostic fragment missing %q; body = %q", want, body)
 		}
 	}
-	if strings.Contains(body, "找不到「") {
+	if strings.Contains(body, "data-search-none") {
 		t.Errorf("results() capability diagnostic rendered ordinary no-results copy; body = %q", body)
 	}
 }
@@ -473,16 +471,10 @@ func searchPageHTML(t *testing.T, pageHTML string) string {
 	return pageHTML[start : start+end]
 }
 
-// TestEmptyResultsNameTheCorpusAndFilesAreLabelled covers the two places the
-// widened corpus has to be visible to a reader. A query that finds nothing has
-// to say what was searched, because the alternative is what a trial reader
-// actually did: conclude a file they had just read was gone and type it again.
-// A hit that is a file has to say so, because a file has no lifecycle and never
-// will, and a bare row beside notes reads as a note whose status went missing.
-//
-// The hint is asserted absent when there are hits, or it becomes permanent
-// furniture that says nothing at the moment it would mean something.
-func TestEmptyResultsNameTheCorpusAndFilesAreLabelled(t *testing.T) {
+// TestFilesAreLabelledAmongNotes holds that a hit that is a file says so, and
+// follows the notes that answer: a file has no lifecycle and never will, and a
+// bare row beside notes reads as a note whose status went missing.
+func TestFilesAreLabelledAmongNotes(t *testing.T) {
 	t.Parallel()
 	idx := lexical.NewIndex([]lexical.Document{
 		{RelPath: "Concepts/One.md", Title: "One", PlainText: "needle"},
@@ -492,27 +484,15 @@ func TestEmptyResultsNameTheCorpusAndFilesAreLabelled(t *testing.T) {
 		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler))
 
-	const corpusHint = "圖片、PDF 這類檔案只列出，不讀內容"
-
-	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=haystack", http.NoBody)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
 	rr := httptest.NewRecorder()
 	h.search(rr, req)
-	if !strings.Contains(rr.Body.String(), corpusHint) {
-		t.Errorf("a query that found nothing does not say what was searched; body = %q", rr.Body.String())
-	}
-
-	req = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
-	rr = httptest.NewRecorder()
-	h.search(rr, req)
 	body := rr.Body.String()
-	if strings.Contains(body, corpusHint) {
-		t.Error("the corpus hint appears beside results, where it says nothing")
-	}
 	if got := strings.Count(body, `<span class="y-result__kind">檔案</span>`); got != 1 {
 		t.Errorf("file rows labelled = %d, want exactly the one file hit; body = %q", got, body)
 	}
-	note := strings.Index(body, "Concepts/One.md")
-	file := strings.Index(body, "Notes/todo.txt")
+	note := strings.Index(body, "/notes/Concepts/One.md")
+	file := strings.Index(body, "/notes/Notes/todo.txt")
 	if note < 0 || file < 0 || note > file {
 		t.Errorf("the note hit is not answered before the file hit; note at %d, file at %d", note, file)
 	}
@@ -596,7 +576,7 @@ func TestSearchListingLanguageThroughIndex(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	_, body := getBody(t, srv.Client(), srv.URL+"/search?q=L01")
-	want := `<span class="y-result__title" lang="ja">`
+	want := `<span class="y-found__title" lang="ja">`
 	if !strings.Contains(body, want) {
 		t.Fatalf("search listing missing %q; body = %q", want, body)
 	}

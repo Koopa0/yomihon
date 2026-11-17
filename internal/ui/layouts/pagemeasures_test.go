@@ -157,7 +157,6 @@ func TestNoPageMeasureIsWrittenAsAPixelLiteral(t *testing.T) {
 		".y-headermark__said": "the sentence the header's bookmark answers with, kept off a phone's edges",
 		".y-home__head > p":   "the desk's opening line",
 		".y-kbdhelp":          "the keyboard-help popover",
-		".y-searchdialog":     "the palette box",
 	}
 
 	for _, rule := range componentRules(t) {

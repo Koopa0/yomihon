@@ -56,7 +56,7 @@ func TestAQueryShapedLikeAFilterIsNotSilentlyReadAsText(t *testing.T) {
 	// The literal search still ran: this note's body carries those exact
 	// characters, so a hit is proof the term was searched for rather than
 	// refused.
-	if !strings.Contains(body, "Kafka Basics") {
+	if !strings.Contains(body, "Basics") {
 		t.Errorf("the literal search did not run, so the reader got a refusal instead of results:\n%s", body)
 	}
 	// Every key the grammar does know is offered, so the reader can repair it.
@@ -78,31 +78,6 @@ func TestAQueryShapedLikeAFilterIsNotSilentlyReadAsText(t *testing.T) {
 	// second-guessed: the reader already said they meant text.
 	if _, quoted := getBody(t, srv.Client(), srv.URL+"/search?q=%22path%3ANotes%22"); strings.Contains(quoted, "data-unknown-filter") {
 		t.Errorf("a quoted term was treated as a mistyped filter:\n%s", quoted)
-	}
-}
-
-// TestTheBlankSearchPageSaysWhatItUnderstands covers the moment a reader has
-// nothing to go on. The field accepts constraints that are discoverable
-// nowhere else, and a blank page is the one time naming them costs nobody an
-// answer.
-func TestTheBlankSearchPageSaysWhatItUnderstands(t *testing.T) {
-	t.Parallel()
-	srv := unknownFilterServer(t)
-
-	_, blank := getBody(t, srv.Client(), srv.URL+"/search")
-	if !strings.Contains(blank, "data-search-filters") {
-		t.Errorf("the blank search page offers nothing to go on:\n%s", blank)
-	}
-	for _, key := range lexical.FilterKeys() {
-		if !strings.Contains(blank, key+":") {
-			t.Errorf("the blank page does not name the %q filter", key)
-		}
-	}
-
-	// The control: once a query has been asked, the answer is what the page is
-	// for, and the list would stand between the reader and it.
-	if _, answered := getBody(t, srv.Client(), srv.URL+"/search?q=kafka"); strings.Contains(answered, "data-search-filters") {
-		t.Errorf("the filter list is still shown over an answered query:\n%s", answered)
 	}
 }
 

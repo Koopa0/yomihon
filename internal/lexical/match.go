@@ -16,6 +16,11 @@ type Result struct {
 	Title   string
 	Draft   bool
 	Snippet string
+	// NoteType is the type the note declares, as written, for a page that
+	// names a result's kind. Empty for a file and for a note that declares none.
+	NoteType string
+	// Lead is the passage a result page shows under the title; see Lead.
+	Lead Lead
 	// SnippetRuns carries display effects and original query evidence when
 	// the corpus includes syntax the destination consumes.
 	SnippetRuns []ExcerptRun
@@ -551,12 +556,20 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 	var bodyRuns []ExcerptRun
 	var terms landingTerms
 	var fromFence bool
+	var lead Lead
 	if bodyEvidence {
 		bodySnippet, bodyRuns, terms, fromFence = e.bodyExcerpt(tokens)
+		lead = e.lead(tokens)
+	}
+	noteType := ""
+	if metadataAvailable && e.metadataCapable {
+		noteType = e.NoteType
 	}
 	return Result{
 		RelPath:       e.RelPath,
 		Title:         e.Title,
+		NoteType:      noteType,
+		Lead:          lead,
 		Draft:         draft,
 		Snippet:       bodySnippet,
 		SnippetRuns:   bodyRuns,
