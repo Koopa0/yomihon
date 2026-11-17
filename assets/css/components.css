@@ -69,7 +69,7 @@ samp {
   position: fixed;
   /* Keep the focused link below the header so it cannot cover the
      navigation trigger or another persistent header control. */
-  top: 64px;
+  top: calc(var(--hdr-h) + var(--sp-2));
   translate: 0 calc(-100% - var(--header-clearance));
   z-index: 101;
 }
@@ -426,9 +426,7 @@ samp {
    ============================================================ */
 .y-header {
   align-items: center;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  background: var(--panel);
   border-bottom: 1px solid var(--line);
   display: flex;
   flex: none;
@@ -495,6 +493,7 @@ samp {
   background: var(--line-strong);
   flex: none;
   height: 16px;
+  margin-inline-start: var(--sp-4);
   width: 1px;
 }
 
@@ -508,7 +507,7 @@ samp {
   font-size: var(--fs-14);
   height: var(--control-h);
   line-height: var(--control-h);
-  min-width: 0;
+  min-width: 4em;
   overflow: hidden;
   padding: 0 var(--sp-2);
   text-decoration: none;
@@ -541,6 +540,13 @@ samp {
     font-weight: var(--fw-semibold);
     padding-inline-start: 0;
   }
+
+  /* The furigana switch keeps its word and the logo keeps the way to the desk;
+     the folder's name has no room beside them. It is drawn again on the day the
+     switch moves to the page head's toolbar and this rule is deleted. */
+  .y-header:has(.y-rubybtn) .y-brand__vault {
+    display: none;
+  }
 }
 
 /* The mark's page shape is nearly the dark header's own ink, so in the dark
@@ -565,15 +571,37 @@ samp {
   border-radius: var(--r-sm);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--fg-subtle);
+  container-type: inline-size;
   cursor: pointer;
   display: flex;
-  flex: 0 8 var(--field-w);
+  /* The field gives up its width before anything else in the row does: a
+     shrink weight no other item comes near, so nothing yields while it still
+     can. What it shows follows the width it has been left (the queries below),
+     and never a word cut through. */
+  flex: 0 1000 var(--field-w);
   font-family: var(--font-sans);
   font-size: var(--fs-14);
   gap: var(--sp-2);
   height: var(--control-h);
   min-width: var(--control-h);
+  overflow: hidden;
   padding: 0 var(--sp-3);
+}
+
+@container (max-width: 150px) {
+  .y-searchbtn .ui-kbd {
+    display: none;
+  }
+}
+
+@container (max-width: 88px) {
+  .y-searchbtn__label {
+    display: none;
+  }
+
+  .y-searchbtn svg {
+    margin-inline: auto;
+  }
 }
 
 .y-searchbtn:hover {
@@ -592,6 +620,7 @@ samp {
    not displace the wordmark. Its accessible name and native command remain. */
 .y-header:has(.y-searchfallback) .y-searchbtn {
   flex: none;
+  width: var(--control-h);
 }
 
 .y-header:has(.y-searchfallback) .y-searchbtn__label,
@@ -604,6 +633,7 @@ samp {
   min-width: 0;
   overflow: hidden;
   text-align: left;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -704,25 +734,25 @@ html:not([data-js]) .y-rubybtn {
   background: var(--bg);
   right: calc(var(--switch-inset) + 3px);
 }
-/* The row's spare width runs out a little below this point, and further down it
-   is already shortening the wordmark to fit what is there; the longer label
-   would then be paid for out of the name of the thing the reader is looking at.
-   The switch happens here rather than at the last width that fits, so the
-   longer label is never the reason the wordmark gives. The short label is the
-   tail of the long one rather than a different word, which is what lets the
-   spoken name stay the same across the switch. */
-@media (max-width: 720px) {
-  .y-rubybtn {
-    gap: var(--sp-1);
-    padding-left: var(--sp-1);
-  }
-
+/* The switch is the first thing in the row to give: where the sidebar button
+   joins the row (1023 and below) it takes its short word, before the search
+   field has had to narrow. The short label is the tail of the long one rather
+   than a different word, which is what lets the spoken name stay the same
+   across the switch. */
+@media (max-width: 1023px) {
   .y-rubybtn__label--long {
     display: none;
   }
 
   .y-rubybtn__label--short {
     display: inline;
+  }
+}
+
+@media (max-width: 720px) {
+  .y-rubybtn {
+    gap: var(--sp-1);
+    padding-left: var(--sp-1);
   }
 
   /* Down to its glyph the search entrance is one icon among the row's icons,

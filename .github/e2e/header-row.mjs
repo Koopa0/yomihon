@@ -31,7 +31,7 @@ const READINGS_PAGE = '/notes/Writing/lessons/japanese/L01.md';
 // breakpoint brought back in either direction shows up here.
 const RAIL = 1280;
 const DRAWER = 1023;
-const WIDTHS = [1440, RAIL + 1, RAIL, RAIL - 1, DRAWER + 1, DRAWER, 721, 720, 390, 375];
+const WIDTHS = [1440, RAIL + 1, RAIL, RAIL - 1, DRAWER + 1, DRAWER, 721, 720, 390, 375, 360];
 const PLACE_WIDTHS = [DRAWER, DRAWER + 1, RAIL - 1, RAIL, RAIL + 1, 1440];
 
 // Each control the cluster may hold, named by the hook that survives a
@@ -398,6 +398,26 @@ try {
         }
         if (row.wordmarkLost > 0) {
           fail('wordmark-whole', `${where}: the wordmark is ${row.wordmarkLost}px short of its own text, so the name of the book is paying for the row`);
+        }
+
+        // The folder's name is drawn at least four letters wide or not at all,
+        // and on a phone it is not drawn beside the furigana switch, which
+        // keeps its word.
+        const vault = await page.evaluate(() => {
+          const link = document.querySelector('.y-brand__vault');
+          if (!link) return null;
+          const style = getComputedStyle(link);
+          const box = link.getBoundingClientRect();
+          return { drawn: style.display !== 'none' && box.width > 0, width: box.width, em: parseFloat(style.fontSize) };
+        });
+        if (vault) {
+          const wantDrawn = !(hasSwitch && width <= 720);
+          if (vault.drawn !== wantDrawn) {
+            fail('row-fits', `${where}: the folder's name is ${vault.drawn ? 'drawn' : 'not drawn'}, want it ${wantDrawn ? 'drawn' : 'left out beside the furigana switch'}`);
+          }
+          if (vault.drawn && vault.width < 4 * vault.em - 0.5) {
+            fail('row-fits', `${where}: the folder's name is ${vault.width}px wide, less than the four letters it is drawn at least as wide as`);
+          }
         }
       }
     }
