@@ -316,6 +316,9 @@ func TestAFragmentPointedAtANoteNobodyReadIsNotJudged(t *testing.T) {
 		{name: "a block in it", body: "A link into [[Sealed#^absent]].\n"},
 		{name: "a section it excerpts", body: "An excerpt of [[Sealed#Absent]].\n"},
 		{name: "a section reached through a note it excerpts", body: "A link into [[Relay#Absent]].\n"},
+		{name: "a section in it, by a Markdown link", body: "A link into [Sealed](Sealed.md#Absent).\n"},
+		{name: "a block in it, by a Markdown link", body: "A link into [Sealed](Sealed.md#^absent).\n"},
+		{name: "a section reached through a note it excerpts, by a Markdown link", body: "A link into [Relay](Relay.md#Absent).\n"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

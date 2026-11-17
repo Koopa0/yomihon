@@ -400,7 +400,7 @@ func markdownFragmentFindings(notes []note, unreadable []unreadableEntry, idx *g
 		}
 		for _, ref := range n.pathRefs {
 			rel, ok := markdownFragmentTarget(n.path, &ref, scan, authority)
-			if !ok || byPath[rel] == nil || unread[rel] {
+			if !ok || byPath[rel] == nil || unread[rel] || embedsUnseenGround(rel, idx, byPath, unread, authority) {
 				continue
 			}
 			if gap := paths.pipeline().FragmentGap(rel, ref.fragment); gap != nil {
@@ -427,6 +427,33 @@ func markdownFragmentTarget(source string, ref *pathRef, scan vault.Scan, author
 		return "", false
 	}
 	return result.RelPath, true
+}
+
+// embedsUnseenGround reports whether a note, or any note it embeds at any
+// depth, is one this run could not read or may not write about. The page draws
+// an embedded note into the note that embeds it, so a heading or block address
+// the note's own body lacks may be one of theirs, and calling it missing would
+// say something about words that were never read or are withheld. The walk
+// keeps a note it has been to, so a ring of embeds ends.
+func embedsUnseenGround(rel string, idx *graph.Index, byPath map[string]*note, unread map[string]bool, authority scanAuthority) bool {
+	seen := map[string]bool{rel: true}
+	for queue := []string{rel}; len(queue) > 0; queue = queue[1:] {
+		for _, link := range byPath[queue[0]].wikilinks {
+			if !link.embed {
+				continue
+			}
+			res := idx.Resolve(link.target)
+			if res.Kind != graph.KindUnique || !vault.IsMarkdown(res.RelPath) || seen[res.RelPath] {
+				continue
+			}
+			if unread[res.RelPath] || byPath[res.RelPath] == nil || !authority.readable(res.RelPath) {
+				return true
+			}
+			seen[res.RelPath] = true
+			queue = append(queue, res.RelPath)
+		}
+	}
+	return false
 }
 
 // markdownFragmentMissing is a Markdown link whose note is real and whose
