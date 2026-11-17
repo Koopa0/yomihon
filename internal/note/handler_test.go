@@ -1169,7 +1169,7 @@ func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 	assertCauseStatedOnce(t, page, "toml: line 42")
 	// The ways in whose projections closed list nothing rather than asserting
 	// an emptiness they cannot vouch for.
-	for _, mode := range []string{"courses", "maps"} {
+	for _, mode := range []string{"courses", "indexes"} {
 		block := homeSection(t, page, `data-home-block="`+mode+`"`)
 		if strings.Contains(block, "data-desk-item") {
 			t.Errorf("the %s block lists items under an unreadable contract; block = %q", mode, block)
@@ -1515,7 +1515,7 @@ func TestEveryBlockIsBuiltFromTheSnapshot(t *testing.T) {
 	if strings.Contains(paths, "已完成") {
 		t.Errorf("the study-path block reports completion again; section = %q", paths)
 	}
-	for _, marker := range []string{"Test path", "2 課", "/courses/Maps/path.md"} {
+	for _, marker := range []string{"Test path", "2 單元", "/courses/Maps/path.md"} {
 		if !strings.Contains(paths, marker) {
 			t.Errorf("Study paths block is missing %q", marker)
 		}
@@ -1816,7 +1816,7 @@ func TestHomeWithoutAnIntroductionStaysReadOnly(t *testing.T) {
 	// on a page they cannot leave except by searching.
 	for _, present := range []string{
 		`data-home-block="courses"`,
-		`data-home-block="maps"`,
+		`data-home-block="indexes"`,
 		`data-home-block="reports"`,
 		`data-home-block="folders"`,
 	} {
@@ -1938,7 +1938,7 @@ func TestTheDeskDrawsItsWaysInForAFolderHoldingNothing(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("GET / status = %d, want 200", code)
 	}
-	for _, mode := range []string{"courses", "maps", "reports", "folders"} {
+	for _, mode := range []string{"courses", "indexes", "reports", "folders"} {
 		if !strings.Contains(body, `data-home-block="`+mode+`"`) {
 			t.Errorf("the desk lost its %s block over a folder holding nothing", mode)
 		}
@@ -2111,7 +2111,7 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 		{
 			name:  "bookmark provider",
 			clear: func(d *note.Sources) { d.Bookmark = nil },
-			want:  "note: New requires a non-nil Continuation provider",
+			want:  "note: New requires a non-nil Bookmark provider",
 		},
 		{
 			name:  "log",
@@ -2974,7 +2974,7 @@ func TestHomeStudyPathCardSeparatesTheTwoZeroes(t *testing.T) {
 	}
 
 	broken := card("Broken course")
-	if !strings.Contains(broken, "0 課") {
+	if !strings.Contains(broken, "0 單元") {
 		t.Errorf("the unreadable course does not show its zero; card = %q", broken)
 	}
 	if !strings.Contains(broken, "未讀到課程結構") {
@@ -2982,7 +2982,7 @@ func TestHomeStudyPathCardSeparatesTheTwoZeroes(t *testing.T) {
 	}
 
 	prose := card("Prose only")
-	if !strings.Contains(prose, "0 課") {
+	if !strings.Contains(prose, "0 單元") {
 		t.Errorf("the courseless note does not show its zero; card = %q", prose)
 	}
 	if strings.Contains(prose, "未讀到課程結構") {
@@ -2990,7 +2990,7 @@ func TestHomeStudyPathCardSeparatesTheTwoZeroes(t *testing.T) {
 	}
 
 	working := card("Working course")
-	if !strings.Contains(working, "1 課") {
+	if !strings.Contains(working, "1 單元") {
 		t.Errorf("the working course lost its count; card = %q", working)
 	}
 	if strings.Contains(working, "未讀到課程結構") {

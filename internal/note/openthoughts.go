@@ -16,14 +16,14 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-const openThoughtsAddress = "/open-thoughts"
+const openThoughtsAddress = "/marks"
 
 func (h *Handler) openThoughts(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	snap := h.sources.Snapshot().Capture()
 	order := pages.ParseOpenOrder(r.URL.Query().Get("order"))
 	shelf, fault := h.openThoughtShelf(snap, lang, 0, order)
-	view := pages.ListIndexView{Mode: "open-thoughts", Notice: fault, Shelf: shelf, Order: openOrderChoices(order, lang)}
+	view := pages.ListIndexView{Mode: "marks", Notice: fault, Shelf: shelf, Order: openOrderChoices(order, lang)}
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write open thoughts", "error", err)
 	}
@@ -228,7 +228,7 @@ func openMarkRow(kept *snapshot.OpenMark, places *placeResolver, lang wording.La
 		if places.hasPlace(kept.RelPath, kept.Anchor) {
 			row.Place = places.label(kept.RelPath, kept.Anchor, lang)
 			row.Href = pages.ResumeHref(kept.RelPath, kept.Anchor, 0)
-			row.Mark = wording.QuestionControl.In(lang)
+			row.Mark = wording.QuestionKind.In(lang)
 			row.Opening = places.opening(kept.RelPath, kept.Anchor)
 			return row
 		}

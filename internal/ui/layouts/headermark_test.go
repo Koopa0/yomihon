@@ -11,7 +11,7 @@ import (
 // offer is the one reading page these tests speak for: a note whose bytes are
 // identified, so a place kept in it points at something.
 func offer() *MarkOffer {
-	return &MarkOffer{Path: "Notes/alpha.md", Identity: "abc123", Endpoint: "/marks"}
+	return &MarkOffer{Path: "Notes/alpha.md", Identity: "abc123", Endpoint: "/bookmark"}
 }
 
 // TestTheHeaderMarkIsOneBookmarkThatSaysWhetherItIsSet holds the row's face of
@@ -61,7 +61,7 @@ func TestTheHeaderMarkCarriesTheOfferItWasHanded(t *testing.T) {
 		`data-mark-control`,
 		`data-mark-path="Notes/alpha.md"`,
 		`data-mark-identity="abc123"`,
-		`data-mark-endpoint="/marks"`,
+		`data-mark-endpoint="/bookmark"`,
 		`data-mark-button`,
 		`data-mark-said`,
 	} {

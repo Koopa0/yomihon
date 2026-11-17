@@ -374,8 +374,8 @@ try {
   // The mark control must know which article's qualified heading IDs to
   // remove when it records a place. This is the one article attribute that
   // intentionally differs after the existing ID and href normalization.
-  const columnPrefix = ` data-uncertainty-prefix="${COLUMN_B_PREFIX}"`;
-  const alonePrefix = ' data-uncertainty-prefix=""';
+  const columnPrefix = ` data-question-prefix="${COLUMN_B_PREFIX}"`;
+  const alonePrefix = ' data-question-prefix=""';
   if (!renamed.includes(columnPrefix) || !aloneHTML.includes(alonePrefix)) {
     fail('column-is-the-note', 'the per-column mark prefix does not match the IDs of that reading');
   }

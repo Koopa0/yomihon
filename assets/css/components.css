@@ -1239,7 +1239,7 @@ html:not([data-js]) .y-rubybtn {
 /* ============================================================
    The reading shell
    ============================================================ */
-/* These pages are one shape: a note, a file, a study path, the reading
+/* These pages are one shape: a note, a file, a course, the reading
    choices, and the ones a reader only reaches by accident — an address that
    names nothing, a request refused. A reader moving between them
    is reading the same kind of prose, so they are given the same line, the same
@@ -2495,7 +2495,7 @@ button.y-freshness__action {
    The margin beside a section
    ============================================================ */
 /* A heading stands in a row with what the reader can do about its section and
-   what they already left there: "Not sure yet", a thought of their own, the
+   what they already left there: a question, a thought of their own, the
    first sentence of each thought written about it and the day, and the mark of
    the place they left off. The wide layout puts that column in the room the
    reading block reserves beside the text; where the room is not there it stands
@@ -2584,7 +2584,7 @@ button.y-freshness__action {
 /* The margin's words come from the attribute beside each one, which is the same
    text the element's accessible name carries: see sectionMargin. */
 .y-margin .y-margin__act::after,
-.y-margin .y-margin__place::after,
+.y-margin .y-margin__bookmark::after,
 .y-margin .y-margin__tag::before,
 .y-margin .y-margin__opening::before {
   content: attr(data-text);
@@ -2659,7 +2659,7 @@ button.y-freshness__action {
   text-underline-offset: 0.2em;
 }
 
-.y-margin .y-margin__place {
+.y-margin .y-margin__bookmark {
   align-items: center;
   color: var(--accent);
   display: flex;
@@ -2669,11 +2669,11 @@ button.y-freshness__action {
   margin: 0;
 }
 
-.y-margin .y-margin__place[hidden] {
+.y-margin .y-margin__bookmark[hidden] {
   display: none;
 }
 
-.y-margin .y-margin__place::before {
+.y-margin .y-margin__bookmark::before {
   background: currentcolor;
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
   content: '';
@@ -4290,7 +4290,7 @@ a.y-facetrow:hover {
 
 /* The reader's return shelf precedes the four navigation modes as one row;
    those four keep their existing two-by-two organisation beneath it. */
-.y-homegrid > [data-home-block='open-thoughts'] {
+.y-homegrid > [data-home-block='marks'] {
   grid-column: 1 / -1;
 }
 
@@ -5118,7 +5118,7 @@ a.y-facetrow:hover {
 }
 
 .y-fileinfo__note,
-.y-uncertainty__said {
+.y-question__said {
   color: var(--fg-faint);
   font-family: var(--font-serif);
   font-size: var(--fs-13);
@@ -6527,11 +6527,11 @@ samp,
   /* A bookmark is a fill, and a fill is what forced colours takes away; so is
      the diamond beside a section the reader is unsure of. The reader's chosen
      highlight keeps each a shape to be seen. */
-  .y-keptmark,
+  .y-bookmark__ribbon,
   [data-mark-kept] [data-mark-button]::before,
-  [data-uncertainty-control] .y-xbtn[aria-pressed='true']::before,
+  [data-question-control] .y-xbtn[aria-pressed='true']::before,
   .y-margin .y-margin__act[aria-pressed='true']::before,
-  .y-margin .y-margin__place::before {
+  .y-margin .y-margin__bookmark::before {
     background: Highlight;
     forced-color-adjust: none;
   }
@@ -8191,7 +8191,7 @@ samp,
    the control that keeps it where the note already holds it — and nowhere else,
    so the colour means one thing. A shape cut from a filled box, because paper
    prints a fill and a border-drawn ribbon would not close. */
-.y-keptmark,
+.y-bookmark__ribbon,
 [data-mark-kept] [data-mark-button]::before {
   background: var(--accent);
   clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 72%, 0 100%);
@@ -8213,7 +8213,7 @@ samp,
   content: none;
 }
 
-.y-keptplace {
+.y-bookmark {
   align-items: center;
   display: inline-flex;
   flex: none;
@@ -8294,20 +8294,20 @@ samp,
    ink at the regular weight, and the full ink under a pointer or the keyboard.
    Pressed, it is the reader's own mark — vermilion, heavier, and a diamond,
    because the bookmark is kept for the place they left off. */
-[data-uncertainty-control] .y-xbtn {
+[data-question-control] .y-xbtn {
   font-weight: var(--fw-regular);
 }
 
-[data-uncertainty-control] .y-xbtn:focus-visible {
+[data-question-control] .y-xbtn:focus-visible {
   color: var(--fg);
 }
 
-[data-uncertainty-control] .y-xbtn[aria-pressed='true'] {
+[data-question-control] .y-xbtn[aria-pressed='true'] {
   color: var(--accent);
   font-weight: var(--fw-semibold);
 }
 
-[data-uncertainty-control] .y-xbtn[aria-pressed='true']::before {
+[data-question-control] .y-xbtn[aria-pressed='true']::before {
   background: currentcolor;
   clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
   content: '';
@@ -8318,11 +8318,11 @@ samp,
 }
 
 /* Lost marks keep their original location readable and a native removal action. */
-.y-uncertainty-removal {
+.y-question-removal {
   overflow-wrap: anywhere;
 }
 
-.y-uncertainty-removal button:focus-visible {
+.y-question-removal button:focus-visible {
   outline: 2px solid var(--link);
   outline-offset: 2px;
 }

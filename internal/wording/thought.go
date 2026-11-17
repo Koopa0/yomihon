@@ -1,7 +1,7 @@
 package wording
 
 // ThoughtDoor names the link that starts a note of the reader's own, based on this note.
-var ThoughtDoor = both("留下自己的想法", "Leave a thought")
+var ThoughtDoor = both("寫想法", "Write a note")
 
 // ThoughtMarkdown labels the copyable text.
 var ThoughtMarkdown = both("Markdown", "Markdown")
@@ -23,14 +23,14 @@ var ThoughtObsidian = both("在 Obsidian 建立筆記", "Create in Obsidian")
 
 // ThoughtSectionFmt names, in the contents list, the link that starts a note of
 // the reader's own based on one section; the argument is that heading's text.
-var ThoughtSectionFmt = both("留下自己的想法：%s", "Leave a thought: %s")
+var ThoughtSectionFmt = both("寫想法：%s", "Write a note: %s")
 
 // ThoughtNoteNameFmt is the file name a reader's thought starts with; the
 // arguments are the source note's title and the minute the thought was begun.
 var ThoughtNoteNameFmt = both("%s的想法 %s", "Thought on %s %s")
 
 // DeclaredBy labels reverse source declarations, distinct from body backlinks.
-var DeclaredBy = both("以這篇為來源的筆記", "Notes based on this")
+var DeclaredBy = both("出自這篇的筆記", "Notes that cite this one as their source")
 
 // WholeSource labels a declaration that names no narrower location.
 var WholeSource = both("整篇", "Whole note")

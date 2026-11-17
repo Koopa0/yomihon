@@ -1,16 +1,20 @@
 package wording
 
 // QuestionControl names the reader's reversible location mark.
-var QuestionControl = both("還不確定", "Not sure yet")
+var QuestionControl = both("標為疑問", "Mark as question")
+
+// QuestionKind labels a row of the My marks page that is a question, the noun
+// where QuestionControl is the verb.
+var QuestionKind = both("疑問", "Question")
 
 // QuestionClearControl makes an already kept mark visible and removable.
 var QuestionClearControl = both("移除標記", "Remove mark")
 
 // QuestionSaved confirms that this location was kept.
-var QuestionSaved = both("已標記這個位置。", "This location is marked.")
+var QuestionSaved = both("已標為疑問。", "Marked as a question.")
 
 // QuestionCleared confirms that the location mark was removed.
-var QuestionCleared = both("已移除這個位置的標記。", "This location's mark was removed.")
+var QuestionCleared = both("已移除這則疑問。", "The question was removed.")
 
 // QuestionNotStored reports a failed change without suggesting reading failed.
 var QuestionNotStored = both(
@@ -25,16 +29,16 @@ var QuestionUnavailable = both(
 )
 
 // QuestionRefused reports a malformed location without echoing its fields.
-var QuestionRefused = both("這個位置無法標記。", "That location could not be marked.")
+var QuestionRefused = both("這個位置無法標為疑問。", "That location could not be marked as a question.")
 
 // QuestionPlaceOnly states the deliberately small persistence promise.
 var QuestionPlaceOnly = both(
-	"只記住這台裝置上的位置與時間，不保存選出的句子；內容變動後，位置可能失效。",
-	"Only the location and time are kept on this device, not the chosen sentence. The location may stop working if the content changes.",
+	"疑問只記在這台裝置上，只存位置與時間，不存選出的句子；內容變動後，這則疑問可能對不上原文。",
+	"Questions stay on this device. Only the location and time are kept, not the chosen sentence; a question may stop matching if the content changes.",
 )
 
 // QuestionNoteNotFound names a stored mark whose note is no longer readable.
 var QuestionNoteNotFound = both("找不到這篇筆記", "Note not found")
 
 // QuestionPlaceNotFound names a stored place absent from its current note.
-var QuestionPlaceNotFound = both("找不到這個位置", "Location not found")
+var QuestionPlaceNotFound = both("找不到這則疑問的位置", "Question location not found")

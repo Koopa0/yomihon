@@ -1,9 +1,8 @@
 package wording
 
-// UnitWords is how the interface counts and steps through one kind of entry in
-// a study path. A path of lessons is read in lessons and a path of anything
-// else in items, so the whole set is chosen together, once per path, and a
-// surface never mixes the two nouns on one page.
+// UnitWords is how the interface counts and steps through the units of a
+// course. A unit is counted "N 單元" wherever it is counted, so a surface never
+// mixes two nouns on one page.
 //
 // Chinese does not inflect a noun for number and English does, so a count is a
 // pair. The branched count is one format: Chinese names the unit inside it and
@@ -23,26 +22,14 @@ type UnitWords struct {
 	RailPrevious, RailNext Phrase
 }
 
-// LessonWords are the words for a path whose entries are lessons.
-var LessonWords = UnitWords{
-	CountOne:     both("%d 課", "%d lesson"),
-	CountMany:    both("%d 課", "%d lessons"),
-	BranchedFmt:  both("支線 %d 課", "%d in a branch"),
-	DraftsFmt:    both("其中 %d 課是草稿", "%d in draft"),
-	Previous:     both("上一課", "Previous lesson"),
-	Next:         both("下一課", "Next lesson"),
-	RailPrevious: both("上一課：", "Previous lesson: "),
-	RailNext:     both("下一課：", "Next lesson: "),
-}
-
-// ItemWords are the words for a path whose entries are anything but lessons.
-var ItemWords = UnitWords{
-	CountOne:     both("%d 篇", "%d item"),
-	CountMany:    both("%d 篇", "%d items"),
-	BranchedFmt:  both("支線 %d 篇", "%d in a branch"),
-	DraftsFmt:    both("其中 %d 篇是草稿", "%d in draft"),
-	Previous:     both("上一篇", "Previous"),
-	Next:         both("下一篇", "Next"),
-	RailPrevious: both("上一篇：", "Previous: "),
-	RailNext:     both("下一篇：", "Next: "),
+// Units is the one set of unit words.
+var Units = UnitWords{
+	CountOne:     both("%d 單元", "%d unit"),
+	CountMany:    both("%d 單元", "%d units"),
+	BranchedFmt:  both("支線 %d 單元", "%d in a branch"),
+	DraftsFmt:    both("其中 %d 單元是草稿", "%d in draft"),
+	Previous:     both("上一單元", "Previous unit"),
+	Next:         both("下一單元", "Next unit"),
+	RailPrevious: both("上一單元：", "Previous unit: "),
+	RailNext:     both("下一單元：", "Next unit: "),
 }

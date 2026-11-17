@@ -19,7 +19,7 @@ import (
 
 // ErrUnreadableQuestions means an existing question file cannot be
 // read safely. A toggle leaves that file untouched so the reader can recover it.
-var ErrUnreadableQuestions = errors.New("the uncertainty marks cannot be read")
+var ErrUnreadableQuestions = errors.New("the questions cannot be read")
 
 // MaxQuestions bounds how many places are kept at once. A reader marks a
 // handful of spots to revisit; the bound keeps an unbounded stream of requests
@@ -131,7 +131,7 @@ func (f *File) ToggleQuestion(kept *Question, admit func(*Question) bool) (bool,
 	}
 	data, err := json.MarshalIndent(held, "", "  ")
 	if err != nil {
-		return false, fmt.Errorf("encode the uncertainty marks: %w", err)
+		return false, fmt.Errorf("encode the questions: %w", err)
 	}
 	if err = os.MkdirAll(f.dir, 0o700); err != nil {
 		return false, fmt.Errorf("create the marks directory: %w", err)
@@ -146,7 +146,7 @@ func (f *File) ToggleQuestion(kept *Question, admit func(*Question) bool) (bool,
 func validateQuestion(kept *Question) error {
 	switch {
 	case kept == nil:
-		return fmt.Errorf("%w: no uncertainty mark", ErrInvalid)
+		return fmt.Errorf("%w: no question", ErrInvalid)
 	case !utf8.ValidString(kept.RelPath):
 		return fmt.Errorf("%w: the path or anchor is not valid UTF-8", ErrInvalid)
 	case kept.RelPath == "" || len(kept.RelPath) > maxRelPathBytes:
@@ -194,17 +194,17 @@ func readBounded(name string, limit int64) ([]byte, error) {
 func (f *File) replaceQuestions(data []byte) error {
 	tmp, err := os.CreateTemp(f.dir, ".uncertainty-*.json")
 	if err != nil {
-		return fmt.Errorf("create the temporary uncertainty file: %w", err)
+		return fmt.Errorf("create the temporary question file: %w", err)
 	}
 	name := tmp.Name()
 	if _, err = tmp.Write(data); err != nil {
-		return abandon(tmp, name, fmt.Errorf("write the temporary uncertainty file: %w", err))
+		return abandon(tmp, name, fmt.Errorf("write the temporary question file: %w", err))
 	}
 	if err = tmp.Close(); err != nil {
-		return abandon(nil, name, fmt.Errorf("close the temporary uncertainty file: %w", err))
+		return abandon(nil, name, fmt.Errorf("close the temporary question file: %w", err))
 	}
 	if err = os.Rename(name, f.QuestionPath()); err != nil {
-		return abandon(nil, name, fmt.Errorf("install the uncertainty file: %w", err))
+		return abandon(nil, name, fmt.Errorf("install the question file: %w", err))
 	}
 	return nil
 }

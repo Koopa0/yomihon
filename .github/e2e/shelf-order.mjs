@@ -20,7 +20,7 @@ import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
-const PAGE = process.env.PAGE_PATH || '/open-thoughts';
+const PAGE = process.env.PAGE_PATH || '/marks';
 const MUTATE = process.env.MUTATE || '';
 
 const ORDER_SITE = 'each-choice-comes-back-with-the-rows-in-its-order';
@@ -54,7 +54,7 @@ const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED shelf-order:
 const rewriteShelf = (needle, replacement) => (page) => {
   let requests = 0;
   let rewritten = 0;
-  return page.route((url) => url.pathname === '/open-thoughts', async (route) => {
+  return page.route((url) => url.pathname === '/marks', async (route) => {
     requests += 1;
     const response = await route.fetch();
     const original = await response.text();
@@ -71,7 +71,7 @@ const rewriteShelf = (needle, replacement) => (page) => {
 // address is answered as if it had asked for oldest first.
 const rememberTheChoice = (page) => {
   let remembered = 0;
-  return page.route((url) => url.pathname === '/open-thoughts' && url.search === '', async (route) => {
+  return page.route((url) => url.pathname === '/marks' && url.search === '', async (route) => {
     remembered += 1;
     await route.continue({ url: `${route.request().url()}?order=oldest` });
   }).then(() => () => (remembered > 0 ? '' : 'the shelf was never visited by its own address, so nothing was remembered'));
@@ -121,7 +121,7 @@ try {
   const setup = await browser.newContext();
   const api = setup.request;
   for (const path of MARKED) {
-    const made = await api.post(`${BASE}/uncertainties`, { form: { path, anchor: '' } });
+    const made = await api.post(`${BASE}/questions`, { form: { path, anchor: '' } });
     if (made.status() !== 200) broken(`marking ${path} answered ${made.status()}, want 200`);
     marked.push(path);
     // The marks are dated to the instant they were made; let each be later.
@@ -207,7 +207,7 @@ try {
   // fixture alone does not explain.
   const cleaner = await browser.newContext();
   for (const path of marked) {
-    await cleaner.request.post(`${BASE}/uncertainties`, { form: { path, anchor: '' } });
+    await cleaner.request.post(`${BASE}/questions`, { form: { path, anchor: '' } });
   }
   await cleaner.close();
   await browser.close();

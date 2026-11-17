@@ -499,7 +499,7 @@ func TestBaseStampsTheSectionButtonsOnTheRoot(t *testing.T) {
 // way to the choices.
 func TestHeaderCarriesOnlyWhatReadingNeeds(t *testing.T) {
 	t.Parallel()
-	mark := &MarkOffer{Path: "a.md", Identity: "abc", Endpoint: "/marks"}
+	mark := &MarkOffer{Path: "a.md", Identity: "abc", Endpoint: "/bookmark"}
 	tests := []struct {
 		name   string
 		chrome Chrome

@@ -91,8 +91,8 @@ var (
 var (
 	PrefTypeface     = both("字體", "Typeface")
 	PrefTypefaceNote = both(
-		"只換內文與課文練習的字體；標題、介面、程式碼不變。",
-		"Changes the reading column and the lesson exercises only; headings, the interface, and code keep theirs.",
+		"只換內文與句型練習的字體；標題、介面、程式碼不變。",
+		"Changes the reading column and the drills only; headings, the interface, and code keep theirs.",
 	)
 	PrefTypefaceSerif = both("明體", "Serif")
 	PrefTypefaceSans  = both("黑體", "Sans serif")

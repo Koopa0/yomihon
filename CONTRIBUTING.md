@@ -42,7 +42,7 @@ explicit ruling from the maintainer on the issue.
    decided on 2026-11-12, and the threat model bounds it.
 3. **Withheld ground stays withheld.** What a rules file's `[privacy]` section
    withholds never reaches the output of a command an AI reads: `check`,
-   `coverage`, `exists` and `left-open`.
+   `coverage`, `exists` and `marks`.
 4. **The browser never receives unsanitised Markdown.** Go renders and
    sanitises; the browser shows the result.
 

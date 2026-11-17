@@ -32,7 +32,7 @@ func TestTheWorkedCourseReadsAsWritten(t *testing.T) {
 	)
 	p := buildPath(note, idx, nil, testArtifactPolicy(t))
 
-	// "Home reads 8 課" — the main line, the unwritten eighth lesson included.
+	// "Home reads 8 單元" — the main line, the unwritten eighth lesson included.
 	if p.Planned != 8 {
 		t.Errorf("Planned = %d, want 8; the contract's own example says the course is eight lessons", p.Planned)
 	}

@@ -98,9 +98,9 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 				for _, block := range blocks {
 					modes = append(modes, block.Mode)
 				}
-				wantOrder := "courses,maps,reports,folders"
+				wantOrder := "courses,indexes,reports,folders"
 				if tt.contract == ContractAbsent {
-					wantOrder = "folders,courses,maps,reports"
+					wantOrder = "folders,courses,indexes,reports"
 				}
 				if got := strings.Join(modes, ","); got != wantOrder {
 					t.Errorf("desk mode order = %q, want %q", got, wantOrder)

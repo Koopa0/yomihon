@@ -35,7 +35,7 @@ import (
 
 // The command that hands a program what the reader has left open: the
 // locations they marked "Not sure yet" and the thoughts that still declare
-// draft: true, the same selection the "What you left open" shelf shows. Its name,
+// draft: true, the same selection the My marks page shows. Its name,
 // and the names and values of its output fields, are gathered here so that
 // renaming any of them is one edit: the command line's own words are decided
 // when the command that needs them is.
@@ -43,7 +43,11 @@ import (
 // It is the one command that is about the reader rather than the vault. It
 // reads the reader's marks file, read-only, and writes nothing anywhere.
 const (
-	openCommand = "left-open"
+	openCommand = "marks"
+
+	// retiredOpenCommand is the name the command had before it was called
+	// marks; it still runs the same command.
+	retiredOpenCommand = "left-open"
 
 	openKindLocation = "location"
 	openKindThought  = "thought"
@@ -90,21 +94,21 @@ var (
 	// command answers a program, and without the contract's privacy
 	// declaration nothing grants it a path to say.
 	errOpenNoContract = errors.New(
-		"this folder has no vault contract, " + schema.ContractRelPath + ", and " + openCommand +
+		"this folder has no rules file, " + schema.ContractRelPath + ", and " + openCommand +
 			" lists nothing for a program to read until one declares [privacy]")
 
 	// errOpenUndeclaredPrivacy is the refusal for a contract that leaves the
 	// privacy section out. The repair is named in full because it quotes
 	// nothing the vault wrote: the section is simply missing.
 	errOpenUndeclaredPrivacy = errors.New(
-		"the vault contract declares no privacy policy, so " + openCommand + " lists nothing for a program to read; add a [privacy] table with never_egress_dirs = [] to " +
+		"the rules file declares no privacy policy, so " + openCommand + " lists nothing for a program to read; add a [privacy] table with never_egress_dirs = [] to " +
 			schema.ContractRelPath + ", naming in that list any directory whose notes must never leave this machine")
 
 	// errOpenMarksUnreadable is the whole answer about a marks file that
 	// exists and cannot be read. The machine's own error names the file's
 	// absolute path, which spells the home directory, so it is not repeated.
 	errOpenMarksUnreadable = errors.New(
-		`the "Not sure yet" marks for this folder cannot be read; nothing was listed`)
+		`the marks for this folder cannot be read; nothing was listed`)
 
 	// errOpenScan is what a scan that could not complete answers with. The
 	// scan's own error can name two colliding files, either of which may lie
@@ -124,8 +128,8 @@ var (
 // that lists nothing here has one line whatever the reason, so that marks all
 // in withheld ground read the same as marks all cleared.
 const (
-	openNoMarksFileNotice = `no location is listed; there is no "Not sure yet" marks file for this folder as spelled`
-	openNoMarksNotice     = `no location is listed from the "Not sure yet" marks file for this folder`
+	openNoMarksFileNotice = `no question is listed; there is no marks file for this folder as spelled`
+	openNoMarksNotice     = `no question is listed from the marks file for this folder`
 )
 
 // openRequest is one resolved invocation of the command.
@@ -337,7 +341,7 @@ func openUnreadable(snap *snapshot.Generation, allowed func(string) bool) error 
 func (r *openRequest) marks(vaultRoot string) (kept []mark.Question, stored bool, err error) {
 	if r.configDir == "" {
 		reason := cmp.Or(r.noConfigDir, "the environment names none")
-		return nil, false, fmt.Errorf(`no configuration directory, so the "Not sure yet" marks for this folder cannot be found: %s; nothing was listed`, reason)
+		return nil, false, fmt.Errorf(`no configuration directory, so the marks for this folder cannot be found: %s; nothing was listed`, reason)
 	}
 	file, err := mark.New(r.configDir, vaultRoot)
 	if err != nil {

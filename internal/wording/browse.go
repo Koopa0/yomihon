@@ -28,13 +28,13 @@ var (
 		"這篇筆記的大小是 %s，超過 %s 的閱讀上限；原始檔仍可下載。",
 		"This note is %s, over the %s reading limit; the original file can still be downloaded.",
 	)
-	// A Markdown file the contract leaves out of the library is a document,
+	// A Markdown file the rules leave out of the vault is a document,
 	// not a note, even when its size is what keeps it from being read.
 	DocumentOverReadingLimit = both(
 		"這份文件的大小是 %s，超過 %s 的閱讀上限；原始檔仍可下載。",
 		"This document is %s, over the %s reading limit; the original file can still be downloaded.",
 	)
-	NoteReadingLimitHealth = both("在健康報告查看這篇筆記", "View this note in the health report")
+	NoteReadingLimitHealth = both("在整體狀況查看這篇筆記", "View this note on the Health page")
 	FileName               = both("名稱", "Name")
 	FileSize               = both("大小", "Size")
 	FileType               = both("類型", "Type")
@@ -43,14 +43,14 @@ var (
 	FileNotIndexed         = both("這個檔案的內容不會被搜尋讀取。", "This file's contents are not read by search.")
 )
 
-// A Markdown file the contract leaves out of the library still opens as a
+// A Markdown file the rules leave out of the vault still opens as a
 // document. The line above it says what it is not: a note, so nothing about it
 // is indexed or checked.
 var (
 	FileKindDocument    = both("文件", "Document")
 	SkippedDocumentNote = both(
-		"這份文件不在書庫的索引與診斷範圍內。",
-		"This document is outside the vault's index and diagnostics.",
+		"這份文件不在書庫的索引與檢查範圍內。",
+		"This document is outside the vault's index and checks.",
 	)
 )
 

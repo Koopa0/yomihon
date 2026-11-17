@@ -31,8 +31,6 @@ type PathView struct {
 	// carries no counts and no order, and nothing in it is a stop on the walk.
 	Appendix []PathBranchView
 
-	// Unit is the noun the path's entries are counted and stepped in.
-	Unit nav.Unit
 	// Entries is the course's planned total, the main line only and a
 	// planned-but-unwritten entry included, and Branched how many the side
 	// branches list between them, which never join it. Drafts is how many of
@@ -347,7 +345,6 @@ func BuildPathView(current *nav.Course, all []nav.Course, cover *CourseCover) Pa
 		RelPath:         current.RelPath,
 		GuideHref:       notesHref(current.RelPath),
 		Paths:           buildPaths(current.RelPath, all),
-		Unit:            current.Unit,
 		Entries:         current.Planned,
 		Branched:        current.Branched,
 		Drafts:          current.Drafts,
@@ -389,25 +386,13 @@ func BuildPathView(current *nav.Course, all []nav.Course, cover *CourseCover) Pa
 	return v
 }
 
-// unitWords is the interface's words for the noun this path is read in.
-func unitWords(unit nav.Unit) wording.UnitWords {
-	switch unit {
-	case nav.UnitItem:
-		return wording.ItemWords
-	case nav.UnitLesson:
-		return wording.LessonWords
-	default:
-		return wording.LessonWords
-	}
-}
-
 // Extent is what the path says about its own size, one figure per phrase: the
-// course's total in the noun it is read in, then, where side branches exist,
+// course's total in units, then, where side branches exist,
 // how many entries they list between them. The branches' figure stands beside
 // the total and never inside it. The cover prints it under the title and the
 // reading rail under the book's name, so the two cannot count differently.
 func (v *PathView) Extent(lang wording.Lang) []string {
-	words := unitWords(v.Unit)
+	words := wording.Units
 	figures := []string{plural(v.Entries, words.CountOne, words.CountMany, lang)}
 	if v.Branched > 0 {
 		figures = append(figures, fmt.Sprintf(words.BranchedFmt.In(lang), v.Branched))
@@ -415,13 +400,13 @@ func (v *PathView) Extent(lang wording.Lang) []string {
 	return figures
 }
 
-// DraftsNote is the exception the head states after the extent, in the noun
-// the path is read in, or empty where there is none to state.
+// DraftsNote is the exception the head states after the extent, in units,
+// or empty where there is none to state.
 func (v *PathView) DraftsNote(lang wording.Lang) string {
 	if v.Drafts == 0 {
 		return ""
 	}
-	return fmt.Sprintf(unitWords(v.Unit).DraftsFmt.In(lang), v.Drafts)
+	return fmt.Sprintf(wording.Units.DraftsFmt.In(lang), v.Drafts)
 }
 
 // buildAppendix draws a top-level section the author declared out of the

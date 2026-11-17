@@ -24,8 +24,8 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 		lang wording.Lang
 		door string
 	}{
-		{wording.ZhHant, `<a class="y-notefacts__door" lang="zh-Hant" href="/thought/Notes/Probe.md" aria-label="留下自己的想法：Probe">留下自己的想法</a>`},
-		{wording.En, `<a class="y-notefacts__door" lang="en" href="/thought/Notes/Probe.md" aria-label="Leave a thought: Probe">Leave a thought</a>`},
+		{wording.ZhHant, `<a class="y-notefacts__door" lang="zh-Hant" href="/thought/Notes/Probe.md" aria-label="寫想法：Probe">寫想法</a>`},
+		{wording.En, `<a class="y-notefacts__door" lang="en" href="/thought/Notes/Probe.md" aria-label="Write a note: Probe">Write a note</a>`},
 	} {
 		t.Run(tc.lang.Tag(), func(t *testing.T) {
 			t.Parallel()

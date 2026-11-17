@@ -350,7 +350,7 @@ func TestShowReportsSizeNotCompletion(t *testing.T) {
 	// assertion above cannot pass by the counts having vanished along with the
 	// claim. The same figure is not printed again beside each part.
 	main := syllabusMain(t, body)
-	if !strings.Contains(main, `<span>4 課</span>`) {
+	if !strings.Contains(main, `<span>4 單元</span>`) {
 		t.Errorf("the head lost the course's size; main = %q", main)
 	}
 	if strings.Contains(main, "partcount") {

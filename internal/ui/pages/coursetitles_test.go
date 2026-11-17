@@ -111,7 +111,7 @@ func TestCourseRowsNameTheLessonAsTheAuthorAndNoteDeclared(t *testing.T) {
 				if !foot.Course {
 					t.Fatalf("FooterSequence(%s) answered folder adjacency, want the course", tt.current)
 				}
-				html := renderedHTML(t, sequenceSteps(NoteView{Prev: foot.Prev, Next: foot.Next, StepsLabel: foot.Label, StepsCourse: foot.Course, StepsUnit: foot.Unit}, chrome.Lang))
+				html := renderedHTML(t, sequenceSteps(NoteView{Prev: foot.Prev, Next: foot.Next, StepsLabel: foot.Label, StepsCourse: foot.Course}, chrome.Lang))
 				got := submatches(regexp.MustCompile(`<span class="y-steps__name"[^>]*>([^<]*)</span>`), html)
 				if diff := cmp.Diff([]string{tt.prev, tt.next}, got); diff != "" {
 					t.Errorf("foot step names (-want +got):\n%s", diff)

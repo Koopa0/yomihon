@@ -67,10 +67,10 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 			if got := strings.Count(block, "data-open-kind"); got != 5 {
 				t.Errorf("open desk rows drawn as open rows = %d, want five", got)
 			}
-			if !strings.Contains(block, `href="/open-thoughts"`) || !strings.Contains(block, `class="ui-navitem y-shelfall"`) {
+			if !strings.Contains(block, `href="/marks"`) || !strings.Contains(block, `class="ui-navitem y-shelfall"`) {
 				t.Error("open desk does not expose the existing All shelf link")
 			}
-			all := openThoughtPage(t, site, "/open-thoughts", lang)
+			all := openThoughtPage(t, site, "/marks", lang)
 			if got := strings.Count(all, "data-index-row"); got != 8 {
 				t.Errorf("complete open shelf rows = %d, want eight", got)
 			}
@@ -87,7 +87,7 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 			if strings.Index(all, "Outside the layer") > strings.Index(all, `href="/notes/Source.md#chapter"`) || strings.Index(all, `href="/notes/Source.md#chapter"`) > strings.Index(all, "Thought 6") {
 				t.Error("marks and notes are not interleaved newest first")
 			}
-			if lang == "en" && !strings.Contains(block, "What you left open") || lang == "zh-Hant" && !strings.Contains(block, "還沒想通的") {
+			if lang == "en" && !strings.Contains(block, "My marks") || lang == "zh-Hant" && !strings.Contains(block, "我的標記") {
 				t.Error("open shelf title is not translated")
 			}
 		})
@@ -110,18 +110,18 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 			if _, err := marks.ToggleQuestion(kept, admitMark); err != nil {
 				t.Fatal(err)
 			}
-			page := openThoughtPage(t, site, "/open-thoughts", "en")
+			page := openThoughtPage(t, site, "/marks", "en")
 			if strings.Count(page, "data-index-row") != 1 || strings.Contains(page, "Never guessed") {
 				t.Error("ungoverned/invalid shelf must show marks without guessing an answer role")
 			}
 			if _, err := marks.ToggleQuestion(kept, admitMark); err != nil {
 				t.Fatal(err)
 			}
-			if strings.Contains(openThoughtPage(t, site, "/", "en"), `data-home-block="open-thoughts"`) {
+			if strings.Contains(openThoughtPage(t, site, "/", "en"), `data-home-block="marks"`) {
 				t.Error("an empty marks-only block displaced the ordinary folder entry")
 			}
-			for lang, sentence := range map[string]string{"en": `No locations marked "Not sure yet".`, "zh-Hant": "尚無「還不確定」的位置標記。"} {
-				if !strings.Contains(openThoughtPage(t, site, "/open-thoughts", lang), sentence) {
+			for lang, sentence := range map[string]string{"en": `No questions yet.`, "zh-Hant": "尚無疑問。"} {
+				if !strings.Contains(openThoughtPage(t, site, "/marks", lang), sentence) {
 					t.Errorf("marks-only empty state is missing %q", sentence)
 				}
 			}
@@ -129,15 +129,15 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 			if err := os.WriteFile(marks.QuestionPath(), []byte(corrupt), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			page = openThoughtPage(t, site, "/open-thoughts", "en")
-			if !strings.Contains(page, "Marks cannot be read right now") || strings.Contains(page, "No locations marked") || strings.Contains(page, "0 items") {
+			page = openThoughtPage(t, site, "/marks", "en")
+			if !strings.Contains(page, "Marks cannot be read right now") || strings.Contains(page, "No questions yet") || strings.Contains(page, "0 items") {
 				t.Error("corrupt marks were presented as an empty shelf rather than unavailable")
 			}
 			if strings.Contains(page, "Contract capabilities") || strings.Contains(page, "Some pages cannot be shown because of it") {
 				t.Error("the reader's damaged mark file was mislabeled as a vault contract failure")
 			}
 			home := openThoughtPage(t, site, "/", "en")
-			if !strings.Contains(home, "Marks cannot be read right now") || strings.Contains(openThoughtBlock(t, home), "No locations marked") {
+			if !strings.Contains(home, "Marks cannot be read right now") || strings.Contains(openThoughtBlock(t, home), "No questions yet") {
 				t.Error("Home hid unavailable marks behind an empty shelf")
 			}
 			data, err := os.ReadFile(marks.QuestionPath())
@@ -158,7 +158,7 @@ func TestOpenThoughtsEmptySaysWhatTheShelfHolds(t *testing.T) {
 	putOpenThoughtFile(t, root, schema.ContractRelPath, openThoughtContract)
 	site, _ := openThoughtSite(t, root)
 	for _, lang := range []wording.Lang{wording.En, wording.ZhHant} {
-		page := openThoughtPage(t, site, "/open-thoughts", lang.Tag())
+		page := openThoughtPage(t, site, "/marks", lang.Tag())
 		if !strings.Contains(page, wording.OpenThoughtsLede.In(lang)) {
 			t.Errorf("%s: the lede does not say the shelf holds marks and unfinished thoughts", lang.Tag())
 		}
@@ -184,7 +184,7 @@ func TestOpenThoughtsSkipsDeclaredNonInstances(t *testing.T) {
 	putOpenThoughtFile(t, root, "Inside/Real.md", openThoughtNote("A real thought", "reflection", draftFlag, "2026-09-01"))
 	putOpenThoughtFile(t, root, "Templates/Template.md", openThoughtNote("A template row", "reflection", draftFlag, "2026-09-02"))
 	site, _ := openThoughtSite(t, root)
-	for _, address := range []string{"/", "/open-thoughts"} {
+	for _, address := range []string{"/", "/marks"} {
 		page := openThoughtPage(t, site, address, "en")
 		if !strings.Contains(page, "A real thought") {
 			t.Errorf("GET %s lost the real thought", address)
@@ -193,7 +193,7 @@ func TestOpenThoughtsSkipsDeclaredNonInstances(t *testing.T) {
 			t.Errorf("GET %s lists a declared non-instance as an open thought", address)
 		}
 	}
-	if got := strings.Count(openThoughtPage(t, site, "/open-thoughts", "en"), "data-open-kind"); got != 1 {
+	if got := strings.Count(openThoughtPage(t, site, "/marks", "en"), "data-open-kind"); got != 1 {
 		t.Errorf("the shelf lists %d rows, want 1: the non-instance is not an open thought", got)
 	}
 }
@@ -224,7 +224,7 @@ func TestOpenThoughtsKeepsAMarkWhoseNoteIsNotInTheSnapshot(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			for _, address := range []string{"/", "/open-thoughts"} {
+			for _, address := range []string{"/", "/marks"} {
 				page := openThoughtPage(t, site, address, tt.lang)
 				marker := "data-index-row"
 				if address == "/" {
@@ -271,7 +271,7 @@ func TestOpenThoughtsHomeShowsFiveAndStatesNoCount(t *testing.T) {
 	if _, head, _ := strings.Cut(openThoughtBlock(t, home), `<header class="y-homeblock__head">`); !strings.HasPrefix(head, "<h2") || strings.Contains(strings.SplitN(head, "</header>", 2)[0], "<p>") {
 		t.Errorf("Home states something beside the name of the block: %q", strings.SplitN(head, "</header>", 2)[0])
 	}
-	if got := strings.Count(openThoughtPage(t, site, "/open-thoughts", "en"), "data-index-row"); got != 7 {
+	if got := strings.Count(openThoughtPage(t, site, "/marks", "en"), "data-index-row"); got != 7 {
 		t.Errorf("complete shelf rows = %d, want seven", got)
 	}
 }
@@ -315,13 +315,13 @@ func openThoughtPage(t *testing.T, site *readingSite, address, lang string) stri
 
 func openThoughtBlock(t *testing.T, page string) string {
 	t.Helper()
-	_, rest, ok := strings.Cut(page, `data-home-block="open-thoughts"`)
+	_, rest, ok := strings.Cut(page, `data-home-block="marks"`)
 	if !ok {
-		t.Fatal("Home has no open-thoughts block")
+		t.Fatal("Home has no marks block")
 	}
 	block, _, ok := strings.Cut(rest, "</section>")
 	if !ok {
-		t.Fatal("open-thoughts block is not closed")
+		t.Fatal("marks block is not closed")
 	}
 	return block
 }

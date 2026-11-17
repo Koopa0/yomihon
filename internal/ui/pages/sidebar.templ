@@ -43,7 +43,7 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 				}
 				if sb.Model.PathCount() > 0 {
 					<div class="y-railsep" aria-hidden="true"></div>
-					<details open?={ sb.pathsChainOpen() } data-sidebar-group="paths" { disclosureAttrs("paths", sb.pathsChainOpen())... }>
+					<details open?={ sb.pathsChainOpen() } data-sidebar-group="courses" { disclosureAttrs("courses", sb.pathsChainOpen())... }>
 						<summary class="y-railsummary">
 							@chevron()
 							{ wording.Courses.In(c.Lang) }
@@ -55,10 +55,10 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 										<div class="y-lessonsteps__path">{ step.PathTitle }</div>
 									}
 									if step.Prev.RelPath != "" {
-										<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { unitWords(step.Unit).RailPrevious.In(c.Lang) }<span { authoredLanguageAttrs(step.Prev.Language)... }>{ step.Prev.Name }</span></a>
+										<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { wording.Units.RailPrevious.In(c.Lang) }<span { authoredLanguageAttrs(step.Prev.Language)... }>{ step.Prev.Name }</span></a>
 									}
 									if step.Next.RelPath != "" {
-										<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ unitWords(step.Unit).RailNext.In(c.Lang) }<span { authoredLanguageAttrs(step.Next.Language)... }>{ step.Next.Name }</span> →</a>
+										<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ wording.Units.RailNext.In(c.Lang) }<span { authoredLanguageAttrs(step.Next.Language)... }>{ step.Next.Name }</span> →</a>
 									}
 								</nav>
 							}
@@ -70,7 +70,7 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 				}
 				if sb.Model.MapCount() > 0 {
 					<div class="y-railsep" aria-hidden="true"></div>
-					<details open?={ sb.mapsChainOpen() } data-sidebar-group="maps" { disclosureAttrs("maps", sb.mapsChainOpen())... }>
+					<details open?={ sb.mapsChainOpen() } data-sidebar-group="indexes" { disclosureAttrs("indexes", sb.mapsChainOpen())... }>
 						<summary class="y-railsummary">
 							@chevron()
 							{ wording.Maps.In(c.Lang) }

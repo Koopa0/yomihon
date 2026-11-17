@@ -40,17 +40,16 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				Next:        nav.NoteRef{Name: "Basics", RelPath: "Writing/Basics.md"},
 				StepsLabel:  "Go course 從此步往下",
 				StepsCourse: true,
-				StepsUnit:   nav.UnitLesson,
 			},
 			want: []string{
 				`<nav class="y-steps y-steps--course" lang="zh-Hant" aria-label="Go course 從此步往下">`,
 				`<p class="y-steps__source">Go course 從此步往下</p>`,
-				`<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一課</span>`,
-				`<span class="y-steps__role">下一課 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
+				`<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一單元</span>`,
+				`<span class="y-steps__role">下一單元 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
 				`href="/notes/Writing/Setup.md" rel="prev"`,
 				`href="/notes/Writing/Basics.md" rel="next"`,
 			},
-			forbidden: []string{"上一份", "下一份", "上一篇", "下一篇"},
+			forbidden: []string{"上一份", "下一份"},
 		},
 		{
 			// A path of anything but lessons hands over items. The words are the
@@ -61,13 +60,12 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				Next:        nav.NoteRef{Name: "Worker", RelPath: "Concepts/Worker.md"},
 				StepsLabel:  "Queue kit 從此步往下",
 				StepsCourse: true,
-				StepsUnit:   nav.UnitItem,
 			},
 			want: []string{
-				`<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一篇</span>`,
-				`<span class="y-steps__role">下一篇 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
+				`<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一單元</span>`,
+				`<span class="y-steps__role">下一單元 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
 			},
-			forbidden: []string{"上一課", "下一課", "上一份", "下一份"},
+			forbidden: []string{"上一份", "下一份"},
 		},
 		{
 			name: "a folder hands over neighbouring files",
@@ -84,7 +82,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				`rel="prev"`,
 				`rel="next"`,
 			},
-			forbidden: []string{"上一課", "下一課", "課程順序"},
+			forbidden: []string{"課程順序"},
 		},
 		{
 			name: "a first lesson has no step back",
@@ -92,10 +90,9 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				Next:        nav.NoteRef{Name: "Basics", RelPath: "Writing/Basics.md"},
 				StepsLabel:  "Go course 從此步往下",
 				StepsCourse: true,
-				StepsUnit:   nav.UnitLesson,
 			},
-			want:      []string{`<p class="y-steps__source">Go course 從此步往下</p>`, `<span class="y-steps__role">下一課 <span class="y-steps__dir" aria-hidden="true">→</span></span>`},
-			forbidden: []string{`rel="prev"`, "上一課"},
+			want:      []string{`<p class="y-steps__source">Go course 從此步往下</p>`, `<span class="y-steps__role">下一單元 <span class="y-steps__dir" aria-hidden="true">→</span></span>`},
+			forbidden: []string{`rel="prev"`},
 		},
 	}
 	for _, tt := range tests {
@@ -342,7 +339,7 @@ func TestOnlyTheFootOffersTheCourseStep(t *testing.T) {
 	}
 
 	var foot bytes.Buffer
-	view := NoteView{Prev: chosen.Prev, Next: chosen.Next, StepsLabel: chosen.Label, StepsCourse: chosen.Course, StepsUnit: chosen.Unit}
+	view := NoteView{Prev: chosen.Prev, Next: chosen.Next, StepsLabel: chosen.Label, StepsCourse: chosen.Course}
 	if err := sequenceSteps(view, wording.ZhHant).Render(t.Context(), &foot); err != nil {
 		t.Fatalf("render sequence steps: %v", err)
 	}

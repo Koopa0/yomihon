@@ -316,7 +316,7 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 	postMark := func(t *testing.T, fetchSite string) int {
 		t.Helper()
 		form := url.Values{"path": {"Maps/study.md"}, "offset": {"0"}, "identity": {strings.Repeat("a", 64)}}
-		req := siteRequest(t, http.MethodPost, "/marks", strings.NewReader(form.Encode()))
+		req := siteRequest(t, http.MethodPost, "/bookmark", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		if fetchSite != "" {
 			req.Header.Set("Sec-Fetch-Site", fetchSite)
@@ -373,7 +373,7 @@ func TestTheSiteKeepsNoPlaceInANoteItDoesNotHold(t *testing.T) {
 	}
 	keep := func(path string) int {
 		form := url.Values{"path": {path}, "offset": {"0"}, "identity": {strings.Repeat("a", 64)}}
-		return serve(http.MethodPost, "/marks", strings.NewReader(form.Encode())).Code
+		return serve(http.MethodPost, "/bookmark", strings.NewReader(form.Encode())).Code
 	}
 	kept := func() bool {
 		home := serve(http.MethodGet, "/", http.NoBody)

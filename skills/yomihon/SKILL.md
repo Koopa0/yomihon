@@ -26,7 +26,7 @@ projection it keeps the prose, stops, and reports. It never guesses and never
 flattens, and it never writes into your vault: a note changes only where you
 edit it. Where a reader keeps a reading place, or marks a location "Not sure
 yet", that goes in a file of yomihon's own outside the vault. No command reads
-the kept place; one command, `left-open`, reads the marked locations, and only
+the bookmark; one command, `marks`, reads the marked locations, and only
 to list them.
 
 Everything below assumes a `yomihon` on your `PATH`. There is no `--version`
@@ -204,16 +204,16 @@ tree has no `Elsewhere` — which is exactly why this gate names a rule id rathe
 than `--deny warn`. A severity threshold would have turned that injected error
 into a false *proven*.
 
-## What the reader left open
+## What the reader marked
 
 ```bash
-yomihon left-open --root <vault> --format json
+yomihon marks --root <vault> --format json
 ```
 
 One JSON object per line, newest first: each location the reader marked "Not
 sure yet" (`"kind":"location"`) and each note of the type that holds the
 contract's `thought` role that declares `draft: true` (`"kind":"thought"`). It
-is the "What you left open" shelf, read by the same selection. A location
+is the My marks page, read by the same selection. A location
 carries `path`, `anchor`, `anchor_text`, `title`, `wikilink` and `create_time`;
 a thought carries `path`, `title`, `wikilink` and `create_date`. A field with no
 value is left out, except a lost location's `anchor`. A `title` is the note's
@@ -274,7 +274,7 @@ The fields:
 | `draft` | `true` says the note is still being written. Always allowed; see below |
 | `based_on` | the note or notes this one is written from, each quoted: `["[[Note]]"]`. `provenance.unresolved` reports one that reaches nothing |
 | `lang` | the language of the note's own text, as a BCP 47 tag such as `zh-Hant` or `ja`; `schema.language` reports a malformed one |
-| `created` | the day the note was made, `2026-11-12`. It dates a report and orders the thoughts `left-open` lists |
+| `created` | the day the note was made, `2026-11-12`. It dates a report and orders the thoughts `marks` lists |
 | `slug` | a lesson's stable key. The type that holds the `lesson` role must write it |
 | `level` | how much the lesson assumes. When `[enums] level` lists values, it is one of them |
 | `prerequisites`, `verified_on`, `verified_with` | allowed, and read by nothing yet: no page shows them and no command checks them |

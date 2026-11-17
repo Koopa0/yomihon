@@ -101,7 +101,6 @@ func TestBuildPathView(t *testing.T) {
 		// Every row that resolved to a note resolved to a lesson, and the two
 		// that resolved to nothing a lesson could be abstain, so the course is
 		// read in lessons.
-		Unit:    nav.UnitLesson,
 		Entries: 5,
 		// The one row the side branch lists is counted beside the course and
 		// never in it.

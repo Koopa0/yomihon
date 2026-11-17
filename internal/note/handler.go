@@ -106,12 +106,29 @@ func New(d *Sources) *Handler {
 		panic("note: New requires a non-nil Snapshot provider")
 	}
 	if d.Bookmark == nil {
-		panic("note: New requires a non-nil Continuation provider")
+		panic("note: New requires a non-nil Bookmark provider")
 	}
 	if d.Log == nil {
 		panic("note: New requires a non-nil Log")
 	}
 	return &Handler{sources: *d}
+}
+
+// indexesAddress is the page that lists the vault's indexes. It was served at
+// /maps before the word changed, and that address redirects here.
+const indexesAddress = "/indexes"
+
+// movedTo answers a retired address with a permanent redirect to the address
+// that replaced it; the query is carried over. The target is a constant path on
+// this server.
+func movedTo(target string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		where := target
+		if r.URL.RawQuery != "" {
+			where += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, where, http.StatusMovedPermanently) // #nosec G710 -- where starts with a constant path on this server
+	}
 }
 
 // Register mounts the feature's routes. The bare "GET /" is the last pattern
@@ -128,7 +145,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /preview/{path...}", h.preview)
 	mux.HandleFunc("GET /{$}", h.home)
 	mux.HandleFunc("GET /health", h.health)
-	mux.HandleFunc("GET /maps", h.maps)
+	mux.HandleFunc("GET "+indexesAddress, h.maps)
+	mux.HandleFunc("GET /maps", movedTo(indexesAddress))
+	mux.HandleFunc("GET /open-thoughts", movedTo(openThoughtsAddress))
 	mux.HandleFunc("GET /journal", h.journal)
 	// The mode index sits beside the subtree pattern that serves one folder.
 	// Without a pattern of its own the bare address redirects into that
@@ -427,7 +446,6 @@ func (h *Handler) reading(
 		Next:              foot.Next,
 		StepsLabel:        foot.Label,
 		StepsCourse:       foot.Course,
-		StepsUnit:         foot.Unit,
 		StepsPath:         foot.Path,
 		StepsBack:         foot.Back,
 		StepsOnward:       foot.Onward,

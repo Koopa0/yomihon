@@ -15,7 +15,7 @@ The files remain authoritative. Derived views can be rebuilt, while the author's
 | Markdown, frontmatter, attachments, and lesson sidecars | The vault. Edited only outside yomihon; `draft: true` is the author's word that a note is unfinished. |
 | `System/schemas/vault-schema.toml` | The vault's declarations: folders, note types and the role each plays, the fields a note may write, and output policies. |
 | Reading generation | In-memory note bodies, link resolution, navigation, search, and diagnostics, replaced together. |
-| Continuation and uncertainty marks | Application files in the local user's configuration directory, scoped to the vault. |
+| Bookmark and question marks | Application files in the local user's configuration directory, scoped to the vault. |
 | Appearance and language preferences | Browser cookies; they change the interface, not the authored language or note contents. |
 
 A wikilink cites a note, `based_on` declares a source, and a study path orders lessons. These relationships are projected separately: a citation does not put a lesson into a course, and a reading mark never changes a note. The [site][site] combines these [generation projections][snapshot].
@@ -107,15 +107,15 @@ Explicit roles prevent the reader from guessing whether a nested list is require
 
 No endpoint and no command writes into the vault. Notes, the contract, and attachments are written, renamed, and removed only by the author's own tools. The author's claims about a note stay in its frontmatter; the reader's reactions stay outside the vault (section 7).
 
-The one per-note progress signal is the optional boolean `draft`. A note that writes `draft: true` is marked as a draft on its own page, in the sidebar, on its course, in the recent list, and in search, where `draft:true` filters by it; a note that leaves it out or writes `draft: false` is finished and unmarked. A course head counts its main-line drafts. The "What you left open" shelf reads the same field, and a thought opened through the editor handoff starts with `draft: true`. yomihon never writes the flag: it changes only in the author's editor.
+The one per-note progress signal is the optional boolean `draft`. A note that writes `draft: true` is marked as a draft on its own page, in the sidebar, on its course, in the recent list, and in search, where `draft:true` filters by it; a note that leaves it out or writes `draft: false` is finished and unmarked. A course head counts its main-line drafts. The My marks page reads the same field, and a thought opened through the editor handoff starts with `draft: true`. yomihon never writes the flag: it changes only in the author's editor.
 
 [`internal/mark`][marks] is the only package that writes, and only under the platform's configuration directory. An [architecture check][archlock] reads every shipped Go file for a spelling that changes the filesystem and fails on one anywhere else, so a code path that opened a vault file for writing would fail the build.
 
 ## 7. Reader state
 
-Continuation and uncertainty marks live outside the vault, under the local user's configuration directory. They record a note location and identity, not authored progress fields or prose. The resolved vault root determines their storage namespace. Different browsers using that local reader can share marks; appearance and interface language remain browser preferences.
+Bookmark and question marks live outside the vault, under the local user's configuration directory. They record a note location and identity, not authored progress fields or prose. The resolved vault root determines their storage namespace. Different browsers using that local reader can share marks; appearance and interface language remain browser preferences.
 
-Mark files are created on demand and replaced through a temporary sibling. They are not synchronized to stable storage: losing a recent reading mark is a recoverable convenience failure. A missing configuration directory disables mark controls without preventing reading. A damaged continuation is treated as no saved place; uncertainty-file failures remain visible to the reader. See [composition][site], [mark storage][marks], and [preferences][preferences].
+Mark files are created on demand and replaced through a temporary sibling. They are not synchronized to stable storage: losing a recent reading mark is a recoverable convenience failure. A missing configuration directory disables mark controls without preventing reading. A damaged bookmark is treated as no bookmark; question-file failures remain visible to the reader. See [composition][site], [mark storage][marks], and [preferences][preferences].
 
 The reading page polls for freshness rather than treating its displayed text as a live editor buffer. Content identity distinguishes a changed note from a location that still refers to the same reading; transcluded identity covers changes in excerpts as well. Reading and keeping a place therefore have separate freshness requirements. See [note handling][note] and [rendered excerpt identity][render].
 
@@ -123,20 +123,20 @@ The reading page polls for freshness rather than treating its displayed text as 
 
 ![The vault contract's declarations feed the reading projections and the command judge; command output additionally passes privacy and source checks.](docs/architecture/05-contract-and-commands.png)
 
-[`check`, `coverage`, and `exists`][commands] open the vault as independent read-only actions. They use the same parsing, resolution, and declaration semantics without calling the HTTP server or creating reader marks. [`left-open`][left-open] is the one command about the reader: it builds the same reading generation the server does, reads the uncertainty marks without writing them, and lists what the "What you left open" shelf lists, from the same selection.
+[`check`, `coverage`, and `exists`][commands] open the vault as independent read-only actions. They use the same parsing, resolution, and declaration semantics without calling the HTTP server or creating reader marks. [`marks`][marks] is the one command about the reader: it builds the same reading generation the server does, reads the questions without writing them, and lists what the My marks page lists, from the same selection.
 
 | Command | Answer |
 | --- | --- |
 | `check` | Findings about frontmatter, links, paths, provenance, and course structure; configured deny rules determine failure. |
 | `coverage` | A corpus summary, including concept coverage; it reports rather than gates. |
 | `exists` | Whether the readable, permitted corpus contains a matching note. |
-| `left-open` | The marked locations and the thoughts that declare `draft: true`, newest first. |
+| `marks` | The questions and the thoughts that declare `draft: true`, newest first. |
 
 A scoped `check` still constructs the whole-root graph before filtering findings. Incomplete input is not evidence of absence: `exists` may report a known match, but refuses a negative answer when unreadable sources could change it. `coverage` refuses a partial census. An existence answer is an observation, not a reservation against an editor creating a file afterwards. The [rule inventory][judge-rules] names each finding and its authority.
 
-The contract's [`privacy.never_egress_dirs`][privacy] controls these command outputs; `left-open` drops a withheld item before resolving anything about it, since an anchor is its heading's words. It does **not** hide those directories from the local reading interface. Commands require valid contract and privacy authority, prepare their output, and revalidate authority before returning the payload. If authority cannot be established, they refuse without quoting protected contract contents into the output channel. The [command boundary][adjudicate] separates payloads from tool failures.
+The contract's [`privacy.never_egress_dirs`][privacy] controls these command outputs; `marks` drops a withheld item before resolving anything about it, since an anchor is its heading's words. It does **not** hide those directories from the local reading interface. Commands require valid contract and privacy authority, prepare their output, and revalidate authority before returning the payload. If authority cannot be established, they refuse without quoting protected contract contents into the output channel. The [command boundary][adjudicate] separates payloads from tool failures.
 
-Machine output is JSON Lines for `check` and `left-open` and JSON for `coverage` and `exists`; terminal output defaults to the human view. Exit `1` means a configured gate or a negative existence result, while `2` means invalid invocation or a tool failure; `left-open` never exits `1`, and refuses with `2` rather than list around a marks file or note it could not read. A finding alone does not imply exit `1` without a matching deny policy. Golden fixtures preserve output fields and reason strings for callers. External agents can consume these commands and edit through their own tools; yomihon neither runs a model nor repairs their output.
+Machine output is JSON Lines for `check` and `marks` and JSON for `coverage` and `exists`; terminal output defaults to the human view. Exit `1` means a configured gate or a negative existence result, while `2` means invalid invocation or a tool failure; `marks` never exits `1`, and refuses with `2` rather than list around a marks file or note it could not read. A finding alone does not imply exit `1` without a matching deny policy. Golden fixtures preserve output fields and reason strings for callers. External agents can consume these commands and edit through their own tools; yomihon neither runs a model nor repairs their output.
 
 ## 9. Browser boundary
 
@@ -202,7 +202,7 @@ Shutdown closes request admission, stops the scanner, and waits for accepted han
 [note]: internal/note/handler.go
 [commands]: internal/judge/command.go
 [adjudicate]: cmd/yomihon/adjudicate.go
-[left-open]: cmd/yomihon/leftopen.go
+[marks]: cmd/yomihon/leftopen.go
 [judge-rules]: docs/judge-rules.md
 [origin]: internal/origin/origin.go
 [file-serving]: internal/note/file.go

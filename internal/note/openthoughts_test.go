@@ -36,8 +36,8 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 	}{
 		{name: "english note gone", lang: "en", noteGone: true, missing: "Note not found", remove: "Remove mark", count: "1 item"},
 		{name: "chinese note gone", lang: "zh-Hant", noteGone: true, missing: "找不到這篇筆記", remove: "移除標記", count: "1 筆"},
-		{name: "english location gone", lang: "en", missing: "Location not found", remove: "Remove mark", count: "1 item"},
-		{name: "chinese place gone", lang: "zh-Hant", missing: "找不到這個位置", remove: "移除標記", count: "1 筆"},
+		{name: "english location gone", lang: "en", missing: "Question location not found", remove: "Remove mark", count: "1 item"},
+		{name: "chinese place gone", lang: "zh-Hant", missing: "找不到這則疑問的位置", remove: "移除標記", count: "1 筆"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -66,7 +66,7 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 			handler.Register(mux)
 			mark.NewQuestionHandler(marks, handler, log).Register(mux)
 			form := url.Values{"path": {rel}, "anchor": {"chapter"}}.Encode()
-			if diff := cmp.Diff("{\"marked\":true}\n", lostMarkRequest(t, mux, http.MethodPost, "/uncertainties", form, tt.lang)); diff != "" {
+			if diff := cmp.Diff("{\"marked\":true}\n", lostMarkRequest(t, mux, http.MethodPost, "/questions", form, tt.lang)); diff != "" {
 				t.Fatalf("add mark mismatch (-want +got):\n%s", diff)
 			}
 			assertLostMarkPair(t, mux, tt.lang, rel, "chapter")
@@ -86,12 +86,12 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 			}
 			current = rebuilt.Current()
 			t.Log("YOMIHON_996_LOST_MARK_DRIVER_INVOKED")
-			for _, address := range []string{"/", "/open-thoughts"} {
+			for _, address := range []string{"/", "/marks"} {
 				page := lostMarkRequest(t, mux, http.MethodGet, address, "", tt.lang)
 				assertLostMarksUnchanged(t, mux, tt.lang, before)
 				marker, warning := "data-index-row", "y-openitem__tag--fault"
 				if address == "/" {
-					_, block, ok := strings.Cut(page, `data-home-block="open-thoughts"`)
+					_, block, ok := strings.Cut(page, `data-home-block="marks"`)
 					if !ok {
 						t.Fatal("caught: Home omitted the lost mark block")
 					}
@@ -109,7 +109,7 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 				for _, text := range texts {
 					hasText = hasText && strings.Contains(page, text)
 				}
-				buttonAt := strings.Index(page, "data-uncertainty-remove")
+				buttonAt := strings.Index(page, "data-question-remove")
 				button := ""
 				outsideLink := false
 				if buttonAt >= 0 {
@@ -131,9 +131,9 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 				}{
 					Rows: strings.Count(page, marker), Text: hasText, Missing: strings.Contains(page, tt.missing), Fault: strings.Contains(page, warning), Counted: strings.Contains(inMain(page), tt.count),
 					Link: strings.Contains(page, `href="/notes/Lost%20%3Cnote%3E.md"`), DeadFragment: strings.Contains(page, `href="/notes/Lost%20%3Cnote%3E.md#chapter"`),
-					Remove:       strings.Contains(page, "data-uncertainty-remove") && strings.Contains(page, tt.remove),
+					Remove:       strings.Contains(page, "data-question-remove") && strings.Contains(page, tt.remove),
 					NativeRemove: strings.Contains(button, `type="button"`) && strings.Contains(button, "disabled"), OutsideLink: outsideLink, GatedRemove: gatedRemove,
-					Pair: strings.Contains(page, `data-uncertainty-endpoint="/uncertainties"`) && strings.Contains(page, `data-uncertainty-path="Lost &lt;note&gt;.md"`) && strings.Contains(page, `data-uncertainty-anchor="chapter"`),
+					Pair: strings.Contains(page, `data-question-endpoint="/questions"`) && strings.Contains(page, `data-question-path="Lost &lt;note&gt;.md"`) && strings.Contains(page, `data-question-anchor="chapter"`),
 				}
 				want := struct {
 					Rows                                                                                                    int
@@ -145,10 +145,10 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 			}
 			// Reading must preserve every stored field, including the assigned time.
 			assertLostMarksUnchanged(t, mux, tt.lang, before)
-			if diff := cmp.Diff("{\"marked\":false}\n", lostMarkRequest(t, mux, http.MethodPost, "/uncertainties", form, tt.lang)); diff != "" {
+			if diff := cmp.Diff("{\"marked\":false}\n", lostMarkRequest(t, mux, http.MethodPost, "/questions", form, tt.lang)); diff != "" {
 				t.Errorf("caught: remove mismatch (-want +got):\n%s", diff)
 			}
-			if diff := cmp.Diff("[]\n", lostMarkRequest(t, mux, http.MethodGet, "/uncertainties", "", tt.lang)); diff != "" {
+			if diff := cmp.Diff("[]\n", lostMarkRequest(t, mux, http.MethodGet, "/questions", "", tt.lang)); diff != "" {
 				t.Errorf("caught: removed marks mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -238,14 +238,14 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 			}
 			mux := http.NewServeMux()
 			handler.Register(mux)
-			for _, address := range []string{"/", "/open-thoughts"} {
+			for _, address := range []string{"/", "/marks"} {
 				reads = 0
 				page := lostMarkRequest(t, mux, http.MethodGet, address, "", "en")
 				got := struct {
 					CapturedTitle, CapturedLink, LaterTitle, Missing bool
 				}{
 					CapturedTitle: strings.Contains(page, ">Captured title</span>") && strings.Contains(page, ">Chapter</span>"), CapturedLink: strings.Contains(page, `href="/notes/Source.md#chapter"`),
-					LaterTitle: strings.Contains(page, "Later title"), Missing: strings.Contains(page, "Location not found"),
+					LaterTitle: strings.Contains(page, "Later title"), Missing: strings.Contains(page, "Question location not found"),
 				}
 				want := struct {
 					CapturedTitle, CapturedLink, LaterTitle, Missing bool
@@ -261,7 +261,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 func assertLostMarkPair(t *testing.T, mux http.Handler, lang, rel, anchor string) {
 	t.Helper()
 	var held []mark.Question
-	listed := lostMarkRequest(t, mux, http.MethodGet, "/uncertainties", "", lang)
+	listed := lostMarkRequest(t, mux, http.MethodGet, "/questions", "", lang)
 	if err := json.Unmarshal([]byte(listed), &held); err != nil {
 		t.Fatal(err)
 	}
@@ -362,7 +362,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 		t.Run(tt.lang, func(t *testing.T) {
 			page := lostMarkRequest(t, mux, http.MethodGet, "/", "", tt.lang)
 			assertLostMarksUnchanged(t, mux, tt.lang, wantStored)
-			_, block, ok := strings.Cut(page, `data-home-block="open-thoughts"`)
+			_, block, ok := strings.Cut(page, `data-home-block="marks"`)
 			if !ok {
 				t.Fatal("caught: Home omitted stored candidates")
 			}
@@ -381,7 +381,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("caught: stored-field Home ordering mismatch (-want +got):\n%s", diff)
 			}
-			all := lostMarkRequest(t, mux, http.MethodGet, "/open-thoughts", "", tt.lang)
+			all := lostMarkRequest(t, mux, http.MethodGet, "/marks", "", tt.lang)
 			assertLostMarksUnchanged(t, mux, tt.lang, wantStored)
 			if diff := cmp.Diff(6, strings.Count(all, "data-index-row")); diff != "" {
 				t.Errorf("caught: complete stored shelf count mismatch (-want +got):\n%s", diff)
@@ -392,7 +392,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 
 func lostMarkRecords(t *testing.T, mux http.Handler, lang string) []mark.Question {
 	t.Helper()
-	listed := lostMarkRequest(t, mux, http.MethodGet, "/uncertainties", "", lang)
+	listed := lostMarkRequest(t, mux, http.MethodGet, "/questions", "", lang)
 	var held []mark.Question
 	if err := json.Unmarshal([]byte(listed), &held); err != nil {
 		t.Fatal(err)

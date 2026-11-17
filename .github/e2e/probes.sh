@@ -100,7 +100,7 @@ probes=(
   "search-facets.mjs|/search?q=a"
   "search-overflow.mjs|/search?q=stoppedAt"
   "largest-text.mjs|/search?q=alpha"
-  "shelf-order.mjs|/open-thoughts"
+  "shelf-order.mjs|/marks"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
   "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"
@@ -109,7 +109,7 @@ probes=(
   # A query broad enough that its answer runs past one page, which is what
   # gives this one a way on to follow. It drives the findings table itself.
   "pager-contract.mjs|/search?q=e"
-  "uncertainty-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
+  "question-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
   "concept-sheet.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reading-without-interaction.mjs|/notes/Notes/Reading%20flow.md"
   "section-marks.mjs|/notes/Notes/Reading%20flow.md"
@@ -124,9 +124,9 @@ probes=(
   # either would meet a page the fixture alone does not explain.
   "course-cover.mjs|/courses/Maps/branches.md"
   "reader-mark.mjs|/notes/Notes/reading-fidelity.md"
-  "kept-place-size.mjs|/"
-  "kept-place-first-frame.mjs|/"
-  "kept-place-after-back.mjs|/"
+  "bookmark-size.mjs|/"
+  "bookmark-first-frame.mjs|/"
+  "bookmark-after-back.mjs|/"
 )
 
 # The probes above that leave a kept reading place behind, in the order the
@@ -136,9 +136,9 @@ probes=(
 leaves_a_place=(
   "course-cover.mjs"
   "reader-mark.mjs"
-  "kept-place-size.mjs"
-  "kept-place-first-frame.mjs"
-  "kept-place-after-back.mjs"
+  "bookmark-size.mjs"
+  "bookmark-first-frame.mjs"
+  "bookmark-after-back.mjs"
 )
 
 fail() {

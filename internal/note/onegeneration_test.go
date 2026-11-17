@@ -107,9 +107,9 @@ func TestTheMapIndexReadsOneGeneration(t *testing.T) {
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 
-			code, page := get(t, srv.Client(), srv.URL+"/maps")
+			code, page := get(t, srv.Client(), srv.URL+"/indexes")
 			if code != http.StatusOK {
-				t.Fatalf("GET /maps status = %d, want 200", code)
+				t.Fatalf("GET /indexes status = %d, want 200", code)
 			}
 			const want = `<span class="y-row__title" lang="ja">Japanese title</span>`
 			if got := rowTitleSpan(t, page); got != want {

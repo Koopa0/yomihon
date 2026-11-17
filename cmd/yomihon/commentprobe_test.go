@@ -28,7 +28,7 @@ const (
 // TestPathsCountAgreesWithWhatThePageShows is the fixture pair the ruling
 // named: two study-paths identical except that one closes the comment. The
 // page hides everything after an unclosed %%; /courses used to count the parked
-// rows anyway. Both courses now show 2 課, and each note's article names
+// rows anyway. Both courses now show 2 單元, and each note's article names
 // only the two lessons written before the mark.
 func TestPathsCountAgreesWithWhatThePageShows(t *testing.T) {
 	t.Parallel()
@@ -48,10 +48,10 @@ func TestPathsCountAgreesWithWhatThePageShows(t *testing.T) {
 	paths := readingPage(t, site, "/courses")
 	for _, title := range []string{closedProbeTitle, unclosedProbeTitle} {
 		card := indexCard(t, paths, title)
-		if !strings.Contains(card, "2 課") {
-			t.Errorf("/courses lists %q as %q, want 2 課", title, card)
+		if !strings.Contains(card, "2 單元") {
+			t.Errorf("/courses lists %q as %q, want 2 單元", title, card)
 		}
-		if strings.Contains(card, "4 課") {
+		if strings.Contains(card, "4 單元") {
 			t.Errorf("/courses still counts the rows a comment hid on %q: %q", title, card)
 		}
 	}

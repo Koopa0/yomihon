@@ -55,13 +55,13 @@ func TestProductScriptRegistryIsExact(t *testing.T) {
 		"mark.js",
 		"preferences.js",
 		"preview.js",
+		"question.js",
 		"rail-filter.js",
 		"rail.js",
 		"search.js",
 		"shortcuts.js",
 		"sidebar.js",
 		"thought.js",
-		"uncertainty.js",
 		"yomihon.js",
 	}
 	var got []string

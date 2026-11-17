@@ -111,7 +111,7 @@ func serve(t *testing.T, mux http.Handler, method, target, form string) *httptes
 
 // TestAReaderWhoLeftAQuestionFindsTheSectionAndTheirThoughtTheNextDay holds
 // the third acceptance scenario against the real routes: a reader marks a
-// section "Not sure yet" and writes a thought under it; the next day, in a
+// section "Mark as question" and writes a thought under it; the next day, in a
 // session that remembers nothing, the section's own page shows the mark and its
 // day, the thought's first sentence and its day, and the draft they would have
 // opened it with opens on the line that says it was written before the answer.
@@ -122,7 +122,7 @@ func TestAReaderWhoLeftAQuestionFindsTheSectionAndTheirThoughtTheNextDay(t *test
 	configDir := t.TempDir()
 
 	first, _ := readerSession(t, root, contract, configDir, nil)
-	recorded := serve(t, first, http.MethodPost, "/uncertainties", url.Values{"path": {"Source.md"}, "anchor": {"first"}}.Encode())
+	recorded := serve(t, first, http.MethodPost, "/questions", url.Values{"path": {"Source.md"}, "anchor": {"first"}}.Encode())
 	if recorded.Code != http.StatusOK || !strings.Contains(recorded.Body.String(), `"marked":true`) {
 		t.Fatalf("marking the section: status %d, body %s", recorded.Code, recorded.Body.String())
 	}
@@ -138,7 +138,7 @@ func TestAReaderWhoLeftAQuestionFindsTheSectionAndTheirThoughtTheNextDay(t *test
 	section := page[strings.Index(page, `<h3 data-mark-anchor id="first"`):strings.Index(page, `<h3 data-mark-anchor id="second"`)]
 	for _, want := range []string{
 		// The mark and its day: pressed, named as ever, the day shown.
-		`data-section-anchor="first" aria-pressed="true" aria-label="還不確定" data-text="還不確定" disabled></button>`,
+		`data-section-anchor="first" aria-pressed="true" aria-label="標為疑問" data-text="標為疑問" disabled></button>`,
 		`<time class="y-margin__date" data-section-date datetime="` + day + `"></time>`,
 		// The thought written about this section: its first sentence, not the
 		// line the draft opened with, and the day it was begun.
@@ -160,7 +160,7 @@ func TestAReaderWhoLeftAQuestionFindsTheSectionAndTheirThoughtTheNextDay(t *test
 	}
 	// Another section was not marked, and holds none of it.
 	_, rest, _ := strings.Cut(page, `<h3 data-mark-anchor id="second"`)
-	if !strings.Contains(rest, `data-section-anchor="second" aria-pressed="false" aria-label="還不確定" data-text="還不確定" disabled></button>`) || strings.Contains(rest, `datetime="`+day+`"`) {
+	if !strings.Contains(rest, `data-section-anchor="second" aria-pressed="false" aria-label="標為疑問" data-text="標為疑問" disabled></button>`) || strings.Contains(rest, `datetime="`+day+`"`) {
 		t.Errorf("the unmarked section carries the mark of the first")
 	}
 	// The thought about the whole note stands beside the title.
@@ -213,11 +213,11 @@ func TestTheKeptPlaceIsDrawnInTheSectionThatHoldsIt(t *testing.T) {
 	mux, _ := readerSession(t, root, contract, t.TempDir(), kept)
 
 	page := serve(t, mux, http.MethodGet, "/notes/Source.md", "").Body.String()
-	if got := strings.Count(page, `data-section-place data-text="你留下待續位置的地方"></p>`); got != 1 {
+	if got := strings.Count(page, `data-section-bookmark data-text="你加書籤的地方"></p>`); got != 1 {
 		t.Fatalf("the place is drawn %d times, want once", got)
 	}
 	first := page[strings.Index(page, `<h3 data-mark-anchor id="first"`):strings.Index(page, `<h3 data-mark-anchor id="second"`)]
-	if !strings.Contains(first, `data-section-place data-text="你留下待續位置的地方"></p>`) {
+	if !strings.Contains(first, `data-section-bookmark data-text="你加書籤的地方"></p>`) {
 		t.Errorf("the place is not in the section that holds it:\n%s", first)
 	}
 }
@@ -235,7 +235,7 @@ func TestASectionsMarkIsAnAnchorThePageRenders(t *testing.T) {
 	for _, part := range strings.Split(page, `data-section-anchor="`)[1:] {
 		anchor, _, _ := strings.Cut(part, `"`)
 		anchors++
-		got := serve(t, mux, http.MethodPost, "/uncertainties", url.Values{"path": {"Source.md"}, "anchor": {anchor}}.Encode())
+		got := serve(t, mux, http.MethodPost, "/questions", url.Values{"path": {"Source.md"}, "anchor": {anchor}}.Encode())
 		if got.Code != http.StatusOK || !strings.Contains(got.Body.String(), `"marked":true`) {
 			t.Errorf("the button for %q names an anchor the route refuses: status %d, %s", anchor, got.Code, got.Body.String())
 		}

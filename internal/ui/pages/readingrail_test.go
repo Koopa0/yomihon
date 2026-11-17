@@ -34,8 +34,8 @@ func TestReadingRailBookShowsOnePath(t *testing.T) {
 	}
 	for _, ban := range []string{
 		`y-lessonsteps`,
-		`data-sidebar-group="paths"`,
-		`data-sidebar-group="maps"`,
+		`data-sidebar-group="courses"`,
+		`data-sidebar-group="indexes"`,
 		`data-sidebar-group="journal"`,
 		`data-sidebar-group="reports"`,
 	} {

@@ -242,7 +242,7 @@ func TestTheCourseMarksTheLessonHoldingTheKeptPlace(t *testing.T) {
 			if tt.want != "" {
 				wantCount = 1
 			}
-			if got := strings.Count(body, `class="y-keptplace"`); got != wantCount {
+			if got := strings.Count(body, `class="y-bookmark"`); got != wantCount {
 				t.Fatalf("%d lessons carry the bookmark, want %d", got, wantCount)
 			}
 			if tt.want == "" {
@@ -253,7 +253,7 @@ func TestTheCourseMarksTheLessonHoldingTheKeptPlace(t *testing.T) {
 				t.Fatalf("the course does not list the %s lesson", tt.want)
 			}
 			row, _, _ = strings.Cut(row, "</a>")
-			if !strings.Contains(row, `class="y-keptplace"`) {
+			if !strings.Contains(row, `class="y-bookmark"`) {
 				t.Errorf("the bookmark is not on the %s lesson: %s", tt.want, row)
 			}
 		})

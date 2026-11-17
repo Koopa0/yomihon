@@ -246,7 +246,7 @@ func TestJoinGuide(t *testing.T) {
 			state: IndexUngoverned,
 			step:  IndexUngovernedNext,
 			lang:  En,
-			want:  "This folder has no contract yet. Add System/schemas/vault-schema.toml.",
+			want:  "This folder has no rules file yet. Add System/schemas/vault-schema.toml.",
 		},
 		{
 			name:  "chinese governed folder",

@@ -104,6 +104,8 @@ func dispatch(argv []string) (command string, args []string) {
 	switch argv[0] {
 	case "serve", "check", "coverage", "exists", openCommand, approveFigureCommand, revokeFigureCommand:
 		return argv[0], argv[1:]
+	case retiredOpenCommand:
+		return openCommand, argv[1:]
 	}
 	// #nosec G703 -- the operator's own shell argument, asked only whether it
 	// names a directory so a typo can be told from a folder. Nothing is opened

@@ -15,16 +15,16 @@ func questionAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 		return nil
 	}
 	return templ.Attributes{
-		"data-uncertainty-endpoint":    v.QuestionAddress,
-		"data-uncertainty-path":        v.RelPath,
-		"data-uncertainty-prefix":      v.IDPrefix,
-		"data-uncertainty-label":       wording.QuestionControl.In(lang),
-		"data-uncertainty-saved":       wording.QuestionSaved.In(lang),
-		"data-uncertainty-cleared":     wording.QuestionCleared.In(lang),
-		"data-uncertainty-failed":      wording.QuestionNotStored.In(lang),
-		"data-uncertainty-unavailable": wording.QuestionUnavailable.In(lang),
-		"data-uncertainty-scope":       wording.QuestionPlaceOnly.In(lang),
-		"data-uncertainty-lang":        lang.Tag(),
+		"data-question-endpoint":    v.QuestionAddress,
+		"data-question-path":        v.RelPath,
+		"data-question-prefix":      v.IDPrefix,
+		"data-question-label":       wording.QuestionControl.In(lang),
+		"data-question-saved":       wording.QuestionSaved.In(lang),
+		"data-question-cleared":     wording.QuestionCleared.In(lang),
+		"data-question-failed":      wording.QuestionNotStored.In(lang),
+		"data-question-unavailable": wording.QuestionUnavailable.In(lang),
+		"data-question-scope":       wording.QuestionPlaceOnly.In(lang),
+		"data-question-lang":        lang.Tag(),
 	}
 }
 

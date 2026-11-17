@@ -189,7 +189,7 @@ func continueRow(row ContinueRow, lang wording.Lang) templ.Component {
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" aria-describedby=\"home-continue-title\" data-continue-link><span class=\"y-keptmark\" aria-hidden=\"true\"></span> <span class=\"y-cover__verb\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" aria-describedby=\"home-continue-title\" data-continue-link><span class=\"y-bookmark__ribbon\" aria-hidden=\"true\"></span> <span class=\"y-cover__verb\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -269,7 +269,7 @@ func keptPlace(lang wording.Lang) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<span class=\"y-keptplace\"><span class=\"y-keptmark\" aria-hidden=\"true\"></span> <span class=\"y-offscreen\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "<span class=\"y-bookmark\"><span class=\"y-bookmark__ribbon\" aria-hidden=\"true\"></span> <span class=\"y-offscreen\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

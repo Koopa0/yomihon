@@ -70,7 +70,7 @@ func TestAReadingRoomOpensWithNoConfigurationDirectory(t *testing.T) {
 	// router reports the method rather than the address — the two ways an
 	// unmounted route can read, and neither of them is a place being kept.
 	recorder := httptest.NewRecorder()
-	site.ServeHTTP(recorder, siteRequest(t, http.MethodPost, "/marks", strings.NewReader("path=a.md&offset=0")))
+	site.ServeHTTP(recorder, siteRequest(t, http.MethodPost, "/bookmark", strings.NewReader("path=a.md&offset=0")))
 	if recorder.Code != http.StatusNotFound && recorder.Code != http.StatusMethodNotAllowed {
 		t.Errorf("POST /marks with no configuration directory = %d, want the router to refuse an address it never mounted", recorder.Code)
 	}

@@ -471,7 +471,6 @@ func newModel(
 			var path Course
 			if fault := guardCoreWalk(ref, func() {
 				path = walkers.path(n, resolver, facts, policy)
-				path.Unit = unitOf(path.Groups, facts, roles)
 			}); fault != nil {
 				m.coreFaults = append(m.coreFaults, *fault)
 				continue

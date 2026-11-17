@@ -83,18 +83,18 @@ func TestACompareColumnMarkUsesItsQualifiedIDSpace(t *testing.T) {
 	t.Parallel()
 	a := comparedNote("a-", "First", "Writing/First.md", "en")
 	b := comparedNote("b-", "Second", "Writing/Second.md", "en")
-	a.QuestionAddress = "/uncertainties"
-	b.QuestionAddress = "/uncertainties"
+	a.QuestionAddress = "/questions"
+	b.QuestionAddress = "/questions"
 	compared := renderedBytes(t, t.Context(), Compare(CompareView{A: a, B: b}, recordedChrome()))
 	for _, prefix := range []string{"a-", "b-"} {
-		attr := `data-uncertainty-prefix="` + prefix + `"`
+		attr := `data-question-prefix="` + prefix + `"`
 		if got := strings.Count(compared, attr); got != 1 {
 			t.Errorf("compare column mark prefix %q occurs %d times, want one qualified article", prefix, got)
 		}
 	}
 	b.IDPrefix = ""
 	alone := renderedBytes(t, t.Context(), Note(b, recordedChrome()))
-	if !strings.Contains(alone, `data-uncertainty-prefix=""`) {
+	if !strings.Contains(alone, `data-question-prefix=""`) {
 		t.Error("a note on its own still claims a column prefix")
 	}
 }

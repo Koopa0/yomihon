@@ -225,14 +225,14 @@ func Home(v HomeView, c layouts.Chrome) templ.Component {
 							}
 							return nil
 						})
-						templ_7745c5c3_Err = nothingToShow(nothingNotice{Kind: "open-thoughts", Fault: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
+						templ_7745c5c3_Err = nothingToShow(nothingNotice{Kind: "marks", Fault: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var6), templ_7745c5c3_Buffer)
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = ShelfBlock(v.OpenThoughts, "open-thoughts", OpenThoughtsHomeRows, c.Lang, false).Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = ShelfBlock(v.OpenThoughts, "marks", OpenThoughtsHomeRows, c.Lang, false).Render(templ.WithChildren(ctx, templ_7745c5c3_Var5), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

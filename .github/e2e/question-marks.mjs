@@ -22,8 +22,8 @@ const MUTATE = process.env.MUTATE || '';
 const PHONE = { width: 390, height: 844 };
 const LESSON = 'Writing/lessons/japanese/L01.md';
 const CONCEPT = 'Concepts/japanese/は.md';
-const SLOT = '.y-slotcard [data-uncertainty-control] button';
-const SHEET = '[data-concept-sheet][open] [data-uncertainty-control] button';
+const SLOT = '.y-slotcard [data-question-control] button';
+const SHEET = '[data-concept-sheet][open] [data-question-control] button';
 
 const SITES = ['slot-mark-survives-reload', 'concept-mark-names-its-source', 'lost-mark-removes-original-pair'];
 
@@ -37,15 +37,15 @@ class ProbeBroken extends Error {}
 class NotApplied extends Error {}
 
 const fail = (site, message) => {
-  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN uncertainty-marks: unknown assertion site ${site}`);
-  throw new LockFired(site, `FAIL uncertainty-marks: ${message}`);
+  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN question-marks: unknown assertion site ${site}`);
+  throw new LockFired(site, `FAIL question-marks: ${message}`);
 };
 
 // rewriteModule edits the client module as served, never a file on disk. The
 // needle has to match exactly once in every load.
 const rewriteModule = (needle, replacement, label) => async (page) => {
   const perLoad = [];
-  await page.route('**/uncertainty.js{,?*}', async (route) => {
+  await page.route('**/question.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     perLoad.push(original.split(needle).length - 1);
@@ -73,13 +73,13 @@ const MUTATIONS = {
   },
   'concept-mark-names-the-lesson': {
     target: 'concept-mark-names-its-source',
-    apply: rewriteModule("decodeURIComponent(address.pathname.slice('/notes/'.length))", 'article.dataset.uncertaintyPath', 'the path a concept control marks'),
+    apply: rewriteModule("decodeURIComponent(address.pathname.slice('/notes/'.length))", 'article.dataset.questionPath', 'the path a concept control marks'),
   },
 };
 
 for (const site of SITES) {
   if (!Object.values(MUTATIONS).some((mutation) => mutation.target === site)) {
-    console.error(`uncertainty-marks: assertion site ${site} has no mutation`);
+    console.error(`question-marks: assertion site ${site} has no mutation`);
     process.exit(2);
   }
 }
@@ -88,13 +88,13 @@ if (MUTATE === 'list') {
   process.exit(0);
 }
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
-  console.error(`uncertainty-marks: unknown MUTATE mode ${MUTATE}`);
+  console.error(`question-marks: unknown MUTATE mode ${MUTATE}`);
   process.exit(2);
 }
 
 const records = async (page) => {
-  const response = await page.request.get(`${BASE}/uncertainties`);
-  if (response.status() !== 200) throw new ProbeBroken(`BROKEN uncertainty-marks: GET /uncertainties = ${response.status()}`);
+  const response = await page.request.get(`${BASE}/questions`);
+  if (response.status() !== 200) throw new ProbeBroken(`BROKEN question-marks: GET /questions = ${response.status()}`);
   return response.json();
 };
 
@@ -116,7 +116,7 @@ const ready = async (page, selector) => {
       return button && !button.disabled;
     }, selector, { timeout: 4000 });
   } catch {
-    throw new ProbeBroken(`BROKEN uncertainty-marks: ${selector} never became usable`);
+    throw new ProbeBroken(`BROKEN question-marks: ${selector} never became usable`);
   }
 };
 
@@ -133,21 +133,21 @@ const publication = async (path, present, marker = '') => {
     if ((present && response.status === 200 && body.includes(marker)) || (!present && response.status === 404)) return;
     await pause(100);
   }
-  throw new ProbeBroken(`BROKEN uncertainty-marks: fixture publication did not reach ${present} for ${path}`);
+  throw new ProbeBroken(`BROKEN question-marks: fixture publication did not reach ${present} for ${path}`);
 };
 
 // Cleanup touches only the exact pairs this probe owns, never another reader's mark.
 const clearMarks = async () => {
   try {
-    const response = await fetch(`${BASE}/uncertainties`);
+    const response = await fetch(`${BASE}/questions`);
     if (!response.ok) throw new Error(`read cleanup marks: ${response.status}`);
     const held = await response.json();
     for (const { path, anchor } of held) {
       if (!owned.some((pair) => pair.path === path && pair.anchor === anchor)) continue;
-      const removed = await fetch(`${BASE}/uncertainties`, { method: 'POST', body: new URLSearchParams({ path, anchor }) });
+      const removed = await fetch(`${BASE}/questions`, { method: 'POST', body: new URLSearchParams({ path, anchor }) });
       if (!removed.ok || (await removed.json()).marked !== false) throw new Error('owned mark was not removed');
     }
-    const verified = await fetch(`${BASE}/uncertainties`);
+    const verified = await fetch(`${BASE}/questions`);
     if (!verified.ok) throw new Error(`verify cleanup marks: ${verified.status}`);
     const left = await verified.json();
     if (left.some(({ path, anchor }) => owned.some((pair) => pair.path === path && pair.anchor === anchor))) throw new Error('owned mark remains');
@@ -157,7 +157,7 @@ const clearMarks = async () => {
     }
     return true;
   } catch (err) {
-    console.error(`BROKEN uncertainty-marks: cleanup failed: ${err}`);
+    console.error(`BROKEN question-marks: cleanup failed: ${err}`);
     process.exitCode = 2;
     return false;
   }
@@ -171,9 +171,9 @@ try {
   mutationProof = proof;
   const applied = () => {
     const issue = proof();
-    if (issue) throw new NotApplied(`NOT-APPLIED uncertainty-marks: ${MUTATE}: ${issue}`);
+    if (issue) throw new NotApplied(`NOT-APPLIED question-marks: ${MUTATE}: ${issue}`);
   };
-  if ((await records(page)).length !== 0) throw new ProbeBroken('BROKEN uncertainty-marks: the fixture starts with marks');
+  if ((await records(page)).length !== 0) throw new ProbeBroken('BROKEN question-marks: the fixture starts with marks');
 
   // --- A slot-card mark survives a reload and clears on a second press ---
   await page.goto(BASE + PAGE, { waitUntil: 'load' });
@@ -210,24 +210,24 @@ try {
   // An admitted real place is lost only after a scanner publication. Both
   // widths must arrive at that state before geometry or native input is tested.
   const supplied = process.env.YOMIHON_FIXTURE_ROOT;
-  if (!supplied) throw new ProbeBroken('BROKEN uncertainty-marks: no disposable fixture root');
+  if (!supplied) throw new ProbeBroken('BROKEN question-marks: no disposable fixture root');
   const root = await realpath(supplied);
-  if (basename(root) !== 'vault' || !basename(dirname(root)).startsWith('yomihon-serve.')) throw new ProbeBroken('BROKEN uncertainty-marks: unsafe fixture root');
+  if (basename(root) !== 'vault' || !basename(dirname(root)).startsWith('yomihon-serve.')) throw new ProbeBroken('BROKEN question-marks: unsafe fixture root');
   const notes = join(root, 'Notes');
   const info = await lstat(notes);
-  if (!info.isDirectory() || info.isSymbolicLink()) throw new ProbeBroken('BROKEN uncertainty-marks: Notes is not an ordinary directory');
+  if (!info.isDirectory() || info.isSymbolicLink()) throw new ProbeBroken('BROKEN question-marks: Notes is not an ordinary directory');
   const id = randomUUID();
-  folder = join(notes, `uncertainty-${id}`);
-  fixturePath = `Notes/uncertainty-${id}/source.md`;
+  folder = join(notes, `question-${id}`);
+  fixturePath = `Notes/question-${id}/source.md`;
   await mkdir(folder);
   const file = join(folder, 'source.md');
-  await writeFile(file, `---\ntitle: Uncertainty ${id}\n---\n# Uncertainty ${id}\n\n## Original place\n\nBefore ${id}.\n`, { flag: 'wx' });
+  await writeFile(file, `---\ntitle: Question ${id}\n---\n# Question ${id}\n\n## Original place\n\nBefore ${id}.\n`, { flag: 'wx' });
   await publication(fixturePath, true, `Before ${id}`);
   owned.push({ path: fixturePath, anchor: 'original-place' });
-  const admitted = await page.request.post(`${BASE}/uncertainties`, { form: { path: fixturePath, anchor: 'original-place' } });
-  if (admitted.status() !== 200 || (await admitted.json()).marked !== true) throw new ProbeBroken('BROKEN uncertainty-marks: real fixture pair was not admitted');
+  const admitted = await page.request.post(`${BASE}/questions`, { form: { path: fixturePath, anchor: 'original-place' } });
+  if (admitted.status() !== 200 || (await admitted.json()).marked !== true) throw new ProbeBroken('BROKEN question-marks: real fixture pair was not admitted');
   const saved = await records(page);
-  await writeFile(file, `---\ntitle: Uncertainty ${id}\n---\n# Uncertainty ${id}\n\n## Changed place\n\nAfter ${id}.\n`);
+  await writeFile(file, `---\ntitle: Question ${id}\n---\n# Question ${id}\n\n## Changed place\n\nAfter ${id}.\n`);
   await publication(fixturePath, true, `After ${id}`);
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 844 });
@@ -237,7 +237,7 @@ try {
           { name: 'yomihon_lang', value: language, url: BASE },
           { name: 'yomihon_theme', value: theme, url: BASE },
         ]);
-        for (const address of ['/', '/open-thoughts']) {
+        for (const address of ['/', '/marks']) {
           await page.goto(BASE + address, { waitUntil: 'load' });
           await arrived(page);
           applied();
@@ -246,9 +246,9 @@ try {
             theme: document.documentElement.dataset.theme,
           }));
           if (state.language !== language || state.theme !== theme) {
-            throw new ProbeBroken(`BROKEN uncertainty-marks: ${address} rendered ${JSON.stringify(state)}, want ${language}/${theme}`);
+            throw new ProbeBroken(`BROKEN question-marks: ${address} rendered ${JSON.stringify(state)}, want ${language}/${theme}`);
           }
-          const selector = `[data-uncertainty-remove][data-uncertainty-path="${fixturePath}"]`;
+          const selector = `[data-question-remove][data-question-path="${fixturePath}"]`;
           try {
             await page.locator(selector).waitFor({ state: 'attached', timeout: 4000 });
             await ready(page, selector);
@@ -265,24 +265,24 @@ try {
       }
     }
   }
-  const removal = page.locator(`[data-uncertainty-remove][data-uncertainty-path="${fixturePath}"]`);
+  const removal = page.locator(`[data-question-remove][data-question-path="${fixturePath}"]`);
   await removal.focus();
   await removal.press('Enter');
   try {
-    await page.waitForFunction(() => !document.querySelector('[data-uncertainty-remove]'), {}, { timeout: 4000 });
+    await page.waitForFunction(() => !document.querySelector('[data-question-remove]'), {}, { timeout: 4000 });
   } catch {
     fail('lost-mark-removes-original-pair', 'native removal did not refresh the shelf');
   }
   if ((await records(page)).length !== 0) fail('lost-mark-removes-original-pair', 'native removal left the original pair stored');
   await context.close();
-  console.log('PASS uncertainty-marks: a phone-width slot mark survives a reload and clears; a concept mark names its own note; lost-pair removal remains usable at both widths, languages, and themes');
+  console.log('PASS question-marks: a phone-width slot mark survives a reload and clears; a concept mark names its own note; lost-pair removal remains usable at both widths, languages, and themes');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
     console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
     process.exitCode = 2;
   } else if (err instanceof LockFired && MUTATE && mutationProof()) {
-    console.error(`NOT-APPLIED uncertainty-marks: ${MUTATE}: ${mutationProof()}`);
+    console.error(`NOT-APPLIED question-marks: ${MUTATE}: ${mutationProof()}`);
     console.log(`MUTATE-RESULT: not-applied ${MUTATE}`);
     process.exitCode = 2;
   } else if (err instanceof LockFired) {

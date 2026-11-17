@@ -1,30 +1,30 @@
 package wording
 
 // OpenThoughtsTitle names a return to the reader's own unfinished material.
-var OpenThoughtsTitle = both("還沒想通的", "What you left open")
+var OpenThoughtsTitle = both("我的標記", "My marks")
 
-// OpenThoughtsLede says what the shelf holds where the contract declares the
-// type a reader's thoughts are filed under: the marked locations, and the
+// OpenThoughtsLede says what the shelf holds where the rules declare the
+// type a reader's thoughts are filed under: the questions, and the
 // thoughts that still declare draft: true.
-var OpenThoughtsLede = both("你標記為「還不確定」的位置，以及還沒寫完的想法。", `Locations you marked "Not sure yet", and thoughts you have not finished.`)
+var OpenThoughtsLede = both("你標為疑問的位置，以及還沒寫完的想法。", `Your questions, and thoughts you have not finished.`)
 
 // OpenThoughtsMarksLede describes the shelf when no usable answer role exists.
 // It says what the shelf holds and nothing of its order, which the reader
 // chooses.
-var OpenThoughtsMarksLede = both("你標記為「還不確定」的位置。", `Locations you marked "Not sure yet".`)
+var OpenThoughtsMarksLede = both("你標為疑問的位置。", `Your questions.`)
 
 // OpenThoughtKind labels a row that is a note of the reader's own, where a
-// marked location is labelled "Not sure yet".
+// question is labelled "Question".
 var OpenThoughtKind = both("想法", "Thought")
 
-// The shelf of what was left open can be ordered three ways, and says it is
+// The My marks shelf can be ordered three ways, and says it is
 // being asked which.
 var (
 	OpenOrderLabel  = both("排序", "Order")
 	OpenOrderNewest = both("最新在前", "Newest first")
-	OpenOrderSource = both("依來源", "By source")
+	OpenOrderSource = both("依筆記", "By note")
 	OpenOrderOldest = both("最早在前", "Oldest first")
 )
 
 // OpenThoughtsMarksEmpty is the marks-only empty state.
-var OpenThoughtsMarksEmpty = both("尚無「還不確定」的位置標記。", `No locations marked "Not sure yet".`)
+var OpenThoughtsMarksEmpty = both("尚無疑問。", `No questions yet.`)

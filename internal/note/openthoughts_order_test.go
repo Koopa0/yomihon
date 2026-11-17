@@ -117,20 +117,20 @@ func TestTheShelfIsOrderedNewestFirstByDefaultAndByTheThreeChoices(t *testing.T)
 	shelf := newShelfServer(t, shelfVault(), shelfMarks())
 	newest := []string{"Other › Part", "Thought on cancel", "Source › Cancel", "Thought on other"}
 	for address, want := range map[string][]string{
-		"/open-thoughts":                newest,
-		"/open-thoughts?order=newest":   newest,
-		"/open-thoughts?order=oldest":   {"Thought on other", "Source › Cancel", "Thought on cancel", "Other › Part"},
-		"/open-thoughts?order=source":   {"Other › Part", "Thought on other", "Thought on cancel", "Source › Cancel"},
-		"/open-thoughts?order=sideways": newest,
-		"/open-thoughts?order=":         newest,
+		"/marks":                newest,
+		"/marks?order=newest":   newest,
+		"/marks?order=oldest":   {"Thought on other", "Source › Cancel", "Thought on cancel", "Other › Part"},
+		"/marks?order=source":   {"Other › Part", "Thought on other", "Thought on cancel", "Source › Cancel"},
+		"/marks?order=sideways": newest,
+		"/marks?order=":         newest,
 	} {
 		if diff := cmp.Diff(want, openNames(t, shelf.page(t, address, "en"))); diff != "" {
 			t.Errorf("GET %s order (-want +got):\n%s", address, diff)
 		}
 	}
 	for address, want := range map[string]string{
-		"/open-thoughts": "Newest first", "/open-thoughts?order=source": "By source",
-		"/open-thoughts?order=oldest": "Oldest first", "/open-thoughts?order=nonsense": "Newest first",
+		"/marks": "Newest first", "/marks?order=source": "By note",
+		"/marks?order=oldest": "Oldest first", "/marks?order=nonsense": "Newest first",
 	} {
 		page := shelf.page(t, address, "en")
 		_, rest, ok := strings.Cut(page, `aria-pressed="true">`)
@@ -141,7 +141,7 @@ func TestTheShelfIsOrderedNewestFirstByDefaultAndByTheThreeChoices(t *testing.T)
 			t.Errorf("GET %s presses %q, want %q", address, got, want)
 		}
 	}
-	if page := shelf.page(t, "/open-thoughts?order=source", "zh-Hant"); !strings.Contains(page, ">排序</span>") || !strings.Contains(page, `value="source" aria-pressed="true">依來源<`) {
+	if page := shelf.page(t, "/marks?order=source", "zh-Hant"); !strings.Contains(page, ">排序</span>") || !strings.Contains(page, `value="source" aria-pressed="true">依筆記<`) {
 		t.Errorf("the order control is not said in the reader's language")
 	}
 }
@@ -155,7 +155,7 @@ func TestADatelessThoughtStaysAfterTheDatedOnesWhicheverWayTheDatesRun(t *testin
 	files["Writing/Undated.md"] = "---\ntype: writing\ndraft: true\n---\n# Undated thought\n\nNo day.\n"
 	shelf := newShelfServer(t, files, shelfMarks())
 	for _, order := range []string{"newest", "oldest"} {
-		names := openNames(t, shelf.page(t, "/open-thoughts?order="+order, "en"))
+		names := openNames(t, shelf.page(t, "/marks?order="+order, "en"))
 		if got := names[len(names)-1]; got != "Undated thought" {
 			t.Errorf("in order %q the undated thought stands at %q, want last: %v", order, got, names)
 		}
@@ -242,10 +242,10 @@ func TestEachRowCarriesTheSentenceOfItsPlaceReadAsTheNoteIsNow(t *testing.T) {
 		"Thought on cancel": "Thought two.",
 		"Thought on other":  "Thought one.",
 	}
-	if diff := cmp.Diff(want, openingsOf(t, shelf.page(t, "/open-thoughts", "en"))); diff != "" {
+	if diff := cmp.Diff(want, openingsOf(t, shelf.page(t, "/marks", "en"))); diff != "" {
 		t.Errorf("the sentence under each row (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff(want, openingsOf(t, shelf.page(t, "/open-thoughts", "zh-Hant"))); diff != "" {
+	if diff := cmp.Diff(want, openingsOf(t, shelf.page(t, "/marks", "zh-Hant"))); diff != "" {
 		t.Errorf("the sentence under each row in the other language (-want +got):\n%s", diff)
 	}
 
@@ -254,7 +254,7 @@ func TestEachRowCarriesTheSentenceOfItsPlaceReadAsTheNoteIsNow(t *testing.T) {
 		t.Fatal(err)
 	}
 	shelf.rebuild(t)
-	got := openingsOf(t, shelf.page(t, "/open-thoughts", "en"))
+	got := openingsOf(t, shelf.page(t, "/marks", "en"))
 	if got["Source › Cancel"] != "Rewritten since the mark." || got["Source › Wait"] != "Wait." {
 		t.Errorf("the sentence is not the note as it stands now: %v", got)
 	}
@@ -268,10 +268,10 @@ func TestAThoughtIsLabelledAndNamesTheNotesItCameFrom(t *testing.T) {
 
 	shelf := newShelfServer(t, shelfVault(), shelfMarks())
 	for lang, labels := range map[string][]string{
-		"en":      {">Thought</span>", ">Draft</span>", "<span>Declared sources</span>"},
-		"zh-Hant": {">想法</span>", ">草稿</span>", "<span>聲明的來源</span>"},
+		"en":      {">Thought</span>", ">Draft</span>", "<span>Sources</span>"},
+		"zh-Hant": {">想法</span>", ">草稿</span>", "<span>出自</span>"},
 	} {
-		page := shelf.page(t, "/open-thoughts", lang)
+		page := shelf.page(t, "/marks", lang)
 		for _, want := range labels {
 			if !strings.Contains(page, want) {
 				t.Errorf("the %s shelf lacks %q", lang, want)

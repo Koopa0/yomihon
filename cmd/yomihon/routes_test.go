@@ -46,7 +46,7 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 	}{
 		{"the desk", "/"},
 		{"the study-path index", "/courses"},
-		{"the map index", "/maps"},
+		{"the map index", "/indexes"},
 		{"the report index", "/reports"},
 		{"the folder index", "/folders"},
 		{"the journal at this month", "/journal"},
@@ -163,8 +163,8 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 		silent []string
 	}{
 		{target: "/courses", absent: []string{"data-index-row", "data-index-empty"}},
-		{target: "/maps", absent: []string{"data-index-row", "data-index-empty"}},
-		{target: "/", silent: []string{"courses", "maps"}},
+		{target: "/indexes", absent: []string{"data-index-row", "data-index-empty"}},
+		{target: "/", silent: []string{"courses", "indexes"}},
 	}
 	for _, tt := range tests {
 		target := tt.target
@@ -288,7 +288,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 				{
 					name: "desk maps",
 					fetch: func() string {
-						return deskBlockMarkup(t, readingPage(t, site, "/"), "maps")
+						return deskBlockMarkup(t, readingPage(t, site, "/"), "indexes")
 					},
 					want: tt.mapState,
 				},
@@ -299,7 +299,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 				},
 				{
 					name:  "map index",
-					fetch: func() string { return readingPage(t, site, "/maps") },
+					fetch: func() string { return readingPage(t, site, "/indexes") },
 					want:  tt.mapState,
 				},
 				{
@@ -417,7 +417,7 @@ func TestTheDeskStatesWhatEveryModePageStates(t *testing.T) {
 			// contracts. What it must never mean is that this case compared
 			// the desk's line against nothing at all.
 			compared := 0
-			for _, target := range []string{"/courses", "/maps", "/folders"} {
+			for _, target := range []string{"/courses", "/indexes", "/folders"} {
 				causes := faultCauses(t, site, target)
 				if len(causes) == 0 {
 					continue
@@ -967,7 +967,7 @@ func TestAnEmptyDeskNamesTheDeclarationThatFillsIt(t *testing.T) {
 				declared []string
 			}{
 				{target: "/courses", declared: []string{tt.pathType}},
-				{target: "/maps", declared: tt.named},
+				{target: "/indexes", declared: tt.named},
 			} {
 				said := make(map[wording.Lang]string, 2)
 				for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
@@ -1087,4 +1087,57 @@ func emptySlot(t *testing.T, page string) string {
 		t.Fatal("the empty slot is unclosed")
 	}
 	return html.UnescapeString(slot)
+}
+
+// TestRetiredAddressesRedirectToTheirNewOnes drives the assembled site over every
+// address the vocabulary change retired, so a bookmarked page or a tab drawn
+// before the change still arrives. A page moves with 301; a route a page posts
+// to moves with 308, which keeps the method and the body.
+func TestRetiredAddressesRedirectToTheirNewOnes(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	writeDeskFixture(t, root)
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+
+	tests := []struct {
+		name, method, target, want string
+		status                     int
+	}{
+		{"the old shelf of what was left open", http.MethodGet, "/open-thoughts", "/marks", http.StatusMovedPermanently},
+		{"the old shelf with its order", http.MethodGet, "/open-thoughts?order=oldest", "/marks?order=oldest", http.StatusMovedPermanently},
+		{"the old map index", http.MethodGet, "/maps", "/indexes", http.StatusMovedPermanently},
+		{"the old syllabus page", http.MethodGet, "/syllabus/Maps/study.md", "/courses/Maps/study.md", http.StatusMovedPermanently},
+		{"the old path index", http.MethodGet, "/paths", "/courses", http.StatusMovedPermanently},
+		{"the old bookmark address", http.MethodPost, "/marks", "/bookmark", http.StatusPermanentRedirect},
+		{"the old question list", http.MethodGet, "/uncertainties", "/questions", http.StatusPermanentRedirect},
+		{"the old question toggle", http.MethodPost, "/uncertainties", "/questions", http.StatusPermanentRedirect},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			recorder := httptest.NewRecorder()
+			site.ServeHTTP(recorder, siteRequest(t, tt.method, tt.target, strings.NewReader("path=Concepts%2Falpha.md")))
+			response := recorder.Result()
+			defer func() {
+				if closeErr := response.Body.Close(); closeErr != nil {
+					t.Errorf("close response body: %v", closeErr)
+				}
+			}()
+			if response.StatusCode != tt.status {
+				t.Errorf("%s %s = %d, want %d", tt.method, tt.target, response.StatusCode, tt.status)
+			}
+			if got := response.Header.Get("Location"); got != tt.want {
+				t.Errorf("%s %s Location = %q, want %q", tt.method, tt.target, got, tt.want)
+			}
+		})
+	}
 }

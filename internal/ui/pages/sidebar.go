@@ -267,8 +267,7 @@ func ModelCapabilityFaults(model *nav.Model, lang wording.Lang) []CapabilityFaul
 
 // Foot is the way onward the foot of an article offers: the notes either side
 // of this one in the order that won, what to call that order, and which kind it
-// is. Unit is the noun a course's steps are named in, and means nothing for a
-// folder's.
+// is.
 //
 // The rest belongs to a course. Path is the path whose order it is, which the
 // foot names with a link to the contents. A side branch's lessons carry the
@@ -283,7 +282,6 @@ type Foot struct {
 	// Course says the order is a study path's and not the folder's, which
 	// picks the step words.
 	Course bool
-	Unit   nav.Unit
 
 	Path       nav.NoteRef
 	Back       nav.NoteRef
@@ -321,7 +319,6 @@ func FooterSequence(rail *ReadingRail, lang wording.Lang) Foot {
 			Next:       step.Next,
 			Label:      fmt.Sprintf(wording.CourseOnwardOf.In(lang), step.PathTitle),
 			Course:     true,
-			Unit:       step.Unit,
 			Path:       nav.NoteRef{Name: step.PathTitle, RelPath: step.PathRelPath},
 			Back:       rail.place.Back,
 			Onward:     rail.place.Onward,
@@ -336,16 +333,16 @@ func FooterSequence(rail *ReadingRail, lang wording.Lang) Foot {
 // stepWordPrev and stepWordNext name a footer step for the order it walks: a
 // course hands over what it is made of, a folder merely the file beside this
 // one.
-func stepWordPrev(course bool, unit nav.Unit, lang wording.Lang) string {
+func stepWordPrev(course bool, lang wording.Lang) string {
 	if course {
-		return unitWords(unit).Previous.In(lang)
+		return wording.Units.Previous.In(lang)
 	}
 	return wording.PreviousFile.In(lang)
 }
 
-func stepWordNext(course bool, unit nav.Unit, lang wording.Lang) string {
+func stepWordNext(course bool, lang wording.Lang) string {
 	if course {
-		return unitWords(unit).Next.In(lang)
+		return wording.Units.Next.In(lang)
 	}
 	return wording.NextFile.In(lang)
 }

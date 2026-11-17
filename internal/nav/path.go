@@ -2,7 +2,6 @@ package nav
 
 import (
 	"slices"
-	"strconv"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -30,9 +29,6 @@ type Course struct {
 	// count or its walk; a surface that wants to say a branch exists says this
 	// figure beside the course total, never inside it.
 	Branched int
-	// Unit is the noun the path's entries are counted and stepped in, decided
-	// once for the whole path from the types of the notes it lists.
-	Unit Unit
 	// Drafts is how many of the main line's lessons declare draft: true:
 	// the lessons still to be finished. It counts out of the same lessons
 	// Planned counts, so it can never exceed it, and a lesson that reaches no
@@ -80,35 +76,6 @@ type branchExit struct {
 	// anchored is whether the branch hangs from a row at all. A branch a heading
 	// opened hangs from nothing, so it has no lesson to go back to or on to.
 	anchored bool
-}
-
-// Unit is the noun a study path's entries are counted and stepped in. It
-// follows what the author arranged: a path of lessons is read in lessons, and
-// a path that lists any other kind of note in items, so a reading list or a set
-// of reference notes is never called a course. A path leaves lessons, the noun
-// a study path has always been counted in, only on evidence: a row that
-// resolved to a note that is not a lesson. The zero value is the lesson.
-type Unit uint8
-
-const (
-	// UnitLesson is the noun for a path none of whose entries is known to be
-	// anything else.
-	UnitLesson Unit = iota
-	// UnitItem is the noun for a path in which some entry resolved to a note
-	// that is not a lesson.
-	UnitItem
-)
-
-// String names a unit for a diagnostic or a log line.
-func (u Unit) String() string {
-	switch u {
-	case UnitLesson:
-		return "UnitLesson"
-	case UnitItem:
-		return "UnitItem"
-	default:
-		return "Unit(" + strconv.Itoa(int(u)) + ")"
-	}
 }
 
 // clone is a Path a caller may hold, with the whole branch tree copied so
@@ -577,43 +544,6 @@ func localStops(g *PathGroup) []NoteRef {
 		}
 	}
 	return stops
-}
-
-// unitOf names the noun a path's entries are counted in. Every row the course
-// counts that resolved to a note is asked what type that note declares, and
-// the path is read in items as soon as one of them is not the contract's lesson
-// type. A row that resolved to nothing — a lesson planned and not yet written,
-// a mistyped link, a note outside the governed set — has no type to give and
-// abstains: one broken link must not rename a whole book of lessons for as long
-// as it stays broken, and a path that has not yet shown anything to be other
-// than a lesson is the course it has always been called. Rows the course does
-// not count, such as a reference section the author kept out of it, are not
-// asked.
-func unitOf(groups []*PathGroup, facts map[string]noteFacts, roles schema.NavigationRoles) Unit {
-	unit := UnitLesson
-	var walk func(g *PathGroup)
-	walk = func(g *PathGroup) {
-		if !g.Projectable && !g.Carries {
-			return
-		}
-		for _, item := range g.Items {
-			switch {
-			case item.Entry != nil:
-				if !item.Entry.Openable() {
-					continue
-				}
-				if !roles.IsLessonType(facts[item.Entry.RelPath].noteType) {
-					unit = UnitItem
-				}
-			case item.Group != nil:
-				walk(item.Group)
-			}
-		}
-	}
-	for _, g := range groups {
-		walk(g)
-	}
-	return unit
 }
 
 // pathPlacements records every projectable accepted, resolved entry of one path

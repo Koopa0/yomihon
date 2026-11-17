@@ -268,7 +268,7 @@ const open = async (context, kind, path) => {
   const page = await context.newPage();
   // No mark is written to the fixture vault: every press here is answered as
   // the server answers a kept place, without reaching it.
-  await page.route('**/marks', async (route) => {
+  await page.route('**/bookmark', async (route) => {
     if (route.request().method() !== 'POST') return route.continue();
     await route.fulfill({ status: 204, body: '' });
   });

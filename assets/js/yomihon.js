@@ -17,7 +17,7 @@ import { initSearch } from './search.js';
 import { initShortcuts } from './shortcuts.js';
 import { initSidebar } from './sidebar.js';
 import { initThought } from './thought.js';
-import { initUncertainty } from './uncertainty.js';
+import { initQuestion } from './question.js';
 
 function init() {
   const root = document.documentElement;
@@ -38,7 +38,7 @@ function init() {
   initLesson(enhanceCodeCopy);
   initMark();
   initThought();
-  initUncertainty();
+  initQuestion();
   initPreview();
   initDiagrams(preferences).catch((error) => {
     root.setAttribute('data-mermaid-error', '');

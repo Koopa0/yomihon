@@ -41,7 +41,7 @@ templ sectionMargin(id string, m *SectionMargin, p *SectionPlan) {
 		for i := range m.Thoughts {
 			@thoughtLine(&m.Thoughts[i], p.Lang)
 		}
-		<p class="y-margin__place" data-section-place hidden?={ id != p.place } data-text={ wording.MarkKeptHere.In(p.Lang) }></p>
+		<p class="y-margin__bookmark" data-section-bookmark hidden?={ id != p.place } data-text={ wording.MarkKeptHere.In(p.Lang) }></p>
 		if p.Marks {
 			@layouts.Reply("y-margin__said", templ.Attributes{"data-section-said": ""}) {
 			}

@@ -10,11 +10,11 @@ const today = () => {
 };
 
 // A mark records a location, never the sentence choices currently on a card.
-export function initUncertainty() {
-  const articles = [...document.querySelectorAll('[data-uncertainty-endpoint]:not([data-uncertainty-remove])')];
-  const removals = [...document.querySelectorAll('[data-uncertainty-remove]')];
+export function initQuestion() {
+  const articles = [...document.querySelectorAll('[data-question-endpoint]:not([data-question-remove])')];
+  const removals = [...document.querySelectorAll('[data-question-remove]')];
   if (articles.length === 0 && removals.length === 0) return;
-  const endpoint = (articles[0] || removals[0]).dataset.uncertaintyEndpoint;
+  const endpoint = (articles[0] || removals[0]).dataset.questionEndpoint;
   const keys = new Map();
   let controls = [];
   let available = false;
@@ -41,13 +41,13 @@ export function initUncertainty() {
   }
 
   for (const button of removals) {
-    const { uncertaintyPath: path, uncertaintyAnchor: anchor } = button.dataset;
+    const { questionPath: path, questionAnchor: anchor } = button.dataset;
     const key = keyOf(path, anchor);
-    const said = button.parentElement.querySelector('.y-uncertainty__said');
+    const said = button.parentElement.querySelector('.y-question__said');
     controls.push({ key, button });
     ready.then(() => {
       button.disabled = !available || !keys.has(key);
-      if (!available) said.textContent = button.dataset.uncertaintyUnavailable;
+      if (!available) said.textContent = button.dataset.questionUnavailable;
       else if (!keys.has(key)) location.reload();
     });
     button.addEventListener('click', async () => {
@@ -57,13 +57,13 @@ export function initUncertainty() {
         if (result.marked) keys.set(key, today());
         else keys.delete(key);
         if (!result.marked) {
-          said.textContent = button.dataset.uncertaintyCleared;
+          said.textContent = button.dataset.questionCleared;
           location.reload();
           return;
         }
-        said.textContent = button.dataset.uncertaintyFailed;
+        said.textContent = button.dataset.questionFailed;
       } catch {
-        said.textContent = button.dataset.uncertaintyFailed;
+        said.textContent = button.dataset.questionFailed;
       }
       button.disabled = !keys.has(key);
     });
@@ -71,29 +71,29 @@ export function initUncertainty() {
 
   function addControl(container, article, path, anchor) {
     const words = {
-      uncertaintyLang: article.dataset.uncertaintyLang,
-      uncertaintyLabel: article.dataset.uncertaintyLabel,
-      uncertaintyScope: article.dataset.uncertaintyScope,
-      uncertaintyUnavailable: article.dataset.uncertaintyUnavailable,
-      uncertaintySaved: article.dataset.uncertaintySaved,
-      uncertaintyCleared: article.dataset.uncertaintyCleared,
-      uncertaintyFailed: article.dataset.uncertaintyFailed,
+      questionLang: article.dataset.questionLang,
+      questionLabel: article.dataset.questionLabel,
+      questionScope: article.dataset.questionScope,
+      questionUnavailable: article.dataset.questionUnavailable,
+      questionSaved: article.dataset.questionSaved,
+      questionCleared: article.dataset.questionCleared,
+      questionFailed: article.dataset.questionFailed,
     };
     const key = keyOf(path, anchor);
     const group = document.createElement('div');
-    group.dataset.uncertaintyControl = '';
-    group.lang = words.uncertaintyLang;
+    group.dataset.questionControl = '';
+    group.lang = words.questionLang;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'y-xbtn';
-    button.textContent = words.uncertaintyLabel;
+    button.textContent = words.questionLabel;
     button.disabled = true;
     button.setAttribute('aria-pressed', 'false');
     const scope = document.createElement('p');
     scope.className = 'y-fileinfo__note';
-    scope.textContent = words.uncertaintyScope;
+    scope.textContent = words.questionScope;
     const said = document.createElement('p');
-    said.className = 'y-uncertainty__said';
+    said.className = 'y-question__said';
     said.setAttribute('role', 'status');
     group.append(button, scope, said);
     container.append(group);
@@ -104,7 +104,7 @@ export function initUncertainty() {
     ready.then(() => {
       button.disabled = !available;
       reflect();
-      if (!available) said.textContent = words.uncertaintyUnavailable;
+      if (!available) said.textContent = words.questionUnavailable;
     });
     button.addEventListener('click', async () => {
       controls = controls.filter((control) => control.button.isConnected);
@@ -115,9 +115,9 @@ export function initUncertainty() {
         const result = await toggle(path, anchor);
         if (result.marked) keys.set(key, today());
         else keys.delete(key);
-        said.textContent = result.marked ? words.uncertaintySaved : words.uncertaintyCleared;
+        said.textContent = result.marked ? words.questionSaved : words.questionCleared;
       } catch {
-        said.textContent = words.uncertaintyFailed;
+        said.textContent = words.questionFailed;
       } finally {
         for (const control of controls) {
           if (control.key !== key) continue;
@@ -133,7 +133,7 @@ export function initUncertainty() {
   // set what was drawn against what the file says now.
   function bindSection(article, button) {
     const anchor = button.dataset.sectionAnchor;
-    const key = keyOf(article.dataset.uncertaintyPath, anchor);
+    const key = keyOf(article.dataset.questionPath, anchor);
     const margin = button.closest('[data-section-margin]');
     const said = margin.querySelector('[data-section-said]');
     const date = margin.querySelector('[data-section-date]');
@@ -154,17 +154,17 @@ export function initUncertainty() {
     });
     button.addEventListener('click', async () => {
       if (button.getAttribute('aria-disabled') === 'true') {
-        if (!available) say(article.dataset.uncertaintyUnavailable);
+        if (!available) say(article.dataset.questionUnavailable);
         return;
       }
       button.setAttribute('aria-disabled', 'true');
       try {
-        const result = await toggle(article.dataset.uncertaintyPath, anchor);
+        const result = await toggle(article.dataset.questionPath, anchor);
         if (result.marked) keys.set(key, today());
         else keys.delete(key);
-        say(result.marked ? article.dataset.uncertaintySaved : article.dataset.uncertaintyCleared);
+        say(result.marked ? article.dataset.questionSaved : article.dataset.questionCleared);
       } catch {
-        say(article.dataset.uncertaintyFailed);
+        say(article.dataset.questionFailed);
       } finally {
         button.removeAttribute('aria-disabled');
         reflect();
@@ -177,20 +177,20 @@ export function initUncertainty() {
     for (const card of article.querySelectorAll('.y-slotcard')) {
       const heading = card.querySelector('.y-slotcard__abstract[id]');
       if (!heading) continue;
-      const prefix = article.dataset.uncertaintyPrefix;
+      const prefix = article.dataset.questionPrefix;
       const anchor = prefix && heading.id.startsWith(prefix) ? heading.id.slice(prefix.length) : heading.id;
-      addControl(card, article, article.dataset.uncertaintyPath, anchor);
+      addControl(card, article, article.dataset.questionPath, anchor);
     }
   }
 
   // lesson.js has already opened and filled this native dialog from the link.
   document.addEventListener('click', (event) => {
     const trigger = event.target.closest('[data-concept]');
-    const article = trigger?.closest('[data-uncertainty-endpoint]');
+    const article = trigger?.closest('[data-question-endpoint]');
     const dialog = document.querySelector('[data-concept-sheet]');
     const body = dialog?.querySelector('[data-concept-body]');
     if (!article || !dialog?.open || !body) return;
-    dialog.querySelector('[data-uncertainty-control]')?.remove();
+    dialog.querySelector('[data-question-control]')?.remove();
     const address = new URL(trigger.href, location.href);
     if (address.origin !== location.origin || !address.pathname.startsWith('/notes/')) return;
     try {

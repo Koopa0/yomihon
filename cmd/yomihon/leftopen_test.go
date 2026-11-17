@@ -109,15 +109,15 @@ func TestLeftOpenWritesTheGoldenList(t *testing.T) {
 		t.Run(tt.format, func(t *testing.T) {
 			t.Parallel()
 			got := leftOpen(t, root, configDir, "--format", tt.format)
-			want, err := os.ReadFile(filepath.Join("testdata", "left-open", tt.golden))
+			want, err := os.ReadFile(filepath.Join("testdata", "marks", tt.golden))
 			if err != nil {
 				t.Fatal(err)
 			}
 			if got.exit != 0 || got.stderr != "" {
-				t.Fatalf("left-open --format %s: exit %d, stderr %q", tt.format, got.exit, got.stderr)
+				t.Fatalf("marks --format %s: exit %d, stderr %q", tt.format, got.exit, got.stderr)
 			}
 			if diff := cmp.Diff(string(want), got.stdout); diff != "" {
-				t.Errorf("caught: left-open --format %s differs from %s (-want +got):\n%s", tt.format, tt.golden, diff)
+				t.Errorf("caught: marks --format %s differs from %s (-want +got):\n%s", tt.format, tt.golden, diff)
 			}
 		})
 	}
@@ -137,7 +137,7 @@ func TestLeftOpenTitlesANoteOnlyByItsFirstHeading(t *testing.T) {
 	leftOpenMarks(t, root, configDir, mark.Question{RelPath: "Plain.md", Anchor: "part", At: leftOpenDay(1)})
 	got := leftOpen(t, root, configDir, "--format", "json")
 	if got.exit != 0 {
-		t.Fatalf("left-open exit %d: %s", got.exit, got.stderr)
+		t.Fatalf("marks exit %d: %s", got.exit, got.stderr)
 	}
 	titles := map[string]any{}
 	for _, item := range leftOpenItems(t, got.stdout) {
@@ -178,7 +178,7 @@ func TestLeftOpenListsWhatTheShelfShowsInItsOrder(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	page := openThoughtPage(t, site, "/open-thoughts", "en")
+	page := openThoughtPage(t, site, "/marks", "en")
 	var shelf []string
 	name := regexp.MustCompile(`class="y-openitem__name" href="/notes/([^"]*)"`)
 	for _, row := range strings.Split(page, "data-index-row")[1:] {
@@ -197,7 +197,7 @@ func TestLeftOpenListsWhatTheShelfShowsInItsOrder(t *testing.T) {
 	}
 	got := leftOpen(t, root, filepath.Dir(filepath.Dir(filepath.Dir(marks.QuestionPath()))), "--format", "json")
 	if got.exit != 0 {
-		t.Fatalf("left-open exit %d: %s", got.exit, got.stderr)
+		t.Fatalf("marks exit %d: %s", got.exit, got.stderr)
 	}
 	var listed []string
 	for _, item := range leftOpenItems(t, got.stdout) {
@@ -211,7 +211,7 @@ func TestLeftOpenListsWhatTheShelfShowsInItsOrder(t *testing.T) {
 		listed = append(listed, at)
 	}
 	if diff := cmp.Diff(shelf, listed); diff != "" {
-		t.Errorf("caught: left-open and the shelf disagree on the open items or their order (-shelf +left-open):\n%s", diff)
+		t.Errorf("caught: marks and the shelf disagree on the open items or their order (-shelf +marks):\n%s", diff)
 	}
 }
 
@@ -513,8 +513,8 @@ func TestLeftOpenRefusesWithoutPrivacyAuthority(t *testing.T) {
 		contract string // empty writes no contract at all
 		want     string
 	}{
-		{name: "no contract", want: "yomihon: this folder has no vault contract, System/schemas/vault-schema.toml, and left-open lists nothing for a program to read until one declares [privacy]\n"},
-		{name: "no privacy section", contract: undeclared, want: "yomihon: the vault contract declares no privacy policy, so left-open lists nothing for a program to read; add a [privacy] table with never_egress_dirs = [] to System/schemas/vault-schema.toml, naming in that list any directory whose notes must never leave this machine\n"},
+		{name: "no contract", want: "yomihon: this folder has no rules file, System/schemas/vault-schema.toml, and marks lists nothing for a program to read until one declares [privacy]\n"},
+		{name: "no privacy section", contract: undeclared, want: "yomihon: the rules file declares no privacy policy, so marks lists nothing for a program to read; add a [privacy] table with never_egress_dirs = [] to System/schemas/vault-schema.toml, naming in that list any directory whose notes must never leave this machine\n"},
 		{name: "invalid privacy section", contract: strings.Replace(openThoughtContract, "never_egress_dirs = []", `never_egress_dirs = ["../Quoted secret"]`, 1), want: "yomihon: privacy authority unavailable; agent-facing output disabled\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -542,7 +542,7 @@ func TestLeftOpenRefusesWithoutPrivacyAuthority(t *testing.T) {
 
 // leftOpenNoLocationListed is the one line for a marks file that lists no
 // location, whatever the reason: cleared marks and withheld ones read alike.
-const leftOpenNoLocationListed = "yomihon: no location is listed from the \"Not sure yet\" marks file for this folder\n"
+const leftOpenNoLocationListed = "yomihon: no question is listed from the marks file for this folder\n"
 
 // No marks file and one that lists nothing both list nothing; stderr says
 // which, and only that. A damaged one is refused without naming where it
@@ -588,11 +588,11 @@ func TestLeftOpenTellsTheStatesOfTheMarksFileApart(t *testing.T) {
 		configDir string
 		want      leftOpenResult
 	}{
-		{name: "no marks file", configDir: missing, want: leftOpenResult{stderr: "yomihon: no location is listed; there is no \"Not sure yet\" marks file for this folder as spelled\n"}},
+		{name: "no marks file", configDir: missing, want: leftOpenResult{stderr: "yomihon: no question is listed; there is no marks file for this folder as spelled\n"}},
 		{name: "every mark cleared", configDir: cleared, want: leftOpenResult{stderr: leftOpenNoLocationListed}},
 		{name: "only withheld marks", configDir: withheld, want: leftOpenResult{stderr: leftOpenNoLocationListed}},
-		{name: "damaged marks file", configDir: damaged, want: leftOpenResult{exit: 2, stderr: "yomihon: the \"Not sure yet\" marks for this folder cannot be read; nothing was listed\n"}},
-		{name: "unopenable marks file", configDir: locked, want: leftOpenResult{exit: 2, stderr: "yomihon: the \"Not sure yet\" marks for this folder cannot be read; nothing was listed\n"}},
+		{name: "damaged marks file", configDir: damaged, want: leftOpenResult{exit: 2, stderr: "yomihon: the marks for this folder cannot be read; nothing was listed\n"}},
+		{name: "unopenable marks file", configDir: locked, want: leftOpenResult{exit: 2, stderr: "yomihon: the marks for this folder cannot be read; nothing was listed\n"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -621,7 +621,7 @@ func TestLeftOpenRefusesWithoutAConfigurationDirectory(t *testing.T) {
 	root, _ := leftOpenVault(t)
 	var stdout, stderr bytes.Buffer
 	exit := runOpenThoughts(t.Context(), []string{"--root", root}, config{noConfigDir: "neither $XDG_CONFIG_HOME nor $HOME are defined"}, &stdout, &stderr, false)
-	want := "yomihon: no configuration directory, so the \"Not sure yet\" marks for this folder cannot be found: neither $XDG_CONFIG_HOME nor $HOME are defined; nothing was listed\n"
+	want := "yomihon: no configuration directory, so the marks for this folder cannot be found: neither $XDG_CONFIG_HOME nor $HOME are defined; nothing was listed\n"
 	if exit != 2 || stdout.Len() != 0 || stderr.String() != want {
 		t.Errorf("caught: exit %d, stdout %q, stderr %q; want 2, nothing, %q", exit, stdout.String(), stderr.String(), want)
 	}
@@ -634,16 +634,16 @@ func TestLeftOpenRefusesWhatItDoesNotTake(t *testing.T) {
 		args []string
 		want string
 	}{
-		{args: []string{"--all"}, want: "yomihon: left-open does not accept --all\n"},
-		{args: []string{"--deny", "error"}, want: "yomihon: left-open does not accept --deny\n"},
-		{args: []string{"--baseline", "x"}, want: "yomihon: left-open does not accept --baseline\n"},
-		{args: []string{"Notes"}, want: "yomihon: left-open takes no positional arguments\n"},
+		{args: []string{"--all"}, want: "yomihon: marks does not accept --all\n"},
+		{args: []string{"--deny", "error"}, want: "yomihon: marks does not accept --deny\n"},
+		{args: []string{"--baseline", "x"}, want: "yomihon: marks does not accept --baseline\n"},
+		{args: []string{"Notes"}, want: "yomihon: marks takes no positional arguments\n"},
 		{args: []string{"--format", "csv"}, want: "yomihon: invalid --format \"csv\"; use json, human, or md\n"},
 		{args: []string{"--sort", "path"}, want: "yomihon: unknown flag \"--sort\"\n"},
 	} {
 		got := leftOpen(t, root, configDir, tt.args...)
 		if got.exit != 2 || got.stdout != "" || got.stderr != tt.want {
-			t.Errorf("left-open %v: exit %d, stdout %q, stderr %q; want 2, nothing, %q", tt.args, got.exit, got.stdout, got.stderr, tt.want)
+			t.Errorf("marks %v: exit %d, stdout %q, stderr %q; want 2, nothing, %q", tt.args, got.exit, got.stdout, got.stderr, tt.want)
 		}
 	}
 }
@@ -658,7 +658,7 @@ func TestLeftOpenChangesNothing(t *testing.T) {
 		t.Fatalf("exit %d: %s", got.exit, got.stderr)
 	}
 	if diff := cmp.Diff(before, treeBytes(t, root, configDir)); diff != "" {
-		t.Errorf("caught: left-open changed files (-before +after):\n%s", diff)
+		t.Errorf("caught: marks changed files (-before +after):\n%s", diff)
 	}
 }
 
@@ -686,11 +686,11 @@ func treeBytes(t *testing.T, roots ...string) map[string]string {
 func TestLeftOpenHasHelp(t *testing.T) {
 	t.Parallel()
 	text, handled, err := helpRequest([]string{openCommand, "--help"})
-	if !handled || err != nil || !strings.HasPrefix(text, "Usage: yomihon left-open [--root <dir>] [--format json|human|md]\n") {
-		t.Errorf("left-open --help = %q, %t, %v", text, handled, err)
+	if !handled || err != nil || !strings.HasPrefix(text, "Usage: yomihon marks [--root <dir>] [--format json|human|md]\n") {
+		t.Errorf("marks --help = %q, %t, %v", text, handled, err)
 	}
-	if !strings.Contains(topLevelHelp, "\n  yomihon left-open [options]\n") {
-		t.Errorf("top-level help does not list left-open:\n%s", topLevelHelp)
+	if !strings.Contains(topLevelHelp, "\n  yomihon marks [options]\n") {
+		t.Errorf("top-level help does not list marks:\n%s", topLevelHelp)
 	}
 	if command, _ := dispatch([]string{openCommand}); command != openCommand {
 		t.Errorf("dispatch(%q) = %q", openCommand, command)
@@ -775,7 +775,7 @@ func TestLeftOpenHumanViewEscapesControlCharacters(t *testing.T) {
 		stdout: "2026-09-03  thought   Inside/b\\u0085c.md  Next line\n" +
 			"2026-09-02  thought   Inside/Loud.md  \\u001b]0;pwned\\u0007 \\u001b[2J\\u202eevil\\u200e\\u200f\\u061c\n" +
 			"2026-09-01  thought   Inside/a\\n2099-01-01  thought   Inside/Forged.md  Forged.md  Two lines\n",
-		stderr: "yomihon: no location is listed; there is no \"Not sure yet\" marks file for this folder as spelled\n",
+		stderr: "yomihon: no question is listed; there is no marks file for this folder as spelled\n",
 	}
 	if diff := cmp.Diff(want, got, cmp.AllowUnexported(leftOpenResult{})); diff != "" {
 		t.Errorf("caught: the terminal view wrote a control character as itself (-want +got):\n%s", diff)

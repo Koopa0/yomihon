@@ -6,7 +6,7 @@
 // what it draws is what the file said then: a place kept after that visit is
 // missing from it, and a place that has since moved to another note is still
 // drawn in it. The module has to ask the server where the place is now and draw
-// that, as the page does for the uncertainty marks, and has to ask again when a
+// that, as the page does for the question marks, and has to ask again when a
 // page comes back from the back/forward cache, which runs no script of its own.
 //
 // Going back is real: the previous document is handed back by Chrome's HTTP
@@ -59,11 +59,11 @@ class ProbeBroken extends Error {}
 class NotApplied extends Error {}
 
 const fail = (site, message) => {
-  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN kept-place-after-back: unknown assertion site ${site}`);
-  throw new LockFired(site, `FAIL kept-place-after-back: ${message}`);
+  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN bookmark-after-back: unknown assertion site ${site}`);
+  throw new LockFired(site, `FAIL bookmark-after-back: ${message}`);
 };
-const broken = (message) => { throw new ProbeBroken(`BROKEN kept-place-after-back: ${message}`); };
-const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED kept-place-after-back: ${message}`); };
+const broken = (message) => { throw new ProbeBroken(`BROKEN bookmark-after-back: ${message}`); };
+const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED bookmark-after-back: ${message}`); };
 
 // Each mutation removes one decision from the module and names the assertion
 // that is there to notice. The needles are the module's own statements, and each
@@ -117,13 +117,13 @@ const MUTATIONS = {
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
   if (!SITES.includes(mutation.target)) {
-    console.error(`kept-place-after-back: mutation ${name} aims at unknown site ${mutation.target}`);
+    console.error(`bookmark-after-back: mutation ${name} aims at unknown site ${mutation.target}`);
     process.exit(2);
   }
 }
 for (const site of SITES) {
   if (!Object.values(MUTATIONS).some((mutation) => mutation.target === site)) {
-    console.error(`kept-place-after-back: assertion site ${site} has no mutation`);
+    console.error(`bookmark-after-back: assertion site ${site} has no mutation`);
     process.exit(2);
   }
 }
@@ -133,7 +133,7 @@ if (MUTATE === 'list') {
   process.exit(0);
 }
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
-  console.error(`kept-place-after-back: unknown MUTATE mode ${MUTATE}`);
+  console.error(`bookmark-after-back: unknown MUTATE mode ${MUTATE}`);
   process.exit(2);
 }
 
@@ -147,7 +147,7 @@ const drawn = () => {
     faces: faces.length,
     pressed: faces.map((face) => face.querySelector('[data-mark-button]')?.getAttribute('aria-pressed') ?? null),
     kept: faces.map((face) => face.hasAttribute('data-mark-kept')),
-    ribbons: [...document.querySelectorAll('.y-article [data-section-place]')]
+    ribbons: [...document.querySelectorAll('.y-article [data-section-bookmark]')]
       .filter((label) => !label.hidden)
       .map((label) => label.closest('.y-sect')?.firstElementChild?.id ?? ''),
   };
@@ -198,7 +198,7 @@ const keepHere = async (page, y) => {
   await page.evaluate((to) => window.scrollTo(0, to), y);
   const control = page.locator('[data-mark-control]:visible');
   if (await control.count() !== 1) broken(`${page.url()} shows ${await control.count()} mark controls, want exactly 1`);
-  const posted = page.waitForResponse((response) => new URL(response.url()).pathname === '/marks' && response.request().method() === 'POST', { timeout: 4000 });
+  const posted = page.waitForResponse((response) => new URL(response.url()).pathname === '/bookmark' && response.request().method() === 'POST', { timeout: 4000 });
   await control.locator('[data-mark-button]').click();
   const response = await posted;
   if (response.status() !== 204) broken(`keeping a place in ${page.url()} answered ${response.status()}, want 204`);
@@ -218,13 +218,13 @@ const opened = async (page, path) => {
 const until = (page, predicate, arg) => page.waitForFunction(predicate, arg, { timeout: DEADLINE }).then(() => true, () => false);
 
 try {
-  console.log(`kept-place-after-back: Chrome ${browser.version()}`);
+  console.log(`bookmark-after-back: Chrome ${browser.version()}`);
   let checked = 0;
   for (const view of VIEWS) {
     const context = await browser.newContext({ viewport: { width: view.width, height: view.height }, reducedMotion: 'no-preference' });
     await context.addInitScript(`window.__drawn = ${drawn.toString()};`);
     await context.addInitScript(recorder);
-    const elsewhere = await context.request.post(`${BASE}/marks`, {
+    const elsewhere = await context.request.post(`${BASE}/bookmark`, {
       form: { path: OTHER_REL, anchor: '', offset: '0', identity: '0'.repeat(64) },
     });
     if (elsewhere.status() !== 204) broken(`keeping a place in ${OTHER_REL} answered ${elsewhere.status()}, want 204`);
@@ -295,7 +295,7 @@ try {
     if (!says(live, false) || live.ribbons.length !== 0) {
       fail(SITES[2], `at ${view.width}px a page loaded while the place is kept in another note draws ${JSON.stringify(live)}, want no place`);
     }
-    const behind = await context.request.post(`${BASE}/marks`, {
+    const behind = await context.request.post(`${BASE}/bookmark`, {
       form: { path: decodeURIComponent(NOTE.slice('/notes/'.length)), anchor, offset: '1', identity: '0'.repeat(64) },
     });
     if (behind.status() !== 204) broken(`keeping a place in ${NOTE} answered ${behind.status()}, want 204`);
@@ -305,7 +305,7 @@ try {
     if (!drawnAgain || !says(restored, true) || restored.ribbons.length !== 1) {
       fail(SITES[3], `at ${view.width}px a page restored from the back/forward cache after the place was kept in it draws ${JSON.stringify(restored)}, want the place`);
     }
-    await context.request.post(`${BASE}/marks`, {
+    await context.request.post(`${BASE}/bookmark`, {
       form: { path: OTHER_REL, anchor: '', offset: '0', identity: '0'.repeat(64) },
     });
     await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })));
@@ -324,7 +324,7 @@ try {
       const real = window.fetch.bind(window);
       window.fetch = (input, init) => {
         const url = typeof input === 'string' ? input : input.url;
-        if (new URL(url, location.href).pathname === '/marks' && !init?.method) {
+        if (new URL(url, location.href).pathname === '/bookmark' && !init?.method) {
           return new Promise((resolve) => {
             window.__letThrough = () => resolve(new Response(null, { status: 204 }));
           });
@@ -346,7 +346,7 @@ try {
     checkProof();
     await context.close();
   }
-  console.log(`PASS kept-place-after-back: ${checked} scenarios, a page shown again from either cache draws the place kept now`);
+  console.log(`PASS bookmark-after-back: ${checked} scenarios, a page shown again from either cache draws the place kept now`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

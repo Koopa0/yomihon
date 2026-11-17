@@ -18,7 +18,7 @@ func TestDeclaredSourceAndTextCitationLabelsDiffer(t *testing.T) {
 	t.Parallel()
 
 	const (
-		declared = `ui-side__label">聲明的來源`
+		declared = `ui-side__label">出自`
 		cited    = `ui-side__label">正文連到這篇`
 		islands  = "沒有正文 [[…]] 連結連過來的筆記"
 	)

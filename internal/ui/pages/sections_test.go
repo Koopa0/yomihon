@@ -65,10 +65,10 @@ func TestASectionStandsInARowWithItsMarginAndNothingElseMoves(t *testing.T) {
 	got := inject(t, `<h3 id="first" data-level="2">First</h3><p>one</p>`, plan)
 	want := `<div class="y-sect"><h3 id="first" data-level="2">First</h3>` +
 		`<div class="y-margin" lang="zh-Hant" data-section-margin>` +
-		`<button type="button" class="y-margin__act" data-section-mark data-section-anchor="first" aria-pressed="false" aria-label="還不確定" data-text="還不確定" disabled></button> ` +
+		`<button type="button" class="y-margin__act" data-section-mark data-section-anchor="first" aria-pressed="false" aria-label="標為疑問" data-text="標為疑問" disabled></button> ` +
 		`<time class="y-margin__date" data-section-date hidden datetime=""></time> ` +
-		`<a class="y-margin__act" href="/thought/Notes/Probe.md?section=first" aria-label="留下自己的想法：First" data-text="留下自己的想法"></a> ` +
-		`<p class="y-margin__place" data-section-place hidden data-text="你留下待續位置的地方"></p>` +
+		`<a class="y-margin__act" href="/thought/Notes/Probe.md?section=first" aria-label="寫想法：First" data-text="寫想法"></a> ` +
+		`<p class="y-margin__bookmark" data-section-bookmark hidden data-text="你加書籤的地方"></p>` +
 		`<p class="y-reply y-margin__said" role="status" aria-live="polite" aria-atomic="true" data-section-said=""></p>` +
 		`</div></div><p>one</p>`
 	if got != want {
@@ -114,8 +114,8 @@ func TestNotSureYetIsOneFixedNameWithItsStatePressed(t *testing.T) {
 		lang wording.Lang
 		name string
 	}{
-		{wording.ZhHant, "還不確定"},
-		{wording.En, "Not sure yet"},
+		{wording.ZhHant, "標為疑問"},
+		{wording.En, "Mark as question"},
 	} {
 		plan := probePlan(tc.lang)
 		plan.Sections["first"] = SectionMargin{Text: "First", Marked: true, MarkedOn: time.Date(2026, 11, 10, 9, 30, 0, 0, time.UTC)}
@@ -148,8 +148,8 @@ func TestEverySectionHasItsDoorNamedForIt(t *testing.T) {
 	plan := probePlan(wording.En)
 	got := inject(t, sectionBody, plan)
 	for _, want := range []string{
-		`<a class="y-margin__act" href="/thought/Notes/Probe.md?section=first" aria-label="Leave a thought: First" data-text="Leave a thought"></a>`,
-		`<a class="y-margin__act" href="/thought/Notes/Probe.md?section=second" aria-label="Leave a thought: Second" data-text="Leave a thought"></a>`,
+		`<a class="y-margin__act" href="/thought/Notes/Probe.md?section=first" aria-label="Write a note: First" data-text="Write a note"></a>`,
+		`<a class="y-margin__act" href="/thought/Notes/Probe.md?section=second" aria-label="Write a note: Second" data-text="Write a note"></a>`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the page does not carry the door %q", want)
@@ -228,13 +228,13 @@ func TestWhatTheReaderLeftIsShownAndNothingOfItIsHidden(t *testing.T) {
 	for _, want := range []string{
 		`<p class="y-margin__mine"><span class="y-margin__tag" lang="zh-Hant" data-text="想法"></span> <time datetime="2026-10-31"></time> <a class="y-margin__opening" href="/notes/Notes/T1.md" aria-label="我原本以為 cancel() 之後就停了。" data-text="我原本以為 cancel() 之後就停了。" lang="zh-Hant"></a></p>`,
 		`<p class="y-margin__mine"><span class="y-margin__tag" lang="zh-Hant" data-text="想法"></span> <a class="y-margin__opening" href="/notes/Notes/T2.md" aria-label="Second thought, undated." data-text="Second thought, undated."></a></p>`,
-		`<p class="y-margin__place" data-section-place data-text="你留下待續位置的地方"></p>`,
+		`<p class="y-margin__bookmark" data-section-bookmark data-text="你加書籤的地方"></p>`,
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("the margin does not carry %q\n%s", want, got)
 		}
 	}
-	if strings.Count(got, `data-section-place data-text=`) != 1 || strings.Count(got, `data-section-place hidden data-text=`) != 1 {
+	if strings.Count(got, `data-section-bookmark data-text=`) != 1 || strings.Count(got, `data-section-bookmark hidden data-text=`) != 1 {
 		t.Errorf("the kept place is not drawn once, in the section holding it, with the other left hidden:\n%s", got)
 	}
 	for _, margin := range regexp.MustCompile(`(?s)<div class="y-margin".*?</div>`).FindAllString(got, -1) {

@@ -52,7 +52,7 @@ func TestDeclaredSourcesOnTheReadingPage(t *testing.T) {
 			t.Fatalf("status = %d, want 200", code)
 		}
 		block := basedOnBlock(t, body)
-		if !strings.Contains(block, `ui-side__label">聲明的來源`) {
+		if !strings.Contains(block, `ui-side__label">出自`) {
 			t.Errorf("the declaring note does not label its sources; block = %q", block)
 		}
 		if !strings.Contains(block, `href="/notes/Concepts/yomihon/Source`) {
@@ -181,7 +181,7 @@ func TestCitationScopeLabelsDifferOnNoteAndHealth(t *testing.T) {
 	srv := newServerWithContract(t, root, loadHomeContract(t))
 
 	const (
-		declared = `ui-side__label">聲明的來源`
+		declared = `ui-side__label">出自`
 		cited    = `ui-side__label">正文連到這篇`
 		islands  = "沒有正文 [[…]] 連結連過來的筆記"
 	)
