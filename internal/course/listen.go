@@ -1,4 +1,4 @@
-package syllabus
+package course
 
 import (
 	"fmt"
@@ -38,7 +38,7 @@ func (h *Handler) listen(w http.ResponseWriter, r *http.Request) {
 // its author marked. The snapshot holds a note's markdown and no HTML, and the
 // marker survives only into rendered HTML, so each lesson is rendered here and
 // most of what comes back is dropped.
-func listenView(current *nav.Path, snap *RequestSnapshot, lang wording.Lang) pages.ListenView {
+func listenView(current *nav.Course, snap *RequestSnapshot, lang wording.Lang) pages.ListenView {
 	view := pages.ListenView{
 		Title:    fmt.Sprintf(wording.ListenTitleFmt.In(lang), current.Title),
 		PathHref: pages.VaultHref("/courses/", current.RelPath),
@@ -69,7 +69,7 @@ func listenView(current *nav.Path, snap *RequestSnapshot, lang wording.Lang) pag
 // a paragraph, and a lesson whose source never says the marker's word is not
 // rendered at all, so a course that marks nothing costs a search of its
 // sources rather than a render of each of them.
-func listenable(current *nav.Path, snap *RequestSnapshot, lang wording.Lang) bool {
+func listenable(current *nav.Course, snap *RequestSnapshot, lang wording.Lang) bool {
 	for _, entry := range taught(current) {
 		if len(snap.markedIn(entry, "l1-", lang)) > 0 {
 			return true
@@ -97,7 +97,7 @@ func (s *RequestSnapshot) markedIn(entry *nav.PathEntry, region string, lang wor
 // same question the course page draws with. Neither half is re-derived here, so
 // a branch drawn but not sequenced, and a heading that declared nothing, teach
 // nothing on this page either.
-func taught(current *nav.Path) []*nav.PathEntry {
+func taught(current *nav.Course) []*nav.PathEntry {
 	var found []*nav.PathEntry
 	var walk func(group *nav.PathGroup)
 	walk = func(group *nav.PathGroup) {

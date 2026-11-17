@@ -1,9 +1,9 @@
-// Package lesson loads the hand-authored data that enriches lesson reading
+// Package drill loads the hand-authored data that enriches lesson reading
 // pages: Japanese slot-machine sentence patterns from System/slots/*.yaml and
 // the cross-domain concept-note index used by in-page sheets. Everything here
 // is read-only, and the sidecar's shape is yomihon's own vocabulary rather
 // than the note frontmatter contract vault-schema.toml governs.
-package lesson
+package drill
 
 import (
 	"bytes"

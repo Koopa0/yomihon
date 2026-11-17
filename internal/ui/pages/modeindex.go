@@ -85,7 +85,7 @@ func NewRecentBlock(notes []HomeNote, ordered, scoped bool, lang wording.Lang) R
 // — how many lessons it lays out — and never how far anyone has got: a count
 // that described a status as progress ran backwards as the work was finished,
 // and does not return under another name.
-func NewPathIndex(paths []nav.Path, roles schema.NavigationRoles, closure nav.Closure, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
+func NewPathIndex(paths []nav.Course, roles schema.NavigationRoles, closure nav.Closure, contract ContractState, lang wording.Lang, articleLang ArticleLanguageFor) ListIndexView {
 	rows := make([]Row, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]

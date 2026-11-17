@@ -8,14 +8,14 @@ import (
 
 // placeModel builds one path from a body written the way an author writes it
 // and wraps it in the model the page asks.
-func placeModel(t *testing.T, body string, written ...string) (*Model, *Path) {
+func placeModel(t *testing.T, body string, written ...string) (*Model, *Course) {
 	t.Helper()
 	paths := make([]string, 0, len(written))
 	for _, name := range written {
 		paths = append(paths, "Writing/"+name+".md")
 	}
 	p := buildPath(pathNote("Maps/Course.md", "Course", body), resolver(t, paths...), nil, testArtifactPolicy(t))
-	return &Model{paths: []Path{p}}, &p
+	return &Model{paths: []Course{p}}, &p
 }
 
 func lesson(name string) NoteRef {

@@ -31,6 +31,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/course"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/note"
@@ -39,7 +40,6 @@ import (
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -431,22 +431,22 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 		snap := store.Current().Capture()
 		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap)}
 	}
-	pathProvider := func() syllabus.RequestSnapshot {
+	pathProvider := func() course.RequestSnapshot {
 		snap := store.Current().Capture()
 		captured := authority()
-		return syllabus.RequestSnapshot{Shell: shell.Project(vaultName, captured, snap), Generation: snap, Authority: captured}
+		return course.RequestSnapshot{Shell: shell.Project(vaultName, captured, snap), Generation: snap, Authority: captured}
 	}
 
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Continuation: func() (mark.Continuation, bool) { return mark.Continuation{}, false },
-		Source:       reader,
-		Authority:    authority,
-		Snapshot:     store.Current,
-		Log:          log,
+		Bookmark:  func() (mark.Bookmark, bool) { return mark.Bookmark{}, false },
+		Source:    reader,
+		Authority: authority,
+		Snapshot:  store.Current,
+		Log:       log,
 	}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
-	syllabus.New(pathProvider, log).Register(mux)
+	course.New(pathProvider, log).Register(mux)
 	report.New(func() *snapshot.Generation { return store.Current().Capture() }, log).Register(mux)
 
 	srv := httptest.NewServer(mux)

@@ -24,7 +24,7 @@ func TestNavigationFaultContainsOnlyTheFailedTree(t *testing.T) {
 					t.Parallel()
 					walkers := coreWalkers{path: buildPath, mapping: parseMap}
 					if kind == "path" {
-						walkers.path = func(n *vault.Note, idx *graph.Index, facts map[string]noteFacts, policy schema.ArtifactPolicy) Path {
+						walkers.path = func(n *vault.Note, idx *graph.Index, facts map[string]noteFacts, policy schema.ArtifactPolicy) Course {
 							tree := buildPath(n, idx, facts, policy)
 							if n.RelPath == "Maps/B-path.md" {
 								panic(value)
@@ -96,7 +96,7 @@ func TestNavigationFaultContainsOnlyTheFailedTree(t *testing.T) {
 func TestNavigationFaultOrderAndUnavailableControls(t *testing.T) {
 	t.Parallel()
 	walkers := coreWalkers{
-		path:    func(*vault.Note, *graph.Index, map[string]noteFacts, schema.ArtifactPolicy) Path { panic("path") },
+		path:    func(*vault.Note, *graph.Index, map[string]noteFacts, schema.ArtifactPolicy) Course { panic("path") },
 		mapping: func(*vault.Note, *graph.Index, map[string]noteFacts, schema.ArtifactPolicy) Map { panic("map") },
 	}
 	m := faultModel(t, walkers, "available")
@@ -117,7 +117,7 @@ func TestNavigationFaultOrderAndUnavailableControls(t *testing.T) {
 		}
 	}
 	empty := coreWalkers{
-		path:    func(*vault.Note, *graph.Index, map[string]noteFacts, schema.ArtifactPolicy) Path { return Path{} },
+		path:    func(*vault.Note, *graph.Index, map[string]noteFacts, schema.ArtifactPolicy) Course { return Course{} },
 		mapping: func(*vault.Note, *graph.Index, map[string]noteFacts, schema.ArtifactPolicy) Map { return Map{} },
 	}
 	if faults := faultModel(t, empty, "available").CoreFaults(); len(faults) != 0 {

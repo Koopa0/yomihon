@@ -40,7 +40,7 @@ func renderCourse(t *testing.T, view *PathView, lang wording.Lang) string {
 }
 
 // courseOf reads a built course into the page view the cover gives it.
-func courseOf(path *nav.Path, cover *CourseCover) *PathView {
+func courseOf(path *nav.Course, cover *CourseCover) *PathView {
 	view := BuildPathView(path, nil, cover)
 	return &view
 }

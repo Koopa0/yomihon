@@ -49,7 +49,7 @@ func TestTheWorkedCourseReadsAsWritten(t *testing.T) {
 		t.Errorf("side branch hangs from %q, want %q", side.AnchorTarget, "L03 研磨")
 	}
 
-	m := &Model{paths: []Path{p}}
+	m := &Model{paths: []Course{p}}
 	ref := func(name, rel string) NoteRef { return NoteRef{Name: name, RelPath: rel} }
 
 	// "L04 follows L03, because the container is L03's child and L04 is its

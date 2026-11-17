@@ -190,7 +190,7 @@ func requireRealVaultRoot(t *testing.T) string {
 // study paths: a lesson that resolves has a path, and a lesson that does not
 // never fabricates one. A row the grammar refused is not a lesson at all, so it
 // carries no resolution outcome to check.
-func validateRealVaultPaths(t *testing.T, paths []Path) int {
+func validateRealVaultPaths(t *testing.T, paths []Course) int {
 	t.Helper()
 
 	entryCount := 0

@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/judge"
-	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
@@ -47,10 +47,10 @@ import (
 // counts from that coherent value. Authority captures one immutable contract
 // view for the request; source changes affect the next request.
 type Sources struct {
-	// Uncertainties reads the separate location-mark file. Nil means this
+	// Questions reads the separate location-mark file. Nil means this
 	// process has no mark storage; a read error remains visible on the desk.
-	Uncertainties func() ([]mark.Uncertainty, error)
-	Source        *vault.Reader
+	Questions func() ([]mark.Question, error)
+	Source    *vault.Reader
 	// Contract supplies the field vocabulary a thought stub is written from;
 	// the note type it is for comes from the snapshot's roles.
 	Contract *schema.Contract
@@ -59,18 +59,18 @@ type Sources struct {
 	VaultName string
 	Authority func() schema.Authority
 	Snapshot  func() *snapshot.Generation
-	// Continuation is a closure over the place the reader deliberately left
+	// Bookmark is a closure over the place the reader deliberately left
 	// off at, answering false when they have left none. The desk reads it once
 	// per request and resolves what it names inside the same generation the
 	// rest of that page was built from, so the row's sentence about the note
 	// having changed is decided against the version the page is showing.
-	Continuation func() (mark.Continuation, bool)
+	Bookmark func() (mark.Bookmark, bool)
 	// MarkAddress is where a reading page posts a place to, and empty where
 	// this process keeps none — no configuration directory to hold the file.
 	// The page renders no control without it, so a reader is never invited to
 	// keep something that has nowhere to go.
-	MarkAddress        string
-	UncertaintyAddress string
+	MarkAddress     string
+	QuestionAddress string
 	// FigureApproved reports whether the owner approved a figure's exact
 	// bytes to run their inline scripts. Nil means this process keeps no
 	// approvals, and every figure is served without script.
@@ -105,7 +105,7 @@ func New(d *Sources) *Handler {
 	if d.Snapshot == nil {
 		panic("note: New requires a non-nil Snapshot provider")
 	}
-	if d.Continuation == nil {
+	if d.Bookmark == nil {
 		panic("note: New requires a non-nil Continuation provider")
 	}
 	if d.Log == nil {
@@ -383,8 +383,8 @@ func (h *Handler) reading(
 	// The one place the reader kept, if any. Both the book beside this note, the
 	// control for keeping a place and the margin of the section that holds it read
 	// it from here, so they cannot disagree about where it is.
-	kept, marked := h.sources.Continuation()
-	var heldHere *mark.Continuation
+	kept, marked := h.sources.Bookmark()
+	var heldHere *mark.Bookmark
 	if marked && kept.RelPath == n.RelPath {
 		heldHere = &kept
 	}
@@ -404,46 +404,46 @@ func (h *Handler) reading(
 	contract := h.enumContract(authority)
 	cause := blockedSource(snap, rel)
 	view = pages.NoteView{
-		Title:              n.Title,
-		RelPath:            n.RelPath,
-		Language:           n.Language,
-		Type:               n.Type,
-		Draft:              n.Draft,
-		VerifiedOn:         verifiedOn,
-		VerifiedAt:         verifiedAt,
-		Prerequisites:      prerequisites(snap, rel),
-		ObsidianHref:       obsidianOpenHref(h.sources.Source, n.RelPath),
-		Diagnostic:         n.FMDiagnostic,
-		Stale:              n.Stale,
-		ParsePanic:         cause.ParsePanic,
-		ParseReason:        cause.Reason,
-		RenderDiagnostics:  faults(result.Diagnostics, snap),
-		CitedBy:            snap.CitedBy(rel),
-		BasedOn:            declaredSources,
-		DeclaredBy:         declaredBy(snap, rel, &result, idPrefix, lang),
-		Pair:               pairOffer(snap, state.shell.Nav, n),
-		VaultHasLinks:      snap.AnyCitations(),
-		Prev:               foot.Prev,
-		Next:               foot.Next,
-		StepsLabel:         foot.Label,
-		StepsCourse:        foot.Course,
-		StepsUnit:          foot.Unit,
-		StepsPath:          foot.Path,
-		StepsBack:          foot.Back,
-		StepsOnward:        foot.Onward,
-		StepsToContents:    foot.ToContents,
-		StepsAsides:        foot.Asides,
-		TOC:                result.Outline(),
-		BodyHTML:           result.HTML,
-		TitleAnchor:        result.TitleAnchor,
-		ReadingRail:        readingRail,
-		IDPrefix:           idPrefix,
-		ContentIdentity:    hex.EncodeToString(n.ContentIdentity[:]),
-		MarkAddress:        h.sources.MarkAddress,
-		PlaceKept:          marked && kept.RelPath == n.RelPath,
-		UncertaintyAddress: h.sources.UncertaintyAddress,
-		ThoughtDoor:        door,
-		TitleThoughts:      titleThoughts,
+		Title:             n.Title,
+		RelPath:           n.RelPath,
+		Language:          n.Language,
+		Type:              n.Type,
+		Draft:             n.Draft,
+		VerifiedOn:        verifiedOn,
+		VerifiedAt:        verifiedAt,
+		Prerequisites:     prerequisites(snap, rel),
+		ObsidianHref:      obsidianOpenHref(h.sources.Source, n.RelPath),
+		Diagnostic:        n.FMDiagnostic,
+		Stale:             n.Stale,
+		ParsePanic:        cause.ParsePanic,
+		ParseReason:       cause.Reason,
+		RenderDiagnostics: faults(result.Diagnostics, snap),
+		CitedBy:           snap.CitedBy(rel),
+		BasedOn:           declaredSources,
+		DeclaredBy:        declaredBy(snap, rel, &result, idPrefix, lang),
+		Pair:              pairOffer(snap, state.shell.Nav, n),
+		VaultHasLinks:     snap.AnyCitations(),
+		Prev:              foot.Prev,
+		Next:              foot.Next,
+		StepsLabel:        foot.Label,
+		StepsCourse:       foot.Course,
+		StepsUnit:         foot.Unit,
+		StepsPath:         foot.Path,
+		StepsBack:         foot.Back,
+		StepsOnward:       foot.Onward,
+		StepsToContents:   foot.ToContents,
+		StepsAsides:       foot.Asides,
+		TOC:               result.Outline(),
+		BodyHTML:          result.HTML,
+		TitleAnchor:       result.TitleAnchor,
+		ReadingRail:       readingRail,
+		IDPrefix:          idPrefix,
+		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
+		MarkAddress:       h.sources.MarkAddress,
+		PlaceKept:         marked && kept.RelPath == n.RelPath,
+		QuestionAddress:   h.sources.QuestionAddress,
+		ThoughtDoor:       door,
+		TitleThoughts:     titleThoughts,
 		// The identity above covers the note's own bytes; what the render
 		// pulled in from other notes is bound by its own stamp, so an edit to
 		// an embedded source can reach this page while it is open.
@@ -610,7 +610,7 @@ func (h *Handler) governance(
 // must never blank the page.
 func (h *Handler) injectSlotMachine(
 	ctx context.Context,
-	slots lesson.SlotIndex,
+	slots drill.SlotIndex,
 	rel, slug, body, nonce string,
 	lang wording.Lang,
 ) string {
@@ -640,11 +640,11 @@ func loadConcepts(
 	snap *snapshot.Generation,
 	refs []string,
 	lang wording.Lang,
-) []lesson.ConceptDoc {
+) []drill.ConceptDoc {
 	if len(refs) == 0 {
 		return nil
 	}
-	docs := make([]lesson.ConceptDoc, 0, len(refs))
+	docs := make([]drill.ConceptDoc, 0, len(refs))
 	for ordinal, rel := range refs {
 		// Each sheet is cloned into the lesson's own document when the reader
 		// opens it, so its ids share one space with the lesson body's. The

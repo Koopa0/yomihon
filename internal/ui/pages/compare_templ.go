@@ -12,7 +12,7 @@ import templruntime "github.com/a-h/templ/runtime"
 import (
 	"fmt"
 
-	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -32,7 +32,7 @@ type CompareView struct {
 	// the page's rather than either column's: two lessons citing one concept
 	// name one document between them, and a second copy of it under the same
 	// name would be an element the page has twice.
-	Concepts []lesson.ConceptDoc
+	Concepts []drill.ConceptDoc
 }
 
 // CompareAnchorA and CompareAnchorB name the two columns so the strip of links

@@ -15,8 +15,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/graph"
-	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -396,7 +396,7 @@ func TestSnapshotWarningKindIsPartOfTheKey(t *testing.T) {
 	g := newGeneration(1)
 	g.warnings = newWarningAttempt(make(map[warningKey]struct{}))
 	g.warnSourceUnavailable(entry, errors.New("same failure"), logger)
-	g.warnSlotProblems(f.store.Current().scan, []lesson.Problem{{Source: "note.md", Message: "same failure"}}, logger)
+	g.warnSlotProblems(f.store.Current().scan, []drill.Problem{{Source: "note.md", Message: "same failure"}}, logger)
 	assertWarningCount(t, f, "vault source unavailable in snapshot generation", 1, "read warning was not reported")
 	assertWarningCount(t, f, "slot sidecar unusable in snapshot generation", 1, "warning kinds were collapsed")
 }

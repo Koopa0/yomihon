@@ -12,7 +12,7 @@ import (
 // same note answer only when exactly one of them shares the note's declared
 // domain — the primary course for that note — and a tie or an undeclared domain
 // falls back to the folder.
-func (m *Model) TeachingPath(relPath, noteDomain string) *Path {
+func (m *Model) TeachingPath(relPath, noteDomain string) *Course {
 	if m == nil || relPath == "" {
 		return nil
 	}

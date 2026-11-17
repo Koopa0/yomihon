@@ -153,7 +153,7 @@ templ mapTree(sb Sidebar, c layouts.Chrome, m nav.Map, href string) {
 // holds the current note, drawing the structure navigation already read: a
 // branch outside the course is not in the rail, and a side branch sits under
 // the lesson it hangs from.
-templ pathTree(sb Sidebar, c layouts.Chrome, p nav.Path) {
+templ pathTree(sb Sidebar, c layouts.Chrome, p nav.Course) {
 	<details open?={ sb.mapOpen(p.RelPath) } data-map-tree={ p.RelPath } { disclosureAttrs("map:"+p.RelPath, sb.mapOpen(p.RelPath))... }>
 		<summary class="y-railitem">
 			@chevron()

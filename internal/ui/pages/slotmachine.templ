@@ -4,14 +4,14 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 	"strconv"
 
-	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/drill"
 )
 
 // SlotMachine renders one lesson's sentence-pattern practice, a card per
 // pattern. Everything visible is server-rendered from each slot's first fill,
 // so the sentences read correctly with scripting off; the client upgrades the
 // cards to swap fills, recolour, shuffle and speak.
-templ SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) {
+templ SlotMachine(s *drill.Sidecar, nonce string, lang wording.Lang) {
 	<section class="y-slotmachine" lang={ lang.Tag() } aria-label={ wording.SlotMachineLabel.In(lang) }>
 		<div class="y-slotmachine__intro">
 			<h2 class="y-slotmachine__title">{ wording.SlotMachineLabel.In(lang) }</h2>
@@ -40,23 +40,23 @@ templ SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) {
 // the sentence in place, which a listening reader does not see. It ships empty
 // so arriving announces nothing, and declares Japanese because the sentence is
 // Japanese — the nearest declared language above it would be the wrong voice.
-templ slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) {
+templ slotCard(index int, p drill.Pattern, nonce string, lang wording.Lang) {
 	{{ headingID := SlotPatternID(index) }}
 	<article class="y-slotcard" aria-labelledby={ headingID }>
-		@templ.Raw(`<script nonce="` + templ.EscapeString(nonce) + `" type="application/json" class="y-slotdata">` + lesson.PatternJSON(p) + `</script>`)
+		@templ.Raw(`<script nonce="` + templ.EscapeString(nonce) + `" type="application/json" class="y-slotdata">` + drill.PatternJSON(p) + `</script>`)
 		<header class="y-slotcard__head">
-			<h3 class="y-slotcard__abstract" id={ headingID } lang="ja">{ lesson.AbstractTemplate(p.Template) }</h3>
+			<h3 class="y-slotcard__abstract" id={ headingID } lang="ja">{ drill.AbstractTemplate(p.Template) }</h3>
 			if p.Note != "" {
 				<span class="y-slotcard__note">{ p.Note }</span>
 			}
 		</header>
 		<div class="y-slotcontrols">
-			for _, key := range lesson.TemplateKeys(p.Template) {
+			for _, key := range drill.TemplateKeys(p.Template) {
 				@slotControl(key, p.Slots[key])
 			}
 		</div>
 		@slotOutput(p)
-		<p class="y-slotgloss">{ lesson.GlossInitial(p) }</p>
+		<p class="y-slotgloss">{ drill.GlossInitial(p) }</p>
 		<div class="y-slotactions">
 			<button type="button" class="y-iconbtn y-slotbtn" data-slot-action="speak" aria-label={ wording.SlotMachineSpeak.In(lang) }>
 				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4z"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>
@@ -72,7 +72,7 @@ templ slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) {
 // slotControl is one slot's picker: its label and a <select> whose options are
 // the fills. The inner button carries the closed face where the customizable
 // select is supported and is inert elsewhere; the colour class assigns --c.
-templ slotControl(key string, pos lesson.Position) {
+templ slotControl(key string, pos drill.Position) {
 	<label class={ "y-slotfield", "y-slot-" + pos.Color }>
 		<span class="y-slotfield__label">{ pos.LabelZH }</span>
 		<select class="y-slotselect" data-slot-key={ key }>
@@ -86,9 +86,9 @@ templ slotControl(key string, pos lesson.Position) {
 
 // slotOutput is the live sentence: literal template text as bare nodes, each
 // slot as a coloured, ruby-annotated span the client rewrites on change.
-templ slotOutput(p lesson.Pattern) {
+templ slotOutput(p drill.Pattern) {
 	<p class="y-slotoutput" lang="ja">
-		for _, seg := range lesson.ParseTemplate(p.Template) {
+		for _, seg := range drill.ParseTemplate(p.Template) {
 			if seg.Key == "" {
 				{ seg.Text }
 			} else {
@@ -101,8 +101,8 @@ templ slotOutput(p lesson.Pattern) {
 // slotOut is one slot's rendered word: the first fill's surface form over its
 // reading. The client finds it by data-slot-key and rewrites the base and the
 // reading; the colour class supplies --c.
-templ slotOut(key string, pos lesson.Position) {
+templ slotOut(key string, pos drill.Position) {
 	<span class={ "y-slotout", "y-slot-" + pos.Color } data-slot-key={ key }>
-		<ruby><span>{ lesson.FirstFill(pos).JP }</span><rt>{ lesson.FirstFill(pos).Reading }</rt></ruby>
+		<ruby><span>{ drill.FirstFill(pos).JP }</span><rt>{ drill.FirstFill(pos).Reading }</rt></ruby>
 	</span>
 }

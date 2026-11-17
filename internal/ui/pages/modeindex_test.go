@@ -22,7 +22,7 @@ import (
 func TestAStudyPathRowStatesExtentAndNothingElse(t *testing.T) {
 	t.Parallel()
 
-	view := NewPathIndex([]nav.Path{
+	view := NewPathIndex([]nav.Course{
 		{Title: "Go path", RelPath: "Maps/Go path.md", Planned: 4, Unit: nav.UnitLesson},
 		{Title: "Unread structure", RelPath: "Maps/Broken.md", Unit: nav.UnitLesson, Diagnostics: []sequence.Diagnostic{{}}},
 		{Title: "Plans nothing", RelPath: "Maps/Empty.md", Unit: nav.UnitLesson},

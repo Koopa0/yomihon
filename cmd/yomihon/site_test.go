@@ -286,7 +286,7 @@ func siteRequest(t *testing.T, method, target string, body io.Reader) *http.Requ
 }
 
 // TestTheSiteRefusesACrossSiteWrite locks the cross-origin middleware into the
-// served assembly. The routes a reader keeps a reading place and an uncertainty
+// served assembly. The routes a reader keeps a reading place and a question
 // mark through change state outside the vault, and a hostile page in the reader's own browser is the one party that can drive a
 // POST at the loopback listener from off this machine; the browser labels such
 // a request with Sec-Fetch-Site, and the assembly has to turn it away before
@@ -348,7 +348,7 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 // the route that keeps a reading place is handed the reading room's own answer
 // to whether a note is there. On a shared instance this route is open to anyone
 // who can reach it and its path is printed on Home, so a path that names no
-// note — a sentence, say — must be refused with the uncertainty route's own
+// note — a sentence, say — must be refused with the question route's own
 // status instead of being stored for the desk to show.
 func TestTheSiteKeepsNoPlaceInANoteItDoesNotHold(t *testing.T) {
 	t.Parallel()

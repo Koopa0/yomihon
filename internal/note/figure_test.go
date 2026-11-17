@@ -88,7 +88,7 @@ func newFigureServer(t *testing.T, root string, marks *mark.File) *httptest.Serv
 		Authority: authority,
 		Snapshot:  store.Current,
 
-		Continuation:   noMark,
+		Bookmark:       noMark,
 		FigureApproved: approved,
 		Log:            log,
 	}).Register(mux)
@@ -373,7 +373,7 @@ func newApproveAllServer(t *testing.T, root string, contract *schema.Contract) *
 		Authority: authority,
 		Snapshot:  store.Current,
 
-		Continuation:   noMark,
+		Bookmark:       noMark,
 		FigureApproved: approveAll,
 		Log:            log,
 	}).Register(mux)

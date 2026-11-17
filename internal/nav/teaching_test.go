@@ -28,9 +28,9 @@ func TestTeachingPath(t *testing.T) {
 	jpPath := buildPath(domainPathNote("Maps/jp.md", "日本語 學習路徑", "japanese", jpBody), idx, nil, policy)
 	secondGo := buildPath(domainPathNote("Maps/second.md", "Second Go", "golang", secondGoBody), idx, nil, policy)
 
-	twoCourse := &Model{paths: []Path{goPath, jpPath}}
-	threeCourse := &Model{paths: []Path{goPath, jpPath, secondGo}}
-	tie := &Model{paths: []Path{goPath, secondGo}}
+	twoCourse := &Model{paths: []Course{goPath, jpPath}}
+	threeCourse := &Model{paths: []Course{goPath, jpPath, secondGo}}
+	tie := &Model{paths: []Course{goPath, secondGo}}
 
 	if path := twoCourse.TeachingPath("Maps/go.md", "golang"); path == nil || path.RelPath != "Maps/go.md" {
 		t.Errorf("a study-path note answers as its own book, got %v", path)

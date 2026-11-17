@@ -1,4 +1,4 @@
-package lesson_test
+package drill_test
 
 import (
 	"strings"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/drill"
 )
 
 func TestParseTemplate(t *testing.T) {
@@ -15,19 +15,19 @@ func TestParseTemplate(t *testing.T) {
 	tests := []struct {
 		name string
 		tmpl string
-		want []lesson.Segment
+		want []drill.Segment
 	}{
-		{name: "particles", tmpl: "{A}は {B}です", want: []lesson.Segment{{Key: "A"}, {Text: "は "}, {Key: "B"}, {Text: "です"}}},
-		{name: "adjacent", tmpl: "{A}{B}", want: []lesson.Segment{{Key: "A"}, {Key: "B"}}},
-		{name: "repeated key", tmpl: "{A}と{A}", want: []lesson.Segment{{Key: "A"}, {Text: "と"}, {Key: "A"}}},
-		{name: "no placeholders", tmpl: "no slots", want: []lesson.Segment{{Text: "no slots"}}},
-		{name: "single", tmpl: "{N}", want: []lesson.Segment{{Key: "N"}}},
-		{name: "leading literal", tmpl: "私は {B}", want: []lesson.Segment{{Text: "私は "}, {Key: "B"}}},
+		{name: "particles", tmpl: "{A}は {B}です", want: []drill.Segment{{Key: "A"}, {Text: "は "}, {Key: "B"}, {Text: "です"}}},
+		{name: "adjacent", tmpl: "{A}{B}", want: []drill.Segment{{Key: "A"}, {Key: "B"}}},
+		{name: "repeated key", tmpl: "{A}と{A}", want: []drill.Segment{{Key: "A"}, {Text: "と"}, {Key: "A"}}},
+		{name: "no placeholders", tmpl: "no slots", want: []drill.Segment{{Text: "no slots"}}},
+		{name: "single", tmpl: "{N}", want: []drill.Segment{{Key: "N"}}},
+		{name: "leading literal", tmpl: "私は {B}", want: []drill.Segment{{Text: "私は "}, {Key: "B"}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if diff := cmp.Diff(tt.want, lesson.ParseTemplate(tt.tmpl)); diff != "" {
+			if diff := cmp.Diff(tt.want, drill.ParseTemplate(tt.tmpl)); diff != "" {
 				t.Errorf("ParseTemplate(%q) mismatch (-want +got):\n%s", tt.tmpl, diff)
 			}
 		})
@@ -49,7 +49,7 @@ func TestTemplateKeys(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if diff := cmp.Diff(tt.want, lesson.TemplateKeys(tt.tmpl)); diff != "" {
+			if diff := cmp.Diff(tt.want, drill.TemplateKeys(tt.tmpl)); diff != "" {
 				t.Errorf("TemplateKeys(%q) mismatch (-want +got):\n%s", tt.tmpl, diff)
 			}
 		})
@@ -60,21 +60,21 @@ func TestAbstractTemplate(t *testing.T) {
 	t.Parallel()
 	const in = "{A}は {B}です"
 	const want = "Aは Bです"
-	if got := lesson.AbstractTemplate(in); got != want {
+	if got := drill.AbstractTemplate(in); got != want {
 		t.Errorf("AbstractTemplate(%q) = %q, want %q", in, got, want)
 	}
 }
 
 // sampleA is the canonical two-slot pattern ("我 是 學生") used across the
 // gloss/JSON tests — a hand-built literal, never derived from the code.
-func sampleA() lesson.Pattern {
-	return lesson.Pattern{
+func sampleA() drill.Pattern {
+	return drill.Pattern{
 		ID:       "a-wa-b",
 		Template: "{A}は {B}です",
 		GlossZH:  "{A} 是 {B}",
-		Slots: map[string]lesson.Position{
-			"A": {Color: "topic", Fills: []lesson.Fill{{JP: "わたし", Reading: "わたし", ZH: "我"}}},
-			"B": {Color: "pred", Fills: []lesson.Fill{{JP: "学生", Reading: "がくせい", ZH: "學生"}}},
+		Slots: map[string]drill.Position{
+			"A": {Color: "topic", Fills: []drill.Fill{{JP: "わたし", Reading: "わたし", ZH: "我"}}},
+			"B": {Color: "pred", Fills: []drill.Fill{{JP: "学生", Reading: "がくせい", ZH: "學生"}}},
 		},
 	}
 }
@@ -94,7 +94,7 @@ func TestGlossInitial(t *testing.T) {
 			t.Parallel()
 			p := sampleA()
 			p.GlossZH = tt.gloss
-			if got := lesson.GlossInitial(p); got != tt.want {
+			if got := drill.GlossInitial(p); got != tt.want {
 				t.Errorf("GlossInitial(%q) = %q, want %q", tt.gloss, got, tt.want)
 			}
 		})
@@ -103,17 +103,17 @@ func TestGlossInitial(t *testing.T) {
 
 func TestFirstFill(t *testing.T) {
 	t.Parallel()
-	if diff := cmp.Diff(lesson.Fill{JP: "x"}, lesson.FirstFill(lesson.Position{Fills: []lesson.Fill{{JP: "x"}}})); diff != "" {
+	if diff := cmp.Diff(drill.Fill{JP: "x"}, drill.FirstFill(drill.Position{Fills: []drill.Fill{{JP: "x"}}})); diff != "" {
 		t.Errorf("FirstFill(one fill) mismatch (-want +got):\n%s", diff)
 	}
-	if diff := cmp.Diff(lesson.Fill{}, lesson.FirstFill(lesson.Position{})); diff != "" {
+	if diff := cmp.Diff(drill.Fill{}, drill.FirstFill(drill.Position{})); diff != "" {
 		t.Errorf("FirstFill(empty) mismatch (-want +got):\n%s", diff)
 	}
 }
 
 func TestPatternJSON(t *testing.T) {
 	t.Parallel()
-	js := lesson.PatternJSON(sampleA())
+	js := drill.PatternJSON(sampleA())
 	for _, want := range []string{`"template":"{A}は {B}です"`, `"keys":["A","B"]`, `"jp":"わたし"`, `"zh":"學生"`} {
 		if !strings.Contains(js, want) {
 			t.Errorf("PatternJSON missing %q in:\n%s", want, js)
@@ -123,8 +123,8 @@ func TestPatternJSON(t *testing.T) {
 	// Script-tag safety: json.Marshal \u-escapes < > & so the blob cannot break
 	// out of <script type="application/json"> even if a fill held markup.
 	p := sampleA()
-	p.Slots["B"] = lesson.Position{Fills: []lesson.Fill{{JP: "</script><b>", ZH: "x"}}}
-	js = lesson.PatternJSON(p)
+	p.Slots["B"] = drill.Position{Fills: []drill.Fill{{JP: "</script><b>", ZH: "x"}}}
+	js = drill.PatternJSON(p)
 	for _, bad := range []string{"</script>", "<b>"} {
 		if strings.Contains(js, bad) {
 			t.Errorf("PatternJSON left literal %q (escaping failed, script-breakout risk):\n%s", bad, js)
@@ -134,33 +134,33 @@ func TestPatternJSON(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	t.Parallel()
-	if problems := (&lesson.Sidecar{Patterns: []lesson.Pattern{sampleA()}}).Validate(); len(problems) != 0 {
+	if problems := (&drill.Sidecar{Patterns: []drill.Pattern{sampleA()}}).Validate(); len(problems) != 0 {
 		t.Errorf("valid sidecar reported problems: %v", problems)
 	}
 
 	// One pattern with four distinct faults: template key {B} has no slot; slot
 	// A has no fills; slot A has an unknown colour; gloss key {C} is not in the
 	// template. Validate returns exactly one message per fault.
-	bad := lesson.Pattern{
+	bad := drill.Pattern{
 		ID:       "bad",
 		Template: "{A}は {B}です",
 		GlossZH:  "{A} 是 {C}",
-		Slots:    map[string]lesson.Position{"A": {Color: "nope", Fills: nil}},
+		Slots:    map[string]drill.Position{"A": {Color: "nope", Fills: nil}},
 	}
-	if problems := (&lesson.Sidecar{Patterns: []lesson.Pattern{bad}}).Validate(); len(problems) != 4 {
+	if problems := (&drill.Sidecar{Patterns: []drill.Pattern{bad}}).Validate(); len(problems) != 4 {
 		t.Errorf("Validate(bad) = %d problems, want 4: %v", len(problems), problems)
 	}
 
 	// An empty color is a neutral (uncoloured) slot, not a fault: only a
 	// non-empty unknown token is rejected. This pins that behaviour so a
 	// future tightening is a conscious decision, not a drift.
-	neutral := lesson.Pattern{
+	neutral := drill.Pattern{
 		ID:       "neutral",
 		Template: "{A}です",
 		GlossZH:  "是 {A}",
-		Slots:    map[string]lesson.Position{"A": {Color: "", Fills: []lesson.Fill{{JP: "x", ZH: "y"}}}},
+		Slots:    map[string]drill.Position{"A": {Color: "", Fills: []drill.Fill{{JP: "x", ZH: "y"}}}},
 	}
-	if problems := (&lesson.Sidecar{Patterns: []lesson.Pattern{neutral}}).Validate(); len(problems) != 0 {
+	if problems := (&drill.Sidecar{Patterns: []drill.Pattern{neutral}}).Validate(); len(problems) != 0 {
 		t.Errorf("Validate(neutral empty-color) = %v, want no problems (empty color is a valid neutral slot)", problems)
 	}
 }
@@ -185,7 +185,7 @@ func TestIsSlotSidecar(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := lesson.IsSlotSidecar(tt.path); got != tt.want {
+			if got := drill.IsSlotSidecar(tt.path); got != tt.want {
 				t.Errorf("IsSlotSidecar(%q) = %t, want %t", tt.path, got, tt.want)
 			}
 		})
@@ -204,7 +204,7 @@ func TestNewSlotIndexJoinsBySlug(t *testing.T) {
 		"System/other/L04.yaml":        slotSidecar("L04.yaml", "jp-minna-l04"),
 	}
 
-	idx, problems := lesson.NewSlotIndex(files)
+	idx, problems := drill.NewSlotIndex(files)
 	if len(problems) != 0 {
 		t.Fatalf("NewSlotIndex() problems = %v", problems)
 	}
@@ -243,7 +243,7 @@ patterns:
             reading: わたし
             zh: 我
 `
-	idx, problems := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(sidecar)})
+	idx, problems := drill.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(sidecar)})
 	if len(problems) != 0 {
 		t.Fatalf("NewSlotIndex() problems = %v", problems)
 	}
@@ -285,7 +285,7 @@ patterns:
             reading: わたし
             zh: 我
 `
-	idx, problems := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(sidecar)})
+	idx, problems := drill.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(sidecar)})
 	if len(problems) != 0 {
 		t.Fatalf("NewSlotIndex() problems = %v", problems)
 	}
@@ -322,7 +322,7 @@ func TestNewSlotIndexRejectsDuplicateSlugDeterministically(t *testing.T) {
 		"System/slots/L01.yaml":      slotSidecar("L01.yaml", "jp-minna-l01"),
 		"System/slots/L01-copy.yaml": slotSidecar("L01-copy.yaml", "jp-minna-l01"),
 	}
-	idx, problems := lesson.NewSlotIndex(files)
+	idx, problems := drill.NewSlotIndex(files)
 	if len(problems) != 1 {
 		t.Fatalf("NewSlotIndex(duplicate slug) problems = %v, want exactly one", problems)
 	}
@@ -340,7 +340,7 @@ func TestNewSlotIndexRejectsDuplicateSlugDeterministically(t *testing.T) {
 func TestNewSlotIndexRejectsMissingSlug(t *testing.T) {
 	t.Parallel()
 	files := map[string][]byte{"System/slots/L01.yaml": []byte("lesson: L01\ntitle: t\npatterns: []\n")}
-	if _, err := lesson.NewSlotIndex(files); err == nil {
+	if _, err := drill.NewSlotIndex(files); err == nil {
 		t.Fatal("NewSlotIndex accepted a sidecar with no slug")
 	}
 }
@@ -360,7 +360,7 @@ patterns:
         color: unknown
         fills: []
 `
-	idx, problems := lesson.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(invalid)})
+	idx, problems := drill.NewSlotIndex(map[string][]byte{"System/slots/L01.yaml": []byte(invalid)})
 	if len(problems) == 0 {
 		t.Fatal("NewSlotIndex accepted structurally invalid slot data")
 	}
@@ -390,7 +390,7 @@ func TestNewSlotIndexOwnsCapturedBytes(t *testing.T) {
 	source := []byte("lesson: L01\nslug: jp-minna-l01\ntitle: Original\npatterns: []\n")
 	files := map[string][]byte{"System/slots/L01.yaml": source}
 
-	idx, problems := lesson.NewSlotIndex(files)
+	idx, problems := drill.NewSlotIndex(files)
 	if len(problems) != 0 {
 		t.Fatalf("NewSlotIndex() problems = %v", problems)
 	}
@@ -412,7 +412,7 @@ func TestNewSlotIndexOwnsCapturedBytes(t *testing.T) {
 
 func TestSlotIndexZeroValue(t *testing.T) {
 	t.Parallel()
-	var idx lesson.SlotIndex
+	var idx drill.SlotIndex
 	if idx.Len() != 0 {
 		t.Errorf("zero SlotIndex.Len() = %d, want 0", idx.Len())
 	}
@@ -422,7 +422,7 @@ func TestSlotIndexZeroValue(t *testing.T) {
 }
 
 // problemMessages flattens a generation's sidecar problems for assertion.
-func problemMessages(problems []lesson.Problem) []string {
+func problemMessages(problems []drill.Problem) []string {
 	out := make([]string, 0, len(problems))
 	for _, p := range problems {
 		out = append(out, p.Message)
@@ -438,7 +438,7 @@ func problemMessages(problems []lesson.Problem) []string {
 func TestOneUnusableSidecarCostsOnlyItsOwnLesson(t *testing.T) {
 	t.Parallel()
 
-	idx, problems := lesson.NewSlotIndex(map[string][]byte{
+	idx, problems := drill.NewSlotIndex(map[string][]byte{
 		"System/slots/L01.yaml": slotSidecar("L01.yaml", "jp-minna-l01"),
 		"System/slots/L02.yaml": []byte("lesson: L02\nslug: jp-minna-l02\ntitle: \"broken\"\nunknown_key: x\n"),
 		"System/slots/L03.yaml": slotSidecar("L03.yaml", "jp-minna-l03"),
@@ -470,7 +470,7 @@ func TestSidecarNoteReachesThePanel(t *testing.T) {
 
 	withNote := append([]byte("note: >\n  もう Vました ↔ まだです 是狀態副詞,不換槽,故不入 pattern。\n"),
 		slotSidecar("L07.yaml", "jp-minna-l07")...)
-	idx, problems := lesson.NewSlotIndex(map[string][]byte{"System/slots/L07.yaml": withNote})
+	idx, problems := drill.NewSlotIndex(map[string][]byte{"System/slots/L07.yaml": withNote})
 	if len(problems) != 0 {
 		t.Fatalf("a sidecar carrying a note was rejected: %v", problems)
 	}

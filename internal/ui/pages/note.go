@@ -5,7 +5,7 @@ import (
 
 	"github.com/a-h/templ"
 
-	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -345,7 +345,7 @@ func (v *NoteView) carriesReadings() bool {
 
 // conceptsCarryReadings reports whether any of the concept sheets a page can
 // open holds furigana.
-func conceptsCarryReadings(concepts []lesson.ConceptDoc) bool {
+func conceptsCarryReadings(concepts []drill.ConceptDoc) bool {
 	for _, c := range concepts {
 		if render.CarriesReadings(c.HTML) {
 			return true

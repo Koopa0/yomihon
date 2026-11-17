@@ -66,7 +66,7 @@ func sectionContract(t *testing.T) *schema.Contract {
 // readerSession is the server a reader has open over the vault and the marks
 // file beside it. A second session over the same two is the reader coming back
 // another day: nothing is carried in memory from the first.
-func readerSession(t *testing.T, root string, contract *schema.Contract, configDir string, kept func() (mark.Continuation, bool)) (mux http.Handler, marks *mark.File) {
+func readerSession(t *testing.T, root string, contract *schema.Contract, configDir string, kept func() (mark.Bookmark, bool)) (mux http.Handler, marks *mark.File) {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
@@ -80,13 +80,13 @@ func readerSession(t *testing.T, root string, contract *schema.Contract, configD
 	}
 	handler := note.New(&note.Sources{
 		Source: source, Contract: contract, Snapshot: store.Current,
-		Authority:    func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
-		Continuation: kept, Uncertainties: marks.Uncertainties,
-		UncertaintyAddress: mark.UncertaintyAddress, Log: log,
+		Authority: func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
+		Bookmark:  kept, Questions: marks.Questions,
+		QuestionAddress: mark.QuestionAddress, Log: log,
 	})
 	routes := http.NewServeMux()
 	handler.Register(routes)
-	mark.NewUncertaintyHandler(marks, handler, log).Register(routes)
+	mark.NewQuestionHandler(marks, handler, log).Register(routes)
 	return routes, marks
 }
 
@@ -109,14 +109,14 @@ func serve(t *testing.T, mux http.Handler, method, target, form string) *httptes
 	return recorder
 }
 
-// TestAReaderWhoLeftAnUncertaintyFindsTheSectionAndTheirThoughtTheNextDay holds
+// TestAReaderWhoLeftAQuestionFindsTheSectionAndTheirThoughtTheNextDay holds
 // the third acceptance scenario against the real routes: a reader marks a
 // section "Not sure yet" and writes a thought under it; the next day, in a
 // session that remembers nothing, the section's own page shows the mark and its
 // day, the thought's first sentence and its day, and the draft they would have
 // opened it with opens on the line that says it was written before the answer.
 // The reader is asked for nothing in any of it.
-func TestAReaderWhoLeftAnUncertaintyFindsTheSectionAndTheirThoughtTheNextDay(t *testing.T) {
+func TestAReaderWhoLeftAQuestionFindsTheSectionAndTheirThoughtTheNextDay(t *testing.T) {
 	t.Parallel()
 	root, contract := sectionVault(t)
 	configDir := t.TempDir()
@@ -128,7 +128,7 @@ func TestAReaderWhoLeftAnUncertaintyFindsTheSectionAndTheirThoughtTheNextDay(t *
 	}
 
 	nextDay, marks := readerSession(t, root, contract, configDir, nil)
-	held, err := marks.Uncertainties()
+	held, err := marks.Questions()
 	if err != nil || len(held) != 1 {
 		t.Fatalf("the marks the second session reads = %v, %v; want the one the first kept", held, err)
 	}
@@ -207,8 +207,8 @@ func TestTheThoughtDraftOpensOnTheLineBeforeTheAnswerOnlyForASectionHoldingAQues
 func TestTheKeptPlaceIsDrawnInTheSectionThatHoldsIt(t *testing.T) {
 	t.Parallel()
 	root, contract := sectionVault(t)
-	kept := func() (mark.Continuation, bool) {
-		return mark.Continuation{RelPath: "Source.md", Anchor: "first"}, true
+	kept := func() (mark.Bookmark, bool) {
+		return mark.Bookmark{RelPath: "Source.md", Anchor: "first"}, true
 	}
 	mux, _ := readerSession(t, root, contract, t.TempDir(), kept)
 

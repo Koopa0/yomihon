@@ -69,7 +69,7 @@ func (m *Model) indexOfMap(relPath string) int {
 // Path returns the study path at relPath, or nil when no course in this
 // generation answers to that name. What comes back is the caller's own, one
 // course copied rather than all of them.
-func (m *Model) Path(relPath string) *Path {
+func (m *Model) Path(relPath string) *Course {
 	at := m.indexOfPath(relPath)
 	if at < 0 {
 		return nil
@@ -83,7 +83,7 @@ func (m *Model) indexOfPath(relPath string) int {
 	if m == nil {
 		return -1
 	}
-	return slices.IndexFunc(m.paths, func(p Path) bool { return p.RelPath == relPath })
+	return slices.IndexFunc(m.paths, func(p Course) bool { return p.RelPath == relPath })
 }
 
 // Siblings returns the files sharing a directory with the file at relPath,

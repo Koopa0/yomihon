@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/koopa0/yomihon/internal/asset"
+	"github.com/koopa0/yomihon/internal/course"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
@@ -20,7 +21,6 @@ import (
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -75,7 +75,7 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 // own, and nowhere in the vault itself. Only serving builds one. The
 // adjudication commands answer about the vault, never about the reader, and
 // never open this; left-open answers about the reader without it, reading the
-// uncertainty marks through mark.File, and the two figure commands open it to
+// question marks through mark.File, and the two figure commands open it to
 // approve and revoke.
 func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logger) (_ *readingSite, resultErr error) {
 	source, err := vault.Open(root)
@@ -142,20 +142,20 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	// and without the control that would offer to: a page inviting a reader to
 	// keep something this process cannot keep is worse than one that does not
 	// ask.
-	keptPlace := func() (mark.Continuation, bool) { return mark.Continuation{}, false }
+	keptPlace := func() (mark.Bookmark, bool) { return mark.Bookmark{}, false }
 	markAddress := ""
-	uncertaintyAddress := ""
-	var uncertainties func() ([]mark.Uncertainty, error)
+	questionAddress := ""
+	var questions func() ([]mark.Question, error)
 	var figureApproved func(string, [sha256.Size]byte) (render.Approval, error)
 	var marks *mark.File
 	if configDir != "" {
 		if marks, err = mark.New(configDir, source.Name()); err != nil {
 			return nil, fmt.Errorf("name the reader's marks file: %w", err)
 		}
-		keptPlace = marks.Continuation
+		keptPlace = marks.Bookmark
 		markAddress = mark.Address
-		uncertaintyAddress = mark.UncertaintyAddress
-		uncertainties = marks.Uncertainties
+		questionAddress = mark.QuestionAddress
+		questions = marks.Questions
 		// Approvals are read, never written, by the reading server: only the
 		// approval command at a terminal writes them. A page and a frame ask
 		// on every request, so an approval or a revocation needs no restart.
@@ -169,11 +169,11 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	// The course face reads the kept place too — its cover opens at the lesson
 	// the reader left off in — so it is captured with the generation the rest of
 	// that page is drawn from rather than asked for separately.
-	pathProvider := func() syllabus.RequestSnapshot {
+	pathProvider := func() course.RequestSnapshot {
 		snap := store.Current().Capture()
 		captured := authority()
 		kept, marked := keptPlace()
-		return syllabus.RequestSnapshot{
+		return course.RequestSnapshot{
 			Shell:      shell.Project(vaultName, captured, snap),
 			Generation: snap,
 			Authority:  captured,
@@ -184,26 +184,26 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 
 	mux := http.NewServeMux()
 	readers := note.New(&note.Sources{
-		Source:             source,
-		Contract:           contract,
-		VaultName:          vaultName,
-		Authority:          authority,
-		Snapshot:           store.Current,
-		Continuation:       keptPlace,
-		MarkAddress:        markAddress,
-		UncertaintyAddress: uncertaintyAddress,
-		Uncertainties:      uncertainties,
-		FigureApproved:     figureApproved,
-		Log:                log,
+		Source:          source,
+		Contract:        contract,
+		VaultName:       vaultName,
+		Authority:       authority,
+		Snapshot:        store.Current,
+		Bookmark:        keptPlace,
+		MarkAddress:     markAddress,
+		QuestionAddress: questionAddress,
+		Questions:       questions,
+		FigureApproved:  figureApproved,
+		Log:             log,
 	})
 	readers.Register(mux)
 	if marks != nil {
 		mark.NewHandler(marks, readers, log).Register(mux)
-		mark.NewUncertaintyHandler(marks, readers, log).Register(mux)
+		mark.NewQuestionHandler(marks, readers, log).Register(mux)
 	}
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
-	syllabus.New(pathProvider, log).Register(mux)
+	course.New(pathProvider, log).Register(mux)
 	report.New(func() *snapshot.Generation { return store.Current().Capture() }, log).Register(mux)
 	asset.Register(mux)
 

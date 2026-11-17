@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/graph"
-	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -81,7 +81,7 @@ func (p *placeResolver) hasPlace(rel, anchor string) bool {
 		if sidecar, found := p.snap.Slots().Lookup(n.reading.Slug); found {
 			for i, pattern := range sidecar.Patterns {
 				n.anchors[pages.SlotPatternID(i)] = resolvedPlace{
-					label: pages.RowPlace{Text: lesson.AbstractTemplate(pattern.Template), Language: "ja"}, card: i + 1,
+					label: pages.RowPlace{Text: drill.AbstractTemplate(pattern.Template), Language: "ja"}, card: i + 1,
 				}
 			}
 		}

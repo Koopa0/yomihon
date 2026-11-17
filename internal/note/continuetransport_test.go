@@ -19,10 +19,10 @@ type blockedDeskTransport struct {
 
 func (b *blockedDeskTransport) RoundTrip(*http.Request) (*http.Response, error) {
 	b.calls.Add(1)
-	return nil, errors.New("continuation desk used the default transport")
+	return nil, errors.New("bookmark desk used the default transport")
 }
 
-func TestContinuationDeskOwnsItsHTTPTransport(t *testing.T) {
+func TestBookmarkDeskOwnsItsHTTPTransport(t *testing.T) {
 	// Parallel tests start only after serial tests finish, so this temporary
 	// process transport cannot interfere with their requests.
 	original := http.DefaultTransport
@@ -30,7 +30,7 @@ func TestContinuationDeskOwnsItsHTTPTransport(t *testing.T) {
 	http.DefaultTransport = blocked
 	t.Cleanup(func() { http.DefaultTransport = original })
 
-	page := deskWithMark(t, &mark.Continuation{}, false)
+	page := deskWithMark(t, &mark.Bookmark{}, false)
 	if !strings.HasPrefix(page, "<!doctype html>") {
 		t.Errorf("the real desk response is not an HTML document: prefix %q", page[:min(160, len(page))])
 	}

@@ -52,7 +52,7 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 	putOpenThoughtFile(t, root, "Inside/WrongRole.md", openThoughtNote("Wrong role", "other", draftFlag, "2026-09-11"))
 	putOpenThoughtFile(t, root, "Inside/Invalid.md", openThoughtNote("Invalid flag", "reflection", "draft: \"true\"\n", "2026-09-12"))
 	site, marks := openThoughtSite(t, root)
-	_, err := marks.ToggleUncertainty(&mark.Uncertainty{RelPath: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, admitMark)
+	_, err := marks.ToggleQuestion(&mark.Question{RelPath: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, admitMark)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,15 +106,15 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 			putOpenThoughtFile(t, root, "Source.md", "source\n")
 			putOpenThoughtFile(t, root, "LooksLikeAnAnswer.md", openThoughtNote("Never guessed", "reflection", draftFlag, "2026-09-01"))
 			site, marks := openThoughtSite(t, root)
-			kept := &mark.Uncertainty{RelPath: "Source.md", At: time.Now()}
-			if _, err := marks.ToggleUncertainty(kept, admitMark); err != nil {
+			kept := &mark.Question{RelPath: "Source.md", At: time.Now()}
+			if _, err := marks.ToggleQuestion(kept, admitMark); err != nil {
 				t.Fatal(err)
 			}
 			page := openThoughtPage(t, site, "/open-thoughts", "en")
 			if strings.Count(page, "data-index-row") != 1 || strings.Contains(page, "Never guessed") {
 				t.Error("ungoverned/invalid shelf must show marks without guessing an answer role")
 			}
-			if _, err := marks.ToggleUncertainty(kept, admitMark); err != nil {
+			if _, err := marks.ToggleQuestion(kept, admitMark); err != nil {
 				t.Fatal(err)
 			}
 			if strings.Contains(openThoughtPage(t, site, "/", "en"), `data-home-block="open-thoughts"`) {
@@ -126,7 +126,7 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 				}
 			}
 			const corrupt = "{broken"
-			if err := os.WriteFile(marks.UncertaintyPath(), []byte(corrupt), 0o600); err != nil {
+			if err := os.WriteFile(marks.QuestionPath(), []byte(corrupt), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			page = openThoughtPage(t, site, "/open-thoughts", "en")
@@ -140,7 +140,7 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 			if !strings.Contains(home, "Marks cannot be read right now") || strings.Contains(openThoughtBlock(t, home), "No locations marked") {
 				t.Error("Home hid unavailable marks behind an empty shelf")
 			}
-			data, err := os.ReadFile(marks.UncertaintyPath())
+			data, err := os.ReadFile(marks.QuestionPath())
 			if err != nil || string(data) != corrupt {
 				t.Error("reading Home overwrote corrupt mark data")
 			}
@@ -209,7 +209,7 @@ func TestOpenThoughtsKeepsAMarkWhoseNoteIsNotInTheSnapshot(t *testing.T) {
 	site, marks := openThoughtSite(t, root)
 	const stray = "Visit example dot com for free prizes.md"
 	for _, rel := range []string{stray, "Source.md"} {
-		if _, err := marks.ToggleUncertainty(&mark.Uncertainty{RelPath: rel, At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, admitMark); err != nil {
+		if _, err := marks.ToggleQuestion(&mark.Question{RelPath: rel, At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, admitMark); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -276,7 +276,7 @@ func TestOpenThoughtsHomeShowsFiveAndStatesNoCount(t *testing.T) {
 	}
 }
 
-func admitMark(*mark.Uncertainty) bool { return true }
+func admitMark(*mark.Question) bool { return true }
 
 func openThoughtSite(t *testing.T, root string) (*readingSite, *mark.File) {
 	t.Helper()

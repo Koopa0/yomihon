@@ -32,7 +32,7 @@ import (
 templ sectionMargin(id string, m *SectionMargin, p *SectionPlan) {
 	<div class="y-margin" lang={ p.Lang.Tag() } data-section-margin>
 		if p.Marks {
-			<button type="button" class="y-margin__act" data-section-mark data-section-anchor={ trimID(id, p.IDPrefix) } aria-pressed={ strconv.FormatBool(m.Marked) } aria-label={ wording.UncertaintyControl.In(p.Lang) } data-text={ wording.UncertaintyControl.In(p.Lang) } disabled></button>
+			<button type="button" class="y-margin__act" data-section-mark data-section-anchor={ trimID(id, p.IDPrefix) } aria-pressed={ strconv.FormatBool(m.Marked) } aria-label={ wording.QuestionControl.In(p.Lang) } data-text={ wording.QuestionControl.In(p.Lang) } disabled></button>
 			<time class="y-margin__date" data-section-date hidden?={ !m.Marked } datetime={ dateOf(m.MarkedOn) }></time>
 		}
 		if p.Door {

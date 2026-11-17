@@ -48,20 +48,20 @@ func TestTheReadingPageDrawsTheReadersBookmarkWhereTheirPlaceIs(t *testing.T) {
 	const open, done = "/notes/Writing/lessons/Open.md", "/notes/Writing/lessons/Done.md"
 	for _, tt := range []struct {
 		name        string
-		kept        mark.Continuation
+		kept        mark.Bookmark
 		marked      bool
 		page        string
 		wantControl bool
 		wantRowFor  string
 	}{
-		{name: "the note holds the place", kept: mark.Continuation{RelPath: "Writing/lessons/Open.md"}, marked: true, page: open, wantControl: true, wantRowFor: open},
-		{name: "another lesson of the book holds it", kept: mark.Continuation{RelPath: "Writing/lessons/Open.md"}, marked: true, page: done, wantControl: false, wantRowFor: open},
+		{name: "the note holds the place", kept: mark.Bookmark{RelPath: "Writing/lessons/Open.md"}, marked: true, page: open, wantControl: true, wantRowFor: open},
+		{name: "another lesson of the book holds it", kept: mark.Bookmark{RelPath: "Writing/lessons/Open.md"}, marked: true, page: done, wantControl: false, wantRowFor: open},
 		{name: "no place kept", page: open, wantControl: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			contract := loadHomeContract(t)
-			srv := newServerKeepingPlaces(t, keptCourse(t), contract, contract.Governance(), func() (mark.Continuation, bool) { return tt.kept, tt.marked }, "/mark")
+			srv := newServerKeepingPlaces(t, keptCourse(t), contract, contract.Governance(), func() (mark.Bookmark, bool) { return tt.kept, tt.marked }, "/mark")
 			code, body := get(t, srv.Client(), srv.URL+tt.page)
 			if code != 200 {
 				t.Fatalf("GET %s = %d, want 200", tt.page, code)

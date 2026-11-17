@@ -26,7 +26,7 @@ func (m *Model) CoreFaults() []CoreFault {
 }
 
 type coreWalkers struct {
-	path    func(*vault.Note, *graph.Index, map[string]noteFacts, schema.ArtifactPolicy) Path
+	path    func(*vault.Note, *graph.Index, map[string]noteFacts, schema.ArtifactPolicy) Course
 	mapping func(*vault.Note, *graph.Index, map[string]noteFacts, schema.ArtifactPolicy) Map
 }
 

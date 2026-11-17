@@ -103,8 +103,8 @@ func benchServer(b *testing.B) *httptest.Server {
 		Authority: func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
 		Snapshot:  store.Current,
 
-		Continuation: noMark,
-		Log:          log,
+		Bookmark: noMark,
+		Log:      log,
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
 	b.Cleanup(srv.Close)

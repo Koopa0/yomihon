@@ -334,7 +334,7 @@ func openUnreadable(snap *snapshot.Generation, allowed func(string) bool) error 
 
 // marks reads the reader's marked locations for this vault, never writing
 // the file. stored tells no marks file from one that holds none.
-func (r *openRequest) marks(vaultRoot string) (kept []mark.Uncertainty, stored bool, err error) {
+func (r *openRequest) marks(vaultRoot string) (kept []mark.Question, stored bool, err error) {
 	if r.configDir == "" {
 		reason := cmp.Or(r.noConfigDir, "the environment names none")
 		return nil, false, fmt.Errorf(`no configuration directory, so the "Not sure yet" marks for this folder cannot be found: %s; nothing was listed`, reason)
@@ -343,7 +343,7 @@ func (r *openRequest) marks(vaultRoot string) (kept []mark.Uncertainty, stored b
 	if err != nil {
 		return nil, false, errOpenMarksUnreadable
 	}
-	kept, stored, err = file.StoredUncertainties()
+	kept, stored, err = file.StoredQuestions()
 	if err != nil {
 		return nil, false, errOpenMarksUnreadable
 	}
@@ -360,7 +360,7 @@ type openEntry struct {
 // is allowed. That gate runs before the item is resolved any further: a
 // location's anchor is its heading's words made into an id, so resolving one
 // in withheld ground and then hiding the heading would still have said it.
-func openEntries(snap *snapshot.Generation, contract *schema.Contract, kept []mark.Uncertainty, allowed func(string) bool) []openEntry {
+func openEntries(snap *snapshot.Generation, contract *schema.Contract, kept []mark.Question, allowed func(string) bool) []openEntry {
 	var entries []openEntry
 	withheldDirs := contract.PrivacyPolicy().WithheldDirs()
 	for _, item := range snap.OpenItems(note.OpenMarks(kept)) {

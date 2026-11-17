@@ -220,7 +220,7 @@ func thoughtRouteHandler(t *testing.T, declareAnswer bool, sourceType string) (h
 	handler = note.New(&note.Sources{
 		Source: source, Contract: contract, Snapshot: store.Current, Authority: authority,
 
-		Continuation: noMark, Log: log,
+		Bookmark: noMark, Log: log,
 	})
 	return handler, root
 }

@@ -17,14 +17,14 @@ import (
 // deskWithMark serves a desk over a vault holding aNote, with the place the
 // reader kept already in hand. The mark never reaches a file here: what the row is
 // built from is the closure, which is the seam this exercises.
-func deskWithMark(t *testing.T, kept *mark.Continuation, has bool) string {
+func deskWithMark(t *testing.T, kept *mark.Bookmark, has bool) string {
 	t.Helper()
 	return deskOverNote(t, "alpha.md", aNote, kept, has)
 }
 
 // deskOverNote is deskWithMark with the note's own filename, for the one case
 // that is about what a name does to an address.
-func deskOverNote(t *testing.T, name, body string, kept *mark.Continuation, has bool) string {
+func deskOverNote(t *testing.T, name, body string, kept *mark.Bookmark, has bool) string {
 	t.Helper()
 	root := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(root, "Notes"), 0o750); err != nil {
@@ -34,7 +34,7 @@ func deskOverNote(t *testing.T, name, body string, kept *mark.Continuation, has 
 		t.Fatal(err)
 	}
 	srv := newServerWithMark(t, root, nil, schema.Ungoverned(),
-		func() (mark.Continuation, bool) { return *kept, has })
+		func() (mark.Bookmark, bool) { return *kept, has })
 
 	code, page := get(t, srv.Client(), srv.URL+"/")
 	if code != http.StatusOK {
@@ -45,8 +45,8 @@ func deskOverNote(t *testing.T, name, body string, kept *mark.Continuation, has 
 
 const aNote = "---\n---\n# Alpha\n\n# Alpha\n\nSome words.\n"
 
-func keptIn(path, anchor string, offset int, identity string) *mark.Continuation {
-	return &mark.Continuation{
+func keptIn(path, anchor string, offset int, identity string) *mark.Bookmark {
+	return &mark.Bookmark{
 		RelPath:  path,
 		Anchor:   anchor,
 		Offset:   offset,
@@ -61,7 +61,7 @@ func keptIn(path, anchor string, offset int, identity string) *mark.Continuation
 func TestADeskWithNoMarkSaysNothingAboutOne(t *testing.T) {
 	t.Parallel()
 
-	page := deskWithMark(t, &mark.Continuation{}, false)
+	page := deskWithMark(t, &mark.Bookmark{}, false)
 	if strings.Contains(page, "data-home-continue") {
 		t.Error("the desk draws a way back when the reader has kept no place")
 	}
@@ -180,7 +180,7 @@ func TestTheKeptPlaceSaysWhereItSitsAndWhichHeadingItWasKeptUnder(t *testing.T) 
 	desk := func(rel, anchor string) string {
 		kept := keptIn(rel, anchor, 0, identityOf(notes[rel]))
 		srv := newServerWithMark(t, writeNotes(t, notes), loadHomeContract(t), loadHomeContract(t).Governance(),
-			func() (mark.Continuation, bool) { return *kept, true })
+			func() (mark.Bookmark, bool) { return *kept, true })
 		code, page := get(t, srv.Client(), srv.URL+"/")
 		if code != http.StatusOK {
 			t.Fatalf("GET the desk = %d, want 200", code)

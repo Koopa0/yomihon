@@ -87,10 +87,10 @@ func (h *Handler) openThoughtShelf(snap *snapshot.Generation, lang wording.Lang,
 // mark file cannot be read.
 func (h *Handler) openCandidates(snap *snapshot.Generation, lang wording.Lang) (candidates []openThoughtCandidate, fault string) {
 	var marks []snapshot.OpenMark
-	if h.sources.Uncertainties != nil {
-		kept, err := h.sources.Uncertainties()
+	if h.sources.Questions != nil {
+		kept, err := h.sources.Questions()
 		if err != nil {
-			fault = wording.UncertaintyUnavailable.In(lang)
+			fault = wording.QuestionUnavailable.In(lang)
 		}
 		marks = OpenMarks(kept)
 	}
@@ -143,7 +143,7 @@ func boolWeight(b bool) int {
 }
 
 // OpenMarks is the copy of the reader's stored marks the open selection reads.
-func OpenMarks(kept []mark.Uncertainty) []snapshot.OpenMark {
+func OpenMarks(kept []mark.Question) []snapshot.OpenMark {
 	marks := make([]snapshot.OpenMark, 0, len(kept))
 	for i := range kept {
 		marks = append(marks, snapshot.OpenMark{RelPath: kept[i].RelPath, Anchor: kept[i].Anchor, At: kept[i].At})
@@ -228,22 +228,22 @@ func openMarkRow(kept *snapshot.OpenMark, places *placeResolver, lang wording.La
 		if places.hasPlace(kept.RelPath, kept.Anchor) {
 			row.Place = places.label(kept.RelPath, kept.Anchor, lang)
 			row.Href = pages.ResumeHref(kept.RelPath, kept.Anchor, 0)
-			row.Mark = wording.UncertaintyControl.In(lang)
+			row.Mark = wording.QuestionControl.In(lang)
 			row.Opening = places.opening(kept.RelPath, kept.Anchor)
 			return row
 		}
-		row.Mark = wording.UncertaintyPlaceNotFound.In(lang)
+		row.Mark = wording.QuestionPlaceNotFound.In(lang)
 		if kept.Anchor != "" {
 			// The anchor is all that tells two lost marks in one note apart.
 			row.Place = pages.RowPlace{Text: "#" + kept.Anchor, Language: resolved.reading.Language}
 		}
 	} else {
-		row.Mark = wording.UncertaintyNoteNotFound.In(lang)
+		row.Mark = wording.QuestionNoteNotFound.In(lang)
 	}
 	row.Fault = true
-	row.Removal = &pages.UncertaintyRemoval{Endpoint: mark.UncertaintyAddress, Path: kept.RelPath, Anchor: kept.Anchor,
-		Label: wording.UncertaintyClearControl.In(lang), Unavailable: wording.UncertaintyUnavailable.In(lang),
-		Failed: wording.UncertaintyNotStored.In(lang), Cleared: wording.UncertaintyCleared.In(lang), Language: string(lang),
+	row.Removal = &pages.QuestionRemoval{Endpoint: mark.QuestionAddress, Path: kept.RelPath, Anchor: kept.Anchor,
+		Label: wording.QuestionClearControl.In(lang), Unavailable: wording.QuestionUnavailable.In(lang),
+		Failed: wording.QuestionNotStored.In(lang), Cleared: wording.QuestionCleared.In(lang), Language: string(lang),
 	}
 	return row
 }

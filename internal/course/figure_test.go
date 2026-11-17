@@ -1,4 +1,4 @@
-package syllabus_test
+package course_test
 
 import (
 	"bytes"
@@ -11,10 +11,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/course"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/syllabus"
 )
 
 // TestACoursePageNeverFramesAFigure: an approved figure framed anywhere but
@@ -52,9 +52,9 @@ func TestACoursePageNeverFramesAFigure(t *testing.T) {
 	store := newGenerationStore(t, root, contract)
 	store.ApproveFiguresBy(func(string, [sha256.Size]byte) (render.Approval, error) { return render.Approved, nil })
 	mux := http.NewServeMux()
-	syllabus.New(func() syllabus.RequestSnapshot {
+	course.New(func() course.RequestSnapshot {
 		snap := store.Current().Capture()
-		return syllabus.RequestSnapshot{
+		return course.RequestSnapshot{
 			Shell:      nav.Shell{Nav: snap.Navigation(), Governed: true},
 			Generation: snap,
 			Authority:  lessonTypes("lesson"),

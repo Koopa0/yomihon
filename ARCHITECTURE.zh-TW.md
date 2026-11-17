@@ -101,7 +101,7 @@ Wikilink 表示引用，`based_on` 宣告來源，學習路徑則安排課程順
 | `local` | 有獨立順序的選讀分支，不併入主線。 |
 | `none` | 不納入進度順序的參考資料。 |
 
-明確的角色讓 reader 不必猜測巢狀清單是必讀課程、選讀分支，還是參考資料。練習附檔與概念頁提供作者準備的練習及說明；附檔無法使用時，只停用對應區塊，不讓整個課程失效。瀏覽器可隱藏振假名，並透過 speech synthesis 朗讀指定段落。頁面明確選用瀏覽器回報為本機、符合段落語言與文字系統的語音；沒有符合的語音時，頁面提示無法播放。伺服器沒有模型或語音服務；瀏覽器與作業系統的語音行為，不在 Go 程式的對外請求邊界內。參見[課程編寫][authoring]、[分支語法][sequence]、[課程 handler][syllabus]、[lesson 資料][lesson]與[瀏覽器課程控制][lesson-js]。
+明確的角色讓 reader 不必猜測巢狀清單是必讀課程、選讀分支，還是參考資料。練習附檔與概念頁提供作者準備的練習及說明；附檔無法使用時，只停用對應區塊，不讓整個課程失效。瀏覽器可隱藏振假名，並透過 speech synthesis 朗讀指定段落。頁面明確選用瀏覽器回報為本機、符合段落語言與文字系統的語音；沒有符合的語音時，頁面提示無法播放。伺服器沒有模型或語音服務；瀏覽器與作業系統的語音行為，不在 Go 程式的對外請求邊界內。參見[課程編寫][authoring]、[分支語法][sequence]、[課程 handler][course]、[lesson 資料][drill]與[瀏覽器課程控制][lesson-js]。
 
 ## 6. 對 vault 唯讀
 
@@ -193,8 +193,8 @@ Loopback 與瀏覽器來源保護不會驗證本機操作者的身分。透過�
 [query]: internal/lexical/query.go
 [search]: internal/search
 [sequence]: internal/sequence/sequence.go
-[syllabus]: internal/syllabus
-[lesson]: internal/lesson
+[course]: internal/course
+[drill]: internal/drill
 [lesson-js]: assets/js/lesson.js
 [authoring]: docs/authoring.md
 [marks]: internal/mark/file.go

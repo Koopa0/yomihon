@@ -1,4 +1,4 @@
-package lesson_test
+package drill_test
 
 import (
 	"strings"
@@ -6,7 +6,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
-	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -16,7 +16,7 @@ func conceptNote(domain, name, body string) *vault.Note {
 
 func TestNewConceptIndexKeysByPath(t *testing.T) {
 	t.Parallel()
-	idx, err := lesson.NewConceptIndex([]*vault.Note{
+	idx, err := drill.NewConceptIndex([]*vault.Note{
 		conceptNote("japanese", "は (主題助詞).md", "# は\n\nThe topic particle.\n"),
 		conceptNote("japanese", "です.md", "the copula"),
 	})
@@ -41,7 +41,7 @@ func TestNewConceptIndexKeysByPath(t *testing.T) {
 // not just japanese — a golang or rust lesson's concept links resolve too.
 func TestNewConceptIndexCoversAllDomains(t *testing.T) {
 	t.Parallel()
-	idx, err := lesson.NewConceptIndex([]*vault.Note{
+	idx, err := drill.NewConceptIndex([]*vault.Note{
 		conceptNote("japanese", "は.md", "topic particle"),
 		conceptNote("golang", "Go Array.md", "a fixed-size sequence"),
 		conceptNote("rust", "Ownership.md", "the borrow checker"),
@@ -64,7 +64,7 @@ func TestNewConceptIndexCoversAllDomains(t *testing.T) {
 // must yield distinct sheet ids, or the dialog would clone the wrong <template>.
 func TestNewConceptIndexIDsAreDomainUnique(t *testing.T) {
 	t.Parallel()
-	idx, err := lesson.NewConceptIndex([]*vault.Note{
+	idx, err := drill.NewConceptIndex([]*vault.Note{
 		conceptNote("golang", "Interface.md", "a Go interface"),
 		conceptNote("system-design", "Interface.md", "an API boundary"),
 	})
@@ -83,7 +83,7 @@ func TestNewConceptIndexIDsAreDomainUnique(t *testing.T) {
 
 func TestNewConceptIndexIDsAreInjectiveAcrossPunctuation(t *testing.T) {
 	t.Parallel()
-	idx, err := lesson.NewConceptIndex([]*vault.Note{
+	idx, err := drill.NewConceptIndex([]*vault.Note{
 		conceptNote("golang", "A-B.md", "hyphenated concept"),
 		conceptNote("golang", "A B.md", "spaced concept"),
 	})
@@ -119,7 +119,7 @@ func TestNewConceptIndexKeyIsNFCEvenWhenCapturedPathIsNFD(t *testing.T) {
 	if decomposed == composed {
 		t.Fatalf("test setup invalid: NFD form of %q did not change", composed)
 	}
-	idx, err := lesson.NewConceptIndex([]*vault.Note{
+	idx, err := drill.NewConceptIndex([]*vault.Note{
 		conceptNote("japanese", decomposed, "the subject particle"),
 	})
 	if err != nil {
@@ -137,7 +137,7 @@ func TestNewConceptIndexKeyIsNFCEvenWhenCapturedPathIsNFD(t *testing.T) {
 
 func TestNewConceptIndexEmptyInput(t *testing.T) {
 	t.Parallel()
-	idx, err := lesson.NewConceptIndex(nil)
+	idx, err := drill.NewConceptIndex(nil)
 	if err != nil {
 		t.Fatalf("NewConceptIndex(nil) error = %v", err)
 	}
@@ -148,7 +148,7 @@ func TestNewConceptIndexEmptyInput(t *testing.T) {
 
 func TestConceptIndexDocumentRendersBody(t *testing.T) {
 	t.Parallel()
-	idx, err := lesson.NewConceptIndex([]*vault.Note{
+	idx, err := drill.NewConceptIndex([]*vault.Note{
 		conceptNote("japanese", "は.md", "# は (主題助詞)\n\nMarks the topic.\n"),
 	})
 	if err != nil {
@@ -174,7 +174,7 @@ func TestConceptIndexDocumentRendersBody(t *testing.T) {
 
 func TestConceptIndexDocumentRejectsNonConcept(t *testing.T) {
 	t.Parallel()
-	idx := lesson.ConceptIndex{}
+	idx := drill.ConceptIndex{}
 	if _, ok := idx.Document(func(_, _ string) string { return "" }, "Writing/x.md"); ok {
 		t.Error("Document accepted a path that is not in the concept index")
 	}
@@ -185,7 +185,7 @@ func TestNewConceptIndexOwnsParsedNote(t *testing.T) {
 	const relPath = "Concepts/japanese/は.md"
 	note := vault.Parse(relPath, []byte("# は (主題助詞)\n\nMarks the topic.\n"))
 
-	idx, err := lesson.NewConceptIndex([]*vault.Note{note})
+	idx, err := drill.NewConceptIndex([]*vault.Note{note})
 	if err != nil {
 		t.Fatalf("NewConceptIndex() error = %v", err)
 	}
@@ -229,7 +229,7 @@ func TestNewConceptIndexRejectsInvalidInputs(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := lesson.NewConceptIndex(tt.notes)
+			_, err := drill.NewConceptIndex(tt.notes)
 			if err == nil || err.Error() != tt.want {
 				t.Errorf("NewConceptIndex() error = %v, want %q", err, tt.want)
 			}
@@ -239,7 +239,7 @@ func TestNewConceptIndexRejectsInvalidInputs(t *testing.T) {
 
 func TestConceptIndexZeroValue(t *testing.T) {
 	t.Parallel()
-	var idx lesson.ConceptIndex
+	var idx drill.ConceptIndex
 	if idx.Len() != 0 {
 		t.Errorf("zero ConceptIndex.Len() = %d, want 0", idx.Len())
 	}
@@ -258,7 +258,7 @@ func TestConceptIndexZeroValue(t *testing.T) {
 // lesson's directory instead of the concept's.
 func TestDocumentRendersAgainstTheConceptsOwnPath(t *testing.T) {
 	t.Parallel()
-	idx, err := lesson.NewConceptIndex([]*vault.Note{
+	idx, err := drill.NewConceptIndex([]*vault.Note{
 		conceptNote("japanese", "は.md", "# は\n\nMarks the topic.\n"),
 	})
 	if err != nil {
@@ -283,7 +283,7 @@ func TestDocumentRendersAgainstTheConceptsOwnPath(t *testing.T) {
 func TestAMiswiredRendererIsAFaultRatherThanAnAnswer(t *testing.T) {
 	t.Parallel()
 
-	idx, err := lesson.NewConceptIndex([]*vault.Note{
+	idx, err := drill.NewConceptIndex([]*vault.Note{
 		conceptNote("japanese", "は.md", "# は\n\nthe topic particle\n"),
 	})
 	if err != nil {
@@ -303,7 +303,7 @@ func TestAMiswiredRendererIsAFaultRatherThanAnAnswer(t *testing.T) {
 
 func TestAConceptIsTitledByItsFirstHeadingElseItsFile(t *testing.T) {
 	t.Parallel()
-	idx, err := lesson.NewConceptIndex([]*vault.Note{
+	idx, err := drill.NewConceptIndex([]*vault.Note{
 		conceptNote("japanese", "が.md", "---\ntitle: ignored\ntype: concept\n---\n\n# が (主格)\n\nMarks the subject.\n"),
 		conceptNote("japanese", "を.md", "---\ntype: concept\n---\n\nNo heading here.\n"),
 	})

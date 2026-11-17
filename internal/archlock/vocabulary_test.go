@@ -94,7 +94,7 @@ func TestNoTemplateSpellsTheVaultVocabulary(t *testing.T) {
 // of the words in vaultVocabulary. A struct tag is a string literal too, and it
 // is left alone by the comparison rather than by a special case: a tag's literal
 // is the whole tag text — `yaml:"lesson"` — which is never equal to the bare
-// word. internal/lesson/slot.go carries exactly that tag, so this file staying
+// word. internal/drill/slot.go carries exactly that tag, so this file staying
 // green is the demonstration.
 func vocabularySites(t *testing.T, fset *token.FileSet, path string) []site {
 	t.Helper()

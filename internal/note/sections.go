@@ -35,12 +35,12 @@ const maxOpeningRunes = 120
 //
 // Everything it shows is read from this generation and the reader's own marks,
 // so the page says on arrival what a second reading would find, without a script.
-func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *snapshot.Reading, result *render.Result, idPrefix string, lang wording.Lang, door bool, place *mark.Continuation) (body string, title []pages.ThoughtLine) {
+func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *snapshot.Reading, result *render.Result, idPrefix string, lang wording.Lang, door bool, place *mark.Bookmark) (body string, title []pages.ThoughtLine) {
 	plan := &pages.SectionPlan{
 		Lang:     lang,
 		RelPath:  n.RelPath,
 		IDPrefix: idPrefix,
-		Marks:    h.sources.UncertaintyAddress != "",
+		Marks:    h.sources.QuestionAddress != "",
 		Door:     door,
 		Sections: make(map[string]pages.SectionMargin),
 	}
@@ -70,10 +70,10 @@ func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *
 // page reads the same without them, and the script that keeps the marks asks the
 // file again and says so when it cannot answer either.
 func (h *Handler) marksIn(rel string) map[string]time.Time {
-	if h.sources.Uncertainties == nil {
+	if h.sources.Questions == nil {
 		return nil
 	}
-	kept, err := h.sources.Uncertainties()
+	kept, err := h.sources.Questions()
 	if err != nil {
 		return nil
 	}

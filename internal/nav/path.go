@@ -10,10 +10,10 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// Path is one study path read through the declared-sequence grammar, with each
+// Course is one study path read through the declared-sequence grammar, with each
 // accepted entry's resolution outcome attached. Every surface reads this one
 // interpretation; none parses the Markdown again.
-type Path struct {
+type Course struct {
 	Title   string
 	RelPath string
 	Domain  string
@@ -115,7 +115,7 @@ func (u Unit) String() string {
 // nothing it does reaches the shared model. The walkable sequences are shared
 // rather than copied: no caller outside this package can name them, and the
 // walk reads them off the model rather than off a clone.
-func (p *Path) clone() Path {
+func (p *Course) clone() Course {
 	out := *p
 	out.Groups = cloneGroups(p.Groups)
 	out.Diagnostics = slices.Clone(p.Diagnostics)
@@ -251,9 +251,9 @@ func buildPath(
 	idx *graph.Index,
 	facts map[string]noteFacts,
 	policy schema.ArtifactPolicy,
-) Path {
+) Course {
 	doc := sequence.Parse(n.Body, n.BodyLine)
-	p := Path{
+	p := Course{
 		Title:       graph.TitleOf(n.RelPath, n.Body),
 		RelPath:     n.RelPath,
 		Domain:      n.Domain,
@@ -618,7 +618,7 @@ func unitOf(groups []*PathGroup, facts map[string]noteFacts, roles schema.Naviga
 
 // pathPlacements records every projectable accepted, resolved entry of one path
 // into the reverse index. Nothing else is a course membership.
-func pathPlacements(index map[string][]Placement, p *Path) {
+func pathPlacements(index map[string][]Placement, p *Course) {
 	for _, g := range p.Groups {
 		placeGroup(index, p.RelPath, g, nil)
 	}

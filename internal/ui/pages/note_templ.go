@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -135,9 +135,9 @@ type NoteView struct {
 	// PlaceKept is whether the place the reader left off at is in this note.
 	// The control for keeping one then says so, so a reader who comes back to
 	// the note is told it already holds their place and not asked to guess.
-	PlaceKept          bool
-	UncertaintyAddress string
-	ThoughtDoor        bool
+	PlaceKept       bool
+	QuestionAddress string
+	ThoughtDoor     bool
 	// TranscludedIdentity is the render's digest over what every embed here came
 	// to — the excerpt pulled in, or the absence shown in its place — and is
 	// empty where the page carries none. It rides the freshness watch beside
@@ -155,7 +155,7 @@ type NoteView struct {
 
 	// Concepts are the grammar-concept notes this lesson links to, each
 	// pre-rendered for the concept sheet.
-	Concepts []lesson.ConceptDoc
+	Concepts []drill.ConceptDoc
 }
 
 // Note is the reading page: the article in the shared shell, with the
@@ -302,7 +302,7 @@ func noteArticle(v NoteView, lang wording.Lang) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.RenderAttributes(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_ElementWriter, "article", uncertaintyAttrs(&v, lang))
+			templ_7745c5c3_Err = templruntime.RenderAttributes(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_ElementWriter, "article", questionAttrs(&v, lang))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -430,7 +430,7 @@ func noteArticle(v NoteView, lang wording.Lang) templ.Component {
 // sheet they opened, because the words in it are cloned from a template by the
 // same script. Closing is another matter: the press says what it closes, and
 // the browser closes it.
-func conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) templ.Component {
+func conceptSheet(concepts []drill.ConceptDoc, lang wording.Lang) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

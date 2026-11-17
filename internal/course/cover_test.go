@@ -1,4 +1,4 @@
-package syllabus_test
+package course_test
 
 import (
 	"net/http"
@@ -120,7 +120,7 @@ func TestTheCoverOpensWhereTheReaderLeftOff(t *testing.T) {
 	const first = "/notes/Writing/lessons/golang/First.md"
 	for _, tt := range []struct {
 		name     string
-		kept     mark.Continuation
+		kept     mark.Bookmark
 		marked   bool
 		wantWord string
 		wantHref string
@@ -133,7 +133,7 @@ func TestTheCoverOpensWhereTheReaderLeftOff(t *testing.T) {
 		},
 		{
 			name:     "a place kept in a lesson this course lists",
-			kept:     mark.Continuation{RelPath: "Writing/lessons/golang/Third.md", Anchor: "a-later-look", Offset: 820},
+			kept:     mark.Bookmark{RelPath: "Writing/lessons/golang/Third.md", Anchor: "a-later-look", Offset: 820},
 			marked:   true,
 			wantWord: "continue",
 			wantHref: "/notes/Writing/lessons/golang/Third.md?at=820#a-later-look",
@@ -143,7 +143,7 @@ func TestTheCoverOpensWhereTheReaderLeftOff(t *testing.T) {
 			// The course does not teach this note, so it has nothing to say
 			// about where the reader is in it.
 			name:     "a place kept in a note this course does not list",
-			kept:     mark.Continuation{RelPath: "Elsewhere.md", Offset: 40},
+			kept:     mark.Bookmark{RelPath: "Elsewhere.md", Offset: 40},
 			marked:   true,
 			wantWord: "start",
 			wantHref: first,
@@ -223,13 +223,13 @@ func TestTheCourseMarksTheLessonHoldingTheKeptPlace(t *testing.T) {
 
 	for _, tt := range []struct {
 		name   string
-		kept   mark.Continuation
+		kept   mark.Bookmark
 		marked bool
 		want   string
 	}{
-		{name: "a place kept in a lesson this course lists", kept: mark.Continuation{RelPath: "Writing/lessons/golang/Third.md"}, marked: true, want: "Third"},
-		{name: "a place kept in a note this course does not list", kept: mark.Continuation{RelPath: "Elsewhere.md"}, marked: true},
-		{name: "no place kept", kept: mark.Continuation{}},
+		{name: "a place kept in a lesson this course lists", kept: mark.Bookmark{RelPath: "Writing/lessons/golang/Third.md"}, marked: true, want: "Third"},
+		{name: "a place kept in a note this course does not list", kept: mark.Bookmark{RelPath: "Elsewhere.md"}, marked: true},
+		{name: "no place kept", kept: mark.Bookmark{}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

@@ -104,9 +104,9 @@ func sectionMargin(id string, m *SectionMargin, p *SectionPlan) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var5 string
-			templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.UncertaintyControl.In(p.Lang)).Resolve(ctx)
+			templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.QuestionControl.In(p.Lang)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sections.templ`, Line: 35, Col: 208}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sections.templ`, Line: 35, Col: 205}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 			if templ_7745c5c3_Err != nil {
@@ -117,9 +117,9 @@ func sectionMargin(id string, m *SectionMargin, p *SectionPlan) templ.Component 
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var6 string
-			templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.UncertaintyControl.In(p.Lang)).Resolve(ctx)
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.QuestionControl.In(p.Lang)).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sections.templ`, Line: 35, Col: 260}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sections.templ`, Line: 35, Col: 254}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {

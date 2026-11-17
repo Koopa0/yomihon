@@ -33,7 +33,7 @@ type ReadingRail struct {
 	// opens into the contents of. It is nil on a rail drawn for no note.
 	note *NoteView
 
-	book      *nav.Path
+	book      *nav.Course
 	neighbors nav.Neighbors
 	// place is where the note sits in the book: its part, and what a side
 	// branch hands over at its ends. It is the zero value for a note the book

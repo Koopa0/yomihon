@@ -50,7 +50,7 @@ func TestACourseNamesAResolvedRowByAliasThenTitleThenLinkText(t *testing.T) {
 		t.Errorf("row names (-want +got):\n%s", diff)
 	}
 
-	m := &Model{paths: []Path{p}}
+	m := &Model{paths: []Course{p}}
 	steps := m.PathNeighbors("Writing/untitled.md")
 	if len(steps) != 1 {
 		t.Fatalf("PathNeighbors(untitled) = %d answers, want 1", len(steps))
