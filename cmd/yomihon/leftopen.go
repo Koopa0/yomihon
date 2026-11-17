@@ -235,7 +235,7 @@ func (r *openRequest) list(ctx context.Context) (payload []byte, notice string, 
 		return nil, "", errOpenScan
 	}
 	snap := store.Current().Capture()
-	allowed := openAllowed(contract)
+	allowed := openAllowed(contract, snap)
 	if missing := openUnreadable(snap, allowed); missing != nil {
 		return nil, "", missing
 	}
@@ -292,12 +292,12 @@ func openAuthority(contract *schema.Contract) error {
 
 // openAllowed is the gate every item's path passes before anything about it is
 // resolved into the output: the privacy declaration lets it out and the scan
-// looks there.
-func openAllowed(contract *schema.Contract) func(string) bool {
+// looks there. The generation's scan answers for the last, since it knows what
+// its walk left out by the vault's .gitignore as well as by the contract.
+func openAllowed(contract *schema.Contract, snap *snapshot.Generation) func(string) bool {
 	privacy := contract.PrivacyPolicy()
-	boundary := contract.ScanBoundary()
 	return func(rel string) bool {
-		return privacy.EgressAllowed(rel) && !boundary.OutsideScan(rel)
+		return privacy.EgressAllowed(rel) && !snap.OutsideScan(rel)
 	}
 }
 

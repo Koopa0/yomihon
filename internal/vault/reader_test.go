@@ -123,7 +123,7 @@ func TestReaderSameRootComparesOpenDirectoryIdentity(t *testing.T) {
 func TestReaderScanAvailableKeepsUsableNeighborsAfterNestedError(t *testing.T) {
 	t.Parallel()
 	nestedErr := errors.New("nested entry unavailable")
-	walk := newTestSourceWalk(scanAvailable)
+	walk := newTestSourceWalk(t, scanAvailable)
 
 	err := walk.visit(t.Context(), "Broken", testDirEntry{
 		name:    "Broken",
@@ -162,7 +162,7 @@ func TestReaderScanAvailableKeepsUsableNeighborsAfterNestedError(t *testing.T) {
 func TestReaderScanCompleteRejectsNestedError(t *testing.T) {
 	t.Parallel()
 	nestedErr := errors.New("nested entry unavailable")
-	walk := newTestSourceWalk(scanComplete)
+	walk := newTestSourceWalk(t, scanComplete)
 
 	err := walk.visit(t.Context(), "Broken", testDirEntry{
 		name:    "Broken",
@@ -185,7 +185,7 @@ func TestReaderScanAvailableRecordsMissingParentObservation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stat(entry) error = %v", err)
 	}
-	walk := newTestSourceWalk(scanAvailable)
+	walk := newTestSourceWalk(t, scanAvailable)
 
 	err = walk.visit(t.Context(), "Missing/one.md", testDirEntry{name: "one.md", info: info}, nil)
 	if err != nil {
@@ -206,7 +206,7 @@ func TestReaderScanAvailableRecordsMissingParentObservation(t *testing.T) {
 func TestReaderScanAvailableRejectsRootError(t *testing.T) {
 	t.Parallel()
 	rootErr := errors.New("root unavailable")
-	walk := newTestSourceWalk(scanAvailable)
+	walk := newTestSourceWalk(t, scanAvailable)
 
 	err := walk.visit(t.Context(), ".", nil, rootErr)
 	if !errors.Is(err, rootErr) {
@@ -256,7 +256,7 @@ func TestSourceWalkRejectsCanonicalCollisionInEveryScan(t *testing.T) {
 	}
 
 	for _, completeness := range []scanCompleteness{scanAvailable, scanComplete} {
-		walk := newTestSourceWalk(completeness)
+		walk := newTestSourceWalk(t, completeness)
 		if err := walk.visit(t.Context(), "Cafe\u0301.md", testDirEntry{name: "Cafe\u0301.md", info: info}, nil); err != nil {
 			t.Fatalf("visit(first spelling) error = %v", err)
 		}
@@ -1423,13 +1423,25 @@ func (e testDirEntry) Info() (fs.FileInfo, error) {
 	return e.info, nil
 }
 
-func newTestSourceWalk(completeness scanCompleteness) sourceWalk {
+func newTestSourceWalk(t *testing.T, completeness scanCompleteness) sourceWalk {
+	t.Helper()
+	root, err := os.OpenRoot(t.TempDir())
+	if err != nil {
+		t.Fatalf("OpenRoot(temp dir) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := root.Close(); err != nil {
+			t.Errorf("close test root: %v", err)
+		}
+	})
 	return sourceWalk{
 		token:        &readerToken{},
+		root:         root,
 		completeness: completeness,
 		seen:         make(map[string]string),
 		directories:  make(map[string]fs.FileInfo),
 		contains:     map[string]struct{}{".": {}},
+		leftOut:      make(map[string]struct{}),
 	}
 }
 

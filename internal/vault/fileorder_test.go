@@ -27,7 +27,7 @@ func TestComparePathsReadingOrder(t *testing.T) {
 		{"three member Kelvin fold", []string{"K.md", "k.md", "K.md"}, []string{"K.md", "k.md", "K.md"}},
 		{"three member sigma fold", []string{"σ.md", "ς.md", "Σ.md"}, []string{"Σ.md", "ς.md", "σ.md"}},
 		{"extension case and numeric reading", []string{"same.X10", "same.x2", "same.X2"}, []string{"same.X2", "same.x2", "same.X10"}},
-		{"numbers still last", []string{"2.md", "一.md", "abc.md"}, []string{"abc.md", "一.md", "2.md"}},
+		{"numbers before words", []string{"abc.md", "2.md", "一.md"}, []string{"一.md", "2.md", "abc.md"}},
 		{"Chinese and ASCII numbers", []string{"第10課.md", "第三課.md", "第2課.md"}, []string{"第2課.md", "第三課.md", "第10課.md"}},
 		{"segment prefix", []string{"a/b.md", "A"}, []string{"A", "a/b.md"}},
 		{"literal punctuation", []string{"part-a.md", "part_a.md", "part a.md"}, []string{"part a.md", "part-a.md", "part_a.md"}},

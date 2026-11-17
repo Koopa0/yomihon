@@ -95,7 +95,7 @@ func TestFmValue(t *testing.T) {
 
 // TestCollectNotesScanBoundary pins the scan boundary the diagnostics rely on,
 // which must match the resolver's: dot-prefixed directories and files are
-// skipped, a .gitignore is never honored (a gitignored file is still scanned),
+// skipped, the root .gitignore is honored (a gitignored file is not scanned),
 // only markdown files become notes (an image is a resource, not a note), the
 // Diary is scanned like any other directory, and every path comes back in
 // Obsidian's canonical NFC form.
@@ -115,7 +115,6 @@ func TestCollectNotesScanBoundary(t *testing.T) {
 	want := []string{
 		"Diary/2026-07-04.md",
 		"notes/keep.md",
-		"secret.md",
 	}
 	// A note whose filename is stored decomposed comes back composed while its
 	// captured entry retains the raw spelling needed to read it on a byte-exact

@@ -105,6 +105,38 @@ func TestMarkdownLinkToAFolderIsNotAFinding(t *testing.T) {
 	}
 }
 
+// A link into what the scan left out by the vault's .gitignore or a built-in
+// rule is a link into somewhere this reader does not look, not one to a file
+// somebody lost, so it raises no finding; a link to a path nobody wrote still
+// does.
+func TestLinkIntoWhatTheScanLeftOutIsNotAFinding(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	write(t, root, ".gitignore", "drafts/\n")
+	write(t, root, "drafts/plan.md", "left out by the .gitignore\n")
+	write(t, root, "drafts/figure.png", "png\n")
+	write(t, root, "node_modules/pkg/README.md", "installed copy\n")
+	write(t, root, "env/pyvenv.cfg", "home = /usr/bin\n")
+	write(t, root, "env/lib/README.md", "a virtual environment's own document\n")
+	write(t, root, "Concepts/golang/Source.md",
+		"[a](../../drafts/plan.md)\n[b](../../node_modules/pkg/README.md)\n[c](../../env/lib/README.md)\n"+
+			"![d](../../drafts/figure.png)\n[gone](../../Nowhere.md)\n")
+	writeTestContract(t, root, nil)
+	findings, err := Check(t.Context(), root)
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	var got []string
+	for _, f := range findings {
+		if strings.HasPrefix(string(f.RuleID), "link.broken") {
+			got = append(got, f.Evidence)
+		}
+	}
+	if diff := cmp.Diff([]string{"Nowhere.md does not exist in the vault"}, got); diff != "" {
+		t.Errorf("broken-link findings (-want +got):\n%s", diff)
+	}
+}
+
 func TestEncodedBacktickReferencesKeepTheirOldDomain(t *testing.T) {
 	t.Parallel()
 	for _, source := range []string{"`Notes/Missing%20note.md`", "[invalid](Bad%2.md)", "[remote](https://host/Remote.md)", "[resource](picture.png)"} {
