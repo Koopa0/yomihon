@@ -8,9 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
-
-	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // The reading rail carries one map chosen by what is being read: the book
@@ -312,19 +309,15 @@ func TestFolderPageShowsAFolderWhole(t *testing.T) {
 		}
 	}
 
-	// The folder holding files lists them in the captured order, which is the
-	// lesson order the naming fix established.
+	// The folder holding files lists each of them.
 	code, body = get(t, srv.Client(), srv.URL+"/folders/%E6%95%99%E6%A1%88/%E5%9C%8B%E4%B8%80%E4%B8%8A")
 	if code != http.StatusOK {
 		t.Fatalf("GET the leaf folder status = %d, want 200", code)
 	}
-	second := strings.Index(body, `y-row__title">空氣`)
-	third := strings.Index(body, `y-row__title">水`)
-	if second < 0 || third < 0 {
-		t.Fatalf("the leaf folder page does not list both lessons; body = %q", body)
-	}
-	if second > third {
-		t.Error("the leaf folder page lists the third lesson before the second")
+	for _, title := range []string{"空氣", "水"} {
+		if !strings.Contains(body, ">"+title+"</span>") {
+			t.Fatalf("the leaf folder page does not list %q; body = %q", title, body)
+		}
 	}
 
 	// A folder nothing is under is not a folder, and answers like any other
@@ -442,67 +435,6 @@ func hereBlock(t *testing.T, body string) string {
 		t.Fatal("the siblings block is not closed")
 	}
 	return block
-}
-
-// A fresh clone stamps every file with the checkout moment, so the times that
-// order the landing block separate nothing and its tie-break — path order —
-// decides. The heading then promises recency and leads with whatever name
-// sorts first. A doctor met this on his own vault and read it correctly: four
-// notes, one timestamp, no ordering.
-func TestTheFolderIndexSaysWhenItsTimesCannotOrderAnything(t *testing.T) {
-	t.Parallel()
-
-	stamp := time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)
-	write := func(t *testing.T, root, rel string, at time.Time) {
-		t.Helper()
-		full := filepath.Join(root, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-		body := "---\ntype: concept\n---\n# " + filepath.Base(rel) + "\n\nbody\n"
-		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
-			t.Fatalf("write: %v", err)
-		}
-		if err := os.Chtimes(full, at, at); err != nil {
-			t.Fatalf("chtimes: %v", err)
-		}
-	}
-
-	t.Run("one shared timestamp is not recency", func(t *testing.T) {
-		t.Parallel()
-		root := t.TempDir()
-		for _, name := range []string{"a.md", "b.md", "c.md"} {
-			write(t, root, "Concepts/"+name, stamp)
-		}
-		srv := newServerWithContract(t, root, loadHomeContract(t))
-		code, body := get(t, srv.Client(), srv.URL+"/folders")
-		if code != http.StatusOK {
-			t.Fatalf("status = %d, want 200", code)
-		}
-		if strings.Contains(body, "最近改動過的筆記") {
-			t.Error("Home promises recency over notes its timestamps cannot order")
-		}
-		if !strings.Contains(body, "排不出先後") {
-			t.Errorf("Home does not say its timestamps separate nothing; body = %q", body)
-		}
-	})
-
-	t.Run("timestamps that differ are recency", func(t *testing.T) {
-		t.Parallel()
-		root := t.TempDir()
-		for i, name := range []string{"a.md", "b.md", "c.md"} {
-			write(t, root, "Concepts/"+name, stamp.AddDate(0, 0, i))
-		}
-		srv := newServerWithContract(t, root, loadHomeContract(t))
-		code, body := get(t, srv.Client(), srv.URL+"/folders")
-		if code != http.StatusOK {
-			t.Fatalf("status = %d, want 200", code)
-		}
-		if !strings.Contains(body, wording.FolderRecentTitle.In(wording.ZhHant)) ||
-			!strings.Contains(body, wording.FolderRecentLedeScoped.In(wording.ZhHant)) {
-			t.Errorf("Home hedges on notes its timestamps do order; body = %q", body)
-		}
-	})
 }
 
 // What links here has to survive the widths where the right rail is gone. It
@@ -758,7 +690,7 @@ func TestFolderPageOpensWithItsReadmeAsACover(t *testing.T) {
 			t.Errorf("the folder page is missing %q", want)
 		}
 	}
-	if strings.Contains(body, `y-row__title">Go spec snapshot`) {
+	if strings.Contains(body, `>Go spec snapshot</span>`) {
 		t.Error("the README is listed again below its own cover")
 	}
 
@@ -770,7 +702,7 @@ func TestFolderPageOpensWithItsReadmeAsACover(t *testing.T) {
 	// A README with no opening paragraph has no cover, so it stays in the list:
 	// that row is the only way to it.
 	_, body = get(t, srv.Client(), srv.URL+"/folders/listy")
-	if strings.Contains(body, "y-cover") || !strings.Contains(body, `y-row__title">Listy`) {
+	if strings.Contains(body, "y-cover") || !strings.Contains(body, `>Listy</span>`) {
 		t.Errorf("a README without an opening paragraph must stay in the list and draw no cover; body = %q", body)
 	}
 

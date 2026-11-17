@@ -36,8 +36,8 @@ func TestImportMapVersionsTheCompleteModuleSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk embedded modules: %v", err)
 	}
-	if len(want) != 19 {
-		t.Fatalf("embedded native modules and Mermaid facade = %d, want 19", len(want))
+	if len(want) != 20 {
+		t.Fatalf("embedded native modules and Mermaid facade = %d, want 20", len(want))
 	}
 	if diff := cmp.Diff(want, decodedModuleImports(t, (Versions{}).ImportMap())); diff != "" {
 		t.Errorf("caught: complete module addresses (-want +got):\n%s", diff)

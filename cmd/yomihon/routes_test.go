@@ -692,19 +692,6 @@ func TestFolderShelfScope(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			site := folderShelfSite(t, tt.contract, tt.rootFiles)
-			t.Run("folder index", func(t *testing.T) {
-				t.Parallel()
-				page := readingPage(t, site, "/folders")
-				if diff := cmp.Diff(tt.wantShelf, shelfRowHrefs(t, page, "data-index-row")); diff != "" {
-					t.Errorf("GET /folders shelf hrefs mismatch (-want +got):\n%s", diff)
-				}
-				if want := `<p class="y-indexcount">` + tt.wantCount + `</p>`; !strings.Contains(page, want) {
-					t.Errorf("GET /folders shelf count is missing %q", want)
-				}
-				if tt.wantShelf == nil && !strings.Contains(page, "data-index-empty") {
-					t.Error("GET /folders does not state the empty shelf")
-				}
-			})
 			t.Run("home preview", func(t *testing.T) {
 				t.Parallel()
 				block := deskBlockMarkup(t, readingPage(t, site, "/"), "folders")
@@ -741,22 +728,16 @@ func TestEmptyFolderShelfDescribesOnlyItsListing(t *testing.T) {
 		language   string
 		wantEmpty  string
 		falseEmpty string
-		wantLede   string
-		falseLede  string
 	}{
 		{
 			language:   "zh-Hant",
 			wantEmpty:  "這裡沒有列出檔案。",
 			falseEmpty: "這個書庫裡沒有檔案。",
-			wantLede:   "依檔案的存放位置瀏覽。",
-			falseLede:  "照檔案實際存放的位置瀏覽整個書庫。",
 		},
 		{
 			language:   "en",
 			wantEmpty:  "No files are listed here.",
 			falseEmpty: "There are no files in this vault.",
-			wantLede:   "Browse files by where they are stored.",
-			falseLede:  "Browse the whole vault by where its files actually sit.",
 		},
 	} {
 		t.Run(tt.language, func(t *testing.T) {
@@ -777,14 +758,6 @@ func TestEmptyFolderShelfDescribesOnlyItsListing(t *testing.T) {
 					}
 					if strings.Contains(page, tt.falseEmpty) {
 						t.Errorf("GET %s claims the whole vault has no files: %q", target, tt.falseEmpty)
-					}
-					if target == "/folders" {
-						if !strings.Contains(page, tt.wantLede) {
-							t.Errorf("GET /folders folder lede is missing %q", tt.wantLede)
-						}
-						if strings.Contains(page, tt.falseLede) {
-							t.Errorf("GET /folders folder lede claims whole-vault coverage: %q", tt.falseLede)
-						}
 					}
 				})
 			}

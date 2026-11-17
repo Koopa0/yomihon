@@ -11,7 +11,7 @@ import (
 
 // TestTheFoldersAndTheRailMarkOnlyDrafts drives the label rule through the
 // real server: a vault with one lesson that declares draft: true and one that
-// does not. The recent list on the folders page and the book beside a note
+// does not. The folder page's list and the book beside a note
 // print the draft word for the draft and nothing for the finished lesson.
 func TestTheFoldersAndTheRailMarkOnlyDrafts(t *testing.T) {
 	t.Parallel()
@@ -24,12 +24,12 @@ func TestTheFoldersAndTheRailMarkOnlyDrafts(t *testing.T) {
 		}
 	}
 	rowOf := func(body, title string) string {
-		_, row, found := strings.Cut(body, `data-home-recent-note`)
+		_, row, found := strings.Cut(body, `data-list-row`)
 		for found && !strings.Contains(strings.SplitN(row, "</a>", 2)[0], ">"+title+"<") {
-			_, row, found = strings.Cut(row, `data-home-recent-note`)
+			_, row, found = strings.Cut(row, `data-list-row`)
 		}
 		if !found {
-			t.Fatalf("the recent list has no row for %q", title)
+			t.Fatalf("the folder list has no row for %q", title)
 		}
 		row, _, _ = strings.Cut(row, "</a>")
 		return row
@@ -38,12 +38,12 @@ func TestTheFoldersAndTheRailMarkOnlyDrafts(t *testing.T) {
 	contract := loadHomeContract(t)
 	srv := newServerKeepingPlaces(t, root, contract, contract.Governance(), noMark, "")
 
-	_, folders := get(t, srv.Client(), srv.URL+"/folders")
-	if row := rowOf(folders, "Open"); !strings.Contains(row, `<span class="ui-status">`+draft+`</span>`) {
-		t.Errorf("the draft lesson's recent row is not marked: %s", row)
+	_, folder := get(t, srv.Client(), srv.URL+"/folders/Writing/lessons")
+	if row := rowOf(folder, "Open"); !strings.Contains(row, `<span class="y-lrow__tag">`+draft+`</span>`) {
+		t.Errorf("the draft lesson's row is not marked: %s", row)
 	}
-	if row := rowOf(folders, "Done"); strings.Contains(row, "ui-status") {
-		t.Errorf("the finished lesson's recent row carries a mark: %s", row)
+	if row := rowOf(folder, "Done"); strings.Contains(row, "y-lrow__tag") {
+		t.Errorf("the finished lesson's row carries a mark: %s", row)
 	}
 
 	_, page := get(t, srv.Client(), srv.URL+"/notes/Writing/lessons/Done.md")
