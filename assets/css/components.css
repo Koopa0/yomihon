@@ -1874,16 +1874,31 @@ html[data-js][data-arrival='kept'] .y-main {
 
 /* The highlighter's own palette is a separate sheet drawn for a white page;
    code here is set in the reading room's inks instead, with no blue and no red.
-   Keywords are the ink a step heavier, strings their own green, comments the
-   quiet ink, numbers, constants and operators the ink, and functions and
-   built-ins a step down from it. Each is a token, so each follows the theme
-   with no rule of its own for dark, and the rules stand outside the
-   highlighter's layer, so they apply after both of its dark scopes. Paper
-   keeps the highlighter's light palette, which is what it was drawn for. */
+   Every token returns to the ink first, so a class the palette colours and the
+   rules below do not name (a JSON key, a YAML anchor, a deleted line) cannot
+   bring its own colour back, and the palette's bold on function names, operators
+   and constants goes with it. Then keywords are the ink at weight 600, strings
+   their own green, and comments the quiet ink; a markdown block's strong and
+   heading keep a weight, since there it says what the text is. Each is a token,
+   so each follows the theme with no rule of its own for dark, and the rules
+   stand outside the highlighter's layer, so they apply after both of its dark
+   scopes. The reset is a type and a class (0,1,1) under the class rules
+   (0,2,0), which still win. Paper keeps the highlighter's light palette, which
+   is what it was drawn for. */
 @media not print {
+  .chroma span {
+    background-color: transparent;
+    color: inherit;
+    font-weight: inherit;
+  }
+
+  .chroma :is(.gh, .gs) {
+    font-weight: var(--fw-semibold);
+  }
+
   .chroma :is(.k, .kc, .kd, .kn, .kp, .kr, .kt) {
     color: var(--fg);
-    font-weight: var(--fw-medium);
+    font-weight: var(--fw-semibold);
   }
 
   .chroma :is(.s, .s1, .s2, .sa, .sb, .sc, .sd, .se, .sh, .si, .sr, .ss, .sx, .dl) {
@@ -1892,14 +1907,6 @@ html[data-js][data-arrival='kept'] .y-main {
 
   .chroma :is(.c, .c1, .ch, .cm, .cp, .cpf, .cs) {
     color: var(--fg-subtle);
-  }
-
-  .chroma :is(.m, .mb, .mf, .mh, .mi, .mo, .il, .no, .o, .ow) {
-    color: var(--fg);
-  }
-
-  .chroma :is(.nb, .nf) {
-    color: var(--fg-muted);
   }
 }
 
