@@ -78,7 +78,7 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 	}
 
 	// A parse that found too little would pass every check above.
-	for _, token := range []string{"--bg", "--panel", "--fg", "--fg-muted", "--accent", "--link", "--outline"} {
+	for _, token := range []string{"--bg", "--panel", "--fg", "--fg-muted", "--reader", "--link-line", "--outline"} {
 		if pairs[token] == nil {
 			t.Errorf("%s is not declared as a light-dark() pair in %s; the scan is reading the wrong text or the palette lost a token", token, path)
 		}
@@ -87,7 +87,11 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 		t.Errorf("%s is declared %d times in %s, want 1; the one exemption above names a token that is not there", overlayMask, singleTheme, path)
 	}
 	for _, token := range slices.Sorted(maps.Keys(pairs)) {
-		if places := pairs[token]; !slices.Equal(places, []string{":root"}) {
+		places := pairs[token]
+		if slices.Equal(places, []string{":root", whitePaper}) && whitePaperTokens[token] {
+			continue
+		}
+		if !slices.Equal(places, []string{":root"}) {
 			t.Errorf("%s is declared at %v, want once, at :root", token, places)
 		}
 	}
@@ -104,6 +108,15 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 }
 
 const overlayMask = "--overlay-mask"
+
+// The white paper is the one place a colour token is declared a second time: it
+// restates the paper tokens it replaces, and no other.
+const whitePaper = ":root[data-paper='shiro']"
+
+var whitePaperTokens = map[string]bool{
+	"--bg": true, "--panel": true, "--selected": true,
+	"--overlay": true, "--code-ground": true, "--mat": true,
+}
 
 // oneThemeColourIn returns the first colour a value writes outside
 // light-dark(): a hex colour, a colour function or a colour keyword.

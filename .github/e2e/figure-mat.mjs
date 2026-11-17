@@ -29,8 +29,8 @@ const MUTATE = process.env.MUTATE || '';
 
 // The tones are written out, not read from the stylesheet: a lock that took
 // its expected colour from the rule under test would agree with any rule.
-const SYSTEM_TONE = { light: 'rgb(230, 226, 216)', dark: 'rgb(42, 41, 37)' };
-const PAGE_TONE = { light: 'rgb(238, 233, 220)', dark: 'rgb(30, 29, 26)' };
+const SYSTEM_TONE = { light: 'rgb(235, 230, 218)', dark: 'rgb(43, 42, 37)' };
+const PAGE_TONE = { light: 'rgb(240, 236, 225)', dark: 'rgb(34, 33, 29)' };
 const FLOOR = 560;
 
 const SITES = [
