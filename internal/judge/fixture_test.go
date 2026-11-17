@@ -203,7 +203,7 @@ func runPrepared(
 	if beforeEmission != nil {
 		beforeEmission()
 	}
-	if err := prepared.finish(); err != nil {
+	if _, err := prepared.seal(); err != nil {
 		return nil, err
 	}
 	return prepared.stdout, nil

@@ -252,7 +252,7 @@ func TestAThoughtCitingAnAliasIsTold(t *testing.T) {
 			write(t, root, "Private/Kept.md", "---\ntype: note\naliases: [Hidden Name]\n---\n# Kept\n")
 			write(t, root, "Thoughts/Reaction.md", "---\ntype: "+tt.noteType+"\nbased_on: "+tt.cite+"\n---\n# Reaction\n")
 
-			out, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, All: true, Format: FormatJSON})
+			out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, All: true, Format: FormatJSON})
 			if err != nil {
 				t.Fatalf("RunCheck() error = %v", err)
 			}
@@ -313,7 +313,7 @@ func TestWithheldDirectoriesStillHoldUnderTheContract(t *testing.T) {
 			t.Parallel()
 			root := judgeFixtureRootWithPrivacy(t, tt.fixture, tt.private)
 			prefix := tt.private + "/"
-			if loadTestAuthority(t, root).egressAllowed(prefix + "probe.md") {
+			if loadTestAuthority(t, root).gate.Allows(prefix + "probe.md") {
 				t.Fatalf("the contract written for %s does not withhold %s", tt.fixture, prefix)
 			}
 
@@ -337,14 +337,14 @@ func TestWithheldDirectoriesStillHoldUnderTheContract(t *testing.T) {
 				}
 			}
 			for _, format := range []Format{FormatJSON, FormatHuman, FormatMarkdown} {
-				out, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, All: true, Format: format})
+				out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, All: true, Format: format})
 				if err != nil {
 					t.Fatalf("RunCheck(%d) error = %v", format, err)
 				}
 				if bytes.Contains(out, []byte(prefix)) {
 					t.Errorf("RunCheck(%d) named a withheld note:\n%s", format, out)
 				}
-				out, _, err = RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: format})
+				out, _, err = coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: format})
 				if err != nil {
 					t.Fatalf("RunCoverage(%d) error = %v", format, err)
 				}
@@ -353,7 +353,7 @@ func TestWithheldDirectoriesStillHoldUnderTheContract(t *testing.T) {
 				}
 			}
 
-			out, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: tt.held, Format: FormatJSON})
+			out, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: tt.held, Format: FormatJSON})
 			if err != nil {
 				t.Fatalf("RunExists(%q) error = %v", tt.held, err)
 			}

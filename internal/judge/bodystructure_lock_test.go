@@ -47,8 +47,11 @@ func bodyStructureCallers() map[string]map[string]int {
 		"extractPlannedNamesWith": {"NewPlanned": 1, "extractPlannedNames": 1},
 		"extractWikilinks":        {"LinkTargets": 1},
 		"extractPlannedNames":     {},
-		"LinkTargets":             {},
-		"NewPlanned":              {},
+		// The one place the extractor leaves as a value is the gate's Open, which
+		// reads titles and headings with it; internal/archlock holds that third
+		// argument to this exact function.
+		"LinkTargets": {"loadScanAuthority (as the gate's extractor)": 1},
+		"NewPlanned":  {},
 	}
 }
 
@@ -97,6 +100,10 @@ func checkBodyStructureLock(files map[string]*ast.File) error {
 				}
 			}
 			call, direct := parent.(*ast.CallExpr)
+			if direct && identifier.Name == "LinkTargets" && caller == "loadScanAuthority" && slices.Contains(call.Args, ast.Expr(identifier)) {
+				observed[identifier.Name]["loadScanAuthority (as the gate's extractor)"]++
+				return true
+			}
 			if !direct || call.Fun != identifier {
 				violations = append(violations, fmt.Sprintf("%s: %s references guarded function value %s", filename, caller, identifier.Name))
 				return true
@@ -134,6 +141,7 @@ func extractWikilinks() { extractWikilinksWith() }
 func extractPlannedNames() { extractPlannedNamesWith() }
 func LinkTargets() { extractWikilinks() }
 func NewPlanned() { extractPlannedNamesWith() }
+func loadScanAuthority() { return egress.Open(ctx, reader, LinkTargets) }
 func harvest(facts any) { first(facts); second(facts) }
 `
 	for _, tt := range []struct {

@@ -130,7 +130,7 @@ func TestHiddenReportBaseline(t *testing.T) {
 
 func hiddenReportOutput(t *testing.T, options *CheckOptions, want string) {
 	t.Helper()
-	stdout, exit, err := RunCheck(t.Context(), options)
+	stdout, exit, err := checkBytes(t.Context(), options)
 	if err != nil {
 		t.Fatalf("RunCheck(hidden report): %v", err)
 	}

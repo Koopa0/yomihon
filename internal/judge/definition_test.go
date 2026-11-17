@@ -57,7 +57,7 @@ func TestUnusedDefinitionFindings(t *testing.T) {
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Check findings (-want +got):\n%s", diff)
 	}
-	gotBytes, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+	gotBytes, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil || exit != 0 {
 		t.Fatalf("RunCheck: exit=%d error=%v", exit, err)
 	}
@@ -74,7 +74,7 @@ func TestUnusedDefinitionFindings(t *testing.T) {
 		{deny: "warn", wantExit: 0},
 		{deny: "info", wantExit: 1},
 	} {
-		_, exit, err = RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{tt.deny}})
+		_, exit, err = checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{tt.deny}})
 		if err != nil || exit != tt.wantExit {
 			t.Errorf("RunCheck --deny %s: exit=%d error=%v, want exit %d", tt.deny, exit, err, tt.wantExit)
 		}
@@ -174,7 +174,7 @@ func TestUnusedDefinitionScope(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			out, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, All: tt.all, Format: FormatJSON})
+			out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, All: tt.all, Format: FormatJSON})
 			if err != nil {
 				t.Fatalf("RunCheck: %v", err)
 			}

@@ -57,7 +57,7 @@ func titleIndex(notes []note, authority scanAuthority) map[string][]string {
 	idx := make(map[string][]string)
 	for i := range notes {
 		n := &notes[i]
-		if n.title == "" || !authority.egressAllowed(n.path) {
+		if n.title == "" || !authority.gate.Allows(n.path) {
 			continue
 		}
 		key := normalizeKey(n.title)
@@ -78,7 +78,7 @@ func titleIndex(notes []note, authority scanAuthority) map[string][]string {
 func slugIndex(notes []note, authority scanAuthority) map[string]string {
 	idx := make(map[string]string)
 	for i := range notes {
-		if n := &notes[i]; n.slug != "" && authority.egressAllowed(n.path) {
+		if n := &notes[i]; n.slug != "" && authority.gate.Allows(n.path) {
 			idx[n.slug] = n.path
 		}
 	}
@@ -92,7 +92,7 @@ func slugIndex(notes []note, authority scanAuthority) map[string]string {
 func plannedNamesSet(notes []note, authority scanAuthority) Planned {
 	set := Planned{names: make(map[string]bool)}
 	for i := range notes {
-		if !authority.egressAllowed(notes[i].path) {
+		if !authority.gate.Allows(notes[i].path) {
 			continue
 		}
 		set.add(notes[i].plannedNames)
@@ -215,7 +215,7 @@ func brokenLink(n *note, link *wikiLink, planned Planned) Finding {
 // contract withholds is not judged, because its absence would describe that
 // ground.
 func appendMissingEmbed(out []Finding, n *note, link *wikiLink, authority scanAuthority, partial bool) []Finding {
-	if partial || !authority.egressAllowed(vault.NormalizeNFC(link.target)) {
+	if partial || !authority.gate.Allows(vault.NormalizeNFC(link.target)) {
 		return out
 	}
 	return append(out, missingImage(n, link.line, link.target))
@@ -229,7 +229,7 @@ func aliasCollisions(notes []note, authority scanAuthority) map[string][]string 
 	byAlias := make(map[string][]string)
 	for i := range notes {
 		n := &notes[i]
-		if !authority.egressAllowed(n.path) {
+		if !authority.gate.Allows(n.path) {
 			continue
 		}
 		for _, alias := range n.aliases {
@@ -282,7 +282,7 @@ func collisionName(notes []note, idx *graph.Index, byAlias map[string][]string, 
 		// The index sorts each name's members, so the kept order is theirs.
 		kept := make([]string, 0, len(members))
 		for _, member := range members {
-			if authority.egressAllowed(member) {
+			if authority.gate.Allows(member) {
 				kept = append(kept, member)
 			}
 		}
@@ -310,7 +310,7 @@ func collisionName(notes []note, idx *graph.Index, byAlias map[string][]string, 
 func citedTargets(notes []note, authority scanAuthority) iter.Seq[string] {
 	return func(yield func(string) bool) {
 		for i := range notes {
-			if !authority.egressAllowed(notes[i].path) {
+			if !authority.gate.Allows(notes[i].path) {
 				continue
 			}
 			for l := range notes[i].wikilinks {

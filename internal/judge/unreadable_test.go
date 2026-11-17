@@ -139,7 +139,7 @@ func TestTheUnreadableNoticeIsReportedAtTheGravestWeightAndGatesByName(t *testin
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			stdout, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Deny: tt.deny, Format: FormatJSON})
+			stdout, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Deny: tt.deny, Format: FormatJSON})
 			if err != nil {
 				t.Fatalf("RunCheck() error = %v, want a judgement of what it could read", err)
 			}
@@ -162,7 +162,7 @@ func TestANameFoundExistsEvenWhereAFileCouldNotBeRead(t *testing.T) {
 	t.Parallel()
 
 	root := sealedVault(t)
-	stdout, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "Slice Header", Format: FormatJSON})
+	stdout, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "Slice Header", Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunExists(a name that is there) error = %v, want the answer", err)
 	}
@@ -185,7 +185,7 @@ func TestABaselineNeverSilencesTheUnreadableNotice(t *testing.T) {
 	t.Parallel()
 
 	root := sealedVault(t)
-	first, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+	first, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCheck(first run) error = %v", err)
 	}
@@ -194,7 +194,7 @@ func TestABaselineNeverSilencesTheUnreadableNotice(t *testing.T) {
 		t.Fatalf("write baseline: %v", writeErr)
 	}
 
-	second, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Baseline: baseline, Format: FormatJSON})
+	second, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Baseline: baseline, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCheck(against its own output as baseline) error = %v", err)
 	}
@@ -244,7 +244,7 @@ func TestTheUnreadableNoticeOutlastsEveryFilter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			stdout, _, err := RunCheck(t.Context(), &CheckOptions{
+			stdout, _, err := checkBytes(t.Context(), &CheckOptions{
 				Root: root, Paths: tt.paths, All: tt.all, Format: FormatJSON,
 			})
 			if err != nil {
@@ -363,7 +363,7 @@ func TestAWithheldFileThatCouldNotBeReadIsNamedByNothing(t *testing.T) {
 		t.Fatal("this process can still read a file it took every permission from")
 	}
 
-	stdout, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+	stdout, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCheck() error = %v, want a judgement of what it could read", err)
 	}
@@ -428,7 +428,7 @@ func TestEveryWithheldFileThatCouldNotBeReadIsOneSentence(t *testing.T) {
 				t.Fatal("this process can still read a file it took every permission from")
 			}
 		}
-		stdout, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+		stdout, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 		if err != nil {
 			t.Fatalf("RunCheck(%d withheld files) error = %v", count, err)
 		}
@@ -516,7 +516,7 @@ func TestAReportLineWithNoPathEndsAtItsSentence(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			stdout, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: tt.format})
+			stdout, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: tt.format})
 			if err != nil {
 				t.Fatalf("RunCheck() error = %v", err)
 			}

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -218,7 +219,7 @@ func readVoidsTheObservation(ctx context.Context, readErr error) bool {
 // The path comes from the scan entry, not from the error, whose own path names
 // one component.
 func entryUnreadable(relPath string, cause error, authority scanAuthority) error {
-	if !authority.egressAllowed(relPath) {
+	if !authority.gate.Allows(relPath) {
 		return errWithheldUnreadable
 	}
 	return fmt.Errorf("vault scan failed: %s: %w", relPath, cause)
@@ -240,7 +241,7 @@ func scanStopped(cause error, authority scanAuthority) error {
 	if !ok || !nameableVaultPath(pathErr.Path) {
 		return errVaultScan
 	}
-	if !authority.egressAllowed(pathErr.Path) {
+	if !authority.gate.Allows(pathErr.Path) {
 		return errWithheldUnreadable
 	}
 	return fmt.Errorf("vault scan failed: %w", pathErr)
@@ -253,7 +254,7 @@ func scanStopped(cause error, authority scanAuthority) error {
 // the refusal at the kind of failure.
 func collisionStopped(collision *vault.CollisionError, authority scanAuthority) error {
 	for _, raw := range collision.Paths {
-		if !authority.egressAllowed(raw) {
+		if !authority.gate.Allows(raw) {
 			return errWithheldCollision
 		}
 	}
@@ -269,13 +270,27 @@ func nameableVaultPath(relPath string) bool {
 	return relPath != vaultRoot && !strings.Contains(relPath, `\`) && fs.ValidPath(relPath)
 }
 
-func (a *action) finish() error {
-	authorityErr := a.authority.validate()
+// seal ends the observation and makes its payload: the gate looks at the rules
+// file again now that the output exists, since what the run read it read under
+// the rules file it began with, and the observation is closed whatever the
+// answer.
+func (a *action) seal(stdout []byte) (egress.Payload, error) {
+	payload, sealErr := a.authority.gate.Seal(stdout)
 	closeErr := a.close()
-	if authorityErr != nil {
-		return authorityErr
+	if sealErr != nil {
+		return egress.Payload{}, sealErr
 	}
-	return closeErr
+	if closeErr != nil {
+		return egress.Payload{}, closeErr
+	}
+	return payload, nil
+}
+
+// finish is seal for a run whose output is not the point: it looks at the
+// rules file again and closes the observation.
+func (a *action) finish() error {
+	_, err := a.seal(nil)
+	return err
 }
 
 // abort ends a run that failed. The cause was built from the authority the run
@@ -288,8 +303,8 @@ func (a *action) finish() error {
 // Authority that never loaded has nothing to recheck, and its own refusal is
 // what the caller is owed rather than a privacy authority it never had.
 func (a *action) abort(cause error) error {
-	if a.authority.loaded {
-		if authorityErr := a.authority.validate(); authorityErr != nil {
+	if a.authority.gate != nil {
+		if authorityErr := a.authority.gate.Check(); authorityErr != nil {
 			cause = authorityErr
 		}
 	}

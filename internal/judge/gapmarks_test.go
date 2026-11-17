@@ -233,7 +233,7 @@ func TestPlannedMarkCountsOnlyWhereTheAuthorSpeaks(t *testing.T) {
 			}
 			assertBrokenEvidence(t, &got)
 
-			_, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"warn"}})
+			_, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"warn"}})
 			if err != nil {
 				t.Fatalf("RunCheck(--deny warn) error = %v", err)
 			}
@@ -287,7 +287,7 @@ func TestACommentedHeadingBoundsNoGapSection(t *testing.T) {
 			}
 			assertBrokenEvidence(t, &inside)
 
-			_, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"warn"}})
+			_, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"warn"}})
 			if err != nil {
 				t.Fatalf("RunCheck(--deny warn) error = %v", err)
 			}

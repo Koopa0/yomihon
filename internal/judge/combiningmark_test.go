@@ -62,7 +62,7 @@ func TestFragmentNormalizationRunCheck(t *testing.T) {
 			write(t, root, "Concepts/A/Twin.md", "one\n")
 			write(t, root, "Concepts/B/Twin.md", "two\n")
 			writeTestContract(t, root, nil)
-			out, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"link.section_missing", "embed.section_missing", "link.block_missing", "embed.block_missing"}})
+			out, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"link.section_missing", "embed.section_missing", "link.block_missing", "embed.block_missing"}})
 			if err != nil {
 				t.Fatalf("RunCheck fixture error = %v", err)
 			}

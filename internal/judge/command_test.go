@@ -50,7 +50,7 @@ func TestRunCoverageGolden(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: "testdata/vault-report", Format: tt.format})
+			got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: "testdata/vault-report", Format: tt.format})
 			if err != nil {
 				t.Fatalf("RunCoverage: %v", err)
 			}
@@ -84,7 +84,7 @@ func TestRunExistsGolden(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, exit, err := RunExists(t.Context(), &ExistsOptions{Root: "testdata/vault-report", Name: tt.query, Format: tt.format})
+			got, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: "testdata/vault-report", Name: tt.query, Format: tt.format})
 			if err != nil {
 				t.Fatalf("RunExists: %v", err)
 			}
@@ -154,7 +154,7 @@ func TestExistsReportsAWidthFoldAsANearMatch(t *testing.T) {
 
 	t.Run("fullwidth colon is an exact hit", func(t *testing.T) {
 		t.Parallel()
-		got, exit, err := RunExists(t.Context(), &ExistsOptions{
+		got, exit, err := existsBytes(t.Context(), &ExistsOptions{
 			Root: existsFoldVault(t), Name: existsFoldExact, Format: FormatJSON,
 		})
 		if err != nil {
@@ -173,7 +173,7 @@ func TestExistsReportsAWidthFoldAsANearMatch(t *testing.T) {
 
 	t.Run("ascii colon is a near match and exits 1", func(t *testing.T) {
 		t.Parallel()
-		got, exit, err := RunExists(t.Context(), &ExistsOptions{
+		got, exit, err := existsBytes(t.Context(), &ExistsOptions{
 			Root: existsFoldVault(t), Name: existsFoldASCII, Format: FormatJSON,
 		})
 		if err != nil {
@@ -187,7 +187,7 @@ func TestExistsReportsAWidthFoldAsANearMatch(t *testing.T) {
 
 	t.Run("human names the near match and still says the name does not exist", func(t *testing.T) {
 		t.Parallel()
-		got, exit, err := RunExists(t.Context(), &ExistsOptions{
+		got, exit, err := existsBytes(t.Context(), &ExistsOptions{
 			Root: existsFoldVault(t), Name: existsFoldASCII, Format: FormatHuman,
 		})
 		if err != nil {
@@ -284,7 +284,7 @@ func TestExistsSkipsDiary(t *testing.T) {
 func TestCoverageExcludesDiary(t *testing.T) {
 	t.Parallel()
 	root := judgeFixtureRootWithPrivacy(t, "testdata/vault-diary", "Diary")
-	got, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	got, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestJudgeUsesConfiguredPrivacyBoundary(t *testing.T) {
 	write(t, root, "Maps/Private Link.md", "---\ntype: study-path\ncreated: 2026-01-01\n---\n# Private Link\n\n[[Private Lesson]]\n")
 
 	for _, format := range []Format{FormatJSON, FormatHuman, FormatMarkdown} {
-		checkOutput, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: format})
+		checkOutput, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: format})
 		if err != nil {
 			t.Fatalf("RunCheck(%d) error = %v", format, err)
 		}
@@ -317,7 +317,7 @@ func TestJudgeUsesConfiguredPrivacyBoundary(t *testing.T) {
 			t.Errorf("RunCheck(%d) dropped public output with private output:\n%s", format, checkOutput)
 		}
 
-		coverageOutput, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: format})
+		coverageOutput, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: format})
 		if err != nil {
 			t.Fatalf("RunCoverage(%d) error = %v", format, err)
 		}
@@ -332,7 +332,7 @@ func TestJudgeUsesConfiguredPrivacyBoundary(t *testing.T) {
 		// here would be the answer that matters most to get wrong: the exit
 		// code is the documented write-if-absent gate, so "absent" sends the
 		// caller to create a second note under this one's name.
-		existsOutput, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "Hidden", Format: format})
+		existsOutput, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "Hidden", Format: format})
 		if err != nil {
 			t.Fatalf("RunExists(%d) error = %v", format, err)
 		}
@@ -347,7 +347,7 @@ func TestJudgeUsesConfiguredPrivacyBoundary(t *testing.T) {
 
 		// The gate still opens for a name nothing carries, or a vault that
 		// merely declares a private directory could never create anything.
-		_, absentExit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "No Note Carries This Name", Format: format})
+		_, absentExit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "No Note Carries This Name", Format: format})
 		if err != nil {
 			t.Fatalf("RunExists(%d, absent) error = %v", format, err)
 		}
@@ -368,14 +368,14 @@ func TestCronPayloads(t *testing.T) {
 
 	t.Run("deny error exit code", func(t *testing.T) {
 		t.Parallel()
-		_, denied, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"error"}})
+		_, denied, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"error"}})
 		if err != nil {
 			t.Fatalf("RunCheck: %v", err)
 		}
 		if denied != 1 {
 			t.Errorf("--deny error exit = %d, want 1 (a schema error is present)", denied)
 		}
-		_, clean, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+		_, clean, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 		if err != nil {
 			t.Fatalf("RunCheck: %v", err)
 		}
@@ -386,7 +386,7 @@ func TestCronPayloads(t *testing.T) {
 
 	t.Run("jsonl grep literals", func(t *testing.T) {
 		t.Parallel()
-		out, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+		out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 		if err != nil {
 			t.Fatalf("RunCheck: %v", err)
 		}
@@ -399,7 +399,7 @@ func TestCronPayloads(t *testing.T) {
 
 	t.Run("markdown report body", func(t *testing.T) {
 		t.Parallel()
-		out, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatMarkdown})
+		out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatMarkdown})
 		if err != nil {
 			t.Fatalf("RunCheck: %v", err)
 		}
@@ -408,7 +408,7 @@ func TestCronPayloads(t *testing.T) {
 
 	t.Run("human first line", func(t *testing.T) {
 		t.Parallel()
-		out, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
+		out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
 		if err != nil {
 			t.Fatalf("RunCheck: %v", err)
 		}
@@ -464,7 +464,7 @@ func TestGated(t *testing.T) {
 // are accepted.
 func TestRunCheckRejectsUnknownDeny(t *testing.T) {
 	t.Parallel()
-	if _, _, err := RunCheck(t.Context(), &CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{"bogus"}}); err == nil {
+	if _, _, err := checkBytes(t.Context(), &CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{"bogus"}}); err == nil {
 		t.Error("RunCheck with --deny bogus = nil error, want a tool error")
 	}
 	tokens := []string{"error", "warn", "info"}
@@ -472,7 +472,7 @@ func TestRunCheckRejectsUnknownDeny(t *testing.T) {
 		tokens = append(tokens, string(id))
 	}
 	for _, token := range tokens {
-		if _, _, err := RunCheck(t.Context(), &CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{token}}); err != nil {
+		if _, _, err := checkBytes(t.Context(), &CheckOptions{Root: "testdata/vault-report", Format: FormatJSON, Deny: []string{token}}); err != nil {
 			t.Errorf("RunCheck with --deny %q = %v, want no error", token, err)
 		}
 	}
@@ -488,7 +488,7 @@ func TestRunCheckDenyAliasResolvedRule(t *testing.T) {
 		{deny: nil, want: 0},
 		{deny: []string{"provenance.alias_resolved"}, want: 1},
 	} {
-		_, exit, err := RunCheck(t.Context(), &CheckOptions{
+		_, exit, err := checkBytes(t.Context(), &CheckOptions{
 			Root:   "testdata/vault-alias-based-on",
 			Format: FormatJSON,
 			Deny:   tt.deny,
@@ -544,7 +544,7 @@ func TestParseBaseline(t *testing.T) {
 func TestRunCheckBaseline(t *testing.T) {
 	t.Parallel()
 	const root = "testdata/vault-report"
-	full, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+	full, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCheck: %v", err)
 	}
@@ -555,7 +555,7 @@ func TestRunCheckBaseline(t *testing.T) {
 	if err = os.WriteFile(base, full, 0o600); err != nil {
 		t.Fatalf("write baseline: %v", err)
 	}
-	got, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
+	got, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
 	if err != nil {
 		t.Fatalf("RunCheck with full baseline: %v", err)
 	}
@@ -567,7 +567,7 @@ func TestRunCheckBaseline(t *testing.T) {
 	if err = os.WriteFile(oneLine, append(bytes.Clone(lines[0]), '\n'), 0o600); err != nil {
 		t.Fatalf("write baseline: %v", err)
 	}
-	got, _, err = RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: oneLine})
+	got, _, err = checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: oneLine})
 	if err != nil {
 		t.Fatalf("RunCheck with one-line baseline: %v", err)
 	}
@@ -579,7 +579,7 @@ func TestRunCheckBaseline(t *testing.T) {
 		t.Error("the finding named by the baseline should have been dropped")
 	}
 
-	if _, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: filepath.Join(dir, "missing.jsonl")}); err == nil {
+	if _, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: filepath.Join(dir, "missing.jsonl")}); err == nil {
 		t.Error("an unreadable baseline should be a tool error")
 	}
 }
@@ -607,7 +607,7 @@ func TestRunCheckBaselineStrictness(t *testing.T) {
 	t.Run("a bare-hex fingerprint is a version mismatch", func(t *testing.T) {
 		t.Parallel()
 		base := writeBaseline(t, `{"rule_id":"link.broken","fingerprint":"c6a289a5d2524c77"}`+"\n")
-		_, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
+		_, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
 		if err == nil {
 			t.Fatal("a baseline of another fingerprint version must be an error, not a silent no-op subtraction")
 		}
@@ -619,7 +619,7 @@ func TestRunCheckBaselineStrictness(t *testing.T) {
 	t.Run("an unparsable line is an error naming its line", func(t *testing.T) {
 		t.Parallel()
 		base := writeBaseline(t, `{"fingerprint":"v1:c6a289a5d2524c77"}`+"\nnot json at all\n")
-		_, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
+		_, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
 		if err == nil {
 			t.Fatal("an unparsable baseline line must be an error, not skipped")
 		}
@@ -631,7 +631,7 @@ func TestRunCheckBaselineStrictness(t *testing.T) {
 	t.Run("a finding without a fingerprint is an error", func(t *testing.T) {
 		t.Parallel()
 		base := writeBaseline(t, `{"rule_id":"collision.alias"}`+"\n")
-		_, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
+		_, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base})
 		if err == nil {
 			t.Fatal("a baseline finding without a fingerprint must be an error, not skipped")
 		}
@@ -643,18 +643,18 @@ func TestRunCheckBaselineStrictness(t *testing.T) {
 	t.Run("a non-string fingerprint is an error", func(t *testing.T) {
 		t.Parallel()
 		base := writeBaseline(t, `{"fingerprint":7}`+"\n")
-		if _, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base}); err == nil {
+		if _, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: base}); err == nil {
 			t.Fatal("a non-string fingerprint must be an error, not skipped")
 		}
 	})
 
 	t.Run("an empty file is a valid empty baseline", func(t *testing.T) {
 		t.Parallel()
-		full, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+		full, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 		if err != nil {
 			t.Fatalf("RunCheck without baseline: %v", err)
 		}
-		got, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: writeBaseline(t, "")})
+		got, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Baseline: writeBaseline(t, "")})
 		if err != nil {
 			t.Fatalf("RunCheck with empty baseline: %v", err)
 		}
@@ -729,7 +729,7 @@ func TestRunOnEmptyVault(t *testing.T) {
 	dir := t.TempDir()
 	writeTestContract(t, dir, nil)
 
-	check, exit, err := RunCheck(t.Context(), &CheckOptions{Root: dir, Format: FormatJSON})
+	check, exit, err := checkBytes(t.Context(), &CheckOptions{Root: dir, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCheck: %v", err)
 	}
@@ -737,7 +737,7 @@ func TestRunOnEmptyVault(t *testing.T) {
 		t.Errorf("empty check = %q, exit %d; want empty, 0", check, exit)
 	}
 
-	cov, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: dir, Format: FormatJSON})
+	cov, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: dir, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage: %v", err)
 	}
@@ -748,7 +748,7 @@ func TestRunOnEmptyVault(t *testing.T) {
 		t.Errorf("empty coverage exit = %d, want 0", exit)
 	}
 
-	ex, exit, err := RunExists(t.Context(), &ExistsOptions{Root: dir, Name: "Anything", Format: FormatJSON})
+	ex, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: dir, Name: "Anything", Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunExists: %v", err)
 	}

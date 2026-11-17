@@ -61,7 +61,7 @@ func TestHeadingPathRunCheckKeepsMissingRuleAndExit(t *testing.T) {
 			write(t, root, "Concepts/N.md", "## A\n### B\n")
 			write(t, root, "Concepts/Citer.md", tt.link+"\n")
 			writeTestContract(t, root, nil)
-			out, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"link.section_missing"}})
+			out, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"link.section_missing"}})
 			if err != nil {
 				t.Fatalf("RunCheck() error = %v", err)
 			}

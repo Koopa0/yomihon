@@ -56,14 +56,14 @@ func TestMissingImageFindings(t *testing.T) {
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("Check findings (-want +got):\n%s", diff)
 	}
-	gotBytes, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+	gotBytes, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil || exit != 0 {
 		t.Fatalf("RunCheck: exit=%d error=%v", exit, err)
 	}
 	if !bytes.Equal(wantBytes, gotBytes) {
 		t.Errorf("RunCheck JSONL:\nwant %s\ngot  %s", wantBytes, gotBytes)
 	}
-	_, exit, err = RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"link.broken.image"}})
+	_, exit, err = checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: []string{"link.broken.image"}})
 	if err != nil || exit != 1 {
 		t.Errorf("RunCheck --deny link.broken.image: exit=%d error=%v, want exit 1", exit, err)
 	}
@@ -176,7 +176,7 @@ func TestMissingImageWithheldGround(t *testing.T) {
 					write(t, root, "Private/secret.png", "held")
 					write(t, root, "Private/café.png", "held")
 				}
-				out, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, All: true, Format: FormatJSON})
+				out, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, All: true, Format: FormatJSON})
 				if err != nil {
 					t.Fatalf("RunCheck: %v", err)
 				}

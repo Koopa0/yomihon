@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
@@ -53,7 +54,7 @@ func TestOnlyAFolderWithNoRulesFileIsRead(t *testing.T) {
 				write(t, root, schema.ContractRelPath, string(contract))
 				return root
 			},
-			want: ErrPrivacyAuthorityUnavailable,
+			want: egress.ErrUnavailable,
 		},
 		{
 			name: "contract that cannot be decoded",
@@ -63,7 +64,7 @@ func TestOnlyAFolderWithNoRulesFileIsRead(t *testing.T) {
 				write(t, root, schema.ContractRelPath, string(append(bytes.Clone(base), []byte("\n[malformed")...)))
 				return root
 			},
-			want: ErrPrivacyAuthorityUnavailable,
+			want: egress.ErrUnavailable,
 		},
 		{
 			name: "a folder that is not there",
@@ -135,8 +136,8 @@ func TestAnUnusableContractIsRedactedWhateverIsWrongWithIt(t *testing.T) {
 					write(t, root, schema.ContractRelPath, string(state.mutate(bytes.Clone(base))))
 
 					err := refuse(t.Context(), t, command, root)
-					if !errors.Is(err, ErrPrivacyAuthorityUnavailable) {
-						t.Errorf("%s error = %v, want %v", command, err, ErrPrivacyAuthorityUnavailable)
+					if !errors.Is(err, egress.ErrUnavailable) {
+						t.Errorf("%s error = %v, want %v", command, err, egress.ErrUnavailable)
 					}
 					// The class above is what the binary renders from. This is
 					// the property the class exists for, so a later edit cannot
@@ -231,8 +232,8 @@ func TestTheAuthorityIsRecheckedAfterThePayloadExists(t *testing.T) {
 			if payload != nil {
 				t.Errorf("%s returned a payload alongside its refusal: %q", command, payload)
 			}
-			if !errors.Is(err, ErrPrivacyAuthorityUnavailable) {
-				t.Errorf("%s error = %v, want %v", command, err, ErrPrivacyAuthorityUnavailable)
+			if !errors.Is(err, egress.ErrUnavailable) {
+				t.Errorf("%s error = %v, want %v", command, err, egress.ErrUnavailable)
 			}
 		})
 	}
@@ -254,7 +255,7 @@ func TestAFolderWithNoRulesFileWithholdsNothing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("exists over a folder with no rules file: %v", err)
 	}
-	for _, want := range []string{NoRulesFile, "Private/Secret.md"} {
+	for _, want := range []string{egress.NoRulesFile, "Private/Secret.md"} {
 		if !strings.Contains(exists, want) {
 			t.Errorf("exists output is missing %q:\n%s", want, exists)
 		}
@@ -263,7 +264,7 @@ func TestAFolderWithNoRulesFileWithholdsNothing(t *testing.T) {
 		t.Errorf("exists says something is withheld in a folder that declared nothing:\n%s", exists)
 	}
 
-	out, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
+	out, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatHuman})
 	if err != nil {
 		t.Fatalf("check over a folder with no rules file: %v", err)
 	}
@@ -277,12 +278,12 @@ func TestAFolderWithNoRulesFileWithholdsNothing(t *testing.T) {
 		t.Errorf("check does not reach a note under Private/ in a folder with no rules file:\n%s", out)
 	}
 
-	coverage, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatHuman})
+	coverage, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatHuman})
 	if err != nil {
 		t.Fatalf("coverage over a folder with no rules file: %v", err)
 	}
-	if first, _, _ := strings.Cut(string(coverage), "\n"); !strings.HasPrefix(first, NoRulesFile) {
-		t.Errorf("coverage opens with %q, want it to open with %q", first, NoRulesFile)
+	if first, _, _ := strings.Cut(string(coverage), "\n"); !strings.HasPrefix(first, egress.NoRulesFile) {
+		t.Errorf("coverage opens with %q, want it to open with %q", first, egress.NoRulesFile)
 	}
 }
 
@@ -290,7 +291,7 @@ func TestAFolderWithNoRulesFileWithholdsNothing(t *testing.T) {
 // printed.
 func runExistsText(t *testing.T, root, name string) (string, error) {
 	t.Helper()
-	out, _, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: name, Format: FormatHuman})
+	out, _, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: name, Format: FormatHuman})
 	return string(out), err
 }
 
@@ -395,13 +396,13 @@ func TestAFolderInsideOrAboveAVaultIsRefusedByEveryCommand(t *testing.T) {
 		run  func(root string) ([]byte, int, error)
 	}{
 		{"check", func(root string) ([]byte, int, error) {
-			return RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+			return checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 		}},
 		{"coverage", func(root string) ([]byte, int, error) {
-			return RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+			return coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 		}},
 		{"exists", func(root string) ([]byte, int, error) {
-			return RunExists(t.Context(), &ExistsOptions{Root: root, Name: "Secret Plan", Format: FormatJSON})
+			return existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "Secret Plan", Format: FormatJSON})
 		}},
 	}
 	for _, shape := range shapes {
@@ -410,9 +411,9 @@ func TestAFolderInsideOrAboveAVaultIsRefusedByEveryCommand(t *testing.T) {
 				t.Parallel()
 				root := shape.build(t)
 				stdout, _, err := command.run(root)
-				want := ErrRulesFileNearby
+				want := egress.ErrRulesFileNearby
 				if shape.unknown {
-					want = ErrRulesFileUnknown
+					want = egress.ErrRulesFileUnknown
 				}
 				if !errors.Is(err, want) {
 					t.Errorf("%s error = %v, want %v", command.name, err, want)
@@ -470,8 +471,8 @@ func TestAVaultMovedInAfterTheFirstLookIsRefusedByEveryCommand(t *testing.T) {
 				write(t, root, "Later/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
 			}}
 			stdout, err := runPrepared(t.Context(), t, command, root, "Secret Plan", hooks, nil)
-			if !errors.Is(err, ErrRulesFileNearby) {
-				t.Errorf("caught: %s error = %v, want ErrRulesFileNearby for a vault that appeared after the first look", command, err)
+			if !errors.Is(err, egress.ErrRulesFileNearby) {
+				t.Errorf("caught: %s error = %v, want egress.ErrRulesFileNearby for a vault that appeared after the first look", command, err)
 			}
 			if len(stdout) != 0 {
 				t.Errorf("caught: %s wrote %d bytes read from a folder that holds a rules file: %q", command, len(stdout), stdout)
@@ -495,7 +496,7 @@ func TestACancelledCommandIsNotAPrivacyRefusal(t *testing.T) {
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("%s error = %v, want context.Canceled", command, err)
 			}
-			if errors.Is(err, ErrPrivacyAuthorityUnavailable) {
+			if errors.Is(err, egress.ErrUnavailable) {
 				t.Errorf("caught: %s reported a stopped command as an unavailable privacy authority", command)
 			}
 		})

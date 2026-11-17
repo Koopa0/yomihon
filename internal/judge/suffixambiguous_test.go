@@ -24,7 +24,7 @@ func TestRunCheckSuffixAmbiguousLinkStaysBroken(t *testing.T) {
 	write(t, root, "B/Shared/Twin.md", "body\n")
 	write(t, root, "Notes/Mixed/Twin.md", "body\n")
 	write(t, root, "Diary/Mixed/Twin.md", "body\n")
-	got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, All: true, Format: FormatJSON})
+	got, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, All: true, Format: FormatJSON})
 	if err != nil {
 		t.Fatal(err)
 	}

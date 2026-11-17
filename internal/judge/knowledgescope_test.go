@@ -123,7 +123,7 @@ func TestCoverageFollowsDeclaredKnowledgeScope(t *testing.T) {
 	t.Parallel()
 
 	root := writeScopeLockVault(t, `checked = ["Notes", "System"]`)
-	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
@@ -170,7 +170,7 @@ never_egress_dirs = []
 	write(t, root, "Notes/Idea.md", "---\ntype: concept\nbased_on:\n  - \"[[Atlas]]\"\n---\n# Idea\nBody.\n")
 	write(t, root, "Maps/Atlas.md", "---\ntype: atlas\n---\n# Atlas\n\n- [[Idea]]\n")
 
-	got, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	got, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}
@@ -216,7 +216,7 @@ never_egress_dirs = []
 	write(t, root, "System/notes/Brief.md", "---\ntype: research-brief\n---\n# Brief\nBody.\n")
 	write(t, root, "Away/Loose.md", "---\ntype: research-brief\n---\n# Loose\nBody.\n")
 
-	got, exit, err := RunCoverage(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
+	got, exit, err := coverageBytes(t.Context(), &CoverageOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCoverage() error = %v", err)
 	}

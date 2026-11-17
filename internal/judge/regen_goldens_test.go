@@ -191,7 +191,7 @@ func TestRegenerateGoldens(t *testing.T) {
 		t.Logf("rewrote %s (%d bytes)", tt.golden, len(tt.body))
 	}
 	for _, tt := range coverageGoldens {
-		got, _, err := RunCoverage(t.Context(), &CoverageOptions{Root: reportRoot, Format: tt.format})
+		got, _, err := coverageBytes(t.Context(), &CoverageOptions{Root: reportRoot, Format: tt.format})
 		if err != nil {
 			t.Fatalf("RunCoverage(%s): %v", tt.golden, err)
 		}

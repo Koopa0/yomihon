@@ -130,7 +130,7 @@ func TestAPanicParsingOneNoteExitsAsAnUnreadableFileDoes(t *testing.T) {
 				if err != nil {
 					t.Fatalf("prepareCheckWithHooks() error = %v, want a judgement of what parsed", err)
 				}
-				if err = prepared.finish(); err != nil {
+				if _, err = prepared.seal(); err != nil {
 					t.Fatalf("finish() error = %v", err)
 				}
 			})

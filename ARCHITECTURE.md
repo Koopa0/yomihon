@@ -134,7 +134,7 @@ The reading page polls for freshness rather than treating its displayed text as 
 
 A scoped `check` still constructs the whole-root graph before filtering findings. Incomplete input is not evidence of absence: `exists` may report a known match, but refuses a negative answer when unreadable sources could change it. `coverage` refuses a partial census. An existence answer is an observation, not a reservation against an editor creating a file afterwards. The [rule inventory][judge-rules] names each finding and its authority.
 
-The contract's [`privacy.never_egress_dirs`][privacy] controls these command outputs; `marks` drops a withheld item before resolving anything about it, since an anchor is its heading's words. It does **not** hide those directories from the local reading interface. Commands require a rules file whose privacy authority is valid, or none at all, prepare their output, and revalidate authority before returning the payload; a rules file that appears while a command runs withdraws the payload. If authority cannot be established, they refuse without quoting protected rules file contents into the output channel. The [command boundary][adjudicate] separates payloads from tool failures.
+The contract's [`privacy.never_egress_dirs`][privacy] controls these command outputs; `marks` drops a withheld item before resolving anything about it, since an anchor is its heading's words. It does **not** hide those directories from the local reading interface. Commands require a rules file whose privacy authority is valid, or none at all, prepare their output, and revalidate authority before returning the payload; a rules file that appears while a command runs withdraws the payload. If authority cannot be established, they refuse without quoting protected rules file contents into the output channel. [`internal/egress`][egress] is the one place that asks the rules file what it withholds, and the only way an output is made: a command opens a gate there, and only a payload that gate sealed after the output was assembled can be written. The [command boundary][adjudicate] separates payloads from tool failures.
 
 Machine output is JSON Lines for `check` and `marks` and JSON for `coverage` and `exists`; terminal output defaults to the human view. Exit `1` means a configured gate or a negative existence result, while `2` means invalid invocation or a tool failure; `marks` never exits `1`, and refuses with `2` rather than list around a marks file or note it could not read. A finding alone does not imply exit `1` without a matching deny policy. Golden fixtures preserve output fields and reason strings for callers. External agents can consume these commands and edit through their own tools; yomihon neither runs a model nor repairs their output.
 
@@ -202,6 +202,7 @@ Shutdown closes request admission, stops the scanner, and waits for accepted han
 [note]: internal/note/handler.go
 [commands]: internal/judge/command.go
 [adjudicate]: cmd/yomihon/adjudicate.go
+[egress]: internal/egress
 [marks]: cmd/yomihon/leftopen.go
 [judge-rules]: docs/judge-rules.md
 [origin]: internal/origin/origin.go

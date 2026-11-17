@@ -19,6 +19,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/text/unicode/norm"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
@@ -77,7 +78,7 @@ func TestJudgeActionReadsNFDEntryThroughCapturedRawSpelling(t *testing.T) {
 	}
 	write(t, root, raw, "---\n---\n# Caf\u00e9\n")
 
-	stdout, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: "Caf\u00e9", Format: FormatJSON})
+	stdout, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: "Caf\u00e9", Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunExists(NFD entry) error = %v", err)
 	}
@@ -512,7 +513,7 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 			if owner != nil {
 				qualified := owner.Name + "." + selector.Sel.Name
 				switch qualified {
-				case "vault.Open", "schema.LoadForAgents":
+				case "vault.Open", "egress.Open":
 					counts[qualified]++
 				case "os.ReadFile":
 					counts[qualified]++
@@ -544,11 +545,11 @@ func TestJudgeProductionUsesOneRootedReadPath(t *testing.T) {
 		t.Errorf("production path bypasses = %v, want none", forbidden)
 	}
 	wantCounts := map[string]int{
-		"vault.Open":           1,
-		"schema.LoadForAgents": 1,
-		"ScanComplete":         1,
-		"ReadFile":             1,
-		"os.ReadFile":          1,
+		"vault.Open":   1,
+		"egress.Open":  1,
+		"ScanComplete": 1,
+		"ReadFile":     1,
+		"os.ReadFile":  1,
 	}
 	if diff := cmp.Diff(wantCounts, counts); diff != "" {
 		t.Errorf("rooted read call sites mismatch (-want +got):\n%s", diff)
@@ -664,7 +665,7 @@ func TestAbortWithholdsAPathTheContractHasSinceWithdrawn(t *testing.T) {
 		{
 			name:   "narrowed mid-run, and a read then fails",
 			narrow: true, removeFile: true,
-			want: ErrPrivacyAuthorityUnavailable,
+			want: egress.ErrUnavailable,
 		},
 		{
 			name:        "withheld from the start, and a read fails",
@@ -682,7 +683,7 @@ func TestAbortWithholdsAPathTheContractHasSinceWithdrawn(t *testing.T) {
 		{
 			name:   "narrowed mid-run, and every read succeeds",
 			narrow: true,
-			want:   ErrPrivacyAuthorityUnavailable,
+			want:   egress.ErrUnavailable,
 		},
 		{
 			// A folder with no rules file withheld nothing when the run began; a
@@ -690,7 +691,7 @@ func TestAbortWithholdsAPathTheContractHasSinceWithdrawn(t *testing.T) {
 			// that listed it under the first reading may not hand it over.
 			name:            "no rules file at the start, one written mid-run",
 			contractAppears: true,
-			want:            ErrPrivacyAuthorityUnavailable,
+			want:            egress.ErrUnavailable,
 		},
 	}
 

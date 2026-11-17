@@ -41,7 +41,7 @@ func TestTheBinaryPrintsTheEnginesPayloadUnaltered(t *testing.T) {
 			command: "check",
 			payload: func(t *testing.T) []byte {
 				t.Helper()
-				out, _, err := judge.RunCheck(t.Context(), &judge.CheckOptions{Root: root, Format: judge.FormatJSON})
+				out, _, err := checkBytes(t.Context(), &judge.CheckOptions{Root: root, Format: judge.FormatJSON})
 				if err != nil {
 					t.Fatalf("RunCheck: %v", err)
 				}
@@ -52,7 +52,7 @@ func TestTheBinaryPrintsTheEnginesPayloadUnaltered(t *testing.T) {
 			command: "coverage",
 			payload: func(t *testing.T) []byte {
 				t.Helper()
-				out, _, err := judge.RunCoverage(t.Context(), &judge.CoverageOptions{Root: root, Format: judge.FormatJSON})
+				out, _, err := coverageBytes(t.Context(), &judge.CoverageOptions{Root: root, Format: judge.FormatJSON})
 				if err != nil {
 					t.Fatalf("RunCoverage: %v", err)
 				}
@@ -64,7 +64,7 @@ func TestTheBinaryPrintsTheEnginesPayloadUnaltered(t *testing.T) {
 			trailing: []string{"Present"},
 			payload: func(t *testing.T) []byte {
 				t.Helper()
-				out, _, err := judge.RunExists(t.Context(), &judge.ExistsOptions{Root: root, Name: "Present", Format: judge.FormatJSON})
+				out, _, err := existsBytes(t.Context(), &judge.ExistsOptions{Root: root, Name: "Present", Format: judge.FormatJSON})
 				if err != nil {
 					t.Fatalf("RunExists: %v", err)
 				}

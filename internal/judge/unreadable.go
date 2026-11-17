@@ -70,7 +70,7 @@ func checkUnreadable(entries []unreadableEntry, authority scanAuthority) []Findi
 	out := make([]Finding, 0, len(entries))
 	withheld := false
 	for _, entry := range entries {
-		if !authority.egressAllowed(entry.path) {
+		if !authority.gate.Allows(entry.path) {
 			withheld = true
 			continue
 		}

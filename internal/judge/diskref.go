@@ -41,7 +41,7 @@ func classifyCapturedPathRef(n *note, noteDir string, pref pathRef, observation 
 	if pref.code {
 		return classifyCodeRef(n, noteDir, pref, observation.authority, observation.contains)
 	}
-	if !observation.authority.egressAllowed(n.path) {
+	if !observation.authority.gate.Allows(n.path) {
 		return Finding{}, false
 	}
 	result := graph.ResolveMarkdown(n.path, pref.target, observation.authority.readable, observation.contains)
@@ -72,8 +72,8 @@ func classifyCodeRef(
 	noteRel, noteOK := resolveWithinRoot(noteDir, pref.target)
 	// The privacy gate runs before membership is inspected at all, so a
 	// restricted path is never even looked up.
-	if (rootOK && !authority.egressAllowed(rootRel)) ||
-		(noteOK && !authority.egressAllowed(noteRel)) {
+	if (rootOK && !authority.gate.Allows(rootRel)) ||
+		(noteOK && !authority.gate.Allows(noteRel)) {
 		return Finding{}, false
 	}
 	if (rootOK && contains(rootRel)) || (noteOK && contains(noteRel)) {

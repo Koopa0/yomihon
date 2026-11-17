@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -414,7 +415,7 @@ func TestLeftOpenChecksAuthorityAgainAfterAssembly(t *testing.T) {
 	if exit != 2 || stdout.Len() != 0 || strings.Contains(stdout.String(), "Inside/") {
 		t.Errorf("caught: a contract narrowed after assembly still got the list: exit %d, stdout %q", exit, stdout.String())
 	}
-	if !strings.Contains(stderr.String(), judge.ErrPrivacyAuthorityUnavailable.Error()) {
+	if !strings.Contains(stderr.String(), egress.ErrUnavailable.Error()) {
 		t.Errorf("stderr = %q, want the privacy refusal", stderr.String())
 	}
 }
@@ -527,9 +528,9 @@ func TestLeftOpenRefusesAFolderInsideOrAboveAVault(t *testing.T) {
 				if exit != 2 || stdout.Len() != 0 {
 					t.Errorf("caught: marks listed from a folder inside or above a vault: exit %d, stdout %q", exit, stdout.String())
 				}
-				want := judge.ErrRulesFileNearby
+				want := egress.ErrRulesFileNearby
 				if shape.unknown {
-					want = judge.ErrRulesFileUnknown
+					want = egress.ErrRulesFileUnknown
 				}
 				if !strings.Contains(stderr.String(), want.Error()) {
 					t.Errorf("stderr = %q, want %q", stderr.String(), want)
@@ -588,7 +589,7 @@ func TestLeftOpenRefusesAVaultMovedInAfterTheFirstLook(t *testing.T) {
 			if exit != 2 || stdout.Len() != 0 {
 				t.Errorf("caught: marks listed a note read from a folder that holds a rules file: exit %d, stdout %q", exit, stdout.String())
 			}
-			if !strings.Contains(stderr.String(), judge.ErrRulesFileNearby.Error()) {
+			if !strings.Contains(stderr.String(), egress.ErrRulesFileNearby.Error()) {
 				t.Errorf("stderr = %q, want the refusal that names a rules file above or inside", stderr.String())
 			}
 		})
@@ -608,7 +609,7 @@ func TestLeftOpenCancelledIsNotAPrivacyRefusal(t *testing.T) {
 	if exit != 2 || stdout.Len() != 0 {
 		t.Errorf("exit %d, stdout %q, want a refusal and nothing listed", exit, stdout.String())
 	}
-	if strings.Contains(stderr.String(), judge.ErrPrivacyAuthorityUnavailable.Error()) || !strings.Contains(stderr.String(), "context canceled") {
+	if strings.Contains(stderr.String(), egress.ErrUnavailable.Error()) || !strings.Contains(stderr.String(), "context canceled") {
 		t.Errorf("stderr = %q, want the stopped command's own words and not the privacy refusal", stderr.String())
 	}
 }
@@ -630,7 +631,7 @@ func TestLeftOpenRefusesWhenARulesFileAppearsAfterAssembly(t *testing.T) {
 	if exit != 2 || stdout.Len() != 0 {
 		t.Errorf("caught: a rules file that appeared after assembly still got the list: exit %d, stdout %q", exit, stdout.String())
 	}
-	if !strings.Contains(stderr.String(), judge.ErrPrivacyAuthorityUnavailable.Error()) {
+	if !strings.Contains(stderr.String(), egress.ErrUnavailable.Error()) {
 		t.Errorf("stderr = %q, want the privacy refusal", stderr.String())
 	}
 }
@@ -781,13 +782,13 @@ func TestLeftOpenRefusesARulesFileForAnotherVersion(t *testing.T) {
 				if got.exit != 2 || got.stdout != "" {
 					t.Errorf("caught: marks read a folder whose rules file is for another version: exit %d, stdout %q; want 2 and nothing", got.exit, got.stdout)
 				}
-				if first, _, _ := strings.Cut(got.stderr, "\n"); first != "yomihon: "+judge.ErrPrivacyAuthorityUnavailable.Error() {
+				if first, _, _ := strings.Cut(got.stderr, "\n"); first != "yomihon: "+egress.ErrUnavailable.Error() {
 					t.Errorf("stderr first line = %q, want the unavailable-authority refusal", first)
 				}
 				if !strings.Contains(got.stderr, tt.want) {
 					t.Errorf("stderr = %q, want it to say %q", got.stderr, tt.want)
 				}
-				for _, leaked := range []string{"SECRET-token", "Private", "Hidden thought", judge.NoRulesFile} {
+				for _, leaked := range []string{"SECRET-token", "Private", "Hidden thought", egress.NoRulesFile} {
 					if strings.Contains(got.stdout+got.stderr, leaked) {
 						t.Errorf("caught: the refusal or the output carries %q: %q", leaked, got.stdout+got.stderr)
 					}
@@ -816,13 +817,13 @@ func TestLeftOpenReadsAFolderWithNoRulesFile(t *testing.T) {
 			t.Errorf("the list is missing %q although no rules file withholds it:\n%s", want, machine.stdout)
 		}
 	}
-	if strings.Contains(machine.stdout, judge.NoRulesFile) {
+	if strings.Contains(machine.stdout, egress.NoRulesFile) {
 		t.Errorf("the sentence for a person is in the machine form:\n%s", machine.stdout)
 	}
 
 	human := leftOpen(t, root, configDir, "--format", "human")
-	if first, _, _ := strings.Cut(human.stdout, "\n"); first != judge.NoRulesFile {
-		t.Errorf("the list opens with %q, want %q", first, judge.NoRulesFile)
+	if first, _, _ := strings.Cut(human.stdout, "\n"); first != egress.NoRulesFile {
+		t.Errorf("the list opens with %q, want %q", first, egress.NoRulesFile)
 	}
 }
 
