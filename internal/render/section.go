@@ -394,7 +394,7 @@ func blockMarkerLine(lines, address []string, unanchorable func(int, string) boo
 		if unanchorable(i, line) || owned[i] {
 			continue
 		}
-		marker := BlockAddress(line)
+		marker := graph.BlockAddress(line)
 		if marker != "" && graph.FoldFragment(marker) == want {
 			return i
 		}

@@ -992,3 +992,22 @@ func TestBracketsInANameMakeNoLinkForTheCheckEither(t *testing.T) {
 		}
 	}
 }
+
+// TestAHeadingCarryingABlockAddressHasOneIdOnBothFaces holds that the id the
+// page stamps on such a heading is the id check judges a link against: the
+// address is not part of the heading's words on either face.
+func TestAHeadingCarryingABlockAddressHasOneIdOnBothFaces(t *testing.T) {
+	t.Parallel()
+
+	files := map[string]string{
+		"T.md": "# T\n\n## Sub heading ^sub-one\n\ntext\n",
+		"S.md": "[[T#Sub heading]]\n\n[[T#Sub heading ^sub-one]]\n\n[[T#^sub-one]]\n",
+	}
+	got := ruleTargets(fragmentRun(t, files))
+	// The words alone name the heading, as the page's own id does; the words
+	// with the address after them name nothing on either face. The address
+	// itself still names a block.
+	if len(got) != 1 || !strings.Contains(got[0], "Sub heading ^sub-one") {
+		t.Errorf("findings = %v, want only the link that spells the address into the heading's words", got)
+	}
+}

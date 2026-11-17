@@ -35,7 +35,7 @@ var (
 // wrapped stays, with white space folded. A title shown in a list or over a
 // page is these words, never the source.
 func PlainHeadingWords(raw string) string {
-	source := wikilinkInHeading.ReplaceAllStringFunc(raw, func(token string) string {
+	source := wikilinkInHeading.ReplaceAllStringFunc(WithoutBlockAddresses(raw), func(token string) string {
 		token = strings.TrimPrefix(token, "!")
 		_, display, _ := SplitWikilink(token[2 : len(token)-2])
 		return display

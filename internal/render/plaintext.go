@@ -465,7 +465,7 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 			}
 			rewritten.literalRoles[i] = opener && !code[i]
 			if !owned[i] {
-				line = withoutBlockAddress(line)
+				line = graph.WithoutBlockAddress(line)
 			}
 			lines[i] = plainLine(line, code[i], &wikiLines[i])
 			rewritten.changed[i] = lines[i] != original
@@ -480,16 +480,6 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 		off += len(line) + 1 // the newline the join puts back
 	}
 	return strings.Join(lines, "\n"), rewritten
-}
-
-// withoutBlockAddress takes the address off the end of a line, and the
-// space that set it apart.
-func withoutBlockAddress(line string) string {
-	trimmed, m := blockAddressIn(line)
-	if m == nil {
-		return line
-	}
-	return strings.TrimRight(trimmed[:m[2]], " \t")
 }
 
 // plainLine normalizes one non-fence line: it strips a callout marker (keeping
