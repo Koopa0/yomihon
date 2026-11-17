@@ -1965,7 +1965,7 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 		},
 		knowledgeScope:  knowledgeScopeFor(t),
 		rootNotes:       []NoteRef{{Name: "README", RelPath: "README.md"}},
-		paths:           []Path{{Title: "Path"}},
+		paths:           []Course{{Title: "Path"}},
 		maps:            []Map{{Title: "Map"}},
 		journalEntries:  []JournalEntry{{Title: "Today"}},
 		reports:         []Report{{Name: "report.md"}},
@@ -2032,7 +2032,7 @@ func TestWithoutInstanceProjectionsPreservesOrdinaryBrowse(t *testing.T) {
 type modelProjections struct {
 	folders        []Folder
 	rootNotes      []NoteRef
-	paths          []Path
+	paths          []Course
 	maps           []Map
 	journal        []JournalEntry
 	reports        []Report
@@ -2055,7 +2055,7 @@ func immutableModelFixture() *Model {
 			}},
 		}},
 		rootNotes: []NoteRef{{Name: "README", RelPath: "README.md"}},
-		paths: []Path{{
+		paths: []Course{{
 			Title:   "Path",
 			RelPath: "Maps/Path.md",
 			Planned: 2,
@@ -2151,7 +2151,7 @@ func TestModelReturnsIndependentProjections(t *testing.T) {
 
 	mutateModelProjections(model)
 
-	if diff := cmp.Diff(want, captureModelProjections(model), cmp.AllowUnexported(modelProjections{}), cmp.AllowUnexported(Path{})); diff != "" {
+	if diff := cmp.Diff(want, captureModelProjections(model), cmp.AllowUnexported(modelProjections{}), cmp.AllowUnexported(Course{})); diff != "" {
 		t.Errorf("model changed through a returned projection (-want +got):\n%s", diff)
 	}
 }
@@ -2169,7 +2169,7 @@ func TestModelConcurrentProjectionMutationDoesNotChangePublishedData(t *testing.
 			}()
 		}
 		synctest.Wait()
-		if diff := cmp.Diff(want, captureModelProjections(model), cmp.AllowUnexported(modelProjections{}), cmp.AllowUnexported(Path{})); diff != "" {
+		if diff := cmp.Diff(want, captureModelProjections(model), cmp.AllowUnexported(modelProjections{}), cmp.AllowUnexported(Course{})); diff != "" {
 			t.Errorf("concurrent callers changed model data (-want +got):\n%s", diff)
 		}
 	})
@@ -2481,7 +2481,7 @@ type entryShape struct {
 	Candidates []string
 }
 
-func pathShapes(paths []Path) []pathShape {
+func pathShapes(paths []Course) []pathShape {
 	out := make([]pathShape, 0, len(paths))
 	for i := range paths {
 		p := &paths[i]

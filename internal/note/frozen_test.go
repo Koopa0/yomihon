@@ -45,8 +45,8 @@ func runningFolder(t *testing.T, root string) *httptest.Server {
 		Authority: authority,
 		Snapshot:  store.Current,
 
-		Continuation: noMark,
-		Log:          log,
+		Bookmark: noMark,
+		Log:      log,
 	})
 	mux := http.NewServeMux()
 	h.Register(mux)

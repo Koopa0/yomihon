@@ -45,8 +45,8 @@ func newFreshnessLogFixture(t *testing.T, root string) *freshnessLogFixture {
 		Authority: authority,
 		Snapshot:  store.Current,
 
-		Continuation: noMark,
-		Log:          slog.New(slog.NewJSONHandler(&f.written, nil)),
+		Bookmark: noMark,
+		Log:      slog.New(slog.NewJSONHandler(&f.written, nil)),
 	}).Register(f.mux)
 	return f
 }

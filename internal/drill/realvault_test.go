@@ -1,6 +1,6 @@
 //go:build realvault
 
-package lesson
+package drill
 
 import (
 	"maps"

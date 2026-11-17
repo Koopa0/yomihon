@@ -101,8 +101,8 @@ func TestTheMapIndexReadsOneGeneration(t *testing.T) {
 				Authority: authority,
 				Snapshot:  tt.published(),
 
-				Continuation: noMark,
-				Log:          log,
+				Bookmark: noMark,
+				Log:      log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)

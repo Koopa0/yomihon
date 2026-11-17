@@ -35,8 +35,8 @@ func shelfVault() map[string]string {
 	}
 }
 
-func shelfMarks() []mark.Uncertainty {
-	return []mark.Uncertainty{
+func shelfMarks() []mark.Question {
+	return []mark.Question{
 		{RelPath: "Notes/Source.md", Anchor: "cancel", At: time.Date(2026, 3, 2, 0, 0, 0, 0, time.UTC)},
 		{RelPath: "Notes/Other.md", Anchor: "part", At: time.Date(2026, 3, 4, 0, 0, 0, 0, time.UTC)},
 	}
@@ -51,7 +51,7 @@ type shelfServer struct {
 	rebuild func(t *testing.T)
 }
 
-func newShelfServer(t *testing.T, files map[string]string, marks []mark.Uncertainty) *shelfServer {
+func newShelfServer(t *testing.T, files map[string]string, marks []mark.Question) *shelfServer {
 	t.Helper()
 	root := writeNotes(t, files)
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
@@ -72,11 +72,11 @@ func newShelfServer(t *testing.T, files map[string]string, marks []mark.Uncertai
 	current.Store(store.Current())
 	handler := note.New(&note.Sources{
 		Source: source, Contract: contract,
-		Authority:     func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
-		Snapshot:      current.Load,
-		Continuation:  noMark,
-		Uncertainties: func() ([]mark.Uncertainty, error) { return marks, nil },
-		Log:           log,
+		Authority: func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
+		Snapshot:  current.Load,
+		Bookmark:  noMark,
+		Questions: func() ([]mark.Question, error) { return marks, nil },
+		Log:       log,
 	})
 	mux := http.NewServeMux()
 	handler.Register(mux)
@@ -228,9 +228,9 @@ func TestEachRowCarriesTheSentenceOfItsPlaceReadAsTheNoteIsNow(t *testing.T) {
 	t.Parallel()
 
 	marks := append(shelfMarks(),
-		mark.Uncertainty{RelPath: "Notes/Source.md", Anchor: "wait", At: time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC)},
-		mark.Uncertainty{RelPath: "Notes/Source.md", Anchor: "bare", At: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC)},
-		mark.Uncertainty{RelPath: "Notes/Source.md", At: time.Date(2026, 3, 7, 0, 0, 0, 0, time.UTC)},
+		mark.Question{RelPath: "Notes/Source.md", Anchor: "wait", At: time.Date(2026, 3, 5, 0, 0, 0, 0, time.UTC)},
+		mark.Question{RelPath: "Notes/Source.md", Anchor: "bare", At: time.Date(2026, 3, 6, 0, 0, 0, 0, time.UTC)},
+		mark.Question{RelPath: "Notes/Source.md", At: time.Date(2026, 3, 7, 0, 0, 0, 0, time.UTC)},
 	)
 	shelf := newShelfServer(t, shelfVault(), marks)
 	want := map[string]string{

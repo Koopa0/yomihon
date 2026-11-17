@@ -1,4 +1,4 @@
-package syllabus_test
+package course_test
 
 import (
 	"log/slog"
@@ -13,9 +13,9 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/course"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/syllabus"
 )
 
 // spokenText is what the page hands the voice for one paragraph: the attribute
@@ -76,7 +76,7 @@ func listenVault(t *testing.T) string {
 }
 
 // listenServer serves the listening page over one published generation of root.
-func listenServer(t *testing.T, root string, status syllabus.LessonTypes) *httptest.Server {
+func listenServer(t *testing.T, root string, status course.LessonTypes) *httptest.Server {
 	t.Helper()
 	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
@@ -84,9 +84,9 @@ func listenServer(t *testing.T, root string, status syllabus.LessonTypes) *httpt
 	}
 	store := newGenerationStore(t, root, contract)
 	mux := http.NewServeMux()
-	syllabus.New(func() syllabus.RequestSnapshot {
+	course.New(func() course.RequestSnapshot {
 		snap := store.Current().Capture()
-		return syllabus.RequestSnapshot{
+		return course.RequestSnapshot{
 			Shell:      nav.Shell{Nav: snap.Navigation(), Governed: true},
 			Generation: snap,
 			Authority:  status,
@@ -313,7 +313,7 @@ func TestTheCoverOffersListeningExactlyWhereTheListeningPageHasSomethingToPlay(t
 		name   string
 		body   string
 		extra  map[string]string
-		status syllabus.LessonTypes
+		status course.LessonTypes
 		want   bool
 	}{
 		{name: "a lesson with a marked paragraph", body: marked, status: lessonTypes("lesson"), want: true},

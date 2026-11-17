@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -17,10 +17,10 @@ import (
 // collide, and every card would answer to the same name.
 func TestSlotMachineNamesEachCardByItsOwnHeading(t *testing.T) {
 	t.Parallel()
-	slots := map[string]lesson.Position{
-		"A": {LabelZH: "主題", Color: "topic", Fills: []lesson.Fill{{JP: "私", Reading: "わたし", ZH: "我"}}},
+	slots := map[string]drill.Position{
+		"A": {LabelZH: "主題", Color: "topic", Fills: []drill.Fill{{JP: "私", Reading: "わたし", ZH: "我"}}},
 	}
-	view := &lesson.Sidecar{Patterns: []lesson.Pattern{
+	view := &drill.Sidecar{Patterns: []drill.Pattern{
 		{Template: "{A}です", GlossZH: "{A}。", Slots: slots},
 		{Template: "{A}ですか", GlossZH: "{A}嗎。", Slots: slots},
 	}}
@@ -60,10 +60,10 @@ func TestSlotMachineNamesEachCardByItsOwnHeading(t *testing.T) {
 // read on arrival, when nothing has happened yet.
 func TestSlotMachineShipsAnEmptyJapaneseLiveRegionPerCard(t *testing.T) {
 	t.Parallel()
-	slots := map[string]lesson.Position{
-		"A": {LabelZH: "主題", Color: "topic", Fills: []lesson.Fill{{JP: "私", Reading: "わたし", ZH: "我"}}},
+	slots := map[string]drill.Position{
+		"A": {LabelZH: "主題", Color: "topic", Fills: []drill.Fill{{JP: "私", Reading: "わたし", ZH: "我"}}},
 	}
-	view := &lesson.Sidecar{Patterns: []lesson.Pattern{
+	view := &drill.Sidecar{Patterns: []drill.Pattern{
 		{Template: "{A}です", GlossZH: "{A}。", Slots: slots},
 		{Template: "{A}ですか", GlossZH: "{A}嗎。", Slots: slots},
 	}}
@@ -87,14 +87,14 @@ func TestSlotMachineShipsAnEmptyJapaneseLiveRegionPerCard(t *testing.T) {
 // and a span inside a customizable-select option survives in the DOM.
 func TestSlotMachinePickerJapaneseDeclaresLang(t *testing.T) {
 	t.Parallel()
-	view := &lesson.Sidecar{Patterns: []lesson.Pattern{{
+	view := &drill.Sidecar{Patterns: []drill.Pattern{{
 		Template: "{A}です",
 		GlossZH:  "{A}。",
-		Slots: map[string]lesson.Position{
+		Slots: map[string]drill.Position{
 			"A": {
 				LabelZH: "主題",
 				Color:   "topic",
-				Fills: []lesson.Fill{
+				Fills: []drill.Fill{
 					{JP: "わたし", Reading: "わたし", ZH: "我"},
 					{JP: "田中さん", Reading: "たなかさん", ZH: "田中先生"},
 				},
@@ -123,14 +123,14 @@ func TestSlotMachinePickerJapaneseDeclaresLang(t *testing.T) {
 
 func TestSlotMachineRendersPatternData(t *testing.T) {
 	t.Parallel()
-	view := &lesson.Sidecar{Patterns: []lesson.Pattern{{
+	view := &drill.Sidecar{Patterns: []drill.Pattern{{
 		ID:       "plain",
 		Template: "{A}です",
 		GlossZH:  "{A}。",
-		Slots: map[string]lesson.Position{
+		Slots: map[string]drill.Position{
 			"A": {
 				Color: "topic",
-				Fills: []lesson.Fill{{JP: "私", Reading: "わたし", ZH: "我"}},
+				Fills: []drill.Fill{{JP: "私", Reading: "わたし", ZH: "我"}},
 			},
 		},
 	}}}

@@ -40,7 +40,7 @@ func TestFreshnessSourceSizeBoundary(t *testing.T) {
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
 				Source: source, Snapshot: func() *snapshot.Generation { return published },
-				Authority: authority, Continuation: noMark, Log: log,
+				Authority: authority, Bookmark: noMark, Log: log,
 			}).Register(mux)
 
 			page := httptest.NewRecorder()

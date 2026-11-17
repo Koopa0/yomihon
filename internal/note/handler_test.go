@@ -89,7 +89,7 @@ func newServerWithGovernance(
 
 // noMark is the reading state of a reader who has kept no place, which is
 // every test but the ones about the desk's row back to one.
-func noMark() (mark.Continuation, bool) { return mark.Continuation{}, false }
+func noMark() (mark.Bookmark, bool) { return mark.Bookmark{}, false }
 
 // newServerWithMark is newServerWithGovernance with a place the reader kept,
 // so the desk's row back to it can be driven without a file on disk.
@@ -98,7 +98,7 @@ func newServerWithMark(
 	root string,
 	contract *schema.Contract,
 	governance schema.Governance,
-	kept func() (mark.Continuation, bool),
+	kept func() (mark.Bookmark, bool),
 ) *httptest.Server {
 	t.Helper()
 	return newServerKeepingPlaces(t, root, contract, governance, kept, "")
@@ -112,7 +112,7 @@ func newServerKeepingPlaces(
 	root string,
 	contract *schema.Contract,
 	governance schema.Governance,
-	kept func() (mark.Continuation, bool),
+	kept func() (mark.Bookmark, bool),
 	markAddress string,
 ) *httptest.Server {
 	t.Helper()
@@ -120,14 +120,14 @@ func newServerKeepingPlaces(
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, governance)
 	h := note.New(&note.Sources{
-		Source:       source,
-		Contract:     contract,
-		VaultName:    shell.VaultName(source.Name()),
-		Authority:    func() schema.Authority { return schema.CaptureAuthority(contract, governance) },
-		Snapshot:     store.Current,
-		Continuation: kept,
-		MarkAddress:  markAddress,
-		Log:          log,
+		Source:      source,
+		Contract:    contract,
+		VaultName:   shell.VaultName(source.Name()),
+		Authority:   func() schema.Authority { return schema.CaptureAuthority(contract, governance) },
+		Snapshot:    store.Current,
+		Bookmark:    kept,
+		MarkAddress: markAddress,
+		Log:         log,
 	})
 	h.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -235,11 +235,11 @@ func TestShowUsesOneAuthorityViewAndClosesTheNextRequestAfterDrift(t *testing.T)
 
 	mux := http.NewServeMux()
 	handler := note.New(&note.Sources{
-		Continuation: noMark,
-		Source:       source,
-		Authority:    counted,
-		Snapshot:     store.Current,
-		Log:          log,
+		Bookmark:  noMark,
+		Source:    source,
+		Authority: counted,
+		Snapshot:  store.Current,
+		Log:       log,
 	})
 	handler.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -327,11 +327,11 @@ func TestShowClosesInstanceProjectionsForEitherAuthorityCaptureOrder(t *testing.
 
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				Continuation: noMark,
-				Source:       source,
-				Authority:    func() schema.Authority { return authority },
-				Snapshot:     func() *snapshot.Generation { return captured },
-				Log:          log,
+				Bookmark:  noMark,
+				Source:    source,
+				Authority: func() schema.Authority { return authority },
+				Snapshot:  func() *snapshot.Generation { return captured },
+				Log:       log,
 			}).Register(mux)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
@@ -411,8 +411,8 @@ func TestShowFileCapturesStatusOnce(t *testing.T) {
 	statusCaptures := 0
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Continuation: noMark,
-		Source:       source,
+		Bookmark: noMark,
+		Source:   source,
 		Authority: func() schema.Authority {
 			statusCaptures++
 			return capture()
@@ -1251,9 +1251,9 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 			calls := 0
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				Continuation: noMark,
-				Source:       firstSource,
-				Authority:    capture,
+				Bookmark:  noMark,
+				Source:    firstSource,
+				Authority: capture,
 				Snapshot: func() *snapshot.Generation {
 					calls++
 					return current.Swap(secondStore.Current())
@@ -1333,9 +1333,9 @@ func TestMissingPageKeepsCapturedGenerationWhenCurrentSwaps(t *testing.T) {
 			calls := 0
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				Continuation: noMark,
-				Source:       firstSource,
-				Authority:    capture,
+				Bookmark:  noMark,
+				Source:    firstSource,
+				Authority: capture,
 				Snapshot: func() *snapshot.Generation {
 					calls++
 					return current.Swap(secondStore.Current())
@@ -1392,9 +1392,9 @@ func TestReadingFacesReadOneRequestSnapshot(t *testing.T) {
 			calls := 0
 			mux := http.NewServeMux()
 			note.New(&note.Sources{
-				Continuation: noMark,
-				Source:       source,
-				Authority:    capture,
+				Bookmark:  noMark,
+				Source:    source,
+				Authority: capture,
 				Snapshot: func() *snapshot.Generation {
 					calls++
 					return store.Current()
@@ -1573,11 +1573,11 @@ body
 	}
 	mux := http.NewServeMux()
 	handler := note.New(&note.Sources{
-		Continuation: noMark,
-		Source:       source,
-		Authority:    counted,
-		Snapshot:     store.Current,
-		Log:          log,
+		Bookmark:  noMark,
+		Source:    source,
+		Authority: counted,
+		Snapshot:  store.Current,
+		Log:       log,
 	})
 	handler.Register(mux)
 	srv := httptest.NewServer(mux)
@@ -2109,8 +2109,8 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			want:  "note: New requires a non-nil Snapshot provider",
 		},
 		{
-			name:  "continuation provider",
-			clear: func(d *note.Sources) { d.Continuation = nil },
+			name:  "bookmark provider",
+			clear: func(d *note.Sources) { d.Bookmark = nil },
 			want:  "note: New requires a non-nil Continuation provider",
 		},
 		{
@@ -2138,11 +2138,11 @@ func TestNewPanicsOnAMissingDependency(t *testing.T) {
 			store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 			capture := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 			deps := note.Sources{
-				Continuation: noMark,
-				Source:       source,
-				Authority:    capture,
-				Snapshot:     store.Current,
-				Log:          log,
+				Bookmark:  noMark,
+				Source:    source,
+				Authority: capture,
+				Snapshot:  store.Current,
+				Log:       log,
 			}
 			tt.clear(&deps)
 			note.New(&deps)
@@ -2161,11 +2161,11 @@ func TestNewCopiesItsSources(t *testing.T) {
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	capture := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 	deps := note.Sources{
-		Continuation: noMark,
-		Source:       source,
-		Authority:    capture,
-		Snapshot:     store.Current,
-		Log:          log,
+		Bookmark:  noMark,
+		Source:    source,
+		Authority: capture,
+		Snapshot:  store.Current,
+		Log:       log,
 	}
 	handler := note.New(&deps)
 	deps.Source = openReadingVault(t, t.TempDir())
@@ -2313,11 +2313,11 @@ func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
 	store, source := newSnapshotStore(t, root, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
 	mux := http.NewServeMux()
 	note.New(&note.Sources{
-		Source:       source,
-		Authority:    func() schema.Authority { return schema.Authority{} },
-		Snapshot:     store.Current,
-		Continuation: noMark,
-		Log:          slog.New(slog.DiscardHandler),
+		Source:    source,
+		Authority: func() schema.Authority { return schema.Authority{} },
+		Snapshot:  store.Current,
+		Bookmark:  noMark,
+		Log:       slog.New(slog.DiscardHandler),
 	}).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)

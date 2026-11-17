@@ -52,7 +52,7 @@ func TestPathNeighbors(t *testing.T) {
 	policy := testArtifactPolicy(t)
 	goPath := buildPath(pathNote("Maps/go.md", "Go 課綱", goBody), idx, nil, policy)
 	jpPath := buildPath(pathNote("Maps/jp.md", "日本語 學習路徑", jpBody), idx, nil, policy)
-	m := &Model{paths: []Path{goPath, jpPath}}
+	m := &Model{paths: []Course{goPath, jpPath}}
 
 	tests := []struct {
 		name    string

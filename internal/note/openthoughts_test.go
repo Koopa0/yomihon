@@ -24,7 +24,7 @@ import (
 
 // Catches dropping a kept mark after a rebuild, retaining a dead fragment,
 // treating a lost pair as an inadmissible addition, and hiding Home's fault row.
-func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
+func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name     string
@@ -59,12 +59,12 @@ func TestOpenThoughtsRetainsLostUncertaintyMarks(t *testing.T) {
 				Source: source, Authority: authority,
 				Snapshot: func() *snapshot.Generation { return current },
 
-				Continuation: noMark, Uncertainties: marks.Uncertainties,
-				UncertaintyAddress: mark.UncertaintyAddress, Log: log,
+				Bookmark: noMark, Questions: marks.Questions,
+				QuestionAddress: mark.QuestionAddress, Log: log,
 			})
 			mux := http.NewServeMux()
 			handler.Register(mux)
-			mark.NewUncertaintyHandler(marks, handler, log).Register(mux)
+			mark.NewQuestionHandler(marks, handler, log).Register(mux)
 			form := url.Values{"path": {rel}, "anchor": {"chapter"}}.Encode()
 			if diff := cmp.Diff("{\"marked\":true}\n", lostMarkRequest(t, mux, http.MethodPost, "/uncertainties", form, tt.lang)); diff != "" {
 				t.Fatalf("add mark mismatch (-want +got):\n%s", diff)
@@ -216,10 +216,10 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 					return first.Current()
 				},
 
-				Continuation: noMark, Uncertainties: marks.Uncertainties,
-				UncertaintyAddress: mark.UncertaintyAddress, Log: log,
+				Bookmark: noMark, Questions: marks.Questions,
+				QuestionAddress: mark.QuestionAddress, Log: log,
 			})
-			marked, err := marks.ToggleUncertainty(&mark.Uncertainty{RelPath: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, func(u *mark.Uncertainty) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
+			marked, err := marks.ToggleQuestion(&mark.Question{RelPath: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, func(u *mark.Question) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -227,7 +227,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 				t.Fatal("initial real mark was not added")
 			}
 			initial := http.NewServeMux()
-			mark.NewUncertaintyHandler(marks, handler, log).Register(initial)
+			mark.NewQuestionHandler(marks, handler, log).Register(initial)
 			assertLostMarkPair(t, initial, "en", "Source.md", "chapter")
 			if writeErr := os.WriteFile(file, []byte("---\n---\n# Later title\n\n## Renamed\n"), 0o600); writeErr != nil {
 				t.Fatal(writeErr)
@@ -260,7 +260,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 
 func assertLostMarkPair(t *testing.T, mux http.Handler, lang, rel, anchor string) {
 	t.Helper()
-	var held []mark.Uncertainty
+	var held []mark.Question
 	listed := lostMarkRequest(t, mux, http.MethodGet, "/uncertainties", "", lang)
 	if err := json.Unmarshal([]byte(listed), &held); err != nil {
 		t.Fatal(err)
@@ -307,10 +307,10 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 		Source: source, Authority: authority,
 		Snapshot: func() *snapshot.Generation { return current },
 
-		Continuation: noMark, Uncertainties: marks.Uncertainties,
-		UncertaintyAddress: mark.UncertaintyAddress, Log: log,
+		Bookmark: noMark, Questions: marks.Questions,
+		QuestionAddress: mark.QuestionAddress, Log: log,
 	})
-	for _, kept := range []mark.Uncertainty{
+	for _, kept := range []mark.Question{
 		{RelPath: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
 		{RelPath: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
 		{RelPath: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
@@ -318,7 +318,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 		{RelPath: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
 		{RelPath: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
 	} {
-		marked, markErr := marks.ToggleUncertainty(&kept, func(u *mark.Uncertainty) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
+		marked, markErr := marks.ToggleQuestion(&kept, func(u *mark.Question) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
 		if markErr != nil {
 			t.Fatal(markErr)
 		}
@@ -326,11 +326,11 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 			t.Fatalf("initial mark %s #%s was not added", kept.RelPath, kept.Anchor)
 		}
 	}
-	held, err := marks.Uncertainties()
+	held, err := marks.Questions()
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantStored := []mark.Uncertainty{
+	wantStored := []mark.Question{
 		{RelPath: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
 		{RelPath: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
 		{RelPath: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
@@ -351,7 +351,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	current = rebuilt.Current()
 	mux := http.NewServeMux()
 	handler.Register(mux)
-	mark.NewUncertaintyHandler(marks, handler, log).Register(mux)
+	mark.NewQuestionHandler(marks, handler, log).Register(mux)
 	for _, tt := range []struct {
 		lang  string
 		count string
@@ -390,17 +390,17 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	}
 }
 
-func lostMarkRecords(t *testing.T, mux http.Handler, lang string) []mark.Uncertainty {
+func lostMarkRecords(t *testing.T, mux http.Handler, lang string) []mark.Question {
 	t.Helper()
 	listed := lostMarkRequest(t, mux, http.MethodGet, "/uncertainties", "", lang)
-	var held []mark.Uncertainty
+	var held []mark.Question
 	if err := json.Unmarshal([]byte(listed), &held); err != nil {
 		t.Fatal(err)
 	}
 	return held
 }
 
-func assertLostMarksUnchanged(t *testing.T, mux http.Handler, lang string, want []mark.Uncertainty) {
+func assertLostMarksUnchanged(t *testing.T, mux http.Handler, lang string, want []mark.Question) {
 	t.Helper()
 	if diff := cmp.Diff(want, lostMarkRecords(t, mux, lang)); diff != "" {
 		t.Errorf("caught: reading changed complete stored marks (-want +got):\n%s", diff)

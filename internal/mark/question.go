@@ -17,98 +17,98 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// ErrUnreadableUncertainties means an existing uncertainty file cannot be
+// ErrUnreadableQuestions means an existing question file cannot be
 // read safely. A toggle leaves that file untouched so the reader can recover it.
-var ErrUnreadableUncertainties = errors.New("the uncertainty marks cannot be read")
+var ErrUnreadableQuestions = errors.New("the uncertainty marks cannot be read")
 
-// MaxUncertainties bounds how many places are kept at once. A reader marks a
+// MaxQuestions bounds how many places are kept at once. A reader marks a
 // handful of spots to revisit; the bound keeps an unbounded stream of requests
 // from growing a file that every later request reads whole.
-const MaxUncertainties = 500
+const MaxQuestions = 500
 
-// maxUncertaintyFileBytes bounds what a read takes in: room for MaxUncertainties
+// maxQuestionFileBytes bounds what a read takes in: room for MaxQuestions
 // entries at the longest path and anchor validate admits, each byte escaped to
 // six in JSON, with the time and indentation around them. A larger file was not
 // written here and is read as damaged rather than taken in whole.
-const maxUncertaintyFileBytes = MaxUncertainties * 8 << 10
+const maxQuestionFileBytes = MaxQuestions * 8 << 10
 
-// Uncertainty is a place the reader wants to revisit without claiming an
+// Question is a place the reader wants to revisit without claiming an
 // answer. Its path and anchor identify it; it carries no source-content copy.
-type Uncertainty struct {
+type Question struct {
 	RelPath string    `json:"path"`
 	Anchor  string    `json:"anchor"`
 	At      time.Time `json:"time"`
 }
 
-// UncertaintyPath names a separate file. Older versions replacing reader.json
+// QuestionPath names a separate file. Older versions replacing reader.json
 // cannot erase these accumulated marks.
-func (f *File) UncertaintyPath() string {
+func (f *File) QuestionPath() string {
 	return filepath.Join(f.dir, "uncertainty.json")
 }
 
-// Uncertainties returns marks in the order they were added. Missing storage is
+// Questions returns marks in the order they were added. Missing storage is
 // an empty list; an unreadable or malformed file is an error, not an empty list.
 // Each call reads the file again so deleting it clears the marks.
-func (f *File) Uncertainties() ([]Uncertainty, error) {
-	held, _, err := f.StoredUncertainties()
+func (f *File) Questions() ([]Question, error) {
+	held, _, err := f.StoredQuestions()
 	return held, err
 }
 
-// StoredUncertainties is Uncertainties, also reporting whether the file exists
+// StoredQuestions is Questions, also reporting whether the file exists
 // at all: a reader who never marked anything and one who cleared every mark
 // both hold no marks, and only the file tells them apart.
-func (f *File) StoredUncertainties() (held []Uncertainty, stored bool, err error) {
-	data, err := readBounded(f.UncertaintyPath(), maxUncertaintyFileBytes)
+func (f *File) StoredQuestions() (held []Question, stored bool, err error) {
+	data, err := readBounded(f.QuestionPath(), maxQuestionFileBytes)
 	if errors.Is(err, os.ErrNotExist) {
-		return []Uncertainty{}, false, nil
+		return []Question{}, false, nil
 	}
 	if err != nil {
-		return nil, true, fmt.Errorf("%w: %w", ErrUnreadableUncertainties, err)
+		return nil, true, fmt.Errorf("%w: %w", ErrUnreadableQuestions, err)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err = decoder.Decode(&held); err != nil {
-		return nil, true, fmt.Errorf("%w: %w", ErrUnreadableUncertainties, err)
+		return nil, true, fmt.Errorf("%w: %w", ErrUnreadableQuestions, err)
 	}
 	// Valid checks the entire document, including trailing bytes. A null value
 	// is not the array written here and must not silently become an empty file.
 	if !json.Valid(data) || held == nil {
-		return nil, true, fmt.Errorf("%w: expected an array of marks", ErrUnreadableUncertainties)
+		return nil, true, fmt.Errorf("%w: expected an array of marks", ErrUnreadableQuestions)
 	}
-	// The writer keeps no more than MaxUncertainties, so a longer array was
+	// The writer keeps no more than MaxQuestions, so a longer array was
 	// written by something else.
-	if len(held) > MaxUncertainties {
-		return nil, true, fmt.Errorf("%w: more than %d marks", ErrUnreadableUncertainties, MaxUncertainties)
+	if len(held) > MaxQuestions {
+		return nil, true, fmt.Errorf("%w: more than %d marks", ErrUnreadableQuestions, MaxQuestions)
 	}
 	seen := make(map[[2]string]bool, len(held))
 	for i := range held {
-		if err = validateUncertainty(&held[i]); err != nil {
+		if err = validateQuestion(&held[i]); err != nil {
 			// The stored entry's fault stays text: wrapping it would let the
 			// route read a corrupt file as a refused request.
-			return nil, true, fmt.Errorf("%w: %s", ErrUnreadableUncertainties, err.Error())
+			return nil, true, fmt.Errorf("%w: %s", ErrUnreadableQuestions, err.Error())
 		}
 		key := [2]string{held[i].RelPath, held[i].Anchor}
 		if seen[key] {
-			return nil, true, fmt.Errorf("%w: duplicate path and anchor", ErrUnreadableUncertainties)
+			return nil, true, fmt.Errorf("%w: duplicate path and anchor", ErrUnreadableQuestions)
 		}
 		seen[key] = true
 	}
 	return held, true, nil
 }
 
-// ToggleUncertainty adds a new path and anchor, or removes the existing pair.
+// ToggleQuestion adds a new path and anchor, or removes the existing pair.
 // The result says whether the pair is now kept. Removing is always allowed;
 // adding needs admit to accept the pair (checked while the file is locked, only
-// when the pair is new) and room under MaxUncertainties. A refusal wraps
+// when the pair is new) and room under MaxQuestions. A refusal wraps
 // ErrInvalid. Validation and read failures leave the existing file unchanged,
 // including a corrupt file's original bytes.
-func (f *File) ToggleUncertainty(kept *Uncertainty, admit func(*Uncertainty) bool) (bool, error) {
-	if err := validateUncertainty(kept); err != nil {
+func (f *File) ToggleQuestion(kept *Question, admit func(*Question) bool) (bool, error) {
+	if err := validateQuestion(kept); err != nil {
 		return false, err
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	held, err := f.Uncertainties()
+	held, err := f.Questions()
 	if err != nil {
 		return false, err
 	}
@@ -124,7 +124,7 @@ func (f *File) ToggleUncertainty(kept *Uncertainty, admit func(*Uncertainty) boo
 		if admit == nil || !admit(kept) {
 			return false, fmt.Errorf("%w: the place is not one this vault renders", ErrInvalid)
 		}
-		if len(held) >= MaxUncertainties {
+		if len(held) >= MaxQuestions {
 			return false, fmt.Errorf("%w: %d places are already kept", ErrInvalid, len(held))
 		}
 		held = append(held, *kept)
@@ -136,14 +136,14 @@ func (f *File) ToggleUncertainty(kept *Uncertainty, admit func(*Uncertainty) boo
 	if err = os.MkdirAll(f.dir, 0o700); err != nil {
 		return false, fmt.Errorf("create the marks directory: %w", err)
 	}
-	err = f.replaceUncertainties(append(data, '\n'))
+	err = f.replaceQuestions(append(data, '\n'))
 	if err != nil {
 		return false, err
 	}
 	return added, nil
 }
 
-func validateUncertainty(kept *Uncertainty) error {
+func validateQuestion(kept *Question) error {
 	switch {
 	case kept == nil:
 		return fmt.Errorf("%w: no uncertainty mark", ErrInvalid)
@@ -154,7 +154,7 @@ func validateUncertainty(kept *Uncertainty) error {
 	case !fs.ValidPath(kept.RelPath) || kept.RelPath == ".":
 		return fmt.Errorf("%w: the note path is not vault-relative", ErrInvalid)
 	case strings.ContainsFunc(kept.RelPath, origin.EndsALine):
-		// As validate refuses for a continuation: a path holding a line break
+		// As validate refuses for a bookmark: a path holding a line break
 		// or an escape is not one line of text for a later reader to show.
 		return fmt.Errorf("%w: the note path carries a control character", ErrInvalid)
 	case kept.RelPath != vault.NormalizeNFC(kept.RelPath):
@@ -188,10 +188,10 @@ func readBounded(name string, limit int64) ([]byte, error) {
 	return data, nil
 }
 
-// replaceUncertainties installs a complete array by rename, never partially
-// rewriting the existing file. Like continuation marks, these are not synced
+// replaceQuestions installs a complete array by rename, never partially
+// rewriting the existing file. Like bookmark marks, these are not synced
 // to disk against a power loss; the reader can set a lost mark again.
-func (f *File) replaceUncertainties(data []byte) error {
+func (f *File) replaceQuestions(data []byte) error {
 	tmp, err := os.CreateTemp(f.dir, ".uncertainty-*.json")
 	if err != nil {
 		return fmt.Errorf("create the temporary uncertainty file: %w", err)
@@ -203,7 +203,7 @@ func (f *File) replaceUncertainties(data []byte) error {
 	if err = tmp.Close(); err != nil {
 		return abandon(nil, name, fmt.Errorf("close the temporary uncertainty file: %w", err))
 	}
-	if err = os.Rename(name, f.UncertaintyPath()); err != nil {
+	if err = os.Rename(name, f.QuestionPath()); err != nil {
 		return abandon(nil, name, fmt.Errorf("install the uncertainty file: %w", err))
 	}
 	return nil

@@ -818,7 +818,7 @@ func TestProjectionPackagesHaveNoLegacyEntryPoints(t *testing.T) {
 			"ReadNote":          true,
 		},
 		"internal/graph":   {"Build": true},
-		"internal/lesson":  {"BuildConceptIndex": true, "BuildSlotIndex": true, "LoadConcept": true, "readSidecar": true},
+		"internal/drill":   {"BuildConceptIndex": true, "BuildSlotIndex": true, "LoadConcept": true, "readSidecar": true},
 		"internal/nav":     {"Build": true},
 		"internal/lexical": {"Build": true},
 	}

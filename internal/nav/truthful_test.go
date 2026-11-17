@@ -76,7 +76,7 @@ func TestPathsHandsOutNoWayBackIntoTheModel(t *testing.T) {
 	idx := resolver(t, "Writing/L01.md", "Writing/S01.md", "A/Dup.md", "B/Dup.md")
 	body := "## 主線 {sequence=primary}\n\n- [[L01]]\n- [[Dup]]\n\t- 支線 {sequence=local}\n\t\t- [[S01]]\n"
 	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
-	m := &Model{paths: []Path{p}}
+	m := &Model{paths: []Course{p}}
 
 	if !holdsCandidates(m.Paths()) {
 		t.Fatal("the fixture produced no ambiguous row, so the candidate list is never reached")
@@ -121,7 +121,7 @@ func allPathGroups(groups []*PathGroup) []*PathGroup {
 
 // describePaths renders the whole projection as text, so a change anywhere in
 // it shows up as a difference.
-func describePaths(paths []Path) string {
+func describePaths(paths []Course) string {
 	var b strings.Builder
 	for i := range paths {
 		p := &paths[i]
@@ -206,7 +206,7 @@ func TestAnInvalidBranchCountsNothing(t *testing.T) {
 
 // holdsCandidates reports whether any row resolved ambiguously and so carries
 // the candidate list the deep copy has to reach.
-func holdsCandidates(paths []Path) bool {
+func holdsCandidates(paths []Course) bool {
 	for i := range paths {
 		for _, g := range allPathGroups(paths[i].Groups) {
 			for _, item := range g.Items {

@@ -61,9 +61,9 @@ type RowSource struct {
 	Language string
 }
 
-// UncertaintyRemoval identifies the original stored mark a reader may remove.
+// QuestionRemoval identifies the original stored mark a reader may remove.
 // It is a projection of reader state, not authority to add a mark.
-type UncertaintyRemoval struct {
+type QuestionRemoval struct {
 	Label       string
 	Unavailable string
 	Failed      string
@@ -86,8 +86,8 @@ type Row struct {
 	// Place names the location inside the document that the row marks, drawn
 	// after Text in its own language. The zero value draws no place.
 	Place RowPlace
-	// Removal is present only for a lost uncertainty mark.
-	Removal *UncertaintyRemoval
+	// Removal is present only for a lost question mark.
+	Removal *QuestionRemoval
 	// Thought says the row is a note of the reader's own, and not a place they
 	// marked. Draft says it declares itself unfinished, which a thought on the
 	// shelf of what was left open always does.

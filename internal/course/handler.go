@@ -1,10 +1,10 @@
-// Package syllabus serves a study path as a course: the study-path tree with a
+// Package course serves a study path as a course: the study-path tree with a
 // switcher across every study path in the vault, and the same course read
 // aloud. The tree reads paths the navigation model already parsed; the
 // listening page renders each lesson the course teaches, because a note's
 // read-aloud markers survive only into rendered HTML and the snapshot keeps
 // none.
-package syllabus
+package course
 
 import (
 	"log/slog"
@@ -37,7 +37,7 @@ type RequestSnapshot struct {
 	// they left one. A course compares the note it names against the rows it
 	// already lists and follows nothing: a place kept anywhere else changes
 	// nothing about the page.
-	Kept   mark.Continuation
+	Kept   mark.Bookmark
 	Marked bool
 
 	// Authority answers which note type this vault files its course members
@@ -60,7 +60,7 @@ type Handler struct {
 	log     *slog.Logger
 }
 
-// New wires the syllabus feature. Every dependency must be non-nil: a nil
+// New wires the course feature. Every dependency must be non-nil: a nil
 // is a wiring bug that must fail here, not on the first request.
 func New(current func() RequestSnapshot, log *slog.Logger) *Handler {
 	if current == nil {

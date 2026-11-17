@@ -50,7 +50,7 @@ func (m *Model) PathNeighbors(relPath string) []Neighbors {
 // locate is where a note first appears among a path's components, in the order
 // they are walked: which component, and where in it. Both answers about a note
 // in a path — its neighbors and its place — read it from here.
-func (p *Path) locate(relPath string) (component, at int, found bool) {
+func (p *Course) locate(relPath string) (component, at int, found bool) {
 	for i, stops := range p.components {
 		if at := indexOfStop(stops, relPath); at >= 0 {
 			return i, at, true

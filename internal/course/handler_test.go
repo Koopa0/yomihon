@@ -1,4 +1,4 @@
-package syllabus_test
+package course_test
 
 import (
 	"io"
@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/course"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -28,17 +28,17 @@ import (
 // a page built without one would draw a course with no words above its counts.
 func newServer(t *testing.T, root string) *httptest.Server {
 	t.Helper()
-	return newServerWithMark(t, root, &mark.Continuation{}, false)
+	return newServerWithMark(t, root, &mark.Bookmark{}, false)
 }
 
 // newServerWithMark is newServer for a reader who left a place behind.
-func newServerWithMark(t *testing.T, root string, kept *mark.Continuation, marked bool) *httptest.Server {
+func newServerWithMark(t *testing.T, root string, kept *mark.Bookmark, marked bool) *httptest.Server {
 	t.Helper()
 	model := loadModel(t, root)
 	snap := publishedGeneration(t, root)
 	mux := http.NewServeMux()
-	syllabus.New(func() syllabus.RequestSnapshot {
-		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model}, Generation: snap, Kept: *kept, Marked: marked}
+	course.New(func() course.RequestSnapshot {
+		return course.RequestSnapshot{Shell: nav.Shell{Nav: model}, Generation: snap, Kept: *kept, Marked: marked}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -251,9 +251,9 @@ func TestShowReadsOneShellSnapshot(t *testing.T) {
 	calls := 0
 	mux := http.NewServeMux()
 	snap := publishedGeneration(t, root)
-	syllabus.New(func() syllabus.RequestSnapshot {
+	course.New(func() course.RequestSnapshot {
 		calls++
-		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: model, Governed: true}, Generation: snap}
+		return course.RequestSnapshot{Shell: nav.Shell{Nav: model, Governed: true}, Generation: snap}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/courses/Maps/Go%20path.md", http.NoBody))
@@ -317,7 +317,7 @@ func TestNewHandlerPanicsOnNilProvider(t *testing.T) {
 			t.Fatal("New(nil provider) did not panic")
 		}
 	}()
-	syllabus.New(nil, slog.New(slog.DiscardHandler))
+	course.New(nil, slog.New(slog.DiscardHandler))
 }
 
 // The page says how big a course is, never how much of it is done. The figure
@@ -483,9 +483,9 @@ func TestShowComposesTheNameTheReaderCameFrom(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(lessonDir), composedLesson+".md"), []byte(lesson), 0o600); err != nil {
 		t.Fatalf("write lesson: %v", err)
 	}
-	course := "---\ntitle: Cafe course\ntype: study-path\ndomain: golang\n---\n\n" +
+	courseNote := "---\ntitle: Cafe course\ntype: study-path\ndomain: golang\n---\n\n" +
 		"## data | Data | 資料\n\n### text | Text | 文字 {sequence=primary}\n\n- [[" + composedLesson + "]]\n"
-	if err := os.WriteFile(filepath.Join(root, "Maps", "Cafe course.md"), []byte(course), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "Maps", "Cafe course.md"), []byte(courseNote), 0o600); err != nil {
 		t.Fatalf("write study-path: %v", err)
 	}
 	srv := newServer(t, root)

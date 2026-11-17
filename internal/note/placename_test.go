@@ -26,9 +26,9 @@ func TestOpenThoughtsNamesShownPlacesInTheirOwnLanguage(t *testing.T) {
 		Source: source, Contract: contract, Authority: authority,
 		Snapshot: func() *snapshot.Generation { return store.Current() },
 
-		Continuation: noMark, Log: log,
-		Uncertainties: func() ([]mark.Uncertainty, error) {
-			return []mark.Uncertainty{
+		Bookmark: noMark, Log: log,
+		Questions: func() ([]mark.Question, error) {
+			return []mark.Question{
 				{RelPath: "Writing/Cutoverzh.md", Anchor: "ledger", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
 				{RelPath: "Writing/Cutoverzh.md", Anchor: "slot-pattern-1", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
 				{RelPath: "Writing/Cutoverzh.md", Anchor: "slot-pattern-2", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},

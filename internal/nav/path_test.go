@@ -72,7 +72,7 @@ func TestPrimaryAndLocalNeverLinkToEachOther(t *testing.T) {
 		"\t\t- [[S02]]\n" +
 		"- [[L03]]\n"
 	p := buildPath(pathNote("Maps/Course.md", "Course", body), idx, nil, testArtifactPolicy(t))
-	m := &Model{paths: []Path{p}}
+	m := &Model{paths: []Course{p}}
 
 	ref := func(name, rel string) NoteRef { return NoteRef{Name: name, RelPath: rel} }
 	tests := []struct {

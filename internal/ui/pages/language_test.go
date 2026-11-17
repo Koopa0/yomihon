@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
@@ -186,7 +186,7 @@ func TestBrowserCopyUsesTraditionalChinese(t *testing.T) {
 func TestSlotMachineRestoresChromeLanguage(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	if err := SlotMachine(&lesson.Sidecar{}, "response-nonce", wording.ZhHant).Render(t.Context(), &buf); err != nil {
+	if err := SlotMachine(&drill.Sidecar{}, "response-nonce", wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render slot machine: %v", err)
 	}
 	if html := buf.String(); !strings.Contains(html, `<section class="y-slotmachine" lang="zh-Hant" aria-label="句型練習">`) {
@@ -196,7 +196,7 @@ func TestSlotMachineRestoresChromeLanguage(t *testing.T) {
 
 func TestSlotMachineDataCarriesTheResponseNonce(t *testing.T) {
 	t.Parallel()
-	view := &lesson.Sidecar{Patterns: []lesson.Pattern{{
+	view := &drill.Sidecar{Patterns: []drill.Pattern{{
 		ID:       "plain",
 		Template: "plain sentence",
 		GlossZH:  "普通句子",

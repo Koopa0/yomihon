@@ -16,10 +16,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/figure"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
-	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
@@ -152,8 +152,8 @@ type Generation struct {
 	graph          *graph.Index
 	navigation     *nav.Model
 	search         *lexical.Index
-	slots          lesson.SlotIndex
-	concepts       lesson.ConceptIndex
+	slots          drill.SlotIndex
+	concepts       drill.ConceptIndex
 	planned        judge.Planned
 	backlinks      *Backlinks
 	basedOnBy      *basedOnBy
@@ -358,17 +358,17 @@ func (g *Generation) Search() *lexical.Index {
 }
 
 // Slots returns the immutable lesson-slot index for this generation.
-func (g *Generation) Slots() lesson.SlotIndex {
+func (g *Generation) Slots() drill.SlotIndex {
 	if g == nil {
-		return lesson.SlotIndex{}
+		return drill.SlotIndex{}
 	}
 	return g.slots
 }
 
 // Concepts returns the immutable concept-sheet index for this generation.
-func (g *Generation) Concepts() lesson.ConceptIndex {
+func (g *Generation) Concepts() drill.ConceptIndex {
 	if g == nil {
-		return lesson.ConceptIndex{}
+		return drill.ConceptIndex{}
 	}
 	return g.concepts
 }
@@ -1072,12 +1072,12 @@ func buildGeneration(
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated)
 	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.products, g.files, capabilities.Knowledge, capabilities.Language), projectionPolicy)
 
-	slots, slotProblems := lesson.NewSlotIndex(g.sidecars)
+	slots, slotProblems := drill.NewSlotIndex(g.sidecars)
 	g.warnSlotProblems(scan, slotProblems, log)
-	concepts, err := lesson.NewConceptIndex(g.ordered)
+	concepts, err := drill.NewConceptIndex(g.ordered)
 	if err != nil {
 		log.Warn("concept sheets unavailable in snapshot generation", "error", err)
-		concepts = lesson.ConceptIndex{}
+		concepts = drill.ConceptIndex{}
 	}
 
 	planned := g.plannedSet()
@@ -1143,11 +1143,11 @@ func markdownCount(entries []vault.Entry) int {
 	return total
 }
 
-// generation is the set of collections one reading of the folder fills, owned
+// build is the set of collections one reading of the folder fills, owned
 // together because every one is filled from two places: the source this reading
-// opened, and the copy the last generation held for a source it could not. A
+// opened, and the copy the last build held for a source it could not. A
 // projection added here is added to a receiver both paths already have.
-type generation struct {
+type build struct {
 	// parsed is every note this generation holds, by path.
 	parsed map[string]*vault.Note
 	// ordered is the same set as a list, in the order the folder was read.
@@ -1185,8 +1185,8 @@ type generation struct {
 }
 
 // newGeneration opens an empty generation sized for a folder of entries files.
-func newGeneration(entries int) *generation {
-	return &generation{
+func newGeneration(entries int) *build {
+	return &build{
 		parsed:       make(map[string]*vault.Note),
 		ordered:      make([]*vault.Note, 0, entries),
 		unreadable:   make([]*vault.Note, 0),
@@ -1201,13 +1201,13 @@ func newGeneration(entries int) *generation {
 	}
 }
 
-func (g *generation) warnSourceUnavailable(entry vault.Entry, err error, log *slog.Logger) {
+func (g *build) warnSourceUnavailable(entry vault.Entry, err error, log *slog.Logger) {
 	if g.warnings.record(entry, warningRead, err.Error()) {
 		log.Warn("vault source unavailable in snapshot generation", "path", entry.Path(), "error", err)
 	}
 }
 
-func (g *generation) warnSlotProblems(scan vault.Scan, problems []lesson.Problem, log *slog.Logger) {
+func (g *build) warnSlotProblems(scan vault.Scan, problems []drill.Problem, log *slog.Logger) {
 	for _, problem := range problems {
 		// One unusable sidecar costs one lesson its practice panel, not the rest.
 		entry, ok := scan.Entry(problem.Source)
@@ -1224,7 +1224,7 @@ func (g *generation) warnSlotProblems(scan vault.Scan, problems []lesson.Problem
 // omitDeclaredBasenames leaves folders.skipped_files out of the note map.
 // Each omitted path is still a resource, so /raw/ and wikilinks reach it;
 // the shelf, the index, and exists do not.
-func (g *generation) omitDeclaredBasenames(entries []vault.Entry, contract *schema.Contract) []vault.Entry {
+func (g *build) omitDeclaredBasenames(entries []vault.Entry, contract *schema.Contract) []vault.Entry {
 	kept := make([]vault.Entry, 0, len(entries))
 	for _, entry := range entries {
 		relPath := entry.Path()
@@ -1243,7 +1243,7 @@ func (g *generation) omitDeclaredBasenames(entries []vault.Entry, contract *sche
 // nothing of the file is retained. The skip itself is stored so Skipped()
 // can name it on /health; a log line alone is not a face. A non-note that
 // was not wanted is simply absent, as before.
-func (g *generation) skipUnread(entry vault.Entry, note bool, log *slog.Logger) {
+func (g *build) skipUnread(entry vault.Entry, note bool, log *slog.Logger) {
 	if !note {
 		if figure.Is(entry.Path()) && !withinSourceCap(entry) {
 			// A figure over the bound is never read: its size alone refuses it.
@@ -1358,7 +1358,7 @@ func deriveNote(
 // collection built from a note. If deriving it panics, nothing of the note is
 // filed and the returned reason says what happened, so the caller can treat the
 // file like one it could not open. A note that was filed answers "".
-func (g *generation) readNote(
+func (g *build) readNote(
 	entry vault.Entry,
 	data []byte,
 	languages schema.ArticleLanguage,
@@ -1387,7 +1387,7 @@ func (g *generation) readNote(
 // are seen to do it the record is an ERROR naming the path, the value and the
 // stack. A panic is deterministic for its bytes and an unreadable note is read
 // again on a schedule, so the same bytes panicking again is one WARN line.
-func (g *generation) reportPanic(entry vault.Entry, data []byte, fault *notePanic, log *slog.Logger) {
+func (g *build) reportPanic(entry vault.Entry, data []byte, fault *notePanic, log *slog.Logger) {
 	relPath := entry.Path()
 	identity := vault.ContentIdentity(data)
 	if seen, ok := g.reported[relPath]; ok && seen == identity {
@@ -1406,7 +1406,7 @@ func (g *generation) reportPanic(entry vault.Entry, data []byte, fault *notePani
 
 // plannedSet is the corpus's one set of planned names: the harvest of every
 // held note, each made when that note was read.
-func (g *generation) plannedSet() judge.Planned {
+func (g *build) plannedSet() judge.Planned {
 	sets := make([]judge.Planned, 0, len(g.ordered))
 	for _, n := range g.ordered {
 		sets = append(sets, g.products[n.RelPath].planned)
@@ -1416,7 +1416,7 @@ func (g *generation) plannedSet() judge.Planned {
 
 // linkTargets is what every held note cites, by path, as it was read when the
 // note was.
-func (g *generation) linkTargets() map[string][]string {
+func (g *build) linkTargets() map[string][]string {
 	links := make(map[string][]string, len(g.ordered))
 	for _, n := range g.ordered {
 		links[n.RelPath] = g.products[n.RelPath].links
@@ -1427,7 +1427,7 @@ func (g *generation) linkTargets() map[string][]string {
 // recordVerdict keeps the schema's verdict for one note when there is one. A
 // note the schema is content with is left out rather than stored empty; absent
 // and clean read the same at the accessor.
-func (g *generation) recordVerdict(relPath string, findings []judge.Finding) {
+func (g *build) recordVerdict(relPath string, findings []judge.Finding) {
 	if len(findings) > 0 {
 		g.findings[relPath] = findings
 	}
@@ -1459,7 +1459,7 @@ func carriedFrom(previous *Generation) carriedGeneration {
 // unread records a source this reading wanted and could not use, whether its
 // read failed or its parse panicked: it is named in the blocked list when the
 // reading surface depends on it, and given whatever the fallback held for it.
-func (g *generation) unread(from carriedGeneration, relPath string, note bool, want bytesWanted, reason string, parsePanic bool) {
+func (g *build) unread(from carriedGeneration, relPath string, note bool, want bytesWanted, reason string, parsePanic bool) {
 	if want.holdsBackGeneration {
 		g.blocked = append(g.blocked, BlockedSource{Path: relPath, Reason: reason, ParsePanic: parsePanic})
 	}
@@ -1468,7 +1468,7 @@ func (g *generation) unread(from carriedGeneration, relPath string, note bool, w
 
 // carry gives this generation whatever the fallback held for a source this
 // reading could not open, by whether that source is a note or a practice file.
-func (g *generation) carry(from carriedGeneration, relPath string, note bool, want bytesWanted) {
+func (g *build) carry(from carriedGeneration, relPath string, note bool, want bytesWanted) {
 	if note {
 		g.carryNote(from, relPath)
 		return
@@ -1483,7 +1483,7 @@ func (g *generation) carry(from carriedGeneration, relPath string, note bool, wa
 // renders the captured projection. Without such a copy the note is left out and
 // the resolver gets a stub, so a citation naming it still lands on it rather
 // than joining the citations to files that do not exist.
-func (g *generation) carryNote(from carriedGeneration, relPath string) {
+func (g *build) carryNote(from carriedGeneration, relPath string) {
 	lastKnown, lastKnownOK := from.parsed[relPath]
 	captured, capturedOK := from.captured[relPath]
 	products, productsOK := from.products[relPath]
@@ -1500,7 +1500,7 @@ func (g *generation) carryNote(from carriedGeneration, relPath string) {
 
 // carryFile gives the generation being built the practice file the fallback read,
 // when it read one. Any other unreadable file is simply absent.
-func (g *generation) carryFile(from carriedGeneration, relPath string, want bytesWanted) {
+func (g *build) carryFile(from carriedGeneration, relPath string, want bytesWanted) {
 	lastKnown, ok := from.sidecars[relPath]
 	if !ok {
 		return
@@ -1529,8 +1529,8 @@ func blockedFromProblems(problems []vault.Diagnostic) []BlockedSource {
 // can use it: its own parser, if it is a lesson sidecar, and the text corpus, if
 // its bytes are characters. The bytes decide that last question, as they do on
 // the file's own page, because a name is not evidence about what is inside.
-func (g *generation) captureFile(relPath string, data []byte, indexable bool) {
-	if lesson.IsSlotSidecar(relPath) {
+func (g *build) captureFile(relPath string, data []byte, indexable bool) {
+	if drill.IsSlotSidecar(relPath) {
 		g.sidecars[relPath] = data
 	}
 	if figure.Is(relPath) {
@@ -1568,7 +1568,7 @@ func wantedBytes(entry vault.Entry, note bool) bytesWanted {
 		}
 		return bytesWanted{read: true, indexable: true, holdsBackGeneration: true}
 	}
-	sidecar := lesson.IsSlotSidecar(entry.Path())
+	sidecar := drill.IsSlotSidecar(entry.Path())
 	indexable := readableAsText(entry)
 	return bytesWanted{
 		read:                sidecar || indexable,

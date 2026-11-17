@@ -1,4 +1,4 @@
-package syllabus_test
+package course_test
 
 import (
 	"log/slog"
@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/course"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/syllabus"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -96,23 +96,23 @@ func TestThePathIndexReadsOneGeneration(t *testing.T) {
 	}
 	storeA := newGenerationStore(t, pathVault(t, "Japanese title", "ja"), contract)
 	storeB := newGenerationStore(t, pathVault(t, "English title", "en"), contract)
-	answer := func(store *snapshot.Store) syllabus.RequestSnapshot {
+	answer := func(store *snapshot.Store) course.RequestSnapshot {
 		snap := store.Current().Capture()
-		return syllabus.RequestSnapshot{Shell: nav.Shell{Nav: snap.Navigation(), Governed: true}, Generation: snap}
+		return course.RequestSnapshot{Shell: nav.Shell{Nav: snap.Navigation(), Governed: true}, Generation: snap}
 	}
 
 	for _, tt := range []struct {
 		name string
 		// published answers each reading of the pointer the request makes.
-		published func() func() syllabus.RequestSnapshot
+		published func() func() course.RequestSnapshot
 	}{
 		{
 			// The rebuild lands between the first reading and any second one,
 			// which is the moment the page has to survive.
 			name: "a rebuild between readings",
-			published: func() func() syllabus.RequestSnapshot {
+			published: func() func() course.RequestSnapshot {
 				readings := 0
-				return func() syllabus.RequestSnapshot {
+				return func() course.RequestSnapshot {
 					readings++
 					if readings > 1 {
 						return answer(storeB)
@@ -126,15 +126,15 @@ func TestThePathIndexReadsOneGeneration(t *testing.T) {
 			// the row below is what the listing draws when no rebuild can
 			// confuse it.
 			name: "no rebuild at all",
-			published: func() func() syllabus.RequestSnapshot {
-				return func() syllabus.RequestSnapshot { return answer(storeA) }
+			published: func() func() course.RequestSnapshot {
+				return func() course.RequestSnapshot { return answer(storeA) }
 			},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			mux := http.NewServeMux()
-			syllabus.New(tt.published(), slog.New(slog.DiscardHandler)).Register(mux)
+			course.New(tt.published(), slog.New(slog.DiscardHandler)).Register(mux)
 			srv := httptest.NewServer(mux)
 			t.Cleanup(srv.Close)
 

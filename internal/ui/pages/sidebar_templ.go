@@ -963,7 +963,7 @@ func mapTree(sb Sidebar, c layouts.Chrome, m nav.Map, href string) templ.Compone
 // holds the current note, drawing the structure navigation already read: a
 // branch outside the course is not in the rail, and a side branch sits under
 // the lesson it hangs from.
-func pathTree(sb Sidebar, c layouts.Chrome, p nav.Path) templ.Component {
+func pathTree(sb Sidebar, c layouts.Chrome, p nav.Course) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {

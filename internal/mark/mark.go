@@ -2,7 +2,7 @@
 //
 // A note's status is the author's word about the material and never the
 // reader's own progress, so a reader who stops in the middle of one needs a
-// continuation mark of their own. There is one continuation in total: setting
+// bookmark mark of their own. There is one bookmark in total: setting
 // another replaces it. It records where to land rather than anything about
 // what was understood — the
 // id of the nearest anchor above where the reader stopped, how far below it
@@ -18,13 +18,13 @@
 // left on this machine is invisible on the next, which the interface says in
 // words rather than leaving the reader to find out.
 //
-// Uncertainty marks accumulate separately in a second file. Each holds only
+// Question marks accumulate separately in a second file. Each holds only
 // a path, anchor and time; it makes no promise to recover a changed source.
-// Unlike continuation storage, unreadable uncertainty storage is preserved
+// Unlike bookmark storage, unreadable question storage is preserved
 // and reported rather than replaced by the next mark.
 //
 // The reading server writes both files. The left-open command, which answers
-// about the reader, reads the uncertainty file and never writes either.
+// about the reader, reads the question file and never writes either.
 //
 // A third file in the same directory holds the figures the owner approved to
 // run their scripts: each a path and the SHA-256 of the exact bytes approved.
@@ -88,10 +88,10 @@ const (
 	identityLength  = 2 * sha256.Size
 )
 
-// Continuation is the place a reader deliberately left off at. It is a
+// Bookmark is the place a reader deliberately left off at. It is a
 // position and nothing more: no judgement about the note, no history, and no
 // second one.
-type Continuation struct {
+type Bookmark struct {
 	// RelPath is the note, as a vault-relative slash path in NFC — the same
 	// spelling every other face here uses, so a mark and a page name one note.
 	RelPath string
@@ -134,7 +134,7 @@ func Directory(configDir, vaultRoot string) string {
 // refuses. The checks are the file's own: what reaches here came in over a
 // route anyone on this machine can post to, and a value stored unchecked is
 // handed back to a later reading page as though a reader had chosen it.
-func validate(c *Continuation) error {
+func validate(c *Bookmark) error {
 	switch {
 	case c.RelPath == "" || len(c.RelPath) > maxRelPathBytes:
 		return fmt.Errorf("%w: the note path is empty or too long", ErrInvalid)

@@ -24,8 +24,8 @@ import (
 // anIdentity is a content identity in the one spelling a reading page stamps.
 const anIdentity = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
-func aPlace() *mark.Continuation {
-	return &mark.Continuation{
+func aPlace() *mark.Bookmark {
+	return &mark.Bookmark{
 		RelPath:  "Writing/lessons/japanese/L01.md",
 		Anchor:   "the-topic-particle",
 		Offset:   420,
@@ -81,19 +81,19 @@ func TestAKeptPlaceComesBack(t *testing.T) {
 	t.Parallel()
 
 	file := newFile(t)
-	if _, ok := file.Continuation(); ok {
+	if _, ok := file.Bookmark(); ok {
 		t.Fatal("a file nobody has written to reports a kept place")
 	}
 	want := aPlace()
-	if err := file.SetContinuation(want); err != nil {
-		t.Fatalf("SetContinuation: %v", err)
+	if err := file.SetBookmark(want); err != nil {
+		t.Fatalf("SetBookmark: %v", err)
 	}
-	got, ok := file.Continuation()
+	got, ok := file.Bookmark()
 	if !ok {
 		t.Fatal("the place that was just kept is not reported")
 	}
 	if diff := cmp.Diff(*want, got); diff != "" {
-		t.Errorf("Continuation() mismatch (-want +got):\n%s", diff)
+		t.Errorf("Bookmark() mismatch (-want +got):\n%s", diff)
 	}
 }
 
@@ -104,17 +104,17 @@ func TestKeepingAnotherPlaceReplacesTheFirst(t *testing.T) {
 	t.Parallel()
 
 	file := newFile(t)
-	if err := file.SetContinuation(aPlace()); err != nil {
+	if err := file.SetBookmark(aPlace()); err != nil {
 		t.Fatalf("keep the first place: %v", err)
 	}
 	second := aPlace()
 	second.RelPath = "Notes/alpha.md"
 	second.Anchor = "elsewhere"
 	second.Offset = 12
-	if err := file.SetContinuation(second); err != nil {
+	if err := file.SetBookmark(second); err != nil {
 		t.Fatalf("keep the second place: %v", err)
 	}
-	got, ok := file.Continuation()
+	got, ok := file.Bookmark()
 	if !ok {
 		t.Fatal("no place is reported after two were kept")
 	}
@@ -122,7 +122,7 @@ func TestKeepingAnotherPlaceReplacesTheFirst(t *testing.T) {
 		t.Errorf("the second place did not replace the first (-want +got):\n%s", diff)
 	}
 
-	// And on disk: one continuation, not a list that only reads as one.
+	// And on disk: one bookmark, not a list that only reads as one.
 	data, err := os.ReadFile(file.Path())
 	if err != nil {
 		t.Fatalf("read the marks file: %v", err)
@@ -147,8 +147,8 @@ func TestTheFileNamesItsVault(t *testing.T) {
 
 	const root = "/vaults/notes"
 	file := newFileFor(t, t.TempDir(), root)
-	if err := file.SetContinuation(aPlace()); err != nil {
-		t.Fatalf("SetContinuation: %v", err)
+	if err := file.SetBookmark(aPlace()); err != nil {
+		t.Fatalf("SetBookmark: %v", err)
 	}
 	data, err := os.ReadFile(file.Path())
 	if err != nil {
@@ -178,10 +178,10 @@ func TestTwoVaultsGetTwoDirectories(t *testing.T) {
 	if first.Path() == second.Path() {
 		t.Fatalf("two vaults share one marks file at %s", first.Path())
 	}
-	if err := first.SetContinuation(aPlace()); err != nil {
+	if err := first.SetBookmark(aPlace()); err != nil {
 		t.Fatalf("keep a place in the first vault: %v", err)
 	}
-	if _, ok := second.Continuation(); ok {
+	if _, ok := second.Bookmark(); ok {
 		t.Error("a place kept for one vault is reported for another")
 	}
 }
@@ -236,37 +236,37 @@ func TestARefusedPlaceIsNotStored(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		spoil func(*mark.Continuation)
+		spoil func(*mark.Bookmark)
 	}{
-		{"no note", func(c *mark.Continuation) { c.RelPath = "" }},
-		{"an absolute path", func(c *mark.Continuation) { c.RelPath = "/etc/passwd" }},
-		{"a path that climbs out", func(c *mark.Continuation) { c.RelPath = "../outside.md" }},
-		{"a path that is not in NFC", func(c *mark.Continuation) { c.RelPath = "Notes/\u30cf\u309a.md" }},
+		{"no note", func(c *mark.Bookmark) { c.RelPath = "" }},
+		{"an absolute path", func(c *mark.Bookmark) { c.RelPath = "/etc/passwd" }},
+		{"a path that climbs out", func(c *mark.Bookmark) { c.RelPath = "../outside.md" }},
+		{"a path that is not in NFC", func(c *mark.Bookmark) { c.RelPath = "Notes/\u30cf\u309a.md" }},
 		// fs.ValidPath lets control characters through, so each class the
 		// predicate names is driven: C0, DELETE, C1 and the two Unicode
 		// separators that end a line without being a newline.
-		{"a path carrying a NUL", func(c *mark.Continuation) { c.RelPath = "Notes/a\x00b.md" }},
-		{"a path carrying a line feed", func(c *mark.Continuation) { c.RelPath = "Notes/a\nb.md" }},
-		{"a path carrying a NUL and a line feed", func(c *mark.Continuation) { c.RelPath = "Notes/a\x00b\nc.md" }},
-		{"a path carrying a carriage return", func(c *mark.Continuation) { c.RelPath = "Notes/a\rb.md" }},
-		{"a path carrying a tab", func(c *mark.Continuation) { c.RelPath = "Notes/a\tb.md" }},
-		{"a path carrying DELETE", func(c *mark.Continuation) { c.RelPath = "Notes/a\x7fb.md" }},
-		{"a path carrying a C1 control", func(c *mark.Continuation) { c.RelPath = "Notes/a\u0085b.md" }},
-		{"a path carrying a line separator", func(c *mark.Continuation) { c.RelPath = "Notes/a\u2028b.md" }},
-		{"a path carrying a paragraph separator", func(c *mark.Continuation) { c.RelPath = "Notes/a\u2029b.md" }},
+		{"a path carrying a NUL", func(c *mark.Bookmark) { c.RelPath = "Notes/a\x00b.md" }},
+		{"a path carrying a line feed", func(c *mark.Bookmark) { c.RelPath = "Notes/a\nb.md" }},
+		{"a path carrying a NUL and a line feed", func(c *mark.Bookmark) { c.RelPath = "Notes/a\x00b\nc.md" }},
+		{"a path carrying a carriage return", func(c *mark.Bookmark) { c.RelPath = "Notes/a\rb.md" }},
+		{"a path carrying a tab", func(c *mark.Bookmark) { c.RelPath = "Notes/a\tb.md" }},
+		{"a path carrying DELETE", func(c *mark.Bookmark) { c.RelPath = "Notes/a\x7fb.md" }},
+		{"a path carrying a C1 control", func(c *mark.Bookmark) { c.RelPath = "Notes/a\u0085b.md" }},
+		{"a path carrying a line separator", func(c *mark.Bookmark) { c.RelPath = "Notes/a\u2028b.md" }},
+		{"a path carrying a paragraph separator", func(c *mark.Bookmark) { c.RelPath = "Notes/a\u2029b.md" }},
 		// fs.ValidPath already refused this on main; the row pins it.
-		{"a path that is not UTF-8", func(c *mark.Continuation) { c.RelPath = "Notes/a\xffb.md" }},
-		{"an anchor that could cut the address", func(c *mark.Continuation) { c.Anchor = "here#elsewhere" }},
-		{"an anchor carrying a control character", func(c *mark.Continuation) { c.Anchor = "here\nthere" }},
+		{"a path that is not UTF-8", func(c *mark.Bookmark) { c.RelPath = "Notes/a\xffb.md" }},
+		{"an anchor that could cut the address", func(c *mark.Bookmark) { c.Anchor = "here#elsewhere" }},
+		{"an anchor carrying a control character", func(c *mark.Bookmark) { c.Anchor = "here\nthere" }},
 		// The anchor had only the character check, which reads an invalid byte
 		// as U+FFFD and let it through to be stored as something its sender
 		// never wrote.
-		{"an anchor that is not UTF-8", func(c *mark.Continuation) { c.Anchor = "here\xff" }},
-		{"a negative offset", func(c *mark.Continuation) { c.Offset = -1 }},
-		{"an offset past any document", func(c *mark.Continuation) { c.Offset = 1 << 30 }},
-		{"an identity that is not one", func(c *mark.Continuation) { c.Identity = "not-a-digest" }},
-		{"an identity in the other case", func(c *mark.Continuation) { c.Identity = strings.ToUpper(anIdentity) }},
-		{"no identity at all", func(c *mark.Continuation) { c.Identity = "" }},
+		{"an anchor that is not UTF-8", func(c *mark.Bookmark) { c.Anchor = "here\xff" }},
+		{"a negative offset", func(c *mark.Bookmark) { c.Offset = -1 }},
+		{"an offset past any document", func(c *mark.Bookmark) { c.Offset = 1 << 30 }},
+		{"an identity that is not one", func(c *mark.Bookmark) { c.Identity = "not-a-digest" }},
+		{"an identity in the other case", func(c *mark.Bookmark) { c.Identity = strings.ToUpper(anIdentity) }},
+		{"no identity at all", func(c *mark.Bookmark) { c.Identity = "" }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -274,10 +274,10 @@ func TestARefusedPlaceIsNotStored(t *testing.T) {
 			file := newFile(t)
 			refused := aPlace()
 			tt.spoil(refused)
-			if err := file.SetContinuation(refused); !errors.Is(err, mark.ErrInvalid) {
-				t.Fatalf("SetContinuation(%s) = %v, want ErrInvalid", tt.name, err)
+			if err := file.SetBookmark(refused); !errors.Is(err, mark.ErrInvalid) {
+				t.Fatalf("SetBookmark(%s) = %v, want ErrInvalid", tt.name, err)
 			}
-			if _, ok := file.Continuation(); ok {
+			if _, ok := file.Bookmark(); ok {
 				t.Error("a refused place was stored anyway")
 			}
 			if _, statErr := os.Stat(file.Path()); !os.IsNotExist(statErr) {
@@ -297,15 +297,15 @@ func TestARefusalLeavesTheKeptPlaceAlone(t *testing.T) {
 
 	file := newFile(t)
 	want := aPlace()
-	if err := file.SetContinuation(want); err != nil {
+	if err := file.SetBookmark(want); err != nil {
 		t.Fatalf("keep a place: %v", err)
 	}
 	refused := aPlace()
 	refused.Identity = "not-a-digest"
-	if err := file.SetContinuation(refused); err == nil {
+	if err := file.SetBookmark(refused); err == nil {
 		t.Fatal("a place with no identity was accepted")
 	}
-	got, ok := file.Continuation()
+	got, ok := file.Bookmark()
 	if !ok {
 		t.Fatal("the kept place is gone after a refusal")
 	}
@@ -330,8 +330,8 @@ func TestOrdinaryNoteNamesAreKept(t *testing.T) {
 			t.Parallel()
 			place := aPlace()
 			place.RelPath = tt.path
-			if err := newFile(t).SetContinuation(place); err != nil {
-				t.Errorf("SetContinuation(%q) = %v, want it kept", tt.path, err)
+			if err := newFile(t).SetBookmark(place); err != nil {
+				t.Errorf("SetBookmark(%q) = %v, want it kept", tt.path, err)
 			}
 		})
 	}
@@ -365,14 +365,14 @@ func TestAnUnreadableFileReportsNoPlace(t *testing.T) {
 			if err := os.WriteFile(file.Path(), []byte(tt.body), 0o600); err != nil {
 				t.Fatal(err)
 			}
-			if _, ok := file.Continuation(); ok {
+			if _, ok := file.Bookmark(); ok {
 				t.Errorf("%s was read as a kept place", tt.name)
 			}
 			// And the reader can still keep one.
-			if err := file.SetContinuation(aPlace()); err != nil {
+			if err := file.SetBookmark(aPlace()); err != nil {
 				t.Errorf("keeping a place over %s failed: %v", tt.name, err)
 			}
-			if _, ok := file.Continuation(); !ok {
+			if _, ok := file.Bookmark(); !ok {
 				t.Errorf("keeping a place over %s did not take", tt.name)
 			}
 		})
@@ -387,8 +387,8 @@ func TestNothingIsLeftBesideTheFile(t *testing.T) {
 
 	file := newFile(t)
 	for range 3 {
-		if err := file.SetContinuation(aPlace()); err != nil {
-			t.Fatalf("SetContinuation: %v", err)
+		if err := file.SetBookmark(aPlace()); err != nil {
+			t.Fatalf("SetBookmark: %v", err)
 		}
 	}
 	entries, err := os.ReadDir(filepath.Dir(file.Path()))
@@ -411,7 +411,7 @@ func TestNoDirectoryUntilAPlaceIsKept(t *testing.T) {
 
 	config := t.TempDir()
 	file := newFileFor(t, config, "/vaults/notes")
-	if _, ok := file.Continuation(); ok {
+	if _, ok := file.Bookmark(); ok {
 		t.Fatal("a place is reported before one was kept")
 	}
 	if _, err := os.Stat(filepath.Join(config, "yomihon")); !os.IsNotExist(err) {
@@ -463,7 +463,7 @@ func TestTheRouteKeepsWhatAReadingPageSends(t *testing.T) {
 	if response.StatusCode != http.StatusNoContent {
 		t.Errorf("POST %s = %d, want %d", mark.Address, response.StatusCode, http.StatusNoContent)
 	}
-	got, ok := file.Continuation()
+	got, ok := file.Bookmark()
 	if !ok {
 		t.Fatal("the route answered but kept no place")
 	}
@@ -506,7 +506,7 @@ func TestTheRouteRefusesWhatItCannotKeep(t *testing.T) {
 			if response.StatusCode != tt.want {
 				t.Errorf("POST %s (%s) = %d, want %d", mark.Address, tt.name, response.StatusCode, tt.want)
 			}
-			if _, ok := file.Continuation(); ok {
+			if _, ok := file.Bookmark(); ok {
 				t.Error("a refused submission kept a place anyway")
 			}
 		})
@@ -566,7 +566,7 @@ func TestTheRouteRefusesABodyBeyondItsCap(t *testing.T) {
 			if response.StatusCode != tt.want {
 				t.Errorf("POST %s with a %d-byte body = %d, want %d", mark.Address, size, response.StatusCode, tt.want)
 			}
-			_, kept := file.Continuation()
+			_, kept := file.Bookmark()
 			if wantKept := tt.want == http.StatusNoContent; kept != wantKept {
 				t.Errorf("a %d-byte body kept a place = %t, want %t", size, kept, wantKept)
 			}
@@ -600,7 +600,7 @@ func TestOnlyPostChangesThePlace(t *testing.T) {
 			if got, want := response.Header.Get("Allow"), "GET, HEAD, POST"; got != want {
 				t.Errorf("%s %s Allow = %q, want %q", method, mark.Address, got, want)
 			}
-			if _, ok := file.Continuation(); ok {
+			if _, ok := file.Bookmark(); ok {
 				t.Errorf("%s kept a place", method)
 			}
 		})
@@ -710,7 +710,7 @@ func TestTheRouteSaysNothingWhereNoPlaceIsKept(t *testing.T) {
 			if body, err := io.ReadAll(response.Body); err != nil || len(body) != 0 {
 				t.Errorf("GET %s (%s) sent %q, %v, want an empty body", mark.Address, tt.name, body, err)
 			}
-			if _, ok := file.Continuation(); ok {
+			if _, ok := file.Bookmark(); ok {
 				t.Errorf("reading the place (%s) kept one", tt.name)
 			}
 		})
@@ -774,7 +774,7 @@ func TestTheRouteKeepsAPlaceOnlyInANoteTheVaultHolds(t *testing.T) {
 			if status != tt.want {
 				t.Errorf("POST %s over %q = %d %q, want %d", mark.Address, tt.path, status, body, tt.want)
 			}
-			got, kept := file.Continuation()
+			got, kept := file.Bookmark()
 			if wantKept := tt.want == http.StatusNoContent; kept != wantKept {
 				t.Errorf("POST over %q kept a place = %t, want %t", tt.path, kept, wantKept)
 			}
@@ -808,7 +808,7 @@ func TestTheRouteAsksTheVaultAboutTheNoteAndNotTheAnchor(t *testing.T) {
 		t.Fatalf("POST %s over a real note under an id that is no heading = %d %q, want %d",
 			mark.Address, status, body, http.StatusNoContent)
 	}
-	if got, ok := file.Continuation(); !ok || got.Anchor != "fn-3" {
+	if got, ok := file.Bookmark(); !ok || got.Anchor != "fn-3" {
 		t.Errorf("the route kept %+v, %t, want the place under fn-3", got, ok)
 	}
 }
@@ -826,14 +826,14 @@ func TestAPlaceTheVaultDoesNotHoldLeavesTheKeptPlaceAlone(t *testing.T) {
 	if status, _ := replyTo(t, handler, aPost("Notes/nope.md", "two")); status != http.StatusUnprocessableEntity {
 		t.Fatalf("a note the vault does not hold = %d, want %d", status, http.StatusUnprocessableEntity)
 	}
-	got, ok := file.Continuation()
+	got, ok := file.Bookmark()
 	if !ok || got.RelPath != "Notes/real.md" || got.Anchor != "one" {
 		t.Errorf("after the refusal the file holds %+v, %t, want the first place", got, ok)
 	}
 }
 
 // TestTheRouteRefusesAVaultItIsNotGiven holds the constructor's own guard,
-// which the uncertainty route has too: a route with no vault to ask would
+// which the question route has too: a route with no vault to ask would
 // either accept everything or fail at the first request, and neither is a
 // refusal anyone chose.
 func TestTheRouteRefusesAVaultItIsNotGiven(t *testing.T) {
@@ -886,13 +886,13 @@ func TestAnchorShapeSharedByReaderMarks(t *testing.T) {
 			file := newFile(t)
 			place := aPlace()
 			place.Anchor = tt.anchor
-			uncertainty := anUncertainty()
-			uncertainty.Anchor = tt.anchor
-			_, uncertaintyErr := file.ToggleUncertainty(uncertainty, func(*mark.Uncertainty) bool { return true })
+			question := aQuestion()
+			question.Anchor = tt.anchor
+			_, questionErr := file.ToggleQuestion(question, func(*mark.Question) bool { return true })
 			for name, err := range map[string]error{
-				"shape":        mark.ValidateAnchor(tt.anchor),
-				"continuation": file.SetContinuation(place),
-				"uncertainty":  uncertaintyErr,
+				"shape":    mark.ValidateAnchor(tt.anchor),
+				"bookmark": file.SetBookmark(place),
+				"question": questionErr,
 			} {
 				if tt.accepted && err != nil {
 					t.Errorf("%s rejected %q: %v", name, tt.anchor, err)

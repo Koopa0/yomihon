@@ -1,4 +1,4 @@
-package syllabus
+package course
 
 import (
 	"net/http"

@@ -33,7 +33,7 @@ const Address = "/marks"
 // endpoint is the reader's.
 //
 // It keeps a place only in a note the vault holds now, asked of the same Places
-// the uncertainty route asks. The path is the one field of a mark that can reach
+// the question route asks. The path is the one field of a mark that can reach
 // the desk as text, so a path nobody's note carries is refused rather than
 // stored for a later page to print.
 type Handler struct {
@@ -73,7 +73,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 // kept would be the staleness this exists to remove.
 func (h *Handler) held(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	kept, ok := h.file.Continuation()
+	kept, ok := h.file.Bookmark()
 	if !ok {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -103,7 +103,7 @@ func (h *Handler) set(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, wording.MarkRefused.In(lang), http.StatusUnprocessableEntity)
 		return
 	}
-	kept := &Continuation{
+	kept := &Bookmark{
 		RelPath:  r.PostFormValue("path"),
 		Anchor:   r.PostFormValue("anchor"),
 		Offset:   offset,
@@ -135,12 +135,12 @@ func (h *Handler) set(w http.ResponseWriter, r *http.Request) {
 // asking it about the anchor would refuse a place a reading page honestly
 // stamps. The anchor stays bounded by its shape, and it only ever reaches the
 // desk inside an address.
-func (h *Handler) keep(kept *Continuation) error {
+func (h *Handler) keep(kept *Bookmark) error {
 	if err := validate(kept); err != nil {
 		return err
 	}
 	if !h.places.HasPlace(kept.RelPath, "") {
 		return fmt.Errorf("%w: %q is not a note this vault holds", ErrInvalid, kept.RelPath)
 	}
-	return h.file.SetContinuation(kept)
+	return h.file.SetBookmark(kept)
 }

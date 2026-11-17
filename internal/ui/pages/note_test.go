@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/graph"
-	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -278,7 +278,7 @@ func TestTheConceptSheetCloseNamesWhatItCloses(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
-	concepts := []lesson.ConceptDoc{{ID: "c1", Title: "は", HTML: "<p>concept</p>"}}
+	concepts := []drill.ConceptDoc{{ID: "c1", Title: "は", HTML: "<p>concept</p>"}}
 	if err := conceptSheet(concepts, wording.ZhHant).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render concept sheet: %v", err)
 	}
@@ -315,7 +315,7 @@ func TestTheConceptSheetIsNamedByItsTitle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var buf bytes.Buffer
-			concepts := []lesson.ConceptDoc{
+			concepts := []drill.ConceptDoc{
 				{ID: "c1", Title: "は", HTML: "<p>concept</p>"},
 				{ID: "c2", Title: "  ", HTML: "<p>untitled</p>"},
 			}

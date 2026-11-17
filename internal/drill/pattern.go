@@ -1,4 +1,4 @@
-package lesson
+package drill
 
 import (
 	"encoding/json"

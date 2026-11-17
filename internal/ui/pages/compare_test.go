@@ -83,8 +83,8 @@ func TestACompareColumnMarkUsesItsQualifiedIDSpace(t *testing.T) {
 	t.Parallel()
 	a := comparedNote("a-", "First", "Writing/First.md", "en")
 	b := comparedNote("b-", "Second", "Writing/Second.md", "en")
-	a.UncertaintyAddress = "/uncertainties"
-	b.UncertaintyAddress = "/uncertainties"
+	a.QuestionAddress = "/uncertainties"
+	b.QuestionAddress = "/uncertainties"
 	compared := renderedBytes(t, t.Context(), Compare(CompareView{A: a, B: b}, recordedChrome()))
 	for _, prefix := range []string{"a-", "b-"} {
 		attr := `data-uncertainty-prefix="` + prefix + `"`

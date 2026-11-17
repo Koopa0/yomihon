@@ -1,4 +1,4 @@
-package syllabus_test
+package course_test
 
 import (
 	"net/http"

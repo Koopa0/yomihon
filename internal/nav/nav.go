@@ -65,7 +65,7 @@ type Model struct {
 	// rootNotes are files at the vault root itself, belonging to no folder.
 	rootNotes []NoteRef
 	// paths are study paths in vault path order.
-	paths []Path
+	paths []Course
 	// maps are every other map-note tree, ordered by domain and then title.
 	maps []Map
 	// journal records whether the journal projection was withheld, and why.
@@ -193,11 +193,11 @@ func (m *Model) MapCount() int {
 
 // Paths returns the study paths in vault path order. Everything the caller
 // receives is its own: the model is read by every request at once.
-func (m *Model) Paths() []Path {
+func (m *Model) Paths() []Course {
 	if m == nil {
 		return nil
 	}
-	out := make([]Path, 0, len(m.paths))
+	out := make([]Course, 0, len(m.paths))
 	for i := range m.paths {
 		out = append(out, m.paths[i].clone())
 	}
@@ -468,7 +468,7 @@ func newModel(
 		if roles.IsPathType(n.Type()) {
 			// A study path reads the declared-sequence grammar, never the
 			// general-map parser.
-			var path Path
+			var path Course
 			if fault := guardCoreWalk(ref, func() {
 				path = walkers.path(n, resolver, facts, policy)
 				path.Unit = unitOf(path.Groups, facts, roles)

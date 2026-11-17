@@ -341,7 +341,7 @@ type PathLink struct {
 // nothing, and so does a reader who arrived from the desk. A course that lists
 // the same note twice marks it twice: both rows are that note, and choosing
 // between them would be a guess.
-func BuildPathView(current *nav.Path, all []nav.Path, cover *CourseCover) PathView {
+func BuildPathView(current *nav.Course, all []nav.Course, cover *CourseCover) PathView {
 	v := PathView{
 		Title:           current.Title,
 		RelPath:         current.RelPath,
@@ -692,7 +692,7 @@ func markerVerdictFor(rule sequence.Rule) markerVerdict {
 
 // buildPaths builds the switcher: every study path in vault order, each with its
 // entry count and whether it is the one shown.
-func buildPaths(currentRel string, all []nav.Path) []PathLink {
+func buildPaths(currentRel string, all []nav.Course) []PathLink {
 	links := make([]PathLink, 0, len(all))
 	for i := range all {
 		s := &all[i]

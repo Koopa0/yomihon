@@ -121,7 +121,7 @@ func TestNoRouteWritesIntoTheVault(t *testing.T) {
 		"/search?q=draft%3Atrue",
 		"/search/results?q=channel",
 		mark.Address,
-		mark.UncertaintyAddress,
+		mark.QuestionAddress,
 		address("/notes/", lesson),
 		address("/notes/", draft),
 		address("/notes/", thought),
@@ -145,8 +145,8 @@ func TestNoRouteWritesIntoTheVault(t *testing.T) {
 		form   url.Values
 	}{
 		{mark.Address, url.Values{"path": {lesson}, "offset": {"0"}, "identity": {identity}}},
-		{mark.UncertaintyAddress, url.Values{"path": {lesson}, "anchor": {""}}},
-		{mark.UncertaintyAddress, url.Values{"path": {draft}, "anchor": {""}}},
+		{mark.QuestionAddress, url.Values{"path": {lesson}, "anchor": {""}}},
+		{mark.QuestionAddress, url.Values{"path": {draft}, "anchor": {""}}},
 		{"/preferences", url.Values{"theme": {"dark"}}},
 	} {
 		if code := serve(http.MethodPost, write.target, write.form.Encode()); code >= http.StatusBadRequest && code != http.StatusSeeOther {

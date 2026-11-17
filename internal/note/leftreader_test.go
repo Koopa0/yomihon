@@ -48,8 +48,8 @@ func TestAProbeThatLeavesIsNotLoggedAsAFault(t *testing.T) {
 		Authority: authority,
 		Snapshot:  store.Current,
 
-		Continuation: noMark,
-		Log:          log,
+		Bookmark: noMark,
+		Log:      log,
 	}).Register(mux)
 
 	mux.ServeHTTP(&goneReader{}, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/favicon.ico", http.NoBody))

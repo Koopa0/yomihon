@@ -26,7 +26,7 @@ func parseFailureHTTPServer(t *testing.T, root string) (*httptest.Server, *snaps
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
 	mux := http.NewServeMux()
-	note.New(&note.Sources{Source: source, Authority: authority, Snapshot: store.Current, VaultName: shell.VaultName(source.Name()), Continuation: noMark, Log: log}).Register(mux)
+	note.New(&note.Sources{Source: source, Authority: authority, Snapshot: store.Current, VaultName: shell.VaultName(source.Name()), Bookmark: noMark, Log: log}).Register(mux)
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
 	return server, store

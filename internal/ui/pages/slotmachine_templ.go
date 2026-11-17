@@ -13,14 +13,14 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 	"strconv"
 
-	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/drill"
 )
 
 // SlotMachine renders one lesson's sentence-pattern practice, a card per
 // pattern. Everything visible is server-rendered from each slot's first fill,
 // so the sentences read correctly with scripting off; the client upgrades the
 // cards to swap fills, recolour, shuffle and speak.
-func SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) templ.Component {
+func SlotMachine(s *drill.Sidecar, nonce string, lang wording.Lang) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -148,7 +148,7 @@ func SlotMachine(s *lesson.Sidecar, nonce string, lang wording.Lang) templ.Compo
 // the sentence in place, which a listening reader does not see. It ships empty
 // so arriving announces nothing, and declares Japanese because the sentence is
 // Japanese — the nearest declared language above it would be the wrong voice.
-func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) templ.Component {
+func slotCard(index int, p drill.Pattern, nonce string, lang wording.Lang) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -183,7 +183,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.Raw(`<script nonce="`+templ.EscapeString(nonce)+`" type="application/json" class="y-slotdata">`+lesson.PatternJSON(p)+`</script>`).Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = templ.Raw(`<script nonce="`+templ.EscapeString(nonce)+`" type="application/json" class="y-slotdata">`+drill.PatternJSON(p)+`</script>`).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -205,9 +205,9 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var10 string
-		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(lesson.AbstractTemplate(p.Template))
+		templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(drill.AbstractTemplate(p.Template))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 48, Col: 100}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 48, Col: 99}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 		if templ_7745c5c3_Err != nil {
@@ -240,7 +240,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, key := range lesson.TemplateKeys(p.Template) {
+		for _, key := range drill.TemplateKeys(p.Template) {
 			templ_7745c5c3_Err = slotControl(key, p.Slots[key]).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -259,9 +259,9 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var12 string
-		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(lesson.GlossInitial(p))
+		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(drill.GlossInitial(p))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 59, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 59, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -304,7 +304,7 @@ func slotCard(index int, p lesson.Pattern, nonce string, lang wording.Lang) temp
 // slotControl is one slot's picker: its label and a <select> whose options are
 // the fills. The inner button carries the closed face where the customizable
 // select is supported and is inert elsewhere; the colour class assigns --c.
-func slotControl(key string, pos lesson.Position) templ.Component {
+func slotControl(key string, pos drill.Position) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -442,7 +442,7 @@ func slotControl(key string, pos lesson.Position) templ.Component {
 
 // slotOutput is the live sentence: literal template text as bare nodes, each
 // slot as a coloured, ruby-annotated span the client rewrites on change.
-func slotOutput(p lesson.Pattern) templ.Component {
+func slotOutput(p drill.Pattern) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -463,7 +463,7 @@ func slotOutput(p lesson.Pattern) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		for _, seg := range lesson.ParseTemplate(p.Template) {
+		for _, seg := range drill.ParseTemplate(p.Template) {
 			if seg.Key == "" {
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(seg.Text)
@@ -492,7 +492,7 @@ func slotOutput(p lesson.Pattern) templ.Component {
 // slotOut is one slot's rendered word: the first fill's surface form over its
 // reading. The client finds it by data-slot-key and rewrites the base and the
 // reading; the colour class supplies --c.
-func slotOut(key string, pos lesson.Position) templ.Component {
+func slotOut(key string, pos drill.Position) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -563,9 +563,9 @@ func slotOut(key string, pos lesson.Position) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var29 string
-		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(lesson.FirstFill(pos).JP)
+		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(drill.FirstFill(pos).JP)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 106, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 106, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
@@ -576,9 +576,9 @@ func slotOut(key string, pos lesson.Position) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var30 string
-		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(lesson.FirstFill(pos).Reading)
+		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(drill.FirstFill(pos).Reading)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 106, Col: 84}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/slotmachine.templ`, Line: 106, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {

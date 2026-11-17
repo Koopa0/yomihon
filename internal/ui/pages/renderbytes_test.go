@@ -19,8 +19,8 @@ import (
 	"github.com/koopa0/yomihon/assets"
 
 	"github.com/koopa0/yomihon/internal/asset"
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/judge"
-	"github.com/koopa0/yomihon/internal/lesson"
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
@@ -508,7 +508,7 @@ func renderedNoteView(t *testing.T, model *nav.Model, current, body string) Note
 		SchemaNotices: [][]wording.SchemaPart{
 			wording.SchemaSentence(wording.ZhHant, "schema.enum", "status", "seed"),
 		},
-		Concepts: []lesson.ConceptDoc{{ID: "c1", Title: "助詞", HTML: "<p>concept</p>"}},
+		Concepts: []drill.ConceptDoc{{ID: "c1", Title: "助詞", HTML: "<p>concept</p>"}},
 	}
 }
 
@@ -646,7 +646,7 @@ func recordedKeptHomeView(model *nav.Model) HomeView {
 // draws: a marked place with the sentence found there, a thought with the notes
 // it declares, a place whose heading is gone, and a mark on a whole note.
 func recordedOpenShelf(lang wording.Lang) Shelf {
-	mark, thought := wording.UncertaintyControl.In(lang), wording.OpenThoughtKind.In(lang)
+	mark, thought := wording.QuestionControl.In(lang), wording.OpenThoughtKind.In(lang)
 	return Shelf{
 		Title: wording.OpenThoughtsTitle.In(lang), Href: "/open-thoughts", Open: true, Lede: wording.OpenThoughtsLede.In(lang),
 		Rows: []Row{
@@ -660,11 +660,11 @@ func recordedOpenShelf(lang wording.Lang) Shelf {
 				Sources: []RowSource{{Text: "L01 › A second look", Href: ResumeHref("Writing/lessons/go/L01.md", "a-second-look", 0), Language: "en"}, {Text: "A note nobody wrote"}},
 			},
 			{
-				Text: "L01", Language: "en", Mark: wording.UncertaintyPlaceNotFound.In(lang), Fault: true, When: "2026-10-20",
+				Text: "L01", Language: "en", Mark: wording.QuestionPlaceNotFound.In(lang), Fault: true, When: "2026-10-20",
 				Place: RowPlace{Text: "#renamed", Language: "en"}, Href: ResumeHref("Writing/lessons/go/L01.md", "", 0),
-				Removal: &UncertaintyRemoval{
-					Label: wording.UncertaintyClearControl.In(lang), Unavailable: wording.UncertaintyUnavailable.In(lang),
-					Failed: wording.UncertaintyNotStored.In(lang), Cleared: wording.UncertaintyCleared.In(lang), Language: string(lang),
+				Removal: &QuestionRemoval{
+					Label: wording.QuestionClearControl.In(lang), Unavailable: wording.QuestionUnavailable.In(lang),
+					Failed: wording.QuestionNotStored.In(lang), Cleared: wording.QuestionCleared.In(lang), Language: string(lang),
 					Endpoint: "/uncertainties", Path: "Writing/lessons/go/L01.md", Anchor: "renamed",
 				},
 			},
@@ -781,7 +781,7 @@ var recordedJournalMonth = MonthOf(time.Date(2026, time.July, 1, 0, 0, 0, 0, tim
 // so the mark that says so had no recorded bytes and was free to lose its
 // colour to the ordinary measure beside it.
 func recordedFaultedIndexView() ListIndexView {
-	return NewPathIndex([]nav.Path{{
+	return NewPathIndex([]nav.Course{{
 		Title:       "Unread Course",
 		RelPath:     "Maps/unread.md",
 		Diagnostics: []sequence.Diagnostic{{Rule: "path.nesting_too_deep", Line: 4, Message: "nested past one level"}},

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/koopa0/yomihon/internal/lesson"
+	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -126,9 +126,9 @@ type NoteView struct {
 	// PlaceKept is whether the place the reader left off at is in this note.
 	// The control for keeping one then says so, so a reader who comes back to
 	// the note is told it already holds their place and not asked to guess.
-	PlaceKept          bool
-	UncertaintyAddress string
-	ThoughtDoor        bool
+	PlaceKept       bool
+	QuestionAddress string
+	ThoughtDoor     bool
 	// TranscludedIdentity is the render's digest over what every embed here came
 	// to — the excerpt pulled in, or the absence shown in its place — and is
 	// empty where the page carries none. It rides the freshness watch beside
@@ -146,7 +146,7 @@ type NoteView struct {
 
 	// Concepts are the grammar-concept notes this lesson links to, each
 	// pre-rendered for the concept sheet.
-	Concepts []lesson.ConceptDoc
+	Concepts []drill.ConceptDoc
 }
 
 // Note is the reading page: the article in the shared shell, with the
@@ -184,7 +184,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 // own page.
 // A nested title and body occupy one level below their enclosing page heading.
 templ noteArticle(v NoteView, lang wording.Lang) {
-	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { uncertaintyAttrs(&v, lang)... }>
+	<article class="y-article" { authoredLanguageAttrs(v.Language)... } { questionAttrs(&v, lang)... }>
 		@articleHead(v, lang)
 		@frontmatterUnclosedNotice(v, lang)
 		@schemaNotices(v, lang)
@@ -215,7 +215,7 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 // sheet they opened, because the words in it are cloned from a template by the
 // same script. Closing is another matter: the press says what it closes, and
 // the browser closes it.
-templ conceptSheet(concepts []lesson.ConceptDoc, lang wording.Lang) {
+templ conceptSheet(concepts []drill.ConceptDoc, lang wording.Lang) {
 	if len(concepts) > 0 {
 		for _, c := range concepts {
 			<template id={ "_y-concept-" + c.ID } data-title={ conceptSheetTitle(c.Title, lang) }>

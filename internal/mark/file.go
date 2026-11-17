@@ -11,7 +11,7 @@ import (
 )
 
 // File keeps the reader's marks for one vault under the configuration
-// directory of the person running it. Continuation and uncertainty marks use
+// directory of the person running it. Bookmark and question marks use
 // separate files, each replaced whole.
 //
 // It holds no mark in memory. The file on disk is the record, so a reader who
@@ -27,21 +27,21 @@ type File struct {
 	// is named after a digest and a person who has to find the right one needs
 	// something to read.
 	vaultRoot string
-	// mu serializes writers, including uncertainty read-modify-write updates.
+	// mu serializes writers, including question read-modify-write updates.
 	mu sync.Mutex
 }
 
 // document is the file's own shape. Version comes first so a reader that does
 // not recognise it stops at the first field.
 type document struct {
-	Version      int           `json:"version"`
-	Vault        string        `json:"vault"`
-	Continuation *continuation `json:"continuation,omitempty"`
+	Version  int       `json:"version"`
+	Vault    string    `json:"vault"`
+	Bookmark *bookmark `json:"continuation,omitempty"`
 }
 
-// continuation is one mark as it sits in the file. The time is written in RFC
+// bookmark is one mark as it sits in the file. The time is written in RFC
 // 3339 by the encoder, which is the shape a person reading the file expects.
-type continuation struct {
+type bookmark struct {
 	Path     string    `json:"path"`
 	Anchor   string    `json:"anchor,omitempty"`
 	Offset   int       `json:"offset"`
@@ -77,7 +77,7 @@ func (f *File) Path() string {
 	return f.path
 }
 
-// Continuation reports the mark this file holds.
+// Bookmark reports the mark this file holds.
 //
 // A file that is not there, cannot be read, or carries a shape this version
 // does not recognise answers false. A mark is a convenience the reader set in
@@ -85,46 +85,46 @@ func (f *File) Path() string {
 // missing one: there is nowhere to continue from, and the next mark replaces
 // it. Nothing here repairs a file, and nothing reports one to the reader,
 // because the reader did not ask this question — a page did, on their behalf.
-func (f *File) Continuation() (Continuation, bool) {
+func (f *File) Bookmark() (Bookmark, bool) {
 	data, err := os.ReadFile(f.path)
 	if err != nil {
-		return Continuation{}, false
+		return Bookmark{}, false
 	}
 	var doc document
-	if json.Unmarshal(data, &doc) != nil || doc.Version != documentVersion || doc.Continuation == nil {
-		return Continuation{}, false
+	if json.Unmarshal(data, &doc) != nil || doc.Version != documentVersion || doc.Bookmark == nil {
+		return Bookmark{}, false
 	}
-	held := Continuation{
-		RelPath:  doc.Continuation.Path,
-		Anchor:   doc.Continuation.Anchor,
-		Offset:   doc.Continuation.Offset,
-		Identity: doc.Continuation.Identity,
-		At:       doc.Continuation.At,
+	held := Bookmark{
+		RelPath:  doc.Bookmark.Path,
+		Anchor:   doc.Bookmark.Anchor,
+		Offset:   doc.Bookmark.Offset,
+		Identity: doc.Bookmark.Identity,
+		At:       doc.Bookmark.At,
 	}
 	// Held to the same bounds a submission is. The file is the reader's own and
 	// they may edit it, and a value that arrived by hand reaches the same page
 	// that a posted one does.
 	if validate(&held) != nil {
-		return Continuation{}, false
+		return Bookmark{}, false
 	}
 	return held, true
 }
 
-// SetContinuation replaces this file's mark with c, or refuses it unchanged.
+// SetBookmark replaces this file's mark with c, or refuses it unchanged.
 // It reads c and never writes through the pointer.
 //
 // The replacement is written beside the file and renamed over it, so a reader
 // whose machine stops mid-write finds either the old mark or the new one and
 // never half of either. It is not synchronized to the platter: what is lost
 // here is one mark a reader sets again by pressing the same control.
-func (f *File) SetContinuation(c *Continuation) error {
+func (f *File) SetBookmark(c *Bookmark) error {
 	if err := validate(c); err != nil {
 		return err
 	}
 	doc := document{
 		Version: documentVersion,
 		Vault:   f.vaultRoot,
-		Continuation: &continuation{
+		Bookmark: &bookmark{
 			Path:     c.RelPath,
 			Anchor:   c.Anchor,
 			Offset:   c.Offset,

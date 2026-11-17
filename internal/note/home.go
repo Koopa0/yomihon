@@ -60,7 +60,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	)
 	privacy := snap.PrivacyPolicy().Claim()
 	privacyFault, privacyRestart := statedAsFaults(lang, faultCause{privacy.Diagnostic(), privacy.Reason()})
-	kept, hasMark := h.sources.Continuation()
+	kept, hasMark := h.sources.Bookmark()
 	open, openFault := h.openThoughtShelf(snap, lang, pages.OpenThoughtsHomeRows, pages.OpenNewest)
 	if snap.NavigationRoles().AnswerType() == "" && len(open.Rows) == 0 && openFault == "" {
 		open = pages.Shelf{}
@@ -92,7 +92,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 // against whatever the folder holds a moment later. An identity that no longer
 // matches still goes to the mark: it is the reader's own best pointer, and the
 // sentence says why the place may have moved rather than withholding it.
-func continueRow(kept *mark.Continuation, hasMark bool, snap *snapshot.Generation, model *nav.Model, lang wording.Lang) pages.ContinueRow {
+func continueRow(kept *mark.Bookmark, hasMark bool, snap *snapshot.Generation, model *nav.Model, lang wording.Lang) pages.ContinueRow {
 	if !hasMark {
 		return pages.ContinueRow{}
 	}

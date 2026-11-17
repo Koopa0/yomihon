@@ -19,10 +19,10 @@ const module = "github.com/koopa0/yomihon"
 // the first thing the command constructs and the thing every served face reads
 // from.
 var enginePackages = []string{
+	"internal/drill",
 	"internal/figure",
 	"internal/graph",
 	"internal/judge",
-	"internal/lesson",
 	"internal/lexical",
 	"internal/nav",
 	"internal/render",
@@ -48,6 +48,7 @@ var presentationLayerPackages = []string{
 var faceAdapterPackages = []string{
 	"internal/archlock",
 	"internal/asset",
+	"internal/course",
 	"internal/mark",
 	"internal/note",
 	"internal/preference",
@@ -55,7 +56,6 @@ var faceAdapterPackages = []string{
 	"internal/search",
 	"internal/shell",
 	"internal/sourcebytes",
-	"internal/syllabus",
 }
 
 type packageLayer struct {
