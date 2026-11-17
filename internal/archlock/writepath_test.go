@@ -424,10 +424,17 @@ func rebinds(body *ast.BlockStmt, name string) bool {
 				}
 			}
 		case *ast.FuncLit:
-			for _, param := range node.Type.Params.List {
-				for _, id := range param.Names {
-					if id.Name == name {
-						again = true
+			// A literal binds its parameters and its named results in a scope of its
+			// own, and a call inside it goes through those.
+			for _, fields := range []*ast.FieldList{node.Type.Params, node.Type.Results} {
+				if fields == nil {
+					continue
+				}
+				for _, field := range fields.List {
+					for _, id := range field.Names {
+						if id.Name == name {
+							again = true
+						}
 					}
 				}
 			}
@@ -894,6 +901,20 @@ func takeOutOfList(store *vaults.Store, id string) error { _, err := store.Remov
 func wipe(name string) error { return store.Remove(name) }`,
 		want:    []string{"a call to Remove, which changes what it is called on"},
 		excused: 1,
+	},
+	{
+		name: "a literal whose named result is the receiver's name, inside the function",
+		path: "cmd/yomihon/vaults.go",
+		src: `package main
+import "github.com/koopa0/yomihon/internal/mark/vaults"
+type remover interface{ Remove(string) error }
+func takeOutOfList(store *vaults.Store, id string) error {
+	_, err := store.Remove(id)
+	func() (store remover) { defer store.Remove(id); return nil }()
+	return err
+}`,
+		want:    []string{"a call to Remove, which changes what it is called on"},
+		excused: 0,
 	},
 	{
 		name: "another function of that file that takes the store too",
