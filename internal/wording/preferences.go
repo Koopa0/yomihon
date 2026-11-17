@@ -115,8 +115,8 @@ var (
 var (
 	PrefShortcuts     = both("單鍵快捷鍵", "Single-key shortcuts")
 	PrefShortcutsNote = both(
-		"關掉的是 /、[ 與 ?；⌘K 與 Esc 不受影響。",
-		"Turns off /, [ and ?; ⌘K and Esc keep working.",
+		"關掉的是 /、\\ 與 ?；⌘K 與 Esc 不受影響。",
+		"Turns off /, \\ and ?; ⌘K and Esc keep working.",
 	)
 )
 

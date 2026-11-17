@@ -116,7 +116,7 @@ export function initPreferences() {
     const keys = root.dataset.singleKeyShortcuts !== 'off';
     railToggle.setAttribute('aria-expanded', String(!collapsed));
     railToggle.title = (collapsed ? railToggle.dataset.titleShow : railToggle.dataset.titleHide) + (keys ? railToggle.dataset.titleKey : '');
-    if (keys) railToggle.setAttribute('aria-keyshortcuts', '[');
+    if (keys) railToggle.setAttribute('aria-keyshortcuts', '\\');
     else railToggle.removeAttribute('aria-keyshortcuts');
   }
 

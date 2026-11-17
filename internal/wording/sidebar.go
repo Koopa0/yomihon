@@ -29,7 +29,7 @@ var (
 	// RailKeyHint is appended to the tooltip while single-key shortcuts are on,
 	// and left off while they are not: the tooltip promises the key only when
 	// the key works.
-	RailKeyHint = both("（[）", " ([)")
+	RailKeyHint = both("（\\）", " (\\)")
 )
 
 // VaultRoot is what the rail calls the folder everything else sits under, since

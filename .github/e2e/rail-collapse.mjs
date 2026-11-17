@@ -341,8 +341,8 @@ const MUTATIONS = {
     target: 'off-shortcuts-do-not-advertise-the-key',
     apply: rewriteAsset(
       '**/preferences.js{,?*}',
-      "    if (keys) railToggle.setAttribute('aria-keyshortcuts', '[');\n    else railToggle.removeAttribute('aria-keyshortcuts');\n",
-      "    railToggle.setAttribute('aria-keyshortcuts', '[');\n",
+      "    if (keys) railToggle.setAttribute('aria-keyshortcuts', '\\\\');\n    else railToggle.removeAttribute('aria-keyshortcuts');\n",
+      "    railToggle.setAttribute('aria-keyshortcuts', '\\\\');\n",
     ),
   },
   // The usual ring offset, which runs a pixel past the strip.
@@ -492,12 +492,12 @@ try {
     const before = await geometry(page);
     if (!before.prose || Math.round(before.prose.width) !== MEASURE) broken(`the fixture page's text is ${before.prose?.width}px wide with the column shown at ${FOLD_WIDTH}, want its measure of ${MEASURE}px`);
     if (Math.round(before.rail.width) !== NOTE_OPEN_NARROW) broken(`the column is ${before.rail.width}px at ${FOLD_WIDTH}, want ${NOTE_OPEN_NARROW}`);
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const after = await geometry(page);
     if (Math.round(after.prose.width) !== MEASURE) fail('text-returns-to-the-measure', `collapsing left the text ${after.prose.width}px wide, want ${MEASURE}`);
     if (Math.round(after.rail.width) !== STRIP) fail('text-returns-to-the-measure', `the folded column is ${after.rail.width}px wide, want the ${STRIP}px strip`);
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const back = await geometry(page);
     if (Math.round(back.rail.width) !== NOTE_OPEN_NARROW || Math.round(back.prose.width) !== Math.round(before.prose.width)) {
@@ -509,7 +509,7 @@ try {
   await run('choice-survives-a-reload', async () => {
     const { page, context, checkProof } = await open('choice-survives-a-reload', PAGE);
     await checkProof();
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('html[data-js]');
@@ -517,7 +517,7 @@ try {
     if (after.state !== 'collapsed' || Math.round(after.rail.width) !== STRIP) {
       fail('choice-survives-a-reload', `after a reload the column is ${after.rail.width}px with rail=${after.state}, want the strip and collapsed (cookie=${await cookieValue(context)})`);
     }
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('html[data-js]');
@@ -544,7 +544,7 @@ try {
   await run('wide-key-leaves-the-drawer-alone', async () => {
     const { page, context, checkProof } = await open('wide-key-leaves-the-drawer-alone', PAGE, { width: 1024 });
     await checkProof();
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const g = await geometry(page);
     if (g.state !== 'collapsed' || g.nav === 'open') {
@@ -556,7 +556,7 @@ try {
   await run('drawer-key-still-opens-at-1023', async () => {
     const { page, context, checkProof } = await open('drawer-key-still-opens-at-1023', PAGE, { width: 1023 });
     await checkProof();
-    await key(page, '[');
+    await key(page, '\\');
     await page.waitForFunction(() => document.documentElement.dataset.nav === 'open', null, { timeout: 2000 }).catch(() => {});
     const g = await geometry(page);
     if (g.nav !== 'open' || g.state === 'collapsed') {
@@ -583,7 +583,7 @@ try {
     await checkProof();
     await page.locator(`${BODY} a[href]`).first().focus();
     if (await page.evaluate(() => document.activeElement?.closest('#_y-nav-rail-body') === null)) broken('focus did not enter the panel');
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const g = await geometry(page);
     if (!g.focusInToggle) {
@@ -592,7 +592,7 @@ try {
     }
     // The filter shares the head with the button and goes with the panel, so it
     // is a place focus can be when the fold happens too.
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     await page.locator(FILTER).focus();
     await page.evaluate(() => document.querySelector('[data-rail-toggle]').click());
@@ -691,7 +691,7 @@ try {
   await run('crossing-1023-leaves-nothing-stale', async () => {
     const { page, context, checkProof } = await open('crossing-1023-leaves-nothing-stale', PAGE, { width: 1281 });
     await checkProof();
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     let g = await geometry(page);
     if (g.nav === 'open') fail('crossing-1023-leaves-nothing-stale', `folding the column set nav=${g.nav}`);
@@ -716,7 +716,7 @@ try {
     if (g.inert !== false || g.hidden !== null || g.nav !== 'closed' || g.state !== 'collapsed') {
       fail('crossing-1023-leaves-nothing-stale', `back at 1024 and above inert=${g.inert} aria-hidden=${g.hidden} nav=${g.nav} rail=${g.state}, want none of the drawer's marks and the choice kept`);
     }
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     g = await geometry(page);
     if (g.state !== 'open' || g.nav !== 'closed' || g.inert !== false) {
@@ -728,7 +728,7 @@ try {
   await run('wide-fold-sets-no-inertness', async () => {
     const { page, context, checkProof } = await open('wide-fold-sets-no-inertness', PAGE, { width: 1281 });
     await checkProof();
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const g = await geometry(page);
     if (g.inert !== false || g.hidden !== null) {
@@ -742,14 +742,14 @@ try {
     await checkProof();
     let g = await geometry(page);
     const name = g.label;
-    if (g.expanded !== 'true' || g.controls !== '_y-nav-rail-body' || !g.title.includes('[')) {
+    if (g.expanded !== 'true' || g.controls !== '_y-nav-rail-body' || !g.title.includes('\\')) {
       fail('state-is-told-by-the-control', `shown: aria-expanded=${g.expanded} controls=${g.controls} title=${g.title}`);
     }
     const shownTitle = g.title;
     await page.locator(TOGGLE).click();
     await settled(page);
     g = await geometry(page);
-    if (g.expanded !== 'false' || g.label !== name || g.title === shownTitle || !g.title.includes('[')) {
+    if (g.expanded !== 'false' || g.label !== name || g.title === shownTitle || !g.title.includes('\\')) {
       fail('state-is-told-by-the-control', `folded: aria-expanded=${g.expanded} label=${g.label} (was ${name}) title=${g.title} (was ${shownTitle})`);
     }
     await page.reload({ waitUntil: 'domcontentloaded' });
@@ -790,7 +790,7 @@ try {
     if (!declared.property.includes('grid-template-columns') || Number.parseFloat(declared.duration) <= 0) {
       fail('fold-is-animated', `the shell declares transition ${declared.property} over ${declared.duration}`);
     }
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const ran = await page.evaluate(() => window.__railTransitions);
     if (!ran.includes('grid-template-columns')) fail('fold-is-animated', `folding ran transitions ${JSON.stringify(ran)}, want grid-template-columns among them`);
@@ -854,7 +854,7 @@ try {
       });
       await page.waitForTimeout(150);
       const before = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
-      await key(page, '[');
+      await key(page, '\\');
       await settled(page);
       const after = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
       // Where the text is narrower than its measure the fold widens it and the
@@ -1110,13 +1110,13 @@ try {
       window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     }, on);
     let g = await read();
-    if (g.title.includes('[') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `with single keys off the button says title=${JSON.stringify(g.title)} keys=${g.keys}`);
+    if (g.title.includes('\\') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `with single keys off the button says title=${JSON.stringify(g.title)} keys=${g.keys}`);
     await flip(true);
     g = await read();
-    if (!g.title.includes('[') || g.keys !== '[') fail('off-shortcuts-do-not-advertise-the-key', `turning single keys on left title=${JSON.stringify(g.title)} keys=${g.keys}`);
+    if (!g.title.includes('\\') || g.keys !== '\\') fail('off-shortcuts-do-not-advertise-the-key', `turning single keys on left title=${JSON.stringify(g.title)} keys=${g.keys}`);
     await flip(false);
     g = await read();
-    if (g.title.includes('[') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `turning single keys off left title=${JSON.stringify(g.title)} keys=${g.keys}`);
+    if (g.title.includes('\\') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `turning single keys off left title=${JSON.stringify(g.title)} keys=${g.keys}`);
     await context.close();
   });
 

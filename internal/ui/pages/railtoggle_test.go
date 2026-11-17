@@ -127,7 +127,7 @@ func TestFoldControlStatesTheColumnFromTheCookie(t *testing.T) {
 						t.Errorf("fold control missing %q; html = %q", want, html)
 					}
 				}
-				if got := strings.Contains(html, `aria-keyshortcuts="["`); got != tt.keys {
+				if got := strings.Contains(html, `aria-keyshortcuts="\"`); got != tt.keys {
 					t.Errorf("aria-keyshortcuts advertised = %v with single keys %v", got, tt.keys)
 				}
 			})

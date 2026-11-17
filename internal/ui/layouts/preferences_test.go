@@ -288,7 +288,7 @@ func TestKeyboardKeysNamesTheFiveKeysTheInterfaceAnswers(t *testing.T) {
 				`<span class="ui-kbd">Ctrl K</span>`,
 				`<span class="ui-kbd">Esc</span>`,
 				`<span class="ui-kbd">/</span>`,
-				`<span class="ui-kbd">[</span>`,
+				`<span class="ui-kbd">\</span>`,
 				`<span class="ui-kbd">?</span>`,
 			} {
 				if !strings.Contains(list, key) {

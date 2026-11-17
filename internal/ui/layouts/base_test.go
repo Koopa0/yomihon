@@ -370,7 +370,7 @@ func TestKeyboardHelpDoesNotDisownTheSidebarKey(t *testing.T) {
 				t.Fatalf("render keyboard help: %v", err)
 			}
 			panel := elementSubtree(t, buf.String(), `id="_y-kbd-help"`)
-			row := strings.TrimSpace(shortcutRow(t, panel, "["))
+			row := strings.TrimSpace(shortcutRow(t, panel, `\`))
 			if want := wording.ShortcutToggleSidebar.In(lang); row != want {
 				t.Errorf("the sidebar key's row = %q, want exactly %q", row, want)
 			}

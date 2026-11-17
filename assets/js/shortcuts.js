@@ -55,7 +55,7 @@ export function initShortcuts({ drawer, rail, sidebar, search }) {
       }
       return;
     }
-    if (event.key === '[') {
+    if (event.key === '\\') {
       if (drawer.isNarrow()) {
         event.preventDefault();
         drawer.toggle();
