@@ -33,6 +33,8 @@ func TestEverySchemaRuleHasWordsForAReader(t *testing.T) {
 		"schema.unmatched_knowledge_dir": "it is about the folder rather than a note",
 		// Reached from the contract's type roles, not from any note.
 		"schema.navigation_unavailable": "it is about the contract rather than a note",
+		// Reached from the rules file's [domains] table, not from any note.
+		"schema.domain_table": "it is about the rules file rather than a note",
 	}
 
 	var expected, checked []string

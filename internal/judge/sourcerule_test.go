@@ -36,6 +36,7 @@ func TestEveryEmittedSourceRuleIsOneThatCanBeOpened(t *testing.T) {
 		sourceContract:        true,
 		sourceContractRules:   true,
 		sourceContractFolders: true,
+		sourceContractDomains: true,
 		sourceContractTypes:   true,
 		sourceYomihon:         true,
 		// A document is an admissible source in principle — one the vault

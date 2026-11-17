@@ -84,14 +84,15 @@ func DefaultPlannedInlineMarks() []string {
 // returns what a folder that declared nothing declares — no version, no
 // vocabulary, no capability.
 type Contract struct {
-	version    string
-	types      []typeDefinition
-	typeByName map[string]int
-	enums      []enumDefinition
-	common     []string
-	required   []string
-	rules      Rules
-	folders    Folders
+	version     string
+	types       []typeDefinition
+	typeByName  map[string]int
+	enums       []enumDefinition
+	common      []string
+	required    []string
+	rules       Rules
+	folders     Folders
+	domainTable *domainTable
 
 	navigationRoles NavigationRoles
 	knowledgeScope  KnowledgeScope
@@ -173,13 +174,14 @@ type Folders struct {
 }
 
 type contractFile struct {
-	Version string              `toml:"schema_version"`
-	Folders folderSection       `toml:"folders"`
-	Enums   map[string][]string `toml:"enums"`
-	Fields  fieldSection        `toml:"fields"`
-	Types   map[string]typeFile `toml:"types"`
-	Rules   ruleSection         `toml:"rules"`
-	Privacy toml.Primitive      `toml:"privacy"`
+	Version string                `toml:"schema_version"`
+	Folders folderSection         `toml:"folders"`
+	Enums   map[string][]string   `toml:"enums"`
+	Fields  fieldSection          `toml:"fields"`
+	Types   map[string]typeFile   `toml:"types"`
+	Domains map[string]domainFile `toml:"domains"`
+	Rules   ruleSection           `toml:"rules"`
+	Privacy toml.Primitive        `toml:"privacy"`
 }
 
 type folderSection struct {
@@ -470,6 +472,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		return nil, err
 	}
 
+	contract.domainTable = deriveDomainTable(contract.enumValues(domainField), decoded.Domains)
 	contract.navigationRoles = deriveNavigationRoles(contract.types)
 	contract.knowledgeScope = deriveKnowledgeScope(contract.folders.Checked)
 	contract.journalDir = deriveJournalDir(contract.folders.Journal, tomlMeta.IsDefined("folders", "journal"))

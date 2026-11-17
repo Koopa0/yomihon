@@ -172,6 +172,27 @@ any domain, and silence there is permission rather than absence.
 A note type needs no entry here: every `[types.<name>]` table declares one, and
 `[enums] type` may add types that need no table.
 
+### `[domains.<name>]` — a domain's name and endpaper
+
+Optional, one table for each domain `[enums] domain` lists. Every key is
+optional too.
+
+| Key | What it does |
+|---|---|
+| `name` | what the reader calls the domain, in every language. Without it the domain shows its folder's name |
+| `name_zh`, `name_en` | the same for one language, winning over `name` for it |
+| `pattern` | the endpaper the domain's courses are printed on, `endpaper-01` to `endpaper-12` |
+
+A domain that pins no pattern takes the lowest one no other domain pinned, in
+the order `[enums] domain` lists the domains, so with nothing pinned the first
+domain has `endpaper-01` and the second `endpaper-02`. Only twelve domains have
+one. A table that pins a pattern that does not exist, pins one pattern for two
+domains, or is written for a domain `[enums] domain` does not list is
+`schema.domain_table`, an error against the rules file; it pins nothing, so every
+domain takes the pattern its place in the list gives it, and the names still
+apply. The finding does not name the domain, because a domain is a folder's
+name. A key the table does not define is refused with the rest of the rules file.
+
 ### `[fields]` — which keys may appear at all
 
 | Key | What it does to your note |

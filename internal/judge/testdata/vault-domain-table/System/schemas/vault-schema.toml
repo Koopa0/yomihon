@@ -1,0 +1,26 @@
+schema_version = "2"
+
+[folders]
+checked = ["Writing"]
+templates = ["System/templates"]
+skipped_files = []
+
+[enums]
+domain = ["golang", "japanese"]
+
+[fields]
+common = ["type", "lang"]
+required = ["type"]
+
+[types.note]
+
+# Two domains pin one endpaper, so the table pins nothing.
+[domains.golang]
+name = "Go"
+pattern = "endpaper-05"
+
+[domains.japanese]
+pattern = "endpaper-05"
+
+[privacy]
+never_egress_dirs = []

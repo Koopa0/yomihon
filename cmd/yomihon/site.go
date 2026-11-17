@@ -62,6 +62,7 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 	}{
 		{"privacy", contract.PrivacyPolicy().Diagnostic()},
 		{"artifact", contract.ArtifactPolicy().Diagnostic()},
+		{"domains", contract.Domains().Claim().Diagnostic()},
 	} {
 		if fault.diagnostic == "" {
 			continue
@@ -148,7 +149,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 	vaultName := shell.VaultName(source.Name())
 	searchProvider := func() search.RequestSnapshot {
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap), Roles: snap.NavigationRoles()}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap), Roles: snap.NavigationRoles(), Domains: snap.Domains()}
 	}
 	// The marks a reader leaves are kept for the root the vault capability was
 	// actually taken on, which is the resolved absolute path rather than the

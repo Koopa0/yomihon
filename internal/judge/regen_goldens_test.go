@@ -25,6 +25,7 @@ var engineGoldens = []struct {
 	{fixture: "testdata/vault-paths", golden: "testdata/golden/paths.jsonl"},
 	{fixture: "testdata/vault-course", golden: "testdata/golden/course.jsonl"},
 	{fixture: "testdata/vault-navigation-unavailable", golden: "testdata/golden/navigation-unavailable.jsonl"},
+	{fixture: "testdata/vault-domain-table", golden: "testdata/golden/domain-table.jsonl"},
 	{fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
 	{fixture: "testdata/vault-fragments", golden: "testdata/golden/fragments.jsonl"},
 	{fixture: "testdata/vault-scan-agree", golden: "testdata/golden/scan.jsonl"},

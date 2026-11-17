@@ -27,13 +27,13 @@ func (c *captureLogs) Handle(_ context.Context, r slog.Record) error {
 func (c *captureLogs) WithAttrs([]slog.Attr) slog.Handler { return c }
 func (c *captureLogs) WithGroup(string) slog.Handler      { return c }
 
-// said reports every record at or above level whose message or attributes
-// contain want.
-func (c *captureLogs) said(level slog.Level, want string) []string {
+// said reports every warning, or worse, whose message or attributes contain
+// want.
+func (c *captureLogs) said(want string) []string {
 	var out []string
 	for i := range c.records {
 		r := &c.records[i]
-		if r.Level < level {
+		if r.Level < slog.LevelWarn {
 			continue
 		}
 		text := r.Message
@@ -90,7 +90,7 @@ func TestStartupSaysWhyAPolicyCouldNotBeUsed(t *testing.T) {
 	t.Parallel()
 
 	rejected := siteWithPrivacySection(t, "[privacy]\nnever_egress_dirs = [\"/\"]\n")
-	said := rejected.said(slog.LevelWarn, "never_egress_dirs")
+	said := rejected.said("never_egress_dirs")
 	if len(said) == 0 {
 		t.Errorf("startup said nothing about a privacy declaration it refused:\n%v", rejected.records)
 	}
@@ -98,7 +98,25 @@ func TestStartupSaysWhyAPolicyCouldNotBeUsed(t *testing.T) {
 	// The control: a contract whose policy is usable earns no warning, or the
 	// warning above would be noise the operator learns to scroll past.
 	fine := siteWithPrivacySection(t, "[privacy]\nnever_egress_dirs = [\"Private\"]\n")
-	if noise := fine.said(slog.LevelWarn, "privacy"); len(noise) != 0 {
+	if noise := fine.said("privacy"); len(noise) != 0 {
 		t.Errorf("a usable privacy policy was warned about: %v", noise)
+	}
+}
+
+// TestStartupSaysWhyADomainsTableCouldNotBeUsed holds the half of the
+// schema.domain_table finding that points here: it names no domain, because a
+// domain is a folder's name, and says the reason is in this log.
+func TestStartupSaysWhyADomainsTableCouldNotBeUsed(t *testing.T) {
+	t.Parallel()
+
+	const privacy = "[privacy]\nnever_egress_dirs = [\"Private\"]\n"
+	refused := siteWithPrivacySection(t, "[domains.golang]\npattern = \"endpaper-13\"\n\n"+privacy)
+	if said := refused.said("domains.golang.pattern"); len(said) == 0 {
+		t.Errorf("startup said nothing about a domains table it could not use:\n%v", refused.records)
+	}
+
+	fine := siteWithPrivacySection(t, "[domains.golang]\npattern = \"endpaper-12\"\n\n"+privacy)
+	if noise := fine.said("domains"); len(noise) != 0 {
+		t.Errorf("a usable domains table was warned about: %v", noise)
 	}
 }
