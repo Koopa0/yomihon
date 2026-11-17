@@ -5,8 +5,10 @@ package wording
 
 // What a folder listing counts, and what it says when there is nothing to list.
 var (
-	SubfolderCountOne   = both("%d 個資料夾、", "%d folder, ")
-	SubfolderCountMany  = both("%d 個資料夾、", "%d folders, ")
+	SubfolderCountOne  = both("%d 個資料夾", "%d folder")
+	SubfolderCountMany = both("%d 個資料夾", "%d folders")
+	// CountJoin sits between the folders and the notes a level holds.
+	CountJoin           = both("、", ", ")
 	FolderNoteCountOne  = both("%d 篇", "%d note")
 	FolderNoteCountMany = both("%d 篇", "%d notes")
 	FolderEmpty         = both("這個資料夾是空的。", "This folder is empty.")

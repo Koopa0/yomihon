@@ -1,6 +1,8 @@
 package pages
 
 import (
+	"strings"
+
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -29,17 +31,26 @@ type Cover struct {
 	ReadHref string
 }
 
+// folderCount says what a level holds, leaving out a term that is zero. It is
+// empty when the level holds neither, and the page then draws no line.
+func folderCount(notes, folders int, lang wording.Lang) string {
+	var parts []string
+	if folders > 0 {
+		parts = append(parts, plural(folders, wording.SubfolderCountOne, wording.SubfolderCountMany, lang))
+	}
+	if notes > 0 {
+		parts = append(parts, plural(notes, wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang))
+	}
+	return strings.Join(parts, wording.CountJoin.In(lang))
+}
+
 // NewFolderLevel builds one level of the tree. The folders come first with
 // how many notes sit under each of them, then the notes in this folder, then
 // the other files the desk can open, labelled and uncounted.
 func NewFolderLevel(dir, name string, notes []nav.NoteRef, subfolders []nav.Folder, lang wording.Lang, articleLang ArticleLanguageFor) FolderView {
-	count := plural(countNotes(notes, nil), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang)
-	if len(subfolders) > 0 {
-		count = plural(len(subfolders), wording.SubfolderCountOne, wording.SubfolderCountMany, lang) + count
-	}
 	return FolderView{
 		Crumbs: Breadcrumb(dir),
-		Count:  count,
+		Count:  folderCount(countNotes(notes, nil), len(subfolders), lang),
 		Shelf: Shelf{
 			Title: name,
 			Empty: wording.FolderEmpty.In(lang),
