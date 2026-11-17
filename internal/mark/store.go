@@ -203,7 +203,7 @@ func (s *Store) loadMarks() (held []Mark, stored bool, err error) {
 
 // loadProgress reads progress.json. When it is not there the bookmarks are the
 // one an earlier version kept, converted into the bookmark for no course.
-func (s *Store) loadProgress() ([]courseBookmark, error) {
+func (s *Store) loadProgress() (progress, error) {
 	data, err := confdir.Read(s.dir, progressFile, maxProgressFileBytes)
 	switch {
 	case err == nil:
@@ -211,12 +211,25 @@ func (s *Store) loadProgress() ([]courseBookmark, error) {
 	case errors.Is(err, os.ErrNotExist):
 		legacy, found, legacyErr := legacyBookmark(s.dir)
 		if legacyErr != nil || !found {
-			return []courseBookmark{}, legacyErr
+			return progress{bookmarks: []courseBookmark{}}, legacyErr
 		}
-		return []courseBookmark{{Course: NoCourse, Bookmark: legacy}}, nil
+		return progress{bookmarks: []courseBookmark{{Course: NoCourse, Bookmark: legacy}}}, nil
 	default:
-		return nil, fmt.Errorf("%w: %s: %w", ErrUnreadable, progressFile, err)
+		return progress{}, fmt.Errorf("%w: %s: %w", ErrUnreadable, progressFile, err)
 	}
+}
+
+// saveProgress replaces progress.json with p, or refuses it unchanged. The
+// caller holds the lock and read p from loadProgress under it.
+func (s *Store) saveProgress(p progress) error {
+	if p.bookmarks == nil {
+		p.bookmarks = []courseBookmark{}
+	}
+	data, err := encode(progressDocument{Version: documentVersion, Vault: s.vaultRoot, Bookmarks: p.bookmarks, Finished: p.finished}, maxProgressFileBytes)
+	if err != nil {
+		return err
+	}
+	return confdir.Replace(s.dir, progressFile, data)
 }
 
 // newID makes the name of a new mark: 128 random bits, which two marks never
