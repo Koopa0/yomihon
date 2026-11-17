@@ -271,7 +271,7 @@ screenshots:
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-shot.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
-	YOMIHON_FIXTURE=examples/vault bash .github/e2e/serve.sh "$$tmp/yomihon" 19761 -- sh -c '\
+	YOMIHON_FIXTURE=examples/vault bash .github/e2e/serve.sh "$$tmp/yomihon" 0 -- sh -c '\
 	  LANG_CHOICE=en PAGE_PATH="/notes/Lessons/L02%20Add%20a%20contract.md" \
 	    OUT=.github/media/reading-en.png node .github/screenshot.mjs && \
 	  LANG_CHOICE=zh-Hant PAGE_PATH="/notes/Lessons/japanese/J01%20找到書的位置.md" \
@@ -284,7 +284,7 @@ e2e-http-check:
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
 	bash .github/e2e/serve.sh --self-test; \
 	bash .github/e2e/smoke.sh --self-test; \
-	bash .github/e2e/serve.sh "$$tmp/yomihon" 19733 -- bash .github/e2e/smoke.sh
+	bash .github/e2e/serve.sh "$$tmp/yomihon" 0 -- bash .github/e2e/smoke.sh
 
 # Each target gets a fixed work budget and one worker. A wall-clock fuzz budget
 # is a poor merge gate: Go cancels the coordinator context at the deadline, so
