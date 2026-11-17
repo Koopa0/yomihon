@@ -20,7 +20,10 @@ import (
 // still holding. A reader who sets nothing leaves no directory behind: it is
 // created by the first write.
 type Store struct {
-	dir string
+	// configDir is kept to name the directory of another vault's marks, which
+	// Adopt reads.
+	configDir string
+	dir       string
 	// vaultRoot is written inside each file, because the directory holding it
 	// is named after a digest.
 	vaultRoot string
@@ -41,7 +44,7 @@ func Open(configDir, vaultRoot string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Store{dir: dir, vaultRoot: vaultRoot}, nil
+	return &Store{configDir: configDir, dir: dir, vaultRoot: vaultRoot}, nil
 }
 
 // Dir is the directory this keeps its files in. It is what the interface names

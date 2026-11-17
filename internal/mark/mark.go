@@ -24,9 +24,10 @@
 // migrate.go.
 //
 // The reading server writes them. The marks command, which answers about the
-// reader, reads and never writes. The adjudication commands — check, coverage,
-// exists — never read any of it: what they answer is about the vault, and this
-// is about the reader.
+// reader, reads, and writes only when it is asked to adopt what was kept for
+// the vault's earlier path (see adopt.go). The adjudication commands — check,
+// coverage, exists — never read any of it: what they answer is about the
+// vault, and this is about the reader.
 package mark
 
 import (

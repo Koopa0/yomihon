@@ -32,11 +32,13 @@ import (
 type commandArgs struct {
 	root string
 	// serve refuses repeated roots; the adjudicating commands keep the last.
-	rootCount   int
-	format      *judge.Format
-	all         bool
-	deny        []string
-	baseline    string
+	rootCount int
+	format    *judge.Format
+	all       bool
+	deny      []string
+	baseline  string
+	// adopt is the path a vault had before it moved; only marks takes it.
+	adopt       string
 	positionals []string
 }
 
@@ -100,6 +102,9 @@ func runCommand(
 // Each of the three takes a different subset of one flag set, and the usage
 // strings beside this file are where a reader learns which.
 func validateCommandArgs(command string, args *commandArgs) error {
+	if args.adopt != "" {
+		return fmt.Errorf("%s does not accept --adopt", command)
+	}
 	switch command {
 	case "check":
 		return scopeIsNotTheVaultItself(args.positionals)
@@ -180,7 +185,7 @@ func parseCommandArgs(args []string) (commandArgs, error) {
 				return parsed, fmt.Errorf("flag %s takes no value", name)
 			}
 			parsed.all = true
-		case "--root", "--baseline", "--deny", "--format":
+		case "--root", "--baseline", "--deny", "--format", "--adopt":
 			value, rest, err := commandFlagValue(name, inline, hasInline, args)
 			if err != nil {
 				return parsed, err
@@ -221,6 +226,8 @@ func (args *commandArgs) setFlag(name, value string) error {
 		args.rootCount++
 	case "--baseline":
 		args.baseline = value
+	case "--adopt":
+		args.adopt = value
 	case "--deny":
 		args.deny = append(args.deny, value)
 	case "--format":

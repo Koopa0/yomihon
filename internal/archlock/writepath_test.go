@@ -5,8 +5,10 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -25,16 +27,17 @@ var writingPackages = []string{
 }
 
 // inventoryFirstTable opens the table of what yomihon leaves on this machine
-// outside the browser, which is where the marks file has to be named. It is
-// matched exactly and has to appear once, so a renamed or duplicated table
-// fails here rather than leaving the check below reading nothing. The
-// browser-storage table has an anchor of its own elsewhere; these two must not
-// be held to each other's.
+// outside the browser, which is where every file the reader's records are kept
+// in has to be named. It is matched exactly and has to appear once, so a renamed
+// or duplicated table fails here rather than leaving the check below reading
+// nothing. The browser-storage table has an anchor of its own elsewhere; these
+// two must not be held to each other's.
 const inventoryFirstTable = "| Data | Where it lives | How long | Who can reach it |"
 
-// marksFileRow is what the inventory has to say about the one written place. The file's own name is the part a person can look for on their disk,
-// so that is what is held here rather than a sentence that can be reworded.
-const marksFileRow = "marks.json"
+// storedFileName is what a string naming one of the reader's files looks like:
+// a bare lower-case name that ends in .json or .lock. It is a shape and not a
+// list, so a file added to internal/mark is found the day it is written.
+var storedFileName = regexp.MustCompile(`^[a-z][a-z0-9.-]*\.(?:json|lock)$`)
 
 // osWriteFamilies are the prefixes of every os function that changes a
 // directory or a file rather than reading one. They are matched by prefix
@@ -441,12 +444,14 @@ func TestNoPackageReachesTheRawSyscallWrappers(t *testing.T) {
 	report(t, "no package may reach the raw syscall wrappers, whose surface no list of names can cover", found)
 }
 
-// TestTheMarksFileIsNamedInThePrivacyInventory holds the one written place to
-// the document a stranger checks the claim against. The code and the
-// sentence about it are edited by different hands on different days, and a
-// file the product writes without the inventory naming it is the one failure
-// this repository has no other way to notice.
-func TestTheMarksFileIsNamedInThePrivacyInventory(t *testing.T) {
+// TestEveryFileTheReadersRecordsAreKeptInIsNamedInThePrivacyInventory holds the
+// places yomihon writes to the document a stranger checks the claim against. The
+// code and the sentence about it are edited by different hands on different
+// days, and a file the product can write without the inventory naming it is the
+// one failure this repository has no other way to notice. The names are read
+// from the package, from every string in it that is shaped like one, rather than
+// listed here, so a file added there fails this the day it is added.
+func TestEveryFileTheReadersRecordsAreKeptInIsNamedInThePrivacyInventory(t *testing.T) {
 	t.Parallel()
 
 	data, err := os.ReadFile(filepath.Join(repoRoot, inventoryPath)) // #nosec G304 -- a fixed path under the repository root
@@ -465,9 +470,85 @@ func TestTheMarksFileIsNamedInThePrivacyInventory(t *testing.T) {
 	if len(rows) < 4 {
 		t.Fatalf("read %d rows out of the table in %s, which is too few to be that table", len(rows), inventoryPath)
 	}
-	if !slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, marksFileRow) }) {
-		t.Errorf("the reader's own marks are written to a file named %s and no row of %s names it; %d rows were read",
-			marksFileRow, inventoryPath, len(rows))
+
+	named := map[string]string{}
+	fset := token.NewFileSet()
+	for _, path := range productionFiles(t, ".go") {
+		if !slices.ContainsFunc(writingPackages, func(prefix string) bool { return strings.HasPrefix(path, prefix) }) {
+			continue
+		}
+		found, parseErr := storedFileNames(fset, filepath.Join(repoRoot, path), nil)
+		if parseErr != nil {
+			t.Fatalf("parse %s: %v", path, parseErr)
+		}
+		for _, name := range found {
+			if _, seen := named[name]; !seen {
+				named[name] = path
+			}
+		}
+	}
+	if len(named) == 0 {
+		t.Fatalf("no file name was found in %v, so this check proves nothing", writingPackages)
+	}
+	t.Logf("found %d file names in %v", len(named), writingPackages)
+	for _, name := range slices.Sorted(maps.Keys(named)) {
+		if !slices.ContainsFunc(rows, func(row string) bool { return strings.Contains(row, name) }) {
+			t.Errorf("%s names a file called %s and no row of %s names it; %d rows were read",
+				named[name], name, inventoryPath, len(rows))
+		}
+	}
+}
+
+// storedFileNames is every string in a Go source that is shaped like the name of
+// one of the reader's files, wherever it stands: a constant, an argument, a
+// composite literal. src is the source when it is not on disk.
+func storedFileNames(fset *token.FileSet, path string, src any) ([]string, error) {
+	file, err := parser.ParseFile(fset, path, src, 0)
+	if err != nil {
+		return nil, err
+	}
+	var names []string
+	ast.Inspect(file, func(node ast.Node) bool {
+		lit, ok := node.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		if value, unquoteErr := strconv.Unquote(lit.Value); unquoteErr == nil && storedFileName.MatchString(value) {
+			names = append(names, value)
+		}
+		return true
+	})
+	return names, nil
+}
+
+// The control for the walk above: what it must find, and what it must leave
+// alone, so that it cannot go on passing by reading nothing.
+func TestTheFileNameWalkFindsWhatCouldBeWrittenAndNothingElse(t *testing.T) {
+	t.Parallel()
+
+	const src = `package fixture
+
+import "github.com/koopa0/yomihon/internal/mark/confdir"
+
+const declared = "newthing.json"
+
+type doc struct {
+	ID string ` + "`json:\"id\"`" + `
+}
+
+// "mentioned.json" in a comment is not a name in use.
+func write() {
+	_ = confdir.Replace("dir", "inline.lock", nil)
+	_ = []string{"listed.json", ".json", "a/b.json", "Upper.json", "x.jsonl", "plain", "sp ace.json"}
+}
+`
+	got, err := storedFileNames(token.NewFileSet(), "fixture.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"newthing.json", "inline.lock", "listed.json"}
+	if !slices.Equal(got, want) {
+		t.Errorf("found %q, want %q", got, want)
 	}
 }
 
