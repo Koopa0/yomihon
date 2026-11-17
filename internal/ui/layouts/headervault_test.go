@@ -11,27 +11,27 @@ import (
 	"github.com/koopa0/yomihon/internal/asset"
 )
 
-// TestChromeCarriesTheVaultNameTheRouterSupplies holds the one path the folder's
+// TestChromeCarriesTheVaultTheRouterSupplies holds the one path the folder's
 // name takes to a page: set once around the whole router, read when a page's
 // chrome is built, and empty where nothing set it.
-func TestChromeCarriesTheVaultNameTheRouterSupplies(t *testing.T) {
+func TestChromeCarriesTheVaultTheRouterSupplies(t *testing.T) {
 	t.Parallel()
 	read := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if _, err := io.WriteString(w, ChromeFromRequest(r, "t").VaultName); err != nil { // #nosec G705 -- test response
-			t.Errorf("write the chrome's vault name: %v", err)
+		if _, err := io.WriteString(w, ChromeFromRequest(r, "t").Vault); err != nil { // #nosec G705 -- test response
+			t.Errorf("write the chrome's vault: %v", err)
 		}
 	})
 
 	named := httptest.NewRecorder()
-	VaultNamed(read, func() string { return "Field Notes" }).ServeHTTP(named, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
+	VaultNamed(func() string { return "Field Notes" }, read).ServeHTTP(named, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
 	if got := named.Body.String(); got != "Field Notes" {
-		t.Errorf("chrome VaultName behind VaultNamed = %q, want %q", got, "Field Notes")
+		t.Errorf("chrome Vault behind VaultNamed = %q, want %q", got, "Field Notes")
 	}
 
 	bare := httptest.NewRecorder()
 	read.ServeHTTP(bare, httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", http.NoBody))
 	if got := bare.Body.String(); got != "" {
-		t.Errorf("chrome VaultName with nothing set = %q, want none", got)
+		t.Errorf("chrome Vault with nothing set = %q, want none", got)
 	}
 }
 
@@ -42,7 +42,7 @@ func TestHeaderNamesTheFolderBesideTheWordmark(t *testing.T) {
 	t.Parallel()
 	render := func(name string) string {
 		var buf bytes.Buffer
-		if err := header(Chrome{VaultName: name, Assets: asset.Versions{Token: "recorded0000"}}).Render(t.Context(), &buf); err != nil {
+		if err := header(Chrome{Vault: name, Assets: asset.Versions{Token: "recorded0000"}}).Render(t.Context(), &buf); err != nil {
 			t.Fatalf("render header: %v", err)
 		}
 		return buf.String()
