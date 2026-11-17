@@ -17,12 +17,14 @@ import (
 )
 
 // ScanningView is the vault while its first read is still running: which
-// folder it is, and how many of its files have been read. Total is zero until
-// the folder has been walked, and the page then says no count rather than a
-// wrong one.
+// folder it is, how many of its files have been read, and which of its folders
+// the read is in. Total is zero until the folder has been walked, and the page
+// then says no count rather than a wrong one. Folder is empty while the read is
+// at the top of the vault.
 type ScanningView struct {
 	VaultName string
 	VaultPath string
+	Folder    string
 	Done      int
 	Total     int
 }
@@ -31,8 +33,8 @@ type ScanningView struct {
 // finished, so a vault that is still being read is never taken for an empty
 // one. It carries no sidebar, because there is nothing yet to put in one.
 //
-// The count and the meter are always drawn and hidden until there is a total,
-// so the script that keeps them current has them to reveal. The script is on
+// The meter and the line under it are always drawn and hidden until there is a
+// total, so the script that keeps them current has them to reveal. The script is on
 // the page rather than among the client modules: it runs on this page only,
 // and a module would join the import map every other page carries.
 func Scanning(v ScanningView, c layouts.Chrome) templ.Component {
@@ -71,7 +73,7 @@ func Scanning(v ScanningView, c layouts.Chrome) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Lang.Tag()).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 33, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 35, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 			if templ_7745c5c3_Err != nil {
@@ -100,87 +102,100 @@ func Scanning(v ScanningView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(v.VaultPath)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 35, Col: 28}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 37, Col: 28}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</code></p><p data-scanning-count")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</code></p><progress class=\"y-scanning__meter\" max=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if v.Total == 0 {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, " hidden")
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
+				var templ_7745c5c3_Var6 string
+				templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.Itoa(max(v.Total, 1))).Resolve(ctx)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 40, Col: 42}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, ">")
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				if v.Total > 0 {
-					var templ_7745c5c3_Var6 string
-					templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ScanningProgress(c.Lang, v.Done, v.Total))
-					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 43, Col: 59}
-					}
-					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
-					if templ_7745c5c3_Err != nil {
-						return templ_7745c5c3_Err
-					}
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "</p><progress class=\"y-scanning__meter\" max=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\" value=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var7 string
-				templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.Itoa(max(v.Total, 1))).Resolve(ctx)
+				templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.Itoa(v.Done)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 48, Col: 42}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 41, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" value=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\" aria-label=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var8 string
-				templ_7745c5c3_Var8, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.Itoa(v.Done)).Resolve(ctx)
+				templ_7745c5c3_Var8, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.ScanningKicker.In(c.Lang)).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 49, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 42, Col: 53}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" aria-label=\"")
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				var templ_7745c5c3_Var9 string
-				templ_7745c5c3_Var9, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.ScanningKicker.In(c.Lang)).Resolve(ctx)
-				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 50, Col: 53}
-				}
-				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				if v.Total == 0 {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, " hidden")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, " hidden")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "></progress>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "></progress><p class=\"y-scanning__count\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if v.Total == 0 {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, " hidden")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "><span data-scanning-count>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if v.Total > 0 {
+					var templ_7745c5c3_Var9 string
+					templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(wording.ScanningProgress(c.Lang, v.Done, v.Total))
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 55, Col: 60}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "</span> <code data-scanning-folder>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var10 string
+				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(v.Folder)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 58, Col: 44}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</code></p>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -190,20 +205,20 @@ func Scanning(v ScanningView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</article></main></div>     <script nonce=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</article></main></div>     <script nonce=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var10 string
-			templ_7745c5c3_Var10, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
+			var templ_7745c5c3_Var11 string
+			templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 64, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/scanning.templ`, Line: 69, Col: 25}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var10)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "\">\n\t\t\t{\n\t\t\t\tconst page = document.querySelector(\"[data-scanning]\");\n\t\t\t\tconst count = page.querySelector(\"[data-scanning-count]\");\n\t\t\t\tconst meter = page.querySelector(\"progress\");\n\t\t\t\tconst show = (state) => {\n\t\t\t\t\tif (!(state.total > 0)) return;\n\t\t\t\t\tcount.textContent = state.text;\n\t\t\t\t\tcount.hidden = false;\n\t\t\t\t\tmeter.max = state.total;\n\t\t\t\t\tmeter.value = state.done;\n\t\t\t\t\tmeter.hidden = false;\n\t\t\t\t};\n\t\t\t\tconst poll = async () => {\n\t\t\t\t\ttry {\n\t\t\t\t\t\tconst reply = await fetch(\"/scan\", { cache: \"no-store\", headers: { Accept: \"application/json\" } });\n\t\t\t\t\t\tif (!reply.ok || !(reply.headers.get(\"Content-Type\") || \"\").startsWith(\"application/json\")) {\n\t\t\t\t\t\t\tlocation.reload();\n\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t}\n\t\t\t\t\t\tshow(await reply.json());\n\t\t\t\t\t\tsetTimeout(poll, 250);\n\t\t\t\t\t} catch {\n\t\t\t\t\t\tsetTimeout(poll, 1000);\n\t\t\t\t\t}\n\t\t\t\t};\n\t\t\t\tsetTimeout(poll, 250);\n\t\t\t}\n\t\t</script>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\">\n\t\t\t{\n\t\t\t\tconst page = document.querySelector(\"[data-scanning]\");\n\t\t\t\tconst line = page.querySelector(\".y-scanning__count\");\n\t\t\t\tconst count = page.querySelector(\"[data-scanning-count]\");\n\t\t\t\tconst folder = page.querySelector(\"[data-scanning-folder]\");\n\t\t\t\tconst meter = page.querySelector(\"progress\");\n\t\t\t\tconst show = (state) => {\n\t\t\t\t\tif (!(state.total > 0)) return;\n\t\t\t\t\tcount.textContent = state.text;\n\t\t\t\t\tfolder.textContent = state.folder;\n\t\t\t\t\tline.hidden = false;\n\t\t\t\t\tmeter.max = state.total;\n\t\t\t\t\tmeter.value = state.done;\n\t\t\t\t\tmeter.hidden = false;\n\t\t\t\t};\n\t\t\t\tconst poll = async () => {\n\t\t\t\t\ttry {\n\t\t\t\t\t\tconst reply = await fetch(\"/scan\", { cache: \"no-store\", headers: { Accept: \"application/json\" } });\n\t\t\t\t\t\tif (!reply.ok || !(reply.headers.get(\"Content-Type\") || \"\").startsWith(\"application/json\")) {\n\t\t\t\t\t\t\tlocation.reload();\n\t\t\t\t\t\t\treturn;\n\t\t\t\t\t\t}\n\t\t\t\t\t\tshow(await reply.json());\n\t\t\t\t\t\tsetTimeout(poll, 250);\n\t\t\t\t\t} catch {\n\t\t\t\t\t\tsetTimeout(poll, 1000);\n\t\t\t\t\t}\n\t\t\t\t};\n\t\t\t\tsetTimeout(poll, 250);\n\t\t\t}\n\t\t</script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

@@ -5337,7 +5337,7 @@ a.y-facetrow:hover {
   background: var(--line);
   border: 0;
   height: 4px;
-  margin-top: var(--sp-5);
+  margin-top: var(--sp-6);
   width: 100%;
 }
 
@@ -5351,6 +5351,40 @@ a.y-facetrow:hover {
 
 .y-scanning__meter::-moz-progress-bar {
   background: var(--fg-muted);
+}
+
+/* The line under the meter, like the page number under a book's text: how many
+   files on the left, and on the right the folder the read is in, cut at its
+   end when it is longer than the room. It is the interface speaking, so it is
+   in the interface's face and not the page's serif, and it never wraps. */
+.y-nothing__says .y-scanning__count {
+  color: var(--fg-faint);
+  display: flex;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  gap: var(--sp-4);
+  justify-content: space-between;
+  margin: var(--sp-2) 0 0;
+  white-space: nowrap;
+}
+
+.y-nothing__says .y-scanning__count[hidden] {
+  display: none;
+}
+
+.y-nothing__says .y-scanning__count code {
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  min-width: 0;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+}
+
+/* The vault's name is the page's title, and a title is set at 600. */
+[data-nothing='scanning'] .y-nothing__title--page {
+  font-weight: var(--fw-semibold);
 }
 
 /* What the reader can do next sits under the sentence, quieter than it. */

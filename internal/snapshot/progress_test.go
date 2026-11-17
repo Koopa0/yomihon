@@ -2,6 +2,7 @@ package snapshot
 
 import (
 	"context"
+	"path"
 	"slices"
 	"testing"
 
@@ -16,11 +17,15 @@ type readWatcher struct {
 
 	progress *Progress
 	seen     [][2]int
+	paths    []string
+	folders  []string
 }
 
 func (w *readWatcher) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
 	done, total := w.progress.Files()
 	w.seen = append(w.seen, [2]int{done, total})
+	w.paths = append(w.paths, entry.Path())
+	w.folders = append(w.folders, w.progress.Folder())
 	return w.Reader.ReadFile(ctx, entry)
 }
 
@@ -57,6 +62,52 @@ func TestProgressCountsTheFilesOfTheFirstBuild(t *testing.T) {
 	}
 }
 
+// TestProgressNamesTheFolderBeingRead checks the other thing a waiting page is
+// told: which folder of the vault the build is in, as a path within it, so that
+// the reader sees the read move through the folders and a file at the top of the
+// vault is read in no folder at all.
+func TestProgressNamesTheFolderBeingRead(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for _, name := range []string{"Top.md", "courses/go/One.md", "courses/go/Two.md", "courses/design/deep/Three.md"} {
+		writeNote(t, root, name, "# "+name+"\n")
+	}
+	reader, err := vault.Open(root)
+	if err != nil {
+		t.Fatalf("vault.Open: %v", err)
+	}
+	t.Cleanup(func() { closeReader(t, reader) })
+
+	progress := new(Progress)
+	if folder := progress.Folder(); folder != "" {
+		t.Fatalf("before the build, Folder() = %q, want none", folder)
+	}
+	watcher := &readWatcher{Reader: reader, progress: progress}
+	if _, err = New(t.Context(), watcher, discardLogger(), nil, schema.Ungoverned(), WithProgress(progress)); err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if len(watcher.paths) != 4 {
+		t.Fatalf("the build read %d files, want 4: %v", len(watcher.paths), watcher.paths)
+	}
+	for i, file := range watcher.paths {
+		want := path.Dir(file)
+		if want == "." {
+			want = ""
+		}
+		if watcher.folders[i] != want {
+			t.Errorf("reading %q, Folder() = %q, want %q", file, watcher.folders[i], want)
+		}
+	}
+	if folder := progress.Folder(); folder != "" {
+		t.Errorf("after the build, Folder() = %q, want none: nothing is being read", folder)
+	}
+	var nilProgress *Progress
+	if folder := nilProgress.Folder(); folder != "" {
+		t.Errorf("a build nobody watches names the folder %q", folder)
+	}
+}
+
 // TestNilProgressIsAnUnwatchedBuild keeps the commands and every later rescan,
 // which have no page waiting on them, from needing one.
 func TestNilProgressIsAnUnwatchedBuild(t *testing.T) {
@@ -66,5 +117,5 @@ func TestNilProgressIsAnUnwatchedBuild(t *testing.T) {
 		t.Errorf("a nil Progress reports %d, %d, want 0, 0", done, total)
 	}
 	progress.begin(5)
-	progress.reached(2)
+	progress.reached(2, "")
 }

@@ -49,6 +49,7 @@ type startup struct {
 // *snapshot.Progress.
 type fileCount interface {
 	Files() (done, total int)
+	Folder() string
 }
 
 func newStartup(vaultName, vaultPath string, progress fileCount, grace time.Duration, log *slog.Logger) *startup {
@@ -112,7 +113,7 @@ func holds(r *http.Request) bool {
 // and a program that asks must not take this for it.
 func (s *startup) page(w http.ResponseWriter, r *http.Request, vaultName, vaultPath string) {
 	done, total := s.progress.Files()
-	view := pages.ScanningView{VaultName: vaultName, VaultPath: vaultPath, Done: done, Total: total}
+	view := pages.ScanningView{VaultName: vaultName, VaultPath: vaultPath, Done: done, Total: total, Folder: s.progress.Folder()}
 	w.Header().Set("Retry-After", "1")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusServiceUnavailable)
@@ -123,17 +124,18 @@ func (s *startup) page(w http.ResponseWriter, r *http.Request, vaultName, vaultP
 	}
 }
 
-// scanState is what the page asks for: how far the read has got, and the line
-// that says so in the reader's language.
+// scanState is what the page asks for: how far the read has got, the line that
+// says so in the reader's language, and the folder the read is in.
 type scanState struct {
-	Done  int    `json:"done"`
-	Total int    `json:"total"`
-	Text  string `json:"text"`
+	Done   int    `json:"done"`
+	Total  int    `json:"total"`
+	Text   string `json:"text"`
+	Folder string `json:"folder"`
 }
 
 func (s *startup) state(w http.ResponseWriter, r *http.Request) {
 	done, total := s.progress.Files()
-	state := scanState{Done: done, Total: total}
+	state := scanState{Done: done, Total: total, Folder: s.progress.Folder()}
 	if total > 0 {
 		state.Text = wording.ScanningProgress(origin.Language(r), done, total)
 	}

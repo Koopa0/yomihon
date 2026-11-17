@@ -8,12 +8,14 @@ import (
 )
 
 // ScanningView is the vault while its first read is still running: which
-// folder it is, and how many of its files have been read. Total is zero until
-// the folder has been walked, and the page then says no count rather than a
-// wrong one.
+// folder it is, how many of its files have been read, and which of its folders
+// the read is in. Total is zero until the folder has been walked, and the page
+// then says no count rather than a wrong one. Folder is empty while the read is
+// at the top of the vault.
 type ScanningView struct {
 	VaultName string
 	VaultPath string
+	Folder    string
 	Done      int
 	Total     int
 }
@@ -22,8 +24,8 @@ type ScanningView struct {
 // finished, so a vault that is still being read is never taken for an empty
 // one. It carries no sidebar, because there is nothing yet to put in one.
 //
-// The count and the meter are always drawn and hidden until there is a total,
-// so the script that keeps them current has them to reveal. The script is on
+// The meter and the line under it are always drawn and hidden until there is a
+// total, so the script that keeps them current has them to reveal. The script is on
 // the page rather than among the client modules: it runs on this page only,
 // and a module would join the import map every other page carries.
 templ Scanning(v ScanningView, c layouts.Chrome) {
@@ -33,16 +35,6 @@ templ Scanning(v ScanningView, c layouts.Chrome) {
 				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="scanning-title" data-scanning>
 					@nothingToShow(nothingNotice{Kind: "scanning", Mark: wording.ScanningKicker.In(c.Lang), Title: v.VaultName, TitleID: "scanning-title", Page: true}) {
 						<p><code>{ v.VaultPath }</code></p>
-						<p
-							data-scanning-count
-							if v.Total == 0 {
-								hidden
-							}
-						>
-							if v.Total > 0 {
-								{ wording.ScanningProgress(c.Lang, v.Done, v.Total) }
-							}
-						</p>
 						<progress
 							class="y-scanning__meter"
 							max={ strconv.Itoa(max(v.Total, 1)) }
@@ -52,6 +44,19 @@ templ Scanning(v ScanningView, c layouts.Chrome) {
 								hidden
 							}
 						></progress>
+						<p
+							class="y-scanning__count"
+							if v.Total == 0 {
+								hidden
+							}
+						>
+							<span data-scanning-count>
+								if v.Total > 0 {
+									{ wording.ScanningProgress(c.Lang, v.Done, v.Total) }
+								}
+							</span>
+							<code data-scanning-folder>{ v.Folder }</code>
+						</p>
 					}
 				</article>
 			</main>
@@ -64,12 +69,15 @@ templ Scanning(v ScanningView, c layouts.Chrome) {
 		<script nonce={ c.Nonce }>
 			{
 				const page = document.querySelector("[data-scanning]");
+				const line = page.querySelector(".y-scanning__count");
 				const count = page.querySelector("[data-scanning-count]");
+				const folder = page.querySelector("[data-scanning-folder]");
 				const meter = page.querySelector("progress");
 				const show = (state) => {
 					if (!(state.total > 0)) return;
 					count.textContent = state.text;
-					count.hidden = false;
+					folder.textContent = state.folder;
+					line.hidden = false;
 					meter.max = state.total;
 					meter.value = state.done;
 					meter.hidden = false;
