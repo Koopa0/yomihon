@@ -722,3 +722,49 @@ func stepsBlock(t *testing.T, body string) string {
 	}
 	return block
 }
+
+func TestFolderPageOpensWithItsReadmeAsACover(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	write("go/README.md", "# Go spec snapshot\n\nWhat the spec says, **frozen**.\n\n## More\n\nThe rest.\n")
+	write("go/slices.md", "# Slices\n\nbody\n")
+	write("short/README.md", "# Short\n\nOnly this paragraph.\n")
+	write("short/a.md", "# A\n\nbody\n")
+	write("bare/a.md", "# A\n\nbody\n")
+
+	srv := newServer(t, root)
+
+	_, body := get(t, srv.Client(), srv.URL+"/folders/go")
+	if !strings.Contains(body, `<h1 class="y-title">go</h1>`) {
+		t.Errorf("the heading is not the folder's name; body = %q", body)
+	}
+	for _, want := range []string{`class="y-cover"`, "What the spec says, <strong>frozen</strong>.", `href="/notes/go/README.md"`, "1 篇"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the folder page is missing %q", want)
+		}
+	}
+	if strings.Contains(body, `y-row__title">Go spec snapshot`) {
+		t.Error("the README is listed again below its own cover")
+	}
+
+	_, body = get(t, srv.Client(), srv.URL+"/folders/short")
+	if !strings.Contains(body, "Only this paragraph.") || strings.Contains(body, "y-cover__more") {
+		t.Errorf("a one-paragraph README should be the whole cover with no way on; body = %q", body)
+	}
+
+	_, body = get(t, srv.Client(), srv.URL+"/folders/bare")
+	if strings.Contains(body, "y-cover") {
+		t.Error("a folder without a README shows a cover")
+	}
+}

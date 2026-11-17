@@ -27,6 +27,14 @@ templ Folder(v FolderView, c layouts.Chrome) {
 						</div>
 					}
 					<h1 class="y-title">{ v.Shelf.Title }</h1>
+					if v.Cover.HTML != "" {
+						<div class="y-cover">
+							@templ.Raw(v.Cover.HTML)
+							if v.Cover.ReadHref != "" {
+								<a class="y-cover__more" href={ templ.URL(v.Cover.ReadHref) }>{ wording.ReadInFull.In(c.Lang) }</a>
+							}
+						</div>
+					}
 					<p class="y-indexcount">{ v.Count }</p>
 					<a class="y-back" href={ templ.URL(indexHref(folderMode)) }>{ wording.BackToFolders.In(c.Lang) }</a>
 				</header>

@@ -7847,6 +7847,30 @@ samp,
   text-decoration: underline;
 }
 
+/* A folder's README stands in front of its listing as its first paragraph,
+   in the reading face and the reading measure. */
+.y-cover {
+  color: var(--fg-muted);
+  font-family: var(--font-read);
+  font-size: var(--fs-ed-20);
+  line-height: 1.6;
+  margin-top: 16px;
+  max-width: var(--measure-read);
+}
+
+.y-cover > p {
+  margin: 0;
+}
+
+.y-cover__more {
+  color: var(--fg-muted);
+  display: inline-block;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  margin-top: 8px;
+  text-decoration: underline;
+}
+
 /* An index says how much it holds once, as a quiet fact under its title. */
 .y-home__head > .y-indexcount {
   color: var(--fg-subtle);

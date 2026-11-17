@@ -16,6 +16,17 @@ type FolderView struct {
 	// and the files in it.
 	Count string
 	Shelf Shelf
+	// Cover is the folder's README stood in front of its listing, when it has
+	// one with an opening paragraph.
+	Cover Cover
+}
+
+// Cover is a folder's opening paragraph, already rendered and sanitised, and
+// the way to the whole README when there is more of it.
+type Cover struct {
+	HTML string
+	// ReadHref is empty when the paragraph is all the README says.
+	ReadHref string
 }
 
 // NewFolderLevel builds one level of the tree. The folders come first with
