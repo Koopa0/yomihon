@@ -83,7 +83,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		ReadmeMissing:     !hasReadme,
 		Continue:          continueRow(&kept, hasMark, snap, visibleNav, lang),
 	}
-	if err := pages.Home(view, layouts.ChromeFromRequest(r, wording.HomeTitle.In(lang))).Render(r.Context(), w); err != nil {
+	if err := pages.Home(view, layouts.ChromeFromRequest(r, "")).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write home page", "error", err)
 	}
 }

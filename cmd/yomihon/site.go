@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/yomihon/internal/search"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -229,7 +230,9 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 
 	crossOrigin := http.NewCrossOriginProtection()
 	crossOrigin.SetDenyHandler(http.HandlerFunc(readers.CrossOriginDenied))
-	handler := crossOrigin.Handler(readers.LocalizedRouter(mux))
+	handler := layouts.VaultNamed(func() string {
+		return store.Current().Capture().VaultTitle(vaultName)
+	}, crossOrigin.Handler(readers.LocalizedRouter(mux)))
 	watchCtx, cancel := context.WithCancel(ctx)
 	site := &readingSite{
 		handler:   origin.LoopbackOnly(handler),

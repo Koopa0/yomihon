@@ -407,6 +407,7 @@ func recordedShell(model *nav.Model) nav.Shell {
 func recordedChrome() layouts.Chrome {
 	return layouts.Chrome{
 		Title:                     "L01",
+		Vault:                     "Recorded vault",
 		Nonce:                     "response-nonce",
 		Assets:                    asset.Versions{Token: "recorded0000"},
 		Theme:                     "light",
