@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 
@@ -186,13 +188,18 @@ func TestARefusalLeavesTheKeptPlaceAlone(t *testing.T) {
 func TestAProgressFileThatCannotBeReadIsReportedAndNeverReplaced(t *testing.T) {
 	t.Parallel()
 	place := `{"bookmark":{"path":"a.md","offset":0,"identity":"` + anIdentity + `","at":"2026-09-17T10:00:00Z"}}`
+	finished := `{"path":"a.md","at":"2026-09-17T10:00:00Z"}`
 	for _, tt := range []struct{ name, body string }{
 		{"not JSON at all", "this is not a file yomihon wrote\n"},
 		{"an empty file", ""},
 		{"a version from another day", `{"version":99,"vault":"/v","bookmarks":[` + place + `]}`},
 		{"a bookmark with no place in it", `{"version":1,"vault":"/v","bookmarks":[{"course":"Courses/go.md"}]}`},
 		{"no list", `{"version":1,"vault":"/vaults/notes"}`},
-		{"a field it does not know", `{"version":1,"vault":"/v","bookmarks":[],"finished":[]}`},
+		{"a field it does not know", `{"version":1,"vault":"/v","bookmarks":[],"streak":3}`},
+		{"a note finished twice", `{"version":1,"vault":"/v","bookmarks":[],"finished":[` + finished + `,` + finished + `]}`},
+		{"a finished note with no time", `{"version":1,"vault":"/v","bookmarks":[],"finished":[{"path":"a.md","at":"0001-01-01T00:00:00Z"}]}`},
+		{"a finished path the shape refuses", `{"version":1,"vault":"/v","bookmarks":[],"finished":[{"path":"../outside.md","at":"2026-09-17T10:00:00Z"}]}`},
+		{"a finished note with a field it does not know", `{"version":1,"vault":"/v","bookmarks":[],"finished":[{"path":"a.md","at":"2026-09-17T10:00:00Z","stars":5}]}`},
 		{"a place the shape refuses", `{"version":1,"vault":"/v","bookmarks":[{"bookmark":{"path":"../outside.md","offset":0,"identity":"` + anIdentity + `","at":"2026-09-17T10:00:00Z"}}]}`},
 		{"a path carrying a control character", `{"version":1,"vault":"/v","bookmarks":[{"bookmark":{"path":"Notes/a\u0000b\nc.md","offset":1,"identity":"` + anIdentity + `","at":"2026-09-17T10:00:00Z"}}]}`},
 		{"two bookmarks for one course", `{"version":1,"vault":"/v","bookmarks":[` + place + `,` + place + `]}`},
@@ -211,5 +218,199 @@ func TestAProgressFileThatCannotBeReadIsReportedAndNeverReplaced(t *testing.T) {
 				t.Errorf("the file changed to %q: %v", data, err)
 			}
 		})
+	}
+}
+
+func TestAFinishedNoteComesBackWithWhenItWasFinished(t *testing.T) {
+	t.Parallel()
+	config := t.TempDir()
+	store := newStoreFor(t, config, "/vaults/notes")
+	before := time.Now().Add(-time.Second)
+	if err := store.SetFinished("Notes/a.md", true); err != nil {
+		t.Fatal(err)
+	}
+	at, finished, err := store.FinishedAt("Notes/a.md")
+	if err != nil || !finished || at.Before(before) || at.After(time.Now().Add(time.Second)) {
+		t.Errorf("FinishedAt = %v, %v, %v; want finished a moment ago", at, finished, err)
+	}
+	if _, finished, err = store.FinishedAt("Notes/b.md"); err != nil || finished {
+		t.Errorf("a note nobody finished = %v, %v", finished, err)
+	}
+	reopened := newStoreFor(t, config, "/vaults/notes")
+	if _, finished, err = reopened.FinishedAt("Notes/a.md"); err != nil || !finished {
+		t.Errorf("after a restart FinishedAt = %v, %v", finished, err)
+	}
+}
+
+// Saying what is already so changes nothing, so the first time stays the time
+// and a store nobody finished anything in is not given a file.
+func TestFinishedIsSaidOnceAndUndoneByNotFinished(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	if err := store.SetFinished("Notes/a.md", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(progressPath(store)); !os.IsNotExist(err) {
+		t.Errorf("saying a note is not finished created %s", progressPath(store))
+	}
+	if err := store.SetFinished("Notes/a.md", true); err != nil {
+		t.Fatal(err)
+	}
+	first, _, err := store.FinishedAt("Notes/a.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	if err = store.SetFinished("Notes/a.md", true); err != nil {
+		t.Fatal(err)
+	}
+	if again, _, readErr := store.FinishedAt("Notes/a.md"); readErr != nil || !again.Equal(first) {
+		t.Errorf("finishing a finished note moved its time from %v to %v (%v)", first, again, readErr)
+	}
+	if err := store.SetFinished("Notes/a.md", false); err != nil {
+		t.Fatal(err)
+	}
+	if _, finished, err := store.FinishedAt("Notes/a.md"); err != nil || finished {
+		t.Errorf("after not finished, FinishedAt = %v, %v", finished, err)
+	}
+}
+
+func TestFinishedNotesAreListedInTheOrderTheyWereFinished(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	for _, note := range []string{"Notes/c.md", "Notes/a.md", "Notes/b.md"} {
+		if err := store.SetFinished(note, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.SetFinished("Notes/a.md", false); err != nil {
+		t.Fatal(err)
+	}
+	held, err := store.FinishedNotes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, f := range held {
+		got = append(got, f.RelPath)
+	}
+	if diff := cmp.Diff([]string{"Notes/c.md", "Notes/b.md"}, got); diff != "" {
+		t.Errorf("finished notes (-want +got):\n%s", diff)
+	}
+}
+
+func TestAnInvalidNoteCannotBeFinished(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	for _, note := range []string{"", "/abs.md", "../outside.md", "Notes/a\nb.md", "Notes/\u30cf\u309a.md", "Notes/a\xffb.md"} {
+		if err := store.SetFinished(note, true); !errors.Is(err, mark.ErrInvalid) {
+			t.Errorf("SetFinished(%q) = %v, want ErrInvalid", note, err)
+		}
+	}
+	if _, err := os.Stat(progressPath(store)); !os.IsNotExist(err) {
+		t.Errorf("a refused note created %s", progressPath(store))
+	}
+}
+
+// What is finished and where the reader left off are separate things in one
+// file, and neither replaces the other.
+func TestFinishedAndBookmarksShareAFileAndKeepEachOther(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	if err := store.SetBookmark("Courses/go.md", aPlace()); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetFinished("Notes/a.md", true); err != nil {
+		t.Fatal(err)
+	}
+	other := aPlace()
+	other.RelPath = "Notes/z.md"
+	if err := store.SetBookmark("Courses/go.md", other); err != nil {
+		t.Fatal(err)
+	}
+	if got, found, err := store.Bookmark("Courses/go.md"); err != nil || !found || got.RelPath != "Notes/z.md" {
+		t.Errorf("the bookmark = %v, %v, %v", got, found, err)
+	}
+	if _, finished, err := store.FinishedAt("Notes/a.md"); err != nil || !finished {
+		t.Errorf("setting a bookmark undid a finished note: %v, %v", finished, err)
+	}
+	if _, err := store.ClearBookmark("Courses/go.md"); err != nil {
+		t.Fatal(err)
+	}
+	if _, finished, err := store.FinishedAt("Notes/a.md"); err != nil || !finished {
+		t.Errorf("clearing a bookmark undid a finished note: %v, %v", finished, err)
+	}
+}
+
+func TestMoreFinishedNotesThanTheBoundAreRefusedWhenAddedAndKeptWhenStored(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	var entries []string
+	for i := range 10000 {
+		entries = append(entries, `{"path":"Notes/n`+strconv.Itoa(i)+`.md","at":"2026-09-17T10:00:00Z"}`)
+	}
+	writeFile(t, progressPath(store), `{"version":1,"vault":"/v","bookmarks":[],"finished":[`+strings.Join(entries, ",")+`]}`)
+	if err := store.SetFinished("Notes/one-more.md", true); !errors.Is(err, mark.ErrInvalid) {
+		t.Errorf("finishing one more = %v, want ErrInvalid", err)
+	}
+	if err := store.SetFinished("Notes/n0.md", false); err != nil {
+		t.Errorf("clearing one at the bound = %v, want nil", err)
+	}
+	if err := store.SetFinished("Notes/one-more.md", true); err != nil {
+		t.Errorf("finishing one after clearing one = %v, want nil", err)
+	}
+	writeFile(t, progressPath(store), `{"version":1,"vault":"/v","bookmarks":[],"finished":[`+strings.Join(append(entries, `{"path":"Notes/over.md","at":"2026-09-17T10:00:00Z"}`), ",")+`]}`)
+	if _, err := store.FinishedNotes(); !errors.Is(err, mark.ErrUnreadable) {
+		t.Errorf("a file beyond the bound = %v, want ErrUnreadable", err)
+	}
+}
+
+func TestClearingABookmarkRemovesOnlyThatCoursesAndWritesNothingWhereThereIsNone(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	if removed, err := store.ClearBookmark("Courses/go.md"); err != nil || removed {
+		t.Fatalf("ClearBookmark on an empty store = %v, %v", removed, err)
+	}
+	if _, err := os.Stat(progressPath(store)); !os.IsNotExist(err) {
+		t.Errorf("clearing nothing created %s", progressPath(store))
+	}
+	for _, course := range []string{"Courses/go.md", "Courses/rust.md", mark.NoCourse} {
+		if err := store.SetBookmark(course, aPlace()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if removed, err := store.ClearBookmark("Courses/go.md"); err != nil || !removed {
+		t.Fatalf("ClearBookmark = %v, %v, want removed", removed, err)
+	}
+	for course, want := range map[string]bool{"Courses/go.md": false, "Courses/rust.md": true, mark.NoCourse: true} {
+		if _, found, err := store.Bookmark(course); err != nil || found != want {
+			t.Errorf("Bookmark(%q) found = %v, %v; want %v", course, found, err, want)
+		}
+	}
+	if removed, err := store.ClearBookmark("Courses/go.md"); err != nil || removed {
+		t.Errorf("clearing a bookmark twice = %v, %v", removed, err)
+	}
+	if _, err := store.ClearBookmark("../escape.md"); !errors.Is(err, mark.ErrInvalid) {
+		t.Errorf("ClearBookmark of a path that climbs out = %v, want ErrInvalid", err)
+	}
+}
+
+// The last bookmark cleared leaves a file the next read takes, and the old
+// reader.json it was converted from does not bring it back.
+func TestAClearedConvertedBookmarkStaysCleared(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	writeFile(t, oldBookmarkPath(store), oldBookmark)
+	if _, found, err := store.Bookmark(mark.NoCourse); err != nil || !found {
+		t.Fatalf("the converted bookmark = %v, %v", found, err)
+	}
+	if removed, err := store.ClearBookmark(mark.NoCourse); err != nil || !removed {
+		t.Fatalf("ClearBookmark = %v, %v", removed, err)
+	}
+	if _, found, err := store.Bookmark(mark.NoCourse); err != nil || found {
+		t.Errorf("after clearing, the old bookmark came back: %v, %v", found, err)
+	}
+	if bytesOf(t, oldBookmarkPath(store)) != oldBookmark {
+		t.Error("clearing changed the old file")
 	}
 }
