@@ -14,6 +14,18 @@ import (
 // of words the desk field and the palette carry — one thing, said once.
 var SearchTitle = both("搜尋", "Search")
 
+// SearchTitleFor is what the tab of a search page says before the vault's name:
+// the word and the query, which is what tells a reader's searches apart. A
+// query is one line of the words that were typed, and a blank one is the page's
+// own title.
+func SearchTitleFor(lang Lang, query string) string {
+	words := strings.Join(strings.Fields(query), " ")
+	if words == "" {
+		return SearchTitle.In(lang)
+	}
+	return SearchTitle.In(lang) + both("：", ": ").In(lang) + words
+}
+
 // The counts over a result list. The second form is for a search that returned
 // everything it found, which is a different claim from one that was cut short.
 var (

@@ -84,7 +84,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	// never depends on the marker the live refreshes carry.
 	view := answerView(&snap, q, h.query(snap.Index, q, lang, asked), lang, asked, true)
 	view.Sidebar = pages.NewSidebar(snap.Shell, "")
-	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitle.In(lang))).Render(r.Context(), w); err != nil {
+	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitleFor(lang, q))).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search page", q, err)
 	}
 }

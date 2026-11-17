@@ -1,6 +1,8 @@
 package layouts
 
 import (
+	"cmp"
+	"context"
 	"net/http"
 	"net/url"
 
@@ -19,10 +21,15 @@ import (
 // the ones its own controls govern, along with their cookies. The
 // server-rendered page remains usable without enhancement.
 type Chrome struct {
-	Title string // page title (before " — yomihon")
-	// TitleAlone makes Title the whole document title, with no " — yomihon"
-	// after it, for a page whose title is the vault's name: the vault is the
-	// one thing the tab should say.
+	// Title is the page's own title, which the tab shows before the vault's
+	// name. It is empty for the vault's own desk, which the tab names by the
+	// vault alone.
+	Title string
+	// Vault is what the vault is called to a reader, which tells one vault's
+	// tab from another's. ChromeFromRequest takes it from the request.
+	Vault string
+	// TitleAlone makes Title the whole document title, for a page that stands
+	// before a vault can be asked what it is called.
 	TitleAlone bool
 	Nonce      string // per-response nonce for application-owned scripts
 	// Assets selects the version values in static resource addresses. Its
@@ -101,13 +108,41 @@ type MarkOffer struct {
 	Kept     bool
 }
 
-// documentTitle is the text of the document's <title>. It is here rather than
-// in the template for the reason singleKeyShortcutsState is.
-func documentTitle(title string, alone bool) string {
-	if alone {
+// documentTitle is the text of the document's <title>: the page's title, then
+// the vault's name, so that two vaults open in one window are told apart by the
+// end of the tab and two tabs of one vault by its start. A page that is the
+// vault itself, or whose title is the vault's name, says it once. It is here
+// rather than in the template for the reason singleKeyShortcutsState is.
+func documentTitle(title, vault string, alone bool) string {
+	switch {
+	case alone:
 		return title
+	case title == "" || title == vault:
+		return cmp.Or(vault, "yomihon")
+	case vault == "":
+		return title
+	default:
+		return title + " — " + vault
 	}
-	return title + " — yomihon"
+}
+
+type vaultNameKey struct{}
+
+// VaultNamed answers every request with what the vault is called, asked of name
+// only when a page is drawn, so that a request for a file or a fragment does
+// not ask. The name is the one the shell shows, from the generation that is
+// current when the page is built.
+func VaultNamed(name func() string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), vaultNameKey{}, name)))
+	})
+}
+
+func vaultOf(r *http.Request) string {
+	if name, ok := r.Context().Value(vaultNameKey{}).(func() string); ok {
+		return name()
+	}
+	return ""
 }
 
 // singleKeyShortcutsState is the word the root carries for the single-key
@@ -140,6 +175,7 @@ func singleKeyShortcutsState(enabled bool) string {
 func ChromeFromRequest(r *http.Request, title string) Chrome {
 	return Chrome{
 		Title:                     title,
+		Vault:                     vaultOf(r),
 		Lang:                      origin.Language(r),
 		Nonce:                     origin.Nonce(r.Context()),
 		Theme:                     read(r, themeChoice),

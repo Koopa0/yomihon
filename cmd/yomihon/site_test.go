@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"html"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -599,5 +601,72 @@ func assertPermissionsPolicy(t *testing.T, header http.Header) {
 	t.Log("invoked: production response permissions policy")
 	if got := header.Get("Permissions-Policy"); got != want {
 		t.Errorf("caught: production Permissions-Policy = %q, want %q", got, want)
+	}
+}
+
+// TestEveryPageTitlesItsTabWithTheVaultsName holds the wiring from the folder
+// that was opened to the end of every tab's title: what the page is, then what
+// the vault is called, so two vaults open side by side are told apart on the
+// tab strip. The desk and the vault's own README say the name once, and no page
+// carries the product's name.
+func TestEveryPageTitlesItsTabWithTheVaultsName(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "Writing"), 0o750); err != nil {
+		t.Fatalf("make folder: %v", err)
+	}
+	for rel, body := range map[string]string{
+		"README.md":          "# Field Notes\n\nWords.\n",
+		"Writing/note.md":    "# Go Concurrency\n\nBody.\n",
+		"Writing/another.md": "# Channels\n\nBody about concurrency.\n",
+	} {
+		if err := os.WriteFile(filepath.Join(root, rel), []byte(body), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+
+	titleOf := func(t *testing.T, language, target string) string {
+		t.Helper()
+		req := siteRequest(t, http.MethodGet, target, http.NoBody)
+		req.Header.Set("Cookie", wording.CookieName+"="+language)
+		rec := httptest.NewRecorder()
+		site.ServeHTTP(rec, req)
+		match := regexp.MustCompile(`<title>(.*?)</title>`).FindStringSubmatch(rec.Body.String())
+		if match == nil {
+			t.Fatalf("GET %s = %d with no title", target, rec.Code)
+		}
+		return html.UnescapeString(match[1])
+	}
+	for _, test := range []struct {
+		name, language, target, want string
+	}{
+		{"the desk", "en", "/", "Field Notes"},
+		{"a note", "en", "/notes/Writing/note.md", "Go Concurrency — Field Notes"},
+		{"the vault's own README", "en", "/notes/README.md", "Field Notes"},
+		{"a search", "en", "/search?q=go++concurrency", "Search: go concurrency — Field Notes"},
+		{"a search with nothing typed", "en", "/search", "Search — Field Notes"},
+		{"a search in Chinese", "zh-Hant", "/search?q=channels", "搜尋：channels — Field Notes"},
+		{"a page that is not there", "en", "/notes/absent.md", wording.NotFoundKicker.In(wording.En) + " — Field Notes"},
+		{"a page that is not there, in Chinese", "zh-Hant", "/notes/absent.md", wording.NotFoundKicker.In(wording.ZhHant) + " — Field Notes"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			got := titleOf(t, test.language, test.target)
+			if got != test.want {
+				t.Errorf("the tab of %s says %q, want %q", test.target, got, test.want)
+			}
+			if strings.Contains(strings.ToLower(got), "yomihon") {
+				t.Errorf("the tab of %s names the product: %q", test.target, got)
+			}
+		})
 	}
 }
