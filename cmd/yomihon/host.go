@@ -206,7 +206,7 @@ func (h *host) touching(m *mount, next http.Handler) http.Handler {
 		return next
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet && r.Header.Get("Sec-Fetch-Dest") == "document" {
+		if r.Method == http.MethodGet && r.Header.Get("Sec-Fetch-Dest") == "document" && origin.LoopbackRequest(r) {
 			h.touch(r.Context(), m)
 		}
 		next.ServeHTTP(w, r)

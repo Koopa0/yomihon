@@ -444,26 +444,25 @@ func TestADamagedListIsSetAsideNotDeletedAndReadAsEmpty(t *testing.T) {
 	}
 }
 
-func TestAListThatClaimsAnotherVaultsIDIsDamaged(t *testing.T) {
+func TestAnEntryThatClaimsAnotherVaultsIDIsLeftOutAndTheRestAreKept(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), nil)
-	dir := folder(t, "a")
-	e := mustAdd(t, s, dir)
-
-	stolen := Entry{ID: confdir.VaultID("/some/other/vault"), Path: e.Path, Name: "x", Port: 8801}
-	data, err := encode([]Entry{stolen})
+	good := entryAt("/v/good", 8802)
+	stolen := Entry{ID: confdir.VaultID("/some/other/vault"), Path: entryAt("/v/stolen", 8801).Path, Name: "x", Port: 8801}
+	data, err := encode([]Entry{stolen, good})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := confdir.Replace(s.dir, listFile, data); err != nil {
+	if err = confdir.Replace(s.dir, listFile, data); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.List(); !errors.Is(err, ErrDamaged) {
-		t.Fatalf("a list giving a vault another's id = %v, want ErrDamaged: it would hand the vault another's marks", err)
+	list, err := s.List()
+	if err != nil || len(list) != 1 || list[0].ID != good.ID || list[0].Port != 8802 {
+		t.Fatalf("List = %+v, %v; want only the good entry, on its port: the other would hand a vault another's marks", list, err)
 	}
 }
 
-func TestAListWithTwoVaultsOnOnePortOrOneIDTwiceIsDamaged(t *testing.T) {
+func TestTheLaterOfTwoEntriesOnOnePortOrWithOneIDIsLeftOut(t *testing.T) {
 	t.Parallel()
 	for name, list := range map[string][]Entry{
 		"one port twice": {entryAt("/v/a", 8800), entryAt("/v/b", 8800)},
@@ -473,8 +472,9 @@ func TestAListWithTwoVaultsOnOnePortOrOneIDTwiceIsDamaged(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := decode(data); err == nil {
-			t.Errorf("%s was read as a list", name)
+		got, skipped, err := decode(data)
+		if err != nil || len(got) != 1 || got[0] != list[0] || len(skipped) != 1 {
+			t.Errorf("%s: decode = %+v, %v, %v; want the first entry kept and the second left out", name, got, skipped, err)
 		}
 	}
 }
@@ -833,9 +833,9 @@ func writeList(t *testing.T, configDir, body string) *Store {
 	return s
 }
 
-// An entry the list would not have written is damage, not a vault to serve and
-// not a port to walk to something else.
-func TestAnEntryOutsideTheUnprivilegedPortsOrAtTheTopOfAFilesystemIsDamage(t *testing.T) {
+// An entry the list would not have written is left out, and not given another
+// port; the list is not damaged for it.
+func TestAnEntryOutsideTheUnprivilegedPortsOrAtTheTopOfAFilesystemIsLeftOut(t *testing.T) {
 	t.Parallel()
 	folderPath := folder(t, "a")
 	for _, test := range []struct {
@@ -850,8 +850,8 @@ func TestAnEntryOutsideTheUnprivilegedPortsOrAtTheTopOfAFilesystemIsDamage(t *te
 			t.Parallel()
 			body := `{"version":1,"vaults":[{"id":"` + confdir.VaultID(test.path) + `","path":` + strconv.Quote(test.path) + `,"name":"x","last_read":"2026-11-18T09:00:00Z","port":` + strconv.Itoa(test.port) + `}]}`
 			s := writeList(t, t.TempDir(), body)
-			if _, err := s.List(); !errors.Is(err, ErrDamaged) {
-				t.Errorf("List = %v, want ErrDamaged", err)
+			if list, err := s.List(); err != nil || len(list) != 0 {
+				t.Errorf("List = %+v, %v; want no vaults and no error", list, err)
 			}
 		})
 	}
@@ -873,4 +873,183 @@ func TestAnOversizedListIsSetAsideNotLeftToBlockEveryChange(t *testing.T) {
 	if list, listErr := s.List(); listErr != nil || len(list) != 1 {
 		t.Errorf("after the change the list holds %+v, %v; want the one vault", list, listErr)
 	}
+}
+
+// The ports are what the reader's tabs and history follow. One entry that cannot
+// be used does not take the others off the ports they have.
+func TestOneEntryThatCannotBeUsedDoesNotMoveTheOthers(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	var said []string
+	s := writeListReporting(t, configDir, &said, "")
+	a, b := entryAt("/v/a", 8801), entryAt("/v/b", 8802)
+	bad := `{"id":"x","path":"/","name":"root","last_read":"2026-11-18T09:00:00Z","port":8800}`
+	body := string(mustEncode(t, []Entry{a, b}))
+	body = strings.Replace(body, `"vaults": [`, `"vaults": [`+bad+`,`, 1)
+	if err := os.WriteFile(filepath.Join(s.dir, listFile), []byte(body), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+		t.Fatal(err)
+	}
+
+	list, err := s.List()
+	if err != nil || len(list) != 2 {
+		t.Fatalf("List = %+v, %v; want the two good vaults", list, err)
+	}
+	for _, e := range list {
+		if want := map[string]int{a.ID: 8801, b.ID: 8802}[e.ID]; e.Port != want {
+			t.Errorf("%s is on %d, want %d", e.Path, e.Port, want)
+		}
+	}
+	if len(said) != 1 || !strings.Contains(said[0], "1 entry that could not be used") {
+		t.Fatalf("said %q; want one line about the entry left out", said)
+	}
+	if _, listErr := s.List(); listErr != nil || len(said) != 1 {
+		t.Fatalf("reading the same file again said %q; once for each state of the file", said)
+	}
+
+	// A change keeps the list as it was, and writes the rest on the ports they had.
+	mustAdd(t, s, folder(t, "c"))
+	kept := readFile(t, filepath.Join(s.dir, damagedFile))
+	if string(kept) != body {
+		t.Errorf("the list as it was is not kept whole: %q", kept)
+	}
+	after, err := s.List()
+	if err != nil || len(after) != 3 {
+		t.Fatalf("after the change List = %+v, %v; want three vaults", after, err)
+	}
+	for _, e := range after {
+		if want, held := map[string]int{a.ID: 8801, b.ID: 8802}[e.ID]; held && e.Port != want {
+			t.Errorf("%s moved to %d, want %d", e.Path, e.Port, want)
+		}
+	}
+	if len(said) != 2 || !strings.Contains(said[1], filepath.Join(s.dir, damagedFile)) {
+		t.Fatalf("said %q; the second line names the file the list is kept as", said)
+	}
+}
+
+func TestAnEntryOfTheWrongShapeIsLeftOutAndAFileThatIsNotAListIsStillDamaged(t *testing.T) {
+	t.Parallel()
+	good := string(mustEncode(t, []Entry{entryAt("/v/a", 8801)}))
+	for name, test := range map[string]struct {
+		body    string
+		damaged bool
+	}{
+		"a port that is a string":    {strings.Replace(good, `"vaults": [`, `"vaults": [{"id":"i","path":"/v/x","name":"x","last_read":"2026-11-18T09:00:00Z","port":"88"},`, 1), false},
+		"an entry that is null":      {strings.Replace(good, `"vaults": [`, `"vaults": [null,`, 1), false},
+		"a field it does not have":   {strings.Replace(good, `"vaults": [`, `"vaults": [{"id":"i","path":"/v/x","name":"x","last_read":"2026-11-18T09:00:00Z","port":8803,"extra":1},`, 1), false},
+		"a version it does not read": {strings.Replace(good, `"version": 1`, `"version": 2`, 1), true},
+		"vaults that is not a list":  {`{"version":1,"vaults":{}}`, true},
+	} {
+		s := writeList(t, t.TempDir(), test.body)
+		list, err := s.List()
+		if test.damaged != errors.Is(err, ErrDamaged) || (!test.damaged && (err != nil || len(list) != 1)) {
+			t.Errorf("%s: List = %+v, %v; want damaged = %v and otherwise the one good vault", name, list, err, test.damaged)
+		}
+	}
+}
+
+// What a list was is not written over by the next list that cannot be used: the
+// first stays, each later one has a name of its own, and past the last name only
+// the last is replaced.
+func TestASecondListSetAsideDoesNotReplaceTheFirst(t *testing.T) {
+	t.Parallel()
+	var said []string
+	s := writeListReporting(t, t.TempDir(), &said, "first, not a list")
+	mustAdd(t, s, folder(t, "a"))
+	for i := range keptAside + 2 {
+		if err := os.WriteFile(filepath.Join(s.dir, listFile), []byte("not a list, number "+strconv.Itoa(i)), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+			t.Fatal(err)
+		}
+		mustAdd(t, s, folder(t, "b"+strconv.Itoa(i)))
+	}
+	if got := readFile(t, filepath.Join(s.dir, asideFile(1))); string(got) != "first, not a list" {
+		t.Errorf("the first list set aside was replaced: %q", got)
+	}
+	if got := readFile(t, filepath.Join(s.dir, asideFile(2))); string(got) != "not a list, number 0" {
+		t.Errorf("the second was not kept under a name of its own: %q", got)
+	}
+	if got := readFile(t, filepath.Join(s.dir, asideFile(keptAside))); string(got) != "not a list, number "+strconv.Itoa(keptAside+1) {
+		t.Errorf("once every name is taken the last is replaced, and it holds %q", got)
+	}
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "vaults.damaged") {
+			count++
+		}
+	}
+	if count != keptAside {
+		t.Errorf("%d lists are kept, want %d and no more", count, keptAside)
+	}
+	if want := keptAside + 3; len(said) != want { // the list it began with, and each round's
+		t.Errorf("said %d lines for %d lists set aside: %q", len(said), want, said)
+	}
+}
+
+// A change that changes nothing writes nothing, and so sets nothing aside: one
+// copy of the list for every page load would fill the directory.
+func TestAChangeThatChangesNothingSetsNothingAside(t *testing.T) {
+	t.Parallel()
+	for name, body := range map[string]func(t *testing.T) (string, Entry){
+		"a list with an entry that cannot be used": func(t *testing.T) (string, Entry) {
+			t.Helper()
+			good := entryAt("/v/good", 8802)
+			good.LastRead = time.Date(2026, 11, 18, 9, 0, 0, 0, time.UTC)
+			text := strings.Replace(string(mustEncode(t, []Entry{good})), `"vaults": [`, `"vaults": [{"id":"x","path":"/","name":"x","last_read":"2026-11-18T09:00:00Z","port":8801},`, 1)
+			return text, good
+		},
+		"a list that is not a list": func(*testing.T) (string, Entry) { return "not a list", entryAt("/v/gone", 8801) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			text, entry := body(t)
+			s := writeList(t, t.TempDir(), text)
+			for range 3 {
+				// The vault was read a moment ago, or is not there: nothing is written.
+				_, _ = s.Touch(entry.ID, entry.Name, time.Date(2026, 11, 18, 9, 0, 1, 0, time.UTC)) //nolint:errcheck // an unlisted vault is an error, and that is not what is looked at
+			}
+			entries, err := os.ReadDir(s.dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, found := range entries {
+				if strings.HasPrefix(found.Name(), "vaults.damaged") {
+					t.Errorf("%s was made for a change that wrote nothing", found.Name())
+				}
+			}
+			if kept := readFile(t, filepath.Join(s.dir, listFile)); string(kept) != text {
+				t.Errorf("the list was written: %q", kept)
+			}
+		})
+	}
+}
+
+func mustEncode(t *testing.T, list []Entry) []byte {
+	t.Helper()
+	data, err := encode(list)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+// writeListReporting is writeList for a Store that says what it did into said.
+func writeListReporting(t *testing.T, configDir string, said *[]string, body string) *Store {
+	t.Helper()
+	s, err := Open(configDir, nil, Report(func(line string) { *said = append(*said, line) }))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.wait = 200 * time.Millisecond
+	if err = mkdirHome(s); err != nil {
+		t.Fatal(err)
+	}
+	if body != "" {
+		if err = os.WriteFile(filepath.Join(s.dir, listFile), []byte(body), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+			t.Fatal(err)
+		}
+	}
+	return s
 }

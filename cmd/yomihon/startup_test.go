@@ -559,3 +559,24 @@ func TestAFailedReadIsBegunAgainByTheNextRequestAfterTheGapAndNotBefore(t *testi
 		t.Error("the read has begun again and the page still says the vault cannot be read")
 	}
 }
+
+// A request that names another host name is refused and begins nothing: a page
+// on a rebound name sends no fetch metadata, which reads as a typed address.
+func TestARequestForAnotherHostNameBeginsNoRead(t *testing.T) {
+	t.Parallel()
+	for _, host := range []string{"rebind.example:22402", "rebind.example", "192.0.2.7:9610", "127.0.0.1.rebind.example:9610"} {
+		t.Run(host, func(t *testing.T) {
+			t.Parallel()
+			front := newTestStartup(t, fakeCount{}, 0)
+			var begun atomic.Int32
+			front.whenAsked(func() { begun.Add(1) })
+			req := siteRequest(t, http.MethodGet, "/", http.NoBody)
+			req.Host = host
+			rec := httptest.NewRecorder()
+			front.ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden || begun.Load() != 0 {
+				t.Errorf("a request for %q = %d, read begun %d times; want 403 and none", host, rec.Code, begun.Load())
+			}
+		})
+	}
+}

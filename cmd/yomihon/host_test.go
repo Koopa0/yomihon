@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
@@ -718,6 +719,77 @@ func TestAnUnreadVaultIsReadWhenNavigatedToAndNotForASubresource(t *testing.T) {
 	})
 }
 
+// A request that names another host name is refused before the vault is woken
+// and before its read is recorded: a page on a rebound name sends no fetch
+// metadata, which would pass for an address typed, and its picture would read the
+// folder and rewrite the list.
+func TestARequestForAnotherHostNameNeitherReadsTheVaultNorRecordsARead(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	start := someFreePort(t)
+	folder := newVaultFolder(t)
+	pre := listOf(t, configDir)
+	entry, _, err := pre.Add(folder, start+5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The vault was last read long ago, so a record of a read would be written.
+	long := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	data, err := json.Marshal(struct {
+		Version int            `json:"version"`
+		Vaults  []vaults.Entry `json:"vaults"`
+	}{1, []vaults.Entry{{ID: entry.ID, Path: entry.Path, Name: entry.Name, LastRead: long, Port: entry.Port}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(configDir, "yomihon", "vaults.json"), data, 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+		t.Fatal(err)
+	}
+
+	r := startRunning(t, configDir, newVaultFolder(t), start)
+	r.address(t)
+	address := addressOfEntry(&entry)
+	lastRead := func() time.Time { return idOf(t, listOf(t, configDir), folder).LastRead }
+
+	request := func(host string) int {
+		req, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, address, http.NoBody)
+		if reqErr != nil {
+			t.Fatal(reqErr)
+		}
+		req.Host = host
+		// What a browser sends for a picture on a page whose name was rebound to
+		// this address: nothing a page could be told apart by, and a document load.
+		req.Header.Set("Sec-Fetch-Dest", "document")
+		resp, doErr := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+		if doErr != nil {
+			t.Fatal(doErr)
+		}
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Fatal(closeErr)
+		}
+		return resp.StatusCode
+	}
+	for _, host := range []string{"rebind.example:" + strconv.Itoa(entry.Port), "rebind.example"} {
+		if status := request(host); status != http.StatusForbidden {
+			t.Fatalf("a request for %q = %d, want 403", host, status)
+		}
+	}
+	time.Sleep(500 * time.Millisecond) // a record, if one were made, is made at once and in the background
+	if m := r.mountOf(entry.ID); m == nil || m.site.Load() != nil {
+		t.Fatal("the vault was read for a request that was refused")
+	}
+	if got := lastRead(); !got.Equal(long) {
+		t.Fatalf("a request that was refused rewrote the vault's last read to %v", got)
+	}
+
+	// The same request for this machine is what records a read, which shows the
+	// record is made when it should be and that the check above could have failed.
+	if status := request(net.JoinHostPort("127.0.0.1", strconv.Itoa(entry.Port))); status != http.StatusServiceUnavailable && status != http.StatusOK {
+		t.Fatalf("a request for this machine = %d", status)
+	}
+	eventually(t, "a request for this machine to record a read", func() bool { return lastRead().After(long) })
+}
+
 func TestStoppingLeavesNothingThatSaysYomihonIsRunning(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
@@ -933,6 +1005,72 @@ func TestAVaultWhosePortSomethingElseTookStaysOnItAndTheOthersAreServed(t *testi
 	}
 	if kept := idOf(t, listOf(t, configDir), squatted.Path); kept.Port != squatted.Port {
 		t.Errorf("the list gives the vault %d, was %d; a listed vault does not move", kept.Port, squatted.Port)
+	}
+}
+
+// One entry of the list that cannot be used does not take the vaults beside it
+// off their ports: they are the addresses the reader's browser has. It is told
+// in a line on stderr, and the list as it was is kept beside the new one.
+func TestOneEntryThatCannotBeUsedLeavesTheOtherVaultsOnTheirPortsAndIsSaid(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	start := someFreePort(t)
+	pre := listOf(t, configDir)
+	first, _, err := pre.Add(newVaultFolder(t), start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := pre.Add(newVaultFolder(t), start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An entry at the top of the list that is not one: the root of a filesystem,
+	// on the port the first vault would take if the others were dropped.
+	file := filepath.Join(configDir, "yomihon", "vaults.json")
+	raw, err := os.ReadFile(file) // #nosec G304 -- a file under t.TempDir
+	if err != nil {
+		t.Fatal(err)
+	}
+	spliced := strings.Replace(string(raw), `"vaults": [`, `"vaults": [{"id":"x","path":"/","name":"root","last_read":"2026-11-18T09:00:00Z","port":`+strconv.Itoa(start-1)+`},`, 1)
+	if spliced == string(raw) {
+		t.Fatalf("the entry was not put in: %s", raw)
+	}
+	if err = os.WriteFile(file, []byte(spliced), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+		t.Fatal(err)
+	}
+
+	logged, out := new(lockedBuffer), new(lockedBuffer)
+	ctx, cancel := context.WithCancel(t.Context())
+	done := make(chan error, 1)
+	typed := newVaultFolder(t)
+	cfg := &config{root: typed, port: strconv.Itoa(start + 20), configDir: configDir}
+	go func() {
+		done <- serveVault(ctx, func() {}, slog.New(slog.NewTextHandler(logged, nil)), cfg, out)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		if endErr := <-done; endErr != nil {
+			t.Logf("the host ended with: %v", endErr)
+		}
+		if t.Failed() {
+			t.Logf("the log:\n%s", logged.String())
+		}
+	})
+	eventually(t, "the address to be printed", func() bool { return printedAddress.MatchString(out.String()) })
+
+	for _, kept := range []vaults.Entry{first, second} {
+		if status, _, _ := httpGet(t, addressOfEntry(&kept), "/"); status != http.StatusOK && status != http.StatusServiceUnavailable {
+			t.Errorf("%s answers %d at %d", kept.Path, status, kept.Port)
+		}
+		if now := idOf(t, listOf(t, configDir), kept.Path); now.Port != kept.Port {
+			t.Errorf("%s is on %d, was on %d: a listed vault does not move", kept.Path, now.Port, kept.Port)
+		}
+	}
+	if !strings.Contains(logged.String(), "1 entry that could not be used") || !strings.Contains(logged.String(), "vaults.damaged.json") {
+		t.Errorf("the log does not say what was left out and where the list is kept:\n%s", logged.String())
+	}
+	if kept, readErr := os.ReadFile(filepath.Join(configDir, "yomihon", "vaults.damaged.json")); readErr != nil || string(kept) != spliced { // #nosec G304 -- a file under t.TempDir
+		t.Errorf("the list as it was is not kept: %v", readErr)
 	}
 }
 

@@ -146,6 +146,13 @@ func (s *startup) open(site *readingSite) {
 }
 
 func (s *startup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// A request for another host name is refused, and has to have begun nothing: a
+	// rebound name sends no fetch metadata a page could be told apart by, so it
+	// would pass for a typed address.
+	if !origin.LoopbackRequest(r) {
+		s.reading.ServeHTTP(w, r)
+		return
+	}
 	if wakes(r) {
 		s.start()
 	}

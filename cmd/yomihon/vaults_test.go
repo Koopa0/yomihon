@@ -269,3 +269,34 @@ func TestTheNameVaultsPrintsNeverComesFromAReadmeTheRulesWithholdOrSkip(t *testi
 		})
 	}
 }
+
+// An entry that cannot be used is left out of the answer, and said on stderr; the
+// vaults beside it are listed on the ports they have.
+func TestVaultsListsTheRestAndSaysWhichEntryItLeftOut(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	store := listOf(t, configDir)
+	notes := folderNamed(t, t.TempDir(), "notes")
+	entry, _, err := store.Add(notes, someFreePort(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(configDir, "yomihon", "vaults.json")
+	raw, err := os.ReadFile(file) // #nosec G304 -- a file under t.TempDir
+	if err != nil {
+		t.Fatal(err)
+	}
+	spliced := strings.Replace(string(raw), `"vaults": [`, `"vaults": [{"id":"x","path":"relative","name":"x","last_read":"2026-11-18T09:00:00Z","port":9000},`, 1)
+	if err = os.WriteFile(file, []byte(spliced), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+		t.Fatal(err)
+	}
+
+	exit, stdout, stderr := runVaultsCommand(t, configDir, false)
+	if exit != 0 || strings.Count(strings.TrimSpace(stderr), "\n") != 0 || !strings.Contains(stderr, "1 entry that could not be used") {
+		t.Fatalf("exit %d, stderr %q; want exit 0 and one line about the entry left out", exit, stderr)
+	}
+	var got []vaultsLine
+	if err = json.Unmarshal([]byte(stdout), &got); err != nil || len(got) != 1 || got[0].Address != addressOf(entry.Port) {
+		t.Errorf("stdout %q (%v), want the one good vault on its address", stdout, err)
+	}
+}

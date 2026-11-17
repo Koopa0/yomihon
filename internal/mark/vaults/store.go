@@ -43,8 +43,13 @@ type Store struct {
 	// because the probe finds the process in the way.
 	own map[int]bool
 
+	// say is told, in a line, what was wrong with the list and what was done
+	// about it. Nil says nothing.
+	say func(line string)
+
 	mu           sync.Mutex
 	stamp        stamp
+	told         stamp
 	touched      map[string]touch
 	removed      map[string]Entry
 	removedOrder []string
@@ -71,12 +76,12 @@ type touch struct {
 // whether a port can be bound right now; it is how a new vault is kept off a
 // port something else holds, and nil says every port is free. Nothing is read or
 // written until the Store is used.
-func Open(configDir string, free func(port int) bool) (*Store, error) {
+func Open(configDir string, free func(port int) bool, options ...Option) (*Store, error) {
 	dir, err := confdir.Home(configDir)
 	if err != nil {
 		return nil, err
 	}
-	return &Store{
+	s := &Store{
 		dir:     dir,
 		free:    free,
 		now:     time.Now,
@@ -84,7 +89,21 @@ func Open(configDir string, free func(port int) bool) (*Store, error) {
 		touched: map[string]touch{},
 		removed: map[string]Entry{},
 		own:     map[int]bool{},
-	}, nil
+	}
+	for _, option := range options {
+		option(s)
+	}
+	return s, nil
+}
+
+// Option is a way a Store is set up beyond where it is kept.
+type Option func(*Store)
+
+// Report sends each line the Store has to say about a list it could not use
+// whole to say: which entries were left out and why, and where a list it
+// replaced is kept. The Store prints nothing itself.
+func Report(say func(line string)) Option {
+	return func(s *Store) { s.say = say }
 }
 
 // Hold says that this process has bound port, so that a new vault can be given
@@ -102,14 +121,17 @@ func (s *Store) Hold(port int) {
 func (s *Store) InstanceFile() string { return filepath.Join(s.dir, instanceFile) }
 
 // List is every vault, the one read most recently first. A list that cannot be
-// read answers ErrDamaged and no vaults; the next change sets it aside.
+// read answers ErrDamaged and no vaults; the next change sets it aside. An
+// entry that cannot be used is left out of the answer, and said once for each
+// state of the file.
 func (s *Store) List() ([]Entry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, _, err := s.read()
+	list, _, skipped, err := s.read()
 	if err != nil {
 		return nil, err
 	}
+	s.sayLeftOut(skipped)
 	return recentFirst(list), nil
 }
 
@@ -344,29 +366,30 @@ func (s *Store) statList() (stamp, error) {
 	return stamp{present: true, size: size, modified: modified}, nil
 }
 
-// read is the list as it is on disk. The raw bytes come back with ErrDamaged
-// when there are any, so a change can set them aside. A list that is not there
-// is an empty one.
-func (s *Store) read() (list []Entry, raw []byte, err error) {
+// read is the list as it is on disk. The raw bytes come back with the list
+// whenever there are any, and with ErrDamaged, so a change can set them aside;
+// skipped names the entries that were left out. A list that is not there is an
+// empty one.
+func (s *Store) read() (list []Entry, raw []byte, skipped []string, err error) {
 	// The stamp is taken before the read, so a change between the two is seen
 	// by the next Changed rather than lost.
 	if s.stamp, err = s.statList(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	raw, err = confdir.Read(s.dir, listFile, maxListBytes)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		s.stamp = stamp{}
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	case errors.Is(err, confdir.ErrTooLarge), errors.Is(err, confdir.ErrNotRegular):
-		return nil, nil, fmt.Errorf("%w: %w", ErrDamaged, err)
+		return nil, nil, nil, fmt.Errorf("%w: %w", ErrDamaged, err)
 	case err != nil:
-		return nil, nil, fmt.Errorf("read the list of vaults: %w", err)
+		return nil, nil, nil, fmt.Errorf("read the list of vaults: %w", err)
 	}
-	if list, err = decode(raw); err != nil {
-		return nil, raw, fmt.Errorf("%w: %w", ErrDamaged, err)
+	if list, skipped, err = decode(raw); err != nil {
+		return nil, raw, nil, fmt.Errorf("%w: %w", ErrDamaged, err)
 	}
-	return list, raw, nil
+	return list, raw, skipped, nil
 }
 
 // update is every change to the list: under the lock, from the list as it is
@@ -381,26 +404,32 @@ func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) (err er
 	}
 	defer func() { err = errors.Join(err, lock.Release()) }()
 
-	list, raw, err := s.read()
-	if err != nil {
-		if !errors.Is(err, ErrDamaged) {
-			return err
-		}
-		// A list too long to read, or not a file, is never read in whole and
-		// never opened; it is renamed, which is all that can be done with it.
-		// Any other damaged list is kept as the bytes it had.
-		if asideErr := s.setAside(raw); asideErr != nil {
-			return fmt.Errorf("set the damaged list of vaults aside: %w", asideErr)
-		}
+	list, raw, skipped, err := s.read()
+	damaged := errors.Is(err, ErrDamaged)
+	if err != nil && !damaged {
+		return err
+	}
+	if damaged {
 		list = nil
 	}
 	next, changed, err := change(list)
-	if err != nil || !changed {
+	if err != nil {
 		return err
+	}
+	if !changed {
+		s.sayLeftOut(skipped)
+		return nil
 	}
 	data, err := encode(next)
 	if err != nil {
 		return err
+	}
+	// The list is about to be replaced, so what it was is kept first: a list that
+	// could not be read, or one with entries that could not be used.
+	if damaged || len(skipped) > 0 {
+		if err := s.keepAside(raw, damaged, skipped); err != nil {
+			return err
+		}
 	}
 	if err := confdir.Replace(s.dir, listFile, data); err != nil {
 		return fmt.Errorf("write the list of vaults: %w", err)
@@ -430,11 +459,77 @@ func abandoned(holder []byte, age time.Duration) bool {
 	return err == nil && !processAlive(n)
 }
 
-// setAside keeps a damaged list for the reader to open: the bytes it had, or,
-// when it was never read (raw is nil), the file itself, renamed.
-func (s *Store) setAside(raw []byte) error {
-	if raw == nil {
-		return confdir.SetAside(s.dir, listFile, damagedFile)
+// keepAside keeps the list as it is before it is replaced, for the reader to
+// open: the bytes it had, or, when it was never read (raw is nil), the file
+// itself, renamed. It says what was wrong and where the list is kept.
+func (s *Store) keepAside(raw []byte, damaged bool, skipped []string) error {
+	name, err := s.freeAsideName()
+	if err != nil {
+		return fmt.Errorf("set the list of vaults aside: %w", err)
 	}
-	return confdir.Replace(s.dir, damagedFile, raw)
+	if raw == nil {
+		err = confdir.SetAside(s.dir, listFile, name)
+	} else {
+		err = confdir.Replace(s.dir, name, raw)
+	}
+	if err != nil {
+		return fmt.Errorf("set the list of vaults aside: %w", err)
+	}
+	if s.say != nil {
+		where := filepath.Join(s.dir, name)
+		if damaged {
+			s.say("the list of vaults could not be read and is kept as " + where + "; a new list was started")
+		} else {
+			s.say(describeLeftOut(skipped) + "; the list as it was is kept as " + where)
+		}
+	}
+	return nil
+}
+
+// freeAsideName is the first name for a set-aside list that is not taken. The
+// first name is never given again, so an earlier list is not written over; when
+// every name is taken, the last is.
+func (s *Store) freeAsideName() (string, error) {
+	name := asideFile(keptAside)
+	for n := 1; n <= keptAside; n++ {
+		_, _, err := confdir.Stat(s.dir, asideFile(n))
+		if errors.Is(err, os.ErrNotExist) {
+			return asideFile(n), nil
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+	return name, nil
+}
+
+// asideFile is the nth name a set-aside list is kept under.
+func asideFile(n int) string {
+	if n <= 1 {
+		return damagedFile
+	}
+	return strings.TrimSuffix(damagedFile, ".json") + "-" + strconv.Itoa(n) + ".json"
+}
+
+// sayLeftOut says what was left out of the list, once for each state the file is
+// in, so that a poll of it does not say it again.
+func (s *Store) sayLeftOut(skipped []string) {
+	if len(skipped) == 0 || s.say == nil || s.told.present && s.told.equal(s.stamp) {
+		return
+	}
+	s.told = s.stamp
+	s.say(describeLeftOut(skipped))
+}
+
+// describeLeftOut is a line naming the entries that could not be used.
+func describeLeftOut(skipped []string) string {
+	const shown = 3
+	line := "the list of vaults has " + strconv.Itoa(len(skipped)) + " entries that could not be used and are left out"
+	if len(skipped) == 1 {
+		line = "the list of vaults has 1 entry that could not be used and is left out"
+	}
+	if len(skipped) > shown {
+		return line + " (" + strings.Join(skipped[:shown], "; ") + "; and " + strconv.Itoa(len(skipped)-shown) + " more)"
+	}
+	return line + " (" + strings.Join(skipped, "; ") + ")"
 }
