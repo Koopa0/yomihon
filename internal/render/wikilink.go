@@ -771,10 +771,7 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 	if _, labelled := calloutLabel(typ, bucket); title == "" && (!labelled || !namesItsLabel(typ)) {
 		title = defaultTitle
 	}
-	titleHTML, openingID := html.EscapeString(title), ""
-	if bucket == bucketUnknown && !st.owned[st.i] {
-		titleHTML, openingID = calloutOpeningTitle(title, col.page, allowEmbed)
-	}
+	titleHTML, openingID := calloutTitleHTML(title, bucket, st.owned[st.i], col.page, allowEmbed)
 
 	st.i++
 	opened := st.i
@@ -821,6 +818,24 @@ func (r *Pipeline) tryConsumeCallout(st *preprocessState, allowEmbed embedPolicy
 
 	st.kept = append(st.kept, "", blockPlaceholder(openMark), "", body.source(), "", blockPlaceholder(closeMark), "")
 	return true
+}
+
+// calloutTitleHTML writes a callout's title. An unknown type's opening line
+// keeps the address it can carry as an anchor; a known type's cannot carry
+// one, and an address written there is syntax with nowhere to go, so it is not
+// in the title. A caret a code span holds is the author's text.
+func calloutTitleHTML(title string, bucket calloutBucket, owned bool, page *composition, allowEmbed embedPolicy) (markup, id string) {
+	switch {
+	case owned:
+		return html.EscapeString(title), ""
+	case bucket == bucketUnknown:
+		return calloutOpeningTitle(title, page, allowEmbed)
+	}
+	trimmed, m := blockAddressIn(title)
+	if m == nil {
+		return html.EscapeString(title), ""
+	}
+	return html.EscapeString(strings.TrimRight(trimmed[:m[2]], " \t")), ""
 }
 
 // calloutOpeningTitle preserves an unknown opening's address while treating

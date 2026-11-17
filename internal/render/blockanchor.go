@@ -252,13 +252,15 @@ func markBlockAnchor(line string, page *composition, marks *markers, claim bool)
 	return trimmed[:m[2]] + placeholderFor(len(marks.inline)-1, anchor) + line[len(trimmed):]
 }
 
-// blockAnchorSpan keeps the authored address visible and claims its canonical
-// id only for the first occurrence in the note's own text. An unclaimed span
-// still names an address to speech without promising a fragment on this page.
+// blockAnchorSpan makes the place a link can reach and shows nothing of how
+// it was written: the address is authoring syntax, so the span is empty. Its
+// canonical id is claimed only for the first occurrence in the note's own
+// text. An unclaimed span still marks an address, for speech, without
+// promising a fragment on this page.
 func blockAnchorSpan(address string, page *composition, claim bool) (markup, id string) {
 	id = blockAnchorID(address)
 	if claim && page.claimBlockAnchor(id) {
-		return `<span id="` + html.EscapeString(id) + `">` + html.EscapeString(address) + `</span>`, id
+		return `<span id="` + html.EscapeString(id) + `"></span>`, id
 	}
-	return `<span>` + html.EscapeString(address) + `</span>`, ""
+	return `<span></span>`, ""
 }

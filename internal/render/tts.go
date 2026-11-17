@@ -33,10 +33,6 @@ var (
 	// ttsTag matches any remaining tag, reducing a segment's inner HTML to its
 	// text: the <ruby> wrappers, emphasis, links and the rest fall away.
 	ttsTag = regexp.MustCompile(`<[^>]+>`)
-	// trailingBlockAddressSpan is a trailing span whose only content is text —
-	// the shape markBlockAnchor plants for a classified address. Nested markup
-	// is someone else's span and is left for the flatten.
-	trailingBlockAddressSpan = regexp.MustCompile(`<span(?:\s+[^>]*)?>[^<]*</span>\s*$`)
 	// footnoteReference is one citation mark as goldmark writes it: the mark's
 	// own id and a link down to the note's footnote list.
 	footnoteReference = regexp.MustCompile(`<sup id="[^"]*"><a href="#[^"]*" class="footnote-ref"[^>]*>([^<]*)</a></sup>`)
@@ -151,37 +147,14 @@ func readAloudBlock(inner, spoken, tag string, lang wording.Lang) string {
 		`<p lang="` + tag + `">` + inner + `</p></div>`
 }
 
-// spokenText reduces a segment's inner HTML to its spoken form: a trailing
-// block address dropped first, then the ruby readings (<rt>/<rp>) removed so
-// only the base characters remain, every other tag stripped, HTML entities
-// decoded, and the result trimmed. The address is taken off the HTML, not
-// off the flattened text: a caret inside a code span, an escaped caret, or
-// an entity-spelled one can flatten to the same characters and must stay.
+// spokenText reduces a segment's inner HTML to its spoken form: the ruby
+// readings (<rt>/<rp>) removed so only the base characters remain, every tag
+// stripped, HTML entities decoded, and the result trimmed. A block address
+// leaves an empty span, so it is never in the words; a caret the author shows
+// in a code span, escaped, or spelled as an entity is their text and stays.
 func spokenText(inner string) string {
-	s := ttsTag.ReplaceAllString(rubyReading.ReplaceAllString(stripTrailingBlockAddress(inner), ""), "")
+	s := ttsTag.ReplaceAllString(rubyReading.ReplaceAllString(inner, ""), "")
 	return strings.TrimSpace(html.UnescapeString(s))
-}
-
-// stripTrailingBlockAddress removes a trailing span that BlockAddress
-// classifies as an address. It does not invent a second caret grammar, and it
-// does not look at a flattened tail: the span is the signal the preprocess
-// pass left for a classified marker, claimed or not.
-func stripTrailingBlockAddress(inner string) string {
-	loc := trailingBlockAddressSpan.FindStringIndex(inner)
-	if loc == nil {
-		return inner
-	}
-	span := strings.TrimSpace(inner[loc[0]:loc[1]])
-	openAt := strings.Index(span, ">")
-	endAt := strings.LastIndex(span, "</span>")
-	if openAt < 0 || endAt <= openAt {
-		return inner
-	}
-	text := html.UnescapeString(span[openAt+1 : endAt])
-	if BlockAddress(text) == "" {
-		return inner
-	}
-	return inner[:loc[0]]
 }
 
 // speakButton emits the read-aloud control for an opted-in paragraph. text is

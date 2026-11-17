@@ -35,8 +35,8 @@ func TestQualifyRenamesEveryPlaceAndEveryReferenceToOne(t *testing.T) {
 		want: `<sup id="b-fnref:1"><a href="#b-fn:1">1</a></sup><li id="b-fn:1"><a href="#b-fnref:1">back</a></li>`,
 	}, {
 		name: "a block address keeps the escaping its link was written with",
-		html: `<a href="#%5Eintro">to the block</a><span id="^intro">^intro</span>`,
-		want: `<a href="#b-%5Eintro">to the block</a><span id="b-^intro">^intro</span>`,
+		html: `<a href="#%5Eintro">to the block</a><span id="^intro"></span>`,
+		want: `<a href="#b-%5Eintro">to the block</a><span id="b-^intro"></span>`,
 	}, {
 		name: "an element described by another is described by the same one",
 		html: `<article aria-labelledby="slot-pattern-1"><h3 id="slot-pattern-1">frame</h3></article>`,

@@ -32,9 +32,10 @@ func supportedBlockGrammarInventory() blockGrammarInventory {
 			"internal/render/blockanchor.go:blockAddressIn -> BlockAddress",
 			"internal/render/blockanchor.go:markBlockAnchor -> blockAddressIn",
 			"internal/render/blockanchor.go:markOwnedAddresses -> blockAddressIn",
+			"internal/render/plaintext.go:withoutBlockAddress -> blockAddressIn",
 			"internal/render/section.go:blockMarkerLine -> BlockAddress",
-			"internal/render/tts.go:stripTrailingBlockAddress -> BlockAddress",
 			"internal/render/wikilink.go:calloutOpeningTitle -> blockAddressIn",
+			"internal/render/wikilink.go:calloutTitleHTML -> blockAddressIn",
 		},
 		"suffixes": nil,
 		"aliases":  nil,
@@ -228,9 +229,9 @@ func blockGrammarControlSources() map[string]string {
 			"func CodeSpanOwnedAddresses() { blockAddressIn(\"\") }\n" +
 			"func markOwnedAddresses() { blockAddressIn(\"\") }\n" +
 			"func markBlockAnchor() { blockAddressIn(\"\") }\n",
-		"internal/render/section.go":  "package render\nfunc blockMarkerLine() { BlockAddress(\"\") }\n",
-		"internal/render/tts.go":      "package render\nfunc stripTrailingBlockAddress() { BlockAddress(\"\") }\n",
-		"internal/render/wikilink.go": "package render\nfunc calloutOpeningTitle() { blockAddressIn(\"\") }\n",
+		"internal/render/section.go":   "package render\nfunc blockMarkerLine() { BlockAddress(\"\") }\n",
+		"internal/render/plaintext.go": "package render\nfunc withoutBlockAddress() { blockAddressIn(\"\") }\n",
+		"internal/render/wikilink.go":  "package render\nfunc calloutOpeningTitle() { blockAddressIn(\"\") }\nfunc calloutTitleHTML() { blockAddressIn(\"\") }\n",
 		"internal/judge/fragment.go": "package judge\nimport r \"github.com/koopa0/yomihon/internal/render\"\n" +
 			"func collectBlockAddresses() { r.BlockAddress(\"\") }\nfunc blockAddressed() {}\n",
 	}
@@ -263,8 +264,8 @@ func TestBlockGrammarInventoryControls(t *testing.T) {
 		{name: "run ownership call removed", path: "internal/render/blockanchor.go", before: "func markOwnedAddresses() { blockAddressIn(\"\") }", after: "func markOwnedAddresses() {}", want: []string{"caught: block grammar callers changed"}},
 		{name: "page call removed", path: "internal/render/blockanchor.go", before: "func markBlockAnchor() { blockAddressIn(\"\") }", after: "func markBlockAnchor() {}", want: []string{"caught: block grammar callers changed"}},
 		{name: "excerpt call removed", path: "internal/render/section.go", before: "BlockAddress(\"\")", after: "", want: []string{"caught: block grammar callers changed"}},
-		{name: "speech call removed", path: "internal/render/tts.go", before: "BlockAddress(\"\")", after: "", want: []string{"caught: block grammar callers changed"}},
-		{name: "callout call removed", path: "internal/render/wikilink.go", before: "blockAddressIn(\"\")", after: "", want: []string{"caught: block grammar callers changed"}},
+		{name: "search text call removed", path: "internal/render/plaintext.go", before: "blockAddressIn(\"\")", after: "", want: []string{"caught: block grammar callers changed"}},
+		{name: "callout call removed", path: "internal/render/wikilink.go", before: "func calloutOpeningTitle() { blockAddressIn(\"\") }", after: "func calloutOpeningTitle() {}", want: []string{"caught: block grammar callers changed"}},
 		{name: "judge call removed", path: "internal/judge/fragment.go", before: "r.BlockAddress(\"\")", after: "", want: []string{"caught: block grammar callers changed"}},
 		{name: "unapproved caller", path: "internal/render/section.go", before: "package render", after: "package render\nfunc secondReading() { BlockAddress(\"\") }", want: []string{"caught: block grammar callers changed"}},
 		{name: "copied grammar", path: "internal/render/blockanchor.go", before: "func markBlockAnchor()", after: "var secondGrammar = regexp.MustCompile(`(\\^copy)\\z`)\nfunc markBlockAnchor()", want: []string{"caught: block grammar patterns changed"}},

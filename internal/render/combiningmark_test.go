@@ -168,7 +168,7 @@ func TestFragmentNormalizationExcerptsAndBlocks(t *testing.T) {
 	if diff := cmp.Diff([]string{"^quote-1", "^quote1"}, page.Blocks); diff != "" {
 		t.Errorf("caught: fragment-normalization ASCII blocks (-want +got):\n%s", diff)
 	}
-	if !strings.Contains(page.HTML, `<span id="^quote-1">^QUOTE-1</span>`) {
+	if !strings.Contains(page.HTML, `<span id="^quote-1"></span>`) {
 		t.Errorf("caught: fragment-normalization ASCII block HTML = %s", page.HTML)
 	}
 	link := r.HTML("Source.md", "", "[[Target#^quote-1|block]]", wording.En)

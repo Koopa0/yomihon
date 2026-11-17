@@ -439,12 +439,16 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 	inFence := false
 	var fenceByte byte
 	var fenceLen int
+	// An address is authoring syntax, so the searchable text leaves it out;
+	// one a code span holds is the author showing it, and stays.
+	owned := CodeSpanOwnedAddresses(lines)
 	// Which lines are indented code is a parse's answer, asked only once a
 	// line looks like a callout opener, since no other rewrite here depends
 	// on it.
 	var code map[int]bool
 	parsed := false
 	for i, line := range lines {
+		original := line
 		switch {
 		case inFence:
 			if fenceCloses(line, fenceByte, fenceLen) {
@@ -460,8 +464,11 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 				code, parsed = codeBlockLines(plainParser, body), true
 			}
 			rewritten.literalRoles[i] = opener && !code[i]
+			if !owned[i] {
+				line = withoutBlockAddress(line)
+			}
 			lines[i] = plainLine(line, code[i], &wikiLines[i])
-			rewritten.changed[i] = lines[i] != line
+			rewritten.changed[i] = lines[i] != original
 		}
 	}
 	off := 0
@@ -473,6 +480,16 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 		off += len(line) + 1 // the newline the join puts back
 	}
 	return strings.Join(lines, "\n"), rewritten
+}
+
+// withoutBlockAddress takes the address off the end of a line, and the
+// space that set it apart.
+func withoutBlockAddress(line string) string {
+	trimmed, m := blockAddressIn(line)
+	if m == nil {
+		return line
+	}
+	return strings.TrimRight(trimmed[:m[2]], " \t")
 }
 
 // plainLine normalizes one non-fence line: it strips a callout marker (keeping
