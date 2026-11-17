@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -397,4 +399,70 @@ func TestStartupWaitsBeforeShowingThePage(t *testing.T) {
 			t.Errorf("the request waited %v, but the read had already run past the grace", waited)
 		}
 	})
+}
+
+// A vault whose folder cannot be read answers every address with the page a
+// note that cannot be read has: the vault's name, why in words, where it is, and
+// the one thing to do. It is a 503, and it stands behind the same loopback and
+// browser-policy edges as the reading page does.
+func TestAVaultThatCannotBeReadAnswersWithThePageThatSaysWhy(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name string
+		err  error
+		zh   string
+		en   string
+	}{
+		{"missing", &fs.PathError{Op: "open", Path: "/home/reader/notes", Err: fs.ErrNotExist}, "找不到資料夾", "The folder cannot be found"},
+		{"denied", fmt.Errorf("open vault root: %w", &fs.PathError{Op: "open", Path: "/home/reader/notes", Err: fs.ErrPermission}), "沒有讀取權限", "No permission to read it"},
+		{"other", errors.New("something else"), "資料夾讀不進來", "The folder cannot be read"},
+	} {
+		for _, language := range []string{"zh-Hant", "en"} {
+			t.Run(test.name+"/"+language, func(t *testing.T) {
+				t.Parallel()
+				front := newTestStartup(t, fakeCount{}, 0)
+				front.fail(test.err)
+				req := siteRequest(t, http.MethodGet, "/notes/anything.md", http.NoBody)
+				req.Header.Set("Cookie", wording.CookieName+"="+language)
+				rec := httptest.NewRecorder()
+				front.ServeHTTP(rec, req)
+
+				if rec.Code != http.StatusServiceUnavailable {
+					t.Fatalf("status = %d, want 503", rec.Code)
+				}
+				if rec.Header().Get("Content-Security-Policy") == "" {
+					t.Error("the answer carries no browser policy, so it did not pass the edge the reading page does")
+				}
+				body := rec.Body.String()
+				want := test.zh
+				action := "重新讀取"
+				if language == "en" {
+					want, action = test.en, "Read again"
+				}
+				for _, part := range []string{`data-nothing="unreadable"`, "notes", "/home/reader/notes", want, action, `href="/"`} {
+					if !strings.Contains(body, part) {
+						t.Errorf("the page does not hold %q", part)
+					}
+				}
+				for _, leaked := range []string{"something else", "open vault root", "no such file", "permission denied"} {
+					if strings.Contains(body, leaked) {
+						t.Errorf("the page shows %q, which is an error and not words for a reader", leaked)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestAVaultThatCannotBeReadStillTurnsBackAnotherHostName(t *testing.T) {
+	t.Parallel()
+	front := newTestStartup(t, fakeCount{}, 0)
+	front.fail(fs.ErrNotExist)
+	req := siteRequest(t, http.MethodGet, "/", http.NoBody)
+	req.Host = "evil.example:9610"
+	rec := httptest.NewRecorder()
+	front.ServeHTTP(rec, req)
+	if strings.Contains(rec.Body.String(), "/home/reader/notes") {
+		t.Errorf("a request for another host name was told where the vault is: %d %q", rec.Code, rec.Body.String())
+	}
 }

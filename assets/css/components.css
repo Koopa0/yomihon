@@ -5401,6 +5401,14 @@ a.y-facetrow:hover {
   font-weight: var(--fw-semibold);
 }
 
+/* The facts of a vault that cannot be read are two short terms and one long
+   path, so the terms get no more than they need and the path the rest. */
+@media (min-width: 721px) {
+  [data-nothing='unreadable'] .y-notefacts {
+    grid-template-columns: 5em minmax(0, 1fr);
+  }
+}
+
 /* What the reader can do next sits under the sentence, quieter than it. */
 .y-nothing__says .y-nothing__hint {
   color: var(--fg-muted);

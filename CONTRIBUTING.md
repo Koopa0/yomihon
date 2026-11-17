@@ -90,11 +90,12 @@ deliberate faults, so most reading and diagnostic behavior is reachable without
 a vault of your own. Any folder of Markdown works the same way:
 `bin/yomihon ~/notes`.
 
-Set `YOMIHON_PORT` to serve on another port. To read two folders at once, run
-two yomihon processes on two ports; the folder is fixed for the life of a
-process.
+Set `YOMIHON_PORT` to change the port the first vault is served on. Each folder
+you read joins a list of vaults, every one on a port of its own above that one;
+while a yomihon is running, `yomihon <dir>` hands it the folder and prints the
+address, and `yomihon vaults` lists them.
 
-The command line has seven commands. `yomihon --help` lists them, and
+The command line has eight commands. `yomihon --help` lists them, and
 `yomihon check --help` documents the flags, the output shapes, and the exit
 codes:
 

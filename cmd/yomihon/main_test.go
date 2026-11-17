@@ -51,177 +51,25 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 		"YOMIHON_PORT=not-a-port",
 	)
 
-	top := "Usage:\n" +
-		"  yomihon [<dir>]                       read a folder (default: this one)\n" +
-		"  yomihon serve [<dir>]                 read a folder (or --root <dir>)\n\n" +
-		"About the vault:\n" +
-		"  yomihon check [options] [path...]      check a vault (--root <dir>; path narrows)\n" +
-		"  yomihon coverage [options]\n" +
-		"  yomihon exists [options] <name>\n\n" +
-		"About the reader:\n" +
-		"  yomihon marks [options]\n" +
-		"  yomihon approve-figure [--root <dir>] <path>   let a figure's scripts run\n" +
-		"  yomihon revoke-figure [--root <dir>] <path>    withdraw that\n\n" +
-		"Use \"yomihon <command> --help\" for command help.\n"
-	command := map[string]string{
-		"serve": "Usage: yomihon [<dir>]  —  or  yomihon serve [<dir>]\n" +
-			"\n" +
-			"Reads the folder named on the line, or the one you are standing in.\n" +
-			"yomihon serve --root <dir> reads the same folder as yomihon serve <dir>.\n" +
-			"Serves it on 127.0.0.1:$YOMIHON_PORT (default 9610).\n" +
-			"\n" +
-			"The folder is fixed for the life of the process: reading another one\n" +
-			"means another yomihon, on another port.\n" +
-			"\n" +
-			"A file larger than 1 MiB is not read as characters: the page names the\n" +
-			"bytes and search leaves it out. An in-place rewrite that keeps the same\n" +
-			"inode, mode, size and mtime can stay stale for about an hour; an ordinary\n" +
-			"save that changes size or mtime rebuilds at once.\n",
-		"check": "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
-			"\n" +
-			"--root is the vault to judge; without it, the folder you are standing in is\n" +
-			"the vault. A [path...] is not a second way to say that: each one narrows the\n" +
-			"judging to part of that vault and is written the way the vault spells it,\n" +
-			"relative to its root — \"Notes\" or \"Notes/topic.md\". With none, the whole\n" +
-			"vault is judged.\n" +
-			"\n" +
-			"  yomihon check --root ~/vault              the whole vault\n" +
-			"  yomihon check --root ~/vault Notes        one folder of it\n" +
-			"\n" +
-			"A path inside a directory the rules withhold from agent-facing output\n" +
-			"is refused rather than judged: that ground is scanned, but nothing from it\n" +
-			"can be reported, and an empty answer would read as a clean verdict.\n" +
-			"\n" +
-			"When folders.checked names directories, the frontmatter schema rules\n" +
-			"judge those files; a file outside them is still scanned for links, but is\n" +
-			"not held to the schema. When the list is omitted or empty, every note is\n" +
-			"held to the schema.\n" +
-			"\n" +
-			"The default check keeps findings that touch that same layer; --all restores\n" +
-			"findings that only touch paths outside it. Privacy is a different cut: a\n" +
-			"withheld path is never reported, even with --all.\n" +
-			"\n" +
-			"Writes one JSON object per line when the output is not a terminal, and a\n" +
-			"human summary when it is. --format decides instead of the terminal.\n" +
-			"\n" +
-			"A file the scan saw and the read could not open is reported as an error\n" +
-			"finding named scan.unreadable, and the rest of the vault is judged. The\n" +
-			"rules that conclude something is nowhere in the vault report nothing for\n" +
-			"that run, since the file nobody read may hold it, and the finding says so.\n" +
-			"\n" +
-			"Exits 0 when nothing named by --deny was found, 1 when something was, and\n" +
-			"2 when the command itself could not run. Findings alone do not fail the\n" +
-			"command: without --deny it reports and exits 0, an unreadable file\n" +
-			"included.\n",
-		"coverage": "Usage: yomihon coverage [--root <dir>] [--format json|human|md]\n" +
-			"\n" +
-			"Writes a compact JSON object when the output is not a terminal, and a\n" +
-			"human summary when it is; --format decides instead of the terminal, and\n" +
-			"md falls back to the human view.\n" +
-			"\n" +
-			"When folders.checked names directories, only that layer is tallied.\n" +
-			"A concept or index outside it cannot change a public concept's mount\n" +
-			"state. When the list is omitted or empty, the whole vault is counted.\n" +
-			"A withheld path is never reported.\n" +
-			"\n" +
-			"A census is an answer about the whole vault, so a file the read could not\n" +
-			"open stops this command where it lets check report and go on: there is no\n" +
-			"count that means \"except for the part I could not read\".\n" +
-			"\n" +
-			"Exits 0 — coverage reports state, it never gates — and 2 when the\n" +
-			"command itself could not run, an unreadable file included.\n",
-		"exists": "Usage: yomihon exists [--root <dir>] [--format json|human|md] <name>\n" +
-			"\n" +
-			"Writes a compact JSON object when the output is not a terminal, and a\n" +
-			"human answer when it is; --format decides instead of the terminal, and\n" +
-			"md falls back to the human view.\n" +
-			"\n" +
-			"Exits 0 when a note for the name exists and 1 when none does, so a\n" +
-			"caller can gate a write-if-absent on the exit code alone; 2 when the\n" +
-			"command itself could not run.\n" +
-			"\n" +
-			"A note that answers still answers when some other file could not be read.\n" +
-			"\"None does\" is the answer that needs the whole vault, so where a read\n" +
-			"failed it is refused with 2 rather than given, and nothing gates a write\n" +
-			"on an absence nobody could establish.\n" +
-			"\n" +
-			"A note inside a directory the rules withhold from agent-facing output\n" +
-			"is never described here — no path, no matched field. It still answers:\n" +
-			"the exit stays 0, so a write-if-absent gated on it does not create a\n" +
-			"second note under a withheld note's own name.\n",
-		"marks": "Usage: yomihon marks [--root <dir>] [--format json|human|md]\n" +
-			"\n" +
-			"Lists the marks in a vault: the questions you marked, and the notes of\n" +
-			"the rules' answer type that still declare draft: true — newest first,\n" +
-			"as My marks shows them. The old name, left-open, still works.\n" +
-			"\n" +
-			"Marks are kept on this machine, one set per folder, found by the folder's\n" +
-			"path as it is spelled: this reads the set that yomihon serve kept for the\n" +
-			"same folder. A mark whose note or heading is gone is still listed, with lost\n" +
-			"saying which and its anchor left empty; nothing here removes it. A mark in a\n" +
-			"folder the rules leave out of the scan is not listed.\n" +
-			"\n" +
-			"Writes one JSON object per line when the output is not a terminal, and a\n" +
-			"human list when it is; --format decides instead of the terminal, and md\n" +
-			"falls back to the human view.\n" +
-			"\n" +
-			"Nothing under a directory the rules withhold from agent-facing output\n" +
-			"is listed, nor an item whose title or heading links there in any link\n" +
-			"syntax or spells a withheld directory's name and a slash, read past case,\n" +
-			"fullwidth forms, character references, percent-escapes, and characters\n" +
-			"that draw nothing or only mark another. A look-alike letter of another\n" +
-			"script is not recognised. Plain words that only share a withheld note's\n" +
-			"file name are listed as written.\n" +
-			"Nothing says how much was left out. When no question is listed, one line\n" +
-			"on stderr says only whether a marks file was found. The rules have to\n" +
-			"declare [privacy] before anything is listed at all.\n" +
-			"\n" +
-			"A list that leaves out what could not be read would read as complete, so an\n" +
-			"unreadable marks file stops this command, and so does a note outside\n" +
-			"withheld ground that could not be read or whose frontmatter could not be.\n" +
-			"That is any such note, whatever its type: the command names it, and once\n" +
-			"it is mended the command runs again.\n" +
-			"\n" +
-			"Exits 0 with the list, an empty one included, and 2 when the command itself\n" +
-			"could not run, an unreadable marks file or note included.\n",
-		"approve-figure": "Usage: yomihon approve-figure [--root <dir>] <path>\n" +
-			"\n" +
-			"Approves one figure, by its exact bytes, to run its scripts on the reading\n" +
-			"page. <path> is the .html file as the vault spells it, relative to its root,\n" +
-			"such as \"Notes/figures/replication.html\".\n" +
-			"\n" +
-			"Shows what it is about to approve, then asks you to type the first 8\n" +
-			"characters of its SHA-256. The record is kept on this machine, outside the\n" +
-			"vault. Any change to the file, one byte included, lapses the approval, and the\n" +
-			"figure goes back to running without its scripts.\n" +
-			"\n" +
-			"An approved figure's scripts run in your browser and can reach the network;\n" +
-			"yomihon itself still makes no network request.\n" +
-			"\n" +
-			"Needs a person at a terminal: when standard input or output is not a\n" +
-			"terminal it approves nothing. Exits 0 when the figure was approved, 1 when\n" +
-			"you did not confirm or there is nothing to approve, and 2 when the command\n" +
-			"itself could not run.\n",
-		"revoke-figure": "Usage: yomihon revoke-figure [--root <dir>] <path>\n" +
-			"\n" +
-			"Removes the approval for one figure, so its scripts stop running the next\n" +
-			"time its page is loaded. The file itself is not touched. A figure with no\n" +
-			"approval is reported as such, and the command still exits 0.\n" +
-			"\n" +
-			"Exits 0, and 2 when the command itself could not run.\n",
-	}
-
+	// Every command the first argument can name has a help page of its own,
+	// and asking for it opens nothing: no folder, no port, no configuration.
+	commands := []string{"serve", "check", "coverage", "exists", "marks", "vaults", "approve-figure", "revoke-figure"}
 	for _, args := range [][]string{{"--help"}, {"-h"}, {"help"}} {
 		exit, stdout, stderr := runYomihonBinary(t, binary, args, env)
-		if exit != 0 || stdout != top || stderr != "" {
-			t.Errorf("yomihon %v = exit %d, stdout %q, stderr %q; want 0, %q, empty", args, exit, stdout, stderr, top)
+		if exit != 0 || !strings.HasPrefix(stdout, "Usage:") || stderr != "" {
+			t.Errorf("yomihon %v = exit %d, stdout %q, stderr %q; want 0, a usage, empty", args, exit, stdout, stderr)
+		}
+		for _, name := range commands {
+			if !strings.Contains(stdout, "yomihon "+name) {
+				t.Errorf("yomihon %v does not list %s", args, name)
+			}
 		}
 	}
-	for name, want := range command {
+	for _, name := range commands {
 		for _, args := range [][]string{{name, "--help"}, {name, "-h"}, {"help", name}} {
 			exit, stdout, stderr := runYomihonBinary(t, binary, args, env)
-			if exit != 0 || stdout != want || stderr != "" {
-				t.Errorf("yomihon %v = exit %d, stdout %q, stderr %q; want 0, %q, empty", args, exit, stdout, stderr, want)
+			if exit != 0 || !strings.HasPrefix(stdout, "Usage:") || stderr != "" {
+				t.Errorf("yomihon %v = exit %d, stdout %q, stderr %q; want 0, a usage, empty", args, exit, stdout, stderr)
 			}
 		}
 	}

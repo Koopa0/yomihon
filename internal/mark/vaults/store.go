@@ -274,7 +274,7 @@ func (s *Store) Anchor(start int) (moved Entry, ok bool, err error) {
 }
 
 // SetPort says that the vault is served on port. The process that serves a
-// vault the reader forgotten and added again keeps its port, and the list is made
+// vault the reader removed and added again keeps its port, and the list is made
 // to say so. Another vault's port is refused.
 func (s *Store) SetPort(id string, port int) error {
 	if port < 1 || port > maxPort {

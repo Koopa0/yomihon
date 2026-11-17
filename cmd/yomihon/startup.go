@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -33,6 +35,8 @@ const scanAddress = "/scan"
 // that says so, instead of a vault that looks empty; after, it hands every
 // request to the site.
 type startup struct {
+	name     string
+	path     string
 	reading  http.Handler
 	progress fileCount
 	grace    time.Duration
@@ -42,6 +46,15 @@ type startup struct {
 	site     atomic.Pointer[readingSite]
 	ready    chan struct{}
 	openOnce sync.Once
+
+	// begin starts the read when the front is first asked for anything. It is
+	// nil for a front whose read is already under way. A vault the reader has
+	// listed and not opened is bound and answers at once, but is not read until
+	// somebody asks for it.
+	begin     func()
+	startOnce sync.Once
+	// failed is why the vault could not be read, for the one answer that says so.
+	failed atomic.Pointer[error]
 }
 
 // fileCount is how far the first read has got. It is defined here, by its only
@@ -53,7 +66,7 @@ type fileCount interface {
 }
 
 func newStartup(vaultName, vaultPath string, progress fileCount, grace time.Duration, log *slog.Logger) *startup {
-	s := &startup{progress: progress, grace: grace, began: time.Now(), log: log, ready: make(chan struct{})}
+	s := &startup{name: vaultName, path: vaultPath, progress: progress, grace: grace, began: time.Now(), log: log, ready: make(chan struct{})}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+scanAddress, s.state)
 	asset.Register(mux)
@@ -69,6 +82,24 @@ func newStartup(vaultName, vaultPath string, progress fileCount, grace time.Dura
 	return s
 }
 
+// whenAsked sets the read to start at the first request, which is also when the
+// grace begins to count. start begins it at once.
+func (s *startup) whenAsked(begin func()) { s.begin = begin }
+
+// start begins the read if it has not begun.
+func (s *startup) start() {
+	s.startOnce.Do(func() {
+		if s.begin != nil {
+			s.began = time.Now()
+			s.begin()
+		}
+	})
+}
+
+// fail says the vault cannot be read, so that its address answers that and not
+// a page that waits for a read that will not finish.
+func (s *startup) fail(err error) { s.failed.Store(&err) }
+
 // open hands the listener to the site. It is called once, when the first
 // generation exists.
 func (s *startup) open(site *readingSite) {
@@ -79,11 +110,12 @@ func (s *startup) open(site *readingSite) {
 }
 
 func (s *startup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	s.start()
 	if site := s.site.Load(); site != nil {
 		site.ServeHTTP(w, r)
 		return
 	}
-	if holds(r) {
+	if s.failed.Load() == nil && holds(r) {
 		wait := time.NewTimer(max(s.grace-time.Since(s.began), 0))
 		defer wait.Stop()
 		select {
@@ -112,6 +144,10 @@ func holds(r *http.Request) bool {
 // read has got to. It is a 503: the page a reader asked for is not there yet,
 // and a program that asks must not take this for it.
 func (s *startup) page(w http.ResponseWriter, r *http.Request, vaultName, vaultPath string) {
+	if failed := s.failed.Load(); failed != nil {
+		s.unreadable(w, r, *failed)
+		return
+	}
 	done, total := s.progress.Files()
 	view := pages.ScanningView{VaultName: vaultName, VaultPath: vaultPath, Done: done, Total: total, Folder: s.progress.Folder()}
 	w.Header().Set("Retry-After", "1")
@@ -121,6 +157,28 @@ func (s *startup) page(w http.ResponseWriter, r *http.Request, vaultName, vaultP
 	chrome.TitleAlone = true
 	if err := pages.Scanning(view, chrome).Render(r.Context(), w); err != nil {
 		s.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write reading page", "error", err)
+	}
+}
+
+// unreadable answers any address of a vault whose folder could not be read with
+// the page that says why. It is still a 503: the page asked for is not there,
+// and a program that asks must not take this for it.
+func (s *startup) unreadable(w http.ResponseWriter, r *http.Request, why error) {
+	lang := origin.Language(r)
+	reason := wording.VaultFolderOther
+	switch {
+	case errors.Is(why, fs.ErrNotExist):
+		reason = wording.VaultFolderMissing
+	case errors.Is(why, fs.ErrPermission):
+		reason = wording.VaultFolderDenied
+	}
+	view := pages.VaultUnreadableView{VaultName: s.name, VaultPath: s.path, Reason: reason.In(lang)}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	chrome := layouts.ChromeFromRequest(r, s.name)
+	chrome.TitleAlone = true
+	if err := pages.VaultUnreadable(view, chrome).Render(r.Context(), w); err != nil {
+		s.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write unreadable vault page", "error", err)
 	}
 }
 

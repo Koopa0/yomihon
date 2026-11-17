@@ -1,0 +1,47 @@
+package pages
+
+import (
+	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
+)
+
+// VaultUnreadableView is a vault whose folder could not be read: what it is
+// called, where it is, and why in words for a reader. Reason is already in the
+// reader's language.
+type VaultUnreadableView struct {
+	VaultName string
+	VaultPath string
+	Reason    string
+}
+
+// VaultUnreadable is what the address of a vault answers when its folder is gone
+// or cannot be opened, in the layout a note that cannot be read has: the
+// notice, the facts a reader looks for, and the one thing to do. Reading again
+// is a plain link to the vault's own address, which asks again.
+templ VaultUnreadable(v VaultUnreadableView, c layouts.Chrome) {
+	@layouts.Base(c) {
+		<div class="y-shell2">
+			<main id="_y-main" tabindex="-1" class="y-main">
+				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="unreadable-title">
+					@nothingToShow(nothingNotice{Kind: "unreadable", Mark: wording.NotReadableKicker.In(c.Lang), Title: v.VaultName, TitleID: "unreadable-title", Page: true, Fault: true}) {
+						<div class="y-facts">
+							<dl class="y-notefacts">
+								<div>
+									<dt lang={ c.Lang.Tag() }>{ wording.VaultReason.In(c.Lang) }</dt>
+									<dd>{ v.Reason }</dd>
+								</div>
+								<div>
+									<dt lang={ c.Lang.Tag() }>{ wording.VaultPlace.In(c.Lang) }</dt>
+									<dd><code>{ v.VaultPath }</code></dd>
+								</div>
+							</dl>
+						</div>
+					}
+					<div class="y-recovery__actions">
+						<a class="y-recovery__action" href="/">{ wording.ReadAgain.In(c.Lang) }</a>
+					</div>
+				</article>
+			</main>
+		</div>
+	}
+}

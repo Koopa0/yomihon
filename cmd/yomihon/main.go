@@ -16,9 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/shell"
-	"github.com/koopa0/yomihon/internal/snapshot"
-	"github.com/koopa0/yomihon/internal/vault"
+	"github.com/koopa0/yomihon/internal/mark/vaults"
 )
 
 func main() {
@@ -64,14 +62,15 @@ func main() {
 		// The reader's marks live under the platform's configuration directory,
 		// which is resolved here and only here. Without one the marks cannot be
 		// found, and the command says so rather than list thoughts alone.
-		var cfg config
-		if configDir, err := os.UserConfigDir(); err != nil {
-			cfg.noConfigDir = err.Error()
-		} else {
-			cfg.configDir = configDir
-		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		exit := runOpenThoughts(ctx, args, cfg, os.Stdout, os.Stderr, stdoutIsTerminal())
+		exit := runOpenThoughts(ctx, args, userConfig(), os.Stdout, os.Stderr, stdoutIsTerminal())
+		stop()
+		os.Exit(exit)
+	case vaultsCommand:
+		// The list of vaults is the reader's own file under the configuration
+		// directory, resolved here with the others.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		exit := runVaults(ctx, args, userConfig(), os.Stdout, os.Stderr, stdoutIsTerminal())
 		stop()
 		os.Exit(exit)
 	case approveFigureCommand, revokeFigureCommand:
@@ -92,10 +91,20 @@ func main() {
 		stop()
 		os.Exit(exit)
 	default:
-		fmt.Fprintf(os.Stderr, "yomihon: %q is neither a command nor a folder; commands are serve, check, coverage, exists, %s, %s, and %s\n",
-			command, openCommand, approveFigureCommand, revokeFigureCommand)
+		fmt.Fprintf(os.Stderr, "yomihon: %q is neither a command nor a folder; commands are serve, check, coverage, exists, %s, %s, %s, and %s\n",
+			command, openCommand, vaultsCommand, approveFigureCommand, revokeFigureCommand)
 		os.Exit(2)
 	}
+}
+
+// userConfig is the reader's configuration directory as the platform names it,
+// or why there is none. It is asked for here and only here.
+func userConfig() config {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return config{noConfigDir: err.Error()}
+	}
+	return config{configDir: configDir}
 }
 
 // dispatch decides what the arguments ask for. A first argument naming a
@@ -107,7 +116,7 @@ func dispatch(argv []string) (command string, args []string) {
 		return "serve", nil
 	}
 	switch argv[0] {
-	case "serve", "check", "coverage", "exists", openCommand, approveFigureCommand, revokeFigureCommand:
+	case "serve", "check", "coverage", "exists", openCommand, vaultsCommand, approveFigureCommand, revokeFigureCommand:
 		return argv[0], argv[1:]
 	case retiredOpenCommand:
 		return openCommand, argv[1:]
@@ -154,7 +163,7 @@ func stdoutIsTerminal() bool {
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
-// defaultPort is the port the listener binds when the environment names none.
+// defaultPort is the starting port when the environment names none.
 // The help text builds its line from this constant rather than repeating the
 // number, because a help line naming a port the server does not listen on is
 // worse than no help line at all: the operator trusts it over the source.
@@ -258,65 +267,52 @@ func run(log *slog.Logger, root string, out io.Writer) error {
 
 // serveVault serves the vault until ctx is done. stop gives the process back
 // its default handling of an interrupt once serving has ended.
-func serveVault(ctx context.Context, stop func(), log *slog.Logger, cfg *config, out io.Writer) (resultErr error) {
+//
+// With a configuration directory and a port of its own, the vault joins the
+// list of vaults the reader has opened and is served beside them by the one
+// running yomihon; otherwise it is served alone, and nothing is remembered.
+func serveVault(ctx context.Context, stop func(), log *slog.Logger, cfg *config, out io.Writer) error {
 	if cfg.noConfigDir != "" {
 		log.Warn("no configuration directory; reading is unaffected and no reading place can be kept",
 			"reason", cfg.noConfigDir)
 	}
-	// The port is taken before anything is read: a port that is already in use
-	// is reported at once rather than after the wait, and the reader has an
-	// address to open while the vault is being read.
-	listener, err := listenLoopback(ctx, cfg.port)
+	host := newHost(log, cfg.configDir, nil)
+	if !cfg.remembers() {
+		return host.serveOne(ctx, stop, cfg, out)
+	}
+	store, err := vaults.Open(cfg.configDir, func(port int) bool { return portFree(ctx, port) })
 	if err != nil {
-		return err
+		log.Warn("could not open the list of vaults; reading this folder alone", "error", err)
+		return host.serveOne(ctx, stop, cfg, out)
 	}
-	source, err := vault.Open(cfg.root)
-	if err != nil {
-		return errors.Join(fmt.Errorf("open vault source: %w", err), listener.Close())
-	}
-	progress := new(snapshot.Progress)
-	front := newStartup(shell.VaultName(source.Name()), source.Name(), progress, scanGrace, log)
-	srv := newHTTPServer(front)
-	if _, printErr := fmt.Fprintf(out, "http://%s/\n", listener.Addr()); printErr != nil {
-		log.Warn("could not print the address", "error", printErr)
-	}
-	log.Info("yomihon serving", "addr", listener.Addr().String(), "vault", cfg.root)
+	host.store = store
+	return host.serveListed(ctx, stop, cfg, out)
+}
 
-	serveCtx, stopServing := context.WithCancel(ctx)
-	defer stopServing()
-	served := make(chan error, 1)
-	go func() { served <- serveHTTP(serveCtx, srv, listener, shutdownGrace(srv)) }()
+// startPort is the port the running yomihon holds. loadConfig has already
+// refused one that is not a port.
+func (c *config) startPort() int {
+	port, err := strconv.Atoi(c.port)
+	if err != nil {
+		return 0
+	}
+	return port
+}
 
-	site, err := composeReadingSite(ctx, source, cfg.configDir, log, progress)
+// remembers says whether the vault joins the list. A port left to the system is
+// not one a reader can come back to, and with no configuration directory there
+// is nowhere to keep the list.
+func (c *config) remembers() bool {
+	return c.configDir != "" && c.startPort() != 0
+}
+
+// portFree says whether nothing is listening on the loopback port. It is asked
+// by binding the one address yomihon listens on, which is the only way this
+// process has to find out: it opens no connection.
+func portFree(ctx context.Context, port int) bool {
+	listener, err := listenLoopback(ctx, strconv.Itoa(port))
 	if err != nil {
-		stopServing()
-		serveErr := <-served
-		// An interrupt while the vault is still being read is the reader
-		// stopping, not a failure; the address is already on their screen, so
-		// this is the likeliest moment for one.
-		if ctx.Err() != nil && errors.Is(err, context.Canceled) {
-			log.Info("yomihon stopped before the vault was read")
-			return serveErr
-		}
-		return errors.Join(fmt.Errorf("build reading site: %w", err), serveErr)
+		return false
 	}
-	defer func() {
-		resultErr = errors.Join(resultErr, site.close())
-	}()
-	front.open(site)
-	err = <-served
-	// The deferred close above waits without a deadline for in-flight handlers
-	// and the scanner, deliberately, so work already accepted is not
-	// abandoned. Announcing that turns the wait from an apparent hang into a
-	// visible state, which is what the reader who pressed Ctrl-C is owed.
-	// While the notify handler is installed that wait also swallows a repeated
-	// interrupt; restoring default signal delivery the moment serving ends
-	// lets a second Ctrl-C terminate a stuck shutdown.
-	log.Info("yomihon no longer serving; finishing work already accepted")
-	stop()
-	if err != nil {
-		return err
-	}
-	log.Info("yomihon stopped")
-	return nil
+	return listener.Close() == nil
 }

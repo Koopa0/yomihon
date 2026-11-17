@@ -44,6 +44,9 @@ func TestTwoColumnShellsUseOnlyTheirDeclaredColumns(t *testing.T) {
 		}, []string{"main"}},
 		{"search.templ", func(c layouts.Chrome) templ.Component { return Search(recordedSearchView(model, c.Lang), c) }, []string{"left", "main"}},
 		{"syllabus.templ", func(c layouts.Chrome) templ.Component { return Syllabus(course.view(c.Lang, ""), c) }, []string{"left", "main"}},
+		{"unreadable.templ", func(c layouts.Chrome) templ.Component {
+			return VaultUnreadable(VaultUnreadableView{VaultName: "notes", VaultPath: "/home/reader/notes", Reason: "x"}, c)
+		}, []string{"main"}},
 	}
 	var wantSources []string
 	for _, tc := range cases {
