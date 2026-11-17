@@ -216,6 +216,23 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 			wantSaid: unresolvedContractGuidance,
 		},
 		{
+			name: "a contract written for another version",
+			build: func(t *testing.T) string {
+				t.Helper()
+				root := t.TempDir()
+				writeFile(t, root, schema.ContractRelPath, "# rules\nschema_version = \"1\"\n")
+				return root
+			},
+			wantLine: func(string) string {
+				return "yomihon: privacy authority unavailable; agent-facing output disabled"
+			},
+			wantSaid: []string{
+				"System/schemas/vault-schema.toml",
+				`declares schema_version "1"; this yomihon reads "2"`,
+				`Change line 2 to schema_version = "2"`,
+			},
+		},
+		{
 			name: "a folder that is not there",
 			build: func(t *testing.T) string {
 				t.Helper()
@@ -261,6 +278,37 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 					}
 					assertRefusal(t, stderr.String(), folder.wantLine(root), folder.wantSaid)
 				})
+			}
+		})
+	}
+}
+
+// TestAVersionRefusalRepeatsNothingTheVaultWrote guards the one place a
+// refusal states a cause. The contract cannot be read, so what its privacy
+// section withholds is unknown, and nothing it wrote may come back out: not a
+// version that is not a plain number, and not a folder it names.
+func TestAVersionRefusalRepeatsNothingTheVaultWrote(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeFile(t, root, schema.ContractRelPath, "schema_version = \"SECRET-token\"\n[privacy]\nnever_egress_dirs = [\"PrivateFolder\"]\n")
+	for _, command := range []string{"check", "coverage", "exists"} {
+		t.Run(command, func(t *testing.T) {
+			t.Parallel()
+			args := []string{"--root=" + root, "--format=json"}
+			if command == "exists" {
+				args = append(args, "candidate")
+			}
+			var stdout, stderr bytes.Buffer
+			if exit := runCommand(t.Context(), command, args, &stdout, &stderr, false); exit != 2 {
+				t.Errorf("exit = %d, want 2", exit)
+			}
+			for _, leaked := range []string{"SECRET-token", "PrivateFolder"} {
+				if strings.Contains(stdout.String()+stderr.String(), leaked) {
+					t.Errorf("caught: the refusal repeats %q out of the contract:\n%s%s", leaked, stdout.String(), stderr.String())
+				}
+			}
+			if !strings.Contains(stderr.String(), "declares a schema_version this yomihon does not read") {
+				t.Errorf("the refusal never says the version is the problem:\n%s", stderr.String())
 			}
 		})
 	}

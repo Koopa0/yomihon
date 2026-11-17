@@ -30,6 +30,40 @@ var (
 	)
 )
 
+// NoticeRulesVersionTitle heads the notice for a rules file written for a
+// version of the schema this one does not read.
+var NoticeRulesVersionTitle = both("規則檔的版本不對", "The rules file is for another version")
+
+// RulesVersionSummary says what differs: the version the file declares, and the
+// one this version reads. An empty declared means the file has none.
+func RulesVersionSummary(lang Lang, declared, supported string) string {
+	if declared == "" {
+		return fmt.Sprintf(both(
+			"規則檔沒有 schema_version，這一版讀 \"%s\"。",
+			"The rules file has no schema_version; this version reads \"%s\".",
+		).In(lang), supported)
+	}
+	return fmt.Sprintf(both(
+		"規則檔寫的是 schema_version = \"%s\"，這一版讀 \"%s\"。",
+		"The rules file says schema_version = \"%s\"; this version reads \"%s\".",
+	).In(lang), declared, supported)
+}
+
+// RulesVersionDetail says which line to change. A line of zero means none was
+// found, so the line is to be added.
+func RulesVersionDetail(lang Lang, line int, supported string) string {
+	if line == 0 {
+		return fmt.Sprintf(both(
+			"加上 schema_version = \"%s\" 這一行。",
+			"Add the line schema_version = \"%s\".",
+		).In(lang), supported)
+	}
+	return fmt.Sprintf(both(
+		"把第 %d 行改成 schema_version = \"%s\"。",
+		"Change line %d to schema_version = \"%s\".",
+	).In(lang), line, supported)
+}
+
 // RootDetail labels the selected path and startup name in the reader's language.
 // Both values already carry their filesystem spelling, including any escapes.
 func RootDetail(lang Lang, selected, opened string) string {

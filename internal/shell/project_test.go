@@ -154,6 +154,36 @@ func TestProjectClosesInstanceStateWithEitherUnavailableAuthority(t *testing.T) 
 	}
 }
 
+// TestProjectNamesTheVaultByItsReadmeTitleElseItsFolder holds the name every
+// page shows for the folder: what the README at its root wrote as its title, and
+// the directory's own name when it wrote none.
+func TestProjectNamesTheVaultByItsReadmeTitleElseItsFolder(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name  string
+		notes map[string]string
+		want  string
+	}{
+		{"a README with a heading", map[string]string{"README.md": "# 技術自學\n\nWords.\n", "A.md": "# A\n"}, "技術自學"},
+		{"the first heading wins", map[string]string{"README.md": "Intro.\n\n# First\n\n# Second\n"}, "First"},
+		{"a README with no heading", map[string]string{"README.md": "Only words.\n"}, "example-vault"},
+		{"a README whose title is in its frontmatter", map[string]string{"README.md": "---\ntitle: Field Notes\n---\nWords.\n"}, "Field Notes"},
+		{"a heading outranks the frontmatter title", map[string]string{"README.md": "---\ntitle: Field Notes\n---\n# Heading\n"}, "Heading"},
+		{"a heading that is only inside a fence", map[string]string{"README.md": "```\n# not a title\n```\n"}, "example-vault"},
+		{"a heading in a README that is not at the root", map[string]string{"Notes/README.md": "# Deep\n"}, "example-vault"},
+		{"no README", map[string]string{"A.md": "# A\n"}, "example-vault"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			view := governedAuthority(t, nil, schema.Ungoverned())
+			snap := governedSnapshotView(t, nil, schema.Ungoverned(), tt.notes)
+			if got := Project("example-vault", view, snap).Vault.Name; got != tt.want {
+				t.Errorf("Project().Vault.Name = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestProjectKeepsProjectionsOpenForAnUngovernedFolder is the case the old
 // closure conflated with a failure. Nothing declared an exclusion here, so the
 // instance projections are answerable and stay open; what is absent is the

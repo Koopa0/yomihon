@@ -3,6 +3,7 @@ package pages
 import (
 	"strconv"
 
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -16,13 +17,17 @@ import (
 // handler asks whether the note is there — and the name they are deciding about
 // has to be one name. Written twice, the copies agreed until somebody changed
 // one, and nothing anywhere would have failed.
-const HomeReadmeRelPath = "README.md"
+const HomeReadmeRelPath = snapshot.ReadmeRelPath
 
 // HomeView is the desk: the four ways into the library, and whatever is wrong
 // with the vault or with this reading of it. A folder that fills none of the
 // blocks gets a sentence instead. The faults sit below the seam, where a reader
 // who came to read is not made to walk past them.
 type HomeView struct {
+	// VaultName and VaultPath say which folder this desk is of, at its foot.
+	// Either may be empty, and a desk with neither draws no such line.
+	VaultName         string
+	VaultPath         string
 	OpenThoughts      Shelf
 	OpenThoughtsFault string
 	Fault             string
@@ -171,6 +176,16 @@ templ Home(v HomeView, c layouts.Chrome) {
 				if !v.ReadmeMissing {
 					<p class="y-homereadme" data-home-readme>
 						<a href={ templ.URL(notesHref(HomeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
+					</p>
+				}
+				if v.VaultName != "" || v.VaultPath != "" {
+					<p class="y-deskvault" data-home-vault>
+						if v.VaultName != "" {
+							<span>{ v.VaultName }</span>
+						}
+						if v.VaultPath != "" {
+							<code>{ v.VaultPath }</code>
+						}
 					</p>
 				}
 				@deskHealth(c.Lang)

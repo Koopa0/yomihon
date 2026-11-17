@@ -47,6 +47,13 @@ var (
 		"請新增 System/schemas/vault-schema.toml。",
 		"Add System/schemas/vault-schema.toml.",
 	)
+	// What an empty path or map listing says when the rules file is there and
+	// is written for another version. The page that can say which line to change
+	// is the desk, so this is the fact alone.
+	IndexRulesVersion = both(
+		"規則檔的版本不對。",
+		"The rules file is for another version.",
+	)
 	// What a folder is told when the contract is there and this process never
 	// read it, which is what a reader sees who added one while yomihon was
 	// already reading the folder. The contract is read once, at start.

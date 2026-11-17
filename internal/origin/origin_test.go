@@ -505,8 +505,8 @@ func TestProtectTellsCachesTheCookieMattered(t *testing.T) {
 			if got := header.Get("Cache-Control"); got != "private, no-cache" {
 				t.Errorf("committed Cache-Control = %q, want %q", got, "private, no-cache")
 			}
-			if got := header.Get("Vary"); got != "Cookie" {
-				t.Errorf("committed Vary = %q, want %q", got, "Cookie")
+			if got := header.Get("Vary"); got != "Cookie, Accept-Language" {
+				t.Errorf("committed Vary = %q, want %q", got, "Cookie, Accept-Language")
 			}
 		})
 	}
@@ -528,8 +528,8 @@ func TestProtectLeavesAHandlersNoStore(t *testing.T) {
 	if got := rec.Result().Header.Get("Cache-Control"); got != "no-store" {
 		t.Errorf("committed Cache-Control = %q, want %q", got, "no-store")
 	}
-	if got := rec.Result().Header.Get("Vary"); got != "Cookie" {
-		t.Errorf("committed Vary = %q, want %q", got, "Cookie")
+	if got := rec.Result().Header.Get("Vary"); got != "Cookie, Accept-Language" {
+		t.Errorf("committed Vary = %q, want %q", got, "Cookie, Accept-Language")
 	}
 }
 

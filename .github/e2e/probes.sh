@@ -4,8 +4,10 @@
 # probe is expected to pass.
 #
 # A probe may also carry self-test modes. Those run by hand against the same
-# server, one at a time: `PAGE_PATH=<page> MUTATE=<mode> node <probe>`, with
-# `MUTATE=list` naming them.
+# server, one at a time: `PAGE_PATH=<page> MUTATE=<mode> node --import
+# ./support/browser-language.mjs <probe>`, with `MUTATE=list` naming them. The
+# import is what pins the language the browser asks in; without it a probe is
+# run in whichever language this machine's browser asks for.
 set -euo pipefail
 
 [ "$#" -eq 0 ] || { echo "usage: probes.sh" >&2; exit 2; }
@@ -78,6 +80,7 @@ probes=(
   "japanese-reading-face.mjs|/notes/Writing/lessons/japanese/L01.md"
   "preference-restore.mjs|/notes/Writing/lessons/japanese/L01.md"
   "preference-immediate.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
+  "language-follows-browser.mjs|/"
   "preference-persistence.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
   "prefetch-stale-preference.mjs|/notes/Writing/lessons/japanese/L01.md"
   "freshness-visibility.mjs|/notes/Writing/lessons/japanese/L01.md"
@@ -208,7 +211,7 @@ finish_run() {
 run_locks() {
   local entry status
   for entry in "${probes[@]}"; do
-    if MUTATE='' PAGE_PATH="${entry#*|}" node "${here}/${entry%%|*}"; then
+    if MUTATE='' PAGE_PATH="${entry#*|}" node --import "${here}/support/browser-language.mjs" "${here}/${entry%%|*}"; then
       status=0
     else
       status=$?

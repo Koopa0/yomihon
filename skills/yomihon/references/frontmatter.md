@@ -18,11 +18,13 @@ Before any table: the file's first line is `schema_version = "2"`, and it is
 required. A contract without it is refused whole, and `"2"` is the only value
 this yomihon accepts. A contract written for another format is refused the same
 way, and so is a `yomihon` built before this one when it reads a `"2"` contract.
-`check` says only that it could not use the contract; `yomihon serve` logs the
-reason:
+`check` says only that it could not use the contract, except for a missing or
+different `schema_version`, where it names the version it found and the line to
+change. The folder is then read as though it carried no contract, and `yomihon
+serve` logs the reason:
 
 ```
-level=WARN msg="vault contract unavailable"
+level=WARN msg="rules file is for another schema version"
   error="decode vault contract: unsupported schema_version \"1\"; supported version is \"2\""
 ```
 

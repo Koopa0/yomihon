@@ -3,6 +3,7 @@ package note
 import (
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -12,7 +13,7 @@ import (
 // folderNotices words what the pages owe their reader about the folder as a
 // whole, in the reader's language. Independent identity and collision problems
 // coexist, so neither notice displaces the other.
-func folderNotices(collision []string, root *snapshot.RootNotice, lang wording.Lang) []pages.FolderNotice {
+func folderNotices(collision []string, root *snapshot.RootNotice, rules *schema.VersionError, lang wording.Lang) []pages.FolderNotice {
 	var notices []pages.FolderNotice
 	if len(collision) != 0 {
 		notices = append(notices, pages.FolderNotice{
@@ -29,7 +30,26 @@ func folderNotices(collision []string, root *snapshot.RootNotice, lang wording.L
 		}
 		notices = append(notices, pages.FolderNotice{Title: title.In(lang), Summary: summary.In(lang), Detail: detail})
 	}
+	if rules != nil {
+		notices = append(notices, rulesVersionNotice(rules, lang))
+	}
 	return notices
+}
+
+// rulesVersionNotice says what differs between the rules file and the version
+// this one reads, and which line to change. The declared value is the vault's
+// own text, so a long one is cut rather than allowed to fill the notice.
+func rulesVersionNotice(rules *schema.VersionError, lang wording.Lang) pages.FolderNotice {
+	const longest = 24
+	declared := rules.Declared
+	if runes := []rune(declared); len(runes) > longest {
+		declared = string(runes[:longest]) + "…"
+	}
+	return pages.FolderNotice{
+		Title:   wording.NoticeRulesVersionTitle.In(lang),
+		Summary: wording.RulesVersionSummary(lang, declared, rules.Supported),
+		Detail:  wording.RulesVersionDetail(lang, rules.Line, rules.Supported),
+	}
 }
 
 // noticeFiles names the files a notice is about as the filesystem spells them.

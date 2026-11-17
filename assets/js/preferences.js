@@ -322,12 +322,13 @@ export function initPreferences() {
     // force, so they are as much a stale claim as the attributes above.
     syncSettingsChoices();
     // The document's language cannot be rewritten in place, so a stale one
-    // means asking for the page again. The comparison normalises the cookie
-    // exactly as the server does — anything but "en" reads as the default —
-    // so a value the server would ignore can never reload in a loop: the
-    // fresh page always satisfies the same comparison.
-    const lang = readCookie('yomihon_lang') === 'en' ? 'en' : 'zh-Hant';
-    if (root.lang !== lang) {
+    // means asking for the page again. Only a stored choice is compared: with
+    // none, the server answered in the language the browser asks for, which a
+    // script cannot work out. A value the server would not honour is not a
+    // choice either, so it can never reload in a loop: the fresh page always
+    // satisfies the same comparison.
+    const storedLang = readCookie('yomihon_lang');
+    if ((storedLang === 'en' || storedLang === 'zh-Hant') && root.lang !== storedLang) {
       location.reload();
     }
   });

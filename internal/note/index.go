@@ -32,7 +32,7 @@ func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	model := pageShell.Nav
-	view := pages.NewMapIndex(model.Maps(), snap.NavigationRoles(), model.DeclaredClosure(), pages.ContractStateFrom(pageShell.Governed, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
+	view := pages.NewMapIndex(model.Maps(), snap.NavigationRoles(), model.DeclaredClosure(), pages.ContractStateFrom(pageShell.Governed, pageShell.OtherVersion, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write map index", "error", err)
 	}
@@ -59,7 +59,7 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	articleLang := articleLanguageLookup(snap)
 	recent, recentOrdered := recentShelfNotes(model.KnowledgeNotes(), articleLang)
 
-	view := pages.NewFolderIndex(model, pages.ContractStateFrom(pageShell.Governed, snap), lang, articleLang)
+	view := pages.NewFolderIndex(model, pages.ContractStateFrom(pageShell.Governed, pageShell.OtherVersion, snap), lang, articleLang)
 	// Two of the three causes the desk states can degrade something drawn
 	// here: the contract and the artifact policy, which takes the knowledge
 	// layer off the recent list.

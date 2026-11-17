@@ -86,8 +86,8 @@ func TestSettingsSentencesCarryNoJargonAndNoCounting(t *testing.T) {
 		}
 	}
 	// The reset sentence names its destination in the reader's own language.
-	if got := PrefResetNote.In(En); !strings.Contains(got, "Traditional Chinese") {
-		t.Errorf("the English reset note reads %q, want it to name Traditional Chinese in English", got)
+	if got := PrefResetNote.In(En); !strings.Contains(got, "browser") {
+		t.Errorf("the English reset note reads %q, want it to say the language follows the browser", got)
 	}
 	// Approved wording, carried through unchanged.
 	if got, want := PrefStorageNote.In(ZhHant), "沒有任何一項離開這台機器"; !strings.Contains(got, want) {
