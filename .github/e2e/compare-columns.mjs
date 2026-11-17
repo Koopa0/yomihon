@@ -497,11 +497,14 @@ try {
     fail('narrow-tabs-switch-columns', `${reached} of the two links to the columns are drawn, so the other note cannot be reached`);
   }
   // From the top of the document, so what is measured is how far into the page
-  // a reader has to tab rather than wherever the pointer left the focus.
+  // a reader has to tab rather than wherever the pointer left the focus. The
+  // walk starts where the last focus was and wraps round the page, so the count
+  // is the page's own stops plus the header's, and the bound has room for the
+  // header's.
   await page.evaluate(() => { document.activeElement?.blur(); });
   let guard = 0;
   let here = '';
-  while (guard < 40 && here !== '#compare-b') {
+  while (guard < 48 && here !== '#compare-b') {
     await page.keyboard.press('Tab');
     here = await page.evaluate(() => document.activeElement?.getAttribute('href') || '');
     guard += 1;

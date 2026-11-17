@@ -776,13 +776,13 @@ try {
       }
       const [hr, hg, hb] = context.getImageData(0, 0, 1, 1).data;
       return {
-        visible: style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && rect.width === 24 && rect.height === 24,
+        visible: style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0 && rect.width === 20 && rect.height === 20,
         background: style.backgroundColor,
         ground: [r, g, b],
         header: [hr, hg, hb],
       };
     });
-    if (!mark.visible) fail('theme-mark', `header mark is not a visible 24px projection in ${name} theme`);
+    if (!mark.visible) fail('theme-mark', `header mark is not a visible 20px projection in ${name} theme`);
     if (light && mark.background !== 'rgba(0, 0, 0, 0)') {
       fail('light-mark-bare', `header mark background in the ${name} theme = ${mark.background}, want none`);
     }
@@ -847,7 +847,7 @@ try {
   // stops at that column's edge, which is the whole of what the reader can
   // see. Demanding the two be equal called that correct behaviour a failure on
   // every machine whose scrollbars take room.
-  if (Math.abs(fit.height - 56) > 0.5 || fit.left < -0.5 || fit.right > fit.clientWidth + 0.5 || fit.scrollWidth > fit.clientWidth + 0.5) {
+  if (Math.abs(fit.height - 48) > 0.5 || fit.left < -0.5 || fit.right > fit.clientWidth + 0.5 || fit.scrollWidth > fit.clientWidth + 0.5) {
     fail('header-fit', `360px header geometry = ${JSON.stringify(fit)}`);
   }
 

@@ -145,6 +145,16 @@ try {
   const firstElement = await page.locator('body a, body button, body input, body select, body textarea, body [tabindex]:not([tabindex="-1"])').first().getAttribute('class');
   if (firstElement !== 'y-skiplink') broken(`the first sequential focus target has class ${JSON.stringify(firstElement)}, want y-skiplink`);
 
+  // At rest the link is clear of the window at every width, by more than its
+  // border: one that stops at y 0 shows its edge as a hairline across the top
+  // of the page.
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 800 });
+    const resting = await skip.evaluate((element) => element.getBoundingClientRect().bottom);
+    if (resting > -4) fail('first-focus-visible', `at ${width}px the unfocused skip link ends at ${resting}px, want it at least 4px above the window`);
+  }
+  await page.setViewportSize({ width: 1280, height: 800 });
+
   await page.keyboard.press('Tab');
   const visible = await skip.evaluate((element) => {
     const rect = element.getBoundingClientRect();

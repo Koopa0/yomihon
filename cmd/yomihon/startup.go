@@ -215,6 +215,7 @@ func (s *startup) page(w http.ResponseWriter, r *http.Request, vaultName, vaultP
 	w.WriteHeader(http.StatusServiceUnavailable)
 	chrome := layouts.ChromeFromRequest(r, vaultName)
 	chrome.TitleAlone = true
+	chrome.Vault = vaultName
 	if err := pages.Scanning(view, chrome).Render(r.Context(), w); err != nil {
 		s.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write reading page", "error", err)
 	}
