@@ -77,11 +77,19 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 // never open this; left-open answers about the reader without it, reading the
 // question marks through mark.File, and the two figure commands open it to
 // approve and revoke.
-func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logger) (_ *readingSite, resultErr error) {
+func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logger) (*readingSite, error) {
 	source, err := vault.Open(root)
 	if err != nil {
 		return nil, fmt.Errorf("open vault source: %w", err)
 	}
+	return composeReadingSite(ctx, source, configDir, log, nil)
+}
+
+// composeReadingSite builds the site over a vault already opened, and owns it
+// from here: a failure closes it. The first read is reported into progress,
+// which a nil value leaves unwatched. The serving command opens the vault
+// itself so that it can say which folder it is before the read has finished.
+func composeReadingSite(ctx context.Context, source *vault.Reader, configDir string, log *slog.Logger, progress *snapshot.Progress) (_ *readingSite, resultErr error) {
 	defer func() {
 		if resultErr != nil {
 			resultErr = errors.Join(resultErr, source.Close())
@@ -117,7 +125,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 	}
 
 	authority := func() schema.Authority { return schema.CaptureAuthority(contract, governance) }
-	store, err := snapshot.New(ctx, source, log, contract, governance)
+	store, err := snapshot.New(ctx, source, log, contract, governance, snapshot.WithProgress(progress))
 	if err != nil {
 		return nil, err
 	}

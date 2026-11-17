@@ -14,9 +14,10 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# ready_status is the single readiness rule: Home answers directly only after
-# the synchronous vault scan has completed and the routes are live. Callers do
-# not restate the code; they ask this verdict.
+# ready_status is the single readiness rule: Home answers 200 only after the
+# first read of the vault has completed and the routes are live; until then the
+# server is already listening and answers 503 with the page that says so.
+# Callers do not restate the code; they ask this verdict.
 ready_status() {
   [ "$1" = "200" ]
 }

@@ -47,6 +47,7 @@ func BenchmarkBuildSnapshot(b *testing.B) {
 			contract,
 			nil,
 			nil,
+			nil,
 		); err != nil {
 			b.Fatal(err)
 		}

@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"os"
@@ -14,6 +15,10 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/koopa0/yomihon/internal/shell"
+	"github.com/koopa0/yomihon/internal/snapshot"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 func main() {
@@ -37,9 +42,9 @@ func main() {
 			os.Exit(2)
 		}
 		log := slog.New(slog.NewTextHandler(os.Stderr, nil))
-		if err := run(log, root); err != nil {
-			if portErr, ok := errors.AsType[*portError](err); ok {
-				fmt.Fprintf(os.Stderr, "yomihon: %v\n", portErr)
+		if err := run(log, root, os.Stdout); err != nil {
+			if fault := operatorFault(err); fault != nil {
+				fmt.Fprintf(os.Stderr, "yomihon: %v\n", fault)
 				os.Exit(2)
 			}
 			log.Error("yomihon exited", "error", err)
@@ -180,6 +185,41 @@ func (e *portError) Error() string {
 	return fmt.Sprintf("YOMIHON_PORT %q must be an integer from 0 to 65535", e.value)
 }
 
+// listenLoopback binds the one address yomihon listens on. Loopback is
+// hardcoded; only the port is configurable — yomihon and everything it derives
+// from the vault must never be reachable from another machine.
+func listenLoopback(ctx context.Context, port string) (net.Listener, error) {
+	var lc net.ListenConfig
+	listener, err := lc.Listen(ctx, "tcp", net.JoinHostPort("127.0.0.1", port))
+	if err != nil {
+		return nil, &listenError{err: err}
+	}
+	return listener, nil
+}
+
+// listenError is a port the operator can change before the next start: taken
+// by another process, or one this user may not bind. The reader of the message
+// is at a terminal, so it names the one setting that moves it.
+type listenError struct{ err error }
+
+func (e *listenError) Error() string {
+	return fmt.Sprintf("%v; set YOMIHON_PORT to use another port", e.err)
+}
+
+func (e *listenError) Unwrap() error { return e.err }
+
+// operatorFault is err when it is a setting the operator corrects before the
+// next start, and nil for any other failure.
+func operatorFault(err error) error {
+	if fault, ok := errors.AsType[*portError](err); ok {
+		return fault
+	}
+	if fault, ok := errors.AsType[*listenError](err); ok {
+		return fault
+	}
+	return nil
+}
+
 func loadConfig(root string) (config, error) {
 	cfg := config{root: root, port: os.Getenv("YOMIHON_PORT")}
 	if cfg.port == "" {
@@ -204,37 +244,65 @@ func loadConfig(root string) (config, error) {
 	return cfg, nil
 }
 
-func run(log *slog.Logger, root string) (resultErr error) {
+func run(log *slog.Logger, root string, out io.Writer) error {
 	cfg, err := loadConfig(root)
 	if err != nil {
 		return err
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return serveVault(ctx, stop, log, &cfg, out)
+}
+
+// serveVault serves the vault until ctx is done. stop gives the process back
+// its default handling of an interrupt once serving has ended.
+func serveVault(ctx context.Context, stop func(), log *slog.Logger, cfg *config, out io.Writer) (resultErr error) {
 	if cfg.noConfigDir != "" {
 		log.Warn("no configuration directory; reading is unaffected and no reading place can be kept",
 			"reason", cfg.noConfigDir)
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	site, err := newReadingSite(ctx, cfg.root, cfg.configDir, log)
+	// The port is taken before anything is read: a port that is already in use
+	// is reported at once rather than after the wait, and the reader has an
+	// address to open while the vault is being read.
+	listener, err := listenLoopback(ctx, cfg.port)
 	if err != nil {
-		return fmt.Errorf("build reading site: %w", err)
+		return err
+	}
+	source, err := vault.Open(cfg.root)
+	if err != nil {
+		return errors.Join(fmt.Errorf("open vault source: %w", err), listener.Close())
+	}
+	progress := new(snapshot.Progress)
+	front := newStartup(shell.VaultName(source.Name()), source.Name(), progress, scanGrace, log)
+	srv := newHTTPServer(front)
+	if _, printErr := fmt.Fprintf(out, "http://%s/\n", listener.Addr()); printErr != nil {
+		log.Warn("could not print the address", "error", printErr)
+	}
+	log.Info("yomihon serving", "addr", listener.Addr().String(), "vault", cfg.root)
+
+	serveCtx, stopServing := context.WithCancel(ctx)
+	defer stopServing()
+	served := make(chan error, 1)
+	go func() { served <- serveHTTP(serveCtx, srv, listener, shutdownGrace(srv)) }()
+
+	site, err := composeReadingSite(ctx, source, cfg.configDir, log, progress)
+	if err != nil {
+		stopServing()
+		serveErr := <-served
+		// An interrupt while the vault is still being read is the reader
+		// stopping, not a failure; the address is already on their screen, so
+		// this is the likeliest moment for one.
+		if ctx.Err() != nil && errors.Is(err, context.Canceled) {
+			log.Info("yomihon stopped before the vault was read")
+			return serveErr
+		}
+		return errors.Join(fmt.Errorf("build reading site: %w", err), serveErr)
 	}
 	defer func() {
 		resultErr = errors.Join(resultErr, site.close())
 	}()
-	// Loopback is hardcoded; only the port is configurable — yomihon and
-	// everything it derives from the vault must never be reachable from
-	// another machine.
-	var lc net.ListenConfig
-	listener, err := lc.Listen(ctx, "tcp", net.JoinHostPort("127.0.0.1", cfg.port))
-	if err != nil {
-		return fmt.Errorf("listen: %w", err)
-	}
-
-	srv := newHTTPServer(site)
-	log.Info("yomihon serving", "addr", listener.Addr().String(), "vault", cfg.root)
-	err = serveHTTP(ctx, srv, listener, shutdownGrace(srv))
+	front.open(site)
+	err = <-served
 	// The deferred close above waits without a deadline for in-flight handlers
 	// and the scanner, deliberately, so work already accepted is not
 	// abandoned. Announcing that turns the wait from an apparent hang into a
