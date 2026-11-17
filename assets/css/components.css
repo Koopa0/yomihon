@@ -8924,22 +8924,36 @@ samp,
   padding-inline: var(--gutter-phone);
 }
 
-/* The phone's surface is the whole screen, and the dialog that holds it has
-   nothing of a dialog's box. */
+/* The dialog is a box under the top of the window where there is room for
+   one, and the phone's whole screen where there is not. */
 .y-searchsurface {
-  background: var(--bg);
-  border: 0;
-  border-radius: 0;
-  box-shadow: none;
+  background: var(--panel);
   color: var(--fg);
-  height: 100dvh;
-  inset: 0;
-  margin: 0;
-  max-height: none;
-  max-width: none;
+  margin: 12vh auto auto;
+  max-height: 70vh;
+  max-width: 600px;
   overflow: hidden;
   padding: 0;
-  width: 100vw;
+  width: min(600px, 92vw);
+}
+
+.y-searchsurface::backdrop {
+  background: var(--overlay-mask);
+}
+
+@media (width <= 720px) {
+  .y-searchsurface {
+    background: var(--bg);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    height: 100dvh;
+    inset: 0;
+    margin: 0;
+    max-height: none;
+    max-width: none;
+    width: 100vw;
+  }
 }
 
 .y-searchsurface {

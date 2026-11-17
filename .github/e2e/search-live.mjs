@@ -40,6 +40,48 @@ try {
   const offered = await wide.locator('[data-recent-list] a').allTextContents();
   check(offered.some((text) => text.includes('beta')), `a search the reader made is not offered back: ${JSON.stringify(offered)}`);
 
+  // An answer to an older query that arrives after a newer one's must not
+  // replace its rows: the older is held back until the newer has been drawn.
+  const racing = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+  await racing.route('**/search/results?*', async (route) => {
+    if (new URL(route.request().url()).searchParams.get('q') === 'alpha') await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.continue().catch(() => {});
+  });
+  await racing.goto(`${BASE}/search`, { waitUntil: 'load' });
+  await racing.waitForSelector('html[data-js]');
+  const field = racing.locator('.y-searchpage__form [data-live-search-input]');
+  await field.fill('alpha');
+  await racing.waitForTimeout(400);
+  await field.fill('beta');
+  await racing.waitForFunction(() => document.querySelector('.y-found__item') !== null);
+  await racing.waitForTimeout(1800);
+  const wanted = await racing.evaluate(async () => {
+    const answer = await fetch('/search/results?q=beta');
+    const doc = new DOMParser().parseFromString(await answer.text(), 'text/html');
+    return [...doc.querySelectorAll('.y-found__item')].map((row) => row.getAttribute('href'));
+  });
+  const drawn = await racing.locator('.y-found__item').evaluateAll((rows) => rows.map((row) => row.getAttribute('href')));
+  check(drawn.length > 0 && drawn.join() === wanted.join(), `an older query's answer replaced the newer one's rows: drew ${drawn.length}, want the ${wanted.length} for beta`);
+  check(new URL(racing.url()).searchParams.get('q') === 'beta', `the address names ${new URL(racing.url()).searchParams.get('q')} after the newer query was drawn`);
+
+  const keys = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+  await keys.goto(`${BASE}/`, { waitUntil: 'load' });
+  await keys.waitForSelector('html[data-js]');
+  await keys.keyboard.press('Control+k');
+  const palette = keys.locator('dialog[data-search][open]');
+  await palette.waitFor();
+  const room = await palette.boundingBox();
+  check(room !== null && room.width <= 600, `the keyboard opened a ${room?.width}px dialog on a wide window, want a box of at most 600px`);
+  await keys.keyboard.type('alpha', { delay: 30 });
+  const rows = palette.locator('[data-live-search-row]');
+  await rows.nth(1).waitFor();
+  const second = new URL(await rows.nth(1).getAttribute('href'), BASE).pathname;
+  await keys.keyboard.press('ArrowDown');
+  check(await keys.evaluate(() => document.activeElement?.matches('[data-live-search-input]') === true), 'a press of ArrowDown took focus out of the field');
+  await keys.keyboard.press('Enter');
+  await keys.waitForURL((url) => url.pathname !== '/');
+  check(new URL(keys.url()).pathname === second, `Enter opened ${new URL(keys.url()).pathname}, want the row ArrowDown chose, ${second}`);
+
   const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true })).newPage();
   await phone.goto(`${BASE}/`, { waitUntil: 'load' });
   await phone.waitForSelector('html[data-js]');
@@ -63,4 +105,4 @@ if (failures.length > 0) {
   console.error(`FAIL search-live: ${failures.join('; ')}`);
   process.exit(1);
 }
-console.log('PASS search-live: the results page answers in place and keeps its address, recent searches come back, and the phone surface opens, answers and closes');
+console.log('PASS search-live: the results page answers in place and keeps its address, the keyboard opens a palette whose rows ArrowDown and Enter reach, recent searches come back, and the phone surface opens, answers and closes');
