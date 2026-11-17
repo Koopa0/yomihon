@@ -75,11 +75,7 @@ func TestSupportedBlockAddressesReachTheJudge(t *testing.T) {
 			},
 		},
 		{
-			name: "inline footnote", body: "Para ^[note]\n", citer: "[[Target#^[note]|shown]]\n![[Target#^[note]|shown]]\n",
-			want: []blockAddressFinding{
-				{Rule: "link.block_missing", Path: "Notes/Citer.md", Target: "Target#^[note]", Line: 1, Resolved: "Notes/Target.md"},
-				{Rule: "embed.block_missing", Path: "Notes/Citer.md", Target: "Target#^[note]", Line: 2, Resolved: "Notes/Target.md"},
-			},
+			name: "brackets in an address are no link", body: "Para ^[note]\n", citer: "[[Target#^[note]|shown]]\n![[Target#^[note]|shown]]\n",
 		},
 	}
 	for _, tt := range tests {

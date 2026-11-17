@@ -201,7 +201,7 @@ func TestMarkdownLinkResolutionLeavesOtherSyntaxAlone(t *testing.T) {
 		{name: "inline code", body: "`[code](Other.md)`", want: "<code>[code](Other.md)</code>"},
 		{name: "code fence", body: "```text\n[fence](Other.md)\n```", want: "[fence](Other.md)"},
 		{name: "authored HTML", body: `<a href="Other.md">raw</a>`, want: `&lt;a href=&quot;Other.md&quot;&gt;raw&lt;/a&gt;`},
-		{name: "fragment", body: "[fragment](#part)", want: `<a href="#part">fragment</a>`},
+		{name: "fragment", body: "## Part\n\n[fragment](#part)", want: `<a href="#part">fragment</a>`},
 		{name: "existing product route", body: "[served](/notes/Host/Other.md)", want: `<a href="/notes/Host/Other.md">served</a>`},
 		{name: "image", body: "![picture](picture.png)", want: `src="/raw/Host/picture.png"`},
 		{name: "remote autolink", body: "<https://example.test/Other.md>", want: `href="https://example.test/Other.md" target="_blank"`},

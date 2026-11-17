@@ -396,10 +396,7 @@ func writeParagraphSegment(out *strings.Builder, segment string) {
 	out.WriteString("</p>")
 }
 
-var (
-	pipeTableLine = regexp.MustCompile(`^\s*\|.*\|\s*$`)
-	wikilinkToken = regexp.MustCompile(`!?\[\[[^\[\]]+\]\]`)
-)
+var pipeTableLine = regexp.MustCompile(`^\s*\|.*\|\s*$`)
 
 // fenceOpen reports whether line opens a fenced code block, with its marker
 // byte ('`' or '~'), how many of that marker the opener used, and the trimmed
@@ -845,22 +842,15 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 	// like, not making one. Converting it would print a placeholder in place of
 	// the syntax and report a broken link the author never wrote.
 	spans := codeSpanRanges(text)
-	return replaceOutside(text, spans, wikilinkToken, func(start int, m string) string {
-		embed := strings.HasPrefix(m, "!")
-		raw := m
-		open := start
-		if embed {
-			raw = m[1:]
-			open++
-		}
+	return replaceOutside(text, spans, func(token graph.WikilinkToken, m string) string {
+		embed := token.Embed
 		// A backslash escape is the author writing the syntax to be shown, not
 		// followed, so the match is left to goldmark's own escape handling. The
 		// same rule decides what the adjudicator counts as a citation.
-		if graph.EscapedWikilinkAt(text, open) {
+		if graph.EscapedWikilinkAt(text, token.Open()) {
 			return m
 		}
-		inner := raw[2 : len(raw)-2]
-		link, ok := graph.ParseWikilink(inner)
+		link, ok := graph.ParseWikilink(token.Inner)
 		localHeading := !ok && !embed && link.Heading != "" && link.Block == "" && vault.IsMarkdown(col.relPath)
 		if localHeading && link.Display == "" {
 			link.Display = "#" + link.Heading
@@ -881,19 +871,19 @@ func (r *Pipeline) convertWikilinks(text string, allowEmbed embedPolicy, col *co
 	})
 }
 
-// replaceOutside applies fn to every match of re lying wholly outside the given
-// ranges, leaving everything else byte-identical. fn receives the match's
-// starting byte offset alongside the matched bytes, so a caller can look behind it.
-func replaceOutside(text string, skip [][2]int, re *regexp.Regexp, fn func(start int, m string) string) string {
+// replaceOutside applies fn to every wikilink lying wholly outside the given
+// ranges, leaving everything else byte-identical. fn receives the link
+// alongside the matched bytes.
+func replaceOutside(text string, skip [][2]int, fn func(token graph.WikilinkToken, m string) string) string {
 	var out strings.Builder
 	last := 0
-	for _, loc := range re.FindAllStringIndex(text, -1) {
-		if withinAny(skip, loc[0], loc[1]) {
+	for _, token := range graph.WikilinkTokens(text) {
+		if withinAny(skip, token.Start, token.End) {
 			continue
 		}
-		out.WriteString(text[last:loc[0]])
-		out.WriteString(fn(loc[0], text[loc[0]:loc[1]]))
-		last = loc[1]
+		out.WriteString(text[last:token.Start])
+		out.WriteString(fn(token, text[token.Start:token.End]))
+		last = token.End
 	}
 	out.WriteString(text[last:])
 	return out.String()
@@ -985,7 +975,9 @@ func (r *Pipeline) sectionHref(relPath string, link graph.Wikilink, col *collect
 }
 
 // headingHref uses a path's assigned leaf id and a single name's existing
-// generous reading. Missing headings keep the authored address in either case.
+// generous reading, then the GitHub spelling of a heading's anchor as a second
+// look at a name neither found. Missing headings keep the authored address in
+// every case.
 func (r *Pipeline) headingHref(relPath, href string, localPage bool, link graph.Wikilink, col *collector) (string, fragmentMiss) {
 	addressed := href + "#" + graph.SectionID(link.Heading)
 	if col.page.headingLookup {
@@ -1005,10 +997,22 @@ func (r *Pipeline) headingHref(relPath, href string, localPage bool, link graph.
 		if found {
 			addressed = href + "#" + id
 		}
+	} else if id, stamped := r.stampedHeadingID(relPath, localPage, link.Heading, col); stamped {
+		// An id the page stamps is an address before it is a name, so it wins
+		// over both readings below.
+		addressed, found = href+"#"+id, true
 	} else {
 		stripped, _ := stripObsidianComments(body)
 		_, matches := headingSlice(stripped, link.Heading)
 		found = matches > 0 || headingAnchorMayExist(stripped, link.Heading) || r.embedBringsHeading(stripped, link.Heading)
+	}
+	if !found {
+		// A fragment written the way GitHub spells one names a heading this
+		// page stamps under another id, so the link is pointed at that id.
+		var id string
+		if id, found = githubAnchorIn(r.outlineFor(relPath, localPage, col), link.Heading); found {
+			addressed = href + "#" + id
+		}
 	}
 	if found {
 		return addressed, fragmentPlaced
@@ -1020,6 +1024,74 @@ func (r *Pipeline) headingHref(relPath, href string, localPage bool, link graph.
 		Message: fmt.Sprintf("no heading in %q matched %q; the address is left as written and may land at the top of the note", relPath, link.Heading),
 	})
 	return addressed, fragmentSectionMissing
+}
+
+// outlineFor is every heading the note a link lands in displays: the page being
+// read when the link points into it, the destination's captured body otherwise.
+func (r *Pipeline) outlineFor(relPath string, localPage bool, col *collector) []TOCEntry {
+	if localPage {
+		return r.hostOutline(col)
+	}
+	outline, _ := r.capturedOutline(relPath)
+	return outline
+}
+
+// repeatedHeadingID is how an id this page stamps on a repeated name ends. Any
+// other id is a heading's own words, which the name scan answers without
+// drawing the destination's outline, so only a numbered fragment asks for it.
+var repeatedHeadingID = regexp.MustCompile(`-\d+$`)
+
+func (r *Pipeline) stampedHeadingID(relPath string, localPage bool, fragment string, col *collector) (id string, found bool) {
+	if !repeatedHeadingID.MatchString(fragment) {
+		return "", false
+	}
+	return stampedIn(r.outlineFor(relPath, localPage, col), fragment)
+}
+
+// stampedIn finds the heading whose stamped id is the fragment itself, folded
+// the way an id is.
+func stampedIn(outline []TOCEntry, fragment string) (id string, found bool) {
+	want := graph.FoldFragment(fragment)
+	for _, h := range outline {
+		if h.ID == want {
+			return h.ID, true
+		}
+	}
+	return "", false
+}
+
+// AnchoredHeading is the id the destination stamps on the heading a fragment
+// addresses as an id, or by the way GitHub spells the heading's anchor, so a
+// check can be as quiet as the page it describes about a link the page follows.
+func (r *Pipeline) AnchoredHeading(relPath, fragment string) (id string, found bool) {
+	outline, ok := r.capturedOutline(relPath)
+	if !ok {
+		return "", false
+	}
+	if id, found = stampedIn(outline, fragment); found {
+		return id, true
+	}
+	return githubAnchorIn(outline, fragment)
+}
+
+// githubAnchorIn finds the heading of outline a GitHub-style fragment names:
+// its anchors are counted over the whole outline, because a repeated name's
+// suffix depends on every heading before it.
+func githubAnchorIn(outline []TOCEntry, fragment string) (id string, found bool) {
+	if len(outline) == 0 {
+		return "", false
+	}
+	names := make([]string, len(outline))
+	for i, h := range outline {
+		names[i] = h.Text
+	}
+	want := graph.FoldFragment(fragment)
+	for i, anchor := range graph.GitHubAnchors(names) {
+		if anchor == want {
+			return outline[i].ID, true
+		}
+	}
+	return "", false
 }
 
 // headingPathLeaf resolves a heading path within the page being read against
@@ -1352,14 +1424,14 @@ func withoutQuoteAndListMarkers(line string) string {
 // that expands it will. Only a note can bring headings.
 func (r *Pipeline) embedBringsHeading(body, heading string) bool {
 	spans := codeSpanRanges(body)
-	for _, loc := range wikilinkToken.FindAllStringIndex(body, -1) {
-		if body[loc[0]] != '!' || withinAny(spans, loc[0], loc[1]) {
+	for _, token := range graph.WikilinkTokens(body) {
+		if !token.Embed || withinAny(spans, token.Start, token.End) {
 			continue
 		}
-		if graph.EscapedWikilinkAt(body, loc[0]+1) {
+		if graph.EscapedWikilinkAt(body, token.Open()) {
 			continue
 		}
-		link, ok := graph.ParseWikilink(body[loc[0]+3 : loc[1]-2])
+		link, ok := graph.ParseWikilink(token.Inner)
 		if !ok {
 			continue
 		}
