@@ -568,6 +568,11 @@ func (r *Reader) ScanComplete(ctx context.Context) (Scan, error) {
 }
 
 func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan, error) {
+	return r.scanLooking(ctx, completeness, nil)
+}
+
+// scanLooking is scan that also makes look in every directory it enters.
+func (r *Reader) scanLooking(ctx context.Context, completeness scanCompleteness, look *lookFor) (Scan, error) {
 	if r == nil || r.root == nil {
 		return Scan{}, fmt.Errorf("vault reader is closed: %w", fs.ErrClosed)
 	}
@@ -584,6 +589,7 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 		root:         r.root,
 		boundary:     boundary,
 		completeness: completeness,
+		look:         look,
 		seen:         make(map[string]string),
 		directories:  make(map[string]fs.FileInfo),
 		contains:     map[string]struct{}{".": {}},
@@ -650,6 +656,7 @@ type sourceWalk struct {
 	boundary     Boundary
 	ignore       ignoreRules
 	completeness scanCompleteness
+	look         *lookFor
 	seen         map[string]string
 	directories  map[string]fs.FileInfo
 	contains     map[string]struct{}
@@ -667,6 +674,7 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 		return w.problem(raw, d, walkErr)
 	}
 	if raw == "." {
+		w.lookIn(".")
 		return nil
 	}
 	if hiddenName(d.Name()) {
@@ -692,6 +700,7 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 	if d.IsDir() {
 		w.directories[raw] = info
 		w.contains[canonical] = struct{}{}
+		w.lookIn(raw)
 		return nil
 	}
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {

@@ -302,35 +302,83 @@ func TestAFolderInsideOrAboveAVaultIsRefusedByEveryCommand(t *testing.T) {
 
 	rules := contractFixture(t, []string{"Diary"})
 	shapes := []struct {
-		name  string
-		build func(t *testing.T) string
+		name string
+		// unknown is a shape whose surroundings cannot be looked at, which is
+		// refused as such rather than as a rules file found.
+		unknown bool
+		build   func(t *testing.T) string
 	}{
-		{"started inside the folder the rules withhold", func(t *testing.T) string {
+		{"started inside the folder the rules withhold", false, func(t *testing.T) string {
 			t.Helper()
 			wrap := t.TempDir()
 			write(t, wrap, "v/"+schema.ContractRelPath, rules)
 			write(t, wrap, "v/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
 			return filepath.Join(wrap, "v", "Diary")
 		}},
-		{"started two folders inside the vault", func(t *testing.T) string {
+		{"started two folders inside the vault", false, func(t *testing.T) string {
 			t.Helper()
 			wrap := t.TempDir()
 			write(t, wrap, "v/"+schema.ContractRelPath, rules)
 			write(t, wrap, "v/Diary/2026/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
 			return filepath.Join(wrap, "v", "Diary", "2026")
 		}},
-		{"started one folder above a vault", func(t *testing.T) string {
+		{"started one folder above a vault", false, func(t *testing.T) string {
 			t.Helper()
 			wrap := t.TempDir()
 			write(t, wrap, "v/"+schema.ContractRelPath, rules)
 			write(t, wrap, "v/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
 			return wrap
 		}},
-		{"started above a vault nested below the root", func(t *testing.T) string {
+		{"started above a vault nested below the root", false, func(t *testing.T) string {
 			t.Helper()
 			wrap := t.TempDir()
 			write(t, wrap, "a/b/v/"+schema.ContractRelPath, rules)
 			write(t, wrap, "a/b/v/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			return wrap
+		}},
+		// What the scan leaves out is where a rules file hides. The withheld folder
+		// is an ordinary one to a command that never learned the rules.
+		{"above a vault whose rules file is a symlink", false, func(t *testing.T) string {
+			t.Helper()
+			wrap, shared := t.TempDir(), t.TempDir()
+			write(t, shared, "vault-schema.toml", rules)
+			write(t, wrap, "Vs/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			linkTo(t, filepath.Join(shared, "vault-schema.toml"), filepath.Join(wrap, "Vs", "System", "schemas", "vault-schema.toml"))
+			return wrap
+		}},
+		{"above a vault whose schemas folder is a symlink", false, func(t *testing.T) string {
+			t.Helper()
+			wrap, shared := t.TempDir(), t.TempDir()
+			write(t, shared, "vault-schema.toml", rules)
+			write(t, wrap, "Vs/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			linkTo(t, shared, filepath.Join(wrap, "Vs", "System", "schemas"))
+			return wrap
+		}},
+		{"above a vault whose System folder is a symlink", false, func(t *testing.T) string {
+			t.Helper()
+			wrap, shared := t.TempDir(), t.TempDir()
+			write(t, shared, "schemas/vault-schema.toml", rules)
+			write(t, wrap, "Vs/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			linkTo(t, shared, filepath.Join(wrap, "Vs", "System"))
+			return wrap
+		}},
+		{"above a vault whose rules file an ignore rule hides from the scan", false, func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			write(t, wrap, ".gitignore", "schemas/\n")
+			write(t, wrap, "Vg/"+schema.ContractRelPath, rules)
+			write(t, wrap, "Vg/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			return wrap
+		}},
+		{"above a vault whose System folder cannot be listed", true, func(t *testing.T) string {
+			t.Helper()
+			if os.Geteuid() == 0 {
+				t.Skip("directory permissions do not hold for root")
+			}
+			wrap := t.TempDir()
+			write(t, wrap, "Vu/"+schema.ContractRelPath, rules)
+			write(t, wrap, "Vu/Diary/Secret Plan.md", "# Secret Plan\n\nthe plan\n")
+			lockDir(t, filepath.Join(wrap, "Vu", "System"))
 			return wrap
 		}},
 	}
@@ -354,13 +402,44 @@ func TestAFolderInsideOrAboveAVaultIsRefusedByEveryCommand(t *testing.T) {
 				t.Parallel()
 				root := shape.build(t)
 				stdout, _, err := command.run(root)
-				if !errors.Is(err, ErrRulesFileNearby) {
-					t.Errorf("%s error = %v, want ErrRulesFileNearby", command.name, err)
+				want := ErrRulesFileNearby
+				if shape.unknown {
+					want = ErrRulesFileUnknown
+				}
+				if !errors.Is(err, want) {
+					t.Errorf("%s error = %v, want %v", command.name, err, want)
 				}
 				if len(stdout) != 0 {
 					t.Errorf("caught: %s wrote %d bytes before refusing a folder inside or above a vault: %q", command.name, len(stdout), stdout)
 				}
+				if err != nil && (strings.Contains(err.Error(), root) || strings.Contains(err.Error(), "Vu") || strings.Contains(err.Error(), "Vs") || strings.Contains(err.Error(), "System")) {
+					t.Errorf("%s refusal names a path: %q", command.name, err.Error())
+				}
 			})
 		}
 	}
+}
+
+func linkTo(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(link), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+}
+
+// lockDir makes a directory impossible to list and puts its mode back when the
+// test ends, so the temp dir can be removed.
+func lockDir(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Chmod(dir, 0o000); err != nil { // #nosec G302 -- the test's own temp dir
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(dir, 0o750); err != nil { // #nosec G302 -- restoring the execute bit lets cleanup remove the temp dir
+			t.Errorf("restore %q: %v", dir, err)
+		}
+	})
 }

@@ -276,6 +276,8 @@ func openRules(ctx context.Context, source *vault.Reader) (*schema.Contract, sch
 	switch {
 	case errors.Is(err, schema.ErrRulesFileNearby):
 		return nil, privacy, judge.ErrRulesFileNearby
+	case errors.Is(err, schema.ErrRulesFileUnknown):
+		return nil, privacy, judge.ErrRulesFileUnknown
 	case err != nil:
 		// The loader's words name the contract's keys, which is vault content
 		// this face has no authority yet to repeat; RefusalFor says only what

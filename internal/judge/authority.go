@@ -20,6 +20,10 @@ var ErrPrivacyAuthorityUnavailable = errors.New("privacy authority unavailable; 
 // this run, so nothing is read; the repair names no vault content.
 var ErrRulesFileNearby = errors.New("a rules file lies above or inside this folder; run yomihon from that vault's own folder, or pass it as --root")
 
+// ErrRulesFileUnknown reports a folder whose surroundings could not be looked at
+// to see whether a rules file governs it. It names no path.
+var ErrRulesFileUnknown = errors.New("yomihon could not tell whether a rules file lies above or inside this folder, because a folder could not be listed")
+
 // NoRulesFile is what a command says, at the top of what it prints for a
 // person, about a folder that has no rules file. It is not a refusal: a folder
 // that declared nothing withholds nothing, and the commands read it as they read
@@ -116,6 +120,9 @@ func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority
 	contract, privacy, err := schema.LoadForAgents(ctx, reader)
 	if errors.Is(err, schema.ErrRulesFileNearby) {
 		return scanAuthority{}, ErrRulesFileNearby
+	}
+	if errors.Is(err, schema.ErrRulesFileUnknown) {
+		return scanAuthority{}, ErrRulesFileUnknown
 	}
 	if err != nil {
 		return scanAuthority{}, RefusalFor(err)

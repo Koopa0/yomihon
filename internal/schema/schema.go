@@ -300,6 +300,11 @@ func LoadForAgents(ctx context.Context, reader *vault.Reader) (*Contract, Privac
 	}
 }
 
+// ErrRulesFileUnknown is a folder whose surroundings could not be looked at, so
+// it is not known to have no rules file. It carries no path: the one that could
+// not be listed is the vault's own to name.
+var ErrRulesFileUnknown = errors.New("could not tell whether a rules file lies above or inside this folder")
+
 // ErrRulesFileNearby is a folder with no rules file of its own that sits inside
 // a vault, or holds one. It carries no path: what that rules file withholds is
 // the whole reason it may not be read past.
@@ -310,41 +315,28 @@ var ErrRulesFileNearby = errors.New("a rules file lies above or inside this fold
 // the vault's rules, and below it, where a command started above a vault would
 // read that vault's withheld folders as ordinary ones. Either is refused whole,
 // whatever letter case the rules path is spelled in, since the same files
-// synced to a case-insensitive disk are read by it.
+// synced to a case-insensitive disk are read by it. Both looks are by name in
+// the raw listing of each folder, so a rules file behind a symlink, an ignore
+// rule or a folder that will not open is found or refused, never missed.
 func rulesFileNearby(ctx context.Context, reader *vault.Reader) error {
 	above, err := reader.AncestorHolds(ContractRelPath)
 	if err != nil {
-		return fmt.Errorf("look above this folder for a rules file: %w", err)
+		return fmt.Errorf("%w: %w", ErrRulesFileUnknown, err)
 	}
 	if above {
 		return ErrRulesFileNearby
 	}
-	scan, err := reader.ScanAvailable(ctx)
-	if err != nil {
-		return fmt.Errorf("look inside this folder for a rules file: %w", err)
+	below, err := reader.HoldsBelow(ctx, ContractRelPath)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
 	}
-	for _, entry := range scan.Files() {
-		if endsWithFolded(entry.Path(), ContractRelPath) {
-			return ErrRulesFileNearby
-		}
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrRulesFileUnknown, err)
+	}
+	if below {
+		return ErrRulesFileNearby
 	}
 	return nil
-}
-
-// endsWithFolded reports whether rel is tail, or a path below some directory
-// that ends in tail, comparing whole parts as every vault directory scope does.
-func endsWithFolded(rel, tail string) bool {
-	have, want := strings.Split(rel, "/"), strings.Split(tail, "/")
-	if len(have) < len(want) {
-		return false
-	}
-	have = have[len(have)-len(want):]
-	for i := range want {
-		if !SameDirName(have[i], want[i]) {
-			return false
-		}
-	}
-	return true
 }
 
 // loadEntry reads and decodes the contract file a lookup has already found.

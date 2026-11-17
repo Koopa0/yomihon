@@ -428,53 +428,136 @@ func TestLeftOpenRefusesAFolderInsideOrAboveAVault(t *testing.T) {
 	// this one's path on stdout.
 	hidden := openThoughtNote("Hidden thought", "thought", draftFlag, "2026-09-02")
 	shapes := []struct {
-		name  string
-		build func(t *testing.T) string
+		name string
+		// unknown is a shape whose surroundings cannot be looked at, which is
+		// refused as such rather than as a rules file found.
+		unknown bool
+		build   func(t *testing.T) string
 	}{
-		{"started inside the folder the rules withhold", func(t *testing.T) string {
+		{"started inside the folder the rules withhold", false, func(t *testing.T) string {
 			t.Helper()
 			wrap := t.TempDir()
 			putOpenThoughtFile(t, wrap, "v/"+schema.ContractRelPath, leftOpenContract)
 			putOpenThoughtFile(t, wrap, "v/Private/Hidden thought.md", hidden)
 			return filepath.Join(wrap, "v", "Private")
 		}},
-		{"started two folders inside the vault", func(t *testing.T) string {
+		{"started two folders inside the vault", false, func(t *testing.T) string {
 			t.Helper()
 			wrap := t.TempDir()
 			putOpenThoughtFile(t, wrap, "v/"+schema.ContractRelPath, leftOpenContract)
 			putOpenThoughtFile(t, wrap, "v/Private/2026/Hidden thought.md", hidden)
 			return filepath.Join(wrap, "v", "Private", "2026")
 		}},
-		{"started one folder above a vault", func(t *testing.T) string {
+		{"started one folder above a vault", false, func(t *testing.T) string {
 			t.Helper()
 			wrap := t.TempDir()
 			putOpenThoughtFile(t, wrap, "v/"+schema.ContractRelPath, leftOpenContract)
 			putOpenThoughtFile(t, wrap, "v/Private/Hidden thought.md", hidden)
 			return wrap
 		}},
-		{"started above a vault nested below the root", func(t *testing.T) string {
+		{"started above a vault nested below the root", false, func(t *testing.T) string {
 			t.Helper()
 			wrap := t.TempDir()
 			putOpenThoughtFile(t, wrap, "a/b/v/"+schema.ContractRelPath, leftOpenContract)
 			putOpenThoughtFile(t, wrap, "a/b/v/Private/Hidden thought.md", hidden)
 			return wrap
 		}},
+		// What the scan leaves out is where a rules file hides. The withheld
+		// folder is an ordinary one to a command that never learned the rules.
+		{"above a vault whose rules file is a symlink", false, func(t *testing.T) string {
+			t.Helper()
+			wrap, shared := t.TempDir(), t.TempDir()
+			putOpenThoughtFile(t, shared, "vault-schema.toml", leftOpenContract)
+			putOpenThoughtFile(t, wrap, "Vs/Private/Hidden thought.md", hidden)
+			linkTo(t, filepath.Join(shared, "vault-schema.toml"), filepath.Join(wrap, "Vs", "System", "schemas", "vault-schema.toml"))
+			return wrap
+		}},
+		{"above a vault whose schemas folder is a symlink", false, func(t *testing.T) string {
+			t.Helper()
+			wrap, shared := t.TempDir(), t.TempDir()
+			putOpenThoughtFile(t, shared, "vault-schema.toml", leftOpenContract)
+			putOpenThoughtFile(t, wrap, "Vs/Private/Hidden thought.md", hidden)
+			linkTo(t, shared, filepath.Join(wrap, "Vs", "System", "schemas"))
+			return wrap
+		}},
+		{"above a vault whose System folder is a symlink", false, func(t *testing.T) string {
+			t.Helper()
+			wrap, shared := t.TempDir(), t.TempDir()
+			putOpenThoughtFile(t, shared, "schemas/vault-schema.toml", leftOpenContract)
+			putOpenThoughtFile(t, wrap, "Vs/Private/Hidden thought.md", hidden)
+			linkTo(t, shared, filepath.Join(wrap, "Vs", "System"))
+			return wrap
+		}},
+		{"above a vault whose rules file an ignore rule hides from the scan", false, func(t *testing.T) string {
+			t.Helper()
+			wrap := t.TempDir()
+			putOpenThoughtFile(t, wrap, ".gitignore", "schemas/\n")
+			putOpenThoughtFile(t, wrap, "Vg/"+schema.ContractRelPath, leftOpenContract)
+			putOpenThoughtFile(t, wrap, "Vg/Private/Hidden thought.md", hidden)
+			return wrap
+		}},
+		{"above a vault whose System folder cannot be listed", true, func(t *testing.T) string {
+			t.Helper()
+			if os.Geteuid() == 0 {
+				t.Skip("directory permissions do not hold for root")
+			}
+			wrap := t.TempDir()
+			putOpenThoughtFile(t, wrap, "Vu/"+schema.ContractRelPath, leftOpenContract)
+			putOpenThoughtFile(t, wrap, "Vu/Private/Hidden thought.md", hidden)
+			lockDir(t, filepath.Join(wrap, "Vu", "System"))
+			return wrap
+		}},
 	}
 	for _, shape := range shapes {
-		t.Run(shape.name, func(t *testing.T) {
-			t.Parallel()
-			root := shape.build(t)
-			var stdout, stderr bytes.Buffer
-			request := openRequest{root: root, configDir: t.TempDir(), format: judge.FormatJSON}
-			exit := request.run(t.Context(), &stdout, &stderr)
-			if exit != 2 || stdout.Len() != 0 {
-				t.Errorf("caught: marks listed from a folder inside or above a vault: exit %d, stdout %q", exit, stdout.String())
-			}
-			if !strings.Contains(stderr.String(), judge.ErrRulesFileNearby.Error()) {
-				t.Errorf("stderr = %q, want the refusal that names a rules file above or inside", stderr.String())
-			}
-		})
+		for _, format := range []judge.Format{judge.FormatJSON, judge.FormatHuman} {
+			t.Run(fmt.Sprintf("%s/%v", shape.name, format), func(t *testing.T) {
+				t.Parallel()
+				root := shape.build(t)
+				var stdout, stderr bytes.Buffer
+				request := openRequest{root: root, configDir: t.TempDir(), format: format}
+				exit := request.run(t.Context(), &stdout, &stderr)
+				if exit != 2 || stdout.Len() != 0 {
+					t.Errorf("caught: marks listed from a folder inside or above a vault: exit %d, stdout %q", exit, stdout.String())
+				}
+				want := judge.ErrRulesFileNearby
+				if shape.unknown {
+					want = judge.ErrRulesFileUnknown
+				}
+				if !strings.Contains(stderr.String(), want.Error()) {
+					t.Errorf("stderr = %q, want %q", stderr.String(), want)
+				}
+				for _, named := range []string{root, "Vu", "Vs", "System"} {
+					if strings.Contains(strings.ReplaceAll(stderr.String(), want.Error(), ""), named) {
+						t.Errorf("stderr names a path (%q): %q", named, stderr.String())
+					}
+				}
+			})
+		}
 	}
+}
+
+func linkTo(t *testing.T, target, link string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(link), 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlinks are not available here: %v", err)
+	}
+}
+
+// lockDir makes a directory impossible to list and puts its mode back when the
+// test ends, so the temp dir can be removed.
+func lockDir(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.Chmod(dir, 0o000); err != nil { // #nosec G302 -- the test's own temp dir
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(dir, 0o750); err != nil { // #nosec G302 -- restoring the execute bit lets cleanup remove the temp dir
+			t.Errorf("restore %q: %v", dir, err)
+		}
+	})
 }
 
 // A folder with no rules file withheld nothing when the list was assembled. A
