@@ -79,7 +79,7 @@ var commandHelp = map[string]string{
 		"md falls back to the human view.\n" +
 		"\n" +
 		"When folders.checked names directories, only that layer is tallied.\n" +
-		"A concept or map outside it cannot change a public concept's mount\n" +
+		"A concept or index outside it cannot change a public concept's mount\n" +
 		"state. When the list is omitted or empty, the whole vault is counted.\n" +
 		"A withheld path is never reported.\n" +
 		"\n" +

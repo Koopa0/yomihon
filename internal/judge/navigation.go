@@ -12,7 +12,7 @@ import (
 const navigationUnavailableRule RuleID = "schema.navigation_unavailable"
 
 // checkNavigation reports a contract whose navigation roles could not be
-// honoured. Without them no note type is known to be a course or a map, so the
+// honoured. Without them no note type is known to be a course or an index, so the
 // rules that read those roles skip every note, and a run that says nothing
 // about it reads as a clean verdict over ground it never judged.
 func checkNavigation(roles schema.NavigationRoles) []Finding {
@@ -33,9 +33,9 @@ func navigationUnavailableFinding() Finding {
 		RuleID:          navigationUnavailableRule,
 		Severity:        SeverityError,
 		Path:            schema.ContractRelPath,
-		Message:         "course and map rules did not run, because a type role in the contract could not be used",
-		Evidence:        "without the roles no note type is known to be a course or a map, so those rules skipped every note; the reason is not quoted here, because it would repeat the contract's own text",
-		SuggestedAction: "correct the role of the type in the vault contract (yomihon serve logs the reason at startup), then judge the vault again",
+		Message:         "course and index rules did not run, because a type role in the rules file could not be used",
+		Evidence:        "without the roles no note type is known to be a course or an index, so those rules skipped every note; the reason is not quoted here, because it would repeat the rules file's own text",
+		SuggestedAction: "correct the role of the type in the rules file (yomihon serve logs the reason at startup), then judge the vault again",
 		SourceRule:      sourceContract,
 		Fingerprint:     fingerprint(navigationUnavailableRule, schema.ContractRelPath, ""),
 	}
@@ -48,7 +48,7 @@ func navigationUnavailableFinding() Finding {
 // says they did not run.
 func silencedWithoutNavigation(rule string) bool {
 	switch rule {
-	case "map.disk_mismatch", "map.disk_unlisted":
+	case "course.disk_mismatch", "course.disk_unlisted":
 		return true
 	}
 	return slices.Contains(sequence.Rules(), sequence.Rule(rule))

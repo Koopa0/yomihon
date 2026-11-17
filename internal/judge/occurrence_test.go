@@ -38,7 +38,7 @@ func TestMembershipIsTheAcceptedOccurrence(t *testing.T) {
 			name:     "an embed before the lesson link refuses the row",
 			body:     "## Main {sequence=primary}\n\n- ![[Retired]] [[Lesson]]\n",
 			want:     false,
-			alsoWant: "path.entry_noncanonical",
+			alsoWant: "course.entry_noncanonical",
 		},
 		{
 			// The row names two notes, so the grammar refuses it whole. Neither
@@ -123,13 +123,13 @@ func TestTheSameTargetTwiceKeepsTwoOccurrences(t *testing.T) {
 	writeJudgeNote(t, root, "Writing/Lesson.md", courseLesson("lesson"))
 
 	out := string(runCheck(t, root))
-	if n := strings.Count(out, "map.disk_mismatch"); n != 1 {
-		t.Errorf("map.disk_mismatch reported %d times, want 1 — one of the two writings is not a lesson:\n%s", n, out)
+	if n := strings.Count(out, "course.disk_mismatch"); n != 1 {
+		t.Errorf("course.disk_mismatch reported %d times, want 1 — one of the two writings is not a lesson:\n%s", n, out)
 	}
 	if n := strings.Count(out, `"rule_id":"link.broken"`); n != 1 {
 		t.Errorf("link.broken reported %d times, want 1 for the refused row:\n%s", n, out)
 	}
-	if !strings.Contains(out, "path.entry_multi_target") {
+	if !strings.Contains(out, "course.entry_multi_target") {
 		t.Errorf("the refused row was not reported at all:\n%s", out)
 	}
 }
@@ -157,10 +157,10 @@ func TestMembershipStillHoldsWhatTheCourseLists(t *testing.T) {
 		writeJudgeNote(t, root, "Concepts/Picture.md", "---\ntype: note\n---\nbody\n")
 
 		out := string(runCheck(t, root))
-		if strings.Contains(out, "map.disk_mismatch") {
+		if strings.Contains(out, "course.disk_mismatch") {
 			t.Errorf("a lesson the course lists and disk holds was reported missing — the join found nothing:\n%s", out)
 		}
-		if strings.Contains(out, "map.disk_unlisted") {
+		if strings.Contains(out, "course.disk_unlisted") {
 			t.Errorf("a lesson the course lists was reported unlisted — the join found nothing:\n%s", out)
 		}
 	})
@@ -197,8 +197,8 @@ func TestMembershipStillHoldsWhatTheCourseLists(t *testing.T) {
 		writeJudgeNote(t, root, "Concepts/Picture.md", "---\ntype: note\n---\nbody\n")
 
 		out := string(runCheck(t, root))
-		if n := strings.Count(out, "map.disk_mismatch"); n != 1 {
-			t.Errorf("map.disk_mismatch reported %d times, want 1 — the course rule owns this row:\n%s", n, out)
+		if n := strings.Count(out, "course.disk_mismatch"); n != 1 {
+			t.Errorf("course.disk_mismatch reported %d times, want 1 — the course rule owns this row:\n%s", n, out)
 		}
 		if strings.Contains(out, `"rule_id":"link.broken"`) {
 			t.Errorf("a course's own lesson row was also reported as an ordinary broken link:\n%s", out)
@@ -220,8 +220,8 @@ func TestMembershipStillHoldsWhatTheCourseLists(t *testing.T) {
 		if n := strings.Count(out, `"rule_id":"link.broken"`); n != 1 {
 			t.Errorf("link.broken reported %d times, want 1 for the sentence:\n%s", n, out)
 		}
-		if n := strings.Count(out, "map.disk_mismatch"); n != 1 {
-			t.Errorf("map.disk_mismatch reported %d times, want 1 for the row:\n%s", n, out)
+		if n := strings.Count(out, "course.disk_mismatch"); n != 1 {
+			t.Errorf("course.disk_mismatch reported %d times, want 1 for the row:\n%s", n, out)
 		}
 	})
 }
@@ -258,7 +258,7 @@ func TestAnEmbedOnALessonRowIsOrdinaryPurpose(t *testing.T) {
 	}
 	// The course never promised the picture, so it is not a disagreement
 	// between the course and disk.
-	if strings.Contains(out, "map.disk_mismatch") {
+	if strings.Contains(out, "course.disk_mismatch") {
 		t.Errorf("the embed was reconciled against disk as a lesson the course lists:\n%s", out)
 	}
 }
@@ -342,7 +342,7 @@ func assertSeverityOf(t *testing.T, out, want string) {
 	t.Helper()
 	var line string
 	for l := range strings.SplitSeq(out, "\n") {
-		if strings.Contains(l, "map.disk_mismatch") && strings.Contains(l, "Unwritten") {
+		if strings.Contains(l, "course.disk_mismatch") && strings.Contains(l, "Unwritten") {
 			line = l
 		}
 	}

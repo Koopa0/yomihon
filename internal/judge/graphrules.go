@@ -432,7 +432,7 @@ func provenanceFinding(n *note, field, value, sourceRule string) Finding {
 		Path:            n.path,
 		Field:           new(field),
 		Message:         field + " -> " + value + " resolves to nothing",
-		Evidence:        "no note, alias, or lesson slug matches the reference",
+		Evidence:        "no note, alias, or unit slug matches the reference",
 		SuggestedAction: "fix the reference, or create the target note",
 		SourceRule:      sourceRule,
 		Target:          new(value),
@@ -627,16 +627,16 @@ func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
 		severity = SeverityInfo
 	}
 	return Finding{
-		RuleID:          "map.disk_mismatch",
+		RuleID:          "course.disk_mismatch",
 		Severity:        severity,
 		Path:            syllabus.path,
 		Line:            new(link.line),
-		Message:         "syllabus links [[" + link.target + "]] but it resolves to nothing",
-		Evidence:        "a study-path entry that resolves to no note on disk",
+		Message:         "course links [[" + link.target + "]] but it resolves to nothing",
+		Evidence:        "a course entry that resolves to no note on disk",
 		SuggestedAction: "create the note, fix the entry, or mark it a planned gap",
 		SourceRule:      sourceYomihon,
 		Target:          new(link.target),
-		Fingerprint:     fingerprint("map.disk_mismatch", syllabus.path, link.target),
+		Fingerprint:     fingerprint("course.disk_mismatch", syllabus.path, link.target),
 	}
 }
 
@@ -648,15 +648,15 @@ func syllabusListsMissing(syllabus *note, link *wikiLink) Finding {
 // other.
 func diskUnlisted(syllabus, lesson *note) Finding {
 	return Finding{
-		RuleID:          "map.disk_unlisted",
+		RuleID:          "course.disk_unlisted",
 		Severity:        SeverityWarn,
 		Path:            lesson.path,
-		Message:         "lesson is on disk but not listed in syllabus " + syllabus.path,
-		Evidence:        "the lesson exists but the study-path for its domain does not list it",
-		SuggestedAction: "add the lesson to the syllabus, or confirm it is intentionally excluded",
+		Message:         "unit is on disk but not listed in course " + syllabus.path,
+		Evidence:        "the unit exists but the course for its domain does not list it",
+		SuggestedAction: "add the unit to the course, or confirm it is intentionally excluded",
 		SourceRule:      sourceYomihon,
 		Target:          new(lesson.path),
 		ResolvedTo:      new(syllabus.path),
-		Fingerprint:     fingerprint("map.disk_unlisted", lesson.path, syllabus.path),
+		Fingerprint:     fingerprint("course.disk_unlisted", lesson.path, syllabus.path),
 	}
 }

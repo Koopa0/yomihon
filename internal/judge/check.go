@@ -160,7 +160,7 @@ func filterByPaths(findings []Finding, paths []string, scan vault.Scan, authorit
 			return nil, fmt.Errorf("path filter %q resolves to no path; give a vault-relative path", p)
 		}
 		if prefixes[i] != vaultRoot && !authority.egressAllowed(prefixes[i]) {
-			return nil, fmt.Errorf("path filter %q lies under a directory this vault's contract withholds from agent-facing output; the scope was scanned but nothing from it can be reported, and an empty answer would read as a clean verdict", p)
+			return nil, fmt.Errorf("path filter %q lies under a directory this vault's rules file withholds from agent-facing output; the scope was scanned but nothing from it can be reported, and an empty answer would read as a clean verdict", p)
 		}
 		if !scan.Contains(prefixes[i]) {
 			return nil, fmt.Errorf("path filter %q names nothing in this vault; give a vault-relative path such as %s, or drop it to judge the whole vault", p, vaultRelativeExample)

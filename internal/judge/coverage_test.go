@@ -152,7 +152,7 @@ func TestCoverageSaysSoWhenNoConceptTypeIsDeclared(t *testing.T) {
 		t.Errorf("RunCoverage() exit = %d, want 0", exit)
 	}
 	want := `{"total_concepts":0,"domains":[],"pending_mount":[],"orphans":[],"unrouted":[],` +
-		`"not_applicable":"contract declares no \"concept\" type, so there is no concept corpus to judge"}` + "\n"
+		`"not_applicable":"the rules file declares no \"concept\" type, so there is no concept corpus to judge"}` + "\n"
 	if string(got) != want {
 		t.Errorf("RunCoverage() =\n%s\nwant\n%s", got, want)
 	}
@@ -161,7 +161,7 @@ func TestCoverageSaysSoWhenNoConceptTypeIsDeclared(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RunCoverage(human) error = %v", err)
 	}
-	wantHuman := "contract declares no \"concept\" type, so there is no concept corpus to judge\n"
+	wantHuman := "the rules file declares no \"concept\" type, so there is no concept corpus to judge\n"
 	if string(human) != wantHuman {
 		t.Errorf("RunCoverage(human) = %q, want %q", human, wantHuman)
 	}

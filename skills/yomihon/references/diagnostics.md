@@ -137,7 +137,7 @@ Every `schema.` rule is an `error`; nothing else ever is. Two rules are always
 `info` — `callout.title_markup`, a formatting observation, and
 `link.unused.definition`, a tidy-up signal. Everything else is a `warn`, except that three rules *drop* from `warn` to `info` when the vault has
 declared the name owed rather than missing: `link.broken`, `link.broken.path`
-and `map.disk_mismatch`. `link.broken.path` has a second reason to sit at
+and `course.disk_mismatch`. `link.broken.path` has a second reason to sit at
 `info`: a path that climbs out of the vault root is reported rather than judged,
 because what is there depends on the machine.
 
@@ -180,7 +180,7 @@ rewrites the note.
 
 All `warn` unless noted. One exception is worth knowing before you go looking
 for a finding that never comes: a `[[link]]` yomihon accepted as a **study
-path's lesson row** is judged by `map.disk_mismatch` below instead of by any of
+path's lesson row** is judged by `course.disk_mismatch` below instead of by any of
 these, even when the target is exactly some note's title. Every other link in
 that same note is judged here as usual.
 
@@ -202,25 +202,25 @@ that same note is judged here as usual.
 
 ## The course rules
 
-Every rule below judges a **study path**, the two whose names open with *map*
-included; [`study-paths.md`](study-paths.md) explains that naming. All `warn`.
+Every rule below judges a **study path**; [`study-paths.md`](study-paths.md)
+explains the words. All `warn`.
 
 | `rule_id` | What it means |
 |---|---|
-| `map.disk_mismatch` | a study path lists an entry that resolves to nothing — a course promising a note that is not there. Drops to `info` under a planned-gap heading, which is how you say "owed, not missing" |
-| `map.disk_unlisted` | a lesson exists on disk that no study path of its domain lists. Narrower than it sounds: it runs **only** for a study path whose folder gives it a domain (it sits under a `[folders] domain_from` root, inside a folder of its own), only over lessons in that same domain, and never over a lesson that declares `draft: true`. Nobody has offered that lesson yet, so there is nothing for a path to have listed. A vault whose paths sit outside the domain folders never sees this rule at all |
-| `path.role_missing` | a branch lists lessons, or a nested list exists, and neither says what part it plays. Undeclared is unclassified, and unclassified projects nothing. Two messages, one per shape: a heading's, and a nested list's |
-| `path.role_invalid` | the marker's value is none of `primary`, `local`, `none` |
-| `path.role_duplicate` | one line declares more than one role |
-| `path.role_conflict` | a branch declares itself part of the course while the branch above it declared itself out of it |
-| `path.role_nested_primary` | a `primary` branch sits inside a `local` one, which has no place in the main line's order |
-| `path.nesting_too_deep` | a side branch inside a side branch |
-| `path.local_orphan` | a side branch with nothing to hang from — it was not nested under a lesson |
-| `path.role_on_entry` | one row tries to be both a lesson and a branch heading. Give the branch its own row above the list it opens |
-| `path.role_misplaced` | a marker written somewhere it declares nothing — in a paragraph, say, or on an H1, which opens no branch. It is read only on a heading from H2 to H6, or on a row that opens a list |
-| `path.entry_noncanonical` | the row's `[[link]]` is not the first visible thing after the list marker. The row still reads and the link still works; it is simply no longer a lesson row, and the course count drops without anything looking broken |
-| `path.entry_multi_target` | one row names two notes, so it does not say which lesson it is |
-| `path.entry_outside_branch` | a lesson row sitting above every branch-opening heading, so it belongs to no part of the course |
+| `course.disk_mismatch` | a study path lists an entry that resolves to nothing — a course promising a note that is not there. Drops to `info` under a planned-gap heading, which is how you say "owed, not missing" |
+| `course.disk_unlisted` | a lesson exists on disk that no study path of its domain lists. Narrower than it sounds: it runs **only** for a study path whose folder gives it a domain (it sits under a `[folders] domain_from` root, inside a folder of its own), only over lessons in that same domain, and never over a lesson that declares `draft: true`. Nobody has offered that lesson yet, so there is nothing for a path to have listed. A vault whose paths sit outside the domain folders never sees this rule at all |
+| `course.role_missing` | a branch lists lessons, or a nested list exists, and neither says what part it plays. Undeclared is unclassified, and unclassified projects nothing. Two messages, one per shape: a heading's, and a nested list's |
+| `course.role_invalid` | the marker's value is none of `primary`, `local`, `none` |
+| `course.role_duplicate` | one line declares more than one role |
+| `course.role_conflict` | a branch declares itself part of the course while the branch above it declared itself out of it |
+| `course.role_nested_primary` | a `primary` branch sits inside a `local` one, which has no place in the main line's order |
+| `course.nesting_too_deep` | a side branch inside a side branch |
+| `course.local_orphan` | a side branch with nothing to hang from — it was not nested under a lesson |
+| `course.role_on_entry` | one row tries to be both a lesson and a branch heading. Give the branch its own row above the list it opens |
+| `course.role_misplaced` | a marker written somewhere it declares nothing — in a paragraph, say, or on an H1, which opens no branch. It is read only on a heading from H2 to H6, or on a row that opens a list |
+| `course.entry_noncanonical` | the row's `[[link]]` is not the first visible thing after the list marker. The row still reads and the link still works; it is simply no longer a lesson row, and the course count drops without anything looking broken |
+| `course.entry_multi_target` | one row names two notes, so it does not say which unit it is |
+| `course.entry_outside_branch` | a lesson row sitting above every branch-opening heading, so it belongs to no part of the course |
 
 ## The rest
 
@@ -238,7 +238,7 @@ the name, the alias or the listing. So a run carrying `scan.unreadable` reports
 none of these five, and the notice is the only account you get of why:
 
 `link.broken` · `link.title_not_alias` · `provenance.unresolved` ·
-`map.disk_mismatch` · `map.disk_unlisted`
+`course.disk_mismatch` · `course.disk_unlisted`
 
 One link is narrowed rather than silenced: an address whose `#section` or
 `#^block` lands in the file that could not be opened says nothing, while every

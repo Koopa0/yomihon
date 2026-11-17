@@ -254,7 +254,7 @@ func contractGuidance(err error) string {
 			"  A starter is examples/vault/System/schemas/vault-schema.toml in the source archive\n" +
 			"  at https://github.com/koopa0/yomihon/releases; choose your binary's release.\n"
 	case errors.Is(err, judge.ErrPrivacyAuthorityUnavailable):
-		return "  The contract is at " + schema.ContractRelPath + " and yomihon could not use it.\n" +
+		return "  The rules file is at " + schema.ContractRelPath + " and yomihon could not use it.\n" +
 			"  The reason is not printed here: this command's output is written for a program to\n" +
 			"  read, and stating the reason would quote the rules back out under exactly the\n" +
 			"  policy that is missing. Read it where reading is the point: yomihon serve\n" +
@@ -300,7 +300,7 @@ func checkError(stderr io.Writer, err error, root string, positionals []string) 
 	exit := commandError(stderr, err)
 	if errors.Is(err, judge.ErrNoVaultContract) {
 		if p, ok := misplacedVault(root, positionals); ok {
-			hint := "  " + p + " carries a contract of its own, which makes it a vault rather\n" +
+			hint := "  " + p + " carries a rules file of its own, which makes it a vault rather\n" +
 				"  than a path inside one: pass it as --root " + p + " instead.\n"
 			_, _ = fmt.Fprint(stderr, hint) //nolint:errcheck // the same already-failing channel
 		}

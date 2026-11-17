@@ -56,8 +56,8 @@ func unmatchedKnowledgeDir(dir string) Finding {
 		Severity:        SeverityError,
 		Path:            dir,
 		Message:         "knowledge directory \"" + dir + "\" matches nothing in this vault, so the frontmatter rules reach nothing there",
-		Evidence:        "the vault contract declares this directory under folders.checked and the scan observed neither that directory nor any file below one of that name",
-		SuggestedAction: "correct the spelling in the vault contract, or drop the entry if the directory is gone",
+		Evidence:        "the rules file declares this directory under folders.checked and the scan observed neither that directory nor any file below one of that name",
+		SuggestedAction: "correct the spelling in the rules file, or drop the entry if the directory is gone",
 		SourceRule:      sourceContractFolders,
 		Target:          new(dir),
 		Fingerprint:     fingerprint("schema.unmatched_knowledge_dir", "", dir),
@@ -247,7 +247,7 @@ func (r *lintRun) lessonSlug(n *note, noteType string) []Finding {
 	var out []Finding
 	switch sl, ok := fmScalar(n.frontmatter, "slug"); {
 	case !ok:
-		out = append(out, schemaFinding(n, "schema.required", "slug", "", "is required for a lesson"))
+		out = append(out, schemaFinding(n, "schema.required", "slug", "", "is required for a unit"))
 	default:
 		if pattern, declared := r.contract.SlugPattern(noteType); declared && !pattern.MatchString(sl) {
 			out = append(out, schemaFinding(n, "schema.slug", "slug", sl, "is not a valid slug"))
@@ -394,8 +394,8 @@ func schemaFinding(n *note, ruleID RuleID, field, value, reason string) Finding 
 // and the action moves the note or widens the vocabulary.
 func unlistedDomainFinding(n *note, domain string) Finding {
 	f := schemaFinding(n, "schema.enum", "domain", domain, "is not an allowed value")
-	f.Evidence = "the note's domain is the name of the folder it sits in below a folders.domain_from root, and the vault contract's enums.domain does not list that name"
-	f.SuggestedAction = "move the note into a folder named for a domain the vault contract declares, or add the folder's name to enums.domain in the vault contract"
+	f.Evidence = "the note's domain is the name of the folder it sits in below a folders.domain_from root, and the rules file's enums.domain does not list that name"
+	f.SuggestedAction = "move the note into a folder named for a domain the rules file declares, or add the folder's name to enums.domain in the rules file"
 	return f
 }
 

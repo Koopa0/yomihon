@@ -19,20 +19,20 @@ var errVaultScan = errors.New("vault scan failed")
 
 // errWithheldUnreadable is the whole answer about a file the contract keeps out
 // of agent-facing output. The caller is told the command has none; which file
-// and what the machine said about it would describe ground the contract closed.
+// and what the machine said about it would describe ground the rules file closed.
 // The sentence is fixed, so every such file and cause reads the same.
 var errWithheldUnreadable = errors.New(
-	"vault scan failed: a file under a directory this vault's contract withholds from agent-facing output could not be read; naming it or the reason would describe ground the contract closed",
+	"vault scan failed: a file under a directory this vault's rules file withholds from agent-facing output could not be read; naming it or the reason would describe ground the rules file closed",
 )
 
 // errWithheldCollision is the whole answer about two names that fold to one
 // path when either lies under a directory the contract keeps out of
 // agent-facing output. The kind of failure is said, because a bare "scan
 // failed" sends the caller to look for a permission; the names are not, since
-// saying either would describe ground the contract closed. The sentence is
+// saying either would describe ground the rules file closed. The sentence is
 // fixed, so every such pair reads the same.
 var errWithheldCollision = errors.New(
-	"vault scan failed: vault contains canonically colliding paths, and at least one lies under a directory this vault's contract withholds from agent-facing output; naming them would describe ground the contract closed",
+	"vault scan failed: vault contains canonically colliding paths, and at least one lies under a directory this vault's rules file withholds from agent-facing output; naming them would describe ground the rules file closed",
 )
 
 // actionHooks are the seams a test drives an observation through: after the
@@ -241,7 +241,7 @@ func scanStopped(cause error, authority scanAuthority) error {
 
 // collisionStopped is the refusal for a scan that met two names with one
 // canonical path. It names both only when the contract lets it describe both:
-// a name under a withheld directory is ground the contract closed, and so is
+// a name under a withheld directory is ground the rules file closed, and so is
 // the other half of a pair that would confirm it, so either one withheld ends
 // the refusal at the kind of failure.
 func collisionStopped(collision *vault.CollisionError, authority scanAuthority) error {

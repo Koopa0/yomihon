@@ -45,7 +45,7 @@ func TestAnUnpairedDelimiterIsVisible(t *testing.T) {
 func TestARefusedRowAnchorsNothing(t *testing.T) {
 	t.Parallel()
 	// The parent declares a role and also names a lesson, so it is refused as
-	// path.role_on_entry — it is neither a lesson nor a plain branch heading.
+	// course.role_on_entry — it is neither a lesson nor a plain branch heading.
 	doc := Parse("## P {sequence=primary}\n\n- [[A]] {sequence=primary}\n\t- 支線 {sequence=local}\n\t\t- [[C]]\n", 1)
 
 	if !hasRule(doc, RuleRoleOnEntry) {

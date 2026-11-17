@@ -214,7 +214,7 @@ message names the field and the value, not the list.
 **A required field left out.** Delete `slug:`:
 
 ```json
-{"rule_id":"schema.required","severity":"error","path":"Lessons/L04 Say which language a note is in.md","field":"slug","message":"slug is required for a lesson", ...}
+{"rule_id":"schema.required","severity":"error","path":"Lessons/L04 Say which language a note is in.md","field":"slug","message":"slug is required for a unit", ...}
 ```
 
 **A field nobody declared.** Add `difficulty: medium`:
@@ -248,7 +248,7 @@ tables, so the pattern to satisfy is written in the vault, not in yomihon.
 `- [[Say which language a note is in]]`:
 
 ```json
-{"rule_id":"map.disk_mismatch","severity":"warn","path":"Notes/Reading yomihon.md","line":24,"message":"syllabus links [[Say which language a note is in]] but it resolves to nothing", ...}
+{"rule_id":"course.disk_mismatch","severity":"warn","path":"Notes/Reading yomihon.md","line":24,"message":"course links [[Say which language a note is in]] but it resolves to nothing", ...}
 ```
 
 This is the course rule speaking, not the link rule, and that is the general
@@ -273,7 +273,7 @@ made it.
 `- 第四課：[[L04 Say which language a note is in]]`:
 
 ```json
-{"rule_id":"path.entry_noncanonical","severity":"warn","path":"Notes/Reading yomihon.md","line":24,"message":"a lesson row opens with its link; move the link to the front, or take the row out of the course","evidence":"第四課：[[L04 Say which language a note is in]]", ...}
+{"rule_id":"course.entry_noncanonical","severity":"warn","path":"Notes/Reading yomihon.md","line":24,"message":"a unit row opens with its link; move the link to the front, or take the row out of the course","evidence":"第四課：[[L04 Say which language a note is in]]", ...}
 ```
 
 This is the one worth dwelling on, because the page still looks right. The row
@@ -285,7 +285,7 @@ Commentary belongs after the link, or in a paragraph below the item.
 the new row:
 
 ```json
-{"rule_id":"path.role_missing","severity":"warn","path":"Notes/Reading yomihon.md","line":25,"message":"this nested list never says what part it plays; declare {sequence=local} on the row that opens it, or unnest it","evidence":"a nested list carrying no declaration", ...}
+{"rule_id":"course.role_missing","severity":"warn","path":"Notes/Reading yomihon.md","line":25,"message":"this nested list never says what part it plays; declare {sequence=local} on the row that opens it, or unnest it","evidence":"a nested list carrying no declaration", ...}
 ```
 
 Undeclared is unclassified, and unclassified projects nothing. Nothing is

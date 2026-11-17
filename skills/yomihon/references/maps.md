@@ -125,8 +125,7 @@ parent survives only because its child carries one.
 
 ## Nothing reports a map's shape
 
-A map has no rule of its own. The two whose names open with *map* judge study
-paths instead, which [`study-paths.md`](study-paths.md) explains. A map's links
+A map has no rule of its own. A map's links
 are judged like any other note's — a dead `[[link]]` is an ordinary
 `link.broken`, reported at its line — and its structure is judged not at all.
 The map written above has a heading with no links, a heading whose only link
@@ -192,7 +191,7 @@ exists, not what it is called. A vault that declares no `concept` type is told
 so rather than handed a tally of zero —
 
 ```
-{"total_concepts":0,"domains":[], ... ,"not_applicable":"contract declares no \"concept\" type, so there is no concept corpus to judge"}
+{"total_concepts":0,"domains":[], ... ,"not_applicable":"the rules file declares no \"concept\" type, so there is no concept corpus to judge"}
 ```
 
 And `coverage` never gates: it exits 0 whatever it finds, and 2 only when it

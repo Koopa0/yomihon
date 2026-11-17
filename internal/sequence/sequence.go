@@ -256,18 +256,18 @@ type Rule string
 // The rules this grammar reports. Every one names a decision only the author
 // can make: yomihon reports, and a human edits the file.
 const (
-	RuleRoleMissing        Rule = "path.role_missing"
-	RuleRoleDuplicate      Rule = "path.role_duplicate"
-	RuleRoleConflict       Rule = "path.role_conflict"
-	RuleRoleNestedPrimary  Rule = "path.role_nested_primary"
-	RuleLocalOrphan        Rule = "path.local_orphan"
-	RuleNestingTooDeep     Rule = "path.nesting_too_deep"
-	RuleRoleOnEntry        Rule = "path.role_on_entry"
-	RuleRoleInvalid        Rule = "path.role_invalid"
-	RuleRoleMisplaced      Rule = "path.role_misplaced"
-	RuleEntryOutsideBranch Rule = "path.entry_outside_branch"
-	RuleEntryMultiTarget   Rule = "path.entry_multi_target"
-	RuleEntryNoncanonical  Rule = "path.entry_noncanonical"
+	RuleRoleMissing        Rule = "course.role_missing"
+	RuleRoleDuplicate      Rule = "course.role_duplicate"
+	RuleRoleConflict       Rule = "course.role_conflict"
+	RuleRoleNestedPrimary  Rule = "course.role_nested_primary"
+	RuleLocalOrphan        Rule = "course.local_orphan"
+	RuleNestingTooDeep     Rule = "course.nesting_too_deep"
+	RuleRoleOnEntry        Rule = "course.role_on_entry"
+	RuleRoleInvalid        Rule = "course.role_invalid"
+	RuleRoleMisplaced      Rule = "course.role_misplaced"
+	RuleEntryOutsideBranch Rule = "course.entry_outside_branch"
+	RuleEntryMultiTarget   Rule = "course.entry_multi_target"
+	RuleEntryNoncanonical  Rule = "course.entry_noncanonical"
 )
 
 // Rules are every rule this grammar can report, in declaration order — the
@@ -519,7 +519,7 @@ func (p *parser) container(
 	invalid := false
 	if len(hits) > 0 {
 		p.report(RuleRoleOnEntry, line,
-			"a row cannot be both a lesson and a branch heading; give the branch its own row above the list it opens",
+			"a row cannot be both a unit and a branch heading; give the branch its own row above the list it opens",
 			strings.TrimSpace(own))
 		invalid = true
 		// The row is still a row the branch lists, but neither the entry nor
@@ -564,7 +564,7 @@ func (p *parser) container(
 		target, span, ok := p.anchorTarget(item)
 		if !ok {
 			p.report(RuleLocalOrphan, line,
-				"a side branch has nothing to hang from; nest it under the lesson it belongs to",
+				"a side branch has nothing to hang from; nest it under the unit it belongs to",
 				strings.TrimSpace(own))
 			invalid = true
 		} else {
@@ -709,7 +709,7 @@ func (p *parser) plainRow(item *ast.ListItem, hits []linkHit, spans []Span, name
 	}
 	if group == nil {
 		p.report(RuleEntryOutsideBranch, line,
-			"a lesson listed before the first level-2 heading belongs to no part of the course",
+			"a unit listed before the first level-2 heading belongs to no part of the course",
 			strings.TrimSpace(own))
 		return
 	}
@@ -717,14 +717,14 @@ func (p *parser) plainRow(item *ast.ListItem, hits []linkHit, spans []Span, name
 	switch {
 	case len(hits) > 1:
 		p.report(RuleEntryMultiTarget, line,
-			"a row naming more than one note does not say which lesson it is; give each lesson its own row",
+			"a row naming more than one note does not say which unit it is; give each unit its own row",
 			strings.TrimSpace(own))
 		// Recorded with no target rather than dropped: the branch still has a row.
 		entry.Text = strings.TrimSpace(name)
 		entry.State = EntryMultiTarget
 	case !p.linkFirst(hits[0], spans[0]):
 		p.report(RuleEntryNoncanonical, line,
-			"a lesson row opens with its link; move the link to the front, or take the row out of the course",
+			"a unit row opens with its link; move the link to the front, or take the row out of the course",
 			strings.TrimSpace(own))
 		entry.Text = hits[0].display
 		entry.Aliased = hits[0].aliased
@@ -938,7 +938,7 @@ func (p *parser) classify(groups []*Group, underNone bool) {
 		case len(g.entries()) > 0:
 			g.Role = RoleUnclassified
 			p.report(RuleRoleMissing, g.Line,
-				"this branch lists lessons but never says what part it plays; declare "+
+				"this branch lists units but never says what part it plays; declare "+
 					Marker(RolePrimary)+", "+Marker(RoleLocal)+" or "+Marker(RoleNone),
 				g.Name)
 		default:

@@ -30,9 +30,9 @@ func TestARefusedNavigationTableFailsTheGateOfTheRulesItSilenced(t *testing.T) {
 		deny []string
 		want int
 	}{
-		{name: "control gates on the course rule it reports", root: control, deny: []string{"path.role_missing"}, want: 1},
-		{name: "refused table gates on the course rule it silenced", root: refused, deny: []string{"path.role_missing"}, want: 1},
-		{name: "refused table gates on a map rule it silenced", root: refused, deny: []string{"map.disk_mismatch"}, want: 1},
+		{name: "control gates on the course rule it reports", root: control, deny: []string{"course.role_missing"}, want: 1},
+		{name: "refused table gates on the course rule it silenced", root: refused, deny: []string{"course.role_missing"}, want: 1},
+		{name: "refused table gates on a map rule it silenced", root: refused, deny: []string{"course.disk_mismatch"}, want: 1},
 		{name: "refused table gates on its own rule", root: refused, deny: []string{"schema.navigation_unavailable"}, want: 1},
 		{name: "refused table gates on the error severity", root: refused, deny: []string{"error"}, want: 1},
 		{name: "refused table does not gate on a rule it did not silence", root: refused, deny: []string{"link.broken"}, want: 0},

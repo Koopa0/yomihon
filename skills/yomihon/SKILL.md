@@ -89,7 +89,7 @@ That gate is not a completeness claim, and this page makes none. It misses at
 least three things by design: anything your vault has declared owed rather
 than missing, which sits at `info`; a side branch declared with headings
 rather than nested rows, which `references/study-paths.md` shows passing in
-silence; and a lesson you never listed, which `map.disk_unlisted` almost never
+silence; and a lesson you never listed, which `course.disk_unlisted` almost never
 catches. The severity model is in `references/diagnostics.md`.
 
 When the command cannot run at all it exits 2 with **empty stdout** and the
@@ -132,7 +132,7 @@ wrong answer is about the binary rather than about your notes. It reads the
 nothing at all on stdout and a check that reads stdout scores a refusal as a
 clean pass. Naming a rule id rather than a severity is what turns an old
 binary's silence into an answer: one that has never heard of
-`path.role_missing` refuses the flag outright instead of running quietly, so
+`course.role_missing` refuses the flag outright instead of running quietly, so
 the case this section exists to catch arrives as a message rather than as a
 clean report:
 
@@ -155,16 +155,16 @@ type: probe
 
 - [[Anything]]
 MD
-yomihon check --root "$probe" --all --deny path.role_missing >/dev/null 2>"$probe/err"
+yomihon check --root "$probe" --all --deny course.role_missing >/dev/null 2>"$probe/err"
 verdict=$?
 reason=$(cat "$probe/err" 2>/dev/null)
 rm -rf "$probe"
 case "$verdict" in
-  1) echo "proven: this binary reports path.role_missing" ;;
+  1) echo "proven: this binary reports course.role_missing" ;;
   0) echo "blind: it knows the rule and did not report it where one is guaranteed" ;;
   127) echo "no binary: there is no yomihon on your PATH" ;;
   *) case "$reason" in
-       *"unknown --deny"*) echo "too old: this binary has never heard of path.role_missing" ;;
+       *"unknown --deny"*) echo "too old: this binary has never heard of course.role_missing" ;;
        *) echo "refused: $reason" ;;
      esac ;;
 esac
@@ -176,7 +176,7 @@ accident:
 | Verdict | What it tells you |
 |---|---|
 | **proven** | exit 1: the gate fired, so this binary sees the course rules |
-| **blind** | exit 0: it accepted `path.role_missing` as a real rule id and then reported none where one is guaranteed. Trust none of its quiet course reports |
+| **blind** | exit 0: it accepted `course.role_missing` as a real rule id and then reported none where one is guaranteed. Trust none of its quiet course reports |
 | **too old** | exit 2, `unknown --deny` on stderr: it has never heard of this rule, which is the plainest answer the probe can give you |
 | **no binary** | exit 127 |
 | **refused** | exit 2 with any other message: it could not read the probe vault and has said nothing about its rules. A binary built before the contract format `schema_version = "2"` lands here too, because it cannot use that contract. The message is printed for you |
@@ -189,7 +189,7 @@ non-zero, so `set -e` would abort on success and leave the good news silent.
 **Watch it fail before you trust it.** Two mutations do that without touching
 anything else:
 
-- change `--deny path.role_missing` to `--deny collision.alias`, a real rule id
+- change `--deny course.role_missing` to `--deny collision.alias`, a real rule id
   that nothing in a one-note tree can produce — *blind*;
 - delete the `- [[Anything]]` row, leaving a heading with nothing under it. A
   branch that lists no lesson is structural rather than unclassified, so no
@@ -516,7 +516,7 @@ from its first lesson and the way on from its last. `none` leaves the
 course entirely and still reads, and the course page lists its rows after the
 last part.
 Undeclared is unclassified, and unclassified projects nothing —
-`path.role_missing`, the commonest fault there is.
+`course.role_missing`, the commonest fault there is.
 
 Four habits carry most of it: declare a role on every branch that lists
 lessons; open a lesson row with its `[[link]]` and put the commentary after it
@@ -570,7 +570,7 @@ it should print nothing at all.
 
 Step 5 carries the fault most worth fearing **when you are adding a lesson**.
 Put a word in front of the link — `- 第四課：[[L04 …]]` — and you get
-`path.entry_noncanonical`: the row still reads, the link still works, the page
+`course.entry_noncanonical`: the row still reads, the link still works, the page
 looks finished, and the course count silently drops back by one. (A different
 fault carries that title for broken links; `references/names-and-links.md`
 owns it.)
@@ -584,8 +584,8 @@ after, and the verbatim output of each way of getting it wrong.
 One mistake dominates, in four shapes: **yomihon could not place written content
 in a course.** In descending order of how often it was hit in the vault this was
 written against — a vault whose study paths declare a `domain`, which is what
-let the fourth fire there at all — `path.role_missing`,
-`path.entry_noncanonical`, `path.entry_multi_target`, `map.disk_unlisted`. Each
+let the fourth fire there at all — `course.role_missing`,
+`course.entry_noncanonical`, `course.entry_multi_target`, `course.disk_unlisted`. Each
 is explained in `references/diagnostics.md`.
 
 What they share is the reason they go unnoticed: the note reads correctly, the
@@ -593,7 +593,7 @@ link works, the page looks finished, and only a number somewhere else is wrong.
 Nothing here is loud.
 
 The last of the four deserves a warning of its own, because its name promises
-more than it delivers. `map.disk_unlisted` is the one that would catch a lesson
+more than it delivers. `course.disk_unlisted` is the one that would catch a lesson
 you wrote and forgot to list, and on most vaults it never runs: the conditions
 are narrow enough that `references/diagnostics.md` spends a paragraph on them,
 and a vault whose courses span subjects — the normal case — never sees it at

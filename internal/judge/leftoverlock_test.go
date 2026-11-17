@@ -71,8 +71,8 @@ func TestMarkdownCheckReportFrontmatterTheVaultAccepts(t *testing.T) {
 		if bytes.Contains(out, []byte("type: report")) {
 			t.Errorf("markdown report wrote type: report, which this contract does not declare:\n%s", out)
 		}
-		if !bytes.HasPrefix(out, []byte("This vault's contract does not accept a fileable check report, so this body is not a note.\n\n# yomihon check\n")) {
-			t.Errorf("markdown report did not open by telling the reader the contract cannot host the note:\n%s", out)
+		if !bytes.HasPrefix(out, []byte("This vault's rules file does not accept a fileable check report, so this body is not a note.\n\n# yomihon check\n")) {
+			t.Errorf("markdown report did not open by telling the reader the rules file cannot host the note:\n%s", out)
 		}
 
 		contract, err := schema.Load(root)
