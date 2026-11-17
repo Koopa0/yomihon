@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -37,7 +38,23 @@ var ErrTooLarge = errors.New("the file is longer than its limit")
 // read by people who have to find it to delete it.
 const nameLength = 32
 
-// Dir is where this vault's files sit inside configDir.
+// Home is the directory yomihon keeps everything of the reader's in: the
+// per-vault directories Dir names, and the files that belong to the reader and
+// not to one vault, such as the list of vaults they have opened.
+//
+// An empty configuration directory is refused rather than defaulted, for the
+// reason Dir gives.
+func Home(configDir string) (string, error) {
+	if configDir == "" {
+		return "", fmt.Errorf("%w: configuration directory %q", ErrNotNamed, configDir)
+	}
+	return filepath.Join(configDir, "yomihon"), nil
+}
+
+// VaultID is what names one vault: the directory Dir gives it, and the id the
+// list of vaults gives it. They are the same name so that a vault added again
+// after it was removed finds its marks where it left them, and so that a page
+// can hold the id without holding the path.
 //
 // The name is derived from the vault root rather than spelled from it: a path
 // is not a safe directory name, and two vaults must land in two directories.
@@ -46,6 +63,12 @@ const nameLength = 32
 // directories with two different sets of marks in them. The name says nothing
 // about which vault it belongs to, which is what the vault field inside each
 // file is for.
+func VaultID(vaultRoot string) string {
+	sum := sha256.Sum256([]byte(vault.NormalizeNFC(vaultRoot)))
+	return hex.EncodeToString(sum[:])[:nameLength]
+}
+
+// Dir is where this vault's files sit inside configDir.
 //
 // Either argument empty is refused rather than defaulted. A path built from an
 // empty configuration directory is a relative one, which would put the reader's
@@ -55,8 +78,11 @@ func Dir(configDir, vaultRoot string) (string, error) {
 	if configDir == "" || vaultRoot == "" {
 		return "", fmt.Errorf("%w: configuration directory %q, vault root %q", ErrNotNamed, configDir, vaultRoot)
 	}
-	sum := sha256.Sum256([]byte(vault.NormalizeNFC(vaultRoot)))
-	return filepath.Join(configDir, "yomihon", hex.EncodeToString(sum[:])[:nameLength]), nil
+	home, err := Home(configDir)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, VaultID(vaultRoot)), nil
 }
 
 // Read returns the file called name in dir, refusing one longer than limit
@@ -92,8 +118,8 @@ func Read(dir, name string, limit int64) ([]byte, error) {
 //
 // Everything is owner-only: what a reader is partway through is theirs.
 func Replace(dir, name string, data []byte) error {
-	if name == "" || name == "." || name == ".." || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
-		return fmt.Errorf("%q is not a file name inside the directory", name)
+	if err := checkName(name); err != nil {
+		return err
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create the directory: %w", err)
@@ -128,4 +154,40 @@ func abandon(open *os.File, name string, cause error) error {
 		return errors.Join(cause, fmt.Errorf("remove the temporary file: %w", err))
 	}
 	return cause
+}
+
+// checkName refuses anything that is not one file name inside the directory it
+// is given, so that no caller can reach outside it by the name it passes.
+func checkName(name string) error {
+	if name == "" || name == "." || name == ".." || name != filepath.Base(name) || strings.ContainsAny(name, `/\`) {
+		return fmt.Errorf("%q is not a file name inside the directory", name)
+	}
+	return nil
+}
+
+// Remove deletes the file called name in dir. A file that is not there is
+// already what was asked for.
+func Remove(dir, name string) error {
+	if err := checkName(name); err != nil {
+		return err
+	}
+	if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// Stat is how long the file called name in dir is, in bytes, and when it last
+// changed, without reading it. It is what a poller asks first, so a file that has not
+// changed costs one system call and not a parse. A file that is not there
+// answers an error that satisfies errors.Is(err, os.ErrNotExist).
+func Stat(dir, name string) (int64, time.Time, error) {
+	if err := checkName(name); err != nil {
+		return 0, time.Time{}, err
+	}
+	info, err := os.Stat(filepath.Join(dir, name))
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	return info.Size(), info.ModTime(), nil
 }

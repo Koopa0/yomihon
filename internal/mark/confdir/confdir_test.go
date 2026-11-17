@@ -140,3 +140,86 @@ func TestReadRefusesAFileBeyondItsLimit(t *testing.T) {
 		t.Errorf("Read of a missing file = %v, want it to be os.ErrNotExist", err)
 	}
 }
+
+func TestHomeHoldsEveryVaultsDirectory(t *testing.T) {
+	t.Parallel()
+	config := t.TempDir()
+	home, err := confdir.Home(config)
+	if err != nil {
+		t.Fatalf("Home: %v", err)
+	}
+	if want := filepath.Join(config, "yomihon"); home != want {
+		t.Errorf("Home = %q, want %q", home, want)
+	}
+	dir := dirFor(t, config, "/vaults/notes")
+	if want := filepath.Join(home, confdir.VaultID("/vaults/notes")); dir != want {
+		t.Errorf("Dir = %q, want the vault's id under Home, %q", dir, want)
+	}
+	if _, err := confdir.Home(""); !errors.Is(err, confdir.ErrNotNamed) {
+		t.Errorf("Home(\"\") = %v, want ErrNotNamed", err)
+	}
+}
+
+func TestAVaultIDIsTheNameOfItsDirectoryAndSpellsNoPath(t *testing.T) {
+	t.Parallel()
+	id := confdir.VaultID("/vaults/notes")
+	if len(id) != 32 {
+		t.Errorf("VaultID = %q, want 32 hex digits", id)
+	}
+	if strings.Contains(id, "vaults") || strings.Contains(id, "notes") || strings.ContainsAny(id, `/\`) {
+		t.Errorf("VaultID %q spells the path it names", id)
+	}
+	if other := confdir.VaultID("/vaults/other"); other == id {
+		t.Errorf("two vaults share the id %q", id)
+	}
+	// One folder reached by two spellings of its name is one vault.
+	if nfc, nfd := confdir.VaultID("/vaults/café"), confdir.VaultID("/vaults/café"); nfc != nfd {
+		t.Errorf("one folder has two ids, %q and %q", nfc, nfd)
+	}
+}
+
+func TestRemoveDeletesAFileAndAFileThatIsNotThereIsAlreadyRemoved(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if err := confdir.Replace(dir, "vaults.json", []byte("{}")); err != nil {
+		t.Fatal(err)
+	}
+	if err := confdir.Remove(dir, "vaults.json"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "vaults.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the file is still there: %v", err)
+	}
+	if err := confdir.Remove(dir, "vaults.json"); err != nil {
+		t.Errorf("Remove of a file that is not there = %v, want nil", err)
+	}
+	for _, name := range []string{"", ".", "..", "../vaults.json", "a/b"} {
+		if err := confdir.Remove(dir, name); err == nil {
+			t.Errorf("Remove accepted %q", name)
+		}
+	}
+}
+
+func TestStatSaysHowLongAFileIsWithoutReadingIt(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	if _, _, err := confdir.Stat(dir, "vaults.json"); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat of a file that is not there = %v, want ErrNotExist", err)
+	}
+	if err := confdir.Replace(dir, "vaults.json", []byte("12345")); err != nil {
+		t.Fatal(err)
+	}
+	size, modified, err := confdir.Stat(dir, "vaults.json")
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if size != 5 {
+		t.Errorf("size = %d, want 5", size)
+	}
+	if modified.IsZero() {
+		t.Error("Stat gave no modification time")
+	}
+	if _, _, err := confdir.Stat(dir, "../vaults.json"); err == nil {
+		t.Error("Stat accepted a name that leaves the directory")
+	}
+}
