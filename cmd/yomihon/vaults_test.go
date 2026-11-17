@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/mark/vaults"
+	"github.com/koopa0/yomihon/internal/schema"
 )
 
 func runVaultsCommand(t *testing.T, configDir string, isTerminal bool, args ...string) (exit int, stdout, stderr string) {
@@ -200,4 +201,71 @@ func TestTheAddressVaultsPrintsOpensThatVault(t *testing.T) {
 		status, body, _ := httpGet(t, got[0].Address, "/")
 		return status == http.StatusOK && !strings.Contains(body, "data-scanning")
 	})
+}
+
+// What the list keeps as a vault's name is read back by `yomihon vaults` for a
+// program, so it is never made from a README the rules file withholds or skips:
+// the folder's name stands in. readingSite.listName is the function that decides.
+func TestTheNameVaultsPrintsNeverComesFromAReadmeTheRulesWithholdOrSkip(t *testing.T) {
+	t.Parallel()
+	const secret = "Secret Plans"
+	skipping := skipBasenameLockContract
+	withholding := strings.Replace(strings.Replace(skipBasenameLockContract, `skipped_files = ["README.md"]`, `skipped_files = []`, 1), `never_egress_dirs = []`, `never_egress_dirs = ["README.md"]`, 1)
+	silent := strings.Replace(strings.Replace(skipBasenameLockContract, `skipped_files = ["README.md"]`, `skipped_files = []`, 1), "\n[privacy]\nnever_egress_dirs = []\n", "", 1)
+	for _, test := range []struct {
+		name  string
+		rules string
+		named bool
+	}{
+		{"no rules file", "", true},
+		{"a rules file that withholds something else", strings.Replace(withholding, `["README.md"]`, `["Private"]`, 1), true},
+		{"a rules file that skips the README", skipping, false},
+		{"a rules file that withholds the README", withholding, false},
+		{"a rules file that declares no privacy", silent, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			configDir := t.TempDir()
+			root := t.TempDir()
+			files := map[string]string{"README.md": "# " + secret + "\n\nBody.\n", "Notes/Kept.md": "---\ntype: note\n---\n# Kept\n"}
+			if test.rules != "" {
+				files[schema.ContractRelPath] = test.rules
+			}
+			for rel, body := range files {
+				full := filepath.Join(root, filepath.FromSlash(rel))
+				if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(full, []byte(body), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+					t.Fatal(err)
+				}
+			}
+
+			r := startRunning(t, configDir, root, someFreePort(t))
+			r.address(t)
+			entry := idOf(t, listOf(t, configDir), root)
+			var m *mount
+			eventually(t, "the vault to be read", func() bool {
+				m = r.mountOf(entry.ID)
+				return m != nil && m.site.Load() != nil
+			})
+			r.host.recordRead(t.Context(), m)
+
+			exit, stdout, stderr := runVaultsCommand(t, configDir, false)
+			var got []vaultsLine
+			if exit != 0 || json.Unmarshal([]byte(stdout), &got) != nil || len(got) != 1 {
+				t.Fatalf("exit %d, stdout %q, stderr %q", exit, stdout, stderr)
+			}
+			want := filepath.Base(entry.Path)
+			if test.named {
+				want = secret
+			}
+			if got[0].Name != want {
+				t.Errorf("yomihon vaults names the vault %q, want %q", got[0].Name, want)
+			}
+			if !test.named && strings.Contains(stdout, secret) {
+				t.Errorf("the output holds a title the rules file keeps out: %s", stdout)
+			}
+		})
+	}
 }

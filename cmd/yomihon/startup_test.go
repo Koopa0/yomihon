@@ -472,8 +472,10 @@ func TestAVaultThatCannotBeReadStillTurnsBackAnotherHostName(t *testing.T) {
 
 // A page the reader never opened must not make this process read a folder: a
 // picture or a script of some other page can be pointed at any port on this
-// machine. Only a request of the vault's own page, one a reader typed or
-// followed to a page, or one from a client that says nothing begins the read.
+// machine. Only an address the reader typed, a request of the vault's own page,
+// or one from a client that says nothing begins the read; a link followed from
+// another page gets the page that says the vault is being read, and that page's
+// own request for how far the read has got begins it.
 func TestOnlyARequestForThePageItselfBeginsAVaultsRead(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
@@ -484,8 +486,8 @@ func TestOnlyARequestForThePageItselfBeginsAVaultsRead(t *testing.T) {
 		{"a client that says nothing", nil, true},
 		{"an address typed", map[string]string{"Sec-Fetch-Site": "none", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, true},
 		{"a request of the vault's own page", map[string]string{"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors"}, true},
-		{"a link followed from another vault's page", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, true},
-		{"a link followed from another site", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, true},
+		{"a link followed from another vault's page", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, false},
+		{"a link followed from another site", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, false},
 		{"a picture of another site's page", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors"}, false},
 		{"a picture of another vault's page", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors"}, false},
 		{"a script of another site's page", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "script", "Sec-Fetch-Mode": "no-cors"}, false},

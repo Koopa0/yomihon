@@ -100,6 +100,14 @@ func listVaults(store *vaults.Store, format judge.Format, stdout, stderr io.Writ
 	return 0
 }
 
+// takeOutOfList takes the vault out of the list the reader keeps, through the
+// store that keeps it. It is the one place yomihon's commands change that list
+// by taking an entry out, and the write guard names it.
+func takeOutOfList(store *vaults.Store, id string) error {
+	_, err := store.Remove(id)
+	return err
+}
+
 // removeVault takes one vault out of the list. Only the list entry goes: its
 // marks stay where they are, and are there when the folder is read again.
 func removeVault(store *vaults.Store, which string, stdout, stderr io.Writer) int {
@@ -111,7 +119,7 @@ func removeVault(store *vaults.Store, which string, stdout, stderr io.Writer) in
 	if err != nil {
 		return commandError(stderr, err)
 	}
-	if _, err = store.Remove(chosen.ID); err != nil {
+	if err = takeOutOfList(store, chosen.ID); err != nil {
 		return commandError(stderr, fmt.Errorf("remove the vault: %w", err))
 	}
 	if _, err = fmt.Fprintf(stdout, "removed %s  %s\n", chosen.Name, chosen.Path); err != nil {

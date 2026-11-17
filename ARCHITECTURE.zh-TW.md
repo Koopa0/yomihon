@@ -140,7 +140,7 @@ Wikilink 表示引用，`based_on` 宣告來源，學習路徑則安排課程順
 
 ## 9. 瀏覽器邊界
 
-每個 HTTP listener 都綁定 `127.0.0.1`；`YOMIHON_PORT` 是第一個書庫所在的連接埠，讀者開啟過的其他書庫各有一個在它之上的連接埠。Host 檢查拒絕非 loopback 名稱，origin protection 保護表單提交。回應政策在最後送出 header 時套用，包含錯誤與串流路徑；CSP、同源資源政策及受限的瀏覽器權限共同約束閱讀介面。參見[啟動][main]與[origin 政策][origin]。
+每個 HTTP listener 都綁定 `127.0.0.1`；`YOMIHON_PORT` 是執行中的 yomihon 持有的連接埠，清單中沒有任何書庫佔用它時，新加入的書庫就用它；其他書庫各有一個在它之上的連接埠，書庫一旦有了連接埠就不再更動。Host 檢查拒絕非 loopback 名稱，origin protection 保護表單提交。回應政策在最後送出 header 時套用，包含錯誤與串流路徑；CSP、同源資源政策及受限的瀏覽器權限共同約束閱讀介面。參見[啟動][main]與[origin 政策][origin]。
 
 不是筆記的 vault 檔案（包含 HTML）都經受限的根目錄選取提供。文字檔在檔案頁以跳脫後的原始碼呈現；raw 位元組附帶 sandbox 政策，禁用腳本、連線、表單、巢狀 frame 以及所有外部或內嵌資源，只留 inline style，標記文件以下載交付，不以頁面開啟。參見[檔案服務][file-serving]。
 

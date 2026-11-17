@@ -638,6 +638,60 @@ func TestAFolderTypedThroughALinkIsTheSameVaultAsTheFolder(t *testing.T) {
 	}
 }
 
+// A listed vault nobody has opened is read when its own page asks how far the
+// read has got, and not for a picture another page pointed at its port.
+func TestAnUnreadVaultIsReadWhenItsOwnPageAsksAndNotForAnotherPagesPicture(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	start := someFreePort(t)
+	listed := newVaultFolder(t)
+	entry, _, err := listOf(t, configDir).Add(listed, start+5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := startRunning(t, configDir, newVaultFolder(t), start)
+	r.address(t)
+	address := addressOfEntry(&entry)
+
+	get := func(path string, headers map[string]string) int {
+		req, reqErr := http.NewRequestWithContext(t.Context(), http.MethodGet, address+strings.TrimPrefix(path, "/"), http.NoBody)
+		if reqErr != nil {
+			t.Fatal(reqErr)
+		}
+		for name, value := range headers {
+			req.Header.Set(name, value)
+		}
+		resp, doErr := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+		if doErr != nil {
+			t.Fatal(doErr)
+		}
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Fatal(closeErr)
+		}
+		return resp.StatusCode
+	}
+	picture := map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors"}
+	for range 3 {
+		if status := get("/", picture); status != http.StatusServiceUnavailable {
+			t.Fatalf("a picture of another page asked for the vault and got %d, want the page that says it is being read", status)
+		}
+	}
+	if m := r.mountOf(entry.ID); m == nil || m.site.Load() != nil {
+		t.Fatal("the vault was read for a picture another page asked for")
+	}
+
+	link := map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}
+	if status := get("/", link); status != http.StatusServiceUnavailable {
+		t.Fatalf("a link followed from another vault got %d, want the page that says the vault is being read", status)
+	}
+	own := map[string]string{"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors"}
+	get(scanAddress, own)
+	eventually(t, "the vault to be read once its own page asked", func() bool {
+		m := r.mountOf(entry.ID)
+		return m != nil && m.site.Load() != nil
+	})
+}
+
 func TestStoppingLeavesNothingThatSaysYomihonIsRunning(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()

@@ -126,6 +126,16 @@ func Open(ctx context.Context, reader *vault.Reader, links LinkTargets) (*Gate, 
 	return gate, nil
 }
 
+// Allowed reports whether the rules file of the folder reader reads lets rel be
+// said in a place a program reads, for a caller that has no output of its own to
+// seal. A folder with no rules file withholds nothing; one whose rules file
+// cannot be honoured, or that sits inside or above another's, answers no, as
+// Open refuses it, because it may withhold ground this process never learned.
+func Allowed(ctx context.Context, reader *vault.Reader, rel string) bool {
+	_, privacy, err := schema.LoadForAgents(ctx, reader)
+	return err == nil && privacy.EgressAllowed(rel)
+}
+
 // refusalFor is the refusal owed for a rules file that did not load, so every
 // command that loads one answers the same way. Only a rules file for another
 // schema version says more than that it could not be used, and it is a refusal

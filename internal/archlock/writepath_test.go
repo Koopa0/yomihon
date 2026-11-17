@@ -114,9 +114,11 @@ func mayWrite(path string) bool {
 }
 
 // listRemoval is the one call outside the writing package that a name alone
-// reads as a write and is not one: the command that takes a vault out of the
+// reads as a write and is not one: the function that takes a vault out of the
 // list the reader keeps, through the store that keeps it, which writes only
-// under the reader's own configuration directory.
+// under the reader's own configuration directory. The command that removes a
+// vault and the running yomihon that gives a folder back both go through it, so
+// there is one place to look.
 //
 // It is named by file, by the function it is made in, by the call, and by the
 // receiver, which has to be that function's own parameter of the store's type.
@@ -129,7 +131,7 @@ func mayWrite(path string) bool {
 // its own.
 var listRemoval = struct{ file, function, receiver, typeName, method, storePackage string }{
 	file:         "cmd/yomihon/vaults.go",
-	function:     "removeVault",
+	function:     "takeOutOfList",
 	receiver:     "store",
 	typeName:     "Store",
 	method:       "Remove",
@@ -798,7 +800,7 @@ func save(name string, data []byte) error { return os.WriteFile(name, data, 0o60
 		path: "cmd/yomihon/vaults.go",
 		src: `package main
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-func removeVault(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }`,
+func takeOutOfList(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }`,
 		clean:   true,
 		excused: 1,
 	},
@@ -807,7 +809,7 @@ func removeVault(store *vaults.Store, id string) error { _, err := store.Remove(
 		path: "cmd/yomihon/vaults.go",
 		src: `package main
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-func removeVault(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }
+func takeOutOfList(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }
 func wipe(name string) error { return store.Remove(name) }`,
 		want:    []string{"a call to Remove, which changes what it is called on"},
 		excused: 1,
@@ -817,7 +819,7 @@ func wipe(name string) error { return store.Remove(name) }`,
 		path: "cmd/yomihon/host.go",
 		src: `package main
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-func removeVault(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }`,
+func takeOutOfList(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }`,
 		want: []string{"a call to Remove, which changes what it is called on"},
 	},
 	{
@@ -828,7 +830,7 @@ import (
 	"os"
 	"github.com/koopa0/yomihon/internal/mark/vaults"
 )
-func removeVault(store *vaults.Store, id string) error { _, err := store.Remove(id); _ = os.Args; return err }`,
+func takeOutOfList(store *vaults.Store, id string) error { _, err := store.Remove(id); _ = os.Args; return err }`,
 		want: []string{"a call to Remove, which changes what it is called on"},
 	},
 	{
@@ -836,7 +838,7 @@ func removeVault(store *vaults.Store, id string) error { _, err := store.Remove(
 		path: "cmd/yomihon/vaults.go",
 		src: `package main
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-func removeVault(store *vaults.Store, id string) error {
+func takeOutOfList(store *vaults.Store, id string) error {
 	store, _ = elsewhere()
 	_, err := store.Remove(id)
 	return err
@@ -848,7 +850,7 @@ func removeVault(store *vaults.Store, id string) error {
 		path: "cmd/yomihon/vaults.go",
 		src: `package main
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-func removeVault(store vaults.Remover, id string) error { _, err := store.Remove(id); return err }`,
+func takeOutOfList(store vaults.Remover, id string) error { _, err := store.Remove(id); return err }`,
 		want: []string{"a call to Remove, which changes what it is called on"},
 	},
 	{
@@ -856,7 +858,7 @@ func removeVault(store vaults.Remover, id string) error { _, err := store.Remove
 		path: "cmd/yomihon/vaults.go",
 		src: `package main
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-func removeVault(store *vaults.Store, id string) error {
+func takeOutOfList(store *vaults.Store, id string) error {
 	_, err := store.Remove(id)
 	vaults, _ := openElsewhere()
 	r, _ := vaults.Root("x")

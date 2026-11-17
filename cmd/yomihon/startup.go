@@ -169,18 +169,19 @@ func (s *startup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // wakes says whether a request may begin the read of a vault that has not been
-// read. A browser that says where the request came from is believed: a request
-// of the vault's own page, or one the reader typed or followed to a page, begins
-// it; a picture, a script or a frame that some other page asked for does not,
-// because a page the reader never opened must not make this process read a
-// folder. A client that says nothing, such as a program on this machine, asked
-// for the page itself.
+// read. A browser that says where the request came from is believed: an address
+// the reader typed, or a request of the vault's own page, begins it. Anything
+// another origin asked for does not, a link followed from another vault's page
+// included: that page the reader gets is the one that says the vault is being
+// read, and its own request for how far the read has got begins it. A page the
+// reader never opened must not make this process read a folder. A client that
+// says nothing, such as a program on this machine, asked for the page itself.
 func wakes(r *http.Request) bool {
 	switch r.Header.Get("Sec-Fetch-Site") {
 	case "", "none", "same-origin":
 		return true
 	}
-	return r.Header.Get("Sec-Fetch-Dest") == "document" && r.Header.Get("Sec-Fetch-Mode") == "navigate"
+	return false
 }
 
 // holds says whether a request is one that waits the grace out. Only a page a

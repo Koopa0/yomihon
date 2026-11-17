@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/vaults"
 	"github.com/koopa0/yomihon/internal/origin"
@@ -128,6 +129,9 @@ func (h *host) mount(ctx context.Context, entry *vaults.Entry, listener net.List
 	return nil
 }
 
+// touchTimeout bounds reading the rules file for the name the list keeps.
+const touchTimeout = 10 * time.Second
+
 // errClosing is the answer to a vault offered to a host that is ending.
 var errClosing = errors.New("yomihon is stopping")
 
@@ -183,7 +187,7 @@ func (h *host) read(ctx context.Context, m *mount, mustSucceed bool) {
 	}
 	m.site.Store(site)
 	m.front.open(site)
-	h.touch(m)
+	h.touch(ctx, m)
 }
 
 func (h *host) failed(m *mount, mustSucceed bool, err error) {
@@ -203,7 +207,7 @@ func (h *host) touching(m *mount, next http.Handler) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.Header.Get("Sec-Fetch-Dest") == "document" {
-			h.touch(m)
+			h.touch(r.Context(), m)
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -213,20 +217,30 @@ func (h *host) touching(m *mount, next http.Handler) http.Handler {
 // page wait for the list's lock: at most one record is being made at a time, and
 // one that finds the vault no longer listed has nothing to say, because a vault
 // the reader removed goes on being served until the process ends.
-func (h *host) touch(m *mount) {
+func (h *host) touch(ctx context.Context, m *mount) {
 	if h.store == nil || !m.touching.CompareAndSwap(false, true) {
 		return
 	}
-	name := ""
-	if site := m.site.Load(); site != nil {
-		name = site.vaultTitle()
-	}
+	// The record outlives the request that asked for it, which may end first.
+	ctx = context.WithoutCancel(ctx)
 	go func() {
 		defer m.touching.Store(false)
-		if _, err := h.store.Touch(m.entry.ID, name, time.Now()); err != nil && !errors.Is(err, vaults.ErrUnknown) && m.touchWarned.CompareAndSwap(false, true) {
-			h.log.Warn("could not record the read in the list of vaults", "vault", m.entry.Path, "error", err)
-		}
+		h.recordRead(ctx, m)
 	}()
+}
+
+// recordRead writes the read, and the name the list keeps, to the list.
+func (h *host) recordRead(ctx context.Context, m *mount) {
+	name := ""
+	if site := m.site.Load(); site != nil {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, touchTimeout)
+		defer cancel()
+		name = site.listName(ctx)
+	}
+	if _, err := h.store.Touch(m.entry.ID, name, time.Now()); err != nil && !errors.Is(err, vaults.ErrUnknown) && m.touchWarned.CompareAndSwap(false, true) {
+		h.log.Warn("could not record the read in the list of vaults", "vault", m.entry.Path, "error", err)
+	}
 }
 
 // watch looks for vaults the command line has added until ctx is done.
@@ -545,7 +559,7 @@ func (h *host) giveFolder(ctx context.Context, cfg *config, running vaults.Insta
 		return err
 	}
 	if added {
-		if _, rmErr := h.store.Remove(entry.ID); rmErr != nil {
+		if rmErr := takeOutOfList(h.store, entry.ID); rmErr != nil {
 			h.log.Warn("could not take the folder out of the list again", "folder", resolved, "error", rmErr)
 		}
 	}
@@ -596,8 +610,18 @@ func (h *host) printAddress(out io.Writer, listener net.Listener) {
 	}
 }
 
-// vaultTitle is what the vault is called now: its README's title, else its
-// folder.
-func (site *readingSite) vaultTitle() string {
-	return site.snapshots.Current().Capture().VaultTitle(shell.VaultName(site.source.Name()))
+// listName is what the list keeps the vault's name as: its README's title, else
+// its folder's name. It is the one place that decides, for the list, which of the
+// two, and the list is read back by `yomihon vaults` for a program. A README the
+// rules file skips is no note and has no title to take (the snapshot says so),
+// and one the rules file withholds is not said, so the folder's name stands in;
+// so it does when the rules file cannot be honoured, since what it withholds is
+// then not known.
+func (site *readingSite) listName(ctx context.Context) string {
+	folder := shell.VaultName(site.source.Name())
+	title := site.snapshots.Current().Capture().DeclaredTitle(snapshot.ReadmeRelPath)
+	if title == "" || !egress.Allowed(ctx, site.source, snapshot.ReadmeRelPath) {
+		return folder
+	}
+	return title
 }
