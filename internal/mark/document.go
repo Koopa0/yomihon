@@ -25,7 +25,7 @@ const (
 // this program writes is always one it can read back.
 const (
 	maxMarksFileBytes    = 16 << 20
-	maxProgressFileBytes = 1 << 20
+	maxProgressFileBytes = 4 << 20
 )
 
 // marksDocument is marks.json.
@@ -40,6 +40,15 @@ type progressDocument struct {
 	Version   int              `json:"version"`
 	Vault     string           `json:"vault"`
 	Bookmarks []courseBookmark `json:"bookmarks"`
+	// Finished is left out while nothing is finished, so a file that holds
+	// bookmarks alone is the file an earlier version wrote.
+	Finished []Finished `json:"finished,omitempty"`
+}
+
+// progress is what progress.json holds, read whole and written whole.
+type progress struct {
+	bookmarks []courseBookmark
+	finished  []Finished
 }
 
 // courseBookmark is one bookmark as it sits in progress.json, with the course
@@ -87,20 +96,40 @@ func checkMarks(marks []Mark) error {
 	return nil
 }
 
-// decodeProgress reads a progress.json and holds every bookmark in it to the
-// shape a write would have produced.
-func decodeProgress(data []byte) ([]courseBookmark, error) {
+// decodeProgress reads a progress.json and holds every bookmark and every
+// finished note in it to the shape a write would have produced.
+func decodeProgress(data []byte) (progress, error) {
 	var doc progressDocument
 	if err := decodeStrict(data, &doc); err != nil {
-		return nil, err
+		return progress{}, err
 	}
 	if doc.Version != documentVersion || doc.Bookmarks == nil {
-		return nil, fmt.Errorf("%w: not a version %d progress file", ErrUnreadable, documentVersion)
+		return progress{}, fmt.Errorf("%w: not a version %d progress file", ErrUnreadable, documentVersion)
 	}
 	if err := checkBookmarks(doc.Bookmarks); err != nil {
-		return nil, err
+		return progress{}, err
 	}
-	return doc.Bookmarks, nil
+	if err := checkFinished(doc.Finished); err != nil {
+		return progress{}, err
+	}
+	return progress{bookmarks: doc.Bookmarks, finished: doc.Finished}, nil
+}
+
+func checkFinished(held []Finished) error {
+	if len(held) > maxFinished {
+		return fmt.Errorf("%w: more than %d finished notes", ErrUnreadable, maxFinished)
+	}
+	seen := make(map[string]bool, len(held))
+	for i := range held {
+		if err := validateFinished(&held[i]); err != nil {
+			return fmt.Errorf("%w: %s", ErrUnreadable, err.Error())
+		}
+		if seen[held[i].RelPath] {
+			return fmt.Errorf("%w: one note finished twice", ErrUnreadable)
+		}
+		seen[held[i].RelPath] = true
+	}
+	return nil
 }
 
 func checkBookmarks(held []courseBookmark) error {
