@@ -143,7 +143,7 @@ func boolWeight(b bool) int {
 }
 
 // OpenMarks is the copy of the reader's stored marks the open selection reads.
-func OpenMarks(kept []mark.Question) []snapshot.OpenMark {
+func OpenMarks(kept []mark.Mark) []snapshot.OpenMark {
 	marks := make([]snapshot.OpenMark, 0, len(kept))
 	for i := range kept {
 		marks = append(marks, snapshot.OpenMark{RelPath: kept[i].RelPath, Anchor: kept[i].Anchor, At: kept[i].At})
@@ -241,7 +241,7 @@ func openMarkRow(kept *snapshot.OpenMark, places *placeResolver, lang wording.La
 		row.Mark = wording.QuestionNoteNotFound.In(lang)
 	}
 	row.Fault = true
-	row.Removal = &pages.QuestionRemoval{Endpoint: mark.QuestionAddress, Path: kept.RelPath, Anchor: kept.Anchor,
+	row.Removal = &pages.QuestionRemoval{Endpoint: mark.Paths.Question, Path: kept.RelPath, Anchor: kept.Anchor,
 		Label: wording.QuestionClearControl.In(lang), Unavailable: wording.QuestionUnavailable.In(lang),
 		Failed: wording.QuestionNotStored.In(lang), Cleared: wording.QuestionCleared.In(lang), Language: string(lang),
 	}

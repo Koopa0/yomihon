@@ -47,9 +47,9 @@ import (
 // counts from that coherent value. Authority captures one immutable contract
 // view for the request; source changes affect the next request.
 type Sources struct {
-	// Questions reads the separate location-mark file. Nil means this
-	// process has no mark storage; a read error remains visible on the desk.
-	Questions func() ([]mark.Question, error)
+	// Questions reads the reader's question marks. Nil means this process has
+	// no mark storage; a read error remains visible on the desk.
+	Questions func() ([]mark.Mark, error)
 	Source    *vault.Reader
 	// Contract supplies the field vocabulary a thought stub is written from;
 	// the note type it is for comes from the snapshot's roles.

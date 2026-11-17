@@ -34,7 +34,7 @@ const inventoryFirstTable = "| Data | Where it lives | How long | Who can reach 
 
 // marksFileRow is what the inventory has to say about the one written place. The file's own name is the part a person can look for on their disk,
 // so that is what is held here rather than a sentence that can be reworded.
-const marksFileRow = "reader.json"
+const marksFileRow = "marks.json"
 
 // osWriteFamilies are the prefixes of every os function that changes a
 // directory or a file rather than reading one. They are matched by prefix

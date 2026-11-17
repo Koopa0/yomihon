@@ -66,12 +66,12 @@ func sectionContract(t *testing.T) *schema.Contract {
 // readerSession is the server a reader has open over the vault and the marks
 // file beside it. A second session over the same two is the reader coming back
 // another day: nothing is carried in memory from the first.
-func readerSession(t *testing.T, root string, contract *schema.Contract, configDir string, kept func() (mark.Bookmark, bool)) (mux http.Handler, marks *mark.File) {
+func readerSession(t *testing.T, root string, contract *schema.Contract, configDir string, kept func() (mark.Bookmark, bool)) (mux http.Handler, marks *mark.Store) {
 	t.Helper()
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 	var err error
-	marks, err = mark.New(configDir, source.Name())
+	marks, err = mark.Open(configDir, source.Name())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,12 +81,12 @@ func readerSession(t *testing.T, root string, contract *schema.Contract, configD
 	handler := note.New(&note.Sources{
 		Source: source, Contract: contract, Snapshot: store.Current,
 		Authority: func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) },
-		Bookmark:  kept, Questions: marks.Questions,
-		QuestionAddress: mark.QuestionAddress, Log: log,
+		Bookmark:  kept, Questions: func() ([]mark.Mark, error) { return marks.List(mark.Question) },
+		QuestionAddress: mark.Paths.Question, Log: log,
 	})
 	routes := http.NewServeMux()
 	handler.Register(routes)
-	mark.NewQuestionHandler(marks, handler, log).Register(routes)
+	mark.NewHandler(marks, handler, log).Register(routes)
 	return routes, marks
 }
 
@@ -128,7 +128,7 @@ func TestAReaderWhoLeftAQuestionFindsTheSectionAndTheirThoughtTheNextDay(t *test
 	}
 
 	nextDay, marks := readerSession(t, root, contract, configDir, nil)
-	held, err := marks.Questions()
+	held, err := marks.List(mark.Question)
 	if err != nil || len(held) != 1 {
 		t.Fatalf("the marks the second session reads = %v, %v; want the one the first kept", held, err)
 	}

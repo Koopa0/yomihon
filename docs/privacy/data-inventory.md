@@ -2,8 +2,8 @@
 
 What yomihon holds, derives, and emits. The product is a single-user local
 process: it reads a vault and writes nothing into it, serves `127.0.0.1`,
-writes three files of its own outside any vault — two reader-state files and a
-record of approved figures — and makes no network call of any kind. A figure the owner approved runs its scripts in the browser, where they
+writes files of its own outside any vault — the reader's marks, the reader's
+bookmarks and a record of approved figures — and makes no network call of any kind. A figure the owner approved runs its scripts in the browser, where they
 can reach the network; the threat model says through which channels. There is no telemetry, analytics, metrics or trace exporter,
 crash reporter, account, or remote log sink, and no application-level
 encryption at rest, backup, or secure erasure. Host disk encryption, vault
@@ -16,9 +16,10 @@ this document.
 | `System/schemas/vault-schema.toml`, the machine authority | The vault; `internal/schema` is its only reader | Vault policy | As above |
 | Parsed notes, rendered HTML, diagnostics, graph, search index | Process memory, rebuilt from the vault | Until the snapshot is replaced or the process exits | The process and the request being served |
 | HTTP method, path, query, headers, mark forms; CLI flags and arguments | Request and output buffers | The request or action | The local caller |
-| `slog` records: address, vault root, contract state, scan and render failures; a marks file's own absolute path when reading or writing it fails, and the note path the caller submitted when a bookmark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
-| The reader's bookmark — `reader.json` and its adjacent `.reader-*.json`, under `os.UserConfigDir()`/`yomihon`/one directory per vault, holding that vault's absolute path and one bookmark: a note path, an anchor id, a distance below it, the content identity of the bytes that were on screen, and when it was set | The platform's configuration directory, never the vault | Until the reader keeps another place or deletes the file; yomihon never expires one. A crash between the temporary file being created and renamed into place can strand the temporary file, holding that same content, and nothing removes it | The same OS account |
-| The reader's questions — `uncertainty.json` and its adjacent `.uncertainty-*.json` in the same per-vault directory. Each array entry contains only `path`, `anchor`, and `time`; no body, chosen sentence, content identity, or source version is saved | The platform's configuration directory, never the vault | Until the reader toggles that location off or deletes the file; no expiry or automatic recovery. A crash can strand a temporary file containing the same location records | The same OS account; the local reading client receives them from `GET /questions`; `yomihon marks` writes the ones outside withheld ground to its caller |
+| `slog` records: address, vault root, contract state, scan and render failures; the marks directory's absolute path when reading or writing a file in it fails, and the note path the caller submitted when a bookmark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
+| The reader's marks — `marks.json` and its adjacent `.marks-*.json`, under `os.UserConfigDir()`/`yomihon`/one directory per vault, holding that vault's absolute path and, for each mark, a random id, its kind, a note path, an anchor id, and when it was made. The file has room for more, and a mark that carries it holds the words the reader chose with a little of what stood on either side, the content identity of the note's bytes, a reason, a resolution time, or the words they wrote. This version writes only questions about a whole section, which carry none of that | The platform's configuration directory, never the vault | Until the reader toggles the mark off or deletes the file; no expiry or automatic recovery. A crash can strand a temporary file containing the same records, and nothing removes it | The same OS account; the local reading client receives the questions' path, anchor and time from `GET /questions`; `yomihon marks` writes the ones outside withheld ground to its caller |
+| The reader's bookmarks — `progress.json` and its adjacent `.progress-*.json` in the same per-vault directory, holding that vault's absolute path and the bookmarks: for each, the course it belongs to (empty for reading outside any course), a note path, an anchor id, a distance below it, the content identity of the bytes that were on screen, and when it was set. This version keeps one, for no course | The platform's configuration directory, never the vault | Until the reader keeps another place or deletes the file; yomihon never expires one. A crash can strand a temporary file holding that same content, and nothing removes it | The same OS account |
+| The files an earlier version wrote — `reader.json` (one bookmark) and `uncertainty.json` (questions: `path`, `anchor`, `time`), in the same per-vault directory | The platform's configuration directory, never the vault | Read when `progress.json` or `marks.json` is not there yet, so that what a reader kept is converted rather than lost; never written, renamed or removed by yomihon. A reader who deletes them has deleted them | The same OS account. `yomihon marks` reads `uncertainty.json` read-only when `marks.json` is not there |
 | The figure approvals — `figures.json` and its adjacent `.figures-*.json` in the same per-vault directory. Each entry is a figure's vault path, the SHA-256 of the bytes approved, and when; the file also names the vault's absolute path. No figure content is copied | The platform's configuration directory, never the vault | Until `yomihon revoke-figure` removes an entry or the file is deleted; an approval stops applying, without being removed, the moment the figure's bytes change | The same OS account. The reading server reads it on each page and each frame request and never writes it; `approve-figure` and `revoke-figure` write it, owner-only, by sibling-file rename. `check`, `coverage` and `exists` never read it |
 | A proposed thought note's frontmatter and `based_on` link | The response's read-only text field; the OS clipboard when the reader copies it; the `obsidian://new` URI when the reader chooses that handoff | The page lifetime; clipboard and external-editor policies own their copies | The local browser, clipboard, and selected editor |
 
@@ -32,14 +33,15 @@ About those rows:
 - **An unreadable approvals file approves nothing.** A missing file is no
   approval; one that cannot be read or carries an unknown shape is reported,
   every figure is served without script, and no later approval replaces it.
-- **The two reader-state files stay outside the vault.** Their directory name
+- **The reader-state files stay outside the vault.** Their directory name
   is a digest of the resolved absolute vault root, so two vaults keep separate
-  files and the directory name spells no path. `reader.json`, when present,
-  also names the vault's absolute path; `uncertainty.json` contains only its
-  three-field entries. Nothing syncs or expires these marks. No command-line
-  face reads `reader.json`. One reads `uncertainty.json`: `yomihon marks`
-  opens it read-only and never writes it or the vault; `check`, `coverage`
-  and `exists` read neither file. Deleting one file clears that kind of mark;
+  files and the directory name spells no path. `marks.json` and
+  `progress.json` each name the vault's absolute path. Nothing syncs or
+  expires these marks. No command-line face reads `progress.json`. One reads
+  `marks.json`: `yomihon marks` opens it read-only and never writes it or the
+  vault; `check`, `coverage` and `exists` read none of the files. Every read
+  of these files has a size cap, and a file longer than its cap is treated as
+  one that cannot be read. Deleting one file clears that kind of mark;
   deleting the per-vault directory clears both.
 - **`yomihon marks` hands the reader's marks to whoever runs it.** It lists
   each marked location — the note's path, the anchor and the words of the
@@ -89,9 +91,9 @@ About those rows:
   saved location unavailable or pointing at different content. There is no
   source identity, relocation, sentence reconstruction, backup, or lossless
   recovery. Deletion or a machine failure can lose the marks. An unreadable or
-  malformed `uncertainty.json` produces a visible failure and is not replaced
-  by the next toggle. The independent file also survives older versions
-  replacing `reader.json`.
+  malformed `marks.json`, or an earlier file that cannot be converted, produces
+  a visible failure and is not replaced by the next toggle. The two files are
+  independent, so damage to one does not cost the other.
 - **Nothing is request-logged.** Note bodies and raw search queries never reach
   a log. A failed query records its byte count and filter keys.
 - **A local reader may see any vault file, private paths included**, because
