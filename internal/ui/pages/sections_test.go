@@ -1,10 +1,13 @@
 package pages
 
 import (
+	"bytes"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"golang.org/x/net/html"
 
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -37,7 +40,32 @@ func probePlan(lang wording.Lang) *SectionPlan {
 	}
 }
 
-var closesBehindAHeading = regexp.MustCompile(`(</h[1-6][^>]*>)</div>`)
+// withoutClosesBehindHeadings takes out the </div> the plan adds behind a
+// heading's closing tag. It reads tags the way InjectSections does, because a
+// closing tag may carry an attribute holding a ">" that a pattern would stop at.
+func withoutClosesBehindHeadings(markup string) string {
+	tokens := html.NewTokenizer(strings.NewReader(markup))
+	var out strings.Builder
+	behindHeading := false
+	for {
+		kind := tokens.Next()
+		raw := bytes.Clone(tokens.Raw())
+		if kind == html.ErrorToken {
+			out.Write(raw)
+			return out.String()
+		}
+		if behindHeading && kind == html.EndTagToken && string(raw) == "</div>" {
+			behindHeading = false
+			continue
+		}
+		behindHeading = false
+		if kind == html.EndTagToken {
+			name, _ := tokens.TagName()
+			behindHeading = isHeadingTag(string(name))
+		}
+		out.Write(raw)
+	}
+}
 
 func inject(t *testing.T, body string, plan *SectionPlan) string {
 	t.Helper()
@@ -330,7 +358,7 @@ func FuzzInjectSections(f *testing.F) {
 			got = drawn.ReplaceAllString(got, "")
 		}
 		// Each wrapper that opened closes behind its heading: the close the plan adds.
-		got = closesBehindAHeading.ReplaceAllString(got, "$1")
+		got = withoutClosesBehindHeadings(got)
 		if got != body {
 			// A body that already held the plan's own words is not the plan's to undo.
 			if strings.Contains(body, "y-sect") || strings.Contains(body, "y-margin") || strings.Contains(body, "y-predict") || strings.Contains(body, "</div>") {

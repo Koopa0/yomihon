@@ -98,22 +98,47 @@ func (r *Pipeline) resolveOwnFragment(link *ast.Link, written string, col *colle
 	r.placeFragment(link, col.relPath, "", href, "", written[1:], col)
 }
 
+// markdownAddress reads the fragment of a Markdown link as the place it names
+// in a note: a section, or a block when it opens with "^". ok is false for a
+// fragment that names none, which is empty or "top", the top of the page.
+func markdownAddress(fragment string) (address graph.Wikilink, ok bool) {
+	if fragment == "" || strings.EqualFold(fragment, "top") {
+		return address, false
+	}
+	if decoded, err := url.PathUnescape(fragment); err == nil {
+		fragment = decoded
+	}
+	address.Heading, address.Block = graph.ParseFragment(fragment)
+	return address, address.Heading != "" || address.Block != ""
+}
+
+// FragmentGap is what a Markdown link's fragment fails to find in the note at
+// relPath, which is the finding the reading page reports for it, or nil when
+// it lands. The page and the check ask the one lookup, so the check cannot say
+// a link is missing that the page follows.
+func (r *Pipeline) FragmentGap(relPath, fragment string) *Diagnostic {
+	address, ok := markdownAddress(fragment)
+	if !ok {
+		return nil
+	}
+	address.Target = relPath
+	col := &collector{page: &composition{lang: wording.En}, relPath: relPath}
+	if _, miss := r.sectionHref(relPath, address, col); miss == fragmentPlaced || len(col.diags) == 0 {
+		return nil
+	}
+	return &col.diags[0]
+}
+
 // placeFragment points a Markdown link's fragment at the id the destination
 // stamps, by the lookup a wikilink's fragment takes, so an address written as a
 // heading's words, or the way GitHub spells it, lands. One that reaches nothing
 // keeps the address as written and shows why, as a wikilink does.
 func (r *Pipeline) placeFragment(link *ast.Link, relPath, target, href, query, fragment string, col *collector) {
-	if fragment == "" || strings.EqualFold(fragment, "top") {
+	address, ok := markdownAddress(fragment)
+	if !ok {
 		return
 	}
-	if decoded, err := url.PathUnescape(fragment); err == nil {
-		fragment = decoded
-	}
-	address := graph.Wikilink{Target: target}
-	address.Heading, address.Block = graph.ParseFragment(fragment)
-	if address.Heading == "" && address.Block == "" {
-		return
-	}
+	address.Target = target
 	placed, miss := r.sectionHref(relPath, address, col)
 	switch miss {
 	case fragmentPlaced:

@@ -1,0 +1,2 @@
+go test fuzz v1
+string("<h3 id=\"first\"dAtA-level=\"1\"></h3 00=\">\">")

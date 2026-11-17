@@ -50,6 +50,7 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 
 	findings := runGraphRules(a, idx)
 	findings = append(findings, checkDiskRefs(a.notes, a.scan, a.authority)...)
+	findings = append(findings, markdownFragmentFindings(a.notes, a.unreadable, idx, a.scan, a.authority)...)
 	findings = append(findings, checkImages(a.notes, a.scan, a.authority)...)
 	findings = append(findings, checkUnusedDefinitions(a.notes, a.authority)...)
 	findings = append(findings, checkSchema(a.notes, a.authority.contract)...)
