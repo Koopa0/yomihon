@@ -194,6 +194,24 @@ var blockAddressBodies = []struct {
 		addressed: false,
 	},
 	{
+		// A heading whose whole text is the token has nothing to address: the
+		// token is its words, on every face.
+		name:      "a heading of only the token",
+		body:      "para\n\n## ^probe\n",
+		addressed: false,
+	},
+	{
+		name:      "a heading with words before the token",
+		body:      "para\n\n## Words ^probe\n",
+		addressed: true,
+	},
+	{
+		// On a line of its own the token addresses the block above it.
+		name:      "a paragraph of only the token",
+		body:      "para\n\n^probe\n",
+		addressed: true,
+	},
+	{
 		name:      "a leading H1 repeating the title, above an ordinary address",
 		title:     "Target",
 		body:      "# Target\n\nan ordinary paragraph ^probe\n",

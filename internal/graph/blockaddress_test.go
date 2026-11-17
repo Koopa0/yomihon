@@ -15,6 +15,11 @@ func TestBlockAddressExtractsOnlySupportedAuthoredTokens(t *testing.T) {
 		{name: "trailing spaces and tabs", line: "Para ^abc-1 \t", want: "^abc-1"},
 		{name: "last token", line: "Para ^first ^last", want: "^last"},
 		{name: "Unicode prefix", line: "\u5168 ^abc-1", want: "^abc-1"},
+		{name: "heading with words", line: "# Title ^abc", want: "^abc"},
+		{name: "heading of only the token", line: "# ^0"},
+		{name: "deep heading of only the token", line: "###### ^abc"},
+		{name: "quoted heading of only the token", line: "> # ^abc"},
+		{name: "hashes glued to the token", line: "#^abc", want: ""},
 		{name: "empty line"},
 		{name: "spaces only", line: " \t"},
 		{name: "no caret", line: "Para abc-1"},
@@ -61,4 +66,23 @@ func FuzzBlockAddress(f *testing.F) {
 	f.Fuzz(func(_ *testing.T, line string) {
 		BlockAddress(line)
 	})
+}
+
+func TestAHeadingOfOnlyTheTokenKeepsItAsItsWords(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct{ name, text, want string }{
+		{name: "words then token", text: "Title ^abc", want: "Title"},
+		{name: "only the token", text: "^0", want: "^0"},
+		{name: "token with spaces around", text: "  ^0 ", want: "  ^0 "},
+		{name: "two lines, words on one", text: "Title\n^abc", want: "Title\n"},
+		{name: "two lines, only tokens", text: "^a\n^b", want: "^a\n^b"},
+	} {
+		if got := WithoutBlockAddresses(tt.text); got != tt.want {
+			t.Errorf("%s: WithoutBlockAddresses(%q) = %q, want %q", tt.name, tt.text, got, tt.want)
+		}
+	}
+	if got := PlainHeadingWords("^0"); got != "^0" {
+		t.Errorf("PlainHeadingWords(%q) = %q, want the token", "^0", got)
+	}
 }
