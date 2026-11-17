@@ -39,11 +39,12 @@ import "embed"
 //
 //   - css/reset.css, css/fonts.css, css/tokens.css, css/components.css — the
 //     hand-written stylesheets: the vendored reset, the self-hosted
-//     @font-face rules, the design tokens, and the product's components.
+//     @font-face rules, the design tokens, and the product's components;
+//     css/art.css is the generated one, after them.
 //     internal/asset joins them in that order, once, into the one
 //     stylesheet it serves at /static/app.css, rewriting registered static
-//     references to their byte-versioned URLs before hashing; nothing generates or
-//     minifies it, so `go build ./...` needs no prior css step.
+//     references to their byte-versioned URLs before hashing; no build step
+//     generates or minifies it, so `go build ./...` needs no prior css step.
 //
 //   - brand/yomihon-mark.svg — the canonical, hand-authored brand mark, which
 //     the header and the README draw. brand/yomihon-mark-on-paper.svg is the
@@ -52,9 +53,16 @@ import "embed"
 //     colour scheme. Its mark paths are the canonical ones, byte for byte, and
 //     a test holds them to that; nothing else is drawn twice.
 //
+//   - icons/ and art/ — the design team's delivered pictograms, stills, end
+//     ornament and endpaper tiles, each cut and reduced to a black mask whose
+//     alpha is the ink. .github/art-import/main.go makes them from sources
+//     that are not in version control, and css/art.css, which it also makes,
+//     names each one for a page to ask for. A checksum list in each directory
+//     holds what is committed.
+//
 //   - fonts/ — the self-hosted woff2 (Geist, Geist Mono, Newsreader),
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
 //     request ever leaves the machine.
 //
-//go:embed js/yomihon.js js/codecopy.js js/preferences.js js/drawer.js js/rail.js js/sidebar.js js/rail-filter.js js/contents.js js/freshness.js js/langform.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/list.js js/mark.js js/preview.js js/thought.js js/question.js js/mermaid css/reset.css css/fonts.css css/tokens.css css/components.css fonts brand/yomihon-mark.svg brand/yomihon-mark-on-paper.svg
+//go:embed js/yomihon.js js/codecopy.js js/preferences.js js/drawer.js js/rail.js js/sidebar.js js/rail-filter.js js/contents.js js/freshness.js js/langform.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/list.js js/mark.js js/preview.js js/thought.js js/question.js js/mermaid css/reset.css css/fonts.css css/tokens.css css/components.css css/art.css fonts icons art brand/yomihon-mark.svg brand/yomihon-mark-on-paper.svg
 var Files embed.FS

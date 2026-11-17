@@ -134,8 +134,13 @@ func TestBaseAndStylesheetUseCompleteServedByteAddresses(t *testing.T) {
 	cssURLs := regexp.MustCompile(`url\(['"]?(/static/[^)'"\s]+)['"]?\)`).FindAllStringSubmatch(css, -1)
 	fontPaths := make(map[string]int)
 	fontAddresses := make(map[string]string)
+	picturePaths := make(map[string]int)
 	for _, match := range cssURLs {
 		path := check(match[1])
+		if strings.HasPrefix(path, "/static/icons/") || strings.HasPrefix(path, "/static/art/") {
+			picturePaths[path]++
+			continue
+		}
 		fontPaths[path]++
 		fontAddresses[path] = match[1]
 	}
@@ -154,6 +159,25 @@ func TestBaseAndStylesheetUseCompleteServedByteAddresses(t *testing.T) {
 	}
 	if diff := cmp.Diff(wantFonts, fontPaths); diff != "" {
 		t.Errorf("served CSS complete font set (-want +got):\n%s", diff)
+	}
+	// Each picture is named once by the stylesheet, at the address of its bytes.
+	wantPictures := make(map[string]int)
+	for _, dir := range []string{"icons", "art"} {
+		pictures, readErr := projectassets.Files.ReadDir(dir)
+		if readErr != nil {
+			t.Fatalf("read embedded %s: %v", dir, readErr)
+		}
+		for _, file := range pictures {
+			if strings.HasSuffix(file.Name(), ".png") {
+				wantPictures["/static/"+dir+"/"+file.Name()] = 1
+			}
+		}
+	}
+	if len(wantPictures) != 62 {
+		t.Fatalf("embedded picture set = %d, want 62", len(wantPictures))
+	}
+	if diff := cmp.Diff(wantPictures, picturePaths); diff != "" {
+		t.Errorf("served CSS complete picture set (-want +got):\n%s", diff)
 	}
 	// Normal basic-Latin faces are first-paint fonts; italic and extended
 	// subsets are demand-loaded. Derive the set from the actual declarations.

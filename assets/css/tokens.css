@@ -328,6 +328,16 @@
   --dur-slow: 200ms;
   --dur-dwell: 1100ms;
   --dur-hover-wait: 300ms;
+
+  /* The pictures (system.md §10, §11). An icon is drawn at the size its place
+     names, 16, 20 or 24, and takes the ink of the place; --icon-size is the
+     one a place did not name. A still is 8:5 and --still-w wide. The endpaper
+     is the one tone the design gives a course page's top band, and --endpaper-h
+     the band's height. */
+  --icon-size: 20px;
+  --still-w: 240px;
+  --endpaper: light-dark(#e8e5dd, #2a2925);
+  --endpaper-h: var(--sp-9);
 }
 
 /* The optional white paper. It restates only the light value of each paper
@@ -340,6 +350,7 @@
   --overlay: light-dark(#ebe9e4, #34322c);
   --code-ground: light-dark(#f4f3ef, #23221e);
   --mat: light-dark(#f1efea, #2b2a25);
+  --endpaper: light-dark(#f0efef, #2a2925);
 }
 
 /* The two ways into dark. Each sets the scheme and nothing else; the tokens
@@ -400,6 +411,11 @@
   :root {
     --fs-ed-30: 1.625rem;
     --fs-ed-36: 1.875rem;
+
+    /* The picture tokens a phone changes: the same names at other values, not
+       a second name for the phone (system.md §12). */
+    --endpaper-h: var(--sp-7);
+    --still-w: 160px;
   }
 
   :root[data-textsize='l'] {

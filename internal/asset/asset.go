@@ -44,6 +44,7 @@ const (
 	cssContentType   = "text/css; charset=utf-8"
 	svgContentType   = "image/svg+xml"
 	woff2ContentType = "font/woff2"
+	pngContentType   = "image/png"
 )
 
 // entry is one servable asset: its Content-Type, its bytes, and the validator
@@ -84,6 +85,7 @@ var stylesheetParts = []string{
 	"css/fonts.css",
 	"css/tokens.css",
 	"css/components.css",
+	"css/art.css",
 }
 
 // registry is yomihon's entire static-asset name space, built once at
@@ -125,7 +127,9 @@ func buildRegistry() map[string]entry {
 	embedFile(reg, "yomihon-mark.svg", "brand/yomihon-mark.svg", svgContentType)
 	embedFile(reg, "yomihon-mark-on-paper.svg", "brand/yomihon-mark-on-paper.svg", svgContentType)
 	embedTree(reg, "js/mermaid")
-	embedFonts(reg, "fonts")
+	embedFiles(reg, "fonts", ".woff2", woff2ContentType)
+	embedFiles(reg, "icons", ".png", pngContentType)
+	embedFiles(reg, "art", ".png", pngContentType)
 	embedStylesheet(reg, "app.css", stylesheetParts)
 	return reg
 }
@@ -179,25 +183,36 @@ func rewriteStaticURLs(reg map[string]entry, source []byte) []byte {
 	})
 }
 
-// embedFonts registers every .woff2 under dir (self-hosted, vendored under
-// assets/fonts/), keyed by its full embedded path — so assets/fonts/Geist-
-// Variable.woff2 becomes the URL-facing name "fonts/Geist-Variable.woff2",
-// exactly the path fonts.css's @font-face src references at /static/fonts/….
-// Only .woff2 is registered; any LICENSE/README dropped beside the fonts is
-// deliberately not servable, the same closed-set discipline as embedTree.
-func embedFonts(reg map[string]entry, dir string) {
+// HasPicture reports whether the closed set holds the picture called name in
+// dir, "icons" or "art" — the file without its .png. A page asks for a picture
+// by name and art.css draws it, so a name that is not here would leave a blank
+// where the page meant a picture.
+func HasPicture(dir, name string) bool {
+	e, ok := registry[dir+"/"+name+".png"]
+	return ok && e.contentType == pngContentType
+}
+
+// embedFiles registers every file under dir with the extension ext, keyed by
+// its full embedded path — so assets/fonts/Geist-Variable.woff2 becomes the
+// URL-facing name "fonts/Geist-Variable.woff2", exactly the path fonts.css's
+// @font-face src references at /static/fonts/…, and assets/icons/mark.png
+// becomes "icons/mark.png", the path the generated art.css references.
+// Only that extension is registered; any LICENSE, README or checksum list
+// dropped beside the files is deliberately not servable, the same closed-set
+// discipline as embedTree.
+func embedFiles(reg map[string]entry, dir, ext, contentType string) {
 	err := fs.WalkDir(assets.Files, dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !strings.HasSuffix(p, ".woff2") {
+		if d.IsDir() || !strings.HasSuffix(p, ext) {
 			return nil
 		}
 		b, rerr := assets.Files.ReadFile(p)
 		if rerr != nil {
 			return rerr
 		}
-		reg[p] = fixed(woff2ContentType, b)
+		reg[p] = fixed(contentType, b)
 		return nil
 	})
 	if err != nil {
