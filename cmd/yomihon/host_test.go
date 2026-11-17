@@ -375,6 +375,23 @@ func TestTheStartingPortSendsABrowserToAVaultListedOnAnotherPort(t *testing.T) {
 	if resp.StatusCode != http.StatusTemporaryRedirect || resp.Header.Get("Location") != addressOf(pre.Port) {
 		t.Errorf("the starting port answered %d to %q, want a redirect to %s", resp.StatusCode, resp.Header.Get("Location"), addressOf(pre.Port))
 	}
+	// It stands behind the host-name check the vaults do, so it names a vault only
+	// to a request for this machine.
+	foreign, err := http.NewRequestWithContext(t.Context(), http.MethodGet, addressOf(start), http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign.Host = "evil.example"
+	resp, err = client.Do(foreign)
+	if err != nil {
+		t.Fatalf("GET the starting port as another host: %v", err)
+	}
+	if err = resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Header.Get("Location") != "" {
+		t.Errorf("a request for another host name was sent to %q", resp.Header.Get("Location"))
+	}
 	eventually(t, "the vault to be read", func() bool {
 		status, body, _ := httpGet(t, addressOf(pre.Port), "/")
 		return status == http.StatusOK && !strings.Contains(body, "data-scanning")

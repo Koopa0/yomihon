@@ -815,6 +815,16 @@ func wipe(name string) error { return store.Remove(name) }`,
 		excused: 1,
 	},
 	{
+		name: "another function of that file that takes the store too",
+		path: "cmd/yomihon/vaults.go",
+		src: `package main
+import "github.com/koopa0/yomihon/internal/mark/vaults"
+func takeOutOfList(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }
+func wipe(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }`,
+		want:    []string{"a call to Remove, which changes what it is called on"},
+		excused: 1,
+	},
+	{
 		name: "the same call in another file",
 		path: "cmd/yomihon/host.go",
 		src: `package main
