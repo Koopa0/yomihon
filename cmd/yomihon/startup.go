@@ -16,9 +16,11 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// scanGrace is how long a request waits for the first read to finish before it
-// is answered with the page that says the vault is being read. A small vault is
-// read well inside it, and its reader never sees that page flash by.
+// scanGrace is how long the first read may run before a page is answered with
+// the one that says the vault is being read. A small vault is read well inside
+// it, and its reader never sees that page flash by. It counts from the start of
+// the read, not from the request, so a reader who arrives late in a long read
+// is shown the page at once rather than after a further wait.
 const scanGrace = 400 * time.Millisecond
 
 // scanAddress is the route that reports how far the first read has got. It
@@ -34,6 +36,7 @@ type startup struct {
 	reading  http.Handler
 	progress fileCount
 	grace    time.Duration
+	began    time.Time
 	log      *slog.Logger
 
 	site     atomic.Pointer[readingSite]
@@ -49,7 +52,7 @@ type fileCount interface {
 }
 
 func newStartup(vaultName, vaultPath string, progress fileCount, grace time.Duration, log *slog.Logger) *startup {
-	s := &startup{progress: progress, grace: grace, log: log, ready: make(chan struct{})}
+	s := &startup{progress: progress, grace: grace, began: time.Now(), log: log, ready: make(chan struct{})}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+scanAddress, s.state)
 	asset.Register(mux)
@@ -80,7 +83,7 @@ func (s *startup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if holds(r) {
-		wait := time.NewTimer(s.grace)
+		wait := time.NewTimer(max(s.grace-time.Since(s.began), 0))
 		defer wait.Stop()
 		select {
 		case <-s.ready:
@@ -113,7 +116,9 @@ func (s *startup) page(w http.ResponseWriter, r *http.Request, vaultName, vaultP
 	w.Header().Set("Retry-After", "1")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusServiceUnavailable)
-	if err := pages.Scanning(view, layouts.ChromeFromRequest(r, vaultName)).Render(r.Context(), w); err != nil {
+	chrome := layouts.ChromeFromRequest(r, vaultName)
+	chrome.TitleAlone = true
+	if err := pages.Scanning(view, chrome).Render(r.Context(), w); err != nil {
 		s.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write reading page", "error", err)
 	}
 }

@@ -22,6 +22,29 @@ func TestBaseDeclaresTraditionalChineseDocumentLanguage(t *testing.T) {
 	}
 }
 
+func TestBaseTitlesThePageWithTheProductNameUnlessTheTitleStandsAlone(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		chrome Chrome
+		want   string
+	}{
+		{"a page", Chrome{Title: "Notes & more"}, "<title>Notes &amp; more — yomihon</title>"},
+		{"a title that stands alone", Chrome{Title: "Notes & more", TitleAlone: true}, "<title>Notes &amp; more</title>"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var buf bytes.Buffer
+			if err := Base(tc.chrome).Render(t.Context(), &buf); err != nil {
+				t.Fatalf("render base: %v", err)
+			}
+			if !strings.Contains(buf.String(), tc.want) {
+				t.Errorf("document does not carry %q", tc.want)
+			}
+		})
+	}
+}
+
 func TestBaseStartsBodyWithSkipLink(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer

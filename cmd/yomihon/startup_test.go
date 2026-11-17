@@ -216,6 +216,9 @@ func TestStartupAnswersWhileTheVaultIsBeingRead(t *testing.T) {
 		if strings.Contains(body, "data-nothing=\"empty\"") {
 			t.Error("the page reads as an empty vault")
 		}
+		if !strings.Contains(body, "<title>notes</title>") {
+			t.Error("the document title is not the vault's name alone")
+		}
 	})
 
 	t.Run("no count before the folder is walked", func(t *testing.T) {
@@ -354,6 +357,21 @@ func TestStartupWaitsBeforeShowingThePage(t *testing.T) {
 		front.ServeHTTP(recorder, siteRequest(t, http.MethodGet, "/", http.NoBody))
 		if recorder.Code != http.StatusServiceUnavailable {
 			t.Errorf("GET / = %d, want %d", recorder.Code, http.StatusServiceUnavailable)
+		}
+	})
+
+	t.Run("a reader who comes after the grace is not kept waiting", func(t *testing.T) {
+		t.Parallel()
+		front := newTestStartup(t, fakeCount{}, time.Minute)
+		front.began = time.Now().Add(-2 * time.Minute)
+		recorder := httptest.NewRecorder()
+		asked := time.Now()
+		front.ServeHTTP(recorder, siteRequest(t, http.MethodGet, "/", http.NoBody))
+		if recorder.Code != http.StatusServiceUnavailable {
+			t.Errorf("GET / = %d, want %d", recorder.Code, http.StatusServiceUnavailable)
+		}
+		if waited := time.Since(asked); waited > 10*time.Second {
+			t.Errorf("the request waited %v, but the read had already run past the grace", waited)
 		}
 	})
 }
