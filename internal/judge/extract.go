@@ -428,28 +428,14 @@ func walkNodes(doc ast.Node, visit func(ast.Node)) {
 	})
 }
 
-// rawWikilinks scans body for [[...]] pairs, returning the byte offset of each
-// opening bracket and its inner text. Inner text that spans a newline is
-// dropped: a wikilink is single-line.
+// rawWikilinks lists the wikilinks of body with the byte offset of each
+// opening bracket and its inner text, by the scan the reading page uses, so the
+// two cannot disagree about what is a link.
 func rawWikilinks(body string) []rawLink {
-	var out []rawLink
-	i := 0
-	for {
-		rel := strings.Index(body[i:], "[[")
-		if rel < 0 {
-			break
-		}
-		open := i + rel
-		after := open + 2
-		relEnd := strings.Index(body[after:], "]]")
-		if relEnd < 0 {
-			break
-		}
-		inner := body[after : after+relEnd]
-		if !strings.Contains(inner, "\n") {
-			out = append(out, rawLink{offset: open, inner: inner})
-		}
-		i = after + relEnd + 2
+	tokens := graph.WikilinkTokens(body)
+	out := make([]rawLink, len(tokens))
+	for i, token := range tokens {
+		out[i] = rawLink{offset: token.Open(), inner: token.Inner}
 	}
 	return out
 }

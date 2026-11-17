@@ -54,14 +54,13 @@ func HeadingWords(raw string) string {
 	source := withoutInlineFootnotes(raw)
 	var displayed, parseable strings.Builder
 	last := 0
-	for _, at := range wikilinkToken.FindAllStringIndex(source, -1) {
-		displayed.WriteString(source[last:at[0]])
-		parseable.WriteString(source[last:at[0]])
-		inner := strings.TrimPrefix(source[at[0]:at[1]], "!")
-		_, display, _ := graph.SplitWikilink(inner[2 : len(inner)-2])
+	for _, token := range graph.WikilinkTokens(source) {
+		displayed.WriteString(source[last:token.Start])
+		parseable.WriteString(source[last:token.Start])
+		_, display, _ := graph.SplitWikilink(token.Inner)
 		displayed.WriteString(display)
 		parseable.WriteString(strings.Repeat("x", len(display)))
-		last = at[1]
+		last = token.End
 	}
 	displayed.WriteString(source[last:])
 	parseable.WriteString(source[last:])

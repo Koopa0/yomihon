@@ -1030,6 +1030,11 @@ func TestAnEscapedWikilinkIsNotALink(t *testing.T) {
 			wantEntries: []string{""},
 		},
 		{
+			name:        "an array of numbers is not a second link",
+			body:        "## Part {sequence=primary}\n\n- [[A]] 的表 [[1,2],[1,100]]\n",
+			wantEntries: []string{"A"},
+		},
+		{
 			name:        "an escaped first link leaves the row naming nothing",
 			body:        "## Part {sequence=primary}\n\n- \\[[A]] 只是文字\n",
 			wantFinding: false,

@@ -2,6 +2,8 @@ package render
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/yuin/goldmark/ast"
 
@@ -20,6 +22,9 @@ const markdownUnlinkedAttr = "yomihonMarkdownUnlinked"
 type markdownFault struct {
 	reason string
 	class  string
+	// href is set when the file was found and only its fragment was not: the
+	// link stays an anchor, because it still leads somewhere real.
+	href string
 }
 
 // resolveMarkdownLinks handles parsed Markdown links, never generated links or
@@ -32,6 +37,10 @@ func (r *Pipeline) resolveMarkdownLinks(doc ast.Node, owner string, col *collect
 			return ast.WalkContinue, nil
 		}
 		written := string(link.Destination)
+		if strings.HasPrefix(written, "#") {
+			r.resolveOwnFragment(link, written, col)
+			return ast.WalkContinue, nil
+		}
 		result := graph.ResolveMarkdown(owner, written, func(p string) bool { return !r.files.OutsideScan(p) }, func(p string) bool { return !r.files.MissingFile(p) })
 		if result.Withheld {
 			link.SetAttributeString(markdownUnlinkedAttr, true)
@@ -41,14 +50,7 @@ func (r *Pipeline) resolveMarkdownLinks(doc ast.Node, owner string, col *collect
 			return ast.WalkContinue, nil
 		}
 		if result.Kind == graph.KindUnique {
-			href := rawHref(result.RelPath)
-			switch {
-			case r.files.IsDirectory(result.RelPath):
-				href = foldersHref(result.RelPath)
-			case vault.IsMarkdown(result.RelPath):
-				href = notesHref(result.RelPath)
-			}
-			link.Destination = []byte(href + result.Suffix)
+			r.placeFile(link, &result, col)
 			return ast.WalkContinue, nil
 		}
 		if !result.Checkable {
@@ -64,4 +66,65 @@ func (r *Pipeline) resolveMarkdownLinks(doc ast.Node, owner string, col *collect
 		link.SetAttributeString(markdownFaultAttr, markdownFault{reason: reason, class: "wikilink-broken"})
 		return ast.WalkContinue, nil
 	})
+}
+
+// placeFile points a link at the route that serves the file it names, and a
+// note's fragment at the heading it names.
+func (r *Pipeline) placeFile(link *ast.Link, result *graph.MarkdownResolution, col *collector) {
+	href := rawHref(result.RelPath)
+	switch {
+	case r.files.IsDirectory(result.RelPath):
+		href = foldersHref(result.RelPath)
+	case vault.IsMarkdown(result.RelPath):
+		href = notesHref(result.RelPath)
+	}
+	link.Destination = []byte(href + result.Suffix)
+	if vault.IsMarkdown(result.RelPath) && !r.files.IsDirectory(result.RelPath) {
+		query, fragment, _ := strings.Cut(result.Suffix, "#")
+		r.placeFragment(link, result.RelPath, result.RelPath, href, query, fragment, col)
+	}
+}
+
+// resolveOwnFragment places a link whose address is only a fragment, which names
+// a place in the note the link is written in.
+func (r *Pipeline) resolveOwnFragment(link *ast.Link, written string, col *collector) {
+	if !vault.IsMarkdown(col.relPath) {
+		return
+	}
+	href := ""
+	if !col.onPage {
+		href = notesHref(col.relPath)
+	}
+	r.placeFragment(link, col.relPath, "", href, "", written[1:], col)
+}
+
+// placeFragment points a Markdown link's fragment at the id the destination
+// stamps, by the lookup a wikilink's fragment takes, so an address written as a
+// heading's words, or the way GitHub spells it, lands. One that reaches nothing
+// keeps the address as written and shows why, as a wikilink does.
+func (r *Pipeline) placeFragment(link *ast.Link, relPath, target, href, query, fragment string, col *collector) {
+	if fragment == "" || strings.EqualFold(fragment, "top") {
+		return
+	}
+	if decoded, err := url.PathUnescape(fragment); err == nil {
+		fragment = decoded
+	}
+	address := graph.Wikilink{Target: target}
+	address.Heading, address.Block = graph.ParseFragment(fragment)
+	if address.Heading == "" && address.Block == "" {
+		return
+	}
+	placed, miss := r.sectionHref(relPath, address, col)
+	switch miss {
+	case fragmentPlaced:
+		if _, id, found := strings.Cut(placed, "#"); found {
+			link.Destination = []byte(href + query + "#" + id)
+		}
+	case fragmentSectionMissing, fragmentBlockMissing:
+		reason := wording.BlockNotFound.In(col.page.lang)
+		if miss == fragmentSectionMissing {
+			reason = fmt.Sprintf(wording.SectionNotFoundFmt.In(col.page.lang), address.Heading)
+		}
+		link.SetAttributeString(markdownFaultAttr, markdownFault{reason: reason, class: "wikilink wikilink-degraded", href: string(link.Destination)})
+	}
 }

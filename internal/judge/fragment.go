@@ -218,7 +218,7 @@ func fragmentFindings(notes []note, unreadable []unreadableEntry, idx *graph.Ind
 				}
 				continue
 			}
-			if f, reported := fragmentFinding(n, link, idx, byPath, unread); reported {
+			if f, reported := fragmentFinding(n, link, idx, byPath, unread, &paths); reported {
 				out = append(out, f)
 			}
 		}
@@ -233,13 +233,15 @@ func fragmentFindings(notes []note, unreadable []unreadableEntry, idx *graph.Ind
 // a block by the one scan that stamps block anchors. A section is answered
 // two ways: a transclusion's by the excerpt scan alone, since that is all the
 // page cuts with, and a link's by the wider reading the page gives an address
-// it only has to land somewhere on.
+// it only has to land somewhere on, then the GitHub spelling of an anchor,
+// asked of the page's own outline so the two cannot count a repeat differently.
 func fragmentFinding(
 	n *note,
 	link *wikiLink,
 	idx *graph.Index,
 	byPath map[string]*note,
 	unread map[string]bool,
+	paths *fragmentPaths,
 ) (Finding, bool) {
 	if link.heading == "" && link.block == "" {
 		return Finding{}, false
@@ -266,6 +268,9 @@ func fragmentFinding(
 		return sectionMissing(n, link, res.RelPath), true
 	}
 	if target.sectionAnchors[want] || transclusionMayBringSection(target, idx, byPath, unread, want) {
+		return Finding{}, false
+	}
+	if paths.githubHeading(res.RelPath, link.heading) {
 		return Finding{}, false
 	}
 	return sectionMissing(n, link, res.RelPath), true

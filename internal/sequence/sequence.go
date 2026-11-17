@@ -1153,27 +1153,12 @@ func (p *parser) linksIn(rng Span) []linkHit {
 	}
 	var out []linkHit
 	segment := p.body[rng.Start:rng.Stop]
-	for i := 0; ; {
-		rel := strings.Index(segment[i:], "[[")
-		if rel < 0 {
-			break
-		}
-		open := i + rel
-		relEnd := strings.Index(segment[open+2:], "]]")
-		if relEnd < 0 {
-			break
-		}
-		inner := segment[open+2 : open+2+relEnd]
-		next := open + 2 + relEnd + 2
-		i = next
-		if strings.Contains(inner, "\n") {
-			continue
-		}
-		absolute := rng.Start + open
+	for _, token := range graph.WikilinkTokens(segment) {
+		absolute := rng.Start + token.Open()
 		if graph.In(p.zones, absolute) {
 			continue
 		}
-		if open > 0 && segment[open-1] == '!' {
+		if token.Embed {
 			continue // an embed shows the note; it does not list it
 		}
 		if graph.EscapedWikilinkAt(p.body, absolute) {
@@ -1181,11 +1166,11 @@ func (p *parser) linksIn(rng Span) []linkHit {
 			// this vault has to agree that they are text rather than a link.
 			continue
 		}
-		link, ok := graph.ParseWikilink(inner)
+		link, ok := graph.ParseWikilink(token.Inner)
 		if !ok {
 			continue
 		}
-		out = append(out, linkHit{target: link.Target, display: link.Display, aliased: link.Aliased, fragment: link.Heading != "" || link.Block != "", start: absolute, stop: rng.Start + next})
+		out = append(out, linkHit{target: link.Target, display: link.Display, aliased: link.Aliased, fragment: link.Heading != "" || link.Block != "", start: absolute, stop: rng.Start + token.End})
 	}
 	return out
 }

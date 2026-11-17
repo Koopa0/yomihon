@@ -129,10 +129,17 @@ func renderMarkdownFault(w util.BufWriter, node ast.Node, value any, entering bo
 	if !valid {
 		return ast.WalkStop, fmt.Errorf("render: Markdown fault attribute has type %T, want markdownFault", value)
 	}
+	closing := "</span>"
+	if fault.href != "" {
+		closing = "</a>"
+	}
 	if entering {
+		if fault.href != "" {
+			return ast.WalkContinue, writeStrings(w, `<a href="`, string(util.EscapeHTML(util.URLEscape([]byte(fault.href), true))), `" class="`, fault.class, `" title="`, html.EscapeString(fault.reason), `">`)
+		}
 		return ast.WalkContinue, writeStrings(w, `<span class="`, fault.class, `" title="`, html.EscapeString(fault.reason), `">`)
 	}
-	return ast.WalkContinue, writeStrings(w, `<span class="`+offscreenNoteClass+`">`, html.EscapeString(wording.ParenOpen.In(footnoteLang(node))), html.EscapeString(fault.reason), html.EscapeString(wording.ParenClose.In(footnoteLang(node))), `</span></span>`)
+	return ast.WalkContinue, writeStrings(w, `<span class="`+offscreenNoteClass+`">`, html.EscapeString(wording.ParenOpen.In(footnoteLang(node))), html.EscapeString(fault.reason), html.EscapeString(wording.ParenClose.In(footnoteLang(node))), `</span>`, closing)
 }
 
 // opensInNewTabNote is the sentence a listener is told after the link's own

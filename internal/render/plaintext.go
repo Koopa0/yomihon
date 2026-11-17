@@ -490,20 +490,18 @@ func plainLine(line string, code bool, wikilinks *[][2]int) string {
 func replaceWikilinksPlain(line string, wikilinks *[][2]int) string {
 	var out strings.Builder
 	last := 0
-	for _, loc := range wikilinkToken.FindAllStringIndex(line, -1) {
-		out.WriteString(line[last:loc[0]])
+	for _, token := range graph.WikilinkTokens(line) {
+		out.WriteString(line[last:token.Start])
 		start := out.Len()
-		out.WriteString(plainWikilink(line[loc[0]:loc[1]]))
+		out.WriteString(plainWikilink(token.Inner))
 		*wikilinks = append(*wikilinks, [2]int{start, out.Len()})
-		last = loc[1]
+		last = token.End
 	}
 	out.WriteString(line[last:])
 	return out.String()
 }
 
-func plainWikilink(token string) string {
-	inner := strings.TrimPrefix(token, "!")
-	inner = inner[2 : len(inner)-2] // strip the enclosing "[[" and "]]"
+func plainWikilink(inner string) string {
 	target, display, ok := graph.SplitWikilink(inner)
 	switch {
 	case !ok:

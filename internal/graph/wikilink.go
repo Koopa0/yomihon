@@ -69,6 +69,48 @@ type Wikilink struct {
 	Block string
 }
 
+// WikilinkToken is one [[...]] or ![[...]] as written in a run of text.
+type WikilinkToken struct {
+	// Start and End bound the whole token, a leading "!" included.
+	Start, End int
+	// Embed is true when the token opens with "!".
+	Embed bool
+	// Inner is the text between the enclosing "[[" and "]]".
+	Inner string
+}
+
+// Open is the offset of the token's "[[".
+func (t WikilinkToken) Open() int {
+	if t.Embed {
+		return t.Start + 1
+	}
+	return t.Start
+}
+
+// wikilinkToken is the grammar of a wikilink's outline: brackets in the name
+// end the pair, so "[[1,2],[1,100]]" is an array of numbers and not a link, and
+// a name never spans lines.
+var wikilinkToken = regexp.MustCompile(`!?\[\[[^\[\]\n]+\]\]`)
+
+// WikilinkTokens lists every wikilink in text, in order. It answers only where
+// a link's brackets are; code, comments and escapes are the caller's to ask
+// about, since each face reads those from its own structure. The reading page,
+// the check and the course reader all scan through here, so none of them can
+// disagree about what is a link.
+func WikilinkTokens(text string) []WikilinkToken {
+	spans := wikilinkToken.FindAllStringIndex(text, -1)
+	out := make([]WikilinkToken, 0, len(spans))
+	for _, at := range spans {
+		embed := text[at[0]] == '!'
+		open := at[0]
+		if embed {
+			open++
+		}
+		out = append(out, WikilinkToken{Start: at[0], End: at[1], Embed: embed, Inner: text[open+2 : at[1]-2]})
+	}
+	return out
+}
+
 // EscapedWikilinkAt reports whether the wikilink whose "[[" begins at open is
 // written to be shown rather than followed: the CommonMark backslash escape,
 // an odd-length run of '\' in front of it, counted from in front of an embed's
@@ -103,11 +145,7 @@ func ParseWikilink(inner string) (Wikilink, bool) {
 	}
 	beforeFragment, fragment, hasFragment := strings.Cut(beforePipe, "#")
 	if hasFragment {
-		if block, isBlock := strings.CutPrefix(strings.TrimSpace(fragment), "^"); isBlock {
-			link.Block = block
-		} else {
-			link.Heading = strings.TrimSpace(fragment)
-		}
+		link.Heading, link.Block = ParseFragment(fragment)
 	}
 	beforeBlock, block, hasBlock := strings.Cut(beforeFragment, "^")
 	if hasBlock && link.Block == "" {
@@ -116,6 +154,16 @@ func ParseWikilink(inner string) (Wikilink, bool) {
 	link.Target = strings.TrimSpace(beforeBlock)
 
 	return link, link.Target != ""
+}
+
+// ParseFragment reads the half of a link written after its "#": a section name,
+// or a block name when it opens with "^", which is how Obsidian writes a block
+// address in both link syntaxes.
+func ParseFragment(fragment string) (heading, block string) {
+	if block, isBlock := strings.CutPrefix(strings.TrimSpace(fragment), "^"); isBlock {
+		return "", block
+	}
+	return strings.TrimSpace(fragment), ""
 }
 
 // SplitWikilink is ParseWikilink for a caller that resolves a name and prints

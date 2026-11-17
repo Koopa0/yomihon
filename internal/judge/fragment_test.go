@@ -961,3 +961,34 @@ func TestAnchorSurfaceReadsTheHeadingsAFenceReallyLeaves(t *testing.T) {
 		t.Errorf("anchorSurface() excerpt headings = %v, want no heading made of code text", excerpt)
 	}
 }
+
+func TestFragmentSectionAcceptsTheGitHubSpellingThePageFollows(t *testing.T) {
+	t.Parallel()
+	got := fragmentRun(t, map[string]string{
+		"Target.md": "## What's new?\n\n## Intro\n\n## Intro\n",
+		"Citer.md":  "[[Target#whats-new]]\n[[Target#intro-1]]\n[[Target#nothing-here]]\n",
+	})
+	want := []string{"link.section_missing Target#nothing-here"}
+	if diff := cmp.Diff(want, ruleTargets(got)); diff != "" {
+		t.Errorf("fragment findings (-want +got):\n%s", diff)
+	}
+}
+
+func TestBracketsInANameMakeNoLinkForTheCheckEither(t *testing.T) {
+	t.Parallel()
+	if got := extractWikilinks("pairs [[1,2],[1,100]] and [[Real]]\n", 1); len(got) != 1 || got[0].target != "Real" {
+		t.Errorf("extractWikilinks read %+v, want only [[Real]]", got)
+	}
+	root := t.TempDir()
+	write(t, root, "Notes/Citer.md", "pairs [[1,2],[1,100]]\n")
+	writeTestContract(t, root, nil)
+	findings, err := Check(t.Context(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range findings {
+		if strings.HasPrefix(string(findings[i].RuleID), "link.") {
+			t.Errorf("an array of numbers drew a link finding: %+v", findings[i])
+		}
+	}
+}

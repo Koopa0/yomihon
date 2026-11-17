@@ -30,10 +30,7 @@ func (p *fragmentPaths) finding(n *note, link *wikiLink) (Finding, bool) {
 		}
 		return sectionMissing(n, link, res.RelPath), true
 	}
-	if p.reader == nil {
-		p.reader = render.New(p.idx, p.notes, p.notes, p.notes)
-	}
-	if _, found := p.reader.HeadingPath(res.RelPath, link.heading); found {
+	if _, found := p.pipeline().HeadingPath(res.RelPath, link.heading); found {
 		return Finding{}, false
 	}
 	for _, embedded := range target.wikilinks {
@@ -46,6 +43,22 @@ func (p *fragmentPaths) finding(n *note, link *wikiLink) (Finding, bool) {
 		}
 	}
 	return sectionMissing(n, link, res.RelPath), true
+}
+
+// pipeline is the reading page's own renderer over this run's captured notes,
+// built the first time a link asks it something.
+func (p *fragmentPaths) pipeline() *render.Pipeline {
+	if p.reader == nil {
+		p.reader = render.New(p.idx, p.notes, p.notes, p.notes)
+	}
+	return p.reader
+}
+
+// githubHeading reports whether the destination stamps a heading for a section
+// name written the way GitHub spells one, which the page follows.
+func (p *fragmentPaths) githubHeading(relPath, fragment string) bool {
+	_, found := p.pipeline().GitHubHeading(relPath, fragment)
+	return found
 }
 
 // fragmentNotes supplies only captured bodies to the outline render. Asset

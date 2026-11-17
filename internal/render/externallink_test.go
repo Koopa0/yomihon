@@ -117,7 +117,7 @@ func TestALinkThatStaysInTheLibraryIsLeftAlone(t *testing.T) {
 		want string
 	}{
 		{"another note by path", "[n](Notes/Other.md)\n", `<a href="/notes/Notes/Other.md">n</a>`},
-		{"a section of this note", "[s](#section)\n", `<a href="#section">s</a>`},
+		{"a section of this note", "## Section\n\n[s](#section)\n", `<a href="#section">s</a>`},
 		{"a path from the root", "[p](/notes/Other.md)\n", `<a href="/notes/Other.md">p</a>`},
 		{"an address with no scheme", "[h](//example.org/x)\n", `<a href="//example.org/x">h</a>`},
 		{"a mail address", "[m](mailto:a@example.org)\n", `<a href="mailto:a@example.org">m</a>`},
