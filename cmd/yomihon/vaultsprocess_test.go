@@ -7,7 +7,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -130,20 +130,38 @@ func TestASecondYomihonHandsItsFolderToTheRunningOneAndVaultsListsBoth(t *testin
 	}
 }
 
+// loopbackBlock hands each test that starts a process a block of ports of its
+// own, below the ephemeral ports other tests' listeners are given and below the
+// blocks the in-process tests use. The vaults a process serves take the ports
+// above its starting one, and a port of the ephemeral range that has just been
+// freed can be given to another test's listener before this one looks again.
+var loopbackBlock atomic.Int32
+
+// freeLoopbackPort is the starting port for a process a test starts, with the
+// few above it left to that test alone, chosen from the process's own id so that
+// two runs of these tests on one machine do not count up from the same port.
 func freeLoopbackPort(t *testing.T) int {
 	t.Helper()
-	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+	const block = 8
+	for range 1000 {
+		port := 10000 + block*((os.Getpid()+int(loopbackBlock.Add(1)))%1000)
+		free := true
+		for offset := range block {
+			listener, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port+offset)))
+			if err != nil {
+				free = false
+				break
+			}
+			if err = listener.Close(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if free {
+			return port
+		}
 	}
-	at, err := netip.ParseAddrPort(listener.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = listener.Close(); err != nil {
-		t.Fatal(err)
-	}
-	return int(at.Port())
+	t.Fatal("no block of ports is free for this test")
+	return 0
 }
 
 // waitForPage waits until the address answers with a page that is not the one

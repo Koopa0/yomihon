@@ -52,6 +52,19 @@ func someFreePort(t *testing.T) int {
 	}
 }
 
+// holder binds port on this machine's loopback and holds it until the test ends,
+// as another program would. It is taken from the test's own block, so that the
+// ports beside it are the test's too and not another test's ephemeral ones.
+func holder(t *testing.T, port int) {
+	t.Helper()
+	var lc net.ListenConfig
+	listener, err := lc.Listen(t.Context(), "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(port)))
+	if err != nil {
+		t.Fatalf("hold port %d: %v", port, err)
+	}
+	t.Cleanup(func() { _ = listener.Close() }) //nolint:errcheck // the port is released either way
+}
+
 func newVaultFolder(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -411,19 +424,11 @@ func TestTheStartingPortSendsABrowserToAVaultListedOnAnotherPort(t *testing.T) {
 func TestAHandOffNothingTakesLeavesNothingInTheListAndSaysWhichFileToRemove(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
-	var lc net.ListenConfig
-	squatter, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = squatter.Close() }) //nolint:errcheck // the port is released either way
-	at, err := netip.ParseAddrPort(squatter.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	squatted := someFreePort(t)
+	holder(t, squatted)
 	store := listOf(t, configDir)
 	// This test's own process stands for the live process that is not yomihon.
-	if err = store.WriteInstance(vaults.Instance{PID: os.Getpid(), Port: int(at.Port()), Started: time.Now().UTC()}); err != nil {
+	if err := store.WriteInstance(vaults.Instance{PID: os.Getpid(), Port: squatted, Started: time.Now().UTC()}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -431,12 +436,12 @@ func TestAHandOffNothingTakesLeavesNothingInTheListAndSaysWhichFileToRemove(t *t
 	h.wait = 300 * time.Millisecond
 	out := new(lockedBuffer)
 	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(someFreePort(t)), configDir: configDir}
-	err = h.serveListed(t.Context(), func() {}, cfg, out)
+	err := h.serveListed(t.Context(), func() {}, cfg, out)
 	fault := operatorFault(err)
 	if fault == nil {
 		t.Fatalf("serveListed = %v, want a refusal the operator can correct", err)
 	}
-	for _, want := range []string{store.InstanceFile(), strconv.Itoa(int(at.Port()))} {
+	for _, want := range []string{store.InstanceFile(), strconv.Itoa(squatted)} {
 		if !strings.Contains(fault.Error(), want) {
 			t.Errorf("the refusal %q does not name %q", fault.Error(), want)
 		}
@@ -454,22 +459,14 @@ func TestAHandOffNothingTakesLeavesNothingInTheListAndSaysWhichFileToRemove(t *t
 func TestAHandOffThatFailsKeepsAFolderTheListAlreadyHad(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
-	var lc net.ListenConfig
-	squatter, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = squatter.Close() }) //nolint:errcheck // the port is released either way
-	at, err := netip.ParseAddrPort(squatter.Addr().String())
-	if err != nil {
-		t.Fatal(err)
-	}
+	squatted := someFreePort(t)
+	holder(t, squatted)
 	store := listOf(t, configDir)
 	folder := newVaultFolder(t)
-	if _, _, err = store.Add(folder, someFreePort(t)); err != nil {
+	if _, _, err := store.Add(folder, someFreePort(t)); err != nil {
 		t.Fatal(err)
 	}
-	if err = store.WriteInstance(vaults.Instance{PID: os.Getpid(), Port: int(at.Port()), Started: time.Now().UTC()}); err != nil {
+	if err := store.WriteInstance(vaults.Instance{PID: os.Getpid(), Port: squatted, Started: time.Now().UTC()}); err != nil {
 		t.Fatal(err)
 	}
 	h := newHost(slog.New(slog.DiscardHandler), configDir, store)
