@@ -24,9 +24,6 @@ templ Folder(v FolderView, c layouts.Chrome) {
 							}
 						</div>
 					}
-					if v.Count != "" {
-						<p class="y-indexcount">{ v.Count }</p>
-					}
 				</header>
 				@ListView(v.List, c.Lang)
 			</div>

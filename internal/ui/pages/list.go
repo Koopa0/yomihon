@@ -30,15 +30,18 @@ const (
 	SortByName ListSort = "name"
 	// SortByRecent puts what changed last first.
 	SortByRecent ListSort = "recent"
+	// SortByOrder follows the numbers an author opened the file names with.
+	SortByOrder ListSort = "order"
 )
 
-// ParseListSort reads the sort a request asked for; a word outside the set is
-// the default.
+// ParseListSort reads the sort a request asked for. A word outside the set is
+// no choice at all, and the page's own default stands.
 func ParseListSort(value string) ListSort {
-	if value == string(SortByRecent) {
-		return SortByRecent
+	switch s := ListSort(value); s {
+	case SortByName, SortByRecent, SortByOrder:
+		return s
 	}
-	return SortByName
+	return ""
 }
 
 // manyRows is how long a list may be before it earns a filter and, sorted by
@@ -132,8 +135,16 @@ type ListParam struct{ Name, Value string }
 
 // List is every group of a list with the controls over it.
 type List struct {
-	// Label says how much there is when the page has not already.
-	Label  string
+	// Count is the page's line saying what the list holds. The choice of order
+	// sits at its far end when there is one, and in the bar when there is not.
+	Count string
+	// Label heads the list when it is one group whose heading has risen into
+	// the bar, with its count; the bar's rule then closes the head.
+	Label         string
+	LabelCount    string
+	LabelAuthored bool
+	// Ruled draws the strong rule under the bar, across the whole list.
+	Ruled  bool
 	Groups []ListGroup
 	Switch ListSwitch
 	Filter *ListFilter
@@ -178,8 +189,12 @@ func NoteRows(notes []ListNote, sort ListSort, now time.Time, lang wording.Lang)
 	notes = slices.Clone(notes)
 	orderNotes(notes, sort)
 	rows := noteListRows(notes, sort == SortByRecent || datesDistinguish(notes), now, lang)
-	if sort == SortByRecent {
+	switch sort {
+	case SortByRecent:
 		return monthGroups(notes, rows, now, lang)
+	case SortByOrder:
+		return []ListGroup{{Rows: rows}}
+	case SortByName:
 	}
 	return prefixGroups(rows)
 }
@@ -201,6 +216,25 @@ func orderNotes(notes []ListNote, sort ListSort) {
 		}
 		return vault.ComparePaths(a.RelPath, b.RelPath)
 	}
+	if sort == SortByOrder {
+		slices.SortStableFunc(notes, func(a, b ListNote) int {
+			an, aok := fileNumber(a.RelPath)
+			bn, bok := fileNumber(b.RelPath)
+			switch {
+			case aok && bok:
+				if r := compareDigits(an, bn); r != 0 {
+					return r
+				}
+				return vault.ComparePaths(a.RelPath, b.RelPath)
+			case aok:
+				return -1
+			case bok:
+				return 1
+			}
+			return byName(a, b)
+		})
+		return
+	}
 	if sort == SortByRecent {
 		slices.SortStableFunc(notes, func(a, b ListNote) int {
 			if r := b.Modified.Compare(a.Modified); r != 0 {
@@ -211,6 +245,49 @@ func orderNotes(notes []ListNote, sort ListSort) {
 		return
 	}
 	slices.SortStableFunc(notes, byName)
+}
+
+// minOrderedNotes is how many notes a folder needs before the numbers its file
+// names open with can be an order its author gave.
+const minOrderedNotes = 3
+
+// fileNumber reads the number a file name opens with: digits followed by a
+// hyphen, an underscore, a dot or a space.
+func fileNumber(relPath string) (digits string, ok bool) {
+	name := relPath[strings.LastIndex(relPath, "/")+1:]
+	end := 0
+	for end < len(name) && name[end] >= '0' && name[end] <= '9' {
+		end++
+	}
+	if end == 0 || end == len(name) || !strings.ContainsRune("-_. ", rune(name[end])) {
+		return "", false
+	}
+	return strings.TrimLeft(name[:end], "0"), true
+}
+
+// compareDigits compares two numbers written without leading zeros by value,
+// however many digits they have.
+func compareDigits(a, b string) int {
+	if len(a) != len(b) {
+		return len(a) - len(b)
+	}
+	return strings.Compare(a, b)
+}
+
+// hasAuthorOrder says whether a folder's own notes are numbered by their
+// author: at least three of them, and more than half open their file name with
+// a number.
+func hasAuthorOrder(notes []ListNote) bool {
+	if len(notes) < minOrderedNotes {
+		return false
+	}
+	numbered := 0
+	for i := range notes {
+		if _, ok := fileNumber(notes[i].RelPath); ok {
+			numbered++
+		}
+	}
+	return numbered*2 > len(notes)
 }
 
 // datesDistinguish says whether a date column tells these rows apart: a list
@@ -400,32 +477,40 @@ func Thousands(n int) string {
 	return b.String()
 }
 
-// listQuery writes the page's query with the parts that differ from its
-// defaults, so a plain page keeps a plain address.
-func listQuery(sort ListSort, filter string, expand bool) string {
-	q := url.Values{}
-	if sort != SortByName {
-		q.Set("sort", string(sort))
+// Address writes the query that shows a list in the given order, filter and
+// unfolding, leaving out what is the page's default so a plain page keeps a
+// plain address.
+func (q ListQuery) Address(sort ListSort, filter string, expand bool) string {
+	v := url.Values{}
+	if sort != q.defaultSort() {
+		v.Set("sort", string(sort))
 	}
 	if filter != "" {
-		q.Set("filter", filter)
+		v.Set("filter", filter)
 	}
 	if expand {
-		q.Set("expand", "1")
+		v.Set("expand", "1")
 	}
-	if len(q) == 0 {
+	if len(v) == 0 {
 		return ""
 	}
-	return "?" + q.Encode()
+	return "?" + v.Encode()
 }
 
 // ListSwitchFor is the order choice for a page: which order it is in, and the
 // words for the by-name choice (a folder is "by name", a note "by title").
-func ListSwitchFor(base string, sort ListSort, filter string, expand bool, nameWord wording.Phrase, lang wording.Lang) ListSwitch {
-	return ListSwitch{Choices: []ListChoice{
-		{Href: base + listQuery(SortByName, filter, expand), Text: nameWord.In(lang), Pressed: sort == SortByName},
-		{Href: base + listQuery(SortByRecent, filter, expand), Text: wording.SortByRecent.In(lang), Pressed: sort == SortByRecent},
-	}}
+// A folder its author numbered offers its own order first.
+func (q ListQuery) ListSwitchFor(base string, expand, ordered bool, nameWord wording.Phrase, lang wording.Lang) ListSwitch {
+	var choices []ListChoice
+	add := func(sort ListSort, word wording.Phrase) {
+		choices = append(choices, ListChoice{Href: base + q.Address(sort, q.Filter, expand), Text: word.In(lang), Pressed: q.Sort == sort})
+	}
+	if ordered {
+		add(SortByOrder, wording.SortByOrder)
+	}
+	add(SortByName, nameWord)
+	add(SortByRecent, wording.SortByRecent)
+	return ListSwitch{Choices: choices}
 }
 
 // mark finds the first occurrence of word in a title, ignoring case, and

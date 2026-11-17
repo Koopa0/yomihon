@@ -38,13 +38,32 @@ type Cover struct {
 
 // ListQuery is what a request says about how a list is shown.
 type ListQuery struct {
-	Sort   ListSort
-	Filter string
-	Expand bool
+	// Sort is the order in effect. Default is the order the page opens in, which
+	// a link leaves out; a reader's own choice is always written.
+	Sort, Default ListSort
+	Filter        string
+	Expand        bool
+}
+
+func (q ListQuery) defaultSort() ListSort {
+	if q.Default == "" {
+		return SortByName
+	}
+	return q.Default
+}
+
+// Resolved settles the order against the page's default once the page knows
+// which that is: a request that chose nothing gets it.
+func (q ListQuery) Resolved(def ListSort) ListQuery {
+	q.Default = def
+	if q.Sort == "" {
+		q.Sort = def
+	}
+	return q
 }
 
 // ParseListQuery reads the sort, the filter word and the unfolded flag from a
-// request's query. Anything it does not know is the default.
+// request's query. An order it does not know is left unchosen.
 func ParseListQuery(v url.Values) ListQuery {
 	filter := []rune(strings.TrimSpace(v.Get("filter")))
 	if len(filter) > maxFilterRunes {
@@ -95,17 +114,23 @@ func NewFolderLevel(in *FolderInput) FolderView {
 	notes, others := splitNotesAndFiles(in.Notes)
 	total := countNotes(in.Notes, in.Subfolders)
 	folders := len(listFolders(in.Subfolders, in))
-	q := in.Query
+	ordered := hasAuthorOrder(listNotes(notes, in))
+	def := SortByName
+	if ordered {
+		def = SortByOrder
+	}
+	q := in.Query.Resolved(def)
+	in.Query = q
 
 	v := FolderView{Crumbs: folderCrumbs(in.Dir, in.VaultName), Title: in.Name}
-	v.Count = folderCount(total, folders, in.Lang)
-	list := folderBar(in, len(notes), folders, total)
+	list := folderBar(in, len(notes), folders, total, ordered)
+	list.Count = folderCount(total, folders, in.Lang)
 
 	base := folderHref(in.Dir)
 	switch {
 	case q.Filter != "":
 		list.Groups = filterGroups(in, q)
-		list.Cleared = ListCleared{Text: strings.Replace(wording.NoMatch.In(in.Lang), "%s", q.Filter, 1), Href: base + listQuery(q.Sort, "", q.Expand)}
+		list.Cleared = ListCleared{Text: strings.Replace(wording.NoMatch.In(in.Lang), "%s", q.Filter, 1), Href: base + q.Address(q.Sort, "", q.Expand)}
 	case q.Expand && folders > 0:
 		list.Label = strings.Replace(wording.AllNotes.In(in.Lang), "%d", Thousands(total), 1)
 		list.Groups = expandedGroups(in, notes, q)
@@ -115,17 +140,28 @@ func NewFolderLevel(in *FolderInput) FolderView {
 	if q.Filter == "" {
 		list.Groups = append(list.Groups, otherFilesGroup(others, in.Lang)...)
 	}
-	list.Wide = q.Sort == SortByName && (len(notes)+folders > manyRows || q.Expand && folders > 0)
+	list.Wide = q.Sort != SortByRecent && (len(notes)+folders > manyRows || q.Expand && folders > 0)
 	if folders == 0 {
-		v.Count = foldLoneHeading(&list, v.Count, q.Filter)
+		foldLoneHeading(&list)
 	}
 	v.List = list
 	return v
 }
 
+// folderToggle is the link that opens a folder's folders one level, or closes
+// them again.
+func folderToggle(in *FolderInput) ListAction {
+	q, word := in.Query, wording.ExpandFolders
+	if q.Expand {
+		word = wording.FoldFolders
+	}
+	return ListAction{Text: word.In(in.Lang), Href: folderHref(in.Dir) + q.Address(q.Sort, q.Filter, !q.Expand)}
+}
+
 // folderBar is the controls over a folder's list: the filter once the folder
-// holds many notes, the way to open its folders, and the order.
-func folderBar(in *FolderInput, notes, folders, total int) List {
+// holds many notes, and the order. Opening the folders sits on the head of the
+// folders' own group; the bar carries it only when that group is not drawn.
+func folderBar(in *FolderInput, notes, folders, total int, ordered bool) List {
 	q, base := in.Query, folderHref(in.Dir)
 	list := List{Empty: wording.FolderEmpty.In(in.Lang)}
 	if notes > manyRows || (q.Expand && total > manyRows) {
@@ -134,56 +170,47 @@ func folderBar(in *FolderInput, notes, folders, total int) List {
 			Value:  q.Filter,
 			Action: base,
 		}
-		if q.Sort != SortByName {
+		if q.Sort != q.defaultSort() {
 			list.Keep = append(list.Keep, ListParam{"sort", string(q.Sort)})
 		}
 		if q.Expand {
 			list.Keep = append(list.Keep, ListParam{"expand", "1"})
 		}
 	}
-	if folders > 0 {
-		toggle := wording.ExpandFolders
-		if q.Expand {
-			toggle = wording.FoldFolders
-		}
-		list.Toggle = ListAction{Text: toggle.In(in.Lang), Href: base + listQuery(q.Sort, q.Filter, !q.Expand)}
+	if folders > 0 && (q.Expand || q.Filter != "") {
+		list.Toggle = folderToggle(in)
 	}
-	if notes+folders > distinguishingRows {
+	if ordered || notes+folders > distinguishingRows {
 		name := wording.SortByTitle
 		if notes == 0 {
 			name = wording.SortByName
 		}
-		list.Switch = ListSwitchFor(base, q.Sort, q.Filter, q.Expand, name, in.Lang)
+		list.Switch = q.ListSwitchFor(base, q.Expand, ordered, name, in.Lang)
 	}
 	return list
 }
 
-// foldLoneHeading lets a lone group's heading stand as the bar's label, so the
-// list is not headed twice, and drops the count line that would say the same
-// number again. It returns the count line the page keeps.
-func foldLoneHeading(list *List, count, filter string) string {
+// foldLoneHeading lets a lone group's heading stand at the head of the bar, so
+// the list is not headed twice and its rule runs across the whole list, and
+// drops the count line that would say the same number again.
+func foldLoneHeading(list *List) {
 	if len(list.Groups) != 1 || list.Label != "" {
-		return count
+		return
 	}
 	g := &list.Groups[0]
 	if g.Heading == "" {
-		return count
+		return
 	}
 	if list.Filter == nil && len(list.Switch.Choices) == 0 {
-		if g.Count != "" && filter == "" {
-			return ""
+		if g.Count != "" {
+			list.Count = ""
 		}
-		return count
+		return
 	}
-	list.Label = g.Heading
-	if g.Count != "" {
-		list.Label += " " + g.Count
-	}
+	list.Label, list.LabelCount, list.LabelAuthored = g.Heading, g.Count, g.Authored
+	list.Ruled = true
 	g.Heading, g.Count = "", ""
-	if filter != "" {
-		return count
-	}
-	return ""
+	list.Count = ""
 }
 
 // folderCrumbs is the trail above a folder: the vault, then each parent.
@@ -236,6 +263,7 @@ func levelGroups(in *FolderInput, notes []nav.NoteRef, q ListQuery) []ListGroup 
 			Heading: wording.Folders.In(in.Lang),
 			Count:   Thousands(len(folders)),
 			Rows:    FolderRows(folders, q.Sort, in.Now, in.Lang),
+			Action:  folderToggle(in),
 		})
 	}
 	noteGroups := NoteRows(listNotes(notes, in), q.Sort, in.Now, in.Lang)
@@ -327,6 +355,11 @@ func findNotes(in *FolderInput, word string) (dirs []string, byDir map[string]*f
 // holds the word, grouped by the folder each sits in.
 func filterGroups(in *FolderInput, q ListQuery) []ListGroup {
 	dirs, byDir := findNotes(in, q.Filter)
+	var every []ListNote
+	for _, f := range byDir {
+		every = append(every, f.notes...)
+	}
+	showDate := q.Sort == SortByRecent || datesDistinguish(every)
 	c := nameCollator()
 	slices.SortFunc(dirs, func(a, b string) int {
 		if a == "" || b == "" {
@@ -338,7 +371,7 @@ func filterGroups(in *FolderInput, q ListQuery) []ListGroup {
 	for _, dir := range dirs {
 		f := byDir[dir]
 		orderNotes(f.notes, q.Sort)
-		rows := noteListRows(f.notes, q.Sort == SortByRecent, in.Now, in.Lang)
+		rows := noteListRows(f.notes, showDate, in.Now, in.Lang)
 		for i := range rows {
 			rows[i].mark(q.Filter)
 		}

@@ -2849,3 +2849,29 @@ func TestTheContentsListOmitsAClosedCalloutsHeadings(t *testing.T) {
 		t.Error("the closed callout's heading lost its id in the body")
 	}
 }
+
+func TestAFolderPagesTrailStartsWithTheVaultsTitle(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write := func(rel, body string) {
+		path := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("README.md", "# 技術自學\n\nThe vault.\n")
+	write("Notes/one.md", "# One\n")
+	srv := newServer(t, root)
+
+	code, page := get(t, srv.Client(), srv.URL+"/folders/Notes")
+	if code != http.StatusOK {
+		t.Fatalf("GET /folders/Notes status = %d, want 200", code)
+	}
+	if !strings.Contains(page, `class="y-crumbs__link" href="/folders">技術自學</a>`) {
+		t.Errorf("the trail does not start with the README's title: %s", page)
+	}
+}

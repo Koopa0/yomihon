@@ -271,7 +271,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	notes, cover := h.folderCover(snap, dir, notes, lang)
 	view := pages.NewFolderLevel(&pages.FolderInput{
-		Dir: dir, Name: name, VaultName: h.sources.VaultName,
+		Dir: dir, Name: name, VaultName: pageShell.Vault.Name,
 		Notes: notes, Subfolders: subfolders,
 		Model: pageShell.Nav, Query: pages.ParseListQuery(r.URL.Query()), Now: time.Now(),
 		Lang: lang, ArticleLang: articleLanguageLookup(snap),

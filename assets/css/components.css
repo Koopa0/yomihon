@@ -7885,13 +7885,13 @@ samp,
 /* One folder seen whole. A reading page, not a file manager: no sizes, no
    dates, no sort controls — the captured order, which is the folder's own. */
 .y-crumbs__link {
-  color: inherit;
-  text-decoration: none;
+  color: var(--fg-muted);
+  text-decoration: underline;
+  text-underline-offset: var(--sp-1);
 }
 
 .y-crumbs__link:hover {
   color: var(--fg);
-  text-decoration: underline;
 }
 
 /* A folder's README stands in front of its listing as its first paragraph,
@@ -8449,6 +8449,27 @@ samp,
   margin-top: var(--sp-7);
 }
 
+/* The page's count line, with the order at its far end on the same baseline;
+   the list begins a fixed step below it. */
+.y-countline {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+  margin-bottom: var(--sp-7);
+}
+
+.y-countline .y-indexcount {
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+.y-countline .y-seg {
+  margin-inline-start: auto;
+}
+
 .y-listbar {
   align-items: center;
   display: flex;
@@ -8457,12 +8478,34 @@ samp,
   margin-bottom: var(--sp-4);
 }
 
+/* When the bar is the list's head, its rule closes it across every column. */
+.y-listbar--ruled {
+  border-bottom: 1px solid var(--line-strong);
+  margin-bottom: 0;
+  padding-bottom: var(--sp-2);
+}
+
+.y-listbar--ruled + .y-listbody > .y-lgroup:first-child {
+  border-top: 0;
+}
+
 .y-listbar__label {
   color: var(--fg-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   font-weight: var(--fw-semibold);
-  margin-inline-end: auto;
+}
+
+.y-listbar__label--authored {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+  line-height: 28px;
+}
+
+/* The count beside a head label is a quiet fact, not a second label. */
+.y-listbar .y-listbar__count {
+  margin-inline: calc(-1 * var(--sp-2)) 0;
 }
 
 .y-listfilter {
@@ -8478,23 +8521,8 @@ samp,
   width: var(--field-w);
 }
 
-.y-listbar__label + .y-listfilter {
-  margin-inline-start: 0;
-}
-
-.y-listbar__controls {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-3);
-  margin-inline-start: auto;
-}
-
-.y-listfilter ~ .y-listbar__controls {
-  margin-inline-start: 0;
-}
-
 .y-listbar__toggle,
+.y-lgroup__action,
 .y-seg a {
   align-items: center;
   border-radius: var(--r-sm);
@@ -8508,6 +8536,7 @@ samp,
 }
 
 .y-listbar__toggle:hover,
+.y-lgroup__action:hover,
 .y-seg a:hover {
   background: var(--wash);
   color: var(--fg);
@@ -8516,7 +8545,19 @@ samp,
 .y-seg {
   align-items: center;
   display: inline-flex;
-  gap: 2px;
+}
+
+/* In the bar the toggle and the order sit at the far end, after whatever is
+   already there; the filter takes the slack when it is. */
+.y-listbar > .y-listbar__toggle,
+.y-listbar > .y-seg {
+  margin-inline-start: auto;
+}
+
+.y-listfilter ~ .y-listbar__toggle,
+.y-listfilter ~ .y-seg,
+.y-listbar__toggle ~ .y-seg {
+  margin-inline-start: 0;
 }
 
 .y-seg a[aria-pressed='true'] {
@@ -8551,8 +8592,6 @@ samp,
   align-items: baseline;
   border-bottom: 1px solid var(--line-strong);
   display: flex;
-  gap: var(--sp-4);
-  justify-content: space-between;
   padding: var(--sp-2) 0;
 }
 
@@ -8563,11 +8602,6 @@ samp,
   font-weight: var(--fw-semibold);
   line-height: 20px;
   margin: 0;
-}
-
-.y-lgroup__name a {
-  color: inherit;
-  text-decoration: none;
 }
 
 .y-lgroup__name--authored {
@@ -8583,6 +8617,44 @@ samp,
   font-family: var(--font-sans);
   font-size: var(--fs-12);
   font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-regular);
+  margin-inline-start: auto;
+}
+
+.y-lgroup__action {
+  margin-inline-start: var(--sp-4);
+}
+
+/* A heading that is a link is one target from edge to edge, count included,
+   and answers a pointer as a row does; its rule stays on the words' edge. */
+.y-lgroup__link {
+  color: inherit;
+  display: block;
+  margin-inline: calc(-1 * var(--sp-3));
+  text-decoration: none;
+}
+
+.y-lgroup__link .y-lgroup__head {
+  border-bottom: 0;
+  padding-inline: var(--sp-3);
+  position: relative;
+}
+
+.y-lgroup__link .y-lgroup__head::after {
+  border-bottom: 1px solid var(--line-strong);
+  bottom: 0;
+  content: '';
+  inset-inline: var(--sp-3);
+  position: absolute;
+}
+
+.y-lgroup__link:hover {
+  background: var(--wash);
+}
+
+.y-lgroup__link:focus-visible {
+  outline: 2px solid var(--fg);
+  outline-offset: 2px;
 }
 
 /* The wash a pointer brings reaches past the words on both sides, and the
@@ -8590,11 +8662,10 @@ samp,
    reach and its own padding brings the words back. */
 .y-lrow {
   align-items: baseline;
-  border-radius: var(--r-sm);
   color: var(--fg);
   display: flex;
-  margin-inline: calc(-1 * var(--sp-2));
-  padding: var(--sp-3) var(--sp-2);
+  margin-inline: calc(-1 * var(--sp-3));
+  padding: var(--sp-3);
   position: relative;
   text-decoration: none;
 }
@@ -8603,7 +8674,7 @@ samp,
   border-bottom: 1px solid var(--line);
   bottom: 0;
   content: '';
-  inset-inline: var(--sp-2);
+  inset-inline: var(--sp-3);
   position: absolute;
 }
 
@@ -8681,6 +8752,13 @@ samp,
   .y-seg a {
     min-height: 44px;
   }
+
+  /* A group head is one height with or without a control: the control's hit
+     area overflows it instead of growing it. */
+  .y-lgroup__action {
+    margin-block: -12px;
+    min-height: 44px;
+  }
 }
 
 @media (max-width: 720px) {
@@ -8689,10 +8767,6 @@ samp,
     height: 44px;
     margin-inline-start: 0;
     width: 100%;
-  }
-
-  .y-listbar__controls {
-    margin-inline-start: calc(-1 * var(--sp-3));
   }
 
   .y-lrow {

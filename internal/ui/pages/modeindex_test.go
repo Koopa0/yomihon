@@ -276,8 +276,8 @@ func TestFolderLevelLabelsOtherFilesAndLeavesThemUncounted(t *testing.T) {
 		other string
 	}{{wording.ZhHant, "其他檔案"}, {wording.En, "Other files"}} {
 		view := NewFolderLevel(&FolderInput{Dir: "Attachments", Name: "Attachments", Notes: files, Model: &nav.Model{}, Now: time.Now(), Lang: tt.lang})
-		if tt.lang == wording.ZhHant && view.Count != "1 篇" {
-			t.Errorf("folder level count = %q, want notes only", view.Count)
+		if tt.lang == wording.ZhHant && view.List.Count != "1 篇" {
+			t.Errorf("folder level count = %q, want notes only", view.List.Count)
 		}
 		last := view.List.Groups[len(view.List.Groups)-1]
 		if last.Heading != tt.other || len(last.Rows) != 1 || last.Rows[0].Title != "scan.pdf" {

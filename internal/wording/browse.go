@@ -26,6 +26,7 @@ var (
 	NotesGroup    = both("筆記", "Notes")
 	TopLevel      = both("最上層", "Top level")
 	SortByName    = both("依名稱", "By name")
+	SortByOrder   = both("依順序", "In order")
 	SortByTitle   = both("依標題", "By title")
 	SortByRecent  = both("依最近變更", "By latest change")
 	MonthHeading  = both("%d 月", "Month %d")

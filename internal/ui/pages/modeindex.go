@@ -557,7 +557,6 @@ func indexHref(mode string) string { return "/" + mode }
 // the vault's top folders as headings and their folders as rows.
 type FolderIndexView struct {
 	Title string
-	Count string
 	// Fault and Restart say why the page may be missing something, as every
 	// index states it.
 	Fault   string
@@ -584,6 +583,14 @@ func listableFolders(folders []nav.Folder) []nav.Folder {
 	return out
 }
 
+// withoutReadme drops the vault's own README: it is the desk's frontispiece,
+// not a note in the table of contents.
+func withoutReadme(notes []nav.NoteRef) []nav.NoteRef {
+	return slices.DeleteFunc(slices.Clone(notes), func(n nav.NoteRef) bool {
+		return strings.EqualFold(n.RelPath, "README.md")
+	})
+}
+
 func countFolders(folders []nav.Folder) int {
 	total := len(folders)
 	for i := range folders {
@@ -594,19 +601,21 @@ func countFolders(folders []nav.Folder) int {
 
 // NewFolderIndexView builds the table of contents.
 func NewFolderIndexView(model *nav.Model, contract ContractState, q ListQuery, now time.Time, lang wording.Lang) FolderIndexView {
+	q = q.Resolved(SortByName)
 	top := listableFolders(model.ShelfFolders())
-	rootNotes, _ := splitNotesAndFiles(model.RootNotes())
-	total := countNotes(model.RootNotes(), top)
+	rootNotes, _ := splitNotesAndFiles(withoutReadme(model.RootNotes()))
+	total := countNotes(rootNotes, top)
 
 	view := FolderIndexView{Title: wording.Folders.In(lang)}
-	view.Count = folderCount(total, countFolders(top), lang)
 	empty := emptySentence(contract, wording.JoinGuide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext, lang), lang)
 	if contract == ContractAbsent {
 		empty = wording.JoinGuide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext, lang)
 	}
 	view.List = List{Empty: empty, Wide: len(top) > 0}
+	view.List.Count = folderCount(total, countFolders(top), lang)
 	if len(top) > 0 {
-		view.List.Switch = ListSwitchFor(indexHref(folderMode), q.Sort, "", false, wording.SortByName, lang)
+		q.Filter = ""
+		view.List.Switch = q.ListSwitchFor(indexHref(folderMode), false, false, wording.SortByName, lang)
 	}
 
 	type heading struct {
@@ -647,9 +656,9 @@ func NewFolderIndexView(model *nav.Model, contract ContractState, q ListQuery, n
 			notes[i] = ListNote{Title: n.Name, RelPath: n.RelPath, Language: n.Language, Draft: listed.Draft, Modified: listed.Modified}
 		}
 		orderNotes(notes, q.Sort)
-		g := ListGroup{Rows: noteListRows(notes, q.Sort == SortByRecent, now, lang)}
+		g := ListGroup{Rows: noteListRows(notes, q.Sort == SortByRecent || datesDistinguish(notes), now, lang)}
 		if len(top) > 0 {
-			g.Heading, g.Count = wording.RootNotes.In(lang), Thousands(len(rootNotes))
+			g.Heading, g.Count = wording.RootNotes.In(lang), noteCountFact(len(rootNotes), lang)
 		}
 		view.List.Groups = append(view.List.Groups, g)
 	}

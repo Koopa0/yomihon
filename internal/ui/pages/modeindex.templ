@@ -41,9 +41,6 @@ templ FolderIndex(v FolderIndexView, c layouts.Chrome) {
 			<div class="y-home">
 				<header class="y-home__head">
 					<h1 class="y-title">{ v.Title }</h1>
-					if v.Count != "" {
-						<p class="y-indexcount">{ v.Count }</p>
-					}
 				</header>
 				if v.Fault != "" || v.Restart != "" {
 					@indexFault(v.Fault, v.Restart, c)

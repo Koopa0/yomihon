@@ -2,6 +2,7 @@ package pages
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -117,8 +118,8 @@ func TestAFolderPageSaysTheWholeSubtreeAndLeadsWithTheVault(t *testing.T) {
 		Model: folderModel(t), Now: listNow, Lang: wording.ZhHant,
 	}
 	view := NewFolderLevel(in)
-	if view.Count != "1 個資料夾 · 3 篇" {
-		t.Errorf("count = %q, want the folders and the notes at every depth", view.Count)
+	if view.List.Count != "1 個資料夾 · 3 篇" {
+		t.Errorf("count = %q, want the folders and the notes at every depth", view.List.Count)
 	}
 	if len(view.Crumbs) != 1 || view.Crumbs[0].Name != "學習庫" {
 		t.Errorf("crumbs = %+v, want the vault first", view.Crumbs)
@@ -201,5 +202,150 @@ func TestTheFolderIndexSkipsSystemDotFoldersAndEmptyOnes(t *testing.T) {
 	}
 	if n := countFolders(got); n != 2 {
 		t.Errorf("countFolders = %d, want 2", n)
+	}
+}
+
+func numbered(names ...string) []ListNote {
+	notes := make([]ListNote, len(names))
+	for i, name := range names {
+		title := strings.TrimSuffix(name, ".md")
+		notes[i] = ListNote{Title: title, RelPath: "course/" + name}
+	}
+	return notes
+}
+
+func TestAFolderNumberedByItsAuthorIsReadInTheirOrder(t *testing.T) {
+	t.Parallel()
+
+	notes := numbered("10-ten.md", "2-two.md", "zeta.md", "02-again.md", "alpha.md", "1_one.md")
+	if !hasAuthorOrder(notes) {
+		t.Fatal("four of six file names open with a number: the folder has its author's order")
+	}
+	got := titles(NoteRows(notes, SortByOrder, listNow, wording.ZhHant)[0].Rows)
+	want := []string{"1_one", "02-again", "2-two", "10-ten", "alpha", "zeta"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("order = %v, want value first, then the file name, unnumbered last by title: %v", got, want)
+	}
+	for i, title := range []string{"Foxtrot", "Bravo", "Alpha", "Delta", "Echo", "Charlie"} {
+		notes[i].Title = title
+	}
+	byTitle := titles(NoteRows(notes, SortByName, listNow, wording.ZhHant)[0].Rows)
+	if strings.Join(byTitle, "|") != "Alpha|Bravo|Charlie|Delta|Echo|Foxtrot" {
+		t.Errorf("by title = %v, want the titles' own order with no regard for file numbers", byTitle)
+	}
+}
+
+func TestAnAuthorsOrderNeedsThreeNotesAndMoreThanHalfNumbered(t *testing.T) {
+	t.Parallel()
+
+	for name, files := range map[string][]string{
+		"two notes":    {"1-a.md", "2-b.md"},
+		"exactly half": {"1-a.md", "2-b.md", "c.md", "d.md"},
+		"no separator": {"1a.md", "2b.md", "3c.md"},
+	} {
+		if hasAuthorOrder(numbered(files...)) {
+			t.Errorf("%s: want no author's order", name)
+		}
+	}
+	if !hasAuthorOrder(numbered("1 a.md", "2.b.md", "3_c.md")) {
+		t.Error("a space, a dot and an underscore each follow a number")
+	}
+}
+
+func TestANumberedFolderOpensInOrderAndAReadersChoiceIsExactlyThat(t *testing.T) {
+	t.Parallel()
+
+	in := func(query string) FolderView {
+		v, err := url.ParseQuery(query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return NewFolderLevel(&FolderInput{
+			Dir: "course", Name: "course", VaultName: "v",
+			Notes: []nav.NoteRef{
+				{Name: "Second", RelPath: "course/02-b.md"}, {Name: "First", RelPath: "course/01-a.md"},
+				{Name: "Third", RelPath: "course/03-c.md"},
+			},
+			Model: folderModel(t), Query: ParseListQuery(v), Now: listNow, Lang: wording.ZhHant,
+		})
+	}
+	opened := in("")
+	choices := opened.List.Switch.Choices
+	if len(choices) != 3 || choices[0].Text != "依順序" || !choices[0].Pressed || choices[1].Text != "依標題" {
+		t.Fatalf("choices = %+v, want 依順序｜依標題｜依最近變更 with the first pressed", choices)
+	}
+	if got := titles(opened.List.Groups[0].Rows); strings.Join(got, "|") != "First|Second|Third" {
+		t.Errorf("rows = %v, want the author's order", got)
+	}
+	if choices[0].Href != "/folders/course" || !strings.Contains(choices[1].Href, "sort=name") {
+		t.Errorf("hrefs = %q, %q: the default leaves the sort out and a choice is always written", choices[0].Href, choices[1].Href)
+	}
+	chosen := in("sort=name")
+	if got := titles(chosen.List.Groups[0].Rows); strings.Join(got, "|") != "First|Second|Third" {
+		t.Errorf("rows = %v", got)
+	}
+	if chosen.List.Switch.Choices[1].Pressed != true || chosen.List.Switch.Choices[0].Pressed {
+		t.Errorf("a reader who pressed 依標題 has it pressed: %+v", chosen.List.Switch.Choices)
+	}
+}
+
+func TestALoneGroupsHeadingRisesIntoTheBarWhichCarriesTheRule(t *testing.T) {
+	t.Parallel()
+
+	var notes []nav.NoteRef
+	for i := range 25 {
+		notes = append(notes, nav.NoteRef{Name: fmt.Sprintf("設計題：題%02d", i), RelPath: fmt.Sprintf("d/t%02d.md", i)})
+	}
+	v := NewFolderLevel(&FolderInput{Dir: "d", Name: "d", VaultName: "v", Notes: notes, Model: folderModel(t), Now: listNow, Lang: wording.ZhHant})
+	l := v.List
+	if l.Label != "設計題" || l.LabelCount != "25" || !l.Ruled || !l.LabelAuthored {
+		t.Errorf("label %q %q ruled=%v: want the group's name and count at the bar's head", l.Label, l.LabelCount, l.Ruled)
+	}
+	if l.Count != "" || len(l.Groups) != 1 || l.Groups[0].Heading != "" {
+		t.Errorf("count %q, groups %+v: the head is said once", l.Count, l.Groups)
+	}
+	if len(l.Switch.Choices) == 0 {
+		t.Error("the order is chosen from the bar when there is no count line")
+	}
+}
+
+func TestTheFoldersGroupCarriesTheWayToOpenThem(t *testing.T) {
+	t.Parallel()
+
+	v := NewFolderLevel(&FolderInput{
+		Dir: "a", Name: "a", VaultName: "v",
+		Notes:      []nav.NoteRef{{Name: "one", RelPath: "a/one.md"}},
+		Subfolders: []nav.Folder{{Name: "b", RelPath: "a/b", Notes: []nav.NoteRef{{Name: "two", RelPath: "a/b/two.md"}}}},
+		Model:      folderModel(t), Now: listNow, Lang: wording.ZhHant,
+	})
+	if v.List.Toggle.Text != "" {
+		t.Errorf("toggle = %+v: it belongs to the folders' own head", v.List.Toggle)
+	}
+	if g := v.List.Groups[0]; g.Heading != "資料夾" || g.Action.Text != "展開資料夾" || !strings.Contains(g.Action.Href, "expand=1") {
+		t.Errorf("group = %+v, want the action on its head", g)
+	}
+}
+
+func TestAGroupHeadThatIsALinkIsOneTargetWithItsCount(t *testing.T) {
+	t.Parallel()
+
+	var out strings.Builder
+	err := ListBody(List{Groups: []ListGroup{{Heading: "Concepts", Href: "/folders/Concepts", Count: "2 篇"}}}, wording.ZhHant).Render(t.Context(), &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := out.String()
+	open, shut := strings.Index(html, `<a class="y-lgroup__link"`), strings.Index(html, "</a>")
+	if open < 0 || shut < open || !strings.Contains(html[open:shut], "2 篇") {
+		t.Errorf("the count is outside the link: %s", html)
+	}
+}
+
+func TestTheFolderIndexLeavesOutTheVaultsReadme(t *testing.T) {
+	t.Parallel()
+
+	got := withoutReadme([]nav.NoteRef{{Name: "技術自學", RelPath: "README.md"}, {Name: "Agents", RelPath: "AGENTS.md"}, {Name: "Nested", RelPath: "a/README.md"}})
+	if len(got) != 2 || got[0].RelPath != "AGENTS.md" || got[1].RelPath != "a/README.md" {
+		t.Errorf("notes = %+v, want only the top-level README gone", got)
 	}
 }
