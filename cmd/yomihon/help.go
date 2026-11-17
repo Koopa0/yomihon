@@ -122,7 +122,7 @@ var commandHelp = map[string]string{
 		"is never described here — no path, no matched field. It still answers:\n" +
 		"the exit stays 0, so a write-if-absent gated on it does not create a\n" +
 		"second note under a withheld note's own name.\n",
-	openCommand: "Usage: yomihon " + openCommand + " [--root <dir>] [--format json|human|md]\n" +
+	openCommand: "Usage: yomihon " + openCommand + " [--root <dir>] [--format json|human|md] [--adopt <earlier path>]\n" +
 		"\n" +
 		"Lists the marks in a vault: the questions you marked, and the notes of\n" +
 		"the rules' answer type that still declare draft: true — newest first,\n" +
@@ -137,6 +137,15 @@ var commandHelp = map[string]string{
 		"Writes one JSON object per line when the output is not a terminal, and a\n" +
 		"human list when it is; --format decides instead of the terminal, and md\n" +
 		"falls back to the human view.\n" +
+		"\n" +
+		"A folder that moved has no marks, because they are found by its path.\n" +
+		"--adopt takes the path it had, as an absolute path spelled as it was, and\n" +
+		"brings across what was kept for it before the list is made: the marks, the\n" +
+		"bookmarks and the notes finished, but only those on a note this folder holds\n" +
+		"and the rules let be read. What was kept for the earlier path is not changed\n" +
+		"or removed, and running it again brings across only what is not here yet.\n" +
+		"It is the one thing this command writes, and only under the reader's own\n" +
+		"configuration directory.\n" +
 		"\n" +
 		"Nothing under a directory the rules withhold from agent-facing output\n" +
 		"is listed, nor an item whose title or heading links there in any link\n" +

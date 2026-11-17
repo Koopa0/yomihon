@@ -10,6 +10,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"time"
@@ -33,7 +34,9 @@ import (
 // when the command that needs them is.
 //
 // It is the one command that is about the reader rather than the vault. It
-// reads the reader's marks file, read-only, and writes nothing anywhere.
+// reads the reader's marks files and writes nothing anywhere, except when it is
+// given --adopt, which writes the reader's own files for this folder under the
+// configuration directory and nothing else.
 const (
 	openCommand = "marks"
 
@@ -106,6 +109,23 @@ var (
 	errOpenRoot = errors.New("this folder cannot be opened as a vault; nothing was listed")
 )
 
+// The refusals of --adopt. Each is fixed text that names no path: the one it
+// was given is the caller's own, and the directory it looked in spells the
+// home directory, so neither is repeated.
+var (
+	errOpenAdoptRelative = errors.New("--adopt takes the folder's earlier path, as an absolute path; nothing was adopted")
+	errOpenAdoptOwn      = errors.New("the path given to --adopt is this folder's own; nothing was adopted")
+	errOpenAdoptNothing  = errors.New("no marks are kept for the path given to --adopt; nothing was adopted")
+	errOpenAdoptOther    = errors.New("what is kept for the path given to --adopt records another folder; nothing was adopted")
+	errOpenAdoptFull     = errors.New("what is kept for the path given to --adopt does not fit beside the marks kept for this folder; nothing was adopted")
+	errOpenAdoptFailed   = errors.New("the marks for the path given to --adopt could not be adopted")
+)
+
+// openAdoptedNotice is the one line said of an adoption that went through. It
+// carries no count: how many marks were brought across would say how many sit
+// on notes this folder withholds or has not got.
+const openAdoptedNotice = "adopted what was kept for the earlier path, where this folder holds the notes"
+
 // The lines that say why the list holds no marked location. They go to
 // stderr, so stdout stays the data alone, and each says only what was
 // observed. The marks file is found by the folder's path as it was spelled,
@@ -124,7 +144,10 @@ type openRequest struct {
 	// noConfigDir is why no configuration directory was resolved, when none
 	// was: the marks cannot be found, and a list without them is incomplete.
 	noConfigDir string
-	format      judge.Format
+	// adopt is the path this folder had before it moved, when the marks kept for
+	// that path are to be brought across before the list is made.
+	adopt  string
+	format judge.Format
 	// afterRules runs once the rules are read and before the vault is read for
 	// the list. Nothing in production sets it; a test puts a rules file where
 	// the list is about to be read from.
@@ -162,6 +185,8 @@ func parseOpenArgs(args []string, stdoutIsTerminal bool) (openRequest, error) {
 		return openRequest{}, errors.New(openCommand + " does not accept --baseline")
 	case len(parsed.positionals) > 0:
 		return openRequest{}, errors.New(openCommand + " takes no positional arguments")
+	case parsed.adopt != "" && !filepath.IsAbs(parsed.adopt):
+		return openRequest{}, errOpenAdoptRelative
 	}
 	if parsed.root == "" {
 		if parsed.root, err = os.Getwd(); err != nil {
@@ -174,7 +199,7 @@ func parseOpenArgs(args []string, stdoutIsTerminal bool) (openRequest, error) {
 		// has no report body of its own.
 		format = judge.FormatHuman
 	}
-	return openRequest{root: parsed.root, format: format}, nil
+	return openRequest{root: parsed.root, adopt: parsed.adopt, format: format}, nil
 }
 
 // rulesRead calls the test's seam between the rules and the list when it set one.
@@ -185,12 +210,15 @@ func (r *openRequest) rulesRead() {
 }
 
 func (r *openRequest) run(ctx context.Context, stdout, stderr io.Writer) int {
-	payload, notice, err := r.list(ctx)
+	payload, adopted, notice, err := r.list(ctx)
 	if err != nil {
 		return commandError(stderr, err)
 	}
 	if _, err := payload.WriteTo(stdout); err != nil {
 		return commandError(stderr, fmt.Errorf("write output: %w", err))
+	}
+	if adopted {
+		_, _ = fmt.Fprintf(stderr, "yomihon: %s\n", openAdoptedNotice) //nolint:errcheck // the list is already written; a failing stderr has no second channel
 	}
 	if notice != "" {
 		_, _ = fmt.Fprintf(stderr, "yomihon: %s\n", notice) //nolint:errcheck // the list is already written; a failing stderr has no second channel
@@ -200,20 +228,22 @@ func (r *openRequest) run(ctx context.Context, stdout, stderr io.Writer) int {
 
 // list builds the payload under the privacy gate and seals it, which looks at
 // the rules file again once the payload exists. notice is the one line that
-// says why no marked location is listed, when that is so.
-func (r *openRequest) list(ctx context.Context) (payload egress.Payload, notice string, err error) {
+// says why no marked location is listed, when that is so. adopted says that
+// the marks kept for the earlier path were brought across before the list was
+// made.
+func (r *openRequest) list(ctx context.Context) (payload egress.Payload, adopted bool, notice string, err error) {
 	source, err := vault.Open(r.root)
 	if err != nil {
-		return egress.Payload{}, "", errOpenRoot
+		return egress.Payload{}, false, "", errOpenRoot
 	}
 	defer func() {
 		if closeErr := source.Close(); closeErr != nil && err == nil {
-			payload, notice, err = egress.Payload{}, "", errOpenScan
+			payload, adopted, notice, err = egress.Payload{}, false, "", errOpenScan
 		}
 	}()
 	gate, err := egress.Open(ctx, source, judge.LinkTargets)
 	if err != nil {
-		return egress.Payload{}, "", openRefusal(err)
+		return egress.Payload{}, false, "", openRefusal(err)
 	}
 	r.rulesRead()
 	rules := gate.Rules()
@@ -224,18 +254,21 @@ func (r *openRequest) list(ctx context.Context) (payload egress.Payload, notice 
 	store, err := snapshot.New(ctx, source, slog.New(slog.DiscardHandler), rules, rules.Governance())
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return egress.Payload{}, "", ctxErr
+			return egress.Payload{}, false, "", ctxErr
 		}
-		return egress.Payload{}, "", errOpenScan
+		return egress.Payload{}, false, "", errOpenScan
 	}
 	snap := store.Current().Capture()
 	allowed := gate.Readable(snap)
 	if missing := openUnreadable(snap, allowed); missing != nil {
-		return egress.Payload{}, "", missing
+		return egress.Payload{}, false, "", missing
+	}
+	if adopted, err = r.adoptEarlier(source.Name(), snap, allowed); err != nil {
+		return egress.Payload{}, false, "", err
 	}
 	kept, stored, err := r.marks(source.Name())
 	if err != nil {
-		return egress.Payload{}, "", err
+		return egress.Payload{}, false, "", err
 	}
 	entries := openEntries(snap, gate, kept, allowed)
 	if r.afterAssemble != nil {
@@ -243,7 +276,7 @@ func (r *openRequest) list(ctx context.Context) (payload egress.Payload, notice 
 	}
 	data, err := encodeOpen(entries, r.format)
 	if err != nil {
-		return egress.Payload{}, "", err
+		return egress.Payload{}, false, "", err
 	}
 	if gate.WithoutRules() && r.format != judge.FormatJSON {
 		data = append([]byte(egress.NoRulesFile+"\n"), data...)
@@ -253,9 +286,9 @@ func (r *openRequest) list(ctx context.Context) (payload egress.Payload, notice 
 	// is handed over only while that same source still stands.
 	payload, err = gate.Seal(data)
 	if err != nil {
-		return egress.Payload{}, "", openRefusal(err)
+		return egress.Payload{}, false, "", openRefusal(err)
 	}
-	return payload, openNotice(entries, stored), nil
+	return payload, adopted, openNotice(entries, stored), nil
 }
 
 // openRefusal is the refusal this command gives for one the gate gave. Only a
@@ -312,6 +345,47 @@ func openUnreadable(snap *snapshot.Generation, allowed func(string) bool) error 
 		}
 	}
 	return nil
+}
+
+// adoptEarlier brings the marks, bookmarks and finished notes kept for the
+// folder's earlier path across to this folder, each only where this folder's
+// scan holds the note and the gate lets it be read. The gate's own readable
+// test is the one asked, so a note in withheld ground is refused here as it is
+// refused in the list: what another folder's marks say of ground this folder
+// withholds, or of notes it has not got, never becomes part of this folder's
+// output.
+func (r *openRequest) adoptEarlier(vaultRoot string, snap *snapshot.Generation, allowed func(string) bool) (adopted bool, err error) {
+	if r.adopt == "" {
+		return false, nil
+	}
+	if r.configDir == "" {
+		reason := cmp.Or(r.noConfigDir, "the environment names none")
+		return false, fmt.Errorf(`no configuration directory, so the marks for the earlier path cannot be found: %s; nothing was adopted`, reason)
+	}
+	store, err := mark.Open(r.configDir, vaultRoot)
+	if err != nil {
+		return false, errOpenAdoptFailed
+	}
+	err = store.Adopt(r.adopt, func(rel string) bool {
+		_, held := snap.Note(rel)
+		return held && allowed(rel)
+	})
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, mark.ErrOwnPath):
+		return false, errOpenAdoptOwn
+	case errors.Is(err, mark.ErrNothingKept):
+		return false, errOpenAdoptNothing
+	case errors.Is(err, mark.ErrOtherVault):
+		return false, errOpenAdoptOther
+	case errors.Is(err, mark.ErrUnreadable):
+		return false, errOpenMarksUnreadable
+	case errors.Is(err, mark.ErrInvalid):
+		return false, errOpenAdoptFull
+	default:
+		return false, errOpenAdoptFailed
+	}
 }
 
 // marks reads the reader's marked locations for this vault, never writing
