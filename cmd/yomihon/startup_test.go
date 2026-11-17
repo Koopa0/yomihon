@@ -471,28 +471,42 @@ func TestAVaultThatCannotBeReadStillTurnsBackAnotherHostName(t *testing.T) {
 }
 
 // A page the reader never opened must not make this process read a folder: a
-// picture or a script of some other page can be pointed at any port on this
-// machine. Only an address the reader typed, a request of the vault's own page,
-// or one from a client that says nothing begins the read; a link followed from
-// another page gets the page that says the vault is being read, and that page's
-// own request for how far the read has got begins it.
-func TestOnlyARequestForThePageItselfBeginsAVaultsRead(t *testing.T) {
+// picture, a script or a frame of some other page can be pointed at any port on
+// this machine. What a request is decides, not where it came from: a top-level
+// navigation begins the read, a link or a card from another vault's page
+// included, and so does a client that sends no fetch metadata; a picture, a
+// script, a style, a frame, a fetch or a prefetch never does, from any origin.
+func TestOnlyANavigationToThePageBeginsAVaultsRead(t *testing.T) {
 	t.Parallel()
+	navigation := func(site string) map[string]string {
+		return map[string]string{"Sec-Fetch-Site": site, "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}
+	}
+	subresource := func(site, dest, mode string) map[string]string {
+		return map[string]string{"Sec-Fetch-Site": site, "Sec-Fetch-Dest": dest, "Sec-Fetch-Mode": mode}
+	}
 	for _, test := range []struct {
 		name    string
 		headers map[string]string
 		begins  bool
 	}{
 		{"a client that says nothing", nil, true},
-		{"an address typed", map[string]string{"Sec-Fetch-Site": "none", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, true},
-		{"a request of the vault's own page", map[string]string{"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors"}, true},
-		{"a link followed from another vault's page", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, false},
-		{"a link followed from another site", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, false},
-		{"a picture of another site's page", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors"}, false},
-		{"a picture of another vault's page", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors"}, false},
-		{"a script of another site's page", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "script", "Sec-Fetch-Mode": "no-cors"}, false},
-		{"a frame of another site's page", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "iframe", "Sec-Fetch-Mode": "navigate"}, false},
-		{"a fetch of another vault's page", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors"}, false},
+		{"an address typed", navigation("none"), true},
+		{"a link followed on the vault's own page", navigation("same-origin"), true},
+		{"a link or a card followed from another vault's page", navigation("same-site"), true},
+		{"a link followed from another site", navigation("cross-site"), true},
+		{"the reading page's own request for how far the read has got", subresource("same-origin", "empty", "cors"), false},
+		{"a fetch of another vault's page", subresource("same-site", "empty", "cors"), false},
+		{"a fetch from another site", subresource("cross-site", "empty", "cors"), false},
+		{"a picture of another vault's page", subresource("same-site", "image", "no-cors"), false},
+		{"a picture of another site's page", subresource("cross-site", "image", "no-cors"), false},
+		{"a picture of the vault's own page", subresource("same-origin", "image", "no-cors"), false},
+		{"a script of another site's page", subresource("cross-site", "script", "no-cors"), false},
+		{"a style of another site's page", subresource("cross-site", "style", "no-cors"), false},
+		{"a frame of another vault's page", subresource("same-site", "iframe", "navigate"), false},
+		{"a frame of another site's page", subresource("cross-site", "iframe", "navigate"), false},
+		{"a frame of the vault's own page", subresource("same-origin", "iframe", "navigate"), false},
+		{"a prefetch of a link", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Purpose": "prefetch"}, false},
+		{"a prerender of a link", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Purpose": "prefetch;prerender"}, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()

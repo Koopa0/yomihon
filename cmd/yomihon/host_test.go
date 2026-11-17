@@ -655,14 +655,15 @@ func TestAFolderTypedThroughALinkIsTheSameVaultAsTheFolder(t *testing.T) {
 	}
 }
 
-// A listed vault nobody has opened is read when its own page asks how far the
-// read has got, and not for a picture another page pointed at its port.
-func TestAnUnreadVaultIsReadWhenItsOwnPageAsksAndNotForAnotherPagesPicture(t *testing.T) {
+// A listed vault nobody has opened is read when a reader navigates to it, a card
+// or a link on another vault's page included, and not for a picture, a frame or a
+// fetch that another page pointed at its port, nor for the reading page's own
+// request for how far the read has got.
+func TestAnUnreadVaultIsReadWhenNavigatedToAndNotForASubresource(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
 	start := someFreePort(t)
-	listed := newVaultFolder(t)
-	entry, _, err := listOf(t, configDir).Add(listed, start+5)
+	entry, _, err := listOf(t, configDir).Add(newVaultFolder(t), start+5)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -687,23 +688,28 @@ func TestAnUnreadVaultIsReadWhenItsOwnPageAsksAndNotForAnotherPagesPicture(t *te
 		}
 		return resp.StatusCode
 	}
-	picture := map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors"}
-	for range 3 {
-		if status := get("/", picture); status != http.StatusServiceUnavailable {
-			t.Fatalf("a picture of another page asked for the vault and got %d, want the page that says it is being read", status)
+	for name, headers := range map[string]map[string]string{
+		"a picture of another site":      {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors"},
+		"a frame of another vault":       {"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "iframe", "Sec-Fetch-Mode": "navigate"},
+		"a fetch of another vault":       {"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors"},
+		"the reading page's own request": {"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors"},
+	} {
+		for range 2 {
+			if status := get("/", headers); status != http.StatusServiceUnavailable {
+				t.Fatalf("%s got %d, want the page that says the vault is being read", name, status)
+			}
+		}
+		get(scanAddress, headers)
+		if m := r.mountOf(entry.ID); m == nil || m.site.Load() != nil {
+			t.Fatalf("the vault was read for %s", name)
 		}
 	}
-	if m := r.mountOf(entry.ID); m == nil || m.site.Load() != nil {
-		t.Fatal("the vault was read for a picture another page asked for")
-	}
 
-	link := map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}
-	if status := get("/", link); status != http.StatusServiceUnavailable {
-		t.Fatalf("a link followed from another vault got %d, want the page that says the vault is being read", status)
+	card := map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}
+	if status := get("/", card); status != http.StatusServiceUnavailable && status != http.StatusOK {
+		t.Fatalf("a card followed from another vault got %d", status)
 	}
-	own := map[string]string{"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors"}
-	get(scanAddress, own)
-	eventually(t, "the vault to be read once its own page asked", func() bool {
+	eventually(t, "the vault to be read when navigated to", func() bool {
 		m := r.mountOf(entry.ID)
 		return m != nil && m.site.Load() != nil
 	})

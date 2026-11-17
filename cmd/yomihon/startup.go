@@ -169,19 +169,25 @@ func (s *startup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // wakes says whether a request may begin the read of a vault that has not been
-// read. A browser that says where the request came from is believed: an address
-// the reader typed, or a request of the vault's own page, begins it. Anything
-// another origin asked for does not, a link followed from another vault's page
-// included: that page the reader gets is the one that says the vault is being
-// read, and its own request for how far the read has got begins it. A page the
-// reader never opened must not make this process read a folder. A client that
-// says nothing, such as a program on this machine, asked for the page itself.
+// read. It is decided by what the request is and not by where it came from: a
+// top-level navigation to a page begins it, whichever page the reader came from,
+// which is how a link or a card opens another vault; so does a client that sends
+// no fetch metadata at all, an address typed or a program on this machine. A
+// picture, a script, a style, a frame, a fetch or a prefetch never does, from
+// any origin, so a page the reader never opened cannot make this process read a
+// folder. The reading page's own request for how far the read has got is one of
+// those fetches: the navigation that showed it began the read.
 func wakes(r *http.Request) bool {
-	switch r.Header.Get("Sec-Fetch-Site") {
-	case "", "none", "same-origin":
+	for _, header := range []string{"Sec-Purpose", "Purpose"} {
+		if purpose := r.Header.Get(header); strings.Contains(purpose, "prefetch") || strings.Contains(purpose, "prerender") {
+			return false
+		}
+	}
+	site, mode, dest := r.Header.Get("Sec-Fetch-Site"), r.Header.Get("Sec-Fetch-Mode"), r.Header.Get("Sec-Fetch-Dest")
+	if site == "" && mode == "" && dest == "" {
 		return true
 	}
-	return false
+	return mode == "navigate" && dest == "document"
 }
 
 // holds says whether a request is one that waits the grace out. Only a page a
