@@ -222,7 +222,7 @@ func (r *openRequest) list(ctx context.Context) (payload []byte, notice string, 
 		}
 		// The loader's words name the contract's keys, which is vault content
 		// this face has no authority yet to repeat.
-		return nil, "", judge.ErrPrivacyAuthorityUnavailable
+		return nil, "", judge.RefusalFor(err)
 	}
 	if refused := openAuthority(contract); refused != nil {
 		return nil, "", refused

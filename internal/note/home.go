@@ -37,7 +37,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	fresh := snap.Freshness()
 	visible := shell.Project(h.sources.VaultName, authority, snap)
 	visibleNav := visible.Nav
-	blocks := pages.NewDeskBlocks(visibleNav, snap.NavigationRoles(), pages.ContractStateFrom(visible.Governed, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
+	blocks := pages.NewDeskBlocks(visibleNav, snap.NavigationRoles(), pages.ContractStateFrom(visible.Governed, visible.OtherVersion, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
 	// The reason a way in is empty, stated once at the foot of the page. The
 	// desk draws all four ways in, so what it says here is the union of what
 	// the four pages behind them say: the write authority, which empties the
@@ -74,7 +74,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		PrivacyRestart:    privacyRestart,
 		Degraded:          degradedNotice(&fresh, lang),
 		DegradedDetail:    blockedDetail(fresh.Blocked),
-		Notices:           folderNotices(fresh.Collision, fresh.Root, lang),
+		Notices:           folderNotices(fresh.Collision, fresh.Root, authority.VersionMismatch(), lang),
 		Blocks:            blocks,
 		ReadmeMissing:     !hasReadme,
 		Continue:          continueRow(&kept, hasMark, snap, visibleNav, lang),

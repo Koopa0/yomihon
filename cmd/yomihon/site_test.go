@@ -154,6 +154,62 @@ func writeRecoverySiteFixture(t *testing.T, root string) {
 	}
 }
 
+// TestARulesFileForAnotherVersionIsReadAsNoRulesFile holds the two halves of
+// that state together through the production composition: the folder reads as
+// one without a contract, and the desk says which line of the file to change,
+// in the language the browser asked for.
+func TestARulesFileForAnotherVersionIsReadAsNoRulesFile(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for path, content := range map[string]string{
+		"Writing/note.md": "# A note\n\nBody.\n",
+		schema.ContractRelPath: "# rules\n" +
+			"schema_version = \"1\"\n",
+	} {
+		full := filepath.Join(root, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir for %s: %v", path, err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+
+	home := httptest.NewRecorder()
+	request := siteRequest(t, http.MethodGet, "/", http.NoBody)
+	request.Header.Set("Accept-Language", "en")
+	site.ServeHTTP(home, request)
+	if home.Code != http.StatusOK {
+		t.Fatalf("GET / status = %d, want %d", home.Code, http.StatusOK)
+	}
+	body := home.Body.String()
+	for _, want := range []string{`<html lang="en"`, "Change line 2 to schema_version"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the desk does not carry %q", want)
+		}
+	}
+	for _, unwanted := range []string{wording.RestartYomihon.In(wording.En), "could not be read"} {
+		if strings.Contains(body, unwanted) {
+			t.Errorf("the desk carries %q, which says this folder is broken or needs a restart", unwanted)
+		}
+	}
+
+	note := httptest.NewRecorder()
+	site.ServeHTTP(note, siteRequest(t, http.MethodGet, "/notes/Writing/note.md", http.NoBody))
+	if note.Code != http.StatusOK || !strings.Contains(note.Body.String(), "Body.") {
+		t.Errorf("GET a note = %d, want %d with its body: reading must work as it does with no rules file", note.Code, http.StatusOK)
+	}
+}
+
 // TestContractAbsenceIsNotReportedAsAFault locks the difference between a
 // folder that never declared a contract and one whose declaration is broken.
 // Both used to arrive here as the same warning, and the absent case additionally

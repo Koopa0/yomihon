@@ -3,6 +3,7 @@ package judge
 import (
 	"context"
 	"errors"
+	"regexp"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -26,6 +27,55 @@ var (
 	// sentence from saying a declaration could not be honoured.
 	ErrNoVaultContract = errors.New("this folder has no rules file, so there is nothing to judge notes against")
 )
+
+// RulesVersionError is a contract written for another schema version. It is
+// the one contract that could not be used whose cause is stated, because what
+// is stated cannot carry the vault's own words: the declared version only when
+// it is a plain number, and the line it is on. It is still a refusal of the
+// privacy authority, so everything that asks for that refusal gets it.
+type RulesVersionError struct {
+	// Declared is the version the file declares, empty when it is not a plain
+	// number or the file declares none.
+	Declared string
+	// Line is the line schema_version is written on, zero when it was not found.
+	Line int
+	// Missing is whether the file declares no version at all.
+	Missing bool
+	// Supported is the version this binary reads.
+	Supported string
+}
+
+func (e *RulesVersionError) Error() string { return ErrPrivacyAuthorityUnavailable.Error() }
+
+// Is makes the refusal for another version a case of the refusal for an
+// unusable contract.
+func (e *RulesVersionError) Is(target error) bool { return target == ErrPrivacyAuthorityUnavailable }
+
+// plainVersion is what a declared version has to look like to be repeated.
+var plainVersion = regexp.MustCompile(`^\d{1,6}(?:\.\d{1,6}){0,2}$`)
+
+// RefusalFor is the refusal owed for a contract that did not load, so every
+// command that loads one answers the same way. Only a contract for another
+// schema version says more than that it could not be used.
+func RefusalFor(err error) error {
+	if schema.ContractAbsent(err) {
+		return ErrNoVaultContract
+	}
+	if mismatch, ok := errors.AsType[*schema.VersionError](err); ok {
+		declared := ""
+		if plainVersion.MatchString(mismatch.Declared) {
+			declared = mismatch.Declared
+		}
+		return &RulesVersionError{Declared: declared, Line: mismatch.Line, Missing: mismatch.Missing, Supported: mismatch.Supported}
+	}
+	// The decoder's own words are deliberately dropped. A parse failure
+	// names keys from the contract, and this face exists to hand its output
+	// to an agent, so explaining the fault here would send vault content
+	// out under exactly the policy that is missing. The operator reads the
+	// cause where reading is the point: the server states it on the page
+	// and logs it at startup.
+	return ErrPrivacyAuthorityUnavailable
+}
 
 // scanAuthority is the contract state that permits one agent-facing judge
 // action. Every command loads it before reading vault notes and validates the
@@ -53,16 +103,7 @@ func (a scanAuthority) domainRoots() domainRoots {
 func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority, error) {
 	contract, err := schema.LoadReader(ctx, reader)
 	if err != nil {
-		if schema.ContractAbsent(err) {
-			return scanAuthority{}, ErrNoVaultContract
-		}
-		// The decoder's own words are deliberately dropped. A parse failure
-		// names keys from the contract, and this face exists to hand its output
-		// to an agent, so explaining the fault here would send vault content
-		// out under exactly the policy that is missing. The operator reads the
-		// cause where reading is the point: the server states it on the page
-		// and logs it at startup.
-		return scanAuthority{}, ErrPrivacyAuthorityUnavailable
+		return scanAuthority{}, RefusalFor(err)
 	}
 	authority := scanAuthority{
 		contract: contract,

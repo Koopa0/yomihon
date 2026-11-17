@@ -40,8 +40,9 @@ func Project(vaultName string, authority schema.Authority, snap *snapshot.Genera
 	policy := snap.ArtifactPolicy()
 	governed := authority.Governed()
 	projected := nav.Shell{
-		Nav:      snap.Navigation(),
-		Governed: governed,
+		Nav:          snap.Navigation(),
+		Governed:     governed,
+		OtherVersion: authority.VersionMismatch() != nil,
 		Vault: nav.Vault{
 			Name:  vaultName,
 			Notes: snap.NoteCount(),

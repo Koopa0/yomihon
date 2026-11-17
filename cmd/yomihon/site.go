@@ -99,6 +99,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 
 	contract, err := schema.LoadReader(ctx, source)
 	var governance schema.Governance
+	_, otherVersion := errors.AsType[*schema.VersionError](err)
 	switch {
 	case schema.ContractAbsent(err):
 		// A folder that carries no contract is not a folder in trouble. It has
@@ -108,6 +109,13 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 			"path", schema.ContractRelPath)
 		contract = nil
 		governance = schema.Ungoverned()
+	case otherVersion:
+		// A contract for another schema version asserts nothing this binary can
+		// read, so the folder is read as one without a contract; the version is
+		// kept so the pages and the commands can say which line to change.
+		log.Warn("rules file is for another schema version", "error", err)
+		contract = nil
+		governance = schema.UnsupportedVersion(err)
 	case err != nil:
 		// A contract that exists and cannot be read is the opposite case: this
 		// folder claimed governance and then failed to deliver it. Carrying that

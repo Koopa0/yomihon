@@ -286,6 +286,29 @@ func LoadReader(ctx context.Context, reader *vault.Reader) (*Contract, error) {
 	return contract, nil
 }
 
+// VersionError is a contract written for a schema version this binary does not
+// read, or for none. It carries what the file declares and the line it is on,
+// which is all a surface needs to say what differs and which line to change
+// without quoting anything else out of the file.
+type VersionError struct {
+	// Declared is what the file's schema_version says, empty when it says none.
+	Declared string
+	// Line is the 1-based line schema_version is written on, zero when it was
+	// not found.
+	Line int
+	// Missing is whether the file has no schema_version at all.
+	Missing bool
+	// Supported is the version this binary reads.
+	Supported string
+}
+
+func (e *VersionError) Error() string {
+	if e.Missing {
+		return `missing required key "schema_version"`
+	}
+	return fmt.Sprintf("unsupported schema_version %q; supported version is %q", e.Declared, e.Supported)
+}
+
 // checkVersion reads the contract's schema_version before anything else is
 // decoded, so a contract written for another version is refused with the one
 // sentence that names the mismatch. Decoded further, it would be reported as
@@ -299,12 +322,24 @@ func checkVersion(data []byte) error {
 		return err
 	}
 	if !meta.IsDefined("schema_version") {
-		return errors.New(`missing required key "schema_version"`)
+		return &VersionError{Missing: true, Supported: supportedVersion}
 	}
 	if probe.Version != supportedVersion {
-		return fmt.Errorf("unsupported schema_version %q; supported version is %q", probe.Version, supportedVersion)
+		return &VersionError{Declared: probe.Version, Line: versionLine(data), Supported: supportedVersion}
 	}
 	return nil
+}
+
+// versionLine is the 1-based line a top-level schema_version key starts on, or
+// zero when the key is written in a shape this does not recognise.
+func versionLine(data []byte) int {
+	for number, line := range strings.Split(string(data), "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "schema_version")
+		if ok && strings.HasPrefix(strings.TrimSpace(rest), "=") {
+			return number + 1
+		}
+	}
+	return 0
 }
 
 func decodeContract(data []byte, source policySource) (*Contract, error) {

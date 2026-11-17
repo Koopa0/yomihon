@@ -132,10 +132,15 @@ const (
 	// does not. The contract is read once, when yomihon starts, so one that
 	// arrives afterwards is a file on the shelf and no authority at all.
 	ContractUnloaded
+	// ContractOtherVersion is a contract file written for a schema version this
+	// yomihon does not read. The file is there, so it is not absent, and
+	// starting again loads nothing new, so it is not unloaded. It governs
+	// nothing, and the folder is read as one without a contract.
+	ContractOtherVersion
 )
 
 // String names a contract state for a diagnostic or a log line. A state
-// outside the three constants is a programming error and panics.
+// outside the four constants is a programming error and panics.
 func (s ContractState) String() string {
 	switch s {
 	case ContractGoverning:
@@ -144,6 +149,8 @@ func (s ContractState) String() string {
 		return "absent"
 	case ContractUnloaded:
 		return "unloaded"
+	case ContractOtherVersion:
+		return "other-version"
 	default:
 		panic("pages: unknown ContractState: " + strconv.Itoa(int(s)))
 	}
@@ -154,11 +161,15 @@ func (s ContractState) String() string {
 // generation this page lists from saw the contract file. Seeing the name in
 // that reading is the whole of the evidence — nothing here opens the file,
 // reads it or acts on it, and the folder stays ungoverned until yomihon is
-// started again.
-func ContractStateFrom(governed bool, snap *snapshot.Generation) ContractState {
+// started again. A contract written for another schema version is the one file
+// that is there and never will be loaded by starting again, so it is neither of
+// those.
+func ContractStateFrom(governed, otherVersion bool, snap *snapshot.Generation) ContractState {
 	switch {
 	case governed:
 		return ContractGoverning
+	case otherVersion:
+		return ContractOtherVersion
 	case snap.Contains(schema.ContractRelPath):
 		return ContractUnloaded
 	}
@@ -178,6 +189,8 @@ func emptySentence(contract ContractState, governed string, lang wording.Lang) s
 		return wording.JoinGuide(wording.IndexContractUnloaded, wording.RestartYomihon, lang)
 	case ContractAbsent:
 		return wording.JoinGuide(wording.IndexUngoverned, wording.IndexUngovernedNext, lang)
+	case ContractOtherVersion:
+		return wording.IndexRulesVersion.In(lang)
 	default:
 		return governed
 	}
@@ -345,8 +358,15 @@ func NewFolderIndex(model *nav.Model, contract ContractState, lang wording.Lang,
 	rootNotes := model.RootNotes()
 	folders := model.ShelfFolders()
 	empty := emptySentence(contract, wording.JoinGuide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext, lang), lang)
-	if contract == ContractAbsent {
+	switch contract {
+	case ContractAbsent:
 		empty = wording.JoinGuide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext, lang)
+	case ContractOtherVersion:
+		// Browsing files never depended on the rules, so this listing is empty of
+		// files and of nothing else.
+		empty = wording.JoinGuide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext, lang)
+	case ContractGoverning, ContractUnloaded:
+		// emptySentence has already said what these states say.
 	}
 	return listIndex(folderMode, wording.Folders.In(lang),
 		plural(countNotes(rootNotes, folders), wording.FolderNoteCountOne, wording.FolderNoteCountMany, lang),
@@ -481,7 +501,7 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 	// A plain folder already has a way to read. Put it before the modes whose
 	// organisation the reader has not declared; a present contract keeps its
 	// own order and diagnostics even when it could not be loaded.
-	if contract == ContractAbsent {
+	if contract == ContractAbsent || contract == ContractOtherVersion {
 		return []DeskBlock{folderBlock, pathBlock, mapBlock, reportBlock}
 	}
 	return []DeskBlock{pathBlock, mapBlock, reportBlock, folderBlock}
