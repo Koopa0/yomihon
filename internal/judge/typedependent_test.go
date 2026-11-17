@@ -96,7 +96,7 @@ func TestTypeDependentGolden(t *testing.T) {
 		t.Errorf("caught: type-dependent schema bytes mismatch\ngot:\n%s\nwant:\n%s", got, want)
 	}
 	for _, deny := range [][]string{{"error"}, {"schema.type_dependent"}} {
-		got, exit, runErr := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: deny})
+		got, exit, runErr := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, Deny: deny})
 		if runErr != nil {
 			t.Fatalf("RunCheck() error = %v", runErr)
 		}
@@ -138,7 +138,7 @@ func TestTypeDependentPrivacy(t *testing.T) {
 		t.Fatalf("caught: private fixture did not produce the type-dependent verdict (-want +got):\n%s", diff)
 	}
 	for _, all := range []bool{false, true} {
-		output, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, All: all})
+		output, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, All: all})
 		if err != nil {
 			t.Fatalf("RunCheck() error = %v", err)
 		}

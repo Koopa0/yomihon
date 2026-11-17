@@ -83,7 +83,7 @@ func TestCheckHonoursNoFrontmatterDeclaration(t *testing.T) {
 			write(t, root, "Notes/Unclosed.md", "---\ntype: note\n")
 			write(t, root, "Notes/Whole.md", "---\ntype: note\n---\n# Whole\n\nBody.\n")
 
-			got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+			got, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 			if err != nil {
 				t.Fatalf("RunCheck() error = %v", err)
 			}
@@ -118,7 +118,7 @@ func TestCheckHonoursATypesOwnRequiredFields(t *testing.T) {
 	write(t, root, "Inbox/Bare.md", "---\ntype: inbox\n---\n")
 	write(t, root, "Notes/Plain.md", "---\ntype: note\n---\n")
 
-	got, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
+	got, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON})
 	if err != nil {
 		t.Fatalf("RunCheck() error = %v", err)
 	}

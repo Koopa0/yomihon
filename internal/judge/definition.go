@@ -20,7 +20,7 @@ func checkUnusedDefinitions(notes []note, authority scanAuthority) []Finding {
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
-		if !authority.egressAllowed(n.path) {
+		if !authority.gate.Allows(n.path) {
 			continue
 		}
 		for _, def := range n.unusedDefinitions {

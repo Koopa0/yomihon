@@ -21,7 +21,7 @@ func checkImages(notes []note, scan vault.Scan, authority scanAuthority) []Findi
 	var out []Finding
 	for i := range notes {
 		n := &notes[i]
-		if !authority.egressAllowed(n.path) {
+		if !authority.gate.Allows(n.path) {
 			continue
 		}
 		for _, image := range n.images {
@@ -30,7 +30,7 @@ func checkImages(notes []note, scan vault.Scan, authority scanAuthority) []Findi
 				continue
 			}
 			canonical := vault.NormalizeNFC(resolved)
-			if !authority.egressAllowed(canonical) || authority.outsideScan(canonical) || scan.Contains(canonical) {
+			if !authority.gate.Allows(canonical) || authority.outsideScan(canonical) || scan.Contains(canonical) {
 				continue
 			}
 			out = append(out, missingImage(n, image.line, resolved))

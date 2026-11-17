@@ -38,7 +38,7 @@ func TestExistsAnswersToTheTitleTheReaderSees(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			out, exit, err := RunExists(t.Context(), &ExistsOptions{Root: root, Name: tt.search, Format: FormatJSON})
+			out, exit, err := existsBytes(t.Context(), &ExistsOptions{Root: root, Name: tt.search, Format: FormatJSON})
 			if err != nil {
 				t.Fatalf("RunExists(%q) error = %v", tt.search, err)
 			}

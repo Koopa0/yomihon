@@ -20,6 +20,7 @@ const module = "github.com/koopa0/yomihon"
 // from.
 var enginePackages = []string{
 	"internal/drill",
+	"internal/egress",
 	"internal/figure",
 	"internal/graph",
 	"internal/judge",

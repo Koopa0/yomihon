@@ -70,7 +70,7 @@ func TestCheckKeepsScopeFilteringWhenTheVaultIsNamed(t *testing.T) {
 // tool error, which the binary turns into exit 2; the exit code here therefore
 // only distinguishes a clean run from a gated one.
 func checkScope(ctx context.Context, root string, scopes ...string) (exit int, err error) {
-	_, exit, err = RunCheck(ctx, &CheckOptions{Root: root, Paths: scopes, Format: FormatJSON})
+	_, exit, err = checkBytes(ctx, &CheckOptions{Root: root, Paths: scopes, Format: FormatJSON})
 	return exit, err
 }
 
@@ -78,7 +78,7 @@ func checkScope(ctx context.Context, root string, scopes ...string) (exit int, e
 // runs use, which is where an empty answer over withheld ground would be read
 // as a pass.
 func checkScopeDenying(ctx context.Context, root string, scopes ...string) (exit int, err error) {
-	_, exit, err = RunCheck(ctx, &CheckOptions{
+	_, exit, err = checkBytes(ctx, &CheckOptions{
 		Root: root, Paths: scopes, Deny: []string{"error"}, Format: FormatJSON,
 	})
 	return exit, err
@@ -188,11 +188,11 @@ func TestTheScopeShapeRefusalReachesTheLibraryEntry(t *testing.T) {
 
 	root := writeCheckableVault(t, t.TempDir())
 
-	if _, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Paths: []string{"Writing"}}); err != nil {
+	if _, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Paths: []string{"Writing"}}); err != nil {
 		t.Fatalf("RunCheck() on a vault-relative scope error = %v; the fixture has to work or the refusal proves nothing", err)
 	}
 
-	_, _, err := RunCheck(t.Context(), &CheckOptions{Root: root, Paths: []string{root}})
+	_, _, err := checkBytes(t.Context(), &CheckOptions{Root: root, Paths: []string{root}})
 	if err == nil {
 		t.Fatal("RunCheck() accepted an absolute path as a scope filter, so the scope matched nothing and the run read as clean")
 	}

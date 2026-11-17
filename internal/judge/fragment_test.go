@@ -456,7 +456,7 @@ func TestRunCheckDeniesFragmentRules(t *testing.T) {
 			t.Parallel()
 
 			root := judgeFixtureRoot(t, "testdata/vault-fragments")
-			_, exit, err := RunCheck(t.Context(), &CheckOptions{
+			_, exit, err := checkBytes(t.Context(), &CheckOptions{
 				Root:   root,
 				Format: FormatJSON,
 				Deny:   []string{ruleID},
@@ -564,7 +564,7 @@ func TestHeadingAttributeFragmentsRunCheck(t *testing.T) {
 
 func headingAttributeCheck(t *testing.T, root string) (findings []Finding, exit int) {
 	t.Helper()
-	stdout, exit, err := RunCheck(t.Context(), &CheckOptions{
+	stdout, exit, err := checkBytes(t.Context(), &CheckOptions{
 		Root: root, Format: FormatJSON, Deny: []string{"link.section_missing", "embed.section_missing"},
 	})
 	if err != nil {

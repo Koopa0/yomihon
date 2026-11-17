@@ -247,7 +247,7 @@ func TestMarkdownPrivateSourcesStayOutOfPublicCheck(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			stdout, exit, err := RunCheck(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, All: tt.all, Paths: tt.paths})
+			stdout, exit, err := checkBytes(t.Context(), &CheckOptions{Root: root, Format: FormatJSON, All: tt.all, Paths: tt.paths})
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -96,7 +96,7 @@ func TestSkipBasenamesAreNotNotes(t *testing.T) {
 		t.Errorf("GET /search lost the kept note; page = %q", keptSearch)
 	}
 
-	existsOut, existsExit, existsErr := judge.RunExists(t.Context(), &judge.ExistsOptions{
+	existsOut, existsExit, existsErr := existsBytes(t.Context(), &judge.ExistsOptions{
 		Root:   root,
 		Name:   "README.md",
 		Format: judge.FormatHuman,
@@ -110,7 +110,7 @@ func TestSkipBasenamesAreNotNotes(t *testing.T) {
 	if !strings.Contains(string(existsOut), "does not exist") {
 		t.Errorf("exists README.md did not report absence; stdout = %s", existsOut)
 	}
-	keptOut, keptExit, keptErr := judge.RunExists(t.Context(), &judge.ExistsOptions{
+	keptOut, keptExit, keptErr := existsBytes(t.Context(), &judge.ExistsOptions{
 		Root: root,
 		Name: "Kept",
 	})

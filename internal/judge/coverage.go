@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -76,7 +77,7 @@ func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Co
 		notApplicable := "the rules file declares no " + strconv.Quote(conceptType) +
 			" type, so there is no concept corpus to judge"
 		if authority.noRules() {
-			notApplicable = NoRulesFile + " There is no concept type to count."
+			notApplicable = egress.NoRulesFile + " There is no concept type to count."
 		}
 		return Coverage{
 			Domains:       []DomainCoverage{},
@@ -96,7 +97,7 @@ func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Co
 		n := &notes[i]
 		if n.noteType != conceptType ||
 			!scope.Includes(n.path) ||
-			!authority.egressAllowed(n.path) {
+			!authority.gate.Allows(n.path) {
 			continue
 		}
 		total++
@@ -147,7 +148,7 @@ func mountEdges(notes []note, idx *graph.Index, authority scanAuthority) (mapped
 	scope := coverageScope(authority)
 	for i := range notes {
 		n := &notes[i]
-		if !scope.Includes(n.path) || !authority.egressAllowed(n.path) {
+		if !scope.Includes(n.path) || !authority.gate.Allows(n.path) {
 			// A private note is not counted as a source: its links must not
 			// decide a public concept's mount state, or a reader of coverage
 			// could infer that the private note references it. A note outside
@@ -175,7 +176,7 @@ func unroutedNotes(notes []note, mapped map[string]bool, authority scanAuthority
 	scope := coverageScope(authority)
 	for i := range notes {
 		n := &notes[i]
-		if !scope.Includes(n.path) || !authority.egressAllowed(n.path) {
+		if !scope.Includes(n.path) || !authority.gate.Allows(n.path) {
 			continue
 		}
 		if route, ok := routes[n.noteType]; ok && !mapped[n.path] {
