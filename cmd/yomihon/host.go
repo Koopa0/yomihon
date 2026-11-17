@@ -436,6 +436,9 @@ func (h *host) serveListed(ctx context.Context, stop func(), cfg *config, out io
 	held, err := h.mountAll(serveCtx, list, typed.ID, start, listener)
 	if err != nil {
 		cancel()
+		if !held {
+			err = errors.Join(err, listener.Close())
+		}
 		return errors.Join(err, h.stopServing(), h.closeSites())
 	}
 	if !held {
