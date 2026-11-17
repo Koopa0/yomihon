@@ -7867,8 +7867,26 @@ samp,
   display: inline-block;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
+  line-height: 20px;
   margin-top: 8px;
   text-decoration: underline;
+}
+
+/* On a phone the cover is set smaller and looser (17/34), and the way on is
+   a touch target: padding grows the box to 44px, and the negative margins
+   give back what the padding took, so no word moves. */
+@media (max-width: 720px) {
+  .y-cover {
+    font-size: var(--fs-ed-17);
+    line-height: 34px;
+  }
+
+  .y-cover__more {
+    display: block;
+    margin-block: -4px -7px;
+    padding-block: 12px;
+    width: fit-content;
+  }
 }
 
 /* An index says how much it holds once, as a quiet fact under its title. */
