@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -665,6 +666,133 @@ body
 					t.Errorf("Strings(%q) mismatch (-want +got):\n%s", tt.key, diff)
 				}
 			})
+		}
+	})
+
+	// A name a note may write as one piece of text is a list of one: that is
+	// the aliases the check reads and the page must link.
+	t.Run("list or text", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name string
+			key  string
+			want []string
+		}{
+			{name: "a list of text answers all of it in order", key: "topics", want: []string{"alpha", "beta"}},
+			{name: "one piece of text is a list of one", key: "title", want: []string{"A note"}},
+			{name: "text declared empty is still a list of one", key: "declared_empty", want: []string{""}},
+			{name: "a list drops the members that are not text", key: "mixed", want: []string{"alpha", "beta"}},
+			{name: "an empty list is a list holding no text", key: "none", want: []string{}},
+			{name: "a number is neither", key: "count", want: nil},
+			{name: "a date is neither", key: "when", want: nil},
+			{name: "a key the note never wrote is neither", key: "absent", want: nil},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				if diff := cmp.Diff(tt.want, n.ListOrText(tt.key)); diff != "" {
+					t.Errorf("ListOrText(%q) mismatch (-want +got):\n%s", tt.key, diff)
+				}
+			})
+		}
+	})
+}
+
+// A note's aliases are read by the page and by the check, and an author writes
+// the one name as text more often than as a list of one.
+func TestAliasesReadOneNameWrittenAsText(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		frontmatter string
+		want        []string
+	}{
+		{name: "one piece of text", frontmatter: "aliases: Solo Name", want: []string{"Solo Name"}},
+		{name: "quoted text", frontmatter: "aliases: \"Solo Name\"", want: []string{"Solo Name"}},
+		{name: "a list of one", frontmatter: "aliases: [Solo Name]", want: []string{"Solo Name"}},
+		{name: "a list", frontmatter: "aliases:\n  - First\n  - Second", want: []string{"First", "Second"}},
+		{name: "a number is no name", frontmatter: "aliases: 7", want: nil},
+		{name: "a mapping is no name", frontmatter: "aliases:\n  key: value", want: nil},
+		{name: "no aliases", frontmatter: "title: Plain", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			n := vault.Parse("Notes/a.md", []byte("---\n"+tt.frontmatter+"\n---\nbody\n"))
+			if diff := cmp.Diff(tt.want, n.Aliases()); diff != "" {
+				t.Errorf("Aliases() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// ParseWithTree is the one decode: the map and the tree come from the same
+// document, and the tree keeps what the map cannot.
+func TestParseWithTreeHoldsBothViewsOfOneDecode(t *testing.T) {
+	t.Parallel()
+
+	t.Run("the map and the tree describe one document", func(t *testing.T) {
+		t.Parallel()
+		n, doc := vault.ParseWithTree("Notes/a.md", []byte("---\ncode: 007\nname: Plain\nlist: [a, b]\n---\nbody\n"))
+		if doc == nil || len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
+			t.Fatalf("tree = %+v, want a document holding one mapping", doc)
+		}
+		kinds := map[string]yaml.Kind{}
+		text := map[string]string{}
+		fields := doc.Content[0].Content
+		for i := 0; i+1 < len(fields); i += 2 {
+			kinds[fields[i].Value] = fields[i+1].Kind
+			text[fields[i].Value] = fields[i+1].Value
+		}
+		if kinds["name"] != yaml.ScalarNode || kinds["list"] != yaml.SequenceNode {
+			t.Errorf("kinds = %v, want name a scalar and list a sequence", kinds)
+		}
+		if text["code"] != "007" {
+			t.Errorf("tree text for code = %q, want the author's %q, which the map has as the number %v", text["code"], "007", n.Frontmatter["code"])
+		}
+		if got, ok := n.Text("name"); !ok || got != "Plain" {
+			t.Errorf("map text for name = (%q, %t), want (%q, true)", got, ok, "Plain")
+		}
+	})
+
+	t.Run("a note with no block has no tree", func(t *testing.T) {
+		t.Parallel()
+		n, doc := vault.ParseWithTree("Notes/a.md", []byte("body only\n"))
+		if doc != nil || n.HasFrontmatter {
+			t.Errorf("tree = %v, HasFrontmatter = %t, want neither", doc, n.HasFrontmatter)
+		}
+	})
+
+	t.Run("a block that is not YAML has no tree and says so", func(t *testing.T) {
+		t.Parallel()
+		n, doc := vault.ParseWithTree("Notes/a.md", []byte("---\nkey: [unclosed\n---\nbody\n"))
+		if doc != nil || n.FMDiagnostic == "" {
+			t.Errorf("tree = %v, FMDiagnostic = %q, want no tree and a diagnostic", doc, n.FMDiagnostic)
+		}
+	})
+
+	t.Run("a document that is not a mapping keeps its tree and has no map", func(t *testing.T) {
+		t.Parallel()
+		n, doc := vault.ParseWithTree("Notes/a.md", []byte("---\n- a\n- b\n---\nbody\n"))
+		if doc == nil || n.Frontmatter != nil || n.FMDiagnostic == "" {
+			t.Errorf("tree = %v, map = %v, FMDiagnostic = %q, want a tree, no map and a diagnostic", doc, n.Frontmatter, n.FMDiagnostic)
+		}
+	})
+
+	t.Run("an empty block is a block with nothing in it", func(t *testing.T) {
+		t.Parallel()
+		n, doc := vault.ParseWithTree("Notes/a.md", []byte("---\n---\nbody\n"))
+		if doc == nil || !n.HasFrontmatter || n.Frontmatter != nil || n.FMDiagnostic != "" {
+			t.Errorf("tree = %v, HasFrontmatter = %t, map = %v, FMDiagnostic = %q", doc, n.HasFrontmatter, n.Frontmatter, n.FMDiagnostic)
+		}
+	})
+
+	t.Run("Parse answers what ParseWithTree answers", func(t *testing.T) {
+		t.Parallel()
+		data := []byte("---\ntitle: A\naliases: B\n---\nbody\n")
+		withTree, _ := vault.ParseWithTree("Notes/a.md", data)
+		if diff := cmp.Diff(vault.Parse("Notes/a.md", data), withTree); diff != "" {
+			t.Errorf("Parse and ParseWithTree disagree (-parse +withTree):\n%s", diff)
 		}
 	})
 }
