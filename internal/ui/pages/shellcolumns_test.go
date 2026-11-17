@@ -39,6 +39,9 @@ func TestTwoColumnShellsUseOnlyTheirDeclaredColumns(t *testing.T) {
 		{"refusal.templ", func(c layouts.Chrome) templ.Component {
 			return RequestRefused(RequestRefusedView{Title: "Method not allowed", Lede: "This address does not accept that request.", Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, c)
 		}, []string{"left", "main"}},
+		{"scanning.templ", func(c layouts.Chrome) templ.Component {
+			return Scanning(ScanningView{VaultName: "notes", VaultPath: "/home/reader/notes", Done: 2, Total: 5}, c)
+		}, []string{"main"}},
 		{"search.templ", func(c layouts.Chrome) templ.Component { return Search(recordedSearchView(model, c.Lang), c) }, []string{"left", "main"}},
 		{"syllabus.templ", func(c layouts.Chrome) templ.Component { return Syllabus(course.view(c.Lang, ""), c) }, []string{"left", "main"}},
 	}

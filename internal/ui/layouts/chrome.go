@@ -20,7 +20,11 @@ import (
 // server-rendered page remains usable without enhancement.
 type Chrome struct {
 	Title string // page title (before " — yomihon")
-	Nonce string // per-response nonce for application-owned scripts
+	// TitleAlone makes Title the whole document title, with no " — yomihon"
+	// after it, for a page whose title is the vault's name: the vault is the
+	// one thing the tab should say.
+	TitleAlone bool
+	Nonce      string // per-response nonce for application-owned scripts
 	// Assets selects the version values in static resource addresses. Its
 	// zero value binds them to the real registered bytes.
 	Assets asset.Versions
@@ -95,6 +99,15 @@ type MarkOffer struct {
 	Identity string
 	Endpoint string
 	Kept     bool
+}
+
+// documentTitle is the text of the document's <title>. It is here rather than
+// in the template for the reason singleKeyShortcutsState is.
+func documentTitle(title string, alone bool) string {
+	if alone {
+		return title
+	}
+	return title + " — yomihon"
 }
 
 // singleKeyShortcutsState is the word the root carries for the single-key

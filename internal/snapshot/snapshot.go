@@ -692,6 +692,7 @@ func New(
 	log *slog.Logger,
 	contract *schema.Contract,
 	governance schema.Governance,
+	opts ...Option,
 ) (*Store, error) {
 	if source == nil {
 		panic("snapshot: New requires a non-nil Source")
@@ -700,6 +701,10 @@ func New(
 		panic("snapshot: New requires a non-nil Logger")
 	}
 
+	var settings options
+	for _, opt := range opts {
+		opt(&settings)
+	}
 	capabilities := contract.Capabilities(governance)
 	generationCaps := validateArtifactSource(capabilities)
 	validatePrivacySource(contract)
@@ -709,7 +714,7 @@ func New(
 	}
 	reported := make(map[string][sha256.Size]byte)
 	reportedWarnings := make(map[warningKey]struct{})
-	gen, blocked, err := buildGeneration(ctx, source, nil, scan, log, generationCaps, contract, reported, reportedWarnings)
+	gen, blocked, err := buildGeneration(ctx, source, nil, scan, log, generationCaps, contract, reported, reportedWarnings, settings.progress)
 	if err != nil {
 		return nil, fmt.Errorf("build initial vault snapshot: %w", err)
 	}
@@ -846,6 +851,7 @@ func (s *Store) rescan(ctx context.Context) {
 		s.contract,
 		s.reported,
 		s.reportedWarnings,
+		nil,
 	)
 	if err != nil {
 		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -1014,6 +1020,7 @@ func buildGeneration(
 	contract *schema.Contract,
 	reported map[string][sha256.Size]byte,
 	reportedWarnings map[warningKey]struct{},
+	progress *Progress,
 ) (*Generation, []BlockedSource, error) {
 	// Classification is generation data, so one point-in-time policy builds every
 	// projection; Capture rebinds request-time access to the current authority.
@@ -1025,16 +1032,18 @@ func buildGeneration(
 	g.blocked = blockedFromProblems(scan.Problems())
 	carried := carriedFrom(previous)
 	entries = g.omitDeclaredBasenames(entries, contract)
+	progress.begin(len(entries))
 	noteCount := markdownCount(entries)
 	// One contract judges every note of this build, so it is resolved once here
 	// rather than once per note. It is only built here: the verdict itself is
 	// drawn inside deriveNote, under the guard that contains a note's parse panic.
 	lint := judge.NewFrontmatterLinter(contract)
 
-	for _, entry := range entries {
+	for done, entry := range entries {
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
+		progress.reached(done)
 		relPath := entry.Path()
 		note := vault.IsMarkdown(relPath)
 		want := wantedBytes(entry, note)
@@ -1067,6 +1076,7 @@ func buildGeneration(
 		}
 	}
 
+	progress.reached(len(entries))
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated)

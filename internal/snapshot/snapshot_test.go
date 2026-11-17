@@ -932,6 +932,7 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 				contract,
 				nil,
 				nil,
+				nil,
 			)
 			if err != nil {
 				t.Errorf("buildGeneration: %v", err)
