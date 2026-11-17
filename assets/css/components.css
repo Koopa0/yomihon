@@ -5382,8 +5382,11 @@ a.y-facetrow:hover {
   text-overflow: ellipsis;
 }
 
-/* The vault's name is the page's title, and a title is set at 600. */
+/* The vault's name is the page's title: at the title size, which the phone's
+   own step brings down to 30, and at 600. The other notice pages keep the
+   size they share. */
 [data-nothing='scanning'] .y-nothing__title--page {
+  font-size: var(--fs-ed-36);
   font-weight: var(--fw-semibold);
 }
 
