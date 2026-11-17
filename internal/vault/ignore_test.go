@@ -356,3 +356,48 @@ func TestIgnoreFileIsReadThroughABOMAndUpToItsLimit(t *testing.T) {
 		t.Errorf("scanned files (-want +got):\n%s", diff)
 	}
 }
+
+// A rescan keeps the generation it has while the files are the same, so a scan
+// that answers from what the walk left out has to count as changed when that
+// changes, even though no file did. An empty folder is the case: it holds no
+// file for the file list to lose when its rule is removed.
+func TestScanSameFilesNoticesWhatTheWalkLeavesOutChanging(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeReaderFixture(t, root, "Notes/a.md", "a")
+	writeReaderFixture(t, root, ".gitignore", "drafts/\n")
+	if err := os.Mkdir(filepath.Join(root, "drafts"), 0o750); err != nil {
+		t.Fatalf("mkdir drafts: %v", err)
+	}
+	reader := openTestReader(t, root)
+	first, err := reader.ScanAvailable(t.Context())
+	if err != nil {
+		t.Fatalf("ScanAvailable() error = %v", err)
+	}
+	if !first.OutsideScan("drafts/missing.md") {
+		t.Fatal("the empty ignored folder was not left out; the case below proves nothing")
+	}
+
+	again, err := reader.ScanAvailable(t.Context())
+	if err != nil {
+		t.Fatalf("ScanAvailable() error = %v", err)
+	}
+	if !first.SameFiles(again) {
+		t.Error("SameFiles(unchanged vault) = false, want true")
+	}
+
+	writeReaderFixture(t, root, ".gitignore", "*.tmp\n")
+	freed, err := reader.ScanAvailable(t.Context())
+	if err != nil {
+		t.Fatalf("ScanAvailable() error = %v", err)
+	}
+	if freed.OutsideScan("drafts/missing.md") {
+		t.Fatal("the folder is still left out after its rule was removed")
+	}
+	if first.SameFiles(freed) {
+		t.Error("SameFiles(rule removed, files unchanged) = true, want false: the scan would keep answering that drafts/ is left out")
+	}
+	if freed.SameFiles(first) {
+		t.Error("SameFiles(rule added, files unchanged) = true, want false")
+	}
+}

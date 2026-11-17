@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -363,11 +364,14 @@ func (s Scan) Skipped() []SkipDiagnostic {
 
 // SameFiles reports whether s and other observed the same rooted file domain.
 // It compares every regular file's canonical and raw path, metadata, object
-// identity, and parent-chain identity.
+// identity, and parent-chain identity, and the paths the walk left out by rule:
+// an edit to the vault's .gitignore can change those while every file stays
+// the same, and a scan that answers from them has then changed.
 func (s Scan) SameFiles(other Scan) bool {
 	if s.state == nil || other.state == nil ||
 		s.state.rootName != other.state.rootName || !sameObject(s.state.rootInfo, other.state.rootInfo) ||
-		len(s.state.files) != len(other.state.files) {
+		len(s.state.files) != len(other.state.files) ||
+		!maps.Equal(s.state.leftOut, other.state.leftOut) {
 		return false
 	}
 	left := slices.Clone(s.state.files)
