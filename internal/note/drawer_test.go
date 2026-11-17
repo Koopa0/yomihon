@@ -722,3 +722,67 @@ func stepsBlock(t *testing.T, body string) string {
 	}
 	return block
 }
+
+func TestFolderPageOpensWithItsReadmeAsACover(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	write := func(rel, body string) {
+		t.Helper()
+		full := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatalf("mkdir %s: %v", rel, err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o600); err != nil {
+			t.Fatalf("write %s: %v", rel, err)
+		}
+	}
+	write("go/README.md", "# Go spec snapshot\n\nWhat the spec says, **frozen**.\n\n## More\n\nThe rest.\n")
+	write("go/slices.md", "# Slices\n\nbody\n")
+	write("short/README.md", "# Short\n\nOnly this paragraph.\n")
+	write("short/a.md", "# A\n\nbody\n")
+	write("bare/a.md", "# A\n\nbody\n")
+	write("listy/README.md", "# Listy\n\n- one\n- two\n")
+	write("listy/a.md", "# A\n\nbody\n")
+	write("ref/README.md", "# Ref\n\nRead [the guide][guide] first.\n\n## More\n\nx\n\n[guide]: https://example.com/guide \"The guide\"\n")
+	write("ref/a.md", "# A\n\nbody\n")
+
+	srv := newServer(t, root)
+
+	_, body := get(t, srv.Client(), srv.URL+"/folders/go")
+	if !strings.Contains(body, `<h1 class="y-title">go</h1>`) {
+		t.Errorf("the heading is not the folder's name; body = %q", body)
+	}
+	for _, want := range []string{`class="y-cover"`, "What the spec says, <strong>frozen</strong>.", `href="/notes/go/README.md"`, "1 篇"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the folder page is missing %q", want)
+		}
+	}
+	if strings.Contains(body, `y-row__title">Go spec snapshot`) {
+		t.Error("the README is listed again below its own cover")
+	}
+
+	_, body = get(t, srv.Client(), srv.URL+"/folders/short")
+	if !strings.Contains(body, "Only this paragraph.") || strings.Contains(body, "y-cover__more") {
+		t.Errorf("a one-paragraph README should be the whole cover with no way on; body = %q", body)
+	}
+
+	// A README with no opening paragraph has no cover, so it stays in the list:
+	// that row is the only way to it.
+	_, body = get(t, srv.Client(), srv.URL+"/folders/listy")
+	if strings.Contains(body, "y-cover") || !strings.Contains(body, `y-row__title">Listy`) {
+		t.Errorf("a README without an opening paragraph must stay in the list and draw no cover; body = %q", body)
+	}
+
+	// A reference link in the cover still reaches its address, though its
+	// definition sits below the paragraph.
+	_, body = get(t, srv.Client(), srv.URL+"/folders/ref")
+	if !strings.Contains(body, `href="https://example.com/guide"`) {
+		t.Errorf("the cover lost its reference link; body = %q", body)
+	}
+
+	_, body = get(t, srv.Client(), srv.URL+"/folders/bare")
+	if strings.Contains(body, "y-cover") {
+		t.Error("a folder without a README shows a cover")
+	}
+}

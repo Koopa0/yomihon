@@ -5,8 +5,10 @@ package wording
 
 // What a folder listing counts, and what it says when there is nothing to list.
 var (
-	SubfolderCountOne   = both("%d 個資料夾、", "%d folder, ")
-	SubfolderCountMany  = both("%d 個資料夾、", "%d folders, ")
+	SubfolderCountOne  = both("%d 個資料夾", "%d folder")
+	SubfolderCountMany = both("%d 個資料夾", "%d folders")
+	// CountJoin sits between the folders and the notes a level holds.
+	CountJoin           = both("、", ", ")
 	FolderNoteCountOne  = both("%d 篇", "%d note")
 	FolderNoteCountMany = both("%d 篇", "%d notes")
 	FolderEmpty         = both("這個資料夾是空的。", "This folder is empty.")
@@ -105,3 +107,6 @@ var (
 	FileUnreadable     = both("無法讀取檔案", "That file could not be read")
 	SandboxUnavailable = both("這份內容無法安全顯示，因此沒有提供", "This content cannot be shown safely, so it was not served")
 )
+
+// ReadInFull is the way from a folder's cover paragraph to the whole README.
+var ReadInFull = both("讀全文", "Read in full")

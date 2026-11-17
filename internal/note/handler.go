@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -267,10 +268,39 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := nav.Label(dir)
-	view := pages.NewFolderLevel(dir, name, notes, subfolders, origin.Language(r), articleLanguageLookup(snap))
+	lang := origin.Language(r)
+	notes, cover := h.folderCover(snap, dir, notes, lang)
+	view := pages.NewFolderLevel(dir, name, notes, subfolders, lang, articleLanguageLookup(snap))
+	view.Cover = cover
 	if err := pages.Folder(view, layouts.ChromeFromRequest(r, name)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write folder page", "path", dir, "error", err)
 	}
+}
+
+// folderCover takes the folder's README out of its listing and stands its
+// opening paragraph in front of it. The page's title stays the folder's name,
+// so the sidebar, the trail and the heading are one name.
+func (h *Handler) folderCover(snap *snapshot.Generation, dir string, notes []nav.NoteRef, lang wording.Lang) ([]nav.NoteRef, pages.Cover) {
+	readme := path.Join(dir, pages.HomeReadmeRelPath)
+	at := slices.IndexFunc(notes, func(n nav.NoteRef) bool { return n.RelPath == readme })
+	if at < 0 {
+		return notes, pages.Cover{}
+	}
+	n, ok := snap.Note(readme)
+	if !ok {
+		return notes, pages.Cover{}
+	}
+	// With no opening paragraph to stand for it the README stays in the list,
+	// which is then the only way to it.
+	paragraph, more := render.CoverParagraph(n.Body)
+	if paragraph == "" {
+		return notes, pages.Cover{}
+	}
+	cover := pages.Cover{HTML: snap.RenderExcerptIn("", readme, paragraph, lang).HTML}
+	if more {
+		cover.ReadHref = pages.VaultHref("/notes/", readme)
+	}
+	return slices.Delete(slices.Clone(notes), at, at+1), cover
 }
 
 // show serves one entry of the browse tree. Every file the tree lists opens

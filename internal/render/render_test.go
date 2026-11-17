@@ -2090,3 +2090,29 @@ func (vaultHolds) MissingFile(string) bool { return false }
 func (vaultHolds) OutsideScan(string) bool { return false }
 
 func (vaultHolds) IsDirectory(string) bool { return false }
+
+func TestCoverParagraph(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name, body, want string
+		more             bool
+	}{
+		{"one paragraph is all there is", "# Go\n\nA short folder.\n", "A short folder.", false},
+		{"more follows", "# Go\n\nA short folder.\n\n## Parts\n\nMore.\n", "A short folder.", true},
+		{"a paragraph over lines stays whole", "Line one\nline two\n\nNext.\n", "Line one\nline two", true},
+		{"a list first has no cover", "# Go\n\n- a\n- b\n", "", false},
+		{"a lone image has no cover", "![x](a.png)\n\nWords.\n", "", false},
+		{"only a title has no cover", "# Go\n", "", false},
+		{"definitions come along", "Read [it][g].\n\n[g]: https://x.test/a \"T\"\n", "Read [it][g].\n\n[g]: <https://x.test/a> \"T\"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, more := render.CoverParagraph(tt.body)
+			if got != tt.want || more != tt.more {
+				t.Errorf("CoverParagraph(%q) = %q, %v; want %q, %v", tt.body, got, more, tt.want, tt.more)
+			}
+		})
+	}
+}
