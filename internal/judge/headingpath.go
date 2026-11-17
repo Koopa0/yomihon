@@ -54,10 +54,11 @@ func (p *fragmentPaths) pipeline() *render.Pipeline {
 	return p.reader
 }
 
-// githubHeading reports whether the destination stamps a heading for a section
-// name written the way GitHub spells one, which the page follows.
-func (p *fragmentPaths) githubHeading(relPath, fragment string) bool {
-	_, found := p.pipeline().GitHubHeading(relPath, fragment)
+// anchoredHeading reports whether the destination stamps a heading for a
+// fragment written as one of its ids or the way GitHub spells one, which the
+// page follows.
+func (p *fragmentPaths) anchoredHeading(relPath, fragment string) bool {
+	_, found := p.pipeline().AnchoredHeading(relPath, fragment)
 	return found
 }
 

@@ -107,3 +107,52 @@ func TestBracketsInANameMakeNoWikilink(t *testing.T) {
 		t.Errorf("the array must stay as written beside a real link:\n%s", got.HTML)
 	}
 }
+
+// With three headings called Intro the page stamps intro, intro-2 and intro-3,
+// where GitHub's own numbering would call the third one intro-2. A fragment that
+// is an id the page stamps reaches that heading, whichever reading it also has.
+const threeIntros = "## Intro\n\n## Intro\n\n## Intro\n"
+
+func TestMarkdownLinkFragmentThatIsAStampedIDReachesThatHeading(t *testing.T) {
+	t.Parallel()
+	r := fragmentVault(t, threeIntros)
+	for _, tt := range []struct{ dest, want string }{
+		{"Other.md#intro-2", "/notes/Host/Other.md#intro-2"},
+		{"Other.md#intro-3", "/notes/Host/Other.md#intro-3"},
+		{"Other.md#intro", "/notes/Host/Other.md#intro"},
+		{"Other.md#intro-1", "/notes/Host/Other.md#intro-2"},
+	} {
+		got := r.HTML("Host/here.md", "", "[go]("+tt.dest+")\n", wording.En)
+		if !strings.Contains(got.HTML, `href="`+tt.want+`"`) || strings.Contains(got.HTML, "wikilink-degraded") || len(got.Diagnostics) != 0 {
+			t.Errorf("%s: want href %s with no fault, got %+v", tt.dest, tt.want, got)
+		}
+	}
+}
+
+func TestWikilinkFragmentThatIsAStampedIDReachesThatHeading(t *testing.T) {
+	t.Parallel()
+	r := fragmentVault(t, threeIntros)
+	got := r.HTML("Host/here.md", "", "[[Other#intro-2]] [[Other#intro-3]]\n", wording.En)
+	for _, want := range []string{`href="/notes/Host/Other.md#intro-2"`, `href="/notes/Host/Other.md#intro-3"`} {
+		if !strings.Contains(got.HTML, want) {
+			t.Errorf("missing %s in %s", want, got.HTML)
+		}
+	}
+	if len(got.Diagnostics) != 0 {
+		t.Errorf("an id the page stamps was reported missing: %+v", got.Diagnostics)
+	}
+}
+
+func TestSameNoteFragmentThatIsAStampedIDReachesThatHeading(t *testing.T) {
+	t.Parallel()
+	r := fragmentVault(t, "")
+	got := r.HTML("Host/here.md", "", threeIntros+"\n[a](#intro-2) [b](#intro-3) [c](#intro-1)\n", wording.En)
+	for _, want := range []string{`<a href="#intro-2">a</a>`, `<a href="#intro-3">b</a>`, `<a href="#intro-2">c</a>`} {
+		if !strings.Contains(got.HTML, want) {
+			t.Errorf("missing %s in %s", want, got.HTML)
+		}
+	}
+	if len(got.Diagnostics) != 0 {
+		t.Errorf("an id the page stamps was reported missing: %+v", got.Diagnostics)
+	}
+}

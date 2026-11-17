@@ -965,8 +965,8 @@ func TestAnchorSurfaceReadsTheHeadingsAFenceReallyLeaves(t *testing.T) {
 func TestFragmentSectionAcceptsTheGitHubSpellingThePageFollows(t *testing.T) {
 	t.Parallel()
 	got := fragmentRun(t, map[string]string{
-		"Target.md": "## What's new?\n\n## Intro\n\n## Intro\n",
-		"Citer.md":  "[[Target#whats-new]]\n[[Target#intro-1]]\n[[Target#nothing-here]]\n",
+		"Target.md": "## What's new?\n\n## Intro\n\n## Intro\n\n## Intro\n",
+		"Citer.md":  "[[Target#whats-new]]\n[[Target#intro-1]]\n[[Target#intro-3]]\n[[Target#nothing-here]]\n",
 	})
 	want := []string{"link.section_missing Target#nothing-here"}
 	if diff := cmp.Diff(want, ruleTargets(got)); diff != "" {

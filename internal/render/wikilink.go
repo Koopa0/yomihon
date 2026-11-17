@@ -997,6 +997,10 @@ func (r *Pipeline) headingHref(relPath, href string, localPage bool, link graph.
 		if found {
 			addressed = href + "#" + id
 		}
+	} else if id, stamped := r.stampedHeadingID(relPath, localPage, link.Heading, col); stamped {
+		// An id the page stamps is an address before it is a name, so it wins
+		// over both readings below.
+		addressed, found = href+"#"+id, true
 	} else {
 		stripped, _ := stripObsidianComments(body)
 		_, matches := headingSlice(stripped, link.Heading)
@@ -1006,7 +1010,7 @@ func (r *Pipeline) headingHref(relPath, href string, localPage bool, link graph.
 		// A fragment written the way GitHub spells one names a heading this
 		// page stamps under another id, so the link is pointed at that id.
 		var id string
-		if id, found = r.githubHeadingID(relPath, localPage, link.Heading, col); found {
+		if id, found = githubAnchorIn(r.outlineFor(relPath, localPage, col), link.Heading); found {
 			addressed = href + "#" + id
 		}
 	}
@@ -1022,25 +1026,50 @@ func (r *Pipeline) headingHref(relPath, href string, localPage bool, link graph.
 	return addressed, fragmentSectionMissing
 }
 
-// githubHeadingID is the id this page stamps on the heading whose GitHub anchor
-// is fragment, read from the same outline a heading path is.
-func (r *Pipeline) githubHeadingID(relPath string, localPage bool, fragment string, col *collector) (id string, found bool) {
-	var outline []TOCEntry
+// outlineFor is every heading the note a link lands in displays: the page being
+// read when the link points into it, the destination's captured body otherwise.
+func (r *Pipeline) outlineFor(relPath string, localPage bool, col *collector) []TOCEntry {
 	if localPage {
-		outline = r.hostOutline(col)
-	} else if captured, ok := r.capturedOutline(relPath); ok {
-		outline = captured
+		return r.hostOutline(col)
 	}
-	return githubAnchorIn(outline, fragment)
+	outline, _ := r.capturedOutline(relPath)
+	return outline
 }
 
-// GitHubHeading is the id the destination stamps on the heading whose GitHub
-// anchor is fragment, so a check can be as quiet as the page it describes
-// about a link the page follows.
-func (r *Pipeline) GitHubHeading(relPath, fragment string) (id string, found bool) {
+// repeatedHeadingID is how an id this page stamps on a repeated name ends. Any
+// other id is a heading's own words, which the name scan answers without
+// drawing the destination's outline, so only a numbered fragment asks for it.
+var repeatedHeadingID = regexp.MustCompile(`-\d+$`)
+
+func (r *Pipeline) stampedHeadingID(relPath string, localPage bool, fragment string, col *collector) (id string, found bool) {
+	if !repeatedHeadingID.MatchString(fragment) {
+		return "", false
+	}
+	return stampedIn(r.outlineFor(relPath, localPage, col), fragment)
+}
+
+// stampedIn finds the heading whose stamped id is the fragment itself, folded
+// the way an id is.
+func stampedIn(outline []TOCEntry, fragment string) (id string, found bool) {
+	want := graph.FoldFragment(fragment)
+	for _, h := range outline {
+		if h.ID == want {
+			return h.ID, true
+		}
+	}
+	return "", false
+}
+
+// AnchoredHeading is the id the destination stamps on the heading a fragment
+// addresses as an id, or by the way GitHub spells the heading's anchor, so a
+// check can be as quiet as the page it describes about a link the page follows.
+func (r *Pipeline) AnchoredHeading(relPath, fragment string) (id string, found bool) {
 	outline, ok := r.capturedOutline(relPath)
 	if !ok {
 		return "", false
+	}
+	if id, found = stampedIn(outline, fragment); found {
+		return id, true
 	}
 	return githubAnchorIn(outline, fragment)
 }
