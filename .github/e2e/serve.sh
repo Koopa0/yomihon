@@ -7,6 +7,10 @@
 #
 #   serve.sh <yomihon-binary> <port> -- <command> [args...]
 #
+# Port 0 lets the system choose a free loopback port, so runs in separate
+# worktrees never contend for one; the port is read back from the child's own
+# serving line.
+#
 # The command runs with YOMIHON_BASE and YOMIHON_PORT exported, and its exit
 # status becomes this script's. The server's log is printed only when something
 # fails, so a green run stays quiet.
@@ -51,6 +55,12 @@ serving_log_error() {
     echo "the child reported ${serving} serving lines and ${exact} exact binds for ${address}, want exactly 1 of each"
     return 1
   fi
+}
+
+# The port a server asked for port 0 was given, read from its own serving line.
+# Empty until that line appears, and for a line naming any address but loopback.
+bound_port() {
+  sed -n 's/.*msg="yomihon serving" addr=127\.0\.0\.1:\([0-9][0-9]*\) .*/\1/p' <<<"$1" | head -n 1
 }
 
 copy_fixture() {
@@ -183,7 +193,6 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
-base="http://127.0.0.1:${port}"
 # Every browser run gets a private copy. A behavior probe may exercise POST
 # paths, and a failed invariant must not leave the checked-in fixture changed.
 # The source remains the canonical reviewable fixture; the server sees only the
@@ -233,6 +242,30 @@ dump_log() {
     cat "$log" >&2
   fi
 }
+
+# Asked for port 0, the child binds one the system chose and says which in its
+# serving line. Reading it from the child's own log keeps the address one this
+# run owns: nothing was picked beforehand for another process to take.
+if [ "$port" = 0 ]; then
+  bound=""
+  for _ in $(seq 1 60); do
+    if ! kill -0 "$server_pid" 2>/dev/null; then
+      echo "serve.sh: the server exited before it reported the port it bound" >&2
+      dump_log
+      exit 1
+    fi
+    bound="$(bound_port "$(<"$log")")"
+    [ -z "$bound" ] || break
+    sleep 0.25
+  done
+  if [ -z "$bound" ]; then
+    echo "serve.sh: the server never reported the port it bound" >&2
+    dump_log
+    exit 1
+  fi
+  port="$bound"
+fi
+base="http://127.0.0.1:${port}"
 
 # Readiness: Home answers directly with 200 only once the vault has been scanned
 # and the routes are live.

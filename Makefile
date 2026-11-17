@@ -310,12 +310,16 @@ fuzz-smoke:
 		case "$$out" in *'no fuzz tests to fuzz'*) echo "$$pkg $$target explored no inputs" >&2; exit 1;; esac; \
 	done < "$$manifest"
 
+# 0 lets the system choose a free loopback port for each run, so two worktrees
+# can run browser-check at once.
+BROWSER_CHECK_PORT ?= 0
+
 browser-check: frontend-deps
 	@set -eu; \
 	tmp=$$(mktemp -d "$${TMPDIR:-/tmp}/yomihon-browser.XXXXXX"); \
 	trap 'rm -rf "$$tmp"' 0 HUP INT TERM; \
 	go build -o "$$tmp/yomihon" ./cmd/yomihon; \
-	bash .github/e2e/serve.sh "$$tmp/yomihon" 19734 -- bash .github/e2e/probes.sh
+	bash .github/e2e/serve.sh "$$tmp/yomihon" $(BROWSER_CHECK_PORT) -- bash .github/e2e/probes.sh
 
 portable-build-check:
 	@set -eu; \
