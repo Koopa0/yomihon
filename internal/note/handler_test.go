@@ -1292,19 +1292,19 @@ func TestReadingRoutesKeepCapturedViewWhenCurrentSwaps(t *testing.T) {
 func TestMissingPageKeepsCapturedGenerationWhenCurrentSwaps(t *testing.T) {
 	t.Parallel()
 	firstRoot := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(firstRoot, "Diary"), 0o750); err != nil {
-		t.Fatalf("mkdir first Diary: %v", err)
+	if err := os.MkdirAll(filepath.Join(firstRoot, "Concepts"), 0o750); err != nil {
+		t.Fatalf("mkdir first Concepts: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(firstRoot, "Diary", "Alpha.md"), []byte("# Alpha\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(firstRoot, "Concepts", "Alpha.md"), []byte("# Alpha\n"), 0o600); err != nil {
 		t.Fatalf("write first journal: %v", err)
 	}
 
 	secondRoot := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(secondRoot, "Diary"), 0o750); err != nil {
-		t.Fatalf("mkdir second Diary: %v", err)
+	if err := os.MkdirAll(filepath.Join(secondRoot, "Sources"), 0o750); err != nil {
+		t.Fatalf("mkdir second Sources: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(secondRoot, "Diary", "Beta.md"), []byte("# Beta\n"), 0o600); err != nil {
-		t.Fatalf("write second journal: %v", err)
+	if err := os.WriteFile(filepath.Join(secondRoot, "Sources", "Beta.md"), []byte("# Beta\n"), 0o600); err != nil {
+		t.Fatalf("write second note: %v", err)
 	}
 
 	log := slog.New(slog.DiscardHandler)
@@ -1314,8 +1314,8 @@ func TestMissingPageKeepsCapturedGenerationWhenCurrentSwaps(t *testing.T) {
 	capture := func() schema.Authority { return schema.CaptureAuthority(contract, contract.Governance()) }
 
 	const (
-		fromFirst  = `href="/notes/Diary/Alpha.md"`
-		fromSecond = `href="/notes/Diary/Beta.md"`
+		fromFirst  = `href="/folders/Concepts"`
+		fromSecond = `href="/folders/Sources"`
 	)
 	for _, tt := range []struct {
 		name string
@@ -2132,7 +2132,7 @@ func TestShowIncludesSidebar(t *testing.T) {
 	}
 	for _, want := range []string{
 		`class="y-rail-left"`,
-		`data-reading-rail="book"`,
+		`data-sidebar-mode="course"`,
 		"Go path",
 		"Data",
 		`href="/notes/Writing/lessons/golang/Slices.md"`,
@@ -2163,7 +2163,7 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 		t.Fatalf("status = %d, want 200", code)
 	}
 	for _, want := range []string{
-		`data-reading-rail="folder"`,
+		`data-sidebar-mode="index"`,
 		// The reason reaches a pointer through the title and everyone else
 		// through text carried out of sight, so both are named here: a
 		// state told by cursor alone is told to no one on a phone.

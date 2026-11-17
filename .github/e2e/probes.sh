@@ -50,7 +50,6 @@ probes=(
   "sidebar-content.mjs|/notes/Notes/alpha.md"
   "rail-disclosure-state.mjs|/notes/Course/C02.md"
   "rail-filter-state.mjs|/notes/Course/C02.md"
-  "vault-sidebar.mjs|/search"
   "study-path-branches.mjs|/notes/Notes/alpha.md"
   "instance-contract.mjs|/notes/Notes/alpha.md"
   "note-end-facts.mjs|/notes/Writing/lessons/japanese/L01.md"

@@ -12,6 +12,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -85,7 +86,7 @@ func TestBuildPathView(t *testing.T) {
 		"- [[Unwritten]]\n"
 	path := buildTestPath(t, body)
 
-	got := BuildPathView(&path, []nav.Course{path}, &CourseCover{})
+	got := BuildPathView(&path, &CourseCover{})
 
 	want := PathView{
 		Title:     "Go path",
@@ -93,11 +94,6 @@ func TestBuildPathView(t *testing.T) {
 		GuideHref: "/notes/Maps/Go%20path.md",
 		// Nothing in the fixture is marked to be read aloud, so the cover
 		// offers no way to hear it.
-		Paths: []PathLink{
-			// The side branch is not part of the main line, so the planned
-			// total is five, not six.
-			{Title: "Go path", RelPath: "Maps/Go path.md", Entries: 5, Active: true},
-		},
 		// Every row that resolved to a note resolved to a lesson, and the two
 		// that resolved to nothing a lesson could be abstain, so the course is
 		// read in lessons.
@@ -149,7 +145,7 @@ func TestBuildPathView(t *testing.T) {
 		},
 	}
 
-	if diff := cmp.Diff(want, got); diff != "" {
+	if diff := cmp.Diff(want, got, cmpopts.IgnoreFields(PathView{}, "Sidebar")); diff != "" {
 		t.Errorf("BuildPathView() mismatch (-want +got):\n%s", diff)
 	}
 }
@@ -183,7 +179,7 @@ func TestLessonsAreAnOrderedList(t *testing.T) {
 	path := buildTestPath(t, body, map[string]string{
 		"Writing/Routine.md": "---\ntitle: Routine\ntype: lesson\nstatus: draft\n---\nbody\n",
 	})
-	view := BuildPathView(&path, []nav.Course{path}, &CourseCover{})
+	view := BuildPathView(&path, &CourseCover{})
 
 	if view.Entries != 5 {
 		t.Errorf("BuildPathView() Entries = %d, want 5: a none block adds nothing and a planned row still counts", view.Entries)
@@ -265,7 +261,7 @@ func TestANestedPrimaryInsideASideBranchDoesNotDrawAsAModule(t *testing.T) {
 	}) {
 		t.Fatalf("the nested primary was not reported: %+v", path.Diagnostics)
 	}
-	view := BuildPathView(&path, []nav.Course{path}, &CourseCover{})
+	view := BuildPathView(&path, &CourseCover{})
 	if view.Branched != 2 {
 		t.Errorf("Branched = %d, want 2: the side branch's own two rows, and nothing from the refused nested primary", view.Branched)
 	}
@@ -543,7 +539,7 @@ func TestSyllabusSeparatesNoMarkerFromUnreadableMarker(t *testing.T) {
 	render := func(t *testing.T, body string) string {
 		t.Helper()
 		path := buildTestPath(t, body)
-		view := BuildPathView(&path, []nav.Course{path}, &CourseCover{})
+		view := BuildPathView(&path, &CourseCover{})
 		if len(view.Branches) != 0 {
 			t.Fatalf("the fixture grew a course; the empty-state page never renders")
 		}
@@ -699,7 +695,7 @@ func TestAnUnknownRuleDoesNotSilenceAWrittenMarker(t *testing.T) {
 			for _, rule := range tt.rules {
 				path.Diagnostics = append(path.Diagnostics, sequence.Diagnostic{Rule: rule})
 			}
-			if got := BuildPathView(&path, nil, &CourseCover{}).NoCourse; got != tt.want {
+			if got := BuildPathView(&path, &CourseCover{}).NoCourse; got != tt.want {
 				t.Errorf("NoCourse = %d, want %d", got, tt.want)
 			}
 		})
@@ -826,7 +822,7 @@ func TestBuildPathViewMarksTheLessonTheReaderArrivedFrom(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if diff := cmp.Diff(tt.want, marked(BuildPathView(&path, []nav.Course{path}, &CourseCover{Here: tt.here}))); diff != "" {
+			if diff := cmp.Diff(tt.want, marked(BuildPathView(&path, &CourseCover{Here: tt.here}))); diff != "" {
 				t.Errorf("marked rows (-want +got):\n%s", diff)
 			}
 		})
@@ -878,7 +874,7 @@ func TestSyllabusSaysNothingIsOver(t *testing.T) {
 	path := buildTestPath(t, body)
 	// Entered from a lesson, so the marked row is on the page too: the mark is
 	// the one thing here that could have grown words about being finished.
-	view := BuildPathView(&path, []nav.Course{path}, &CourseCover{Here: "Writing/Slices.md"})
+	view := BuildPathView(&path, &CourseCover{Here: "Writing/Slices.md"})
 
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		var out bytes.Buffer

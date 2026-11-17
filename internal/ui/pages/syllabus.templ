@@ -21,7 +21,7 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
-			@syllabusRail(v, c)
+			@sidebar(v.Sidebar, c)
 			<main id="_y-main" tabindex="-1" class="y-main">
 				<div class="y-syl">
 					@syllabusHead(v, c.Lang)
@@ -327,58 +327,6 @@ templ entryRow(l PathEntryView, lang wording.Lang) {
 			<span class="y-navmark y-navmark--warn">{ entryResolutionLabel(l.Kind, lang) }</span>
 		</span>
 	}
-}
-
-// ============================ LEFT RAIL ============================
-
-// syllabusRail is the left rail: the path switcher (every study-path, the
-// current one active) over the "On this path" part jump-nav and the path-level
-// progress bar.
-templ syllabusRail(v PathView, c layouts.Chrome) {
-	{{ lang := c.Lang }}
-	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.CourseNav.In(lang) }>
-		@railHead(c, false)
-		@railSpine(railSpineView{Title: v.Title, Href: courseHref(v.RelPath)})
-		<div class="y-railbody" id="_y-nav-rail-body">
-			<div class="ui-side__label y-syl-raillabel">{ wording.Courses.In(lang) }</div>
-			for _, p := range v.Paths {
-				@pathSwitch(p)
-			}
-			if len(v.Branches) > 0 {
-				<div class="ui-side__label y-syl-raillabel y-syl-raillabel--gap">{ wording.ThisCourse.In(lang) }</div>
-				for _, sec := range v.Branches {
-					<a class="ui-navitem" href={ templ.URL("#" + sec.Anchor) }>
-						<span class="y-pathitem__num" aria-hidden="true">{ sec.Ordinal }</span>
-						<span class="y-pathitem__name">{ sec.Heading }</span>
-					</a>
-				}
-			}
-			@railFoot(v.Vault, lang)
-		</div>
-	</aside>
-	@settleRail(c, false)
-}
-
-// pathSwitch is one row of the path switcher: a link to another study-path, or
-// the active (non-link) marker for the one shown.
-templ pathSwitch(p PathLink) {
-	if p.Active {
-		<span class="ui-navitem is-active" aria-current="page">
-			@pathIcon()
-			<span class="y-pathitem__name">{ p.Title }</span>
-			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>
-		</span>
-	} else {
-		<a class="ui-navitem" href={ templ.URL(courseHref(p.RelPath)) }>
-			@pathIcon()
-			<span class="y-pathitem__name">{ p.Title }</span>
-			<span class="ui-navitem__count">{ strconv.Itoa(p.Entries) }</span>
-		</a>
-	}
-}
-
-templ pathIcon() {
-	<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 19V5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z"></path></svg>
 }
 
 // syllabusNoCourse is what the page says when it read the note and found no

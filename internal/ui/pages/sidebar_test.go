@@ -176,129 +176,16 @@ func modelOf(t *testing.T, root string) *nav.Model {
 		contract.ArticleLanguage(), contract.AuthoredDate())
 }
 
-// TestNewSidebarWayfinding checks the resolved navigation for a note that lives
-// in a folder and is listed by a study-path: its siblings surface, the study-path
-// and every section on the path to it open, its folder ancestors expand, and it
-// is the one entry marked current. A lesson listed by two sections opens both.
-func TestNewSidebarWayfinding(t *testing.T) {
-	t.Parallel()
-	model := buildModel(t)
-
-	const (
-		goPath  = "Maps/Go path.md"
-		current = "Writing/lessons/go/L01.md"
-		sibling = "Writing/lessons/go/L02.md"
-	)
-	sb := NewSidebar(nav.Shell{Nav: model}, current)
-
-	if !sb.mapOpen(goPath) {
-		t.Errorf("mapOpen(%q) = false, want true", goPath)
-	}
-	for _, chain := range [][]string{{"Decode"}, {"Decode", "Bytes"}, {"Review"}} {
-		if !sb.branchOpen(goPath, chain) {
-			t.Errorf("branchOpen(%q, %v) = false, want true", goPath, chain)
-		}
-	}
-	if !sb.current(current) {
-		t.Errorf("current(%q) = false, want true", current)
-	}
-	if sb.current(sibling) {
-		t.Errorf("current(%q) = true, want false", sibling)
-	}
-	if sb.HereDir != "Writing/lessons/go" {
-		t.Errorf("HereDir = %q, want %q", sb.HereDir, "Writing/lessons/go")
-	}
-	wantHere := []nav.NoteRef{
-		{Name: "L01", RelPath: current},
-		{Name: "L02", RelPath: sibling},
-	}
-	if diff := cmp.Diff(wantHere, sb.Here); diff != "" {
-		t.Errorf("Here mismatch (-want +got):\n%s", diff)
-	}
-
-	// A note listed only under Decode > Bytes must not open the Review section:
-	// the open set is per note, not per study-path.
-	sb2 := NewSidebar(nav.Shell{Nav: model}, sibling)
-	if sb2.branchOpen(goPath, []string{"Review"}) {
-		t.Errorf("branchOpen(%q, [Review]) = true for a note absent from Review, want false", goPath)
-	}
-	if !sb2.branchOpen(goPath, []string{"Decode", "Bytes"}) {
-		t.Errorf("branchOpen(%q, [Decode Bytes]) = false, want true", goPath)
-	}
-}
-
-// TestNewSidebarNonLessonFixtures checks two other representative shapes: a
-// concept listed by a topic map and a frontmatter-less Sources note listed by
-// no map. Siblings and folder ancestors surface for both; the topic map opens
-// only for the concept it contains.
-func TestNewSidebarNonLessonFixtures(t *testing.T) {
-	t.Parallel()
-	model := buildModel(t)
-
-	tests := []struct {
-		name     string
-		current  string
-		wantDir  string
-		wantHere []nav.NoteRef
-		wantMap  bool
-	}{
-		{
-			name:    "concept note",
-			current: "Concepts/go/C01.md",
-			wantDir: "Concepts/go",
-			wantHere: []nav.NoteRef{
-				{Name: "C01", RelPath: "Concepts/go/C01.md"},
-				{Name: "C02", RelPath: "Concepts/go/C02.md"},
-			},
-			wantMap: true,
-		},
-		{
-			name:    "no-frontmatter Sources note",
-			current: "Sources/articles/Raw.md",
-			wantDir: "Sources/articles",
-			wantHere: []nav.NoteRef{
-				{Name: "Other", RelPath: "Sources/articles/Other.md"},
-				{Name: "Raw", RelPath: "Sources/articles/Raw.md"},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			sb := NewSidebar(nav.Shell{Nav: model}, tt.current)
-			if sb.mapOpen("Maps/Go path.md") {
-				t.Error("mapOpen = true for a note no study-path lists, want false")
-			}
-			if got := sb.mapOpen("Maps/Reading map.md"); got != tt.wantMap {
-				t.Errorf("mapOpen(Reading map) = %t, want %t", got, tt.wantMap)
-			}
-			if got := sb.branchOpen("Maps/Reading map.md", []string{"Themes"}); got != tt.wantMap {
-				t.Errorf("branchOpen(Reading map, Themes) = %t, want %t", got, tt.wantMap)
-			}
-			if sb.HereDir != tt.wantDir {
-				t.Errorf("HereDir = %q, want %q", sb.HereDir, tt.wantDir)
-			}
-			if diff := cmp.Diff(tt.wantHere, sb.Here); diff != "" {
-				t.Errorf("Here mismatch (-want +got):\n%s", diff)
-			}
-			if !sb.current(tt.current) {
-				t.Errorf("current(%q) = false, want true", tt.current)
-			}
-		})
-	}
-}
-
 // TestSidebarMarksDisclosureStateForTheScript locks the HTML contract the
-// disclosure state owner reads: every sidebar disclosure carries a stable
-// data-key, the current note's wayfinding chain also carries data-chain
-// (forced open, never persisted), discretionary branches carry no chain
-// marker, and the pre-paint restore script and the filter's no-match notice
-// ride with the sidebar. Rendered attributes come from a map, so the marker
-// pair appears in alphabetical order (data-chain before data-key).
+// disclosure state owner reads: every course branch carries a stable data-key,
+// the current note's wayfinding chain also carries data-chain (forced open,
+// never persisted), and the pre-paint restore script and the filter's no-match
+// notice ride with the sidebar. Rendered attributes come from a map, so the
+// marker pair appears in alphabetical order (data-chain before data-key).
 func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 	t.Parallel()
 	model := buildModel(t)
-	sb := NewSidebar(nav.Shell{Nav: model}, "Writing/lessons/go/L01.md")
+	sb := NewNoteSidebar(nav.Shell{Nav: model}, "Writing/lessons/go/L01.md", "golang")
 
 	var buf bytes.Buffer
 	if err := sidebar(sb, layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
@@ -307,8 +194,7 @@ func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 	html := buf.String()
 
 	for _, want := range []string{
-		`data-chain data-key="courses"`,
-		`data-chain data-key="map:Maps/Go path.md"`,
+		`data-chain data-key="bookbranch:`,
 		`data-filter-empty`,
 		`yomihon.nav`,
 		`<script nonce="response-nonce">`,
@@ -316,114 +202,6 @@ func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered sidebar is missing %q", want)
 		}
-	}
-	if strings.Contains(html, `data-key="dir:`) {
-		t.Error("the rail still keeps a folder disclosure; the folder it is in is a shelf now, not a tree")
-	}
-}
-
-func TestSidebarContentGrouping(t *testing.T) {
-	t.Parallel()
-	model := buildModel(t)
-
-	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-
-	pathsAt := strings.Index(html, `data-sidebar-group="courses"`)
-	mapsAt := strings.Index(html, `data-sidebar-group="indexes"`)
-	journalAt := strings.Index(html, `data-sidebar-group="journal"`)
-	if pathsAt < 0 || mapsAt < 0 || journalAt < 0 || pathsAt >= mapsAt || mapsAt >= journalAt {
-		t.Errorf("sidebar group order = paths:%d maps:%d journal:%d, want Paths then Maps then Journal", pathsAt, mapsAt, journalAt)
-	}
-	for _, want := range []string{
-		`data-map-tree="Maps/Reading map.md"`,
-		`href="/notes/Maps/Reading%20map.md"`,
-		`>開啟索引</a>`,
-		`data-key="journal"`,
-		`data-sidebar-journal-entry>Latest</a>`,
-		`data-sidebar-journal-entry>Earlier</a>`,
-		`data-resolution="unresolved"`,
-		`data-resolution="ambiguous"`,
-		"Unwritten Lesson",
-		"Ambiguous Lesson",
-		"y-navmark--warn",
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("rendered sidebar is missing %q", want)
-		}
-	}
-	if strings.Contains(html, "Ghost") {
-		t.Error("rendered sidebar contains unresolved map row Ghost")
-	}
-	if strings.Contains(html, `href="/notes/"`) {
-		t.Error("rendered sidebar fabricates an empty note href for a broken study-path row")
-	}
-	unwrittenAt := strings.Index(html, "Unwritten Lesson")
-	ambiguousAt := strings.Index(html, "Ambiguous Lesson")
-	if unwrittenAt < 0 || ambiguousAt < 0 || unwrittenAt >= ambiguousAt {
-		t.Errorf("broken study-path row order = unresolved:%d ambiguous:%d, want document order", unwrittenAt, ambiguousAt)
-	}
-	if strings.Contains(html, ">Lifecycle<") {
-		t.Error("rendered sidebar still contains the Lifecycle section")
-	}
-	if got := strings.Count(html, `data-map-tree=`); got != 2 {
-		t.Errorf("rendered sidebar map disclosures = %d, want 2 (one Path and one Map)", got)
-	}
-	for _, tt := range []struct {
-		name string
-		key  string
-	}{
-		{name: "map", key: "map:Maps/Reading map.md"},
-		{name: "journal", key: "journal"},
-	} {
-		t.Run(tt.name+" starts closed", func(t *testing.T) {
-			t.Parallel()
-			tag := detailsTagByKey(t, html, tt.key)
-			if strings.Contains(tag, " open") {
-				t.Errorf("detailsTagByKey(%q) = %q, want no open attribute", tt.key, tag)
-			}
-		})
-	}
-}
-
-// TestJournalDrawerShowsTheNewestFewAndOffersTheRest holds the rail to being a
-// way into the journal rather than the journal. The model carries every entry,
-// because the journal's own page reads a month of them at a time; the drawer
-// shows the newest few and ends by offering the rest, which is the same shape
-// every other shelf's corner has.
-func TestJournalDrawerShowsTheNewestFewAndOffersTheRest(t *testing.T) {
-	t.Parallel()
-
-	model := buildModel(t)
-	if model.JournalCount() <= journalRailEntries {
-		t.Fatalf("the fixture journal holds %d entries, which the drawer could show whole, so nothing here shows it narrowing", model.JournalCount())
-	}
-
-	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-
-	if got := strings.Count(html, "data-sidebar-journal-entry"); got != journalRailEntries {
-		t.Errorf("the drawer lists %d entries, want %d", got, journalRailEntries)
-	}
-	for _, want := range []string{
-		`data-sidebar-journal-entry>Latest</a>`,
-		`data-sidebar-journal-entry>Four</a>`,
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("the drawer is missing one of its newest entries: %q", want)
-		}
-	}
-	if strings.Contains(html, `data-sidebar-journal-entry>Three</a>`) {
-		t.Error("the drawer lists past its own limit")
-	}
-	if !strings.Contains(html, `href="/journal" data-sidebar-journal-all>`) {
-		t.Error("the drawer lists a few entries and never offers the rest of the journal")
 	}
 }
 
@@ -447,7 +225,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 			model.NavigationClosure().Diagnostic(), model.ArtifactClosure().Diagnostic())
 	}
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewLibrarySidebar(nav.Shell{Nav: model}, LibraryNone, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
@@ -462,9 +240,6 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered degraded sidebar is missing %q", want)
 		}
-	}
-	if strings.Contains(html, `data-map-tree=`) {
-		t.Error("rendered degraded sidebar contains a map disclosure")
 	}
 }
 
@@ -488,12 +263,12 @@ func TestSidebarRendersRejectedJournalDirDiagnostic(t *testing.T) {
 			model.JournalClosure().Closed(), model.JournalClosure().Diagnostic())
 	}
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewLibrarySidebar(nav.Shell{Nav: model}, LibraryNone, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
 	for _, want := range []string{
-		`data-sidebar-group="journal"`,
+		`data-sidebar-group="journal-diagnostics"`,
 		"日記目前無法使用。",
 		htmlEscape(model.JournalClosure().Diagnostic()),
 	} {
@@ -519,13 +294,13 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 		schema.AuthoredDate{},
 	)
 	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
+	if err := sidebar(NewLibrarySidebar(nav.Shell{Nav: model}, LibraryNone, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render: %v", err)
 	}
 	html := buf.String()
 	for _, unwanted := range []string{
 		`data-sidebar-group="navigation-diagnostics"`,
-		`data-sidebar-group="journal"`,
+		`data-sidebar-group="journal-diagnostics"`,
 		"課程與索引目前無法使用",
 		"筆記清單目前無法使用",
 		"日記目前無法使用",
@@ -619,209 +394,6 @@ concept_requires_provenance = ["based_on"]
 	return contract
 }
 
-func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing.T) {
-	t.Parallel()
-
-	model := buildModel(t)
-	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-	if strings.Contains(html, `data-map-tree="System/templates/Template map.md"`) {
-		t.Error("sidebar Maps contains the non-instance template map document")
-	}
-	pathsAt := strings.Index(html, `data-sidebar-group="courses"`)
-	mapsAt := strings.Index(html, `data-sidebar-group="indexes"`)
-	if pathsAt < 0 || mapsAt < 0 || pathsAt >= mapsAt {
-		t.Fatalf("sidebar path/map markers = %d/%d, want ordered groups", pathsAt, mapsAt)
-	}
-	paths := html[pathsAt:mapsAt]
-	for _, want := range []string{`data-resolution="non-instance"`, "Template target", ">非單元</span>"} {
-		if !strings.Contains(paths, want) {
-			t.Errorf("sidebar Paths is missing non-instance warning output %q", want)
-		}
-	}
-	if strings.Contains(paths, `href="/notes/System/templates/Template%20target.md"`) || strings.Contains(paths, "ui-status--ready") {
-		t.Error("sidebar Paths turns a non-instance warning into a linked or status-bearing entry")
-	}
-	// A non-instance artifact is still an ordinary file to read. The rail no
-	// longer lists the whole vault, so the place that offers it is the folder
-	// it sits in, which a reader inside that folder has beside them.
-	var inFolder bytes.Buffer
-	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, "System/templates/Template map.md"), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &inFolder); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	_, here, found := strings.Cut(inFolder.String(), `<nav class="y-here"`)
-	if !found {
-		t.Fatal("the rail shows no folder listing for a note inside one")
-	}
-	here, _, _ = strings.Cut(here, "</nav>")
-	for _, want := range []string{
-		`href="/notes/System/templates/Template%20map.md"`,
-		`href="/notes/System/templates/Template%20target.md"><span>TEMPLATE TARGET SENTINEL</span></a>`,
-	} {
-		if !strings.Contains(here, want) {
-			t.Errorf("the folder holding a non-instance artifact does not offer it: %q", want)
-		}
-	}
-	// The warning belongs to the course that named the file, not to the folder
-	// it sits in: there it is one file among its neighbours.
-	if strings.Contains(here, ">非單元</span>") {
-		t.Error("the folder listing repeats the course's warning about a file in it")
-	}
-}
-
-func TestSidebarZeroEntryMapKeepsDisclosureAndOpenLink(t *testing.T) {
-	t.Parallel()
-
-	model := nav.Map{Title: "Empty map", RelPath: "Maps/Empty.md"}
-	var buf bytes.Buffer
-	if err := mapTree(NewSidebar(nav.Shell{}, ""), layouts.Chrome{}, model, notesHref(model.RelPath)).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-	tag := detailsTagByKey(t, html, "map:Maps/Empty.md")
-	if !strings.Contains(tag, `data-map-tree="Maps/Empty.md"`) {
-		t.Errorf("zero-entry map details tag = %q, want selected map marker", tag)
-	}
-	for _, want := range []string{
-		"Empty map",
-		`href="/notes/Maps/Empty.md">開啟索引</a>`,
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("rendered zero-entry map is missing %q", want)
-		}
-	}
-}
-
-// A map written as headings and prose links lists those links on the rail,
-// which is the same tree whose length the shelf prints as 枝. Changing only
-// the shelf's figure would leave the two faces disagreeing about the same map.
-func TestAProseMapListsItsBodyLinksOnTheRail(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	files := map[string]string{
-		"Maps/Prose map.md": "---\ntitle: A map written as prose\ntype: topic-map\ndomain: golang\n---\n" +
-			"## Authors\n\nMurakami sits beside [[Norwegian Wood]] and [[Kafka on the Shore]].\n\n" +
-			"## Forms\n\nSee [[The Wind-Up Bird Chronicle]].\n\n" +
-			"## Editions\n\n| work | note |\n| --- | --- |\n" +
-			"| wood | [[挪威的森林\\|《挪威的森林》]] |\n" +
-			"| kafka | [[海辺のカフカ]] |\n\n" +
-			"## Places — [[Sputnik Sweetheart]]\n\nA heading that names a note.\n\n" +
-			"## After\n\nLater [[Colorless Tsukuru Tazaki]].\n\n" +
-			"## Quoted\n\n```\n- [[Fenced]]\n```\n",
-		"Norwegian Wood.md":             "---\ntitle: Norwegian Wood\ntype: concept\ndomain: golang\n---\nbody\n",
-		"Kafka on the Shore.md":         "---\ntitle: Kafka on the Shore\ntype: concept\ndomain: golang\n---\nbody\n",
-		"The Wind-Up Bird Chronicle.md": "---\ntitle: The Wind-Up Bird Chronicle\ntype: concept\ndomain: golang\n---\nbody\n",
-		"挪威的森林.md":                      "---\ntitle: 挪威的森林\ntype: concept\ndomain: golang\n---\nbody\n",
-		"海辺のカフカ.md":                     "---\ntitle: 海辺のカフカ\ntype: concept\ndomain: golang\n---\nbody\n",
-		"Sputnik Sweetheart.md":         "---\ntitle: Sputnik Sweetheart\ntype: concept\ndomain: golang\n---\nbody\n",
-		"Colorless Tsukuru Tazaki.md":   "---\ntitle: Colorless Tsukuru Tazaki\ntype: concept\ndomain: golang\n---\nbody\n",
-		"Fenced.md":                     "---\ntitle: Fenced\ntype: concept\ndomain: golang\n---\nbody\n",
-	}
-	for rel, content := range files {
-		p := filepath.Join(root, filepath.FromSlash(rel))
-		if err := os.MkdirAll(filepath.Dir(p), 0o750); err != nil {
-			t.Fatalf("mkdir %s: %v", rel, err)
-		}
-		if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
-			t.Fatalf("write %s: %v", rel, err)
-		}
-	}
-	reader, err := vault.Open(root)
-	if err != nil {
-		t.Fatalf("vault.Open() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if closeErr := reader.Close(); closeErr != nil {
-			t.Errorf("Reader.Close() error = %v", closeErr)
-		}
-	})
-	scan, err := reader.ScanComplete(t.Context())
-	if err != nil {
-		t.Fatalf("ScanComplete() error = %v", err)
-	}
-	notes := make(map[string]*vault.Note)
-	noteList := make([]*vault.Note, 0, len(scan.Files()))
-	for _, entry := range scan.Files() {
-		data, readErr := reader.ReadFile(t.Context(), entry)
-		if readErr != nil {
-			t.Fatalf("ReadFile() error = %v", readErr)
-		}
-		note := vault.Parse(entry.Path(), data)
-		notes[entry.Path()] = note
-		noteList = append(noteList, note)
-	}
-	contract, err := schema.LoadFile(filepath.Join("..", "..", "schema", "testdata", "contract.toml"))
-	if err != nil {
-		t.Fatalf("schema.LoadFile = %v", err)
-	}
-	model := nav.New(scan.Files(), notes, graph.New(noteList, nil), contract.NavigationRoles(), contract.KnowledgeScope(), contract.ArtifactPolicy(), contract.JournalDir(), contract.ArticleLanguage(), contract.AuthoredDate())
-
-	view := NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
-	if len(view.Shelf.Rows) != 1 || view.Shelf.Rows[0].Mark != "5 枝" {
-		t.Errorf("prose map shelf = %#v, want one row marked 5 枝", view.Shelf.Rows)
-	}
-
-	var buf bytes.Buffer
-	if err := sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	html := buf.String()
-	for _, want := range []string{
-		"Norwegian Wood",
-		"Kafka on the Shore",
-		"The Wind-Up Bird Chronicle",
-		"《挪威的森林》",
-		"海辺のカフカ",
-		"Sputnik Sweetheart",
-		"Colorless Tsukuru Tazaki",
-		`href="/notes/Norwegian%20Wood.md"`,
-	} {
-		if !strings.Contains(html, want) {
-			t.Errorf("rail is missing prose-map entry %q", want)
-		}
-	}
-	if strings.Contains(html, "Fenced") {
-		t.Error("rail lists a wikilink that was written inside a fenced code block")
-	}
-}
-
-func detailsTagByKey(t *testing.T, html, key string) string {
-	t.Helper()
-	marker := `data-key="` + key + `"`
-	markerAt := strings.Index(html, marker)
-	if markerAt < 0 {
-		t.Fatalf("rendered sidebar has no details tag with %s", marker)
-	}
-	start := strings.LastIndex(html[:markerAt], "<details")
-	if start < 0 {
-		t.Fatalf("rendered sidebar has %s outside a details tag", marker)
-	}
-	endFromMarker := strings.IndexByte(html[markerAt:], '>')
-	if endFromMarker < 0 {
-		t.Fatalf("rendered sidebar details tag with %s has no closing bracket", marker)
-	}
-	return html[start : markerAt+endFromMarker+1]
-}
-
-// TestNewSidebarNoCurrentNote is the index-page shape: with no current note,
-// every branch stays closed and unmarked, and the "here" block is empty.
-func TestNewSidebarNoCurrentNote(t *testing.T) {
-	t.Parallel()
-	model := buildModel(t)
-	sb := NewSidebar(nav.Shell{Nav: model}, "")
-
-	if sb.mapOpen("Maps/Go path.md") {
-		t.Error("mapOpen = true with no current note, want false")
-	}
-	if len(sb.Here) != 0 {
-		t.Errorf("Here = %v with no current note, want empty", sb.Here)
-	}
-}
-
 // TestSidebarLeavesTheCurrentNotesDraftMarkToThePage holds which copy of a
 // draft's mark speaks. A reader standing on a note is already told it is a
 // draft by the note's own head, so the rail's badge on that row adds no fact.
@@ -834,31 +406,8 @@ func TestSidebarLeavesTheCurrentNotesDraftMarkToThePage(t *testing.T) {
 	t.Parallel()
 	const current = "Writing/lessons/japanese/L01.md"
 	const other = "Writing/lessons/japanese/L02.md"
-	sb := Sidebar{CurrentPath: current}
 
-	// Every row renderer, because the rail draws the same badge three times:
-	// study path rows, map branch rows and the book's rows are separate
-	// templates over separate types, and fixing one leaves the others saying
-	// the thing this test forbids.
 	rows := map[string]func(string) string{
-		"study path row": func(rel string) string {
-			t.Helper()
-			var buf bytes.Buffer
-			entry := nav.PathEntry{Kind: nav.EntryResolved, RelPath: rel, Name: "L", Draft: true}
-			if err := pathEntryLink(sb, layouts.Chrome{}, &entry).Render(t.Context(), &buf); err != nil {
-				t.Fatalf("render %s: %v", rel, err)
-			}
-			return buf.String()
-		},
-		"map branch row": func(rel string) string {
-			t.Helper()
-			var buf bytes.Buffer
-			entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: rel, Name: "L", Draft: true}
-			if err := entryLink(sb, layouts.Chrome{}, entry).Render(t.Context(), &buf); err != nil {
-				t.Fatalf("render %s: %v", rel, err)
-			}
-			return buf.String()
-		},
 		"book row": func(rel string) string {
 			t.Helper()
 			var buf bytes.Buffer
@@ -896,11 +445,10 @@ func TestSidebarLeavesTheCurrentNotesDraftMarkToThePage(t *testing.T) {
 	}
 }
 
-// TestTheRailsListAReportByWhatItCallsItself pins the reports group in both
-// rails, the sidebar and the one beside a report. A report is listed by its
-// heading, never by file name, and a title two reports share arrives with the
-// day that tells them apart.
-func TestTheRailsListAReportByWhatItCallsItself(t *testing.T) {
+// TestTheSidebarListsAReportByWhatItCallsItself pins the reports beside a
+// report. A report is listed by its heading, never by file name, and a title two
+// reports share arrives with the day that tells them apart.
+func TestTheSidebarListsAReportByWhatItCallsItself(t *testing.T) {
 	t.Parallel()
 
 	const (
@@ -922,30 +470,23 @@ func TestTheRailsListAReportByWhatItCallsItself(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	model := modelOf(t, root)
-	shell := nav.Shell{Nav: model}
+	shell := nav.Shell{Nav: modelOf(t, root)}
 
-	var side, reading bytes.Buffer
-	if err := sidebar(NewSidebar(shell, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &side); err != nil {
+	var reading bytes.Buffer
+	if err := sidebar(NewNoteSidebar(shell, written, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &reading); err != nil {
 		t.Fatalf("render sidebar: %v", err)
 	}
-	if err := readingRail(NewReadingRail(shell, written, ""), layouts.Chrome{Nonce: "response-nonce"}).Render(t.Context(), &reading); err != nil {
-		t.Fatalf("render reading rail: %v", err)
-	}
 
-	// Each rail's reports are read off the links themselves, as text, in the
-	// order the shelf puts them: the file names are in the addresses, so only
-	// what a reader sees in the rail is asked.
+	// The reports are read off the links themselves, as text, in the order the
+	// shelf puts them: the file names are in the addresses, so only what a
+	// reader sees is asked.
 	want := []string{"Weekly review · 2026-09-22", "Weekly review · 2026-09-21", "What the audit found"}
-	for _, rail := range []struct {
-		name, html, from, to string
-	}{
-		{"sidebar", side.String(), `data-sidebar-group="reports"`, "</details>"},
-		{"reading rail", reading.String(), "data-reading-reports", "</nav>"},
-	} {
-		if diff := cmp.Diff(want, railLinkTexts(t, rail.html, rail.from, rail.to)); diff != "" {
-			t.Errorf("%s reports (-want +got):\n%s", rail.name, diff)
-		}
+	got := railLinkTexts(t, reading.String(), `class="y-where__path"`, "</nav>")
+	if len(got) == 0 {
+		t.Fatalf("the sidebar lists no links beside the report:\n%s", reading.String())
+	}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("reports (-want +got):\n%s", diff)
 	}
 }
 

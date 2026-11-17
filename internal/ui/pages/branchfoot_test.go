@@ -12,7 +12,7 @@ import (
 // footView is the part of a note's view the foot is read from, filled from the
 // same calls the handler makes.
 func footView(model *nav.Model, current string, lang wording.Lang) (Foot, NoteView) {
-	rail := NewReadingRail(nav.Shell{Nav: model}, current, "")
+	rail := NewNoteSidebar(nav.Shell{Nav: model}, current, "")
 	foot := FooterSequence(&rail, lang)
 	view := NoteView{
 		RelPath: current, Title: current, Prev: foot.Prev, Next: foot.Next, StepsLabel: foot.Label, StepsCourse: foot.Course,
@@ -288,8 +288,8 @@ func TestTheFootIsTheCoursesOnlyWhereTheRailResolvedABook(t *testing.T) {
 	t.Parallel()
 
 	model := buildStepsModel(t)
-	rail := NewReadingRail(nav.Shell{Nav: model}, "Course/C01.md", "")
-	if rail.Kind == ReadingRailBook {
+	rail := NewNoteSidebar(nav.Shell{Nav: model}, "Course/C01.md", "")
+	if rail.Mode == SidebarCourse {
 		t.Fatalf("the rail resolved a book for a note two courses teach, so this proves nothing")
 	}
 	if foot := FooterSequence(&rail, wording.ZhHant); foot.Course {

@@ -36,8 +36,7 @@ const SHAPES = [
   ['book rail', '/notes/Course/C02.md'],
   ['folder rail', '/notes/Notes/cutover.md'],
   ['root note', '/notes/README.md'],
-  ['study path', '/courses/Maps/study.md'],
-  ['shared sidebar', '/health'],
+  ['library', '/courses/Maps/study.md'],
 ];
 
 const STRIP = 40;
@@ -877,7 +876,7 @@ try {
       const { page, context, checkProof } = await open('every-rail-page-folds', path, { width: 1281 });
       // The injected rule is aimed at the study-path shell, so only that page
       // can show it matched anything.
-      if (shape === 'study path') await checkProof();
+      if (shape === 'library') await checkProof();
       const before = await geometry(page);
       if (!before.toggle || before.toggle.display === 'none') broken(`${shape} (${path}) draws no control`);
       await page.locator(TOGGLE).click();
@@ -990,7 +989,7 @@ try {
     for (const width of [1024, THREE_COLUMNS - 1, THREE_COLUMNS, 1281]) {
       for (const [shape, path] of SHAPES) {
         const { page, context, checkProof } = await open('every-shell-keeps-its-open-width', path, { width });
-        if (shape === 'study path' && width === 1024) await checkProof();
+        if (shape === 'library' && width === 1024) await checkProof();
         const facts = await page.evaluate(() => {
           const shell = document.querySelector('.y-shell, .y-shell2');
           return { note: shell.classList.contains('y-shell'), rail: document.querySelector('#_y-nav-rail').getBoundingClientRect().width };

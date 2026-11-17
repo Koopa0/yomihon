@@ -106,9 +106,15 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		component templ.Component
 	}
 	cases := []surface{
-		{"sidebar-current-note", sidebar(NewSidebar(recordedShell(model), current), layouts.Chrome{Nonce: "response-nonce"})},
-		{"sidebar-no-note", sidebar(NewSidebar(nav.Shell{Nav: model}, ""), layouts.Chrome{Nonce: "response-nonce"})},
-		{"sidebar-english", sidebar(NewSidebar(recordedShell(model), current), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
+		// One recording for each of the four modes the sidebar is drawn in, and the
+		// drawer-only form of the first, so a change to what the four share
+		// shows in every one of them.
+		{"sidebar-library", sidebar(NewLibrarySidebar(recordedShell(model), LibraryCourses, "Notes"), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-library-english", sidebar(NewLibrarySidebar(recordedShell(model), LibraryCourses, "Notes"), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
+		{"sidebar-drawer-only", sidebar(NewDrawerSidebar(recordedShell(model)), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-course", sidebar(NewNoteSidebar(recordedShell(model), current, "golang"), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-folder", sidebar(NewNoteSidebar(recordedShell(model), "Notes/alpha.md", ""), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-index", sidebar(NewNoteSidebar(recordedShell(model), "Maps/Go path.md", ""), layouts.Chrome{Nonce: "response-nonce"})},
 		{"note-page", Note(recordedNoteView(t, model, current), recordedChrome())},
 		// The head's dt/dd facts read in the other interface language too: the
 		// terms are the interface's own words and only a second recording shows
@@ -168,7 +174,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"health-page-unreadable-english", Health(recordedUnreadableHealthView(t, model), recordedEnglishChrome())},
 		{"file-page", File(recordedFileView(model), recordedChrome())},
 		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
-		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedChrome())},
+		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewDrawerSidebar(nav.Shell{Nav: model})}, recordedChrome())},
 		{"search-page", Search(recordedSearchView(model, recordedChrome().Lang), recordedChrome())},
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model, wording.En), wording.En)},
@@ -215,8 +221,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// one is a layout fault the Chinese recording alone cannot show.
 		{"search-page-empty", Search(recordedNothingFoundView(model), recordedChrome())},
 		{"search-page-empty-english", Search(recordedNothingFoundView(model), recordedEnglishChrome())},
-		{"notfound-page-english", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedEnglishChrome())},
-		{"notfound-page-unreadable", NotFound(NotFoundView{Asked: "/notes/Locked/away.md", Unreadable: true, Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}, recordedChrome())},
+		{"notfound-page-english", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewDrawerSidebar(nav.Shell{Nav: model})}, recordedEnglishChrome())},
+		{"notfound-page-unreadable", NotFound(NotFoundView{Asked: "/notes/Locked/away.md", Unreadable: true, Sidebar: NewDrawerSidebar(nav.Shell{Nav: model})}, recordedChrome())},
 		{"health-page-clear", Health(recordedClearHealthView(model), recordedChrome())},
 		{"health-page-clear-english", Health(recordedClearHealthView(model), recordedEnglishChrome())},
 		{"home-page-empty", Home(recordedNothingHomeView(wording.ZhHant), recordedChrome())},
@@ -269,7 +275,7 @@ func recordedNothingFoundView(model *nav.Model) SearchView {
 		Query:      "kafka",
 		FilterKeys: lexical.FilterKeys(),
 		StepBacks:  []SearchStepBack{{Query: "kaf", Count: 2}},
-		Sidebar:    NewSidebar(nav.Shell{Nav: model}, ""),
+		Sidebar:    NewLibrarySidebar(nav.Shell{Nav: model}, LibraryNone, ""),
 	}
 }
 
@@ -277,7 +283,7 @@ func recordedNothingFoundView(model *nav.Model) SearchView {
 // the page reads is empty, which is the one state the faulted recording beside
 // it can never reach.
 func recordedClearHealthView(model *nav.Model) HealthView {
-	return HealthView{Sidebar: NewSidebar(nav.Shell{Nav: model}, "")}
+	return HealthView{Sidebar: NewDrawerSidebar(nav.Shell{Nav: model})}
 }
 
 // recordedNothingHomeView is the desk with nothing in the two shelves a
@@ -500,7 +506,7 @@ func renderedNoteView(t *testing.T, model *nav.Model, current, body string) Note
 			{Name: "[[twin]]"},
 		},
 		TOC:                 []render.TOCEntry{{ID: "h1", Level: 2, Text: "第一節"}},
-		ReadingRail:         NewReadingRail(recordedShell(model), current, "golang"),
+		Sidebar:             NewNoteSidebar(recordedShell(model), current, "golang"),
 		ContentIdentity:     "abc123",
 		MarkAddress:         "/bookmark",
 		TranscludedIdentity: "def456",
@@ -605,7 +611,7 @@ func (c recordedCourse) view(lang wording.Lang, kept string) PathView {
 		cover.KeptNote = kept
 		cover.KeptHref = ResumeHref(kept, "a-second-look", 640)
 	}
-	return BuildPathView(c.model.Path(courseRelPath), c.model.Paths(), &cover)
+	return BuildPathView(c.model.Path(courseRelPath), &cover)
 }
 
 // courseRelPath is the fixture's study path, named once so the model reading
@@ -821,7 +827,7 @@ func recordedHealthView(model *nav.Model) HealthView {
 		// The ordering a request that named none resolves to, which is what a
 		// reader arriving at the page is holding.
 		Sort:    HealthByFinding,
-		Sidebar: NewSidebar(nav.Shell{Nav: model}, ""),
+		Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}),
 	}
 }
 
@@ -842,7 +848,7 @@ func recordedUnreadableHealthView(t *testing.T, model *nav.Model) HealthView {
 	return HealthView{
 		Blocked: sealedVaultBlocked(t),
 		Sort:    HealthByFinding,
-		Sidebar: NewSidebar(nav.Shell{Nav: model}, ""),
+		Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}),
 	}
 }
 
@@ -906,7 +912,7 @@ func recordedFileView(model *nav.Model) FileView {
 		RelPath:     "Sources/notes.csv",
 		Size:        1234567,
 		ContentType: "text/csv",
-		Sidebar:     NewSidebar(nav.Shell{Nav: model}, ""),
+		Sidebar:     NewFolderSidebar(nav.Shell{Nav: model}, "Sources/notes.csv"),
 	}
 }
 
@@ -982,7 +988,7 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 			{Label: "Writing", Count: 2, Href: "/search?in=Writing&q=kafka"},
 			{Label: "Notes", Count: 1, Href: "/search?in=Notes&q=kafka"},
 		},
-		Sidebar: NewSidebar(nav.Shell{Nav: model}, ""),
+		Sidebar: NewLibrarySidebar(nav.Shell{Nav: model}, LibraryNone, ""),
 	}
 }
 
@@ -1012,7 +1018,7 @@ func recordedPagedHealthView(model *nav.Model) HealthView {
 		IslandCount: rows,
 		Sort:        HealthByFinding,
 		Page:        2,
-		Sidebar:     NewSidebar(nav.Shell{Nav: model}, ""),
+		Sidebar:     NewDrawerSidebar(nav.Shell{Nav: model}),
 	}
 }
 

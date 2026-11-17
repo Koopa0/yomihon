@@ -87,7 +87,7 @@ func TestTheCoverStatesTheCourseOnceInTheNounItIsReadIn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			view := BuildPathView(&tt.path, []nav.Course{tt.path}, &CourseCover{})
+			view := BuildPathView(&tt.path, &CourseCover{})
 			if diff := cmp.Diff(tt.extent, view.Extent(tt.lang)); diff != "" {
 				t.Errorf("Extent() (-want +got):\n%s", diff)
 			}
@@ -115,7 +115,7 @@ func TestAPathWithNoSideBranchStatesNoBranchFigure(t *testing.T) {
 	t.Parallel()
 
 	path := buildTestPath(t, "## Data {sequence=primary}\n\n- [[Slices]]\n- [[Arrays]]\n")
-	view := BuildPathView(&path, []nav.Course{path}, &CourseCover{})
+	view := BuildPathView(&path, &CourseCover{})
 	if diff := cmp.Diff([]string{"2 單元"}, view.Extent(wording.ZhHant)); diff != "" {
 		t.Errorf("Extent() (-want +got):\n%s", diff)
 	}
@@ -166,7 +166,7 @@ func TestACoverRunsTheAuthorsGlossInAfterTheTitle(t *testing.T) {
 		"- [[Slices]] — 啟動工作，等它完成\n"+
 		"- [[Arrays]]\n"+
 		"- [[Unwritten]] — 還沒寫\n")
-	view := BuildPathView(&path, []nav.Course{path}, &CourseCover{OpeningLanguage: "zh-Hant"})
+	view := BuildPathView(&path, &CourseCover{OpeningLanguage: "zh-Hant"})
 	html := renderCover(t, &view, wording.ZhHant)
 
 	run := regexp.MustCompile(`(?s)<a class="y-lesson" href="/notes/Writing/Slices.md">(.*?)</a>`).FindStringSubmatch(html)
@@ -192,7 +192,7 @@ func TestACoverRunsTheAuthorsGlossInAfterTheTitle(t *testing.T) {
 
 	// A path whose note declared no language stamps none on the sentence, so
 	// it inherits the page's the way the rest of the cover does.
-	plain := BuildPathView(&path, []nav.Course{path}, &CourseCover{})
+	plain := BuildPathView(&path, &CourseCover{})
 	if strings.Contains(renderCover(t, &plain, wording.ZhHant), `y-gloss" lang=`) {
 		t.Errorf("a path with no declared language stamped one on the author's sentence")
 	}
@@ -216,8 +216,8 @@ func TestTheAppendixIsListedBeneathTheContentsAndOutsideTheCourse(t *testing.T) 
 		"\n## 只有文字 {sequence=none}\n\nJust words.\n")
 	without := buildTestPath(t, "## Data {sequence=primary}\n\n- [[Slices]]\n- [[Arrays]]\n")
 
-	view := BuildPathView(&with, []nav.Course{with}, &CourseCover{OpeningLanguage: "zh-Hant"})
-	bare := BuildPathView(&without, []nav.Course{without}, &CourseCover{})
+	view := BuildPathView(&with, &CourseCover{OpeningLanguage: "zh-Hant"})
+	bare := BuildPathView(&without, &CourseCover{})
 
 	if len(view.Appendix) != 1 || view.Appendix[0].Heading != "查閱與對照" {
 		t.Fatalf("Appendix = %+v, want the one section that lists rows, under the author's own heading; a section of prose alone has nothing to list", view.Appendix)
@@ -279,7 +279,7 @@ func TestTheWholeNoteIsTheLastLineOfTheCover(t *testing.T) {
 		{wording.ZhHant, `<a class="y-syl-read" href="/notes/Maps/Go%20path.md">整篇筆記 <span aria-hidden="true">→</span></a>`},
 		{wording.En, `<a class="y-syl-read" href="/notes/Maps/Go%20path.md">The whole note <span aria-hidden="true">→</span></a>`},
 	} {
-		view := BuildPathView(&path, []nav.Course{path}, &CourseCover{Listenable: true})
+		view := BuildPathView(&path, &CourseCover{Listenable: true})
 		html := renderCover(t, &view, tt.lang)
 		at := strings.Index(html, tt.want)
 		if at < 0 {
@@ -317,7 +317,7 @@ func TestTheListenDoorIsOfferedOnlyWhereSomethingIsMarked(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			view := BuildPathView(&path, []nav.Course{path}, &CourseCover{Listenable: tt.listenable})
+			view := BuildPathView(&path, &CourseCover{Listenable: tt.listenable})
 			html := renderCover(t, &view, wording.ZhHant)
 			if got := strings.Contains(html, `href="/listen/Maps/Go%20path.md"`); got != tt.wantDoor {
 				t.Errorf("the cover offers the listening page = %t, want %t; html = %q", got, tt.wantDoor, html)
@@ -344,7 +344,7 @@ func TestASideBranchHangsFromTheRowItWasNestedUnderAndNotTheFirstOneNamedAlike(t
 		"- [[Slices]]\n"+
 		"\t- 選修 {sequence=local}\n"+
 		"\t\t- [[Tuning]]\n")
-	view := BuildPathView(&twice, []nav.Course{twice}, &CourseCover{})
+	view := BuildPathView(&twice, &CourseCover{})
 	rows := view.Branches[0].Items
 	if len(rows) != 2 || rows[0].Entry == nil || rows[1].Entry == nil {
 		t.Fatalf("the part draws %+v, want two rows and no loose branch", rows)
@@ -357,7 +357,7 @@ func TestASideBranchHangsFromTheRowItWasNestedUnderAndNotTheFirstOneNamedAlike(t
 	}
 
 	heading := buildTestPath(t, "## Main {sequence=primary}\n\n- [[Slices]]\n\n### 選修 {sequence=local}\n\n- [[Tuning]]\n")
-	loose := BuildPathView(&heading, []nav.Course{heading}, &CourseCover{})
+	loose := BuildPathView(&heading, &CourseCover{})
 	items := loose.Branches[0].Items
 	if len(items) != 2 || items[0].Entry == nil || items[1].Branch == nil || !items[1].Branch.Local {
 		t.Fatalf("a branch opened by a heading draws %+v, want the row and then the branch as an item of its own", items)
@@ -375,7 +375,7 @@ func TestACourseWhoseKeptPlaceIsInsideASideBranchStillFindsIt(t *testing.T) {
 
 	path := buildTestPath(t, "## Main {sequence=primary}\n\n- [[Slices]]\n\t- 選修 {sequence=local}\n\t\t- [[Tuning]]\n- [[Arrays]]\n")
 	cover := CourseCover{KeptNote: "Writing/Tuning.md", KeptHref: "/notes/Writing/Tuning.md#a-1"}
-	view := BuildPathView(&path, []nav.Course{path}, &cover)
+	view := BuildPathView(&path, &cover)
 	if !view.Action.Continuing || view.Action.Lesson != "Tuning" {
 		t.Errorf("Action = %+v, want the verb to go back to Tuning on the side branch", view.Action)
 	}
@@ -439,7 +439,7 @@ func annotatedCourse(t *testing.T) PathView {
 		"- [[Reference]] — 等待、交接與收尾的關係\n"+
 		"- [[Nobody wrote this]] — 還沒寫\n",
 		map[string]string{"Writing/Reference.md": "---\ntitle: Reference\ntype: concept\n---\nbody\n"})
-	return BuildPathView(&path, []nav.Course{path}, &CourseCover{OpeningLanguage: "zh-Hant", Listenable: true, Here: "Writing/Arrays.md"})
+	return BuildPathView(&path, &CourseCover{OpeningLanguage: "zh-Hant", Listenable: true, Here: "Writing/Arrays.md"})
 }
 
 // TestTheRailDrawsASideBranchAfterTheLessonItHangsFrom holds the order the book
@@ -459,8 +459,8 @@ func TestTheRailDrawsASideBranchAfterTheLessonItHangsFrom(t *testing.T) {
 		"Writing/S01.md": "---\ntitle: S01\ntype: lesson\nstatus: draft\n---\nbody\n",
 	})
 	model := modelOf(t, root)
-	rail := NewReadingRail(nav.Shell{Nav: model}, "Writing/L02.md", "")
-	html := renderedHTML(t, readingRail(rail, layouts.Chrome{Lang: wording.ZhHant, Nonce: "n"}))
+	rail := NewNoteSidebar(nav.Shell{Nav: model}, "Writing/L02.md", "")
+	html := renderedHTML(t, sidebar(rail, layouts.Chrome{Lang: wording.ZhHant, Nonce: "n"}))
 
 	var order []string
 	for _, m := range regexp.MustCompile(`href="/notes/Writing/(L0[123]|S01)\.md"|data-book-branch="Maps/Course\.md[^"]*選修"`).FindAllStringSubmatch(html, -1) {
@@ -508,7 +508,7 @@ func TestTheHeadNamesTheDraftsInTheNounThePathIsReadIn(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			view := BuildPathView(tt.path, []nav.Course{*tt.path}, &CourseCover{})
+			view := BuildPathView(tt.path, &CourseCover{})
 			if got := view.DraftsNote(tt.lang); got != tt.want {
 				t.Errorf("DraftsNote() = %q, want %q", got, tt.want)
 			}

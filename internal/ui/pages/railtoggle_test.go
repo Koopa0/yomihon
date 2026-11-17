@@ -27,13 +27,10 @@ func TestEveryRailCarriesTheFoldControlBesideItsPanel(t *testing.T) {
 		rail func(layouts.Chrome) templ.Component
 	}{
 		{"reading rail", func(c layouts.Chrome) templ.Component {
-			return readingRail(NewReadingRail(nav.Shell{Nav: model}, "Writing/lessons/go/L01.md", "golang"), c)
+			return sidebar(NewNoteSidebar(nav.Shell{Nav: model}, "Writing/lessons/go/L01.md", "golang"), c)
 		}},
 		{"shared sidebar", func(c layouts.Chrome) templ.Component {
-			return sidebar(NewSidebar(nav.Shell{Nav: model}, ""), c)
-		}},
-		{"study-path rail", func(c layouts.Chrome) templ.Component {
-			return syllabusRail(PathView{}, c)
+			return sidebar(NewLibrarySidebar(nav.Shell{Nav: model}, LibraryNone, ""), c)
 		}},
 	}
 	for _, r := range rails {

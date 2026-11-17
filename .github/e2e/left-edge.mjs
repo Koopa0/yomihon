@@ -9,7 +9,7 @@
 // It also holds the sidebar to the window's side. In a window wider than the
 // two columns want, the sidebar still starts at the window's left side, and on
 // the pages whose sidebar opens on a title, a book's or a folder's, on a
-// course's label, or on the name of a group, those first words stand as far in
+// library's first row, those first words stand as far in
 // from there as the header's first control does, so the two read as one line
 // down the page. A shell capped and centred on its own measure would stand well
 // in from the side at that width, and a sidebar padded on its own would drift
@@ -24,27 +24,25 @@ const MUTATE = process.env.MUTATE || '';
 const WITH_SIDEBAR = [
   ['a lesson', '/notes/Course/C02.md', '.y-article h1.y-title'],
   ['a course', '/courses/Maps/study.md', '.y-syl h1.y-title'],
-  ['the findings', '/health', '.y-healthpage h1.y-title'],
   ['a search', '/search?q=alpha', '.y-searchpage h1.y-title'],
   ['a file', '/notes/Notes/plain.txt', '.y-article h1.y-title'],
 ];
 // The pages whose sidebar opens on a title, a book's or a folder's, or on the
-// label a course's does, or on the name of a group of the vault's own — the
-// findings and the search have no current note, so theirs opens on the courses —
-// set the first words at the header's inset.
-const OPENS_ON_A_TITLE = new Set(['a lesson', 'a course', 'a file']);
-const OPENS_ON_A_GROUP = new Set(['the findings', 'a search']);
-const TITLES = '.y-railbook__title, .y-here__label, .y-syl-raillabel';
-const GROUPS = '.y-railsummary';
+// first row of the library, set the first words at the header's inset. The
+// findings page draws its sidebar only as a drawer, so at these widths it
+// stands with the pages that have none.
+const OPENS_ON_A_TITLE = new Set(['a lesson', 'a course', 'a file', 'a search']);
+const TITLES = '.y-railbook__title, .y-where__label, .y-here--flat > .ui-navitem';
 const WITHOUT_SIDEBAR = [
   ['the desk', '/', '.y-home h1.y-title'],
   ['a shelf', '/courses', '.y-home h1.y-title'],
+  ['the findings', '/health', '.y-healthpage h1.y-title'],
   ['the reading choices', '/preferences', '.y-prefs h1.y-title'],
   ['a course read aloud', '/listen/Maps/listen.md', '.y-listen h1.y-title'],
 ];
 
 const MODES = {
-  'centre-the-findings-page': { css: '.y-main > .y-healthpage{margin-left:auto !important;margin-right:auto !important}', group: 'sidebar' },
+  'move-the-findings-page': { css: '.y-main > .y-healthpage{margin-left:64px !important}', group: 'desk' },
   'centre-the-search-page': { css: '.y-main > .y-searchpage{margin-left:auto !important;margin-right:auto !important}', group: 'sidebar' },
   'pin-the-course-to-the-sidebar': { css: '.y-main > .y-syl{margin-left:0 !important}', group: 'sidebar' },
   'centre-the-reading-choices': { css: '.y-prefs{margin-left:auto !important;margin-right:auto !important}', group: 'desk' },
@@ -52,8 +50,8 @@ const MODES = {
   'centre-the-shell-again': { css: '.y-shell{margin-inline:auto;max-width:1280px}', group: 'window-edge' },
   'crowd-the-sidebar-against-the-edge': { css: ':root{--rail-pad-start:6px}', group: 'window-edge' },
   'pad-the-sidebar-past-the-header': { css: '.y-rail-left{padding-left:44px}', group: 'window-edge' },
-  'indent-the-course-label': { css: '.y-syl-raillabel{padding-left:8px !important}', group: 'window-edge' },
-  'put-the-chevron-ahead-of-the-name': { css: '.y-railsummary > .y-chevron{margin-inline-start:0;order:-1}', group: 'window-edge' },
+  'indent-the-library-row': { css: '.y-rail-left .y-here--flat > .ui-navitem{padding-left:20px !important}', group: 'window-edge' },
+  'indent-the-folder-label': { css: '.y-where{padding-left:8px}', group: 'window-edge' },
 };
 
 if (MUTATE === 'list') {
@@ -102,7 +100,7 @@ try {
       const response = await page.goto(BASE + path, { waitUntil: 'load' });
       if (response?.status() !== 200) throw new Error(`BROKEN left-edge: ${path} answered ${response?.status()}, want 200`);
       await page.evaluate(() => document.fonts.ready);
-      const edge = await page.evaluate(([titles, groups]) => {
+      const edge = await page.evaluate(([titles]) => {
         const sidebar = document.querySelector('.y-rail-left');
         const body = sidebar?.querySelector('.y-railbody');
         if (!sidebar || !body || getComputedStyle(sidebar).display === 'none') return null;
@@ -126,20 +124,18 @@ try {
         return {
           sidebarStart: sidebar.getBoundingClientRect().left,
           wordsStart: words?.left ?? null,
-          wordsAreATitle: Boolean(wordsIn?.matches(titles)),
-          wordsAreAGroup: Boolean(wordsIn?.closest(groups)),
+          wordsAreATitle: Boolean(wordsIn?.closest(titles)),
           headerStart: Math.min(...controls),
         };
-      }, [TITLES, GROUPS]);
+      }, [TITLES]);
       if (!edge) throw new Error(`BROKEN left-edge: ${path} draws no sidebar at 1920 wide`);
       if (edge.wordsStart === null) throw new Error(`BROKEN left-edge: ${path} draws no words in the sidebar, so where they start proves nothing`);
       console.log(`left-edge: at 1920px, ${name}: the sidebar starts at ${edge.sidebarStart}, its words at ${edge.wordsStart}, the header's first control at ${edge.headerStart}`);
       if (Math.abs(edge.sidebarStart) > 0.5) {
         throw new LockFired('window-edge', `${name} at 1920px: the sidebar starts ${edge.sidebarStart}px from the window's left side, want 0: ${JSON.stringify(edge)}`);
       }
-      if (!OPENS_ON_A_TITLE.has(name) && !OPENS_ON_A_GROUP.has(name)) continue;
+      if (!OPENS_ON_A_TITLE.has(name)) continue;
       if (OPENS_ON_A_TITLE.has(name) && !edge.wordsAreATitle) throw new Error(`BROKEN left-edge: ${name} no longer opens its sidebar on a title (${TITLES}), so the header's line is not what its first words are measured against`);
-      if (OPENS_ON_A_GROUP.has(name) && !edge.wordsAreAGroup) throw new Error(`BROKEN left-edge: ${name} no longer opens its sidebar on the name of a group (${GROUPS}), so the header's line is not what its first words are measured against`);
       if (Math.abs(edge.wordsStart - edge.headerStart) > 0.5) {
         throw new LockFired('window-edge', `${name} at 1920px: the sidebar's words start ${edge.wordsStart}px from the window's left side and the header's first control ${edge.headerStart}px: ${JSON.stringify(edge)}`);
       }

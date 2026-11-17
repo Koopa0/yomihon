@@ -146,8 +146,8 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 		cover.KeptHref = pages.ResumeHref(request.Kept.RelPath, request.Kept.Anchor, request.Kept.Offset)
 	}
 
-	view := pages.BuildPathView(current, shell.Nav.Paths(), &cover)
-	view.Vault = shell.Vault
+	view := pages.BuildPathView(current, &cover)
+	view.Sidebar = pages.NewLibrarySidebar(shell, pages.LibraryCourses, "")
 	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write course page", "path", rel, "error", err)
 	}
@@ -171,7 +171,7 @@ func (h *Handler) refuseCourse(w http.ResponseWriter, r *http.Request, shell *na
 		}
 		return
 	}
-	view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewSidebar(*shell, "")}
+	view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewDrawerSidebar(*shell)}
 	// The title names which route refused; the page below it is shared.
 	chrome := layouts.ChromeFromRequest(r, wording.CourseNotFound.In(lang))
 	if err := pages.WriteNotFound(r.Context(), w, view, chrome); err != nil {
