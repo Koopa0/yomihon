@@ -16,6 +16,34 @@ import (
 
 var verb = regexp.MustCompile(`^%[-+# 0]*(?:[0-9]+)?(?:\.[0-9]*)?(?:\[([0-9]+)\])?([a-zA-Z])`)
 
+func TestFromAcceptLanguageTakesTheHigherRankedOfTheTwo(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		header string
+		want   Lang
+	}{
+		{"", ZhHant},
+		{"en", En},
+		{"EN-gb", En},
+		{"en-US,en;q=0.9", En},
+		{"zh-TW,zh;q=0.9,en;q=0.8", ZhHant},
+		{"en;q=0.9,zh-TW;q=0.5", En},
+		{"ja,en;q=0.8", En},
+		{"ja,fr", ZhHant},
+		{"*", ZhHant},
+		{"en;q=0", ZhHant},
+		{"en;q=0,zh", ZhHant},
+		{"en;q=abc", ZhHant},
+		{"english", ZhHant},
+		{"zh-CN;q=0.5,en;q=0.5", ZhHant},
+		{"en;q=0.5,zh;q=0.5", En},
+	} {
+		if got := FromAcceptLanguage(tt.header); got != tt.want {
+			t.Errorf("FromAcceptLanguage(%q) = %q, want %q", tt.header, got, tt.want)
+		}
+	}
+}
+
 // pair is one phrase as it is written, named by the variable it is assigned to.
 type pair struct {
 	name   string

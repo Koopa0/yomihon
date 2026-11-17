@@ -38,18 +38,20 @@ const (
 	cacheControl        = "Cache-Control"
 	cacheControlPrivate = "private, no-cache"
 	varyHeader          = "Vary"
-	varyCookie          = "Cookie"
+	varyRequestChoices  = "Cookie, Accept-Language"
 )
 
-// Language reads which language this request asked the interface to speak,
-// falling back to the default when the reader has chosen none or has sent a
-// value the dictionary does not know.
+// Language reads which language this request asked the interface to speak: the
+// reader's stored choice when there is one the dictionary knows, otherwise the
+// language the browser asks for, otherwise the default. The stored choice wins
+// even when it is the default, because picking Traditional Chinese is a choice.
 func Language(r *http.Request) wording.Lang {
-	c, err := r.Cookie(wording.CookieName)
-	if err != nil {
-		return wording.ZhHant
+	if c, err := r.Cookie(wording.CookieName); err == nil {
+		if lang, ok := wording.Known(c.Value); ok {
+			return lang
+		}
 	}
-	return wording.FromCookieValue(c.Value)
+	return wording.FromAcceptLanguage(r.Header.Get("Accept-Language"))
 }
 
 type nonceContextKey struct{}
@@ -182,7 +184,7 @@ func (w *writer) applyHeaders() {
 	if w.Header().Get(cacheControl) == "" {
 		w.Header().Set(cacheControl, cacheControlPrivate)
 	}
-	w.Header().Set(varyHeader, varyCookie)
+	w.Header().Set(varyHeader, varyRequestChoices)
 }
 
 func (w *writer) WriteHeader(statusCode int) {

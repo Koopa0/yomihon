@@ -10,6 +10,11 @@
 // markup that shows it; what it buys is that no sentence can be half-written.
 package wording
 
+import (
+	"strconv"
+	"strings"
+)
+
 // Lang is the language the interface speaks. It is also what the document's own
 // language attribute says, so the two cannot drift.
 type Lang string
@@ -35,6 +40,41 @@ func FromCookieValue(value string) Lang {
 		return En
 	}
 	return ZhHant
+}
+
+// FromAcceptLanguage reads the languages a browser says its reader prefers, for
+// a reader who has stored no choice. Of the two this interface speaks, the one
+// the header ranks higher wins and a tie goes to the one listed first; any
+// Chinese is read as Traditional Chinese, the only Chinese there is. A header
+// that names neither, or is empty, leaves the default.
+func FromAcceptLanguage(header string) Lang {
+	best, bestWeight := ZhHant, 0.0
+	for item := range strings.SplitSeq(header, ",") {
+		tag, params, _ := strings.Cut(item, ";")
+		var lang Lang
+		switch tag = strings.ToLower(strings.TrimSpace(tag)); {
+		case tag == "zh" || strings.HasPrefix(tag, "zh-"):
+			lang = ZhHant
+		case tag == "en" || strings.HasPrefix(tag, "en-"):
+			lang = En
+		default:
+			continue
+		}
+		weight := 1.0
+		for param := range strings.SplitSeq(params, ";") {
+			if value, ok := strings.CutPrefix(strings.TrimSpace(param), "q="); ok {
+				parsed, err := strconv.ParseFloat(value, 64)
+				if err != nil {
+					parsed = 0
+				}
+				weight = parsed
+			}
+		}
+		if weight > bestWeight {
+			best, bestWeight = lang, weight
+		}
+	}
+	return best
 }
 
 // Known reads a value that must be one of the two, rejecting anything else. It

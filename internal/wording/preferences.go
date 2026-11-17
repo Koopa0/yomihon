@@ -137,12 +137,13 @@ var (
 
 // The one control that is not a choice between values. Its sentence has to
 // name the whole of what it clears, including the consequence a reader would
-// not predict: the interface comes back speaking the language it started in.
+// not predict: the interface comes back speaking the language the browser asks
+// for.
 var (
 	PrefReset     = both("回到預設", "Back to the defaults")
 	PrefResetNote = both(
-		"清掉這一頁的每一項設定（含介面語言，所以套用後介面回到繁體中文）；本次分頁的側欄狀態與篩選字不受影響。",
-		"Clears every setting on this page — including the interface language, so the page comes back in Traditional Chinese; this tab's sidebar state and filter text are untouched.",
+		"清掉這一頁的每一項設定（含介面語言，所以套用後介面語言跟著瀏覽器）；本次分頁的側欄狀態與篩選字不受影響。",
+		"Clears every setting on this page — including the interface language, so the page comes back in the browser's language; this tab's sidebar state and filter text are untouched.",
 	)
 )
 
