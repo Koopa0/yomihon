@@ -164,7 +164,7 @@ func TestACoursesLessonsAreFoundUnderAPartThatOnlyGroupsThem(t *testing.T) {
 	for _, f := range findings {
 		rules = append(rules, string(f.RuleID))
 	}
-	if diff := cmp.Diff([]string{"map.disk_mismatch"}, rules); diff != "" {
+	if diff := cmp.Diff([]string{"course.disk_mismatch"}, rules); diff != "" {
 		t.Errorf("rules reported (-want +got):\n%s", diff)
 	}
 	if slices.Contains(rules, "link.broken") {

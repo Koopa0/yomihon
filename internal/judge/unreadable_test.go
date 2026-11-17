@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 // The fixture that carries a file nothing can be read from, and the file
@@ -59,12 +61,25 @@ func ruleSet(findings []Finding, exceptPath string) map[RuleID]bool {
 // one note, or the scan, goes on judging.
 //
 // The same fixture is judged twice, whole and holed, and the two verdicts are
-// compared. That is what makes the list load-bearing in both directions: the
-// whole run has to carry every rule the list names, or the fixture is not
-// exercising it, and the holed run has to carry none of them. Dropping any rule
-// from the list leaves it in the second verdict and fails here.
+// compared. That is what makes the set load-bearing in both directions: the
+// whole run has to carry every rule in it, or the fixture is not exercising it,
+// and the holed run has to carry none of them. The set is written out here and
+// not read from withheldOnPartialCorpus, because a test that reads the list it
+// guards cannot notice a rule leaving it; the list has to equal this set, so a
+// rule added to the list is a rule added here.
 func TestTheWholeVaultRulesSayNothingOverAPartialCorpus(t *testing.T) {
 	t.Parallel()
+
+	wholeVaultRules := []RuleID{
+		"course.disk_mismatch",
+		"course.disk_unlisted",
+		"link.broken",
+		"link.title_not_alias",
+		"provenance.unresolved",
+	}
+	if diff := cmp.Diff(wholeVaultRules, slices.Sorted(slices.Values(withheldOnPartialCorpus))); diff != "" {
+		t.Errorf("withheldOnPartialCorpus differs from the rules that answer from the whole vault (-want +got):\n%s", diff)
+	}
 
 	whole, err := Check(t.Context(), judgeFixtureRoot(t, unreadableFixture))
 	if err != nil {
@@ -76,7 +91,7 @@ func TestTheWholeVaultRulesSayNothingOverAPartialCorpus(t *testing.T) {
 	}
 
 	wholeRules, holedRules := ruleSet(whole, ""), ruleSet(holed, "")
-	for _, rule := range withheldOnPartialCorpus {
+	for _, rule := range wholeVaultRules {
 		if !wholeRules[rule] {
 			t.Errorf("the fixture never trips %q, so this test cannot tell whether withholding it does anything", rule)
 		}
@@ -92,9 +107,9 @@ func TestTheWholeVaultRulesSayNothingOverAPartialCorpus(t *testing.T) {
 	}
 
 	// The other half: judging continues. Every rule some other file tripped in
-	// the whole run, and that the withheld list does not name, is still here.
+	// the whole run, and that the set above does not name, is still here.
 	for rule := range ruleSet(whole, sealedNote) {
-		if slices.Contains(withheldOnPartialCorpus, rule) || holedRules[rule] {
+		if slices.Contains(wholeVaultRules, rule) || holedRules[rule] {
 			continue
 		}
 		t.Errorf("%q was reported over the whole vault and vanished over the holed one, though it reads one note rather than the vault", rule)

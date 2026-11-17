@@ -39,7 +39,7 @@ never_egress_dirs = []
 // below are written.
 const unlistedDir = "Writing/lessons/japanese/"
 
-// TestUnlistedLessonExemptsOnlyADraft holds that map.disk_unlisted answers from
+// TestUnlistedLessonExemptsOnlyADraft holds that course.disk_unlisted answers from
 // listing and from the draft flag alone. A lesson no course of its domain lists
 // is reported unless the author declared it a draft, and only the boolean true
 // declares one: a flag written as text, as false, or left out is a finished
@@ -68,16 +68,16 @@ func TestUnlistedLessonExemptsOnlyADraft(t *testing.T) {
 			write(t, root, unlistedDir+"Unlisted.md", "---\ntype: lesson\nslug: unlisted\n"+tt.draft+"---\nbody\n")
 
 			out := string(runCheck(t, root))
-			got := strings.Contains(out, `"rule_id":"map.disk_unlisted","severity":"warn","path":"`+unlistedDir+`Unlisted.md"`)
+			got := strings.Contains(out, `"rule_id":"course.disk_unlisted","severity":"warn","path":"`+unlistedDir+`Unlisted.md"`)
 			if got != tt.want {
-				t.Errorf("map.disk_unlisted for an unlisted lesson with %q = %t, want %t; findings:\n%s",
+				t.Errorf("course.disk_unlisted for an unlisted lesson with %q = %t, want %t; findings:\n%s",
 					tt.draft, got, tt.want, out)
 			}
 		})
 	}
 }
 
-// TestDiskUnlistedUsesTheDomainPathUnion holds that map.disk_unlisted
+// TestDiskUnlistedUsesTheDomainPathUnion holds that course.disk_unlisted
 // answers from the union of a domain's study paths, not from each path
 // walking the domain alone. Two paths that each list half the lessons of one
 // domain produce no finding: those lessons are listed, just not on every path.
@@ -93,8 +93,8 @@ func TestDiskUnlistedUsesTheDomainPathUnion(t *testing.T) {
 	write(t, root, unlistedDir+"Lesson B.md", "---\ntype: lesson\nslug: lessonb\n---\nbody\n")
 
 	out := string(runCheck(t, root))
-	if strings.Contains(out, `"rule_id":"map.disk_unlisted"`) {
-		t.Errorf("map.disk_unlisted fired for lessons listed on a parallel path of the same domain; findings:\n%s", out)
+	if strings.Contains(out, `"rule_id":"course.disk_unlisted"`) {
+		t.Errorf("course.disk_unlisted fired for lessons listed on a parallel path of the same domain; findings:\n%s", out)
 	}
 }
 
@@ -114,16 +114,16 @@ func TestDiskUnlistedIsOneFindingPerLesson(t *testing.T) {
 	write(t, root, unlistedDir+"Unlisted.md", "---\ntype: lesson\nslug: unlisted\n---\nbody\n")
 
 	out := string(runCheck(t, root))
-	if n := strings.Count(out, `"rule_id":"map.disk_unlisted"`); n != 1 {
-		t.Errorf("map.disk_unlisted reported %d times, want 1 for one unlisted lesson; findings:\n%s", n, out)
+	if n := strings.Count(out, `"rule_id":"course.disk_unlisted"`); n != 1 {
+		t.Errorf("course.disk_unlisted reported %d times, want 1 for one unlisted lesson; findings:\n%s", n, out)
 	}
 	if !strings.Contains(out, `"path":"`+unlistedDir+`Unlisted.md"`) {
 		t.Errorf("the finding did not name the unlisted lesson; findings:\n%s", out)
 	}
-	if !strings.Contains(out, "not listed in syllabus "+unlistedDir+"Path A.md") {
+	if !strings.Contains(out, "not listed in course "+unlistedDir+"Path A.md") {
 		t.Errorf("the finding did not attach to the first path in check order; findings:\n%s", out)
 	}
-	if strings.Contains(out, "not listed in syllabus "+unlistedDir+"Path B.md") {
+	if strings.Contains(out, "not listed in course "+unlistedDir+"Path B.md") {
 		t.Errorf("the finding also attached to a later path of the same domain; findings:\n%s", out)
 	}
 }

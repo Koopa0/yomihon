@@ -30,7 +30,7 @@ func TestRunCheckSuffixAmbiguousLinkStaysBroken(t *testing.T) {
 	}
 	var lines []string
 	for line := range strings.SplitSeq(string(got), "\n") {
-		for _, rule := range []string{"provenance.unresolved", "link.broken", "map.disk_mismatch"} {
+		for _, rule := range []string{"provenance.unresolved", "link.broken", "course.disk_mismatch"} {
 			if strings.HasPrefix(line, `{"rule_id":"`+rule+`",`) {
 				lines = append(lines, line)
 			}
@@ -40,12 +40,12 @@ func TestRunCheckSuffixAmbiguousLinkStaysBroken(t *testing.T) {
 	// taken from check on this vault before any suffix was looked up: the
 	// suffix matches change none of them.
 	want := []string{
-		`{"rule_id":"provenance.unresolved","severity":"warn","path":"Concepts/Source.md","field":"based_on","message":"based_on -> [[Shared/Twin]] resolves to nothing","evidence":"no note, alias, or lesson slug matches the reference","suggested_action":"fix the reference, or create the target note","source_rule":"yomihon","target":"[[Shared/Twin]]","fingerprint":"v1:ac66487d94b275a6"}`,
-		`{"rule_id":"provenance.unresolved","severity":"warn","path":"Concepts/Source.md","field":"based_on","message":"based_on -> [[Mixed/Twin]] resolves to nothing","evidence":"no note, alias, or lesson slug matches the reference","suggested_action":"fix the reference, or create the target note","source_rule":"yomihon","target":"[[Mixed/Twin]]","fingerprint":"v1:7707daafad0f8dc2"}`,
+		`{"rule_id":"provenance.unresolved","severity":"warn","path":"Concepts/Source.md","field":"based_on","message":"based_on -> [[Shared/Twin]] resolves to nothing","evidence":"no note, alias, or unit slug matches the reference","suggested_action":"fix the reference, or create the target note","source_rule":"yomihon","target":"[[Shared/Twin]]","fingerprint":"v1:ac66487d94b275a6"}`,
+		`{"rule_id":"provenance.unresolved","severity":"warn","path":"Concepts/Source.md","field":"based_on","message":"based_on -> [[Mixed/Twin]] resolves to nothing","evidence":"no note, alias, or unit slug matches the reference","suggested_action":"fix the reference, or create the target note","source_rule":"yomihon","target":"[[Mixed/Twin]]","fingerprint":"v1:7707daafad0f8dc2"}`,
 		`{"rule_id":"link.broken","severity":"warn","path":"Concepts/Source.md","line":5,"message":"[[Shared/Twin]] resolves to no note","evidence":"no filename or alias matches the target","suggested_action":"create the target note, or change the link to an existing filename/alias","source_rule":"yomihon","target":"Shared/Twin","fingerprint":"v1:44f9e7a61a237251"}`,
 		`{"rule_id":"link.broken","severity":"warn","path":"Concepts/Source.md","line":6,"message":"[[Mixed/Twin]] resolves to no note","evidence":"no filename or alias matches the target","suggested_action":"create the target note, or change the link to an existing filename/alias","source_rule":"yomihon","target":"Mixed/Twin","fingerprint":"v1:8611c60463ae4a83"}`,
-		`{"rule_id":"map.disk_mismatch","severity":"warn","path":"Maps/Course.md","line":9,"message":"syllabus links [[Shared/Twin]] but it resolves to nothing","evidence":"a study-path entry that resolves to no note on disk","suggested_action":"create the note, fix the entry, or mark it a planned gap","source_rule":"yomihon","target":"Shared/Twin","fingerprint":"v1:4af8c5e8ab76b9da"}`,
-		`{"rule_id":"map.disk_mismatch","severity":"warn","path":"Maps/Course.md","line":10,"message":"syllabus links [[Mixed/Twin]] but it resolves to nothing","evidence":"a study-path entry that resolves to no note on disk","suggested_action":"create the note, fix the entry, or mark it a planned gap","source_rule":"yomihon","target":"Mixed/Twin","fingerprint":"v1:e08460f4e2c7bdf2"}`,
+		`{"rule_id":"course.disk_mismatch","severity":"warn","path":"Maps/Course.md","line":9,"message":"course links [[Shared/Twin]] but it resolves to nothing","evidence":"a course entry that resolves to no note on disk","suggested_action":"create the note, fix the entry, or mark it a planned gap","source_rule":"yomihon","target":"Shared/Twin","fingerprint":"v1:2433bf5e7c638503"}`,
+		`{"rule_id":"course.disk_mismatch","severity":"warn","path":"Maps/Course.md","line":10,"message":"course links [[Mixed/Twin]] but it resolves to nothing","evidence":"a course entry that resolves to no note on disk","suggested_action":"create the note, fix the entry, or mark it a planned gap","source_rule":"yomihon","target":"Mixed/Twin","fingerprint":"v1:6d6f7eea189440c1"}`,
 	}
 	if diff := cmp.Diff(want, lines); diff != "" {
 		t.Errorf("caught: suffix-ambiguous reference lines (-want +got):\n%s", diff)

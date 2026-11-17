@@ -78,7 +78,7 @@ func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Co
 			PendingMount: []string{},
 			Orphans:      []string{},
 			Unrouted:     unrouted,
-			NotApplicable: "contract declares no " + strconv.Quote(conceptType) +
+			NotApplicable: "the rules file declares no " + strconv.Quote(conceptType) +
 				" type, so there is no concept corpus to judge",
 		}
 	}

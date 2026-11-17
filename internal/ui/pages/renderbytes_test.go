@@ -784,7 +784,7 @@ func recordedFaultedIndexView() ListIndexView {
 	return NewPathIndex([]nav.Course{{
 		Title:       "Unread Course",
 		RelPath:     "Maps/unread.md",
-		Diagnostics: []sequence.Diagnostic{{Rule: "path.nesting_too_deep", Line: 4, Message: "nested past one level"}},
+		Diagnostics: []sequence.Diagnostic{{Rule: "course.nesting_too_deep", Line: 4, Message: "nested past one level"}},
 	}}, schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil)
 }
 

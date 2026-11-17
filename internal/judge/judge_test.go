@@ -259,9 +259,9 @@ func TestFingerprint(t *testing.T) {
 			// An unlisted lesson feeds the lesson path and the syllabus
 			// path. Taken from the maps golden before its courses moved
 			// into the lesson folders.
-			name:   "two paths (map.disk_unlisted)",
-			ruleID: "map.disk_unlisted", path: "Writing/lessons/golang/L1.md", target: "Maps/paths/Go Path.md",
-			want: "v1:184c0b31f8c4aaeb",
+			name:   "two paths (course.disk_unlisted)",
+			ruleID: "course.disk_unlisted", path: "Writing/lessons/golang/L1.md", target: "Maps/paths/Go Path.md",
+			want: "v1:048eb04e1afee592",
 		},
 		{
 			// A raw line-separator code point hashes as its UTF-8 bytes —

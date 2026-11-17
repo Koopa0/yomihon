@@ -127,8 +127,8 @@ func TestDomainEnumFoldsTheFolderSpelling(t *testing.T) {
 					Path:            notePath,
 					Field:           new("domain"),
 					Message:         `domain "` + composedOther + `" is not an allowed value`,
-					Evidence:        "the note's domain is the name of the folder it sits in below a folders.domain_from root, and the vault contract's enums.domain does not list that name",
-					SuggestedAction: "move the note into a folder named for a domain the vault contract declares, or add the folder's name to enums.domain in the vault contract",
+					Evidence:        "the note's domain is the name of the folder it sits in below a folders.domain_from root, and the rules file's enums.domain does not list that name",
+					SuggestedAction: "move the note into a folder named for a domain the rules file declares, or add the folder's name to enums.domain in the rules file",
 					SourceRule:      sourceContract,
 					Target:          new(composedOther),
 				})

@@ -89,7 +89,7 @@ not a type; an unfinished lesson is `type: lesson` with `draft: true`.
 - `check` judges only the type of value: anything but `true` or `false`, such as
   `"yes"`, is `schema.draft`.
 - `yomihon marks` lists a thought that still carries it.
-- `map.disk_unlisted` never reports a draft lesson.
+- `course.disk_unlisted` never reports a draft lesson.
 
 yomihon never writes a note, `draft` included. Taking the line out, or putting
 it back, is done in an editor. Nothing else records how far along a note is.
@@ -199,7 +199,7 @@ The roles:
   same silent gate stands in front of them.
 - `lesson` — the notes a course lists. At most one type holds it, and the type
   must list `slug`, which each of its notes then has to write: a lesson without
-  one is `schema.required` with the message `slug is required for a lesson`.
+  one is `schema.required` with the message `slug is required for a unit`.
 - `thought` — a reader's own notes that cite a source, the ones the My marks page
   and `marks` list when they carry `draft: true`. At most
   one type holds it, and the type must list `based_on`.

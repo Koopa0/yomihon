@@ -70,10 +70,6 @@ The command line speaks English only. These are the words `yomihon marks` writes
 | `create_time` | When the location was marked, in RFC 3339 and in UTC. | |
 | `create_date` | The date a thought's `created` field declares. Thoughts sort among the marks by it, newest first, and a thought with none sorts after every dated item. | |
 
-## What `check` still says
-
-`yomihon check` writes some retired words (*syllabus*, *study-path*, *contract*, *judge*) in its rule messages, and its rule identifiers such as `map.disk_mismatch` carry *map*. These are in `internal/judge` and its golden files under `internal/judge/testdata/`, and they are not changed by a wording pass: a rule identifier is read by programs, and a message change regenerates the golden files in a change of its own.
-
 ## Retired words
 
 Each line below is `retired => replacement`, for the bilingual strings in `internal/wording`. A word is retired together with its plural and `'s`; a word that is ordinary English elsewhere, such as the verb *judge* in a sentence, is not retired there. Nothing reads these blocks mechanically: a reviewer checks new screen text against them.

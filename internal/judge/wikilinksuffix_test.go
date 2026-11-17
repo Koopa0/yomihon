@@ -287,7 +287,7 @@ func TestRunCheckPathSuffixConsumers(t *testing.T) {
 		"link.broken@Nope/README->",
 		"link.broken@Shared/Twin->",
 		"link.section_missing@Atlas/README#Absent->Notes/Projects/Atlas/README.md",
-		"provenance.unresolved@based_on:no note, alias, or lesson slug matches the reference->",
+		"provenance.unresolved@based_on:no note, alias, or unit slug matches the reference->",
 	}
 	slices.Sort(want)
 	slices.Sort(rows)
@@ -327,12 +327,12 @@ func TestRunCheckPathSuffixCourseDisk(t *testing.T) {
 	}
 	var rows []string
 	for _, f := range findings {
-		if (f.RuleID == "map.disk_mismatch" || f.RuleID == "map.disk_unlisted") && f.Target != nil {
+		if (f.RuleID == "course.disk_mismatch" || f.RuleID == "course.disk_unlisted") && f.Target != nil {
 			rows = append(rows, string(f.RuleID)+"@"+*f.Target)
 		}
 	}
 	t.Log("invoked: actual suffix resolution contract")
-	if diff := cmp.Diff([]string{"map.disk_mismatch@Nope/Lesson"}, rows); diff != "" {
+	if diff := cmp.Diff([]string{"course.disk_mismatch@Nope/Lesson"}, rows); diff != "" {
 		t.Errorf("caught: suffix course disk projections changed: %s", diff)
 	}
 }

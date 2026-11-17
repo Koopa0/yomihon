@@ -4,12 +4,12 @@
 counts, a main line and prev/next — and why is mine projecting nothing?
 
 One tangle of words first, because it is unavoidable and nothing else
-reconciles it. The thing is a **study path**: that is a note `type` the
-contract gives the `course` role. The page that renders it is served under
-`/courses/`, its rules are named `path.*`, and the prose here calls the result
-a **course**. Confusingly, two rules named `map.*` — `map.disk_mismatch` and
-`map.disk_unlisted` — also judge study paths rather than maps; they are about
-the course's relationship with the files on disk. One thing, four names.
+reconciles it. A note whose `type` the contract gives the `course` role is what
+a vault may call a **study path**, its own word for it. The page that renders it
+is served under `/courses/`, its rules are named `course.*` —
+`course.disk_mismatch` and `course.disk_unlisted` among them, which are about
+the course's relationship with the files on disk — and the prose here calls the
+result a **course**. One thing; yomihon's word for it is course.
 
 The principle under all of it: **sequence is declared, never inferred.** yomihon
 reads no ordering out of heading wording, list punctuation or indentation. When
@@ -40,7 +40,7 @@ and it is why a marker in the wrong kind of note leaves no trace to notice.
 The one place it survives is an **H1**, which opens no branch in any note and
 so has no declaration to remove: `# Heading {sequence=primary}` renders with
 the marker sitting in the heading, braces and all. In a study path that also
-draws `path.role_misplaced`; in a map or an ordinary note it draws nothing, and
+draws `course.role_misplaced`; in a map or an ordinary note it draws nothing, and
 the visible braces are the only sign.
 
 ## The marker
@@ -60,7 +60,7 @@ first line**, trailing whitespace allowed, in exactly two places:
   nearest lesson above it.
 
 Written anywhere else in a study path — a paragraph, a blockquote, a table, a
-row's continuation paragraph — it is reported `path.role_misplaced` rather than
+row's continuation paragraph — it is reported `course.role_misplaced` rather than
 ignored. To write *about* the syntax inside a vault note, put it in a code
 span, a fence, or `%%…%%`, where it is quoted rather than written.
 
@@ -71,11 +71,11 @@ The exact form matters, and the failures differ:
 | `{sequence=primary}` | the marker |
 | `{sequence= primary }` | the marker — space around the value is fine |
 | `{sequence=primary}` + trailing spaces or a tab | the marker |
-| `{sequence=Primary}` | not a value: `path.role_invalid`, and the branch is then undeclared, so `path.role_missing` too |
-| `{ sequence=primary}` | not a marker at all — `path.role_missing` only, with no hint that you nearly wrote one |
-| `{sequence=primary} {sequence=local}` | `path.role_duplicate`, and the branch is then undeclared, so `path.role_missing` too |
-| the marker on the line *below* the heading | `path.role_misplaced`, and `path.role_missing` for the heading it was meant for |
-| `# Heading {sequence=primary}` | H1 opens no branch: `path.role_misplaced`, and the marker is the one that stays visible — see above |
+| `{sequence=Primary}` | not a value: `course.role_invalid`, and the branch is then undeclared, so `course.role_missing` too |
+| `{ sequence=primary}` | not a marker at all — `course.role_missing` only, with no hint that you nearly wrote one |
+| `{sequence=primary} {sequence=local}` | `course.role_duplicate`, and the branch is then undeclared, so `course.role_missing` too |
+| the marker on the line *below* the heading | `course.role_misplaced`, and `course.role_missing` for the heading it was meant for |
+| `# Heading {sequence=primary}` | H1 opens no branch: `course.role_misplaced`, and the marker is the one that stays visible — see above |
 
 A recognised marker is stripped from the displayed name and the source bytes
 are untouched. A child branch does not inherit its parent's role.
@@ -94,10 +94,10 @@ lesson and the lessons in the branch:
 ```
 
 The marker goes on the middle row, which is "the row that opens" the list below
-it. Put it on the lesson row instead and you get `path.role_on_entry` — one row
+it. Put it on the lesson row instead and you get `course.role_on_entry` — one row
 trying to be both a lesson and a branch heading — and the list under it is then
-`path.local_orphan`, hanging from nothing the grammar accepts. Leave the middle
-row out and the nested list declares nothing: `path.role_missing`, whose message
+`course.local_orphan`, hanging from nothing the grammar accepts. Leave the middle
+row out and the nested list declares nothing: `course.role_missing`, whose message
 asks you to "declare `{sequence=local}` on the row that opens it", meaning that
 middle row and not the lesson.
 
@@ -122,7 +122,7 @@ same-file anchor `[[#Section]]`, and any link inside code or `%%…%%`. Note tha
 `[[Note#Heading]]` and `[[Note#^id]]` **do** count — they resolve to the note.
 
 A lesson row that appears before any heading has opened a branch belongs to no
-part of the course: `path.entry_outside_branch`. Any heading from H2 to H6
+part of the course: `course.entry_outside_branch`. Any heading from H2 to H6
 opens a branch, so a path built entirely out of H3s is perfectly valid — it is
 the first branch-opening heading that matters, not the first H2.
 
@@ -133,7 +133,7 @@ the first branch-opening heading that matters, not the first H2.
 | `primary` | declared | main line; consecutive primary groups join end to end in declared order | no |
 | `local` | declared | within its own group only | no |
 | `none` | declared | none | no |
-| unclassified | an undeclared nested list, or a heading that lists a lesson row and carries no readable marker | none | yes — `path.role_missing` |
+| unclassified | an undeclared nested list, or a heading that lists a lesson row and carries no readable marker | none | yes — `course.role_missing` |
 | structural | a heading that lists no lesson row and carries no marker | not applicable | no |
 
 Declaring `none` is a legitimate authored answer and draws nothing; forgetting
@@ -141,7 +141,7 @@ to declare is not.
 
 Under a branch declared `none`, an undeclared child is quiet rather than
 reported — and a child that declares itself `primary` or `local` there is
-`path.role_conflict`, because it cannot take part in a course its parent left.
+`course.role_conflict`, because it cannot take part in a course its parent left.
 
 ## What the states produce
 
@@ -177,8 +177,8 @@ A `primary` branch may nest under another `primary`. A `primary` inside a
 `local`, and a `local` inside a `local`, have no place in the main line's
 order.
 
-Those last two are reported — `path.role_nested_primary` and
-`path.nesting_too_deep` — **when the outer side branch is a nested list row**.
+Those last two are reported — `course.role_nested_primary` and
+`course.nesting_too_deep` — **when the outer side branch is a nested list row**.
 Declared with headings instead, the same shapes pass `check` in silence and
 project badly: a path whose H2 is `{sequence=local}` and whose H3 inside it is
 also `{sequence=local}` reports nothing, shows a count beside each branch, and
@@ -224,7 +224,7 @@ its own page; the course's page lists its rows after the last part, under the
 block's own heading, each with the words written after its link.
 
 That example is deliberately not clean: `check` reports one
-`map.disk_mismatch` for L08, and `--deny warn` on it exits 1. The italic
+`course.disk_mismatch` for L08, and `--deny warn` on it exits 1. The italic
 *(尚未撰寫)* is a note to a human and means nothing to yomihon. The next
 section is how you say it in a way the gate accepts.
 
@@ -232,7 +232,7 @@ section is how you say it in a way the gate accepts.
 
 A row that yomihon accepted as a lesson row is no longer an ordinary link as
 far as `check` is concerned. Point one at a name nothing answers to and the
-finding is `map.disk_mismatch` — *syllabus links [[…]] but it resolves to
+finding is `course.disk_mismatch` — *course links [[…]] but it resolves to
 nothing* — and not `link.broken`, and not `link.title_not_alias` even when the
 name is exactly some note's title. A study path that promises a
 note is answered where the course made the promise.
@@ -243,7 +243,7 @@ study path and you get `link.broken` at that line, in the same run.
 
 ## Listing a lesson you have not written yet
 
-A lesson a path lists and the vault does not have is `map.disk_mismatch`. To
+A lesson a path lists and the vault does not have is `course.disk_mismatch`. To
 say it is owed rather than missing, put it under a heading carrying one of your
 contract's gap words — the defaults are in
 [`names-and-links.md`](names-and-links.md), along with the substring trap that
@@ -257,16 +257,16 @@ excuse a course from answering what it promised.
 ## The rules this grammar reports
 
 Twelve, all warnings, and [`diagnostics.md`](diagnostics.md) carries what each
-one means. They are `path.role_missing`, `path.role_invalid`,
-`path.role_duplicate`, `path.role_conflict`, `path.role_nested_primary`,
-`path.role_misplaced`, `path.role_on_entry`, `path.nesting_too_deep`,
-`path.local_orphan`, `path.entry_noncanonical`, `path.entry_multi_target` and
-`path.entry_outside_branch`.
+one means. They are `course.role_missing`, `course.role_invalid`,
+`course.role_duplicate`, `course.role_conflict`, `course.role_nested_primary`,
+`course.role_misplaced`, `course.role_on_entry`, `course.nesting_too_deep`,
+`course.local_orphan`, `course.entry_noncanonical`, `course.entry_multi_target` and
+`course.entry_outside_branch`.
 
-Two of those describe shapes not covered above. `path.role_on_entry` is one row
+Two of those describe shapes not covered above. `course.role_on_entry` is one row
 trying to be both a lesson and a branch heading — a row that opens with its
 link and also carries a marker; give the branch its own row above the list it
-opens. `path.local_orphan` is a side branch with nothing to hang from: the row
+opens. `course.local_orphan` is a side branch with nothing to hang from: the row
 it nests under has to be an accepted lesson row, so hanging one under a
 checkbox row, a noncanonical row or a multi-target row orphans it while the
 parent row still looks fine to a reader.

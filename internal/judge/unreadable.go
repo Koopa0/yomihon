@@ -29,9 +29,9 @@ const unreadableRule RuleID = "scan.unreadable"
 //     lists the name as a planned one, which decides the finding's weight.
 //   - provenance.unresolved concludes the same about a reference, which may
 //     also answer to the unread file's lesson slug.
-//   - map.disk_mismatch concludes that a course entry names no note, which is
+//   - course.disk_mismatch concludes that a course entry names no note, which is
 //     the broken link above under the course's own rule.
-//   - map.disk_unlisted concludes that no course of a domain lists a lesson,
+//   - course.disk_unlisted concludes that no course of a domain lists a lesson,
 //     and the unread file may be the course that lists it.
 //
 // Every other rule concludes only from material this run holds: a note it read
@@ -45,8 +45,8 @@ const unreadableRule RuleID = "scan.unreadable"
 var withheldOnPartialCorpus = []RuleID{
 	"link.broken",
 	"link.title_not_alias",
-	"map.disk_mismatch",
-	"map.disk_unlisted",
+	"course.disk_mismatch",
+	"course.disk_unlisted",
 	"provenance.unresolved",
 }
 
@@ -109,8 +109,8 @@ func withheldUnreadableFinding() Finding {
 	return Finding{
 		RuleID:          unreadableRule,
 		Severity:        SeverityError,
-		Message:         "a file under a directory this vault's contract withholds from agent-facing output could not be read, so the rules that answer from the whole vault were withheld from this run",
-		Evidence:        "naming the file, or the reason the machine gave for it, would describe ground the contract closed",
+		Message:         "a file under a directory this vault's rules file withholds from agent-facing output could not be read, so the rules that answer from the whole vault were withheld from this run",
+		Evidence:        "naming the file, or the reason the machine gave for it, would describe ground the rules file closed",
 		SuggestedAction: "check read access under the withheld directories, which only someone at the vault itself can see, then judge the vault again",
 		SourceRule:      sourceYomihon,
 		Fingerprint:     fingerprint(unreadableRule, "", ""),

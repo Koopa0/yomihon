@@ -24,7 +24,7 @@ var (
 	// carries no contract asserted nothing: it is not broken, it simply has no
 	// vocabulary for these commands to judge in, and saying so is a different
 	// sentence from saying a declaration could not be honoured.
-	ErrNoVaultContract = errors.New("this folder has no vault contract, so there is nothing to judge notes against")
+	ErrNoVaultContract = errors.New("this folder has no rules file, so there is nothing to judge notes against")
 )
 
 // scanAuthority is the contract state that permits one agent-facing judge

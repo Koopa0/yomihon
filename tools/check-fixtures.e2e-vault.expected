@@ -1,9 +1,9 @@
+course.disk_mismatch	Maps/branches.md
+course.disk_mismatch	Maps/study.md
 embed.section_missing	Writing/lessons/japanese/L01.md
 link.broken	Maps/reading.md
 link.broken	Writing/lessons/japanese/L01.md
 link.section_missing	Notes/reading-fidelity.md
-map.disk_mismatch	Maps/branches.md
-map.disk_mismatch	Maps/study.md
 schema.enum	Notes/mark-anchors.md
 schema.enum	Notes/out-of-contract.md
 schema.provenance	Concepts/japanese/は.md

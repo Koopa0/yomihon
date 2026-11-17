@@ -198,7 +198,7 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 			name:  "a folder carrying no contract",
 			build: func(t *testing.T) string { t.Helper(); return t.TempDir() },
 			wantLine: func(string) string {
-				return "yomihon: this folder has no vault contract, so there is nothing to judge notes against"
+				return "yomihon: this folder has no rules file, so there is nothing to judge notes against"
 			},
 			wantSaid: absentContractGuidance,
 		},
@@ -291,9 +291,9 @@ func TestANoContractRefusalNamesAPositionalThatIsItselfAVault(t *testing.T) {
 		t.Errorf("stdout = %q, want empty", stdout.String())
 	}
 	assertRefusal(t, stderr.String(),
-		"yomihon: this folder has no vault contract, so there is nothing to judge notes against",
+		"yomihon: this folder has no rules file, so there is nothing to judge notes against",
 		append(append([]string{}, absentContractGuidance...),
-			"examples/vault carries a contract of its own",
+			"examples/vault carries a rules file of its own",
 			"--root examples/vault"))
 }
 
@@ -318,9 +318,9 @@ func TestANoContractRefusalStaysSilentOnAnOrdinaryPositional(t *testing.T) {
 		t.Errorf("stdout = %q, want empty", stdout.String())
 	}
 	assertRefusal(t, stderr.String(),
-		"yomihon: this folder has no vault contract, so there is nothing to judge notes against",
+		"yomihon: this folder has no rules file, so there is nothing to judge notes against",
 		absentContractGuidance)
-	if strings.Contains(stderr.String(), "carries a contract of its own") {
+	if strings.Contains(stderr.String(), "carries a rules file of its own") {
 		t.Error("an ordinary positional was described as a misplaced vault")
 	}
 }

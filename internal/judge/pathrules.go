@@ -24,14 +24,14 @@ var pathRuleAction = map[sequence.Rule]string{
 	sequence.RuleRoleDuplicate:      "keep one sequence declaration on the branch",
 	sequence.RuleRoleConflict:       "move the branch out from under the one declared none, or declare it none too",
 	sequence.RuleRoleNestedPrimary:  "move the main-line branch out of the side branch",
-	sequence.RuleLocalOrphan:        "nest the side branch under the lesson it belongs to",
+	sequence.RuleLocalOrphan:        "nest the side branch under the unit it belongs to",
 	sequence.RuleNestingTooDeep:     "keep a side branch one level below what it hangs from",
 	sequence.RuleRoleOnEntry:        "give the branch its own row above the list it opens",
 	sequence.RuleRoleInvalid:        "use exactly one of primary, local or none",
 	sequence.RuleRoleMisplaced:      "put the declaration at the end of a heading, or of a row that opens a list",
-	sequence.RuleEntryOutsideBranch: "put the lesson under a level-2 heading",
-	sequence.RuleEntryMultiTarget:   "give each lesson its own row, or move the commentary to a paragraph below it",
-	sequence.RuleEntryNoncanonical:  "start the row with the lesson's link",
+	sequence.RuleEntryOutsideBranch: "put the unit under a level-2 heading",
+	sequence.RuleEntryMultiTarget:   "give each unit its own row, or move the commentary to a paragraph below it",
+	sequence.RuleEntryNoncanonical:  "start the row with the unit's link",
 }
 
 // pathFindings reports every study path's structural diagnostics. A note whose
@@ -58,7 +58,7 @@ func pathFindings(notes []note, roles schema.NavigationRoles) []Finding {
 func pathFinding(n *note, d sequence.Diagnostic) Finding {
 	action, ok := pathRuleAction[d.Rule]
 	if !ok {
-		action = "resolve the study-path problem the message describes"
+		action = "resolve the course problem the message describes"
 	}
 	evidence := d.Evidence
 	if evidence == "" {

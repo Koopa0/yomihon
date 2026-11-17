@@ -106,7 +106,7 @@ func TestMapsStillFollowEveryLink(t *testing.T) {
 	if n := strings.Count(out, `"rule_id":"link.broken"`); n != 2 {
 		t.Errorf("link.broken reported %d times, want 2 — a map's links are all ordinary links; findings:\n%s", n, out)
 	}
-	if strings.Contains(out, "map.disk_mismatch") {
+	if strings.Contains(out, "course.disk_mismatch") {
 		t.Errorf("a map's link was reconciled as a course lesson; findings:\n%s", out)
 	}
 }
@@ -143,7 +143,7 @@ func courseLesson(slug string) string {
 // courseLists reports whether the course lists the lesson called name: a lesson
 // of the course's domain that it does not list is reported unlisted.
 func courseLists(out, name string) bool {
-	unlisted := `"rule_id":"map.disk_unlisted","severity":"warn","path":"` + courseLessonPath(name) + `"`
+	unlisted := `"rule_id":"course.disk_unlisted","severity":"warn","path":"` + courseLessonPath(name) + `"`
 	return !strings.Contains(out, unlisted)
 }
 

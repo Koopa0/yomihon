@@ -23,7 +23,7 @@ func TestNoContractRefusalNamesStarterAndHealth(t *testing.T) {
 					t.Fatalf("runCommand(%q, %q) = exit %d, stdout %q; want 2 and empty stdout", command, args, exit, stdout.String())
 				}
 				line, _, _ := strings.Cut(stderr.String(), "\n")
-				if line != "yomihon: this folder has no vault contract, so there is nothing to judge notes against" {
+				if line != "yomihon: this folder has no rules file, so there is nothing to judge notes against" {
 					t.Fatalf("refusal first line = %q, want unchanged no-contract refusal", line)
 				}
 				t.Log("invoked: actual no-contract command refusal")
