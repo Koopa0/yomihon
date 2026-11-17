@@ -7,11 +7,6 @@ package wording
 // arriving at what they came for.
 var SkipToContent = both("跳至主要內容", "Skip to content")
 
-// ToggleNavigation names the header control that opens the rail as a drawer at
-// widths where it is folded behind it; ToggleRail names the one that folds the
-// column above them.
-var ToggleNavigation = both("切換導覽", "Toggle navigation")
-
 // SearchNotes labels the way into search, both as the control's accessible name
 // and as the dialog's.
 var SearchNotes = both("搜尋", "Search")

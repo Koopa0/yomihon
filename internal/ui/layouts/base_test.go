@@ -182,7 +182,7 @@ func TestBaseProjectsEachBrandFileOnce(t *testing.T) {
 	const brandAsset = "/static/yomihon-mark.svg?v=recorded0000"
 	const onPaperAsset = "/static/yomihon-mark-on-paper.svg?v=recorded0000"
 	const favicon = `<link rel="icon" type="image/svg+xml" href="` + onPaperAsset + `">`
-	const headerMark = `<img class="y-brand__mark" src="` + brandAsset + `" width="24" height="24" alt="" aria-hidden="true">`
+	const headerMark = `<img class="y-brand__mark" src="` + brandAsset + `" width="20" height="20" alt="" aria-hidden="true">`
 	if got := strings.Count(html, favicon); got != 1 {
 		t.Errorf("Base() favicon projections = %d, want one exact %q; html = %q", got, favicon, html)
 	}
@@ -209,12 +209,9 @@ func TestHeaderKeepsWordmarkAsExactAccessibleName(t *testing.T) {
 		t.Fatalf("render header: %v", err)
 	}
 	html := buf.String()
-	const brandLink = `<a class="y-brand__name" href="/"><img class="y-brand__mark" src="/static/yomihon-mark.svg?v=recorded0000" width="24" height="24" alt="" aria-hidden="true"><span>yomihon</span></a>`
+	const brandLink = `<a class="y-brand__name" href="/" aria-labelledby="_y-brand-word"><img class="y-brand__mark" src="/static/yomihon-mark.svg?v=recorded0000" width="20" height="20" alt="" aria-hidden="true"><span class="y-brand__word" id="_y-brand-word">yomihon</span></a>`
 	if got := strings.Count(html, brandLink); got != 1 {
 		t.Fatalf("header brand link projections = %d, want one exact accessible wordmark; html = %q", got, html)
-	}
-	if strings.Contains(html, `aria-label="yomihon"`) {
-		t.Errorf("header duplicates the visible accessible name with aria-label; html = %q", html)
 	}
 }
 

@@ -127,9 +127,10 @@ templ Base(c Chrome) {
 }
 
 // header is the shared top chrome, and it carries only what reading needs: the
-// wordmark, the furigana switch on a page that has furigana, the control for
-// keeping a reading place on a note that offers one, the ⌘K search entry, and
-// the way to the reading choices. The theme, the text size, the language and
+// wordmark and the folder's name, the furigana switch on a page that has
+// furigana, the control for keeping a reading place on a note that offers one,
+// the ⌘K search entry, the way to the reading choices, and where the left
+// column is a drawer the button that opens it. The theme, the text size, the language and
 // the single-key shortcuts are set on that page, beside the sentence that says
 // what each one does; the whole-folder view is reached from the desk; the
 // keyboard help is opened by its own key.
@@ -152,11 +153,18 @@ templ Base(c Chrome) {
 // GET to /search it always was.
 templ header(c Chrome) {
 	<header class="y-header">
-		<button class="y-iconbtn y-hamburger" type="button" data-nav-toggle aria-label={ wording.ToggleNavigation.In(c.Lang) } aria-expanded="false" aria-controls="_y-nav-rail">
-			<svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"></path></svg>
-		</button>
+		// The folder's name is the book's title and the wordmark its publisher:
+		// both from 721, and on a phone the name alone, standing where the
+		// wordmark was. The link is named by the wordmark's own text, which a
+		// reference reads whether or not the word is drawn, so its name does not
+		// depend on the width. The folder's name leads to the reading desk until
+		// there is a card for the folder to open instead.
 		<div class="y-brand">
-			<a class="y-brand__name" href="/"><img class="y-brand__mark" src={ templ.URL(c.Assets.URL("yomihon-mark.svg")) } width="24" height="24" alt="" aria-hidden="true"/><span>yomihon</span></a>
+			<a class="y-brand__name" href="/" aria-labelledby="_y-brand-word"><img class="y-brand__mark" src={ templ.URL(c.Assets.URL("yomihon-mark.svg")) } width="20" height="20" alt="" aria-hidden="true"/><span class="y-brand__word" id="_y-brand-word">yomihon</span></a>
+			if c.Vault != "" {
+				<span class="y-brand__rule" aria-hidden="true"></span>
+				<a class="y-brand__vault" href="/">{ c.Vault }</a>
+			}
 		</div>
 		<div class="y-header__spacer"></div>
 		// Both lengths of the label are drawn and the stylesheet shows the one
@@ -197,6 +205,14 @@ templ header(c Chrome) {
 			<svg class="y-prefslink__mark" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>
 			<span class="y-prefslink__label" aria-hidden="true">{ wording.PreferencesLink.In(c.Lang) }</span>
 		</a>
+		// Last in the row, and shown only where the left column is a drawer. Its
+		// word is its name wherever the word is drawn and where a phone's row
+		// has room for a mark alone, so the name is taken by reference from a
+		// word that stays in the page; aria-expanded says which way a press goes.
+		<button class="y-sidebtn" type="button" data-nav-toggle aria-expanded="false" aria-controls="_y-nav-rail" aria-labelledby="_y-sidebtn-word">
+			<svg class="y-sidebtn__mark" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+			<span class="y-sidebtn__word" id="_y-sidebtn-word">{ wording.SidebarButton.In(c.Lang) }</span>
+		</button>
 		<span class="y-readline" aria-hidden="true"></span>
 	</header>
 }

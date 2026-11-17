@@ -251,6 +251,35 @@ func TestTheDeskNamesTheFolderByItsReadmeAndSaysWhereItIs(t *testing.T) {
 	}
 }
 
+// TestEveryPageHeaderNamesTheFolderByItsReadme holds the header's folder name
+// to one source for every page it is drawn on: pages answered by four different
+// handlers, and one that is not found, all say the README's first heading.
+func TestEveryPageHeaderNamesTheFolderByItsReadme(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Field Notes\n\nWords.\n"), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
+		t.Fatalf("write README: %v", err)
+	}
+	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	if err != nil {
+		t.Fatalf("newReadingSite: %v", err)
+	}
+	t.Cleanup(func() {
+		if closeErr := site.close(); closeErr != nil {
+			t.Errorf("readingSite.close() error = %v", closeErr)
+		}
+	})
+
+	const want = `<a class="y-brand__vault" href="/">Field Notes</a>`
+	for _, path := range []string{"/", "/preferences", "/search", "/health", "/notes/missing.md"} {
+		rec := httptest.NewRecorder()
+		site.ServeHTTP(rec, siteRequest(t, http.MethodGet, path, http.NoBody))
+		if !strings.Contains(rec.Body.String(), want) {
+			t.Errorf("GET %s (status %d): the header does not carry %q", path, rec.Code, want)
+		}
+	}
+}
+
 // TestContractAbsenceIsNotReportedAsAFault locks the difference between a
 // folder that never declared a contract and one whose declaration is broken.
 // Both used to arrive here as the same warning, and the absent case additionally

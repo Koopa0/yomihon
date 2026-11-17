@@ -1,8 +1,9 @@
 // Browser lock for the header row: it carries only what reading needs. To the
 // right of the wordmark there is the furigana switch on a page that has
-// furigana, the search, the bookmark for keeping a reading place, and the way
-// to the settings — in that order, which is the design's, and nothing else, at
-// every width. Everything
+// furigana, the search, the bookmark for keeping a reading place, the way to
+// the settings and, where the left column is a drawer, the button that opens it
+// — in that order, which is the design's, and nothing else, at every width.
+// Everything
 // a reader sets once and leaves alone lives on the settings page.
 //
 // What is asked here is what a reader can see and reach, measured rather than
@@ -29,8 +30,9 @@ const READINGS_PAGE = '/notes/Writing/lessons/japanese/L01.md';
 // carried the control from there. Both sides of it are still measured, so a
 // breakpoint brought back in either direction shows up here.
 const RAIL = 1280;
-const WIDTHS = [1440, RAIL + 1, RAIL, RAIL - 1, 1024, 938, 937, 720, 521, 390, 375];
-const PLACE_WIDTHS = [937, 938, 1024, RAIL - 1, RAIL, RAIL + 1, 1440];
+const DRAWER = 1023;
+const WIDTHS = [1440, RAIL + 1, RAIL, RAIL - 1, DRAWER + 1, DRAWER, 721, 720, 390, 375];
+const PLACE_WIDTHS = [DRAWER, DRAWER + 1, RAIL - 1, RAIL, RAIL + 1, 1440];
 
 // Each control the cluster may hold, named by the hook that survives a
 // restyling, in the order the row draws them.
@@ -38,7 +40,8 @@ const RUBY = '[data-ruby-toggle]';
 const MARK = '.y-headermark [data-mark-button]';
 const SEARCH = '[data-search-open]';
 const SETTINGS = '.y-prefslink';
-const CLUSTER = [RUBY, SEARCH, MARK, SETTINGS];
+const SIDEBAR = '.y-sidebtn';
+const CLUSTER = [RUBY, SEARCH, MARK, SETTINGS, SIDEBAR];
 
 const SITES = [
   'reading-place-reachable',
@@ -379,6 +382,7 @@ try {
         const want = CLUSTER.filter((selector) => {
           if (selector === RUBY) return hasSwitch;
           if (selector === MARK) return hasMark;
+          if (selector === SIDEBAR) return width <= DRAWER;
           return true;
         });
         // The furigana question is its own site, so the order is asked of the
@@ -470,18 +474,18 @@ try {
     await note.setViewportSize({ width: 390, height: 800 });
     if (proveRewrite && !proveRewrite()) notApplied('the module rewrite found no single needle to change');
 
-    // A reader on the keyboard reaches the cluster from the wordmark in the
-    // order the row draws it.
+    // A reader on the keyboard reaches the cluster from the folder's name, the
+    // last stop of the brand, in the order the row draws it.
     await note.reload({ waitUntil: 'load' });
     if (mutation?.on === 'note' && mutation.apply) await mutation.apply(note);
-    await note.locator('.y-brand__name').focus();
+    await note.locator('.y-brand__vault').focus();
     const walked = [];
     for (let press = 0; press < 3; press += 1) {
       await note.keyboard.press('Tab');
       walked.push(await note.evaluate((selectors) => selectors.findIndex((selector) => document.activeElement?.matches(selector) ?? false), [SEARCH, MARK, SETTINGS]));
     }
     if (walked.join(',') !== '0,1,2') {
-      fail('keyboard-walks-the-cluster', `${language}: tabbing from the wordmark reached ${JSON.stringify(walked)}, want the search, the bookmark and the settings in turn (-1 is somewhere else)`);
+      fail('keyboard-walks-the-cluster', `${language}: tabbing from the folder's name reached ${JSON.stringify(walked)}, want the search, the bookmark and the settings in turn (-1 is somewhere else)`);
     }
     await context.close();
 

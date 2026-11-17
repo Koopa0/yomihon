@@ -2,11 +2,11 @@
 // and focus contracts. At 800px it exercises two different products:
 //
 //   - JavaScript off: the sidebar remains in normal flow and its links really
-//     navigate; the hamburger has no face and cannot receive focus.
+//     navigate; the sidebar button has no face and cannot receive focus.
 //   - JavaScript on: the closed rail is inert and absent from sequential focus;
 //     opening moves focus into it; Tab and Shift+Tab stay inside; filter Escape
 //     clears before drawer Escape closes; every close path returns focus to the
-//     hamburger.
+//     sidebar button.
 //
 // MUTATE names one self-test mode below; MUTATE=list prints them. Each mode is
 // installed only on the browser case carrying its target assertion, proves its
@@ -27,7 +27,7 @@ const MAIN = '#_y-main';
 const SITES = [
   'server-nav-state-free',
   'no-js-sidebar-navigation',
-  'no-js-hamburger-hidden',
+  'no-js-sidebar-button-hidden',
   'closed-rail-inert',
   'closed-background-live',
   'open-background-inert',
@@ -126,9 +126,9 @@ const MUTATIONS = {
     target: 'no-js-sidebar-navigation',
     apply: injectDocumentStyle('@media (max-width:1023px){.y-rail-left{position:fixed!important;transform:translateX(-102%)!important}}'),
   },
-  'show-no-js-hamburger': {
-    target: 'no-js-hamburger-hidden',
-    apply: injectDocumentStyle('@media (max-width:1023px){.y-hamburger{display:inline-flex!important}}'),
+  'show-no-js-sidebar-button': {
+    target: 'no-js-sidebar-button-hidden',
+    apply: injectDocumentStyle('@media (max-width:1023px){.y-sidebtn{display:inline-flex!important}}'),
   },
   'suppress-closed-inert': {
     target: 'closed-rail-inert',
@@ -303,10 +303,10 @@ const waitForNav = (page, state) => page.waitForFunction(
   state,
 );
 
-// The hamburger's hide is author CSS. Measuring at DOMContentLoaded can still
+// The sidebar button's hide is author CSS. Measuring at DOMContentLoaded can still
 // read the UA button default (inline-block) before /static/app.css applies
 // display:none, which is how a JS-only mutation was reported as an exposed
-// hamburger instead of the filter assertion it names.
+// sidebar button instead of the filter assertion it names.
 const waitForAppStyles = (page) => page.waitForFunction(() =>
   [...document.styleSheets].some((sheet) => (sheet.href || '').includes('/static/app.css')),
 );
@@ -335,7 +335,7 @@ try {
   // client script. The click at the end is the observable: an on-screen link
   // actually performs a navigation, rather than merely existing in the DOM.
   {
-    const sites = ['server-nav-state-free', 'no-js-sidebar-navigation', 'no-js-hamburger-hidden'];
+    const sites = ['server-nav-state-free', 'no-js-sidebar-navigation', 'no-js-sidebar-button-hidden'];
     const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 800, height: 800 } });
     const page = await context.newPage();
     const proof = await arm(page, sites);
@@ -364,7 +364,7 @@ try {
       fail('no-js-sidebar-navigation', `sidebar link is not on-screen and clickable at 800px (visible=${hit.visible}, hit=${hit.hit})`);
     }
 
-    const hamburger = await page.$eval(TOGGLE, (toggle) => {
+    const sidebarButton = await page.$eval(TOGGLE, (toggle) => {
       toggle.focus();
       return {
         display: getComputedStyle(toggle).display,
@@ -372,8 +372,8 @@ try {
         focused: document.activeElement === toggle,
       };
     });
-    if (hamburger.display !== 'none' || hamburger.boxes !== 0 || hamburger.focused) {
-      fail('no-js-hamburger-hidden', `dead hamburger is exposed (display=${hamburger.display}, boxes=${hamburger.boxes}, focused=${hamburger.focused})`);
+    if (sidebarButton.display !== 'none' || sidebarButton.boxes !== 0 || sidebarButton.focused) {
+      fail('no-js-sidebar-button-hidden', `dead sidebar button is exposed (display=${sidebarButton.display}, boxes=${sidebarButton.boxes}, focused=${sidebarButton.focused})`);
     }
 
     const before = page.url();
@@ -465,7 +465,7 @@ try {
     await page.keyboard.press('Shift+Tab');
     if (!(await activeInsideDrawer(page))) fail('open-tab-contained', 'Shift+Tab from the first rail control escaped behind the scrim');
 
-    // And the exit is reached, not merely not-escaped. The hamburger is the
+    // And the exit is reached, not merely not-escaped. The sidebar button is the
     // only close control a keyboard can arrive at — the scrim is a div and
     // takes no focus — so a cycle drawn around the rail alone left the reader
     // able to see the way out and unable to reach it. Both edges are asked,
