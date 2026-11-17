@@ -973,7 +973,7 @@ func treeBytes(t *testing.T, roots ...string) map[string]string {
 func TestLeftOpenHasHelp(t *testing.T) {
 	t.Parallel()
 	text, handled, err := helpRequest([]string{openCommand, "--help"})
-	if !handled || err != nil || !strings.HasPrefix(text, "Usage: yomihon marks [--root <dir>] [--format json|human|md]\n") {
+	if !handled || err != nil || !strings.HasPrefix(text, "Usage: yomihon marks ") || !strings.Contains(text, "--adopt") {
 		t.Errorf("marks --help = %q, %t, %v", text, handled, err)
 	}
 	if !strings.Contains(topLevelHelp, "\n  yomihon marks [options]\n") {
@@ -985,7 +985,7 @@ func TestLeftOpenHasHelp(t *testing.T) {
 }
 
 func FuzzParseOpenArgs(f *testing.F) {
-	for _, seed := range []string{"--root\x00v", "--format=md", "--all", "--\x00x", "--format\x00csv", "x", ""} {
+	for _, seed := range []string{"--root\x00v", "--format=md", "--all", "--\x00x", "--format\x00csv", "--adopt\x00/x", "--adopt\x00x", "x", ""} {
 		f.Add(seed, false)
 	}
 	f.Fuzz(func(t *testing.T, joined string, terminal bool) {
@@ -1002,6 +1002,9 @@ func FuzzParseOpenArgs(f *testing.F) {
 		}
 		if request.root == "" {
 			t.Errorf("parseOpenArgs(%q) left the root unresolved", args)
+		}
+		if request.adopt != "" && !filepath.IsAbs(request.adopt) {
+			t.Errorf("parseOpenArgs(%q) accepted the earlier path %q, which is not absolute", args, request.adopt)
 		}
 	})
 }
@@ -1156,5 +1159,201 @@ func TestLeftOpenMatchesAWithheldDirectoryOnlyAsAName(t *testing.T) {
 	slices.Reverse(titles)
 	if diff := cmp.Diff([]string{"OpenAI/GPT notes", "MAI/x", "On x\u200bAI/models"}, titles); diff != "" {
 		t.Errorf("caught: a withheld directory was matched inside a word, or missed as a name (-want +got):\n%s", diff)
+	}
+}
+
+// movedFolder is a folder that moved. It withholds Private, and what the
+// reader kept was kept for the path it had before: a question on a note it
+// still has, one on a note in withheld ground that it still has, and two on
+// notes it has not got, one of which was in withheld ground.
+func movedFolder(t *testing.T) (root, configDir, earlier string) {
+	t.Helper()
+	root, configDir = t.TempDir(), t.TempDir()
+	earlier = filepath.Join(t.TempDir(), "earlier", "vault")
+	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
+	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
+	putOpenThoughtFile(t, root, "Private/Secret plan.md", "# Secret plan\n\n## Hidden heading\n\nwords\n")
+	kept, err := mark.Open(configDir, earlier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	marks := []mark.Mark{
+		{Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(1)},
+		{Kind: mark.Question, RelPath: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(2)},
+		{Kind: mark.Question, RelPath: "Private/Gone.md", Anchor: "lost", At: leftOpenDay(3)},
+		{Kind: mark.Question, RelPath: "NotHere.md", Anchor: "elsewhere", At: leftOpenDay(4)},
+	}
+	for i := range marks {
+		if _, err := kept.Toggle(&marks[i], admitMark); err != nil {
+			t.Fatalf("keep mark %d: %v", i, err)
+		}
+	}
+	return root, configDir, earlier
+}
+
+func TestMarksAdoptListsWhatWasKeptForTheEarlierPath(t *testing.T) {
+	t.Parallel()
+	root, configDir, earlier := movedFolder(t)
+	if got := leftOpen(t, root, configDir, "--format", "json"); got.exit != 0 || strings.Contains(got.stdout, "Source.md") {
+		t.Fatalf("before adopting the folder already lists the marks: exit %d, %s", got.exit, got.stdout)
+	}
+	got := leftOpen(t, root, configDir, "--adopt", earlier, "--format", "json")
+	if got.exit != 0 {
+		t.Fatalf("exit %d: %s", got.exit, got.stderr)
+	}
+	if !strings.Contains(got.stdout, `"path":"Source.md"`) || !strings.Contains(got.stdout, `"anchor":"chapter"`) {
+		t.Errorf("the question kept for the earlier path is not listed:\n%s", got.stdout)
+	}
+	if want := "yomihon: " + openAdoptedNotice + "\n"; got.stderr != want {
+		t.Errorf("stderr = %q, want %q", got.stderr, want)
+	}
+	// Once adopted they are the folder's own, listed without being asked again.
+	if again := leftOpen(t, root, configDir, "--format", "json"); again.exit != 0 || again.stdout != got.stdout {
+		t.Errorf("after adopting, the list is %q, want %q", again.stdout, got.stdout)
+	}
+}
+
+// What the folder withholds, and what it has not got, stays where it was kept.
+// A path a list prints for a mark whose note is gone would otherwise be the way
+// another folder's withheld ground reached this folder's output.
+func TestMarksAdoptBringsAcrossNothingThisFolderWithholdsOrHasNot(t *testing.T) {
+	t.Parallel()
+	root, configDir, earlier := movedFolder(t)
+	for _, format := range []string{"json", "human"} {
+		got := leftOpen(t, root, configDir, "--adopt", earlier, "--format", format)
+		if got.exit != 0 {
+			t.Fatalf("--format %s: exit %d: %s", format, got.exit, got.stderr)
+		}
+		for _, word := range append([]string{"Gone", "NotHere", "elsewhere", "lost"}, leftOpenPrivateWords...) {
+			if strings.Contains(got.stdout, word) || strings.Contains(got.stderr, word) {
+				t.Errorf("caught: --format %s says %q of what the folder withholds or has not got:\nstdout %s\nstderr %s", format, word, got.stdout, got.stderr)
+			}
+		}
+	}
+	held, err := leftOpenMarks(t, root, configDir).List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(held) != 1 || held[0].RelPath != "Source.md" {
+		t.Errorf("the folder holds %+v after adopting, want only the question on Source.md", held)
+	}
+}
+
+func TestMarksAdoptLeavesTheEarlierMarksAndTheVaultAsTheyWere(t *testing.T) {
+	t.Parallel()
+	root, configDir, earlier := movedFolder(t)
+	store, err := mark.Open(configDir, earlier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beforeEarlier, beforeVault := treeBytes(t, store.Dir()), treeBytes(t, root)
+	if got := leftOpen(t, root, configDir, "--adopt", earlier); got.exit != 0 {
+		t.Fatalf("exit %d: %s", got.exit, got.stderr)
+	}
+	if diff := cmp.Diff(beforeEarlier, treeBytes(t, store.Dir())); diff != "" {
+		t.Errorf("the marks kept for the earlier path changed (-before +after):\n%s", diff)
+	}
+	if diff := cmp.Diff(beforeVault, treeBytes(t, root)); diff != "" {
+		t.Errorf("caught: adopting wrote into the folder (-before +after):\n%s", diff)
+	}
+}
+
+func TestMarksAdoptTwiceChangesNothingTheSecondTime(t *testing.T) {
+	t.Parallel()
+	root, configDir, earlier := movedFolder(t)
+	first := leftOpen(t, root, configDir, "--adopt", earlier, "--format", "json")
+	if first.exit != 0 {
+		t.Fatalf("exit %d: %s", first.exit, first.stderr)
+	}
+	after := treeBytes(t, configDir)
+	second := leftOpen(t, root, configDir, "--adopt", earlier, "--format", "json")
+	if second.exit != 0 || second.stdout != first.stdout {
+		t.Errorf("the second run is exit %d, %q; want exit 0, %q", second.exit, second.stdout, first.stdout)
+	}
+	if diff := cmp.Diff(after, treeBytes(t, configDir)); diff != "" {
+		t.Errorf("the second adopting changed a file (-first +second):\n%s", diff)
+	}
+}
+
+// Each refusal is fixed text that names no path, and writes nothing.
+func TestMarksAdoptRefusesWhatItCannotAdoptWithoutNamingAPath(t *testing.T) {
+	t.Parallel()
+	root, configDir, earlier := movedFolder(t)
+	source, err := vault.Open(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	own := source.Name()
+	if err = source.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// A directory copied by hand to the name another path gives records the path
+	// it was made for.
+	copiedRoot := filepath.Join(t.TempDir(), "copied")
+	earlierStore, err := mark.Open(configDir, earlier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	copied, err := mark.Open(configDir, copiedRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(earlierStore.Dir(), "marks.json")) // #nosec G304 -- a file of this test's own temporary directory
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.MkdirAll(copied.Dir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(copied.Dir(), "marks.json"), data, 0o600); err != nil { // #nosec G703 -- fixture path under t.TempDir
+		t.Fatal(err)
+	}
+
+	for _, tt := range []struct {
+		name string
+		path string
+		want error
+	}{
+		{"a relative path", filepath.Join("earlier", "vault"), errOpenAdoptRelative},
+		{"this folder's own path", own, errOpenAdoptOwn},
+		{"a path with no marks kept for it", filepath.Join(t.TempDir(), "never"), errOpenAdoptNothing},
+		{"a directory that records another folder", copiedRoot, errOpenAdoptOther},
+	} {
+		before := treeBytes(t, configDir)
+		got := leftOpen(t, root, configDir, "--adopt", tt.path)
+		if want := "yomihon: " + tt.want.Error() + "\n"; got.exit != 2 || got.stdout != "" || got.stderr != want {
+			t.Errorf("%s: exit %d, stdout %q, stderr %q; want 2, nothing, %q", tt.name, got.exit, got.stdout, got.stderr, want)
+		}
+		if strings.Contains(got.stderr, filepath.Base(tt.path)) {
+			t.Errorf("%s: the refusal names the path it was given: %q", tt.name, got.stderr)
+		}
+		if diff := cmp.Diff(before, treeBytes(t, configDir)); diff != "" {
+			t.Errorf("%s: a refusal changed a file (-before +after):\n%s", tt.name, diff)
+		}
+	}
+
+	var stdout, stderr bytes.Buffer
+	exit := runOpenThoughts(t.Context(), []string{"--root", root, "--adopt", earlier}, config{noConfigDir: "the environment names none"}, &stdout, &stderr, false)
+	if exit != 2 || stdout.Len() != 0 || !strings.Contains(stderr.String(), "no configuration directory") {
+		t.Errorf("with no configuration directory: exit %d, stdout %q, stderr %q", exit, stdout.String(), stderr.String())
+	}
+}
+
+func TestOnlyMarksTakesAdopt(t *testing.T) {
+	t.Parallel()
+	const want = "yomihon: usage: yomihon [dir] — or yomihon serve [dir] — or yomihon serve --root <dir>\n"
+	if _, err := serveRoot([]string{"--adopt", filepath.Join(t.TempDir(), "x")}); err == nil || "yomihon: "+err.Error()+"\n" != want {
+		t.Errorf("serve --adopt: %v, want the usage line", err)
+	}
+	for _, command := range []string{"check", "coverage", "exists"} {
+		args := []string{"--adopt", filepath.Join(t.TempDir(), "x")}
+		if command == "exists" {
+			args = append(args, "candidate")
+		}
+		var stdout, stderr bytes.Buffer
+		exit := runCommand(t.Context(), command, args, &stdout, &stderr, false)
+		if wantLine := "yomihon: " + command + " does not accept --adopt\n"; exit != 2 || stdout.Len() != 0 || stderr.String() != wantLine {
+			t.Errorf("%s --adopt: exit %d, stdout %q, stderr %q; want 2, nothing, %q", command, exit, stdout.String(), stderr.String(), wantLine)
+		}
 	}
 }

@@ -131,7 +131,7 @@ func serveRoot(args []string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if parsed.format != nil || parsed.all || len(parsed.deny) > 0 || parsed.baseline != "" ||
+	if parsed.format != nil || parsed.all || len(parsed.deny) > 0 || parsed.baseline != "" || parsed.adopt != "" ||
 		parsed.rootCount > 1 || len(parsed.positionals) > 1 ||
 		(parsed.rootCount > 0 && len(parsed.positionals) > 0) {
 		return "", errors.New("usage: yomihon [dir] — or yomihon serve [dir] — or yomihon serve --root <dir>")
