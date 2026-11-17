@@ -112,7 +112,7 @@ func (h *Handler) showFile(w http.ResponseWriter, r *http.Request, rel string, a
 		Title:   name,
 		RelPath: rel,
 		Size:    entry.Size(),
-		Sidebar: pages.NewSidebar(pageShell, rel),
+		Sidebar: pages.NewFolderSidebar(pageShell, rel),
 	}
 
 	switch {

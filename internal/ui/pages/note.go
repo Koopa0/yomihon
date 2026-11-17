@@ -256,14 +256,14 @@ func (v *NoteView) endLabel(lang wording.Lang) string {
 	}
 }
 
-// railWithContents is the reading rail this page draws: the one the handler
+// sidebarWithContents is the sidebar this page draws: the one the handler
 // resolved, with the note's own contents to hang under the row that is the
-// note. The rail is built before the page's words are, so what it needs of the
-// note arrives here rather than being resolved a second time.
-func (v *NoteView) railWithContents() ReadingRail {
-	rail := v.ReadingRail
-	rail.note = v
-	return rail
+// note. The sidebar is built before the page's words are, so what it needs of
+// the note arrives here rather than being resolved a second time.
+func (v *NoteView) sidebarWithContents() Sidebar {
+	sb := v.Sidebar
+	sb.note = v
+	return sb
 }
 
 // offersMark reports whether this page can offer to keep the reader's place.

@@ -130,16 +130,6 @@ func TestRailProjectionReturnsWriteError(t *testing.T) {
 	}
 }
 
-func TestUnfilteredRailHasNoFilteringProjection(t *testing.T) {
-	var output bytes.Buffer
-	if err := syllabusRail(PathView{}, layouts.Chrome{Nonce: "probe-nonce"}).Render(t.Context(), &output); err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(output.String(), "function initSidebar()") || strings.Contains(output.String(), "function initRailFilter(") {
-		t.Fatal("caught: an unfiltered syllabus carries filtering source")
-	}
-}
-
 func TestRailFilterCallerSet(t *testing.T) {
 	var callers []string
 	entries, err := os.ReadDir(".")
@@ -158,7 +148,7 @@ func TestRailFilterCallerSet(t *testing.T) {
 			callers = append(callers, entry.Name())
 		}
 	}
-	if !slices.Equal(callers, []string{"readingrail.templ", "sidebar.templ", "syllabus.templ"}) {
+	if !slices.Equal(callers, []string{"sidebar.templ"}) {
 		t.Fatalf("caught: settlement caller set changed: %v", callers)
 	}
 	c := layouts.Chrome{Nonce: "probe-nonce"}
@@ -168,11 +158,10 @@ func TestRailFilterCallerSet(t *testing.T) {
 		component templ.Component
 		filtered  bool
 	}{
-		{"sidebar", sidebar(Sidebar{}, c), true},
-		{"book", readingRail(ReadingRail{Kind: ReadingRailBook}, c), true},
-		{"folder", readingRail(ReadingRail{Kind: ReadingRailFolder}, c), true},
-		{"reports", readingRail(ReadingRail{Kind: ReadingRailReports}, c), true},
-		{"syllabus", syllabusRail(PathView{}, c), false},
+		{"library", sidebar(Sidebar{Mode: SidebarLibrary}, c), true},
+		{"book", sidebar(Sidebar{Mode: SidebarCourse}, c), true},
+		{"folder", sidebar(Sidebar{Mode: SidebarFolder}, c), true},
+		{"index", sidebar(Sidebar{Mode: SidebarIndex}, c), true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var b bytes.Buffer
@@ -208,10 +197,10 @@ func TestEveryRailKeepsItsScrollPositionAcrossPages(t *testing.T) {
 		component templ.Component
 		filtered  bool
 	}{
-		{"sidebar", sidebar(Sidebar{}, c), true},
-		{"book", readingRail(ReadingRail{Kind: ReadingRailBook}, c), true},
-		{"folder", readingRail(ReadingRail{Kind: ReadingRailFolder}, c), true},
-		{"course page", syllabusRail(PathView{}, c), false},
+		{"library", sidebar(Sidebar{Mode: SidebarLibrary}, c), true},
+		{"book", sidebar(Sidebar{Mode: SidebarCourse}, c), true},
+		{"folder", sidebar(Sidebar{Mode: SidebarFolder}, c), true},
+		{"index", sidebar(Sidebar{Mode: SidebarIndex}, c), true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

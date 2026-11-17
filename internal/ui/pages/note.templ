@@ -115,8 +115,9 @@ type NoteView struct {
 	// controls never reach into the other's.
 	IDPrefix string
 
-	// ReadingRail is the one map this page carries in the left rail.
-	ReadingRail ReadingRail
+	// Sidebar is the column beside the note: the course that teaches it, the
+	// index it is, or the folder it is in.
+	Sidebar Sidebar
 
 	// ContentIdentity is the hex identity of the source bytes this page
 	// rendered, which the freshness watch and a kept place both bind to.
@@ -179,7 +180,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 		@conceptSheet(v.Concepts, lang)
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell">
-			@readingRail(v.railWithContents(), c)
+			@sidebar(v.sidebarWithContents(), c)
 			<main id="_y-main" tabindex="-1" class="y-main" { freshnessAttrs(&v, lang)... } { readAloudAttrs(v.BodyHTML, lang)... } data-preview-endpoint="/preview/">
 				@noteArticle(v, lang)
 			</main>

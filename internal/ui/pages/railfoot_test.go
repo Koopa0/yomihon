@@ -51,10 +51,10 @@ func TestEveryLeftRailEndsWithTheFoot(t *testing.T) {
 			rest = rest[closed:]
 		}
 	}
-	// The three that draw one today. A rail removed without this number moving
+	// The one that draws it today. A rail removed without this number moving
 	// would leave the walk above passing over whatever is left.
-	if rails != 3 {
-		t.Errorf("the templates draw %d left rails, and this test was written against 3", rails)
+	if rails != 1 {
+		t.Errorf("the templates draw %d left rails, and this test was written against 1", rails)
 	}
 }
 

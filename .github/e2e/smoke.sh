@@ -53,12 +53,12 @@ required_home_sites=(courses indexes reports folders vault-readme desk-health)
 # The rail, checked where it now lives: beside the thing being read. The map
 # tree marker is what proves a tree rendered rather than an empty group.
 note_markers=(
-  'reading-rail-book|data-reading-rail="book"'
-  'reading-rail-path|data-book-path="Maps/study.md"'
-  'reading-rail-current|aria-current="page"'
+  'sidebar-course|data-sidebar-mode="course"'
+  'sidebar-course-path|data-book-path="Maps/study.md"'
+  'sidebar-course-current|aria-current="page"'
 )
 
-required_note_sites=(reading-rail-book reading-rail-path reading-rail-current)
+required_note_sites=(sidebar-course sidebar-course-path sidebar-course-current)
 
 check_home_marker_table() {
   local actual required
@@ -408,7 +408,7 @@ assert_redirect "/paths" "/courses"
 assert_face "/indexes" 'data-index="indexes"'
 assert_redirect "/maps" "/indexes"
 assert_redirect "/open-thoughts" "/marks"
-assert_face "/search?q=tortoise" 'href="/notes/Notes/alpha.md"'
+assert_face "/search?q=tortoise" 'class="y-result" href="/notes/Notes/alpha.md'
 assert_face "/search/results?q=tortoise" 'data-live-search-results'
 
 # The reachability promise, checked on the live socket.

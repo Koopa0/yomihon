@@ -24,7 +24,6 @@ type PathView struct {
 	// where nothing in it is marked to be read aloud: an offer whose page says
 	// there is nothing to hear is a dead end, so it is not made.
 	ListenHref string
-	Paths      []PathLink
 	Branches   []PathBranchView
 	// Appendix is what the author kept out of the course and listed beneath
 	// it: each section declared out of the sequence, in document order. It
@@ -40,11 +39,11 @@ type PathView struct {
 	Branched int
 	Drafts   int
 
-	// Vault is the folder this course sits in, which the rail's foot states.
-	// The reading rail builds one of these views for its own book and states
-	// the folder from its own value, so this one is filled where the page is
-	// assembled rather than by the builder the two share.
-	Vault nav.Vault
+	// Sidebar is the column beside the course page, the library with the
+	// courses marked. The sidebar builds one of these views for its own course
+	// and states the folder from its own value, so this one is filled where the
+	// page is assembled rather than by the builder the two share.
+	Sidebar Sidebar
 
 	// NoCourse is which explanation the empty-course page is entitled to give:
 	// that a written sequence marker is among what the grammar reported, that
@@ -319,15 +318,6 @@ func (v *PathBranchView) runLabel(first int, lang wording.Lang) string {
 	return wording.MainLine.In(lang)
 }
 
-// PathLink is one entry in the path switcher: a study path's title, the URL to
-// its page, its planned lesson count, and whether it is the one shown.
-type PathLink struct {
-	Title   string
-	RelPath string
-	Entries int
-	Active  bool
-}
-
 // BuildPathView draws one study path's declared structure into the page view and
 // builds the switcher from every study path in the vault. It draws what the
 // grammar lets navigation read and nothing else; a branch outside the course
@@ -339,12 +329,11 @@ type PathLink struct {
 // nothing, and so does a reader who arrived from the desk. A course that lists
 // the same note twice marks it twice: both rows are that note, and choosing
 // between them would be a guess.
-func BuildPathView(current *nav.Course, all []nav.Course, cover *CourseCover) PathView {
+func BuildPathView(current *nav.Course, cover *CourseCover) PathView {
 	v := PathView{
 		Title:           current.Title,
 		RelPath:         current.RelPath,
 		GuideHref:       notesHref(current.RelPath),
-		Paths:           buildPaths(current.RelPath, all),
 		Entries:         current.Planned,
 		Branched:        current.Branched,
 		Drafts:          current.Drafts,
@@ -673,22 +662,6 @@ func markerVerdictFor(rule sequence.Rule) markerVerdict {
 	default:
 		return markerUnknownRule
 	}
-}
-
-// buildPaths builds the switcher: every study path in vault order, each with its
-// entry count and whether it is the one shown.
-func buildPaths(currentRel string, all []nav.Course) []PathLink {
-	links := make([]PathLink, 0, len(all))
-	for i := range all {
-		s := &all[i]
-		links = append(links, PathLink{
-			Title:   s.Title,
-			RelPath: s.RelPath,
-			Entries: s.Planned,
-			Active:  s.RelPath == currentRel,
-		})
-	}
-	return links
 }
 
 // roman renders a positive part number as a roman numeral. A non-positive n

@@ -240,7 +240,7 @@ func (h *Handler) showMissing(
 		Unreadable: unreadable,
 		ParsePanic: cause.ParsePanic,
 		Reason:     cause.Reason,
-		Sidebar:    pages.NewSidebar(pageShell, ""),
+		Sidebar:    pages.NewDrawerSidebar(pageShell),
 	}
 	lang := origin.Language(r)
 	title := wording.NotFoundKicker.In(lang)
@@ -463,14 +463,14 @@ func (h *Handler) reading(
 	var titleThoughts []pages.ThoughtLine
 	result.HTML, titleThoughts = h.sectionsIn(r.Context(), snap, n, &result, idPrefix, lang, door, heldHere)
 
-	// One resolved rail answers both the navigation and the article's own way
-	// onward, so the step under the prose and the folder list beside it can
-	// never disagree about what follows this note.
-	readingRail := pages.NewReadingRail(state.shell, n.RelPath, n.Domain)
+	// One resolved sidebar answers both the navigation and the article's own
+	// way onward, so the step under the prose and the list beside it can never
+	// disagree about what follows this note.
+	sidebar := pages.NewNoteSidebar(state.shell, n.RelPath, n.Domain)
 	if marked {
-		readingRail.KeptNote = kept.RelPath
+		sidebar.KeptNote = kept.RelPath
 	}
-	foot := pages.FooterSequence(&readingRail, lang)
+	foot := pages.FooterSequence(&sidebar, lang)
 	verifiedOn, verifiedAt := verifiedDay(n)
 	contract := h.enumContract(authority)
 	cause := blockedSource(snap, rel)
@@ -507,7 +507,7 @@ func (h *Handler) reading(
 		TOC:               result.Outline(),
 		BodyHTML:          result.HTML,
 		TitleAnchor:       result.TitleAnchor,
-		ReadingRail:       readingRail,
+		Sidebar:           sidebar,
 		IDPrefix:          idPrefix,
 		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
 		MarkAddress:       h.sources.MarkAddress,

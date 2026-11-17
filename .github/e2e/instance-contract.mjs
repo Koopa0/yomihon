@@ -114,7 +114,7 @@ try {
   let response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
   if (!response) broken(`navigation to ${PAGE} returned no response`);
   if (response.status() !== 200) broken(`${PAGE} status ${response.status()}, want 200`);
-  const rail = page.locator('[data-reading-rail]');
+  const rail = page.locator('[data-sidebar-mode]');
   const projectionText = (await rail.allTextContents()).join('\n');
   if (await rail.locator('[data-map-tree="System/templates/Template map.md"]').count() !== 0 || projectionText.includes(MAP_TITLE)) {
     fail('map-projection-omitted', 'the template map leaked into the reading rail');

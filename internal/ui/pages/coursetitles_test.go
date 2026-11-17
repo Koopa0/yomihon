@@ -54,7 +54,7 @@ func TestCourseRowsNameTheLessonAsTheAuthorAndNoteDeclared(t *testing.T) {
 
 	t.Run("syllabus page", func(t *testing.T) {
 		t.Parallel()
-		view := BuildPathView(model.Path(titlesCoursePath), model.Paths(), &CourseCover{})
+		view := BuildPathView(model.Path(titlesCoursePath), &CourseCover{})
 		html := renderedHTML(t, Syllabus(view, chrome))
 		got := submatches(regexp.MustCompile(`<span class="y-lesson__title"[^>]*>([^<]*)</span>`), html)
 		if diff := cmp.Diff(rows, got); diff != "" {
@@ -66,7 +66,7 @@ func TestCourseRowsNameTheLessonAsTheAuthorAndNoteDeclared(t *testing.T) {
 		t.Parallel()
 		const kept = "Lessons/iota-constants.md"
 		cover := CourseCover{KeptNote: kept, KeptHref: ResumeHref(kept, "top", 0)}
-		view := BuildPathView(model.Path(titlesCoursePath), model.Paths(), &cover)
+		view := BuildPathView(model.Path(titlesCoursePath), &cover)
 		if diff := cmp.Diff(titlesIota, view.Action.Lesson); diff != "" {
 			t.Errorf("continue-with lesson (-want +got):\n%s", diff)
 		}
@@ -75,21 +75,11 @@ func TestCourseRowsNameTheLessonAsTheAuthorAndNoteDeclared(t *testing.T) {
 	// The rail is drawn from the lesson with no title.
 	t.Run("book rail", func(t *testing.T) {
 		t.Parallel()
-		rail := NewReadingRail(nav.Shell{Nav: model}, "Lessons/no-title.md", "")
-		html := renderedHTML(t, readingRail(rail, chrome))
+		rail := NewNoteSidebar(nav.Shell{Nav: model}, "Lessons/no-title.md", "")
+		html := renderedHTML(t, sidebar(rail, chrome))
 		got := submatches(regexp.MustCompile(`<span class="y-nav(?:dot|mark y-navmark--warn)" aria-hidden="true">(?:!)?</span>\s*<span[^>]*>([^<]*)</span>`), html)
 		if diff := cmp.Diff(rows, got); diff != "" {
 			t.Errorf("book rail rows (-want +got):\n%s", diff)
-		}
-	})
-
-	t.Run("sidebar", func(t *testing.T) {
-		t.Parallel()
-		sb := NewSidebar(nav.Shell{Nav: model}, "Lessons/no-title.md")
-		html := renderedHTML(t, sidebar(sb, chrome))
-		got := submatches(regexp.MustCompile(`<span class="y-nav(?:dot|mark y-navmark--warn)" aria-hidden="true">(?:!)?</span>\s*<span[^>]*>([^<]*)</span>`), html)
-		if diff := cmp.Diff(rows, got); diff != "" {
-			t.Errorf("sidebar course rows (-want +got):\n%s", diff)
 		}
 	})
 
@@ -106,7 +96,7 @@ func TestCourseRowsNameTheLessonAsTheAuthorAndNoteDeclared(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
-				rail := NewReadingRail(nav.Shell{Nav: model}, tt.current, "")
+				rail := NewNoteSidebar(nav.Shell{Nav: model}, tt.current, "")
 				foot := FooterSequence(&rail, chrome.Lang)
 				if !foot.Course {
 					t.Fatalf("FooterSequence(%s) answered folder adjacency, want the course", tt.current)
@@ -130,24 +120,6 @@ func TestACoursesLessonNameKeepsTheLanguageItsNoteDeclared(t *testing.T) {
 	model := modelOf(t, "testdata/coursetitles")
 	chrome := recordedChrome()
 
-	t.Run("sidebar steps", func(t *testing.T) {
-		t.Parallel()
-		sb := NewSidebar(nav.Shell{Nav: model}, "Lessons/no-title.md")
-		sb.Steps = []nav.Neighbors{{
-			PathTitle:   "Naming course",
-			PathRelPath: titlesCoursePath,
-			Prev:        nav.NoteRef{Name: "前の課", RelPath: "Lessons/iota-constants.md", Language: "ja"},
-			Next:        nav.NoteRef{Name: "Next lesson", RelPath: "Lessons/last-lesson.md"},
-		}}
-		html := renderedHTML(t, sidebar(sb, chrome))
-		stepsNav := regexp.MustCompile(`(?s)<nav class="y-lessonsteps".*?</nav>`).FindString(html)
-		got := regexp.MustCompile(`<span[^>]*>[^<]*</span>`).FindAllString(stepsNav, -1)
-		want := []string{`<span lang="ja">前の課</span>`, `<span>Next lesson</span>`}
-		if diff := cmp.Diff(want, got); diff != "" {
-			t.Errorf("sidebar step names (-want +got):\n%s", diff)
-		}
-	})
-
 	t.Run("cover continue-with lesson", func(t *testing.T) {
 		t.Parallel()
 		const kept = "Lessons/iota-constants.md"
@@ -158,7 +130,7 @@ func TestACoursesLessonNameKeepsTheLanguageItsNoteDeclared(t *testing.T) {
 		if action.LessonLanguage != "ja" {
 			t.Fatalf("CourseAction.LessonLanguage = %q, want ja", action.LessonLanguage)
 		}
-		view := BuildPathView(model.Path(titlesCoursePath), model.Paths(), &CourseCover{})
+		view := BuildPathView(model.Path(titlesCoursePath), &CourseCover{})
 		view.Action = action
 		html := renderedHTML(t, Syllabus(view, chrome))
 		if !regexp.MustCompile(`<span class="y-cover__lesson" lang="ja">続きの課</span>`).MatchString(html) {
