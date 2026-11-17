@@ -52,6 +52,7 @@ var faceAdapterPackages = []string{
 	"internal/mark",
 	"internal/mark/approval",
 	"internal/mark/confdir",
+	"internal/mark/vaults",
 	"internal/note",
 	"internal/preference",
 	"internal/report",
