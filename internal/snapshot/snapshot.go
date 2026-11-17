@@ -1043,8 +1043,8 @@ func buildGeneration(
 		if err := ctx.Err(); err != nil {
 			return nil, nil, err
 		}
-		progress.reached(done)
 		relPath := entry.Path()
+		progress.reached(done, relPath)
 		note := vault.IsMarkdown(relPath)
 		want := wantedBytes(entry, note)
 		if !note {
@@ -1076,7 +1076,7 @@ func buildGeneration(
 		}
 	}
 
-	progress.reached(len(entries))
+	progress.reached(len(entries), "")
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated)

@@ -18,9 +18,14 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-type fakeCount struct{ done, total int }
+type fakeCount struct {
+	done, total int
+	folder      string
+}
 
 func (f fakeCount) Files() (done, total int) { return f.done, f.total }
+
+func (f fakeCount) Folder() string { return f.folder }
 
 func newTestStartup(t *testing.T, count fakeCount, grace time.Duration) *startup {
 	t.Helper()
@@ -194,7 +199,7 @@ func TestServingGivesTheAddressBeforeTheVaultIsRead(t *testing.T) {
 // vault that looks empty.
 func TestStartupAnswersWhileTheVaultIsBeingRead(t *testing.T) {
 	t.Parallel()
-	front := newTestStartup(t, fakeCount{done: 1204, total: 2413}, 0)
+	front := newTestStartup(t, fakeCount{done: 1204, total: 2413, folder: "courses/system-design"}, 0)
 
 	t.Run("a page", func(t *testing.T) {
 		t.Parallel()
@@ -208,7 +213,7 @@ func TestStartupAnswersWhileTheVaultIsBeingRead(t *testing.T) {
 		}
 		assertPermissionsPolicy(t, recorder.Result().Header)
 		body := recorder.Body.String()
-		for _, want := range []string{"data-scanning", "data-scanning-count", "notes", "/home/reader/notes", wording.ScanningKicker.In(wording.ZhHant), "1,204 / 2,413 個檔案"} {
+		for _, want := range []string{"data-scanning", "data-scanning-count", "data-scanning-folder", "notes", "/home/reader/notes", wording.ScanningKicker.In(wording.ZhHant), "1,204 / 2,413 個檔案", "courses/system-design"} {
 			if !strings.Contains(body, want) {
 				t.Errorf("page does not carry %q", want)
 			}
@@ -218,6 +223,24 @@ func TestStartupAnswersWhileTheVaultIsBeingRead(t *testing.T) {
 		}
 		if !strings.Contains(body, "<title>notes</title>") {
 			t.Error("the document title is not the vault's name alone")
+		}
+	})
+
+	t.Run("what the page says comes in the order of a title page", func(t *testing.T) {
+		t.Parallel()
+		recorder := httptest.NewRecorder()
+		front.ServeHTTP(recorder, siteRequest(t, http.MethodGet, "/", http.NoBody))
+		body := recorder.Body.String()
+		// The eyebrow, the vault's name, where it is, the meter, and under the
+		// meter the count and the folder being read: the number sits under the
+		// bar the way a page number sits under the text.
+		at := 0
+		for _, want := range []string{wording.ScanningKicker.In(wording.ZhHant), `id="scanning-title"`, "/home/reader/notes", "<progress", "data-scanning-count", "data-scanning-folder"} {
+			i := strings.Index(body[at:], want)
+			if i < 0 {
+				t.Fatalf("the page lacks %q after offset %d, in order", want, at)
+			}
+			at += i
 		}
 	})
 
@@ -238,7 +261,7 @@ func TestStartupAnswersWhileTheVaultIsBeingRead(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 		}
-		want := `{"done":1204,"total":2413,"text":"1,204 / 2,413 個檔案"}`
+		want := `{"done":1204,"total":2413,"text":"1,204 / 2,413 個檔案","folder":"courses/system-design"}`
 		if got := strings.TrimSpace(recorder.Body.String()); got != want {
 			t.Errorf("body = %s, want %s", got, want)
 		}
