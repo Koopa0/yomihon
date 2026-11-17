@@ -10,7 +10,7 @@ down, so it is worth reading rather than assuming.
 
 The entry point states the rule. Here is the experiment that shows it, which
 you can run in a minute against `examples/vault`. Put these nine links in a new
-note under `Notes/` **with no frontmatter block at all** — that vault's contract
+note under `Notes/` **with no frontmatter block at all** — that vault's rules file
 writes `frontmatter_optional = true`, so an unframed note draws nothing and
 the only findings left are about the links — and run `check` over it:
 
@@ -243,9 +243,9 @@ collected.
 Three things about this that a reader gets wrong:
 
 - **The words are not built in.** They are `[rules] planned_gap_marks` and
-  `[rules] planned_inline_marks` in your contract. A contract that omits them is
+  `[rules] planned_inline_marks` in your rules file. A rules file that omits them is
   loaded with defaults — `缺口 待補 待寫 待整理 待建` for headings, `待整理 待建
-  下一課` for lines — which is why they look like product behaviour. A contract
+  下一課` for lines — which is why they look like product behaviour. A rules file
   that overrides them softens on entirely different words, and one that writes
   an empty list softens nothing. Check yours before relying on a word.
 - **A heading word must begin the heading or follow a space or punctuation

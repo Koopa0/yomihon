@@ -42,6 +42,10 @@ type existsReport struct {
 	// assume a link to it resolves cleanly. The field is omitted when nothing
 	// was withheld, so an ordinary answer's bytes are unchanged.
 	Withheld bool `json:"withheld,omitempty"`
+	// NoRules is what the person at a terminal is told first about a folder
+	// with no rules file. It is not in the machine payload, whose fields a
+	// program already reads.
+	NoRules bool `json:"-"`
 }
 
 // found reports whether any note answers to the queried name, including one
@@ -214,6 +218,9 @@ func notesAmong(matches []existsMatch) int {
 // unchanged.
 func renderExists(r existsReport) string {
 	var s strings.Builder
+	if r.NoRules {
+		s.WriteString(NoRulesFile + "\n")
+	}
 	if !r.found() {
 		fmt.Fprintf(&s, "\"%s\" does not exist\n", r.Query)
 	}

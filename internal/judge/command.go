@@ -215,6 +215,9 @@ func prepareCheckWithHooks(ctx context.Context, o *CheckOptions, hooks actionHoo
 		stdout = buf.Bytes()
 	case FormatHuman:
 		stdout = []byte(humanReport(findings, a.authority.domainRoots()))
+		if a.authority.noRules() {
+			stdout = append([]byte(noRulesChecks+"\n"), stdout...)
+		}
 	case FormatMarkdown:
 		stdout = []byte(markdownReport(findings, a.authority.domainRoots(), a.authority.contract))
 	default:
@@ -311,6 +314,7 @@ func prepareExistsWithHooks(ctx context.Context, o *ExistsOptions, hooks actionH
 		return preparedCommand{}, err
 	}
 	report := existsLookup(a.notes, o.Name, a.authority)
+	report.NoRules = a.authority.noRules()
 	if strings.Contains(o.Name, "/") {
 		appendExistsPaths(&report, a.notes, buildIndex(a.notes, a.unreadable, a.resources), a.authority)
 	}

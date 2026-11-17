@@ -176,19 +176,18 @@ func ContractStateFrom(governed, otherVersion bool, snap *snapshot.Generation) C
 	return ContractAbsent
 }
 
-// emptySentence chooses what an empty listing says. A folder no contract
-// governs has declared nothing to be empty of, so telling it that it "declares
-// none" answers a question it was never asked; the other two sentences say what
-// is true of it instead, and they are two because the way out is two: one
-// reader has a contract to write, the other only has yomihon to start again.
-// Under a contract that governs, what the listing is empty of is the mode's own
-// question, answered by the caller.
+// emptySentence chooses what an empty listing says. A rules file that arrived
+// after yomihon read the folder is a file on the shelf and no authority, so its
+// reader is told to start again; one written for another version is told that
+// and nothing more, since the desk is not the page that can say which line to
+// change. Every other folder, with a rules file or without one, is told the
+// mode's own answer, which the caller gives: which type puts a note on the
+// shelf. A folder with no rules file reads the built-in types, so that answer
+// is true of it and it is asked for no file.
 func emptySentence(contract ContractState, governed string, lang wording.Lang) string {
 	switch contract {
 	case ContractUnloaded:
 		return wording.JoinGuide(wording.IndexContractUnloaded, wording.RestartYomihon, lang)
-	case ContractAbsent:
-		return wording.JoinGuide(wording.IndexUngoverned, wording.IndexUngovernedNext, lang)
 	case ContractOtherVersion:
 		return wording.IndexRulesVersion.In(lang)
 	default:
@@ -499,10 +498,21 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 	folderIndex.Shelf.Rows = folderRows(model.RootNotes(), readableFolders, lang, true, articleLang)
 	folderBlock := deskBlock(&folderIndex)
 	// A plain folder already has a way to read. Put it before the modes whose
-	// organisation the reader has not declared; a present contract keeps its
-	// own order and diagnostics even when it could not be loaded.
-	if contract == ContractAbsent || contract == ContractOtherVersion {
+	// organisation the reader has not declared. A rules file for another version
+	// declares nothing this build reads, so it is ordered the same way, and its
+	// blocks are all drawn: each says why it is empty.
+	if contract == ContractOtherVersion {
 		return []DeskBlock{folderBlock, pathBlock, mapBlock, reportBlock}
+	}
+	// With no rules file at all, draw only the blocks that hold something: there
+	// is nothing to explain an empty one with. The folder block stays, since it
+	// is the way in. A present contract keeps its own order and diagnostics even
+	// when it could not be loaded.
+	if contract == ContractAbsent {
+		blocks := []DeskBlock{folderBlock, pathBlock, mapBlock, reportBlock}
+		return slices.DeleteFunc(blocks, func(b DeskBlock) bool {
+			return b.Mode != folderMode && len(b.Shelf.Rows) == 0
+		})
 	}
 	return []DeskBlock{pathBlock, mapBlock, reportBlock, folderBlock}
 }

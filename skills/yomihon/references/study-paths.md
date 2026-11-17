@@ -4,7 +4,7 @@
 counts, a main line and prev/next — and why is mine projecting nothing?
 
 One tangle of words first, because it is unavoidable and nothing else
-reconciles it. A note whose `type` the contract gives the `course` role is what
+reconciles it. A note whose `type` the rules file gives the `course` role is what
 a vault may call a **study path**, its own word for it. The page that renders it
 is served under `/courses/`, its rules are named `course.*` —
 `course.disk_mismatch` and `course.disk_unlisted` among them, which are about
@@ -19,7 +19,7 @@ Nothing is flattened as a guess.
 ## Before the grammar: the two silent gates
 
 The entry point states them — the note's type has to hold the `course` role in
-the contract, and no other kind of note reads this syntax. Two things about
+the rules file, and no other kind of note reads this syntax. Two things about
 them are worth seeing concretely, because they decide what you observe when a
 course does not appear.
 
@@ -245,7 +245,7 @@ study path and you get `link.broken` at that line, in the same run.
 
 A lesson a path lists and the vault does not have is `course.disk_mismatch`. To
 say it is owed rather than missing, put it under a heading carrying one of your
-contract's gap words — the defaults are in
+rules file's gap words — the defaults are in
 [`names-and-links.md`](names-and-links.md), along with the substring trap that
 makes this the most expensive accident in the dialect. The heading still needs
 its own `{sequence=…}` declaration, for example `## 缺口 {sequence=primary}`.

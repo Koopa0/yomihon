@@ -41,7 +41,7 @@ const maxContractBytes = 256 << 10
 // one counts for nothing, and a string cannot hide the structure around it.
 func checkContractDepth(data []byte) error {
 	if len(data) > maxContractBytes {
-		return fmt.Errorf("contract is larger than %d bytes", maxContractBytes)
+		return fmt.Errorf("rules file is larger than %d bytes", maxContractBytes)
 	}
 	var walk depthWalk
 	for i := 0; i < len(data); {
@@ -51,7 +51,7 @@ func checkContractDepth(data []byte) error {
 		}
 		if !walk.step(data[i]) {
 			line := 1 + bytes.Count(data[:i], []byte("\n"))
-			return fmt.Errorf("contract nests deeper than %d levels, or builds a key path longer than %d parts or %d bytes, at line %d",
+			return fmt.Errorf("rules file nests deeper than %d levels, or builds a key path longer than %d parts or %d bytes, at line %d",
 				maxContractDepth, maxContractPath, maxContractPathBytes, line)
 		}
 		i++

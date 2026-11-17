@@ -55,8 +55,8 @@ func homeSite(t *testing.T, files map[string]string) http.Handler {
 }
 
 // TestPlainFolderHomeLeadsWithFoldersAndStaysReadable follows a populated
-// folder that has no contract from Home to a note, to a search for its term,
-// and to the three organised modes.
+// folder that has no rules file from Home to a note and to a search for its
+// term. It holds notes and nothing else, so Home draws the way in alone.
 func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 	t.Parallel()
 	site := homeSite(t, map[string]string{
@@ -65,7 +65,7 @@ func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 	})
 	home := readingPage(t, site, "/")
 
-	if got, want := homeBlockOrder(home), []string{"folders", "courses", "indexes", "reports"}; !slices.Equal(got, want) {
+	if got, want := homeBlockOrder(home), []string{"folders"}; !slices.Equal(got, want) {
 		t.Errorf("plain folder Home blocks = %v, want %v", got, want)
 	}
 
@@ -85,12 +85,51 @@ func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 	if !strings.Contains(results, `href="`+noteHref) {
 		t.Errorf("searching Home's term does not reach %s", noteHref)
 	}
+}
 
+// TestAPlainFolderHomeDrawsTheModesItHolds follows a folder with no rules file
+// that holds a course, an index and a report, from Home to each mode's page. The
+// course opens the desk, as it does for any folder that has one, and the way in
+// follows.
+func TestAPlainFolderHomeDrawsTheModesItHolds(t *testing.T) {
+	t.Parallel()
+	site := homeSite(t, map[string]string{
+		"Unit one.md":            "---\ntype: unit\n---\n# Unit one\n",
+		"Club.md":                "---\ntype: course\n---\n## Course {sequence=primary}\n- [[Unit one]]\n",
+		"Map.md":                 "---\ntype: index\n---\n- [[Unit one]]\n",
+		"System/reports/2026.md": "# A report\n\nWhat it found.\n",
+	})
+	home := readingPage(t, site, "/")
+
+	if got, want := homeBlockOrder(home), []string{"courses", "folders", "indexes", "reports"}; !slices.Equal(got, want) {
+		t.Errorf("plain folder Home blocks = %v, want %v", got, want)
+	}
 	for _, mode := range []string{"courses", "indexes", "reports"} {
 		if !strings.Contains(deskBlockMarkup(t, home, mode), `href="/`+mode+`"`) {
 			t.Errorf("the %s block does not link to /%s", mode, mode)
 		}
 		readingPage(t, site, "/"+mode)
+	}
+}
+
+// TestAPlainFolderHomeDrawsNoEmptyBlock holds the other half: a folder with no
+// rules file that holds notes and nothing else draws the way in alone, with no
+// block for a course, an index or a report it does not have, and no sentence
+// asking for a file.
+func TestAPlainFolderHomeDrawsNoEmptyBlock(t *testing.T) {
+	t.Parallel()
+	site := homeSite(t, map[string]string{
+		"Reading club.md": readingClubNote,
+		"Weather.md":      "# Weather\n\nRead the club plan for rain.\n",
+	})
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		home := readingPageIn(t, site, "/", lang)
+		if got, want := homeBlockOrder(home), []string{"folders"}; !slices.Equal(got, want) {
+			t.Errorf("%s Home blocks = %v, want %v", lang, got, want)
+		}
+		if strings.Contains(home, "vault-schema.toml") {
+			t.Errorf("%s Home asks for a rules file", lang)
+		}
 	}
 }
 

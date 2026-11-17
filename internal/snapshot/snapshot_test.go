@@ -807,34 +807,37 @@ func TestRescanLatchesTheEgressDeclarationWhenItsSourceChanges(t *testing.T) {
 	}
 }
 
-// TestNewDoesNotFabricateInstanceCapabilities pins what a folder with no
-// contract gets: no held artifact authority, so no note is classified as a
-// governed instance and no type is a study path — but the projections are open
-// and silent, because nothing was ever declared and empty is the true answer
-// over an empty declared set.
-func TestNewDoesNotFabricateInstanceCapabilities(t *testing.T) {
+// TestNewReadsAFolderWithNoRulesFileByTheBuiltInRoles pins what a folder with
+// no rules file gets: the built-in roles and an artifact policy that holds
+// nothing apart, so a note that calls itself a study path is a course and every
+// readable note is an instance. Nothing is declared, so nothing is withheld and
+// nothing says so.
+func TestNewReadsAFolderWithNoRulesFileByTheBuiltInRoles(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	writeNote(t, root, "Maps/Path.md", "---\ntype: study-path\n---\n## Course {sequence=primary}\n- [[Ghost]]\n")
+	writeNote(t, root, "Maps/Index.md", "---\ntype: index\n---\n- [[Maps/Path]]\n")
 	store, _ := newTestStore(t, root, nil)
 	snap := store.Current()
 
-	if snap.ArtifactPolicy().Available() {
-		t.Fatal("Snapshot.ArtifactPolicy().Available() = true, want no held declaration")
+	if !snap.ArtifactPolicy().Available() || snap.ArtifactPolicy().IsNonInstance("System/templates/x.md") {
+		t.Fatal("Snapshot.ArtifactPolicy() must be available and hold no directory apart for a folder with no rules file")
 	}
 	if snap.Navigation().NavigationClosure().Diagnostic() != "" || snap.Navigation().ArtifactClosure().Diagnostic() != "" {
 		t.Errorf("snapshot diagnostics = navigation %q artifact %q, want both silent for a folder that claimed nothing", snap.Navigation().NavigationClosure().Diagnostic(), snap.Navigation().ArtifactClosure().Diagnostic())
 	}
-	if snap.Navigation().ArtifactClosure().Closed() {
-		t.Error("instance projections closed for a folder that never claimed governance")
+	if snap.Navigation().ArtifactClosure().Closed() || snap.Navigation().NavigationClosure().Closed() {
+		t.Error("projections closed for a folder that never claimed governance")
 	}
-	if len(snap.Navigation().Paths()) != 0 || len(snap.Navigation().Maps()) != 0 {
-		t.Errorf("snapshot navigation = paths %d maps %d, want none: no type was declared as either", len(snap.Navigation().Paths()), len(snap.Navigation().Maps()))
+	if got := len(snap.Navigation().Paths()); got != 1 {
+		t.Errorf("snapshot courses = %d, want 1: a note typed study-path is a course with no rules file", got)
 	}
-	// Nothing excluded this note, so it is an ordinary readable one.
-	if len(snap.Navigation().KnowledgeNotes()) != 1 {
-		t.Errorf("snapshot KnowledgeNotes = %d, want 1", len(snap.Navigation().KnowledgeNotes()))
+	if got := len(snap.Navigation().Maps()); got != 1 {
+		t.Errorf("snapshot indexes = %d, want 1: a note typed index is an index with no rules file", got)
+	}
+	if len(snap.Navigation().KnowledgeNotes()) != 2 {
+		t.Errorf("snapshot KnowledgeNotes = %d, want 2", len(snap.Navigation().KnowledgeNotes()))
 	}
 	if len(snap.Navigation().Folders()) == 0 {
 		t.Error("snapshot folder navigation is empty, want non-instance-independent browsing")

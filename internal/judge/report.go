@@ -371,7 +371,7 @@ const (
 // way, so a reader who asked for markdown still gets the report.
 func checkReportPreamble(contract *schema.Contract) string {
 	if contract == nil {
-		return "This folder has no rules file, so this body is not a fileable note.\n\n"
+		return noRulesChecks + " This body is not a fileable note.\n\n"
 	}
 	if block := checkReportFrontmatter(contract); block != "" {
 		return block

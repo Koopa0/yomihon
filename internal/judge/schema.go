@@ -13,7 +13,14 @@ import (
 // contract, all findings at error severity. Scope is the contract's own
 // knowledge layer: an undeclared layer excludes nothing, so every note is
 // linted.
+//
+// A folder with no rules file declares no type, no field and no enum, so there
+// is nothing to validate a note against and none of these rules runs; the check
+// report says so at its top.
 func checkSchema(notes []note, contract *schema.Contract) []Finding {
+	if contract == nil {
+		return nil
+	}
 	return newLintRun(contract).check(notes)
 }
 

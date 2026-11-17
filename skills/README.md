@@ -8,7 +8,7 @@ when it decides whether to open the folder at all — and continues with a body
 the agent follows as instruction rather than reads as an article. Installing
 one adds no capability and changes no model. What it changes is what the agent
 reaches for, and when: an agent carrying the skill below settles a note's
-filename before its title, opens the vault's contract before choosing
+filename before its title, opens the vault's rules file before choosing
 frontmatter, and runs a command to see whether the note landed where it meant
 it to, instead of assuming it did.
 
@@ -26,7 +26,7 @@ nothing here repeats it.
   disagreement, and the shape of taking one note from prose into a course. It
   names every decision; it does not carry every subject.
 - [`yomihon/references/`](yomihon/references/) — seven files, one per subject,
-  each the authority for what it covers: the frontmatter contract, how a name
+  each the authority for what it covers: the frontmatter rules file, how a name
   resolves, the study-path grammar, how a map works, the diagnostics, how to
   write for the person who reads the note, and the worked example at length.
   Each opens by saying which question it answers.
@@ -51,8 +51,8 @@ folder to the set the checks emit, in both directions, so a rule cannot be
 renamed without the mention going stale, and cannot be added without a reader
 being left with nowhere to look it up. It does not describe any particular
 vault: the types and their roles, which fields each may write, the values some
-may take and the directory layout are declared per vault in a contract file, and the skill's steady refrain is that the
-contract decides and the code never guesses.
+may take and the directory layout are declared per vault in a rules file, and the skill's steady refrain is that the
+rules file decides and the code never guesses.
 
 ## Installing it
 

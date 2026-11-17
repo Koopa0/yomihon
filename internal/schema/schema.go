@@ -231,6 +231,10 @@ type contractUnknownKeys struct {
 // ContractAbsent reports whether err from Load, LoadFile, or LoadReader means
 // the folder carries no contract at all, as distinct from one that exists and
 // could not be read. A folder that declared nothing is not one in trouble.
+// LoadReader says so only when its own lookup finds nothing at the path: a file
+// found and gone by the time it is read, as a save by rename leaves for an
+// instant, is refused by the reader as a changed entry and is never absent,
+// which would withhold nothing from a folder that has rules.
 func ContractAbsent(err error) bool {
 	return errors.Is(err, fs.ErrNotExist)
 }
@@ -246,16 +250,16 @@ func Load(root string) (*Contract, error) {
 func LoadFile(path string) (*Contract, error) {
 	sourcePath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, fmt.Errorf("resolve vault contract %s: %w", path, err)
+		return nil, fmt.Errorf("resolve rules file %s: %w", path, err)
 	}
 	data, err := os.ReadFile(sourcePath) // #nosec G304 -- path is the operator-selected vault contract
 	if err != nil {
-		return nil, fmt.Errorf("read vault contract %s: %w", path, err)
+		return nil, fmt.Errorf("read rules file %s: %w", path, err)
 	}
 	source := policySource{path: filepath.Clean(sourcePath), digest: sha256.Sum256(data)}
 	s, err := decodeContract(data, source)
 	if err != nil {
-		return nil, fmt.Errorf("decode vault contract %s: %w", path, err)
+		return nil, fmt.Errorf("decode rules file %s: %w", path, err)
 	}
 	return s, nil
 }
@@ -264,15 +268,82 @@ func LoadFile(path string) (*Contract, error) {
 // an agent-facing action uses for note collection and source revalidation.
 func LoadReader(ctx context.Context, reader *vault.Reader) (*Contract, error) {
 	if reader == nil {
-		return nil, errors.New("read vault contract: vault reader is nil")
+		return nil, errors.New("read rules file: vault reader is nil")
 	}
 	entry, err := reader.Lookup(ContractRelPath)
 	if err != nil {
-		return nil, fmt.Errorf("resolve vault contract: %w", err)
+		return nil, fmt.Errorf("resolve rules file: %w", err)
 	}
+	return loadEntry(ctx, reader, entry)
+}
+
+// LoadForAgents reads the rules file for a command whose output goes to a
+// program, and returns the privacy policy that command is bound by. A folder
+// whose lookup found no rules file gets PrivacyWithoutRules: it declared
+// nothing, so nothing is withheld. Every other failure — a file that is there
+// and cannot be read, one for another schema version, one that vanished after it
+// was found — returns an error and no policy, because that folder may withhold
+// ground this process never learned.
+func LoadForAgents(ctx context.Context, reader *vault.Reader) (*Contract, PrivacyPolicy, error) {
+	contract, err := LoadReader(ctx, reader)
+	switch {
+	case err == nil:
+		policy := contract.PrivacyPolicy()
+		return contract, policy, nil
+	case ContractAbsent(err):
+		if nearby := rulesFileNearby(ctx, reader); nearby != nil {
+			return nil, PrivacyPolicy{}, nearby
+		}
+		return nil, PrivacyWithoutRules(reader), nil
+	default:
+		return nil, PrivacyPolicy{}, err
+	}
+}
+
+// ErrRulesFileUnknown is a folder whose surroundings could not be looked at, so
+// it is not known to have no rules file. It carries no path: the one that could
+// not be listed is the vault's own to name.
+var ErrRulesFileUnknown = errors.New("could not tell whether a rules file lies above or inside this folder")
+
+// ErrRulesFileNearby is a folder with no rules file of its own that sits inside
+// a vault, or holds one. It carries no path: what that rules file withholds is
+// the whole reason it may not be read past.
+var ErrRulesFileNearby = errors.New("a rules file lies above or inside this folder")
+
+// rulesFileNearby looks where the lookup at this folder's own rules path did
+// not: above it, where a command started inside a vault's folder is governed by
+// the vault's rules, and below it, where a command started above a vault would
+// read that vault's withheld folders as ordinary ones. Either is refused whole,
+// whatever letter case the rules path is spelled in, since the same files
+// synced to a case-insensitive disk are read by it. Both looks are by name in
+// the raw listing of each folder, so a rules file behind a symlink, an ignore
+// rule or a folder that will not open is found or refused, never missed.
+func rulesFileNearby(ctx context.Context, reader *vault.Reader) error {
+	above, err := reader.AncestorHolds(ContractRelPath)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrRulesFileUnknown, err)
+	}
+	if above {
+		return ErrRulesFileNearby
+	}
+	below, err := reader.HoldsBelow(ctx, ContractRelPath)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrRulesFileUnknown, err)
+	}
+	if below {
+		return ErrRulesFileNearby
+	}
+	return nil
+}
+
+// loadEntry reads and decodes the contract file a lookup has already found.
+func loadEntry(ctx context.Context, reader *vault.Reader, entry vault.Entry) (*Contract, error) {
 	data, err := reader.ReadFile(ctx, entry)
 	if err != nil {
-		return nil, fmt.Errorf("read vault contract: %w", err)
+		return nil, fmt.Errorf("read rules file: %w", err)
 	}
 	source := policySource{
 		path:   filepath.Join(reader.Name(), filepath.FromSlash(ContractRelPath)),
@@ -281,7 +352,7 @@ func LoadReader(ctx context.Context, reader *vault.Reader) (*Contract, error) {
 	}
 	contract, err := decodeContract(data, source)
 	if err != nil {
-		return nil, fmt.Errorf("decode vault contract: %w", err)
+		return nil, fmt.Errorf("decode rules file: %w", err)
 	}
 	return contract, nil
 }
@@ -567,7 +638,7 @@ func validateDistinctKeys(data []byte) error {
 	if len(pairs) == 0 {
 		return nil
 	}
-	return fmt.Errorf("contract keys differ only by letter case: %s", strings.Join(pairs, "; "))
+	return fmt.Errorf("rules file keys differ only by letter case: %s", strings.Join(pairs, "; "))
 }
 
 // foldedKeyPairs names every pair of sibling keys that fold together, in each
@@ -969,10 +1040,14 @@ func (c *Contract) DeclaresType(noteType string) bool {
 	return ok
 }
 
-// NavigationRoles returns the contract-derived navigation role capability.
+// NavigationRoles returns the contract-derived navigation role capability. A
+// nil contract answers with the built-in roles, so a folder with no rules file
+// is read as courses, units and indexes by the names notes call themselves.
+// Nil is also what a rules file that could not be read leaves behind; that case
+// is closed before this is asked, by Capabilities.
 func (c *Contract) NavigationRoles() NavigationRoles {
 	if c == nil {
-		return NavigationRoles{}
+		return builtInNavigationRoles()
 	}
 	return c.navigationRoles
 }
@@ -1019,10 +1094,13 @@ func (c *Contract) ScanBoundary() vault.Boundary {
 	return vault.NewBoundary(c.folders.Ignored)
 }
 
-// ArtifactPolicy returns the contract-derived artifact policy capability.
+// ArtifactPolicy returns the contract-derived artifact policy capability. A nil
+// contract declares no templates, so every readable note is an instance; as
+// with NavigationRoles, a rules file that could not be read is closed before
+// this is asked.
 func (c *Contract) ArtifactPolicy() ArtifactPolicy {
 	if c == nil {
-		return ArtifactPolicy{}
+		return noRulesArtifactPolicy()
 	}
 	return c.artifactPolicy
 }

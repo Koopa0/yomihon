@@ -20,7 +20,9 @@ func TestAuthoredReadAloudLanguagesStayWithinLessonInstances(t *testing.T) {
 		{"lesson", "Writing/Lesson.md", "lesson", true, true},
 		{"concept", "Writing/Concept.md", "concept", true, false},
 		{"template", "System/templates/Lesson.md", "lesson", true, false},
-		{"ungoverned", "Writing/Lesson.md", "lesson", false, false},
+		{"no rules file", "Writing/Lesson.md", "lesson", false, true},
+		{"no rules file, a unit", "Writing/Unit.md", "unit", false, true},
+		{"no rules file, a concept", "Writing/Concept.md", "concept", false, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

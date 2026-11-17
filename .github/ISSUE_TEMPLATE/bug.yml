@@ -19,7 +19,7 @@ body:
         **A note reads correctly in Obsidian but is missing from a course, a
         count, previous and next, or search.** Read
         [the authoring skill](https://github.com/koopa0/yomihon/blob/main/skills/yomihon/SKILL.md)
-        and run `yomihon check --root <vault>` first. Usually the vault contract
+        and run `yomihon check --root <vault>` first. Usually the vault's rules file
         has not opened that capability for the note, and `check` says which one.
 
   - type: textarea

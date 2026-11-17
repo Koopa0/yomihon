@@ -9,24 +9,30 @@ import (
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-// The two refusals a caller has to be able to tell apart. Both mean the same
-// thing to the engine — no vocabulary to judge notes against — and different
-// things to whoever pointed the command at this folder, who is owed a different
-// paragraph for each. Distinguishing them is the caller's job, so they are
-// exported; the paragraphs are the binary's, written for a person at a terminal.
-var (
-	// ErrPrivacyAuthorityUnavailable reports a contract that exists and could
-	// not be honoured. The reason is deliberately not carried: a decoder's
-	// account of an existing contract's keys would quote vault content back out
-	// under exactly the policy that is missing.
-	ErrPrivacyAuthorityUnavailable = errors.New("privacy authority unavailable; agent-facing output disabled")
+// ErrPrivacyAuthorityUnavailable reports a rules file that exists and could not
+// be honoured. The reason is deliberately not carried: a decoder's account of an
+// existing rules file's keys would quote vault content back out under exactly
+// the policy that is missing. The paragraph a person is owed is the binary's.
+var ErrPrivacyAuthorityUnavailable = errors.New("privacy authority unavailable; agent-facing output disabled")
 
-	// ErrNoVaultContract is the other half of the same silence. A folder that
-	// carries no contract asserted nothing: it is not broken, it simply has no
-	// vocabulary for these commands to judge in, and saying so is a different
-	// sentence from saying a declaration could not be honoured.
-	ErrNoVaultContract = errors.New("this folder has no rules file, so there is nothing to judge notes against")
-)
+// ErrRulesFileNearby reports a folder with no rules file of its own that sits
+// inside a vault or holds one. What that rules file withholds is not known to
+// this run, so nothing is read; the repair names no vault content.
+var ErrRulesFileNearby = errors.New("a rules file lies above or inside this folder; run yomihon from that vault's own folder, or pass it as --root")
+
+// ErrRulesFileUnknown reports a folder whose surroundings could not be looked at
+// to see whether a rules file governs it. It names no path.
+var ErrRulesFileUnknown = errors.New("yomihon could not tell whether a rules file lies above or inside this folder, because a folder could not be listed")
+
+// NoRulesFile is what a command says, at the top of what it prints for a
+// person, about a folder that has no rules file. It is not a refusal: a folder
+// that declared nothing withholds nothing, and the commands read it as they read
+// any other.
+const NoRulesFile = "No rules file in this folder: nothing is withheld."
+
+// noRulesChecks is what check adds to it, since the frontmatter rules are the
+// ones that read the rules file and so did not run.
+const noRulesChecks = NoRulesFile + " The checks that need note types did not run."
 
 // RulesVersionError is a contract written for another schema version. It is
 // the one contract that could not be used whose cause is stated, because what
@@ -54,13 +60,12 @@ func (e *RulesVersionError) Is(target error) bool { return target == ErrPrivacyA
 // plainVersion is what a declared version has to look like to be repeated.
 var plainVersion = regexp.MustCompile(`^\d{1,6}(?:\.\d{1,6}){0,2}$`)
 
-// RefusalFor is the refusal owed for a contract that did not load, so every
-// command that loads one answers the same way. Only a contract for another
-// schema version says more than that it could not be used.
+// RefusalFor is the refusal owed for a rules file that did not load, so every
+// command that loads one answers the same way. Only a rules file for another
+// schema version says more than that it could not be used, and it is a refusal
+// all the same: it is never taken for a folder with no rules file. A folder
+// with none never reaches this, because the loader grants it a policy of its own.
 func RefusalFor(err error) error {
-	if schema.ContractAbsent(err) {
-		return ErrNoVaultContract
-	}
 	if mismatch, ok := errors.AsType[*schema.VersionError](err); ok {
 		declared := ""
 		if plainVersion.MatchString(mismatch.Declared) {
@@ -81,6 +86,11 @@ func RefusalFor(err error) error {
 // action. Every command loads it before reading vault notes and validates the
 // same source again after constructing its payload.
 type scanAuthority struct {
+	// loaded is set once the rules file was read or found absent, so a run that
+	// never got that far has nothing to recheck when it ends.
+	loaded bool
+	// contract is nil for a folder with no rules file, which the contract's own
+	// accessors answer for.
 	contract *schema.Contract
 	privacy  schema.PrivacyPolicy
 	// scan is the observation the judge works from, set once it has run. It
@@ -100,14 +110,33 @@ func (a scanAuthority) domainRoots() domainRoots {
 	return a.contract.Domains().Roots()
 }
 
+// noRules reports whether this folder carries no rules file, which every
+// payload of a command for a person says first.
+func (a scanAuthority) noRules() bool {
+	return a.privacy.WithoutRules()
+}
+
 func loadScanAuthority(ctx context.Context, reader *vault.Reader) (scanAuthority, error) {
-	contract, err := schema.LoadReader(ctx, reader)
+	contract, privacy, err := schema.LoadForAgents(ctx, reader)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		// A stopped command is not a fault in the rules file, and a reader who
+		// interrupted it is owed their own words rather than the privacy
+		// refusal.
+		return scanAuthority{}, err
+	}
+	if errors.Is(err, schema.ErrRulesFileNearby) {
+		return scanAuthority{}, ErrRulesFileNearby
+	}
+	if errors.Is(err, schema.ErrRulesFileUnknown) {
+		return scanAuthority{}, ErrRulesFileUnknown
+	}
 	if err != nil {
 		return scanAuthority{}, RefusalFor(err)
 	}
 	authority := scanAuthority{
+		loaded:   true,
 		contract: contract,
-		privacy:  contract.PrivacyPolicy(),
+		privacy:  privacy,
 	}
 	if err := authority.validate(); err != nil {
 		return scanAuthority{}, err
@@ -124,6 +153,9 @@ func (a scanAuthority) roles() schema.NavigationRoles {
 
 func (a scanAuthority) validate() error {
 	privacy := a.privacy.ValidateSource()
+	if privacy.RulesFileNearby() {
+		return ErrRulesFileNearby
+	}
 	if !privacy.Available() {
 		return ErrPrivacyAuthorityUnavailable
 	}

@@ -28,7 +28,7 @@ exists.
 ## For every note
 
 1. **Leave the reader's own writing alone.** Do not create or edit a note of the
-   type that holds the contract's `thought` role. If you want to answer one,
+   type that holds the rules file's `thought` role. If you want to answer one,
    write another note that cites it in `based_on`. *Check:* the change you hand
    over touches no file of that type.
 2. **Replace by deleting, and leave the old name behind.** A note that another
@@ -141,7 +141,7 @@ folder is the only place yomihon looks: a file in a folder below it is not a
 report, and neither is a file of another kind.
 
 - **Dated, newest first.** The reports page lists them by day, newest first. The
-  day is the report's `created` field, which the contract has to list in
+  day is the report's `created` field, which the rules file has to list in
   `[fields] common`, and failing that a date the file name begins with, such as
   `2026-11-12 Postgres checkpoints.md`. A report with neither is listed after
   the dated ones, marked "No date". Write `created` in every report.

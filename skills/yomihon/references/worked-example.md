@@ -21,8 +21,8 @@ those three and adds nothing.
 
 If you do not have the repository — you installed the skill beside your own
 vault, which is where it belongs — read it instead as the shape of the work.
-Every frontmatter key, every contract table and every finding below is quoted
-literally, so you can map each one onto your own contract without running
+Every frontmatter key, every rules file table and every finding below is quoted
+literally, so you can map each one onto your own rules file without running
 anything.
 
 ## Where we start
@@ -54,7 +54,7 @@ that the note below, once it becomes a lesson, is held to more.
 Turning prose into the fourth lesson of the `Reading yomihon` study path is five
 decisions, and only the last one is about the course.
 
-## 1. What is it? The contract says which answers exist
+## 1. What is it? The rules file says which answers exist
 
 `examples/vault/System/schemas/vault-schema.toml` declares:
 
@@ -67,8 +67,8 @@ slug_pattern = "^[a-z0-9]+(-[a-z0-9]+)*$"
 ```
 
 `lesson` has a table, and it holds the `lesson` role, so `lesson` is available.
-Had it not been, the honest move is to edit the contract deliberately or pick
-another type — not to write the value and hope. A type the contract does not
+Had it not been, the honest move is to edit the rules file deliberately or pick
+another type — not to write the value and hope. A type the rules file does not
 declare is `schema.enum`, an error.
 
 ## 2. The filename, before the title
@@ -86,7 +86,7 @@ normalisation and case folding — so a second `l04 say which language a note is
 in.md` anywhere would collide and neither would resolve. See
 [`names-and-links.md`](names-and-links.md).
 
-## 3. The frontmatter, every key traced to the contract
+## 3. The frontmatter, every key traced to the rules file
 
 ```markdown
 ---
@@ -101,7 +101,7 @@ lang: en
 ```
 
 The `#` heading is the lesson's title; there is no `title` key to write. Where
-each key comes from, in this vault's contract:
+each key comes from, in this vault's rules file:
 
 | Key | Why it is here |
 |---|---|
@@ -139,7 +139,7 @@ lang: en
 ```
 
 `type: study-path` is doing the load-bearing work, and it is worth stopping on,
-because this is the gate that fails most quietly. The contract says:
+because this is the gate that fails most quietly. The rules file says:
 
 ```toml
 [types.study-path]
@@ -202,13 +202,13 @@ the real output of `check` against that change. All but one use the command
 from step 5 unchanged; the exception says so, because its fault is in a third
 file and a path filter cannot report a file it was not given.
 
-**A value the contract does not allow.** `level: expert` on the lesson:
+**A value the rules file does not allow.** `level: expert` on the lesson:
 
 ```json
 {"rule_id":"schema.enum","severity":"error","path":"Lessons/L04 Say which language a note is in.md","field":"level","message":"level \"expert\" is not an allowed value", ...}
 ```
 
-The list it was judged against is the contract's `[enums] level`, and the
+The list it was judged against is the rules file's `[enums] level`, and the
 message names the field and the value, not the list.
 
 **A required field left out.** Delete `slug:`:
@@ -241,7 +241,7 @@ Without the finding, a flag spelled as a word would read as a finished note.
 {"rule_id":"schema.slug","severity":"error","path":"Lessons/L04 Say which language a note is in.md","field":"slug","message":"slug \"L04 Note Language\" is not a valid slug","source_rule":"vault-schema.toml#types", ...}
 ```
 
-Note `source_rule`: the anchor says the authority is the contract's `[types]`
+Note `source_rule`: the anchor says the authority is the rules file's `[types]`
 tables, so the pattern to satisfy is written in the vault, not in yomihon.
 
 **The row names the title instead of the filename.** Change the path's row to

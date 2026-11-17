@@ -1,31 +1,31 @@
-# The contract, and the frontmatter it lets you write
+# The rules file, and the frontmatter it lets you write
 
 **The question this answers:** which frontmatter keys may this note carry, which
 values may they hold, and who decided. yomihon decides what the keys are, and
-the list is closed. The vault's contract decides which of them each type of note
+the list is closed. The vault's rules file decides which of them each type of note
 may write and which values some may take, and it is different in every vault.
 
-One file holds the contract: `<vault>/System/schemas/vault-schema.toml`. yomihon
+One file holds the rules: `<vault>/System/schemas/vault-schema.toml`. yomihon
 reads it and never writes it. Read it before choosing a single key. What follows
-is the list of fields, then what each of the contract's tables does to a note
-you are writing, so you can read a contract you have not seen before and know
+is the list of fields, then what each of the rules file's tables does to a note
+you are writing, so you can read a rules file you have not seen before and know
 what it is asking of you.
 
 `examples/vault/System/schemas/vault-schema.toml` in this repository is a small
 working one, written to be copied and then cut down.
 
 Before any table: the file's first line is `schema_version = "2"`, and it is
-required. A contract without it is refused whole, and `"2"` is the only value
-this yomihon accepts. A contract written for another format is refused the same
-way, and so is a `yomihon` built before this one when it reads a `"2"` contract.
-`check` says only that it could not use the contract, except for a missing or
+required. A rules file without it is refused whole, and `"2"` is the only value
+this yomihon accepts. A rules file written for another format is refused the same
+way, and so is a `yomihon` built before this one when it reads a `"2"` rules file.
+`check` says only that it could not use the rules file, except for a missing or
 different `schema_version`, where it names the version it found and the line to
-change. The folder is then read as though it carried no contract, and `yomihon
+change. The folder is then read as though it carried no rules file, and `yomihon
 serve` logs the reason:
 
 ```
 level=WARN msg="rules file is for another schema version"
-  error="decode vault contract: unsupported schema_version \"1\"; supported version is \"2\""
+  error="decode rules file: unsupported schema_version \"1\"; supported version is \"2\""
 ```
 
 ## The fields yomihon defines
@@ -35,7 +35,7 @@ when nothing would have read it, and there is no harmless extra key.
 
 | Field | What it is, and what yomihon does with it |
 |---|---|
-| `type` | which of the contract's note types this is. A type the contract does not declare is `schema.enum`. Always allowed |
+| `type` | which of the rules file's note types this is. A type the rules file does not declare is `schema.enum`. Always allowed |
 | `aliases` | further names a `[[link]]` resolves against. Always allowed, and a name two notes share is `collision.alias` |
 | `draft` | the boolean `true`, which says this note is still being written. Always allowed; see below |
 | `based_on` | the note or notes this one is written from, quoted: `["[[Note]]"]`. A reference that reaches nothing is `provenance.unresolved` |
@@ -49,18 +49,18 @@ when nothing would have read it, and there is no harmless extra key.
 
 Obsidian's `tags` and `cssclasses` are let through and never judged, and
 `aliases` is one of its names too. `type`, `draft` and those three need no
-listing. Every other field has to be listed by the contract before a note may
+listing. Every other field has to be listed by the rules file before a note may
 write it: in `[fields] common` for any note, or in a type's own `fields` for
 that type alone. `created` and `lang` also have to be in `[fields] common`
 before yomihon reads them at all, because a declaration on one type cannot
 describe every note.
 
-A contract that lists a name outside this table in a field list is refused whole
+A rules file that lists a name outside this table in a field list is refused whole
 and says so in the log:
 
 ```
-level=WARN msg="vault contract unavailable"
-  error="decode vault contract: fields.common: \"nosuchkey\" is not a field yomihon defines (the fields are \"type\", \"aliases\", \"draft\", \"based_on\", \"lang\", \"created\", \"slug\", \"level\", \"prerequisites\", \"verified_on\", \"verified_with\"; title and domain are derived)"
+level=WARN msg="rules file unavailable"
+  error="decode rules file: fields.common: \"nosuchkey\" is not a field yomihon defines (the fields are \"type\", \"aliases\", \"draft\", \"based_on\", \"lang\", \"created\", \"slug\", \"level\", \"prerequisites\", \"verified_on\", \"verified_with\"; title and domain are derived)"
 ```
 
 ### Two things a note does not write
@@ -111,7 +111,7 @@ it back, is done in an editor. Nothing else records how far along a note is.
 | `frontmatter_optional` | whether a note with no frontmatter block is legal |
 
 A directory named in `checked` that the vault does not actually have is
-`schema.unmatched_knowledge_dir`, an error against the contract rather than
+`schema.unmatched_knowledge_dir`, an error against the rules file rather than
 against any note: the guard against a typo silently switching the rules off.
 
 `skipped_files` is an exact match, and unlike almost everything else in this
@@ -127,7 +127,7 @@ the folder listing, not searched, not judged and cannot collide on a name, and
 written rather than reported broken; a `[[wikilink]]` to a name that only exists
 there is broken, as it is for a dot-directory. Use it for generated or copied
 trees whose file names repeat. A pattern must be relative and clean (no leading
-`/`, no `..`, no trailing `/`) and must parse; anything else makes the contract
+`/`, no `..`, no trailing `/`) and must parse; anything else makes the rules file
 fail to load.
 
 A template directory changes what the server projects for the notes in it: no
@@ -162,11 +162,11 @@ break followed by anything else is not reported.
 Flat lists of legal values, one per field: `domain` and `level` are the ones the
 example uses, and any field in the table above may have one. None of them has a
 built-in vocabulary — there is no scale `level` is measured against; the words
-your contract writes are the whole answer, and a value outside the declared list
+your rules file writes are the whole answer, and a value outside the declared list
 is `schema.enum`, an error. For `domain` there is no frontmatter to fix, because
 the note's domain is its folder's name: move the note into a folder named for a
 declared domain, or add the name to the list. An omitted or empty list
-constrains nothing at all, so a contract that declares no `domain` list accepts
+constrains nothing at all, so a rules file that declares no `domain` list accepts
 any domain, and silence there is permission rather than absence.
 
 A note type needs no entry here: every `[types.<name>]` table declares one, and
@@ -176,8 +176,8 @@ A note type needs no entry here: every `[types.<name>]` table declares one, and
 
 | Key | What it does to your note |
 |---|---|
-| `common` | the fields any note may carry, chosen from the table above. A note carrying a field that neither this list, nor its type's own `fields`, nor the always-allowed names cover is `schema.unknown_key`. **An omitted `common` is the empty set,** not permission: a contract with no `[fields]` table lets a note carry only `type`, `draft`, Obsidian's names and whatever its type's own `fields` adds |
-| `required` | every key here must be present on every note. "Present" means a non-empty scalar or a non-empty list, so a required field written as a one-item list counts. A key named here that `common` does not list refuses the contract |
+| `common` | the fields any note may carry, chosen from the table above. A note carrying a field that neither this list, nor its type's own `fields`, nor the always-allowed names cover is `schema.unknown_key`. **An omitted `common` is the empty set,** not permission: a rules file with no `[fields]` table lets a note carry only `type`, `draft`, Obsidian's names and whatever its type's own `fields` adds |
+| `required` | every key here must be present on every note. "Present" means a non-empty scalar or a non-empty list, so a required field written as a one-item list counts. A key named here that `common` does not list refuses the rules file |
 
 ### `[types.<name>]` — what a type of note is
 
@@ -207,27 +207,27 @@ The roles:
   one type holds it, and the type must list `based_on`.
 
 A role that is none of the four, or a second type holding `lesson` or `thought`,
-does not refuse the contract. It closes the courses and the maps: `check`
+does not refuse the rules file. It closes the courses and the maps: `check`
 reports `schema.navigation_unavailable` and the startup line reads `paths=0
 maps=0`. A type name `concept` is yomihon's, with the concept sheets and the
-coverage report; your contract decides whether such a type exists, never what it
+coverage report; your rules file decides whether such a type exists, never what it
 is called.
 
 ### `[rules]` — the checks with their own rule ids
 
 | Key | What it checks |
 |---|---|
-| `concept_requires_provenance` | the fields a note of the `concept` type — an idea distilled from somewhere else — must have at least one of, so it says where it came from. A concept may write these fields without listing them, and the list may not be empty when a `concept` type exists. The finding's message is a frozen sentence naming two particular fields; the list actually demanded is whichever your contract wrote here |
+| `concept_requires_provenance` | the fields a note of the `concept` type — an idea distilled from somewhere else — must have at least one of, so it says where it came from. A concept may write these fields without listing them, and the list may not be empty when a `concept` type exists. The finding's message is a frozen sentence naming two particular fields; the list actually demanded is whichever your rules file wrote here |
 | `planned_gap_marks` | the heading words that mark a section as owed rather than missing; a word must begin the heading or follow a space or punctuation mark, and what comes after it does not matter (`## 缺口帳` matches, `## 產品化缺口與事故` does not) |
 | `planned_inline_marks` | the same for a single line |
 
 The list under `concept_requires_provenance` may name fields beside the ones
 yomihon defines, but not one that is built in or derived (`type`, `draft`,
 `tags`, `aliases`, `cssclasses`, `title`, `domain`) or that yomihon no longer
-defines: the contract is refused at load, because a concept would be let write
+defines: the rules file is refused at load, because a concept would be let write
 it with no finding.
 
-The last two keys are worth knowing exist, because a contract that omits them is
+The last two keys are worth knowing exist, because a rules file that omits them is
 loaded with defaults and they then look like product behaviour.
 [`names-and-links.md`](names-and-links.md) has the default words and what they
 do to a broken link; what this table adds is that they are yours to change, and
@@ -244,23 +244,23 @@ of this binds the reading pages: a person at this machine opens such a note the
 way they open any other.
 
 The behaviour to know before you debug anything: **this section is fail-closed
-and it is not optional in practice.** A contract with no `[privacy]` section has
+and it is not optional in practice.** A rules file with no `[privacy]` section has
 granted no permission, so `check`, `coverage` and `exists` all refuse to run at
 all, and exit 2. If your commands are refusing on a vault that otherwise looks
-healthy, look here first — and then at the rest of the contract, because every
-other way a contract can fail to load prints the same line. The startup log
+healthy, look here first — and then at the rest of the rules file, because every
+other way a rules file can fail to load prints the same line. The startup log
 names this one outright:
 
 ```
-level=WARN msg="vault contract policy unavailable" capability=privacy
-  reason="contract declares no privacy policy; agent-facing output disabled until it does"
+level=WARN msg="rules file policy unavailable" capability=privacy
+  reason="the rules file declares no privacy policy; agent-facing output disabled until it does"
 ```
 
 ## Keys the example never shows
 
-A contract carrying a key outside these tables is refused whole, `[privacy]`
+A rules file carrying a key outside these tables is refused whole, `[privacy]`
 excepted: an unknown key there leaves only the privacy policy unusable. Several
-optional keys are not in the example contract, and they are the ones a reader of
+optional keys are not in the example rules file, and they are the ones a reader of
 it would never learn exist: `[folders] ignored`, `skipped_files`,
 `frontmatter_optional` and `journal`; a type's `slug_pattern`; and the two
 `planned_*_marks` keys above, which change behaviour even when omitted.

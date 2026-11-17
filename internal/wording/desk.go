@@ -37,16 +37,6 @@ var (
 		"用你的編輯器在這個資料夾裡新增 .md 檔，就能開始閱讀；不需要規則檔。",
 		"Use your editor to add a .md file to this folder and start reading; no rules file is needed.",
 	)
-	// What an empty path or map listing without a contract says. Those modes
-	// need a declaration; browsing files does not.
-	IndexUngoverned = both(
-		"這個資料夾還沒有規則檔。",
-		"This folder has no rules file yet.",
-	)
-	IndexUngovernedNext = both(
-		"請新增 System/schemas/vault-schema.toml。",
-		"Add System/schemas/vault-schema.toml.",
-	)
 	// What an empty path or map listing says when the rules file is there and
 	// is written for another version. The page that can say which line to change
 	// is the desk, so this is the fact alone.

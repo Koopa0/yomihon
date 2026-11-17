@@ -157,18 +157,11 @@ func TestTheVaultTypedAsAScopeNamesTheWordToMove(t *testing.T) {
 // What the paragraph owes a reader is the fact they act on, so that is what is
 // asserted.
 //
-// unresolvedContractGuidance and absentContractGuidance are those facts, one
-// phrase each, chosen because a paragraph that lost one would leave the reader
-// without the next thing to do.
+// unresolvedContractGuidance is those facts, one phrase each, chosen because a
+// paragraph that lost one would leave the reader without the next thing to do.
 var unresolvedContractGuidance = []string{
 	"System/schemas/vault-schema.toml",
 	"yomihon serve",
-}
-
-var absentContractGuidance = []string{
-	"System/schemas/vault-schema.toml",
-	"declared nothing",
-	"yomihon <dir>",
 }
 
 // TestARefusalCarriesTheParagraphItsClassEarns is where the engine's classes
@@ -194,14 +187,6 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 		// wantSaid are the facts the paragraph under that line owes a reader.
 		wantSaid []string
 	}{
-		{
-			name:  "a folder carrying no contract",
-			build: func(t *testing.T) string { t.Helper(); return t.TempDir() },
-			wantLine: func(string) string {
-				return "yomihon: this folder has no rules file, so there is nothing to judge notes against"
-			},
-			wantSaid: absentContractGuidance,
-		},
 		{
 			name: "a contract that cannot be read",
 			build: func(t *testing.T) string {
@@ -311,65 +296,6 @@ func TestAVersionRefusalRepeatsNothingTheVaultWrote(t *testing.T) {
 				t.Errorf("the refusal never says the version is the problem:\n%s", stderr.String())
 			}
 		})
-	}
-}
-
-// TestANoContractRefusalNamesAPositionalThatIsItselfAVault holds the guidance
-// a reader is owed when the folder they stood in carries no contract but the
-// word they typed after check does. Before this, the refusal talked only
-// about the folder check opened and never mentioned the word the reader
-// typed, even from the folder above the reader's own vault, which is the
-// shape a reader most often hits this refusal from.
-//
-// This cannot run in parallel: it changes the process's working directory to
-// reproduce that shape exactly, a bare check with no --root, rather than one
-// told the vault directly.
-func TestANoContractRefusalNamesAPositionalThatIsItselfAVault(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, root, "examples/vault/"+schema.ContractRelPath, "# only checked for presence, never read\n")
-	t.Chdir(root)
-
-	var stdout, stderr bytes.Buffer
-	exit := runCommand(t.Context(), "check", []string{"--format=json", "examples/vault"}, &stdout, &stderr, false)
-
-	if exit != 2 {
-		t.Fatalf("exit = %d, want 2; stderr:\n%s", exit, stderr.String())
-	}
-	if stdout.Len() != 0 {
-		t.Errorf("stdout = %q, want empty", stdout.String())
-	}
-	assertRefusal(t, stderr.String(),
-		"yomihon: this folder has no rules file, so there is nothing to judge notes against",
-		append(append([]string{}, absentContractGuidance...),
-			"examples/vault carries a rules file of its own",
-			"--root examples/vault"))
-}
-
-// TestANoContractRefusalStaysSilentOnAnOrdinaryPositional is the negative
-// case beside it: a positional that exists as a folder, but carries no
-// contract of its own, is an ordinary scope filter, not a misplaced vault,
-// and earns no more than the paragraph every such refusal earns. Without this
-// case, a check that statted the positional itself rather than the contract
-// file under it would pass the sibling test just as well.
-func TestANoContractRefusalStaysSilentOnAnOrdinaryPositional(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, root, "notes/a.md", "not a contract\n")
-	t.Chdir(root)
-
-	var stdout, stderr bytes.Buffer
-	exit := runCommand(t.Context(), "check", []string{"--format=json", "notes"}, &stdout, &stderr, false)
-
-	if exit != 2 {
-		t.Fatalf("exit = %d, want 2; stderr:\n%s", exit, stderr.String())
-	}
-	if stdout.Len() != 0 {
-		t.Errorf("stdout = %q, want empty", stdout.String())
-	}
-	assertRefusal(t, stderr.String(),
-		"yomihon: this folder has no rules file, so there is nothing to judge notes against",
-		absentContractGuidance)
-	if strings.Contains(stderr.String(), "carries a rules file of its own") {
-		t.Error("an ordinary positional was described as a misplaced vault")
 	}
 }
 

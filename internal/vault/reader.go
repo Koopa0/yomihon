@@ -104,6 +104,9 @@ type Reader struct {
 	// is itself read through this Reader, so the boundary cannot be known when
 	// the Reader opens and is installed once the contract has been read.
 	boundary atomic.Pointer[Boundary]
+	// watch is the path every walk of this Reader notes the folders it enters
+	// for, once WatchFor has been asked.
+	watch atomic.Pointer[rulesWatch]
 }
 
 // File is an opened regular file selected through a Reader. Its descriptor
@@ -584,6 +587,7 @@ func (r *Reader) scan(ctx context.Context, completeness scanCompleteness) (Scan,
 		root:         r.root,
 		boundary:     boundary,
 		completeness: completeness,
+		watch:        r.watch.Load(),
 		seen:         make(map[string]string),
 		directories:  make(map[string]fs.FileInfo),
 		contains:     map[string]struct{}{".": {}},
@@ -650,6 +654,7 @@ type sourceWalk struct {
 	boundary     Boundary
 	ignore       ignoreRules
 	completeness scanCompleteness
+	watch        *rulesWatch
 	seen         map[string]string
 	directories  map[string]fs.FileInfo
 	contains     map[string]struct{}
@@ -667,6 +672,7 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 		return w.problem(raw, d, walkErr)
 	}
 	if raw == "." {
+		w.lookIn(".")
 		return nil
 	}
 	if hiddenName(d.Name()) {
@@ -692,6 +698,7 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 	if d.IsDir() {
 		w.directories[raw] = info
 		w.contains[canonical] = struct{}{}
+		w.lookIn(raw)
 		return nil
 	}
 	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
@@ -705,6 +712,14 @@ func (w *sourceWalk) visit(ctx context.Context, raw string, d fs.DirEntry, walkE
 	w.entries = append(w.entries, Entry{token: w.token, rawPath: raw, path: canonical, observed: observed})
 	w.contains[canonical] = struct{}{}
 	return nil
+}
+
+// lookIn has the reader's watch, if it has one, ask a directory this walk has
+// entered.
+func (w *sourceWalk) lookIn(dir string) {
+	if w.watch != nil {
+		w.watch.lookIn(w.root.FS(), dir)
+	}
 }
 
 // skipKind says which member of the closed set a directory entry falls in.

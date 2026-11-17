@@ -224,20 +224,25 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 		t.Fatalf("read schema fixture: %v", err)
 	}
 
-	ungoverned := wording.JoinGuide(wording.IndexUngoverned, wording.IndexUngovernedNext, wording.ZhHant)
 	for _, tt := range []struct {
 		name     string
 		files    map[string]string
 		path     string
 		mapState string
 		folder   string
+		// bareDesk is a desk that draws only the way in, because the folder has
+		// no rules file and holds no course or index.
+		bareDesk bool
 	}{
 		{
-			name:     "bare empty directory",
-			files:    nil,
-			path:     ungoverned,
-			mapState: ungoverned,
+			name:  "bare empty directory",
+			files: nil,
+			// The words are the built-in types a folder with no rules file is
+			// read by, which are not in any file this folder holds.
+			path:     fmt.Sprintf(wording.NoDeclaredTypesEmptyFmt.In(wording.ZhHant), "course、study-path"),
+			mapState: fmt.Sprintf(wording.NoDeclaredTypesEmptyFmt.In(wording.ZhHant), "index、map、moc"),
 			folder:   wording.JoinGuide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext, wording.ZhHant),
+			bareDesk: true,
 		},
 		{
 			name: "contract only",
@@ -277,20 +282,24 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 				name  string
 				fetch func() string
 				want  string
+				// apart is a block the desk does not draw at all here.
+				apart bool
 			}{
 				{
 					name: "desk paths",
 					fetch: func() string {
 						return deskBlockMarkup(t, readingPage(t, site, "/"), "courses")
 					},
-					want: tt.path,
+					want:  tt.path,
+					apart: tt.bareDesk,
 				},
 				{
 					name: "desk maps",
 					fetch: func() string {
 						return deskBlockMarkup(t, readingPage(t, site, "/"), "indexes")
 					},
-					want: tt.mapState,
+					want:  tt.mapState,
+					apart: tt.bareDesk,
 				},
 				{
 					name:  "path index",
@@ -317,6 +326,13 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 			} {
 				t.Run(surface.name, func(t *testing.T) {
 					t.Parallel()
+					if surface.apart {
+						mode := map[string]string{"desk paths": "courses", "desk maps": "indexes"}[surface.name]
+						if strings.Contains(readingPage(t, site, "/"), `data-home-block="`+mode+`"`) {
+							t.Errorf("the desk draws an empty %s block for a folder with no rules file", mode)
+						}
+						return
+					}
 					assertEmptyGuide(t, surface.name, surface.fetch(), surface.want)
 				})
 			}

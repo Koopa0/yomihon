@@ -1,7 +1,9 @@
 package schema
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"path"
 	"slices"
 	"strings"
@@ -13,7 +15,7 @@ import (
 // undeclaredPrivacyDiagnostic is said only about a contract that exists and
 // left the section out. Egress stays closed either way: permission is positive
 // authority and silence is not permission.
-const undeclaredPrivacyDiagnostic = "contract declares no privacy policy; agent-facing output disabled until it does"
+const undeclaredPrivacyDiagnostic = "the rules file declares no privacy policy; agent-facing output disabled until it does"
 
 const stalePrivacyDiagnostic = "vault privacy policy source changed after startup; agent-facing output disabled until restart"
 
@@ -44,7 +46,13 @@ type privacyPolicyState struct {
 	// quoting the contract: the section is missing, so there is nothing of the
 	// vault's own to quote.
 	undeclared bool
-	stale      atomic.Bool
+	// absence is the reader that found no rules file, set only on the policy
+	// of a folder that carries none. It is what ValidateSource asks again.
+	absence *vault.Reader
+	stale   atomic.Bool
+	// nearby is set with stale when the policy was withdrawn because a walk of
+	// the folder entered one that holds a rules file.
+	nearby atomic.Bool
 }
 
 // Claim reports how far the privacy declaration got.
@@ -68,6 +76,14 @@ func (p PrivacyPolicy) Available() bool {
 // repair — declaring the section — quotes nothing the vault wrote.
 func (p PrivacyPolicy) Undeclared() bool {
 	return p.state != nil && p.state.undeclared && !p.state.stale.Load()
+}
+
+// RulesFileNearby reports whether the policy was withdrawn because a folder the
+// command read holds a rules file, which the policy was taken without knowing:
+// the withheld ground it names is in the output already. It is the one
+// withdrawal a command may name, since it quotes nothing the vault wrote.
+func (p PrivacyPolicy) RulesFileNearby() bool {
+	return p.state != nil && p.state.nearby.Load()
 }
 
 // Trustworthy reports whether the never-egress set may be reasoned over.
@@ -142,6 +158,53 @@ func pathHasFoldedPrefix(rel, dir string) bool {
 	return true
 }
 
+// PrivacyWithoutRules is the policy of a folder in which reader found no rules
+// file: nothing is withheld, so every path may be said. It is not the zero
+// value, which stays unavailable for every other way a policy can be missing —
+// a rules file that could not be read withholds ground this process never
+// learned, and must go on withholding all of it. Only a reader's own lookup
+// finding nothing at the rules path may make this, and ValidateSource looks
+// again, so a rules file that appears while a command runs withdraws it.
+func PrivacyWithoutRules(reader *vault.Reader) PrivacyPolicy {
+	return PrivacyPolicy{state: &privacyPolicyState{claim: heldClaim(), absence: reader}}
+}
+
+// WithoutRules reports whether p is the policy of a folder that carries no
+// rules file, so a command can say that nothing is withheld because nothing was
+// declared.
+func (p PrivacyPolicy) WithoutRules() bool {
+	return p.state != nil && p.state.absence != nil && p.Available()
+}
+
+// revalidateAbsence asks again whether the rules file is still not there, at
+// the root and in every folder the reader's walks have entered since: those
+// walks are what the output was read from, so a vault moved in after the first
+// look and before they reached it is found here, in the listing that found its
+// notes.
+func (p PrivacyPolicy) revalidateAbsence() PrivacyPolicy {
+	_, err := p.state.absence.Lookup(ContractRelPath)
+	switch {
+	case err == nil:
+		// A rules file has appeared since this policy was taken. What it
+		// withholds is not known here, so nothing may go out under a policy that
+		// came before it.
+		p.state.stale.Store(true)
+		return p
+	case errors.Is(err, fs.ErrNotExist):
+	default:
+		return PrivacyPolicy{state: &privacyPolicyState{claim: unreadableClaim(err)}}
+	}
+	held, watchErr := p.state.absence.Watched()
+	switch {
+	case held:
+		p.state.nearby.Store(true)
+		p.state.stale.Store(true)
+	case watchErr != nil:
+		return PrivacyPolicy{state: &privacyPolicyState{claim: unreadableClaim(watchErr)}}
+	}
+	return p
+}
+
 // ValidateSource returns p only while the contract source it was derived from
 // is unchanged. Copies of one Contract share a one-way stale latch, so once any
 // consumer observes drift all agent-facing output stays unavailable. A source
@@ -151,6 +214,9 @@ func pathHasFoldedPrefix(rel, dir string) bool {
 func (p PrivacyPolicy) ValidateSource() PrivacyPolicy {
 	if p.state == nil || !p.state.claim.held() || p.state.stale.Load() {
 		return p
+	}
+	if p.state.absence != nil {
+		return p.revalidateAbsence()
 	}
 	same, err := p.state.source.reread()
 	if err != nil {

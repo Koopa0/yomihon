@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"sync"
 	"sync/atomic"
 
 	"github.com/koopa0/yomihon/internal/vault"
@@ -24,8 +25,8 @@ type NavigationRoles struct {
 type roleSets struct {
 	paths  map[string]struct{}
 	maps   map[string]struct{}
+	units  map[string]struct{}
 	answer string
-	lesson string
 }
 
 // Claim reports how far the navigation declaration got.
@@ -233,9 +234,35 @@ func deriveNavigationRoles(types []typeDefinition) NavigationRoles {
 			return invalidNavigationRoles("type %q has the unknown role %q", def.name, string(def.role))
 		}
 	}
-	sets.lesson = holders[RoleLesson]
+	if lesson := holders[RoleLesson]; lesson != "" {
+		sets.units = map[string]struct{}{lesson: {}}
+	}
 	sets.answer = holders[RoleThought]
 	return NavigationRoles{sets: &sets, claim: heldClaim()}
+}
+
+// builtInNavigationRoles are the type names a folder with no rules file is read
+// by. A note that calls itself a course, a unit, an index or a thought is one,
+// and the older words each of those has — study-path, lesson, moc, map — are
+// accepted beside them. A rules file replaces the whole set; it is never
+// merged into it.
+var builtInNavigationRoles = sync.OnceValue(func() NavigationRoles {
+	return NavigationRoles{
+		sets: &roleSets{
+			paths:  map[string]struct{}{"course": {}, "study-path": {}},
+			maps:   map[string]struct{}{"index": {}, "moc": {}, "map": {}},
+			units:  map[string]struct{}{"unit": {}, "lesson": {}},
+			answer: "thought",
+		},
+		claim: heldClaim(),
+	}
+})
+
+// noRulesArtifactPolicy is the artifact policy of a folder with no rules file:
+// it declares no template directory, so every readable note is an ordinary
+// instance. It is frozen because no file stands behind it to be re-read.
+func noRulesArtifactPolicy() ArtifactPolicy {
+	return ArtifactPolicy{state: &artifactPolicyState{claim: heldClaim(), frozen: true}}
 }
 
 func invalidNavigationRoles(format string, args ...any) NavigationRoles {

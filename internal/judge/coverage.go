@@ -73,13 +73,17 @@ func computeCoverage(notes []note, idx *graph.Index, authority scanAuthority) Co
 
 	conceptType, declared := authority.conceptType()
 	if !declared {
+		notApplicable := "the rules file declares no " + strconv.Quote(conceptType) +
+			" type, so there is no concept corpus to judge"
+		if authority.noRules() {
+			notApplicable = NoRulesFile + " There is no concept type to count."
+		}
 		return Coverage{
-			Domains:      []DomainCoverage{},
-			PendingMount: []string{},
-			Orphans:      []string{},
-			Unrouted:     unrouted,
-			NotApplicable: "the rules file declares no " + strconv.Quote(conceptType) +
-				" type, so there is no concept corpus to judge",
+			Domains:       []DomainCoverage{},
+			PendingMount:  []string{},
+			Orphans:       []string{},
+			Unrouted:      unrouted,
+			NotApplicable: notApplicable,
 		}
 	}
 

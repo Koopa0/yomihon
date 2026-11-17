@@ -42,9 +42,10 @@ var errWithheldCollision = errors.New(
 // which is why the coverage they buy cannot be had from the binary that drives
 // it. The parse seam exists because no third-party parser panics on demand.
 type actionHooks struct {
-	afterScan     func()
-	afterNoteRead func(string)
-	parseNote     func(rel string, data []byte, marks plannedMarks) note
+	afterAuthority func()
+	afterScan      func()
+	afterNoteRead  func(string)
+	parseNote      func(rel string, data []byte, marks plannedMarks) note
 }
 
 // action is one complete, pinned observation used by a judge command. The
@@ -87,6 +88,13 @@ func (a *action) unreadableRefusal() error {
 	return entryUnreadable(first.path, first.cause, a.authority)
 }
 
+// runHook calls a test's seam when it set one. Nothing in production does.
+func runHook(hook func()) {
+	if hook != nil {
+		hook()
+	}
+}
+
 func openAction(ctx context.Context, root string, hooks actionHooks) (*action, error) {
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -108,15 +116,14 @@ func openAction(ctx context.Context, root string, hooks actionHooks) (*action, e
 	if err != nil {
 		return nil, a.abort(err)
 	}
+	runHook(hooks.afterAuthority)
 	reader.SetBoundary(a.authority.contract.ScanBoundary())
 	a.scan, err = reader.ScanComplete(ctx)
 	if err != nil {
 		return nil, a.abort(scanStopped(err, a.authority))
 	}
 	a.authority.scan = a.scan
-	if hooks.afterScan != nil {
-		hooks.afterScan()
-	}
+	runHook(hooks.afterScan)
 	marks := plannedMarksFrom(a.authority.contract)
 	domains := a.authority.contract.Domains()
 	parse := parseNoteWithMarks
@@ -279,10 +286,9 @@ func (a *action) finish() error {
 // than a run that succeeds would.
 //
 // Authority that never loaded has nothing to recheck, and its own refusal is
-// what the caller is owed: a folder carrying no contract has to keep saying so
-// rather than report a privacy authority it never had.
+// what the caller is owed rather than a privacy authority it never had.
 func (a *action) abort(cause error) error {
-	if a.authority.contract != nil {
+	if a.authority.loaded {
 		if authorityErr := a.authority.validate(); authorityErr != nil {
 			cause = authorityErr
 		}
