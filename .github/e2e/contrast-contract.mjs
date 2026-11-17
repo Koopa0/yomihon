@@ -55,6 +55,11 @@ const SITES = [
 // style name: what a reader receives is the colour, and a name compared
 // against itself would hold while the wrong palette was being served.
 const DARK_KEYWORD = '#ff7b72';
+// What the dark theme still paints on a code block once operators and numbers
+// are the ink: the string colour the stylesheet takes from --code-string. The
+// highlighter's own dark keyword red is no longer drawn on screen, so it can
+// prove nothing about dark mode, but it still proves a dark palette reached paper.
+const DARK_STRING = '#a8cfac';
 
 // The token kinds a code block has to keep legible, each named by the classes
 // the highlighter writes for it. A measurement pass that never saw one of
@@ -1030,8 +1035,8 @@ try {
     if (await themeAttribute(page) !== 'dark') {
       fail('dark-code-aa', 'the theme the settings page chose did not survive navigation, so no dark reading was taken');
     }
-    if (!dark.some((m) => m.color === DARK_KEYWORD)) {
-      fail('dark-code-aa', `no measured token carried the dark palette's keyword colour ${DARK_KEYWORD}; the light palette is still painting this page`);
+    if (!dark.some((m) => m.color === DARK_STRING)) {
+      fail('dark-code-aa', `no measured token carried the dark string colour ${DARK_STRING}; the light palette is still painting this page`);
     }
     requireCoverage(dark, 'dark mode');
     requireAA('dark-code-aa', dark, 'dark mode');
@@ -1076,8 +1081,8 @@ try {
       fail('dark-code-persists', `with no script running the served page carried data-theme=${JSON.stringify(stamped)}, want "dark": the theme has to come from the server or the first paint is the wrong one`);
     }
     requireCoverage(served, 'dark mode without JavaScript');
-    if (!served.some((m) => m.color === DARK_KEYWORD)) {
-      fail('dark-code-persists', `with no script running no token carried the dark palette's keyword colour ${DARK_KEYWORD}`);
+    if (!served.some((m) => m.color === DARK_STRING)) {
+      fail('dark-code-persists', `with no script running no token carried the dark string colour ${DARK_STRING}`);
     }
     requireAA('dark-code-persists', served, 'dark mode without JavaScript');
     await quiet.close();
