@@ -32,25 +32,115 @@ import (
 // tests share a machine, and each counting up from the same port would meet.
 var nextBlock = func() *atomic.Int32 {
 	var first atomic.Int32
-	first.Store(int32(os.Getpid() % 800)) // #nosec G115 -- a number below 800
+	first.Store(int32(os.Getpid() % firstBlocks)) // #nosec G115 -- a number below firstBlocks
 	return &first
 }()
 
-const portsPerTest = 40
+const (
+	portsPerTest = 40
+	firstPort    = 20000
+	// firstBlocks is how many blocks a run can begin at. Blocks are used in
+	// order from there and must end below lastPort, the first port the system
+	// hands to a connection's own end, which any test's client can be given; a
+	// run draws far fewer than the blocks left above where it begins.
+	firstBlocks = 500
+	lastPort    = 49000
+)
 
 // someFreePort is the starting port for a test, with the forty above it left to
-// that test alone. It is one nothing holds now.
+// that test alone. Every port of the block is one nothing holds now.
 func someFreePort(t *testing.T) int {
 	t.Helper()
 	for {
-		port := 20000 + portsPerTest*int(nextBlock.Add(1))
-		if port+portsPerTest > 65000 {
+		port := firstPort + portsPerTest*int(nextBlock.Add(1))
+		if port+portsPerTest > lastPort {
 			t.Fatal("no block of ports is left for this test")
 		}
-		if portFree(t.Context(), port) {
+		if !blockFree(t.Context(), port) {
+			continue
+		}
+		if release, ok := claimBlock(port); ok {
+			t.Cleanup(release)
 			return port
 		}
 	}
+}
+
+// staleClaim is how long a claim on a block stands before it is taken to be one a
+// run that was killed left behind.
+const staleClaim = 20 * time.Minute
+
+// claimDir is where the claims are made: the user's temporary directory, which
+// every run of the tests by that user on the machine shares.
+func claimDir() string { return filepath.Join(os.TempDir(), "yomihon-test-ports") }
+
+// claimBlock records, where every run of these tests on this machine can see it,
+// that this run has the block that starts at port. Another run that is using
+// its blocks at the same time, as several do on a machine that several people
+// work on, then takes another block instead of the same ports. A directory is made
+// for it because making one either succeeds or does not, whoever else is making it.
+// Where nothing can be recorded the block is used unclaimed.
+func claimBlock(port int) (release func(), ok bool) {
+	dir := claimDir()
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return func() {}, true
+	}
+	claim := filepath.Join(dir, strconv.Itoa(port))
+	for range 2 {
+		err := os.Mkdir(claim, 0o750)
+		if err == nil {
+			return func() { _ = os.Remove(claim) }, true //nolint:errcheck // a claim that stays is taken over when it is stale
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return func() {}, true
+		}
+		if info, statErr := os.Stat(claim); statErr == nil && time.Since(info.ModTime()) < staleClaim {
+			return nil, false
+		}
+		_ = os.Remove(claim) //nolint:errcheck // another run may have taken it over first, and then this one asks again
+	}
+	return nil, false
+}
+
+// blockFree says whether nothing holds any port of the block that starts at port.
+func blockFree(ctx context.Context, port int) bool {
+	for offset := range portsPerTest {
+		if !portFree(ctx, port+offset) {
+			return false
+		}
+	}
+	return true
+}
+
+// A block one run has is not given to another, until the first lets go of it or
+// is old enough to have been killed.
+func TestABlockOfPortsOneRunHasIsNotGivenToAnotherRun(t *testing.T) {
+	t.Parallel()
+	port := 100000 + os.Getpid() // not a port, so no block of a real test is touched
+	release, ok := claimBlock(port)
+	if !ok {
+		t.Fatal("a block nobody has was not given")
+	}
+	if _, again := claimBlock(port); again {
+		t.Error("a block that is claimed was given again")
+	}
+	release()
+	release, ok = claimBlock(port)
+	if !ok {
+		t.Fatal("a block that was let go of was not given")
+	}
+	defer release()
+
+	claim := filepath.Join(claimDir(), strconv.Itoa(port))
+	old := time.Now().Add(-2 * staleClaim)
+	if err := os.Chtimes(claim, old, old); err != nil {
+		t.Fatal(err)
+	}
+	release2, ok := claimBlock(port)
+	if !ok {
+		t.Fatal("a claim old enough to be a killed run's was not taken over")
+	}
+	release2()
 }
 
 // holder binds port on this machine's loopback and holds it until the test ends,
