@@ -46,6 +46,9 @@ var ErrStartPort = errors.New("the starting port must be an integer from 1 to 65
 // ErrNoPort means every port from the starting one up is taken.
 var ErrNoPort = errors.New("no free port from the starting port up")
 
+// ErrPortTaken means another vault in the list is served on that port.
+var ErrPortTaken = errors.New("another vault is on that port")
+
 // ErrFull means the list holds as many vaults as it will.
 var ErrFull = errors.New("the list of vaults is full")
 

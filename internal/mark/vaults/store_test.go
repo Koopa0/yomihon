@@ -738,3 +738,96 @@ func TestTheListWritesNothingOutsideItsOwnDirectoryUnderTheConfigurationDirector
 		t.Fatal("nothing was written under the reader's own directory, so this saw none of what the list does")
 	}
 }
+
+func TestTheFirstVaultMovesToTheStartingPortWhenNoVaultIsOnIt(t *testing.T) {
+	t.Parallel()
+	s, _ := storeIn(t, t.TempDir(), nil)
+	first := mustAdd(t, s, folder(t, "a"))
+	second := mustAdd(t, s, folder(t, "b"))
+
+	// The reader starts yomihon with another starting port.
+	moved, ok, err := s.Anchor(9000)
+	if err != nil || !ok || moved.ID != first.ID || moved.Port != 9000 {
+		t.Fatalf("Anchor(9000) = %+v, %v, %v; want the first vault moved to 9000", moved, ok, err)
+	}
+	list, err := s.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ports := map[string]int{}
+	for _, e := range list {
+		ports[e.ID] = e.Port
+	}
+	if ports[first.ID] != 9000 || ports[second.ID] != second.Port {
+		t.Fatalf("ports after Anchor = %v, want the first on 9000 and the second where it was, %d", ports, second.Port)
+	}
+	if _, ok, err := s.Anchor(9000); err != nil || ok {
+		t.Fatalf("Anchor(9000) again = ok %v, %v; want nothing to move", ok, err)
+	}
+	if _, ok, err := s.Anchor(second.Port); err != nil || ok {
+		t.Fatalf("Anchor on a port a vault holds = ok %v, %v; want nothing to move", ok, err)
+	}
+}
+
+func TestAnchorOfAnEmptyListOrAnImpossiblePort(t *testing.T) {
+	t.Parallel()
+	s, _ := storeIn(t, t.TempDir(), nil)
+	if _, ok, err := s.Anchor(startPort); err != nil || ok {
+		t.Fatalf("Anchor of an empty list = ok %v, %v; want nothing to move", ok, err)
+	}
+	for _, start := range []int{0, 65536} {
+		if _, _, err := s.Anchor(start); !errors.Is(err, ErrStartPort) {
+			t.Errorf("Anchor(%d) = %v, want ErrStartPort", start, err)
+		}
+	}
+}
+
+func TestSetPortMovesAVaultButNotOntoAnotherVaultsPort(t *testing.T) {
+	t.Parallel()
+	s, _ := storeIn(t, t.TempDir(), nil)
+	a := mustAdd(t, s, folder(t, "a"))
+	b := mustAdd(t, s, folder(t, "b"))
+
+	if err := s.SetPort(b.ID, 9100); err != nil {
+		t.Fatalf("SetPort: %v", err)
+	}
+	if err := s.SetPort(b.ID, a.Port); !errors.Is(err, ErrPortTaken) {
+		t.Errorf("SetPort onto another vault's port = %v, want ErrPortTaken", err)
+	}
+	if err := s.SetPort(confdir.VaultID("/never/seen"), 9101); !errors.Is(err, ErrUnknown) {
+		t.Errorf("SetPort of an unknown id = %v, want ErrUnknown", err)
+	}
+	if err := s.SetPort(b.ID, 0); !errors.Is(err, ErrStartPort) {
+		t.Errorf("SetPort(0) = %v, want ErrStartPort", err)
+	}
+	list, _ := s.List() //nolint:errcheck // asserted on below
+	for _, e := range list {
+		if e.ID == b.ID && e.Port != 9100 {
+			t.Errorf("the vault is on %d, want 9100", e.Port)
+		}
+	}
+}
+
+func TestRebindTakesTheNextPortNoVaultHoldsAndNothingElseHolds(t *testing.T) {
+	t.Parallel()
+	taken := map[int]bool{startPort + 2: true}
+	s, _ := storeIn(t, t.TempDir(), func(port int) bool { return !taken[port] })
+	a := mustAdd(t, s, folder(t, "a")) // 8800
+	b := mustAdd(t, s, folder(t, "b")) // 8801
+	c := mustAdd(t, s, folder(t, "c")) // 8803: 8802 is held by something else
+	if a.Port != startPort || b.Port != startPort+1 || c.Port != startPort+3 {
+		t.Fatalf("setup: ports %d, %d, %d", a.Port, b.Port, c.Port)
+	}
+
+	// Something took the first vault's port while yomihon was not running.
+	moved, err := s.Rebind(a.ID)
+	if err != nil {
+		t.Fatalf("Rebind: %v", err)
+	}
+	if moved.Port != startPort+4 {
+		t.Fatalf("Rebind moved the vault to %d, want %d: past 8801 and 8803, which vaults hold, and 8802, which something else does", moved.Port, startPort+4)
+	}
+	if _, err := s.Rebind(confdir.VaultID("/never/seen")); !errors.Is(err, ErrUnknown) {
+		t.Errorf("Rebind of an unknown id = %v, want ErrUnknown", err)
+	}
+}

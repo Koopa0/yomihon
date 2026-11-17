@@ -251,6 +251,76 @@ func (s *Store) Restore(id string) (Entry, error) {
 	return back, nil
 }
 
+// Anchor makes sure some vault answers on the starting port. The running
+// process always holds that port, because it is how the command line tells a
+// running yomihon from another program, so if no vault is on it the first vault
+// in the list moves there. It answers the vault it moved, and false when none
+// had to move.
+func (s *Store) Anchor(start int) (moved Entry, ok bool, err error) {
+	if start < 1 || start > maxPort {
+		return Entry{}, false, ErrStartPort
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	err = s.update(func(list []Entry) ([]Entry, bool, error) {
+		if len(list) == 0 || slices.ContainsFunc(list, func(e Entry) bool { return e.Port == start }) {
+			return list, false, nil
+		}
+		list[0].Port = start
+		moved, ok = list[0], true
+		return list, true, nil
+	})
+	return moved, ok, err
+}
+
+// SetPort says that the vault is served on port. The process that serves a
+// vault the reader forgotten and added again keeps its port, and the list is made
+// to say so. Another vault's port is refused.
+func (s *Store) SetPort(id string, port int) error {
+	if port < 1 || port > maxPort {
+		return ErrStartPort
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.update(func(list []Entry) ([]Entry, bool, error) {
+		i := indexOf(list, id)
+		if i < 0 {
+			return nil, false, ErrUnknown
+		}
+		if list[i].Port == port {
+			return list, false, nil
+		}
+		if slices.ContainsFunc(list, func(e Entry) bool { return e.Port == port }) {
+			return nil, false, ErrPortTaken
+		}
+		list[i].Port = port
+		return list, true, nil
+	})
+}
+
+// Rebind moves a vault whose port something else has taken to the first free
+// port above it, and writes the new port down. It answers the vault as it is
+// now.
+func (s *Store) Rebind(id string) (Entry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var moved Entry
+	err := s.update(func(list []Entry) ([]Entry, bool, error) {
+		i := indexOf(list, id)
+		if i < 0 {
+			return nil, false, ErrUnknown
+		}
+		port, portErr := s.choosePort(list, list[i].Port+1)
+		if portErr != nil {
+			return nil, false, portErr
+		}
+		list[i].Port = port
+		moved = list[i]
+		return list, true, nil
+	})
+	return moved, err
+}
+
 // choosePort is the first port from `from` up that no listed vault holds and
 // that free allows.
 func (s *Store) choosePort(list []Entry, from int) (int, error) {
