@@ -57,14 +57,6 @@ var osWriteFamilies = []string{
 // these are matched on the name alone — which over-reports rather than
 // under-reports, and an over-report is a line somebody reads.
 //
-// The one exception is a receiver the file itself shows to come from a package
-// under a writing tree (shownToComeFromAWriter): a call on it reaches code that
-// this same walk judges where it is written, and that code may write only
-// through the tree that is allowed to. Nothing else is excused, however
-// plausible: a receiver of another package, an interface, a local type, or a
-// value whose origin the file does not show is still read as the write its
-// name says.
-//
 // Write, WriteString and Truncate are absent, and their absence is the one
 // judgement in this list. They are how every in-memory builder and buffer in
 // the standard library is filled, so including them reported a dozen lines
@@ -119,6 +111,29 @@ func mayWrite(path string) bool {
 		}
 	}
 	return false
+}
+
+// listRemoval is the one call outside the writing package that a name alone
+// reads as a write and is not one: the command that takes a vault out of the
+// list the reader keeps, through the store that keeps it, which writes only
+// under the reader's own configuration directory.
+//
+// It is named by file, by the function it is made in, by the call, and by the
+// receiver, which has to be that function's own parameter of the store's type.
+// It holds only while its file imports nothing that writes and rebinds no name
+// the call goes through. A name is all a syntax walk can read, so it cannot
+// carry a rule about types; the exception is one call it can be shown to stand
+// on, and TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles fails when
+// it matches nothing, because an exception that names nothing hides the next
+// file that copies it. Reading types, which removes it, is a pull request of
+// its own.
+var listRemoval = struct{ file, function, receiver, typeName, method, storePackage string }{
+	file:         "cmd/yomihon/vaults.go",
+	function:     "removeVault",
+	receiver:     "store",
+	typeName:     "Store",
+	method:       "Remove",
+	storePackage: module + "/internal/mark/vaults",
 }
 
 // openFileArity is how many arguments the filesystem's OpenFile takes, in both
@@ -191,7 +206,7 @@ func openFileWrites(call *ast.CallExpr) (writes, resolved bool) {
 // Import names are resolved first, for the reason the outbound check already
 // gives: a file reaching os under another name writes calls no fixed spelling
 // would recognise, and one that dot-imports it hides them entirely.
-func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site, permitted int) {
+func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site, permitted, excused int) {
 	// Which local name binds to which of the packages that reach the
 	// filesystem. A file reaching one under another name writes calls no fixed
 	// spelling would recognise, and one that dot-imports it hides them
@@ -203,20 +218,28 @@ func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site,
 	// A type is always reached through a package name and a bound method never
 	// is, so knowing which qualifiers are packages is what tells them apart.
 	packageName := map[string]bool{}
-	// The local names bound to a package under a writing tree.
-	fromWriter := map[string]bool{}
+	// storeName is the name this file calls the list's package by, and writers
+	// is whether it imports anything that writes, however it is named: the
+	// exception for the list holds only while this is false.
+	storeName, writers := "", false
 	for _, imp := range file.Imports {
 		canonical, err := strconv.Unquote(imp.Path.Value)
 		if err != nil {
 			continue
 		}
-		local := canonical[strings.LastIndexByte(canonical, '/')+1:]
-		if imp.Name != nil {
-			local = imp.Name.Name
+		if canonical == "os" || lowLevelPackages[canonical] {
+			writers = true
 		}
-		packageName[local] = true
-		if inWritingTree(canonical) && local != "." && local != "_" {
-			fromWriter[local] = true
+		if canonical == listRemoval.storePackage {
+			storeName = canonical[strings.LastIndexByte(canonical, '/')+1:]
+			if imp.Name != nil {
+				storeName = imp.Name.Name
+			}
+		}
+		if imp.Name != nil {
+			packageName[imp.Name.Name] = true
+		} else {
+			packageName[canonical[strings.LastIndexByte(canonical, '/')+1:]] = true
 		}
 		if canonical != "os" && !lowLevelPackages[canonical] {
 			continue
@@ -237,11 +260,9 @@ func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site,
 		}
 	}
 
-	origins := writerOrigins(file, fromWriter)
-	fromAWriter := func(receiver ast.Expr) bool {
-		return shownToComeFromAWriter(receiver, fromWriter, origins, packageName)
+	listed := func(call *ast.CallExpr) bool {
+		return path == listRemoval.file && !writers && storeName != "" && removesFromTheList(file, call, storeName)
 	}
-
 	record := func(pos token.Pos, what string) {
 		if mayWrite(path) {
 			permitted++
@@ -269,7 +290,7 @@ func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site,
 			switch {
 			case writesByName(pkg, name):
 				record(selector.Pos(), qualifierOf(selector)+"."+name+", referenced as a value")
-			case !qualifierIsPackage(selector, packageName) && slices.Contains(methodWrites, selector.Sel.Name) && !fromAWriter(selector.X):
+			case !qualifierIsPackage(selector, packageName) && slices.Contains(methodWrites, selector.Sel.Name):
 				record(selector.Pos(), "a reference to "+selector.Sel.Name+", which changes what it is called on")
 			}
 			return true
@@ -312,189 +333,103 @@ func writeSites(path string, fset *token.FileSet, file *ast.File) (found []site,
 		switch {
 		case throughOS && hasPrefixIn(name, osWriteFamilies):
 			record(selector.Pos(), qualifier.Name+"."+name)
-		case !throughOS && slices.Contains(methodWrites, name) && !fromAWriter(selector.X):
+		case !throughOS && slices.Contains(methodWrites, name) && listed(call):
+			excused++
+		case !throughOS && slices.Contains(methodWrites, name):
 			record(selector.Pos(), "a call to "+name+", which changes what it is called on")
 		}
 		return true
 	})
-	return found, permitted
+	return found, permitted, excused
 }
 
-// inWritingTree reports whether an import path is a package under one of the
-// trees that may write. The set comes from writingPackages and this module's
-// own path, so a tree added there is excused here without a second list, and a
-// package that only shares a prefix with one — internal/markdown against
-// internal/mark — is not.
-func inWritingTree(importPath string) bool {
-	for _, tree := range writingPackages {
-		if strings.HasPrefix(importPath+"/", module+"/"+tree) {
-			return true
+// removesFromTheList reports whether call is the call listRemoval names: its
+// method on its receiver, made in its function, where the receiver is that
+// function's parameter of the store's type and nothing in the function binds
+// the name again.
+func removesFromTheList(file *ast.File, call *ast.CallExpr, storeName string) bool {
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != listRemoval.method {
+		return false
+	}
+	receiver, ok := selector.X.(*ast.Ident)
+	if !ok || receiver.Name != listRemoval.receiver {
+		return false
+	}
+	for _, decl := range file.Decls {
+		fn, isFunc := decl.(*ast.FuncDecl)
+		if !isFunc || fn.Name.Name != listRemoval.function || fn.Recv != nil || fn.Body == nil {
+			continue
+		}
+		if call.Pos() < fn.Body.Pos() || call.End() > fn.Body.End() {
+			continue
+		}
+		return takesStore(fn, storeName) && !rebinds(fn.Body, listRemoval.receiver)
+	}
+	return false
+}
+
+// takesStore reports whether fn has a parameter named as the receiver and typed
+// as a pointer to the list's store.
+func takesStore(fn *ast.FuncDecl, storeName string) bool {
+	for _, param := range fn.Type.Params.List {
+		star, isStar := param.Type.(*ast.StarExpr)
+		if !isStar {
+			continue
+		}
+		typ, isSelector := star.X.(*ast.SelectorExpr)
+		if !isSelector || typ.Sel.Name != listRemoval.typeName {
+			continue
+		}
+		if pkg, isIdent := typ.X.(*ast.Ident); !isIdent || pkg.Name != storeName {
+			continue
+		}
+		for _, name := range param.Names {
+			if name.Name == listRemoval.receiver {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-// writerOrigins says, for every name the file declares as a variable, whether
-// every one of its declarations is shown to come from a writing tree: a
-// parameter, result or var of a type spelled through such a package, or a name
-// bound to a call of one of its functions, to its composite literal, or to a
-// new of its type. A name declared even once in a way the file does not show —
-// a range variable, a type switch, a local type, a package of another tree —
-// is not in the set, and nor is a name the file does not declare, such as a
-// field or a variable of another file of the package. Declarations are
-// gathered across the whole file rather than by scope, so a name declared
-// differently in two functions is judged by its weaker declaration.
-func writerOrigins(file *ast.File, fromWriter map[string]bool) map[string]bool {
-	allFromWriter := map[string]bool{}
-	declare := func(name string, fromTree bool) {
-		if name == "_" {
-			return
-		}
-		if seen, declared := allFromWriter[name]; declared {
-			allFromWriter[name] = seen && fromTree
-			return
-		}
-		allFromWriter[name] = fromTree
-	}
-	fields := func(list *ast.FieldList) {
-		if list == nil {
-			return
-		}
-		for _, field := range list.List {
-			for _, name := range field.Names {
-				declare(name.Name, typeFromWriter(field.Type, fromWriter))
-			}
-		}
-	}
-	ast.Inspect(file, func(n ast.Node) bool {
+// rebinds reports whether body declares or assigns a name again, so that a
+// parameter read at the top of a function is no longer what is called at the
+// bottom.
+func rebinds(body *ast.BlockStmt, name string) bool {
+	again := false
+	ast.Inspect(body, func(n ast.Node) bool {
 		switch node := n.(type) {
-		case *ast.FuncDecl:
-			fields(node.Recv)
-		case *ast.FuncType:
-			fields(node.Params)
-			fields(node.Results)
-		case *ast.ValueSpec:
-			for i, name := range node.Names {
-				switch {
-				case node.Type != nil:
-					declare(name.Name, typeFromWriter(node.Type, fromWriter))
-				case len(node.Values) == len(node.Names):
-					declare(name.Name, exprFromWriter(node.Values[i], fromWriter))
-				case len(node.Values) == 1:
-					declare(name.Name, exprFromWriter(node.Values[0], fromWriter))
-				default:
-					declare(name.Name, false)
-				}
-			}
 		case *ast.AssignStmt:
-			if node.Tok != token.DEFINE {
-				return true
-			}
-			for i, lhs := range node.Lhs {
-				name, isIdent := lhs.(*ast.Ident)
-				if !isIdent {
-					continue
+			for _, lhs := range node.Lhs {
+				if id, ok := lhs.(*ast.Ident); ok && id.Name == name {
+					again = true
 				}
-				switch {
-				case len(node.Rhs) == len(node.Lhs):
-					declare(name.Name, exprFromWriter(node.Rhs[i], fromWriter))
-				case len(node.Rhs) == 1:
-					declare(name.Name, exprFromWriter(node.Rhs[0], fromWriter))
-				default:
-					declare(name.Name, false)
+			}
+		case *ast.ValueSpec:
+			for _, id := range node.Names {
+				if id.Name == name {
+					again = true
 				}
 			}
 		case *ast.RangeStmt:
-			if node.Tok != token.DEFINE {
-				return true
+			for _, e := range []ast.Expr{node.Key, node.Value} {
+				if id, ok := e.(*ast.Ident); ok && id.Name == name {
+					again = true
+				}
 			}
-			for _, expr := range []ast.Expr{node.Key, node.Value} {
-				if name, isIdent := expr.(*ast.Ident); isIdent {
-					declare(name.Name, false)
+		case *ast.FuncLit:
+			for _, param := range node.Type.Params.List {
+				for _, id := range param.Names {
+					if id.Name == name {
+						again = true
+					}
 				}
 			}
 		}
 		return true
 	})
-	return allFromWriter
-}
-
-// typeFromWriter reports whether a type expression is spelled through a package
-// under a writing tree, behind any pointers, parentheses and type arguments.
-func typeFromWriter(expr ast.Expr, fromWriter map[string]bool) bool {
-	for {
-		switch node := expr.(type) {
-		case *ast.StarExpr:
-			expr = node.X
-		case *ast.ParenExpr:
-			expr = node.X
-		case *ast.IndexExpr:
-			expr = node.X
-		case *ast.IndexListExpr:
-			expr = node.X
-		case *ast.SelectorExpr:
-			qualifier, isIdent := node.X.(*ast.Ident)
-			return isIdent && fromWriter[qualifier.Name]
-		default:
-			return false
-		}
-	}
-}
-
-// exprFromWriter reports whether an expression is shown to produce a value of a
-// writing tree: a call of one of its functions, a literal of one of its types,
-// or a new of one, behind an address-of or parentheses. It reads the spelling
-// and not the result type, so a function of the tree that returned a handle on
-// the filesystem would pass here; that is what the tree being the only place
-// allowed to write is trusted not to do.
-func exprFromWriter(expr ast.Expr, fromWriter map[string]bool) bool {
-	for {
-		switch node := expr.(type) {
-		case *ast.ParenExpr:
-			expr = node.X
-		case *ast.UnaryExpr:
-			if node.Op != token.AND {
-				return false
-			}
-			expr = node.X
-		case *ast.CompositeLit:
-			return node.Type != nil && typeFromWriter(node.Type, fromWriter)
-		case *ast.CallExpr:
-			switch fun := node.Fun.(type) {
-			case *ast.SelectorExpr:
-				qualifier, isIdent := fun.X.(*ast.Ident)
-				return isIdent && fromWriter[qualifier.Name]
-			case *ast.Ident:
-				return fun.Name == "new" && len(node.Args) == 1 && typeFromWriter(node.Args[0], fromWriter)
-			default:
-				return false
-			}
-		default:
-			return false
-		}
-	}
-}
-
-// shownToComeFromAWriter reports whether the receiver of a method is shown, by
-// this file alone, to be a value of a writing tree: a variable every one of
-// whose declarations is (writerOrigins), or the result of a call of its
-// functions. A package name is not a receiver, and neither is a field or a
-// chain of them: what the file does not show is not assumed.
-func shownToComeFromAWriter(receiver ast.Expr, fromWriter, origins, packageName map[string]bool) bool {
-	for {
-		switch node := receiver.(type) {
-		case *ast.ParenExpr:
-			receiver = node.X
-		case *ast.StarExpr:
-			receiver = node.X
-		case *ast.Ident:
-			return origins[node.Name] && !packageName[node.Name]
-		case *ast.CallExpr:
-			return exprFromWriter(node, fromWriter)
-		default:
-			return false
-		}
-	}
+	return again
 }
 
 // selected reports the canonical package and symbol a selector names, for a
@@ -572,8 +507,10 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 
 	var found []site
 	permitted := map[string]int{}
+	excusedCalls := 0
 	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
-		sites, allowed := writeSites(path, fset, file)
+		sites, allowed, excused := writeSites(path, fset, file)
+		excusedCalls += excused
 		found = append(found, sites...)
 		if allowed > 0 {
 			for _, pkg := range writingPackages {
@@ -590,6 +527,13 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 		if permitted[pkg] == 0 {
 			t.Fatalf("no write was seen in %s, so this walk never reached the package it is meant to permit", pkg)
 		}
+	}
+	// The exception names one call. It matching nothing means the call moved and
+	// the exception now excuses a file for nothing; matching more than one means
+	// it has been widened past the call it was made for.
+	if excusedCalls != 1 {
+		t.Fatalf("the exception for taking a vault out of the list excused %d calls in %s, want exactly 1; it names the call %s.%s in %s",
+			excusedCalls, listRemoval.file, listRemoval.receiver, listRemoval.method, listRemoval.function)
 	}
 	t.Logf("examined the shipped tree and found writes in %d permitted packages: %v", len(permitted), permitted)
 	report(t, "this changes the filesystem, and yomihon writes in exactly one place, outside the vault: the reader's own marks files", found)
@@ -699,6 +643,8 @@ var writeGuardFixtures = []struct {
 	src   string
 	want  []string
 	clean bool
+	// excused is how many calls the list's exception is expected to excuse.
+	excused int
 }{
 	{
 		name: "a plain write from a third package",
@@ -848,134 +794,106 @@ func save(name string, data []byte) error { return os.WriteFile(name, data, 0o60
 		clean: true,
 	},
 	{
-		name: "Remove on a vaults store a parameter names, from outside the tree",
+		name: "the one call the list's exception names",
 		path: "cmd/yomihon/vaults.go",
 		src: `package main
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-func forget(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }`,
-		clean: true,
+func removeVault(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }`,
+		clean:   true,
+		excused: 1,
 	},
 	{
-		name: "Remove on a store a function of the tree returned, under another import name",
-		path: "cmd/yomihon/vaults.go",
-		src: `package main
-import v "github.com/koopa0/yomihon/internal/mark/vaults"
-func forget(dir, id string) error {
-	store, err := v.Open(dir, nil)
-	if err != nil {
-		return err
-	}
-	drop := store.Remove
-	_, err = drop(id)
-	return err
-}`,
-		clean: true,
-	},
-	{
-		name: "Remove straight on the result of a call of the tree",
+		name: "another function of that file calling Remove on a package-level handle another file declares",
 		path: "cmd/yomihon/vaults.go",
 		src: `package main
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-func forget(dir, id string) error { s, _ := vaults.Open(dir, nil); _, err := (*s).Remove(id); return err }`,
-		clean: true,
+func removeVault(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }
+func wipe(name string) error { return store.Remove(name) }`,
+		want:    []string{"a call to Remove, which changes what it is called on"},
+		excused: 1,
 	},
 	{
-		name: "os.Remove outside the tree",
-		path: "cmd/yomihon/vaults.go",
-		src: `package main
-import "os"
-func forget(path string) error { return os.Remove(path) }`,
-		want: []string{"os.Remove"},
-	},
-	{
-		name: "Remove on an *os.Root outside the tree",
-		path: "cmd/yomihon/vaults.go",
-		src: `package main
-import "os"
-func forget(root *os.Root, name string) error { return root.Remove(name) }`,
-		want: []string{"a call to Remove, which changes what it is called on"},
-	},
-	{
-		name: "os.WriteFile in a package that sits beside the tree",
-		path: "internal/markdown/save.go",
-		src: `package markdown
-import "os"
-func save(name string, data []byte) error { return os.WriteFile(name, data, 0o600) }`,
-		want: []string{"os.WriteFile"},
-	},
-	{
-		name: "Remove on a local type outside the tree",
-		path: "internal/note/index.go",
-		src: `package note
-type index struct{ ids map[string]bool }
-func (i *index) Remove(id string) { delete(i.ids, id) }
-func drop(i *index, id string) { i.Remove(id) }`,
-		want: []string{"a call to Remove, which changes what it is called on"},
-	},
-	{
-		name: "Remove on a type of another package",
-		path: "cmd/yomihon/vaults.go",
-		src: `package main
-import "github.com/koopa0/yomihon/internal/vault"
-func forget(r *vault.Reader, name string) error { return r.Remove(name) }`,
-		want: []string{"a call to Remove, which changes what it is called on"},
-	},
-	{
-		name: "Remove on a package whose path only starts like the tree's",
-		path: "cmd/yomihon/vaults.go",
-		src: `package main
-import "github.com/koopa0/yomihon/internal/markdown"
-func forget(s *markdown.Store, id string) error { return s.Remove(id) }`,
-		want: []string{"a call to Remove, which changes what it is called on"},
-	},
-	{
-		name: "Remove on an interface of another package",
-		path: "cmd/yomihon/vaults.go",
-		src: `package main
-import "io/fs"
-type remover interface{ Remove(string) error }
-func forget(r remover, name string) error { return r.Remove(name) }
-var _ fs.FS`,
-		want: []string{"a call to Remove, which changes what it is called on"},
-	},
-	{
-		name: "Remove on a receiver whose origin the file does not show",
-		path: "cmd/yomihon/vaults.go",
-		src: `package main
-func forget(name string) error { return held.Remove(name) }`,
-		want: []string{"a call to Remove, which changes what it is called on"},
-	},
-	{
-		name: "Remove on a field, which the file does not show the type of",
+		name: "the same call in another file",
 		path: "cmd/yomihon/host.go",
 		src: `package main
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-type host struct{ store *vaults.Store }
-func (h *host) forget(id string) error { _, err := h.store.Remove(id); return err }`,
+func removeVault(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }`,
 		want: []string{"a call to Remove, which changes what it is called on"},
 	},
 	{
-		name: "one name declared as a store in one function and a root in another",
+		name: "the same call in a file that imports a package that writes",
 		path: "cmd/yomihon/vaults.go",
 		src: `package main
 import (
 	"os"
 	"github.com/koopa0/yomihon/internal/mark/vaults"
 )
-func first(store *vaults.Store, id string) error { _, err := store.Remove(id); return err }
-func second(store *os.Root, name string) error { return store.Remove(name) }`,
+func removeVault(store *vaults.Store, id string) error { _, err := store.Remove(id); _ = os.Args; return err }`,
 		want: []string{"a call to Remove, which changes what it is called on"},
 	},
 	{
-		name: "a store the loop gave, which the file does not show the origin of",
+		name: "the receiver bound again before the call",
 		path: "cmd/yomihon/vaults.go",
 		src: `package main
 import "github.com/koopa0/yomihon/internal/mark/vaults"
-func forget(all []*vaults.Store, id string) {
-	for _, store := range all {
-		_, _ = store.Remove(id)
-	}
+func removeVault(store *vaults.Store, id string) error {
+	store, _ = elsewhere()
+	_, err := store.Remove(id)
+	return err
 }`,
+		want: []string{"a call to Remove, which changes what it is called on"},
+	},
+	{
+		name: "the receiver typed as an interface of the list's package, not its store",
+		path: "cmd/yomihon/vaults.go",
+		src: `package main
+import "github.com/koopa0/yomihon/internal/mark/vaults"
+func removeVault(store vaults.Remover, id string) error { _, err := store.Remove(id); return err }`,
+		want: []string{"a call to Remove, which changes what it is called on"},
+	},
+	{
+		name: "a local value shadowing the package name, reaching a handle that writes",
+		path: "cmd/yomihon/vaults.go",
+		src: `package main
+import "github.com/koopa0/yomihon/internal/mark/vaults"
+func removeVault(store *vaults.Store, id string) error {
+	_, err := store.Remove(id)
+	vaults, _ := openElsewhere()
+	r, _ := vaults.Root("x")
+	return join(err, r.RemoveAll("y"))
+}`,
+		want:    []string{"a call to RemoveAll, which changes what it is called on"},
+		excused: 1,
+	},
+	{
+		name: "a name shadowing the os package, reaching a root that writes",
+		path: "cmd/yomihon/startup.go",
+		src: `package main
+import "os"
+func wipe(dir string) error {
+	vaults, _ := os.OpenRoot(dir)
+	r, _ := vaults.OpenRoot("x")
+	return r.RemoveAll("y")
+}`,
+		want: []string{"a call to RemoveAll, which changes what it is called on"},
+	},
+	{
+		name: "a handle whose type argument is the root, which the receiver's name does not show",
+		path: "cmd/yomihon/startup.go",
+		src: `package main
+import (
+	"os"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
+)
+func wipe(h confdir.Handle[*os.Root]) error { return h.Remove("y") }`,
+		want: []string{"a call to Remove, which changes what it is called on"},
+	},
+	{
+		name: "a call through an interface declared under internal/mark",
+		path: "cmd/yomihon/startup.go",
+		src: `package main
+import "github.com/koopa0/yomihon/internal/mark/confdir"
+func wipe(w confdir.Writer) error { return w.Remove("y") }`,
 		want: []string{"a call to Remove, which changes what it is called on"},
 	},
 }
@@ -995,7 +913,10 @@ func TestTheWriteGuardCatchesEveryShapeOfWrite(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse the fixture: %v", err)
 			}
-			found, permitted := writeSites(fixture.path, fset, file)
+			found, permitted, excused := writeSites(fixture.path, fset, file)
+			if excused != fixture.excused {
+				t.Errorf("the guard excused %d calls in %q, want %d", excused, fixture.name, fixture.excused)
+			}
 			if fixture.clean {
 				if len(found) != 0 {
 					t.Errorf("the guard refused %q, which it must not: %+v", fixture.name, found)
