@@ -971,7 +971,7 @@ html:not([data-js]) .y-rubybtn {
 
   .y-railspine__name {
     font-family: var(--font-serif);
-    font-size: var(--fs-15);
+    font-size: var(--fs-14);
     font-weight: var(--fw-medium);
     line-height: 1.2;
     max-block-size: calc(100vh - var(--header-height) - var(--rail-head-height) - 48px);
@@ -3391,6 +3391,7 @@ button.y-freshness__action {
   display: flex;
   font-size: var(--fs-13);
   gap: var(--sp-2);
+  margin-inline: calc(-1 * var(--sp-2));
   padding: var(--sp-1) var(--sp-2);
 }
 /* stylelint-disable-next-line selector-no-qualifying-type -- an empty facet
@@ -4769,7 +4770,7 @@ a.y-facetrow:hover {
   color: var(--fg-muted);
   display: -webkit-box;
   font-family: var(--font-serif);
-  font-size: var(--fs-15);
+  font-size: var(--fs-14);
   -webkit-line-clamp: 2;
   line-height: 1.8;
   margin: 0;
@@ -5759,6 +5760,7 @@ a.y-facetrow:hover {
   border-bottom: 1px solid var(--border-faint);
   color: inherit;
   display: block;
+  margin-inline: calc(-1 * var(--sp-2));
   overflow-wrap: anywhere;
   padding: var(--sp-3) var(--sp-2);
   text-decoration: none;
@@ -6415,6 +6417,14 @@ samp,
 }
 
 @media (max-width: 1023px) {
+  /* The page's side margins by width (system.md §2.1): 48 beside the column,
+     32 where the column is a drawer, 20 on a phone. They are set on the root,
+     so every page that reads them narrows together and none restates them. */
+  :root {
+    --gutter-list: var(--gutter-mid);
+    --gutter-read: var(--gutter-mid);
+  }
+
   .y-shell,
   .y-shell2 {
     grid-template-columns: 1fr;
@@ -6451,7 +6461,7 @@ samp,
   }
 
   html[data-js][data-nav='open'] .y-rail-left {
-    box-shadow: var(--shadow-2);
+    box-shadow: var(--shadow-2), inset -1px 0 0 light-dark(transparent, var(--line));
     transform: none;
   }
 
@@ -6464,10 +6474,16 @@ samp,
   }
 }
 
+@media (max-width: 720px) {
+  :root {
+    --gutter-list: var(--gutter-phone);
+    --gutter-read: var(--gutter-phone);
+  }
+}
+
 @media (max-width: 900px) {
   .y-healthpage,
   .y-home {
-    --gutter-list: 20px;
     padding: var(--sp-6) var(--gutter-list) 120px;
   }
 
@@ -6519,14 +6535,12 @@ samp,
   .y-searchbtn .ui-kbd {
     display: none;
   }
-  /* The shell narrows as one: the gutter is redeclared and the box follows
-     it, so the line length is still the measure and not what is left over. */
+  /* The side margins narrow with the root; the box only follows them. */
   .y-article,
   .y-listen,
   .y-prefs,
   .y-recovery,
   .y-syl {
-    --gutter-read: 24px;
     padding: var(--sp-6) var(--gutter-read) 120px;
   }
 }
@@ -6551,14 +6565,6 @@ samp,
   .y-rubybtn {
     gap: var(--sp-1);
     padding-left: var(--sp-1);
-  }
-
-  .y-article,
-  .y-listen,
-  .y-prefs,
-  .y-recovery,
-  .y-syl {
-    --gutter-read: 20px;
   }
 
   .y-brand {
@@ -7323,7 +7329,7 @@ samp,
 .y-healthgroup__title {
   color: var(--fg);
   font-family: var(--font-serif);
-  font-size: var(--fs-18);
+  font-size: var(--fs-ed-20);
   font-weight: var(--fw-semibold);
   line-height: 1.5;
   margin: 0;
