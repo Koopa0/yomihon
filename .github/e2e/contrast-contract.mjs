@@ -966,7 +966,7 @@ try {
     }
 
     proveApplied('kept-link-aa', 'status');
-    const link = '<section class="y-continue"><a class="y-continue__note" href="#"><span class="y-keptmark" aria-hidden="true"></span>Alpha</a></section>';
+    const link = '<section class="y-continue"><a class="y-continue__note" href="#"><span class="y-bookmark__ribbon" aria-hidden="true"></span>Alpha</a></section>';
     for (const theme of ['light', 'dark']) {
       const result = await measurePlanted(page, theme, link, '.y-continue__note', []);
       if (result.issue) broken(`kept link ${theme}: ${result.issue}`);

@@ -122,12 +122,12 @@ try {
   // The reader chooses to keep their place, in the last section. The press is
   // answered here and not stored, so the page is as the reader finds it the moment
   // the control says the place is kept.
-  await page.route('**/marks', async (route) => {
+  await page.route('**/bookmark', async (route) => {
     if (route.request().method() === 'POST') await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     else await route.continue();
   });
   const placed = () => page.evaluate(() => [...document.querySelectorAll('.y-prose .y-sect')]
-    .filter((section) => section.querySelector('[data-section-place]:not([hidden])'))
+    .filter((section) => section.querySelector('[data-section-bookmark]:not([hidden])'))
     .map((section) => section.firstElementChild.id));
   if ((await placed()).length !== 0) broken('the note is drawn with a place already kept in it');
   const target = 'the-third-mechanism';

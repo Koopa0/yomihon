@@ -124,20 +124,20 @@ templ shelfNarrowBody(row Row) {
 
 templ shelfRemoval(row Row) {
 	if row.Removal != nil {
-		<div class="y-uncertainty-removal" lang={ row.Removal.Language }>
+		<div class="y-question-removal" lang={ row.Removal.Language }>
 			<button
 				class="y-markset y-xbtn"
 				type="button"
 				disabled
-				data-uncertainty-remove
-				data-uncertainty-endpoint={ row.Removal.Endpoint }
-				data-uncertainty-path={ row.Removal.Path }
-				data-uncertainty-anchor={ row.Removal.Anchor }
-				data-uncertainty-unavailable={ row.Removal.Unavailable }
-				data-uncertainty-failed={ row.Removal.Failed }
-				data-uncertainty-cleared={ row.Removal.Cleared }
+				data-question-remove
+				data-question-endpoint={ row.Removal.Endpoint }
+				data-question-path={ row.Removal.Path }
+				data-question-anchor={ row.Removal.Anchor }
+				data-question-unavailable={ row.Removal.Unavailable }
+				data-question-failed={ row.Removal.Failed }
+				data-question-cleared={ row.Removal.Cleared }
 			>{ row.Removal.Label }</button>
-			<p class="y-uncertainty__said" role="status"></p>
+			<p class="y-question__said" role="status"></p>
 		</div>
 	}
 }

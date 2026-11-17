@@ -62,7 +62,7 @@ var clientOwned = []string{
 	"data-speech",
 	"data-speech-rate",
 	"data-traveling",
-	"data-uncertainty-control",
+	"data-question-control",
 }
 
 // TestEveryDataAttributeCrossesTheGapWithAReaderOnTheOtherSide holds the

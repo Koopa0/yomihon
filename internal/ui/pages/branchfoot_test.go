@@ -15,7 +15,7 @@ func footView(model *nav.Model, current string, lang wording.Lang) (Foot, NoteVi
 	rail := NewReadingRail(nav.Shell{Nav: model}, current, "")
 	foot := FooterSequence(&rail, lang)
 	view := NoteView{
-		RelPath: current, Title: current, Prev: foot.Prev, Next: foot.Next, StepsLabel: foot.Label, StepsCourse: foot.Course, StepsUnit: foot.Unit,
+		RelPath: current, Title: current, Prev: foot.Prev, Next: foot.Next, StepsLabel: foot.Label, StepsCourse: foot.Course,
 		StepsPath: foot.Path, StepsBack: foot.Back, StepsOnward: foot.Onward, StepsToContents: foot.ToContents, StepsAsides: foot.Asides,
 	}
 	return foot, view

@@ -74,7 +74,7 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 // figures the owner approved live under it, in a directory of this vault's
 // own, and nowhere in the vault itself. Only serving builds one. The
 // adjudication commands answer about the vault, never about the reader, and
-// never open this; left-open answers about the reader without it, reading the
+// never open this; marks answers about the reader without it, reading the
 // question marks through mark.File, and the two figure commands open it to
 // approve and revoke.
 func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logger) (*readingSite, error) {
@@ -138,7 +138,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 	vaultName := shell.VaultName(source.Name())
 	searchProvider := func() search.RequestSnapshot {
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap)}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap), Roles: snap.NavigationRoles()}
 	}
 	// The marks a reader leaves are kept for the root the vault capability was
 	// actually taken on, which is the resolved absolute path rather than the

@@ -23,7 +23,7 @@
 // Unlike bookmark storage, unreadable question storage is preserved
 // and reported rather than replaced by the next mark.
 //
-// The reading server writes both files. The left-open command, which answers
+// The reading server writes both files. The marks command, which answers
 // about the reader, reads the question file and never writes either.
 //
 // A third file in the same directory holds the figures the owner approved to

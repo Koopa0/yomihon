@@ -28,7 +28,7 @@ func TestTheMarkControlSurvivesANoteWithNoOtherAids(t *testing.T) {
 		Title:           "T",
 		RelPath:         "a.md",
 		ContentIdentity: "abc123",
-		MarkAddress:     "/marks",
+		MarkAddress:     "/bookmark",
 		VaultHasLinks:   false,
 	}
 	if bare.citedByShown() || bare.endShown() {
@@ -61,7 +61,7 @@ func TestTheMarkControlSurvivesANoteWithNoOtherAids(t *testing.T) {
 func TestANoteThatCannotOfferAMarkDrawsNoControl(t *testing.T) {
 	t.Parallel()
 
-	stale := NoteView{Title: "T", RelPath: "a.md", MarkAddress: "/marks"}
+	stale := NoteView{Title: "T", RelPath: "a.md", MarkAddress: "/bookmark"}
 	if stale.offersMark() {
 		t.Fatal("this fixture was meant to have no identity to bind a mark to")
 	}

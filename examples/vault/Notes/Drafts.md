@@ -18,7 +18,7 @@ A note with no `draft` field is finished. Writing `draft: false` says the same t
 
 ## What the reader sees
 
-A note that writes `draft: true` is marked as a draft, quietly, on its own page, in the sidebar and on its course. A reader's own thought that still carries it stays on the shelf of what was left open, and `yomihon left-open` lists it for a program.
+A note that writes `draft: true` is marked as a draft, quietly, on its own page, in the sidebar and on its course. A reader's own thought that still carries it stays on the My marks page, and `yomihon marks` lists it for a program.
 
 ## Nothing is written back
 

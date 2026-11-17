@@ -95,7 +95,7 @@ templ syllabusHead(v PathView, lang wording.Lang) {
 					// their place, on the desk's way back as here. Starting a course
 					// has no place to return to, so it carries none.
 					if v.Action.Continuing {
-						<span class="y-keptmark" aria-hidden="true"></span>
+						<span class="y-bookmark__ribbon" aria-hidden="true"></span>
 					}
 					<span class="y-cover__verb">{ v.Action.Verb(lang) }</span>
 					if v.Action.Lesson != "" {

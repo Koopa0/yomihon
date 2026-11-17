@@ -45,7 +45,7 @@ func TestAContractEditedUnderARunningInstanceSaysToRestart(t *testing.T) {
 		{"the course page", "/courses/Maps/study.md"},
 		{"the course read aloud", "/listen/Maps/study.md"},
 		{"the course index", "/courses"},
-		{"the maps index", "/maps"},
+		{"the maps index", "/indexes"},
 		{"the desk", "/"},
 	}
 	restartIn := func(lang wording.Lang) string {

@@ -10,8 +10,8 @@ import (
 
 // TestAPartShowsTheLessonsItCarries holds the one number a reader compares
 // across two pages. A part that only groups modules still carries their
-// lessons, so Home and the part heading have to agree — "Home 2 課" beside
-// "part 0 課" tells the reader one of the two is lying, and does not say which.
+// lessons, so Home and the part heading have to agree — "Home 2 單元" beside
+// "part 0 單元" tells the reader one of the two is lying, and does not say which.
 func TestAPartShowsTheLessonsItCarries(t *testing.T) {
 	t.Parallel()
 

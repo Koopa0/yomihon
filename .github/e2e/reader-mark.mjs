@@ -42,7 +42,7 @@ const ANCHOR_SITES = [
 ];
 const SITES = [
   ...ANCHOR_SITES,
-  'kept-place-is-offered-back',
+  'bookmark-is-offered-back',
   'following-it-lands-where-the-window-was',
   'a-missing-anchor-lands-at-the-top',
   'a-changed-note-says-so',
@@ -135,7 +135,7 @@ const rewriteDesk = (pattern, replacement, label) => async (page) => {
 // happen.
 const dropSecondPost = () => async (page) => {
   let seen = 0;
-  await page.route('**/marks', async (route) => {
+  await page.route('**/bookmark', async (route) => {
     // The page also reads the place from this address when it loads, and that
     // read is neither the first mark nor its replacement.
     if (route.request().method() !== 'POST') {
@@ -165,10 +165,10 @@ const MUTATIONS = {
     },
   ])),
   'never-post-the-mark': {
-    target: 'kept-place-is-offered-back',
+    target: 'bookmark-is-offered-back',
     apply: rewriteModule(
       "    const response = await fetch(control.dataset.markEndpoint ?? '', {",
-      "    const response = await fetch('/marks-nowhere', {",
+      "    const response = await fetch('/bookmark-nowhere', {",
       'the post that keeps the place',
     ),
   },
@@ -401,7 +401,7 @@ const keepThePlace = async (page, path, { tamperIdentity = false, narrow = null,
     });
   }
   const posted = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === '/marks' && response.request().method() === 'POST',
+    (response) => new URL(response.url()).pathname === '/bookmark' && response.request().method() === 'POST',
     { timeout: 4000 },
   ).catch(() => null);
   await button.click();
@@ -520,7 +520,7 @@ try {
           node.dataset.probeOffset = String(top - anchorTop);
         }, { capture: true, once: true });
       }, expectedAnchor);
-      const posted = page.waitForResponse((response) => new URL(response.url()).pathname === '/marks' && response.request().method() === 'POST');
+      const posted = page.waitForResponse((response) => new URL(response.url()).pathname === '/bookmark' && response.request().method() === 'POST');
       await button.click();
       const response = await posted;
       checkProof(proof);
@@ -529,7 +529,7 @@ try {
       const offset = Number(submitted.get('offset'));
       expected.offset = Number(await button.getAttribute('data-probe-offset'));
       if (response.status() !== 204 || anchor !== expectedAnchor || offset !== expected.offset) {
-        fail(site, `${viewport.width}px POST /marks = ${response.status()}, anchor ${JSON.stringify(anchor)}, offset ${offset}; want 204, ${JSON.stringify(expectedAnchor)}, ${expected.offset}`);
+        fail(site, `${viewport.width}px POST /bookmark = ${response.status()}, anchor ${JSON.stringify(anchor)}, offset ${offset}; want 204, ${JSON.stringify(expectedAnchor)}, ${expected.offset}`);
       }
       await control.locator('[data-mark-said]:not(:empty)').waitFor({ state: 'attached' });
       const { row, present } = await deskRow(page);
@@ -549,7 +549,7 @@ try {
   {
     const context = await browser.newContext({ viewport: VIEWPORT });
     const page = await context.newPage();
-    const proof = await applyMutation(page, 'kept-place-is-offered-back');
+    const proof = await applyMutation(page, 'bookmark-is-offered-back');
     await keepThePlace(page, PAGE);
     checkProof(proof);
     // The control's own word for this press is read before anything about the
@@ -562,18 +562,18 @@ try {
     const savedWord = await control.getAttribute('data-mark-saved');
     if (said !== savedWord) {
       fail(
-        'kept-place-is-offered-back',
+        'bookmark-is-offered-back',
         `the control said ${JSON.stringify(said)} after being pressed, want the word for a kept place `
         + `(${JSON.stringify(savedWord)})`,
       );
     }
     const { row, present } = await deskRow(page);
     if (!present) {
-      fail('kept-place-is-offered-back', 'the desk offers no way back after a place was kept');
+      fail('bookmark-is-offered-back', 'the desk offers no way back after a place was kept');
     }
     const href = await row.locator('[data-continue-link]').first().getAttribute('href');
     if (!href || !href.startsWith('/notes/')) {
-      fail('kept-place-is-offered-back', `the row leads to ${href}, want the note that was marked`);
+      fail('bookmark-is-offered-back', `the row leads to ${href}, want the note that was marked`);
     }
     await context.close();
   }

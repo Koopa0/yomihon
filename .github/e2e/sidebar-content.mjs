@@ -77,7 +77,7 @@ const MUTATIONS = {
   },
   'restore-vault-drawers': {
     target: 'vault-drawers-absent',
-    apply: replaceEvery('<div class="y-railgroup">', '<div class="y-railgroup" data-sidebar-group="paths">'),
+    apply: replaceEvery('<div class="y-railgroup">', '<div class="y-railgroup" data-sidebar-group="courses">'),
   },
   'drop-unwritten-map-row': {
     target: 'map-page-unwritten-kept',

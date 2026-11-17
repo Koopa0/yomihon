@@ -9,12 +9,12 @@ package wording
 var SyllabusKicker = both("課程", "Course")
 
 // PathItemUnreadable stands where a course lists something the page could not
-// read as either a lesson or a branch. Dropping such a row would take it off a
+// read as either a unit or a branch. Dropping such a row would take it off a
 // page whose whole job is showing the course as it is written, and the reader
 // would be looking at a list quietly missing an item.
 var PathItemUnreadable = both(
-	"這個課程列了一項無法判讀的內容，這一頁沒有把它讀成課或分部。",
-	"This course lists something that could not be read as either a lesson or a branch.")
+	"這個課程列了一項無法判讀的內容，這一頁沒有把它讀成單元或分部。",
+	"This course lists something that could not be read as either a unit or a branch.")
 
 // PartLabelFmt is a part's heading label, over its name on the cover. It takes
 // the part's number in the language's own numerals: hanzi in Chinese, roman in
@@ -23,7 +23,7 @@ var PartLabelFmt = both("第%s部", "Part %s")
 
 // ContentsLink names every link to the path's own page from somewhere else: the
 // page is the path's table of contents, whatever the path is made of, so it is
-// called that and never a course or a syllabus.
+// called that and never a course.
 var ContentsLink = both("目錄", "Contents")
 
 // ReadTheGuide is the way into the note this path is drawn from, set as the
@@ -31,8 +31,8 @@ var ContentsLink = both("目錄", "Contents")
 // and claim nothing about what that text contains: the page has not read it.
 var ReadTheGuide = both("整篇筆記 ", "The whole note ")
 
-// The one verb a course offers: open the first lesson, or go back to the
-// lesson the reader kept a place in. They are the same act said two ways, and
+// The one verb a course offers: open the first unit, or go back to the
+// unit the reader added a bookmark in. They are the same act said two ways, and
 // which is true is decided by the place, never by anything the course knows
 // about what the reader has finished — a course has no such reading and says
 // no word about completion.
@@ -86,12 +86,12 @@ var (
 // is stays the same sentence in both.
 var (
 	NoCourseIntro = both(
-		"這個課程沒有讀到任何課程結構。分部與課是由標題或開啟清單那一行行尾的 ",
-		"No course structure could be read from this course. Parts and lessons are declared by a ",
+		"這個課程沒有讀到任何課程結構。分部與單元是由標題或開啟清單那一行行尾的 ",
+		"No course structure could be read from this course. Parts and units are declared by a ",
 	)
 	NoCourseNoMarkerTail = both(
-		" 標記宣告的；沒有標記的標題不會被讀成分部，底下的連結也不會被讀成課。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
-		" marker at the end of a heading, or of the row that opens a list. A heading without one is not read as a part, and the links under it are not read as lessons. yomihon reports and never repairs; edit this note directly.",
+		" 標記宣告的；沒有標記的標題不會被讀成分部，底下的連結也不會被讀成單元。yomihon 只陳述，不修復；請直接編輯這篇筆記。",
+		" marker at the end of a heading, or of the row that opens a list. A heading without one is not read as a part, and the links under it are not read as units. yomihon reports and never repairs; edit this note directly.",
 	)
 	NoCourseMarkerFaultIntro = both(
 		"這個課程寫了 sequence 標記，但沒有一個分部能讀成課程結構。標記的值只能是 ",
@@ -121,14 +121,14 @@ var (
 var (
 	EntryUnresolved       = both("未解析", "Unresolved")
 	EntryAmbiguous        = both("有歧義", "Ambiguous")
-	EntryNonInstance      = both("非課文", "Not a lesson")
+	EntryNonInstance      = both("非單元", "Not a unit")
 	EntryUnresolvedTitle  = both("找不到目標", "The target was not found")
 	EntryAmbiguousTitle   = both("目標有歧義", "The target is ambiguous")
-	EntryNonInstanceTitle = both("目標不是課文", "The target is not a lesson")
+	EntryNonInstanceTitle = both("目標不是單元", "The target is not a unit")
 )
 
 // The parentheses the offscreen explanation of a link sits inside, and the
-// ones a syllabus uses. They are marks rather than words, and the two
+// ones a course uses. They are marks rather than words, and the two
 // languages do not use the same ones.
 var (
 	ParenOpen  = both("（", " (")

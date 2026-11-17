@@ -42,7 +42,7 @@ func TestCapturedNavigationPathSuffix(t *testing.T) {
 	if diff := cmp.Diff([]string{"Concepts/A/Shared/Twin.md", "Concepts/B/Shared/Twin.md"}, rows[1].Candidates); diff != "" {
 		t.Errorf("caught: suffix course candidates changed: %s", diff)
 	}
-	want := []Neighbors{{PathTitle: "Course", PathRelPath: "Maps/Course.md", Unit: UnitItem, Next: NoteRef{Name: "Second page", RelPath: "Concepts/Atlas/Second.md"}}}
+	want := []Neighbors{{PathTitle: "Course", PathRelPath: "Maps/Course.md", Next: NoteRef{Name: "Second page", RelPath: "Concepts/Atlas/Second.md"}}}
 	if diff := cmp.Diff(want, m.PathNeighbors("Concepts/Atlas/Page.md")); diff != "" {
 		t.Errorf("caught: suffix course walk changed: %s", diff)
 	}

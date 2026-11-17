@@ -1,7 +1,7 @@
 // Behavior lock for the controls beside each section of a note and for what the
 // reader finds there on coming back.
 //
-// "Not sure yet" is one fixed name: pressing it changes whether the section is
+// "Mark as question" is one fixed name: pressing it changes whether the section is
 // marked and never what the button is called. The mark and its day are in the
 // page the server sends, so a reader who returns the next day finds them with no
 // script running at all; the sentence a press earns lapses by itself; the
@@ -24,7 +24,7 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/Reading%20flow.md';
 const MUTATE = process.env.MUTATE || '';
 const NOTE = decodeURIComponent(PAGE.slice('/notes/'.length));
-const NAME = '還不確定';
+const NAME = '標為疑問';
 
 const SITES = [
   'the-name-never-changes',
@@ -76,7 +76,7 @@ const rewriteDocument = (needle, replacement) => async (page) => {
   });
 };
 const rewriteModule = (needle, replacement) => async (page) => {
-  await page.route('**/uncertainty.js{,?*}', async (route) => {
+  await page.route('**/question.js{,?*}', async (route) => {
     const response = await route.fetch();
     const original = await response.text();
     planted.seen += 1;
@@ -139,7 +139,7 @@ const MUTATIONS = {
   // The bookmark is back to the fill forced colors replaces with the ground.
   'lose-the-bookmark-in-forced-colors': {
     target: 'the-bookmark-keeps-its-shape-in-forced-colors',
-    apply: addRule('@media (forced-colors: active){.y-margin .y-margin__place::before{background:currentcolor !important;forced-color-adjust:auto !important}}'),
+    apply: addRule('@media (forced-colors: active){.y-margin .y-margin__bookmark::before{background:currentcolor !important;forced-color-adjust:auto !important}}'),
   },
   // Words as text between a heading and the paragraph after it.
   'put-the-words-in-text-beside-the-heading': {
@@ -169,7 +169,7 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
   process.exit(2);
 }
 
-const records = async () => (await fetch(`${BASE}/uncertainties`)).json();
+const records = async () => (await fetch(`${BASE}/questions`)).json();
 const today = () => {
   const now = new Date();
   const two = (n) => String(n).padStart(2, '0');
@@ -340,7 +340,7 @@ try {
         span.remove();
         return resolved;
       };
-      const place = document.querySelector('[data-section-place]');
+      const place = document.querySelector('[data-section-bookmark]');
       place.hidden = false;
       return {
         active: matchMedia('(forced-colors: active)').matches,
@@ -388,7 +388,7 @@ try {
   await browser.close();
   try {
     for (const { path, anchor } of await records()) {
-      if (path === NOTE) await fetch(`${BASE}/uncertainties`, { method: 'POST', body: new URLSearchParams({ path, anchor }) });
+      if (path === NOTE) await fetch(`${BASE}/questions`, { method: 'POST', body: new URLSearchParams({ path, anchor }) });
     }
   } catch (error) {
     console.error(`BROKEN section-marks: cleanup failed: ${error}`);

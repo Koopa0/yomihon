@@ -14,7 +14,7 @@ var HomeTitle = both("閱讀桌", "Reading desk")
 // is not a subtitle: it says what the reader is looking at, for a block whose
 // contents alone would not say.
 var (
-	HomeFaultsTitle   = both("契約能力", "Contract capabilities")
+	HomeFaultsTitle   = both("規則檔能力", "Rules capabilities")
 	HomeFaultsLede    = both("書庫宣告了無法履行的事", "The vault declares something it cannot honour")
 	HomeFaultsBrowser = both("有些頁面因此看不到。", "Some pages cannot be shown because of it.")
 	HomeDegradedTitle = both("讀不進來的檔案", "Files that could not be read")
@@ -69,10 +69,10 @@ var (
 	HomePrivacyTitle = both("給工具的結果目前無法使用", "Results are not currently available to tools")
 
 	HomePrivacyLede = both(
-		"契約宣告了不得離開這台機器的目錄，而 yomihon 無法採用那份宣告。閱讀、搜尋與這裡的診斷不受影響。",
-		"The contract declares which directories must never leave this machine, and yomihon could not use that declaration. Reading, search and the local diagnostics are unaffected.")
+		"規則檔宣告了不得離開這台機器的目錄，而 yomihon 無法採用那份宣告。閱讀、搜尋與這裡的發現不受影響。",
+		"The rules file declares which directories must never leave this machine, and yomihon could not use that declaration. Reading, search and the local findings are unaffected.")
 
 	HomePrivacyBrowser = both(
-		"這是契約自己的說法，原文照錄：",
-		"This is what the contract itself said, reproduced as written:")
+		"這是規則檔自己的說法，原文照錄：",
+		"This is what the rules file itself said, reproduced as written:")
 )

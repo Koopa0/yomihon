@@ -18,7 +18,7 @@ import (
 // depending on the words, which change with the reader's language.
 const (
 	courseMode = "courses"
-	mapMode    = "maps"
+	mapMode    = "indexes"
 	reportMode = "reports"
 	folderMode = "folders"
 )
@@ -89,7 +89,7 @@ func NewPathIndex(paths []nav.Course, roles schema.NavigationRoles, closure nav.
 	rows := make([]Row, 0, len(paths))
 	for i := range paths {
 		studyPath := &paths[i]
-		words := unitWords(studyPath.Unit)
+		words := wording.Units
 		extent := plural(studyPath.Planned, words.CountOne, words.CountMany, lang)
 		// A zero with grammar diagnostics behind it is a fault to repair; a
 		// zero without them is the author's answer.

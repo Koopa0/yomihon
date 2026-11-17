@@ -77,7 +77,7 @@ func TestTheCourseHeadCountsItsDrafts(t *testing.T) {
 	}
 
 	for lang, want := range map[wording.Lang]string{
-		wording.ZhHant: `<span class="y-syl-drafts" data-course-drafts>其中 1 課是草稿</span>`,
+		wording.ZhHant: `<span class="y-syl-drafts" data-course-drafts>其中 1 單元是草稿</span>`,
 		wording.En:     `<span class="y-syl-drafts" data-course-drafts>1 in draft</span>`,
 	} {
 		if html := renderCourse(t, view, lang); !strings.Contains(html, want) {
@@ -103,7 +103,7 @@ func TestTheKeptPlaceMarksOneCourseRowAndOnlyThatRow(t *testing.T) {
 	path := buildTestPath(t, draftBody)
 
 	kept := renderCourse(t, courseOf(&path, &CourseCover{KeptNote: "Writing/Arrays.md"}), wording.En)
-	if got := strings.Count(kept, `class="y-keptplace"`); got != 1 {
+	if got := strings.Count(kept, `class="y-bookmark"`); got != 1 {
 		t.Fatalf("%d lessons carry the bookmark, want exactly 1", got)
 	}
 	_, row, found := strings.Cut(kept, `href="/notes/Writing/Arrays.md"`)
@@ -111,7 +111,7 @@ func TestTheKeptPlaceMarksOneCourseRowAndOnlyThatRow(t *testing.T) {
 		t.Fatal("the course does not list the Arrays lesson")
 	}
 	row, _, _ = strings.Cut(row, "</a>")
-	for _, want := range []string{`<span class="y-keptmark" aria-hidden="true"></span>`, `Where you left off`} {
+	for _, want := range []string{`<span class="y-bookmark__ribbon" aria-hidden="true"></span>`, `Where your bookmark is`} {
 		if !strings.Contains(row, want) {
 			t.Errorf("the lesson that holds the kept place lacks %q; row = %s", want, row)
 		}
@@ -121,11 +121,11 @@ func TestTheKeptPlaceMarksOneCourseRowAndOnlyThatRow(t *testing.T) {
 	}
 
 	elsewhere := renderCourse(t, courseOf(&path, &CourseCover{KeptNote: "Writing/NotInThisCourse.md"}), wording.En)
-	if strings.Contains(elsewhere, "y-keptplace") {
+	if strings.Contains(elsewhere, "y-bookmark") {
 		t.Error("a place kept in a note this course does not teach marks a lesson")
 	}
 	none := renderCourse(t, courseOf(&path, &CourseCover{}), wording.En)
-	if strings.Contains(none, "y-keptplace") {
+	if strings.Contains(none, "y-bookmark") {
 		t.Error("a reader who kept no place sees a bookmark")
 	}
 }
@@ -155,10 +155,10 @@ func TestTheBookRailMarksDraftsAndBookmarkByTheSameRules(t *testing.T) {
 	if html := row(PathEntryView{Here: true}, wording.En); strings.Contains(html, "ui-navitem__count") {
 		t.Errorf("a finished lesson being read holds a chip no finished neighbour holds: %s", html)
 	}
-	if html := row(PathEntryView{Kept: true}, wording.ZhHant); !strings.Contains(html, `class="y-keptmark" aria-hidden="true"`) || !strings.Contains(html, wording.MarkKeptHere.In(wording.ZhHant)) {
+	if html := row(PathEntryView{Kept: true}, wording.ZhHant); !strings.Contains(html, `class="y-bookmark__ribbon" aria-hidden="true"`) || !strings.Contains(html, wording.MarkKeptHere.In(wording.ZhHant)) {
 		t.Errorf("the lesson holding the kept place carries no bookmark in the rail: %s", html)
 	}
-	if html := row(PathEntryView{Draft: true}, wording.En); strings.Contains(html, "y-keptmark") {
+	if html := row(PathEntryView{Draft: true}, wording.En); strings.Contains(html, "y-bookmark__ribbon") {
 		t.Errorf("a lesson that holds no kept place carries the bookmark: %s", html)
 	}
 }
@@ -249,11 +249,11 @@ func TestTheDeskLinkBackToTheKeptPlaceWearsTheBookmarkAndASentenceDoesNot(t *tes
 	t.Parallel()
 
 	link := renderComponent(t, continueRow(ContinueRow{Show: true, Title: "Alpha", Href: "/notes/a.md"}, wording.En))
-	if !strings.Contains(link, `data-continue-link>`) || !strings.Contains(link, `<span class="y-keptmark" aria-hidden="true"></span>`) {
+	if !strings.Contains(link, `data-continue-link>`) || !strings.Contains(link, `<span class="y-bookmark__ribbon" aria-hidden="true"></span>`) {
 		t.Errorf("the way back to the place does not wear the bookmark: %s", link)
 	}
 	gone := renderComponent(t, continueRow(ContinueRow{Show: true, Title: "Alpha", Notice: "gone"}, wording.En))
-	if strings.Contains(gone, "y-keptmark") {
+	if strings.Contains(gone, "y-bookmark__ribbon") {
 		t.Errorf("a row with nowhere to go wears the bookmark: %s", gone)
 	}
 }

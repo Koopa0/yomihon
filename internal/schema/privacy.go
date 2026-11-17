@@ -28,7 +28,7 @@ type privacySection struct {
 // only the reporting differs.
 //
 // What it binds is the agent-facing output — the check, coverage, exists and
-// open-thoughts commands, which are its only consumers. The reading pages serve
+// marks commands, which are its only consumers. The reading pages serve
 // every note the folder holds and never ask this question, so a note withheld
 // from a command is still served to the reader at the keyboard. Binding the
 // pages too would be a different decision, not a repair to this one.

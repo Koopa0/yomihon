@@ -68,12 +68,11 @@ type NoteView struct {
 	// step onward, or folder adjacency — and is both the landmark's name and,
 	// for a folder, the line printed above the steps; a course prints StepsPath
 	// there instead. StepsCourse says which order arrived, which picks the step
-	// words, and StepsUnit is the noun a course's steps are named in.
+	// words.
 	Prev        nav.NoteRef
 	Next        nav.NoteRef
 	StepsLabel  string
 	StepsCourse bool
-	StepsUnit   nav.Unit
 	// StepsPath is the study path whose order the foot walks, printed as a link
 	// to its contents. A side branch's lesson carries the ways off the branch,
 	// StepsBack and StepsOnward or StepsToContents, and the lesson a branch hangs
@@ -514,7 +513,7 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 			// a main-line lesson with a step back, so the two never compete.
 			if v.Prev.RelPath != "" {
 				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
-					<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> { stepWordPrev(v.StepsCourse, v.StepsUnit, lang) }</span>
+					<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> { stepWordPrev(v.StepsCourse, lang) }</span>
 					<span class="y-steps__name" { authoredLanguageAttrs(v.Prev.Language)... }>{ v.Prev.Name }</span>
 				</a>
 			} else if v.StepsBack.RelPath != "" {
@@ -525,7 +524,7 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 			}
 			if v.Next.RelPath != "" {
 				<a class="y-steps__link y-steps__link--next" href={ templ.URL(notesHref(v.Next.RelPath)) } rel="next">
-					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, v.StepsUnit, lang) } <span class="y-steps__dir" aria-hidden="true">→</span></span>
+					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, lang) } <span class="y-steps__dir" aria-hidden="true">→</span></span>
 					<span class="y-steps__name" { authoredLanguageAttrs(v.Next.Language)... }>{ v.Next.Name }</span>
 				</a>
 			} else if v.StepsOnward.RelPath != "" {

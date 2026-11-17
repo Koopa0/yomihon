@@ -18,7 +18,7 @@ const readingClubNote = "# Reading club\n\nBring a notebook.\n\nUmbrellaRule: If
 
 // homeBlockMarker matches the ways in the desk draws. The search row carries
 // the same attribute but is not a way in, so it is left out.
-var homeBlockMarker = regexp.MustCompile(`data-home-block="(folders|courses|maps|reports)"`)
+var homeBlockMarker = regexp.MustCompile(`data-home-block="(folders|courses|indexes|reports)"`)
 
 // homeBlockOrder is the order the desk draws its ways in.
 func homeBlockOrder(page string) []string {
@@ -65,7 +65,7 @@ func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 	})
 	home := readingPage(t, site, "/")
 
-	if got, want := homeBlockOrder(home), []string{"folders", "courses", "maps", "reports"}; !slices.Equal(got, want) {
+	if got, want := homeBlockOrder(home), []string{"folders", "courses", "indexes", "reports"}; !slices.Equal(got, want) {
 		t.Errorf("plain folder Home blocks = %v, want %v", got, want)
 	}
 
@@ -86,7 +86,7 @@ func TestPlainFolderHomeLeadsWithFoldersAndStaysReadable(t *testing.T) {
 		t.Errorf("searching Home's term does not reach %s", noteHref)
 	}
 
-	for _, mode := range []string{"courses", "maps", "reports"} {
+	for _, mode := range []string{"courses", "indexes", "reports"} {
 		if !strings.Contains(deskBlockMarkup(t, home, mode), `href="/`+mode+`"`) {
 			t.Errorf("the %s block does not link to /%s", mode, mode)
 		}
@@ -101,10 +101,10 @@ func TestEmptyPlainFolderGuidesWithoutAContract(t *testing.T) {
 	site := homeSite(t, nil)
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 		want := wording.FolderIndexUngovernedNext.In(lang)
-		if lang == wording.ZhHant && want != "用你的編輯器在這個資料夾裡新增 .md 檔，就能開始閱讀；不需要契約。" {
+		if lang == wording.ZhHant && want != "用你的編輯器在這個資料夾裡新增 .md 檔，就能開始閱讀；不需要規則檔。" {
 			t.Fatalf("zh-Hant guidance = %q", want)
 		}
-		if lang == wording.En && want != "Use your editor to add a .md file to this folder and start reading; no contract is needed." {
+		if lang == wording.En && want != "Use your editor to add a .md file to this folder and start reading; no rules file is needed." {
 			t.Fatalf("en guidance = %q", want)
 		}
 		if got := deskBlockMarkup(t, readingPageIn(t, site, "/", lang), "folders"); !strings.Contains(got, want) {
@@ -127,7 +127,7 @@ func TestGovernedHomeKeepsItsOrder(t *testing.T) {
 		schema.ContractRelPath: string(contract),
 		"Reading club.md":      readingClubNote,
 	})
-	if got, want := homeBlockOrder(readingPage(t, site, "/")), []string{"courses", "maps", "reports", "folders"}; !slices.Equal(got, want) {
+	if got, want := homeBlockOrder(readingPage(t, site, "/")), []string{"courses", "indexes", "reports", "folders"}; !slices.Equal(got, want) {
 		t.Errorf("governed Home blocks = %v, want %v", got, want)
 	}
 }

@@ -61,8 +61,8 @@ var (
 	CitedBy     = both("正文連到這篇", "Cited in the text")
 	CitedByNav  = both("正文連到這篇的筆記", "Notes that cite this one in the text")
 	CitedByNone = both("目前沒有其他筆記在正文連到這篇。", "No other note cites this one in the text.")
-	BasedOn     = both("聲明的來源", "Declared sources")
-	BasedOnNav  = both("這篇聲明的來源", "Sources this note declared")
+	BasedOn     = both("出自", "Sources")
+	BasedOnNav  = both("這篇出自", "Sources of this note")
 )
 
 // FrontmatterNotYAML is the summary for a frontmatter block that is not valid

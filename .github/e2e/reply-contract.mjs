@@ -119,7 +119,7 @@ try {
     let kept = true;
     let posts = 0;
     if (name !== 'preference') {
-      await page.route('**/marks', async (route) => {
+      await page.route('**/bookmark', async (route) => {
         if (route.request().method() !== 'POST') return route.continue();
         posts += 1;
         await route.fulfill({ status: kept ? 204 : 503, body: '' });

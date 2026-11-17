@@ -18,7 +18,7 @@ const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
 const MUTATE = process.env.MUTATE || '';
 const NOTE = 'Notes/alpha.md';
 
-const PLACE_SITE = 'the-kept-place-is-the-largest-text-on-the-desk';
+const PLACE_SITE = 'the-bookmark-is-the-largest-text-on-the-desk';
 const SITES = [PLACE_SITE];
 
 class LockFired extends Error {
@@ -30,9 +30,9 @@ class LockFired extends Error {
 class ProbeBroken extends Error {}
 class NotApplied extends Error {}
 
-const fail = (site, message) => { throw new LockFired(site, `FAIL kept-place-size: ${message}`); };
-const broken = (message) => { throw new ProbeBroken(`BROKEN kept-place-size: ${message}`); };
-const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED kept-place-size: ${message}`); };
+const fail = (site, message) => { throw new LockFired(site, `FAIL bookmark-size: ${message}`); };
+const broken = (message) => { throw new ProbeBroken(`BROKEN bookmark-size: ${message}`); };
+const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED bookmark-size: ${message}`); };
 
 // Appends a rule to the product's own stylesheet, past the layer it declares,
 // so the injected rule outranks what it stands in for without an importance
@@ -56,13 +56,13 @@ const MUTATIONS = {
 
 for (const [name, mode] of Object.entries(MUTATIONS)) {
   if (!SITES.includes(mode.target)) {
-    console.error(`kept-place-size: mutation ${name} aims at unknown site ${mode.target}`);
+    console.error(`bookmark-size: mutation ${name} aims at unknown site ${mode.target}`);
     process.exit(2);
   }
 }
 for (const site of SITES) {
   if (!Object.values(MUTATIONS).some((mode) => mode.target === site)) {
-    console.error(`kept-place-size: assertion site ${site} has no mutation`);
+    console.error(`bookmark-size: assertion site ${site} has no mutation`);
     process.exit(2);
   }
 }
@@ -72,14 +72,14 @@ if (MUTATE === 'list') {
   process.exit(0);
 }
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
-  console.error(`kept-place-size: unknown MUTATE mode ${MUTATE}`);
+  console.error(`bookmark-size: unknown MUTATE mode ${MUTATE}`);
   process.exit(2);
 }
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-  const kept = await context.request.post(`${BASE}/marks`, {
+  const kept = await context.request.post(`${BASE}/bookmark`, {
     form: { path: NOTE, anchor: '', offset: '0', identity: '0'.repeat(64) },
   });
   if (kept.status() !== 204) broken(`keeping a place in ${NOTE} answered ${kept.status()}, want 204`);
@@ -107,7 +107,7 @@ try {
   }
 
   await context.close();
-  console.log(`PASS kept-place-size: the kept place, ${size}px, is the largest text on the desk`);
+  console.log(`PASS bookmark-size: the kept place, ${size}px, is the largest text on the desk`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

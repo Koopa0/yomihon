@@ -107,12 +107,12 @@ open. They are judgements, so nothing checks them.
    costs them. Explain it, or draw it, and let the question come once they have
    the pieces.
 3. **A reader's confusion is a lead to investigate, not a verdict on the
-   lesson.** A location marked "Not sure yet", or a thought that stays a draft,
+   lesson.** A question the reader marked, or a thought that stays a draft,
    tells you where to look. Read the passage, and the reader's words where they
    wrote any, before deciding whether the gap is in the lesson, in a
    prerequisite, or in a question the reader has not asked yet.
 4. **Reading that leaves no trace is complete reading.** No mark and no thought
-   is evidence of nothing, so an empty `left-open` does not say the reader
+   is evidence of nothing, so an empty `marks` does not say the reader
    understood or that they did not read, and no lesson asks the reader to leave
    traces.
 

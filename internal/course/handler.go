@@ -64,10 +64,10 @@ type Handler struct {
 // is a wiring bug that must fail here, not on the first request.
 func New(current func() RequestSnapshot, log *slog.Logger) *Handler {
 	if current == nil {
-		panic("syllabus: New requires a non-nil current-generation provider")
+		panic("course: New requires a non-nil current-generation provider")
 	}
 	if log == nil {
-		panic("syllabus: New requires a non-nil Log")
+		panic("course: New requires a non-nil Log")
 	}
 	return &Handler{current: current, log: log}
 }
@@ -149,7 +149,7 @@ func (h *Handler) show(w http.ResponseWriter, r *http.Request) {
 	view := pages.BuildPathView(current, shell.Nav.Paths(), &cover)
 	view.Vault = shell.Vault
 	if err := pages.Syllabus(view, layouts.ChromeFromRequest(r, current.Title)).Render(r.Context(), w); err != nil {
-		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write syllabus page", "path", rel, "error", err)
+		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write course page", "path", rel, "error", err)
 	}
 }
 

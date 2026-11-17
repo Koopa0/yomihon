@@ -38,7 +38,7 @@ when nothing would have read it, and there is no harmless extra key.
 | `draft` | the boolean `true`, which says this note is still being written. Always allowed; see below |
 | `based_on` | the note or notes this one is written from, quoted: `["[[Note]]"]`. A reference that reaches nothing is `provenance.unresolved` |
 | `lang` | the language of the note's own text, a BCP 47 tag such as `zh-Hant` or `ja`; a malformed one is `schema.language` |
-| `created` | the day the note was made, such as `2026-11-12`. It dates a report and orders the thoughts `left-open` lists |
+| `created` | the day the note was made, such as `2026-11-12`. It dates a report and orders the thoughts `marks` lists |
 | `slug` | a lesson's stable key. The type that holds the `lesson` role has to write it; the type's `slug_pattern`, if it states one, shapes it |
 | `level` | how much a lesson assumes. When `[enums] level` lists values, it is one of them |
 | `prerequisites` | allowed in the list; no page shows it and no command checks it yet |
@@ -88,7 +88,7 @@ not a type; an unfinished lesson is `type: lesson` with `draft: true`.
 - Links and backlinks work as for any note.
 - `check` judges only the type of value: anything but `true` or `false`, such as
   `"yes"`, is `schema.draft`.
-- `yomihon left-open` lists a thought that still carries it.
+- `yomihon marks` lists a thought that still carries it.
 - `map.disk_unlisted` never reports a draft lesson.
 
 yomihon never writes a note, `draft` included. Taking the line out, or putting
@@ -130,7 +130,7 @@ fail to load.
 
 A template directory changes what the server projects for the notes in it: no
 lesson affordance, such as read-aloud, is added; they stay out of the courses,
-maps and shelf of what the reader left open; the `type:`, `draft:`, `domain:`
+maps and My marks page; the `type:`, `draft:`, `domain:`
 and `slug:` search filters skip them, though their words are searched; and a map
 entry pointing into one is dropped from the map.
 
@@ -200,8 +200,8 @@ The roles:
 - `lesson` — the notes a course lists. At most one type holds it, and the type
   must list `slug`, which each of its notes then has to write: a lesson without
   one is `schema.required` with the message `slug is required for a lesson`.
-- `thought` — a reader's own notes that cite a source, the ones the "What you
-  left open" shelf and `left-open` list when they carry `draft: true`. At most
+- `thought` — a reader's own notes that cite a source, the ones the My marks page
+  and `marks` list when they carry `draft: true`. At most
   one type holds it, and the type must list `based_on`.
 
 A role that is none of the four, or a second type holding `lesson` or `thought`,

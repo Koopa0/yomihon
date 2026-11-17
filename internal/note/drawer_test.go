@@ -83,7 +83,7 @@ func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
 			name: "an unplaced note carries its folder",
 			url:  "/notes/Concepts/plain.md",
 			want: []string{`data-reading-rail="folder"`, `class="y-here"`},
-			ban:  []string{"上一課", "下一課", `data-sidebar-group=`},
+			ban:  []string{"上一單元", "下一單元", `data-sidebar-group=`},
 		},
 		{
 			name: "a note some map places still carries its folder",
@@ -623,8 +623,8 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	// two literals are what a folder's foot is later refused, so the pattern
 	// refused is one this page has been seen to print.
 	const (
-		prevCourseRole = `<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一課</span>`
-		nextCourseRole = `<span class="y-steps__role">下一課 <span class="y-steps__dir" aria-hidden="true">→</span></span>`
+		prevCourseRole = `<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一單元</span>`
+		nextCourseRole = `<span class="y-steps__role">下一單元 <span class="y-steps__dir" aria-hidden="true">→</span></span>`
 	)
 	for _, want := range []string{
 		`aria-label="Go course 從此步往下"`,

@@ -278,7 +278,7 @@ func syllabusHead(v PathView, lang wording.Lang) templ.Component {
 					return templ_7745c5c3_Err
 				}
 				if v.Action.Continuing {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<span class=\"y-keptmark\" aria-hidden=\"true\"></span> ")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "<span class=\"y-bookmark__ribbon\" aria-hidden=\"true\"></span> ")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

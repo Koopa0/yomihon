@@ -48,7 +48,7 @@ const CONDITIONS = [
 const SLACK = 2;
 const APART = 150;
 
-const PLACE_SITE = 'every-visible-frame-is-at-the-kept-place';
+const PLACE_SITE = 'every-visible-frame-is-at-the-bookmark';
 const SITES = [PLACE_SITE];
 
 class LockFired extends Error {
@@ -61,11 +61,11 @@ class ProbeBroken extends Error {}
 class NotApplied extends Error {}
 
 const fail = (site, message) => {
-  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN kept-place-first-frame: unknown assertion site ${site}`);
-  throw new LockFired(site, `FAIL kept-place-first-frame: ${message}`);
+  if (!SITES.includes(site)) throw new ProbeBroken(`BROKEN bookmark-first-frame: unknown assertion site ${site}`);
+  throw new LockFired(site, `FAIL bookmark-first-frame: ${message}`);
 };
-const broken = (message) => { throw new ProbeBroken(`BROKEN kept-place-first-frame: ${message}`); };
-const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED kept-place-first-frame: ${message}`); };
+const broken = (message) => { throw new ProbeBroken(`BROKEN bookmark-first-frame: ${message}`); };
+const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED bookmark-first-frame: ${message}`); };
 
 // rewriteModule plants a regression in the client module that decides the
 // landing. The needle has to match exactly once in every copy served: a
@@ -153,13 +153,13 @@ const MUTATIONS = {
 
 for (const [name, mutation] of Object.entries(MUTATIONS)) {
   if (!SITES.includes(mutation.target)) {
-    console.error(`kept-place-first-frame: mutation ${name} aims at unknown site ${mutation.target}`);
+    console.error(`bookmark-first-frame: mutation ${name} aims at unknown site ${mutation.target}`);
     process.exit(2);
   }
 }
 for (const site of SITES) {
   if (!Object.values(MUTATIONS).some((mutation) => mutation.target === site)) {
-    console.error(`kept-place-first-frame: assertion site ${site} has no mutation`);
+    console.error(`bookmark-first-frame: assertion site ${site} has no mutation`);
     process.exit(2);
   }
 }
@@ -169,7 +169,7 @@ if (MUTATE === 'list') {
   process.exit(0);
 }
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
-  console.error(`kept-place-first-frame: unknown MUTATE mode ${MUTATE}`);
+  console.error(`bookmark-first-frame: unknown MUTATE mode ${MUTATE}`);
   process.exit(2);
 }
 
@@ -197,7 +197,7 @@ const recorder = () => {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  console.log(`kept-place-first-frame: Chrome ${browser.version()}`);
+  console.log(`bookmark-first-frame: Chrome ${browser.version()}`);
   let measured = 0;
   let returns = 0;
   for (const view of KEEP_AT) {
@@ -205,7 +205,7 @@ try {
     await context.addInitScript(recorder);
     // The place being returned to is first kept somewhere else, so that the
     // desk offers the note being measured only once the reader has kept it.
-    const set = await context.request.post(`${BASE}/marks`, {
+    const set = await context.request.post(`${BASE}/bookmark`, {
       form: { path: OTHER_NOTE, anchor: '', offset: '0', identity: '0'.repeat(64) },
     });
     if (set.status() !== 204) broken(`keeping a place in ${OTHER_NOTE} answered ${set.status()}, want 204`);
@@ -218,7 +218,7 @@ try {
     await page.evaluate((y) => window.scrollTo(0, y), view.y);
     const control = page.locator('[data-mark-control]:visible');
     if (await control.count() !== 1) broken(`${NOTE} shows ${await control.count()} mark controls at ${view.width}px, want exactly 1`);
-    const posted = page.waitForResponse((response) => new URL(response.url()).pathname === '/marks' && response.request().method() === 'POST', { timeout: 4000 });
+    const posted = page.waitForResponse((response) => new URL(response.url()).pathname === '/bookmark' && response.request().method() === 'POST', { timeout: 4000 });
     await control.locator('[data-mark-button]').click();
     const response = await posted;
     if (response.status() !== 204) broken(`keeping the place at ${view.width}px answered ${response.status()}, want 204`);
@@ -286,7 +286,7 @@ try {
           const issue = proof();
           if (issue) notApplied(`${MUTATE}: ${issue}`);
         }
-        console.log(`kept-place-first-frame: ${view.width}px ${condition.name} trial ${trial}: ${held} frames held, first visible frame ${JSON.stringify(seen[0])}, ${wrong.length} of ${seen.length} visible frames away from ${place}`);
+        console.log(`bookmark-first-frame: ${view.width}px ${condition.name} trial ${trial}: ${held} frames held, first visible frame ${JSON.stringify(seen[0])}, ${wrong.length} of ${seen.length} visible frames away from ${place}`);
         if (wrong.length > 0) {
           fail(PLACE_SITE, `at ${view.width}px (${condition.name}) a frame showing the column was painted with the window at ${wrong[0].y} (heading at ${heading}), but the place kept is at ${place}: the reader saw the note somewhere else first ${JSON.stringify(wrong[0])}`);
         }
@@ -295,7 +295,7 @@ try {
     }
     await context.close();
   }
-  console.log(`PASS kept-place-first-frame: ${measured} visible frames over ${returns} returns, every one at the kept place`);
+  console.log(`PASS bookmark-first-frame: ${measured} visible frames over ${returns} returns, every one at the kept place`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

@@ -190,6 +190,14 @@ var facetHeadings = map[string]Phrase{
 	"domain": both("領域", "Domain"),
 }
 
+// The words a filter row shows for a note type that the rules give a role. Any
+// other type is the vault's own word and is shown as written.
+var (
+	FacetTypeUnit   = both("單元", "Unit")
+	FacetTypeCourse = both("課程", "Course")
+	FacetTypeIndex  = both("索引", "Index")
+)
+
 // FacetHeading names one of the keys a reader narrows by. A key with no name
 // here reads as empty rather than as its own spelling, so a column cannot
 // quietly print a grammar key at a reader; the consumer's test is what keeps

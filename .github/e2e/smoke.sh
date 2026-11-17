@@ -39,7 +39,7 @@ fail() {
 # so what the rail used to promise here is promised on the note page below.
 home_markers=(
   'courses|data-home-block="courses"'
-  'maps|data-home-block="maps"'
+  'indexes|data-home-block="indexes"'
   'reports|data-home-block="reports"'
   'folders|data-home-block="folders"'
   'vault-readme|data-home-readme'
@@ -48,7 +48,7 @@ home_markers=(
 
 # This is a set comparison, not an order oracle: deleting a marker from the
 # live table must not also delete its self-test by construction.
-required_home_sites=(courses maps reports folders vault-readme desk-health)
+required_home_sites=(courses indexes reports folders vault-readme desk-health)
 
 # The rail, checked where it now lives: beside the thing being read. The map
 # tree marker is what proves a tree rendered rather than an empty group.
@@ -405,6 +405,9 @@ assert_face "/courses/Maps/study.md" "<title>Study Path"
 assert_face "/courses" 'data-index="courses"'
 assert_redirect "/syllabus/Maps/study.md?from=Notes%2Falpha.md" "/courses/Maps/study.md?from=Notes%2Falpha.md"
 assert_redirect "/paths" "/courses"
+assert_face "/indexes" 'data-index="indexes"'
+assert_redirect "/maps" "/indexes"
+assert_redirect "/open-thoughts" "/marks"
 assert_face "/search?q=tortoise" 'href="/notes/Notes/alpha.md"'
 assert_face "/search/results?q=tortoise" 'data-live-search-results'
 

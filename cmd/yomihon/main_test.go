@@ -59,7 +59,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 		"  yomihon coverage [options]\n" +
 		"  yomihon exists [options] <name>\n\n" +
 		"About the reader:\n" +
-		"  yomihon left-open [options]\n" +
+		"  yomihon marks [options]\n" +
 		"  yomihon approve-figure [--root <dir>] <path>   let a figure's scripts run\n" +
 		"  yomihon revoke-figure [--root <dir>] <path>    withdraw that\n\n" +
 		"Use \"yomihon <command> --help\" for command help.\n"
@@ -88,7 +88,7 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"  yomihon check --root ~/vault              the whole vault\n" +
 			"  yomihon check --root ~/vault Notes        one folder of it\n" +
 			"\n" +
-			"A path inside a directory the contract withholds from agent-facing output\n" +
+			"A path inside a directory the rules withhold from agent-facing output\n" +
 			"is refused rather than judged: that ground is scanned, but nothing from it\n" +
 			"can be reported, and an empty answer would read as a clean verdict.\n" +
 			"\n" +
@@ -145,35 +145,35 @@ func TestHelpIsSideEffectFree(t *testing.T) {
 			"failed it is refused with 2 rather than given, and nothing gates a write\n" +
 			"on an absence nobody could establish.\n" +
 			"\n" +
-			"A note inside a directory the contract withholds from agent-facing output\n" +
+			"A note inside a directory the rules withhold from agent-facing output\n" +
 			"is never described here — no path, no matched field. It still answers:\n" +
 			"the exit stays 0, so a write-if-absent gated on it does not create a\n" +
 			"second note under a withheld note's own name.\n",
-		"left-open": "Usage: yomihon left-open [--root <dir>] [--format json|human|md]\n" +
+		"marks": "Usage: yomihon marks [--root <dir>] [--format json|human|md]\n" +
 			"\n" +
-			"Lists what you left open in a vault: the locations you marked \"Not sure\n" +
-			"yet\", and the notes of the contract's answer type that still declare\n" +
-			"draft: true — newest first, as the reading desk shows them.\n" +
+			"Lists the marks in a vault: the questions you marked, and the notes of\n" +
+			"the rules' answer type that still declare draft: true — newest first,\n" +
+			"as My marks shows them. The old name, left-open, still works.\n" +
 			"\n" +
 			"Marks are kept on this machine, one set per folder, found by the folder's\n" +
 			"path as it is spelled: this reads the set that yomihon serve kept for the\n" +
 			"same folder. A mark whose note or heading is gone is still listed, with lost\n" +
 			"saying which and its anchor left empty; nothing here removes it. A mark in a\n" +
-			"folder the contract leaves out of the scan is not listed.\n" +
+			"folder the rules leave out of the scan is not listed.\n" +
 			"\n" +
 			"Writes one JSON object per line when the output is not a terminal, and a\n" +
 			"human list when it is; --format decides instead of the terminal, and md\n" +
 			"falls back to the human view.\n" +
 			"\n" +
-			"Nothing under a directory the contract withholds from agent-facing output\n" +
+			"Nothing under a directory the rules withhold from agent-facing output\n" +
 			"is listed, nor an item whose title or heading links there in any link\n" +
 			"syntax or spells a withheld directory's name and a slash, read past case,\n" +
 			"fullwidth forms, character references, percent-escapes, and characters\n" +
 			"that draw nothing or only mark another. A look-alike letter of another\n" +
 			"script is not recognised. Plain words that only share a withheld note's\n" +
 			"file name are listed as written.\n" +
-			"Nothing says how much was left out. When no location is listed, one line\n" +
-			"on stderr says only whether a marks file was found. The contract has to\n" +
+			"Nothing says how much was left out. When no question is listed, one line\n" +
+			"on stderr says only whether a marks file was found. The rules have to\n" +
 			"declare [privacy] before anything is listed at all.\n" +
 			"\n" +
 			"A list that leaves out what could not be read would read as complete, so an\n" +
@@ -429,7 +429,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	vaultName := shell.VaultName(reader.Name())
 	searchProvider := func() search.RequestSnapshot {
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap)}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap), Roles: snap.NavigationRoles()}
 	}
 	pathProvider := func() course.RequestSnapshot {
 		snap := store.Current().Capture()

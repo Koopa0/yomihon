@@ -39,13 +39,13 @@ func TestRoutingRefusalsKeepTheReadingShell(t *testing.T) {
 		{"raw method", "DELETE", "/raw/Concepts/alpha.md", "", "GET, HEAD", 405},
 		{"options method", "OPTIONS", "/notes/Concepts/alpha.md", "", "GET, HEAD", 405},
 		{"unknown path method", "POST", "/unknown", "", "GET, HEAD", 405},
-		{"write method", "PUT", "/uncertainties", "", "GET, HEAD, POST", 405},
-		{"fetch questions", "POST", "/uncertainties", "fetch", "", 403},
-		{"origin questions", "POST", "/uncertainties", "origin", "", 403},
-		{"same site questions", "POST", "/uncertainties", "same-site", "", 403},
-		{"malformed origin", "POST", "/uncertainties", "malformed", "", 403},
+		{"write method", "PUT", "/questions", "", "GET, HEAD, POST", 405},
+		{"fetch questions", "POST", "/questions", "fetch", "", 403},
+		{"origin questions", "POST", "/questions", "origin", "", 403},
+		{"same site questions", "POST", "/questions", "same-site", "", 403},
+		{"malformed origin", "POST", "/questions", "malformed", "", 403},
 		{"fetch preferences", "POST", "/preferences", "fetch", "", 403},
-		{"fetch marks", "POST", "/marks", "fetch", "", 403},
+		{"fetch marks", "POST", "/bookmark", "fetch", "", 403},
 	}
 	for _, language := range []string{"zh-Hant", "en"} {
 		for _, tc := range cases {
@@ -143,8 +143,8 @@ func TestRefusalReplaysKeepTheWireReply(t *testing.T) {
 	}{
 		{method: "POST", path: "/notes/Concepts/alpha.md", lang: "zh-Hant", allow: "GET, HEAD", code: 405},
 		{method: "POST", path: "/notes/Concepts/alpha.md", lang: "en", allow: "GET, HEAD", code: 405},
-		{method: "POST", path: "/uncertainties", lang: "zh-Hant", cross: true, code: 403},
-		{method: "POST", path: "/uncertainties", lang: "en", cross: true, code: 403},
+		{method: "POST", path: "/questions", lang: "zh-Hant", cross: true, code: 403},
+		{method: "POST", path: "/questions", lang: "en", cross: true, code: 403},
 	} {
 		t.Run(tc.lang+tc.path, func(t *testing.T) {
 			for range 3 {
@@ -200,7 +200,7 @@ func TestRefusalRenderingKeepsCancellation(t *testing.T) {
 		code        int
 	}{
 		{path: "/notes/Concepts/alpha.md", allow: "GET, HEAD", code: 405},
-		{path: "/uncertainties", cross: true, code: 403},
+		{path: "/questions", cross: true, code: 403},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(t.Context())

@@ -43,9 +43,9 @@ const MUTATIONS = {
   'swap-paths-maps': {
     target: 'group-order',
     apply: rewritePath(PAGE, (body) => body
-      .replaceAll('data-sidebar-group="paths"', 'data-sidebar-group="swap"')
-      .replaceAll('data-sidebar-group="maps"', 'data-sidebar-group="paths"')
-      .replaceAll('data-sidebar-group="swap"', 'data-sidebar-group="maps"')),
+      .replaceAll('data-sidebar-group="courses"', 'data-sidebar-group="swap"')
+      .replaceAll('data-sidebar-group="indexes"', 'data-sidebar-group="courses"')
+      .replaceAll('data-sidebar-group="swap"', 'data-sidebar-group="indexes"')),
   },
   'open-journal': {
     target: 'journal-collapsed',
@@ -86,8 +86,8 @@ try {
   if (await sidebar.count() !== 1) broken('the page has no single vault sidebar');
 
   const groups = await sidebar.locator('[data-sidebar-group]').evaluateAll((elements) => elements.map((el) => el.dataset.sidebarGroup));
-  if (groups.join(',') !== 'paths,maps,journal,reports') {
-    fail('group-order', `groups are ${groups.join(',') || 'absent'}, want paths,maps,journal,reports`);
+  if (groups.join(',') !== 'courses,indexes,journal,reports') {
+    fail('group-order', `groups are ${groups.join(',') || 'absent'}, want courses,indexes,journal,reports`);
   }
 
   const journal = sidebar.locator('details[data-sidebar-group="journal"]');

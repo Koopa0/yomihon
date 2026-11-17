@@ -216,12 +216,12 @@ const keepThePlace = async (page, path) => {
   }
   await page.evaluate((y) => window.scrollTo(0, y), SCROLL_TO);
   const stored = page.waitForResponse(
-    (response) => new URL(response.url()).pathname === '/marks' && response.request().method() === 'POST',
+    (response) => new URL(response.url()).pathname === '/bookmark' && response.request().method() === 'POST',
     { timeout: 4000 },
   ).catch(() => null);
   await control.locator('[data-mark-button]').click();
   const response = await stored;
-  if (!response) broken(`pressing the control on ${path} sent nothing to /marks`);
+  if (!response) broken(`pressing the control on ${path} sent nothing to /bookmark`);
   if (response.status() !== 204) {
     broken(`keeping a place in ${path} answered ${response.status()}, so no place was kept`);
   }

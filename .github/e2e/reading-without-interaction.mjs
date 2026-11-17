@@ -113,8 +113,8 @@ const MUTATIONS = {
       addEventListener('scroll', () => {
         if (sent || innerHeight + scrollY < document.documentElement.scrollHeight - 40) return;
         sent = true;
-        const article = document.querySelector('[data-uncertainty-path]');
-        fetch('/uncertainties', { method: 'POST', body: new URLSearchParams({ path: article.dataset.uncertaintyPath, anchor: 'the-first-mechanism' }) });
+        const article = document.querySelector('[data-question-path]');
+        fetch('/questions', { method: 'POST', body: new URLSearchParams({ path: article.dataset.questionPath, anchor: 'the-first-mechanism' }) });
       }, { passive: true });
     `),
   },
@@ -248,7 +248,7 @@ try {
     if (crowded.length > 0) fail('controls-leave-the-text-alone', `at ${width}px: ${crowded.join('; ')}`);
 
     if (writes.length > 0) fail('nothing-is-written', `reading through at ${width}px sent ${writes.join(', ')}`);
-    const stored = await (await fetch(`${BASE}/uncertainties`)).json();
+    const stored = await (await fetch(`${BASE}/questions`)).json();
     if (stored.length !== 0) fail('nothing-is-written', `reading through at ${width}px left ${JSON.stringify(stored)} stored`);
 
     // Walk it with the keyboard: every stop is a thing the reader can see, and the
@@ -301,8 +301,8 @@ try {
   // A planted regression may keep a mark; none of the later probes starts with one.
   const owned = decodeURIComponent(PAGE.slice('/notes/'.length));
   try {
-    for (const { path, anchor } of await (await fetch(`${BASE}/uncertainties`)).json()) {
-      if (path === owned) await fetch(`${BASE}/uncertainties`, { method: 'POST', body: new URLSearchParams({ path, anchor }) });
+    for (const { path, anchor } of await (await fetch(`${BASE}/questions`)).json()) {
+      if (path === owned) await fetch(`${BASE}/questions`, { method: 'POST', body: new URLSearchParams({ path, anchor }) });
     }
   } catch (error) {
     console.error(`BROKEN reading-without-interaction: cleanup failed: ${error}`);

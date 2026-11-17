@@ -34,14 +34,14 @@ var (
 		"Add a .md file to the folder yomihon is reading.",
 	)
 	FolderIndexUngovernedNext = both(
-		"用你的編輯器在這個資料夾裡新增 .md 檔，就能開始閱讀；不需要契約。",
-		"Use your editor to add a .md file to this folder and start reading; no contract is needed.",
+		"用你的編輯器在這個資料夾裡新增 .md 檔，就能開始閱讀；不需要規則檔。",
+		"Use your editor to add a .md file to this folder and start reading; no rules file is needed.",
 	)
 	// What an empty path or map listing without a contract says. Those modes
 	// need a declaration; browsing files does not.
 	IndexUngoverned = both(
-		"這個資料夾還沒有契約。",
-		"This folder has no contract yet.",
+		"這個資料夾還沒有規則檔。",
+		"This folder has no rules file yet.",
 	)
 	IndexUngovernedNext = both(
 		"請新增 System/schemas/vault-schema.toml。",
@@ -51,8 +51,8 @@ var (
 	// read it, which is what a reader sees who added one while yomihon was
 	// already reading the folder. The contract is read once, at start.
 	IndexContractUnloaded = both(
-		"這個資料夾有契約，但 yomihon 是在啟動時讀契約的，當時還沒有這一份。",
-		"This folder has a contract, but yomihon reads the contract when it starts, and this one was not there then.",
+		"這個資料夾有規則檔，但 yomihon 是在啟動時讀規則檔的，當時還沒有這一份。",
+		"This folder has a rules file, but yomihon reads the rules file when it starts, and this one was not there then.",
 	)
 	// RestartYomihon is the step that follows when yomihon has read the contract
 	// once, at start, and what it holds is no longer the file on disk: a
@@ -84,8 +84,8 @@ var (
 var (
 	PathCountOne    = both("%d 門", "%d course")
 	PathCountMany   = both("%d 門", "%d courses")
-	MapCountOne     = both("%d 張", "%d map")
-	MapCountMany    = both("%d 張", "%d maps")
+	MapCountOne     = both("%d 個", "%d index")
+	MapCountMany    = both("%d 個", "%d indexes")
 	ReportCountOne  = both("%d 份", "%d report")
 	ReportCountMany = both("%d 份", "%d reports")
 	BranchCountOne  = both("%d 枝", "%d branch")

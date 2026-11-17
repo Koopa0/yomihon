@@ -111,7 +111,7 @@ func TestTheCoursesLeadTheDeskOfAReaderWhoKeptNoPlace(t *testing.T) {
 	t.Parallel()
 
 	courses := DeskBlock{Mode: courseMode, Shelf: Shelf{Title: "Courses", Href: "/courses", Rows: []Row{{Text: "Go", Href: "/courses/go.md"}}}}
-	maps := DeskBlock{Mode: mapMode, Shelf: Shelf{Title: "Maps", Href: "/maps", Rows: []Row{{Text: "M", Href: "/notes/m.md"}}}}
+	maps := DeskBlock{Mode: mapMode, Shelf: Shelf{Title: "Maps", Href: "/indexes", Rows: []Row{{Text: "M", Href: "/notes/m.md"}}}}
 
 	fresh := renderHome(t, &HomeView{Blocks: []DeskBlock{courses, maps}}, wording.En)
 	lead := between(t, fresh, `<div class="y-homelead">`, "</div>")

@@ -28,7 +28,7 @@ const mutation = async (page) => {
   const counts = [];
   if (!MUTATE) return () => {};
   const script = MUTATE === 'control-outside-body';
-  const assetPath = script ? '/static/uncertainty.js' : '/static/app.css';
+  const assetPath = script ? '/static/question.js' : '/static/app.css';
   await page.route((url) => url.origin === ORIGIN && url.pathname === assetPath, async (route) => {
     const response = await route.fetch();
     if (response.status() !== 200) throw new ProbeBroken(`asset returned ${response.status()}`);
@@ -44,7 +44,7 @@ const mutation = async (page) => {
       counts.push(matches.length === 1 ? [...matches[0][0].matchAll(cap)].length : matches.length);
       source = source.replace(block, (rule) => rule.replace(cap, ''));
     } else {
-      const needle = /\.y-fileinfo__note\s*,\s*\.y-uncertainty__said(?=\s*\{)/g;
+      const needle = /\.y-fileinfo__note\s*,\s*\.y-question__said(?=\s*\{)/g;
       counts.push([...source.matchAll(needle)].length);
       source = source.replace(needle, '.y-fileinfo__note');
     }
@@ -83,7 +83,7 @@ try {
         const applied = await mutation(page);
         let writes = 0;
         let reads = 0;
-        await page.route('**/uncertainties', async (route) => {
+        await page.route('**/questions', async (route) => {
           if (route.request().method() !== 'GET') writes++;
           else reads++;
           await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
@@ -94,15 +94,15 @@ try {
         const trigger = page.locator('a[data-concept]').first();
         const sourceHref = await trigger.getAttribute('href');
         await trigger.click();
-        await page.locator('[data-concept-sheet][open] .y-uncertainty__said').filter({ hasText: /\S/ }).waitFor();
+        await page.locator('[data-concept-sheet][open] .y-question__said').filter({ hasText: /\S/ }).waitFor();
         await settled(page);
         applied();
         const result = await page.evaluate(() => {
           const dialog = document.querySelector('[data-concept-sheet][open]');
           const body = dialog.querySelector('[data-concept-body]');
-          const control = dialog.querySelector('[data-uncertainty-control]');
+          const control = dialog.querySelector('[data-question-control]');
           const button = control.querySelector('button');
-          const said = control.querySelector('.y-uncertainty__said');
+          const said = control.querySelector('.y-question__said');
           const scope = control.querySelector('.y-fileinfo__note');
           const d = dialog.getBoundingClientRect();
           const b = body.getBoundingClientRect();
@@ -125,7 +125,7 @@ try {
             feedback: [s.color, s.fontFamily, s.fontSize, s.margin],
             scope: [n.color, n.fontFamily, n.fontSize, n.margin],
             disabled: button.disabled, status: said.getAttribute('role'),
-            controls: dialog.querySelectorAll('[data-uncertainty-control]').length,
+            controls: dialog.querySelectorAll('[data-question-control]').length,
             theme: document.documentElement.dataset.theme,
             language: control.lang,
           };
@@ -150,7 +150,7 @@ try {
         if (await trigger.getAttribute('href') !== sourceHref) throw new ProbeBroken('concept link lost its native destination');
         await trigger.click();
         await settled(page);
-        if (await page.locator('[data-concept-sheet][open] [data-uncertainty-control]').count() !== 1) {
+        if (await page.locator('[data-concept-sheet][open] [data-question-control]').count() !== 1) {
           throw new ProbeBroken('reopening duplicated the control');
         }
         contexts++;

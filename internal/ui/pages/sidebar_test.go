@@ -303,7 +303,7 @@ func TestSidebarMarksDisclosureStateForTheScript(t *testing.T) {
 	html := buf.String()
 
 	for _, want := range []string{
-		`data-chain data-key="paths"`,
+		`data-chain data-key="courses"`,
 		`data-chain data-key="map:Maps/Go path.md"`,
 		`data-filter-empty`,
 		`yomihon.nav`,
@@ -328,8 +328,8 @@ func TestSidebarContentGrouping(t *testing.T) {
 	}
 	html := buf.String()
 
-	pathsAt := strings.Index(html, `data-sidebar-group="paths"`)
-	mapsAt := strings.Index(html, `data-sidebar-group="maps"`)
+	pathsAt := strings.Index(html, `data-sidebar-group="courses"`)
+	mapsAt := strings.Index(html, `data-sidebar-group="indexes"`)
 	journalAt := strings.Index(html, `data-sidebar-group="journal"`)
 	if pathsAt < 0 || mapsAt < 0 || journalAt < 0 || pathsAt >= mapsAt || mapsAt >= journalAt {
 		t.Errorf("sidebar group order = paths:%d maps:%d journal:%d, want Paths then Maps then Journal", pathsAt, mapsAt, journalAt)
@@ -337,7 +337,7 @@ func TestSidebarContentGrouping(t *testing.T) {
 	for _, want := range []string{
 		`data-map-tree="Maps/Reading map.md"`,
 		`href="/notes/Maps/Reading%20map.md"`,
-		`>開啟地圖</a>`,
+		`>開啟索引</a>`,
 		`data-key="journal"`,
 		`data-sidebar-journal-entry>2026-07-10</a>`,
 		`data-sidebar-journal-entry>2026-07-09</a>`,
@@ -449,7 +449,7 @@ func TestSidebarRendersNavigationCapabilityDiagnostics(t *testing.T) {
 	html := buf.String()
 	for _, want := range []string{
 		`data-sidebar-group="navigation-diagnostics"`,
-		"課程與地圖",
+		"課程與索引",
 		"筆記清單目前無法使用",
 		// The sentences themselves, HTML-escaped exactly as the page writes them.
 		htmlEscape(model.NavigationClosure().Diagnostic()),
@@ -490,7 +490,7 @@ func TestSidebarRendersRejectedJournalDirDiagnostic(t *testing.T) {
 	html := buf.String()
 	for _, want := range []string{
 		`data-sidebar-group="journal"`,
-		"日誌目前無法使用。",
+		"日記目前無法使用。",
 		htmlEscape(model.JournalClosure().Diagnostic()),
 	} {
 		if !strings.Contains(html, want) {
@@ -522,9 +522,9 @@ func TestSidebarSaysNothingForAnUngovernedFolder(t *testing.T) {
 	for _, unwanted := range []string{
 		`data-sidebar-group="navigation-diagnostics"`,
 		`data-sidebar-group="journal"`,
-		"課程與地圖目前無法使用",
+		"課程與索引目前無法使用",
 		"筆記清單目前無法使用",
-		"日誌目前無法使用",
+		"日記目前無法使用",
 	} {
 		if strings.Contains(html, unwanted) {
 			t.Errorf("ungoverned sidebar renders %q; nothing ever claimed governance here", unwanted)
@@ -627,13 +627,13 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 	if strings.Contains(html, `data-map-tree="System/templates/Template map.md"`) {
 		t.Error("sidebar Maps contains the non-instance template map document")
 	}
-	pathsAt := strings.Index(html, `data-sidebar-group="paths"`)
-	mapsAt := strings.Index(html, `data-sidebar-group="maps"`)
+	pathsAt := strings.Index(html, `data-sidebar-group="courses"`)
+	mapsAt := strings.Index(html, `data-sidebar-group="indexes"`)
 	if pathsAt < 0 || mapsAt < 0 || pathsAt >= mapsAt {
 		t.Fatalf("sidebar path/map markers = %d/%d, want ordered groups", pathsAt, mapsAt)
 	}
 	paths := html[pathsAt:mapsAt]
-	for _, want := range []string{`data-resolution="non-instance"`, "Template target", ">非課文</span>"} {
+	for _, want := range []string{`data-resolution="non-instance"`, "Template target", ">非單元</span>"} {
 		if !strings.Contains(paths, want) {
 			t.Errorf("sidebar Paths is missing non-instance warning output %q", want)
 		}
@@ -663,7 +663,7 @@ func TestSidebarKeepsNonInstanceStudyPathWarningsOutOfNavigationLinks(t *testing
 	}
 	// The warning belongs to the course that named the file, not to the folder
 	// it sits in: there it is one file among its neighbours.
-	if strings.Contains(here, ">非課文</span>") {
+	if strings.Contains(here, ">非單元</span>") {
 		t.Error("the folder listing repeats the course's warning about a file in it")
 	}
 }
@@ -683,7 +683,7 @@ func TestSidebarZeroEntryMapKeepsDisclosureAndOpenLink(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Empty map",
-		`href="/notes/Maps/Empty.md">開啟地圖</a>`,
+		`href="/notes/Maps/Empty.md">開啟索引</a>`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("rendered zero-entry map is missing %q", want)

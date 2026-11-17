@@ -123,7 +123,7 @@ function say(control, words, kept) {
 function showPlace(anchor) {
   const article = readingColumn();
   if (!article) return;
-  for (const label of article.querySelectorAll('[data-section-place]')) label.hidden = true;
+  for (const label of article.querySelectorAll('[data-section-bookmark]')) label.hidden = true;
   const element = anchor ? document.getElementById(anchor) : null;
   if (!element) return;
   let held = null;
@@ -132,7 +132,7 @@ function showPlace(anchor) {
     if (heading !== element && !(heading.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)) break;
     held = section;
   }
-  held?.querySelector('[data-section-place]')?.removeAttribute('hidden');
+  held?.querySelector('[data-section-bookmark]')?.removeAttribute('hidden');
 }
 
 // How many times this document has kept a place. A reading of where the place is

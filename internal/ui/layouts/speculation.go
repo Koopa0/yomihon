@@ -15,7 +15,7 @@ import (
 // Left out on purpose: the raw, compare, freshness and preview endpoints,
 // search, read-aloud, the preferences page, thought composition, and the
 // health view, which reads every note in the vault to answer. The desk and
-// the open-thoughts shelf are left until a measurement says the wait is worth
+// the marks shelf are left until a measurement says the wait is worth
 // the work.
 const speculationReads = `{"or":[` +
 	`{"href_matches":"/notes/*"},` +
@@ -24,7 +24,7 @@ const speculationReads = `{"or":[` +
 	`{"href_matches":"/folders/*"},` +
 	`{"href_matches":"/reports"},` +
 	`{"href_matches":"/courses"},` +
-	`{"href_matches":"/maps"},` +
+	`{"href_matches":"/indexes"},` +
 	`{"href_matches":"/journal"}` +
 	`]}`
 

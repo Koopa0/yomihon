@@ -23,7 +23,7 @@ templ continueRow(row ContinueRow, lang wording.Lang) {
 			}
 			if row.Href != "" {
 				<a class="y-continue__note" href={ templ.URL(row.Href) } aria-describedby="home-continue-title" data-continue-link>
-					<span class="y-keptmark" aria-hidden="true"></span>
+					<span class="y-bookmark__ribbon" aria-hidden="true"></span>
 					<span class="y-cover__verb">{ wording.ContinueReading.In(lang) }</span>
 				</a>
 			}
@@ -40,8 +40,8 @@ templ continueRow(row ContinueRow, lang wording.Lang) {
 // is listening. It is one element, so a row laying out its children sees one
 // item and not two.
 templ keptPlace(lang wording.Lang) {
-	<span class="y-keptplace">
-		<span class="y-keptmark" aria-hidden="true"></span>
+	<span class="y-bookmark">
+		<span class="y-bookmark__ribbon" aria-hidden="true"></span>
 		<span class="y-offscreen">{ wording.MarkKeptHere.In(lang) }</span>
 	</span>
 }

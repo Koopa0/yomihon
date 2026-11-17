@@ -22,7 +22,7 @@ const maxFormBytes = 4096
 // sides of a package boundary: the command reads it from here and hands it to
 // the page, which renders it rather than spelling one of its own. An address
 // written twice is one that drifts.
-const Address = "/marks"
+const Address = "/bookmark"
 
 // Handler serves the one route a mark reaches the process through, and the one
 // a page reads the kept place back from.
@@ -57,10 +57,28 @@ func NewHandler(file *File, places Places, log *slog.Logger) *Handler {
 	return &Handler{file: file, places: places, log: log}
 }
 
-// Register mounts the route.
+// retiredAddress is where a bookmark was posted before the route took its
+// present name. A page drawn by the previous version may still post there.
+const retiredAddress = "/marks"
+
+// Register mounts the route, and the retired address that leads to it.
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+Address, h.held)
 	mux.HandleFunc("POST "+Address, h.set)
+	mux.HandleFunc("POST "+retiredAddress, movedTo(Address))
+}
+
+// movedTo answers a retired address with a permanent redirect that keeps the
+// method and the body, so a form posted by an older page still arrives. The
+// target is a constant path on this server and the query is carried over.
+func movedTo(target string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		where := target
+		if r.URL.RawQuery != "" {
+			where += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, where, http.StatusPermanentRedirect) // #nosec G710 -- where starts with a constant path on this server
+	}
 }
 
 // held answers where the place kept now is, for a page that was drawn before it
@@ -83,7 +101,7 @@ func (h *Handler) held(w http.ResponseWriter, r *http.Request) {
 		Path   string `json:"path"`
 		Anchor string `json:"anchor"`
 	}{Path: kept.RelPath, Anchor: kept.Anchor}); err != nil {
-		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "send the kept place", "error", err)
+		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "send the bookmark", "error", err)
 	}
 }
 

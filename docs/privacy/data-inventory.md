@@ -16,9 +16,9 @@ this document.
 | `System/schemas/vault-schema.toml`, the machine authority | The vault; `internal/schema` is its only reader | Vault policy | As above |
 | Parsed notes, rendered HTML, diagnostics, graph, search index | Process memory, rebuilt from the vault | Until the snapshot is replaced or the process exits | The process and the request being served |
 | HTTP method, path, query, headers, mark forms; CLI flags and arguments | Request and output buffers | The request or action | The local caller |
-| `slog` records: address, vault root, contract state, scan and render failures; a marks file's own absolute path when reading or writing it fails, and the note path the caller submitted when a continuation mark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
-| The reader's continuation — `reader.json` and its adjacent `.reader-*.json`, under `os.UserConfigDir()`/`yomihon`/one directory per vault, holding that vault's absolute path and one continuation point: a note path, an anchor id, a distance below it, the content identity of the bytes that were on screen, and when it was set | The platform's configuration directory, never the vault | Until the reader keeps another place or deletes the file; yomihon never expires one. A crash between the temporary file being created and renamed into place can strand the temporary file, holding that same content, and nothing removes it | The same OS account |
-| The reader's uncertainty marks — `uncertainty.json` and its adjacent `.uncertainty-*.json` in the same per-vault directory. Each array entry contains only `path`, `anchor`, and `time`; no body, chosen sentence, content identity, or source version is saved | The platform's configuration directory, never the vault | Until the reader toggles that location off or deletes the file; no expiry or automatic recovery. A crash can strand a temporary file containing the same location records | The same OS account; the local reading client receives them from `GET /uncertainties`; `yomihon left-open` writes the ones outside withheld ground to its caller |
+| `slog` records: address, vault root, contract state, scan and render failures; a marks file's own absolute path when reading or writing it fails, and the note path the caller submitted when a bookmark is refused | stderr | Not persisted by yomihon | Whatever captures the terminal |
+| The reader's bookmark — `reader.json` and its adjacent `.reader-*.json`, under `os.UserConfigDir()`/`yomihon`/one directory per vault, holding that vault's absolute path and one bookmark: a note path, an anchor id, a distance below it, the content identity of the bytes that were on screen, and when it was set | The platform's configuration directory, never the vault | Until the reader keeps another place or deletes the file; yomihon never expires one. A crash between the temporary file being created and renamed into place can strand the temporary file, holding that same content, and nothing removes it | The same OS account |
+| The reader's questions — `uncertainty.json` and its adjacent `.uncertainty-*.json` in the same per-vault directory. Each array entry contains only `path`, `anchor`, and `time`; no body, chosen sentence, content identity, or source version is saved | The platform's configuration directory, never the vault | Until the reader toggles that location off or deletes the file; no expiry or automatic recovery. A crash can strand a temporary file containing the same location records | The same OS account; the local reading client receives them from `GET /questions`; `yomihon marks` writes the ones outside withheld ground to its caller |
 | The figure approvals — `figures.json` and its adjacent `.figures-*.json` in the same per-vault directory. Each entry is a figure's vault path, the SHA-256 of the bytes approved, and when; the file also names the vault's absolute path. No figure content is copied | The platform's configuration directory, never the vault | Until `yomihon revoke-figure` removes an entry or the file is deleted; an approval stops applying, without being removed, the moment the figure's bytes change | The same OS account. The reading server reads it on each page and each frame request and never writes it; `approve-figure` and `revoke-figure` write it, owner-only, by sibling-file rename. `check`, `coverage` and `exists` never read it |
 | A proposed thought note's frontmatter and `based_on` link | The response's read-only text field; the OS clipboard when the reader copies it; the `obsidian://new` URI when the reader chooses that handoff | The page lifetime; clipboard and external-editor policies own their copies | The local browser, clipboard, and selected editor |
 
@@ -37,11 +37,11 @@ About those rows:
   files and the directory name spells no path. `reader.json`, when present,
   also names the vault's absolute path; `uncertainty.json` contains only its
   three-field entries. Nothing syncs or expires these marks. No command-line
-  face reads `reader.json`. One reads `uncertainty.json`: `yomihon left-open`
+  face reads `reader.json`. One reads `uncertainty.json`: `yomihon marks`
   opens it read-only and never writes it or the vault; `check`, `coverage`
   and `exists` read neither file. Deleting one file clears that kind of mark;
   deleting the per-vault directory clears both.
-- **`yomihon left-open` hands the reader's marks to whoever runs it.** It lists
+- **`yomihon marks` hands the reader's marks to whoever runs it.** It lists
   each marked location — the note's path, the anchor and the words of the
   heading or practice card it names, the note's title, a wikilink,
   and the time the mark was made, in UTC — and each thought that still
@@ -76,15 +76,15 @@ About those rows:
   called it, usually an agent, and from there it can leave this machine
   through that agent's model provider — including when the reader was unsure
   of what. That is the caller's egress, not a request yomihon makes.
-- **`GET /uncertainties` is not filtered.** The reading server hands the whole
+- **`GET /questions` is not filtered.** The reading server hands the whole
   marks file, withheld paths included, to any local client that asks, as it
   hands every note to the reading room; the privacy declaration binds the
   command line, not the loopback port.
 - **`GET /marks` is not filtered either.** It answers the note path and the
-  anchor of the kept place, withheld paths included, to any local client that
+  anchor of the bookmark, withheld paths included, to any local client that
   asks, and tells the browser not to keep the answer. A page shown again from a
   cache draws the place from it.
-- **Uncertainty marks promise a location, not recovery.** A renamed source,
+- **Questions promise a location, not recovery.** A renamed source,
   changed heading, or new sentence from an interactive control may leave the
   saved location unavailable or pointing at different content. There is no
   source identity, relocation, sentence reconstruction, backup, or lossless
@@ -140,8 +140,8 @@ The proposed Markdown is frontmatter of three fields and nothing else: `type`,
 the type that holds the role; `draft: true`; and a `based_on:
 "[[source#section]]"` link when opened for a section, or a source-only link for
 a whole document. It carries no title, because a note's title is its first
-heading and the file name it is saved under. The thought stays on the shelf of
-what the reader left open until they remove `draft: true` in their editor. A
+heading and the file name it is saved under. The thought stays on the My marks page
+until they remove `draft: true` in their editor. A
 field the contract also requires of the type is not proposed; `yomihon check`
 reports it missing after the reader saves the note. There are no prompt
 excerpts, before/after templates, or required-field pickers. The reader's

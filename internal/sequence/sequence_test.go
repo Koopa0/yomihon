@@ -70,7 +70,7 @@ func TestAuthoringExampleReadsAsItsContractSays(t *testing.T) {
 			main.Name, routine.Name, "主線", "日常練習")
 	}
 
-	// "Home reads 8 課" — the main line lists eight lessons, every one
+	// "Home reads 8 單元" — the main line lists eight lessons, every one
 	// canonical, and the side branch's three are not among them.
 	entries := main.entries()
 	if got := len(entries); got != 8 {

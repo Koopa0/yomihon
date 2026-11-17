@@ -310,7 +310,7 @@ func TestADeskBlockIsItsPageNarrowed(t *testing.T) {
 func TestShelfKeepsAnInertFaultRow(t *testing.T) {
 	t.Parallel()
 	fault := Row{Text: "Lost <note>.md", Mark: "Note not found", Fault: true}
-	shelf := Shelf{Title: "Open", Href: "/open-thoughts", Rows: []Row{{Text: "unwritten"}, fault, {Text: "next", Href: "/next"}}}
+	shelf := Shelf{Title: "Open", Href: "/marks", Rows: []Row{{Text: "unwritten"}, fault, {Text: "next", Href: "/next"}}}
 	if diff := cmp.Diff([]Row{fault}, shelfRows(&shelf, 1)); diff != "" {
 		t.Errorf("caught: shelfRows fault inclusion mismatch (-want +got):\n%s", diff)
 	}
@@ -323,7 +323,7 @@ func TestShelfKeepsAnInertFaultRow(t *testing.T) {
 		{
 			name: "home",
 			render: func(out *strings.Builder) error {
-				return ShelfBlock(shelf, "open-thoughts", 1, wording.En, false).Render(t.Context(), out)
+				return ShelfBlock(shelf, "marks", 1, wording.En, false).Render(t.Context(), out)
 			},
 			marker: "data-desk-item", warning: "ui-navitem__count--warn",
 		},
@@ -339,7 +339,7 @@ func TestShelfKeepsAnInertFaultRow(t *testing.T) {
 			render: func(out *strings.Builder) error {
 				open := shelf
 				open.Open = true
-				return ShelfBlock(open, "open-thoughts", 1, wording.En, false).Render(t.Context(), out)
+				return ShelfBlock(open, "marks", 1, wording.En, false).Render(t.Context(), out)
 			},
 			marker: "data-desk-item", warning: "y-openitem__tag--fault",
 		},
@@ -397,7 +397,7 @@ func TestAnOpenRowSaysWhatKindItIsWhenItWasLeftAndWhereBeforeItsSentence(t *test
 		Sources: []RowSource{{Text: "Pipelines › Cancel", Href: "/notes/p.md#cancel"}},
 	}
 	mark := Row{
-		Text: "G04", Href: "/notes/g.md#wait", Mark: "Not sure yet", When: "2026-11-10",
+		Text: "G04", Href: "/notes/g.md#wait", Mark: "Question", When: "2026-11-10",
 		Place: RowPlace{Text: "Can cancel and Wait swap?", Language: "en"}, Opening: "main takes one value.",
 	}
 	page := renderShelf(t, ShelfPage(Shelf{Open: true, Rows: []Row{thought, mark}}, wording.En))
@@ -409,7 +409,7 @@ func TestAnOpenRowSaysWhatKindItIsWhenItWasLeftAndWhereBeforeItsSentence(t *test
 		`data-open-kind="thought"`, `>Thought</span>`, `>Draft</span>`, `datetime="2026-10-31"`,
 		`<a class="y-openitem__name" href="/notes/t.md"><span class="y-openitem__title">On cancelling</span>`,
 		`<p class="y-openitem__opening">I thought cancel() had stopped it.</p>`,
-		`<p class="y-openitem__sources"><span>Declared sources</span> <a href="/notes/p.md#cancel">Pipelines › Cancel</a>`,
+		`<p class="y-openitem__sources"><span>Sources</span> <a href="/notes/p.md#cancel">Pipelines › Cancel</a>`,
 	}
 	at := 0
 	for _, want := range order {
@@ -445,9 +445,9 @@ func TestTheShelfOfferedOrdersAreAGroupOfGetButtonsWithOnePressed(t *testing.T) 
 		for _, choice := range OpenOrders {
 			order.Choices = append(order.Choices, ShelfOrderChoice{Value: string(choice), Text: string(choice), Pressed: choice == current})
 		}
-		form := renderShelf(t, shelfOrder(order, "/open-thoughts"))
+		form := renderShelf(t, shelfOrder(order, "/marks"))
 		for _, want := range []string{
-			`<form class="y-order" method="get" action="/open-thoughts" role="group" aria-labelledby="shelf-order-label" data-shelf-order>`,
+			`<form class="y-order" method="get" action="/marks" role="group" aria-labelledby="shelf-order-label" data-shelf-order>`,
 			`<span class="y-order__label" id="shelf-order-label">Order</span>`,
 		} {
 			if !strings.Contains(form, want) {

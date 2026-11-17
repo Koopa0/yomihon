@@ -45,9 +45,9 @@ func TestOpenThoughtsListsTheThoughtsStillDrafts(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, contract)
 
-	code, body := get(t, srv.Client(), srv.URL+"/open-thoughts")
+	code, body := get(t, srv.Client(), srv.URL+"/marks")
 	if code != http.StatusOK {
-		t.Fatalf("GET /open-thoughts status = %d, want 200", code)
+		t.Fatalf("GET /marks status = %d, want 200", code)
 	}
 	page := html.UnescapeString(body)
 	if !strings.Contains(page, ">Unfinished<") {
@@ -109,9 +109,9 @@ func TestOpenThoughtsAreOrderedAndDatedByCreation(t *testing.T) {
 	}
 	srv := newServerWithContract(t, root, contract)
 
-	code, body := get(t, srv.Client(), srv.URL+"/open-thoughts")
+	code, body := get(t, srv.Client(), srv.URL+"/marks")
 	if code != http.StatusOK {
-		t.Fatalf("GET /open-thoughts status = %d, want 200", code)
+		t.Fatalf("GET /marks status = %d, want 200", code)
 	}
 	page := html.UnescapeString(body)
 	last := -1

@@ -10,7 +10,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/nav"
-	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -73,10 +72,6 @@ func TestTheCoverStatesTheCourseOnceInTheNounItIsReadIn(t *testing.T) {
 		"- [[Queue]]\n"+
 		"\n## Memory {sequence=primary}\n\n- [[Worker]]\n", queueNotes())
 
-	if lessons.Unit != nav.UnitLesson || items.Unit != nav.UnitItem {
-		t.Fatalf("units = %v and %v, want the lesson path in lessons and the queue path in items; the page below proves nothing about nouns", lessons.Unit, items.Unit)
-	}
-
 	tests := []struct {
 		name      string
 		path      nav.Course
@@ -84,10 +79,10 @@ func TestTheCoverStatesTheCourseOnceInTheNounItIsReadIn(t *testing.T) {
 		extent    []string
 		forbidden []string
 	}{
-		{"lessons in Chinese", lessons, wording.ZhHant, []string{"4 課", "支線 1 課"}, []string{"4 篇", "支線 1 篇", "模組", "2 部"}},
-		{"items in Chinese", items, wording.ZhHant, []string{"4 篇", "支線 1 篇"}, []string{"課", "模組", "2 部"}},
-		{"lessons in English", lessons, wording.En, []string{"4 lessons", "1 in a branch"}, []string{"items", "module", "2 parts"}},
-		{"items in English", items, wording.En, []string{"4 items", "1 in a branch"}, []string{"lesson", "module", "2 parts"}},
+		{"lessons in Chinese", lessons, wording.ZhHant, []string{"4 單元", "支線 1 單元"}, []string{"模組", "2 部"}},
+		{"items in Chinese", items, wording.ZhHant, []string{"4 單元", "支線 1 單元"}, []string{"課", "模組", "2 部"}},
+		{"lessons in English", lessons, wording.En, []string{"4 units", "1 in a branch"}, []string{"items", "module", "2 parts"}},
+		{"items in English", items, wording.En, []string{"4 units", "1 in a branch"}, []string{"lesson", "module", "2 parts"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -121,7 +116,7 @@ func TestAPathWithNoSideBranchStatesNoBranchFigure(t *testing.T) {
 
 	path := buildTestPath(t, "## Data {sequence=primary}\n\n- [[Slices]]\n- [[Arrays]]\n")
 	view := BuildPathView(&path, []nav.Course{path}, &CourseCover{})
-	if diff := cmp.Diff([]string{"2 課"}, view.Extent(wording.ZhHant)); diff != "" {
+	if diff := cmp.Diff([]string{"2 單元"}, view.Extent(wording.ZhHant)); diff != "" {
 		t.Errorf("Extent() (-want +got):\n%s", diff)
 	}
 }
@@ -401,107 +396,6 @@ func writeVaultFiles(t *testing.T, files map[string]string) string {
 	}
 	return root
 }
-
-// TestAPathOfNotesThatAreNotLessonsNamesNoLessonAnywhere is the end-to-end
-// check that the noun is one decision read everywhere a path counts or steps:
-// the cover, the book's head in the reading rail, the path index, the foot of
-// an article and the sidebar's steps. The fixture is a kit of concept notes
-// arranged in order — nobody's course — beside a path of real lessons, so a
-// surface that kept its own noun is wrong for exactly one of them.
-func TestAPathOfNotesThatAreNotLessonsNamesNoLessonAnywhere(t *testing.T) {
-	t.Parallel()
-
-	root := writeVaultFiles(t, map[string]string{
-		"Maps/Queue kit.md": "---\ntitle: Queue kit\ntype: study-path\n---\n\n" +
-			"## Parts {sequence=primary}\n\n- [[Queue]]\n- [[Worker]]\n- [[Gate]]\n",
-		"Maps/Lessons.md": "---\ntitle: Lessons\ntype: study-path\n---\n\n" +
-			"## Parts {sequence=primary}\n\n- [[L01]]\n- [[L02]]\n- [[L03]]\n",
-		"Concepts/Queue.md":  "---\ntitle: Queue\ntype: concept\n---\nbody\n",
-		"Concepts/Worker.md": "---\ntitle: Worker\ntype: concept\n---\nbody\n",
-		"Concepts/Gate.md":   "---\ntitle: Gate\ntype: concept\n---\nbody\n",
-		"Writing/L01.md":     "---\ntitle: L01\ntype: lesson\nstatus: draft\n---\nbody\n",
-		"Writing/L02.md":     "---\ntitle: L02\ntype: lesson\nstatus: draft\n---\nbody\n",
-		"Writing/L03.md":     "---\ntitle: L03\ntype: lesson\nstatus: draft\n---\nbody\n",
-	})
-	model := modelOf(t, root)
-	shell := nav.Shell{Nav: model}
-
-	tests := []struct {
-		name     string
-		path     string
-		middle   string
-		lang     wording.Lang
-		extent   string
-		prev     string
-		next     string
-		railPrev string
-		railNext string
-		// otherExtent and otherStep are the other noun's words for the same
-		// places, which no surface of this path may say. An empty otherStep
-		// is a noun whose step words are a prefix of the other's.
-		otherExtent string
-		otherStep   string
-	}{
-		{"items in Chinese", "Maps/Queue kit.md", "Concepts/Worker.md", wording.ZhHant, "3 篇", "上一篇", "下一篇", "上一篇：", "下一篇：", "3 課", "一課"},
-		{"lessons in Chinese", "Maps/Lessons.md", "Writing/L02.md", wording.ZhHant, "3 課", "上一課", "下一課", "上一課：", "下一課：", "3 篇", "一篇"},
-		{"items in English", "Maps/Queue kit.md", "Concepts/Worker.md", wording.En, "3 items", "Previous", "Next", "Previous: ", "Next: ", "3 lessons", "lesson"},
-		{"lessons in English", "Maps/Lessons.md", "Writing/L02.md", wording.En, "3 lessons", "Previous lesson", "Next lesson", "Previous lesson: ", "Next lesson: ", "3 items", ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			chrome := layouts.Chrome{Lang: tt.lang, Nonce: "n"}
-
-			path := model.Path(tt.path)
-			if path == nil {
-				t.Fatalf("the vault holds no path at %s", tt.path)
-			}
-			cover := coverMain(t, renderedHTML(t, Syllabus(BuildPathView(path, model.Paths(), &CourseCover{}), chrome)))
-
-			rail := NewReadingRail(shell, tt.middle, "")
-			head := regexp.MustCompile(`<p class="y-railbook__span">([^<]*)</p>`).FindStringSubmatch(renderedHTML(t, readingRail(rail, chrome)))
-			if head == nil {
-				t.Fatalf("the reading rail of %s draws no book head", tt.middle)
-			}
-
-			foot := FooterSequence(&rail, tt.lang)
-			steps := renderedHTML(t, sequenceSteps(NoteView{Prev: foot.Prev, Next: foot.Next, StepsLabel: foot.Label, StepsCourse: foot.Course, StepsUnit: foot.Unit}, tt.lang))
-
-			drawer := renderedHTML(t, sidebar(NewSidebar(shell, tt.middle), chrome))
-
-			index := renderedHTML(t, ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, tt.lang, nil), chrome))
-
-			if head[1] != tt.extent {
-				t.Errorf("the rail's book head reads %q, want %q", head[1], tt.extent)
-			}
-			if !strings.Contains(cover, tt.extent) {
-				t.Errorf("the cover does not state %q", tt.extent)
-			}
-			if !strings.Contains(steps, tt.prev) || !strings.Contains(steps, tt.next) {
-				t.Errorf("the foot does not offer %q and %q; html = %q", tt.prev, tt.next, steps)
-			}
-			if !strings.Contains(drawer, tt.railPrev) || !strings.Contains(drawer, tt.railNext) {
-				t.Errorf("the sidebar's steps do not offer %q and %q", tt.railPrev, tt.railNext)
-			}
-			if !strings.Contains(index, tt.extent+"</span>") && !strings.Contains(index, tt.extent) {
-				t.Errorf("the path index does not state %q for %s", tt.extent, tt.path)
-			}
-			for where, html := range map[string]string{"cover": cover, "foot": steps} {
-				if strings.Contains(wordsOf(html), tt.otherExtent) {
-					t.Errorf("the %s of %s says %q, the other noun's count", where, tt.path, tt.otherExtent)
-				}
-				if tt.otherStep != "" && strings.Contains(wordsOf(html), tt.otherStep) {
-					t.Errorf("the %s of %s says %q, the other noun's step word", where, tt.path, tt.otherStep)
-				}
-			}
-		})
-	}
-}
-
-// TestNoKickerEndsInASeparator holds the line above a course's title on the page
-// that carries one, the listening page. The line is the whole of what it says,
-// so there is nothing after it for a separator to join to, and a mark left at
-// its end reads as a sentence that stopped.
 func TestNoKickerEndsInASeparator(t *testing.T) {
 	t.Parallel()
 
@@ -605,8 +499,8 @@ func TestTheHeadNamesTheDraftsInTheNounThePathIsReadIn(t *testing.T) {
 		lang wording.Lang
 		want string
 	}{
-		{"lessons in Chinese", &lessons, wording.ZhHant, "其中 1 課是草稿"},
-		{"items in Chinese", &items, wording.ZhHant, "其中 2 篇是草稿"},
+		{"lessons in Chinese", &lessons, wording.ZhHant, "其中 1 單元是草稿"},
+		{"items in Chinese", &items, wording.ZhHant, "其中 2 單元是草稿"},
 		{"lessons in English", &lessons, wording.En, "1 in draft"},
 		{"items in English", &items, wording.En, "2 in draft"},
 		{"nothing left to finish", &settled, wording.ZhHant, ""},

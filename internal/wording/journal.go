@@ -6,17 +6,17 @@ package wording
 // What the journal page says around its calendar.
 var (
 	JournalIndexLede = both(
-		"依月份閱讀日誌。",
+		"依月份閱讀日記。",
 		"Read the journal a month at a time.",
 	)
 	// JournalIndexEmpty is for a vault with no journal at all, which is a
 	// different thing from a month nobody wrote in.
 	JournalIndexEmpty = both(
-		"這個書庫裡沒有日誌。",
+		"這個書庫裡沒有日記。",
 		"There are no journal entries in this vault.",
 	)
 	JournalMonthEmpty = both(
-		"這個月沒有寫下任何日誌。",
+		"這個月沒有寫下任何日記。",
 		"Nothing was written in the journal this month.",
 	)
 )
@@ -46,7 +46,7 @@ var (
 // month, so they would fall off every page of a calendar; they are given a
 // group of their own instead, at the foot of whichever month is open, and the
 // heading says why they are there.
-var JournalUndatedTitle = both("沒有寫日期的日誌", "Journal entries with no date")
+var JournalUndatedTitle = both("沒有寫日期的日記", "Journal entries with no date")
 
 // MonthFmt writes a calendar month with its year. Chinese counts the month and
 // closes with the measure word, English calls the month by name, so the two

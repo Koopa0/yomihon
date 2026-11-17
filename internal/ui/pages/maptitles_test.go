@@ -77,12 +77,12 @@ func TestMapRowsNameTheNoteAsTheAuthorAndNoteDeclared(t *testing.T) {
 		t.Run("beside "+current, func(t *testing.T) {
 			t.Parallel()
 			html := renderedHTML(t, sidebar(NewSidebar(nav.Shell{Nav: model}, current), chrome))
-			if diff := cmp.Diff(want, drawerRows(t, html, "maps")); diff != "" {
+			if diff := cmp.Diff(want, drawerRows(t, html, "indexes")); diff != "" {
 				t.Errorf("maps drawer rows (-want +got):\n%s", diff)
 			}
 			// The row to a note nobody wrote is dropped, not drawn as a
 			// broken row under its link text.
-			if section := drawerSection(t, html, "maps"); strings.Contains(section, "y-navitem--broken") || strings.Contains(section, "not-written-yet") {
+			if section := drawerSection(t, html, "indexes"); strings.Contains(section, "y-navitem--broken") || strings.Contains(section, "not-written-yet") {
 				t.Errorf("the maps drawer draws the row that resolves to no note")
 			}
 		})
@@ -97,8 +97,8 @@ func TestOneNoteHasOneNameInThePathsAndMapsDrawers(t *testing.T) {
 	model := modelOf(t, "testdata/maptitles")
 	html := renderedHTML(t, sidebar(NewSidebar(nav.Shell{Nav: model}, "Lessons/unlisted.md"), recordedChrome()))
 
-	paths := drawerRows(t, html, "paths")
-	maps := drawerRows(t, html, "maps")
+	paths := drawerRows(t, html, "courses")
+	maps := drawerRows(t, html, "indexes")
 	if len(paths) != 3 || len(maps) != 7 {
 		t.Fatalf("drawer rows = %d paths, %d maps, want 3 and 7", len(paths), len(maps))
 	}

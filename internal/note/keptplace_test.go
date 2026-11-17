@@ -76,7 +76,7 @@ func TestTheReadingPageDrawsTheReadersBookmarkWhereTheirPlaceIs(t *testing.T) {
 			if tt.wantRowFor != "" {
 				wantRows = 1
 			}
-			if got := strings.Count(body, `class="y-keptplace"`); got != wantRows {
+			if got := strings.Count(body, `class="y-bookmark"`); got != wantRows {
 				t.Fatalf("%d rows carry the bookmark, want %d", got, wantRows)
 			}
 			if tt.wantRowFor == "" {
@@ -87,7 +87,7 @@ func TestTheReadingPageDrawsTheReadersBookmarkWhereTheirPlaceIs(t *testing.T) {
 				t.Fatalf("the book beside the note has no row for %s", tt.wantRowFor)
 			}
 			row, _, _ := strings.Cut(body[opening[1]:], "</a>")
-			if !strings.Contains(row, `class="y-keptplace"`) {
+			if !strings.Contains(row, `class="y-bookmark"`) {
 				t.Errorf("the bookmark is not on the row of %s: %s", tt.wantRowFor, row)
 			}
 		})

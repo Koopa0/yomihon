@@ -49,7 +49,7 @@ var (
 	SkippedTitle = both("掃描略過的路徑", "Paths the scan passed over")
 	SkippedLede  = both(
 		"這些路徑掃描看過了卻沒編進索引。符號連結和不是一般檔案的路徑不會出現在導覽、搜尋或判讀裡；超過來源大小上限的筆記會列在書架上，但搜尋找不到它。",
-		"These paths were seen and not indexed. A symbolic link or anything that is not a regular file appears in no navigation, no search and no adjudication; a note over the source bound stays on the shelf, but search will not find it.",
+		"These paths were seen and not indexed. A symbolic link or anything that is not a regular file appears in no navigation, no search and no check; a note over the source bound stays on the shelf, but search will not find it.",
 	)
 	UnwrittenTitle = both("連到不存在的目標", "Links to something that is not there")
 	UnwrittenLede  = both(
@@ -111,16 +111,16 @@ var HealthAbout = both("說明", "About this")
 // The two groups that say how the folder's maps cover it. They appear only when
 // something is in them, and neither is a finding.
 var (
-	HealthUnmappedConceptsTitle = both("還沒連到地圖的概念", "Concepts no map links to")
-	HealthEmptyBranchesTitle    = both("沒有筆記的地圖分支", "Map branches with no notes")
+	HealthUnmappedConceptsTitle = both("還沒連到索引的概念", "Concepts no index links to")
+	HealthEmptyBranchesTitle    = both("沒有筆記的索引分支", "Index branches with no notes")
 )
 
 // ContractUnreadable is the one loud sentence for a vault whose contract file
 // exists and could not be loaded: without it, a folder with a broken contract
 // is indistinguishable from a folder with none.
 var (
-	ContractUnreadable       = both("契約無法讀取，這個書庫的結構與隱私規則沒有套用。", "The contract could not be read; its rules for structure and privacy are not applied.")
-	ContractUnreadablePrefix = both("契約無法讀取：", "The contract could not be read: ")
+	ContractUnreadable       = both("規則檔無法讀取，這個書庫的結構與隱私規則沒有套用。", "The rules file could not be read; its rules for structure and privacy are not applied.")
+	ContractUnreadablePrefix = both("規則檔無法讀取：", "The rules file could not be read: ")
 )
 
 // ContractChanged is what a reader is told when the contract's bytes moved
@@ -131,11 +131,11 @@ var (
 // title are for the page that stands where a course was.
 var (
 	ContractChanged = both(
-		"契約在 yomihon 啟動之後被改過，依契約而來的內容先停用了。",
-		"The contract changed after yomihon started, so what depends on it is switched off.",
+		"規則檔在 yomihon 啟動之後被改過，依規則而來的內容先停用了。",
+		"The rules file changed after yomihon started, so what depends on it is switched off.",
 	)
 	ContractChangedKicker = both("需要重新啟動", "Restart needed")
-	ContractChangedTitle  = both("契約已變動", "The contract changed")
+	ContractChangedTitle  = both("規則檔已變動", "The rules file changed")
 )
 
 // The two headings for groups of findings that could not be worked out. Each

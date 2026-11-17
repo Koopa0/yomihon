@@ -15,8 +15,8 @@ import (
 // The two sentences are written out rather than read from the catalog, so a
 // change of wording is a visible change to this test and not a silent one.
 const (
-	skippedNoteZh = "這份文件不在書庫的索引與診斷範圍內。"
-	skippedNoteEn = "This document is outside the vault's index and diagnostics."
+	skippedNoteZh = "這份文件不在書庫的索引與檢查範圍內。"
+	skippedNoteEn = "This document is outside the vault's index and checks."
 )
 
 // skippedReadme is the file the contract leaves out. Its frontmatter carries a

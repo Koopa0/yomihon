@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -354,5 +355,59 @@ func TestToggleQuestionAdmitsOnlyWhenAddingAndWithoutAdmitterRefuses(t *testing.
 	refuse := func(*mark.Question) bool { return false }
 	if added, err := file.ToggleQuestion(aQuestion(), refuse); err != nil || added {
 		t.Fatalf("clearing a stale mark = %v, %v", added, err)
+	}
+}
+
+// TestFilesWrittenBeforeTheRenameAreStillReadAndWritten holds the on-disk
+// compatibility of the rename: a reader's own files keep their names and keys,
+// so what an earlier version stored is read back and what this one stores is
+// found by it. The bytes below are written out by hand rather than taken from
+// the code's constants, because a constant renamed together with the code it
+// guards proves nothing.
+func TestFilesWrittenBeforeTheRenameAreStillReadAndWritten(t *testing.T) {
+	t.Parallel()
+	file := newFile(t)
+	if err := os.MkdirAll(filepath.Dir(file.Path()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	identity := strings.Repeat("ab", 32)
+	oldBookmark := `{"version":1,"vault":"/vaults/notes","continuation":{"path":"Notes/a.md","anchor":"one","offset":12,"identity":"` + identity + `","at":"2026-11-01T08:00:00Z"}}`
+	oldQuestions := `[{"path":"Notes/b.md","anchor":"two","time":"2026-11-02T09:00:00Z"}]`
+	dir := filepath.Dir(file.Path())
+	if err := os.WriteFile(filepath.Join(dir, "reader.json"), []byte(oldBookmark), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "uncertainty.json"), []byte(oldQuestions), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	bookmark, ok := file.Bookmark()
+	if !ok || bookmark.RelPath != "Notes/a.md" || bookmark.Anchor != "one" || bookmark.Offset != 12 {
+		t.Errorf("Bookmark() = %+v, %v, want the bookmark an earlier version wrote", bookmark, ok)
+	}
+	questions, err := file.Questions()
+	if err != nil || len(questions) != 1 || questions[0].RelPath != "Notes/b.md" || questions[0].Anchor != "two" {
+		t.Fatalf("Questions() = %+v, %v, want the question an earlier version wrote", questions, err)
+	}
+
+	added := &mark.Question{RelPath: "Notes/c.md", Anchor: "three", At: time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)}
+	if _, err = file.ToggleQuestion(added, admitAny); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, entry := range entries {
+		names = append(names, entry.Name())
+	}
+	slices.Sort(names)
+	if diff := cmp.Diff([]string{"reader.json", "uncertainty.json"}, names); diff != "" {
+		t.Errorf("files in the vault's directory (-want +got):\n%s", diff)
+	}
+	stored, err := os.ReadFile(file.QuestionPath())
+	if err != nil || !strings.Contains(string(stored), "Notes/b.md") || !strings.Contains(string(stored), "Notes/c.md") {
+		t.Errorf("uncertainty.json = %s, %v, want the old question and the new one", stored, err)
 	}
 }

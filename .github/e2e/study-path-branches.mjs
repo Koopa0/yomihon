@@ -23,7 +23,6 @@ const ROUTINE_LESSON = '/notes/Course/R01.md';
 
 const SITES = [
   'the-index-counts-the-main-line',
-  'a-path-of-notes-is-counted-in-items',
   'side-branch-under-its-lesson',
   'main-line-steps-over-the-side-branch',
   'side-branch-does-not-rejoin',
@@ -73,13 +72,7 @@ const rewriteDocument = (path, needle, replacement, label) => async (page) => {
 const MUTATIONS = {
   'inflate-the-course-count': {
     target: 'the-index-counts-the-main-line',
-    apply: rewriteDocument(PATH_INDEX, '>4 課<', '>6 課<', 'course index row'),
-  },
-  // The path of notes the fixture holds is called a course, though nothing in
-  // it is a lesson.
-  'call-the-notes-lessons': {
-    target: 'a-path-of-notes-is-counted-in-items',
-    apply: rewriteDocument(PATH_INDEX, '>4 篇<', '>4 課<', 'study path index row'),
+    apply: rewriteDocument(PATH_INDEX, '>4 單元<', '>6 單元<', 'course index row'),
   },
   'detach-the-side-branch': {
     target: 'side-branch-under-its-lesson',
@@ -105,7 +98,7 @@ const MUTATIONS = {
     apply: rewriteDocument(
       SIDE_LESSON,
       '<div class="y-prose">',
-      '<nav class="y-steps"><a rel="next" href="/notes/Course/C03.md">下一課</a></nav><div class="y-prose">',
+      '<nav class="y-steps"><a rel="next" href="/notes/Course/C03.md">下一單元</a></nav><div class="y-prose">',
       'side-branch article foot',
     ),
   },
@@ -123,7 +116,7 @@ const MUTATIONS = {
     apply: rewriteDocument(
       ROUTINE_LESSON,
       '<div class="y-prose">',
-      '<nav class="y-steps" aria-label="Branch Course 課程順序"><a rel="next" href="/notes/Course/C01.md">下一課</a></nav><div class="y-prose">',
+      '<nav class="y-steps" aria-label="Branch Course 課程順序"><a rel="next" href="/notes/Course/C01.md">下一單元</a></nav><div class="y-prose">',
       'routine lesson article foot',
     ),
   },
@@ -177,23 +170,11 @@ try {
   await page.goto(BASE + PATH_INDEX, { waitUntil: 'domcontentloaded' });
   const row = page.locator('main a[href="/courses/Maps/branches.md"]');
   if (await row.count() !== 1) broken(`the course index lists the branch course ${await row.count()} times, want 1`);
-  const listed = (await row.innerText()).match(/(\d+)\s*課/);
-  if (!listed) broken(`the course index row shows no lesson count: ${JSON.stringify(await row.innerText())}`);
+  const listed = (await row.innerText()).match(/(\d+)\s*單元/);
+  if (!listed) broken(`the course index row shows no unit count: ${JSON.stringify(await row.innerText())}`);
   if (listed[1] !== '4') {
     fail('the-index-counts-the-main-line',
-      `the course index shows ${listed[1]} 課, want 4: the main line's three written lessons and the one still to be written, without the side branch or the routine block`);
-  }
-
-  // A path of notes that are not lessons is counted in items. The fixture's
-  // study path lists two concept notes, a note outside the governed set and a
-  // lesson nobody wrote, so it is the case a noun chosen without looking at
-  // what the rows reached would get wrong.
-  const notes = page.locator('main a[href="/courses/Maps/study.md"]');
-  if (await notes.count() !== 1) broken(`the course index lists the study path ${await notes.count()} times, want 1`);
-  const notesRow = await notes.innerText();
-  if (!/4\s*篇/.test(notesRow) || notesRow.includes('課')) {
-    fail('a-path-of-notes-is-counted-in-items',
-      `the course index counts a path of concept notes as ${JSON.stringify(notesRow)}, want 4 篇 and no 課`);
+      `the course index shows ${listed[1]} 單元, want 4: the main line's three written lessons and the one still to be written, without the side branch or the routine block`);
   }
 
   // The side branch is drawn where the author put it — inside the part, under

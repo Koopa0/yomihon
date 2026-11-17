@@ -161,8 +161,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		{"home-page", Home(recordedHomeView(model), recordedChrome())},
 		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
 		{"home-page-kept", Home(recordedKeptHomeView(model), recordedChrome())},
-		{"open-thoughts-page", ListIndex(recordedOpenThoughtsView(wording.ZhHant), recordedChrome())},
-		{"open-thoughts-page-english", ListIndex(recordedOpenThoughtsView(wording.En), recordedEnglishChrome())},
+		{"marks-page", ListIndex(recordedOpenThoughtsView(wording.ZhHant), recordedChrome())},
+		{"marks-page-english", ListIndex(recordedOpenThoughtsView(wording.En), recordedEnglishChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
 		{"health-page-english", Health(recordedHealthView(model), recordedEnglishChrome())},
 		{"health-page-unreadable", Health(recordedUnreadableHealthView(t, model), recordedChrome())},
@@ -307,7 +307,7 @@ func recordedNothingHomeView(lang wording.Lang) HomeView {
 			unfilled(courseMode, wording.Courses.In(lang), "/courses",
 				plural(0, wording.PathCountOne, wording.PathCountMany, lang),
 				fmt.Sprintf(wording.NoDeclaredTypeEmptyFmt.In(lang), "lesson")),
-			unfilled(mapMode, wording.Maps.In(lang), "/maps",
+			unfilled(mapMode, wording.Maps.In(lang), "/indexes",
 				plural(0, wording.MapCountOne, wording.MapCountMany, lang),
 				fmt.Sprintf(wording.NoDeclaredTypesEmptyFmt.In(lang),
 					strings.Join(declaredTypes, wording.ListSeparator.In(lang)))),
@@ -503,7 +503,7 @@ func renderedNoteView(t *testing.T, model *nav.Model, current, body string) Note
 		TOC:                 []render.TOCEntry{{ID: "h1", Level: 2, Text: "第一節"}},
 		ReadingRail:         NewReadingRail(recordedShell(model), current, "golang"),
 		ContentIdentity:     "abc123",
-		MarkAddress:         "/marks",
+		MarkAddress:         "/bookmark",
 		TranscludedIdentity: "def456",
 		SchemaNotices: [][]wording.SchemaPart{
 			wording.SchemaSentence(wording.ZhHant, "schema.enum", "status", "seed"),
@@ -648,7 +648,7 @@ func recordedKeptHomeView(model *nav.Model) HomeView {
 func recordedOpenShelf(lang wording.Lang) Shelf {
 	mark, thought := wording.QuestionControl.In(lang), wording.OpenThoughtKind.In(lang)
 	return Shelf{
-		Title: wording.OpenThoughtsTitle.In(lang), Href: "/open-thoughts", Open: true, Lede: wording.OpenThoughtsLede.In(lang),
+		Title: wording.OpenThoughtsTitle.In(lang), Href: "/marks", Open: true, Lede: wording.OpenThoughtsLede.In(lang),
 		Rows: []Row{
 			{
 				Text: "L01", Language: "en", Href: ResumeHref("Writing/lessons/go/L01.md", "a-second-look", 0), Mark: mark, When: "2026-11-10",
@@ -665,7 +665,7 @@ func recordedOpenShelf(lang wording.Lang) Shelf {
 				Removal: &QuestionRemoval{
 					Label: wording.QuestionClearControl.In(lang), Unavailable: wording.QuestionUnavailable.In(lang),
 					Failed: wording.QuestionNotStored.In(lang), Cleared: wording.QuestionCleared.In(lang), Language: string(lang),
-					Endpoint: "/uncertainties", Path: "Writing/lessons/go/L01.md", Anchor: "renamed",
+					Endpoint: "/questions", Path: "Writing/lessons/go/L01.md", Anchor: "renamed",
 				},
 			},
 			{Text: "C01", Href: ResumeHref("Concepts/go/C01.md", "", 0), Mark: mark, When: "2026-10-01"},
@@ -684,7 +684,7 @@ func recordedOpenThoughtsView(lang wording.Lang) ListIndexView {
 	}{{OpenNewest, wording.OpenOrderNewest}, {OpenBySource, wording.OpenOrderSource}, {OpenOldest, wording.OpenOrderOldest}} {
 		order.Choices = append(order.Choices, ShelfOrderChoice{Value: string(choice.value), Text: choice.text.In(lang), Pressed: choice.value == OpenNewest})
 	}
-	return ListIndexView{Mode: "open-thoughts", Shelf: shelf, Order: order}
+	return ListIndexView{Mode: "marks", Shelf: shelf, Order: order}
 }
 
 // recordedWithheldHomeView is the desk over a vault whose contract could not be

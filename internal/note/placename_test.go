@@ -42,7 +42,7 @@ func TestOpenThoughtsNamesShownPlacesInTheirOwnLanguage(t *testing.T) {
 		if lang == "zh-Hant" {
 			fallback = `lang="zh-Hant">第 2 張練習卡</span>`
 		}
-		for _, path := range []string{"/", "/open-thoughts"} {
+		for _, path := range []string{"/", "/marks"} {
 			page := lostMarkRequest(t, mux, http.MethodGet, path, "", lang)
 			for _, want := range []string{
 				`lang="zh-Hant">Ledger</span>`,
@@ -59,7 +59,7 @@ func TestOpenThoughtsNamesShownPlacesInTheirOwnLanguage(t *testing.T) {
 			if strings.Contains(page, "Cutoverzh #") {
 				t.Errorf("caught: %s in %s names a place by raw anchor", path, lang)
 			}
-			if path != "/open-thoughts" {
+			if path != "/marks" {
 				continue
 			}
 			// A heading lends its sentence; a practice card lends none, because

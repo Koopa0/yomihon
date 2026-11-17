@@ -23,19 +23,19 @@ func TestAStudyPathRowStatesExtentAndNothingElse(t *testing.T) {
 	t.Parallel()
 
 	view := NewPathIndex([]nav.Course{
-		{Title: "Go path", RelPath: "Maps/Go path.md", Planned: 4, Unit: nav.UnitLesson},
-		{Title: "Unread structure", RelPath: "Maps/Broken.md", Unit: nav.UnitLesson, Diagnostics: []sequence.Diagnostic{{}}},
-		{Title: "Plans nothing", RelPath: "Maps/Empty.md", Unit: nav.UnitLesson},
+		{Title: "Go path", RelPath: "Maps/Go path.md", Planned: 4},
+		{Title: "Unread structure", RelPath: "Maps/Broken.md", Diagnostics: []sequence.Diagnostic{{}}},
+		{Title: "Plans nothing", RelPath: "Maps/Empty.md"},
 		// A path of notes that are not lessons is counted in items, in the same
 		// place and the same single figure.
-		{Title: "Queue kit", RelPath: "Maps/QueueKit.md", Planned: 2, Unit: nav.UnitItem},
+		{Title: "Queue kit", RelPath: "Maps/QueueKit.md", Planned: 2},
 	}, schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, wording.ZhHant, nil)
 
 	want := []Row{
-		{Text: "Go path", Href: "/courses/Maps/Go%20path.md", Mark: "4 課"},
-		{Text: "Unread structure", Href: "/courses/Maps/Broken.md", Mark: "0 課 · 未讀到課程結構", Fault: true},
-		{Text: "Plans nothing", Href: "/courses/Maps/Empty.md", Mark: "0 課"},
-		{Text: "Queue kit", Href: "/courses/Maps/QueueKit.md", Mark: "2 篇"},
+		{Text: "Go path", Href: "/courses/Maps/Go%20path.md", Mark: "4 單元"},
+		{Text: "Unread structure", Href: "/courses/Maps/Broken.md", Mark: "0 單元 · 未讀到課程結構", Fault: true},
+		{Text: "Plans nothing", Href: "/courses/Maps/Empty.md", Mark: "0 單元"},
+		{Text: "Queue kit", Href: "/courses/Maps/QueueKit.md", Mark: "2 單元"},
 	}
 	if diff := cmp.Diff(want, view.Shelf.Rows); diff != "" {
 		t.Errorf("study-path rows mismatch (-want +got):\n%s", diff)

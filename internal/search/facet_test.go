@@ -4,12 +4,16 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -173,5 +177,60 @@ func TestADivisionIsNotDrawnWhereItCouldNotBeHonoured(t *testing.T) {
 	}
 	if strings.Contains(body, "data-search-facets") {
 		t.Errorf("an ungoverned folder drew a column of a vocabulary it does not have; body = %q", body)
+	}
+}
+
+// TestATypeFilterSaysTheVocabularyWordForATypeWithARole holds what a filter row
+// says for a note type the rules give a role: the word of the vocabulary, not
+// the vault's own spelling. The row still searches by the vault's spelling,
+// which is what the index matches, and a type with no role is shown as written.
+func TestATypeFilterSaysTheVocabularyWordForATypeWithARole(t *testing.T) {
+	t.Parallel()
+
+	contract, err := schema.LoadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
+	if err != nil {
+		t.Fatalf("schema.LoadFile: %v", err)
+	}
+	idx := lexical.NewIndex([]lexical.Document{
+		{RelPath: "Writing/L01.md", Title: "L01", NoteType: "lesson", PlainText: "needle one"},
+		{RelPath: "Maps/Course.md", Title: "Course", NoteType: "study-path", PlainText: "needle two"},
+		{RelPath: "Maps/Topics.md", Title: "Topics", NoteType: "moc", PlainText: "needle three"},
+		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", PlainText: "needle four"},
+	}, contract.ArtifactPolicy())
+	mux := http.NewServeMux()
+	NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{
+			Index: idx,
+			Shell: nav.Shell{Nav: &nav.Model{}, Governed: true},
+			Roles: contract.NavigationRoles(),
+		}
+	}, slog.New(slog.DiscardHandler)).Register(mux)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	_, body := getBody(t, srv.Client(), srv.URL+"/search?q=needle")
+	_, section, found := strings.Cut(body, `data-facet-key="type"`)
+	if !found {
+		t.Fatalf("the page has no type filter; body = %q", body)
+	}
+	section, _, _ = strings.Cut(section, "</section>")
+	var labels []string
+	for _, part := range strings.Split(section, `<span class="y-facetrow__label">`)[1:] {
+		label, _, _ := strings.Cut(part, "</span>")
+		labels = append(labels, label)
+	}
+	slices.Sort(labels)
+	want := []string{"concept", "單元", "索引", "課程"}
+	slices.Sort(want)
+	if diff := cmp.Diff(want, labels); diff != "" {
+		t.Errorf("type filter labels (-want +got):\n%s", diff)
+	}
+	for _, spelling := range []string{"study-path", "lesson", "moc"} {
+		if strings.Contains(section, ">"+spelling+"<") {
+			t.Errorf("the filter shows the vault's spelling %q as a label", spelling)
+		}
+	}
+	if !strings.Contains(section, "type%3Astudy-path") && !strings.Contains(section, "type:study-path") {
+		t.Errorf("a role-labelled row no longer searches by the vault's spelling; section = %q", section)
 	}
 }

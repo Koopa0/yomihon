@@ -45,36 +45,36 @@ var MoreInFolder = both("另外 %d 篇 →", "%d more →")
 
 // The rail's section headings.
 var (
-	CoursesAndMaps = both("課程與地圖", "Courses and maps")
+	CoursesAndMaps = both("課程與索引", "Courses and indexes")
 	Courses        = both("課程", "Courses")
-	Maps           = both("地圖", "Maps")
-	Journal        = both("日誌", "Journal")
+	Maps           = both("索引", "Indexes")
+	Journal        = both("日記", "Journal")
 	Reports        = both("報告", "Reports")
 	Folders        = both("資料夾", "Folders")
 )
 
-// OpenMap is the link from a rail branch to the whole map it is a branch of.
-// The link to a study path's own page is ContentsLink.
-var OpenMap = both("開啟地圖", "Open the map")
+// OpenMap is the link from a rail branch to the whole index it is a branch of.
+// The link to a course's own page is ContentsLink.
+var OpenMap = both("開啟索引", "Open the index")
 
 // What the rail says when a projection it would have listed cannot be built.
 var (
 	CoursesMapsAndArtifactsUnavailable = both(
-		"課程、地圖與筆記清單目前無法使用。",
-		"Courses, maps and note listings are unavailable.",
+		"課程、索引與筆記清單目前無法使用。",
+		"Courses, indexes and note listings are unavailable.",
 	)
-	CoursesAndMapsUnavailable = both("課程與地圖目前無法使用。", "Courses and maps are unavailable.")
+	CoursesAndMapsUnavailable = both("課程與索引目前無法使用。", "Courses and indexes are unavailable.")
 	ArtifactsUnavailable      = both("筆記清單目前無法使用。", "Note listings are unavailable.")
-	JournalUnavailable        = both("日誌目前無法使用。", "Journal is unavailable.")
+	JournalUnavailable        = both("日記目前無法使用。", "Journal is unavailable.")
 )
 
-// CourseOrderOf names a study path's own order for the steps the sidebar
+// CourseOrderOf names a course's own order for the steps the sidebar
 // offers on pages that have no article foot. It carries the path's title, so it
 // is a format. The foot of the article names the step onward with
 // CourseOnwardOf, so landmark navigation does not hear the same name twice.
 var CourseOrderOf = both("%s 的順序", "The order of %s")
 
-// CourseOnwardOf names the step onward from this note inside a study path,
+// CourseOnwardOf names the step onward from this note inside a course,
 // which the foot of the article offers. The sidebar's steps name the path's
 // whole order with CourseOrderOf.
 var CourseOnwardOf = both("%s 從此步往下", "%s onward from this step")
@@ -83,13 +83,13 @@ var CourseOnwardOf = both("%s 從此步往下", "%s onward from this step")
 // of this one inside its own folder.
 var FolderAdjacency = both("同資料夾的前後檔案", "The files either side of this one in its folder")
 
-// What the foot of a side branch's lesson offers, and what the lesson a branch
+// What the foot of a side branch's unit offers, and what the unit a branch
 // hangs from adds beside its own steps. A side branch is an aside in a book:
-// when it ends the reader goes on where they were, so its first lesson says
+// when it ends the reader goes on where they were, so its first unit says
 // where it hangs from and its last says where to go on, which is the main line's
-// next lesson or, where the branch hangs from the last one, the contents. None
+// next unit or, where the branch hangs from the last one, the contents. None
 // of them is a step in the course, so none of them is worded as one. The aside
-// beside the lesson a branch hangs from is named with BranchPrefix.
+// beside the unit a branch hangs from is named with BranchPrefix.
 var (
 	BranchBackTo     = both("回到", "Back to")
 	BranchOnward     = both("回到主線：", "Back to the main line: ")

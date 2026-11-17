@@ -39,6 +39,9 @@ const searchPageSize = 20
 type RequestSnapshot struct {
 	Index *lexical.Index
 	Shell nav.Shell
+	// Roles says which note types the rules give a navigation role, so a filter
+	// row names a type in the vocabulary's word rather than the vault's own.
+	Roles schema.NavigationRoles
 }
 
 // Handler serves the search page and its read-only results fragment, reading
@@ -133,7 +136,7 @@ func answerView(snap *RequestSnapshot, q string, a *answer, lang wording.Lang, a
 		}
 	}
 	if onPage && a.diagnostic == "" && snap.Shell.Governed {
-		view.Facets = facetViews(q, a.found.Facets, lang)
+		view.Facets = facetViews(q, a.found.Facets, snap.Roles, lang)
 	}
 	return view
 }
@@ -147,7 +150,7 @@ func answerView(snap *RequestSnapshot, q string, a *answer, lang wording.Lang, a
 //
 // A division no hit stated a value for draws nothing: a column reading "not
 // stated: 12" and offering nothing else narrows no search.
-func facetViews(q string, divisions []lexical.Facet, lang wording.Lang) []pages.SearchFacet {
+func facetViews(q string, divisions []lexical.Facet, roles schema.NavigationRoles, lang wording.Lang) []pages.SearchFacet {
 	out := make([]pages.SearchFacet, 0, len(divisions))
 	for _, division := range divisions {
 		if len(division.Values) == 0 {
@@ -159,7 +162,7 @@ func facetViews(q string, divisions []lexical.Facet, lang wording.Lang) []pages.
 			Rows:    make([]pages.SearchFacetRow, 0, len(division.Values)+1),
 		}
 		for _, value := range division.Values {
-			facet.Rows = append(facet.Rows, facetRow(q, division.Key, value))
+			facet.Rows = append(facet.Rows, facetRow(q, division.Key, value, roles, lang))
 		}
 		if division.Unstated > 0 {
 			facet.Rows = append(facet.Rows, pages.SearchFacetRow{
@@ -176,12 +179,31 @@ func facetViews(q string, divisions []lexical.Facet, lang wording.Lang) []pages.
 	return out
 }
 
+// valueLabel is the word a filter row shows for a value. A note type the rules
+// give the lesson, course or map role is named in the vocabulary's word for
+// that role, whatever the vault calls the type; the row's query still carries
+// the vault's own spelling, which is what the index matches.
+func valueLabel(key, value string, roles schema.NavigationRoles, lang wording.Lang) string {
+	if key != "type" {
+		return value
+	}
+	switch {
+	case roles.IsLessonType(value):
+		return wording.FacetTypeUnit.In(lang)
+	case roles.IsPathType(value):
+		return wording.FacetTypeCourse.In(lang)
+	case roles.IsMapType(value):
+		return wording.FacetTypeIndex.In(lang)
+	}
+	return value
+}
+
 // facetRow writes one value's row. Whether the query already names the value is
 // decided by removing it and seeing whether anything changed, rather than by a
 // second comparison of folded values kept here: the grammar decides what names
 // what, and the answer and the link the row offers then cannot disagree.
-func facetRow(q, key string, value lexical.FacetValue) pages.SearchFacetRow {
-	row := pages.SearchFacetRow{Label: value.Value, Count: value.Count}
+func facetRow(q, key string, value lexical.FacetValue, roles schema.NavigationRoles, lang wording.Lang) pages.SearchFacetRow {
+	row := pages.SearchFacetRow{Label: valueLabel(key, value.Value, roles, lang), Count: value.Count}
 	constraint := lexical.Filter{Key: key, Value: value.Value}
 	if without := lexical.WithoutFilter(q, constraint); without != q {
 		row.Query, row.Active = without, true

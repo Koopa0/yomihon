@@ -6,7 +6,7 @@
 // group name is set above that. The desk of a reader who kept no place is
 // about the courses, so they are the largest text on it and set at least as
 // large as a page title is. (The desk with a place kept is measured by
-// kept-place-size.mjs, which has to run after a place has been kept.) The size
+// bookmark-size.mjs, which has to run after a place has been kept.) The size
 // is what the browser computed,
 // read off every piece of visible text on the page and compared, so a heading
 // restored to its old size or a result title enlarged is read as the loss it is
