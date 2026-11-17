@@ -286,20 +286,21 @@ func (h *Handler) folderCover(snap *snapshot.Generation, dir string, notes []nav
 	if at < 0 {
 		return notes, pages.Cover{}
 	}
-	rest := slices.Delete(slices.Clone(notes), at, at+1)
 	n, ok := snap.Note(readme)
 	if !ok {
-		return rest, pages.Cover{}
+		return notes, pages.Cover{}
 	}
+	// With no opening paragraph to stand for it the README stays in the list,
+	// which is then the only way to it.
 	paragraph, more := render.CoverParagraph(n.Body)
 	if paragraph == "" {
-		return rest, pages.Cover{}
+		return notes, pages.Cover{}
 	}
 	cover := pages.Cover{HTML: snap.RenderExcerptIn("", readme, paragraph, lang).HTML}
 	if more {
 		cover.ReadHref = pages.VaultHref("/notes/", readme)
 	}
-	return rest, cover
+	return slices.Delete(slices.Clone(notes), at, at+1), cover
 }
 
 // show serves one entry of the browse tree. Every file the tree lists opens

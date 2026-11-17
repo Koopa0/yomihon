@@ -2104,6 +2104,7 @@ func TestCoverParagraph(t *testing.T) {
 		{"a list first has no cover", "# Go\n\n- a\n- b\n", "", false},
 		{"a lone image has no cover", "![x](a.png)\n\nWords.\n", "", false},
 		{"only a title has no cover", "# Go\n", "", false},
+		{"definitions come along", "Read [it][g].\n\n[g]: https://x.test/a \"T\"\n", "Read [it][g].\n\n[g]: <https://x.test/a> \"T\"", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
