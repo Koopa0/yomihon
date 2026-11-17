@@ -172,6 +172,9 @@ const defaultPort = "9610"
 type config struct {
 	root string
 	port string
+	// portSet is whether the environment named the port, which tells a reader's
+	// own choice from the one used when they made none.
+	portSet bool
 	// configDir is where this platform keeps a program's own files, resolved
 	// once here because reading the environment is the process's business.
 	// The standard library reads HOME for it, and XDG_CONFIG_HOME on Linux, so
@@ -219,9 +222,18 @@ func (e *listenError) Error() string {
 
 func (e *listenError) Unwrap() error { return e.err }
 
+// refusal is something the operator can correct, told in the words that say
+// how. It ends the start the way a port that cannot be bound does.
+type refusal struct{ msg string }
+
+func (e *refusal) Error() string { return e.msg }
+
 // operatorFault is err when it is a setting the operator corrects before the
 // next start, and nil for any other failure.
 func operatorFault(err error) error {
+	if fault, ok := errors.AsType[*refusal](err); ok {
+		return fault
+	}
 	if fault, ok := errors.AsType[*portError](err); ok {
 		return fault
 	}
@@ -233,6 +245,7 @@ func operatorFault(err error) error {
 
 func loadConfig(root string) (config, error) {
 	cfg := config{root: root, port: os.Getenv("YOMIHON_PORT")}
+	cfg.portSet = cfg.port != ""
 	if cfg.port == "" {
 		cfg.port = defaultPort
 	}

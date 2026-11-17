@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -36,6 +37,11 @@ type Store struct {
 	free func(port int) bool
 	now  func() time.Time
 	wait time.Duration
+
+	// own is the ports this process holds itself. They are free for the vault
+	// this process is about to give one to, which a probe of them cannot say,
+	// because the probe finds the process in the way.
+	own map[int]bool
 
 	mu           sync.Mutex
 	stamp        stamp
@@ -77,8 +83,23 @@ func Open(configDir string, free func(port int) bool) (*Store, error) {
 		wait:    lockWait,
 		touched: map[string]touch{},
 		removed: map[string]Entry{},
+		own:     map[int]bool{},
 	}, nil
 }
+
+// Hold says that this process has bound port, so that a new vault can be given
+// it. The running yomihon holds the starting port before it records the folder
+// it was given, which is how a second yomihon finds it, and the folder is then
+// the first vault of that port rather than the next.
+func (s *Store) Hold(port int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.own[port] = true
+}
+
+// InstanceFile is where the record that a yomihon is running is kept, for a
+// message that tells a reader which file to remove.
+func (s *Store) InstanceFile() string { return filepath.Join(s.dir, instanceFile) }
 
 // List is every vault, the one read most recently first. A list that cannot be
 // read answers ErrDamaged and no vaults; the next change sets it aside.
@@ -108,10 +129,11 @@ func (s *Store) Changed() (bool, error) {
 // Add puts the folder root in the list if it is not there, and answers its
 // entry and whether it was new. A new vault is given the first port from start
 // up that no other vault holds and that free allows, and the port is written
-// down: it is the vault's from then on. A vault already listed keeps its port.
-// Adding is the command line's: it is given a path because the reader typed one.
+// down: it is the vault's from then on, and no later start moves it. A vault
+// already listed keeps its port. Adding is the command line's: it is given a
+// path because the reader typed one.
 func (s *Store) Add(root string, start int) (entry Entry, added bool, err error) {
-	if start < 1 || start > maxPort {
+	if start < MinPort || start > maxPort {
 		return Entry{}, false, ErrStartPort
 	}
 	_, resolved, err := vault.ResolveRoot(root)
@@ -251,33 +273,11 @@ func (s *Store) Restore(id string) (Entry, error) {
 	return back, nil
 }
 
-// Anchor makes sure some vault answers on the starting port. The running
-// process always holds that port, because it is how the command line tells a
-// running yomihon from another program, so if no vault is on it the first vault
-// in the list moves there. It answers the vault it moved, and false when none
-// had to move.
-func (s *Store) Anchor(start int) (moved Entry, ok bool, err error) {
-	if start < 1 || start > maxPort {
-		return Entry{}, false, ErrStartPort
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	err = s.update(func(list []Entry) ([]Entry, bool, error) {
-		if len(list) == 0 || slices.ContainsFunc(list, func(e Entry) bool { return e.Port == start }) {
-			return list, false, nil
-		}
-		list[0].Port = start
-		moved, ok = list[0], true
-		return list, true, nil
-	})
-	return moved, ok, err
-}
-
 // SetPort says that the vault is served on port. The process that serves a
 // vault the reader removed and added again keeps its port, and the list is made
 // to say so. Another vault's port is refused.
 func (s *Store) SetPort(id string, port int) error {
-	if port < 1 || port > maxPort {
+	if port < MinPort || port > maxPort {
 		return ErrStartPort
 	}
 	s.mu.Lock()
@@ -298,29 +298,6 @@ func (s *Store) SetPort(id string, port int) error {
 	})
 }
 
-// Rebind moves a vault whose port something else has taken to the first free
-// port above it, and writes the new port down. It answers the vault as it is
-// now.
-func (s *Store) Rebind(id string) (Entry, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var moved Entry
-	err := s.update(func(list []Entry) ([]Entry, bool, error) {
-		i := indexOf(list, id)
-		if i < 0 {
-			return nil, false, ErrUnknown
-		}
-		port, portErr := s.choosePort(list, list[i].Port+1)
-		if portErr != nil {
-			return nil, false, portErr
-		}
-		list[i].Port = port
-		moved = list[i]
-		return list, true, nil
-	})
-	return moved, err
-}
-
 // choosePort is the first port from `from` up that no listed vault holds and
 // that free allows.
 func (s *Store) choosePort(list []Entry, from int) (int, error) {
@@ -329,7 +306,7 @@ func (s *Store) choosePort(list []Entry, from int) (int, error) {
 		taken[e.Port] = true
 	}
 	for port := from; port <= maxPort; port++ {
-		if taken[port] || (s.free != nil && !s.free(port)) {
+		if taken[port] || (!s.own[port] && s.free != nil && !s.free(port)) {
 			continue
 		}
 		return port, nil
@@ -381,7 +358,7 @@ func (s *Store) read() (list []Entry, raw []byte, err error) {
 	case errors.Is(err, os.ErrNotExist):
 		s.stamp = stamp{}
 		return nil, nil, nil
-	case errors.Is(err, confdir.ErrTooLarge):
+	case errors.Is(err, confdir.ErrTooLarge), errors.Is(err, confdir.ErrNotRegular):
 		return nil, nil, fmt.Errorf("%w: %w", ErrDamaged, err)
 	case err != nil:
 		return nil, nil, fmt.Errorf("read the list of vaults: %w", err)
@@ -406,10 +383,19 @@ func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) (err er
 
 	list, raw, err := s.read()
 	if err != nil {
-		if !errors.Is(err, ErrDamaged) || raw == nil {
+		if !errors.Is(err, ErrDamaged) {
 			return err
 		}
-		if asideErr := confdir.Replace(s.dir, damagedFile, raw); asideErr != nil {
+		// A list too long to read, or not a file, is never read in whole and
+		// never opened; it is renamed, which is all that can be done with it.
+		// Any other damaged list is kept as the bytes it had.
+		var asideErr error
+		if raw == nil {
+			asideErr = confdir.SetAside(s.dir, listFile, damagedFile)
+		} else {
+			asideErr = confdir.Replace(s.dir, damagedFile, raw)
+		}
+		if asideErr != nil {
 			return fmt.Errorf("set the damaged list of vaults aside: %w", asideErr)
 		}
 		list = nil

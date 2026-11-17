@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -388,7 +389,9 @@ func TestStartupWaitsBeforeShowingThePage(t *testing.T) {
 	t.Run("a reader who comes after the grace is not kept waiting", func(t *testing.T) {
 		t.Parallel()
 		front := newTestStartup(t, fakeCount{}, time.Minute)
+		front.reads.Lock()
 		front.began = time.Now().Add(-2 * time.Minute)
+		front.reads.Unlock()
 		recorder := httptest.NewRecorder()
 		asked := time.Now()
 		front.ServeHTTP(recorder, siteRequest(t, http.MethodGet, "/", http.NoBody))
@@ -464,5 +467,79 @@ func TestAVaultThatCannotBeReadStillTurnsBackAnotherHostName(t *testing.T) {
 	front.ServeHTTP(rec, req)
 	if strings.Contains(rec.Body.String(), "/home/reader/notes") {
 		t.Errorf("a request for another host name was told where the vault is: %d %q", rec.Code, rec.Body.String())
+	}
+}
+
+// A page the reader never opened must not make this process read a folder: a
+// picture or a script of some other page can be pointed at any port on this
+// machine. Only a request of the vault's own page, one a reader typed or
+// followed to a page, or one from a client that says nothing begins the read.
+func TestOnlyARequestForThePageItselfBeginsAVaultsRead(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name    string
+		headers map[string]string
+		begins  bool
+	}{
+		{"a client that says nothing", nil, true},
+		{"an address typed", map[string]string{"Sec-Fetch-Site": "none", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, true},
+		{"a request of the vault's own page", map[string]string{"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors"}, true},
+		{"a link followed from another vault's page", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, true},
+		{"a link followed from another site", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}, true},
+		{"a picture of another site's page", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors"}, false},
+		{"a picture of another vault's page", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "image", "Sec-Fetch-Mode": "no-cors"}, false},
+		{"a script of another site's page", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "script", "Sec-Fetch-Mode": "no-cors"}, false},
+		{"a frame of another site's page", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "iframe", "Sec-Fetch-Mode": "navigate"}, false},
+		{"a fetch of another vault's page", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "empty", "Sec-Fetch-Mode": "cors"}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			front := newTestStartup(t, fakeCount{}, 0)
+			var begun atomic.Int32
+			front.whenAsked(func() { begun.Add(1) })
+			req := siteRequest(t, http.MethodGet, "/", http.NoBody)
+			for name, value := range test.headers {
+				req.Header.Set(name, value)
+			}
+			front.ServeHTTP(httptest.NewRecorder(), req)
+			if got := begun.Load() == 1; got != test.begins {
+				t.Errorf("the read was begun = %v, want %v", got, test.begins)
+			}
+		})
+	}
+}
+
+// One read runs at a time, a failed one is not begun again until the gap has
+// passed, and then the next request for a page begins it.
+func TestAFailedReadIsBegunAgainByTheNextRequestAfterTheGapAndNotBefore(t *testing.T) {
+	t.Parallel()
+	front := newTestStartup(t, fakeCount{}, 0)
+	var begun atomic.Int32
+	front.whenAsked(func() { begun.Add(1) })
+	serve := func() *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		front.ServeHTTP(rec, siteRequest(t, http.MethodGet, "/", http.NoBody))
+		return rec
+	}
+
+	serve()
+	serve()
+	if got := begun.Load(); got != 1 {
+		t.Fatalf("two requests while a read was under way began %d reads, want 1", got)
+	}
+	front.fail(fs.ErrNotExist)
+	if rec := serve(); begun.Load() != 1 || !strings.Contains(rec.Body.String(), `data-nothing="unreadable"`) {
+		t.Fatalf("a request just after the failure began %d reads and answered %d, want the failure's page and no new read", begun.Load(), rec.Code)
+	}
+
+	front.reads.Lock()
+	front.retryGap = 0
+	front.reads.Unlock()
+	rec := serve()
+	if got := begun.Load(); got != 2 {
+		t.Fatalf("a request after the gap began %d reads in all, want 2", got)
+	}
+	if strings.Contains(rec.Body.String(), `data-nothing="unreadable"`) {
+		t.Error("the read has begun again and the page still says the vault cannot be read")
 	}
 }

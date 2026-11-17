@@ -33,7 +33,7 @@ type Instance struct {
 
 // WriteInstance records that this process is a running yomihon.
 func (s *Store) WriteInstance(in Instance) error {
-	if in.PID < 1 || in.Port < 1 || in.Port > maxPort {
+	if in.PID < 1 || in.Port < MinPort || in.Port > maxPort {
 		return fmt.Errorf("an instance needs a process id and a port, not %d and %d", in.PID, in.Port)
 	}
 	data, err := json.MarshalIndent(in, "", "  ")
@@ -58,7 +58,7 @@ func (s *Store) ReadInstance() (Instance, error) {
 		return Instance{}, fmt.Errorf("%w: %w", ErrNoInstance, err)
 	}
 	var in Instance
-	if err := json.Unmarshal(raw, &in); err != nil || in.PID < 1 || in.Port < 1 || in.Port > maxPort {
+	if err := json.Unmarshal(raw, &in); err != nil || in.PID < 1 || in.Port < MinPort || in.Port > maxPort {
 		return Instance{}, fmt.Errorf("%w: the file is not one this wrote", ErrNoInstance)
 	}
 	return in, nil

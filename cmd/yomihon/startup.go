@@ -47,15 +47,30 @@ type startup struct {
 	ready    chan struct{}
 	openOnce sync.Once
 
-	// begin starts the read when the front is first asked for anything. It is
-	// nil for a front whose read is already under way. A vault the reader has
-	// listed and not opened is bound and answers at once, but is not read until
-	// somebody asks for it.
-	begin     func()
-	startOnce sync.Once
+	// begin starts a read when a page is asked of the front. It is nil for a
+	// front whose read is already under way. A vault the reader has listed and
+	// not opened is bound and answers at once, but is not read until somebody
+	// asks for it, and one that could not be read is read again when somebody
+	// asks after it, since the reader may have put the folder back.
+	begin func()
 	// failed is why the vault could not be read, for the one answer that says so.
 	failed atomic.Pointer[error]
+
+	// reads guards whether a read is under way and when the last one failed, so
+	// that one read runs at a time and a failed one is not begun again at once.
+	reads    sync.Mutex
+	started  bool
+	failedAt time.Time
+	// retryGap is how long a failed read is left before the next request begins
+	// another.
+	retryGap time.Duration
 }
+
+// retryGap is how soon after a failed read the next request for a page may begin
+// another. The read of a folder that is not there costs nothing, and one of a
+// large folder that failed half way is not begun again by every request that
+// arrives while it is being looked at.
+const retryGap = time.Second
 
 // fileCount is how far the first read has got. It is defined here, by its only
 // consumer, so a test can say any count it likes; the product's is
@@ -66,7 +81,7 @@ type fileCount interface {
 }
 
 func newStartup(vaultName, vaultPath string, progress fileCount, grace time.Duration, log *slog.Logger) *startup {
-	s := &startup{name: vaultName, path: vaultPath, progress: progress, grace: grace, began: time.Now(), log: log, ready: make(chan struct{})}
+	s := &startup{name: vaultName, path: vaultPath, progress: progress, grace: grace, began: time.Now(), log: log, ready: make(chan struct{}), retryGap: retryGap}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET "+scanAddress, s.state)
 	asset.Register(mux)
@@ -86,19 +101,40 @@ func newStartup(vaultName, vaultPath string, progress fileCount, grace time.Dura
 // grace begins to count. start begins it at once.
 func (s *startup) whenAsked(begin func()) { s.begin = begin }
 
-// start begins the read if it has not begun.
+// start begins a read if none is under way and the vault is not open. A read
+// that failed is begun again, once the gap has passed, so the reader who put the
+// folder back is not left on the page that says it was not there.
 func (s *startup) start() {
-	s.startOnce.Do(func() {
-		if s.begin != nil {
-			s.began = time.Now()
-			s.begin()
-		}
-	})
+	if s.begin == nil || s.site.Load() != nil {
+		return
+	}
+	s.reads.Lock()
+	if s.started && (s.failed.Load() == nil || time.Since(s.failedAt) < s.retryGap) {
+		s.reads.Unlock()
+		return
+	}
+	s.started = true
+	s.failed.Store(nil)
+	s.began = time.Now()
+	s.reads.Unlock()
+	s.begin()
+}
+
+// sinceBegan is how long the read now under way has run.
+func (s *startup) sinceBegan() time.Duration {
+	s.reads.Lock()
+	defer s.reads.Unlock()
+	return time.Since(s.began)
 }
 
 // fail says the vault cannot be read, so that its address answers that and not
 // a page that waits for a read that will not finish.
-func (s *startup) fail(err error) { s.failed.Store(&err) }
+func (s *startup) fail(err error) {
+	s.reads.Lock()
+	s.failedAt = time.Now()
+	s.reads.Unlock()
+	s.failed.Store(&err)
+}
 
 // open hands the listener to the site. It is called once, when the first
 // generation exists.
@@ -110,13 +146,15 @@ func (s *startup) open(site *readingSite) {
 }
 
 func (s *startup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	s.start()
+	if wakes(r) {
+		s.start()
+	}
 	if site := s.site.Load(); site != nil {
 		site.ServeHTTP(w, r)
 		return
 	}
 	if s.failed.Load() == nil && holds(r) {
-		wait := time.NewTimer(max(s.grace-time.Since(s.began), 0))
+		wait := time.NewTimer(max(s.grace-s.sinceBegan(), 0))
 		defer wait.Stop()
 		select {
 		case <-s.ready:
@@ -128,6 +166,21 @@ func (s *startup) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.reading.ServeHTTP(w, r)
+}
+
+// wakes says whether a request may begin the read of a vault that has not been
+// read. A browser that says where the request came from is believed: a request
+// of the vault's own page, or one the reader typed or followed to a page, begins
+// it; a picture, a script or a frame that some other page asked for does not,
+// because a page the reader never opened must not make this process read a
+// folder. A client that says nothing, such as a program on this machine, asked
+// for the page itself.
+func wakes(r *http.Request) bool {
+	switch r.Header.Get("Sec-Fetch-Site") {
+	case "", "none", "same-origin":
+		return true
+	}
+	return r.Header.Get("Sec-Fetch-Dest") == "document" && r.Header.Get("Sec-Fetch-Mode") == "navigate"
 }
 
 // holds says whether a request is one that waits the grace out. Only a page a

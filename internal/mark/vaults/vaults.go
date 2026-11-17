@@ -40,8 +40,12 @@ var ErrUnknown = errors.New("no vault in the list has that id")
 // forgotten it. A page asking to bring a vault back is never taken at its word.
 var ErrNotRemoved = errors.New("no vault removed here is remembered under that id")
 
+// MinPort is the lowest port a vault is given: the ports below it are the
+// system's, which a reader cannot bind without more than they were given.
+const MinPort = 1024
+
 // ErrStartPort means the starting port is not one a vault can be given.
-var ErrStartPort = errors.New("the starting port must be an integer from 1 to 65535")
+var ErrStartPort = errors.New("the starting port must be an integer from 1024 to 65535")
 
 // ErrNoPort means every port from the starting one up is taken.
 var ErrNoPort = errors.New("no free port from the starting port up")
@@ -106,13 +110,15 @@ func (e *Entry) valid() error {
 	switch {
 	case e.Path == "" || !filepath.IsAbs(e.Path) || filepath.Clean(e.Path) != e.Path:
 		return fmt.Errorf("the path %q is not a clean absolute path", e.Path)
+	case filepath.Dir(e.Path) == e.Path:
+		return fmt.Errorf("the path %q is the top of a filesystem, which is not a vault", e.Path)
 	case len(e.Path) > maxPathBytes || !utf8.ValidString(e.Path):
 		return fmt.Errorf("the path of %q is not one this list holds", e.ID)
 	case e.ID != confdir.VaultID(e.Path):
 		return fmt.Errorf("the id %q is not the id of %q", e.ID, e.Path)
 	case e.Name == "" || cleanName(e.Name, "") != e.Name:
 		return fmt.Errorf("the name %q of %q is not one this list holds", e.Name, e.ID)
-	case e.Port < 1 || e.Port > maxPort:
+	case e.Port < MinPort || e.Port > maxPort:
 		return fmt.Errorf("the port %d of %q is not a port", e.Port, e.ID)
 	}
 	return nil

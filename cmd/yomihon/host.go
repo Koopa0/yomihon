@@ -18,6 +18,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/vaults"
+	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -103,7 +104,8 @@ func (h *host) mount(ctx context.Context, entry *vaults.Entry, listener net.List
 	if listener == nil {
 		var err error
 		if listener, err = listenLoopback(ctx, strconv.Itoa(entry.Port)); err != nil {
-			return err
+			return &refusal{msg: fmt.Sprintf("%s is on port %d, which something else holds (%v); stop that, or take the vault out of the list with `yomihon vaults remove` and open its folder again, which gives it another port",
+				entry.Path, entry.Port, errors.Unwrap(err))}
 		}
 	}
 	m := &mount{entry: *entry, listener: listener, progress: new(snapshot.Progress), served: make(chan error, 1)}
@@ -264,9 +266,9 @@ func (h *host) sync(ctx context.Context, force bool) {
 
 // ensure serves the vault if it is not served. A vault the reader removed and
 // then added again is still being served, on the port it had, and the list is
-// made to say so rather than serving it twice. A port something else has taken
-// since the vault was last served is exchanged for the next free one, and the
-// new port is written down.
+// made to say so rather than serving it twice. A vault whose port something
+// else holds is told and left where it is: its address is the one the reader's
+// browser has, and it is not given another.
 func (h *host) ensure(ctx context.Context, entry *vaults.Entry) {
 	h.mu.Lock()
 	have, ok := h.mounts[entry.ID]
@@ -284,14 +286,7 @@ func (h *host) ensure(ctx context.Context, entry *vaults.Entry) {
 		return
 	}
 	if err := h.mount(ctx, entry, nil, false); err != nil {
-		moved, rebindErr := h.store.Rebind(entry.ID)
-		if rebindErr != nil {
-			h.log.Warn("could not serve the vault", "vault", entry.Path, "port", entry.Port, "error", errors.Join(err, rebindErr))
-			return
-		}
-		if err = h.mount(ctx, &moved, nil, false); err != nil {
-			h.log.Warn("could not serve the vault", "vault", entry.Path, "port", moved.Port, "error", err)
-		}
+		h.log.Warn("could not serve the vault", "vault", entry.Path, "port", entry.Port, "error", err)
 	}
 }
 
@@ -383,18 +378,26 @@ func (h *host) serveOne(ctx context.Context, stop func(), cfg *config, out io.Wr
 // adds.
 func (h *host) serveListed(ctx context.Context, stop func(), cfg *config, out io.Writer) error {
 	start := cfg.startPort()
+	if start < vaults.MinPort {
+		return &refusal{msg: fmt.Sprintf("YOMIHON_PORT %d is one of the system's ports; to keep a list of vaults it must be 0, or an integer from %d to 65535", start, vaults.MinPort)}
+	}
 	if running, ok := h.running(ctx); ok {
-		return h.giveFolder(ctx, cfg.root, running.Port, out)
+		return h.giveFolder(ctx, cfg, running, out)
 	}
 	listener, err := listenLoopback(ctx, cfg.port)
 	if err != nil {
 		// A yomihon that started a moment ago holds the port before it has said
 		// so, and the same moment shows it.
 		if running, ok := h.waitRunning(ctx); ok {
-			return h.giveFolder(ctx, cfg.root, running.Port, out)
+			return h.giveFolder(ctx, cfg, running, out)
 		}
 		return err
 	}
+	// The port is bound before the folder is recorded, so that a second yomihon
+	// started in the same moment finds this one, and the store is told it is ours
+	// so that recording the folder does not take our own listener for another
+	// program's.
+	h.store.Hold(start)
 	serveCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -422,11 +425,10 @@ func (h *host) serveListed(ctx context.Context, stop func(), cfg *config, out io
 		return errors.Join(err, h.stopServing(), h.closeSites())
 	}
 	if !held {
-		// No vault is on the starting port, which is a list that could not be
-		// read or written. The port is still held, so a second yomihon finds
-		// this one rather than one that is not there.
-		h.log.Warn("no vault is on the starting port", "port", start)
-		h.serving.Go(func() { h.holdPort(serveCtx, listener) })
+		// The vault just given is listed on another port, and a listed vault is
+		// never moved. The starting port is still held, which is how a second
+		// yomihon finds this one, and a browser that opens it is sent to the vault.
+		h.serving.Go(func() { h.redirectPort(serveCtx, listener, typed.Port) })
 	}
 	if m := h.find(typed.ID); m != nil {
 		h.printAddress(out, m.listener)
@@ -449,7 +451,7 @@ func (h *host) mountAll(ctx context.Context, list []vaults.Entry, typedID string
 		if list[i].Port == start && !held {
 			bound, held = listener, true
 		}
-		if err = h.mountListed(ctx, &list[i], bound, list[i].ID == typedID); err != nil {
+		if err = h.mount(ctx, &list[i], bound, list[i].ID == typedID); err != nil {
 			if list[i].ID == typedID {
 				return held, err
 			}
@@ -459,9 +461,9 @@ func (h *host) mountAll(ctx context.Context, list []vaults.Entry, typedID string
 	return held, nil
 }
 
-// record puts the folder in the list and makes sure a vault is on the starting
-// port, which the running yomihon holds. It answers the folder's entry as it is
-// afterwards.
+// record puts the folder in the list and answers its entry. A vault already
+// listed keeps its port; a new one is given the starting port if no vault is on
+// it, and the next free one if one is.
 func (h *host) record(root string, start int) (vaults.Entry, error) {
 	_, resolved, err := vault.ResolveRoot(root)
 	if err != nil {
@@ -471,25 +473,20 @@ func (h *host) record(root string, start int) (vaults.Entry, error) {
 	if err != nil {
 		return vaults.Entry{}, fmt.Errorf("add the folder to the list of vaults: %w", err)
 	}
-	moved, ok, err := h.store.Anchor(start)
-	if err != nil {
-		return vaults.Entry{}, fmt.Errorf("put a vault on the starting port: %w", err)
-	}
-	if ok {
-		if moved.ID == typed.ID {
-			typed = moved
-		} else {
-			h.log.Info("the first vault moved to the starting port", "vault", moved.Path, "port", moved.Port)
-		}
-	}
 	return typed, nil
 }
 
-// holdPort keeps the starting port bound, answering nothing, until ctx is done.
-func (h *host) holdPort(ctx context.Context, listener net.Listener) {
-	<-ctx.Done()
-	if err := listener.Close(); err != nil {
-		h.log.Warn("could not close the starting port", "error", err)
+// redirectPort answers the starting port, when no vault is on it, by sending a
+// browser to the vault the reader just opened. It stands behind the same two
+// edges as the vaults do, and it names nothing but that one loopback address.
+func (h *host) redirectPort(ctx context.Context, listener net.Listener, port int) {
+	target := fmt.Sprintf("http://127.0.0.1:%d/", port)
+	srv := newHTTPServer(origin.Protect(origin.LoopbackOnly(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		http.Redirect(w, r, target, http.StatusTemporaryRedirect)
+	}))))
+	if err := serveHTTP(ctx, srv, listener, shutdownGrace(srv)); err != nil && ctx.Err() == nil {
+		h.fail(err)
 	}
 }
 
@@ -523,16 +520,38 @@ func (h *host) waitRunning(ctx context.Context) (vaults.Instance, bool) {
 
 // giveFolder adds the folder to the list and waits for the running yomihon to
 // serve it, printing the address that does.
-func (h *host) giveFolder(ctx context.Context, root string, start int, out io.Writer) error {
-	_, resolved, err := vault.ResolveRoot(root)
+//
+// It adds the folder only to hand it over, so a hand-over that does not happen
+// takes the folder out of the list again, and says what to do. A record of a
+// running yomihon is a process id and a port, and an id the system has given to
+// another program makes one of that; this process opens no connection to ask
+// the port who it is, so a record that names a live process and a held port
+// cannot be told from a yomihon that is slow, until the wait has passed.
+func (h *host) giveFolder(ctx context.Context, cfg *config, running vaults.Instance, out io.Writer) error {
+	if cfg.portSet && running.Port != cfg.startPort() {
+		return &refusal{msg: fmt.Sprintf("yomihon is already running on port %d (process %d) and serves every vault in the list, so YOMIHON_PORT=%d cannot start a second one; "+
+			"open the folder without YOMIHON_PORT to give it to that one, or stop it first", running.Port, running.PID, cfg.startPort())}
+	}
+	_, resolved, err := vault.ResolveRoot(cfg.root)
 	if err != nil {
 		return err
 	}
-	entry, _, err := h.store.Add(resolved, start)
+	entry, added, err := h.store.Add(resolved, running.Port)
 	if err != nil {
 		return fmt.Errorf("add the folder to the list of vaults: %w", err)
 	}
-	return h.handOff(ctx, entry.ID, out)
+	err = h.handOff(ctx, entry.ID, out)
+	if !errors.Is(err, errNotTaken) {
+		return err
+	}
+	if added {
+		if _, rmErr := h.store.Remove(entry.ID); rmErr != nil {
+			h.log.Warn("could not take the folder out of the list again", "folder", resolved, "error", rmErr)
+		}
+	}
+	return &refusal{msg: fmt.Sprintf("%s says yomihon is running (process %d, port %d) but it did not take the folder within %s, and the folder was not added to the list; "+
+		"if yomihon is not running, remove that file and start again, and if it is, nothing on port %d is serving this list",
+		h.store.InstanceFile(), running.PID, running.Port, h.wait, running.Port)}
 }
 
 // handOff waits for the running yomihon to take the vault, and prints its
@@ -564,21 +583,6 @@ func (h *host) handOff(ctx context.Context, id string, out io.Writer) error {
 // errNotTaken is the answer when the running yomihon did not serve a folder it
 // was given in the time it has.
 var errNotTaken = errors.New("the running yomihon has not taken the folder")
-
-// mountListed serves one vault of the list, moving it to another port if
-// something else holds its own.
-func (h *host) mountListed(ctx context.Context, entry *vaults.Entry, listener net.Listener, eager bool) error {
-	err := h.mount(ctx, entry, listener, eager)
-	if err == nil || listener != nil {
-		return err
-	}
-	moved, rebindErr := h.store.Rebind(entry.ID)
-	if rebindErr != nil {
-		return errors.Join(err, rebindErr)
-	}
-	*entry = moved
-	return h.mount(ctx, entry, nil, eager)
-}
 
 func (h *host) find(id string) *mount {
 	h.mu.Lock()

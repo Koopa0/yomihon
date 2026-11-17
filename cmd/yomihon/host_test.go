@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/vaults"
 )
 
@@ -315,7 +316,10 @@ func TestASecondYomihonGivesItsFolderToTheRunningOne(t *testing.T) {
 	}
 }
 
-func TestTheFirstVaultMovesToTheStartingPortWhenNoVaultIsOnIt(t *testing.T) {
+// A listed vault is never moved. The vault just typed is new, so it takes the
+// starting port when no vault is on it, and the one listed before stays where
+// its address already is.
+func TestANewVaultTakesTheStartingPortWhenNoVaultIsOnItAndNoVaultIsMoved(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
 	old, current := newVaultFolder(t), newVaultFolder(t)
@@ -327,9 +331,194 @@ func TestTheFirstVaultMovesToTheStartingPortWhenNoVaultIsOnIt(t *testing.T) {
 
 	start := someFreePort(t)
 	r := startRunning(t, configDir, current, start)
+	if got, want := r.address(t), addressOf(start); got != want {
+		t.Errorf("the new vault is at %s, want the starting port, %s", got, want)
+	}
+	if kept := idOf(t, listOf(t, configDir), old); kept.Port != pre.Port {
+		t.Errorf("the vault listed before is on %d, was on %d; a listed vault does not move", kept.Port, pre.Port)
+	}
+}
+
+// A vault already listed on another port is still served there, and the starting
+// port, which the process holds, sends a browser to it.
+func TestTheStartingPortSendsABrowserToAVaultListedOnAnotherPort(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	folder := newVaultFolder(t)
+	was := someFreePort(t)
+	pre, _, err := listOf(t, configDir).Add(folder, was)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := someFreePort(t)
+	r := startRunning(t, configDir, folder, start)
+	if got, want := r.address(t), addressOf(pre.Port); got != want {
+		t.Fatalf("the vault is at %s, want the port the list gave it, %s", got, want)
+	}
+	if kept := idOf(t, listOf(t, configDir), folder); kept.Port != pre.Port {
+		t.Errorf("the vault was moved from %d to %d", pre.Port, kept.Port)
+	}
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, addressOf(start), http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := &http.Client{Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("GET the starting port: %v", err)
+	}
+	if err = resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusTemporaryRedirect || resp.Header.Get("Location") != addressOf(pre.Port) {
+		t.Errorf("the starting port answered %d to %q, want a redirect to %s", resp.StatusCode, resp.Header.Get("Location"), addressOf(pre.Port))
+	}
+	eventually(t, "the vault to be read", func() bool {
+		status, body, _ := httpGet(t, addressOf(pre.Port), "/")
+		return status == http.StatusOK && !strings.Contains(body, "data-scanning")
+	})
+}
+
+// A record that names a live process and a held port is believed until the wait
+// has passed, because this process opens no connection to ask the port who it
+// is. When nothing there serves the folder, the folder is not left in the list,
+// and the refusal names the file that says yomihon is running and the port.
+func TestAHandOffNothingTakesLeavesNothingInTheListAndSaysWhichFileToRemove(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	var lc net.ListenConfig
+	squatter, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = squatter.Close() }) //nolint:errcheck // the port is released either way
+	at, err := netip.ParseAddrPort(squatter.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := listOf(t, configDir)
+	// This test's own process stands for the live process that is not yomihon.
+	if err = store.WriteInstance(vaults.Instance{PID: os.Getpid(), Port: int(at.Port()), Started: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+
+	h := newHost(slog.New(slog.DiscardHandler), configDir, store)
+	h.wait = 300 * time.Millisecond
+	out := new(lockedBuffer)
+	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(someFreePort(t)), configDir: configDir}
+	err = h.serveListed(t.Context(), func() {}, cfg, out)
+	fault := operatorFault(err)
+	if fault == nil {
+		t.Fatalf("serveListed = %v, want a refusal the operator can correct", err)
+	}
+	for _, want := range []string{store.InstanceFile(), strconv.Itoa(int(at.Port()))} {
+		if !strings.Contains(fault.Error(), want) {
+			t.Errorf("the refusal %q does not name %q", fault.Error(), want)
+		}
+	}
+	if out.String() != "" {
+		t.Errorf("an address was printed for a folder nothing served: %q", out.String())
+	}
+	if list, listErr := store.List(); listErr != nil || len(list) != 0 {
+		t.Errorf("the folder nothing took is in the list: %+v, %v", list, listErr)
+	}
+}
+
+// A folder already in the list was not added by this hand-off, so a hand-off that
+// fails does not take it out.
+func TestAHandOffThatFailsKeepsAFolderTheListAlreadyHad(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	var lc net.ListenConfig
+	squatter, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = squatter.Close() }) //nolint:errcheck // the port is released either way
+	at, err := netip.ParseAddrPort(squatter.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := listOf(t, configDir)
+	folder := newVaultFolder(t)
+	if _, _, err = store.Add(folder, someFreePort(t)); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.WriteInstance(vaults.Instance{PID: os.Getpid(), Port: int(at.Port()), Started: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	h := newHost(slog.New(slog.DiscardHandler), configDir, store)
+	h.wait = 300 * time.Millisecond
+	cfg := &config{root: folder, port: strconv.Itoa(someFreePort(t)), configDir: configDir}
+	if operatorFault(h.serveListed(t.Context(), func() {}, cfg, io.Discard)) == nil {
+		t.Fatal("want a refusal")
+	}
+	if list, listErr := store.List(); listErr != nil || len(list) != 1 {
+		t.Errorf("the list holds %+v, %v; want the folder it already had", list, listErr)
+	}
+}
+
+// A port the reader names for a yomihon that is already running somewhere else
+// is not ignored: it cannot start a second one, since two would each serve the
+// one list, and the reader is told so before anything is added.
+func TestAPortNamedForAnotherYomihonThanTheRunningOneIsRefusedAndNothingIsAdded(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	start := someFreePort(t)
+	r := startRunning(t, configDir, newVaultFolder(t), start)
 	r.address(t)
-	if moved := idOf(t, listOf(t, configDir), old); moved.Port != start {
-		t.Errorf("the first vault is on %d, was on %d; want it on the starting port, %d", moved.Port, pre.Port, start)
+
+	other := someFreePort(t)
+	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
+	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(other), portSet: true, configDir: configDir}
+	err := h.serveListed(t.Context(), func() {}, cfg, io.Discard)
+	fault := operatorFault(err)
+	if fault == nil || !strings.Contains(fault.Error(), strconv.Itoa(start)) || !strings.Contains(fault.Error(), "YOMIHON_PORT") {
+		t.Fatalf("serveListed = %v, want a refusal naming YOMIHON_PORT and port %d", err, start)
+	}
+	if list, listErr := h.store.List(); listErr != nil || len(list) != 1 {
+		t.Errorf("the refused folder was added: %+v, %v", list, listErr)
+	}
+	if !portFree(t.Context(), other) {
+		t.Errorf("a second yomihon is serving on %d", other)
+	}
+}
+
+// The same port the running one holds is what a reader who always sets
+// YOMIHON_PORT gets: the folder is handed over.
+func TestTheRunningYomihonsOwnPortNamedAgainStillHandsTheFolderOver(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	start := someFreePort(t)
+	r := startRunning(t, configDir, newVaultFolder(t), start)
+	r.address(t)
+
+	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
+	h.wait = 10 * time.Second
+	out := new(lockedBuffer)
+	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(start), portSet: true, configDir: configDir}
+	if err := h.serveListed(t.Context(), func() {}, cfg, out); err != nil {
+		t.Fatalf("serveListed = %v", err)
+	}
+	if !printedAddress.MatchString(out.String()) {
+		t.Errorf("no address was printed: %q", out.String())
+	}
+}
+
+// A starting port below the unprivileged ports is refused before anything is
+// listed, whatever else is running.
+func TestAStartingPortOfTheSystemsIsRefused(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
+	cfg := &config{root: newVaultFolder(t), port: "80", portSet: true, configDir: configDir}
+	if operatorFault(h.serveListed(t.Context(), func() {}, cfg, io.Discard)) == nil {
+		t.Fatal("want a refusal of port 80")
+	}
+	if list, err := h.store.List(); err != nil || len(list) != 0 {
+		t.Errorf("a refused start listed %+v, %v", list, err)
 	}
 }
 
@@ -382,6 +571,70 @@ func TestAVaultWhoseFolderIsGoneAnswersThatItCannotBeRead(t *testing.T) {
 	// The other vault is not the worse for it.
 	if err = r.stop(t); err != nil {
 		t.Errorf("the host stopped with %v", err)
+	}
+}
+
+// "Read again" has to read again. A reader who puts the folder back, or fixes
+// its permission, and follows the action gets the vault without restarting
+// yomihon, and so does a later page asked for after the failure.
+func TestAVaultWhoseFolderIsPutBackIsReadAgainWithoutRestarting(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	gone := newVaultFolder(t)
+	start := someFreePort(t)
+	entry, _, err := listOf(t, configDir).Add(gone, start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.RemoveAll(gone); err != nil {
+		t.Fatal(err)
+	}
+
+	r := startRunning(t, configDir, newVaultFolder(t), start)
+	r.address(t)
+	address := addressOfEntry(&entry)
+	eventually(t, "the vault that is gone to say it cannot be read", func() bool {
+		status, body, _ := httpGet(t, address, "/")
+		return status == http.StatusServiceUnavailable && strings.Contains(body, `data-nothing="unreadable"`)
+	})
+
+	if err = os.MkdirAll(gone, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	writeRecoverySiteFixture(t, gone)
+	eventually(t, "the vault, put back, to be read when its address is asked for again", func() bool {
+		status, body, _ := httpGet(t, address, "/")
+		return status == http.StatusOK && !strings.Contains(body, "data-scanning") && !strings.Contains(body, `data-nothing="unreadable"`)
+	})
+}
+
+// A folder reached through a symbolic link is the folder: one id, one set of
+// marks, whichever spelling the reader types first.
+func TestAFolderTypedThroughALinkIsTheSameVaultAsTheFolder(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	target := newVaultFolder(t)
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("no symbolic links here: %v", err)
+	}
+	r := startRunning(t, configDir, link, someFreePort(t))
+	r.address(t)
+
+	resolved, err := filepath.EvalSymlinks(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := listOf(t, configDir).List()
+	if err != nil || len(list) != 1 {
+		t.Fatalf("the list holds %+v, %v; want the one vault", list, err)
+	}
+	if list[0].Path != resolved || list[0].ID != confdir.VaultID(resolved) {
+		t.Errorf("the vault is %q (%s), want the resolved folder %q (%s)", list[0].Path, list[0].ID, resolved, confdir.VaultID(resolved))
+	}
+	again, added, err := listOf(t, configDir).Add(target, 1024)
+	if err != nil || added || again.ID != list[0].ID {
+		t.Errorf("the folder typed by its own path = %+v, new %v, %v; want the same vault", again, added, err)
 	}
 }
 
@@ -571,7 +824,10 @@ func TestAWriteFromOneVaultsPageToAnotherVaultsPortIsRefused(t *testing.T) {
 	}
 }
 
-func TestAVaultWhosePortSomethingElseTookIsMovedToAnotherAndTheListSaysSo(t *testing.T) {
+// A vault whose port something else took while yomihon was not running keeps
+// the port in the list: its address is the one the reader's browser has. It is
+// told, and left; the vaults that can be served still are.
+func TestAVaultWhosePortSomethingElseTookStaysOnItAndTheOthersAreServed(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
 	start := someFreePort(t)
@@ -579,32 +835,50 @@ func TestAVaultWhosePortSomethingElseTookIsMovedToAnotherAndTheListSaysSo(t *tes
 	if _, _, err := pre.Add(newVaultFolder(t), start); err != nil {
 		t.Fatal(err)
 	}
-	moved, _, err := pre.Add(newVaultFolder(t), start)
+	squatted, _, err := pre.Add(newVaultFolder(t), start)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Something else takes the port the list gave it, while yomihon is not
-	// running.
 	var lc net.ListenConfig
-	squatter, err := lc.Listen(t.Context(), "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(moved.Port)))
+	squatter, err := lc.Listen(t.Context(), "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(squatted.Port)))
 	if err != nil {
 		t.Skipf("the port is not free to take: %v", err)
 	}
 	t.Cleanup(func() { _ = squatter.Close() }) //nolint:errcheck // the port is released either way
 
-	r := startRunning(t, configDir, newVaultFolder(t), start)
+	r := startRunning(t, configDir, newVaultFolder(t), start+10)
 	r.address(t)
-	if r.mountOf(moved.ID) == nil {
-		t.Fatalf("the vault was not served on any port")
+	if r.mountOf(squatted.ID) != nil {
+		t.Errorf("the vault is served though something else holds its port")
 	}
-	list, err := pre.List()
-	if err != nil {
+	if kept := idOf(t, listOf(t, configDir), squatted.Path); kept.Port != squatted.Port {
+		t.Errorf("the list gives the vault %d, was %d; a listed vault does not move", kept.Port, squatted.Port)
+	}
+}
+
+// The vault just typed is the one the reader asked for, so its port being
+// held is an error they can correct, said with the way to correct it.
+func TestTheTypedVaultsPortBeingHeldIsRefusedWithWhatToDo(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	folder := newVaultFolder(t)
+	taken := someFreePort(t)
+	if _, _, err := listOf(t, configDir).Add(folder, taken); err != nil {
 		t.Fatal(err)
 	}
-	for i := range list {
-		if list[i].ID == moved.ID && list[i].Port == moved.Port {
-			t.Errorf("the list still gives the vault the port something else holds, %d", moved.Port)
-		}
+	var lc net.ListenConfig
+	squatter, err := lc.Listen(t.Context(), "tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(taken)))
+	if err != nil {
+		t.Skipf("the port is not free to take: %v", err)
+	}
+	t.Cleanup(func() { _ = squatter.Close() }) //nolint:errcheck // the port is released either way
+
+	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
+	cfg := &config{root: folder, port: strconv.Itoa(someFreePort(t)), configDir: configDir}
+	err = h.serveListed(t.Context(), func() {}, cfg, io.Discard)
+	fault := operatorFault(err)
+	if fault == nil || !strings.Contains(fault.Error(), strconv.Itoa(taken)) || !strings.Contains(fault.Error(), "yomihon vaults remove") {
+		t.Fatalf("serveListed = %v, want a refusal naming port %d and the command that frees it", err, taken)
 	}
 }
 

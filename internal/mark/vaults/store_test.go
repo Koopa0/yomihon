@@ -112,7 +112,7 @@ func TestAVaultTypedAgainKeepsItsPortAndIsNotNew(t *testing.T) {
 func TestAStartingPortThatIsNotOneIsRefused(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), nil)
-	for _, start := range []int{0, -1, 65536} {
+	for _, start := range []int{0, -1, 80, MinPort - 1, 65536} {
 		if _, _, err := s.Add(folder(t, "a"), start); !errors.Is(err, ErrStartPort) {
 			t.Errorf("Add with start %d = %v, want ErrStartPort", start, err)
 		}
@@ -739,49 +739,6 @@ func TestTheListWritesNothingOutsideItsOwnDirectoryUnderTheConfigurationDirector
 	}
 }
 
-func TestTheFirstVaultMovesToTheStartingPortWhenNoVaultIsOnIt(t *testing.T) {
-	t.Parallel()
-	s, _ := storeIn(t, t.TempDir(), nil)
-	first := mustAdd(t, s, folder(t, "a"))
-	second := mustAdd(t, s, folder(t, "b"))
-
-	// The reader starts yomihon with another starting port.
-	moved, ok, err := s.Anchor(9000)
-	if err != nil || !ok || moved.ID != first.ID || moved.Port != 9000 {
-		t.Fatalf("Anchor(9000) = %+v, %v, %v; want the first vault moved to 9000", moved, ok, err)
-	}
-	list, err := s.List()
-	if err != nil {
-		t.Fatal(err)
-	}
-	ports := map[string]int{}
-	for _, e := range list {
-		ports[e.ID] = e.Port
-	}
-	if ports[first.ID] != 9000 || ports[second.ID] != second.Port {
-		t.Fatalf("ports after Anchor = %v, want the first on 9000 and the second where it was, %d", ports, second.Port)
-	}
-	if _, ok, err := s.Anchor(9000); err != nil || ok {
-		t.Fatalf("Anchor(9000) again = ok %v, %v; want nothing to move", ok, err)
-	}
-	if _, ok, err := s.Anchor(second.Port); err != nil || ok {
-		t.Fatalf("Anchor on a port a vault holds = ok %v, %v; want nothing to move", ok, err)
-	}
-}
-
-func TestAnchorOfAnEmptyListOrAnImpossiblePort(t *testing.T) {
-	t.Parallel()
-	s, _ := storeIn(t, t.TempDir(), nil)
-	if _, ok, err := s.Anchor(startPort); err != nil || ok {
-		t.Fatalf("Anchor of an empty list = ok %v, %v; want nothing to move", ok, err)
-	}
-	for _, start := range []int{0, 65536} {
-		if _, _, err := s.Anchor(start); !errors.Is(err, ErrStartPort) {
-			t.Errorf("Anchor(%d) = %v, want ErrStartPort", start, err)
-		}
-	}
-}
-
 func TestSetPortMovesAVaultButNotOntoAnotherVaultsPort(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), nil)
@@ -797,8 +754,10 @@ func TestSetPortMovesAVaultButNotOntoAnotherVaultsPort(t *testing.T) {
 	if err := s.SetPort(confdir.VaultID("/never/seen"), 9101); !errors.Is(err, ErrUnknown) {
 		t.Errorf("SetPort of an unknown id = %v, want ErrUnknown", err)
 	}
-	if err := s.SetPort(b.ID, 0); !errors.Is(err, ErrStartPort) {
-		t.Errorf("SetPort(0) = %v, want ErrStartPort", err)
+	for _, port := range []int{0, 80, MinPort - 1} {
+		if err := s.SetPort(b.ID, port); !errors.Is(err, ErrStartPort) {
+			t.Errorf("SetPort(%d) = %v, want ErrStartPort", port, err)
+		}
 	}
 	list, _ := s.List() //nolint:errcheck // asserted on below
 	for _, e := range list {
@@ -808,26 +767,110 @@ func TestSetPortMovesAVaultButNotOntoAnotherVaultsPort(t *testing.T) {
 	}
 }
 
-func TestRebindTakesTheNextPortNoVaultHoldsAndNothingElseHolds(t *testing.T) {
+// A vault already listed is never moved: not by the starting port, not by
+// another vault being added. The saved address of each is what the reader's
+// browser has, and it has to keep opening that vault.
+func TestNoVaultIsEverMovedByAnotherBeingAdded(t *testing.T) {
 	t.Parallel()
-	taken := map[int]bool{startPort + 2: true}
-	s, _ := storeIn(t, t.TempDir(), func(port int) bool { return !taken[port] })
-	a := mustAdd(t, s, folder(t, "a")) // 8800
-	b := mustAdd(t, s, folder(t, "b")) // 8801
-	c := mustAdd(t, s, folder(t, "c")) // 8803: 8802 is held by something else
-	if a.Port != startPort || b.Port != startPort+1 || c.Port != startPort+3 {
-		t.Fatalf("setup: ports %d, %d, %d", a.Port, b.Port, c.Port)
+	s, _ := storeIn(t, t.TempDir(), nil)
+	first := mustAdd(t, s, folder(t, "a"))
+	s.Hold(startPort + 7)
+	typed, added, err := s.Add(folder(t, "b"), startPort+7)
+	if err != nil || !added {
+		t.Fatalf("Add = %+v, %v, %v", typed, added, err)
+	}
+	list, err := s.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	ports := map[string]int{}
+	for _, e := range list {
+		ports[e.ID] = e.Port
+	}
+	if ports[first.ID] != first.Port {
+		t.Errorf("the vault listed first moved from %d to %d", first.Port, ports[first.ID])
+	}
+	if ports[typed.ID] != startPort+7 {
+		t.Errorf("the new vault is on %d, want the starting port %d the process holds", ports[typed.ID], startPort+7)
+	}
+}
+
+// The process that holds the starting port gives it to the vault it is about to
+// record, which a probe cannot say is free because the probe finds the process
+// itself in the way. A vault already on the port keeps it.
+func TestAPortThisProcessHoldsIsFreeForTheVaultItRecordsUnlessAVaultHasIt(t *testing.T) {
+	t.Parallel()
+	held := map[int]bool{startPort: true, startPort + 1: true}
+	s, _ := storeIn(t, t.TempDir(), func(port int) bool { return !held[port] })
+
+	if got := mustAdd(t, s, folder(t, "a")); got.Port != startPort+2 {
+		t.Fatalf("without Hold the first vault is on %d, want %d: the probe finds the process's own port in use", got.Port, startPort+2)
 	}
 
-	// Something took the first vault's port while yomihon was not running.
-	moved, err := s.Rebind(a.ID)
-	if err != nil {
-		t.Fatalf("Rebind: %v", err)
+	s2, _ := storeIn(t, t.TempDir(), func(port int) bool { return !held[port] })
+	s2.Hold(startPort)
+	first := mustAdd(t, s2, folder(t, "a"))
+	second := mustAdd(t, s2, folder(t, "b"))
+	if first.Port != startPort {
+		t.Errorf("the first vault is on %d, want the port the process holds, %d", first.Port, startPort)
 	}
-	if moved.Port != startPort+4 {
-		t.Fatalf("Rebind moved the vault to %d, want %d: past 8801 and 8803, which vaults hold, and 8802, which something else does", moved.Port, startPort+4)
+	if second.Port != startPort+2 {
+		t.Errorf("the second vault is on %d, want %d: the held port is the first vault's now, and %d is held by something else", second.Port, startPort+2, startPort+1)
 	}
-	if _, err := s.Rebind(confdir.VaultID("/never/seen")); !errors.Is(err, ErrUnknown) {
-		t.Errorf("Rebind of an unknown id = %v, want ErrUnknown", err)
+}
+
+func mkdirHome(s *Store) error { return os.MkdirAll(s.dir, 0o700) }
+
+func writeList(t *testing.T, configDir, body string) *Store {
+	t.Helper()
+	s, _ := storeIn(t, configDir, nil)
+	if err := mkdirHome(s); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.dir, listFile), []byte(body), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+		t.Fatal(err)
+	}
+	return s
+}
+
+// An entry the list would not have written is damage, not a vault to serve and
+// not a port to walk to something else.
+func TestAnEntryOutsideTheUnprivilegedPortsOrAtTheTopOfAFilesystemIsDamage(t *testing.T) {
+	t.Parallel()
+	folderPath := folder(t, "a")
+	for _, test := range []struct {
+		name, path string
+		port       int
+	}{
+		{"a port of the system's", folderPath, 80},
+		{"the last system port", folderPath, MinPort - 1},
+		{"the top of the filesystem", string(filepath.Separator), 9000},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			body := `{"version":1,"vaults":[{"id":"` + confdir.VaultID(test.path) + `","path":` + strconv.Quote(test.path) + `,"name":"x","last_read":"2026-11-18T09:00:00Z","port":` + strconv.Itoa(test.port) + `}]}`
+			s := writeList(t, t.TempDir(), body)
+			if _, err := s.List(); !errors.Is(err, ErrDamaged) {
+				t.Errorf("List = %v, want ErrDamaged", err)
+			}
+		})
+	}
+}
+
+// A list longer than any list is, is set aside like every other damaged list,
+// and the next change starts a fresh one.
+func TestAnOversizedListIsSetAsideNotLeftToBlockEveryChange(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	s := writeList(t, configDir, strings.Repeat("x", maxListBytes+1))
+	entry, added, err := s.Add(folder(t, "a"), startPort)
+	if err != nil || !added {
+		t.Fatalf("Add on top of an oversized list = %+v, %v, %v; want it taken in", entry, added, err)
+	}
+	if _, err = os.Stat(filepath.Join(s.dir, damagedFile)); err != nil {
+		t.Errorf("the oversized list was not set aside: %v", err)
+	}
+	if list, listErr := s.List(); listErr != nil || len(list) != 1 {
+		t.Errorf("after the change the list holds %+v, %v; want the one vault", list, listErr)
 	}
 }

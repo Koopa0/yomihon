@@ -33,6 +33,11 @@ var ErrNotNamed = errors.New("the vault's files need a configuration directory a
 // rather than taken in whole.
 var ErrTooLarge = errors.New("the file is longer than its limit")
 
+// ErrNotRegular means the name is something other than a file: a named pipe, a
+// device, a directory. Opening one could wait for ever for a writer that never
+// comes, so it is refused before it is opened, and read as damaged.
+var ErrNotRegular = errors.New("the name is not a regular file")
+
 // nameLength is how much of the vault digest names the directory. Half of the
 // digest distinguishes any two folders a person has, and a directory name is
 // read by people who have to find it to delete it.
@@ -89,7 +94,13 @@ func Dir(configDir, vaultRoot string) (string, error) {
 // bytes with ErrTooLarge. A file that is not there answers an error that
 // satisfies errors.Is(err, os.ErrNotExist).
 func Read(dir, name string, limit int64) ([]byte, error) {
-	file, err := os.Open(filepath.Join(dir, name)) // #nosec G304 -- a file of this vault's own directory under the configuration directory
+	path := filepath.Join(dir, name)
+	if info, err := os.Stat(path); err != nil {
+		return nil, err
+	} else if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%w: %s", ErrNotRegular, name)
+	}
+	file, err := os.Open(path) // #nosec G304 -- a file of this vault's own directory under the configuration directory
 	if err != nil {
 		return nil, err
 	}
@@ -172,6 +183,23 @@ func Remove(dir, name string) error {
 		return err
 	}
 	if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// SetAside renames the file called from in dir to the name to, replacing one
+// that is already there. It is how a file that cannot be read as what it should
+// be is kept for the reader to open, without ever being read in whole or
+// deleted. A file that is not there is already set aside.
+func SetAside(dir, from, to string) error {
+	if err := checkName(from); err != nil {
+		return err
+	}
+	if err := checkName(to); err != nil {
+		return err
+	}
+	if err := os.Rename(filepath.Join(dir, from), filepath.Join(dir, to)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil
