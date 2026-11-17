@@ -19,17 +19,25 @@ body {
   background: var(--bg);
   margin: 0;
 }
-/* Chrome height, and the extra 16px every fragment landing pad adds so
-   the marked line sits just under the bar rather than flush against it.
-   On :root so the skip link — a sibling of .yomihon — inherits it too.
-   The inset is how far the header's first and last controls stand from the
-   window's edge. The left rail's text starts, and the right rail's text ends,
-   the same distance from the edge, so each lines up with the header's end
-   beside it down the page. */
+/* The extra 16px every fragment landing pad adds beneath the header, so the
+   marked line sits just under the bar rather than flush against it. On :root
+   so the skip link — a sibling of .yomihon — inherits it too. */
 :root {
-  --header-height: 56px;
-  --header-clearance: calc(var(--header-height) + 16px);
-  --header-inset: 20px;
+  --header-clearance: calc(var(--hdr-h) + 16px);
+}
+
+/* The header is 48 tall on a phone, and a control is 44 where a thumb is the
+   pointer: every edge that clears the header reads --hdr-h, so it follows. */
+@media (max-width: 720px) {
+  :root {
+    --hdr-h: var(--hdr-h-phone);
+  }
+}
+
+@media (max-width: 720px), (pointer: coarse) {
+  :root {
+    --control-h: 44px;
+  }
 }
 
 /* Code is the one text a reader retypes character by character, so it has to
@@ -61,7 +69,7 @@ samp {
   position: fixed;
   /* Keep the focused link below the header so it cannot cover the
      navigation trigger or another persistent header control. */
-  top: 64px;
+  top: calc(var(--hdr-h) + var(--sp-2));
   translate: 0 calc(-100% - var(--header-clearance));
   z-index: 101;
 }
@@ -418,35 +426,42 @@ samp {
    ============================================================ */
 .y-header {
   align-items: center;
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  background: var(--panel);
   border-bottom: 1px solid var(--line);
   display: flex;
   flex: none;
-  gap: var(--sp-4);
-  height: var(--header-height);
-  padding: 0 var(--header-inset);
+  gap: var(--sp-2);
+  height: var(--hdr-h);
+  padding: 0 var(--sp-5);
   position: sticky;
   top: 0;
   z-index: 30;
 }
 
+/* The phone's side padding is the smaller step so a control's 44px box ends
+   where the 20px page margin does: its glyph stands 18 from the edge. The
+   boxes are twice their glyphs, so the space between two glyphs is drawn by
+   the boxes and the row has no gap of its own. */
+@media (max-width: 720px) {
+  .y-header {
+    gap: 0;
+    padding-inline: var(--sp-1);
+  }
+}
+
 .y-header__spacer {
   flex: 1;
 }
-/* The name is what gives when the row runs out of room, and only then. A flex
-   item refuses by default to become narrower than its own text, so on a window
-   too narrow for the whole row the last control was pushed past the edge
-   instead — a reading page at 360 with a scrollbar keeping its own column has
-   345 to lay out in and wants 354. Letting the name shorten costs a few of its
-   letters at widths no reader spends time at, and costs nothing at every width
-   where the row already fits, which is where the narrow lock now watches: the
-   name being shortened at all at 360 means something else grew. */
+/* The folder's name is what gives when the row runs out of room, then the
+   search field, and the wordmark does not: a flex item refuses by default to
+   become narrower than its own text, so on a window too narrow for the whole
+   row the last control was pushed past the edge instead. The brand may be
+   narrower than its content, the wordmark inside it may not, and the name
+   after it is the part that ends in an ellipsis. */
 .y-brand {
   align-items: center;
   display: flex;
-  gap: var(--sp-3);
+  gap: var(--sp-2);
   min-width: 0;
 }
 
@@ -454,25 +469,84 @@ samp {
   align-items: center;
   color: var(--fg);
   display: inline-flex;
+  flex: none;
   font-family: var(--font-display);
   font-size: var(--fs-16);
   font-weight: var(--fw-semibold);
   gap: var(--sp-2);
   letter-spacing: var(--track-snug);
-  min-width: 0;
 }
 
-.y-brand__name > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.y-brand__word {
   white-space: nowrap;
 }
 
 .y-brand__mark {
   display: block;
   flex: none;
-  height: 24px;
-  width: 24px;
+  height: 20px;
+  width: 20px;
+}
+
+/* A short rule between the publisher and the book, as a running head has. */
+.y-brand__rule {
+  background: var(--line-strong);
+  flex: none;
+  height: 16px;
+  margin-inline-start: var(--sp-4);
+  width: 1px;
+}
+
+/* The folder's name is the part of the row that gives first: it is the one
+   piece of text in it whose end is no loss to the reader's way around. */
+.y-brand__vault {
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  height: var(--control-h);
+  line-height: var(--control-h);
+  min-width: 4em;
+  overflow: hidden;
+  padding: 0 var(--sp-2);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.y-brand__vault:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+/* On a phone the name stands where the wordmark was, and the logo keeps the
+   wordmark's place as the way to the desk: 16 from the padding is the page's
+   20, and the link's box is as wide as a thumb needs. */
+@media (max-width: 720px) {
+  .y-brand:has(.y-brand__vault) .y-brand__word,
+  .y-brand__rule {
+    display: none;
+  }
+
+  .y-brand__name {
+    height: var(--control-h);
+    padding-inline: var(--sp-4) var(--sp-2);
+  }
+
+  .y-brand__vault {
+    color: var(--fg);
+    font-size: var(--fs-16);
+    font-weight: var(--fw-semibold);
+    padding-inline-start: 0;
+  }
+
+  /* The furigana switch keeps its word and the logo keeps the way to the desk;
+     the folder's name has no room beside them. It is drawn again on the day the
+     switch moves to the page head's toolbar and this rule is deleted. */
+  .y-header:has(.y-rubybtn) .y-brand__vault {
+    display: none;
+  }
 }
 
 /* The mark's page shape is nearly the dark header's own ink, so in the dark
@@ -497,14 +571,37 @@ samp {
   border-radius: var(--r-sm);
   box-shadow: inset 0 0 0 1px var(--line);
   color: var(--fg-subtle);
+  container-type: inline-size;
   cursor: pointer;
   display: flex;
+  /* The field gives up its width before anything else in the row does: a
+     shrink weight no other item comes near, so nothing yields while it still
+     can. What it shows follows the width it has been left (the queries below),
+     and never a word cut through. */
+  flex: 0 1000 var(--field-w);
   font-family: var(--font-sans);
   font-size: var(--fs-14);
   gap: var(--sp-2);
-  height: 32px;
-  min-width: 214px;
+  height: var(--control-h);
+  min-width: var(--control-h);
+  overflow: hidden;
   padding: 0 var(--sp-3);
+}
+
+@container (max-width: 150px) {
+  .y-searchbtn .ui-kbd {
+    display: none;
+  }
+}
+
+@container (max-width: 88px) {
+  .y-searchbtn__label {
+    display: none;
+  }
+
+  .y-searchbtn svg {
+    margin-inline: auto;
+  }
 }
 
 .y-searchbtn:hover {
@@ -522,7 +619,8 @@ samp {
    Use the existing compact search-button presentation so two entrances do
    not displace the wordmark. Its accessible name and native command remain. */
 .y-header:has(.y-searchfallback) .y-searchbtn {
-  min-width: 0;
+  flex: none;
+  width: var(--control-h);
 }
 
 .y-header:has(.y-searchfallback) .y-searchbtn__label,
@@ -532,7 +630,11 @@ samp {
 
 .y-searchbtn__label {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
   text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .y-iconbtn {
@@ -560,6 +662,12 @@ samp {
 .y-iconbtn svg {
   height: 16px;
   width: 16px;
+}
+
+/* The header's controls are as tall as a control is: 32 for a pointer, 44 for a
+   thumb. The same button elsewhere keeps its own size. */
+.y-header .y-iconbtn {
+  height: var(--control-h);
 }
 /* The furigana switch depends on script. Without it, the native preferences
    link remains the way to change the reading choices. */
@@ -612,7 +720,7 @@ html:not([data-js]) .y-rubybtn {
   height: 14px;
   position: absolute;
   right: calc(var(--switch-inset) + 32px - 3px - 14px);
-  top: 9px;
+  top: calc(50% - 7px);
   transition: background var(--dur-base) var(--ease-standard), right var(--dur-base) var(--ease-standard);
   width: 14px;
 }
@@ -626,19 +734,12 @@ html:not([data-js]) .y-rubybtn {
   background: var(--bg);
   right: calc(var(--switch-inset) + 3px);
 }
-/* The row's spare width runs out a little below this point, and further down it
-   is already shortening the wordmark to fit what is there; the longer label
-   would then be paid for out of the name of the thing the reader is looking at.
-   The switch happens here rather than at the last width that fits, so the
-   longer label is never the reason the wordmark gives. The short label is the
-   tail of the long one rather than a different word, which is what lets the
-   spoken name stay the same across the switch. */
-@media (max-width: 720px) {
-  .y-rubybtn {
-    gap: var(--sp-1);
-    padding-left: var(--sp-1);
-  }
-
+/* The switch is the first thing in the row to give: where the sidebar button
+   joins the row (1023 and below) it takes its short word, before the search
+   field has had to narrow. The short label is the tail of the long one rather
+   than a different word, which is what lets the spoken name stay the same
+   across the switch. */
+@media (max-width: 1023px) {
   .y-rubybtn__label--long {
     display: none;
   }
@@ -646,12 +747,23 @@ html:not([data-js]) .y-rubybtn {
   .y-rubybtn__label--short {
     display: inline;
   }
+}
+
+@media (max-width: 720px) {
+  .y-rubybtn {
+    gap: var(--sp-1);
+    padding-left: var(--sp-1);
+  }
 
   /* Down to its glyph the search entrance is one icon among the row's icons,
      and is drawn as they are: no frame at rest, the wash under a pointer. Only
      its paint changes, so the row it stands in keeps its measured width. */
   .y-searchbtn {
     box-shadow: none;
+    flex: none;
+    justify-content: center;
+    padding: 0;
+    width: var(--control-h);
   }
 
   .y-searchbtn:hover {
@@ -659,10 +771,64 @@ html:not([data-js]) .y-rubybtn {
     box-shadow: none;
   }
 
+  .y-searchbtn__label,
+  .y-searchbtn .ui-kbd {
+    display: none;
+  }
 }
 
-.y-hamburger {
+/* The button that opens the left column as a drawer. It is named by its word,
+   as the settings link is, and drawn only where there is a column to open and
+   the column is a drawer (the 1023 block below). */
+.y-sidebtn {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  cursor: pointer;
   display: none;
+  flex: none;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  font-weight: var(--fw-medium);
+  height: var(--control-h);
+  justify-content: center;
+  min-width: var(--control-h);
+  padding: 0 var(--sp-2);
+  white-space: nowrap;
+}
+
+/* The word where the row has room for one, the mark where it has not. */
+.y-sidebtn__mark {
+  display: none;
+  height: 16px;
+  width: 16px;
+}
+
+@media (max-width: 720px) {
+  .y-sidebtn {
+    padding: 0;
+    width: var(--control-h);
+  }
+
+  .y-sidebtn__mark {
+    display: block;
+  }
+
+  .y-sidebtn__word {
+    display: none;
+  }
+}
+
+.y-sidebtn:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+.y-sidebtn[aria-expanded='true'] {
+  background: var(--selected);
+  color: var(--fg);
 }
 
 /* ============================================================
@@ -688,7 +854,7 @@ html:not([data-js]) .y-rubybtn {
 .y-nav-scrim {
   background: var(--overlay-mask);
   display: none;
-  inset: var(--header-height) 0 0 0;
+  inset: var(--hdr-h) 0 0 0;
   position: fixed;
   z-index: 44;
 }
@@ -699,11 +865,11 @@ html:not([data-js]) .y-rubybtn {
 .y-rail-left {
   background: var(--rail-ground);
   border-right: 1px solid var(--line);
-  height: calc(100vh - var(--header-height));
+  height: calc(100vh - var(--hdr-h));
   overflow-y: auto;
   padding: 6px var(--rail-pad) 48px var(--rail-pad-start);
   position: sticky;
-  top: var(--header-height);
+  top: var(--hdr-h);
 }
 
 /* Without scripting, arrival brings the current row into the rail's view and
@@ -751,7 +917,7 @@ html:not([data-js]) .y-rubybtn {
   --rail-head-height: 44px;
   --rail-list-inset: 6px;
   --rail-pad: 16px;
-  --rail-pad-start: var(--header-inset);
+  --rail-pad-start: var(--sp-5);
   --rail-row-inset: 12px;
 }
 
@@ -972,7 +1138,7 @@ html:not([data-js]) .y-rubybtn {
     font-size: var(--fs-14);
     font-weight: var(--fw-medium);
     line-height: 1.2;
-    max-block-size: calc(100vh - var(--header-height) - var(--rail-head-height) - 48px);
+    max-block-size: calc(100vh - var(--hdr-h) - var(--rail-head-height) - 48px);
     overflow: hidden;
     padding-block: 4px;
     text-orientation: mixed;
@@ -2084,7 +2250,7 @@ html[data-js][data-arrival='kept'] .y-main {
 /* The moment the sentence becomes true usually finds the reader deep in the
    prose, and the element lives at the top of the column — left in plain flow
    it sat thousands of pixels above the viewport, detected but unseen. Sticky
-   keeps it just below the header (the --header-height every pinned edge here clears)
+   keeps it just below the header (the --hdr-h every pinned edge here clears)
    without moving the reader's place; the page ground behind it, because it
    floats over prose once stuck. Scoped to the state attribute the banner
    carries. No motion is added, so reduced-motion needs nothing. */
@@ -2093,7 +2259,7 @@ html[data-js][data-arrival='kept'] .y-main {
   border-bottom: 1px solid var(--border-faint);
   padding: var(--sp-2) 0;
   position: sticky;
-  top: var(--header-height);
+  top: var(--hdr-h);
   z-index: 5;
 }
 
@@ -6224,7 +6390,7 @@ samp,
    ends: without it a long word, a wide table or a code block sets the column's
    floor and the page grows sideways. */
 .y-compare__column {
-  max-height: calc(100dvh - var(--header-height));
+  max-height: calc(100dvh - var(--hdr-h));
   min-width: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -6299,7 +6465,7 @@ samp,
     border-bottom: 1px solid var(--border);
     justify-content: flex-start;
     position: sticky;
-    top: var(--header-height);
+    top: var(--hdr-h);
     z-index: 5;
   }
 
@@ -6382,6 +6548,18 @@ samp,
     --rail-strip: 40px;
   }
 
+  /* The strip is narrower than the padding the open column keeps on its two
+     sides, which would make it wider than itself. What stands in it is drawn
+     across its whole width by margins that read the same two lengths, so
+     taking both to nothing here moves none of it. */
+  /* stylelint-disable length-zero-no-unit -- both are read inside calc(),
+     where a bare 0 is a number and not a length. */
+  html[data-rail='collapsed'] .y-rail-left {
+    --rail-pad: 0px;
+    --rail-pad-start: 0px;
+  }
+  /* stylelint-enable length-zero-no-unit */
+
   html[data-rail='collapsed'] .y-shell:has(> .y-rail-left),
   html[data-rail='collapsed'] .y-shell2:has(> .y-rail-left) {
     grid-template-columns: var(--rail-strip) minmax(0, 1fr);
@@ -6446,14 +6624,14 @@ samp,
 
   /* The sidebar is ordinary stacked content until the enhancement runtime
      marks the document. With JS off it therefore remains reachable, and the
-     drawer-only hamburger keeps no dead face in the header. */
+     drawer-only sidebar button keeps no dead face in the header. */
   .y-rail-left {
     max-height: none;
     position: static;
     width: auto;
   }
   /* A page with no rail has nothing for the drawer to open. */
-  html[data-js] .yomihon:has(.y-rail-left) .y-hamburger {
+  html[data-js] .yomihon:has(.y-rail-left) .y-sidebtn {
     display: inline-flex;
   }
 
@@ -6467,7 +6645,7 @@ samp,
     left: 0;
     max-height: none;
     position: fixed;
-    top: var(--header-height);
+    top: var(--hdr-h);
     transform: translateX(-102%);
     transition: box-shadow var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
     width: min(300px, 86vw);
@@ -6531,14 +6709,6 @@ samp,
     gap: var(--sp-2);
   }
 
-  .y-searchbtn {
-    min-width: 0;
-  }
-
-  .y-searchbtn__label,
-  .y-searchbtn .ui-kbd {
-    display: none;
-  }
   /* The side margins narrow with the root; the box only follows them. */
   .y-article,
   .y-listen,
@@ -6549,32 +6719,6 @@ samp,
   }
 }
 @media (max-width: 520px) {
-  /* A phone's row holds the menu, the name, and on a page with furigana four
-     controls, and the name is what would give. The icons need no gap of their
-     own: each glyph already sits in a box twice its size, so the space between
-     two glyphs is drawn by the boxes, and the search entrance is one such box
-     rather than a wider frame. The bookmark's box under a thumb stays its own
-     size. */
-  .y-header {
-    gap: 0;
-    padding-inline: var(--sp-2);
-  }
-
-  .y-searchbtn {
-    justify-content: center;
-    padding: 0;
-    width: 32px;
-  }
-
-  .y-rubybtn {
-    gap: var(--sp-1);
-    padding-left: var(--sp-1);
-  }
-
-  .y-brand {
-    gap: var(--sp-2);
-  }
-
   /* The state word goes onto its own line so the controls keep one row each;
      everything else stays in the order it is written, which keeps stop beside
      the play, previous and next it belongs with. */
@@ -7587,8 +7731,8 @@ samp,
   font-weight: var(--fw-medium);
   justify-content: center;
   line-height: 1.25rem;
-  min-height: 32px;
-  min-width: 32px;
+  min-height: var(--control-h);
+  min-width: var(--control-h);
   padding: var(--sp-2);
   text-decoration: none;
   white-space: nowrap;
@@ -7606,7 +7750,7 @@ samp,
   width: 16px;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .y-prefslink {
     padding: 0;
   }
@@ -8230,19 +8374,11 @@ samp,
 @media (max-width: 720px) {
   .y-headermark__button {
     padding: 0;
-    width: 32px;
+    width: var(--control-h);
   }
 
   .y-headermark__label {
     display: none;
-  }
-}
-
-/* A thumb is wider than a pointer, so a touch screen gets the full target. */
-@media (pointer: coarse) {
-  .y-headermark__button {
-    height: 44px;
-    min-width: 44px;
   }
 }
 
@@ -8265,7 +8401,7 @@ samp,
    emptied. */
 .y-headermark__said {
   inset-block-start: calc(100% + 4px);
-  inset-inline-end: var(--header-inset);
+  inset-inline-end: var(--sp-5);
   margin: 0;
   max-width: min(280px, calc(100vw - 16px));
   pointer-events: none;
@@ -8284,17 +8420,11 @@ samp,
   transition: opacity var(--dur-slow) linear;
 }
 
-@media (max-width: 840px) {
+@media (max-width: 720px) {
   .y-headermark__said {
     inset-block-start: 50%;
-    inset-inline: calc(var(--header-inset) + 32px + 16px) auto;
+    inset-inline: var(--sp-7) auto;
     translate: 0 -50%;
-  }
-}
-
-@media (max-width: 520px) {
-  .y-headermark__said {
-    inset-inline-start: 40px;
   }
 }
 

@@ -316,7 +316,7 @@ try {
       .find((h) => h.textContent.trim() === 'Fourth-level landing');
     if (!heading) return null;
     const style = getComputedStyle(heading);
-    const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height'));
+    const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hdr-h'));
     return {
       tag: heading.tagName,
       level: heading.getAttribute('data-level'),
@@ -331,12 +331,12 @@ try {
     fail('fragment-reaches-the-heading', `the #### heading rendered as ${fourth.tag} data-level=${JSON.stringify(fourth.level)}, want H5 data-level="4"`);
   }
   if (parseFloat(fourth.scrollMarginTop) !== fourth.clearance) {
-    fail('fragment-reaches-the-heading', `the demoted h5 scroll-margin-top is ${JSON.stringify(fourth.scrollMarginTop)}, want ${fourth.clearance}px from --header-height so the jump clears the sticky header`);
+    fail('fragment-reaches-the-heading', `the demoted h5 scroll-margin-top is ${JSON.stringify(fourth.scrollMarginTop)}, want ${fourth.clearance}px from --hdr-h so the jump clears the sticky header`);
   }
   // The same question at the two levels nothing styles: a heading a link can
   // name has to come to rest where the reader can see it, whatever its depth.
   const deep = await reader.evaluate(() => {
-    const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height'));
+    const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hdr-h'));
     const read = (level) => {
       const heading = document.querySelector(`.y-prose [data-level="${level}"]`);
       return heading ? getComputedStyle(heading).scrollMarginTop : null;
@@ -511,7 +511,7 @@ try {
         if (!block) return { missing: host };
         const lineHeight = parseFloat(getComputedStyle(block).lineHeight);
         const height = block.getBoundingClientRect().height;
-        const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-height'));
+        const headerHeight = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hdr-h'));
         const paintedHeight = header.getBoundingClientRect().height;
         const clearance = headerHeight + 16;
         return {
@@ -538,10 +538,10 @@ try {
         broken(`the addressed ${link.host} is ${arrival.lines} lines tall, want ${link.minLines} or more so a single-line landing cannot hide a wrap`);
       }
       if (parseFloat(arrival.scrollMarginTop) !== arrival.clearance) {
-        fail('block-clears-the-header', `after following ${JSON.stringify(link.label)} the marked line scroll-margin-top is ${JSON.stringify(arrival.scrollMarginTop)}, want ${arrival.clearance}px from --header-height`);
+        fail('block-clears-the-header', `after following ${JSON.stringify(link.label)} the marked line scroll-margin-top is ${JSON.stringify(arrival.scrollMarginTop)}, want ${arrival.clearance}px from --hdr-h`);
       }
       if (arrival.headerHeight !== arrival.paintedHeight) {
-        fail('block-clears-the-header', `after following ${JSON.stringify(link.label)} --header-height is ${arrival.headerHeight}px but the painted bar is ${arrival.paintedHeight}px tall`);
+        fail('block-clears-the-header', `after following ${JSON.stringify(link.label)} --hdr-h is ${arrival.headerHeight}px but the painted bar is ${arrival.paintedHeight}px tall`);
       }
       // Bound the painted bar, not the token: a landing that only ran out of
       // page can sit anywhere in the viewport and still look clear, and a
