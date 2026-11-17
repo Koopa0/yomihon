@@ -297,8 +297,13 @@ const proveApplied = (site, label) => {
 const measureTheme = (page, theme) => page.evaluate((selectedTheme) => {
   document.documentElement.dataset.theme = selectedTheme;
   const root = getComputedStyle(document.documentElement);
-  const textTokens = ['--fg', '--fg-muted', '--fg-subtle', '--fg-faint'];
+  const textTokens = ['--fg', '--fg-muted', '--fg-subtle', '--fg-faint', '--reader'];
   const surfaces = ['--bg', '--panel', '--elevated', '--overlay'];
+  // The faint step is for numbers, dates and Latin letters on the paper, the
+  // rail and a raised surface. On --overlay it measures 4.24:1 in light and
+  // 4.10:1 in dark, which is why the design keeps it off the selected ground
+  // and the reader's wash, which share that tone.
+  const faintGrounds = ['--bg', '--panel', '--elevated'];
   const canvas = document.createElement('canvas');
   canvas.width = 1;
   canvas.height = 1;
@@ -335,7 +340,7 @@ const measureTheme = (page, theme) => page.evaluate((selectedTheme) => {
   for (const text of textTokens) {
     const foreground = rgb(text);
     if (foreground.issue) return { issue: foreground.issue };
-    for (const surface of surfaces) {
+    for (const surface of text === '--fg-faint' ? faintGrounds : surfaces) {
       const background = rgb(surface);
       if (background.issue) return { issue: background.issue };
       const a = luminance(foreground.channels);
@@ -567,7 +572,7 @@ const measureBusySearch = (page, theme) => page.evaluate((selectedTheme) => {
     return {
       opacity,
       ratio: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
-      text: '--fg-faint through ancestor opacity',
+      text: '--fg-muted through ancestor opacity',
       color: `rgb(${faded.join(' ')})`,
       background: `rgb(${background.channels.join(' ')})`,
     };

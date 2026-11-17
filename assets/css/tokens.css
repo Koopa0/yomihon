@@ -1,73 +1,90 @@
 /* ============================================================
    yomihon — design tokens
    ------------------------------------------------------------
-   The palette is the mark's own paper and inks. Four voices share it: the
-   ink of the text and the interface, the blue of links and focus, the
-   vermilion (朱) of the reader's own marks, and the ochre of what yomihon
-   finds. Each voice also carries a shape or a word, so none is told by colour
-   alone.
+   Paper and ink, three voices. The ink sets the text and everything the
+   interface does: links, focus and every action are ink. The reader's blue
+   belongs to the reader alone, the marks they leave and nothing else. The
+   ochre and the plum are what yomihon finds. Each voice also carries a shape
+   or a word, so none is told by colour alone.
 
-   Every colour token is declared once, here, as light-dark(light, dark). The
-   theme is the root's color-scheme and nothing else: light unless the reader
-   stored dark ([data-theme="dark"], stamped server-side from a cookie, so no
-   flash) or stored nothing on a dark system. A Go test holds the sheet to
-   that shape.
+   Every colour token is declared once, here, as light-dark(light, dark), with
+   one exception: the white paper below, which restates the paper tokens it
+   replaces. The theme is the root's color-scheme and nothing else: light unless
+   the reader stored dark ([data-theme="dark"], stamped server-side from a
+   cookie, so no flash) or stored nothing on a dark system. A Go test holds the
+   sheet to that shape.
    ============================================================ */
 
 :root {
   color-scheme: light;
 
-  /* ---- Surfaces (the mark's paper) ---- */
-  --bg: light-dark(#f5f1e6, #161513);
-  --panel: light-dark(#eee9dc, #1e1d1a);
-  --elevated: light-dark(#e7e1d2, #252420);
-  --overlay: light-dark(#e1ddd3, #2e2d29);
+  /* ---- Paper: 生成 (unbleached) in light, 消炭 (charcoal) in dark ---- */
+  --bg: light-dark(#f7f4ec, #1b1a17);
+  --panel: light-dark(#f0ece1, #22211d);
+  --elevated: light-dark(#fff, #2a2924);
+  --overlay: light-dark(#e6e1d4, #34322c);
+  /* Selected: one treatment everywhere, a tonal ground and a heavier weight,
+     so a choice reads without colour. */
+  --selected: light-dark(#e6e1d4, #34322c);
+  --on-selected: var(--fg);
+  /* The ground of a code block. */
+  --code-ground: light-dark(#efeadf, #23221e);
   /* The mat an author's picture or figure sits on. It is a step off the page
      in both themes, so a drawing made for a light ground is set apart by tone
      and by nothing else. */
-  --mat: light-dark(#e6e2d8, #2a2925);
+  --mat: light-dark(#ebe6da, #2b2a25);
   /* The left rail's ground: the header's tone, a step off the page in both
      themes. */
   --rail-ground: var(--panel);
   /* A switch that is on: the neutral control ink, a step off the text, so a
      control that is set does not outweigh the words beside it. */
-  --switch-on: light-dark(#5d5a51, #d6d2c6);
+  --switch-on: light-dark(#55514a, #dcd6ca);
 
-  /* ---- Text (two inks: the text, and the variant every quieter word takes;
-     the older tier names stay as aliases so each clears 4.5:1 on every
-     surface it is set on) ---- */
-  --fg: light-dark(#1d1c1a, #dad5ca);
-  --fg-muted: light-dark(#4b4842, #c4bfb4);
+  /* ---- Ink, three steps. The text; the variant every quieter word takes; and
+     the faint step for numbers, dates and Latin letters only, which is set on
+     the paper, the rail, a raised surface or a hovered ground and never on
+     --selected or --reader-wash, where it falls short of 4.5:1 and the muted
+     step takes its place. ---- */
+  --fg: light-dark(#22201c, #dcd6ca);
+  --fg-muted: light-dark(#55514a, #aaa498);
+  --fg-faint: light-dark(#6d685f, #96918a);
   --fg-subtle: var(--fg-muted);
-  --fg-faint: var(--fg-subtle);
+
+  /* ---- The reader's blue: the marks the reader leaves, and nothing else. The
+     blue itself draws their small icons and words; the wash is only ever a
+     ground, because it sits 1.18:1 from the paper and so carries no
+     information of its own. Neither one marks an action: an action is ink. ---- */
+  --reader: light-dark(#2f5781, #9cc3ea);
+  --reader-wash: light-dark(#d6e4f0, #253a50);
+  /* Aliases of the pair above for one release, so a page not yet moved onto
+     them keeps drawing; the vermilion they used to name is gone. */
+  --accent: var(--reader);
+  --accent-wash: var(--reader-wash);
+
+  /* ---- Links, focus and selection. A link is ink under a hairline, so it is
+     found without colour; focus is an ink ring; a selection is grey, because a
+     blue one would read as the reader's own highlight. ---- */
+  --link: var(--fg);
+  --link-line: light-dark(#8a857b, #8a857b);
+  --focus: var(--fg);
+  --selection: light-dark(rgb(34 32 28 / 0.14), rgb(220 214 202 / 0.20));
 
   /* ---- Lines. The outline is the edge of anything interactive and the rule
      under a table's head, at 3:1 or more; the variant is a table's inner
      rule, which carries no information. ---- */
-  --outline: light-dark(#7b776e, #938e83);
-  --outline-variant: light-dark(#cdc8bd, #4a4740);
-
-  /* ---- Selected: one treatment everywhere, a tonal ground and a heavier
-     weight, so a choice reads without colour. ---- */
-  --selected: light-dark(#e4e0d4, #35332e);
-  --on-selected: light-dark(#1f1e1a, #e7e3d7);
-
-  /* ---- The reader's own voice — 朱 seal-ink vermilion, reserved for the
-     reader's own marks: the bookmark where they left off and the diamond on
-     what they are not sure of yet. It marks no status, since a status is the
-     author's word and not the reader's. ---- */
-  --accent: light-dark(#a93a1f, #ee7b5b);
-
-  /* ---- Links and focus: the author's voice, blue. ---- */
-  --link: light-dark(#2b4c7e, #afc5ee);
+  --outline: light-dark(#827d73, #8c877c);
+  --outline-variant: var(--line);
 
   /* ---- Honest diagnostics — muted ochre, never angry red (金繼ぎ) ---- */
-  --warn: light-dark(#7a5a0e, #e3c57c);
-  --warn-bg: light-dark(oklch(0.560 0.120 70 / 0.10), oklch(0.800 0.130 80 / 0.14));
+  --warn: light-dark(#7a5a0e, #e0c27a);
+  --warn-bg: light-dark(#f1e7cc, #332c1b);
   /* A finding that blocks the folder: a muted plum, its own hue, so it is told
-     from a warning at a glance without borrowing the seal ink. */
-  --error: light-dark(oklch(0.450 0.110 325), oklch(0.800 0.090 325));
-  --error-bg: light-dark(oklch(0.550 0.120 325 / 0.10), oklch(0.700 0.110 325 / 0.15));
+     from a warning at a glance. */
+  --error: light-dark(#733d76, #dcaade);
+  --error-bg: light-dark(#efe1ec, #352536);
+
+  /* ---- Code: the one colour a code block has beside the ink. ---- */
+  --code-string: light-dark(#405e40, #a8cfac);
 
   /* ---- Growth track — muted sage (never out-shouts the accent) ---- */
   --sage: light-dark(oklch(0.450 0.060 145), oklch(0.820 0.065 148));
@@ -79,17 +96,17 @@
   /* ---- Slot-machine colours — the 8 grammatical roles. Each coloured
      element reads --c; the .y-slot-<token> class only assigns it, so one token
      tints a slot's select border, its surface, and its ruby together. Muted so
-     a card full of coloured words never out-shouts the reading, and hues avoid
-     the accent's red-orange (reserved for the reader's own marks). Brightened
+     a card full of coloured words never out-shouts the reading, and none sits
+     in the blue band (215° to 265° of hue), which is the reader's. Brightened
      for dark, same hues. ---- */
-  --slot-topic: light-dark(oklch(0.500 0.125 250), oklch(0.780 0.120 250));
-  --slot-pred: light-dark(oklch(0.560 0.120 65), oklch(0.800 0.115 65));
-  --slot-poss: light-dark(oklch(0.615 0.070 250), oklch(0.820 0.065 250));
-  --slot-obj: light-dark(oklch(0.530 0.100 185), oklch(0.790 0.095 185));
-  --slot-place: light-dark(oklch(0.510 0.115 305), oklch(0.790 0.110 305));
-  --slot-time: light-dark(oklch(0.560 0.095 45), oklch(0.810 0.090 45));
-  --slot-verb: light-dark(oklch(0.505 0.095 150), oklch(0.795 0.090 150));
-  --slot-num: light-dark(oklch(0.520 0.120 350), oklch(0.790 0.115 350));
+  --slot-topic: light-dark(#9c4246, #f89999);
+  --slot-pred: light-dark(#836412, #dbb970);
+  --slot-poss: light-dark(#925a5a, #ecb4b3);
+  --slot-obj: light-dark(#00746a, #6ccfc2);
+  --slot-place: light-dark(#71559e, #c5aaf7);
+  --slot-time: light-dark(#985b2d, #ebaf86);
+  --slot-verb: light-dark(#387447, #92cd9e);
+  --slot-num: light-dark(#954a7e, #ec9dd2);
 
   --shadow-1: 0 2px 8px -2px light-dark(oklch(0.30 0.02 107 / 0.10), rgb(0 0 0 / 0.50)), 0 1px 2px light-dark(oklch(0.30 0.02 107 / 0.07), rgb(0 0 0 / 0.40));
   --shadow-2: 0 18px 40px -12px light-dark(oklch(0.28 0.02 107 / 0.18), rgb(0 0 0 / 0.65)), 0 4px 12px light-dark(oklch(0.28 0.02 107 / 0.10), rgb(0 0 0 / 0.45));
@@ -161,19 +178,33 @@
   --lh-cjk: 2;      /* ruby-safe reading measure */
   --lh-latin: 1.7647; /* 17px body on a 30px line, where the article is positively Latin */
 
-  /* Vertical rhythm in the reading column. A paragraph sits about one body
-     line from the one before it. A heading is closer to what it introduces
-     than to what precedes it, and says which heading it is by how far it stands
-     from the text above: two and a half lines for a section, a line and a half
-     for a subsection, a line for the third step. The space under each is a
-     fraction of a line, so the heading reads as belonging to its own text. */
-  --sp-block: 24px;
-  --sp-h4: 32px;
-  --sp-h3: 48px;
-  --sp-h2: 72px;
-  --sp-after-h4: 8px;
-  --sp-after-h3: 12px;
-  --sp-after-h2: 16px;
+  /* Spacing: nine steps on a base of four, and the only spacing the
+     stylesheets use beside a 1px or 2px line. Within a control take the
+     smaller step, between blocks the larger. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 72px;
+  --sp-9: 96px;
+
+  /* Vertical rhythm in the reading column, named for what each step does. A
+     paragraph sits about one body line from the one before it. A heading is
+     closer to what it introduces than to what precedes it, and says which
+     heading it is by how far it stands from the text above: two and a half
+     lines for a section, a line and a half for a subsection, a line for the
+     third step. The space under each is a fraction of a line, so the heading
+     reads as belonging to its own text. */
+  --sp-block: var(--sp-5);
+  --sp-h4: var(--sp-6);
+  --sp-h3: var(--sp-7);
+  --sp-h2: var(--sp-8);
+  --sp-after-h4: var(--sp-2);
+  --sp-after-h3: var(--sp-3);
+  --sp-after-h2: var(--sp-4);
 
   /* Tracking is never positive. A heading in Latin letters may close up a
      little; Han and kana are never tracked, either way. */
@@ -185,9 +216,9 @@
      itself, so a hairline over the paper and a hairline over a panel are the
      same ink at the same weight, and all of them turn over with the theme
      because the ink does. */
-  --line: color-mix(in srgb, var(--fg) 10%, transparent);
-  --line-faint: color-mix(in srgb, var(--fg) 5%, transparent);
-  --line-strong: color-mix(in srgb, var(--fg) 20%, transparent);
+  --line: color-mix(in srgb, var(--fg) 12%, transparent);
+  --line-faint: color-mix(in srgb, var(--fg) 6%, transparent);
+  --line-strong: color-mix(in srgb, var(--fg) 28%, transparent);
   --wash: color-mix(in srgb, var(--fg) 5%, transparent);
   /* A state the interface is in for a while, such as the voice reading a
      paragraph: twice the hover's wash, so it holds while the pointer moves. */
@@ -198,9 +229,10 @@
 
   /* Shapes: a control takes the small corner, a surface the reader summoned
      (a dialog, a sheet, a card) the large one, and a block that carries the
-     text — a picture, code, a callout, a diagram — none. */
+     text — a picture, code, a callout, a diagram — none. Three radii, and no
+     pill. */
   --r-sm: 4px;
-  --r-lg: 12px;
+  --r-lg: 8px;
 
   /* Overlay mask — the wash behind a dialog, sheet or drawer. One value for
      every kind of overlay rather than one per component: a reader dismissing
@@ -209,7 +241,7 @@
      tokens above because it does not have a dark twin to keep in step: a
      fixed-alpha black wash reads correctly over either theme's surfaces, the
      same way the literals it replaces already did. */
-  --overlay-mask: oklch(0 0 0 / 0.45);
+  --overlay-mask: oklch(0 0 0 / 0.40);
 
   /* Page shells. A page is one of a few shapes, and each is a line length
      together with the space either side of it. The two are named as a pair
@@ -252,6 +284,13 @@
      column's. */
   --shell-max: 1280px;
 
+  /* The three widths a layout may change at. A media query cannot read a
+     custom property, so these state the values the queries write out: a phone
+     up to 720, the rail from 1024, the margin column from 1280. */
+  --bp-phone: 720px;
+  --bp-rail: 1024px;
+  --bp-margin: 1280px;
+
   /* A notice, which is one heading and a sentence or two rather than an
      article. It is narrower than the reading measure on purpose: a page whose
      whole answer is two lines reads as a column, not as a band of text across
@@ -279,6 +318,18 @@
   --dur-slow: 200ms;
   --dur-dwell: 1100ms;
   --dur-hover-wait: 300ms;
+}
+
+/* The optional white paper. It restates only the light value of each paper
+   token it replaces: the dark value is the one above, so the choice does
+   nothing in dark. */
+:root[data-paper='shiro'] {
+  --bg: light-dark(#fff, #1b1a17);
+  --panel: light-dark(#f6f5f2, #22211d);
+  --selected: light-dark(#ebe9e4, #34322c);
+  --overlay: light-dark(#ebe9e4, #34322c);
+  --code-ground: light-dark(#f4f3ef, #23221e);
+  --mat: light-dark(#f1efea, #2b2a25);
 }
 
 /* The two ways into dark. Each sets the scheme and nothing else; the tokens

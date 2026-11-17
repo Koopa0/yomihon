@@ -69,7 +69,7 @@ func TestAMatIsToneAndEightPixelsWrittenOnce(t *testing.T) {
 	rules := componentRules(t)
 
 	mat := theOne(t, rules, matSelector, "")
-	wantValue(t, mat, "padding", "8px", "the SVG and the figure sit on one mat, and its inset is written here and nowhere else")
+	wantValue(t, mat, "padding", "var(--sp-2)", "the SVG and the figure sit on one mat, and its inset is written here and nowhere else")
 	wantValue(t, mat, "background", "var(--mat)", "a mat is a tone, and the tone is the token")
 
 	for _, rule := range rules {
@@ -94,8 +94,8 @@ func TestAMatIsToneAndEightPixelsWrittenOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(withoutComments(string(source)), "--mat: light-dark(#e6e2d8, #2a2925);") {
-		t.Error("tokens.css does not declare --mat as the pair #e6e2d8 and #2a2925, the mat's two tones in the design")
+	if !strings.Contains(withoutComments(string(source)), "--mat: light-dark(#ebe6da, #2b2a25);") {
+		t.Error("tokens.css does not declare --mat as the pair #ebe6da and #2b2a25, the mat's two tones in the design")
 	}
 }
 

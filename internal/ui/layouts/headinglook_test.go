@@ -66,7 +66,7 @@ func TestProseHeadingLookFollowsAuthoredLevel(t *testing.T) {
 		{"\n\n" + `.y-prose [data-level='5'] {`, "font-weight", "var(--fw-semibold)", "the fifth level is told from the sixth by weight, because both stop at the same size"},
 		{"\n\n" + `.y-prose [data-level='6'] {`, "font-weight", "var(--fw-medium)", "the sixth level is the lighter of the two that share a size"},
 		{`.y-toc__list a[data-level='3'] {`, "padding-left", "28px", "contents indent follows the authored level, so ### stays one step in"},
-		{`.y-toc__list a[data-level='4'] {`, "padding-left", "40px", "contents indent follows the authored level, so #### stays the deepest step"},
+		{`.y-toc__list a[data-level='4'] {`, "padding-left", "var(--sp-7)", "contents indent follows the authored level, so #### stays the deepest step"},
 	} {
 		got := cssDeclarations(t, ruleBody(t, css, want.opener))
 		if got[want.property] != want.value {
