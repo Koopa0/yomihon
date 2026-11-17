@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -61,6 +60,17 @@ func productionLines(t *testing.T) []site {
 	return sites
 }
 
+// outsideTheSource reports whether a directory holds nothing this module
+// builds or tests. docs/ is among them: its tracked files are prose, and the
+// maintainer's local design material sits there untracked.
+func outsideTheSource(p, name string) bool {
+	if p == repoRoot {
+		return false
+	}
+	return strings.HasPrefix(name, ".") || name == "node_modules" || name == "bin" || name == "testdata" ||
+		p == filepath.Join(repoRoot, "docs")
+}
+
 // productionFiles lists the repository's own source files with the given
 // extension: no tests, no generated output, nothing under a directory that is
 // not this module's source.
@@ -74,12 +84,46 @@ func productionFiles(t *testing.T, ext string) []string {
 		}
 		name := d.Name()
 		if d.IsDir() {
-			if p != repoRoot && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "bin" || name == "testdata") {
+			if outsideTheSource(p, name) {
 				return fs.SkipDir
 			}
 			return nil
 		}
 		if filepath.Ext(name) != ext || strings.HasSuffix(name, "_test.go") || strings.HasSuffix(name, "_templ.go") {
+			return nil
+		}
+		rel, relErr := filepath.Rel(repoRoot, p)
+		if relErr != nil {
+			return relErr
+		}
+		paths = append(paths, filepath.ToSlash(rel))
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk the repository: %v", err)
+	}
+	slices.Sort(paths)
+	return paths
+}
+
+// everyGoFile lists this module's own Go source with the tests included, for a
+// rule that holds in test files too.
+func everyGoFile(t *testing.T) []string {
+	t.Helper()
+
+	var paths []string
+	err := filepath.WalkDir(repoRoot, func(p string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if outsideTheSource(p, name) {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(name) != ".go" || strings.HasSuffix(name, "_templ.go") {
 			return nil
 		}
 		rel, relErr := filepath.Rel(repoRoot, p)
@@ -261,183 +305,6 @@ func colouredClasses(t *testing.T) map[string]int {
 		t.Fatal("no single-class colour rule was read from the stylesheet, so this compares nothing")
 	}
 	return at
-}
-
-// TestAnExhaustiveSwitchPanicNamesTheValueItDidNotKnow keeps the last arm of a
-// switch over a closed set useful. A panic that says only which type it was
-// holding leaves whoever meets it in a log with no way to tell which value the
-// vault produced, and a number says a number for something that reads as a word
-// everywhere else — so a message the reader has to decode against a constant
-// block they do not have open is only half an answer.
-//
-// The one place a number is the whole answer is the method that produces the
-// names. It is exempted by shape rather than by a list: a panic over the
-// receiver of the method it sits in is that method, and it cannot ask itself
-// for a name it is in the middle of failing to supply.
-func TestAnExhaustiveSwitchPanicNamesTheValueItDidNotKnow(t *testing.T) {
-	t.Parallel()
-
-	naming := panicsOverTheirOwnReceiver(t)
-	var found []site
-	conforming := 0
-	for _, s := range productionLines(t) {
-		if !strings.Contains(s.text, "panic(") || !strings.Contains(s.text, "unknown") {
-			continue
-		}
-		if naming[s.path+":"+strconv.Itoa(s.line)] {
-			continue
-		}
-		namesTheValue := strings.Contains(s.text, ".String()") || strings.Contains(s.text, "+ string(")
-		asANumber := strings.Contains(s.text, "strconv.Itoa(int(") || strings.Contains(s.text, "%d")
-		if namesTheValue && !asANumber {
-			conforming++
-			continue
-		}
-		found = append(found, s)
-	}
-	if conforming == 0 {
-		t.Fatal("no panic in the tree uses the shape this check asks for, so it is checking a rule nobody follows")
-	}
-	report(t, `an exhaustive-switch panic must end with the value's own name: panic("pkg: unknown Type: " + v.String())`, found)
-}
-
-// panicsOverTheirOwnReceiver locates, as "path:line", every panic whose message
-// mentions the receiver of the method it is written in. Those are the sites
-// asked for a value's name, so a number there is the honest answer rather than
-// an unread one.
-func panicsOverTheirOwnReceiver(t *testing.T) map[string]bool {
-	t.Helper()
-
-	sites := make(map[string]bool)
-	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Body == nil || fn.Recv == nil || len(fn.Recv.List) != 1 || len(fn.Recv.List[0].Names) != 1 {
-				continue
-			}
-			receiver := fn.Recv.List[0].Names[0].Name
-			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
-				if !ok || len(call.Args) != 1 {
-					return true
-				}
-				if name, ok := call.Fun.(*ast.Ident); !ok || name.Name != "panic" {
-					return true
-				}
-				mentions := false
-				ast.Inspect(call.Args[0], func(arg ast.Node) bool {
-					if id, ok := arg.(*ast.Ident); ok && id.Name == receiver {
-						mentions = true
-					}
-					return true
-				})
-				if mentions {
-					sites[path+":"+strconv.Itoa(fset.Position(call.Pos()).Line)] = true
-				}
-				return true
-			})
-		}
-	})
-	return sites
-}
-
-// panicShapes are the wordings a panic written here may take, in the order the
-// check below reports them. A panic is how this repository says the code is
-// wrong rather than the input, and there are three ways for it to be wrong that
-// reach one: a value arrived from outside a closed set, the wiring did not
-// supply something a constructor needs, and a method that may run once was
-// entered again. The list is closed on purpose — a fourth wording is a fourth
-// thing the person reading a crash has to recognize — so growing it is an
-// edit here, not a choice made at a call site.
-var panicShapes = []struct {
-	name   string
-	says   func(line string) bool
-	advice string
-}{
-	{
-		name:   "unknown value",
-		says:   func(line string) bool { return strings.Contains(line, "unknown") },
-		advice: `panic("<package>: unknown <Type>: " + v.String())`,
-	},
-	{
-		name:   "missing dependency",
-		says:   func(line string) bool { return strings.Contains(line, "requires a non-nil") },
-		advice: `panic("<package>: <Constructor> requires a non-nil <Field>")`,
-	},
-	{
-		name:   "once-only method entered again",
-		says:   func(line string) bool { return strings.HasSuffix(line, ` called twice")`) },
-		advice: `panic("<package>: <Type>.<Method> called twice")`,
-	},
-}
-
-// panicShape names which wording a line carries, and reports whether it carries
-// one at all.
-func panicShape(line string) (string, bool) {
-	for _, shape := range panicShapes {
-		if shape.says(line) {
-			return shape.name, true
-		}
-	}
-	return "", false
-}
-
-// TestALiteralPanicUsesOneOfTheAgreedWordings keeps the messages a programming
-// error produces readable, and keeps them few. Every guard of one kind says the
-// same sentence, so the person reading a crash on the first request reads a
-// field name, a value, or the method they entered twice — rather than a package
-// name and a guess.
-func TestALiteralPanicUsesOneOfTheAgreedWordings(t *testing.T) {
-	t.Parallel()
-
-	seen := make(map[string]int, len(panicShapes))
-	var found []site
-	for _, s := range productionLines(t) {
-		if !strings.Contains(s.text, `panic("`) {
-			continue
-		}
-		if name, ok := panicShape(s.text); ok {
-			seen[name]++
-			continue
-		}
-		found = append(found, s)
-	}
-	var advice []string
-	for _, shape := range panicShapes {
-		if seen[shape.name] == 0 {
-			t.Fatalf("no panic in the tree uses the %s wording, so this check is comparing against nothing", shape.name)
-		}
-		advice = append(advice, shape.advice)
-	}
-	report(t, "a literal panic must use one of the agreed wordings: "+strings.Join(advice, ", "), found)
-}
-
-// TestAWordingOutsideTheListIsNotAShape asks the predicate directly about
-// wordings the check has to reject, because a predicate that accepted
-// everything would leave the check above reporting nothing whatever the tree
-// said, and the tree passing is the answer that looks the same either way.
-func TestAWordingOutsideTheListIsNotAShape(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name string
-		line string
-		want bool
-	}{
-		{"a value outside a closed set", `panic("graph: unknown Kind: " + strconv.Itoa(int(k)))`, true},
-		{"a dependency the wiring did not supply", `panic("note: New requires a non-nil Sources")`, true},
-		{"a once-only method entered again", `panic("snapshot: Store.Run called twice")`, true},
-		{"a sentence nobody agreed on", `panic("snapshot: the store is in a state it should not be in")`, false},
-		{"the third idea said another way", `panic("snapshot: Store.Run is already running")`, false},
-		{"the third wording with nothing said before it", `panic("called twice")`, false},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if _, ok := panicShape(tt.line); ok != tt.want {
-				t.Errorf("panicShape(%q) = %v, want %v", tt.line, ok, tt.want)
-			}
-		})
-	}
 }
 
 // httpPackageNames reports every name net/http answers to in one file. It is
@@ -791,106 +658,6 @@ func TestNoSentenceChoosesALanguageBeforeItsReaderArrives(t *testing.T) {
 	report(t, "a sentence must carry both languages until the surface that knows the reader resolves it", found)
 }
 
-// TestEveryExportedNumericEnumCanSayItsOwnName keeps a closed set printable.
-// Without it a log line, a panic and a rendered fault all fall back to the
-// number, and a number means nothing to anyone who does not have the constant
-// block open beside them.
-//
-// The method is looked for across the whole package rather than beside the type,
-// because a package is the unit a method belongs to: a hand-written one in a
-// role-named file and a generated one in <type>_string.go both answer for the
-// type, and requiring the same file would report a type that already has a name.
-func TestEveryExportedNumericEnumCanSayItsOwnName(t *testing.T) {
-	t.Parallel()
-
-	numeric := map[string]bool{
-		"int": true, "int8": true, "int16": true, "int32": true, "int64": true,
-		"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
-	}
-
-	stringers := make(map[string]bool)
-	forEachProductionFile(t, func(path string, _ *token.FileSet, file *ast.File) {
-		for _, decl := range file.Decls {
-			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Name.Name != "String" || fn.Recv == nil || len(fn.Recv.List) != 1 {
-				continue
-			}
-			stringers[filepath.Dir(path)+"."+receiverTypeName(fn.Recv.List[0].Type)] = true
-		}
-	})
-
-	var found []site
-	total := 0
-	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
-		for _, decl := range file.Decls {
-			gen, ok := decl.(*ast.GenDecl)
-			if !ok || gen.Tok != token.TYPE {
-				continue
-			}
-			for _, spec := range gen.Specs {
-				ts, ok := spec.(*ast.TypeSpec)
-				if !ok || !ts.Name.IsExported() {
-					continue
-				}
-				ident, ok := ts.Type.(*ast.Ident)
-				if !ok || !numeric[ident.Name] {
-					continue
-				}
-				total++
-				if !stringers[filepath.Dir(path)+"."+ts.Name.Name] {
-					found = append(found, site{path: path, line: fset.Position(ts.Pos()).Line, text: ts.Name.Name})
-				}
-			}
-		}
-	})
-	if total == 0 {
-		t.Fatal("no exported numeric enum was found at all, so this check asserts nothing")
-	}
-	report(t, "an exported enum over a numeric type must have a String method", found)
-}
-
-// TestAContextIsAlwaysTheFirstParameter keeps one shape for the value every
-// cancellable call carries. A signature that hides it in the middle is read
-// past, and the call that should have been cancellable is the one that was not.
-func TestAContextIsAlwaysTheFirstParameter(t *testing.T) {
-	t.Parallel()
-
-	var found []site
-	carrying := 0
-	forEachProductionFile(t, func(path string, fset *token.FileSet, file *ast.File) {
-		ast.Inspect(file, func(n ast.Node) bool {
-			// Only the function type is examined: a declaration's own
-			// signature is one of these, so matching both would count every
-			// declared function twice.
-			fn, ok := n.(*ast.FuncType)
-			if !ok || fn.Params == nil {
-				return true
-			}
-			params := fn.Params
-			index := 0
-			for _, field := range params.List {
-				names := max(len(field.Names), 1)
-				if isContext(field.Type) {
-					carrying++
-					if index != 0 {
-						found = append(found, site{
-							path: path,
-							line: fset.Position(field.Pos()).Line,
-							text: "context.Context is parameter " + string(rune('1'+index)),
-						})
-					}
-				}
-				index += names
-			}
-			return true
-		})
-	})
-	if carrying == 0 {
-		t.Fatal("nothing in the tree takes a context, so this check asserts nothing")
-	}
-	report(t, "context.Context must be the first parameter", found)
-}
-
 // fragmentAddressing is where a name written after a link's "#" is turned into
 // the id it has to match. It lives in one package because a link and the heading
 // it names have to fold the same way to meet at all.
@@ -1012,96 +779,6 @@ func TestAVaultPathIsEscapedInTwoPlaces(t *testing.T) {
 		len(written), pathSegmentEscapers)
 }
 
-// internalTestSuffix is the name the check below is about, and it is a constant
-// with a test of its own because the check works by looking for files carrying
-// it. Spelt wrong it finds none, reports none, and the walk counter still says
-// the tree was read — the check would pass, loudly enough to be believed.
-const internalTestSuffix = "_internal_test.go"
-
-// carriesInternalSuffix reports whether a file's name claims to be the internal
-// half of a same-stem pair.
-func carriesInternalSuffix(name string) bool {
-	return strings.HasSuffix(name, internalTestSuffix)
-}
-
-// TestTheInternalSuffixIsRecognisedByName asks the predicate directly, because
-// the check that uses it is looking for something the tree is not supposed to
-// contain: finding nothing is its passing answer, and finding nothing because
-// it can no longer recognise the name looks exactly the same from outside.
-func TestTheInternalSuffixIsRecognisedByName(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name string
-		file string
-		want bool
-	}{
-		{"the internal half of a pair", "handler_internal_test.go", true},
-		{"an ordinary test file", "handler_test.go", false},
-		{"a file that only contains the words", "internal_testing.go", false},
-		{"production source", "handler.go", false},
-		{"the suffix with nothing before it", "_internal_test.go", true},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := carriesInternalSuffix(tt.file); got != tt.want {
-				t.Errorf("carriesInternalSuffix(%q) = %v, want %v", tt.file, got, tt.want)
-			}
-		})
-	}
-}
-
-// TestNoTestFileCarriesTheInternalSuffixWithoutNeedingIt keeps one name for one
-// kind of file. The suffix exists for a package that needs an internal and an
-// external test file under the same stem; used anywhere else it distinguishes
-// nothing and leaves two conventions in one tree.
-//
-// A tree carrying none of them is the state the testing convention asks for, so
-// it is where this check finishes rather than a reason to distrust it. What
-// would make it meaningless is a walk that reached no test file at all, and
-// that is what the count below guards.
-func TestNoTestFileCarriesTheInternalSuffixWithoutNeedingIt(t *testing.T) {
-	t.Parallel()
-
-	walked := 0
-	var found []site
-	err := filepath.WalkDir(repoRoot, func(p string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if d.IsDir() {
-			if p != repoRoot && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(d.Name(), "_test.go") {
-			return nil
-		}
-		walked++
-		if !carriesInternalSuffix(d.Name()) {
-			return nil
-		}
-		rel, relErr := filepath.Rel(repoRoot, p)
-		if relErr != nil {
-			return relErr
-		}
-		sibling := strings.TrimSuffix(p, internalTestSuffix) + "_test.go"
-		if _, statErr := os.Stat(sibling); statErr == nil {
-			return nil
-		}
-		found = append(found, site{path: filepath.ToSlash(rel), line: 1, text: d.Name()})
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk the repository: %v", err)
-	}
-	if walked == 0 {
-		t.Fatal("no test file was walked at all, so this check would pass over any tree")
-	}
-	report(t, "this file has no same-stem external sibling, so the suffix distinguishes nothing: name it <feature>_test.go", found)
-}
-
 // forEachProductionFile parses every shipped Go file once and hands it over.
 func forEachProductionFile(t *testing.T, visit func(path string, fset *token.FileSet, file *ast.File)) {
 	t.Helper()
@@ -1118,140 +795,6 @@ func forEachProductionFile(t *testing.T, visit func(path string, fset *token.Fil
 		}
 		visit(path, fset, file)
 	}
-}
-
-// receiverTypeName is the name of the type a method is declared on, whether the
-// receiver is the value or a pointer to it.
-func receiverTypeName(expr ast.Expr) string {
-	if star, ok := expr.(*ast.StarExpr); ok {
-		expr = star.X
-	}
-	if index, ok := expr.(*ast.IndexExpr); ok {
-		expr = index.X
-	}
-	if ident, ok := expr.(*ast.Ident); ok {
-		return ident.Name
-	}
-	return ""
-}
-
-// isContext reports whether a parameter's type is context.Context.
-func isContext(expr ast.Expr) bool {
-	sel, ok := expr.(*ast.SelectorExpr)
-	if !ok || sel.Sel.Name != "Context" {
-		return false
-	}
-	pkg, ok := sel.X.(*ast.Ident)
-	return ok && pkg.Name == "context"
-}
-
-// testNamePattern is a word shaped like a test in this module: the prefix
-// followed by a capital, which is what a reader writing about one types.
-var testNamePattern = regexp.MustCompile(`^Test[A-Z]\w*`)
-
-// everyGoFile lists this module's own source, tests included — which is the one
-// difference from productionFiles, and the reason it exists: the names this
-// check is about are declared and quoted in test files.
-func everyGoFile(t *testing.T) []string {
-	t.Helper()
-
-	var paths []string
-	err := filepath.WalkDir(repoRoot, func(p string, d fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		name := d.Name()
-		if d.IsDir() {
-			if p != repoRoot && (strings.HasPrefix(name, ".") || name == "node_modules" || name == "bin" || name == "testdata") {
-				return fs.SkipDir
-			}
-			return nil
-		}
-		if filepath.Ext(name) != ".go" || strings.HasSuffix(name, "_templ.go") {
-			return nil
-		}
-		rel, relErr := filepath.Rel(repoRoot, p)
-		if relErr != nil {
-			return relErr
-		}
-		paths = append(paths, filepath.ToSlash(rel))
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk the repository: %v", err)
-	}
-	slices.Sort(paths)
-	return paths
-}
-
-// TestACommentNamingATestNamesOneThatExists keeps the name written above a test
-// attached to the test underneath it. Renaming one is two edits — the function
-// and the sentence about it — and the second is the one that gets forgotten,
-// leaving a comment describing something the reader then cannot find.
-//
-// The general Go convention, that a doc comment opens with the name it
-// documents, is not what this repository does: test docs here open with prose
-// about the behaviour, deliberately. Checking that would report most of the
-// tree. So the question is the narrow one, and narrow in a second way worth
-// stating: only the first word of a comment line is read, and only where the
-// marker is followed by a space. A dead name written mid-sentence is not
-// reported, and neither is one behind a bare //. That is where the mistake
-// this exists for happens — a name is written at the head of the sentence
-// about it — and widening the reading is a change to make when something gets
-// past it, not before.
-//
-// Existence is asked of the whole module rather than the file's own package. A
-// comment pointing at a sibling package's test is a working reference and says
-// where the property is really held; only a name nothing declares is a dead
-// end.
-func TestACommentNamingATestNamesOneThatExists(t *testing.T) {
-	t.Parallel()
-
-	declared := make(map[string]bool)
-	files := everyGoFile(t)
-	for _, path := range files {
-		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		for line := range strings.SplitSeq(string(data), "\n") {
-			if after, ok := strings.CutPrefix(line, "func "); ok {
-				declared[testNamePattern.FindString(after)] = true
-			}
-		}
-	}
-	delete(declared, "")
-	if len(declared) == 0 {
-		t.Fatal("no test was found in the module, so every name below would read as dead")
-	}
-
-	var found []site
-	resolved := 0
-	for _, path := range files {
-		data, err := os.ReadFile(filepath.Join(repoRoot, path)) // #nosec G304 -- a path this walk produced under the repository root
-		if err != nil {
-			t.Fatalf("read %s: %v", path, err)
-		}
-		for i, line := range strings.Split(string(data), "\n") {
-			comment, ok := strings.CutPrefix(strings.TrimSpace(line), "// ")
-			if !ok {
-				continue
-			}
-			name := testNamePattern.FindString(comment)
-			if name == "" {
-				continue
-			}
-			if declared[name] {
-				resolved++
-				continue
-			}
-			found = append(found, site{path: path, line: i + 1, text: name})
-		}
-	}
-	if resolved == 0 {
-		t.Fatal("no comment in the tree names a test that exists, so this check is comparing against nothing")
-	}
-	report(t, "a comment names a test this module does not declare; rename the sentence with the function, or point it at the test that holds the property", found)
 }
 
 // TestProjectionPackagesHaveNoLegacyEntryPoints keeps the shape the projection

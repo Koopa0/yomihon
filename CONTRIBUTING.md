@@ -2,53 +2,59 @@
 
 yomihon has one maintainer, who reviews every submission before it lands.
 
-## What yomihon is, and what it will not become
+## What yomihon is
 
-yomihon reads a folder of Markdown as one book. It runs on your machine, for
-one reader, over notes you already wrote. It is not a note editor, not a
-publishing pipeline, and not a service.
+yomihon is a local reading room for a folder of Markdown. The reader comes
+first: reading, marking what they read, and handing those marks to an AI. It
+runs on your machine, for one reader, over notes you already wrote. It is not a
+note editor, not a publishing pipeline, and not a service.
 
-Four boundaries hold. Each is enforced in the tree, so you can check the claim
-rather than take it:
+`check`, `coverage` and `exists` are a supporting tool for an author who chose
+to write a rules file; they are not the product. Any folder must read well with
+no rules file and no configuration. A rules file
+(`System/schemas/vault-schema.toml`) adds validation and privacy rules. It is
+never the price of a reading feature.
 
-- **It never writes the vault.** No byte of a note, the contract or anything
-  else under the vault directory is written, renamed or removed. What an author
-  claims about a note — `draft: true` included — stays in the author's editor.
-  The reader's own marks live in files of yomihon's own under the platform's
-  configuration directory, and `internal/mark` is the only package allowed to
-  write at all; a test in `internal/archlock` reads every shipped file and
-  fails on a write anywhere else.
-- **It never leaves the machine.** The listener hardcodes `127.0.0.1` and only
-  the port varies, through `YOMIHON_PORT` — the one environment variable
-  production code reads. A test in `cmd/yomihon` parses every file the binary is
-  built from, on each supported platform, and fails on any other reach for the
-  environment. yomihon makes no outbound request of any kind. Egress is a
-  decision for the maintainer, not a pull request. A figure the owner approved
-  runs scripts in the browser that can reach the network; that is the one
-  browser-side exception, decided on 2026-11-12, and the threat model bounds it.
-- **The vault contract is the only schema.** A vault's
-  `System/schemas/vault-schema.toml` is the single source of what a note type
-  is and which values its fields may take. `internal/schema` is the only package
-  that reads it, and the only importer of a TOML decoder. A test in
-  `internal/archlock` fails when a word the contract owns — `lesson`,
-  `concept`, `inbox`, `draft`, `ready`, `published` — stands as a whole string
-  literal in the Go source this repository ships, outside `internal/schema`. It
-  reaches no further, and says so: a word inside a longer sentence, inside a
-  test, or inside the Go in a `.templ` file goes past it. When you feel the urge
-  to write `if noteType == "lesson"`, the answer is already in `internal/schema`.
-- **It reports; it does not repair.** The renderer reads fault-tolerantly and
-  surfaces what is wrong where it is wrong: broken frontmatter, a link with no
-  target, and one name two files answer to. `yomihon check` says the same thing
-  on the command line. Nothing here edits a reader's prose to make it parse.
+yomihon reports; it does not repair. Broken frontmatter, a link with no target,
+and one name two files answer to are shown where they are, and
+`yomihon check` says the same thing on the command line. Nothing here edits a
+reader's prose to make it parse.
+
+## Four promises
+
+These are what a person trusts yomihon for. None of them moves without an
+explicit ruling from the maintainer on the issue.
+
+1. **Nothing writes into the folder being read.** No byte of a note, the rules
+   file or anything else under the vault directory is written, renamed or
+   removed. What an author claims about a note — `draft: true` included — stays
+   in the author's editor. The reader's own marks live in files of yomihon's own
+   under the platform's configuration directory, and `internal/mark` is the only
+   package allowed to write at all; a test in `internal/archlock` reads every
+   shipped file and fails on a write anywhere else.
+2. **Loopback only, no network call.** The listener binds `127.0.0.1` and only
+   the port varies, through `YOMIHON_PORT` — the one environment variable the
+   product reads. Adding another needs a ruling. A test in `cmd/yomihon` parses
+   every file the binary is built from, on each supported platform, and fails on
+   any other reach for the environment. The process opens no outbound
+   connection of any kind. A figure the owner approved runs scripts in the
+   browser that can reach the network; that is the one browser-side exception,
+   decided on 2026-11-12, and the threat model bounds it.
+3. **Withheld ground stays withheld.** What a rules file's `[privacy]` section
+   withholds never reaches the output of a command an AI reads: `check`,
+   `coverage`, `exists` and `left-open`.
+4. **The browser never receives unsanitised Markdown.** Go renders and
+   sanitises; the browser shows the result.
 
 The interface speaks Traditional Chinese and English, and a reader chooses
 between them with one cookie. A sentence a reader sees is therefore not written
 where it is used: it lives in `internal/wording`, built from both languages at
 once with `both(zhHant, en)`, and resolved with `In` by the surface that knows
-who is reading. Two tests in `internal/archlock` hold that shape. One turns red
-when a response carries a sentence written in its own source rather than taken
-from `internal/wording`; the other when a phrase picks its language before the
-request says which.
+who is reading. Three tests in `internal/archlock` hold that shape. One turns
+red when a response carries a sentence written in its own source rather than
+taken from `internal/wording`; one when a phrase picks its language before the
+request says which; and one when a script carries Chinese or Japanese text of
+its own.
 
 ## Build and run it
 
@@ -62,8 +68,6 @@ For tests and the full gate, bring the following in addition to Go:
 
 - **Test user:** Run the tests as an unprivileged user: some permission fixtures fail
   rather than skip when the process can bypass file permissions.
-
-- **Gate JSON:** The full gate also needs `jq` to read its JSON contract.
 
 1.  Clone the repository and build the binary.
 
@@ -81,7 +85,7 @@ For tests and the full gate, bring the following in addition to Go:
 
 3.  Open `http://127.0.0.1:9610` in a browser.
 
-`examples/vault` is a small vault with a contract, a study path, and a few
+`examples/vault` is a small vault with a rules file, a course, and a few
 deliberate faults, so most reading and diagnostic behavior is reachable without
 a vault of your own. Any folder of Markdown works the same way:
 `bin/yomihon ~/notes`.
@@ -113,10 +117,10 @@ prerequisites above also apply to this fast loop.
 
 ### The gate
 
-`make verify` is the gate you run before you push. Continuous integration
-requires fourteen checks and `make verify` is one of them; two of the others
-build, vet, and test on macOS and Windows runners, so a green run on your
-machine does not tell you those passed.
+`make verify` is the gate you run before you push. Continuous integration runs
+it as one of its required checks; two of the others build, vet, and test on
+macOS and Windows runners, so a green run on your machine does not tell you
+those passed.
 
 The `verify` target in the Makefile is the list of what it runs.
 
@@ -135,20 +139,16 @@ templ needs no installation. It is a tool directive in `go.mod`, so
 `go tool templ` is already the version this module builds with.
 
 Three stages reach the network: `mod-check`, `vuln`, which fetches the
-vulnerability database, and `frontend-check`, which runs `npm ci`. Two stages
-drive a browser: `browser-check` and `mutation-check`, each of which installs
-those npm dependencies first and leaves the lint to `frontend-check`.
-
-Local `make verify` includes the complete mutation run, which takes more than
-forty minutes on a shared Linux runner. CI splits it into four jobs, each with a
-fresh fixture copy; the other prerequisites stay in their existing jobs.
+vulnerability database, and `frontend-check`, which runs `npm ci`. One stage
+drives a browser: `browser-check`, which installs those npm dependencies first
+and leaves the lint to `frontend-check`.
 
 Read its exit code, not its last screen. `make verify | tail` reports the exit
 code of `tail`, and a gate whose red you piped away has told you nothing. If you
 cannot run every stage — no Chrome, no network — run what you can and say in the
-pull request which stages you ran and which you did not. A scoped package run is
-not a verify exit code, and describing it as one is worse than reporting the
-gap.
+pull request which stages you ran and which you did not; CI runs the rest. A
+scoped package run is not a verify exit code, and describing it as one is worse
+than reporting the gap.
 
 ## File an issue
 
@@ -176,12 +176,21 @@ and why, and wait for an answer. Scope is the maintainer's call, so the
 maintainer can close a pull request that has no issue behind it, however good
 the code is.
 
+When you work from an issue:
+
+- Its body is the specification. A ruling comment from the maintainer
+  overrides the body.
+- An issue labelled `needs-owner`, `needs-repro` or `blocked` is not open for
+  taking, and neither is one an open pull request already references.
+- Check the premise first. If the behavior it describes no longer happens on
+  `main`, say so on the issue and stop.
+
 Three proposals are worth pricing before you write them:
 
 - **A new dependency.** `go.mod` names ten direct requirements and each
   earned its place: goldmark and chroma to render, a goldmark extension that
   lets emphasis close beside CJK punctuation, templ for the templates, a TOML
-  decoder for the vault contract, a YAML decoder for frontmatter, two
+  decoder for the rules file, a YAML decoder for frontmatter, two
   `golang.org/x` libraries for runtime behavior, and go-cmp plus
   `golang.org/x/mod` for the tests. The client side is vanilla
   JavaScript in flat native modules, with one exception: the Mermaid renderer,
@@ -192,65 +201,72 @@ Three proposals are worth pricing before you write them:
 - **A new package.** yomihon is organized by feature, not by layer. There are no
   `services`, `models`, `handlers`, or `util` directories and there will not be.
   A package earns its name from the domain concept it owns.
-- **Anything touching a boundary above.** Say so in the issue and stop there.
+- **Anything that crosses one of the four promises.** Say so in the issue and
+  stop there.
 
 ## What a pull request contains
 
-One issue per pull request, branched from `main`. Four sections in the
-description, and the maintainer reads the second one hardest:
+One issue per pull request, plus any the maintainer's ruling bundles with it,
+branched from `main`. Write `Closes #<number>` for each issue, one per line.
 
-- **What changed.** The behavior, in the reader's terms, not the diff's.
-- **How it was verified.** Each new lock, watched failing and then passing, with
-  the exact failure text. Then the exit code of `make verify` on the commit you
-  pushed, and the line that produced it. If the change touches a hot path or
-  what a reader sees, add a before and after collected on one machine.
+The description has three headings, and the maintainer reads the second one
+hardest:
+
+- **What changed.** The behavior, in the reader's terms, not the diff's. Name
+  every gate you removed and every test you deleted, with a line on why.
+- **How it was verified.** The test for the behavior you changed and, for a
+  promise test, the failure you watched (see below). Then the exit status of
+  `make verify` on the commit you pushed, and which stages you ran if you could
+  not run them all. If the change touches a hot path, add a before and after
+  collected on one machine. If it touches what a reader sees, add screenshots
+  before and after, at desktop and phone width, in light and dark.
 - **What was left out.** Defects you saw and did not fix, and why. Naming them
   is the right move; silently widening the change is not.
-- **Needs a ruling.** Anything you could not decide. If two reasonable behaviors
-  are still standing, stop and write them both down rather than picking the one
-  that is easier to implement, store, mock, or test.
+
+Add a fourth heading, **Needs a ruling**, only when you have something for it:
+two reasonable behaviors that are still standing. Write them both down rather
+than picking the one that is easier to implement, store, mock, or test.
 
 Do not close work you did not do. If your change makes a neighboring issue
 fixable, say so under **What was left out** and leave it open.
+
+When a review asks for a change, push it and reply once, naming the commit.
+
+## Tests
+
+Tests come in two levels. Spend effort accordingly.
+
+**Promise tests** guard the four promises above. Keep them strict. When you
+change one, or the code it guards, break the production code, watch the test go
+red, quote the failure in the pull request, then restore it. Three things make
+that proof worthless:
+
+- The break did not apply. A pattern that matched nothing produces a green run
+  that means nothing, so confirm the code actually changed.
+- The break only broke the build. A compile error is not a red test.
+- The test never reached production. A test that drives a constructor instead
+  of the entry point, or asserts a state production cannot produce, or compares
+  a declaration against itself, passes for the wrong reason and will keep
+  passing after the regression lands.
+
+**Everything else** gets an ordinary Go test for the behavior you changed. That
+is enough:
+
+- No proof that the test goes red.
+- No browser probe unless the behavior exists only in a browser and a Go test
+  cannot reach it. A new probe needs no self-test mode.
+- No test for wording, comments, documents or tooling.
+
+When a redesign breaks a test that is not a promise test, and the old behavior
+is no longer wanted, delete the test and list it in the pull request. Do not
+rewrite a test to keep an obsolete behavior alive. Where a gate still enforces
+an older, stricter rule than this guide and blocks a change the guide allows,
+remove that gate in the same pull request and name it under **What changed**.
 
 ## What gets a change blocked
 
 These are the findings that come back most often. Each one is a rule, not a
 preference.
-
-### A test you have not watched fail is not a lock
-
-Before you claim a test protects something, break the production code it guards,
-watch the test go red, read the failure message, and put it back. Three things
-make that proof worthless:
-
-- The mutation did not apply. A pattern that matched nothing produces a green
-  run that means nothing, so confirm the code actually changed.
-- The mutation only broke the build. A compile error is not a red test.
-- The test never reached production. A test that drives a constructor instead of
-  the entry point, or asserts a state production cannot produce, or compares a
-  declaration against itself, passes for the wrong reason and will keep passing
-  after the regression lands.
-
-The repository already mechanizes this proof on the browser side.
-`make mutation-check` runs each mutable probe against the regression it exists
-to catch, and demands that the probe report catching it by name. A probe that
-lets the regression through fails the run, and so does an injection that matched
-nothing. Probes in the runner's `behavior_only` list prove their canary inside
-the ordinary `make browser-check` run and are skipped during mutation discovery.
-Read `.github/e2e/probes.sh`.
-
-The full local command remains `make mutation-check`. To inspect one canonical
-shard, use `make mutation-check MUTATION_SHARD=1` (or `2`, `3`, `4`). Each shard
-discovers the whole ordered registry and its declared modes before selecting
-its own work. Ordinary modes balance across four deterministic owners; probes
-that keep a reading place execute last in shard four. Discovery errors and
-mutation failures are collected, later selected work still runs, and the final
-status remains nonzero. Invalid shard values fail with usage status 2. The
-tracked ruleset import declares all four contexts.
-
-Nothing injects a regression for you on the Go side; there the proof is yours to
-run and to paste into the pull request.
 
 ### Name every path into what you changed
 
@@ -264,16 +280,45 @@ you cannot name the whole set, you are guessing.
 
 That covers page copy, diagnostic text, command-line help, code comments, and
 the authoring skill under `skills/`. A suggested repair the reader cannot follow
-is as bad as a wrong one. Comments carry their own house style: they explain the
-reason in domain language, and they do not cite issue numbers, pull requests,
-planning vocabulary, or documents that a clean clone does not have.
+is as bad as a wrong one.
+
+A comment says why, in a line or two. It does not narrate history, argue with a
+reviewer, restate what the code says, or cite issue numbers, pull requests, or
+documents a clean clone does not have.
+
+### Interface text does the thing it names
+
+A control's label is the verb for what it does: "Write a note", not "Leave your
+own thought". Pressing it does that thing in place.
+
+No sentence on a screen explains what yomihon will not do, how the mechanism
+works, or what the reader should go and do elsewhere. If a screen needs such a
+sentence, the flow is wrong; fix the flow.
+
+### One name per concept
+
+One concept has one name, in the code, the interface, the commands and the
+documents. Before adding a type, package, route, command or label, find the
+existing name for the concept and use it. If two names already exist for one
+concept, say so on the issue rather than adding a third.
+
+The vocabulary (English / 中文): vault 書庫, note 筆記, course 課程, unit 單元,
+drill 句型練習, index 索引, rules 規則, draft 草稿, journal 日記, mark 標記,
+highlight 劃線, question 疑問, resolved 已解決, thought 想法, bookmark 書籤.
+Older names (syllabus, study path, lesson, map, moc, contract, uncertainty,
+continuation, kept place, left open) are being retired; do not introduce them
+anywhere new.
 
 ### One owner per closed set
 
 When you want to write a list of note types, domains, or marks, it is already
-declared somewhere — usually in `internal/schema`, from the vault contract.
-Restating it in a second package compiles, passes every gate, and diverges
-silently a month later.
+declared somewhere. `internal/schema` is the only package that reads
+`System/schemas/vault-schema.toml`, and the only importer of a TOML decoder; do
+not copy its enums or field lists anywhere else. A test in `internal/archlock`
+fails when a word the rules file owns — `lesson`, `concept`, `inbox`, `draft`,
+`ready`, `published` — stands as a whole string literal in the Go or templates
+this repository ships, outside `internal/schema`. When you feel the urge to
+write `if noteType == "lesson"`, the answer is already in `internal/schema`.
 
 ### Delete what your change made dead
 
@@ -288,14 +333,25 @@ the old and the new binary over `examples/vault` and put the difference in the
 pull request. Then check that the comparison could have shown a difference at
 all.
 
-## Generated files and frozen formats
+## What is not a rule
 
-templ generates what this table lists, and all of it is committed. Edit the
-source, regenerate, and commit the output with it:
+None of these is a rule. Do not defend them, and do not add work to preserve
+them:
+
+- Pure full-page navigation. Use client-side JavaScript wherever it makes the
+  reading better.
+- A no-JavaScript path for reader interactions such as marks and highlights.
+- Byte-exact output from `check`. See below.
+- Any test that pins prose, comment wording, or the test runner itself.
+
+## Generated files and golden output
+
+templ generates what this table lists, and all of it is committed. Do not edit
+it by hand: edit the source, regenerate, and commit the output with it:
 
 | Generated | Source | Regenerate with |
 | --- | --- | --- |
-| `internal/ui/**/*_templ.go` | the matching `.templ` file | `go tool templ generate -path internal/ui` |
+| `internal/ui/**/*_templ.go` | the matching `.templ` file | `make gen` |
 
 The stylesheets under `assets/css/` are not generated: `internal/asset` joins
 them as they are, so editing one needs no regeneration.
@@ -304,45 +360,43 @@ Continuous integration regenerates everything in the table and fails on any
 difference, so a hand edit is caught, not merged. `make fmt` formats the
 templates, regenerates, and formats the Go in one step.
 
-Some bytes are frozen because something outside this repository parses them. The
-judge's output — the JSON Lines fields, their order, and the reason strings — is
-pinned by the golden files under `internal/judge/testdata/`; its exit codes are
-pinned by the test tables in `internal/judge` that read those goldens. The
-goldens are the contract, not a description of one. Regenerating them to make a
-test pass breaks every consumer downstream. If a golden has to move, it moves by
-addition, and the pull request explains each changed line by the fixture and the
-rule that produced it.
+The judge's output — the JSON Lines fields, their order, and the reason
+strings — is recorded in the golden files under `internal/judge/testdata/`, and
+its exit codes in the test tables in `internal/judge` that read those goldens.
+That output may change when the change is intended: regenerate the goldens, and
+in the pull request explain each changed line by the fixture and the rule that
+produced it. An unintended difference is a defect, not a golden to regenerate.
 
 A new judge rule lands with three things together: the rule, a fixture that
-proves it fires, and its row in [`docs/judge-rules.md`](docs/judge-rules.md). A
-test in `internal/judge` reads that table and fails when it disagrees with the
-rule identifiers and authorities the frozen findings carry.
+proves it fires, and its row in [`docs/judge-rules.md`](docs/judge-rules.md).
 
 ## How a change reaches main
 
 A ruleset protects `main`, and nobody can bypass it, including the maintainer:
 
 - Every change arrives through a pull request. GitHub refuses a direct push.
-- All fourteen required checks have to be green on the head commit. An approving
-  review is not required, except on a pull request carrying a change GitHub
-  cannot attribute to an account.
+- Every required check has to be green on the head commit. An approving review
+  is not required, except on a pull request carrying a change GitHub cannot
+  attribute to an account.
 - History stays linear, so a change lands squashed or rebased and the branch is
   deleted on merge. Merge commits are off.
 - GitHub refuses a force-push to `main`, and refuses to delete it.
 
-The maintainer presses merge, not the contributor. Your branch does not have to
-be up to date with `main` to merge, but a branch that is behind can pass a gate
-`main` would fail, so rebase before you ask.
+The maintainer presses merge, not the contributor. Opening the pull request
+ends your part. Your branch does not have to be up to date with `main` to merge,
+but a branch that is behind can pass a gate `main` would fail, so rebase before
+you ask.
 
 Commit messages follow the conventional shape the history uses — `fix`, `feat`,
 `refactor`, `test`, `docs`, `chore`, `perf` — with a lowercase imperative
 description and no trailing period. The body explains why; the diff already
 shows what.
 
-Keep attribution trailers out of the commits on your branch. A change lands
-squashed or rebased, and both carry your branch's commit messages into `main`,
-so a trailer written on the branch becomes a trailer in the history. If your
-tooling appends one you cannot remove, say so in the pull request.
+Keep attribution trailers out of the commits on your branch, and do not say
+which tool wrote a change in a commit, a pull request, or a comment. A change
+lands squashed or rebased, and both carry your branch's commit messages into
+`main`, so a trailer written on the branch becomes a trailer in the history. If
+your tooling appends one you cannot remove, say so in the pull request.
 
 ## Before you tag a release
 

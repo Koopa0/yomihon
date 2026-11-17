@@ -79,23 +79,12 @@ not own the study-path grammar.
 
 When a rule, authority, or source file changes, reconcile this table with the
 finding's construction path, the registry in
-[`internal/judge/command.go`](../internal/judge/command.go), and the frozen
+[`internal/judge/command.go`](../internal/judge/command.go), and the
 [`JSONL goldens`](../internal/judge/testdata/golden).
 Keep one row per distinct `(RuleID, SourceRule)` pair.
 A new rule needs a fixture under `internal/judge/testdata/` that emits it
 before its row can be added.
 
-[`TestJudgeRuleInventory`](../internal/judge/sourcerule_test.go) checks the
-actual table's format, complete registered ID set, exact authority-pair set
-from the literal JSONL goldens, and existing Go source-file links whose labels
-match their target paths. Lines beginning with `|` after trimming whitespace
-are allowed only in the inventory table. Run it with:
-
-```sh
-go test ./internal/judge -run '^TestJudgeRuleInventory$' -count=1
-```
-
-Source-file existence is the mechanical limit: a reviewer must follow each
-finding's construction path to confirm that the linked file owns it, including
-conditional authorities and the sequence-to-judge boundary. The test does not
-infer emission ownership from Go source or authorize changing golden bytes.
+Nothing checks this table mechanically. A reviewer follows each finding's
+construction path to confirm that the linked file owns it, including
+conditional authorities and the sequence-to-judge boundary.

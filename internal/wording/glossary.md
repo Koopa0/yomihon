@@ -74,9 +74,9 @@ The test below compares whole words, so it cannot tell a retired sense of a word
 - *Image* where *picture* is meant: `slotmachine.go:23`.
 - The Note health panel called "the note's conditions" in English: `render.go:113`.
 
-## Enforcement
+## Retired words
 
-The two blocks below are read by `internal/archlock/glossary_test.go`. It fails when a bilingual string in `internal/wording` uses a retired word beyond the allowance in `internal/archlock/testdata/glossary-debt.txt`, and it fails when an allowance is higher than the uses left, so the allowance only ever goes down. Each line is `retired => replacement`. A word matches whole, case-insensitively for English, together with its plural (`-s`, `-es`) and `'s`; an irregular plural needs a line of its own. Only the wording is read: a word that is ordinary English elsewhere, such as the verb *judge* in a sentence, is not retired there.
+Each line below is `retired => replacement`, for the bilingual strings in `internal/wording`. A word is retired together with its plural and `'s`; a word that is ordinary English elsewhere, such as the verb *judge* in a sentence, is not retired there. Nothing reads these blocks mechanically: a reviewer checks new screen text against them.
 
 ```retired-en
 library => vault

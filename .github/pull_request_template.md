@@ -1,11 +1,11 @@
 <!--
-The description has four parts, one per heading below. Fill each one in and
+The description has three parts, one per heading below. Fill each one in and
 delete these notes as you go — whatever you leave here stays in the pull
 request body. Where a part has nothing under it, write `None.` rather than
 deleting the heading.
 
 Link every issue this change closes on its own line: `Closes #<number>`, then
-`Closes #<number>`. Delete the line below if it closes none.
+`Closes #<number>`.
 -->
 
 Closes #
@@ -14,41 +14,31 @@ Closes #
 
 <!--
 What a reader can now do, or stop doing, and where. Name the packages or files
-you touched.
+you touched. Name every gate you removed and every test you deleted, with a
+line on why.
 
 `*_templ.go` is built, not written. If you edited a `.templ` file, run
 `make gen` and commit what it produces: the gate rebuilds it and fails on the
-difference. `make gen` needs only the Go toolchain. If you cannot run it, open
-the pull request anyway and say so.
+difference. If the judge's output changed on purpose, regenerate its golden
+files and say so here.
 -->
 
 ## How it was verified
 
 <!--
-If your change alters behavior, name each test that now locks it and quote the
-failure you watched before the fix. A test you have never seen fail is not a
-lock, and a build error is not a red test. One line each:
+Name the Go test for the behavior you changed. If you changed a promise test,
+or the code it guards, quote the failure you watched when you broke the
+production code, then say you restored it. The four promises: nothing writes
+into the folder being read; loopback only, no network call; what a rules file
+withholds stays out of agent-facing output; the browser never receives
+unsanitised Markdown.
 
-```text
-TestTheWriteGuardCatchesEveryShapeOfWrite: red on main — the guard let "a
-confined write through a rooted directory" past; green here, and the write in
-internal/mark is still the only one counted.
-```
+Then report `make verify`, run unpiped, on the commit you pushed: its exit
+status, and which stages you ran if you could not run them all. CI runs the
+rest.
 
-If your change alters no behavior — a typo, a comment, a rename — skip the
-locks.
-
-Then name the gate you ran, precisely. `make verify` is the gate CI runs, and
-it needs more than a Go toolchain: `make tools`, Node, ShellCheck, and an
-installed Chrome. A scoped
-`go test ./internal/mark/` is worth reporting, but it is not a verify exit
-code.
-
-Do not weaken a gate, a golden file, or a test oracle to reach green.
-
-CI runs `make verify` on every pull request, and also builds, vets, and runs
-tests on macOS and Windows runners that no local target reaches. Open the pull
-request even when you cannot run the whole gate yourself.
+If the change touches what a reader sees, add screenshots before and after, at
+desktop and phone width, in light and dark.
 -->
 
 ## What was left out
@@ -56,17 +46,9 @@ request even when you cannot run the whole gate yourself.
 <!--
 What you noticed and did not do, and why. A defect you found but were not asked
 to fix belongs here by name, not in this pull request.
--->
 
-## Needs a ruling
-
-<!--
-If two defensible behaviors are still standing, put the choice here rather than
-taking the one that is easier to implement or to test.
-
-Four things move only on the maintainer's word: what yomihon takes a vault's
-`System/schemas/vault-schema.toml` to mean, the frozen bytes under
-`internal/judge/testdata/`, the guarantee that nothing writes into the vault, and
-the loopback-only listener with no outbound call. If your change needs one of
-them, say so here and open the pull request anyway.
+Only if two defensible behaviors are still standing, add a fourth heading,
+"Needs a ruling", and write both down rather than taking the one that is easier
+to implement or to test. A change that crosses one of the four promises needs
+that ruling.
 -->
