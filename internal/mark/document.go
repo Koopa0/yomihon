@@ -14,6 +14,7 @@ import (
 const (
 	marksFile    = "marks.json"
 	progressFile = "progress.json"
+	lockFile     = "marks.lock"
 
 	// documentVersion is the shape both files are written in and the only one
 	// read back. A file carrying any other number is kept as it is and reported

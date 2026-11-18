@@ -289,21 +289,31 @@ func sameMark(a, b *Mark) bool {
 // edit says it did. It runs under the writers' lock, so two changes never
 // overwrite each other's.
 func (s *Store) change(edit func(held []Mark) (changed []Mark, did bool, err error)) error {
+	return s.exclusive(func() error {
+		held, _, err := s.loadMarks()
+		if err != nil {
+			return err
+		}
+		changed, did, err := edit(held)
+		if err != nil || !did {
+			return err
+		}
+		data, err := encode(marksDocument{Version: documentVersion, Vault: s.vaultRoot, Marks: changed}, maxMarksFileBytes)
+		if err != nil {
+			return err
+		}
+		return confdir.Replace(s.dir, marksFile, data)
+	})
+}
+
+// exclusive runs change as the only writer of this vault's marks and progress,
+// in this process and in any other on the same directory: a change reads a file
+// and replaces it whole, so one that read before another replaced would write
+// the other's away.
+func (s *Store) exclusive(change func() error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	held, _, err := s.loadMarks()
-	if err != nil {
-		return err
-	}
-	changed, did, err := edit(held)
-	if err != nil || !did {
-		return err
-	}
-	data, err := encode(marksDocument{Version: documentVersion, Vault: s.vaultRoot, Marks: changed}, maxMarksFileBytes)
-	if err != nil {
-		return err
-	}
-	return confdir.Replace(s.dir, marksFile, data)
+	return confdir.Exclusive(s.dir, lockFile, confdir.LockWait, change)
 }
 
 // loadMarks reads marks.json. When it is not there the marks are those an

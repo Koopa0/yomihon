@@ -328,6 +328,59 @@ func TestConcurrentTogglesKeepEveryDistinctPlace(t *testing.T) {
 	}
 }
 
+// TestTwoStoresOnOneDirectoryKeepEveryMark is the command line and the running
+// server: two values over the same files, each with a lock of its own, whose
+// changes must not write one another away.
+func TestTwoStoresOnOneDirectoryKeepEveryMark(t *testing.T) {
+	t.Parallel()
+	config := t.TempDir()
+	const each = 100
+	var writers sync.WaitGroup
+	for w := range 2 {
+		store := newStoreFor(t, config, "/vaults/notes")
+		writers.Go(func() {
+			for i := range each {
+				kept := aQuestion()
+				kept.Anchor = fmt.Sprintf("w%d-%d", w, i)
+				if _, err := store.Add(kept); err != nil {
+					t.Errorf("writer %d add %d: %v", w, i, err)
+					return
+				}
+			}
+		})
+	}
+	writers.Wait()
+	held, err := newStoreFor(t, config, "/vaults/notes").List()
+	if err != nil || len(held) != 2*each {
+		t.Fatalf("two stores kept %d marks, %v; want %d", len(held), err, 2*each)
+	}
+}
+
+// TestTwoStoresOnOneDirectoryKeepEveryFinishedNote is the same loss in the file
+// of what a reader has finished, which a mark's change never touches.
+func TestTwoStoresOnOneDirectoryKeepEveryFinishedNote(t *testing.T) {
+	t.Parallel()
+	config := t.TempDir()
+	const each = 100
+	var writers sync.WaitGroup
+	for w := range 2 {
+		store := newStoreFor(t, config, "/vaults/notes")
+		writers.Go(func() {
+			for i := range each {
+				if err := store.SetFinished(fmt.Sprintf("Notes/w%d-%d.md", w, i), true); err != nil {
+					t.Errorf("writer %d finish %d: %v", w, i, err)
+					return
+				}
+			}
+		})
+	}
+	writers.Wait()
+	finished, err := newStoreFor(t, config, "/vaults/notes").FinishedNotes()
+	if err != nil || len(finished) != 2*each {
+		t.Fatalf("two stores kept %d finished notes, %v; want %d", len(finished), err, 2*each)
+	}
+}
+
 func TestToggleAdmitsOnlyWhenAddingAndWithoutAnAdmitterRefuses(t *testing.T) {
 	t.Parallel()
 	store := newStore(t)

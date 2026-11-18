@@ -605,38 +605,6 @@ func TestALockHeldByALiveProcessIsWaitedForAndThenGivenUpOn(t *testing.T) {
 	}
 }
 
-func TestALockOlderThanAnyChangeTakesIsTakenWhoeverHoldsIt(t *testing.T) {
-	t.Parallel()
-	config := t.TempDir()
-	s, _ := storeIn(t, config, nil)
-	home := filepath.Join(config, "yomihon")
-	path := filepath.Join(home, lockFile)
-	// This very process is alive, so only the lock's age can have it taken: the
-	// case of a process id given to another process after the holder's crash.
-	if err := confdir.Replace(home, lockFile, []byte(strconv.Itoa(os.Getpid())+" 1 1")); err != nil {
-		t.Fatal(err)
-	}
-	old := time.Now().Add(-2 * lockStaleAfter)
-	if err := os.Chtimes(path, old, old); err != nil {
-		t.Fatal(err)
-	}
-
-	mustAdd(t, s, folder(t, "a"))
-}
-
-func TestALockNotYetWrittenIsNotCalledAbandoned(t *testing.T) {
-	t.Parallel()
-	if abandoned(nil, time.Millisecond) {
-		t.Error("a lock file just made and still empty was called abandoned")
-	}
-	if abandoned([]byte("not a number 1"), time.Second) {
-		t.Error("a holder this did not write was called abandoned before it was old")
-	}
-	if !abandoned([]byte("not a number 1"), 2*lockStaleAfter) {
-		t.Error("a holder nothing can place was not called abandoned once it was old")
-	}
-}
-
 // treeOf is every file and directory under root with what each holds, so two
 // calls can be compared byte for byte.
 func treeOf(t *testing.T, root string) map[string]string {

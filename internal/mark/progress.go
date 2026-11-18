@@ -110,26 +110,26 @@ func (s *Store) SetBookmark(course string, b *Bookmark) error {
 	if err := validateBookmark(course, b); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	held, err := s.loadProgress()
-	if err != nil {
-		return err
-	}
-	replaced := false
-	for i := range held.bookmarks {
-		if held.bookmarks[i].Course == course {
-			held.bookmarks[i].Bookmark = *b
-			replaced = true
+	return s.exclusive(func() error {
+		held, err := s.loadProgress()
+		if err != nil {
+			return err
 		}
-	}
-	if !replaced {
-		if len(held.bookmarks) >= maxBookmarks {
-			return fmt.Errorf("%w: %d bookmarks are already kept", ErrInvalid, len(held.bookmarks))
+		replaced := false
+		for i := range held.bookmarks {
+			if held.bookmarks[i].Course == course {
+				held.bookmarks[i].Bookmark = *b
+				replaced = true
+			}
 		}
-		held.bookmarks = append(held.bookmarks, courseBookmark{Course: course, Bookmark: *b})
-	}
-	return s.saveProgress(held)
+		if !replaced {
+			if len(held.bookmarks) >= maxBookmarks {
+				return fmt.Errorf("%w: %d bookmarks are already kept", ErrInvalid, len(held.bookmarks))
+			}
+			held.bookmarks = append(held.bookmarks, courseBookmark{Course: course, Bookmark: *b})
+		}
+		return s.saveProgress(held)
+	})
 }
 
 // ClearBookmark removes the bookmark kept for course, and reports whether there
@@ -141,18 +141,21 @@ func (s *Store) ClearBookmark(course string) (bool, error) {
 			return false, err
 		}
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	held, err := s.loadProgress()
-	if err != nil {
-		return false, err
-	}
-	kept := slices.DeleteFunc(held.bookmarks, func(b courseBookmark) bool { return b.Course == course })
-	if len(kept) == len(held.bookmarks) {
-		return false, nil
-	}
-	held.bookmarks = kept
-	return true, s.saveProgress(held)
+	var cleared bool
+	err := s.exclusive(func() error {
+		held, err := s.loadProgress()
+		if err != nil {
+			return err
+		}
+		kept := slices.DeleteFunc(held.bookmarks, func(b courseBookmark) bool { return b.Course == course })
+		if len(kept) == len(held.bookmarks) {
+			return nil
+		}
+		held.bookmarks = kept
+		cleared = true
+		return s.saveProgress(held)
+	})
+	return cleared, err
 }
 
 // SetFinished says whether the reader has read note to the end, with the time
@@ -162,25 +165,25 @@ func (s *Store) SetFinished(note string, finished bool) error {
 	if err := validatePath(note); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	held, err := s.loadProgress()
-	if err != nil {
-		return err
-	}
-	at := slices.IndexFunc(held.finished, func(f Finished) bool { return f.RelPath == note })
-	switch {
-	case finished && at >= 0, !finished && at < 0:
-		return nil
-	case finished:
-		if len(held.finished) >= maxFinished {
-			return fmt.Errorf("%w: %d notes are already finished", ErrInvalid, len(held.finished))
+	return s.exclusive(func() error {
+		held, err := s.loadProgress()
+		if err != nil {
+			return err
 		}
-		held.finished = append(held.finished, Finished{RelPath: note, At: time.Now().UTC()})
-	default:
-		held.finished = slices.Delete(held.finished, at, at+1)
-	}
-	return s.saveProgress(held)
+		at := slices.IndexFunc(held.finished, func(f Finished) bool { return f.RelPath == note })
+		switch {
+		case finished && at >= 0, !finished && at < 0:
+			return nil
+		case finished:
+			if len(held.finished) >= maxFinished {
+				return fmt.Errorf("%w: %d notes are already finished", ErrInvalid, len(held.finished))
+			}
+			held.finished = append(held.finished, Finished{RelPath: note, At: time.Now().UTC()})
+		default:
+			held.finished = slices.Delete(held.finished, at, at+1)
+		}
+		return s.saveProgress(held)
+	})
 }
 
 // FinishedAt reports when the reader finished note, and whether they have.
