@@ -105,7 +105,7 @@ func (h *host) mount(ctx context.Context, entry *vaults.Entry, listener net.List
 	if listener == nil {
 		var err error
 		if listener, err = listenLoopback(ctx, strconv.Itoa(entry.Port)); err != nil {
-			return &refusal{msg: fmt.Sprintf("%s is on port %d, which something else holds (%v); stop that, or take the vault out of the list with `yomihon vaults remove` and open its folder again, which gives it another port",
+			return &refusal{portHeld: true, msg: fmt.Sprintf("%s is on port %d, which something else holds (%v); stop that, or take the vault out of the list with `yomihon vaults remove` and open its folder again, which gives it another port",
 				entry.Path, entry.Port, errors.Unwrap(err))}
 		}
 	}
@@ -415,7 +415,7 @@ func (h *host) serveListed(ctx context.Context, stop func(), cfg *config, out io
 	serveCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	typed, err := h.record(cfg.root, start)
+	typed, added, err := h.record(cfg.root, start)
 	if err != nil {
 		return errors.Join(err, listener.Close())
 	}
@@ -435,6 +435,7 @@ func (h *host) serveListed(ctx context.Context, stop func(), cfg *config, out io
 	}
 	held, err := h.mountAll(serveCtx, list, typed.ID, start, listener)
 	if err != nil {
+		err = h.unlistIfNew(err, &typed, added)
 		cancel()
 		if !held {
 			err = errors.Join(err, listener.Close())
@@ -481,16 +482,34 @@ func (h *host) mountAll(ctx context.Context, list []vaults.Entry, typedID string
 // record puts the folder in the list and answers its entry. A vault already
 // listed keeps its port; a new one is given the starting port if no vault is on
 // it, and the next free one if one is.
-func (h *host) record(root string, start int) (vaults.Entry, error) {
+func (h *host) record(root string, start int) (entry vaults.Entry, added bool, err error) {
 	_, resolved, err := vault.ResolveRoot(root)
 	if err != nil {
-		return vaults.Entry{}, err
+		return vaults.Entry{}, false, err
 	}
-	typed, _, err := h.store.Add(resolved, start)
+	typed, added, err := h.store.Add(resolved, start)
 	if err != nil {
-		return vaults.Entry{}, fmt.Errorf("add the folder to the list of vaults: %w", err)
+		return vaults.Entry{}, false, fmt.Errorf("add the folder to the list of vaults: %w", err)
 	}
-	return typed, nil
+	return typed, added, nil
+}
+
+// unlistIfNew takes the vault just given out of the list when err says the port
+// it was just given is held and this start is what added it. It was never served
+// there, so no address of it exists anywhere, and keeping it would send every
+// start after this one to the same refusal; a vault already listed may have been
+// served and keeps its port. err is returned as it was when the list cannot be
+// changed, whose text says how to do it by hand.
+func (h *host) unlistIfNew(err error, entry *vaults.Entry, added bool) error {
+	fault, ok := errors.AsType[*refusal](err)
+	if !ok || !fault.portHeld || !added {
+		return err
+	}
+	if rmErr := takeOutOfList(h.store, entry.ID); rmErr != nil {
+		h.log.Warn("could not take the folder out of the list again", "folder", entry.Path, "error", rmErr)
+		return err
+	}
+	return &refusal{msg: fmt.Sprintf("%s was given port %d and something else holds it; the folder is not kept in the list, so opening it again gives it another port", entry.Path, entry.Port)}
 }
 
 // redirectPort answers the starting port, when no vault is on it, by sending a

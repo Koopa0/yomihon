@@ -224,7 +224,11 @@ func (e *listenError) Unwrap() error { return e.err }
 
 // refusal is something the operator can correct, told in the words that say
 // how. It ends the start the way a port that cannot be bound does.
-type refusal struct{ msg string }
+type refusal struct {
+	msg string
+	// portHeld is a vault's own port that something else holds.
+	portHeld bool
+}
 
 func (e *refusal) Error() string { return e.msg }
 

@@ -1196,6 +1196,53 @@ func TestTheTypedVaultsPortBeingHeldIsRefusedWithWhatToDo(t *testing.T) {
 	if fault == nil || !strings.Contains(fault.Error(), strconv.Itoa(taken)) || !strings.Contains(fault.Error(), "yomihon vaults remove") {
 		t.Fatalf("serveListed = %v, want a refusal naming port %d and the command that frees it", err, taken)
 	}
+	// It was listed before this start, so it may have been served on that port
+	// and keeps it.
+	if got := idOf(t, listOf(t, configDir), folder); got.Port != taken {
+		t.Errorf("the vault is on port %d now, want it to keep %d", got.Port, taken)
+	}
+}
+
+// A vault this very start added, whose port turns out to be held, was never
+// served there, and no address of it exists anywhere. It is not kept in the list,
+// so that the next start gives it another port and not the same refusal.
+func TestAVaultJustAddedWhosePortIsHeldIsNotKeptInTheList(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	start := someFreePort(t)
+	before, _, err := listOf(t, configDir).Add(newVaultFolder(t), start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Another program takes the port the list is about to choose a moment after
+	// the list looked and found it free, which a list told every port is free
+	// shows.
+	holder(t, start+1)
+	store, err := vaults.Open(configDir, func(int) bool { return true })
+	if err != nil {
+		t.Fatal(err)
+	}
+	folder := newVaultFolder(t)
+	h := newHost(slog.New(slog.DiscardHandler), configDir, store)
+	cfg := &config{root: folder, port: strconv.Itoa(start), configDir: configDir}
+	if err = h.serveListed(t.Context(), func() {}, cfg, io.Discard); operatorFault(err) == nil {
+		t.Fatalf("serveListed = %v, want a refusal the reader can correct", err)
+	}
+	list, err := listOf(t, configDir).List()
+	if err != nil || len(list) != 1 || list[0].ID != before.ID {
+		t.Fatalf("the list holds %+v, %v; want only the vault that was there before", list, err)
+	}
+
+	// Typed again, the folder is given another port and served.
+	r := startRunning(t, configDir, folder, start)
+	r.address(t)
+	again := idOf(t, listOf(t, configDir), folder)
+	if again.Port == start+1 {
+		t.Errorf("the folder was given port %d again, which something holds", again.Port)
+	}
+	if r.mountOf(again.ID) == nil {
+		t.Errorf("%s is listed and not served", again.Path)
+	}
 }
 
 func TestAHostThatIsEndingMountsNothingMore(t *testing.T) {
