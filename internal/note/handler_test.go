@@ -1095,11 +1095,11 @@ func TestHome(t *testing.T) {
 			t.Errorf("the ungoverned desk renders the %s marker %q", name, marker)
 		}
 	}
-	// The desk is where a reader chooses what to read, so there is nothing yet
-	// being read for a rail to be. The reading surfaces behind it mount one.
-	for _, absent := range []string{`class="y-rail-left"`, `id="_y-nav-rail"`} {
-		if strings.Contains(pageHTML, absent) {
-			t.Errorf("the desk mounts a left rail (%s); the rail is the thing being read", absent)
+	// The desk stands in the library: its sidebar is the way into the rest, and
+	// the desk's own row is the one it stands on.
+	for _, want := range []string{`data-sidebar-mode="library"`, `aria-current="page"`} {
+		if !strings.Contains(pageHTML, want) {
+			t.Errorf("the desk's sidebar lacks %s", want)
 		}
 	}
 	// The introduction is a note with a page of its own. Home names it; it

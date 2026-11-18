@@ -74,7 +74,7 @@ templ libraryBody(s Sidebar, lang wording.Lang) {
 			}
 		</nav>
 	}
-	if s.Model != nil && s.Model.JournalClosure().Closed() {
+	if s.Model != nil && !s.FaultsStated && s.Model.JournalClosure().Closed() {
 		<section class="y-navdiag" data-sidebar-group="journal-diagnostics" aria-labelledby="_y-sidebar-journal-diagnostics-title">
 			<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-journal-diagnostics-title">{ wording.Journal.In(lang) }</h2>
 			<p>

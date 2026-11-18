@@ -36,7 +36,11 @@ const (
 	LibraryIndexes LibraryItem = "indexes"
 	LibraryJournal LibraryItem = "journal"
 	LibraryReports LibraryItem = "reports"
+	LibraryMarks   LibraryItem = "marks"
 )
+
+// MarksAddress is where the reader's marks are listed.
+const MarksAddress = "/marks"
 
 // Sidebar is the data of the left column for one request, whichever of its four
 // modes the page asks for: the mode, what the page stands on, and what that mode
@@ -53,6 +57,9 @@ type Sidebar struct {
 	// DrawerOnly is a page with no column of its own: the sidebar is there to be
 	// opened below the width where it is a drawer and is not drawn above it.
 	DrawerOnly bool
+	// FaultsStated is a page that says, in its own body, why a projection is
+	// withheld: a cause is said once on a page, so the sidebar leaves it out.
+	FaultsStated bool
 	// CurrentPath is the note being read, empty on a page with no note.
 	CurrentPath string
 	// KeptNote is the vault-relative note the reader kept a place in, empty
@@ -67,6 +74,9 @@ type Sidebar struct {
 	// Library: the row the page stands on, and the top-level folder it is in.
 	selected LibraryItem
 	inFolder string
+	// marks is how many things the reader left open, which the library's row
+	// for them states.
+	marks int
 	// Course.
 	book      *nav.Course
 	neighbors nav.Neighbors
@@ -86,15 +96,22 @@ type Sidebar struct {
 // rather than one note: the desk, the lists, a search. selected is the row it
 // stands on, and inFolder the top-level folder it is in, either of them empty.
 func NewLibrarySidebar(shell nav.Shell, selected LibraryItem, inFolder string) Sidebar {
-	return Sidebar{Mode: SidebarLibrary, Model: shell.Nav, Vault: shell.Vault, selected: selected, inFolder: inFolder}
+	return Sidebar{Mode: SidebarLibrary, Model: shell.Nav, Vault: shell.Vault, selected: selected, inFolder: inFolder, marks: shell.Marks}
 }
 
 // NewDrawerSidebar is the sidebar of a page that has no column: the library,
-// drawn only where the sidebar is a drawer.
-func NewDrawerSidebar(shell nav.Shell) Sidebar {
-	s := NewLibrarySidebar(shell, LibraryNone, "")
+// drawn only where the sidebar is a drawer, with the row the page stands on
+// marked where the page is one of them.
+func NewDrawerSidebar(shell nav.Shell, selected LibraryItem) Sidebar {
+	s := NewLibrarySidebar(shell, selected, "")
 	s.DrawerOnly = true
 	return s
+}
+
+// NewIndexSidebar is the sidebar of the page listing the indexes: the indexes
+// themselves, none of them being read.
+func NewIndexSidebar(shell nav.Shell) Sidebar {
+	return Sidebar{Mode: SidebarIndex, Model: shell.Nav, Vault: shell.Vault}
 }
 
 // NewFolderSidebar is the sidebar of a page about one file that no course or
@@ -235,6 +252,9 @@ func (s *Sidebar) branchOpen(pathRel string, headings []string) bool {
 // projections, one entry per distinct cause: one cause commonly closes both
 // paths and instance projections, and saying it twice reads as two faults.
 func (s *Sidebar) CapabilityFaults(lang wording.Lang) []CapabilityFault {
+	if s.FaultsStated {
+		return nil
+	}
 	return ModelCapabilityFaults(s.Model, lang)
 }
 
@@ -249,7 +269,7 @@ type sidebarLink struct {
 
 // libraryLinks is the first block of the library: the desk, then each list the
 // folder has anything in, with how many. A list with nothing in it is not
-// offered, and the desk always is.
+// offered, unless it is the page being read, and the desk always is.
 func (s *Sidebar) libraryLinks(lang wording.Lang) []sidebarLink {
 	links := []sidebarLink{{Text: wording.HomeTitle.In(lang), Href: "/", Current: s.selected == LibraryDesk}}
 	if s.Model == nil {
@@ -265,8 +285,9 @@ func (s *Sidebar) libraryLinks(lang wording.Lang) []sidebarLink {
 		{LibraryIndexes, wording.Maps, indexHref(mapMode), s.Model.MapCount()},
 		{LibraryJournal, wording.Journal, indexHref(journalMode), s.Model.JournalCount()},
 		{LibraryReports, wording.Reports, indexHref(reportMode), len(s.Model.Reports())},
+		{LibraryMarks, wording.OpenThoughtsTitle, MarksAddress, s.marks},
 	} {
-		if item.count > 0 {
+		if item.count > 0 || s.selected == item.id {
 			links = append(links, sidebarLink{Text: item.text.In(lang), Href: item.href, Count: item.count, Current: s.selected == item.id})
 		}
 	}

@@ -7,25 +7,33 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/snapshot"
 )
 
+// Request is what one reports page is drawn from: the generation and the shell
+// its sidebar is projected from, taken together so they describe one folder.
+type Request struct {
+	Generation *snapshot.Generation
+	Shell      nav.Shell
+}
+
 // Handler serves the report shelf from the current reading generation.
 type Handler struct {
-	snapshot func() *snapshot.Generation
-	log      *slog.Logger
+	current func() Request
+	log     *slog.Logger
 }
 
 // New wires the reports feature. Every dependency must be non-nil: a nil is a
 // wiring bug that must fail here, not on the first request.
-func New(snapshotProvider func() *snapshot.Generation, log *slog.Logger) *Handler {
-	if snapshotProvider == nil {
-		panic("report: New requires a non-nil Snapshot provider")
+func New(provider func() Request, log *slog.Logger) *Handler {
+	if provider == nil {
+		panic("report: New requires a non-nil Request provider")
 	}
 	if log == nil {
 		panic("report: New requires a non-nil Log")
 	}
-	return &Handler{snapshot: snapshotProvider, log: log}
+	return &Handler{current: provider, log: log}
 }
 
 // Register mounts the report shelf.

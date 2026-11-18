@@ -17,8 +17,11 @@ import (
 // cannot become a second idea of what a note looks like. What the two differ in
 // is the id space each occupies, which each carries itself.
 type CompareView struct {
-	A NoteView
-	B NoteView
+	// Sidebar is the column beside the page, or the drawer it is where the page
+	// has no column.
+	Sidebar Sidebar
+	A       NoteView
+	B       NoteView
 	// Concepts are the grammar-concept sheets both columns draw from. They are
 	// the page's rather than either column's: two lessons citing one concept
 	// name one document between them, and a second copy of it under the same
@@ -38,8 +41,8 @@ const (
 // reading rendering of its note, each column linking back to that note's own
 // page.
 //
-// Neither rail is drawn. Two reading columns need the width, and one rail
-// beside two notes could not say which of them it spoke for.
+// It has no column: two reading columns need the width, and a sidebar beside
+// two notes could not say which of them it spoke for. The library is the drawer.
 templ Compare(v CompareView, c layouts.Chrome) {
 	{{ lang := c.Lang }}
 	{{ c.Readings = v.A.carriesReadings() || v.B.carriesReadings() || conceptsCarryReadings(v.Concepts) }}
@@ -47,6 +50,7 @@ templ Compare(v CompareView, c layouts.Chrome) {
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-compare-shell">
+			@sidebar(v.Sidebar, c)
 			<nav class="y-compare__tabs" lang={ lang.Tag() } aria-label={ wording.CompareColumns.In(lang) }>
 				<a class="y-compare__tab" href={ templ.URL("#" + CompareAnchorA) } { authoredLanguageAttrs(v.A.Language)... }>{ v.A.Title }</a>
 				<a class="y-compare__tab" href={ templ.URL("#" + CompareAnchorB) } { authoredLanguageAttrs(v.B.Language)... }>{ v.B.Title }</a>

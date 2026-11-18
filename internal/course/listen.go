@@ -29,6 +29,7 @@ func (h *Handler) listen(w http.ResponseWriter, r *http.Request) {
 	}
 
 	view := listenView(current, &snap, lang)
+	view.Sidebar = pages.NewDrawerSidebar(snap.Shell, pages.LibraryNone)
 	if err := pages.Listen(view, layouts.ChromeFromRequest(r, view.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write listening page", "path", rel, "error", err)
 	}

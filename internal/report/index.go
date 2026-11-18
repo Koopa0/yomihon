@@ -14,8 +14,10 @@ import (
 // rather than the thing itself.
 func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
-	snap := h.snapshot()
+	request := h.current()
+	snap := request.Generation
 	view := pages.NewReportIndex(snap.Navigation().Reports(), lang, pages.ArticleLanguageFromSnapshot(snap))
+	view.Sidebar = pages.NewDrawerSidebar(request.Shell, pages.LibraryReports)
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write report index", "error", err)
 	}

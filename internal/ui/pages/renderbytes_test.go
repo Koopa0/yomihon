@@ -111,7 +111,7 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// shows in every one of them.
 		{"sidebar-library", sidebar(NewLibrarySidebar(recordedShell(model), LibraryCourses, "Notes"), layouts.Chrome{Nonce: "response-nonce"})},
 		{"sidebar-library-english", sidebar(NewLibrarySidebar(recordedShell(model), LibraryCourses, "Notes"), layouts.Chrome{Nonce: "response-nonce", Lang: wording.En})},
-		{"sidebar-drawer-only", sidebar(NewDrawerSidebar(recordedShell(model)), layouts.Chrome{Nonce: "response-nonce"})},
+		{"sidebar-drawer-only", sidebar(NewDrawerSidebar(recordedShell(model), LibraryNone), layouts.Chrome{Nonce: "response-nonce"})},
 		{"sidebar-course", sidebar(NewNoteSidebar(recordedShell(model), current, "golang"), layouts.Chrome{Nonce: "response-nonce"})},
 		{"sidebar-folder", sidebar(NewNoteSidebar(recordedShell(model), "Notes/alpha.md", ""), layouts.Chrome{Nonce: "response-nonce"})},
 		{"sidebar-index", sidebar(NewNoteSidebar(recordedShell(model), "Maps/Go path.md", ""), layouts.Chrome{Nonce: "response-nonce"})},
@@ -124,8 +124,8 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// around the columns are the interface's and the words inside them are
 		// the notes' own, so the recording is where a change that moved one of
 		// those over the line shows up.
-		{"compare-page", Compare(recordedCompareView(), recordedChrome())},
-		{"compare-page-english", Compare(recordedCompareView(), recordedEnglishChrome())},
+		{"compare-page", Compare(with(recordedCompareView(), func(v *CompareView) { v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryNone) }), recordedChrome())},
+		{"compare-page-english", Compare(with(recordedCompareView(), func(v *CompareView) { v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryNone) }), recordedEnglishChrome())},
 		{"syllabus-page", Syllabus(course.view(recordedChrome().Lang, ""), recordedChrome())},
 		// The course in the other language it is read in. The rows are the
 		// vault's own words either way; what changes is everything the page
@@ -159,22 +159,31 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// Its paragraphs are the notes' own read-aloud elements, written out
 		// here rather than rendered, so what these files pin is the page and
 		// not a second copy of the renderer's bytes.
-		{"listen-page", Listen(recordedListenView(), recordedChrome())},
-		{"listen-page-english", Listen(recordedListenView(), recordedEnglishChrome())},
+		{"listen-page", Listen(with(recordedListenView(), func(v *ListenView) { v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryNone) }), recordedChrome())},
+		{"listen-page-english", Listen(with(recordedListenView(), func(v *ListenView) { v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryNone) }), recordedEnglishChrome())},
 		// A course whose lessons mark nothing says so, and grows no bar.
-		{"listen-page-silent", Listen(ListenView{Title: "朗讀《Go path》", PathHref: "/courses/Maps/Go%20path.md"}, recordedChrome())},
-		{"home-page", Home(recordedHomeView(model), recordedChrome())},
-		{"home-page-withheld", Home(recordedWithheldHomeView(model), recordedChrome())},
-		{"home-page-kept", Home(recordedKeptHomeView(model), recordedChrome())},
-		{"marks-page", ListIndex(recordedOpenThoughtsView(wording.ZhHant), recordedChrome())},
-		{"marks-page-english", ListIndex(recordedOpenThoughtsView(wording.En), recordedEnglishChrome())},
+		{"listen-page-silent", Listen(with(ListenView{Title: "朗讀《Go path》", PathHref: "/courses/Maps/Go%20path.md"}, func(v *ListenView) { v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryNone) }), recordedChrome())},
+		{"home-page", Home(with(recordedHomeView(model), func(v *HomeView) {
+			v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryDesk, "")
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"home-page-withheld", Home(with(recordedWithheldHomeView(model), func(v *HomeView) {
+			v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryDesk, "")
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"home-page-kept", Home(with(recordedKeptHomeView(model), func(v *HomeView) {
+			v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryDesk, "")
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"marks-page", ListIndex(with(recordedOpenThoughtsView(wording.ZhHant), func(v *ListIndexView) { v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryMarks, "") }), recordedChrome())},
+		{"marks-page-english", ListIndex(with(recordedOpenThoughtsView(wording.En), func(v *ListIndexView) { v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryMarks, "") }), recordedEnglishChrome())},
 		{"health-page", Health(recordedHealthView(model), recordedChrome())},
 		{"health-page-english", Health(recordedHealthView(model), recordedEnglishChrome())},
 		{"health-page-unreadable", Health(recordedUnreadableHealthView(t, model), recordedChrome())},
 		{"health-page-unreadable-english", Health(recordedUnreadableHealthView(t, model), recordedEnglishChrome())},
 		{"file-page", File(recordedFileView(model), recordedChrome())},
-		{"folder-page", Folder(recordedFolderView(model), recordedChrome())},
-		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewDrawerSidebar(nav.Shell{Nav: model})}, recordedChrome())},
+		{"folder-page", Folder(with(recordedFolderView(model), func(v *FolderView) { v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryNone, "Writing") }), recordedChrome())},
+		{"notfound-page", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}, LibraryNone)}, recordedChrome())},
 		{"search-page", Search(recordedSearchView(model, recordedChrome().Lang), recordedChrome())},
 		{"search-page-unasked", Search(SearchView{FilterKeys: lexical.FilterKeys()}, recordedChrome())},
 		{"search-results-english", SearchResults(recordedSearchView(model, wording.En), wording.En)},
@@ -192,26 +201,53 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// would be easiest to miss — recorded in English too so a fixture
 		// carrying the wrong language's words shows up as a byte, not a guess.
 		{"preferences-page-english", Preferences(recordedPreferencesView(wording.En), recordedEnglishChrome())},
-		{"path-index-page", ListIndex(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
-		{"map-index-page", ListIndex(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), recordedChrome())},
-		{"report-index-page", ListIndex(recordedReportIndexView(recordedChrome().Lang), recordedChrome())},
+		{"path-index-page", ListIndex(with(NewPathIndex(model.Paths(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), func(v *ListIndexView) {
+			v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryCourses, "")
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"map-index-page", ListIndex(with(NewMapIndex(model.Maps(), schema.NavigationRoles{}, nav.Closure{}, ContractGoverning, recordedChrome().Lang, nil), func(v *ListIndexView) {
+			v.Sidebar = NewIndexSidebar(recordedShell(model))
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"report-index-page", ListIndex(with(recordedReportIndexView(recordedChrome().Lang), func(v *ListIndexView) { v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryReports) }), recordedChrome())},
 		// The same shelf in the other language it is read in. The day is the
 		// vault's own either way; the answer that is not a day — the report
 		// that wrote none — is the interface's words, and only a recording in
 		// both languages shows it was not left behind in one of them.
-		{"report-index-page-english", ListIndex(recordedReportIndexView(recordedEnglishChrome().Lang), recordedEnglishChrome())},
+		{"report-index-page-english", ListIndex(with(recordedReportIndexView(recordedEnglishChrome().Lang), func(v *ListIndexView) { v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryReports) }), recordedEnglishChrome())},
 		// The journal at a month, in both languages it is read in. The days are
 		// the vault's own either way; the month's name, the weekday headings,
 		// the steps to the months on either side and what an entry that wrote
 		// no day is gathered under are all the interface's own words, and only
 		// a recording in both shows none of them was left behind in one.
-		{"journal-index-page", JournalIndex(recordedJournalView(recordedChrome().Lang), recordedChrome())},
-		{"journal-index-page-english", JournalIndex(recordedJournalView(recordedEnglishChrome().Lang), recordedEnglishChrome())},
-		{"withheld-index-page", ListIndex(recordedWithheldIndexView(), recordedChrome())},
-		{"withheld-index-page-silent", ListIndex(recordedSilentlyWithheldIndexView(), recordedChrome())},
-		{"folder-index-fault-head", FolderIndex(recordedFaultedFolderIndexView(model), recordedChrome())},
-		{"path-index-page-fault", ListIndex(recordedFaultedIndexView(), recordedChrome())},
-		{"folder-index-page", FolderIndex(NewFolderIndexView(model, ContractGoverning, ListQuery{}, recordedNow, recordedChrome().Lang), recordedChrome())},
+		{"journal-index-page", JournalIndex(with(recordedJournalView(recordedChrome().Lang), func(v *JournalView) {
+			v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryJournal)
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"journal-index-page-english", JournalIndex(with(recordedJournalView(recordedEnglishChrome().Lang), func(v *JournalView) {
+			v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryJournal)
+			v.Sidebar.FaultsStated = true
+		}), recordedEnglishChrome())},
+		{"withheld-index-page", ListIndex(with(recordedWithheldIndexView(), func(v *ListIndexView) {
+			v.Sidebar = NewIndexSidebar(recordedShell(model))
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"withheld-index-page-silent", ListIndex(with(recordedSilentlyWithheldIndexView(), func(v *ListIndexView) {
+			v.Sidebar = NewIndexSidebar(recordedShell(model))
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"folder-index-fault-head", FolderIndex(with(recordedFaultedFolderIndexView(model), func(v *FolderIndexView) {
+			v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryNone, "")
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"path-index-page-fault", ListIndex(with(recordedFaultedIndexView(), func(v *ListIndexView) {
+			v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryCourses, "")
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"folder-index-page", FolderIndex(with(NewFolderIndexView(model, ContractGoverning, ListQuery{}, recordedNow, recordedChrome().Lang), func(v *FolderIndexView) {
+			v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryNone, "")
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
 		// The surfaces that have nothing to show, in both languages. Each of
 		// them is a branch the recordings above never reach — the search fixture
 		// finds notes, the health fixture has faults, and the desk fixture fills
@@ -221,12 +257,18 @@ func TestRenderedBytesAreUnchanged(t *testing.T) {
 		// one is a layout fault the Chinese recording alone cannot show.
 		{"search-page-empty", Search(recordedNothingFoundView(model), recordedChrome())},
 		{"search-page-empty-english", Search(recordedNothingFoundView(model), recordedEnglishChrome())},
-		{"notfound-page-english", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewDrawerSidebar(nav.Shell{Nav: model})}, recordedEnglishChrome())},
-		{"notfound-page-unreadable", NotFound(NotFoundView{Asked: "/notes/Locked/away.md", Unreadable: true, Sidebar: NewDrawerSidebar(nav.Shell{Nav: model})}, recordedChrome())},
+		{"notfound-page-english", NotFound(NotFoundView{Asked: "/notes/Nobody/wrote.md", Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}, LibraryNone)}, recordedEnglishChrome())},
+		{"notfound-page-unreadable", NotFound(NotFoundView{Asked: "/notes/Locked/away.md", Unreadable: true, Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}, LibraryNone)}, recordedChrome())},
 		{"health-page-clear", Health(recordedClearHealthView(model), recordedChrome())},
 		{"health-page-clear-english", Health(recordedClearHealthView(model), recordedEnglishChrome())},
-		{"home-page-empty", Home(recordedNothingHomeView(wording.ZhHant), recordedChrome())},
-		{"home-page-empty-english", Home(recordedNothingHomeView(wording.En), recordedEnglishChrome())},
+		{"home-page-empty", Home(with(recordedNothingHomeView(wording.ZhHant), func(v *HomeView) {
+			v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryDesk, "")
+			v.Sidebar.FaultsStated = true
+		}), recordedChrome())},
+		{"home-page-empty-english", Home(with(recordedNothingHomeView(wording.En), func(v *HomeView) {
+			v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryDesk, "")
+			v.Sidebar.FaultsStated = true
+		}), recordedEnglishChrome())},
 	}
 	if len(cases) < 32 {
 		t.Fatalf("only %d surfaces are recorded, so this test locks almost nothing", len(cases))
@@ -283,7 +325,7 @@ func recordedNothingFoundView(model *nav.Model) SearchView {
 // the page reads is empty, which is the one state the faulted recording beside
 // it can never reach.
 func recordedClearHealthView(model *nav.Model) HealthView {
-	return HealthView{Sidebar: NewDrawerSidebar(nav.Shell{Nav: model})}
+	return HealthView{Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}, LibraryNone)}
 }
 
 // recordedNothingHomeView is the desk with nothing in the two shelves a
@@ -405,6 +447,7 @@ func recordedShell(model *nav.Model) nav.Shell {
 	return nav.Shell{
 		Nav:   model,
 		Vault: nav.Vault{Name: "example-vault", Notes: 12},
+		Marks: 2,
 	}
 }
 
@@ -827,7 +870,7 @@ func recordedHealthView(model *nav.Model) HealthView {
 		// The ordering a request that named none resolves to, which is what a
 		// reader arriving at the page is holding.
 		Sort:    HealthByFinding,
-		Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}),
+		Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}, LibraryNone),
 	}
 }
 
@@ -848,7 +891,7 @@ func recordedUnreadableHealthView(t *testing.T, model *nav.Model) HealthView {
 	return HealthView{
 		Blocked: sealedVaultBlocked(t),
 		Sort:    HealthByFinding,
-		Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}),
+		Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}, LibraryNone),
 	}
 }
 
@@ -1018,7 +1061,7 @@ func recordedPagedHealthView(model *nav.Model) HealthView {
 		IslandCount: rows,
 		Sort:        HealthByFinding,
 		Page:        2,
-		Sidebar:     NewDrawerSidebar(nav.Shell{Nav: model}),
+		Sidebar:     NewDrawerSidebar(nav.Shell{Nav: model}, LibraryNone),
 	}
 }
 
@@ -1093,4 +1136,12 @@ func TestRecordedChromeUsesStableAssetVersions(t *testing.T) {
 		t.Errorf("caught: recorded asset declarations (-want +got):\n%s", diff)
 	}
 	t.Log("invoked: complete recorded Chrome asset declarations")
+}
+
+// with is a recorded view with its sidebar set the way the page's handler sets
+// it, so a recording is of the page as it is drawn and not of a view that no
+// handler builds.
+func with[V any](view V, set func(*V)) V {
+	set(&view)
+	return view
 }

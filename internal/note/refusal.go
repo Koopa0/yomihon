@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/koopa0/yomihon/internal/origin"
-	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -44,7 +43,7 @@ func (h *Handler) refuseRequest(w http.ResponseWriter, r *http.Request, code int
 	}
 	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
-	view := pages.RequestRefusedView{Title: title, Lede: lede, Sidebar: pages.NewDrawerSidebar(shell.Project(h.sources.VaultName, authority, snap))}
+	view := pages.RequestRefusedView{Title: title, Lede: lede, Sidebar: pages.NewDrawerSidebar(h.projectShell(authority, snap), pages.LibraryNone)}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(code)
 	if err := pages.RequestRefused(view, layouts.ChromeFromRequest(r, title)).Render(r.Context(), w); err != nil && r.Context().Err() == nil {

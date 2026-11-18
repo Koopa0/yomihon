@@ -15,6 +15,9 @@ import (
 // HTML, and this page shows the notes' own elements rather than a second
 // rendering of them.
 type ListenView struct {
+	// Sidebar is the column beside the page, or the drawer it is where the page
+	// has no column.
+	Sidebar Sidebar
 	// Title is the page's own heading, which names the course it reads.
 	Title string
 	// PathHref is the course page this one was reached from.
@@ -36,7 +39,7 @@ type ListenLesson struct {
 // what speech synthesis cannot be asked for. The sentence belongs here and not
 // on a note: this is the page a reader arrives at wanting a course played to
 // them, and so the page where they would look for a scrubber and find none.
-func listenAttrs(v ListenView, lang wording.Lang) templ.Attributes {
+func listenAttrs(v *ListenView, lang wording.Lang) templ.Attributes {
 	attrs := readAloudAttrs(v.marked(), lang)
 	if attrs == nil {
 		return nil
@@ -48,7 +51,7 @@ func listenAttrs(v ListenView, lang wording.Lang) templ.Attributes {
 // marked is the page's own read-aloud HTML, joined so the bar's words are
 // decided by the same question the script asks: is there anything here that
 // can speak?
-func (v ListenView) marked() string {
+func (v *ListenView) marked() string {
 	var b strings.Builder
 	for _, lesson := range v.Lessons {
 		for _, paragraph := range lesson.Paragraphs {
@@ -60,7 +63,7 @@ func (v ListenView) marked() string {
 
 // carriesReadings reports whether any paragraph the page reads aloud holds
 // furigana for the header's switch to show and hide.
-func (v ListenView) carriesReadings() bool {
+func (v *ListenView) carriesReadings() bool {
 	for _, l := range v.Lessons {
 		if slices.ContainsFunc(l.Paragraphs, render.CarriesReadings) {
 			return true
