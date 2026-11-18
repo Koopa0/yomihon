@@ -130,13 +130,20 @@ func Protect(next http.Handler) http.Handler {
 // origin.
 func LoopbackOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !loopbackHost(r.Host) {
+		if !LoopbackRequest(r) {
 			http.Error(w, wording.ServerIsForThisMachine.In(Language(r)), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
 }
+
+// LoopbackRequest reports whether the request names this machine's loopback as
+// its host, which LoopbackOnly refuses to go on without. A caller that does
+// something before the handler behind it runs, such as beginning a read or
+// recording one, asks it first, so that a request that is going to be refused
+// has done nothing.
+func LoopbackRequest(r *http.Request) bool { return loopbackHost(r.Host) }
 
 func loopbackHost(host string) bool {
 	name := host

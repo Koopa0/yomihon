@@ -117,6 +117,38 @@ func TestTheRulesFileDecidesWhatMayBeSaid(t *testing.T) {
 	}
 }
 
+// Allowed is Allows for a caller with no gate: the same answer for a folder that
+// has a rules file or none, and no for one whose rules file cannot be honoured.
+func TestAllowedAnswersAsTheGateDoesAndNoWhenTheRulesFileCannotBeHonoured(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name  string
+		rules string
+		rel   string
+		want  bool
+	}{
+		{"no rules file", "", "README.md", true},
+		{"a rules file that withholds another folder", rulesFile(t, `"Private"`), "README.md", true},
+		{"a rules file that withholds the file", rulesFile(t, `"README.md"`), "README.md", false},
+		{"a rules file that withholds a folder above it", rulesFile(t, `"Private"`), "Private/README.md", false},
+		{"a rules file that declares no privacy", strings.TrimSuffix(rulesFile(t, `"Private"`), "\n[privacy]\nnever_egress_dirs = [\"Private\"]\n"), "README.md", false},
+		{"a rules file for another version", "schema_version = \"99\"\n", "README.md", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeFile(t, root, "README.md", "# Title\n")
+			if test.rules != "" {
+				writeFile(t, root, schema.ContractRelPath, test.rules)
+			}
+			if got := egress.Allowed(t.Context(), openFolder(t, root), test.rel); got != test.want {
+				t.Errorf("Allowed(%q) = %v, want %v", test.rel, got, test.want)
+			}
+		})
+	}
+}
+
 // TestSealRefusesOnceTheRulesFileIsNotTheOneItWasOpenedOn is the promise: an
 // output is assembled under the rules file the command began with, so it may
 // hold what the rules file as it now stands withholds, and the seal is where

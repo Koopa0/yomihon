@@ -16,6 +16,8 @@ About the vault:
 
 About the reader:
   yomihon ` + openCommand + ` [options]
+  yomihon ` + vaultsCommand + ` [--format json|human]    the vaults you have opened
+  yomihon ` + vaultsCommand + ` ` + removeVerb + ` <name|path>       take one out of that list
   yomihon ` + approveFigureCommand + ` [--root <dir>] <path>   let a figure's scripts run
   yomihon ` + revokeFigureCommand + ` [--root <dir>] <path>    withdraw that
 
@@ -29,13 +31,25 @@ var commandHelp = map[string]string{
 		"yomihon serve --root <dir> reads the same folder as yomihon serve <dir>.\n" +
 		"Serves it on 127.0.0.1:$YOMIHON_PORT (default " + defaultPort + ").\n" +
 		"\n" +
-		"The folder is fixed for the life of the process: reading another one\n" +
-		"means another yomihon, on another port.\n" +
+		"A folder you read joins the list of vaults, each on a port of its own, the\n" +
+		"first on the one above and the others above that. While a yomihon is\n" +
+		"running, yomihon <dir> gives it the folder and prints the folder's address.\n" +
 		"\n" +
 		"A file larger than 1 MiB is not read as characters: the page names the\n" +
 		"bytes and search leaves it out. An in-place rewrite that keeps the same\n" +
 		"inode, mode, size and mtime can stay stale for about an hour; an ordinary\n" +
 		"save that changes size or mtime rebuilds at once.\n",
+	vaultsCommand: "Usage: yomihon " + vaultsCommand + " [--format json|human]\n" +
+		"       yomihon " + vaultsCommand + " " + removeVerb + " <name|path>\n" +
+		"\n" +
+		"Lists the vaults you have opened: each one's name, folder and address.\n" +
+		"Writes a JSON array when the output is not a terminal, and a table when it\n" +
+		"is; --format decides instead of the terminal.\n" +
+		"\n" +
+		removeVerb + " takes one out of the list. Its marks stay where they are, and are there\n" +
+		"when the folder is read again. A folder is added by reading it: yomihon <dir>.\n" +
+		"\n" +
+		"Both work with or without a running yomihon.\n",
 	"check": "Usage: yomihon check [--root <dir>] [--format json|human|md] [--all] [--deny <severity|rule-id>]... [--baseline <file>] [path...]\n" +
 		"\n" +
 		"--root is the vault to judge; without it, the folder you are standing in is\n" +

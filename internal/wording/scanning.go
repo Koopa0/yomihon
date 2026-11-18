@@ -12,6 +12,18 @@ import (
 // mark meets the same word the page carries.
 var ScanningKicker = both("讀取中", "Reading")
 
+// What the address of a vault says when its folder cannot be read: gone since
+// the reader last opened it, or not readable by this account. The reasons are
+// words for a reader, never an error code.
+var (
+	VaultReason        = both("原因", "Reason")
+	VaultPlace         = both("位置", "Location")
+	VaultFolderMissing = both("找不到資料夾", "The folder cannot be found")
+	VaultFolderDenied  = both("沒有讀取權限", "No permission to read it")
+	VaultFolderOther   = both("資料夾讀不進來", "The folder cannot be read")
+	ReadAgain          = both("重新讀取", "Read again")
+)
+
 // ScanningFiles is the line that says how far the read has got, with the two
 // counts already grouped.
 var ScanningFiles = both("%s / %s 個檔案", "%s / %s files")

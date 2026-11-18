@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -37,8 +38,18 @@ type Store struct {
 	now  func() time.Time
 	wait time.Duration
 
+	// own is the ports this process holds itself. They are free for the vault
+	// this process is about to give one to, which a probe of them cannot say,
+	// because the probe finds the process in the way.
+	own map[int]bool
+
+	// say is told, in a line, what was wrong with the list and what was done
+	// about it. Nil says nothing.
+	say func(line string)
+
 	mu           sync.Mutex
 	stamp        stamp
+	told         stamp
 	touched      map[string]touch
 	removed      map[string]Entry
 	removedOrder []string
@@ -65,30 +76,62 @@ type touch struct {
 // whether a port can be bound right now; it is how a new vault is kept off a
 // port something else holds, and nil says every port is free. Nothing is read or
 // written until the Store is used.
-func Open(configDir string, free func(port int) bool) (*Store, error) {
+func Open(configDir string, free func(port int) bool, options ...Option) (*Store, error) {
 	dir, err := confdir.Home(configDir)
 	if err != nil {
 		return nil, err
 	}
-	return &Store{
+	s := &Store{
 		dir:     dir,
 		free:    free,
 		now:     time.Now,
 		wait:    lockWait,
 		touched: map[string]touch{},
 		removed: map[string]Entry{},
-	}, nil
+		own:     map[int]bool{},
+	}
+	for _, option := range options {
+		option(s)
+	}
+	return s, nil
 }
 
+// Option is a way a Store is set up beyond where it is kept.
+type Option func(*Store)
+
+// Report sends each line the Store has to say about a list it could not use
+// whole to say: which entries were left out and why, and where a list it
+// replaced is kept. The Store prints nothing itself.
+func Report(say func(line string)) Option {
+	return func(s *Store) { s.say = say }
+}
+
+// Hold says that this process has bound port, so that a new vault can be given
+// it. The running yomihon holds the starting port before it records the folder
+// it was given, which is how a second yomihon finds it, and the folder is then
+// the first vault of that port rather than the next.
+func (s *Store) Hold(port int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.own[port] = true
+}
+
+// InstanceFile is where the record that a yomihon is running is kept, for a
+// message that tells a reader which file to remove.
+func (s *Store) InstanceFile() string { return filepath.Join(s.dir, instanceFile) }
+
 // List is every vault, the one read most recently first. A list that cannot be
-// read answers ErrDamaged and no vaults; the next change sets it aside.
+// read answers ErrDamaged and no vaults; the next change sets it aside. An
+// entry that cannot be used is left out of the answer, and said once for each
+// state of the file.
 func (s *Store) List() ([]Entry, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	list, _, err := s.read()
+	list, _, skipped, err := s.read()
 	if err != nil {
 		return nil, err
 	}
+	s.sayLeftOut(skipped)
 	return recentFirst(list), nil
 }
 
@@ -108,10 +151,11 @@ func (s *Store) Changed() (bool, error) {
 // Add puts the folder root in the list if it is not there, and answers its
 // entry and whether it was new. A new vault is given the first port from start
 // up that no other vault holds and that free allows, and the port is written
-// down: it is the vault's from then on. A vault already listed keeps its port.
-// Adding is the command line's: it is given a path because the reader typed one.
+// down: it is the vault's from then on, and no later start moves it. A vault
+// already listed keeps its port. Adding is the command line's: it is given a
+// path because the reader typed one.
 func (s *Store) Add(root string, start int) (entry Entry, added bool, err error) {
-	if start < 1 || start > maxPort {
+	if start < MinPort || start > maxPort {
 		return Entry{}, false, ErrStartPort
 	}
 	_, resolved, err := vault.ResolveRoot(root)
@@ -251,6 +295,31 @@ func (s *Store) Restore(id string) (Entry, error) {
 	return back, nil
 }
 
+// SetPort says that the vault is served on port. The process that serves a
+// vault the reader removed and added again keeps its port, and the list is made
+// to say so. Another vault's port is refused.
+func (s *Store) SetPort(id string, port int) error {
+	if port < MinPort || port > maxPort {
+		return ErrStartPort
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.update(func(list []Entry) ([]Entry, bool, error) {
+		i := indexOf(list, id)
+		if i < 0 {
+			return nil, false, ErrUnknown
+		}
+		if list[i].Port == port {
+			return list, false, nil
+		}
+		if slices.ContainsFunc(list, func(e Entry) bool { return e.Port == port }) {
+			return nil, false, ErrPortTaken
+		}
+		list[i].Port = port
+		return list, true, nil
+	})
+}
+
 // choosePort is the first port from `from` up that no listed vault holds and
 // that free allows.
 func (s *Store) choosePort(list []Entry, from int) (int, error) {
@@ -259,7 +328,7 @@ func (s *Store) choosePort(list []Entry, from int) (int, error) {
 		taken[e.Port] = true
 	}
 	for port := from; port <= maxPort; port++ {
-		if taken[port] || (s.free != nil && !s.free(port)) {
+		if taken[port] || (!s.own[port] && s.free != nil && !s.free(port)) {
 			continue
 		}
 		return port, nil
@@ -297,29 +366,30 @@ func (s *Store) statList() (stamp, error) {
 	return stamp{present: true, size: size, modified: modified}, nil
 }
 
-// read is the list as it is on disk. The raw bytes come back with ErrDamaged
-// when there are any, so a change can set them aside. A list that is not there
-// is an empty one.
-func (s *Store) read() (list []Entry, raw []byte, err error) {
+// read is the list as it is on disk. The raw bytes come back with the list
+// whenever there are any, and with ErrDamaged, so a change can set them aside;
+// skipped names the entries that were left out. A list that is not there is an
+// empty one.
+func (s *Store) read() (list []Entry, raw []byte, skipped []string, err error) {
 	// The stamp is taken before the read, so a change between the two is seen
 	// by the next Changed rather than lost.
 	if s.stamp, err = s.statList(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	raw, err = confdir.Read(s.dir, listFile, maxListBytes)
 	switch {
 	case errors.Is(err, os.ErrNotExist):
 		s.stamp = stamp{}
-		return nil, nil, nil
-	case errors.Is(err, confdir.ErrTooLarge):
-		return nil, nil, fmt.Errorf("%w: %w", ErrDamaged, err)
+		return nil, nil, nil, nil
+	case errors.Is(err, confdir.ErrTooLarge), errors.Is(err, confdir.ErrNotRegular):
+		return nil, nil, nil, fmt.Errorf("%w: %w", ErrDamaged, err)
 	case err != nil:
-		return nil, nil, fmt.Errorf("read the list of vaults: %w", err)
+		return nil, nil, nil, fmt.Errorf("read the list of vaults: %w", err)
 	}
-	if list, err = decode(raw); err != nil {
-		return nil, raw, fmt.Errorf("%w: %w", ErrDamaged, err)
+	if list, skipped, err = decode(raw); err != nil {
+		return nil, raw, nil, fmt.Errorf("%w: %w", ErrDamaged, err)
 	}
-	return list, raw, nil
+	return list, raw, skipped, nil
 }
 
 // update is every change to the list: under the lock, from the list as it is
@@ -334,23 +404,32 @@ func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) (err er
 	}
 	defer func() { err = errors.Join(err, lock.Release()) }()
 
-	list, raw, err := s.read()
-	if err != nil {
-		if !errors.Is(err, ErrDamaged) || raw == nil {
-			return err
-		}
-		if asideErr := confdir.Replace(s.dir, damagedFile, raw); asideErr != nil {
-			return fmt.Errorf("set the damaged list of vaults aside: %w", asideErr)
-		}
+	list, raw, skipped, err := s.read()
+	damaged := errors.Is(err, ErrDamaged)
+	if err != nil && !damaged {
+		return err
+	}
+	if damaged {
 		list = nil
 	}
 	next, changed, err := change(list)
-	if err != nil || !changed {
+	if err != nil {
 		return err
+	}
+	if !changed {
+		s.sayLeftOut(skipped)
+		return nil
 	}
 	data, err := encode(next)
 	if err != nil {
 		return err
+	}
+	// The list is about to be replaced, so what it was is kept first: a list that
+	// could not be read, or one with entries that could not be used.
+	if damaged || len(skipped) > 0 {
+		if err := s.keepAside(raw, damaged, skipped); err != nil {
+			return err
+		}
 	}
 	if err := confdir.Replace(s.dir, listFile, data); err != nil {
 		return fmt.Errorf("write the list of vaults: %w", err)
@@ -378,4 +457,79 @@ func abandoned(holder []byte, age time.Duration) bool {
 	pid, _, _ := strings.Cut(string(holder), " ")
 	n, err := strconv.Atoi(pid)
 	return err == nil && !processAlive(n)
+}
+
+// keepAside keeps the list as it is before it is replaced, for the reader to
+// open: the bytes it had, or, when it was never read (raw is nil), the file
+// itself, renamed. It says what was wrong and where the list is kept.
+func (s *Store) keepAside(raw []byte, damaged bool, skipped []string) error {
+	name, err := s.freeAsideName()
+	if err != nil {
+		return fmt.Errorf("set the list of vaults aside: %w", err)
+	}
+	if raw == nil {
+		err = confdir.SetAside(s.dir, listFile, name)
+	} else {
+		err = confdir.Replace(s.dir, name, raw)
+	}
+	if err != nil {
+		return fmt.Errorf("set the list of vaults aside: %w", err)
+	}
+	if s.say != nil {
+		where := filepath.Join(s.dir, name)
+		if damaged {
+			s.say("the list of vaults could not be read and is kept as " + where + "; a new list was started")
+		} else {
+			s.say(describeLeftOut(skipped) + "; the list as it was is kept as " + where)
+		}
+	}
+	return nil
+}
+
+// freeAsideName is the first name for a set-aside list that is not taken. The
+// first name is never given again, so an earlier list is not written over; when
+// every name is taken, the last is.
+func (s *Store) freeAsideName() (string, error) {
+	name := asideFile(keptAside)
+	for n := 1; n <= keptAside; n++ {
+		_, _, err := confdir.Stat(s.dir, asideFile(n))
+		if errors.Is(err, os.ErrNotExist) {
+			return asideFile(n), nil
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+	return name, nil
+}
+
+// asideFile is the nth name a set-aside list is kept under.
+func asideFile(n int) string {
+	if n <= 1 {
+		return damagedFile
+	}
+	return strings.TrimSuffix(damagedFile, ".json") + "-" + strconv.Itoa(n) + ".json"
+}
+
+// sayLeftOut says what was left out of the list, once for each state the file is
+// in, so that a poll of it does not say it again.
+func (s *Store) sayLeftOut(skipped []string) {
+	if len(skipped) == 0 || s.say == nil || s.told.present && s.told.equal(s.stamp) {
+		return
+	}
+	s.told = s.stamp
+	s.say(describeLeftOut(skipped))
+}
+
+// describeLeftOut is a line naming the entries that could not be used.
+func describeLeftOut(skipped []string) string {
+	const shown = 3
+	line := "the list of vaults has " + strconv.Itoa(len(skipped)) + " entries that could not be used and are left out"
+	if len(skipped) == 1 {
+		line = "the list of vaults has 1 entry that could not be used and is left out"
+	}
+	if len(skipped) > shown {
+		return line + " (" + strings.Join(skipped[:shown], "; ") + "; and " + strconv.Itoa(len(skipped)-shown) + " more)"
+	}
+	return line + " (" + strings.Join(skipped, "; ") + ")"
 }

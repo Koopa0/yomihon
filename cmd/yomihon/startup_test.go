@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
 	"net/http"
@@ -11,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -386,7 +389,9 @@ func TestStartupWaitsBeforeShowingThePage(t *testing.T) {
 	t.Run("a reader who comes after the grace is not kept waiting", func(t *testing.T) {
 		t.Parallel()
 		front := newTestStartup(t, fakeCount{}, time.Minute)
+		front.reads.Lock()
 		front.began = time.Now().Add(-2 * time.Minute)
+		front.reads.Unlock()
 		recorder := httptest.NewRecorder()
 		asked := time.Now()
 		front.ServeHTTP(recorder, siteRequest(t, http.MethodGet, "/", http.NoBody))
@@ -397,4 +402,181 @@ func TestStartupWaitsBeforeShowingThePage(t *testing.T) {
 			t.Errorf("the request waited %v, but the read had already run past the grace", waited)
 		}
 	})
+}
+
+// A vault whose folder cannot be read answers every address with the page a
+// note that cannot be read has: the vault's name, why in words, where it is, and
+// the one thing to do. It is a 503, and it stands behind the same loopback and
+// browser-policy edges as the reading page does.
+func TestAVaultThatCannotBeReadAnswersWithThePageThatSaysWhy(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name string
+		err  error
+		zh   string
+		en   string
+	}{
+		{"missing", &fs.PathError{Op: "open", Path: "/home/reader/notes", Err: fs.ErrNotExist}, "找不到資料夾", "The folder cannot be found"},
+		{"denied", fmt.Errorf("open vault root: %w", &fs.PathError{Op: "open", Path: "/home/reader/notes", Err: fs.ErrPermission}), "沒有讀取權限", "No permission to read it"},
+		{"other", errors.New("something else"), "資料夾讀不進來", "The folder cannot be read"},
+	} {
+		for _, language := range []string{"zh-Hant", "en"} {
+			t.Run(test.name+"/"+language, func(t *testing.T) {
+				t.Parallel()
+				front := newTestStartup(t, fakeCount{}, 0)
+				front.fail(test.err)
+				req := siteRequest(t, http.MethodGet, "/notes/anything.md", http.NoBody)
+				req.Header.Set("Cookie", wording.CookieName+"="+language)
+				rec := httptest.NewRecorder()
+				front.ServeHTTP(rec, req)
+
+				if rec.Code != http.StatusServiceUnavailable {
+					t.Fatalf("status = %d, want 503", rec.Code)
+				}
+				if rec.Header().Get("Content-Security-Policy") == "" {
+					t.Error("the answer carries no browser policy, so it did not pass the edge the reading page does")
+				}
+				body := rec.Body.String()
+				want := test.zh
+				action := "重新讀取"
+				if language == "en" {
+					want, action = test.en, "Read again"
+				}
+				for _, part := range []string{`data-nothing="unreadable"`, "notes", "/home/reader/notes", want, action, `href="/"`} {
+					if !strings.Contains(body, part) {
+						t.Errorf("the page does not hold %q", part)
+					}
+				}
+				for _, leaked := range []string{"something else", "open vault root", "no such file", "permission denied"} {
+					if strings.Contains(body, leaked) {
+						t.Errorf("the page shows %q, which is an error and not words for a reader", leaked)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestAVaultThatCannotBeReadStillTurnsBackAnotherHostName(t *testing.T) {
+	t.Parallel()
+	front := newTestStartup(t, fakeCount{}, 0)
+	front.fail(fs.ErrNotExist)
+	req := siteRequest(t, http.MethodGet, "/", http.NoBody)
+	req.Host = "evil.example:9610"
+	rec := httptest.NewRecorder()
+	front.ServeHTTP(rec, req)
+	if strings.Contains(rec.Body.String(), "/home/reader/notes") {
+		t.Errorf("a request for another host name was told where the vault is: %d %q", rec.Code, rec.Body.String())
+	}
+}
+
+// A page the reader never opened must not make this process read a folder: a
+// picture, a script or a frame of some other page can be pointed at any port on
+// this machine. What a request is decides, not where it came from: a top-level
+// navigation begins the read, a link or a card from another vault's page
+// included, and so does a client that sends no fetch metadata; a picture, a
+// script, a style, a frame, a fetch or a prefetch never does, from any origin.
+func TestOnlyANavigationToThePageBeginsAVaultsRead(t *testing.T) {
+	t.Parallel()
+	navigation := func(site string) map[string]string {
+		return map[string]string{"Sec-Fetch-Site": site, "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate"}
+	}
+	subresource := func(site, dest, mode string) map[string]string {
+		return map[string]string{"Sec-Fetch-Site": site, "Sec-Fetch-Dest": dest, "Sec-Fetch-Mode": mode}
+	}
+	for _, test := range []struct {
+		name    string
+		headers map[string]string
+		begins  bool
+	}{
+		{"a client that says nothing", nil, true},
+		{"an address typed", navigation("none"), true},
+		{"a link followed on the vault's own page", navigation("same-origin"), true},
+		{"a link or a card followed from another vault's page", navigation("same-site"), true},
+		{"a link followed from another site", navigation("cross-site"), true},
+		{"the reading page's own request for how far the read has got", subresource("same-origin", "empty", "cors"), false},
+		{"a fetch of another vault's page", subresource("same-site", "empty", "cors"), false},
+		{"a fetch from another site", subresource("cross-site", "empty", "cors"), false},
+		{"a picture of another vault's page", subresource("same-site", "image", "no-cors"), false},
+		{"a picture of another site's page", subresource("cross-site", "image", "no-cors"), false},
+		{"a picture of the vault's own page", subresource("same-origin", "image", "no-cors"), false},
+		{"a script of another site's page", subresource("cross-site", "script", "no-cors"), false},
+		{"a style of another site's page", subresource("cross-site", "style", "no-cors"), false},
+		{"a frame of another vault's page", subresource("same-site", "iframe", "navigate"), false},
+		{"a frame of another site's page", subresource("cross-site", "iframe", "navigate"), false},
+		{"a frame of the vault's own page", subresource("same-origin", "iframe", "navigate"), false},
+		{"a prefetch of a link", map[string]string{"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Purpose": "prefetch"}, false},
+		{"a prerender of a link", map[string]string{"Sec-Fetch-Site": "same-site", "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Purpose": "prefetch;prerender"}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			front := newTestStartup(t, fakeCount{}, 0)
+			var begun atomic.Int32
+			front.whenAsked(func() { begun.Add(1) })
+			req := siteRequest(t, http.MethodGet, "/", http.NoBody)
+			for name, value := range test.headers {
+				req.Header.Set(name, value)
+			}
+			front.ServeHTTP(httptest.NewRecorder(), req)
+			if got := begun.Load() == 1; got != test.begins {
+				t.Errorf("the read was begun = %v, want %v", got, test.begins)
+			}
+		})
+	}
+}
+
+// One read runs at a time, a failed one is not begun again until the gap has
+// passed, and then the next request for a page begins it.
+func TestAFailedReadIsBegunAgainByTheNextRequestAfterTheGapAndNotBefore(t *testing.T) {
+	t.Parallel()
+	front := newTestStartup(t, fakeCount{}, 0)
+	var begun atomic.Int32
+	front.whenAsked(func() { begun.Add(1) })
+	serve := func() *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		front.ServeHTTP(rec, siteRequest(t, http.MethodGet, "/", http.NoBody))
+		return rec
+	}
+
+	serve()
+	serve()
+	if got := begun.Load(); got != 1 {
+		t.Fatalf("two requests while a read was under way began %d reads, want 1", got)
+	}
+	front.fail(fs.ErrNotExist)
+	if rec := serve(); begun.Load() != 1 || !strings.Contains(rec.Body.String(), `data-nothing="unreadable"`) {
+		t.Fatalf("a request just after the failure began %d reads and answered %d, want the failure's page and no new read", begun.Load(), rec.Code)
+	}
+
+	front.reads.Lock()
+	front.retryGap = 0
+	front.reads.Unlock()
+	rec := serve()
+	if got := begun.Load(); got != 2 {
+		t.Fatalf("a request after the gap began %d reads in all, want 2", got)
+	}
+	if strings.Contains(rec.Body.String(), `data-nothing="unreadable"`) {
+		t.Error("the read has begun again and the page still says the vault cannot be read")
+	}
+}
+
+// A request that names another host name is refused and begins nothing: a page
+// on a rebound name sends no fetch metadata, which reads as a typed address.
+func TestARequestForAnotherHostNameBeginsNoRead(t *testing.T) {
+	t.Parallel()
+	for _, host := range []string{"rebind.example:22402", "rebind.example", "192.0.2.7:9610", "127.0.0.1.rebind.example:9610"} {
+		t.Run(host, func(t *testing.T) {
+			t.Parallel()
+			front := newTestStartup(t, fakeCount{}, 0)
+			var begun atomic.Int32
+			front.whenAsked(func() { begun.Add(1) })
+			req := siteRequest(t, http.MethodGet, "/", http.NoBody)
+			req.Host = host
+			rec := httptest.NewRecorder()
+			front.ServeHTTP(rec, req)
+			if rec.Code != http.StatusForbidden || begun.Load() != 0 {
+				t.Errorf("a request for %q = %d, read begun %d times; want 403 and none", host, rec.Code, begun.Load())
+			}
+		})
+	}
 }
