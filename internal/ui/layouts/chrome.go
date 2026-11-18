@@ -47,15 +47,9 @@ type Chrome struct {
 	// Ruby is whether furigana are shown: "on" or "off". The root carries it so
 	// the first paint already matches.
 	Ruby string
-	// Readings is whether the page in front of the reader carries furigana,
-	// and so whether the header offers the switch for them. The page decides
-	// it from what it rendered, as it decides Mark; every other page leaves it
-	// false and draws no such switch.
-	Readings bool
 	// Diagrams is whether the page carries a diagram the browser will draw, and
 	// so whether its head says how tall each was drawn the last time this tab
-	// had it. The page decides it from what it rendered, as it decides
-	// Readings.
+	// had it. The page decides it from what it rendered.
 	Diagrams bool
 	// TextSize scales the reading column: "m" (the default measure), "l", or
 	// "xl". It tunes presentation only — the charter's bounded reading

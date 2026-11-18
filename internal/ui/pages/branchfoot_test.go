@@ -257,25 +257,32 @@ func TestALessonTheCourseTeachesNeverFallsBackToTheFolder(t *testing.T) {
 	}
 }
 
-// TestNothingStandsAboveTheTitle holds the head of a note to its title. The
-// sidebar already says which course the note is in and which part, or which
-// folder, so a line over the heading said it twice: the running head of a
-// course's lesson and the folder's breadcrumb of any other note are both gone,
-// and the first thing in the head is the heading itself.
-func TestNothingStandsAboveTheTitle(t *testing.T) {
+// TestTheHeadOpensOnWhereTheNoteIs holds the row above a note's title: a unit
+// names its course, any other note the folders it lies in, and the title
+// follows.
+func TestTheHeadOpensOnWhereTheNoteIs(t *testing.T) {
 	t.Parallel()
 
 	model := footVault(t)
-	for _, current := range []string{"Writing/C03.md", "Writing/L1.md", "Writing/C02a.md", "Maps/Solo.md"} {
+	for _, tt := range []struct {
+		current, link string
+		absent        string
+	}{
+		{"Writing/C03.md", `href="/courses/Maps/Course.md?from=Writing%2FC03.md"`, `/folders/`},
+		{"Writing/L1.md", `href="/courses/Maps/Course.md?from=Writing%2FL1.md"`, `/folders/`},
+		{"Writing/C02a.md", `href="/folders/Writing"`, `/courses/`},
+		{"Maps/Solo.md", `href="/folders/Maps"`, `/courses/`},
+	} {
 		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-			_, view := footView(model, current, lang)
+			_, view := footView(model, tt.current, lang)
 			view.Title = "T"
 			html := renderedHTML(t, articleHead(view, lang))
-			if !strings.HasPrefix(html, `<h1 class="y-title">T</h1>`) {
-				t.Errorf("the head of %s in %s does not open on the title; html = %q", current, lang, html)
+			where, title := strings.Index(html, `<p class="y-notewhere"`), strings.Index(html, `<h1 class="y-title">T</h1>`)
+			if where != 0 || title < where {
+				t.Errorf("the head of %s in %s does not open on its row and then its title; html = %q", tt.current, lang, html)
 			}
-			if strings.Contains(html, "y-crumbs") {
-				t.Errorf("the head of %s in %s still draws a path or a running head; html = %q", current, lang, html)
+			if !strings.Contains(html, tt.link) || strings.Contains(html, tt.absent) {
+				t.Errorf("the row of %s in %s lacks %s or draws %s; html = %q", tt.current, lang, tt.link, tt.absent, html)
 			}
 		}
 	}

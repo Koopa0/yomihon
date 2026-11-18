@@ -74,7 +74,6 @@ probes=(
   "overlay-commands.mjs|/notes/Writing/lessons/japanese/L01.md"
   "appearance-choice.mjs|/preferences"
   "header-row.mjs|/notes/Notes/alpha.md"
-  "reading-switch-label.mjs|/notes/Writing/lessons/japanese/L01.md"
   "japanese-reading-face.mjs|/notes/Writing/lessons/japanese/L01.md"
   "preference-restore.mjs|/notes/Writing/lessons/japanese/L01.md"
   "preference-immediate.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"

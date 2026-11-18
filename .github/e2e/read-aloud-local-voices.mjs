@@ -59,7 +59,7 @@ const observe = (page) => page.evaluate(() => ({
   reads: window.__speechFixture.reads,
   cancels: window.__speechFixture.cancels,
   status: document.querySelector('.y-ttsbar__status')?.textContent,
-  running: document.querySelector('.y-ttsbar__play')?.getAttribute('aria-pressed'),
+  running: document.querySelector('[data-readaloud-play]')?.getAttribute('aria-pressed'),
   speaking: document.querySelectorAll('[data-speaking]').length,
   marked: document.querySelectorAll('[data-reading]').length,
   labels: [...document.querySelectorAll('[data-tts]')].map((button) => button.getAttribute('aria-label')),
@@ -147,7 +147,7 @@ const visit = async (voices, chrome, scenario) => {
     }
     const response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
     if (response?.status() !== 200) throw new Error(`GET returned ${response?.status()}`);
-    await page.waitForSelector('.y-ttsbar__play');
+    await page.waitForSelector('[data-readaloud-play]');
     await arrived(page);
     if (MUTATE) {
       if (requests !== 1 || matches !== 1) throw new NotApplied(`production needle requested ${requests}, matched ${matches}; want exactly 1 each`);
@@ -196,7 +196,7 @@ try {
       await assertVoice(page, JAPANESE, 0, 'voice-readiness', chrome);
     });
     await visit([REMOTE], chrome, async (page) => {
-      await page.locator('.y-ttsbar__play').focus();
+      await page.locator('[data-readaloud-play]').focus();
       await page.keyboard.press('Enter');
       await assertUnavailable(page, chrome, 'local-service');
     });

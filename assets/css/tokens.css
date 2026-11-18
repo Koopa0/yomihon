@@ -36,9 +36,6 @@
   /* The left rail's ground: the header's tone, a step off the page in both
      themes. */
   --rail-ground: var(--panel);
-  /* A switch that is on: the neutral control ink, a step off the text, so a
-     control that is set does not outweigh the words beside it. */
-  --switch-on: light-dark(#55514a, #dcd6ca);
 
   /* ---- Ink, three steps. The text; the variant every quieter word takes; and
      the faint step for numbers, dates and Latin letters only, which is set on
