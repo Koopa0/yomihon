@@ -42,7 +42,7 @@ func TestEmptySearchExplainsLiteralOperators(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+				for _, route := range []string{"/search?", "/search/results?", "/search/results?"} {
 					body := interpretationPage(t, idx, route+url.Values{"q": {tt.query}}.Encode(), lang)
 					got := strings.Contains(body, "data-literal-operator")
 					if got != tt.hint {
@@ -94,7 +94,7 @@ func TestEmptySearchQuotesEachLiteralTerm(t *testing.T) {
 	sentence := regexp.MustCompile(`(?s)<p[^>]*data-literal-operator[^>]*>(.*?)</p>`)
 	for _, tt := range tests {
 		for lang, want := range tt.want {
-			for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+			for _, route := range []string{"/search?", "/search/results?", "/search/results?"} {
 				body := interpretationPage(t, idx, route+url.Values{"q": {tt.query}}.Encode(), lang)
 				m := sentence.FindStringSubmatch(body)
 				if m == nil {
@@ -136,13 +136,16 @@ func TestEmptySearchOffersFullFolderPaths(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+				for _, route := range []string{"/search?", "/search/results?", "/search/results?"} {
 					body := interpretationPage(t, idx, route+url.Values{"q": {tt.query}}.Encode(), lang)
 					if got := strings.Contains(body, "data-folder-suggestion"); got != (len(tt.links) > 0) {
 						t.Errorf("GET %s %q folder hint = %v, want %v", route, tt.query, got, len(tt.links) > 0)
 					}
 					var got []string
 					for _, m := range link.FindAllStringSubmatch(body, -1) {
+						if strings.Contains(m[0], "data-search-choice") {
+							continue
+						}
 						u, err := url.Parse(html.UnescapeString(m[1]))
 						if err != nil {
 							t.Fatal(err)
@@ -174,7 +177,7 @@ func TestEmptySearchOffersFullFolderPaths(t *testing.T) {
 						// Every offered URL is exercised through the same public route.
 						for _, q := range got {
 							landed := interpretationPage(t, idx, "/search/results?"+url.Values{"q": {q}}.Encode(), lang)
-							if !strings.Contains(landed, `class="y-result"`) {
+							if !strings.Contains(landed, `class="y-found__item"`) {
 								t.Errorf("follow suggestion %q found no result", q)
 							}
 						}

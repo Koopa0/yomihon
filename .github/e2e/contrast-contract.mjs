@@ -83,12 +83,9 @@ const AA = 4.5;
 const NON_TEXT = 3;
 // Each field draws its focus line along one edge, and that edge is where the
 // line is looked for. The page field is a box, outlined all round, and is read
-// across its left edge; the palette's field is the panel's head, with no box
-// of its own, and draws its line under it, so it is read upward from its
-// bottom edge.
+// across its left edge.
 const FOCUS_FIELDS = [
-  { name: 'the search page field', path: '/search', field: '.y-searchpage__form', input: '.y-searchpage__form input', ground: '--panel', edge: 'left' },
-  { name: 'the palette field', path: '/', field: '.y-searchdialog__form', input: '.y-searchdialog__input', ground: '--panel', edge: 'bottom', palette: true },
+  { name: 'the search page field', path: '/search', field: '.y-searchpage__form', input: '.y-searchpage__form input', ground: '--bg', edge: 'left' },
 ];
 
 class LockFired extends Error {
@@ -199,7 +196,7 @@ const MUTATIONS = {
   'fade-busy-search-ink': {
     target: 'busy-search-aa',
     contexts: ['search'],
-    apply: weakenStylesheet('app.css', '.y-searchresults[aria-busy="true"] .y-result__meta{opacity:0.58}'),
+    apply: weakenStylesheet('app.css', '.y-searchresults[aria-busy="true"] .y-found__where{opacity:0.58}'),
   },
   // A mark inked in the outline grey, a line colour rather than a text one,
   // lands under 4.5:1 once its wash is composited over the row. The lock
@@ -241,19 +238,12 @@ const MUTATIONS = {
   'focus-outline-fades-light': {
     target: 'light-focus-outline',
     contexts: ['focus'],
-    apply: weakenStylesheet('app.css', ':root[data-theme="light"] .y-searchdialog__form:focus-within,:root[data-theme="light"] .y-searchpage__form:focus-within{outline-color:var(--border)}'),
-  },
-  // The palette's field draws its focus as the line under it rather than an
-  // outline, so the outline modes above never reach it; this is its own.
-  'palette-focus-line-fades': {
-    target: 'light-focus-outline',
-    contexts: ['focus'],
-    apply: weakenStylesheet('app.css', '.y-searchdialog__form:focus-within{box-shadow:inset 0 -2px 0 var(--line)}'),
+    apply: weakenStylesheet('app.css', ':root[data-theme="light"] .y-searchpage__form:focus-within{outline-color:var(--border)}'),
   },
   'focus-outline-fades-dark': {
     target: 'dark-focus-outline',
     contexts: ['focus'],
-    apply: weakenStylesheet('app.css', ':root[data-theme="dark"] .y-searchdialog__form:focus-within,:root[data-theme="dark"] .y-searchpage__form:focus-within{outline-color:var(--border)}'),
+    apply: weakenStylesheet('app.css', ':root[data-theme="dark"] .y-searchpage__form:focus-within{outline-color:var(--border)}'),
   },
 };
 
@@ -516,7 +506,7 @@ const measureBusySearch = (page, theme) => page.evaluate((selectedTheme) => {
   const fixture = document.createElement('div');
   fixture.className = 'y-searchresults';
   fixture.setAttribute('aria-busy', 'true');
-  fixture.innerHTML = '<ol class="y-results" role="list"><li><a class="y-result" href="#"><span class="y-result__title">Alpha</span><span class="y-result__meta"><mark>Goroutine</mark>s.md</span></a></li></ol>';
+  fixture.innerHTML = '<ol class="y-found" role="list"><li><a class="y-found__item" href="#"><span class="y-found__title">Alpha</span><span class="y-found__where"><mark>Goroutine</mark>s.md</span></a></li></ol>';
   host.appendChild(fixture);
   const planted = { fixture };
 
@@ -547,7 +537,7 @@ const measureBusySearch = (page, theme) => page.evaluate((selectedTheme) => {
   };
 
   try {
-    const ink = planted.fixture.querySelector('.y-result__meta');
+    const ink = planted.fixture.querySelector('.y-found__where');
     if (!ink) return { issue: 'the busy fixture had no path-line ink to measure' };
     const foreground = raster(getComputedStyle(ink).color);
     if (foreground.issue) return { issue: foreground.issue };
@@ -597,7 +587,7 @@ const measureBusySearch = (page, theme) => page.evaluate((selectedTheme) => {
 // state stays in the list although it currently reads as the page does,
 // because it is where a surface returning to a row would have to prove
 // itself legible.
-const SEARCH_MARK_HTML = '<ol class="y-results" role="list"><li><a class="y-result" href="#"><span class="y-result__title">Alpha</span><span class="y-result__meta"><mark>Goroutine</mark>s.md</span></a></li></ol>';
+const SEARCH_MARK_HTML = '<ol class="y-found" role="list"><li><a class="y-found__item" href="#"><span class="y-found__title">Alpha</span><span class="y-found__where"><mark>Goroutine</mark>s.md</span></a></li></ol>';
 const MARK_GROUNDS = [
   { name: 'hover', busy: false, hover: true },
   { name: 'busy', busy: true, hover: false },
@@ -658,7 +648,7 @@ const measurePlantedMark = (page, groundName) => page.evaluate((selectedGround) 
     // The row itself is what has to be under the pointer; whether it paints
     // anything of its own there is the stylesheet's business, and today it
     // does not. The walk below then finds the page behind it.
-    const row = mark.closest('.y-result');
+    const row = mark.closest('.y-found__item');
     if (!row) return { issue: 'the hovered fixture had no result row' };
     if (!row.matches(':hover')) return { issue: 'the result row is not under the pointer, so this reading is not a hover' };
   }
@@ -713,9 +703,9 @@ const measureMark = async (page, theme, ground) => {
     // list rather than dropped, because it is a real one and this is where a
     // surface returning to it would have to prove itself legible.
     if (ground.hover) {
-      await page.locator('#contrast-search-fixture .y-result').hover();
+      await page.locator('#contrast-search-fixture .y-found__item').hover();
       const hovered = await page.waitForFunction(() => (
-        document.querySelector('#contrast-search-fixture .y-result')?.matches(':hover') === true
+        document.querySelector('#contrast-search-fixture .y-found__item')?.matches(':hover') === true
       )).then(() => true, () => false);
       if (!hovered) return { issue: 'the pointer never landed on the result row' };
     }
@@ -767,16 +757,6 @@ const measureFocusOutline = async (page, theme, field) => {
   const response = await page.goto(BASE + field.path, { waitUntil: 'networkidle' });
   if (!response || response.status() !== 200) return { issue: `${field.path} returned ${response?.status() ?? 'no response'}, want 200` };
   await page.evaluate((selected) => { document.documentElement.dataset.theme = selected; }, theme);
-  if (field.palette) {
-    await page.evaluate(() => document.querySelector('dialog.y-searchdialog').showModal());
-    // The panel fades in. Measured mid-fade the ground is half the page
-    // behind it, which is a colour nobody ever sees at rest.
-    const opened = await page.waitForFunction(() => {
-      const dialog = document.querySelector('dialog.y-searchdialog');
-      return Boolean(dialog?.open) && Number.parseFloat(getComputedStyle(dialog).opacity) === 1;
-    }).then(() => true, () => false);
-    if (!opened) return { issue: 'the palette never finished opening' };
-  }
   await page.focus(field.input);
   const took = await page.waitForFunction(
     (selector) => document.querySelector(selector)?.matches(':focus-within'),
@@ -990,7 +970,8 @@ try {
 
   // The focused search field, on both grounds a field sits on, in both themes.
   {
-    const context = await openContext(browser, 'focus');
+    // The page's field is the phone's: a wider window asks through the header.
+    const context = await openContext(browser, 'focus', { viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
     // One navigation before the first proof, so "the sheet was never asked
     // for" cannot be reported about a context that has not loaded a page yet.

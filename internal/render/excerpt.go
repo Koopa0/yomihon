@@ -73,6 +73,9 @@ func PlainProjection(body string) Projection {
 		return result
 	}
 	effects := noteDisplayEffects([]byte(source), &rewritten)
+	for _, span := range rewritten.wikilinkTargets {
+		effects = append(effects, DisplaySpan{Start: span[0], End: span[1], Hidden: true})
+	}
 	for _, hidden := range []bool{true, false} {
 		intervals := displayIntervals(effects, hidden)
 		result.DisplaySpans = append(result.DisplaySpans, emittedDisplaySpans(intervals, emissions, len(plain))...)

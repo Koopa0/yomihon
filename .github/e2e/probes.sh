@@ -19,9 +19,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 probes=(
   "page-change.mjs|/"
   "brand-contract.mjs|/"
-  "palette.mjs|/"
-  "search-behavior.mjs|/"
-  "search-keys.mjs|/"
+  "search-live.mjs|/"
   "search-focus-restore.mjs|/notes/Notes/alpha.md"
   "filter-inline-reveal.mjs|/notes/Notes/alpha.md"
   "drawer-contract.mjs|/notes/Notes/alpha.md"
@@ -100,7 +98,6 @@ probes=(
   "range-end-landing.mjs|/search?q=%22alpha%20beta%20gamm%22"
   "result-landing-suffix.mjs|/search?q=%E3%82%8C%E3%80%81"
   "nothing-notice-width.mjs|/search?q=qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll"
-  "search-facets.mjs|/search?q=a"
   "search-overflow.mjs|/search?q=stoppedAt"
   "largest-text.mjs|/search?q=alpha"
   "shelf-order.mjs|/marks"
@@ -111,7 +108,6 @@ probes=(
   "source-preview.mjs|/notes/Notes/source-locations-claim.md"
   # A query broad enough that its answer runs past one page, which is what
   # gives this one a way on to follow. It drives the findings table itself.
-  "pager-contract.mjs|/search?q=e"
   "question-marks.mjs|/notes/Writing/lessons/japanese/L01.md"
   "concept-sheet.mjs|/notes/Writing/lessons/japanese/L01.md"
   "reading-without-interaction.mjs|/notes/Notes/Reading%20flow.md"

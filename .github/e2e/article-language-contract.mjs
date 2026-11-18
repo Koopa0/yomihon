@@ -123,10 +123,10 @@ const rewriteFolderTitles = async (page) => {
 // has none. What decides how it is announced is the nearest declaration above it,
 // which is what this collects.
 const readListingLanguages = () => ({
-  searchTitles: Array.from(document.querySelectorAll('.y-result'), (element) => ({
+  searchTitles: Array.from(document.querySelectorAll('.y-found__item'), (element) => ({
     href: element.getAttribute('href'),
-    text: element.querySelector('.y-result__title')?.textContent,
-    lang: element.querySelector('.y-result__title')?.getAttribute('lang'),
+    text: element.querySelector('.y-found__title')?.textContent,
+    lang: element.querySelector('.y-found__title')?.getAttribute('lang'),
   })),
   folderTitles: Array.from(document.querySelectorAll('.y-lrow__title'), (element) => ({
     text: element.textContent,
@@ -223,7 +223,7 @@ const MUTATIONS = {
   },
   'drop-search-listing-lang': {
     target: 'listing-search-declared-language',
-    apply: rewritePath(SEARCH_DECLARED, '<span class="y-result__title" lang="ja">', '<span class="y-result__title">', 'search listing title language'),
+    apply: rewritePath(SEARCH_DECLARED, '<span class="y-found__title" lang="ja">', '<span class="y-found__title">', 'search listing title language'),
   },
   'drop-folder-listing-lang': {
     target: 'listing-folder-declared-language',
@@ -233,7 +233,7 @@ const MUTATIONS = {
   },
   'stamp-search-undeclared-lang': {
     target: 'listing-search-undeclared-language',
-    apply: rewritePath(SEARCH_UNDECLARED, `<a class="y-result" href="${UNDECLARED_NOTE}"><span class="y-result__title">は</span>`, `<a class="y-result" href="${UNDECLARED_NOTE}"><span class="y-result__title" lang="ja">は</span>`, 'undeclared search listing title language'),
+    apply: rewritePath(SEARCH_UNDECLARED, `<a class="y-found__item" href="${UNDECLARED_NOTE}"><span class="y-found__title">は</span>`, `<a class="y-found__item" href="${UNDECLARED_NOTE}"><span class="y-found__title" lang="ja">は</span>`, 'undeclared search listing title language'),
   },
 };
 
@@ -390,7 +390,7 @@ try {
 
   const declaredSearchTitle = searchDeclaredDOM.searchTitles.find((row) => row.text.includes('L01'));
   if (!declaredSearchTitle) {
-    broken(`search for L01 returned no .y-result__title rows: ${JSON.stringify(searchDeclaredDOM.searchTitles)}`);
+    broken(`search for L01 returned no .y-found__title rows: ${JSON.stringify(searchDeclaredDOM.searchTitles)}`);
   } else if (declaredSearchTitle.lang !== 'ja') {
     fail('listing-search-declared-language', `L01 search title declares ${JSON.stringify(declaredSearchTitle.lang)}, want "ja"`);
   }

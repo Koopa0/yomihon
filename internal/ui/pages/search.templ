@@ -5,6 +5,7 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
@@ -23,10 +24,28 @@ type SearchView struct {
 	Total      int
 	Diagnostic string
 
-	// Pager is the way to the rest of a long answer, drawn under the rows. It
-	// is empty on the palette, which floats over a page it does not own and has
-	// nowhere to send a reader who follows a page number.
-	Pager Pager
+	// Sort is the two orders the answer can be read in, the one in use marked.
+	// Each carries the address that reads the same answer in that order.
+	Sort []SearchChoice
+
+	// ByDate says the answer is read by last change, the order whose key a row
+	// has to show: each item then ends its line with the day it changed, as of
+	// Now.
+	ByDate bool
+	Now    time.Time
+
+	// Kinds and Locations are the rows the answer can be narrowed along, each
+	// counted over the answer as the other row leaves it. They are empty when
+	// the answer is small enough to read through, which is the one case a
+	// filter is not worth its row.
+	Kinds     []SearchChoice
+	Locations []SearchChoice
+
+	// Shown is how many of the answer's notes the list holds, and More is the
+	// address that reads twenty further. The address carries the count, so
+	// coming back to the page finds the list as it was left.
+	Shown int
+	More  SearchMore
 
 	// UnknownFilterKeys are the words this query wrote before a colon that the
 	// grammar does not accept. Their terms were searched for as text, and
@@ -42,16 +61,13 @@ type SearchView struct {
 	// search it has made useless.
 	StepBacks []SearchStepBack
 
+	// Near is the word to offer in place of a query nothing matched.
+	Near SearchNear
+
 	// LiteralOperators names terms searched as words despite their operator
 	// shape. FolderSuggestions repairs a basename to a counted full-path query.
 	LiteralOperators  []string
 	FolderSuggestions []SearchStepBack
-
-	// Facets is the column beside the results: what the current answer is made
-	// of, and the narrower search each part of it leads to. It is empty on the
-	// live-search dialog, which asks the same endpoint for the same rows and
-	// has no column to put them in.
-	Facets []SearchFacet
 
 	// Sidebar is the resolved left navigation, built where every other page
 	// builds it, so arriving at a search never strands the reader in a
@@ -69,20 +85,30 @@ type SearchResult struct {
 	// otherwise, so a listing inherits the page language rather than guessing.
 	Language string
 	// Draft is whether the note declares itself unfinished.
-	Draft   bool
-	Snippet string
+	Draft bool
 
-	// SnippetRuns is the snippet cut into the stretches that matched the query
-	// and the stretches that did not, so the page can mark the words the reader
-	// typed. Every run's text is rendered as text, so a note can no more become
-	// markup here than it could before.
-	SnippetRuns []SnippetRun
+	// TitleRuns is the title cut into what the query found and what it did
+	// not, so the words the reader typed are marked in it too.
+	TitleRuns []SnippetRun
 
-	// PathRuns is where this note lives, cut the same way, so a hit reached
-	// through its path can say so — such a hit has no snippet, nothing in its
-	// words having matched. It is empty where the path holds nothing the query
-	// asked for, which is most rows.
-	PathRuns []SnippetRun
+	// Lead is the passage shown under the title, opening at the sentence that
+	// holds the first hit. LeadNear is the same passage cut for a single line
+	// and is empty where it would read the same. LeadCode says the passage is
+	// a line of code, set in the monospace face. Every run is rendered as text.
+	Lead     []SnippetRun
+	LeadNear []SnippetRun
+	LeadCode bool
+
+	// Kind is the word for what the note is, empty for an ordinary note.
+	// WhereRuns is the last two levels of the folder it lives in, or the word
+	// for the vault's top. It carries a hit only when nothing else on the row
+	// does: the title and the excerpt are where a hit is marked.
+	Kind      string
+	WhereRuns []SnippetRun
+
+	// Changed is when the note last changed, shown only to a reader of the
+	// answer by date.
+	Changed time.Time
 
 	// AliasRuns is the name that answered the query where it was not the title,
 	// cut the same way. The row shows a title, so a reader who searched one of a
@@ -91,10 +117,6 @@ type SearchResult struct {
 
 	// TagRuns names the frontmatter tag that answered a tag-only query.
 	TagRuns []SnippetRun
-
-	// File marks a hit that is a vault file rather than a note, named on the
-	// row so it does not read as a note.
-	File bool
 
 	// Landing is the first-block stretch a browser text directive can find
 	// for a body hit. Empty when the row has no body match, or when a
@@ -156,39 +178,63 @@ type SearchStepBack struct {
 	Count int
 }
 
-// SearchFacet is one key the current answer divides along: the name of the
-// field in the reader's language, the key itself for a surface that needs to
-// say which division it is looking at, and one row per value.
-type SearchFacet struct {
-	Key     string
-	Heading string
-	Rows    []SearchFacetRow
+// SearchChoice is one way to read the answer: an order, a kind, a place. It
+// carries the address that reads the same answer that way, and whether the
+// answer is being read that way now. Count is how many notes the choice holds,
+// or negative where it does not say.
+type SearchChoice struct {
+	Label  string
+	Count  int
+	Href   string
+	Active bool
 }
 
-// SearchFacetRow is one value of a division: what it is called, how many of
-// the current hits are at it, and the search that follows from it.
-type SearchFacetRow struct {
-	// Label is the value in the vault's own spelling, or the sentence standing
-	// for the hits that declared none.
-	Label string
+// SearchMore is the way on from the notes the list holds: how many it brings
+// and where it is read from. The zero value is the end of the answer.
+type SearchMore struct {
 	Count int
+	Href  string
+}
 
-	// Query is the search this row leads to — the current query narrowed to
-	// this value, or, for a value already in it, the current query with that
-	// constraint taken out. It is empty where there is no search to offer: the
-	// hits that declared nothing cannot be asked for, since the grammar has no
-	// way to write "this field is absent", and neither can a value this
-	// grammar cannot spell. A row with no query is a cell rather than a link.
-	Query string
+// SearchPanelView is what opens under a field or fills the phone's surface: a
+// few notes, the folders whose names match, and the way to the rest. Query is
+// empty for a field that was only focused, which has nothing to answer.
+type SearchPanelView struct {
+	Query   string
+	Notes   []SearchPanelNote
+	Folders []SearchPanelFolder
+	// Total is how many notes the query has in all, and AllHref reads them.
+	Total   int
+	AllHref string
+	Near    SearchNear
+	// Diagnostic is the sentence standing in for an answer the index could not
+	// give; the panel shows no rows then.
+	Diagnostic bool
+}
 
-	// Active marks a value the current query already names, whose row leads
-	// back out of it rather than further in.
-	Active bool
+// SearchPanelNote is one row of the panel: the title cut near the hit, and the
+// folder it is in, last level only.
+type SearchPanelNote struct {
+	TitleRuns []SnippetRun
+	Folder    string
+	Href      string
+	Language  string
+}
 
-	// Unstated marks the row standing for the hits that declared no value for
-	// this key. It is kept off the values rather than sorted among them,
-	// because "no domain declared" is not a domain.
-	Unstated bool
+// SearchPanelFolder is a folder whose name the query matches: its name cut
+// where it matched, the folder above it, and how many notes it holds.
+type SearchPanelFolder struct {
+	NameRuns []SnippetRun
+	Parent   string
+	Count    int
+	Href     string
+}
+
+// SearchNear is the closest word the vault's titles hold to a query nothing
+// matched, and the search for it. Empty when nothing is near.
+type SearchNear struct {
+	Word string
+	Href string
 }
 
 // Search is the results page: a GET form and a flat list of hits in the shared
@@ -213,25 +259,21 @@ templ Search(v SearchView, c layouts.Chrome) {
 				// the divisions that go in it. The script builds its request
 				// from this attribute and sets the query on top, so the marker
 				// rides along without the script knowing it is there.
-				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results?facets=1" data-live-search-sync-url>
-					// The page opens by saying which page it is, so arriving by
-					// ear lands on something other than an unexplained text
-					// field. It says that to the listener alone: what a reader
-					// came to look at is the field they type in, which is the
-					// largest thing on the page, and the count is already stated
-					// above the hits.
-					<h1 class="y-offscreen y-offscreen--block">{ wording.SearchTitle.In(c.Lang) }</h1>
+				<div class="y-searchpage" data-live-search data-live-search-endpoint="/search/results" data-live-search-sync-url>
 					// The field is not focused on arrival. Inside the palette that
 					// is the whole point — it opens on a keystroke and the reader
 					// is already typing — but this page is reached deliberately,
 					// and a reader who follows a result and comes back would land
 					// in the text box rather than near the result they left, with
 					// the skip link already behind them.
+					// The field is the phone's: a wider window asks through the header.
 					<search>
 						<form class="y-searchpage__form" method="get" action="/search" data-live-search-form>
 							<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-							<input type="search" name="q" value={ v.Query } placeholder={ wording.SearchNotesPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) } data-live-search-input/>
-							<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
+							<input type="search" name="q" value={ v.Query } placeholder={ wording.SearchNotesPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) } enterkeyhint="search" autocomplete="off" spellcheck="false" data-live-search-input/>
+							<button type="button" class="y-searchpage__clear" aria-label={ wording.SearchClearField.In(c.Lang) } data-live-search-clear hidden?={ v.Query == "" }>
+								@layouts.Icon("close")
+							</button>
 						</form>
 					</search>
 					@layouts.LiveSearchStatus(c.Lang)
@@ -243,19 +285,25 @@ templ Search(v SearchView, c layouts.Chrome) {
 }
 
 // SearchResults is the server-rendered results fragment shared by the full page
-// and the progressive search fields. The outer data marker carries the true
-// match tally, which the live-search status line announces, while the list below
-// holds at most the handler's bounded opening stretch.
+// and the live refreshes. The outer data marker carries the true match tally,
+// which the live-search status line announces, while the list below holds the
+// notes read so far.
 templ SearchResults(v SearchView, lang wording.Lang) {
 	<div class="y-searchresults" data-live-search-results data-result-count={ strconv.Itoa(v.Total) } aria-busy="false">
-		if len(v.Facets) > 0 {
-			@searchFacets(v.Facets, lang)
-		}
-		<div class="y-searchresults__body">
+		// The page is named by what it answers: the query in brackets on a
+		// screen wide enough for a title, and on a phone by the field, which is
+		// the first thing there. A page with nothing asked is the search page.
+		<h1 class="y-title y-searchpage__title">
+			if v.Query != "" {
+				{ wording.SearchQueryOpen.In(lang) }{ v.Query }{ wording.SearchQueryClose.In(lang) }
+			} else {
+				{ wording.SearchTitle.In(lang) }
+			}
+		</h1>
+		<div>
 			if v.Query != "" {
 				// Which query these rows answer, carried with them and hidden. The
-				// live search shows it when a refresh fails and leaves them standing;
-				// with no script there is no such moment, and the page is unchanged.
+				// live search shows it when a refresh fails and leaves them standing.
 				<p class="y-live-search__status" data-live-search-stale={ v.Query } hidden>{ fmt.Sprintf(wording.LiveSearchStaleFmt.In(lang), v.Query) }</p>
 			}
 			if len(v.UnknownFilterKeys) > 0 {
@@ -281,77 +329,84 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 					</p>
 				</div>
 			} else if len(v.Results) > 0 {
-				// Printed rather than left to the live region the client writes,
-				// so a reader without scripting still learns how many the query
-				// found, and a reader looking at the page sees a number at all.
-				<p class="y-results__count">{ searchCount(&v, lang) }</p>
+				<div class="y-countline y-countline--search">
+					<p class="y-results__count">{ searchCount(&v, lang) }</p>
+					<span class="y-seg" role="group" aria-label={ wording.SearchSortLabel.In(lang) }>
+						for _, c := range v.Sort {
+							<a href={ templ.URL(c.Href) } data-search-choice aria-pressed={ strconv.FormatBool(c.Active) }>{ c.Label }</a>
+						}
+					</span>
+				</div>
+				if len(v.Kinds) > 0 || len(v.Locations) > 0 {
+					<div class="y-searchfilters">
+						if len(v.Kinds) > 0 {
+							@searchChoiceRow(wording.SearchKindLabel.In(lang), v.Kinds, false)
+						}
+						if len(v.Locations) > 0 {
+							@searchChoiceRow(wording.SearchLocationLabel.In(lang), v.Locations, true)
+						}
+					</div>
+				}
 				// The hits are one set, so they are marked as one: a listener is
 				// told where it starts, how many it holds, and where it ends. The
 				// role is written out because the style reset takes the markers
 				// off, and a list without markers loses its meaning outright in
 				// WebKit.
-				<ol class="y-results" role="list">
+				<ol class="y-found" role="list">
 					for _, r := range v.Results {
 						<li>
-							<a class="y-result" href={ templ.URL(notesHref(r.RelPath) + hitFragment(&r)) }>
-								<span class="y-result__title" { authoredLanguageAttrs(r.Language)... }>{ r.Title }</span>
-								<span class="y-result__meta">
-									if len(r.PathRuns) > 0 {
-										@hitRuns(r.PathRuns)
+							<a class="y-found__item" href={ templ.URL(notesHref(r.RelPath) + hitFragment(&r)) }>
+								<span class="y-found__title" { authoredLanguageAttrs(r.Language)... }>
+									if len(r.TitleRuns) > 0 {
+										@hitRuns(r.TitleRuns)
 									} else {
-										{ r.RelPath }
-									}
-									if r.Draft {
-										<span class="ui-status">{ wording.Draft.In(lang) }</span>
-									}
-									if r.File {
-										<span class="y-result__sep" aria-hidden="true">·</span>
-										<span class="y-result__kind">{ wording.ResultKindFile.In(lang) }</span>
-									}
-									if r.FromFence {
-										<span class="y-result__sep" aria-hidden="true">·</span>
-										<span class="y-result__source">{ wording.ResultSourceLabel.In(lang) }</span>
-									}
-									if len(r.TagRuns) > 0 {
-										<span class="y-result__sep" aria-hidden="true">·</span>
-										<span class="y-result__tag">
-											{ wording.ResultTagLabel.In(lang) }
-											@hitRuns(r.TagRuns)
-										</span>
-									}
-									if len(r.AliasRuns) > 0 {
-										<span class="y-result__sep" aria-hidden="true">·</span>
-										<span class="y-result__alias">
-											{ wording.ResultAliasLabel.In(lang) }
-											@hitRuns(r.AliasRuns)
-										</span>
+										{ r.Title }
 									}
 								</span>
 								if note := unlocatedNote(&r, lang); note != "" {
-									<span class="y-result__snippet">{ note }</span>
-								} else if len(r.SnippetRuns) > 0 {
-									<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>
-										@hitRuns(r.SnippetRuns)
+									<span class="y-found__lead">{ note }</span>
+								} else if len(r.Lead) > 0 {
+									// One passage serves every width unless the hit sits too
+									// far into the sentence for a one-line lead to show it; then
+									// the narrow cut is written beside it and the stylesheet
+									// shows the one the width has room for.
+									<span class={ "y-found__lead", templ.KV("y-found__lead--code", r.LeadCode) } { authoredLanguageAttrs(r.Language)... }>
+										if len(r.LeadNear) > 0 {
+											<span class="y-found__wide">@hitRuns(r.Lead)</span>
+											<span class="y-found__narrow">@hitRuns(r.LeadNear)</span>
+										} else {
+											@hitRuns(r.Lead)
+										}
 									</span>
-								} else if r.Snippet != "" {
-									<span class="y-result__snippet" { authoredLanguageAttrs(r.Language)... }>{ r.Snippet }</span>
 								}
+								<span class="y-found__where">
+									@foundWhere(&r, v.ByDate, v.Now, lang)
+								</span>
 							</a>
 						</li>
 					}
 				</ol>
-				@pager(v.Pager, lang)
+				if v.More.Count > 0 {
+					<div class="y-more">
+						<a class="y-more__button" href={ templ.URL(v.More.Href) } data-search-choice>{ fmt.Sprintf(wording.SearchShowMoreFmt.In(lang), v.More.Count) }</a>
+						<span class="y-more__tally">{ fmt.Sprintf(wording.SearchShownOfFmt.In(lang), Thousands(v.Shown), Thousands(v.Total)) }</span>
+					</div>
+				}
 			} else if v.Query != "" {
-				// The sentence naming what was not found is the heading of this
-				// moment, and the advice under it is what the reader can do next.
-				// No live region marks either: nothing here is arriving, and the
-				// count beside the field is already announced.
-				@nothingToShow(nothingNotice{Kind: "search", Title: fmt.Sprintf(wording.NoResultsFmt.In(lang), v.Query)}) {
+				// The page title is the query, the count is none, and what is left
+				// is the nearest way out. Nothing here explains how the index works.
+				<p class="y-results__count">{ searchCount(&v, lang) }</p>
+				<div class="y-searchnone" data-search-none>
+					if v.Near.Word != "" {
+						<p class="y-searchnone__near">
+							{ strings.SplitN(wording.SearchDidYouMeanFmt.In(lang), "%s", 2)[0] }<a href={ templ.URL(v.Near.Href) }>{ v.Near.Word }</a>{ strings.SplitN(wording.SearchDidYouMeanFmt.In(lang), "%s", 2)[1] }
+						</p>
+					}
 					if len(v.LiteralOperators) > 0 {
-						<p class="y-nothing__hint" data-literal-operator>{ wording.LiteralOperatorSentence(lang, v.LiteralOperators) }</p>
+						<p class="y-searchnone__hint" data-literal-operator>{ wording.LiteralOperatorSentence(lang, v.LiteralOperators) }</p>
 					}
 					if len(v.FolderSuggestions) > 0 {
-						<p class="y-nothing__hint" data-folder-suggestion>
+						<p class="y-searchnone__hint" data-folder-suggestion>
 							{ wording.FolderSuggestionsLabel.In(lang) }
 							for i, step := range v.FolderSuggestions {
 								if i > 0 {
@@ -363,7 +418,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 						</p>
 					}
 					if len(v.StepBacks) > 0 {
-						<p class="y-nothing__hint">
+						<p class="y-searchnone__hint">
 							{ wording.StepBackLabel.In(lang) }
 							for i, step := range v.StepBacks {
 								if i > 0 {
@@ -374,27 +429,81 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 							}
 						</p>
 					}
-					<p class="y-nothing__hint">{ wording.SearchScopeHint.In(lang) }</p>
-				}
-			} else {
-				// Nothing has been asked yet, and a blank page is the one moment
-				// with room to say which constraints this field understands
-				// without standing between the reader and an answer.
-				<div class="y-searchpage__empty" data-search-filters>
-					<p class="y-searchpage__emptylede">{ wording.SearchEmptyLede.In(lang) }</p>
-					<p class="y-searchpage__hint">
-						{ wording.FilterKeysAvailable.In(lang) }
-						for i, key := range v.FilterKeys {
-							if i > 0 {
-								{ wording.ListSeparator.In(lang) }
-							}
-							<code>{ key + ":" }</code>
-						}
-					</p>
+					<p class="y-searchnone__way"><a href="/folders">{ wording.SearchBrowseFolders.In(lang) }</a></p>
 				</div>
+			} else {
+				// Nothing has been asked yet. The reader's recent searches, kept in
+				// this browser, are written here by the script; with none, the page
+				// is the field and nothing else.
+				@recentSearches(lang)
 			}
 		</div>
 	</div>
+}
+
+// searchChoiceRow is one row of ways to narrow the answer. Each choice is a
+// link, so the row works as plain navigation. Where the row is a place it is a
+// native select at phone width, where a row of folder names would wrap to many
+// lines; the stylesheet shows the one the width has room for.
+templ searchChoiceRow(label string, choices []SearchChoice, asSelect bool) {
+	<div class="y-searchfilter">
+		<span class="y-searchfilter__label">{ label }</span>
+		<span class={ "y-seg", templ.KV("y-seg--wide", asSelect) } role="group" aria-label={ label }>
+			for _, c := range choices {
+				<a href={ templ.URL(c.Href) } data-search-choice aria-pressed={ strconv.FormatBool(c.Active) }>
+					{ c.Label }
+					if c.Count >= 0 {
+						<span class="y-seg__count">{ Thousands(c.Count) }</span>
+					}
+				</a>
+			}
+		</span>
+		if asSelect {
+			<select class="y-searchfilter__select" aria-label={ label } data-search-select>
+				for _, c := range choices {
+					<option value={ c.Href } selected?={ c.Active }>
+						{ c.Label }
+						if c.Count >= 0 {
+							{ " " + Thousands(c.Count) }
+						}
+					</option>
+				}
+			</select>
+		}
+	</div>
+}
+
+// foundWhere is the line under an item that says what kind of note it is and
+// where it lives, with whatever else made it an answer — the alias or tag the
+// query reached it by — and, for an answer read by date, the day it changed,
+// set after, in the same quiet type.
+templ foundWhere(r *SearchResult, byDate bool, now time.Time, lang wording.Lang) {
+	if r.Kind != "" {
+		<span class="y-result__kind">{ r.Kind }</span>
+		<span class="y-result__sep" aria-hidden="true">·</span>
+	}
+	<span>@hitRuns(r.WhereRuns)</span>
+	if r.Draft {
+		<span class="ui-status">{ wording.Draft.In(lang) }</span>
+	}
+	if len(r.TagRuns) > 0 {
+		<span class="y-result__sep" aria-hidden="true">·</span>
+		<span class="y-result__tag">
+			{ wording.ResultTagLabel.In(lang) }
+			@hitRuns(r.TagRuns)
+		</span>
+	}
+	if len(r.AliasRuns) > 0 {
+		<span class="y-result__sep" aria-hidden="true">·</span>
+		<span class="y-result__alias">
+			{ wording.ResultAliasLabel.In(lang) }
+			@hitRuns(r.AliasRuns)
+		</span>
+	}
+	if byDate && !r.Changed.IsZero() {
+		<span class="y-result__sep" aria-hidden="true">·</span>
+		<span class="y-found__date">{ listDate(r.Changed, now) }</span>
+	}
 }
 
 // hitRuns writes one piece of a result — its path, an alias, or the body
@@ -421,58 +530,59 @@ templ hitRuns(runs []SnippetRun) {
 	}
 }
 
-// searchFacets is the column beside the results: what the answer is made of,
-// each part of it a search. It is a fold in the markup and stays one at narrow
-// widths, where a list of values standing above the results would push them off
-// the first screen; the stylesheet holds it open where there is a column to put
-// it in, and hides the control that would otherwise be the only way to close
-// something that is not folded. Nothing here runs a script: every row is a link
-// the server already knows the answer to.
-//
-// The navigation landmark inside carries the name, because at the width where
-// the summary is hidden it is the only thing left to say what this region is.
-templ searchFacets(facets []SearchFacet, lang wording.Lang) {
-	<details class="y-facets" data-search-facets>
-		<summary class="y-facets__summary">
-			@chevron()
-			{ wording.FacetsTitle.In(lang) }
-		</summary>
-		<nav class="y-facets__body" aria-label={ wording.FacetsTitle.In(lang) }>
-			for _, facet := range facets {
-				<section data-facet-key={ facet.Key }>
-					<h2 class="y-facetgroup__head">{ facet.Heading }</h2>
-					<ul class="y-facetlist" role="list">
-						for _, row := range facet.Rows {
-							<li>
-								if row.Query != "" {
-									<a
-										class={ "y-facetrow", templ.KV("y-facetrow--active", row.Active) }
-										href={ templ.URL(searchHref(row.Query)) }
-										aria-label={ facetRowLabel(facet.Heading, row, lang) }
-										data-facet-row
-										data-facet-active?={ row.Active }
-									>
-										@facetRowBody(row, lang)
-									</a>
-								} else {
-									<span class="y-facetrow y-facetrow--quiet" data-facet-row>
-										@facetRowBody(row, lang)
-									</span>
-								}
-							</li>
-						}
-					</ul>
-				</section>
+// SearchPanel is the fragment under a field and on the phone's surface. The
+// first row is the one Enter opens; on the phone's surface the stylesheet takes
+// that mark off, since a touch has no current row.
+templ SearchPanel(v SearchPanelView, lang wording.Lang) {
+	<div class="y-sp" data-live-search-results data-result-count={ strconv.Itoa(v.Total) } aria-busy="false">
+		if v.Query == "" {
+			@recentSearches(lang)
+		} else if v.Diagnostic {
+			<p class="y-sp__status" data-search-diagnostic>{ wording.MetadataSearchUnavailable.In(lang) }</p>
+		} else if v.Total == 0 && len(v.Folders) == 0 {
+			<p class="y-sp__status" data-search-none>{ fmt.Sprintf(wording.SearchNoneFmt.In(lang), v.Query) }</p>
+			if v.Near.Word != "" {
+				<a class="y-sp__row" href={ templ.URL(v.Near.Href) } data-live-search-row aria-current="true">
+					<span class="y-sp__title">{ fmt.Sprintf(wording.SearchSearchFor.In(lang), v.Near.Word) }</span>
+				</a>
 			}
-		</nav>
-	</details>
+		} else {
+			<div role="listbox" aria-label={ wording.SearchNotes.In(lang) }>
+				for _, n := range v.Notes {
+					<a class="y-sp__row" role="option" href={ templ.URL(n.Href) } data-live-search-row>
+						<span class="y-sp__title" { authoredLanguageAttrs(n.Language)... }>@hitRuns(n.TitleRuns)</span>
+						if n.Folder != "" {
+							<span class="y-sp__where">{ n.Folder }</span>
+						}
+					</a>
+				}
+				for _, f := range v.Folders {
+					<a class="y-sp__row y-sp__row--folder" role="option" href={ templ.URL(f.Href) } data-live-search-row>
+						<span class="y-sp__icon">@layouts.Icon("folder")</span>
+						<span class="y-sp__title">@hitRuns(f.NameRuns)</span>
+						<span class="y-sp__where">
+							if f.Parent != "" {
+								{ f.Parent } ·{ " " }
+							}
+							{ noteCountFact(f.Count, lang) }
+						</span>
+					</a>
+				}
+			</div>
+			<a class="y-sp__all" href={ templ.URL(v.AllHref) } data-live-search-row>{ fmt.Sprintf(wording.SearchSeeAllFmt.In(lang), Thousands(v.Total)) }</a>
+		}
+	</div>
 }
 
-// facetRowBody is what one row shows whether or not it is a link, so the two
-// arms above cannot drift into showing different things.
-templ facetRowBody(row SearchFacetRow, lang wording.Lang) {
-	<span class="y-facetrow__label">{ row.Label }</span>
-	<span class="y-facetrow__count" data-facet-count={ strconv.Itoa(row.Count) }>
-		{ fmt.Sprintf(wording.FacetCountFmt.In(lang), row.Count) }
-	</span>
+// recentSearches is the reader's recent searches, kept in this browser. The
+// script writes the rows and shows the section; with none to show the section
+// stays hidden and the surface holds only the field.
+templ recentSearches(lang wording.Lang) {
+	<section class="y-recent" data-recent-searches hidden>
+		<div class="y-lgroup__head">
+			<h2 class="y-lgroup__name">{ wording.SearchRecent.In(lang) }</h2>
+			<button type="button" class="y-lgroup__action" data-recent-clear>{ wording.SearchClear.In(lang) }</button>
+		</div>
+		<ul class="y-recent__list" role="list" data-recent-list></ul>
+	</section>
 }

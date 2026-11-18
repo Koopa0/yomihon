@@ -43,7 +43,7 @@ func TestServedResultsCarryTheCountAndTheMarks(t *testing.T) {
 
 	// Rendered by the server, so it is there for a reader with no scripting at
 	// all — where it used to live, in the live region, it was there for neither.
-	if !strings.Contains(body, "共 2 筆") {
+	if !strings.Contains(body, "2 篇") {
 		t.Errorf("results page does not say how many were found; body = %q", body)
 	}
 	if n := strings.Count(body, "<mark>kafka</mark>"); n == 0 {
@@ -60,7 +60,7 @@ func TestServedResultsCarryTheCountAndTheMarks(t *testing.T) {
 	if fragCode != http.StatusOK {
 		t.Fatalf("fragment status = %d, want 200", fragCode)
 	}
-	for _, want := range []string{"共 2 筆", "<mark>kafka</mark>"} {
+	for _, want := range []string{"2 篇", "<mark>kafka</mark>"} {
 		if !strings.Contains(frag, want) {
 			t.Errorf("live-search fragment missing %q; body = %q", want, frag)
 		}
@@ -98,7 +98,7 @@ func TestServedStepBacksAppearOnlyOnTheEmptyAnswer(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	if !strings.Contains(body, "共 1 筆") {
+	if !strings.Contains(body, "1 篇") {
 		t.Fatalf("the with-results probe found nothing, so it can prove nothing; body = %q", body)
 	}
 	if strings.Contains(body, "改用較短的詞") {

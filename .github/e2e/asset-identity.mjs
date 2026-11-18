@@ -48,7 +48,7 @@ const facadePath = '/static/mermaid.esm.min.mjs';
 const facadeFiles = await readdir(new URL('../../assets/js/mermaid/', import.meta.url), { withFileTypes: true });
 if (!facadeFiles.some((file) => file.isFile() && file.name === 'mermaid.esm.min.mjs')) throw new Error('embedded Mermaid facade is missing');
 const modulePaths = [...ownPaths, facadePath].sort();
-if (ownPaths.length !== 19 || modulePaths.length !== 20) throw new Error('embedded client module inventory changed');
+if (ownPaths.length !== 20 || modulePaths.length !== 21) throw new Error('embedded client module inventory changed');
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const context = await browser.newContext();

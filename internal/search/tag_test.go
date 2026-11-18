@@ -49,7 +49,7 @@ func TestSearchShowsTheAnsweringFrontmatterTag(t *testing.T) {
 					if named != want {
 						t.Errorf("caught: answering tag HTML = %q, want %q", named, want)
 					}
-					if strings.Contains(row, "#:~:text=") || strings.Contains(row, "y-result__snippet") || strings.Contains(named, "<b>") || strings.Contains(named, "unrelated") {
+					if strings.Contains(row, "#:~:text=") || strings.Contains(row, "y-found__lead") || strings.Contains(named, "<b>") || strings.Contains(named, "unrelated") {
 						t.Errorf("caught: tag-only attribution invented body evidence or unsafe/unmatched markup: %q", row)
 					}
 				})

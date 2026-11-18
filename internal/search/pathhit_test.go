@@ -44,7 +44,7 @@ func TestAResultFoundByItsPathShowsWhereItMatched(t *testing.T) {
 	}
 
 	row := resultRow(t, body, "Pharmacology/Notes.md")
-	if strings.Contains(row, "y-result__snippet") {
+	if strings.Contains(row, "y-found__lead") {
 		t.Fatalf("the fixture's premise is wrong: this row has a snippet, so it is not the silent case:\n%s", row)
 	}
 	if !strings.Contains(row, "<mark>Pharmacology</mark>") {
@@ -54,7 +54,7 @@ func TestAResultFoundByItsPathShowsWhereItMatched(t *testing.T) {
 	// The control's path never held the term, so nothing in it is marked —
 	// otherwise the mark would say something about every row alike.
 	other := resultRow(t, body, "Concepts/Other.md")
-	if strings.Contains(other, "<mark>") && !strings.Contains(other, "y-result__snippet") {
+	if strings.Contains(other, "<mark>") && !strings.Contains(other, "y-found__lead") {
 		t.Errorf("a row matched by its words had its path marked:\n%s", other)
 	}
 }

@@ -252,7 +252,7 @@ const land = async (browser, testCase, width, furigana, apply) => {
   const proof = apply ? await apply(page) : null;
   await page.goto(BASE + (testCase.query === REPORT_QUERY ? PAGE : searchPath(testCase.query)), { waitUntil: 'domcontentloaded' });
 
-  const link = page.locator('a.y-result[href*="Suffix%20landing"]').first();
+  const link = page.locator('a.y-found__item[href*="Suffix%20landing"]').first();
   if (await link.count() !== 1) broken(`the results for ${JSON.stringify(testCase.query)} do not offer the note this probe was written around`);
   const href = await link.getAttribute('href');
 

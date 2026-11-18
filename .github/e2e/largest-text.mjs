@@ -54,15 +54,15 @@ const appendStyle = (css) => (page) => {
 
 const MUTATIONS = {
   // A result title set at a heading's size: the answer outshouts the question.
-  'enlarge-a-result-title': { target: QUERY_SITE, apply: appendStyle('.y-result__title{font-size:3rem}') },
+  'enlarge-a-result-title': { target: QUERY_SITE, apply: appendStyle('.y-found__title{font-size:3rem}') },
   // The query put back at the size of body text.
-  'shrink-the-query': { target: QUERY_SITE, apply: appendStyle('.y-searchpage__form input{font-size:1rem}') },
+  'shrink-the-query': { target: QUERY_SITE, apply: appendStyle('.y-searchpage__title{font-size:1rem}') },
   // The courses set at body size: a desk that opens on nothing in particular.
   'shrink-the-lead-courses': { target: DESK_SITE, apply: appendStyle('.y-modeblock--lead .ui-navitem{font-size:1rem}') },
   // A group's name set at a figure's size: the page's own name is outshouted.
   'enlarge-a-group-name': { target: HEALTH_SITE, apply: appendStyle('.y-healthgroup__title{font-size:3rem}') },
   // A hairline under every hit, which is the line the answer was drawn with.
-  'rule-between-results': { target: RULES_SITE, apply: appendStyle('.y-result{border-bottom:1px solid #000}') },
+  'rule-between-results': { target: RULES_SITE, apply: appendStyle('.y-found__item{border-bottom:1px solid #000}') },
 };
 
 for (const [name, mode] of Object.entries(MUTATIONS)) {
@@ -101,22 +101,18 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
 
-  const query = await page.locator('.y-searchpage__form input').evaluate((input) => Number.parseFloat(getComputedStyle(input).fontSize));
-  if (!(query > 0)) broken('the search page draws no query field to measure');
+  const query = await page.locator('.y-searchpage__title').evaluate((title) => Number.parseFloat(getComputedStyle(title).fontSize));
+  if (!(query > 0)) broken('the search page draws no title to measure');
   const sizes = await readSizes(page);
-  const others = sizes.filter((text) => text.what !== 'input.' && !text.what.startsWith('input'));
-  const larger = others.filter((text) => text.size > query);
-  if (query !== 28) {
-    fail(QUERY_SITE, `the query is set at ${query}px, want 28px`);
-  }
+  const larger = sizes.filter((text) => text.size > query);
   if (larger.length > 0) {
     const [first] = larger.sort((a, b) => b.size - a.size);
-    fail(QUERY_SITE, `${first.what} (${JSON.stringify(first.words)}) is set at ${first.size}px, larger than the 28px query the page is about`);
+    fail(QUERY_SITE, `${first.what} (${JSON.stringify(first.words)}) is set at ${first.size}px, larger than the ${query}px title the page is about`);
   }
 
-  const hits = await page.locator('.y-result').count();
+  const hits = await page.locator('.y-found__item').count();
   if (hits < 2) broken(`the search for alpha has ${hits} hits, too few for a line between them to be read`);
-  const lines = await page.locator('.y-result').evaluateAll((rows) => rows.map((row) => {
+  const lines = await page.locator('.y-found__item').evaluateAll((rows) => rows.map((row) => {
     const style = getComputedStyle(row);
     return { top: style.borderTopWidth, bottom: style.borderBottomWidth };
   }));
@@ -153,7 +149,7 @@ try {
   }
 
   await context.close();
-  console.log(`PASS largest-text: the query is 28px, the largest text on the search page, over ${hits} hits drawn with no line between them; the name of the health page, ${name}px, is larger than every group name and figure under it; the courses, ${leadSize}px, are the largest text on a desk with no place kept`);
+  console.log(`PASS largest-text: the page title, the query, is the largest text on the search page, over ${hits} hits drawn with no line between them; the name of the health page, ${name}px, is larger than every group name and figure under it; the courses, ${leadSize}px, are the largest text on a desk with no place kept`);
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

@@ -21,7 +21,6 @@ type exampleReader struct {
 	lang   wording.Lang
 	course string
 	drafts string
-	search string
 	// query is what a reader types to find the drafts note.
 	query string
 	// explanation is what the drafts note has to say about what marks an
@@ -34,7 +33,7 @@ type exampleReader struct {
 
 var exampleReaders = []exampleReader{
 	{
-		lang: wording.En, course: "Reading yomihon", drafts: "Drafts", search: "Search", query: "drafts",
+		lang: wording.En, course: "Reading yomihon", drafts: "Drafts", query: "drafts",
 		explanation: []string{
 			"A note with no draft field is finished.",
 			"It sets no field, draft or any other, and offers no button that would: the flag changes only in the author's editor.",
@@ -46,7 +45,7 @@ var exampleReaders = []exampleReader{
 		},
 	},
 	{
-		lang: wording.ZhHant, course: "讀懂 yomihon", drafts: "草稿", search: "搜尋", query: "草稿",
+		lang: wording.ZhHant, course: "讀懂 yomihon", drafts: "草稿", query: "草稿",
 		explanation: []string{
 			"沒有 draft 欄位的筆記就是寫完了。",
 			"它不設定任何欄位，draft 也一樣，也沒有任何按鈕會這麼做：這個旗標只在作者的編輯器裡改動。",
@@ -300,22 +299,19 @@ func TestExampleVaultSearchReachesTheDraftsNote(t *testing.T) {
 			if !strings.Contains(formBody, `name="q"`) {
 				t.Error("search page form has no q field")
 			}
-			if !strings.Contains(words(formBody), reader.search) {
-				t.Errorf("search page button does not say %q; form text = %q", reader.search, words(formBody))
-			}
 			if home := readingPageIn(t, site, "/", reader.lang); strings.Contains(elementInner(t, home, `<main`), `type="search"`) {
 				t.Error("Home draws a search field of its own")
 			}
 
 			results := readingPageIn(t, site, "/search?q="+url.QueryEscape(reader.query), reader.lang)
-			list := elementInner(t, results, `<ol class="y-results"`)
+			list := elementInner(t, results, `<ol class="y-found"`)
 			var row string
 			rows := 0
-			for _, chunk := range strings.Split(list, `<a class="y-result"`)[1:] {
+			for _, chunk := range strings.Split(list, `<a class="y-found__item"`)[1:] {
 				body, _, _ := strings.Cut(chunk, "</a>")
-				if strings.Contains(body, `class="y-result__title" lang="`+string(reader.lang)+`">`+reader.drafts+"</") {
+				if title := foundTitle(body, string(reader.lang)); title == reader.drafts {
 					rows++
-					row = `<a class="y-result"` + body + "</a>"
+					row = `<a class="y-found__item"` + body + "</a>"
 				}
 			}
 			if rows != 1 {
@@ -366,4 +362,16 @@ func TestExampleAssertionsRejectTheOldExplanations(t *testing.T) {
 			}
 		})
 	}
+}
+
+// foundTitle is the words of a result's title, with the marks the query made in
+// it taken out, or empty when the row's title is not written in lang.
+func foundTitle(row, lang string) string {
+	open := `class="y-found__title" lang="` + lang + `">`
+	_, rest, found := strings.Cut(row, open)
+	if !found {
+		return ""
+	}
+	inner, _, _ := strings.Cut(rest, "</span>")
+	return strings.TrimSpace(regexp.MustCompile(`<[^>]*>`).ReplaceAllString(inner, ""))
 }

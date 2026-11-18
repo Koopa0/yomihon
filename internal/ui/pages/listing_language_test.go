@@ -25,16 +25,16 @@ func TestSearchListingLanguageComesOnlyFromAuthority(t *testing.T) {
 		{
 			name: "undeclared note states no language on title or snippet",
 			want: []string{
-				`<span class="y-result__title">Alpha</span>`,
-				`<span class="y-result__snippet">needle in prose</span>`,
+				`<span class="y-found__title">Alpha</span>`,
+				`<span class="y-found__lead">needle in prose</span>`,
 			},
 		},
 		{
 			name: "Japanese note stamps title and snippet",
 			lang: "ja",
 			want: []string{
-				`<span class="y-result__title" lang="ja">L01 わたしは学生です</span>`,
-				`<span class="y-result__snippet" lang="ja">`,
+				`<span class="y-found__title" lang="ja">L01 わたしは学生です</span>`,
+				`<span class="y-found__lead" lang="ja">`,
 			},
 		},
 	}
@@ -47,14 +47,14 @@ func TestSearchListingLanguageComesOnlyFromAuthority(t *testing.T) {
 					RelPath:  "Notes/alpha.md",
 					Title:    "Alpha",
 					Language: tt.lang,
-					Snippet:  "needle in prose",
+					Lead:     []SnippetRun{{Text: "needle in prose"}},
 				}},
 				Total: 1,
 			}
 			if tt.lang == "ja" {
 				view.Results[0].RelPath = "Writing/lessons/japanese/L01.md"
 				view.Results[0].Title = "L01 わたしは学生です"
-				view.Results[0].Snippet = "わたしは学生です"
+				view.Results[0].Lead = []SnippetRun{{Text: "わたしは学生です"}}
 			}
 			var buf bytes.Buffer
 			if err := SearchResults(view, wording.ZhHant).Render(t.Context(), &buf); err != nil {
@@ -66,10 +66,10 @@ func TestSearchListingLanguageComesOnlyFromAuthority(t *testing.T) {
 					t.Errorf("SearchResults() missing %q in %q", want, html)
 				}
 			}
-			if tt.lang == "" && strings.Contains(html, `y-result__title" lang=`) {
+			if tt.lang == "" && strings.Contains(html, `y-found__title" lang=`) {
 				t.Errorf("undeclared search row stamped a title language: %q", html)
 			}
-			if tt.lang == "" && strings.Contains(html, `y-result__snippet" lang=`) {
+			if tt.lang == "" && strings.Contains(html, `y-found__lead" lang=`) {
 				t.Errorf("undeclared search row stamped a snippet language: %q", html)
 			}
 		})
@@ -131,7 +131,7 @@ func TestSearchUnlocatedNoteUsesNoArticleLanguage(t *testing.T) {
 	if !strings.Contains(html, wording.SearchHitUnlocated.In(wording.ZhHant)) {
 		t.Fatalf("SearchResults() missing unlocated note sentence in %q", html)
 	}
-	if strings.Contains(html, `y-result__snippet" lang=`) {
+	if strings.Contains(html, `y-found__lead" lang=`) {
 		t.Errorf("unlocated search row stamped snippet language: %q", html)
 	}
 }

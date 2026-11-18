@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -20,19 +22,6 @@ import (
 )
 
 const maxQueryBytes = 4096
-
-// searchPageSize is how many hits one page of the answer holds. A result row
-// is three lines — the title, the address, the excerpt — so twenty is about
-// two screen-heights at a desk and the strip under them is reached in one
-// scroll; higher and the strip is never seen, lower and an ordinary one-word
-// query becomes a stack of pages.
-//
-// The index takes a bound and no offset, so a later page is asked for as
-// everything up to its end and the pages walked past are materialized on the
-// way. That is the price of leaving one way to ask the index rather than two;
-// the divisions beside the rows are unaffected, being tallied over every hit
-// before the bound cuts the list.
-const searchPageSize = 20
 
 // RequestSnapshot is the search index and shell state bound to one request
 // capture of an atomic vault generation and its artifact authority.
@@ -78,13 +67,16 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
+	// A search answers in notes: the vault's other files stay in the index but
+	// are neither found nor counted here.
+	snap.Index = snap.Index.Notes()
 	lang := origin.Language(r)
-	asked := pages.ParsePageNumber(r.URL.Query().Get("page"))
-	// The page itself always has the column and the strip, so the first render
-	// never depends on the marker the live refreshes carry.
-	view := answerView(&snap, q, h.query(snap.Index, q, lang, asked), lang, asked, true)
+	st := readState(r, q)
+	view := answerView(&snap, h.query(snap.Index, q, lang, wholeAnswer), st, lang)
 	view.Sidebar = pages.NewSidebar(snap.Shell, "")
-	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitleFor(lang, q))).Render(r.Context(), w); err != nil {
+	chrome := layouts.ChromeFromRequest(r, wording.SearchTitleFor(lang, q))
+	chrome.SearchQuery = view.Query
+	if err := pages.Search(view, chrome).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search page", q, err)
 	}
 }
@@ -101,120 +93,63 @@ type answer struct {
 	tokens     []string
 }
 
-// answerView is everything both faces say about one query, built once so the
-// full page and the live region cannot drift apart. onPage says whether this
-// face is the search page itself rather than the palette floating over another
-// one: only the page has a column to put the answer's divisions in, and only
-// the page has room under the rows for the way to the rest of them.
-//
-// The hits the index built run from the answer's start to the end of the page
-// asked for, so the stretch this page shows is the tail of them. A face with
-// no strip keeps what it was given and says how far the list was cut.
-func answerView(snap *RequestSnapshot, q string, a *answer, lang wording.Lang, asked pages.PageNumber, onPage bool) pages.SearchView {
-	found := a.found.Results
-	var strip pages.Pager
-	if onPage {
-		strip = pages.NewPager(asked, searchPageSize, a.found.Total, func(n pages.PageNumber) string {
-			return pages.SearchPageHref(q, n)
-		})
-		found = found[strip.First:strip.Last]
-	}
+// answerView is everything the page says about one query: the notes laid out
+// so far in the order asked for, the rows that narrow them, and the way on.
+// The fragment a live refresh asks for is built from the same view, so the two
+// cannot drift apart.
+func answerView(snap *RequestSnapshot, a *answer, st pages.SearchState, lang wording.Lang) pages.SearchView {
+	q := st.Query
+	nar := narrow(a.found.Results, st, snap.Roles, lang)
+	laid := orderedBy(nar.results, st.Sort, snap.Shell.Nav)
+	shown := min(max(st.Shown, pages.SearchStep), len(laid))
 	view := pages.SearchView{
 		Query:             q,
-		Results:           viewResults(found, a.tokens),
-		Pager:             strip,
-		Total:             a.found.Total,
+		Results:           viewResults(laid[:shown], a.tokens, snap.Roles, lang),
+		Total:             len(nar.results),
 		Diagnostic:        a.diagnostic,
+		Sort:              sortChoices(st, lang),
+		Kinds:             nar.kinds,
+		Locations:         nar.locations,
+		Shown:             shown,
 		StepBacks:         stepBackViews(snap.Index, q, a.found.Results, a.diagnostic),
 		UnknownFilterKeys: a.parsed.UnknownFilterKeys(),
 		FilterKeys:        lexical.FilterKeys(),
+	}
+	if st.Sort == pages.SearchSortRecent && snap.Shell.Nav != nil {
+		view.ByDate, view.Now = true, time.Now()
+		for i := range view.Results {
+			view.Results[i].Changed = snap.Shell.Nav.Listed(view.Results[i].RelPath).Modified
+		}
+	}
+	if shown < len(laid) {
+		more := st
+		more.Shown = shown + pages.SearchStep
+		view.More = pages.SearchMore{Count: min(pages.SearchStep, len(laid)-shown), Href: more.Address()}
 	}
 	if a.found.Total == 0 && a.diagnostic == "" {
 		view.LiteralOperators = a.parsed.LiteralOperatorTerms()
 		for _, s := range snap.Index.FolderSuggestions(q) {
 			view.FolderSuggestions = append(view.FolderSuggestions, pages.SearchStepBack{Query: s.Query, Count: s.Count})
 		}
-	}
-	if onPage && a.diagnostic == "" && snap.Shell.Governed {
-		view.Facets = facetViews(q, a.found.Facets, snap.Roles, lang)
+		if word := snap.Index.NearWord(q); word != "" {
+			view.Near = pages.SearchNear{Word: word, Href: pages.SearchState{Query: word}.Address()}
+		}
 	}
 	return view
 }
 
-// facetViews maps the index's divisions onto the column the page draws, and
-// builds each row's search by asking the grammar to write it. Removal and
-// addition both go through the parser's own rewriting, so a row can only offer
-// a query this grammar reads back as the one the row's count was taken from —
-// and the reader's own spelling, spacing and quoting survive untouched on
-// every part of the query the row is not about.
-//
-// A division no hit stated a value for draws nothing: a column reading "not
-// stated: 12" and offering nothing else narrows no search.
-func facetViews(q string, divisions []lexical.Facet, roles schema.NavigationRoles, lang wording.Lang) []pages.SearchFacet {
-	out := make([]pages.SearchFacet, 0, len(divisions))
-	for _, division := range divisions {
-		if len(division.Values) == 0 {
-			continue
-		}
-		facet := pages.SearchFacet{
-			Key:     division.Key,
-			Heading: wording.FacetHeading(division.Key, lang),
-			Rows:    make([]pages.SearchFacetRow, 0, len(division.Values)+1),
-		}
-		for _, value := range division.Values {
-			facet.Rows = append(facet.Rows, facetRow(q, division.Key, value, roles, lang))
-		}
-		if division.Unstated > 0 {
-			facet.Rows = append(facet.Rows, pages.SearchFacetRow{
-				Label:    wording.FacetUnstated.In(lang),
-				Count:    division.Unstated,
-				Unstated: true,
-			})
-		}
-		out = append(out, facet)
+// orderedBy lays hits out in the order the reader asked for. The index's own
+// order is by relevance; by last change puts the newest edit first and keeps
+// relevance among notes edited at the same moment.
+func orderedBy(hits []lexical.Result, sort string, m *nav.Model) []lexical.Result {
+	if sort != pages.SearchSortRecent || m == nil {
+		return hits
 	}
-	if len(out) == 0 {
-		return nil
-	}
-	return out
-}
-
-// valueLabel is the word a filter row shows for a value. A note type the rules
-// give the lesson, course or map role is named in the vocabulary's word for
-// that role, whatever the vault calls the type; the row's query still carries
-// the vault's own spelling, which is what the index matches.
-func valueLabel(key, value string, roles schema.NavigationRoles, lang wording.Lang) string {
-	if key != "type" {
-		return value
-	}
-	switch {
-	case roles.IsLessonType(value):
-		return wording.FacetTypeUnit.In(lang)
-	case roles.IsPathType(value):
-		return wording.FacetTypeCourse.In(lang)
-	case roles.IsMapType(value):
-		return wording.FacetTypeIndex.In(lang)
-	}
-	return value
-}
-
-// facetRow writes one value's row. Whether the query already names the value is
-// decided by removing it and seeing whether anything changed, rather than by a
-// second comparison of folded values kept here: the grammar decides what names
-// what, and the answer and the link the row offers then cannot disagree.
-func facetRow(q, key string, value lexical.FacetValue, roles schema.NavigationRoles, lang wording.Lang) pages.SearchFacetRow {
-	row := pages.SearchFacetRow{Label: valueLabel(key, value.Value, roles, lang), Count: value.Count}
-	constraint := lexical.Filter{Key: key, Value: value.Value}
-	if without := lexical.WithoutFilter(q, constraint); without != q {
-		row.Query, row.Active = without, true
-		return row
-	}
-	// A value this grammar cannot spell back — one carrying a quote character —
-	// leaves the row a cell with its count and no offer.
-	if narrowed, ok := lexical.WithFilter(q, constraint); ok {
-		row.Query = narrowed
-	}
-	return row
+	hits = slices.Clone(hits)
+	slices.SortStableFunc(hits, func(a, b lexical.Result) int {
+		return m.Listed(b.RelPath).Modified.Compare(m.Listed(a.RelPath).Modified)
+	})
+	return hits
 }
 
 // results renders only the lexical-results region used by progressive search.
@@ -225,36 +160,50 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
+	// A search answers in notes: the vault's other files stay in the index but
+	// are neither found nor counted here.
+	snap.Index = snap.Index.Notes()
 	lang := origin.Language(r)
-	// A face with no strip under its rows has no page to ask for: a stretch
-	// nothing can step to or step back from would be an answer the reader has
-	// no way out of. The palette shows the opening of the answer and says how
-	// many there are, and Enter is the way to the rest.
-	onPage := wantsFacets(r)
-	asked := pages.PageNumber(1)
-	if onPage {
-		asked = pages.ParsePageNumber(r.URL.Query().Get("page"))
-	}
-	answered := h.query(snap.Index, q, lang, asked)
+	panel := r.URL.Query().Get(shapeParam) == shapePanel
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	view := answerView(&snap, q, answered, lang, asked, onPage)
+	if panel {
+		view := panelView(&snap, h.query(snap.Index, q, lang, panelNotes), q)
+		if err := pages.SearchPanel(view, lang).Render(r.Context(), w); err != nil {
+			h.logQueryWriteFailure(r, "write search panel", q, err)
+		}
+		return
+	}
+	view := answerView(&snap, h.query(snap.Index, q, lang, wholeAnswer), readState(r, q), lang)
 	if err := pages.SearchResults(view, lang).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search results", q, err)
 	}
 }
 
-// query reads one query and answers it. The hits are built as far as the end
-// of the page asked for, and the whole listing where that is what was asked;
-// the tally and the divisions are taken over every hit either way, so a page
-// can state what the whole answer holds while showing one stretch of it. The
-// parse travels in the answer because the view needs it too, and reading the
-// same text twice per request is the cost this saves.
-func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang, asked pages.PageNumber) *answer {
+// The two shapes this route answers in. The page asks for the whole answer
+// laid out as a list; the field's dropdown and the phone surface ask for the
+// few rows that fit under a field.
+const (
+	shapeParam = "shape"
+	shapePanel = "panel"
+)
+
+// wholeAnswer asks the index for every hit, and panelNotes for the few a
+// dropdown shows, the tally being taken over all of them either way.
+const (
+	wholeAnswer = -1
+	panelNotes  = 6
+)
+
+// query reads one query and answers it, building as many hits as limit allows;
+// the tally is over every hit either way. The parse travels in the answer
+// because the view needs it too, and reading the same text twice per request
+// is the cost this saves.
+func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang, limit int) *answer {
 	parsed := lexical.Parse(q)
-	found, err := idx.Search(parsed, searchLimit(asked))
+	found, err := idx.Search(parsed, limit)
 	if errors.Is(err, lexical.ErrMetadataUnavailable) {
 		return &answer{parsed: parsed, diagnostic: unavailableSentence(err, lang)}
 	}
@@ -263,16 +212,6 @@ func (h *Handler) query(idx *lexical.Index, q string, lang wording.Lang, asked p
 		return &answer{parsed: parsed, diagnostic: wording.SearchUnavailable.In(lang)}
 	}
 	return &answer{parsed: parsed, found: found, tokens: parsed.Tokens()}
-}
-
-// searchLimit is how far into the answer the index is asked to build. A page
-// is everything up to its end, because the index takes a bound and no offset;
-// the undivided listing is asked for whole.
-func searchLimit(asked pages.PageNumber) int {
-	if asked == pages.AllPages {
-		return -1
-	}
-	return int(asked) * searchPageSize
 }
 
 // unavailableSentence says why a metadata query could not be answered, in this
@@ -329,24 +268,6 @@ func queryFacts(rawQuery string, err error) []any {
 	}
 }
 
-// facetsParam is the request's name for the one difference between the two
-// faces that ask this endpoint for the same rows. The search page's live region
-// carries it on the endpoint it names; the command palette's does not, because
-// it floats over a page and has no column to put a division in.
-//
-// It is what keeps the palette's answer exactly what it was: without it the
-// only way to serve one fragment to two faces would be to send the column to
-// both and paint it out of one, which is markup a reader's browser is handed
-// and told to ignore. A handler test holds the difference, because two routes
-// that look alike are what a later tidying merges.
-const facetsParam = "facets"
-
-// wantsFacets reads that marker off the request. It is a query parameter and
-// not an environment read: the process still has exactly one variable.
-func wantsFacets(r *http.Request) bool {
-	return r.URL.Query().Get(facetsParam) == "1"
-}
-
 func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 	q := r.URL.Query().Get("q")
 	if len(q) > maxQueryBytes {
@@ -363,7 +284,7 @@ func requestQuery(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 // viewResults maps the engine's results onto the view's plain field type.
-func viewResults(results []lexical.Result, tokens []string) []pages.SearchResult {
+func viewResults(results []lexical.Result, tokens []string, roles schema.NavigationRoles, lang wording.Lang) []pages.SearchResult {
 	out := make([]pages.SearchResult, len(results))
 	for i := range results {
 		r := &results[i]
@@ -372,12 +293,13 @@ func viewResults(results []lexical.Result, tokens []string) []pages.SearchResult
 			Title:         r.Title,
 			Draft:         r.Draft,
 			Language:      r.Language,
-			Snippet:       r.Snippet,
-			SnippetRuns:   bodyRuns(r, tokens),
-			PathRuns:      snippetRuns(r.RelPath, tokens),
+			TitleRuns:     snippetRuns(r.Title, tokens),
+			Lead:          excerptRuns(r.Lead.Runs),
+			LeadNear:      excerptRuns(r.Lead.Near),
+			LeadCode:      r.Lead.Code,
+			WhereRuns:     whereRuns(r, tokens, lang),
 			AliasRuns:     snippetRuns(r.Alias, tokens),
 			TagRuns:       viewRuns(lexical.MarkTagHits(r.Tag, tokens)),
-			File:          r.File,
 			Landing:       r.Landing,
 			LandingBare:   r.LandingBare,
 			LandingEnd:    r.LandingEnd,
@@ -386,25 +308,51 @@ func viewResults(results []lexical.Result, tokens []string) []pages.SearchResult
 			BlockCrossing: r.BlockCrossing,
 			FromFence:     r.FromFence,
 		}
+		if kind := kindOf(r, roles); kind != kindNote {
+			out[i].Kind = kindWord(kind, lang)
+		}
 	}
 	return out
 }
 
-func bodyRuns(result *lexical.Result, tokens []string) []pages.SnippetRun {
-	if result.SnippetRuns == nil {
-		return snippetRuns(result.Snippet, tokens)
+// whereRuns is the location line of a result. Hits are marked in the title and
+// the excerpt; the line carries one only for a note the query met by its folder
+// alone, where nothing else on the row would say why it is an answer.
+func whereRuns(r *lexical.Result, tokens []string, lang wording.Lang) []pages.SnippetRun {
+	where := whereWords(r.RelPath, lang)
+	if len(r.Lead.Runs) > 0 || r.Alias != "" || r.Tag != "" || slices.ContainsFunc(snippetRuns(r.Title, tokens), func(run pages.SnippetRun) bool { return run.Hit }) {
+		return []pages.SnippetRun{{Text: where}}
 	}
-	runs := make([]pages.SnippetRun, len(result.SnippetRuns))
-	for i, run := range result.SnippetRuns {
-		runs[i] = pages.SnippetRun{Text: run.Text, Hit: run.Hit, Deleted: run.Deleted}
+	return plainRuns(where, tokens)
+}
+
+func excerptRuns(runs []lexical.ExcerptRun) []pages.SnippetRun {
+	if len(runs) == 0 {
+		return nil
 	}
-	return runs
+	out := make([]pages.SnippetRun, len(runs))
+	for i, run := range runs {
+		out[i] = pages.SnippetRun{Text: run.Text, Hit: run.Hit, Deleted: run.Deleted}
+	}
+	return out
 }
 
 // snippetRuns dresses one piece of matched text for the page. Where the query
 // fell is the index's answer; what a matched stretch looks like is this page's.
 func snippetRuns(text string, tokens []string) []pages.SnippetRun {
 	return viewRuns(lexical.MarkHits(text, tokens))
+}
+
+// plainRuns is snippetRuns for a text that is shown whether or not the query
+// touched it: with no hit it is the one unmarked run.
+func plainRuns(text string, tokens []string) []pages.SnippetRun {
+	if text == "" {
+		return nil
+	}
+	if runs := snippetRuns(text, tokens); runs != nil {
+		return runs
+	}
+	return []pages.SnippetRun{{Text: text}}
 }
 
 func viewRuns(marked []lexical.HitRun) []pages.SnippetRun {

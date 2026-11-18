@@ -48,6 +48,7 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // before it is emptied, which the stylesheet reads to draw the fade.
 var clientOwned = []string{
 	"data-arrival",
+	"data-current",
 	"data-freshness",
 	"data-mermaid-error",
 	"data-nav",
@@ -56,6 +57,7 @@ var clientOwned = []string{
 	"data-rail-restoring",
 	"data-rail-settling",
 	"data-readaloud-idle",
+	"data-recent-query",
 	"data-reading",
 	"data-reply-fading",
 	"data-speaking",
