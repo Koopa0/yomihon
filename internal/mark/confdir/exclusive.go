@@ -28,7 +28,7 @@ var holderSeq atomic.Uint64
 // now. The command line and the running server are two processes over the same
 // directory, and without this the later of two changes writes over the earlier.
 // It waits up to wait for the lock, and takes one whose holder is gone.
-func Exclusive(dir, name string, wait time.Duration, change func() error) (err error) {
+func Exclusive(dir Dir, name string, wait time.Duration, change func() error) (err error) {
 	lock, err := Acquire(dir, name, newHolder(), abandoned, wait)
 	if err != nil {
 		return err

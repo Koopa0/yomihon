@@ -138,6 +138,38 @@ func TestReplaceRefusesAnythingButAFileName(t *testing.T) {
 	}
 }
 
+// Reading outside the directory would hand back a file that is not the reader's
+// own, such as one of a vault beside it, to code that then writes it as theirs.
+func TestReadRefusesAnythingButAFileName(t *testing.T) {
+	t.Parallel()
+	dir := homeIn(t)
+	// A file at every place a bad name would reach, so that a refusal is the check
+	// and not a file that happens to be missing.
+	for _, path := range []string{
+		filepath.Join(filepath.Dir(dir.Path()), "x.json"),
+		filepath.Join(dir.Path(), "sub", "b.json"),
+		filepath.Join(dir.Path(), "abs.json"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("x"), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+			t.Fatal(err)
+		}
+	}
+	if err := confdir.Replace(dir, "own.json", []byte("x")); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"..", "../x.json", "sub/b.json", `sub\b.json`, "/abs.json"} {
+		if data, err := confdir.Read(dir, name, 10); err == nil {
+			t.Errorf("Read(%q) = %q, want a refusal", name, data)
+		}
+	}
+	if data, err := confdir.Read(dir, "own.json", 10); err != nil || string(data) != "x" {
+		t.Errorf("Read of a file name = %q, %v, want what was written", data, err)
+	}
+}
+
 func TestReadRefusesAFileBeyondItsLimit(t *testing.T) {
 	t.Parallel()
 	dir := homeIn(t)

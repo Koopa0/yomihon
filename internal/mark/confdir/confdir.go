@@ -125,6 +125,9 @@ func Read(dir Dir, name string, limit int64) ([]byte, error) {
 	if err := dir.named(); err != nil {
 		return nil, err
 	}
+	if err := checkName(name); err != nil {
+		return nil, err
+	}
 	path := dir.Join(name)
 	if info, err := os.Stat(path); err != nil {
 		return nil, err

@@ -4,8 +4,10 @@ import (
 	"cmp"
 	"fmt"
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
+	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -25,7 +27,7 @@ import (
 // types: a name says what a programmer called something, and a type says what it
 // is.
 //
-// The rule has two halves, and neither is a list of writes.
+// The rule has three parts, and none is a list of writes.
 //
 //   - What may be named. Outside the one package that writes, code may name only
 //     the symbols of the packages that reach the filesystem or run a program
@@ -39,21 +41,38 @@ import (
 //     holds none cannot aim a write at a vault, and the compiler is what says so.
 //     shape and dirIsOpaque hold the package to it: a function that changes a
 //     file takes a Dir, and the Dir stays a type only Home and VaultDir make.
+//   - What is linked. The program is more than this module: the modules it
+//     links are read by the same names, may be only those on reviewedModules,
+//     may not be swapped by a replace, and may not hold a file in a language the
+//     guard does not read. What a call may be made with is held for the few
+//     calls whose harm is in an argument: a signal other than 0, and a network
+//     other than tcp.
 //
-// What this does not read: what third-party code does with a path it is handed,
-// reflection, and the one string the configuration directory begins as, which
-// the command takes from the platform and hands to the stores. A write that
-// reaches the disk by any of those is not one a check over this tree can see.
+// What this does not read: the one string the configuration directory begins as,
+// which the command takes from the platform and hands to the stores, so a Dir can
+// still be aimed at a vault by the string it is made from; what a reviewed
+// module does with a path it is handed; and a write through a descriptor that
+// was open already, such as standard input on a terminal opened read-write.
+// Reflection is not read either, so reflect and the template packages are
+// forbidden imports, and so are C, unsafe and go:linkname.
 
 // rawWriter is the one package that may name what changes a file. Everything
 // else in internal/mark goes through it, and this guard checks that they do: the
 // survey that made this list found no write outside it.
 const rawWriter = module + "/internal/mark/confdir"
 
-// releaseSystems are the platforms the release is built for, and so the
-// platforms whose files have to be read. A file chosen by a build constraint
+// target is a platform the release is built for.
+type target struct{ goos, goarch string }
+
+func (t target) String() string { return t.goos + "/" + t.goarch }
+
+// releaseTargets are the platforms .github/workflows/release.yml builds, and so
+// the platforms whose files have to be read. A file chosen by a build constraint
 // reaches the guard only on the platform that builds it.
-var releaseSystems = []string{"darwin", "linux", "windows"}
+var releaseTargets = []target{{"darwin", "arm64"}, {"darwin", "amd64"}, {"linux", "amd64"}, {"windows", "amd64"}}
+
+// fixtureTarget is the platform the fixtures are type-checked against.
+var fixtureTarget = target{"linux", "amd64"}
 
 // reachesFilesystem reports whether a package is one that can change a file or
 // run a program that can, which is the line between the packages whose symbols
@@ -81,6 +100,10 @@ func init() {
 	for _, name := range []string{
 		// The process's own streams, arguments and identity.
 		"os.Args", "os.Stdin", "os.Stdout", "os.Stderr", "os.Interrupt", "os.Exit",
+		// The types of a handle, named so a value can be declared and passed; what a
+		// handle can do is judged by each method below, since a method of the type
+		// is a name of its own.
+		"os.File", "os.Root", "syscall.Signal",
 		"os.Getenv", "os.Getpid", "os.Getwd", "os.UserConfigDir",
 		// Looking at the filesystem without changing it.
 		"os.Stat", "os.ReadFile", "os.DirFS", "os.OpenRoot", "os.SameFile",
@@ -107,6 +130,12 @@ var writeFamilies = []string{
 	"Remove", "Rename", "Symlink", "Truncate", "WriteFile",
 }
 
+// processFamilies are the names a handle that ends or signals a process answers
+// to. They are refused through an interface for the same reason writeFamilies
+// are: what answers the call is not known, and a process of the reader's is not
+// something yomihon touches except to ask whether it is there.
+var processFamilies = []string{"Kill", "Signal"}
+
 // alsoRefused are the symbols outside those packages that write to disk
 // anyway: they make files of their own, which the packages above would be
 // refused for. None is used, and each is one more way a reader would not look.
@@ -114,7 +143,73 @@ var alsoRefused = []string{
 	"runtime/debug.WriteHeapDump",
 	"net/http.Request.ParseMultipartForm", "net/http.Request.FormFile",
 	"mime/multipart.Reader.ReadForm",
-	"net.ListenUnix", "net.ListenUnixgram",
+	"net.ListenUnix", "net.ListenUnixgram", "net.ListenPacket",
+	"runtime/coverage.WriteMetaDir", "runtime/coverage.WriteCountersDir",
+	// A form that is not urlencoded is parsed as a multipart one, and a part
+	// larger than the memory it is given is written to a temporary file. Each
+	// handler reads r.PostForm after ParseForm, which never does.
+	"net/http.Request.FormValue", "net/http.Request.PostFormValue",
+}
+
+// constrainedCalls are the calls that are refused unless made with the one
+// argument that leaves them harmless: a signal of 0, which asks whether a
+// process is there and sends nothing, and a network that is tcp, which is a port
+// and not a file. A use that is not a call, or whose argument is not a constant
+// of that kind, is refused, since nothing then says what it is called with.
+var constrainedCalls = map[string]struct {
+	argument int
+	allowed  func(value constant.Value) bool
+}{
+	"os.Process.Signal":       {0, func(v constant.Value) bool { return v.Kind() == constant.Int && constant.Sign(v) == 0 }},
+	"net.Listen":              {0, isTCP},
+	"net.ListenConfig.Listen": {1, isTCP},
+}
+
+func isTCP(v constant.Value) bool {
+	if v.Kind() != constant.String {
+		return false
+	}
+	switch constant.StringVal(v) {
+	case "tcp", "tcp4", "tcp6":
+		return true
+	}
+	return false
+}
+
+// permittedCalls are the identifiers of calls to a constrainedCalls name that
+// are made with the argument it allows.
+func permittedCalls(u *unit) map[*ast.Ident]bool {
+	permitted := map[*ast.Ident]bool{}
+	for _, file := range u.files {
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, isCall := node.(*ast.CallExpr)
+			if !isCall {
+				return true
+			}
+			var name *ast.Ident
+			switch fun := call.Fun.(type) {
+			case *ast.SelectorExpr:
+				name = fun.Sel
+			case *ast.Ident:
+				name = fun
+			default:
+				return true
+			}
+			sym, ok := resolve(u.info.Uses[name])
+			if !ok {
+				return true
+			}
+			rule, constrained := constrainedCalls[sym.key]
+			if !constrained || len(call.Args) <= rule.argument {
+				return true
+			}
+			if value := u.info.Types[call.Args[rule.argument]].Value; value != nil && rule.allowed(value) {
+				permitted[name] = true
+			}
+			return true
+		})
+	}
+	return permitted
 }
 
 // forbiddenImports are the ways a program reaches the disk, or the memory the
@@ -175,19 +270,29 @@ func resolve(obj types.Object) (symbol, bool) {
 		return symbol{path: o.Pkg().Path(), key: o.Pkg().Path() + "." + o.Name()}, true
 	case *types.Const:
 		return symbol{path: o.Pkg().Path(), key: o.Pkg().Path() + "." + o.Name()}, true
+	case *types.TypeName:
+		// A type of a package that reaches the filesystem is named only if it is
+		// listed: a value of the type that writes can be made from its literal.
+		if o.Parent() != o.Pkg().Scope() {
+			return symbol{}, false
+		}
+		return symbol{path: o.Pkg().Path(), key: o.Pkg().Path() + "." + o.Name()}, true
 	}
 	return symbol{}, false
 }
 
 // refusal says what to call a use of obj that code outside rawWriter may not
 // make, or that there is none.
-func refusal(obj types.Object) (string, bool) {
+func refusal(obj types.Object, dependency bool) (string, bool) {
 	sym, ok := resolve(obj)
 	if !ok {
 		return "", false
 	}
 	if sym.viaIfaceFor != "" {
-		if hasPrefixIn(sym.viaIfaceFor, writeFamilies) {
+		// A package of another module calls the methods of its own types, whose
+		// names are its own business; what it reaches the filesystem with is a
+		// symbol of the packages above, which is judged.
+		if !dependency && (hasPrefixIn(sym.viaIfaceFor, writeFamilies) || hasPrefixIn(sym.viaIfaceFor, processFamilies)) {
 			return "a call through an interface to " + sym.viaIfaceFor + ", which a handle that writes answers", true
 		}
 		return "", false
@@ -195,7 +300,7 @@ func refusal(obj types.Object) (string, bool) {
 	if slices.Contains(alsoRefused, sym.key) {
 		return sym.key + ", which makes files of its own", true
 	}
-	if !reachesFilesystem(sym.path) || readOnly[sym.key] {
+	if !reachesFilesystem(sym.path) || readOnly[sym.key] || (dependency && dependencyReads[sym.key] != "") {
 		return "", false
 	}
 	// An error value of os is a name for a failure and holds no handle.
@@ -239,10 +344,15 @@ type unit struct {
 	pkg   *types.Package
 	// root is the directory paths are reported relative to.
 	root string
+	// dependency is a package of another module that is linked into the program.
+	dependency bool
 }
 
 func (u *unit) rel(pos token.Pos) (path string, line int) {
 	position := u.fset.Position(pos)
+	if u.dependency {
+		return u.path, position.Line
+	}
 	name := position.Filename
 	if u.root != "" {
 		if rel, err := filepath.Rel(u.root, name); err == nil {
@@ -263,11 +373,16 @@ func judge(u *unit) (found []site, writerUses int, used map[string]bool) {
 		what string
 	}
 	var uses []use
+	permitted := permittedCalls(u)
 	for id, obj := range u.info.Uses {
-		if what, refused := refusal(obj); refused {
+		if what, refused := refusal(obj, u.dependency); refused {
 			uses = append(uses, use{id.Pos(), what})
-		} else if sym, ok := resolve(obj); ok && readOnly[sym.key] && u.path != rawWriter {
-			used[sym.key] = true
+		} else if sym, ok := resolve(obj); ok {
+			if _, constrained := constrainedCalls[sym.key]; constrained && !permitted[id] {
+				uses = append(uses, use{id.Pos(), sym.key + ", which is not called with the one argument it is allowed with"})
+			} else if readOnly[sym.key] && !u.dependency {
+				used[sym.key] = true
+			}
 		}
 	}
 	slices.SortFunc(uses, func(a, b use) int { return cmp.Compare(a.pos, b.pos) })
@@ -314,7 +429,7 @@ func shape(u *unit) []site {
 			if id.Pos() < fn.decl.Body.Pos() || id.Pos() >= fn.decl.Body.End() {
 				continue
 			}
-			if _, refused := refusal(obj); refused {
+			if _, refused := refusal(obj, false); refused {
 				fn.writes = true
 			}
 			if callee, isFunc := obj.(*types.Func); isFunc && callee.Pkg() == u.pkg {
@@ -406,10 +521,21 @@ func dirIsOpaque(u *unit) []site {
 			if sig, ok := member.Type().(*types.Signature); ok && member.Exported() && returnsDir(sig) && !slices.Contains(dirMakers, member.Name()) {
 				found = append(found, at(member.Pos(), member.Name()+" returns a Dir and is not one of "+strings.Join(dirMakers, " and ")+", which are the only ways to make one"))
 			}
+		case *types.Var:
+			if member.Exported() && holdsDir(member.Type(), object, map[types.Type]bool{}) {
+				found = append(found, at(member.Pos(), member.Name()+" is a variable that holds a Dir, which anyone could set to a Dir of their own or read one from"))
+			}
 		case *types.TypeName:
 			typed, ok := member.Type().(*types.Named)
 			if !ok {
 				continue
+			}
+			if structure, isStructure := typed.Underlying().(*types.Struct); isStructure && member.Exported() && typed.Obj() != object {
+				for field := range structure.Fields() {
+					if field.Exported() && holdsDir(field.Type(), object, map[types.Type]bool{}) {
+						found = append(found, at(field.Pos(), typed.Obj().Name()+"."+field.Name()+" holds a Dir, which anyone could set to a Dir of their own"))
+					}
+				}
 			}
 			for method := range typed.Methods() {
 				if sig, isSig := method.Type().(*types.Signature); isSig && method.Exported() && returnsDir(sig) {
@@ -419,6 +545,52 @@ func dirIsOpaque(u *unit) []site {
 		}
 	}
 	return found
+}
+
+// holdsDir says whether a value of the type can be a Dir, or can hold or hand
+// out one: through a pointer, a slice, an array, a map, a channel, the exported
+// fields of a struct, or a function that takes or returns one.
+func holdsDir(t types.Type, dir types.Object, seen map[types.Type]bool) bool {
+	t = types.Unalias(t)
+	if seen[t] {
+		return false
+	}
+	seen[t] = true
+	switch typ := t.(type) {
+	case *types.Named:
+		if typ.Obj() == dir {
+			return true
+		}
+		return holdsDir(typ.Underlying(), dir, seen)
+	case *types.Pointer:
+		return holdsDir(typ.Elem(), dir, seen)
+	case *types.Slice:
+		return holdsDir(typ.Elem(), dir, seen)
+	case *types.Array:
+		return holdsDir(typ.Elem(), dir, seen)
+	case *types.Chan:
+		return holdsDir(typ.Elem(), dir, seen)
+	case *types.Map:
+		return holdsDir(typ.Key(), dir, seen) || holdsDir(typ.Elem(), dir, seen)
+	case *types.Struct:
+		for field := range typ.Fields() {
+			if field.Exported() && holdsDir(field.Type(), dir, seen) {
+				return true
+			}
+		}
+	case *types.Signature:
+		for param := range typ.Params().Variables() {
+			if holdsDir(param.Type(), dir, seen) {
+				return true
+			}
+		}
+		for result := range typ.Results().Variables() {
+			if holdsDir(result.Type(), dir, seen) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func receiverExported(decl *ast.FuncDecl) bool {
@@ -456,7 +628,14 @@ type world struct {
 	byPath map[string]*packages.Package
 	// production are the module's own packages that have source.
 	production []*packages.Package
-	root       string
+	// dependencies are the packages of other modules that are linked in, and
+	// modules the modules they come from.
+	dependencies []*packages.Package
+	root         string
+	target       target
+	// problems are what is wrong with the code the program links that is not a
+	// name a use of it makes.
+	problems []string
 }
 
 // Import lets a fixture name any package the world holds, so that a fixture is
@@ -471,38 +650,38 @@ func (w *world) Import(path string) (*types.Package, error) {
 // fixtureImports are the packages a fixture may name beyond the ones the tree
 // imports itself. Each is loaded on top of the tree, so the two share packages.
 var fixtureImports = []string{
-	"context", "io", "net", "net/http", "os", "os/exec", "io/ioutil", "plugin", "syscall",
+	"context", "io", "net", "net/http", "os", "os/exec", "io/ioutil", "plugin", "runtime/coverage", "syscall",
 }
 
 var (
 	worldsMu sync.Mutex
-	worlds   = map[string]*sync.Once{}
-	loaded   = map[string]*world{}
-	loadErrs = map[string]error{}
+	worlds   = map[target]*sync.Once{}
+	loaded   = map[target]*world{}
+	loadErrs = map[target]error{}
 )
 
 // loadWorld reads the module for one platform, once. CGO is off as the release
 // is built, so what is read is what is shipped and no C compiler is needed.
-func loadWorld(goos string) (*world, error) {
+func loadWorld(at target) (*world, error) {
 	worldsMu.Lock()
-	once, ok := worlds[goos]
+	once, ok := worlds[at]
 	if !ok {
 		once = new(sync.Once)
-		worlds[goos] = once
+		worlds[at] = once
 	}
 	worldsMu.Unlock()
 	once.Do(func() {
-		w, err := readWorld(goos)
+		w, err := readWorld(at)
 		worldsMu.Lock()
-		loaded[goos], loadErrs[goos] = w, err
+		loaded[at], loadErrs[at] = w, err
 		worldsMu.Unlock()
 	})
 	worldsMu.Lock()
 	defer worldsMu.Unlock()
-	return loaded[goos], loadErrs[goos]
+	return loaded[at], loadErrs[at]
 }
 
-func readWorld(goos string) (*world, error) {
+func readWorld(at target) (*world, error) {
 	root, err := filepath.Abs(repoRoot)
 	if err != nil {
 		return nil, err
@@ -510,37 +689,148 @@ func readWorld(goos string) (*world, error) {
 	// Every package of the module, so that one added in a new directory is read
 	// and not left for the check that every file was read to find.
 	patterns := []string{"./..."}
-	if goos == "linux" {
+	if at == fixtureTarget {
 		patterns = append(patterns, fixtureImports...)
 	}
 	pkgs, err := packages.Load(&packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports |
-			packages.NeedDeps | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo,
-		Dir:   root,
-		Env:   append(os.Environ(), "GOOS="+goos, "GOARCH=amd64", "CGO_ENABLED=0"),
+			packages.NeedDeps | packages.NeedTypes | packages.NeedSyntax | packages.NeedTypesInfo | packages.NeedModule,
+		Dir: root,
+		// What the release is built with and not what the shell that ran the test
+		// has set: GOFLAGS could add files to or take them from the load, and a
+		// workspace could swap a module for another.
+		Env:   append(os.Environ(), "GOOS="+at.goos, "GOARCH="+at.goarch, "CGO_ENABLED=0", "GOFLAGS=", "GOWORK=off"),
 		Tests: false,
 	}, patterns...)
 	if err != nil {
-		return nil, fmt.Errorf("read the module for %s: %w", goos, err)
+		return nil, fmt.Errorf("read the module for %s: %w", at, err)
 	}
-	w := &world{byPath: map[string]*packages.Package{}, root: root}
+	w := &world{byPath: map[string]*packages.Package{}, root: root, target: at}
 	packages.Visit(pkgs, nil, func(p *packages.Package) { w.byPath[p.PkgPath] = p })
 	for _, path := range slices.Sorted(maps.Keys(w.byPath)) {
 		p := w.byPath[path]
 		// A package that did not load is not read, so it fails the test whatever it
 		// holds; what is checked for first is the error and not the files.
 		if len(p.Errors) > 0 {
-			return nil, fmt.Errorf("read the module for %s: %s did not load: %w", goos, p.PkgPath, p.Errors[0])
+			return nil, fmt.Errorf("read the module for %s: %s did not load: %w", at, p.PkgPath, p.Errors[0])
 		}
 		// A directory that holds only tests has no package to read.
 		if len(p.GoFiles) == 0 {
 			continue
 		}
-		if strings.HasPrefix(path, module) && len(p.Syntax) > 0 {
+		switch whose(p) {
+		case ownCode:
 			w.production = append(w.production, p)
+		case anotherModule:
+			w.dependencies = append(w.dependencies, p)
+		case standardLibrary:
+			continue
 		}
+		w.problems = append(w.problems, linkProblems(p)...)
 	}
 	return w, nil
+}
+
+// owner is whose code a package is.
+type owner int
+
+const (
+	standardLibrary owner = iota
+	ownCode
+	anotherModule
+)
+
+// whose says whose code a package is by the module it comes from, which is what
+// go.mod says and not how its path is spelled: a module path need not have a dot
+// in it, and one can begin with this module's path and be another module.
+func whose(p *packages.Package) owner {
+	switch {
+	case p.Module == nil:
+		return standardLibrary
+	case p.Module.Path == module:
+		return ownCode
+	}
+	return anotherModule
+}
+
+// linkProblems is what is wrong with a package of the program that the names its
+// code uses do not show: that it comes from a module nobody has reviewed, that
+// go.mod swaps the module for other code, or that it holds a file in a language
+// this guard does not read.
+func linkProblems(p *packages.Package) []string {
+	var problems []string
+	if whose(p) == anotherModule {
+		if !slices.Contains(reviewedModules, p.Module.Path) {
+			problems = append(problems, fmt.Sprintf("%s is a package of %s, which is not one of reviewedModules: this guard reads its code for names and no more, so linking another module is a decision", p.PkgPath, p.Module.Path))
+		}
+		if p.Module.Replace != nil {
+			problems = append(problems, fmt.Sprintf("%s comes from %s, which go.mod replaces with %s", p.PkgPath, p.Module.Path, p.Module.Replace.Path))
+		}
+	}
+	if len(p.OtherFiles) > 0 || slices.ContainsFunc(p.IgnoredFiles, func(name string) bool { return !strings.HasSuffix(name, ".go") }) {
+		problems = append(problems, p.PkgPath+" holds a file that is not Go (assembly or C): this guard reads Go only")
+	}
+	return problems
+}
+
+// notGoSources are the extensions of the files the go command compiles besides
+// Go: assembly and objects, C and its relatives. A system call needs none of the
+// Go this guard reads, so a package that has one is a package it cannot judge.
+var notGoSources = []string{".s", ".S", ".sx", ".syso", ".c", ".h", ".hh", ".hpp", ".cc", ".cpp", ".cxx", ".m", ".f", ".F", ".for", ".f90", ".swig", ".swigcxx"}
+
+// sourcesBeyondGo lists, under root, the files in a language the guard does not
+// read and the go.mod and go.work files besides the root's, wherever they are:
+// the go command skips a directory whose name begins with a dot or an underscore,
+// but a module that go.mod replaces with a path there is built from it.
+func sourcesBeyondGo(root string) ([]string, error) {
+	var found []string
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		name := entry.Name()
+		if entry.IsDir() {
+			if name == ".git" || name == "node_modules" {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		switch {
+		case slices.Contains(notGoSources, filepath.Ext(name)):
+			found = append(found, rel+": a file in a language this guard does not read")
+		case name == "go.work" || name == "go.work.sum":
+			found = append(found, rel+": a workspace, which can swap a module for another")
+		case name == "go.mod" && rel != "go.mod":
+			found = append(found, rel+": another module inside this one")
+		}
+		return nil
+	})
+	slices.Sort(found)
+	return found, err
+}
+
+// replacesIn lists the lines of a go.mod that replace a module with other code.
+func replacesIn(goMod string) []string {
+	var found []string
+	for line := range strings.SplitSeq(goMod, "\n") {
+		if fields := strings.Fields(line); len(fields) > 0 && (fields[0] == "replace" || strings.Contains(line, "=>")) {
+			found = append(found, strings.TrimSpace(line))
+		}
+	}
+	return found
+}
+
+func (w *world) dependencyUnits() []*unit {
+	var units []*unit
+	for _, p := range w.dependencies {
+		units = append(units, &unit{path: p.PkgPath, fset: p.Fset, files: p.Syntax, info: p.TypesInfo, pkg: p.Types, root: w.root, dependency: true})
+	}
+	return units
 }
 
 func (w *world) units() []*unit {
@@ -563,10 +853,10 @@ func (w *world) units() []*unit {
 func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 	t.Parallel()
 
-	results := make([]systemWalk, len(releaseSystems))
+	results := make([]systemWalk, len(releaseTargets))
 	var reading sync.WaitGroup
-	for i, goos := range releaseSystems {
-		reading.Go(func() { results[i] = walkSystem(goos) })
+	for i, at := range releaseTargets {
+		reading.Go(func() { results[i] = walkSystem(at) })
 	}
 	reading.Wait()
 
@@ -575,6 +865,8 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 		order     []site
 		analysed  = map[string]bool{}
 		used      = map[string]bool{}
+		problems  = map[string]bool{}
+		linked    = map[string]bool{}
 	)
 	for _, result := range results {
 		if result.err != nil {
@@ -584,20 +876,46 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 		// would report a tree with no writes in it at all, which is the one result
 		// that would look like success and mean nothing.
 		if result.written == 0 {
-			t.Fatalf("no write was seen in %s on %s, so this walk never reached the package it is meant to permit", rawWriter, result.goos)
+			t.Fatalf("no write was seen in %s on %s, so this walk never reached the package it is meant to permit", rawWriter, result.at)
 		}
 		for _, one := range result.found {
 			if _, seen := systemsOf[one]; !seen {
 				order = append(order, one)
 			}
-			systemsOf[one] = append(systemsOf[one], result.goos)
+			systemsOf[one] = append(systemsOf[one], result.at.String())
 		}
 		maps.Copy(analysed, result.files)
 		maps.Copy(used, result.used)
+		maps.Copy(linked, result.modules)
+		for _, problem := range result.problems {
+			problems[problem] = true
+		}
+	}
+	for _, problem := range slices.Sorted(maps.Keys(problems)) {
+		t.Error(problem)
+	}
+	for _, module := range reviewedModules {
+		if !linked[module] {
+			t.Errorf("%s is on reviewedModules and no package of it is linked; remove it", module)
+		}
+	}
+	beyond, err := sourcesBeyondGo(repoRoot)
+	if err != nil {
+		t.Fatalf("walk the repository for what is not Go: %v", err)
+	}
+	for _, one := range beyond {
+		t.Error(one)
+	}
+	goMod, err := os.ReadFile(filepath.Join(repoRoot, "go.mod")) // #nosec G304 -- a fixed path under the repository root
+	if err != nil {
+		t.Fatalf("read go.mod: %v", err)
+	}
+	for _, line := range replacesIn(string(goMod)) {
+		t.Errorf("go.mod: %s, which builds the program from other code than the module it names", line)
 	}
 	var found []site
 	for _, one := range order {
-		if systems := systemsOf[one]; len(systems) < len(releaseSystems) {
+		if systems := systemsOf[one]; len(systems) < len(releaseTargets) {
 			one.text += " (on " + strings.Join(systems, ", ") + " only)"
 		}
 		found = append(found, one)
@@ -609,33 +927,69 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 	// anyone having decided it.
 	for _, key := range slices.Sorted(maps.Keys(readOnly)) {
 		if !used[key] {
-			t.Errorf("%s is on readOnly and no shipped package outside %s names it; remove it", key, rawWriter)
+			t.Errorf("%s is on readOnly and no shipped package names it; remove it", key)
 		}
 	}
 	// A file that no platform builds is a file nothing here read.
 	for _, path := range productionFiles(t, ".go") {
 		if !analysed[path] {
-			t.Errorf("%s was not read on any of %v: a build constraint keeps it out of every load, so what it does is not checked", path, releaseSystems)
+			t.Errorf("%s was not read on any of %v: a build constraint keeps it out of every load, so what it does is not checked", path, releaseTargets)
 		}
 	}
 }
 
-// systemWalk is what reading the tree for one platform found.
-type systemWalk struct {
-	goos    string
-	found   []site
-	written int
-	used    map[string]bool
-	files   map[string]bool
-	err     error
+// reviewedModules are the modules other than this one whose packages are linked
+// into the program. The guard reads them for the same names as this module's own,
+// and no more: reflection, assembly and what they do with a path they are handed
+// by this module are not read, so a module that is not on this list is code that
+// nobody has decided to trust. It is every module with a package in the build,
+// which is a smaller set than the ones go.mod requires.
+var reviewedModules = []string{
+	"github.com/BurntSushi/toml",
+	"github.com/a-h/templ",
+	"github.com/alecthomas/chroma/v3",
+	"github.com/dlclark/regexp2/v2",
+	"github.com/tats-u/goldmark-cjk-friendly/v2",
+	"github.com/yuin/goldmark",
+	"go.yaml.in/yaml/v3",
+	"golang.org/x/net",
+	"golang.org/x/text",
 }
 
-func walkSystem(goos string) systemWalk {
-	out := systemWalk{goos: goos, used: map[string]bool{}, files: map[string]bool{}}
-	w, err := loadWorld(goos)
+// dependencyReads are the names of os that a package of another module may use
+// besides the ones readOnly lists, each with what it is for: a file it is handed
+// is opened to be read, and a directory for scratch files is named and not made.
+var dependencyReads = map[string]string{
+	"os.Open":    "the TOML decoder and templ's runtime open a file they are handed, to read",
+	"os.TempDir": "templ's runtime names the directory for temporary files and makes none",
+}
+
+// systemWalk is what reading the tree for one platform found.
+type systemWalk struct {
+	at       target
+	found    []site
+	written  int
+	used     map[string]bool
+	files    map[string]bool
+	modules  map[string]bool
+	problems []string
+	err      error
+}
+
+func walkSystem(at target) systemWalk {
+	out := systemWalk{at: at, used: map[string]bool{}, files: map[string]bool{}, modules: map[string]bool{}}
+	w, err := loadWorld(at)
 	if err != nil {
 		out.err = err
 		return out
+	}
+	out.problems = w.problems
+	for _, p := range w.dependencies {
+		out.modules[p.Module.Path] = true
+	}
+	for _, u := range w.dependencyUnits() {
+		sites, _, _ := judge(u)
+		out.found = append(out.found, sites...)
 	}
 	for _, u := range w.units() {
 		sites, uses, usedHere := judge(u)

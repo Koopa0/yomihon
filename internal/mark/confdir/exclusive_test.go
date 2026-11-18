@@ -3,7 +3,6 @@ package confdir
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
@@ -37,7 +36,7 @@ func TestProcessAliveKnowsThisProcessAndOneThatEnded(t *testing.T) {
 
 func TestALockLeftByAProcessThatIsGoneIsTakenAtOnce(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir := Dir{path: t.TempDir()}
 	if err := Replace(dir, "x.lock", []byte(strconv.Itoa(deadPID(t))+" 1 1")); err != nil {
 		t.Fatal(err)
 	}
@@ -52,8 +51,8 @@ func TestALockLeftByAProcessThatIsGoneIsTakenAtOnce(t *testing.T) {
 
 func TestALockOlderThanAnyChangeTakesIsTakenWhoeverHoldsIt(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "x.lock")
+	dir := Dir{path: t.TempDir()}
+	path := dir.Join("x.lock")
 	// This very process is alive, so only the lock's age can have it taken: the
 	// case of a process id given to another process after the holder's crash.
 	if err := Replace(dir, "x.lock", []byte(strconv.Itoa(os.Getpid())+" 1 1")); err != nil {
@@ -86,7 +85,7 @@ func TestALockNotYetWrittenIsNotCalledAbandoned(t *testing.T) {
 // another replaced writes the other's line away.
 func TestExclusiveKeepsEveryChangeOfWritersOnOneFile(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir := Dir{path: t.TempDir()}
 	const writers, each = 4, 40
 	var group sync.WaitGroup
 	for w := range writers {

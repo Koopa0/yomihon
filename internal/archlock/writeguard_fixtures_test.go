@@ -6,8 +6,13 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+
+	"golang.org/x/tools/go/packages"
 )
 
 // fixture is a package written for this guard to read, with what it must say. A
@@ -68,7 +73,7 @@ func (i *fixtureImporter) check(path, name, src string) (*types.Package, []*ast.
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	info := &types.Info{Uses: map[*ast.Ident]types.Object{}, Defs: map[*ast.Ident]types.Object{}}
+	info := &types.Info{Uses: map[*ast.Ident]types.Object{}, Defs: map[*ast.Ident]types.Object{}, Types: map[ast.Expr]types.TypeAndValue{}}
 	var first error
 	config := types.Config{Importer: i, Error: func(err error) {
 		if first == nil {
@@ -524,11 +529,161 @@ func save() error { return confdir.Replace("/vault", "marks.json", nil) }`,
 import "github.com/koopa0/yomihon/internal/mark/confdir"
 func home(configDir string) error { _, err := confdir.Home(configDir); return err }`,
 	},
+
+	// A program started through a value that only says it can Run, and the
+	// processes of the reader's own.
+	{
+		name: "a program started through an interface it is stored in",
+		src: `package fixture
+import "os/exec"
+type runner interface{ Run() error }
+func run() error { var r runner = &exec.Cmd{Path: "/bin/sh"}; return r.Run() }`,
+		want: []string{"os/exec.Cmd, which is not one this guard knows"},
+	},
+	{
+		name: "a signal that is not zero",
+		src: `package fixture
+import ("os"; "syscall")
+func stop(pid int) error {
+	p, err := os.FindProcess(pid)
+	if err != nil { return err }
+	return p.Signal(syscall.Signal(9))
+}`,
+		want: []string{"os.Process.Signal, which is not called with the one argument"},
+	},
+	{
+		name: "a signal that is a variable",
+		src: `package fixture
+import ("os"; "syscall")
+func stop(pid int, n syscall.Signal) error {
+	p, err := os.FindProcess(pid)
+	if err != nil { return err }
+	return p.Signal(n)
+}`,
+		want: []string{"os.Process.Signal, which is not called with the one argument"},
+	},
+	{
+		name: "a signal of zero, which asks whether a process is there",
+		src: `package fixture
+import ("os"; "syscall")
+func there(pid int) bool {
+	p, err := os.FindProcess(pid)
+	return err == nil && p.Signal(syscall.Signal(0)) == nil
+}`,
+	},
+	{
+		name: "a process ended through an interface",
+		src: `package fixture
+func stop(v any) error { return v.(interface{ Kill() error }).Kill() }`,
+		want: []string{"through an interface to Kill"},
+	},
+	{
+		name: "a signal sent through an interface",
+		src: `package fixture
+import "syscall"
+func stop(v any) error { return v.(interface{ Signal(syscall.Signal) error }).Signal(9) }`,
+		want: []string{"through an interface to Signal"},
+	},
+
+	// A listener that makes a file, and the forms that make one of their own.
+	{
+		name: "a listener on a unix socket",
+		src: `package fixture
+import "net"
+func listen() error { _, err := net.Listen("unix", "/vault/x.sock"); return err }`,
+		want: []string{"net.Listen, which is not called with"},
+	},
+	{
+		name: "a listener whose network is a variable",
+		src: `package fixture
+import "net"
+func listen(network string) error { _, err := net.Listen(network, "x"); return err }`,
+		want: []string{"net.Listen, which is not called with"},
+	},
+	{
+		name: "a listener of a listen config on a unix socket",
+		src: `package fixture
+import ("context"; "net")
+func listen(ctx context.Context) error { _, err := (&net.ListenConfig{}).Listen(ctx, "unix", "/x"); return err }`,
+		want: []string{"net.ListenConfig.Listen, which is not called with"},
+	},
+	{
+		name: "a packet listener on a unix socket",
+		src: `package fixture
+import "net"
+func listen() error { _, err := net.ListenPacket("unixgram", "/x"); return err }`,
+		want: []string{"net.ListenPacket"},
+	},
+	{
+		name: "listeners on a port",
+		src: `package fixture
+import ("context"; "net")
+func listen(ctx context.Context) error {
+	if _, err := net.Listen("tcp", "127.0.0.1:0"); err != nil { return err }
+	_, err := (&net.ListenConfig{}).Listen(ctx, "tcp4", "127.0.0.1:0")
+	return err
+}`,
+	},
+	{
+		name: "a form read in a way that can write a part to a temporary file",
+		src: `package fixture
+import "net/http"
+func read(r *http.Request) string { return r.PostFormValue("a") + r.FormValue("b") }`,
+		want: []string{"net/http.Request.PostFormValue", "net/http.Request.FormValue"},
+	},
+	{
+		name: "a form read after the urlencoded one is parsed",
+		src: `package fixture
+import "net/http"
+func read(r *http.Request) string { _ = r.ParseForm(); return r.PostForm.Get("a") }`,
+	},
+	{
+		name: "coverage data written by the program",
+		src: `package fixture
+import "runtime/coverage"
+func dump() error { return coverage.WriteMetaDir("/x") }`,
+		want: []string{"runtime/coverage.WriteMetaDir"},
+	},
+
+	// A Dir that something other than a function could hand out.
+	{
+		name: "an exported variable that holds a Dir",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+var Saved Dir`,
+		want: []string{"Saved is a variable that holds a Dir"},
+	},
+	{
+		name: "an exported variable that holds Dirs in a map",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+var Table = map[string]*Dir{}`,
+		want: []string{"Table is a variable that holds a Dir"},
+	},
+	{
+		name: "an exported field that holds a Dir",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+type Holder struct{ Where Dir }`,
+		want: []string{"Holder.Where holds a Dir"},
+	},
+	{
+		name: "a Dir held where only the package can reach it",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+var saved Dir
+type Lock struct{ dir Dir }
+func (l *Lock) Path() string { return l.dir.path + saved.path }`,
+	},
 }
 
 func TestTheWriteGuardCatchesEveryShapeOfWrite(t *testing.T) {
 	t.Parallel()
-	w, err := loadWorld("linux")
+	w, err := loadWorld(fixtureTarget)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -592,5 +747,110 @@ func TestEveryFixtureOfTheWriteGuardSaysWhatItExpects(t *testing.T) {
 	}
 	if len(seen) < 30 {
 		t.Errorf("only %d fixtures are left; the shapes of write the guard has been shown are not to be dropped quietly", len(seen))
+	}
+}
+
+// Whose a package is is read from the module it comes from, so a module that is
+// named with no dot, one whose path begins with this module's, and one go.mod
+// replaces are none of them this module's own, and so none of them goes unread.
+func TestWhoseCodeAPackageIs(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		module *packages.Module
+		want   owner
+	}{
+		{"the standard library has no module", nil, standardLibrary},
+		{"this module", &packages.Module{Path: module}, ownCode},
+		{"a module that begins with this one's path", &packages.Module{Path: module + "-evil"}, anotherModule},
+		{"a module of a version of this one", &packages.Module{Path: module + "/v2"}, anotherModule},
+		{"a module whose path has no dot", &packages.Module{Path: "zzw", Replace: &packages.Module{Path: "./.zzw"}}, anotherModule},
+		{"a module of a host", &packages.Module{Path: "github.com/natefinch/atomic"}, anotherModule},
+	} {
+		if got := whose(&packages.Package{PkgPath: "x", Module: tt.module}); got != tt.want {
+			t.Errorf("%s: whose = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestTheLinkCheckSaysWhatItIsNotToldAbout(t *testing.T) {
+	t.Parallel()
+	reviewed := reviewedModules[0]
+	for _, tt := range []struct {
+		name string
+		pkg  packages.Package
+		want []string
+	}{
+		{"a package of a reviewed module", packages.Package{Module: &packages.Module{Path: reviewed}}, nil},
+		{"a package of this module", packages.Package{Module: &packages.Module{Path: module}}, nil},
+		{"a package of a module nobody reviewed", packages.Package{Module: &packages.Module{Path: "github.com/natefinch/atomic"}}, []string{"not one of reviewedModules"}},
+		{"a module with no dot in its path, replaced by a folder", packages.Package{Module: &packages.Module{Path: "zzw", Replace: &packages.Module{Path: "./.zzw"}}}, []string{"not one of reviewedModules", "go.mod replaces"}},
+		{"a reviewed module that go.mod replaces", packages.Package{Module: &packages.Module{Path: reviewed, Replace: &packages.Module{Path: "../other"}}}, []string{"go.mod replaces"}},
+		{"assembly in a package", packages.Package{Module: &packages.Module{Path: module}, OtherFiles: []string{"zz_asm_arm64.s"}}, []string{"not Go"}},
+		{"assembly for another platform", packages.Package{Module: &packages.Module{Path: module}, IgnoredFiles: []string{"zz_asm_other.s", "other.go"}}, []string{"not Go"}},
+		{"a Go file for another platform", packages.Package{Module: &packages.Module{Path: module}, IgnoredFiles: []string{"other.go"}}, nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			tt.pkg.PkgPath = "x/y"
+			got := linkProblems(&tt.pkg)
+			if len(got) != len(tt.want) {
+				t.Fatalf("said %d things, want %d: %q", len(got), len(tt.want), got)
+			}
+			for _, want := range tt.want {
+				if !anyContains(got, want) {
+					t.Errorf("nothing says %q: %q", want, got)
+				}
+			}
+		})
+	}
+}
+
+func TestWhatIsNotGoIsFoundWhereverItIs(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	for _, name := range []string{
+		"go.mod", "main.go", "README.md", ".zzw/w.go",
+		"internal/note/zz_asm.s", "internal/note/zz_obj.syso", ".zzw/go.mod", "tools/go.work", "c/helper.h",
+		".git/x.s", "node_modules/y/z.c",
+	} {
+		path := filepath.Join(root, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("x"), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+			t.Fatal(err)
+		}
+	}
+	got, err := sourcesBeyondGo(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{".zzw/go.mod", "c/helper.h", "internal/note/zz_asm.s", "internal/note/zz_obj.syso", "tools/go.work"}
+	var names []string
+	for _, line := range got {
+		name, _, _ := strings.Cut(line, ":")
+		names = append(names, name)
+	}
+	if !slices.Equal(names, want) {
+		t.Errorf("found %q, want %q", names, want)
+	}
+}
+
+func TestAReplaceInGoModIsFound(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		text string
+		want int
+	}{
+		{"none", "module x\n\ngo 1.27\n\nrequire y v1.0.0\n", 0},
+		{"one line", "module x\n\nreplace zzw => ./.zzw\n", 1},
+		{"a block", "module x\n\nreplace (\n\tzzw => ./.zzw\n)\n", 2},
+		{"inside a require block", "module x\n\nrequire (\n\ty v1.0.0 // indirect\n)\n", 0},
+	} {
+		if got := replacesIn(tt.text); len(got) != tt.want {
+			t.Errorf("%s: found %q, want %d", tt.name, got, tt.want)
+		}
 	}
 }
