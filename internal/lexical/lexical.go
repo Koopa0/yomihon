@@ -7,7 +7,6 @@ package lexical
 
 import (
 	"errors"
-	"path"
 	"slices"
 	"strings"
 	"unicode"
@@ -119,8 +118,7 @@ func writesWithoutSpaces(r rune) bool {
 }
 
 // Document is the disk-free input to NewIndex: everything the index needs about
-// one vault entry, with PlainText already extracted — render.PlainText for a
-// note, the file's own characters for anything else.
+// one note, with PlainText already extracted by render.PlainText.
 type Document struct {
 	RelPath  string
 	Title    string
@@ -154,11 +152,6 @@ type Document struct {
 
 	// Insertions cut runs where the page adds text absent from PlainText.
 	Insertions []int
-
-	// File marks an entry that is not a note: a vault file shown as characters.
-	// It carries no frontmatter, so it answers no metadata projection, and it
-	// sorts after every note in a result list.
-	File bool
 
 	// OutsideKnowledge marks an entry the contract placed outside the
 	// knowledge layer. It stays in the index; when a group is flattened,
@@ -206,7 +199,6 @@ type entry struct {
 	displaySpans      []render.DisplaySpan
 	insertions        []int
 	insertionBarriers [][2]int
-	isFile            bool
 	outsideKnowledge  bool
 	metadataCapable   bool
 
@@ -272,22 +264,6 @@ func NewIndex(docs []Document, policy schema.ArtifactPolicy) *Index {
 		return vault.ComparePaths(a.RelPath, b.RelPath)
 	})
 	return &Index{entries: entries, policy: policy}
-}
-
-// Notes is a view of the index that holds only the notes, for a surface whose
-// answers are counted in notes: a vault file read as characters is still in the
-// index, and a search made through this view neither finds it nor counts it.
-func (idx *Index) Notes() *Index {
-	if idx == nil {
-		return nil
-	}
-	notes := make([]*entry, 0, len(idx.entries))
-	for _, e := range idx.entries {
-		if !e.isFile {
-			notes = append(notes, e)
-		}
-	}
-	return &Index{entries: notes, policy: idx.policy}
 }
 
 // WithArtifactPolicy returns a read-only copy bound to policy, which has to be a
@@ -356,12 +332,10 @@ func entryFromDocument(d *Document, policy schema.ArtifactPolicy) entry {
 		fenceRanges:       fenceRanges,
 		fenceFoldRanges:   fenceFoldRanges,
 		displaySpans:      remapDisplaySpans(d.PlainText, d.DisplaySpans),
-		isFile:            d.File,
 		outsideKnowledge:  d.OutsideKnowledge,
 		// An unclaimed policy excludes nothing, so every readable note answers over
-		// its own raw frontmatter. A file has no frontmatter, so it answers no
-		// metadata projection under any policy.
-		metadataCapable: !d.File && policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
+		// its own raw frontmatter.
+		metadataCapable: policy.Trustworthy() && !policy.IsNonInstance(d.RelPath),
 		language:        d.Language,
 	}
 }
@@ -631,17 +605,6 @@ func DocumentFromNote(n *vault.Note) Document {
 		FenceRanges:  projection.FenceRanges,
 		DisplaySpans: projection.DisplaySpans,
 		Insertions:   projection.Insertions,
-	}
-}
-
-// DocumentFromFile builds the index entry for a vault file that is not a note:
-// its title is the file's own name and its body is its whole source text.
-func DocumentFromFile(relPath string, data []byte) Document {
-	return Document{
-		RelPath:   relPath,
-		Title:     path.Base(relPath),
-		PlainText: string(data),
-		File:      true,
 	}
 }
 

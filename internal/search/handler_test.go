@@ -471,37 +471,6 @@ func searchPageHTML(t *testing.T, pageHTML string) string {
 	return pageHTML[start : start+end]
 }
 
-// TestSearchAnswersInNotesOnly holds that a vault file read as characters is
-// neither found nor counted: the page, its count and the field's panel are all
-// in notes, whatever else the index holds.
-func TestSearchAnswersInNotesOnly(t *testing.T) {
-	t.Parallel()
-	idx := lexical.NewIndex([]lexical.Document{
-		{RelPath: "Concepts/One.md", Title: "One", PlainText: "needle"},
-		lexical.DocumentFromFile("Notes/todo.txt", []byte("needle in a file")),
-	}, validArtifactPolicy(t))
-	h := NewHandler(func() RequestSnapshot {
-		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
-	}, slog.New(slog.DiscardHandler))
-
-	for _, address := range []string{"/search?q=needle", "/search/results?q=needle", "/search/results?q=needle&shape=panel"} {
-		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, address, http.NoBody)
-		rr := httptest.NewRecorder()
-		if strings.Contains(address, "/results") {
-			h.results(rr, req)
-		} else {
-			h.search(rr, req)
-		}
-		body := rr.Body.String()
-		if !strings.Contains(body, "/notes/Concepts/One.md") {
-			t.Errorf("%s does not offer the note; body = %q", address, body)
-		}
-		if strings.Contains(body, "todo.txt") {
-			t.Errorf("%s offers a file; body = %q", address, body)
-		}
-	}
-}
-
 // TestAResultsRowSaysWhereTheNoteLivesAndTheHeaderSaysWhatWasAsked holds the
 // location line's words, and that the header's entry carries the query where a
 // wider window has no field on the page.

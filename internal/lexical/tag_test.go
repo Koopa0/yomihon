@@ -97,10 +97,10 @@ func TestTagCapabilityAndFileExclusion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := DocumentFromNote(vault.Parse("Notes/Quiet.md", []byte("---\ntitle: Quiet\ntags: [haiku]\n---\nUnrelated.")))
-			idx := NewIndex([]Document{doc, {RelPath: "Other.txt", Title: "Other", Tags: []string{"haiku"}, File: true}}, tt.policy)
+			idx := NewIndex([]Document{doc}, tt.policy)
 			want := []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Tag: "haiku"}}
 			if diff := cmp.Diff(want, searchResults(t, idx, Parse("haiku"))); diff != "" {
-				t.Errorf("caught: tag capability/file exclusion mismatch (-want +got):\n%s", diff)
+				t.Errorf("caught: tag capability mismatch (-want +got):\n%s", diff)
 			}
 			if tt.name == "unavailable" {
 				if _, err := idx.Search(Parse("haiku type:concept"), -1); !errors.Is(err, ErrMetadataUnavailable) {
