@@ -116,7 +116,7 @@ func TestTheKeptPlaceMarksOneCourseRowAndOnlyThatRow(t *testing.T) {
 			t.Errorf("the lesson that holds the kept place lacks %q; row = %s", want, row)
 		}
 	}
-	if zh := renderCourse(t, courseOf(&path, &CourseCover{KeptNote: "Writing/Arrays.md"}), wording.ZhHant); !strings.Contains(zh, wording.MarkKeptHere.In(wording.ZhHant)) {
+	if zh := renderCourse(t, courseOf(&path, &CourseCover{KeptNote: "Writing/Arrays.md"}), wording.ZhHant); !strings.Contains(zh, wording.BookmarkKeptHere.In(wording.ZhHant)) {
 		t.Error("the Chinese course does not say in words where the place was kept")
 	}
 
@@ -155,7 +155,7 @@ func TestTheBookRailMarksDraftsAndBookmarkByTheSameRules(t *testing.T) {
 	if html := row(PathEntryView{Here: true}, wording.En); strings.Contains(html, "ui-navitem__count") {
 		t.Errorf("a finished lesson being read holds a chip no finished neighbour holds: %s", html)
 	}
-	if html := row(PathEntryView{Kept: true}, wording.ZhHant); !strings.Contains(html, `class="y-bookmark__ribbon" aria-hidden="true"`) || !strings.Contains(html, wording.MarkKeptHere.In(wording.ZhHant)) {
+	if html := row(PathEntryView{Kept: true}, wording.ZhHant); !strings.Contains(html, `class="y-bookmark__ribbon" aria-hidden="true"`) || !strings.Contains(html, wording.BookmarkKeptHere.In(wording.ZhHant)) {
 		t.Errorf("the lesson holding the kept place carries no bookmark in the rail: %s", html)
 	}
 	if html := row(PathEntryView{Draft: true}, wording.En); strings.Contains(html, "y-bookmark__ribbon") {

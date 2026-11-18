@@ -1,6 +1,7 @@
 package mark_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -174,13 +176,13 @@ func TestTheRouteRefusesABodyBeyondItsCap(t *testing.T) {
 	}
 }
 
-// TestOnlyPostChangesThePlace holds the methods. A place is a change, and only
-// a POST makes one; GET reads it, and anything else is refused with the two the
-// route does answer named.
-func TestOnlyPostChangesThePlace(t *testing.T) {
+// TestAMethodTheBookmarkRouteDoesNotTakeChangesNothing holds the methods. GET
+// reads the place, POST, PUT and DELETE are the ways it is set and cleared, and
+// anything else is refused with the ones the route does answer named.
+func TestAMethodTheBookmarkRouteDoesNotTakeChangesNothing(t *testing.T) {
 	t.Parallel()
 
-	for _, method := range []string{http.MethodPut, http.MethodDelete, http.MethodPatch} {
+	for _, method := range []string{http.MethodPatch} {
 		t.Run(method, func(t *testing.T) {
 			t.Parallel()
 			file, handler := newHandler(t)
@@ -197,7 +199,7 @@ func TestOnlyPostChangesThePlace(t *testing.T) {
 			if response.StatusCode != http.StatusMethodNotAllowed {
 				t.Errorf("%s %s = %d, want %d", method, mark.Paths.Bookmark, response.StatusCode, http.StatusMethodNotAllowed)
 			}
-			if got, want := response.Header.Get("Allow"), "GET, HEAD, POST"; got != want {
+			if got, want := response.Header.Get("Allow"), "DELETE, GET, HEAD, POST, PUT"; got != want {
 				t.Errorf("%s %s Allow = %q, want %q", method, mark.Paths.Bookmark, got, want)
 			}
 			if _, ok := heldBookmark(t, file); ok {
@@ -215,11 +217,38 @@ func get(t *testing.T, handler http.Handler) *http.Response {
 	return recorder.Result()
 }
 
+// aSaidPlace is what the route says of the place kept now.
+type aSaidPlace struct {
+	Path   string    `json:"path"`
+	Anchor string    `json:"anchor"`
+	Offset int       `json:"offset"`
+	At     time.Time `json:"at"`
+}
+
+var ignoreTime = cmpopts.IgnoreFields(aSaidPlace{}, "At")
+
+// saidPlace reads the route's answer as exactly the four fields it names. The
+// identity of the bytes the reader was looking at is not among them, and a
+// field the page does not know is an error.
+func saidPlace(t *testing.T, body []byte) aSaidPlace {
+	t.Helper()
+	var said aSaidPlace
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&said); err != nil {
+		t.Fatalf("the answer %q is not the place: %v", body, err)
+	}
+	if time.Since(said.At) > time.Minute || time.Until(said.At) > time.Minute {
+		t.Errorf("the place was said to be kept at %s, which is not now", said.At)
+	}
+	return said
+}
+
 // TestTheRouteSaysWhereThePlaceIsKept holds what a page shown again from the
-// browser's cache is given to draw from: the note and the anchor of the place
-// kept now, and nothing the page has to be trusted with beyond them. The answer
-// must not be one the browser keeps, or the page would be redrawn from the
-// staleness this reads past.
+// browser's cache is given to draw from: the note, the anchor, how far below it
+// and when, of the place kept now, and nothing the page has to be trusted with
+// beyond them. The answer must not be one the browser keeps, or the page would
+// be redrawn from the staleness this reads past.
 func TestTheRouteSaysWhereThePlaceIsKept(t *testing.T) {
 	t.Parallel()
 
@@ -246,7 +275,7 @@ func TestTheRouteSaysWhereThePlaceIsKept(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the reply: %v", err)
 	}
-	if diff := cmp.Diff(`{"path":"Notes/alpha.md","anchor":"first-heading"}`+"\n", string(body)); diff != "" {
+	if diff := cmp.Diff(aSaidPlace{Path: "Notes/alpha.md", Anchor: "first-heading", Offset: 1}, saidPlace(t, body), ignoreTime); diff != "" {
 		t.Errorf("GET %s body (-want +got):\n%s", mark.Paths.Bookmark, diff)
 	}
 
@@ -264,7 +293,7 @@ func TestTheRouteSaysWhereThePlaceIsKept(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read the reply: %v", err)
 	}
-	if diff := cmp.Diff(`{"path":"Notes/beta.md","anchor":""}`+"\n", string(body)); diff != "" {
+	if diff := cmp.Diff(aSaidPlace{Path: "Notes/beta.md", Offset: 1}, saidPlace(t, body), ignoreTime); diff != "" {
 		t.Errorf("GET %s after keeping another place (-want +got):\n%s", mark.Paths.Bookmark, diff)
 	}
 }
@@ -464,6 +493,15 @@ func (p vaultPlaces) HasPlace(rel, anchor string) bool {
 // no words. It answers that every note is readable and holds none.
 func (p vaultPlaces) Reading(string, wording.Lang) (mark.Page, bool) {
 	return mark.Page{}, true
+}
+
+// Units and Rows are not asked of these tests: they keep no bookmark in a course.
+func (p vaultPlaces) Units(string) (mainLine, branches []string, ok bool) {
+	return nil, nil, false
+}
+
+func (p vaultPlaces) Rows(string) (planned int, rows []string, ok bool) {
+	return 0, nil, false
 }
 
 // listedQuestion is a question as the list route sends it to a page.

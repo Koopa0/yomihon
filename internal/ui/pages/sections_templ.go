@@ -219,9 +219,9 @@ func sectionMargin(id string, m *SectionMargin, p *SectionPlan) templ.Component 
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.MarkKeptHere.In(p.Lang)).Resolve(ctx)
+		templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.BookmarkKeptHere.In(p.Lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sections.templ`, Line: 44, Col: 123}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/sections.templ`, Line: 44, Col: 127}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
 		if templ_7745c5c3_Err != nil {

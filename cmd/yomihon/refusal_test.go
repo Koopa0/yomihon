@@ -51,6 +51,12 @@ func TestRoutingRefusalsKeepTheReadingShell(t *testing.T) {
 		{"fetch change a mark", "PATCH", "/mark/0123456789abcdef0123456789abcdef", "fetch", "", 403},
 		{"fetch remove a mark", "DELETE", "/mark/0123456789abcdef0123456789abcdef", "fetch", "", 403},
 		{"origin keep a mark", "POST", "/mark", "origin", "", 403},
+		{"fetch set a bookmark", "PUT", "/bookmark", "fetch", "", 403},
+		{"fetch clear a bookmark", "DELETE", "/bookmark?course=Maps%2Fcourse.md", "fetch", "", 403},
+		{"fetch finish a note", "PUT", "/finished/Plain.md", "fetch", "", 403},
+		{"fetch reopen a note", "DELETE", "/finished/Plain.md", "fetch", "", 403},
+		{"origin set a bookmark", "PUT", "/bookmark", "origin", "", 403},
+		{"origin finish a note", "PUT", "/finished/Plain.md", "origin", "", 403},
 	}
 	for _, language := range []string{"zh-Hant", "en"} {
 		for _, tc := range cases {

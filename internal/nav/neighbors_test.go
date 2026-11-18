@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -289,5 +290,107 @@ func pathNote(rel, title, body string) *vault.Note {
 		Frontmatter: map[string]any{"type": "study-path"},
 		Body:        "# " + title + "\n\n" + body,
 		BodyLine:    1,
+	}
+}
+
+// TestCourseUnitsSeparatesTheMainLineFromTheBranchesAndNamesEachOnce holds the
+// one list the sidebar's count, the course page's count and a route's answer
+// are made from. The course is written as an author writes it, so the list is
+// the walk the product builds.
+func TestCourseUnitsSeparatesTheMainLineFromTheBranchesAndNamesEachOnce(t *testing.T) {
+	t.Parallel()
+
+	ref := func(name, rel string) NoteRef { return NoteRef{Name: name, RelPath: rel} }
+	body := "## Data {sequence=primary}\n\n" +
+		"- [[L01 Slices]]\n" +
+		"- [[L02 Planned]]\n" +
+		"- [[L03 Maps]]\n" +
+		"\t- 支線 {sequence=local}\n" +
+		"\t\t- [[S01 Side]]\n" +
+		"\t\t- [[L01 Slices]]\n" +
+		"\n### Text {sequence=primary}\n\n" +
+		"- [[Template-only]]\n" +
+		"- [[L04 Strings]]\n"
+	idx := resolver(t,
+		"Writing/L01 Slices.md", "Writing/L03 Maps.md", "Writing/L04 Strings.md",
+		"Writing/S01 Side.md", "System/templates/Template-only.md",
+	)
+	// A draft is a unit: the reader can open it, and the course counts it
+	// apart as the one thing its author has not finished.
+	drafts := draftFacts("Writing/L03 Maps.md")
+	course := buildPath(pathNote("Maps/go.md", "Go", body), idx, drafts, testArtifactPolicy(t))
+	m := &Model{paths: []Course{course}}
+
+	mainLine, branches, ok := m.CourseUnits("Maps/go.md")
+	if !ok {
+		t.Fatal("a course the model holds is not answered")
+	}
+	wantMain := []NoteRef{
+		ref("L01 Slices", "Writing/L01 Slices.md"),
+		ref("L03 Maps", "Writing/L03 Maps.md"),
+		ref("L04 Strings", "Writing/L04 Strings.md"),
+	}
+	wantBranches := []NoteRef{ref("S01 Side", "Writing/S01 Side.md")}
+	if diff := cmp.Diff(wantMain, mainLine); diff != "" {
+		t.Errorf("main line (-want +got):\n%s", diff)
+	}
+	if diff := cmp.Diff(wantBranches, branches); diff != "" {
+		t.Errorf("branches (-want +got):\n%s", diff)
+	}
+	if _, _, ok := m.CourseUnits("Maps/other.md"); ok {
+		t.Error("a note that is no course answered as one")
+	}
+	// Where the rules close the courses there is no course to ask about, so what
+	// reads the shell's projection cannot finish a unit of one.
+	closed := m.WithoutInstanceProjections(Close(schema.Rejected("rules unavailable")))
+	if _, _, ok := closed.CourseUnits("Maps/go.md"); ok {
+		t.Error("a course answered while the courses are closed")
+	}
+	if _, _, ok := (*Model)(nil).CourseUnits("Maps/go.md"); ok {
+		t.Error("no model answered as one with a course")
+	}
+}
+
+// TestCourseRowsCountsEveryRowThePageNumbersAndNamesEachOpenableRowOnceForEachRow
+// holds the figures a course states of itself: how many rows its main line plans,
+// the ones not written yet included, as the course page prints; and the notes of
+// the rows a reader can open, one for each row, so a note the course lists twice
+// is two rows and what is finished can reach every row.
+func TestCourseRowsCountsEveryRowThePageNumbersAndNamesEachOpenableRowOnceForEachRow(t *testing.T) {
+	t.Parallel()
+
+	ref := func(name, rel string) NoteRef { return NoteRef{Name: name, RelPath: rel} }
+	body := "## Data {sequence=primary}\n\n" +
+		"- [[L01 Slices]]\n" +
+		"- [[L02 Planned]]\n" +
+		"- [[L03 Maps]]\n" +
+		"- [[L01 Slices]]\n" +
+		"\t- 支線 {sequence=local}\n" +
+		"\t\t- [[S01 Side]]\n"
+	idx := resolver(t, "Writing/L01 Slices.md", "Writing/L03 Maps.md", "Writing/S01 Side.md")
+	course := buildPath(pathNote("Maps/go.md", "Go", body), idx, nil, testArtifactPolicy(t))
+	m := &Model{paths: []Course{course}}
+
+	planned, rows, ok := m.CourseRows("Maps/go.md")
+	if !ok {
+		t.Fatal("a course the model holds is not answered")
+	}
+	if planned != course.Planned || planned != 4 {
+		t.Errorf("planned = %d (the course page's own count is %d), want the four rows of its main line, the unwritten one included", planned, course.Planned)
+	}
+	want := []NoteRef{
+		ref("L01 Slices", "Writing/L01 Slices.md"),
+		ref("L03 Maps", "Writing/L03 Maps.md"),
+		ref("L01 Slices", "Writing/L01 Slices.md"),
+	}
+	if diff := cmp.Diff(want, rows); diff != "" {
+		t.Errorf("rows (-want +got):\n%s", diff)
+	}
+	if _, _, ok := m.CourseRows("Maps/other.md"); ok {
+		t.Error("a note that is no course answered as one")
+	}
+	closed := m.WithoutInstanceProjections(Close(schema.Rejected("rules unavailable")))
+	if _, _, ok := closed.CourseRows("Maps/go.md"); ok {
+		t.Error("a course answered while the courses are closed")
 	}
 }

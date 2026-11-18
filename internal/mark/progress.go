@@ -9,6 +9,11 @@ import (
 // NoCourse is the course of a bookmark set while reading outside any course.
 const NoCourse = ""
 
+// stamp is the time the reader's own acts are kept at: UTC and to the
+// millisecond a page's clock can say, so that a time sent round a page and back
+// is the time that was kept.
+func stamp() time.Time { return time.Now().UTC().Truncate(time.Millisecond) }
+
 // The bounds on what progress.json holds. A reader bookmarks in a few courses
 // and finishes a few thousand notes in a long reading.
 const (
@@ -103,64 +108,119 @@ func (s *Store) Bookmark(course string) (Bookmark, bool, error) {
 	return Bookmark{}, false, nil
 }
 
-// SetBookmark replaces the bookmark kept for course with b, or refuses it
-// unchanged. It reads b and never writes through the pointer. Other courses'
-// bookmarks stay as they are.
-func (s *Store) SetBookmark(course string, b *Bookmark) error {
-	if err := validateBookmark(course, b); err != nil {
-		return err
+// Expectation is what a caller who puts a bookmark back says it expects to
+// replace: the bookmark set at At, or none where At is nil. A move that finds
+// another is refused as ErrChanged and changes nothing, so an undo cannot
+// overwrite what another page did in between.
+type Expectation struct {
+	At *time.Time
+}
+
+// MoveBookmark replaces the bookmark kept for course with b and answers the
+// one it replaced, so a page can say where the bookmark was and put it back. had
+// is false where the course had none. expect is nil for a move that expects
+// nothing in particular. A refused bookmark, or one that did not find what was
+// expected, changes nothing.
+func (s *Store) MoveBookmark(course string, b *Bookmark, expect *Expectation) (previous Bookmark, had bool, err error) {
+	err = validateBookmark(course, b)
+	if err != nil {
+		return Bookmark{}, false, err
 	}
-	return s.exclusive(func() error {
-		held, err := s.loadProgress()
+	// A move that expects what is not kept changes nothing, so it is refused from
+	// an unlocked read, as asking a store that holds nothing takes no lock: its
+	// directory would be left behind. The locked read decides whenever it is taken.
+	if held, loadErr := s.loadProgress(); loadErr == nil {
+		err = expect.check(held.bookmarks, course)
 		if err != nil {
-			return err
+			return Bookmark{}, false, err
 		}
-		replaced := false
-		for i := range held.bookmarks {
-			if held.bookmarks[i].Course == course {
-				held.bookmarks[i].Bookmark = *b
-				replaced = true
-			}
+	}
+	err = s.exclusive(func() error {
+		held, loadErr := s.loadProgress()
+		if loadErr != nil {
+			return loadErr
 		}
-		if !replaced {
-			if len(held.bookmarks) >= maxBookmarks {
-				return fmt.Errorf("%w: %d bookmarks are already kept", ErrInvalid, len(held.bookmarks))
-			}
+		checkErr := expect.check(held.bookmarks, course)
+		if checkErr != nil {
+			return checkErr
+		}
+		kept, at := bookmarkIn(held.bookmarks, course)
+		previous, had = kept, at >= 0
+		switch {
+		case had:
+			held.bookmarks[at].Bookmark = *b
+		case len(held.bookmarks) >= maxBookmarks:
+			return fmt.Errorf("%w: %d bookmarks are already kept", ErrInvalid, len(held.bookmarks))
+		default:
 			held.bookmarks = append(held.bookmarks, courseBookmark{Course: course, Bookmark: *b})
 		}
 		return s.saveProgress(held)
 	})
+	if err != nil {
+		return Bookmark{}, false, err
+	}
+	return previous, had, nil
 }
 
-// ClearBookmark removes the bookmark kept for course, and reports whether there
-// was one. Nothing is written where there was none, so asking a store that has
-// never kept anything leaves no directory behind.
-func (s *Store) ClearBookmark(course string) (bool, error) {
+// bookmarkIn is the bookmark held for course and where it is, at -1 where there
+// is none.
+func bookmarkIn(held []courseBookmark, course string) (kept Bookmark, at int) {
+	at = slices.IndexFunc(held, func(b courseBookmark) bool { return b.Course == course })
+	if at >= 0 {
+		kept = held[at].Bookmark
+	}
+	return kept, at
+}
+
+// check is nil where the bookmark held for course is the one e expects, and
+// where e is nil, which expects nothing in particular.
+func (e *Expectation) check(held []courseBookmark, course string) error {
+	if e == nil {
+		return nil
+	}
+	kept, at := bookmarkIn(held, course)
+	if e.At == nil && at < 0 || e.At != nil && at >= 0 && kept.At.Equal(*e.At) {
+		return nil
+	}
+	return fmt.Errorf("%w: the bookmark kept is not the one expected", ErrChanged)
+}
+
+// ClearBookmark removes the bookmark kept for course and answers it, so it can
+// be set back; had is false where there was none. Nothing is written where there
+// was none, so asking a store that has never kept anything leaves no directory
+// behind.
+func (s *Store) ClearBookmark(course string) (removed Bookmark, had bool, err error) {
 	if course != NoCourse {
-		if err := validatePath(course); err != nil {
-			return false, err
+		err = validatePath(course)
+		if err != nil {
+			return Bookmark{}, false, err
 		}
 	}
 	// Asking a store that holds nothing takes no lock: its directory would be
 	// left behind. The locked read below decides whenever there is something.
-	if held, err := s.loadProgress(); err == nil && !slices.ContainsFunc(held.bookmarks, func(b courseBookmark) bool { return b.Course == course }) {
-		return false, nil
+	if held, loadErr := s.loadProgress(); loadErr == nil && !slices.ContainsFunc(held.bookmarks, func(b courseBookmark) bool { return b.Course == course }) {
+		return Bookmark{}, false, nil
 	}
-	var cleared bool
-	err := s.exclusive(func() error {
-		held, err := s.loadProgress()
-		if err != nil {
-			return err
+	err = s.exclusive(func() error {
+		held, loadErr := s.loadProgress()
+		if loadErr != nil {
+			return loadErr
 		}
-		kept := slices.DeleteFunc(held.bookmarks, func(b courseBookmark) bool { return b.Course == course })
-		if len(kept) == len(held.bookmarks) {
+		for _, b := range held.bookmarks {
+			if b.Course == course {
+				removed, had = b.Bookmark, true
+			}
+		}
+		if !had {
 			return nil
 		}
-		held.bookmarks = kept
-		cleared = true
+		held.bookmarks = slices.DeleteFunc(held.bookmarks, func(b courseBookmark) bool { return b.Course == course })
 		return s.saveProgress(held)
 	})
-	return cleared, err
+	if err != nil {
+		return Bookmark{}, false, err
+	}
+	return removed, had, nil
 }
 
 // SetFinished says whether the reader has read note to the end, with the time
@@ -186,7 +246,7 @@ func (s *Store) SetFinished(note string, finished bool) error {
 			if len(held.finished) >= maxFinished {
 				return fmt.Errorf("%w: %d notes are already finished", ErrInvalid, len(held.finished))
 			}
-			held.finished = append(held.finished, Finished{RelPath: note, At: time.Now().UTC()})
+			held.finished = append(held.finished, Finished{RelPath: note, At: stamp()})
 		default:
 			held.finished = slices.Delete(held.finished, at, at+1)
 		}

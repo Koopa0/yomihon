@@ -116,7 +116,7 @@ func TestTheFirstWriteConvertsAndTheOldFilesStayAsTheyWere(t *testing.T) {
 	}
 	course := aPlace()
 	course.RelPath = "Courses/go/G01.md"
-	if err := store.SetBookmark("Courses/go.md", course); err != nil {
+	if err := moveBookmark(store, "Courses/go.md", course); err != nil {
 		t.Fatal(err)
 	}
 
@@ -156,7 +156,7 @@ func TestASecondStartDoesNotConvertAgainOrBringBackWhatWasDeleted(t *testing.T) 
 	// And sets a bookmark of their own over the old one.
 	moved := aPlace()
 	moved.Offset = 7
-	if err := first.SetBookmark(mark.NoCourse, moved); err != nil {
+	if err := moveBookmark(first, mark.NoCourse, moved); err != nil {
 		t.Fatal(err)
 	}
 
@@ -213,17 +213,17 @@ func TestAnOldFileThatCannotBeConvertedIsReportedAndKept(t *testing.T) {
 		{
 			"a bookmark in another version", "reader.json", `{"version":2,"vault":"/v","continuation":{"path":"a.md"}}`,
 			func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err },
-			func(s *mark.Store) error { return s.SetBookmark(mark.NoCourse, aPlace()) },
+			func(s *mark.Store) error { return moveBookmark(s, mark.NoCourse, aPlace()) },
 		},
 		{
 			"a bookmark that is not JSON", "reader.json", "not json",
 			func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err },
-			func(s *mark.Store) error { return s.SetBookmark(mark.NoCourse, aPlace()) },
+			func(s *mark.Store) error { return moveBookmark(s, mark.NoCourse, aPlace()) },
 		},
 		{
 			"a bookmark the shape refuses", "reader.json", `{"version":1,"continuation":{"path":"../out.md","offset":0,"identity":"` + anIdentity + `","at":"2026-09-17T10:00:00Z"}}`,
 			func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err },
-			func(s *mark.Store) error { return s.SetBookmark(mark.NoCourse, aPlace()) },
+			func(s *mark.Store) error { return moveBookmark(s, mark.NoCourse, aPlace()) },
 		},
 		{
 			"questions that are not an array", "uncertainty.json", `{"version":1}`,
@@ -278,7 +278,7 @@ func TestAnOldBookmarkFileWithNoPlaceInItIsNoBookmark(t *testing.T) {
 	if _, found, err := store.Bookmark(mark.NoCourse); err != nil || found {
 		t.Errorf("Bookmark = %v, %v; want none and no error", found, err)
 	}
-	if err := store.SetBookmark(mark.NoCourse, aPlace()); err != nil {
-		t.Errorf("SetBookmark over it = %v", err)
+	if err := moveBookmark(store, mark.NoCourse, aPlace()); err != nil {
+		t.Errorf("MoveBookmark over it = %v", err)
 	}
 }

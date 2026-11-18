@@ -13,7 +13,7 @@ import "github.com/koopa0/yomihon/internal/wording"
 templ continueRow(row ContinueRow, lang wording.Lang) {
 	if row.Show {
 		<section class="y-continue" data-home-continue aria-labelledby="home-continue-title">
-			<p class="y-offscreen">{ wording.MarkKeptHere.In(lang) }</p>
+			<p class="y-offscreen">{ wording.BookmarkKeptHere.In(lang) }</p>
 			if row.Kicker != "" {
 				<p class="y-continue__kicker" { authoredLanguageAttrs(row.KickerLanguage)... }>{ row.Kicker }</p>
 			}
@@ -30,7 +30,7 @@ templ continueRow(row ContinueRow, lang wording.Lang) {
 			if row.Notice != "" {
 				<p class="y-continue__notice">{ row.Notice }</p>
 			}
-			<p class="y-continue__device">{ wording.MarkPerDevice.In(lang) }</p>
+			<p class="y-continue__device">{ wording.BookmarkPerDevice.In(lang) }</p>
 		</section>
 	}
 }
@@ -42,6 +42,6 @@ templ continueRow(row ContinueRow, lang wording.Lang) {
 templ keptPlace(lang wording.Lang) {
 	<span class="y-bookmark">
 		<span class="y-bookmark__ribbon" aria-hidden="true"></span>
-		<span class="y-offscreen">{ wording.MarkKeptHere.In(lang) }</span>
+		<span class="y-offscreen">{ wording.BookmarkKeptHere.In(lang) }</span>
 	</span>
 }
