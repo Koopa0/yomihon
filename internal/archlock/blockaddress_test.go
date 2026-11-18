@@ -25,7 +25,7 @@ func supportedBlockGrammarInventory() blockGrammarInventory {
 		"adapters": {"internal/render/blockanchor.go:blockAddressIn"},
 		"grammars": {"internal/graph/blockaddress.go:blockMarkerTail"},
 		"patterns": {"internal/graph/blockaddress.go:blockMarkerTail"},
-		"readers":  {"internal/graph/blockaddress.go:BlockAddress"},
+		"readers":  {"internal/graph/blockaddress.go:addressToken"},
 		"callers": {
 			"internal/graph/blockaddress.go:WithoutBlockAddress -> BlockAddress",
 			"internal/judge/fragment.go:collectBlockAddresses -> BlockAddress",
@@ -224,7 +224,8 @@ func inspectBlockGrammarNode(inv blockGrammarInventory, node ast.Node, pkg, call
 func blockGrammarControlSources() map[string]string {
 	return map[string]string{
 		"internal/graph/blockaddress.go": "package graph\nimport \"regexp\"\nvar blockMarkerTail = regexp.MustCompile(`(\\^x)\\z`)\n" +
-			"func BlockAddress(line string) string { blockMarkerTail.FindString(line); return \"\" }\n" +
+			"func addressToken(line string) string { blockMarkerTail.FindString(line); return \"\" }\n" +
+			"func BlockAddress(line string) string { return addressToken(line) }\n" +
 			"func WithoutBlockAddress() { BlockAddress(\"\") }\n",
 		"internal/render/blockanchor.go": "package render\nimport \"github.com/koopa0/yomihon/internal/graph\"\n" +
 			"func blockAddressIn(line string) (string, []int) { graph.BlockAddress(line); return \"\", nil }\n" +
@@ -271,7 +272,7 @@ func TestBlockGrammarInventoryControls(t *testing.T) {
 		{name: "unapproved caller", path: "internal/render/section.go", before: "func blockMarkerLine()", after: "func secondReading() { graph.BlockAddress(\"\") }\nfunc blockMarkerLine()", want: []string{"caught: block grammar callers changed"}},
 		{name: "copied grammar", path: "internal/render/blockanchor.go", before: "func markBlockAnchor()", after: "var secondGrammar = regexp.MustCompile(`(\\^copy)\\z`)\nfunc markBlockAnchor()", want: []string{"caught: block grammar patterns changed"}},
 		{name: "direct grammar bypass", path: "internal/render/section.go", before: "graph.BlockAddress(\"\")", after: "blockMarkerTail.FindString(\"\")", want: []string{"caught: block grammar readers changed", "caught: block grammar callers changed"}},
-		{name: "owner removed", path: "internal/graph/blockaddress.go", before: "func BlockAddress(line string) string { blockMarkerTail.FindString(line); return \"\" }", after: "", want: []string{"caught: block grammar owners changed", "caught: block grammar readers changed"}},
+		{name: "owner removed", path: "internal/graph/blockaddress.go", before: "func BlockAddress(line string) string { return addressToken(line) }", after: "", want: []string{"caught: block grammar owners changed"}},
 		{name: "owner signature changed", path: "internal/graph/blockaddress.go", before: "func BlockAddress(line string) string", after: "func BlockAddress(line []byte) string", want: []string{"caught: block grammar owners changed"}},
 		{name: "grammar declaration removed", path: "internal/graph/blockaddress.go", before: "var blockMarkerTail = regexp.MustCompile(`(\\^x)\\z`)", after: "", want: []string{"caught: block grammar grammars changed", "caught: block grammar patterns changed"}},
 		{name: "adapter declaration removed", path: "internal/render/blockanchor.go", before: "func blockAddressIn(line string) (string, []int) { graph.BlockAddress(line); return \"\", nil }", after: "", want: []string{"caught: block grammar adapters changed", "caught: block grammar callers changed"}},

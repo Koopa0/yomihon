@@ -74,6 +74,7 @@ func TestAHeadingOfOnlyTheTokenKeepsItAsItsWords(t *testing.T) {
 	for _, tt := range []struct{ name, text, want string }{
 		{name: "words then token", text: "Title ^abc", want: "Title"},
 		{name: "only the token", text: "^0", want: "^0"},
+		{name: "words that are hashes", text: "# ^0", want: "#"},
 		{name: "token with spaces around", text: "  ^0 ", want: "  ^0 "},
 		{name: "two lines, words on one", text: "Title\n^abc", want: "Title\n"},
 		{name: "two lines, only tokens", text: "^a\n^b", want: "^a\n^b"},
