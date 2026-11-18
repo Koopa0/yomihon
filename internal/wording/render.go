@@ -80,7 +80,7 @@ var (
 	ReadAloudPlaying     = both("播放中", "Playing")
 	ReadAloudFinished    = both("播放完成", "Finished")
 	ReadAloudUnavailable = both("目前無法播放語音", "Speech is unavailable right now")
-	ReadAloudPlayAll     = both("連續朗讀", "Play through")
+	ReadAloudPlayAll     = both("朗讀全文", "Read aloud")
 	ReadAloudPrevious    = both("上一段", "Previous")
 	ReadAloudNext        = both("下一段", "Next")
 	ReadAloudProgressFmt = both("第 {n} 段，共 {total} 段", "Paragraph {n} of {total}")
@@ -94,8 +94,8 @@ var (
 // would be lying about where the voice is. It is said on the page that reads a
 // whole course aloud, which is where a reader would look for a scrubber.
 var ReadAloudLimits = both(
-	"語音合成不會回報可靠的長度，所以這裡沒有進度條、沒有已播時間，也不能拖曳。段落就是移動的單位：連續朗讀、停止、上一段、下一段、速度。",
-	"Speech synthesis reports no reliable duration, so there is no seek bar, no elapsed time, and nothing to drag. A paragraph is the unit of navigation: play through, stop, previous, next, and rate.")
+	"語音合成不會回報可靠的長度，所以這裡沒有進度條、沒有已播時間，也不能拖曳。段落就是移動的單位：朗讀全文、停止、上一段、下一段、速度。",
+	"Speech synthesis reports no reliable duration, so there is no seek bar, no elapsed time, and nothing to drag. A paragraph is the unit of navigation: read aloud, stop, previous, next, and rate.")
 
 // TitleOnlyTargetFmt is said where a citation names a note's declared title.
 // The note exists; the name it was written under is not one a link finds,

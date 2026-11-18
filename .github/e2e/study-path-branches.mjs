@@ -286,7 +286,7 @@ try {
 
   // Every lesson of the course names its book in the sidebar, in the serif face,
   // as a link to the contents, and a side branch's lesson sits under the heading
-  // that says so. Nothing stands above the title of any note.
+  // that says so. Above a note's title stands one row, which says where the note is.
   const sidebarOf = async (path) => {
     await page.goto(BASE + path, { waitUntil: 'domcontentloaded' });
     return page.evaluate(() => {
@@ -301,8 +301,8 @@ try {
         href: title?.getAttribute('href') ?? null,
         face: title ? getComputedStyle(title).fontFamily : null,
         parts,
-        above: document.querySelectorAll('.y-article .y-crumbs').length,
-        first: document.querySelector('.y-article')?.firstElementChild?.tagName ?? null,
+        where: document.querySelector('.y-article')?.firstElementChild?.matches('p.y-notewhere') ?? false,
+        first: document.querySelector('.y-article')?.firstElementChild?.nextElementSibling?.tagName ?? null,
       };
     });
   };
@@ -314,8 +314,8 @@ try {
   if (!/serif|Newsreader/i.test(mainSidebar.face ?? '')) {
     fail('a-lesson-names-its-book-in-the-sidebar', `the course's name is set in ${JSON.stringify(mainSidebar.face)}, want the serif face`);
   }
-  if (mainSidebar.above !== 0 || mainSidebar.first !== 'H1') {
-    fail('a-lesson-names-its-book-in-the-sidebar', `the lesson's article opens on ${mainSidebar.first} with ${mainSidebar.above} lines above its title, want the title itself`);
+  if (!mainSidebar.where || mainSidebar.first !== 'H1') {
+    fail('a-lesson-names-its-book-in-the-sidebar', `the lesson's article opens on ${mainSidebar.where ? 'its row' : 'something else'} and then ${mainSidebar.first}, want the row that says where it is, then the title`);
   }
   const sideSidebar = await sidebarOf(SIDE_LESSON);
   if (!sideSidebar.parts.some((part) => part.includes('支線'))) {

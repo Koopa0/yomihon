@@ -8,6 +8,7 @@ import (
 	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -131,6 +132,9 @@ type NoteView struct {
 	// same address does not inherit a place kept in this one. Empty where the
 	// page was made with none, and the note is then kept no place.
 	VaultID string
+	// rubyOn is whether the reader has readings switched on, which the page
+	// learns from its chrome and the switch in its head must be drawn to match.
+	rubyOn bool
 	// PlaceKept is whether the place the reader left off at is in this note.
 	// The control for keeping one then says so, so a reader who comes back to
 	// the note is told it already holds their place and not asked to guess.
@@ -171,9 +175,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 	// The browser keeps where the reader stopped in this note, against this
 	// vault and this path, so the page says which note it is.
 	{{ c.Reading = v.readingNote() }}
-	// The same holds for the furigana switch: only the page knows whether
-	// what it rendered carries any readings to switch.
-	{{ c.Readings = v.carriesReadings() }}
+	{{ v.rubyOn = c.Ruby == "on" }}
 	{{ c.Diagrams = render.CarriesDiagrams(v.BodyHTML) }}
 	@layouts.Base(c) {
 		// The sheet owns an id outside the authored section namespace.
@@ -247,16 +249,15 @@ templ conceptSheet(concepts []drill.ConceptDoc, lang wording.Lang) {
 	}
 }
 
-// articleHead is the title above the rendered body, which follows it after a
-// space rather than a rule. Nothing stands above the title: the sidebar already
-// says which course the note is in and which part, or which folder, so a line
-// over the heading would say it a second time. Nothing stands under it either:
-// the note's facts, the file it is and the way to its editor wait at the end of
-// the text, where a reader who has finished looks for them.
+// articleHead is the head of a note: where it is, its title, and the controls
+// that act on the whole note, which follow the title after a space rather than
+// a rule. The note's facts, the file it is and the way to its editor wait at the
+// end of the text, where a reader who has finished looks for them.
 //
 // A title with thoughts of the reader's own about the note as a whole stands in
 // a row with them, as a heading stands with its section's margin.
 templ articleHead(v NoteView, lang wording.Lang) {
+	@noteWhere(v, lang)
 	if len(v.TitleThoughts) > 0 {
 		<div class="y-sect y-sect--title">
 			@noteTitle(v)
@@ -270,6 +271,76 @@ templ articleHead(v NoteView, lang wording.Lang) {
 	} else if v.Stale {
 		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
 	}
+	@noteTools(v, lang)
+}
+
+// noteWhere is the row above the title that says where the note is: the folders
+// it lies in, each a link, or the course a unit belongs to. A draft says so at
+// its end. A note on a page holding two notes has no place to name, the page
+// naming each column, but still says it is a draft.
+templ noteWhere(v NoteView, lang wording.Lang) {
+	if v.Draft || (!v.NestedTitle && v.whereShown()) {
+		<p class="y-notewhere" lang={ lang.Tag() }>
+			if v.NestedTitle {
+				// The page names the column's note itself.
+			} else if v.StepsCourse && v.StepsPath.RelPath != "" {
+				<a href={ templ.URL(courseHrefFrom(v.StepsPath.RelPath, v.RelPath)) } { authoredLanguageAttrs(v.StepsPath.Language)... }>{ v.StepsPath.Name }</a>
+			} else {
+				for i, folder := range v.folders() {
+					if i > 0 {
+						<span aria-hidden="true">›</span>
+					}
+					<a href={ templ.URL(folderHref(folder.Path)) }>{ folder.Name }</a>
+				}
+			}
+			if v.Draft {
+				<span class="y-notewhere__draft" data-note-draft>
+					@layouts.Icon(schema.DraftField)
+					{ wording.Draft.In(lang) }
+				</span>
+			}
+		</p>
+	}
+}
+
+// noteTools is the row of controls under the title that act on the whole note:
+// reading it aloud, where it marks paragraphs to be read, and showing the
+// readings over Japanese text, where it has some. Neither is offered to a note
+// that has nothing for it to act on.
+templ noteTools(v NoteView, lang wording.Lang) {
+	if !v.NestedTitle && (v.readsAloud() || v.carriesReadings()) {
+		<div class="y-notetools" lang={ lang.Tag() }>
+			if v.readsAloud() {
+				<button class="y-toolbtn" type="button" data-readaloud-play aria-pressed="false">
+					@layouts.Icon("play")
+					<span>{ wording.ReadAloudPlayAll.In(lang) }</span>
+				</button>
+			}
+			if v.carriesReadings() {
+				@readingsSwitch(v.rubyOn, lang)
+			}
+		</div>
+	}
+}
+
+// readingsSwitch shows and hides the readings over Japanese text. The setting is
+// one cookie for the whole site, so a reader who switched readings off on one
+// note finds them off on the next; preferences.js flips the root's data-ruby and
+// the cookie, and the button's pressed state is the one thing that says which
+// way it is set.
+templ readingsSwitch(on bool, lang wording.Lang) {
+	<button class="y-toolbtn" type="button" data-ruby-toggle aria-pressed={ strconv.FormatBool(on) }>
+		@layouts.Icon("ruby")
+		<span>{ wording.FuriganaLabel.In(lang) }</span>
+	</button>
+}
+
+// readingsTools is the toolbar of a page that has readings to show and nothing
+// else to put in one.
+templ readingsTools(on bool, lang wording.Lang) {
+	<div class="y-notetools" lang={ lang.Tag() }>
+		@readingsSwitch(on, lang)
+	</div>
 }
 
 // noteTitle is the heading itself. A jump has to land on the words it named, so
@@ -288,16 +359,6 @@ templ noteTitle(v NoteView) {
 	}
 }
 
-// draftMark is the one word a note that declared draft: true carries among its
-// facts, in the interface's language. It is a fact about the note, not a
-// control: the flag is the author's, written and removed in their editor. A
-// finished note carries none, being the ordinary state.
-templ draftMark(v NoteView, lang wording.Lang) {
-	if v.Draft {
-		<p class="y-facts__draft"><span class="ui-status" lang={ lang.Tag() } data-note-draft>{ wording.Draft.In(lang) }</span></p>
-	}
-}
-
 // noteFacts is the note's own facts, read as a description list: one dt/dd
 // pair per fact the note declared, in the same order every time. They stand at
 // the end of the text with what stands beside the note, so there is one place
@@ -313,7 +374,6 @@ templ draftMark(v NoteView, lang wording.Lang) {
 templ noteFacts(v NoteView, lang wording.Lang) {
 	if v.factsShown() {
 		<div class="y-facts">
-			@draftMark(v, lang)
 			if v.factRows() {
 				<dl class="y-notefacts">
 					if v.Type != "" {

@@ -568,13 +568,6 @@ samp {
     font-weight: var(--fw-semibold);
     padding-inline-start: 0;
   }
-
-  /* The furigana switch keeps its word and the logo keeps the way to the desk;
-     the folder's name has no room beside them. It is drawn again on the day the
-     switch moves to the page head's toolbar and this rule is deleted. */
-  .y-header:has(.y-rubybtn) .y-brand__vault {
-    display: none;
-  }
 }
 
 /* The mark's page shape is nearly the dark header's own ink, so in the dark
@@ -757,92 +750,51 @@ samp {
 .y-header .y-iconbtn {
   height: var(--control-h);
 }
-/* The furigana switch depends on script. Without it, the native preferences
-   link remains the way to change the reading choices. */
-html:not([data-js]) .y-rubybtn {
+/* The page head's toolbar holds the two controls only a page with something to
+   read aloud or with readings has: each is one press, drawn the same way, and
+   the one that is a switch says so by its pressed state alone (the wash, no
+   frame). Both depend on script, which is what they act through. */
+.y-notetools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-block-start: var(--sp-5);
+}
+
+html:not([data-js]) .y-toolbtn {
   display: none;
 }
 
-/* The readings control is a switch with its name beside it: the track and the
-   thumb are drawn on the button itself from the pressed state the page already
-   carries, so what a reader sees and what a screen reader is told are one
-   attribute. Off is a hollow track with the thumb at its start; on is a filled
-   track a step down from the ink, with the thumb at its end, so a switch that
-   is set does not outweigh the words around it. Both states keep the track's
-   edge at 3:1 against the page, so the control reads whichever way it is set. */
-.y-rubybtn {
-  --switch-inset: 8px;
-  gap: var(--sp-2);
-  padding: 0 var(--switch-inset) 0 var(--sp-3);
-  position: relative;
-  width: auto;
-}
-
-.y-rubybtn__label {
+.y-toolbtn {
+  --icon-size: 16px;
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  cursor: pointer;
+  display: inline-flex;
   font-family: var(--font-sans);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
-  line-height: 1.25rem;
+  gap: var(--sp-2);
+  min-height: 32px;
+  padding: 0 var(--sp-3);
 }
 
-.y-rubybtn__label--short {
-  display: none;
+.y-toolbtn:hover {
+  background: var(--wash);
 }
 
-.y-rubybtn::before {
-  background: transparent;
-  border-radius: 10px;
-  box-shadow: inset 0 0 0 1px var(--fg-subtle);
-  content: '';
-  flex: none;
-  height: 20px;
-  order: 2;
-  transition: background var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard);
-  width: 32px;
-}
-
-.y-rubybtn::after {
-  background: var(--fg-subtle);
-  border-radius: 50%;
-  content: '';
-  height: 14px;
-  position: absolute;
-  right: calc(var(--switch-inset) + 32px - 3px - 14px);
-  top: calc(50% - 7px);
-  transition: background var(--dur-base) var(--ease-standard), right var(--dur-base) var(--ease-standard);
-  width: 14px;
-}
-
-.y-rubybtn[aria-pressed='true']::before {
-  background: var(--switch-on);
-  box-shadow: none;
-}
-
-.y-rubybtn[aria-pressed='true']::after {
-  background: var(--bg);
-  right: calc(var(--switch-inset) + 3px);
-}
-/* The switch is the first thing in the row to give: where the sidebar button
-   joins the row (1023 and below) it takes its short word, before the search
-   field has had to narrow. The short label is the tail of the long one rather
-   than a different word, which is what lets the spoken name stay the same
-   across the switch. */
-@media (max-width: 1023px) {
-  .y-rubybtn__label--long {
-    display: none;
-  }
-
-  .y-rubybtn__label--short {
-    display: inline;
-  }
+.y-toolbtn[aria-pressed='true'] {
+  background: var(--selected);
+  border-color: transparent;
 }
 
 @media (max-width: 720px) {
-  .y-rubybtn {
-    gap: var(--sp-1);
-    padding-left: var(--sp-1);
+  .y-toolbtn {
+    min-height: 44px;
   }
-
 }
 
 /* The button that opens the left column as a drawer. It is named by its word,
@@ -1594,8 +1546,33 @@ html[data-js][data-arrival='kept'] .y-main {
   line-height: 1.5rem;
 }
 
-.y-facts__draft {
-  margin: 0 0 var(--sp-2);
+/* Where the note is, above its title: quiet, with the links the ink of the page
+   and underlined as links are in the text. */
+.y-notewhere {
+  align-items: center;
+  color: var(--fg-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  gap: var(--sp-1) var(--sp-3);
+  line-height: 1.25rem;
+  margin: 0 0 var(--sp-3);
+}
+
+.y-notewhere a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.24em;
+}
+
+.y-notewhere__draft {
+  --icon-size: 13px;
+  align-items: center;
+  display: inline-flex;
+  gap: var(--sp-1);
 }
 
 .y-notefacts {
@@ -7481,16 +7458,6 @@ samp,
   }
 }
 
-/* A row that also carries the furigana switch is full sooner: in English it
-   has no room for the grounds below about 1120, and the folder's name was
-   drawn over the switch and the search there. The grounds go first there
-   too, a step wider than the widths that measured short. */
-@media (max-width: 1199px) {
-  .y-header:has(.y-rubybtn) .y-paperswitch {
-    display: none;
-  }
-}
-
 .y-prefslink__mark {
   display: none;
   flex: none;
@@ -8138,29 +8105,10 @@ samp,
 }
 
 /* The copy of the path leaves the row where the left column becomes a drawer
-   and the drawer's button joins it. Below that the row is full: on a note with
-   readings in English it already has no room to spare, and the bookmark, the
-   verb a reader uses on every page, is the control it keeps. */
+   and the drawer's button joins it. Below that the row is full, and the
+   bookmark, the verb a reader uses on every page, is the control it keeps. */
 @media (max-width: 1023px) {
   [data-js] .y-headerpath {
-    display: none;
-  }
-
-  /* A note with readings carries the furigana switch as well, and with the
-     search a field there is no room left for words: in English the folder's
-     name was drawn over the switch down to 720. The link to My marks goes, as
-     on a phone (the desk and the sidebar lead to it), and the bookmark keeps
-     its mark alone, its words being its name. */
-  .y-header:has(.y-rubybtn) .y-headerlink {
-    display: none;
-  }
-
-  .y-header:has(.y-rubybtn) .y-headermark__button {
-    padding: 0;
-    width: var(--control-h);
-  }
-
-  .y-header:has(.y-rubybtn) .y-headermark__label {
     display: none;
   }
 }

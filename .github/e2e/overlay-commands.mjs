@@ -41,11 +41,9 @@ const KEYS_EXPLAINED = '.y-prefs__shortcuts .y-kbdhelp__list';
 const SHEET = '[data-concept-sheet]';
 const SHEET_CLOSE = '[data-concept-sheet] .y-conceptsheet__head button';
 const CONCEPT = '[data-concept]';
-// The header's two controls that do nothing without script: the furigana
-// switch, behind the capability rule, and the bookmark, which the stylesheet
-// draws only on a page that marks itself as running script.
-const SCRIPT_ONLY = ['.y-rubybtn', '.y-headermark [data-mark-button]'];
-const SCRIPT_ONLY_RULE = /html:not\(\[data-js\]\)\s+\.y-rubybtn\s*\{\s*display:\s*none;\s*\}/g;
+// The header's one control that does nothing without script: the bookmark,
+// which the stylesheet draws only on a page that marks itself as running script.
+const SCRIPT_ONLY = ['.y-headermark [data-mark-button]'];
 // The bookmark shares its rule with the copy of the path beside it, which
 // waits for script for the same reason.
 const BOOKMARK_RULE = /^\.y-headermark,\s*\.y-headerpath\s*\{\s*display:\s*none;/gm;
@@ -141,21 +139,6 @@ const distortScriptlessHeader = (selector, css) => async (page) => {
     ? `scriptless header rule matched [${perLoad}]` : '');
 };
 
-// Change only the capability rule in the served stylesheet. Each load must
-// contain that one rule, so a missing rule cannot look like a caught mutant.
-const rewriteCapabilityRule = (replace) => async (page) => {
-  const perLoad = [];
-  await page.route('**/app.css{,?*}', async (route) => {
-    const response = await route.fetch();
-    const body = await response.text();
-    const hits = [...body.matchAll(SCRIPT_ONLY_RULE)].length;
-    perLoad.push(hits);
-    await route.fulfill({ response, body: hits === 1 ? body.replace(SCRIPT_ONLY_RULE, replace) : body });
-  });
-  return () => perLoad.length === 0 || perLoad.some((hits) => hits !== 1)
-    ? `script-only capability rule matched [${perLoad}], want exactly 1 per load` : '';
-};
-
 // Draw the bookmark whatever the page is running, which is the shape the
 // stylesheet would take if it forgot the bookmark depends on script.
 const drawTheBookmarkAlways = async (page) => {
@@ -172,10 +155,6 @@ const drawTheBookmarkAlways = async (page) => {
 };
 
 const MUTATIONS = {
-  'remove-the-script-only-header-gate': {
-    target: 'script-only-header-controls-stay-out-of-the-way',
-    apply: rewriteCapabilityRule(''),
-  },
   'draw-the-bookmark-without-script': {
     target: 'script-only-header-controls-stay-out-of-the-way',
     apply: drawTheBookmarkAlways,

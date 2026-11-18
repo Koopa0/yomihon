@@ -13,7 +13,7 @@ import { installSpeechVoices } from './support/speech-voices.mjs';
 import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L02.md';
 const MUTATE = process.env.MUTATE || '';
-const PLAY = '.y-ttsbar__play';
+const PLAY = '[data-readaloud-play]';
 const STOP = '.y-ttsbar__stop';
 const PREVIOUS = '.y-ttsbar__prev';
 const NEXT = '.y-ttsbar__next';

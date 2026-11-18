@@ -63,7 +63,7 @@ const installSpeech = () => {
 const heard = (page) => page.evaluate(() => window.__utterances.map((utterance) => [utterance.lang, utterance.text]));
 const state = (page) => page.evaluate(() => ({
   status: document.querySelector('.y-ttsbar__status')?.textContent,
-  running: document.querySelector('.y-ttsbar__play')?.getAttribute('aria-pressed'),
+  running: document.querySelector('[data-readaloud-play]')?.getAttribute('aria-pressed'),
   marked: document.querySelectorAll('[data-reading]').length,
   speaking: document.querySelectorAll('[data-speaking]').length,
   idle: document.querySelector('[data-tts]')?.getAttribute('aria-label'),
@@ -82,7 +82,7 @@ try {
     const proof = MUTATE && lang === 'zh-Hant' ? await MUTATIONS[MUTATE].apply(page) : null;
     const response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
     if (response?.status() !== 200) throw new Error(`GET returned ${response?.status()}`);
-    await page.waitForSelector('.y-ttsbar__play');
+    await page.waitForSelector('[data-readaloud-play]');
     if (proof) { proof(); applied = true; }
     const blocks = await page.locator('.y-reading').evaluateAll((elements) => elements.map((element) => ({
       wrapper: element.lang, paragraph: element.querySelector('p')?.lang,
@@ -98,7 +98,7 @@ try {
     if (blocks.some((block) => block.label !== idle)) throw new Error(`wrong neutral accessible name for ${lang}`);
     const text = await page.locator('.y-article').textContent();
     if (!text.includes('Malformed marker prose stays readable.') || !text.includes('Unmarked prose stays readable.') || text.includes('read-aloud: en_US')) throw new Error('authored degraded prose or malformed drop changed');
-    await page.locator('.y-ttsbar__play').focus();
+    await page.locator('[data-readaloud-play]').focus();
     await page.keyboard.press('Enter');
     for (const [index, expected] of PASSAGES.entries()) {
       const utterances = await heard(page);
@@ -108,7 +108,7 @@ try {
       await page.evaluate(() => window.__utterances.at(-1).dispatchEvent(new Event('end')));
     }
     if ((await state(page)).spoken !== PASSAGES.length) throw new Error('play-through repeated or omitted a paragraph');
-    await page.click('.y-ttsbar__play');
+    await page.click('[data-readaloud-play]');
     await page.evaluate(() => {
       window.__announcements = [];
       new MutationObserver(() => window.__announcements.push(document.querySelector('.y-ttsbar__status').textContent))
