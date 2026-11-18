@@ -21,8 +21,8 @@ func TestAKeptPlaceComesBack(t *testing.T) {
 		t.Fatal("a store nobody has written to reports a kept place")
 	}
 	want := aPlace()
-	if err := store.SetBookmark(mark.NoCourse, want); err != nil {
-		t.Fatalf("SetBookmark: %v", err)
+	if err := moveBookmark(store, mark.NoCourse, want); err != nil {
+		t.Fatalf("MoveBookmark: %v", err)
 	}
 	got, ok := heldBookmark(t, store)
 	if !ok {
@@ -39,14 +39,14 @@ func TestAKeptPlaceComesBack(t *testing.T) {
 func TestKeepingAnotherPlaceReplacesTheFirst(t *testing.T) {
 	t.Parallel()
 	store := newStore(t)
-	if err := store.SetBookmark(mark.NoCourse, aPlace()); err != nil {
+	if err := moveBookmark(store, mark.NoCourse, aPlace()); err != nil {
 		t.Fatalf("keep the first place: %v", err)
 	}
 	second := aPlace()
 	second.RelPath = "Notes/alpha.md"
 	second.Anchor = "elsewhere"
 	second.Offset = 12
-	if err := store.SetBookmark(mark.NoCourse, second); err != nil {
+	if err := moveBookmark(store, mark.NoCourse, second); err != nil {
 		t.Fatalf("keep the second place: %v", err)
 	}
 	got, ok := heldBookmark(t, store)
@@ -73,13 +73,13 @@ func TestEachCourseKeepsItsOwnBookmark(t *testing.T) {
 	inGo, inJapanese := aPlace(), aPlace()
 	inGo.RelPath, inJapanese.RelPath = "Courses/go/G01.md", "Courses/japanese/J01.md"
 	for course, place := range map[string]*mark.Bookmark{go1: inGo, go2: inJapanese, mark.NoCourse: aPlace()} {
-		if err := store.SetBookmark(course, place); err != nil {
-			t.Fatalf("SetBookmark(%q): %v", course, err)
+		if err := moveBookmark(store, course, place); err != nil {
+			t.Fatalf("MoveBookmark(%q): %v", course, err)
 		}
 	}
 	moved := *inGo
 	moved.RelPath = "Courses/go/G02.md"
-	if err := store.SetBookmark(go1, &moved); err != nil {
+	if err := moveBookmark(store, go1, &moved); err != nil {
 		t.Fatal(err)
 	}
 	for course, want := range map[string]mark.Bookmark{go1: moved, go2: *inJapanese, mark.NoCourse: *aPlace()} {
@@ -136,8 +136,8 @@ func TestARefusedPlaceIsNotStored(t *testing.T) {
 			store := newStore(t)
 			refused := aPlace()
 			tt.spoil(refused)
-			if err := store.SetBookmark(mark.NoCourse, refused); !errors.Is(err, mark.ErrInvalid) {
-				t.Fatalf("SetBookmark(%s) = %v, want ErrInvalid", tt.name, err)
+			if err := moveBookmark(store, mark.NoCourse, refused); !errors.Is(err, mark.ErrInvalid) {
+				t.Fatalf("MoveBookmark(%s) = %v, want ErrInvalid", tt.name, err)
 			}
 			if _, ok := heldBookmark(t, store); ok {
 				t.Error("a refused place was stored anyway")
@@ -149,8 +149,8 @@ func TestARefusedPlaceIsNotStored(t *testing.T) {
 	}
 	store := newStore(t)
 	for _, course := range []string{"../escape.md", "/abs.md", "a\nb.md", "Courses/パ.md"} {
-		if err := store.SetBookmark(course, aPlace()); !errors.Is(err, mark.ErrInvalid) {
-			t.Errorf("SetBookmark(course %q) = %v, want ErrInvalid", course, err)
+		if err := moveBookmark(store, course, aPlace()); !errors.Is(err, mark.ErrInvalid) {
+			t.Errorf("MoveBookmark(course %q) = %v, want ErrInvalid", course, err)
 		}
 	}
 }
@@ -164,12 +164,12 @@ func TestARefusalLeavesTheKeptPlaceAlone(t *testing.T) {
 	t.Parallel()
 	store := newStore(t)
 	want := aPlace()
-	if err := store.SetBookmark(mark.NoCourse, want); err != nil {
+	if err := moveBookmark(store, mark.NoCourse, want); err != nil {
 		t.Fatalf("keep a place: %v", err)
 	}
 	refused := aPlace()
 	refused.Identity = "not-a-digest"
-	if err := store.SetBookmark(mark.NoCourse, refused); err == nil {
+	if err := moveBookmark(store, mark.NoCourse, refused); err == nil {
 		t.Fatal("a place with no identity was accepted")
 	}
 	got, ok := heldBookmark(t, store)
@@ -211,8 +211,8 @@ func TestAProgressFileThatCannotBeReadIsReportedAndNeverReplaced(t *testing.T) {
 			if _, _, err := store.Bookmark(mark.NoCourse); !errors.Is(err, mark.ErrUnreadable) {
 				t.Errorf("Bookmark over %s = %v, want ErrUnreadable", tt.name, err)
 			}
-			if err := store.SetBookmark(mark.NoCourse, aPlace()); !errors.Is(err, mark.ErrUnreadable) || errors.Is(err, mark.ErrInvalid) {
-				t.Errorf("SetBookmark over %s = %v, want ErrUnreadable and not ErrInvalid", tt.name, err)
+			if err := moveBookmark(store, mark.NoCourse, aPlace()); !errors.Is(err, mark.ErrUnreadable) || errors.Is(err, mark.ErrInvalid) {
+				t.Errorf("MoveBookmark over %s = %v, want ErrUnreadable and not ErrInvalid", tt.name, err)
 			}
 			if data, err := os.ReadFile(progressPath(store)); err != nil || string(data) != tt.body {
 				t.Errorf("the file changed to %q: %v", data, err)
@@ -317,7 +317,7 @@ func TestAnInvalidNoteCannotBeFinished(t *testing.T) {
 func TestFinishedAndBookmarksShareAFileAndKeepEachOther(t *testing.T) {
 	t.Parallel()
 	store := newStore(t)
-	if err := store.SetBookmark("Courses/go.md", aPlace()); err != nil {
+	if err := moveBookmark(store, "Courses/go.md", aPlace()); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.SetFinished("Notes/a.md", true); err != nil {
@@ -325,7 +325,7 @@ func TestFinishedAndBookmarksShareAFileAndKeepEachOther(t *testing.T) {
 	}
 	other := aPlace()
 	other.RelPath = "Notes/z.md"
-	if err := store.SetBookmark("Courses/go.md", other); err != nil {
+	if err := moveBookmark(store, "Courses/go.md", other); err != nil {
 		t.Fatal(err)
 	}
 	if got, found, err := store.Bookmark("Courses/go.md"); err != nil || !found || got.RelPath != "Notes/z.md" {
@@ -334,7 +334,7 @@ func TestFinishedAndBookmarksShareAFileAndKeepEachOther(t *testing.T) {
 	if _, finished, err := store.FinishedAt("Notes/a.md"); err != nil || !finished {
 		t.Errorf("setting a bookmark undid a finished note: %v, %v", finished, err)
 	}
-	if _, err := store.ClearBookmark("Courses/go.md"); err != nil {
+	if _, _, err := store.ClearBookmark("Courses/go.md"); err != nil {
 		t.Fatal(err)
 	}
 	if _, finished, err := store.FinishedAt("Notes/a.md"); err != nil || !finished {
@@ -368,29 +368,29 @@ func TestMoreFinishedNotesThanTheBoundAreRefusedWhenAddedAndKeptWhenStored(t *te
 func TestClearingABookmarkRemovesOnlyThatCoursesAndWritesNothingWhereThereIsNone(t *testing.T) {
 	t.Parallel()
 	store := newStore(t)
-	if removed, err := store.ClearBookmark("Courses/go.md"); err != nil || removed {
+	if _, removed, err := store.ClearBookmark("Courses/go.md"); err != nil || removed {
 		t.Fatalf("ClearBookmark on an empty store = %v, %v", removed, err)
 	}
 	if _, err := os.Stat(progressPath(store)); !os.IsNotExist(err) {
 		t.Errorf("clearing nothing created %s", progressPath(store))
 	}
 	for _, course := range []string{"Courses/go.md", "Courses/rust.md", mark.NoCourse} {
-		if err := store.SetBookmark(course, aPlace()); err != nil {
+		if err := moveBookmark(store, course, aPlace()); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if removed, err := store.ClearBookmark("Courses/go.md"); err != nil || !removed {
-		t.Fatalf("ClearBookmark = %v, %v, want removed", removed, err)
+	if got, removed, err := store.ClearBookmark("Courses/go.md"); err != nil || !removed || got.RelPath != aPlace().RelPath {
+		t.Fatalf("ClearBookmark = %v, %v, %v, want the bookmark that was kept", got, removed, err)
 	}
 	for course, want := range map[string]bool{"Courses/go.md": false, "Courses/rust.md": true, mark.NoCourse: true} {
 		if _, found, err := store.Bookmark(course); err != nil || found != want {
 			t.Errorf("Bookmark(%q) found = %v, %v; want %v", course, found, err, want)
 		}
 	}
-	if removed, err := store.ClearBookmark("Courses/go.md"); err != nil || removed {
+	if _, removed, err := store.ClearBookmark("Courses/go.md"); err != nil || removed {
 		t.Errorf("clearing a bookmark twice = %v, %v", removed, err)
 	}
-	if _, err := store.ClearBookmark("../escape.md"); !errors.Is(err, mark.ErrInvalid) {
+	if _, _, err := store.ClearBookmark("../escape.md"); !errors.Is(err, mark.ErrInvalid) {
 		t.Errorf("ClearBookmark of a path that climbs out = %v, want ErrInvalid", err)
 	}
 }
@@ -404,7 +404,7 @@ func TestAClearedConvertedBookmarkStaysCleared(t *testing.T) {
 	if _, found, err := store.Bookmark(mark.NoCourse); err != nil || !found {
 		t.Fatalf("the converted bookmark = %v, %v", found, err)
 	}
-	if removed, err := store.ClearBookmark(mark.NoCourse); err != nil || !removed {
+	if _, removed, err := store.ClearBookmark(mark.NoCourse); err != nil || !removed {
 		t.Fatalf("ClearBookmark = %v, %v", removed, err)
 	}
 	if _, found, err := store.Bookmark(mark.NoCourse); err != nil || found {
@@ -412,5 +412,141 @@ func TestAClearedConvertedBookmarkStaysCleared(t *testing.T) {
 	}
 	if bytesOf(t, oldBookmarkPath(store)) != oldBookmark {
 		t.Error("clearing changed the old file")
+	}
+}
+
+// A page that moves the bookmark says where it was and offers to put it back,
+// so the store has to hand back what it replaced exactly, and setting that
+// back has to give the file it had.
+func TestMovingABookmarkAnswersTheOneItReplacedAndSettingItBackRestoresTheFile(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	course := "Courses/go.md"
+
+	first := aPlace()
+	if previous, had, err := store.MoveBookmark(course, first, nil); err != nil || had || previous != (mark.Bookmark{}) {
+		t.Fatalf("the first MoveBookmark = %v, %v, %v; want nothing replaced", previous, had, err)
+	}
+	before := contents(t, progressPath(store))
+
+	later := aPlace()
+	later.RelPath, later.Anchor, later.Offset = "Notes/z.md", "", 7
+	later.At = first.At.Add(time.Hour)
+	previous, had, err := store.MoveBookmark(course, later, nil)
+	if err != nil || !had || previous != *first {
+		t.Fatalf("MoveBookmark = %v, %v, %v; want the first bookmark back", previous, had, err)
+	}
+	if got, found, err := store.Bookmark(course); err != nil || !found || got != *later {
+		t.Errorf("the bookmark after moving = %v, %v, %v; want the later one", got, found, err)
+	}
+	if _, _, err := store.MoveBookmark(course, &previous, nil); err != nil {
+		t.Fatal(err)
+	}
+	if after := contents(t, progressPath(store)); after != before {
+		t.Errorf("setting the old bookmark back changed the file:\nbefore %s\nafter  %s", before, after)
+	}
+}
+
+func TestAMovedBookmarkLeavesOtherCoursesAndTheFileAloneWhenRefused(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	for _, course := range []string{"Courses/go.md", mark.NoCourse} {
+		if err := moveBookmark(store, course, aPlace()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := contents(t, progressPath(store))
+
+	bad := aPlace()
+	bad.Identity = "not an identity"
+	if _, _, err := store.MoveBookmark("Courses/go.md", bad, nil); !errors.Is(err, mark.ErrInvalid) {
+		t.Errorf("a refused bookmark = %v, want ErrInvalid", err)
+	}
+	if _, _, err := store.MoveBookmark("../escape.md", aPlace(), nil); !errors.Is(err, mark.ErrInvalid) {
+		t.Errorf("a course that climbs out = %v, want ErrInvalid", err)
+	}
+	if after := contents(t, progressPath(store)); after != before {
+		t.Errorf("a refusal changed the file:\nbefore %s\nafter  %s", before, after)
+	}
+}
+
+// A bookmark cleared and set back leaves the file as it was, however many other
+// courses have one: the order they are written in does not depend on the order
+// they were set in.
+func TestClearingAndSettingBackABookmarkRestoresTheFileWithSeveralKept(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	for _, course := range []string{"Courses/go.md", "Courses/rust.md", mark.NoCourse} {
+		if err := moveBookmark(store, course, aPlace()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before := contents(t, progressPath(store))
+
+	removed, had, err := store.ClearBookmark("Courses/go.md")
+	if err != nil || !had {
+		t.Fatalf("ClearBookmark = %v, %v", had, err)
+	}
+	if _, _, err = store.MoveBookmark("Courses/go.md", &removed, nil); err != nil {
+		t.Fatal(err)
+	}
+	if after := contents(t, progressPath(store)); after != before {
+		t.Errorf("clearing a bookmark and setting it back changed the file:\nbefore %s\nafter  %s", before, after)
+	}
+}
+
+// An undo that says what it expects to replace is refused where something else
+// is kept, and changes nothing, so another page's move is not lost.
+func TestAMoveThatExpectsAnotherBookmarkIsRefusedAndChangesNothing(t *testing.T) {
+	t.Parallel()
+	const course = "Courses/go.md"
+	first := aPlace()
+	later := aPlace()
+	later.RelPath, later.At = "Notes/z.md", first.At.Add(time.Hour)
+
+	for name, tt := range map[string]struct {
+		kept    bool
+		expect  *mark.Expectation
+		changed bool
+	}{
+		"the bookmark kept":              {true, &mark.Expectation{At: &first.At}, false},
+		"no condition":                   {true, nil, false},
+		"another bookmark":               {true, &mark.Expectation{At: &later.At}, true},
+		"none, where one is kept":        {true, &mark.Expectation{}, true},
+		"none, where none is kept":       {false, &mark.Expectation{}, false},
+		"a bookmark, where none is kept": {false, &mark.Expectation{At: &first.At}, true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			store := newStore(t)
+			var held string
+			if tt.kept {
+				if err := moveBookmark(store, course, first); err != nil {
+					t.Fatal(err)
+				}
+				held = contents(t, progressPath(store))
+			}
+
+			_, _, err := store.MoveBookmark(course, later, tt.expect)
+			if errors.Is(err, mark.ErrChanged) != tt.changed || (err != nil) != tt.changed {
+				t.Fatalf("MoveBookmark = %v, want refused = %v", err, tt.changed)
+			}
+			kept, found, readErr := store.Bookmark(course)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			switch {
+			case !tt.changed:
+				if !found || kept.RelPath != later.RelPath || !kept.At.Equal(later.At) {
+					t.Errorf("the bookmark kept = %+v, %v after a move taken, want %+v", kept, found, *later)
+				}
+			case tt.kept:
+				if got := contents(t, progressPath(store)); got != held {
+					t.Errorf("a refused move changed the file:\nbefore %s\nafter  %s", held, got)
+				}
+			case found:
+				t.Errorf("a refused move kept the bookmark %+v", kept)
+			}
+		})
 	}
 }

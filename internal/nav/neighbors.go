@@ -44,6 +44,66 @@ func (m *Model) PathNeighbors(relPath string) []Neighbors {
 	return out
 }
 
+// CourseUnits is the notes the course at relPath walks, in the order it walks
+// them: the units of its main line, and apart from them the units of its side
+// branches. A note appears once, at its first place. It answers whether a
+// course walks a note, and the place a unit holds among all of them, which
+// takes the branches in. ok is false where no course answers to relPath.
+//
+// A unit is a note a reader can open, as a stop of PathNeighbors is: a row that
+// reaches no note, because it is planned and not yet written, or because the
+// artifact policy keeps its note out of the course, is not among them, and a
+// draft is.
+func (m *Model) CourseUnits(relPath string) (mainLine, branches []NoteRef, ok bool) {
+	at := m.indexOfPath(relPath)
+	if at < 0 {
+		return nil, nil, false
+	}
+	course := &m.paths[at]
+	seen := map[string]bool{}
+	for i, stops := range course.components {
+		onBranch := course.onBranch(i)
+		for _, stop := range stops {
+			if seen[stop.RelPath] {
+				continue
+			}
+			seen[stop.RelPath] = true
+			if onBranch {
+				branches = append(branches, stop)
+			} else {
+				mainLine = append(mainLine, stop)
+			}
+		}
+	}
+	return mainLine, branches, true
+}
+
+// CourseRows is what a course counts: planned, every accepted row of its main
+// line, those not yet written included, which is what the course page prints as
+// the number of its units; and rows, the notes of those rows a reader can open,
+// in order and one for each row, so a note the course lists twice is named
+// twice. What is finished is counted in rows, so a course that lists a note
+// twice can still reach every row. ok is false where no course answers to
+// relPath.
+func (m *Model) CourseRows(relPath string) (planned int, rows []NoteRef, ok bool) {
+	at := m.indexOfPath(relPath)
+	if at < 0 {
+		return 0, nil, false
+	}
+	course := &m.paths[at]
+	for i, stops := range course.components {
+		if !course.onBranch(i) {
+			rows = append(rows, stops...)
+		}
+	}
+	return course.Planned, rows, true
+}
+
+// onBranch reports whether component i is a side branch and not the main line.
+func (p *Course) onBranch(i int) bool {
+	return i < len(p.info) && p.info[i].branch != nil
+}
+
 // locate is where a note first appears among a path's components, in the order
 // they are walked: which component, and where in it. Both answers about a note
 // in a path — its neighbors and its place — read it from here.

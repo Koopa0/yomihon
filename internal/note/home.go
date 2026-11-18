@@ -104,7 +104,7 @@ func continueRow(kept *mark.Bookmark, hasMark bool, snap *snapshot.Generation, m
 	if !found {
 		// Nothing is cleared. The reader did not ask for that, and a note can
 		// be missing from one generation because the folder was mid-write.
-		return pages.ContinueRow{Show: true, Title: kept.RelPath, Notice: wording.MarkNoteGone.In(lang)}
+		return pages.ContinueRow{Show: true, Title: kept.RelPath, Notice: wording.BookmarkNoteGone.In(lang)}
 	}
 	row := pages.ContinueRow{
 		Show:     true,
@@ -115,7 +115,7 @@ func continueRow(kept *mark.Bookmark, hasMark bool, snap *snapshot.Generation, m
 	}
 	row.Kicker, row.KickerLanguage = continueKicker(model, snap, kept.RelPath)
 	if hex.EncodeToString(reading.ContentIdentity[:]) != kept.Identity {
-		row.Notice = wording.MarkNoteChanged.In(lang)
+		row.Notice = wording.BookmarkNoteChanged.In(lang)
 	}
 	return row
 }

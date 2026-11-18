@@ -10,7 +10,9 @@ import (
 	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -39,6 +41,43 @@ func (h *Handler) Reading(rel string, lang wording.Lang) (mark.Page, bool) {
 		Text:     render.TextContent(snap.Render(rel, n.Body, lang).HTML),
 		Identity: hex.EncodeToString(n.ContentIdentity[:]),
 	}, true
+}
+
+// Units is the notes the course at course walks, as the sidebar and the course
+// page read it: the shell's own projection of the navigation model, so rules
+// that close the courses close this too. The main line and the side
+// branches are apart because a count of what is finished takes the first alone.
+// ok is false where no course answers to course.
+func (h *Handler) Units(course string) (mainLine, branches []string, ok bool) {
+	snap := h.sources.Snapshot().Capture()
+	visible := shell.Project(h.sources.VaultName, h.sources.Authority(), snap)
+	onMain, onBranches, ok := visible.Nav.CourseUnits(course)
+	if !ok {
+		return nil, nil, false
+	}
+	return relPaths(onMain), relPaths(onBranches), true
+}
+
+// Rows is what a course counts, as the sidebar and the course page read it, from
+// the same projection as Units: how many rows its main line plans, those not yet
+// written included, and the notes of those a reader can open, one for each row.
+// ok is false where no course answers to course.
+func (h *Handler) Rows(course string) (planned int, rows []string, ok bool) {
+	snap := h.sources.Snapshot().Capture()
+	visible := shell.Project(h.sources.VaultName, h.sources.Authority(), snap)
+	planned, onMain, ok := visible.Nav.CourseRows(course)
+	if !ok {
+		return 0, nil, false
+	}
+	return planned, relPaths(onMain), true
+}
+
+func relPaths(refs []nav.NoteRef) []string {
+	paths := make([]string, len(refs))
+	for i := range refs {
+		paths[i] = refs[i].RelPath
+	}
+	return paths
 }
 
 // placeResolver owns a request's captured generation and lazily resolves each

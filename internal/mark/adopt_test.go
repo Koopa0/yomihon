@@ -50,12 +50,12 @@ func (v aMovedVault) keepEverything(t *testing.T) {
 			t.Fatalf("keep a %s: %v", m.Kind, err)
 		}
 	}
-	if err := v.old.SetBookmark(mark.NoCourse, aPlace()); err != nil {
+	if err := moveBookmark(v.old, mark.NoCourse, aPlace()); err != nil {
 		t.Fatal(err)
 	}
 	course := aPlace()
 	course.RelPath = "Courses/go/two.md"
-	if err := v.old.SetBookmark("Courses/go/index.md", course); err != nil {
+	if err := moveBookmark(v.old, "Courses/go/index.md", course); err != nil {
 		t.Fatal(err)
 	}
 	for _, note := range []string{"Notes/source.md", "Courses/go/one.md"} {
@@ -203,7 +203,7 @@ func TestAdoptKeepsWhatTheVaultAlreadyHas(t *testing.T) {
 	}
 	ownBookmark := aPlace()
 	ownBookmark.Anchor, ownBookmark.Offset = "a-newer-place", 7
-	if err = v.now.SetBookmark(mark.NoCourse, ownBookmark); err != nil {
+	if err = moveBookmark(v.now, mark.NoCourse, ownBookmark); err != nil {
 		t.Fatal(err)
 	}
 	if err = v.now.SetFinished("Notes/source.md", true); err != nil {
@@ -395,7 +395,7 @@ func TestAdoptThatWouldPassTheBoundWritesNothing(t *testing.T) {
 	if _, err := v.old.Add(aQuestion()); err != nil {
 		t.Fatal(err)
 	}
-	if err := v.old.SetBookmark(mark.NoCourse, aPlace()); err != nil {
+	if err := moveBookmark(v.old, mark.NoCourse, aPlace()); err != nil {
 		t.Fatal(err)
 	}
 	full := make([]string, mark.MaxMarks)

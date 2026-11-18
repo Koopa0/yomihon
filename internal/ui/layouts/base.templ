@@ -242,13 +242,13 @@ templ headerMark(mark *MarkOffer, lang wording.Lang) {
 		data-mark-path={ mark.Path }
 		data-mark-identity={ mark.Identity }
 		data-mark-endpoint={ mark.Endpoint }
-		data-mark-saved={ wording.MarkSaved.In(lang) }
-		data-mark-failed={ wording.MarkNotStored.In(lang) }
+		data-mark-saved={ wording.BookmarkSaved.In(lang) }
+		data-mark-failed={ wording.BookmarkNotStored.In(lang) }
 		data-mark-kept?={ mark.Kept }
 	>
-		<button class="y-iconbtn y-headermark__button" type="button" data-mark-button aria-pressed={ strconv.FormatBool(mark.Kept) } aria-label={ wording.MarkSetControl.In(lang) } title={ wording.MarkSetControl.In(lang) }>
+		<button class="y-iconbtn y-headermark__button" type="button" data-mark-button aria-pressed={ strconv.FormatBool(mark.Kept) } aria-label={ wording.BookmarkSetControl.In(lang) } title={ wording.BookmarkSetControl.In(lang) }>
 			<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M6 3h12v18l-6-4.5L6 21z"></path></svg>
-			<span class="y-headermark__label" aria-hidden="true">{ wording.MarkSetControl.In(lang) }</span>
+			<span class="y-headermark__label" aria-hidden="true">{ wording.BookmarkSetControl.In(lang) }</span>
 		</button>
 		@Reply("y-headermark__said", templ.Attributes{"data-mark-said": true})
 	</div>
