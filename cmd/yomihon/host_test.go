@@ -957,6 +957,46 @@ func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
 	}
 }
 
+// A record asked for once the host has begun to end is dropped. The server that
+// closes after its grace does not wait for a request already being handled, so one
+// can still ask after the servers are counted as done; a record begun then could
+// be written after the host ended, or be added to the group that is being waited
+// for.
+func TestARecordAskedForAfterTheHostBeganToEndIsDropped(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	start := someFreePort(t)
+	entry, _, err := listOf(t, configDir).Add(newVaultFolder(t), start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	data, err := json.Marshal(struct {
+		Version int            `json:"version"`
+		Vaults  []vaults.Entry `json:"vaults"`
+	}{1, []vaults.Entry{{ID: entry.ID, Path: entry.Path, Name: entry.Name, LastRead: long, Port: entry.Port}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(configDir, "yomihon", "vaults.json"), data, 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+		t.Fatal(err)
+	}
+
+	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
+	if err = h.stopServing(); err != nil {
+		t.Fatal(err)
+	}
+	m := &mount{entry: entry}
+	h.touch(t.Context(), m)
+	h.recording.Wait()
+	if got := idOf(t, listOf(t, configDir), entry.Path).LastRead; !got.Equal(long) {
+		t.Errorf("a record asked for after the host began to end was written: last read is %v", got)
+	}
+	if m.touching.Load() {
+		t.Error("the dropped record left the vault marked as being recorded")
+	}
+}
+
 func TestStoppingLeavesNothingThatSaysYomihonIsRunning(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()

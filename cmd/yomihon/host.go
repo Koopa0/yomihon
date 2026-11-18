@@ -225,8 +225,16 @@ func (h *host) touch(ctx context.Context, m *mount) {
 	}
 	// The record outlives the request that asked for it, which may end first, and
 	// not the host: stopServing waits for it, so nothing writes to the list after
-	// the host has ended.
+	// the host has ended. A record asked for once the host is ending is dropped,
+	// and the group is added to under the lock stopServing closes under, so that
+	// every record is begun before the wait for them.
 	ctx = context.WithoutCancel(ctx)
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closing {
+		m.touching.Store(false)
+		return
+	}
 	h.recording.Go(func() {
 		defer m.touching.Store(false)
 		h.recordRead(ctx, m)
