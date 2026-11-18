@@ -119,8 +119,11 @@ var alsoRefused = []string{
 
 // forbiddenImports are the ways a program reaches the disk, or the memory the
 // type checker reasons about, that no list of symbols can fence: cgo calls any
-// C function, and unsafe breaks the types this guard rests on.
-var forbiddenImports = []string{"C", "unsafe"}
+// C function, unsafe breaks the types this guard rests on, and reflect and the
+// template packages call a method by a name that is a string, so that a Remove
+// on a root nobody named is not a use of os.Root.Remove anywhere in the source.
+// No shipped package imports one of them; one that needs to is a decision.
+var forbiddenImports = []string{"C", "unsafe", "reflect", "text/template", "html/template"}
 
 func hasPrefixIn(name string, families []string) bool {
 	for _, family := range families {
@@ -504,7 +507,9 @@ func readWorld(goos string) (*world, error) {
 	if err != nil {
 		return nil, err
 	}
-	patterns := []string{"./assets", "./cmd/...", "./internal/..."}
+	// Every package of the module, so that one added in a new directory is read
+	// and not left for the check that every file was read to find.
+	patterns := []string{"./..."}
 	if goos == "linux" {
 		patterns = append(patterns, fixtureImports...)
 	}
@@ -522,12 +527,14 @@ func readWorld(goos string) (*world, error) {
 	packages.Visit(pkgs, nil, func(p *packages.Package) { w.byPath[p.PkgPath] = p })
 	for _, path := range slices.Sorted(maps.Keys(w.byPath)) {
 		p := w.byPath[path]
+		// A package that did not load is not read, so it fails the test whatever it
+		// holds; what is checked for first is the error and not the files.
+		if len(p.Errors) > 0 {
+			return nil, fmt.Errorf("read the module for %s: %s did not load: %w", goos, p.PkgPath, p.Errors[0])
+		}
 		// A directory that holds only tests has no package to read.
 		if len(p.GoFiles) == 0 {
 			continue
-		}
-		if len(p.Errors) > 0 {
-			return nil, fmt.Errorf("read the module for %s: %s did not load: %w", goos, p.PkgPath, p.Errors[0])
 		}
 		if strings.HasPrefix(path, module) && len(p.Syntax) > 0 {
 			w.production = append(w.production, p)

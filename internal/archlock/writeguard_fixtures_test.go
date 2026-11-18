@@ -318,6 +318,31 @@ func write(fd int, p []byte) (int, error)`,
 		want: []string{"imports unsafe", "go:linkname"},
 	},
 
+	{
+		name:   "a method called by a name that is a string, through reflect",
+		parsed: true,
+		src: `package fixture
+import "reflect"
+func call(v any) { reflect.ValueOf(v).MethodByName("Remove").Call(nil) }`,
+		want: []string{"imports reflect"},
+	},
+	{
+		name:   "a method called by a name in a template",
+		parsed: true,
+		src: `package fixture
+import "text/template"
+var t = template.Must(template.New("x").Parse("{{.Remove}}"))`,
+		want: []string{"imports text/template"},
+	},
+	{
+		name:   "the same, in the template package that escapes",
+		parsed: true,
+		src: `package fixture
+import "html/template"
+var t = template.Must(template.New("x").Parse("{{.Remove}}"))`,
+		want: []string{"imports html/template"},
+	},
+
 	// The writer's own signatures, which carry the other half of the rule.
 	{
 		name: "an exported function of the writer that takes a path",
