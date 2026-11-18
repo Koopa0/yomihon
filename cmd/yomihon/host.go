@@ -67,6 +67,8 @@ type host struct {
 
 	reading sync.WaitGroup
 	serving sync.WaitGroup
+	// recording is the records of a read that are being written to the list.
+	recording sync.WaitGroup
 	// fatal carries the failure of a read that has to succeed for the process
 	// to be worth running: the vault the reader just typed.
 	fatal chan error
@@ -221,12 +223,14 @@ func (h *host) touch(ctx context.Context, m *mount) {
 	if h.store == nil || !m.touching.CompareAndSwap(false, true) {
 		return
 	}
-	// The record outlives the request that asked for it, which may end first.
+	// The record outlives the request that asked for it, which may end first, and
+	// not the host: stopServing waits for it, so nothing writes to the list after
+	// the host has ended.
 	ctx = context.WithoutCancel(ctx)
-	go func() {
+	h.recording.Go(func() {
 		defer m.touching.Store(false)
 		h.recordRead(ctx, m)
-	}()
+	})
 }
 
 // recordRead writes the read, and the name the list keeps, to the list.
@@ -304,8 +308,9 @@ func (h *host) ensure(ctx context.Context, entry *vaults.Entry) {
 	}
 }
 
-// stopServing waits for every listener to finish serving and for every read to
-// end. Nothing can be mounted or started after it begins.
+// stopServing waits for every listener to finish serving, for every read to
+// end, and for every record of a read to be written. Nothing can be mounted or
+// started after it begins.
 func (h *host) stopServing() error {
 	h.mu.Lock()
 	h.closing = true
@@ -318,6 +323,7 @@ func (h *host) stopServing() error {
 	}
 	h.serving.Wait()
 	h.reading.Wait()
+	h.recording.Wait()
 	return result
 }
 
