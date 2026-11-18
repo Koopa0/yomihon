@@ -32,38 +32,43 @@ import (
 // tests share a machine, and each counting up from the same port would meet.
 var nextBlock = func() *atomic.Int32 {
 	var first atomic.Int32
-	first.Store(int32(os.Getpid() % firstBlocks)) // #nosec G115 -- a number below firstBlocks
+	first.Store(int32(os.Getpid() % blocks)) // #nosec G115 -- a number below blocks
 	return &first
 }()
 
 const (
 	portsPerTest = 40
 	firstPort    = 20000
-	// firstBlocks is how many blocks a run can begin at. Blocks are used in
-	// order from there and must end below lastPort, the first port the system
-	// hands to a connection's own end, which any test's client can be given; a
-	// run draws far fewer than the blocks left above where it begins.
-	firstBlocks = 500
-	lastPort    = 49000
+	// blocks is how many blocks there are, and they end at 32000. Linux hands
+	// the own end of a connection a port from 32768 and macOS and Windows from
+	// 49152, and any test's client can be given one, so a block that reached
+	// them could have a port taken between the look at it and the bind.
+	blocks = 300
 )
 
 // someFreePort is the starting port for a test, with the forty above it left to
 // that test alone. Every port of the block is one nothing holds now.
+//
+// The block is claimed before it is looked at: looking is binding, and another
+// run's block that is looked at while it is being used has a port it has not
+// bound yet taken for the moment of the look.
 func someFreePort(t *testing.T) int {
 	t.Helper()
-	for {
-		port := firstPort + portsPerTest*int(nextBlock.Add(1))
-		if port+portsPerTest > lastPort {
-			t.Fatal("no block of ports is left for this test")
-		}
-		if !blockFree(t.Context(), port) {
+	for range blocks {
+		port := firstPort + portsPerTest*(int(nextBlock.Add(1))%blocks)
+		release, ok := claimBlock(port)
+		if !ok {
 			continue
 		}
-		if release, ok := claimBlock(port); ok {
-			t.Cleanup(release)
-			return port
+		if !blockFree(t.Context(), port) {
+			release()
+			continue
 		}
+		t.Cleanup(release)
+		return port
 	}
+	t.Fatal("no block of ports is free for this test")
+	return 0
 }
 
 // staleClaim is how long a claim on a block stands before it is taken to be one a
@@ -217,6 +222,9 @@ func (r *running) address(t *testing.T) string {
 	eventually(t, "the address to be printed", func() bool {
 		select {
 		case err := <-r.done:
+			// The result is the one stop would wait for, and nothing else sends
+			// another, so the cleanup that stops the host has to be told it has ended.
+			r.stopped.Do(func() { r.result = err })
 			t.Fatalf("the host ended before it printed an address: %v", err)
 		default:
 		}
