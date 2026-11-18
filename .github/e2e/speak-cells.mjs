@@ -14,7 +14,7 @@
 import { chromium } from 'playwright-core';
 import { installSpeechVoices } from './support/speech-voices.mjs';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/languages/Read%20aloud.md';
 const MUTATE = process.env.MUTATE || '';
 const CELL = '.y-cellspeak';

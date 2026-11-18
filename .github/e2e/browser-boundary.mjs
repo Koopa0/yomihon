@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 
 import { chromium } from "playwright-core";
 
-const BASE = process.env.YOMIHON_BASE || "http://127.0.0.1:9610";
+import { baseUrl as BASE } from './support/base.mjs';
 const READING_PATH = "/notes/Notes/browser-boundary.md";
 const MUTATE = process.env.MUTATE || "";
 const ATTACKER_TOKEN = "BROWSER_BOUNDARY_ATTACKER";

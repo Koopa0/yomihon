@@ -10,7 +10,7 @@
 // exactly like a hover the page did not register, and every server-side test
 // stays green while it happens.
 //
-// Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (the note that
+// Env: YOMIHON_BASE (required), PAGE_PATH (the note that
 // carries the links). MUTATE names one of the self-test modes below;
 // MUTATE=list prints them.
 import { arrived } from './support/arrival.mjs';
@@ -18,7 +18,7 @@ import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
 
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const MUTATE = process.env.MUTATE || '';
 

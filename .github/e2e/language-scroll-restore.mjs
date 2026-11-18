@@ -11,7 +11,7 @@
 // Env: YOMIHON_BASE, PAGE_PATH (Glass Tide), and MUTATE.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/Glass%20Tide.md';
 const MUTATE = process.env.MUTATE || '';
 const SITES = ['position-survives-a-visit-to-settings', 'an-arrival-paints', 'position-survives-preferences'];

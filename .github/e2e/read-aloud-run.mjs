@@ -10,7 +10,7 @@
 import { chromium } from 'playwright-core';
 import { installSpeechVoices } from './support/speech-voices.mjs';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L02.md';
 const MUTATE = process.env.MUTATE || '';
 const PLAY = '.y-ttsbar__play';

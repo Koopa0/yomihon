@@ -20,7 +20,7 @@ import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md';
 const MUTATE = process.env.MUTATE || '';
 

@@ -12,7 +12,7 @@
 // stays legible on it, and its colour is the header's paper, not a new one.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/';
 const MUTATE = process.env.MUTATE || '';
 const BRAND_PATH = '/static/yomihon-mark.svg';

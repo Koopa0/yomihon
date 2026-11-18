@@ -15,7 +15,7 @@
 // Env: YOMIHON_BASE, PAGE_PATH (a note with a next link), and MUTATE.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 const SITES = ['next-page-is-served-from-the-prefetch', 'chosen-theme-reaches-the-next-page'];

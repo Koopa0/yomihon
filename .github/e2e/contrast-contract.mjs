@@ -20,12 +20,12 @@
 // Chrome performs the OKLCH conversion; the lock reads the resulting pixels
 // from a canvas rather than maintaining a second color-conversion algorithm.
 //
-// Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (a note whose
+// Env: YOMIHON_BASE (required), PAGE_PATH (a note whose
 // body carries fenced code). MUTATE names one of the self-test modes below;
 // MUTATE=list prints them.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 // A file that is not a note runs the same highlighter over its whole contents,
 // under a different page shell. It is the second place the palette has to
