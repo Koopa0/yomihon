@@ -11,13 +11,27 @@ import (
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
-func dirFor(t *testing.T, configDir, vaultRoot string) string {
+func dirFor(t *testing.T, configDir, vaultRoot string) confdir.Dir {
 	t.Helper()
-	dir, err := confdir.Dir(configDir, vaultRoot)
+	dir, err := confdir.VaultDir(configDir, vaultRoot)
 	if err != nil {
-		t.Fatalf("Dir(%q, %q): %v", configDir, vaultRoot, err)
+		t.Fatalf("VaultDir(%q, %q): %v", configDir, vaultRoot, err)
 	}
 	return dir
+}
+
+// homeIn is the reader's directory under a fresh configuration directory, made
+// and empty, which is the one kind of Dir there is to work in.
+func homeIn(t *testing.T) confdir.Dir {
+	t.Helper()
+	home, err := confdir.Home(t.TempDir())
+	if err != nil {
+		t.Fatalf("Home: %v", err)
+	}
+	if err = os.MkdirAll(home.Path(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return home
 }
 
 func TestADirectoryNeedsBothThingsThatNameIt(t *testing.T) {
@@ -27,8 +41,8 @@ func TestADirectoryNeedsBothThingsThatNameIt(t *testing.T) {
 		{"no vault root", "/config", ""},
 		{"neither", "", ""},
 	} {
-		if dir, err := confdir.Dir(tt.configDir, tt.vaultRoot); !errors.Is(err, confdir.ErrNotNamed) {
-			t.Errorf("%s: Dir = %q, %v; want ErrNotNamed", tt.name, dir, err)
+		if dir, err := confdir.VaultDir(tt.configDir, tt.vaultRoot); !errors.Is(err, confdir.ErrNotNamed) {
+			t.Errorf("%s: VaultDir = %q, %v; want ErrNotNamed", tt.name, dir.Path(), err)
 		}
 	}
 }
@@ -37,7 +51,7 @@ func TestTwoVaultsGetTwoDirectories(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	if first, second := dirFor(t, config, "/vaults/notes"), dirFor(t, config, "/vaults/other"); first == second {
-		t.Fatalf("two vaults share one directory at %s", first)
+		t.Fatalf("two vaults share one directory at %s", first.Path())
 	}
 }
 
@@ -62,7 +76,7 @@ func TestTheSameFolderSpelledTwoWaysIsOneVault(t *testing.T) {
 		t.Fatal("the two spellings are the same bytes, so comparing what they derive proves nothing")
 	}
 	if a, b := dirFor(t, config, composed), dirFor(t, config, decomposed); a != b {
-		t.Errorf("the same folder spelled two ways got two directories:\n%s\n%s", a, b)
+		t.Errorf("the same folder spelled two ways got two directories:\n%s\n%s", a.Path(), b.Path())
 	}
 }
 
@@ -71,20 +85,20 @@ func TestTheSameFolderSpelledTwoWaysIsOneVault(t *testing.T) {
 func TestTheDirectoryNameSpellsNoPath(t *testing.T) {
 	t.Parallel()
 	dir := dirFor(t, t.TempDir(), "/vaults/secret project/notes")
-	name := filepath.Base(dir)
+	name := filepath.Base(dir.Path())
 	for _, fragment := range []string{"secret", "project", "notes", "vaults", " ", "/"} {
 		if strings.Contains(name, fragment) {
 			t.Errorf("the directory name %q carries %q from the vault path", name, fragment)
 		}
 	}
-	if parent := filepath.Base(filepath.Dir(dir)); parent != "yomihon" {
+	if parent := filepath.Base(filepath.Dir(dir.Path())); parent != "yomihon" {
 		t.Errorf("the directory sits under %q, want yomihon", parent)
 	}
 }
 
 func TestReplaceInstallsAFileOwnerOnlyAndLeavesNothingBesideIt(t *testing.T) {
 	t.Parallel()
-	dir := filepath.Join(t.TempDir(), "yomihon", "v")
+	dir := dirFor(t, t.TempDir(), "/vaults/v")
 	for _, data := range []string{"first\n", "second\n"} {
 		if err := confdir.Replace(dir, "marks.json", []byte(data)); err != nil {
 			t.Fatal(err)
@@ -94,17 +108,17 @@ func TestReplaceInstallsAFileOwnerOnlyAndLeavesNothingBesideIt(t *testing.T) {
 	if err != nil || string(got) != "second\n" {
 		t.Fatalf("Read = %q, %v; want the second write", got, err)
 	}
-	entries, err := os.ReadDir(dir)
+	entries, err := os.ReadDir(dir.Path())
 	if err != nil || len(entries) != 1 || entries[0].Name() != "marks.json" {
 		t.Errorf("the directory holds %v, %v; want only marks.json", entries, err)
 	}
 	if runtime.GOOS == "windows" {
 		return
 	}
-	if info, statErr := os.Stat(filepath.Join(dir, "marks.json")); statErr != nil || info.Mode().Perm() != 0o600 {
+	if info, statErr := os.Stat(dir.Join("marks.json")); statErr != nil || info.Mode().Perm() != 0o600 {
 		t.Errorf("file mode = %v, %v; want 600", info, statErr)
 	}
-	if info, statErr := os.Stat(dir); statErr != nil || info.Mode().Perm() != 0o700 {
+	if info, statErr := os.Stat(dir.Path()); statErr != nil || info.Mode().Perm() != 0o700 {
 		t.Errorf("directory mode = %v, %v; want 700", info, statErr)
 	}
 }
@@ -113,20 +127,20 @@ func TestReplaceInstallsAFileOwnerOnlyAndLeavesNothingBesideIt(t *testing.T) {
 // outside the directory this package exists to confine writes to.
 func TestReplaceRefusesAnythingButAFileName(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir := homeIn(t)
 	for _, name := range []string{"", ".", "..", "../x.json", "a/b.json", `a\b.json`, "/abs.json"} {
 		if err := confdir.Replace(dir, name, []byte("x")); err == nil {
 			t.Errorf("Replace(%q) = nil, want a refusal", name)
 		}
 	}
-	if entries, err := os.ReadDir(filepath.Dir(dir)); err != nil || len(entries) != 1 {
+	if entries, err := os.ReadDir(filepath.Dir(dir.Path())); err != nil || len(entries) != 1 {
 		t.Errorf("a refused name wrote beside the directory: %v, %v", entries, err)
 	}
 }
 
 func TestReadRefusesAFileBeyondItsLimit(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir := homeIn(t)
 	if err := confdir.Replace(dir, "f.json", []byte(strings.Repeat("x", 11))); err != nil {
 		t.Fatal(err)
 	}
@@ -148,12 +162,12 @@ func TestHomeHoldsEveryVaultsDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Home: %v", err)
 	}
-	if want := filepath.Join(config, "yomihon"); home != want {
-		t.Errorf("Home = %q, want %q", home, want)
+	if want := filepath.Join(config, "yomihon"); home.Path() != want {
+		t.Errorf("Home = %q, want %q", home.Path(), want)
 	}
 	dir := dirFor(t, config, "/vaults/notes")
-	if want := filepath.Join(home, confdir.VaultID("/vaults/notes")); dir != want {
-		t.Errorf("Dir = %q, want the vault's id under Home, %q", dir, want)
+	if want := filepath.Join(home.Path(), confdir.VaultID("/vaults/notes")); dir.Path() != want {
+		t.Errorf("VaultDir = %q, want the vault's id under Home, %q", dir.Path(), want)
 	}
 	if _, err := confdir.Home(""); !errors.Is(err, confdir.ErrNotNamed) {
 		t.Errorf("Home(\"\") = %v, want ErrNotNamed", err)
@@ -180,14 +194,14 @@ func TestAVaultIDIsTheNameOfItsDirectoryAndSpellsNoPath(t *testing.T) {
 
 func TestRemoveDeletesAFileAndAFileThatIsNotThereIsAlreadyRemoved(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir := homeIn(t)
 	if err := confdir.Replace(dir, "vaults.json", []byte("{}")); err != nil {
 		t.Fatal(err)
 	}
 	if err := confdir.Remove(dir, "vaults.json"); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "vaults.json")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(dir.Join("vaults.json")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("the file is still there: %v", err)
 	}
 	if err := confdir.Remove(dir, "vaults.json"); err != nil {
@@ -202,7 +216,7 @@ func TestRemoveDeletesAFileAndAFileThatIsNotThereIsAlreadyRemoved(t *testing.T) 
 
 func TestStatSaysHowLongAFileIsWithoutReadingIt(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir := homeIn(t)
 	if _, _, err := confdir.Stat(dir, "vaults.json"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("Stat of a file that is not there = %v, want ErrNotExist", err)
 	}
@@ -221,5 +235,30 @@ func TestStatSaysHowLongAFileIsWithoutReadingIt(t *testing.T) {
 	}
 	if _, _, err := confdir.Stat(dir, "../vaults.json"); err == nil {
 		t.Error("Stat accepted a name that leaves the directory")
+	}
+}
+
+// The zero Dir names nothing, so a value nobody made cannot put a file beside
+// whatever folder the process started in.
+func TestAZeroDirIsRefusedByEverythingThatChangesAFile(t *testing.T) {
+	t.Parallel()
+	var none confdir.Dir
+	if err := confdir.Replace(none, "f.json", []byte("x")); !errors.Is(err, confdir.ErrNotNamed) {
+		t.Errorf("Replace = %v, want ErrNotNamed", err)
+	}
+	if err := confdir.Remove(none, "f.json"); !errors.Is(err, confdir.ErrNotNamed) {
+		t.Errorf("Remove = %v, want ErrNotNamed", err)
+	}
+	if err := confdir.SetAside(none, "f.json", "g.json"); !errors.Is(err, confdir.ErrNotNamed) {
+		t.Errorf("SetAside = %v, want ErrNotNamed", err)
+	}
+	if _, err := confdir.Acquire(none, "l.lock", []byte("x"), nil, 0); !errors.Is(err, confdir.ErrNotNamed) {
+		t.Errorf("Acquire = %v, want ErrNotNamed", err)
+	}
+	if _, err := confdir.Read(none, "f.json", 1); !errors.Is(err, confdir.ErrNotNamed) {
+		t.Errorf("Read = %v, want ErrNotNamed", err)
+	}
+	if _, _, err := confdir.Stat(none, "f.json"); !errors.Is(err, confdir.ErrNotNamed) {
+		t.Errorf("Stat = %v, want ErrNotNamed", err)
 	}
 }

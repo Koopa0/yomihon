@@ -24,7 +24,7 @@ type Store struct {
 	// configDir is kept to name the directory of another vault's marks, which
 	// Adopt reads.
 	configDir string
-	dir       string
+	dir       confdir.Dir
 	// vaultRoot is written inside each file, because the directory holding it
 	// is named after a digest.
 	vaultRoot string
@@ -41,7 +41,7 @@ type Store struct {
 // which names which vault these marks belong to. Either one empty is refused
 // with ErrNotNamed.
 func Open(configDir, vaultRoot string) (*Store, error) {
-	dir, err := confdir.Dir(configDir, vaultRoot)
+	dir, err := confdir.VaultDir(configDir, vaultRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func Open(configDir, vaultRoot string) (*Store, error) {
 // Dir is the directory this keeps its files in. It is what the interface names
 // when it tells a reader where their marks live.
 func (s *Store) Dir() string {
-	return s.dir
+	return s.dir.Path()
 }
 
 // List returns the marks of the given kinds, or of every kind when none is

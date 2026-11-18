@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -20,7 +19,7 @@ import (
 // and the running server are two processes with two Stores over the same files,
 // and the lock file is what orders their changes.
 type Store struct {
-	dir  string
+	dir  confdir.Dir
 	free func(port int) bool
 	now  func() time.Time
 	wait time.Duration
@@ -105,7 +104,7 @@ func (s *Store) Hold(port int) {
 
 // InstanceFile is where the record that a yomihon is running is kept, for a
 // message that tells a reader which file to remove.
-func (s *Store) InstanceFile() string { return filepath.Join(s.dir, instanceFile) }
+func (s *Store) InstanceFile() string { return s.dir.Join(instanceFile) }
 
 // List is every vault, the one read most recently first. A list that cannot be
 // read answers ErrDamaged and no vaults; the next change sets it aside. An
@@ -445,7 +444,7 @@ func (s *Store) keepAside(raw []byte, damaged bool, skipped []string) error {
 		return fmt.Errorf("set the list of vaults aside: %w", err)
 	}
 	if s.say != nil {
-		where := filepath.Join(s.dir, name)
+		where := s.dir.Join(name)
 		if damaged {
 			s.say("the list of vaults could not be read and is kept as " + where + "; a new list was started")
 		} else {

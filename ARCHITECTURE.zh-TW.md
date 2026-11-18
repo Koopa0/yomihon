@@ -109,7 +109,7 @@ Wikilink 表示引用，`based_on` 宣告來源，學習路徑則安排課程順
 
 每篇筆記唯一的進度訊號是選填布林值 `draft`。寫了 `draft: true` 的筆記，會在自己的頁面、側欄、課程、最近變更與搜尋結果中標為草稿，搜尋也能用 `draft:true` 篩選；沒寫或寫 `draft: false` 就是完成，不加標記。課程頁首計算主線上的草稿數。「我的標記」頁讀同一個欄位，經由編輯器交接開啟的想法一開始就帶 `draft: true`。yomihon 絕不寫這個欄位：它只在作者的編輯器裡改。
 
-[`internal/mark`][marks] 是唯一會寫入的套件，而且只寫在平台的設定目錄下。[架構檢查][archlock]讀取每個隨 binary 出貨的 Go 檔，找出任何會改變檔案系統的寫法，只要出現在別處就失敗；因此任何開啟 vault 檔案來寫入的程式路徑都過不了建置。
+[`internal/mark`][marks] 是唯一會寫入的套件，而且只寫在平台的設定目錄下。[架構檢查][archlock]依各個發行平台，連同型別讀取每個隨 binary 出貨的 Go 套件，只要在 [`internal/mark/confdir`][confdir] 之外出現任何能改變檔案的名稱就失敗，不論它叫什麼、怎麼被取得；該套件只改變一種只有它自己能建立、且只來自設定目錄的目錄型別，因此任何開啟 vault 檔案來寫入的程式路徑都過不了建置。
 
 ## 7. 閱讀者狀態
 
@@ -208,6 +208,7 @@ Loopback 與瀏覽器來源保護不會驗證本機操作者的身分。透過�
 [origin]: internal/origin/origin.go
 [file-serving]: internal/note/file.go
 [archlock]: internal/archlock
+[confdir]: internal/mark/confdir
 [figure]: internal/figure/inspect.go
 [threat-model]: docs/security/threat-model.md
 [contributing]: CONTRIBUTING.md

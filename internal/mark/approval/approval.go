@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -80,7 +79,7 @@ type document struct {
 // disk is the record, so a revocation takes effect at the next page and the
 // next frame request without a restart.
 type Store struct {
-	dir       string
+	dir       confdir.Dir
 	vaultRoot string
 	// mu serializes writers, which read the file and replace it whole.
 	mu sync.Mutex
@@ -89,7 +88,7 @@ type Store struct {
 // Open names this vault's approvals. It creates nothing: the directory and the
 // file appear when an owner first approves a figure.
 func Open(configDir, vaultRoot string) (*Store, error) {
-	dir, err := confdir.Dir(configDir, vaultRoot)
+	dir, err := confdir.VaultDir(configDir, vaultRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +98,7 @@ func Open(configDir, vaultRoot string) (*Store, error) {
 // Path is the file the approvals are kept in. It is what a message names when
 // it tells the owner where to look.
 func (s *Store) Path() string {
-	return filepath.Join(s.dir, fileName)
+	return s.dir.Join(fileName)
 }
 
 // Approved reports whether the figure at relPath with digest sum is approved,

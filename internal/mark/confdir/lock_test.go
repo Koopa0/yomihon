@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"os"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"testing"
@@ -15,7 +14,7 @@ import (
 
 func TestALockIsExclusiveUntilItIsReleased(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir := homeIn(t)
 
 	first, err := confdir.Acquire(dir, "list.lock", []byte("first"), nil, 0)
 	if err != nil {
@@ -34,14 +33,14 @@ func TestALockIsExclusiveUntilItIsReleased(t *testing.T) {
 	if err = second.Release(); err != nil {
 		t.Fatalf("Release: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(dir, "list.lock")); !errors.Is(err, os.ErrNotExist) {
+	if _, err := os.Stat(dir.Join("list.lock")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("a released lock left its file behind: %v", err)
 	}
 }
 
 func TestAWaiterGetsTheLockWhenItsHolderReleasesInTime(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	dir := homeIn(t)
 	held, err := confdir.Acquire(dir, "list.lock", []byte("holder"), nil, 0)
 	if err != nil {
 		t.Fatalf("Acquire: %v", err)
@@ -61,8 +60,8 @@ func TestAWaiterGetsTheLockWhenItsHolderReleasesInTime(t *testing.T) {
 
 func TestOnlyOneHolderIsInsideAtATime(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	counter := filepath.Join(dir, "counter")
+	dir := homeIn(t)
+	counter := dir.Join("counter")
 	if err := os.WriteFile(counter, []byte("0"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -105,8 +104,8 @@ func TestOnlyOneHolderIsInsideAtATime(t *testing.T) {
 
 func TestALockCalledAbandonedIsTakenAndOneNotCalledSoIsNot(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "list.lock")
+	dir := homeIn(t)
+	path := dir.Join("list.lock")
 	leftBehind := []byte("a process that stopped")
 	if err := os.WriteFile(path, leftBehind, 0o600); err != nil {
 		t.Fatal(err)
@@ -142,8 +141,8 @@ func TestALockCalledAbandonedIsTakenAndOneNotCalledSoIsNot(t *testing.T) {
 
 func TestReleaseLeavesAnotherHoldersLockWhereItIs(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "list.lock")
+	dir := homeIn(t)
+	path := dir.Join("list.lock")
 	slow, err := confdir.Acquire(dir, "list.lock", []byte("slow"), nil, 0)
 	if err != nil {
 		t.Fatal(err)
@@ -166,7 +165,7 @@ func TestReleaseLeavesAnotherHoldersLockWhereItIs(t *testing.T) {
 func TestALockRefusesAnythingButAFileName(t *testing.T) {
 	t.Parallel()
 	for _, name := range []string{"", ".", "..", "../x", "a/b"} {
-		if _, err := confdir.Acquire(t.TempDir(), name, nil, nil, 0); err == nil {
+		if _, err := confdir.Acquire(homeIn(t), name, nil, nil, 0); err == nil {
 			t.Errorf("Acquire accepted %q as a lock name", name)
 		}
 	}

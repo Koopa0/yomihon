@@ -152,12 +152,12 @@ func TestAVaultsIDIsTheNameOfItsDirectoryOfMarks(t *testing.T) {
 	s, _ := storeIn(t, config, nil)
 	e := mustAdd(t, s, folder(t, "a"))
 
-	marks, err := confdir.Dir(config, e.Path)
+	marks, err := confdir.VaultDir(config, e.Path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if filepath.Base(marks) != e.ID {
-		t.Fatalf("the vault's marks are kept in %q but its id is %q: adding it again after removing it would not find them", filepath.Base(marks), e.ID)
+	if filepath.Base(marks.Path()) != e.ID {
+		t.Fatalf("the vault's marks are kept in %q but its id is %q: adding it again after removing it would not find them", filepath.Base(marks.Path()), e.ID)
 	}
 }
 
@@ -422,7 +422,7 @@ func TestADamagedListIsSetAsideNotDeletedAndReadAsEmpty(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	s, _ := storeIn(t, config, nil)
-	home := filepath.Join(config, "yomihon")
+	home := homeAt(t, config)
 	if err := confdir.Replace(home, listFile, []byte("{ this is not a list")); err != nil {
 		t.Fatal(err)
 	}
@@ -430,12 +430,12 @@ func TestADamagedListIsSetAsideNotDeletedAndReadAsEmpty(t *testing.T) {
 	if list, err := s.List(); !errors.Is(err, ErrDamaged) || len(list) != 0 {
 		t.Fatalf("List of a damaged file = %v, %v; want no vaults and ErrDamaged", list, err)
 	}
-	if _, err := os.Stat(filepath.Join(home, damagedFile)); err == nil {
+	if _, err := os.Stat(home.Join(damagedFile)); err == nil {
 		t.Fatal("reading a damaged list set it aside; only a change may")
 	}
 
 	e := mustAdd(t, s, folder(t, "a"))
-	if got := readFile(t, filepath.Join(home, damagedFile)); string(got) != "{ this is not a list" {
+	if got := readFile(t, home.Join(damagedFile)); string(got) != "{ this is not a list" {
 		t.Fatalf("the damaged list was not kept: %q", got)
 	}
 	list, err := s.List()
@@ -501,7 +501,7 @@ func TestChangedLooksAtTheFileWithoutReadingIt(t *testing.T) {
 
 	// Another process changes it; the poller learns from the file's length and
 	// time alone, and finds out what is wrong with it only when it reads.
-	if err := confdir.Replace(filepath.Join(config, "yomihon"), listFile, []byte("not a list at all, and longer")); err != nil {
+	if err := confdir.Replace(homeAt(t, config), listFile, []byte("not a list at all, and longer")); err != nil {
 		t.Fatal(err)
 	}
 	if changed, err := s.Changed(); err != nil || !changed {
@@ -575,7 +575,7 @@ func TestALockLeftByAProcessThatIsGoneIsTakenAtOnce(t *testing.T) {
 	config := t.TempDir()
 	s, _ := storeIn(t, config, nil)
 	s.wait = 5 * time.Second
-	home := filepath.Join(config, "yomihon")
+	home := homeAt(t, config)
 	if err := confdir.Replace(home, lockFile, []byte(strconv.Itoa(deadPID(t))+" 1 1")); err != nil {
 		t.Fatal(err)
 	}
@@ -591,7 +591,7 @@ func TestALockHeldByALiveProcessIsWaitedForAndThenGivenUpOn(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	s, _ := storeIn(t, config, nil)
-	home := filepath.Join(config, "yomihon")
+	home := homeAt(t, config)
 	if err := confdir.Replace(home, lockFile, []byte(strconv.Itoa(os.Getpid())+" 1 1")); err != nil {
 		t.Fatal(err)
 	}
@@ -787,7 +787,18 @@ func TestAPortThisProcessHoldsIsFreeForTheVaultItRecordsUnlessAVaultHasIt(t *tes
 	}
 }
 
-func mkdirHome(s *Store) error { return os.MkdirAll(s.dir, 0o700) }
+func mkdirHome(s *Store) error { return os.MkdirAll(s.dir.Path(), 0o700) }
+
+// homeAt is the reader's directory under configDir, the one kind of directory the
+// package under test is given to work in.
+func homeAt(t *testing.T, configDir string) confdir.Dir {
+	t.Helper()
+	home, err := confdir.Home(configDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return home
+}
 
 func writeList(t *testing.T, configDir, body string) *Store {
 	t.Helper()
@@ -795,7 +806,7 @@ func writeList(t *testing.T, configDir, body string) *Store {
 	if err := mkdirHome(s); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(s.dir, listFile), []byte(body), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+	if err := os.WriteFile(s.dir.Join(listFile), []byte(body), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
 		t.Fatal(err)
 	}
 	return s
@@ -835,7 +846,7 @@ func TestAnOversizedListIsSetAsideNotLeftToBlockEveryChange(t *testing.T) {
 	if err != nil || !added {
 		t.Fatalf("Add on top of an oversized list = %+v, %v, %v; want it taken in", entry, added, err)
 	}
-	if _, err = os.Stat(filepath.Join(s.dir, damagedFile)); err != nil {
+	if _, err = os.Stat(s.dir.Join(damagedFile)); err != nil {
 		t.Errorf("the oversized list was not set aside: %v", err)
 	}
 	if list, listErr := s.List(); listErr != nil || len(list) != 1 {
@@ -854,7 +865,7 @@ func TestOneEntryThatCannotBeUsedDoesNotMoveTheOthers(t *testing.T) {
 	bad := `{"id":"x","path":"/","name":"root","last_read":"2026-11-18T09:00:00Z","port":8800}`
 	body := string(mustEncode(t, []Entry{a, b}))
 	body = strings.Replace(body, `"vaults": [`, `"vaults": [`+bad+`,`, 1)
-	if err := os.WriteFile(filepath.Join(s.dir, listFile), []byte(body), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+	if err := os.WriteFile(s.dir.Join(listFile), []byte(body), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
 		t.Fatal(err)
 	}
 
@@ -876,7 +887,7 @@ func TestOneEntryThatCannotBeUsedDoesNotMoveTheOthers(t *testing.T) {
 
 	// A change keeps the list as it was, and writes the rest on the ports they had.
 	mustAdd(t, s, folder(t, "c"))
-	kept := readFile(t, filepath.Join(s.dir, damagedFile))
+	kept := readFile(t, s.dir.Join(damagedFile))
 	if string(kept) != body {
 		t.Errorf("the list as it was is not kept whole: %q", kept)
 	}
@@ -889,7 +900,7 @@ func TestOneEntryThatCannotBeUsedDoesNotMoveTheOthers(t *testing.T) {
 			t.Errorf("%s moved to %d, want %d", e.Path, e.Port, want)
 		}
 	}
-	if len(said) != 2 || !strings.Contains(said[1], filepath.Join(s.dir, damagedFile)) {
+	if len(said) != 2 || !strings.Contains(said[1], s.dir.Join(damagedFile)) {
 		t.Fatalf("said %q; the second line names the file the list is kept as", said)
 	}
 }
@@ -924,21 +935,21 @@ func TestASecondListSetAsideDoesNotReplaceTheFirst(t *testing.T) {
 	s := writeListReporting(t, t.TempDir(), &said, "first, not a list")
 	mustAdd(t, s, folder(t, "a"))
 	for i := range keptAside + 2 {
-		if err := os.WriteFile(filepath.Join(s.dir, listFile), []byte("not a list, number "+strconv.Itoa(i)), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+		if err := os.WriteFile(s.dir.Join(listFile), []byte("not a list, number "+strconv.Itoa(i)), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
 			t.Fatal(err)
 		}
 		mustAdd(t, s, folder(t, "b"+strconv.Itoa(i)))
 	}
-	if got := readFile(t, filepath.Join(s.dir, asideFile(1))); string(got) != "first, not a list" {
+	if got := readFile(t, s.dir.Join(asideFile(1))); string(got) != "first, not a list" {
 		t.Errorf("the first list set aside was replaced: %q", got)
 	}
-	if got := readFile(t, filepath.Join(s.dir, asideFile(2))); string(got) != "not a list, number 0" {
+	if got := readFile(t, s.dir.Join(asideFile(2))); string(got) != "not a list, number 0" {
 		t.Errorf("the second was not kept under a name of its own: %q", got)
 	}
-	if got := readFile(t, filepath.Join(s.dir, asideFile(keptAside))); string(got) != "not a list, number "+strconv.Itoa(keptAside+1) {
+	if got := readFile(t, s.dir.Join(asideFile(keptAside))); string(got) != "not a list, number "+strconv.Itoa(keptAside+1) {
 		t.Errorf("once every name is taken the last is replaced, and it holds %q", got)
 	}
-	entries, err := os.ReadDir(s.dir)
+	entries, err := os.ReadDir(s.dir.Path())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -978,7 +989,7 @@ func TestAChangeThatChangesNothingSetsNothingAside(t *testing.T) {
 				// The vault was read a moment ago, or is not there: nothing is written.
 				_, _ = s.Touch(entry.ID, entry.Name, time.Date(2026, 11, 18, 9, 0, 1, 0, time.UTC)) //nolint:errcheck // an unlisted vault is an error, and that is not what is looked at
 			}
-			entries, err := os.ReadDir(s.dir)
+			entries, err := os.ReadDir(s.dir.Path())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -987,7 +998,7 @@ func TestAChangeThatChangesNothingSetsNothingAside(t *testing.T) {
 					t.Errorf("%s was made for a change that wrote nothing", found.Name())
 				}
 			}
-			if kept := readFile(t, filepath.Join(s.dir, listFile)); string(kept) != text {
+			if kept := readFile(t, s.dir.Join(listFile)); string(kept) != text {
 				t.Errorf("the list was written: %q", kept)
 			}
 		})
@@ -1015,7 +1026,7 @@ func writeListReporting(t *testing.T, configDir string, said *[]string, body str
 		t.Fatal(err)
 	}
 	if body != "" {
-		if err = os.WriteFile(filepath.Join(s.dir, listFile), []byte(body), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+		if err = os.WriteFile(s.dir.Join(listFile), []byte(body), 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
 			t.Fatal(err)
 		}
 	}

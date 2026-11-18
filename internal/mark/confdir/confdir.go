@@ -7,6 +7,11 @@
 // a new one by rename; the shape of the bytes is theirs. Keeping the writes
 // here means the promise that yomihon writes only under the configuration
 // directory rests on one function rather than on every package that has a file.
+//
+// What it works on is a Dir, which only Home and VaultDir make, and only from
+// the configuration directory. A function that changes a file takes one and
+// never a path, so a package that holds no Dir cannot point it into a vault, and
+// no package outside internal/mark has a way to make one.
 package confdir
 
 import (
@@ -43,17 +48,40 @@ var ErrNotRegular = errors.New("the name is not a regular file")
 // read by people who have to find it to delete it.
 const nameLength = 32
 
+// Dir is a directory of yomihon's own under the configuration directory: the
+// reader's home, or one vault's directory inside it. Home and VaultDir are the
+// only ways to have one, and there is no exported way to make one from a path,
+// so the compiler is what keeps every change to a file inside the configuration
+// directory. The zero Dir names nothing and is refused by everything here.
+type Dir struct{ path string }
+
+// Path is where the directory is, for a message that tells the reader which
+// file to look at. It is a string and changes nothing.
+func (d Dir) Path() string { return d.path }
+
+// Join is the path of a file inside the directory, for the same use as Path.
+func (d Dir) Join(name string) string { return filepath.Join(d.path, name) }
+
+// named refuses the zero Dir, which would put a file beside whatever folder the
+// process happened to start in.
+func (d Dir) named() error {
+	if d.path == "" {
+		return fmt.Errorf("%w: no directory", ErrNotNamed)
+	}
+	return nil
+}
+
 // Home is the directory yomihon keeps everything of the reader's in: the
-// per-vault directories Dir names, and the files that belong to the reader and
-// not to one vault, such as the list of vaults they have opened.
+// per-vault directories VaultDir names, and the files that belong to the reader
+// and not to one vault, such as the list of vaults they have opened.
 //
 // An empty configuration directory is refused rather than defaulted, for the
-// reason Dir gives.
-func Home(configDir string) (string, error) {
+// reason VaultDir gives.
+func Home(configDir string) (Dir, error) {
 	if configDir == "" {
-		return "", fmt.Errorf("%w: configuration directory %q", ErrNotNamed, configDir)
+		return Dir{}, fmt.Errorf("%w: configuration directory %q", ErrNotNamed, configDir)
 	}
-	return filepath.Join(configDir, "yomihon"), nil
+	return Dir{path: filepath.Join(configDir, "yomihon")}, nil
 }
 
 // VaultID is what names one vault: the directory Dir gives it, and the id the
@@ -73,28 +101,31 @@ func VaultID(vaultRoot string) string {
 	return hex.EncodeToString(sum[:])[:nameLength]
 }
 
-// Dir is where this vault's files sit inside configDir.
+// VaultDir is where this vault's files sit inside configDir.
 //
 // Either argument empty is refused rather than defaulted. A path built from an
 // empty configuration directory is a relative one, which would put the reader's
 // files beside whatever folder the process happened to start in and look like
 // it had worked.
-func Dir(configDir, vaultRoot string) (string, error) {
+func VaultDir(configDir, vaultRoot string) (Dir, error) {
 	if configDir == "" || vaultRoot == "" {
-		return "", fmt.Errorf("%w: configuration directory %q, vault root %q", ErrNotNamed, configDir, vaultRoot)
+		return Dir{}, fmt.Errorf("%w: configuration directory %q, vault root %q", ErrNotNamed, configDir, vaultRoot)
 	}
 	home, err := Home(configDir)
 	if err != nil {
-		return "", err
+		return Dir{}, err
 	}
-	return filepath.Join(home, VaultID(vaultRoot)), nil
+	return Dir{path: filepath.Join(home.path, VaultID(vaultRoot))}, nil
 }
 
 // Read returns the file called name in dir, refusing one longer than limit
 // bytes with ErrTooLarge. A file that is not there answers an error that
 // satisfies errors.Is(err, os.ErrNotExist).
-func Read(dir, name string, limit int64) ([]byte, error) {
-	path := filepath.Join(dir, name)
+func Read(dir Dir, name string, limit int64) ([]byte, error) {
+	if err := dir.named(); err != nil {
+		return nil, err
+	}
+	path := dir.Join(name)
 	if info, err := os.Stat(path); err != nil {
 		return nil, err
 	} else if !info.Mode().IsRegular() {
@@ -128,15 +159,18 @@ func Read(dir, name string, limit int64) ([]byte, error) {
 // control.
 //
 // Everything is owner-only: what a reader is partway through is theirs.
-func Replace(dir, name string, data []byte) error {
+func Replace(dir Dir, name string, data []byte) error {
+	if err := dir.named(); err != nil {
+		return err
+	}
 	if err := checkName(name); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(dir.path, 0o700); err != nil {
 		return fmt.Errorf("create the directory: %w", err)
 	}
 	extension := filepath.Ext(name)
-	tmp, err := os.CreateTemp(dir, "."+strings.TrimSuffix(name, extension)+"-*"+extension)
+	tmp, err := os.CreateTemp(dir.path, "."+strings.TrimSuffix(name, extension)+"-*"+extension)
 	if err != nil {
 		return fmt.Errorf("create the temporary file for %s: %w", name, err)
 	}
@@ -147,7 +181,7 @@ func Replace(dir, name string, data []byte) error {
 	if err = tmp.Close(); err != nil {
 		return abandon(nil, temporary, fmt.Errorf("close the temporary file for %s: %w", name, err))
 	}
-	if err = os.Rename(temporary, filepath.Join(dir, name)); err != nil {
+	if err = os.Rename(temporary, dir.Join(name)); err != nil {
 		return abandon(nil, temporary, fmt.Errorf("install %s: %w", name, err))
 	}
 	return nil
@@ -178,11 +212,14 @@ func checkName(name string) error {
 
 // Remove deletes the file called name in dir. A file that is not there is
 // already what was asked for.
-func Remove(dir, name string) error {
+func Remove(dir Dir, name string) error {
+	if err := dir.named(); err != nil {
+		return err
+	}
 	if err := checkName(name); err != nil {
 		return err
 	}
-	if err := os.Remove(filepath.Join(dir, name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Remove(dir.Join(name)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil
@@ -192,14 +229,17 @@ func Remove(dir, name string) error {
 // that is already there. It is how a file that cannot be read as what it should
 // be is kept for the reader to open, without ever being read in whole or
 // deleted. A file that is not there is already set aside.
-func SetAside(dir, from, to string) error {
+func SetAside(dir Dir, from, to string) error {
+	if err := dir.named(); err != nil {
+		return err
+	}
 	if err := checkName(from); err != nil {
 		return err
 	}
 	if err := checkName(to); err != nil {
 		return err
 	}
-	if err := os.Rename(filepath.Join(dir, from), filepath.Join(dir, to)); err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err := os.Rename(dir.Join(from), dir.Join(to)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 	return nil
@@ -209,11 +249,14 @@ func SetAside(dir, from, to string) error {
 // changed, without reading it. It is what a poller asks first, so a file that has not
 // changed costs one system call and not a parse. A file that is not there
 // answers an error that satisfies errors.Is(err, os.ErrNotExist).
-func Stat(dir, name string) (int64, time.Time, error) {
+func Stat(dir Dir, name string) (int64, time.Time, error) {
+	if err := dir.named(); err != nil {
+		return 0, time.Time{}, err
+	}
 	if err := checkName(name); err != nil {
 		return 0, time.Time{}, err
 	}
-	info, err := os.Stat(filepath.Join(dir, name))
+	info, err := os.Stat(dir.Join(name))
 	if err != nil {
 		return 0, time.Time{}, err
 	}
