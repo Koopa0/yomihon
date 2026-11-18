@@ -16,7 +16,7 @@
 // Env: YOMIHON_BASE, LANG_CHOICE (zh-Hant | en), OUT, PAGE_PATH.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './e2e/support/base.mjs';
 const PAGE = process.env.PAGE_PATH;
 const LANG = process.env.LANG_CHOICE || 'zh-Hant';
 const OUT = process.env.OUT;

@@ -14,7 +14,7 @@
 // performs the reveal is what these cases establish; when it lands relative to
 // the first frame is not, and no assertion below should be read as saying so.
 //
-// Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (a note page
+// Env: YOMIHON_BASE (required), PAGE_PATH (a note page
 // with a sidebar, named directly). The mutations route on exactly the URL the
 // browser is sent to and answer it with the body they rewrote. Aim PAGE_PATH at
 // a path that redirects and the rewrite still lands — the fetch behind the route
@@ -24,7 +24,7 @@
 // below; MUTATE=list prints them.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const FILTER = 'input[data-nav-filter]';
 const MUTATE = process.env.MUTATE || '';

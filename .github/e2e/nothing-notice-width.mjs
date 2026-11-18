@@ -27,7 +27,7 @@ import { chromium } from 'playwright-core';
 // probes share is left as it is.
 const UNBREAKABLE = 'qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || `/search?q=${UNBREAKABLE}`;
 const MUTATE = process.env.MUTATE || '';
 const SITES = ['the-notice-fits-the-phone', 'the-page-does-not-scroll-sideways'];

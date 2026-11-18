@@ -11,7 +11,7 @@
 // with.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const MUTATE = process.env.MUTATE || '';
 const COURSE_PAGE = '/notes/Course/C02.md';
 const LONG_RAIL_PAGE = '/notes/Writing/lessons/long-rail/Rail%20lesson%2030.md';

@@ -4,11 +4,11 @@
 // move and space, page-down and the arrows did nothing at all. The reader had
 // to know to press Tab first.
 //
-// Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH, and MUTATE.
+// Env: YOMIHON_BASE (required), PAGE_PATH, and MUTATE.
 // MUTATE=list prints every self-test mode.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/';
 const MUTATE = process.env.MUTATE || '';
 
