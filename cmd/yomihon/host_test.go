@@ -589,7 +589,9 @@ func TestAPortNamedForAnotherYomihonThanTheRunningOneIsRefusedAndNothingIsAdded(
 	r := startRunning(t, configDir, newVaultFolder(t), start)
 	r.address(t)
 
-	other := someFreePort(t)
+	// Held by the test: a second yomihon that tried to bind it would be told it is
+	// held, and the refusal asked for below is about the running one's port.
+	_, other := heldListener(t)
 	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
 	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(other), portSet: true, configDir: configDir}
 	err := h.serveListed(t.Context(), func() {}, cfg, io.Discard)
@@ -599,9 +601,6 @@ func TestAPortNamedForAnotherYomihonThanTheRunningOneIsRefusedAndNothingIsAdded(
 	}
 	if list, listErr := h.store.List(); listErr != nil || len(list) != 1 {
 		t.Errorf("the refused folder was added: %+v, %v", list, listErr)
-	}
-	if !portFree(t.Context(), other) {
-		t.Errorf("a second yomihon is serving on %d", other)
 	}
 }
 
@@ -891,11 +890,16 @@ func TestARequestForAnotherHostNameNeitherReadsTheVaultNorRecordsARead(t *testin
 func TestStoppingLeavesNothingThatSaysYomihonIsRunning(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
-	r := startRunning(t, configDir, newVaultFolder(t), someFreePort(t))
-	address := r.address(t)
+	folder := newVaultFolder(t)
+	r := startRunning(t, configDir, folder, someFreePort(t))
+	r.address(t)
 	store := listOf(t, configDir)
 	if _, ok := store.Running(); !ok {
 		t.Fatalf("the running yomihon left no record that it is running")
+	}
+	m := r.mountOf(idOf(t, store, folder).ID)
+	if m == nil {
+		t.Fatal("the folder is not served")
 	}
 	if err := r.stop(t); err != nil {
 		t.Fatalf("stopping: %v", err)
@@ -903,13 +907,47 @@ func TestStoppingLeavesNothingThatSaysYomihonIsRunning(t *testing.T) {
 	if in, ok := store.Running(); ok {
 		t.Errorf("a stopped yomihon is still recorded as running: %+v", in)
 	}
-	port, err := strconv.Atoi(strings.TrimSuffix(address[strings.LastIndex(address, ":")+1:], "/"))
+	if !listenerIsClosed(m.listener) {
+		t.Errorf("the host still holds %v after stopping", m.listener.Addr())
+	}
+}
+
+// listenerIsClosed asks the listener whether the host let go of its port, and not
+// the machine whether the port is free: any other program may take a freed port
+// before the test looks, and that says nothing about the host.
+func listenerIsClosed(l net.Listener) bool {
+	result := make(chan error, 1)
+	go func() {
+		conn, err := l.Accept()
+		if err == nil {
+			_ = conn.Close() //nolint:errcheck // a connection the test made no use of
+		}
+		result <- err
+	}()
+	select {
+	case err := <-result:
+		return errors.Is(err, net.ErrClosed)
+	case <-time.After(time.Second):
+		_ = l.Close() //nolint:errcheck // it is open, which ends the Accept above
+		return false
+	}
+}
+
+// heldListener is a loopback listener on a port this test holds until it ends, so
+// that nothing else can be given the port while a test relies on it.
+func heldListener(t *testing.T) (l net.Listener, port int) {
+	t.Helper()
+	var lc net.ListenConfig
+	l, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !portFree(t.Context(), port) {
-		t.Errorf("port %d is still held after stopping", port)
+	t.Cleanup(func() { _ = l.Close() }) //nolint:errcheck // the port is released either way
+	tcp, ok := l.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("the listener is on %v, not a TCP address", l.Addr())
 	}
+	return l, tcp.Port
 }
 
 // The second promise, for every listener: a vault the running yomihon serves
@@ -1204,11 +1242,12 @@ func TestAHostThatIsEndingMountsNothingMore(t *testing.T) {
 	if err := h.stopServing(); err != nil {
 		t.Fatal(err)
 	}
-	entry := vaults.Entry{ID: strings.Repeat("a", 32), Path: t.TempDir(), Port: someFreePort(t)}
-	if err := h.mount(t.Context(), &entry, nil, false); !errors.Is(err, errClosing) {
+	listener, port := heldListener(t)
+	entry := vaults.Entry{ID: strings.Repeat("a", 32), Path: t.TempDir(), Port: port}
+	if err := h.mount(t.Context(), &entry, listener, false); !errors.Is(err, errClosing) {
 		t.Fatalf("mount after stopServing = %v, want errClosing", err)
 	}
-	if !portFree(t.Context(), entry.Port) {
-		t.Errorf("the port of a vault that was not mounted is held")
+	if !listenerIsClosed(listener) {
+		t.Errorf("the port of a vault that was not mounted is still held")
 	}
 }
