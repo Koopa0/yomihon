@@ -85,7 +85,7 @@ const NON_TEXT = 3;
 // line is looked for. The page field is a box, outlined all round, and is read
 // across its left edge.
 const FOCUS_FIELDS = [
-  { name: 'the search page field', path: '/search', field: '.y-searchpage__form', input: '.y-searchpage__form input', ground: '--panel', edge: 'left' },
+  { name: 'the search page field', path: '/search', field: '.y-searchpage__form', input: '.y-searchpage__form input', ground: '--bg', edge: 'left' },
 ];
 
 class LockFired extends Error {
@@ -970,7 +970,8 @@ try {
 
   // The focused search field, on both grounds a field sits on, in both themes.
   {
-    const context = await openContext(browser, 'focus');
+    // The page's field is the phone's: a wider window asks through the header.
+    const context = await openContext(browser, 'focus', { viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
     // One navigation before the first proof, so "the sheet was never asked
     // for" cannot be reported about a context that has not loaded a page yet.

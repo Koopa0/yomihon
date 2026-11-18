@@ -184,7 +184,13 @@ templ header(c Chrome) {
 		// listener for engines without invokers; the link works without either.
 		<button class="y-searchbtn" type="button" command="show-modal" commandfor="_y-search-dialog" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>
 			<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-			<span class="y-searchbtn__label">{ wording.SearchNotesPrompt.In(c.Lang) }</span>
+			<span class="y-searchbtn__label">
+				if c.SearchQuery != "" {
+					{ c.SearchQuery }
+				} else {
+					{ wording.SearchNotesPrompt.In(c.Lang) }
+				}
+			</span>
 			<span class="ui-kbd">⌘K</span>
 		</button>
 		<noscript><a class="y-searchfallback" href="/search">{ wording.SearchTitle.In(c.Lang) }</a></noscript>
@@ -299,9 +305,9 @@ templ searchDialog(lang wording.Lang) {
 			<form class="y-searchsurface__bar" method="get" action="/search" data-live-search-form>
 				<span class="y-searchsurface__field">
 					<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-					<input type="search" name="q" placeholder={ wording.SearchNotesPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } enterkeyhint="search" autocomplete="off" data-live-search-input autofocus/>
+					<input type="search" name="q" placeholder={ wording.SearchNotesPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } enterkeyhint="search" autocomplete="off" spellcheck="false" data-live-search-input autofocus/>
 					<button type="button" class="y-searchsurface__clear" aria-label={ wording.SearchClearField.In(lang) } data-live-search-clear hidden>
-						<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="m6 6 12 12M18 6 6 18"></path></svg>
+						@Icon("close")
 					</button>
 				</span>
 				<button type="button" class="y-searchsurface__cancel" data-search-close>{ wording.SearchCancel.In(lang) }</button>

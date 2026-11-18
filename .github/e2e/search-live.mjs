@@ -15,7 +15,8 @@ const check = (ok, message) => {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
-  const wide = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+  // The page's own field is the phone's; a wider window asks through the header.
+  const wide = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   await wide.goto(`${BASE}/search?q=alpha`, { waitUntil: 'load' });
   await wide.waitForSelector('html[data-js]');
   const before = await wide.locator('.y-found__item').evaluateAll((rows) => rows.map((row) => row.getAttribute('href')));
@@ -42,7 +43,7 @@ try {
 
   // An answer to an older query that arrives after a newer one's must not
   // replace its rows: the older is held back until the newer has been drawn.
-  const racing = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
+  const racing = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
   await racing.route('**/search/results?*', async (route) => {
     if (new URL(route.request().url()).searchParams.get('q') === 'alpha') await new Promise((resolve) => setTimeout(resolve, 1200));
     await route.continue().catch(() => {});

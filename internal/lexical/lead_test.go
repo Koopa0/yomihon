@@ -125,3 +125,12 @@ func TestNearWordIsOneEditFromATitleWord(t *testing.T) {
 		}
 	}
 }
+
+func TestALeadShowsALinksDisplayAndNotTheNameOfItsTarget(t *testing.T) {
+	t.Parallel()
+
+	lead := leadOf(t, "See [[lru-cache-implementation|手寫 LRU cache]] for the details.\n", "cache")
+	if got := plain(lead.Runs); got != "See 手寫 LRU cache for the details." {
+		t.Errorf("lead = %q, want the display only", got)
+	}
+}

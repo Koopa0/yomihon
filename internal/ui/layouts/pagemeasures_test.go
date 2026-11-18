@@ -76,7 +76,7 @@ func TestEveryPageShellTakesItsOwnMeasure(t *testing.T) {
 		{class: ".y-home", measure: "var(--measure-list)"},
 		{class: ".y-prefs", measure: "var(--measure-read)"},
 		{class: ".y-recovery", measure: "var(--measure-read)"},
-		{class: ".y-searchpage", measure: "var(--measure-answer)"},
+		{class: ".y-searchpage", measure: "var(--measure-list)"},
 		{class: ".y-syl", measure: "var(--measure-read)"},
 	}
 

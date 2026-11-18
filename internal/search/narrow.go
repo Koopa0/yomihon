@@ -28,11 +28,10 @@ const (
 	kindDrill   = "drill"
 	kindThought = "thought"
 	kindNote    = "note"
-	kindFile    = "file"
 )
 
 // kindOrder breaks a tie between two kinds that hold as many notes.
-var kindOrder = []string{kindUnit, kindNote, kindCourse, kindIndex, kindDrill, kindThought, kindFile}
+var kindOrder = []string{kindUnit, kindNote, kindCourse, kindIndex, kindDrill, kindThought}
 
 // rootPlace is the address's spelling of notes that sit at the vault's top.
 const rootPlace = "."
@@ -56,8 +55,6 @@ func readState(r *http.Request, q string) pages.SearchState {
 // that declares none, are ordinary notes.
 func kindOf(r *lexical.Result, roles schema.NavigationRoles) string {
 	switch {
-	case r.File:
-		return kindFile
 	case roles.IsLessonType(r.NoteType):
 		return kindUnit
 	case roles.IsPathType(r.NoteType):
@@ -87,8 +84,6 @@ func kindWord(kind string, lang wording.Lang) string {
 		return wording.FacetTypeDrill.In(lang)
 	case kindThought:
 		return wording.FacetTypeThought.In(lang)
-	case kindFile:
-		return wording.ResultKindFile.In(lang)
 	}
 	return wording.FacetTypeNote.In(lang)
 }
@@ -120,7 +115,16 @@ func lastLevels(relPath string, n int) string {
 		return ""
 	}
 	parts := strings.Split(dir, "/")
-	return strings.Join(parts[max(0, len(parts)-n):], " / ")
+	return strings.Join(parts[max(0, len(parts)-n):], " › ")
+}
+
+// whereWords is the location line of a result: the last two folder names, or
+// the word for the vault's top where the note has no folder.
+func whereWords(relPath string, lang wording.Lang) string {
+	if folders := lastLevels(relPath, 2); folders != "" {
+		return folders
+	}
+	return wording.SearchTopLevel.In(lang)
 }
 
 // narrowed is the answer after the reader's kind and place have been applied,

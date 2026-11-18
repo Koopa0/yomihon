@@ -280,22 +280,27 @@ export function initSearch() {
       }
     }
 
-    if (isDialog) {
-      // The phone's surface is the dialog: a cancel that closes it, and a clear
-      // that empties the field and keeps the reader in it.
-      region.querySelector('[data-search-close]')?.addEventListener('click', () => region.close());
-      const clear = region.querySelector('[data-live-search-clear]');
+    // A clear that empties the field and keeps the reader in it, on every
+    // surface that draws one: the browser's own is blue, which is the reader's
+    // marks' colour and nothing else's.
+    const clear = region.querySelector('[data-live-search-clear]');
+    if (clear) {
       const sync = () => {
-        if (clear) clear.hidden = input.value === '';
+        clear.hidden = input.value === '';
       };
       input.addEventListener('input', sync);
-      clear?.addEventListener('click', () => {
+      clear.addEventListener('click', () => {
         input.value = '';
         sync();
         input.focus();
         schedule(true);
       });
       sync();
+    }
+
+    if (isDialog) {
+      // The phone's surface is the dialog, with a cancel that closes it.
+      region.querySelector('[data-search-close]')?.addEventListener('click', () => region.close());
       // Closing clears the attribute at once and announces itself afterwards,
       // so a reader who reopens quickly can have the announcement arrive after
       // the reopening. Cancelling then would throw away the search the reopen

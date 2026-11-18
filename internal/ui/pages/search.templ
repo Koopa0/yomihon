@@ -5,6 +5,7 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
@@ -26,6 +27,12 @@ type SearchView struct {
 	// Sort is the two orders the answer can be read in, the one in use marked.
 	// Each carries the address that reads the same answer in that order.
 	Sort []SearchChoice
+
+	// ByDate says the answer is read by last change, the order whose key a row
+	// has to show: each item then ends its line with the day it changed, as of
+	// Now.
+	ByDate bool
+	Now    time.Time
 
 	// Kinds and Locations are the rows the answer can be narrowed along, each
 	// counted over the answer as the other row leaves it. They are empty when
@@ -92,10 +99,16 @@ type SearchResult struct {
 	LeadNear []SnippetRun
 	LeadCode bool
 
-	// Kind is the word for what the note is, empty for an ordinary note. Folder
-	// is the last two levels of where it lives, cut like the title.
-	Kind       string
-	FolderRuns []SnippetRun
+	// Kind is the word for what the note is, empty for an ordinary note.
+	// WhereRuns is the last two levels of the folder it lives in, or the word
+	// for the vault's top. It carries a hit only when nothing else on the row
+	// does: the title and the excerpt are where a hit is marked.
+	Kind      string
+	WhereRuns []SnippetRun
+
+	// Changed is when the note last changed, shown only to a reader of the
+	// answer by date.
+	Changed time.Time
 
 	// AliasRuns is the name that answered the query where it was not the title,
 	// cut the same way. The row shows a title, so a reader who searched one of a
@@ -104,10 +117,6 @@ type SearchResult struct {
 
 	// TagRuns names the frontmatter tag that answered a tag-only query.
 	TagRuns []SnippetRun
-
-	// File marks a hit that is a vault file rather than a note, named on the
-	// row so it does not read as a note.
-	File bool
 
 	// Landing is the first-block stretch a browser text directive can find
 	// for a body hit. Empty when the row has no body match, or when a
@@ -257,11 +266,14 @@ templ Search(v SearchView, c layouts.Chrome) {
 					// and a reader who follows a result and comes back would land
 					// in the text box rather than near the result they left, with
 					// the skip link already behind them.
+					// The field is the phone's: a wider window asks through the header.
 					<search>
 						<form class="y-searchpage__form" method="get" action="/search" data-live-search-form>
 							<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-							<input type="search" name="q" value={ v.Query } placeholder={ wording.SearchNotesPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) } data-live-search-input/>
-							<button type="submit" class="y-xbtn">{ wording.SearchSubmit.In(c.Lang) }</button>
+							<input type="search" name="q" value={ v.Query } placeholder={ wording.SearchNotesPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) } enterkeyhint="search" autocomplete="off" spellcheck="false" data-live-search-input/>
+							<button type="button" class="y-searchpage__clear" aria-label={ wording.SearchClearField.In(c.Lang) } data-live-search-clear hidden?={ v.Query == "" }>
+								@layouts.Icon("close")
+							</button>
 						</form>
 					</search>
 					@layouts.LiveSearchStatus(c.Lang)
@@ -281,7 +293,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 		// The page is named by what it answers: the query in brackets on a
 		// screen wide enough for a title, and on a phone by the field, which is
 		// the first thing there. A page with nothing asked is the search page.
-		<h1 class="y-searchpage__title">
+		<h1 class="y-title y-searchpage__title">
 			if v.Query != "" {
 				{ wording.SearchQueryOpen.In(lang) }{ v.Query }{ wording.SearchQueryClose.In(lang) }
 			} else {
@@ -368,7 +380,7 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 									</span>
 								}
 								<span class="y-found__where">
-									@foundWhere(&r, lang)
+									@foundWhere(&r, v.ByDate, v.Now, lang)
 								</span>
 							</a>
 						</li>
@@ -463,17 +475,14 @@ templ searchChoiceRow(label string, choices []SearchChoice, asSelect bool) {
 
 // foundWhere is the line under an item that says what kind of note it is and
 // where it lives, with whatever else made it an answer — the alias or tag the
-// query reached it by — set after, in the same quiet type.
-templ foundWhere(r *SearchResult, lang wording.Lang) {
+// query reached it by — and, for an answer read by date, the day it changed,
+// set after, in the same quiet type.
+templ foundWhere(r *SearchResult, byDate bool, now time.Time, lang wording.Lang) {
 	if r.Kind != "" {
 		<span class="y-result__kind">{ r.Kind }</span>
+		<span class="y-result__sep" aria-hidden="true">·</span>
 	}
-	if len(r.FolderRuns) > 0 {
-		if r.Kind != "" {
-			<span class="y-result__sep" aria-hidden="true">·</span>
-		}
-		<span>@hitRuns(r.FolderRuns)</span>
-	}
+	<span>@hitRuns(r.WhereRuns)</span>
 	if r.Draft {
 		<span class="ui-status">{ wording.Draft.In(lang) }</span>
 	}
@@ -491,9 +500,9 @@ templ foundWhere(r *SearchResult, lang wording.Lang) {
 			@hitRuns(r.AliasRuns)
 		</span>
 	}
-	if r.File {
+	if byDate && !r.Changed.IsZero() {
 		<span class="y-result__sep" aria-hidden="true">·</span>
-		<span class="y-result__kind">{ wording.ResultKindFile.In(lang) }</span>
+		<span class="y-found__date">{ listDate(r.Changed, now) }</span>
 	}
 }
 
@@ -548,8 +557,8 @@ templ SearchPanel(v SearchPanelView, lang wording.Lang) {
 					</a>
 				}
 				for _, f := range v.Folders {
-					<a class="y-sp__row" role="option" href={ templ.URL(f.Href) } data-live-search-row>
-						<svg class="y-sp__icon" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2.2h8.4A1.5 1.5 0 0 1 21 8.7v9.8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z"></path></svg>
+					<a class="y-sp__row y-sp__row--folder" role="option" href={ templ.URL(f.Href) } data-live-search-row>
+						<span class="y-sp__icon">@layouts.Icon("folder")</span>
 						<span class="y-sp__title">@hitRuns(f.NameRuns)</span>
 						<span class="y-sp__where">
 							if f.Parent != "" {

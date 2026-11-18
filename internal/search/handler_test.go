@@ -471,10 +471,10 @@ func searchPageHTML(t *testing.T, pageHTML string) string {
 	return pageHTML[start : start+end]
 }
 
-// TestFilesAreLabelledAmongNotes holds that a hit that is a file says so, and
-// follows the notes that answer: a file has no lifecycle and never will, and a
-// bare row beside notes reads as a note whose status went missing.
-func TestFilesAreLabelledAmongNotes(t *testing.T) {
+// TestSearchAnswersInNotesOnly holds that a vault file read as characters is
+// neither found nor counted: the page, its count and the field's panel are all
+// in notes, whatever else the index holds.
+func TestSearchAnswersInNotesOnly(t *testing.T) {
 	t.Parallel()
 	idx := lexical.NewIndex([]lexical.Document{
 		{RelPath: "Concepts/One.md", Title: "One", PlainText: "needle"},
@@ -484,17 +484,45 @@ func TestFilesAreLabelledAmongNotes(t *testing.T) {
 		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
 	}, slog.New(slog.DiscardHandler))
 
+	for _, address := range []string{"/search?q=needle", "/search/results?q=needle", "/search/results?q=needle&shape=panel"} {
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, address, http.NoBody)
+		rr := httptest.NewRecorder()
+		if strings.Contains(address, "/results") {
+			h.results(rr, req)
+		} else {
+			h.search(rr, req)
+		}
+		body := rr.Body.String()
+		if !strings.Contains(body, "/notes/Concepts/One.md") {
+			t.Errorf("%s does not offer the note; body = %q", address, body)
+		}
+		if strings.Contains(body, "todo.txt") {
+			t.Errorf("%s offers a file; body = %q", address, body)
+		}
+	}
+}
+
+// TestAResultsRowSaysWhereTheNoteLivesAndTheHeaderSaysWhatWasAsked holds the
+// location line's words, and that the header's entry carries the query where a
+// wider window has no field on the page.
+func TestAResultsRowSaysWhereTheNoteLivesAndTheHeaderSaysWhatWasAsked(t *testing.T) {
+	t.Parallel()
+	idx := lexical.NewIndex([]lexical.Document{
+		{RelPath: "Notes/go/One.md", Title: "One", PlainText: "needle"},
+		{RelPath: "Top.md", Title: "Top", PlainText: "needle"},
+	}, validArtifactPolicy(t))
+	h := NewHandler(func() RequestSnapshot {
+		return RequestSnapshot{Index: idx, Shell: nav.Shell{Nav: &nav.Model{}, Governed: true}}
+	}, slog.New(slog.DiscardHandler))
+
 	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/search?q=needle", http.NoBody)
 	rr := httptest.NewRecorder()
 	h.search(rr, req)
 	body := rr.Body.String()
-	if got := strings.Count(body, `<span class="y-result__kind">檔案</span>`); got != 1 {
-		t.Errorf("file rows labelled = %d, want exactly the one file hit; body = %q", got, body)
-	}
-	note := strings.Index(body, "/notes/Concepts/One.md")
-	file := strings.Index(body, "/notes/Notes/todo.txt")
-	if note < 0 || file < 0 || note > file {
-		t.Errorf("the note hit is not answered before the file hit; note at %d, file at %d", note, file)
+	for _, want := range []string{"<span>Notes › go</span>", "<span>最上層</span>", `<span class="y-searchbtn__label">needle</span>`} {
+		if !strings.Contains(strings.Join(strings.Fields(body), " "), want) {
+			t.Errorf("the page does not hold %q", want)
+		}
 	}
 }
 

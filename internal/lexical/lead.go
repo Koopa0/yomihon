@@ -74,13 +74,8 @@ func (e *entry) lead(tokens []string) Lead {
 			// and is the title's, not the excerpt's.
 			continue
 		}
-		hitStart, hitEnd := firstHitIn(text, tokens)
+		hitStart, hitEnd := e.firstShownHit(start, text, tokens)
 		if hitStart < 0 {
-			continue
-		}
-		if hidden, _ := e.excerptEffects(start+hitStart, start+hitEnd); hidden {
-			// A word the reading page does not show, such as a heading's role
-			// marker, is findable but is not an excerpt.
 			continue
 		}
 		if fenced, _ := fenceAt(start+hitStart, e.fenceRanges); fenced {
@@ -102,6 +97,28 @@ func (e *entry) lead(tokens []string) Lead {
 		return Lead{Runs: e.leadRuns(from, end, tokens, false, end < code[1]), Code: true}
 	}
 	return Lead{}
+}
+
+// firstShownHit is the earliest hit in text that the reading page shows, as
+// source offsets into text, or -1. A word the page does not show, such as a
+// heading's role marker or the name a link's display stands in for, is
+// findable but is not an excerpt, and a later hit in the same block can be.
+func (e *entry) firstShownHit(blockStart int, text string, tokens []string) (start, end int) {
+	for from := 0; from < len(text); {
+		hitStart, hitEnd := firstHitIn(text[from:], tokens)
+		if hitStart < 0 {
+			return -1, 0
+		}
+		hitStart, hitEnd = hitStart+from, hitEnd+from
+		if hidden, _ := e.excerptEffects(blockStart+hitStart, blockStart+hitEnd); !hidden {
+			return hitStart, hitEnd
+		}
+		if hitEnd <= from {
+			break
+		}
+		from = hitEnd
+	}
+	return -1, 0
 }
 
 // firstHitIn is the earliest place any token occurs in text, as source

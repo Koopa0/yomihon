@@ -192,7 +192,7 @@ func TestSearchConsumesProseMarkupAndKeepsCodeLiteral(t *testing.T) {
 		{"span-escape-source", "`snake\\_case`\n", `snake\_case`, 1, "snake\\_case"},
 		{"fence-entity-source", "```\nTom &amp; Jerry\n```\n", "&amp;", 1, "Tom &amp; Jerry"},
 		{"fence-escape-source", "```\nsnake\\_case\n```\n", `snake\_case`, 1, "snake\\_case"},
-		{"wikilink-alias-entity-literal", "See [[Other|Tom &amp; Jerry]] here.\n", "&amp;", 1, "See Other Tom &amp; Jerry here."},
+		{"wikilink-alias-entity-literal", "See [[Other|Tom &amp; Jerry]] here.\n", "&amp;", 1, "See Tom &amp; Jerry here."},
 		{"wikilink-alias-entity-decoded", "See [[Other|Tom &amp; Jerry]] here.\n", `"Tom & Jerry"`, 0, ""},
 		{"wikilink-target-escape-literal", "[[snake\\_case]]\n", `snake\_case`, 1, "snake\\_case"},
 		{"wikilink-target-escape-decoded", "[[snake\\_case]]\n", "snake_case", 0, ""},

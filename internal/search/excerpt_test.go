@@ -67,22 +67,6 @@ func TestDisplayedExcerpts(t *testing.T) {
 // TestDisplayedExcerptsHTMLIsSource pins that an HTML file is searched as the
 // characters it holds, wherever it sits: one left in the daily-briefing folder
 // a generator once wrote to is source like any other, its tags shown as text.
-func TestDisplayedExcerptsHTMLIsSource(t *testing.T) {
-	t.Parallel()
-
-	const source = `<p a="attribute-only > x">取消 &amp; &lt;x&gt;</p><!--hidden--><SCRIPT>scripthide</SCRIPT><style>stylehide</style>`
-	for _, relPath := range []string{
-		"System/reports/daily-briefing/fixture.html",
-		"System/reports/fixture.html",
-		"Notes/go/fixture.html",
-	} {
-		t.Run(relPath, func(t *testing.T) {
-			t.Parallel()
-			mux := excerptMux(t, relPath, source)
-			checkDisplayedExcerpt(t, mux, "取消", &excerptView{Text: source, Marks: []excerptMark{{Text: "取消"}}})
-		})
-	}
-}
 
 func excerptMux(t *testing.T, relPath, source string) *http.ServeMux {
 	t.Helper()

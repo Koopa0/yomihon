@@ -274,6 +274,22 @@ func NewIndex(docs []Document, policy schema.ArtifactPolicy) *Index {
 	return &Index{entries: entries, policy: policy}
 }
 
+// Notes is a view of the index that holds only the notes, for a surface whose
+// answers are counted in notes: a vault file read as characters is still in the
+// index, and a search made through this view neither finds it nor counts it.
+func (idx *Index) Notes() *Index {
+	if idx == nil {
+		return nil
+	}
+	notes := make([]*entry, 0, len(idx.entries))
+	for _, e := range idx.entries {
+		if !e.isFile {
+			notes = append(notes, e)
+		}
+	}
+	return &Index{entries: notes, policy: idx.policy}
+}
+
 // WithArtifactPolicy returns a read-only copy bound to policy, which has to be a
 // point-in-time capture of the same artifact authority idx was built from, so one
 // request's metadata queries answer to the capture its projections used.

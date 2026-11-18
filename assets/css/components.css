@@ -1437,13 +1437,8 @@ html:not([data-js]) .y-rubybtn {
   margin-right: auto;
 }
 
-.y-main > .y-healthpage {
+.y-main > :is(.y-healthpage, .y-searchpage) {
   margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2 + var(--gutter-read) - var(--gutter-list)));
-  margin-right: auto;
-}
-
-.y-main > .y-searchpage {
-  margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2 + var(--gutter-read) - var(--gutter-answer)));
   margin-right: auto;
 }
 
@@ -1468,7 +1463,8 @@ html:not([data-js]) .y-rubybtn {
    title, a figure and a status — so it is laid out wider than a paragraph, and
    the width is stated once for all of them rather than found again per page. */
 .y-healthpage,
-.y-home {
+.y-home,
+.y-searchpage {
   margin: 0 auto;
   max-width: calc(var(--measure-list) + 2 * var(--gutter-list));
   padding: 42px var(--gutter-list) 120px;
@@ -3284,27 +3280,27 @@ button.y-freshness__action {
 /* ============================================================
    The search field — one shape wherever it is asked for
    ============================================================ */
-/* Two places ask a reader to type a search: the search page and the palette
-   the keyboard opens. They are one field, so the height, the corner, the type
-   and the icon are written once here and each place adds only the ground it
-   sits on.
-
-   The resting line is an outline drawn inward rather than a border, so focus
-   can thicken it from one pixel to two and colour it without a single glyph
-   moving. That is the whole of the answer: the fields autofocus, and the
-   page-wide ring firing on every open is news the reader did not ask for, so
-   the ring stays off the input and the field around it carries the state —
-   the same outline every other control answers focus with, drawn where this
-   one already has a line. */
+/* The field is the phone's: a wider window asks through the header, which
+   holds the query. A phone's page opens on the field alone, 44 high, with its
+   text at sixteen so the browser does not zoom the page to read one word. The
+   resting line is an outline drawn inward, so focus can thicken it without a
+   glyph moving. */
 .y-searchpage__form {
   align-items: center;
   border-radius: var(--r-sm);
-  display: flex;
+  display: none;
   gap: var(--sp-3);
   height: 44px;
+  margin-bottom: var(--sp-4);
   outline: 1px solid var(--outline);
   outline-offset: -1px;
-  padding: 0 var(--sp-3);
+  padding: 0 0 0 var(--sp-3);
+}
+
+@media (max-width: 720px) {
+  .y-searchpage__form {
+    display: flex;
+  }
 }
 
 .y-searchpage__form:focus-within {
@@ -3312,9 +3308,6 @@ button.y-freshness__action {
   outline-offset: -2px;
 }
 
-/* A phone zooms the page when it focuses an input set below its own body
-   size, which moves the whole layout to read one word. Sixteen pixels is
-   where that stops, and it is the size the typed query deserves anyway. */
 .y-searchpage__form input {
   background: transparent;
   border: 0;
@@ -3330,19 +3323,31 @@ button.y-freshness__action {
   outline: 0;
 }
 
-/* The browser's own clear control is drawn in the system's accent colour, which
-   is a blue nothing else in this interface uses. It keeps its place and its
-   behaviour; only the mark is redrawn, as a cross in the subtle ink. */
-.y-searchpage__form input::-webkit-search-cancel-button {
+/* The browser's own clear control is drawn in the system's accent colour, a
+   blue that belongs to the reader's marks and nothing else. Every field of the
+   search draws its own, from the close picture, in the secondary ink. */
+[data-live-search-input]::-webkit-search-cancel-button {
   appearance: none;
-  background: linear-gradient(45deg, transparent 43%, var(--fg-subtle) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--fg-subtle) 43% 57%, transparent 57%);
-  cursor: pointer;
-  height: 14px;
-  width: 14px;
+  display: none;
 }
 
-.y-searchpage__form input::-webkit-search-cancel-button:hover {
-  background: linear-gradient(45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%);
+.y-searchpage__clear,
+.y-searchsurface__clear {
+  --icon-size: 16px;
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--fg-muted);
+  display: inline-flex;
+  flex: none;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.y-searchpage__clear[hidden],
+.y-searchsurface__clear[hidden] {
+  display: none;
 }
 
 /* One glyph size for every way into search, the header's entry included. */
@@ -3353,59 +3358,16 @@ button.y-freshness__action {
   width: 16px;
 }
 
-/* The header's entry takes its ink from the control around it, which is why
-   it is not in this list. */
 .y-searchpage__form svg {
   color: var(--fg-subtle);
-}
-
-.y-searchpage__form .y-xbtn {
-  flex: none;
-  height: 32px;
-  padding: 0 var(--sp-4);
-  width: auto;
-}
-
-/* What a reader came to look at is what they are looking for, so the query is
-   the largest text on the page: 28px in the reading face, which a phone does
-   not zoom for. The field grows to hold it, and a phone's width takes it down
-   a step so the button is still reached without scrolling sideways. */
-.y-searchpage__form {
-  height: auto;
-  min-height: 56px;
-  padding-block: var(--sp-1);
-}
-
-.y-searchpage__form input {
-  font-family: var(--font-serif);
-  font-size: 1.75rem;
-  line-height: 1.3;
-}
-
-@media (max-width: 600px) {
-  .y-searchpage__form input {
-    font-size: 1.375rem;
-  }
 }
 
 /* ============================================================
    Lexical search results — shared by the full page and ⌘K panel
    ============================================================ */
 /* ============================================================
-   The answer shell
+   The search status line
    ============================================================ */
-/* What a search comes back as: results read as prose, in a measure of their
-   own. */
-.y-searchpage {
-  margin: 0 auto;
-  max-width: calc(var(--measure-answer) + 2 * var(--gutter-answer));
-  padding: var(--sp-7) var(--gutter-answer) var(--sp-9);
-}
-
-.y-searchpage__form {
-  background: var(--panel);
-  margin-bottom: var(--sp-4);
-}
 /* The count line prints the query back, and a query can be one run with
    nowhere to break — the same thing that used to carry the notice below it off
    the side of a phone. It takes the same last-resort break, or a reader on a
@@ -5230,14 +5192,6 @@ button.y-freshness__action {
   }
 }
 
-/* What the reader can do next sits under the sentence, quieter than it. */
-.y-nothing__says .y-nothing__hint {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
-  line-height: var(--lh-normal);
-  margin-top: var(--sp-4);
-}
-
 .y-nothing--fault {
   background: var(--warn-bg);
   border-radius: var(--r-lg);
@@ -6286,7 +6240,8 @@ samp,
   }
 
   .y-healthpage,
-  .y-home {
+  .y-home,
+  .y-searchpage {
     padding: var(--sp-6) var(--gutter-list) 120px;
   }
 
@@ -8628,13 +8583,7 @@ samp,
    a texture.
    ============================================================ */
 .y-searchpage__title {
-  color: var(--fg);
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-20);
-  font-weight: var(--fw-semibold);
-  line-height: 32px;
-  margin: 0 0 var(--sp-3);
-  overflow-wrap: anywhere;
+  margin-bottom: var(--sp-4);
 }
 
 .y-found mark,
@@ -8769,6 +8718,12 @@ samp,
   margin: 0 var(--sp-1);
 }
 
+.y-found__date {
+  color: var(--fg-faint);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+}
+
 .y-more {
   align-items: center;
   display: flex;
@@ -8831,6 +8786,12 @@ samp,
   margin: 0;
 }
 
+.y-searchnone__way a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .y-recent__list {
   list-style: none;
   margin: 0;
@@ -8891,10 +8852,25 @@ samp,
   font-size: var(--fs-12);
 }
 
+/* A folder's row leads with its picture, sixteen in a cell of twenty, and the
+   name and the count both stand in from the row's edge by the cell and its gap. */
+.y-sp__row--folder {
+  align-items: baseline;
+  column-gap: var(--sp-2);
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) max-content;
+}
+
+.y-sp__row--folder .y-sp__where {
+  max-width: none;
+}
+
 .y-sp__icon {
+  --icon-size: 16px;
   align-self: center;
   color: var(--fg-muted);
-  flex: none;
+  display: flex;
+  justify-content: center;
 }
 
 .y-sp__all {
@@ -9027,21 +9003,6 @@ samp,
   width: 1px;
 }
 
-.y-searchsurface__field input::-webkit-search-cancel-button {
-  display: none;
-}
-
-.y-searchsurface__clear {
-  align-items: center;
-  background: none;
-  border: 0;
-  color: var(--fg-muted);
-  display: inline-flex;
-  height: 44px;
-  justify-content: center;
-  width: 44px;
-}
-
 .y-searchsurface__cancel {
   background: none;
   border: 0;
@@ -9057,33 +9018,49 @@ samp,
   overflow-y: auto;
 }
 
-/* A touch has no current row, so nothing on the surface is washed ahead of the
-   reader, and a row says what it is on two lines. */
-.y-searchsurface .y-sp__row {
-  display: grid;
-  gap: 2px;
-}
+/* On the phone's surface a touch has no current row, so nothing is washed ahead
+   of the reader, and a row says what it is on two lines. The box a wider window
+   gets keeps the dropdown's rows: one line, and the current row for the keyboard. */
+@media (width <= 720px) {
+  .y-searchsurface .y-sp__row {
+    display: grid;
+    gap: 2px;
+  }
 
-.y-searchsurface .y-sp__row[data-current],
-.y-searchsurface .y-sp__all[data-current] {
-  background: none;
-  color: var(--fg);
-}
+  .y-searchsurface .y-sp__row[data-current],
+  .y-searchsurface .y-sp__all[data-current] {
+    background: none;
+    color: var(--fg);
+  }
 
-.y-searchsurface .y-sp__row[data-current]::after {
-  content: none;
-}
+  .y-searchsurface .y-sp__row[data-current]::after {
+    content: none;
+  }
 
-.y-searchsurface .y-sp__title {
-  -webkit-box-orient: vertical;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  white-space: normal;
-}
+  .y-searchsurface .y-sp__title {
+    -webkit-box-orient: vertical;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+  }
 
-.y-searchsurface .y-sp__where {
-  max-width: none;
+  .y-searchsurface .y-sp__where {
+    max-width: none;
+  }
+
+  .y-searchsurface .y-sp__row--folder {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .y-searchsurface .y-sp__row--folder .y-sp__icon {
+    grid-row: 1 / span 2;
+  }
+
+  .y-searchsurface .y-sp__row--folder .y-sp__title,
+  .y-searchsurface .y-sp__row--folder .y-sp__where {
+    grid-column: 2;
+  }
 }
 
 @media (max-width: 720px) {

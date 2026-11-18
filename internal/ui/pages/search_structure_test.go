@@ -44,7 +44,7 @@ func TestSearchPageHeadingAndResultList(t *testing.T) {
 			}
 			html := buf.String()
 
-			if !strings.Contains(html, `class="y-searchpage__title"`) {
+			if !strings.Contains(html, `class="y-title y-searchpage__title"`) {
 				t.Errorf("the page has no heading to arrive on; html = %q", html)
 			}
 			if got := strings.Contains(html, `<ol class="y-found"`); got != tt.wantList {
@@ -71,7 +71,7 @@ func TestSearchResultsFragmentIsTitledByTheQuery(t *testing.T) {
 		t.Fatalf("render search results: %v", err)
 	}
 	html := buf.String()
-	if !strings.Contains(html, `<h1 class="y-searchpage__title">「a」</h1>`) {
+	if !strings.Contains(html, `<h1 class="y-title y-searchpage__title">「a」</h1>`) {
 		t.Errorf("the fragment is not titled by its query; html = %q", html)
 	}
 	if !strings.Contains(html, `<ol class="y-found"`) {
@@ -93,9 +93,9 @@ func TestSearchResultMarkedRunsIntroduceNoSpacing(t *testing.T) {
 		Query: "yomihon",
 		Total: 1,
 		Results: []SearchResult{{
-			RelPath:    "Lessons/Building yomihon from source.md",
-			Title:      "Building yomihon from source",
-			FolderRuns: []SnippetRun{{Text: "Lessons"}},
+			RelPath:   "Lessons/Building yomihon from source.md",
+			Title:     "Building yomihon from source",
+			WhereRuns: []SnippetRun{{Text: "Lessons"}},
 			AliasRuns: []SnippetRun{
 				{Text: "building "},
 				{Text: "yomihon", Hit: true},

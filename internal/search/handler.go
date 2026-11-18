@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -66,11 +67,16 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
+	// A search answers in notes: the vault's other files stay in the index but
+	// are neither found nor counted here.
+	snap.Index = snap.Index.Notes()
 	lang := origin.Language(r)
 	st := readState(r, q)
 	view := answerView(&snap, h.query(snap.Index, q, lang, wholeAnswer), st, lang)
 	view.Sidebar = pages.NewSidebar(snap.Shell, "")
-	if err := pages.Search(view, layouts.ChromeFromRequest(r, wording.SearchTitleFor(lang, q))).Render(r.Context(), w); err != nil {
+	chrome := layouts.ChromeFromRequest(r, wording.SearchTitleFor(lang, q))
+	chrome.SearchQuery = view.Query
+	if err := pages.Search(view, chrome).Render(r.Context(), w); err != nil {
 		h.logQueryWriteFailure(r, "write search page", q, err)
 	}
 }
@@ -108,6 +114,12 @@ func answerView(snap *RequestSnapshot, a *answer, st pages.SearchState, lang wor
 		StepBacks:         stepBackViews(snap.Index, q, a.found.Results, a.diagnostic),
 		UnknownFilterKeys: a.parsed.UnknownFilterKeys(),
 		FilterKeys:        lexical.FilterKeys(),
+	}
+	if st.Sort == pages.SearchSortRecent && snap.Shell.Nav != nil {
+		view.ByDate, view.Now = true, time.Now()
+		for i := range view.Results {
+			view.Results[i].Changed = snap.Shell.Nav.Listed(view.Results[i].RelPath).Modified
+		}
 	}
 	if shown < len(laid) {
 		more := st
@@ -148,6 +160,9 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
+	// A search answers in notes: the vault's other files stay in the index but
+	// are neither found nor counted here.
+	snap.Index = snap.Index.Notes()
 	lang := origin.Language(r)
 	panel := r.URL.Query().Get(shapeParam) == shapePanel
 
@@ -282,10 +297,9 @@ func viewResults(results []lexical.Result, tokens []string, roles schema.Navigat
 			Lead:          excerptRuns(r.Lead.Runs),
 			LeadNear:      excerptRuns(r.Lead.Near),
 			LeadCode:      r.Lead.Code,
-			FolderRuns:    plainRuns(lastLevels(r.RelPath, 2), tokens),
+			WhereRuns:     whereRuns(r, tokens, lang),
 			AliasRuns:     snippetRuns(r.Alias, tokens),
 			TagRuns:       viewRuns(lexical.MarkTagHits(r.Tag, tokens)),
-			File:          r.File,
 			Landing:       r.Landing,
 			LandingBare:   r.LandingBare,
 			LandingEnd:    r.LandingEnd,
@@ -294,11 +308,22 @@ func viewResults(results []lexical.Result, tokens []string, roles schema.Navigat
 			BlockCrossing: r.BlockCrossing,
 			FromFence:     r.FromFence,
 		}
-		if kind := kindOf(r, roles); kind != kindNote && kind != kindFile {
+		if kind := kindOf(r, roles); kind != kindNote {
 			out[i].Kind = kindWord(kind, lang)
 		}
 	}
 	return out
+}
+
+// whereRuns is the location line of a result. Hits are marked in the title and
+// the excerpt; the line carries one only for a note the query met by its folder
+// alone, where nothing else on the row would say why it is an answer.
+func whereRuns(r *lexical.Result, tokens []string, lang wording.Lang) []pages.SnippetRun {
+	where := whereWords(r.RelPath, lang)
+	if len(r.Lead.Runs) > 0 || r.Alias != "" || r.Tag != "" || slices.ContainsFunc(snippetRuns(r.Title, tokens), func(run pages.SnippetRun) bool { return run.Hit }) {
+		return []pages.SnippetRun{{Text: where}}
+	}
+	return plainRuns(where, tokens)
 }
 
 func excerptRuns(runs []lexical.ExcerptRun) []pages.SnippetRun {

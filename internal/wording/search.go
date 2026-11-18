@@ -42,7 +42,6 @@ var ResultRangeFmt = both("第 %d–%d 筆，共 %d 筆", "Results %d–%d of %d
 var (
 	MetadataSearchUnavailable = both("依欄位篩選目前無法使用。", "Filtering by field is unavailable right now.")
 	GovernanceUnavailable     = both("狀態與類型資料目前無法使用。", "Status and type data are unavailable right now.")
-	ResultKindFile            = both("檔案", "File")
 )
 
 // The empty result, and the way back out of it.
