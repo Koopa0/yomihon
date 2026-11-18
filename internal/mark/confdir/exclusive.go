@@ -2,7 +2,6 @@ package confdir
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"runtime"
 	"strconv"
@@ -32,7 +31,7 @@ var holderSeq atomic.Uint64
 func Exclusive(dir, name string, wait time.Duration, change func() error) (err error) {
 	lock, err := Acquire(dir, name, newHolder(), abandoned, wait)
 	if err != nil {
-		return fmt.Errorf("lock %s: %w", name, err)
+		return err
 	}
 	defer func() { err = errors.Join(err, lock.Release()) }()
 	return change()

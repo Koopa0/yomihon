@@ -249,3 +249,20 @@ func TestTwoStoresOnOneDirectoryKeepEveryApproval(t *testing.T) {
 		t.Fatalf("two stores kept %d approvals, %v; want %d", len(held), err, 2*each)
 	}
 }
+
+// Asking to revoke what was never approved is not approving, and a directory
+// made to hold the lock would be the first thing left behind.
+func TestRevokingWhatWasNeverApprovedLeavesNoDirectory(t *testing.T) {
+	t.Parallel()
+	config := t.TempDir()
+	store, err := approval.Open(config, "/vaults/notes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revoked, err := store.Revoke("Figures/a.html"); err != nil || revoked {
+		t.Fatalf("Revoke = %v, %v", revoked, err)
+	}
+	if _, err := os.Stat(filepath.Join(config, "yomihon")); !os.IsNotExist(err) {
+		t.Errorf("asking created %s", filepath.Join(config, "yomihon"))
+	}
+}

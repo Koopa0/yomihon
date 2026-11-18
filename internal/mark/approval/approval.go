@@ -178,6 +178,11 @@ func (s *Store) Approve(relPath string, sum [sha256.Size]byte, at time.Time) err
 // Revoke removes the approval of relPath, whatever bytes it named, and reports
 // whether there was one. With none, nothing is written.
 func (s *Store) Revoke(relPath string) (bool, error) {
+	// Asking a store that holds nothing takes no lock: its directory would be
+	// left behind. The locked read below decides whenever there is something.
+	if held, err := s.List(); err == nil && len(without(held, relPath)) == len(held) {
+		return false, nil
+	}
 	var revoked bool
 	err := s.exclusive(func() error {
 		held, err := s.List()

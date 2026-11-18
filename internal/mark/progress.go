@@ -141,6 +141,11 @@ func (s *Store) ClearBookmark(course string) (bool, error) {
 			return false, err
 		}
 	}
+	// Asking a store that holds nothing takes no lock: its directory would be
+	// left behind. The locked read below decides whenever there is something.
+	if held, err := s.loadProgress(); err == nil && !slices.ContainsFunc(held.bookmarks, func(b courseBookmark) bool { return b.Course == course }) {
+		return false, nil
+	}
 	var cleared bool
 	err := s.exclusive(func() error {
 		held, err := s.loadProgress()
@@ -164,6 +169,9 @@ func (s *Store) ClearBookmark(course string) (bool, error) {
 func (s *Store) SetFinished(note string, finished bool) error {
 	if err := validatePath(note); err != nil {
 		return err
+	}
+	if held, err := s.loadProgress(); err == nil && !finished && !slices.ContainsFunc(held.finished, func(f Finished) bool { return f.RelPath == note }) {
+		return nil
 	}
 	return s.exclusive(func() error {
 		held, err := s.loadProgress()

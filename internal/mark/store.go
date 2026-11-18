@@ -117,7 +117,8 @@ func (s *Store) Add(m *Mark) (Mark, error) {
 // removed can be offered back. With no such mark nothing is written and found
 // is false.
 func (s *Store) Remove(id string) (removed Mark, found bool, err error) {
-	err = s.change(func(held []Mark) ([]Mark, bool, error) {
+	err = s.changeIfThereIsAnyToChange(func(held []Mark) ([]Mark, bool, error) {
+		removed, found = Mark{}, false
 		i := slices.IndexFunc(held, func(m Mark) bool { return m.ID == id })
 		if i < 0 {
 			return nil, false, nil
@@ -192,7 +193,8 @@ func (s *Store) Revise(id string, r Revision, now time.Time) (revised Mark, foun
 	if !isID(id) {
 		return Mark{}, false, nil
 	}
-	err = s.change(func(held []Mark) ([]Mark, bool, error) {
+	err = s.changeIfThereIsAnyToChange(func(held []Mark) ([]Mark, bool, error) {
+		found = false
 		i := slices.IndexFunc(held, func(m Mark) bool { return m.ID == id })
 		if i < 0 {
 			return nil, false, nil
@@ -304,6 +306,21 @@ func (s *Store) change(edit func(held []Mark) (changed []Mark, did bool, err err
 		}
 		return confdir.Replace(s.dir, marksFile, data)
 	})
+}
+
+// changeIfThereIsAnyToChange is change for an edit that only takes away or
+// alters what is already kept. Asked of a store that holds nothing, such an edit
+// answers from an unlocked read and takes no lock, because the lock's directory
+// would be the first thing a reader who kept nothing left behind. The locked
+// read decides when there is something, so a mark another process is adding
+// at this moment is not missed: the removal of what was absent comes first.
+func (s *Store) changeIfThereIsAnyToChange(edit func(held []Mark) ([]Mark, bool, error)) error {
+	if held, _, err := s.loadMarks(); err == nil {
+		if _, did, editErr := edit(slices.Clone(held)); editErr == nil && !did {
+			return nil
+		}
+	}
+	return s.change(edit)
 }
 
 // exclusive runs change as the only writer of this vault's marks and progress,

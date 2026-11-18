@@ -328,6 +328,48 @@ func TestConcurrentTogglesKeepEveryDistinctPlace(t *testing.T) {
 	}
 }
 
+// TestAskingToTakeAwayWhatIsNotThereLeavesNoDirectory holds the footprint
+// against the lock: removing, revising, clearing or unfinishing on a store that
+// holds nothing is not keeping, and a directory made to hold the lock would be.
+func TestAskingToTakeAwayWhatIsNotThereLeavesNoDirectory(t *testing.T) {
+	t.Parallel()
+	for name, ask := range map[string]func(*mark.Store) error{
+		"remove": func(s *mark.Store) error {
+			_, found, err := s.Remove(strings.Repeat("0", 32))
+			if found {
+				return errors.New("found a mark in a store that holds none")
+			}
+			return err
+		},
+		"revise": func(s *mark.Store) error {
+			_, found, err := s.Revise(strings.Repeat("0", 32), mark.Revision{}, time.Now())
+			if found {
+				return errors.New("found a mark in a store that holds none")
+			}
+			return err
+		},
+		"clear a bookmark": func(s *mark.Store) error {
+			cleared, err := s.ClearBookmark(mark.NoCourse)
+			if cleared {
+				return errors.New("cleared a bookmark in a store that holds none")
+			}
+			return err
+		},
+		"say a note is not finished": func(s *mark.Store) error { return s.SetFinished("Notes/a.md", false) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			config := t.TempDir()
+			if err := ask(newStoreFor(t, config, "/vaults/notes")); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(filepath.Join(config, "yomihon")); !os.IsNotExist(err) {
+				t.Errorf("asking created %s", filepath.Join(config, "yomihon"))
+			}
+		})
+	}
+}
+
 // TestTwoStoresOnOneDirectoryKeepEveryMark is the command line and the running
 // server: two values over the same files, each with a lock of its own, whose
 // changes must not write one another away.
