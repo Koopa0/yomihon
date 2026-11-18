@@ -248,7 +248,9 @@ func Headings(body string, zones []Span) []Heading {
 			paragraph = -1
 			continue
 		}
-		if m := ATXHeading.FindStringSubmatch(line); m != nil {
+		// A line may end in the carriage return of a CRLF file; it is a line
+		// end and not part of the heading's words or of the closing marks.
+		if m := ATXHeading.FindStringSubmatch(strings.TrimSuffix(line, "\r")); m != nil {
 			out = append(out, Heading{Line: i, Start: start, Level: len(m[1]), Text: m[2]})
 			paragraph = -1
 			continue

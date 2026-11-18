@@ -92,6 +92,14 @@ func titleByHand(body string) (title string, modelled bool) {
 	if strings.ContainsAny(body, "`~<%$=*_[]&\\") {
 		return "", false
 	}
+	// A line ends at a line feed or at a carriage return and line feed. A
+	// carriage return on its own ends a line for the page's parser but not for
+	// the line walk the title is read by, so a body holding one is a construct
+	// the oracle does not model.
+	body = strings.ReplaceAll(body, "\r\n", "\n")
+	if strings.Contains(body, "\r") {
+		return "", false
+	}
 	for line := range strings.SplitSeq(body, "\n") {
 		indent := len(line) - len(strings.TrimLeft(line, " "))
 		if indent > 3 || len(line) < indent+2 || line[indent] != '#' || (line[indent+1] != ' ' && line[indent+1] != '\t') {
@@ -105,11 +113,34 @@ func titleByHand(body string) (title string, modelled bool) {
 		if bare := strings.TrimRight(words, "#"); len(bare) < len(words) && bare != "" && strings.ContainsAny(bare[len(bare)-1:], " \t") {
 			words = strings.TrimRight(bare, " \t")
 		}
+		words = withoutAddressByHand(words)
 		if folded := strings.Join(strings.Fields(words), " "); folded != "" {
 			return folded, true
 		}
 	}
 	return "", true
+}
+
+// withoutAddressByHand drops the block address a heading ends in, written out
+// from the rule alone: a caret and one or more ASCII letters, digits or hyphens,
+// set apart by a space or tab, with words before it. A heading that is only the
+// address has nothing to address, so the address is its words.
+func withoutAddressByHand(words string) string {
+	cut := strings.LastIndexAny(words, " \t")
+	if cut < 1 || len(strings.Fields(words[:cut])) == 0 {
+		return words
+	}
+	token := words[cut+1:]
+	if len(token) < 2 || token[0] != '^' {
+		return words
+	}
+	for i := 1; i < len(token); i++ {
+		c := token[i]
+		if c != '-' && (c < '0' || c > '9') && (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') {
+			return words
+		}
+	}
+	return strings.TrimRight(words[:cut], " \t")
 }
 
 // diffHarvests compares the independent harvests with the shared parse. The
@@ -136,6 +167,15 @@ func TestTitleByHandReadsTheFirstLevelOneHeading(t *testing.T) {
 		{"a closing run glued to text is text", "# Title#\n", "Title#", true},
 		{"a run that is the whole of the words is text", "# #\n", "#", true},
 		{"only the last closing run is marks", "# a b #  #\n", "a b #", true},
+		{"an address after words is not part of the title", "# 000000 ^0\n", "000000", true},
+		{"a heading of only an address keeps it", "# ^0\n", "^0", true},
+		{"white space before an address is not words", "# \f ^0\n", "^0", true},
+		{"words that are hashes keep their address off", "# # ^0\n", "#", true},
+		{"only the last address is dropped", "# a ^b ^c\n", "a ^b", true},
+		{"an address glued to a word is text", "# a^b\n", "a^b", true},
+		{"an address with a stray mark is text", "# a ^b!\n", "a ^b!", true},
+		{"a lone carriage return is not modelled", "# #\r", "", false},
+		{"a carriage return and line feed end one line", "# Title\r\n", "Title", true},
 		{"emphasis marks are not modelled", "# **Bold** title\n", "", false},
 		{"a link is not modelled", "# [Docs](x.md)\n", "", false},
 		{"a tab opens the words", "#\tTab title\n", "Tab title", true},

@@ -384,6 +384,8 @@ func TestHeadingsReadsBothFormsTheWayThePageDoes(t *testing.T) {
 		{"underline after a quote", "> quoted\n===\n\nprose\n", nil},
 		{"underline after indented code", "prose\n\n    code\n===\n\ntail\n", nil},
 		{"underline after a heading", "## Marked\n===\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Marked"}}},
+		{"a CRLF file's closing hashes", "## Balanced ##\r\n\r\nprose\r\n", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Balanced"}}},
+		{"a CRLF file's heading that is only a run", "# #\r\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "#"}}},
 		{"no trailing newline", "## Tail", []graph.Heading{{Line: 0, Start: 0, Level: 2, Text: "Tail"}}},
 		{"heading then deeper heading", "# Title\n\nlede\n\n## Two\n\n### Three\n\n## Two again\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "Title"}, {Line: 4, Start: 15, Level: 2, Text: "Two"}, {Line: 6, Start: 23, Level: 3, Text: "Three"}, {Line: 8, Start: 34, Level: 2, Text: "Two again"}}},
 		{"setext then atx", "Words\n=====\n\n## After\n\nprose\n", []graph.Heading{{Line: 0, Start: 0, Level: 1, Text: "Words"}, {Line: 3, Start: 13, Level: 2, Text: "After"}}},
