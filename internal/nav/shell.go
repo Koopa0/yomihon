@@ -16,6 +16,10 @@ type Shell struct {
 	OtherVersion bool
 	// Vault is the folder itself, as the rail's foot states it.
 	Vault Vault
+	// Marks is how many things the reader has left open, which is what the
+	// marks page lists. They are the reader's own and are kept outside the
+	// folder, so the generation cannot say; whoever builds the shell asks.
+	Marks int
 }
 
 // Vault is the folder being read, said in the two facts a reader at the foot

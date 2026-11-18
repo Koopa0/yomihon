@@ -14,6 +14,9 @@ import (
 // FolderView is one level of the vault's own directories: where it sits, how
 // much is under it, and the list of what is in it.
 type FolderView struct {
+	// Sidebar is the column beside the page, or the drawer it is where the page
+	// has no column.
+	Sidebar Sidebar
 	// Crumbs lead from the vault down to this folder's parent, the vault
 	// first, so a reader can climb out at any step.
 	Crumbs []nav.NoteRef

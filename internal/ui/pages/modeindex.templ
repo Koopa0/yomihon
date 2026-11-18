@@ -6,30 +6,32 @@ import (
 )
 
 // ListIndex is one mode's own page: everything the vault declares of that kind,
-// one line each. It carries no left rail — the rail is the thing being read,
-// and a list beside a copy of itself is a second organisation of the same
-// notes. Anything a mode has beyond its listing follows it as children, which
-// is how one mode can say more without a second page shape existing.
+// one line each. Anything a mode has beyond its listing follows it as children,
+// which is how one mode can say more without a second page shape existing.
 templ ListIndex(v ListIndexView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<main id="_y-main" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
-			<div class="y-home">
-				@indexHead(v.Count, v.Shelf.Title, v.Shelf.Lede, c.Lang)
-				@shelfOrder(v.Order, indexHref(v.Mode))
-				if v.Notice != "" {
-					@nothingToShow(nothingNotice{Kind: v.Mode, Fault: true}) {
-						<p>{ v.Notice }</p>
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			@sidebar(v.Sidebar, c)
+			<main id="_y-main" tabindex="-1" class="y-main y-deskmain" data-index={ v.Mode }>
+				<div class="y-home">
+					@indexHead(v.Count, v.Shelf.Title, v.Shelf.Lede, c.Lang)
+					@shelfOrder(v.Order, indexHref(v.Mode))
+					if v.Notice != "" {
+						@nothingToShow(nothingNotice{Kind: v.Mode, Fault: true}) {
+							<p>{ v.Notice }</p>
+						}
 					}
-				}
-				if v.Fault != "" || v.Restart != "" {
-					@indexFault(v.Fault, v.Restart, c)
-				} else if len(v.Shelf.Rows) == 0 && v.Shelf.Empty != "" {
-					<p class="y-homeempty" data-index-empty>{ v.Shelf.Empty }</p>
-				}
-				@ShelfPage(v.Shelf, c.Lang)
-				{ children... }
-			</div>
-		</main>
+					if v.Fault != "" || v.Restart != "" {
+						@indexFault(v.Fault, v.Restart, c)
+					} else if len(v.Shelf.Rows) == 0 && v.Shelf.Empty != "" {
+						<p class="y-homeempty" data-index-empty>{ v.Shelf.Empty }</p>
+					}
+					@ShelfPage(v.Shelf, c.Lang)
+					{ children... }
+				</div>
+			</main>
+		</div>
 	}
 }
 
@@ -37,17 +39,21 @@ templ ListIndex(v ListIndexView, c layouts.Chrome) {
 // kept is not this page's question: what changed last belongs to the desk.
 templ FolderIndex(v FolderIndexView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<main id="_y-main" tabindex="-1" class="y-main y-deskmain" data-index={ folderMode }>
-			<div class="y-home">
-				<header class="y-home__head">
-					<h1 class="y-title">{ v.Title }</h1>
-				</header>
-				if v.Fault != "" || v.Restart != "" {
-					@indexFault(v.Fault, v.Restart, c)
-				}
-				@ListView(v.List, c.Lang)
-			</div>
-		</main>
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			@sidebar(v.Sidebar, c)
+			<main id="_y-main" tabindex="-1" class="y-main y-deskmain" data-index={ folderMode }>
+				<div class="y-home">
+					<header class="y-home__head">
+						<h1 class="y-title">{ v.Title }</h1>
+					</header>
+					if v.Fault != "" || v.Restart != "" {
+						@indexFault(v.Fault, v.Restart, c)
+					}
+					@ListView(v.List, c.Lang)
+				</div>
+			</main>
+		</div>
 	}
 }
 

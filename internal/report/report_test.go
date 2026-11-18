@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -51,9 +52,10 @@ func TestTheShelfListsTheWrittenReportsAndNothingElse(t *testing.T) {
 
 	calls := 0
 	mux := http.NewServeMux()
-	New(func() *snapshot.Generation {
+	New(func() Request {
 		calls++
-		return store.Current()
+		snap := store.Current()
+		return Request{Generation: snap, Shell: shell.Project("vault", schema.CaptureAuthority(nil, schema.Ungoverned()), snap)}
 	}, slog.New(slog.DiscardHandler)).Register(mux)
 
 	for _, tt := range []struct {

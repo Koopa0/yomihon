@@ -171,7 +171,7 @@ func (h *Handler) refuseCourse(w http.ResponseWriter, r *http.Request, shell *na
 		}
 		return
 	}
-	view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewDrawerSidebar(*shell)}
+	view := pages.NotFoundView{Asked: r.URL.Path, Sidebar: pages.NewDrawerSidebar(*shell, pages.LibraryNone)}
 	// The title names which route refused; the page below it is shared.
 	chrome := layouts.ChromeFromRequest(r, wording.CourseNotFound.In(lang))
 	if err := pages.WriteNotFound(r.Context(), w, view, chrome); err != nil {

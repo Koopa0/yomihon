@@ -6,28 +6,32 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// Folder lists one level of the vault's directories. It carries no left rail:
-// the sidebar already holds the folders, and the list here is the level the
+// Folder lists one level of the vault's directories. Its sidebar is the
+// library, which holds the top-level folders; the list here is the level the
 // reader chose.
 templ Folder(v FolderView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<main id="_y-main" tabindex="-1" class="y-main y-deskmain">
-			<div class="y-home">
-				<header class="y-home__head">
-					@crumbTrail(v.Crumbs, c.Lang)
-					<h1 class="y-title">{ v.Title }</h1>
-					if v.Cover.HTML != "" {
-						<div class="y-cover">
-							@templ.Raw(v.Cover.HTML)
-							if v.Cover.ReadHref != "" {
-								<a class="y-cover__more" href={ templ.URL(v.Cover.ReadHref) }>{ wording.ReadInFull.In(c.Lang) }</a>
-							}
-						</div>
-					}
-				</header>
-				@ListView(v.List, c.Lang)
-			</div>
-		</main>
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			@sidebar(v.Sidebar, c)
+			<main id="_y-main" tabindex="-1" class="y-main y-deskmain">
+				<div class="y-home">
+					<header class="y-home__head">
+						@crumbTrail(v.Crumbs, c.Lang)
+						<h1 class="y-title">{ v.Title }</h1>
+						if v.Cover.HTML != "" {
+							<div class="y-cover">
+								@templ.Raw(v.Cover.HTML)
+								if v.Cover.ReadHref != "" {
+									<a class="y-cover__more" href={ templ.URL(v.Cover.ReadHref) }>{ wording.ReadInFull.In(c.Lang) }</a>
+								}
+							</div>
+						}
+					</header>
+					@ListView(v.List, c.Lang)
+				</div>
+			</main>
+		</div>
 	}
 }
 

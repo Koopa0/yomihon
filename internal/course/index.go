@@ -18,6 +18,8 @@ func (h *Handler) index(w http.ResponseWriter, r *http.Request) {
 	pageShell, snap := request.Shell, request.Generation
 	model := pageShell.Nav
 	view := pages.NewPathIndex(model.Paths(), snap.NavigationRoles(), model.DeclaredClosure(), pages.ContractStateFrom(pageShell.Governed, pageShell.OtherVersion, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
+	view.Sidebar = pages.NewLibrarySidebar(pageShell, pages.LibraryCourses, "")
+	view.Sidebar.FaultsStated = true
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write study-path index", "error", err)
 	}
