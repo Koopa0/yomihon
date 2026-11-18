@@ -17,7 +17,7 @@ import (
 // the middle differs, and it is drawn from the mode's own data.
 templ sidebar(s Sidebar, c layouts.Chrome) {
 	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.VaultNavigation.In(c.Lang) } data-sidebar-mode={ string(s.Mode) } data-drawer-only?={ s.DrawerOnly }>
-		@railHead(c, true)
+		@railHead(c, s.FilterShown(c.Lang))
 		@railSpine(s.spine(c.Lang))
 		<div class="y-railbody" id="_y-nav-rail-body">
 			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
@@ -50,7 +50,7 @@ templ sidebar(s Sidebar, c layouts.Chrome) {
 			@railFoot(s.Vault, c.Lang)
 		</div>
 	</aside>
-	@settleRail(c, true)
+	@settleRail(c, s.FilterShown(c.Lang))
 }
 
 // libraryBody is the sidebar of a page that is a way into the whole folder: the
@@ -64,7 +64,7 @@ templ libraryBody(s Sidebar, lang wording.Lang) {
 	</nav>
 	{{ folders, trimmed := s.libraryFolders() }}
 	if len(folders) > 0 {
-		<nav class="y-here" aria-label={ wording.Folders.In(lang) }>
+		<nav class="y-here y-here--flat" aria-label={ wording.Folders.In(lang) }>
 			<a class="y-here__label" href={ templ.URL(indexHref(folderMode)) }>{ wording.Folders.In(lang) }</a>
 			for _, link := range folders {
 				@sidebarLinkRow(link)
@@ -170,7 +170,6 @@ templ bookRailEntry(c layouts.Chrome, entry PathEntryView, note *NoteView) {
 			href={ templ.URL(entry.Href) }
 			{ currentAttr(entry.Here)... }
 		>
-			<span class="y-navdot" aria-hidden="true"></span>
 			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
 			if entry.Kept {
 				@keptPlace(c.Lang)

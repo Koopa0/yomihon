@@ -29,20 +29,23 @@ const WITH_SIDEBAR = [
 ];
 // The pages whose sidebar opens on a title, a book's or a folder's, or on the
 // first row of the library, set the first words at the header's inset. The
-// findings page draws its sidebar only as a drawer, so at these widths it
-// stands with the pages that have none.
+// findings page draws its sidebar only as a drawer, so at these widths it has no
+// column to show, and its text still starts where the text of a page with one
+// does: the track the column would have had is left empty.
 const OPENS_ON_A_TITLE = new Set(['a lesson', 'a course', 'a file', 'a search']);
 const TITLES = '.y-railbook__title, .y-where__label, .y-here--flat > .ui-navitem';
+const DRAWER_ONLY = [
+  ['the findings', '/health', '.y-healthpage h1.y-title'],
+];
 const WITHOUT_SIDEBAR = [
   ['the desk', '/', '.y-home h1.y-title'],
   ['a shelf', '/courses', '.y-home h1.y-title'],
-  ['the findings', '/health', '.y-healthpage h1.y-title'],
   ['the reading choices', '/preferences', '.y-prefs h1.y-title'],
   ['a course read aloud', '/listen/Maps/listen.md', '.y-listen h1.y-title'],
 ];
 
 const MODES = {
-  'move-the-findings-page': { css: '.y-main > .y-healthpage{margin-left:64px !important}', group: 'desk' },
+  'move-the-findings-page': { css: '.y-main > .y-healthpage{margin-left:64px !important}', group: 'sidebar' },
   'centre-the-search-page': { css: '.y-main > .y-searchpage{margin-left:auto !important;margin-right:auto !important}', group: 'sidebar' },
   'pin-the-course-to-the-sidebar': { css: '.y-main > .y-syl{margin-left:0 !important}', group: 'sidebar' },
   'centre-the-reading-choices': { css: '.y-prefs{margin-left:auto !important;margin-right:auto !important}', group: 'desk' },
@@ -52,6 +55,7 @@ const MODES = {
   'pad-the-sidebar-past-the-header': { css: '.y-rail-left{padding-left:44px}', group: 'window-edge' },
   'indent-the-library-row': { css: '.y-rail-left .y-here--flat > .ui-navitem{padding-left:20px !important}', group: 'window-edge' },
   'indent-the-folder-label': { css: '.y-where{padding-left:8px}', group: 'window-edge' },
+  'indent-the-library-folders': { css: '.y-rail-left .y-here--flat + .y-here--flat > .ui-navitem{padding-left:24px !important}', group: 'window-edge' },
 };
 
 if (MUTATE === 'list') {
@@ -139,6 +143,17 @@ try {
       if (Math.abs(edge.wordsStart - edge.headerStart) > 0.5) {
         throw new LockFired('window-edge', `${name} at 1920px: the sidebar's words start ${edge.wordsStart}px from the window's left side and the header's first control ${edge.headerStart}px: ${JSON.stringify(edge)}`);
       }
+      if (name !== 'a search') continue;
+      // The library is one flat list: the folders under the desk's lists stand
+      // on the same edge as the lists, with no rule and no indent of their own.
+      const rows = await page.evaluate(() => [...document.querySelectorAll('.y-rail-left .y-here--flat > :is(.ui-navitem, .y-here__label, .y-here__more)')].map((row) => {
+        const range = document.createRange();
+        range.selectNodeContents(row.querySelector('span') ?? row);
+        return { text: row.textContent.trim().slice(0, 24), left: Math.round(range.getBoundingClientRect().left * 10) / 10 };
+      }));
+      if (rows.length < 4) throw new Error(`BROKEN left-edge: the library draws ${rows.length} rows at 1920, too few to say they stand on one edge`);
+      const off = rows.filter((row) => Math.abs(row.left - edge.headerStart) > 0.5);
+      if (off.length > 0) throw new LockFired('window-edge', `the library's rows at 1920px stand off the header's line at ${edge.headerStart}px: ${JSON.stringify(off)}`);
     }
     await context.close();
   }
@@ -166,7 +181,7 @@ try {
         throw new LockFired(group, `${rail === 'open' ? 'open' : 'folded'} sidebar at ${width}px: the text of the pages ${group === 'sidebar' ? 'with' : 'without'} a sidebar starts ${spread}px apart: ${found.map((f) => `${f.name} at ${f.left}`).join(', ')}`);
       }
     };
-    check('sidebar', await measure(WITH_SIDEBAR));
+    check('sidebar', await measure([...WITH_SIDEBAR, ...DRAWER_ONLY]));
     check('desk', await measure(WITHOUT_SIDEBAR));
     await context.close();
   }
