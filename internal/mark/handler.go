@@ -22,7 +22,7 @@ const maxFormBytes = 4096
 // boundary: the command reads them from here and hands them to the page, which
 // renders them rather than spelling its own. An address written twice is one
 // that drifts.
-var Paths = struct{ Bookmark, Question string }{Bookmark: "/bookmark", Question: "/questions"}
+var Paths = struct{ Bookmark, Question, Mark string }{Bookmark: "/bookmark", Question: "/questions", Mark: "/mark"}
 
 // retiredBookmarkPath and retiredQuestionPath are where a bookmark and a
 // question were posted before the routes took their present names. A page drawn
@@ -32,13 +32,16 @@ const (
 	retiredQuestionPath = "/uncertainties"
 )
 
-// Places says whether a note is readable now and renders an anchor. An empty
-// anchor names the note as a whole. The routes keep a mark only in a note this
-// reports readable, so none stores a path the vault never showed. The question
-// route also asks about the anchor; the bookmark route holds its anchor to a
-// shape only.
+// Places says whether a note is readable now and renders an anchor, and what
+// words it holds. An empty anchor names the note as a whole. The routes keep a
+// mark only in a note this reports readable, so none stores a path the vault
+// never showed. The question and mark routes also ask about the anchor; the
+// bookmark route holds its anchor to a shape only. Reading is what a quote is
+// found in, in the language the page is drawn in, because a page's own words
+// (a callout's title, a footnote's label) are part of what a reader selects.
 type Places interface {
 	HasPlace(rel, anchor string) bool
+	Reading(rel string, lang wording.Lang) (Page, bool)
 }
 
 // Handler serves the routes a mark reaches the process through, and the ones a
@@ -84,6 +87,10 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST "+Paths.Question, h.postQuestion)
 	mux.HandleFunc("GET "+retiredQuestionPath, movedTo(Paths.Question))
 	mux.HandleFunc("POST "+retiredQuestionPath, movedTo(Paths.Question))
+	mux.HandleFunc("POST "+Paths.Mark, h.keepMark)
+	mux.HandleFunc("PUT "+Paths.Mark+"/{id}", h.putBack)
+	mux.HandleFunc("PATCH "+Paths.Mark+"/{id}", h.reviseMark)
+	mux.HandleFunc("DELETE "+Paths.Mark+"/{id}", h.removeMark)
 }
 
 // movedTo answers a retired address with a permanent redirect that keeps the

@@ -37,6 +37,19 @@ var MarkNotStored = both(
 	"Your bookmark was not written. Reading is unaffected.",
 )
 
+// MarkNotKept is what a route answers a highlight, a question or a thought it
+// will not keep, or will not put back. It says no more than the bookmark's does:
+// the page wrote every field, and a reader cannot act on which.
+var MarkNotKept = both("這則標記無法保留。", "That mark could not be kept.")
+
+// MarkNotFound is what a route answers a mark that is not kept: one that was
+// removed, or an id that never named one.
+var MarkNotFound = both("找不到這則標記。", "That mark is not here.")
+
+// MarkRequestUnreadable is what a route answers a request it cannot read as the
+// one thing it takes.
+var MarkRequestUnreadable = both("請求無法解讀。", "The request could not be read.")
+
 // MarkKeptHere is said, to a reader who cannot see the bookmark drawn beside
 // it, of the one unit or note the bookmark was added in. It is a noun phrase that
 // follows the title it belongs to in a link, so it names the place and claims

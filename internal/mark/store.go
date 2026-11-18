@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
@@ -102,7 +103,7 @@ func (s *Store) Add(m *Mark) (Mark, error) {
 			return nil, false, fmt.Errorf("%w: %d marks are already kept", ErrInvalid, len(held))
 		}
 		if slices.ContainsFunc(held, func(other Mark) bool { return other.ID == kept.ID }) {
-			return nil, false, fmt.Errorf("%w: a mark already has the id %s", ErrInvalid, kept.ID)
+			return nil, false, fmt.Errorf("%w: a mark already has the id %s: %w", ErrInvalid, kept.ID, ErrExists)
 		}
 		return append(held, kept), true, nil
 	})
@@ -125,6 +126,122 @@ func (s *Store) Remove(id string) (removed Mark, found bool, err error) {
 		return slices.Delete(held, i, i+1), true, nil
 	})
 	return removed, found && err == nil, err
+}
+
+// Keep keeps m as a new mark, or says which mark already stands where m would.
+// A mark of the same kind in the same note, anchor and words is that mark, and
+// is returned with added false and nothing written; a thought is never the same
+// act twice, so it is always new. The check and the write are one step under
+// the writers' lock, so two submissions of one highlight at once keep one.
+//
+// admit is asked while the file is locked, and only for a mark that is new. It
+// is what the caller knows about the note that the file does not. A refusal
+// wraps ErrInvalid and writes nothing. m is read and never written through.
+func (s *Store) Keep(m *Mark, admit func(*Mark) bool) (kept Mark, added bool, err error) {
+	if m == nil {
+		return Mark{}, false, fmt.Errorf("%w: no mark", ErrInvalid)
+	}
+	candidate := *m
+	if candidate.ID, err = newID(); err != nil {
+		return Mark{}, false, err
+	}
+	if invalid := validateMark(&candidate); invalid != nil {
+		return Mark{}, false, invalid
+	}
+	err = s.change(func(held []Mark) ([]Mark, bool, error) {
+		if candidate.Kind != Thought {
+			if i := slices.IndexFunc(held, func(other Mark) bool { return sameMark(&other, &candidate) }); i >= 0 {
+				kept = held[i]
+				return nil, false, nil
+			}
+		}
+		if admit == nil || !admit(&candidate) {
+			return nil, false, fmt.Errorf("%w: the place is not one this vault renders", ErrInvalid)
+		}
+		if len(held) >= MaxMarks {
+			return nil, false, fmt.Errorf("%w: %d marks are already kept", ErrInvalid, len(held))
+		}
+		kept, added = candidate, true
+		return append(held, candidate), true, nil
+	})
+	if err != nil {
+		return Mark{}, false, err
+	}
+	return kept, added, nil
+}
+
+// Revision is a change to a mark that is kept. A field left nil is left as it
+// is. Each says something only a mark of one kind has: a reason and a
+// resolution are a question's, a body is a thought's.
+type Revision struct {
+	Reason   *string
+	Body     *string
+	Resolved *bool
+}
+
+// Revise changes the mark with the given id and returns it as it is now. With
+// no such mark, or an id the Store never issues, nothing is read or written and
+// found is false. A change the mark's kind does not have, a revision that
+// names nothing, or a result these files cannot hold is a refusal that wraps
+// ErrInvalid, and nothing is written.
+//
+// Resolving a question that is resolved already leaves the time it was
+// resolved at; reopening it clears the time. now is the moment a resolution is
+// made at.
+func (s *Store) Revise(id string, r Revision, now time.Time) (revised Mark, found bool, err error) {
+	if !isID(id) {
+		return Mark{}, false, nil
+	}
+	err = s.change(func(held []Mark) ([]Mark, bool, error) {
+		i := slices.IndexFunc(held, func(m Mark) bool { return m.ID == id })
+		if i < 0 {
+			return nil, false, nil
+		}
+		found = true
+		next, refused := revision(&held[i], r, now)
+		if refused != nil {
+			return nil, false, refused
+		}
+		revised = next
+		changed := slices.Clone(held)
+		changed[i] = next
+		return changed, true, nil
+	})
+	if err != nil {
+		return Mark{}, false, err
+	}
+	return revised, found, nil
+}
+
+// revision applies r to a copy of m and returns it, validated.
+func revision(held *Mark, r Revision, now time.Time) (Mark, error) {
+	m := *held
+	switch {
+	case r.Reason == nil && r.Body == nil && r.Resolved == nil:
+		return Mark{}, fmt.Errorf("%w: nothing to change", ErrInvalid)
+	case (r.Reason != nil || r.Resolved != nil) && m.Kind != Question:
+		return Mark{}, fmt.Errorf("%w: only a question has a reason or is resolved", ErrInvalid)
+	case r.Body != nil && m.Kind != Thought:
+		return Mark{}, fmt.Errorf("%w: only a thought has a body", ErrInvalid)
+	}
+	if r.Reason != nil {
+		m.Reason = *r.Reason
+	}
+	if r.Body != nil {
+		m.Body = *r.Body
+	}
+	if r.Resolved != nil {
+		switch {
+		case !*r.Resolved:
+			m.ResolvedAt = time.Time{}
+		case m.ResolvedAt.IsZero():
+			m.ResolvedAt = now
+		}
+	}
+	if err := validateMark(&m); err != nil {
+		return Mark{}, err
+	}
+	return m, nil
 }
 
 // Toggle keeps m when no mark of its kind already names the same note, anchor

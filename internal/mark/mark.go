@@ -49,6 +49,11 @@ import (
 // is one value, and half of one would send the reader somewhere nobody chose.
 var ErrInvalid = errors.New("the mark is not a shape this file can hold")
 
+// ErrExists means a mark with the id it was given is already kept. It is
+// reported together with ErrInvalid, and tells putting a mark back that the
+// mark is already back from a refusal of its shape.
+var ErrExists = errors.New("a mark already has that id")
+
 // ErrUnreadable means a stored file cannot be read safely: it is damaged, in a
 // shape this version does not know, or longer than anything written here. The
 // file is left as it is so the reader can recover it, and what depends on it
