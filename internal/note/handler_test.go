@@ -1149,6 +1149,46 @@ func pageSection(page, opener string) string {
 	return rest[:end+len(closer)]
 }
 
+// Not parallel: it sets the home directory.
+func TestHomeSpellsThePathOfAFolderUnderTheReadersHomeAsTilde(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	root := filepath.Join(home, "notes")
+	if err := os.MkdirAll(root, 0o750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "note.md"), []byte("# Note\n\nbody\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	srv := newServer(t, root)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/", http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			t.Errorf("close response body: %v", closeErr)
+		}
+	}()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "<code>" + filepath.Join("~", "notes") + "</code>"
+	if !strings.Contains(string(body), want) {
+		t.Errorf("the home page does not show the folder as %s", want)
+	}
+	if strings.Contains(string(body), home) {
+		t.Errorf("the home page shows the home directory %q in full", home)
+	}
+}
+
 func TestHomeReportsAnUnreadableContractExactlyOnce(t *testing.T) {
 	t.Parallel()
 
