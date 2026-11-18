@@ -108,11 +108,11 @@ func (h *host) mount(ctx context.Context, entry *vaults.Entry, listener net.List
 		var err error
 		if listener, err = listenLoopback(ctx, strconv.Itoa(entry.Port)); err != nil {
 			return &refusal{cause: err, msg: fmt.Sprintf("%s is on port %d, which something else holds (%v); stop that, or take the vault out of the list with `yomihon vaults remove` and open its folder again, which gives it another port",
-				entry.Path, entry.Port, errors.Unwrap(err))}
+				vault.Tilde(entry.Path), entry.Port, errors.Unwrap(err))}
 		}
 	}
 	m := &mount{entry: *entry, listener: listener, progress: new(snapshot.Progress), served: make(chan error, 1)}
-	m.front = newStartup(shell.VaultName(entry.Path), entry.Path, m.progress, scanGrace, h.log)
+	m.front = newStartup(shell.VaultName(entry.Path), vault.Tilde(entry.Path), m.progress, scanGrace, h.log)
 	m.front.whenAsked(func() { h.beginRead(ctx, m, eager) })
 	srv := newHTTPServer(h.touching(m, m.front))
 
