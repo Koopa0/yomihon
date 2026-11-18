@@ -77,7 +77,7 @@ func TestCourseRowsNameTheLessonAsTheAuthorAndNoteDeclared(t *testing.T) {
 		t.Parallel()
 		rail := NewNoteSidebar(nav.Shell{Nav: model}, "Lessons/no-title.md", "")
 		html := renderedHTML(t, sidebar(rail, chrome))
-		got := submatches(regexp.MustCompile(`<span class="y-nav(?:dot|mark y-navmark--warn)" aria-hidden="true">(?:!)?</span>\s*<span[^>]*>([^<]*)</span>`), html)
+		got := submatches(regexp.MustCompile(`(?:<a class="ui-navitem[^"]*"[^>]*>|<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>)\s*<span[^>]*>([^<]*)</span>`), html)
 		if diff := cmp.Diff(rows, got); diff != "" {
 			t.Errorf("book rail rows (-want +got):\n%s", diff)
 		}

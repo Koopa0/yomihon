@@ -3,8 +3,9 @@
 // where what the health page has to say about the folder is offered now that
 // the rail leaves it to the desk.
 //
-// Four things only a browser can answer. That the foot is drawn at reading
-// width. That the same element, which the stylesheet turns into the drawer at
+// Four things only a browser can answer. That the foot is not drawn at reading
+// width, where the column ends with its list and which folder it is stays in
+// the header. That the same element, which the stylesheet turns into the drawer at
 // phone width, still carries it once the drawer is open — one element, two
 // widths, so a foot that goes missing there went missing for a rule nobody
 // wrote down. That the desk's line leads to the health page, is drawn, and
@@ -105,6 +106,16 @@ const MUTATIONS = {
     target: 'foot-on-the-rail',
     apply: rewritePage(PAGE, (body) => body.replace(/<div class="y-railfoot"[\s\S]*?<\/p><\/div>/, '')),
   },
+  // The foot drawn under the column at reading width again.
+  'draw-the-foot-at-reading-width': {
+    target: 'foot-on-the-rail',
+    apply: appendRule(
+      '@media (min-width: 1024px){.y-railfoot{display:flex !important}}',
+      '.y-railfoot',
+      'display',
+      'flex',
+    ),
+  },
   // The foot states how many notes the folder holds again.
   'restore-the-count': {
     target: 'foot-on-the-rail',
@@ -182,6 +193,7 @@ const readFoot = (page) =>
       count: document.querySelectorAll('[data-rail-foot]').length,
       name: text('.y-railfoot__name'),
       counted: foot.querySelector('.y-railfoot__size') !== null || /\d/.test(foot.innerText),
+      drawn: foot.getBoundingClientRect().width > 0 && getComputedStyle(foot).display !== 'none',
     };
   });
 
@@ -209,7 +221,8 @@ try {
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
 
   const wide = await readFoot(page);
-  if (wide === null) fail('foot-on-the-rail', 'the page carrying a left rail draws no foot at 1280px');
+  if (wide === null) fail('foot-on-the-rail', 'the page carrying a left rail holds no foot, so the drawer has none to show');
+  if (wide.drawn) fail('foot-on-the-rail', 'the foot is drawn at 1280px, so the column ends in the name of the folder the header already gives');
   if (wide.count !== 1) fail('foot-on-the-rail', `the page draws ${wide.count} rail feet, want exactly 1`);
   if (!wide.inRail) fail('foot-on-the-rail', 'the foot is not inside the left rail');
   if (!wide.last) fail('foot-on-the-rail', 'the foot is not the last thing in the rail, so the rail does not end with it');
@@ -310,7 +323,7 @@ try {
   }
 
   console.log(
-    `PASS rail-foot: the rail ends with ${JSON.stringify(wide.name)} and no count, at 1280px and inside the opened drawer at 390px, and the desk leads to the health page and states no count`,
+    `PASS rail-foot: the foot is not drawn beside the column at 1280px, and the opened drawer at 390px ends with ${JSON.stringify(wide.name)} and no count, and the desk leads to the health page and states no count`,
   );
 } catch (err) {
   if (err instanceof NotApplied) {

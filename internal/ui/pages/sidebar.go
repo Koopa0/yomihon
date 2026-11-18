@@ -311,16 +311,16 @@ func (s *Sidebar) indexLinks() []sidebarLink {
 	if s.Model == nil {
 		return nil
 	}
-	maps := s.Model.Maps()
-	links := make([]sidebarLink, 0, len(maps))
-	for i := range maps {
-		links = append(links, sidebarLink{Text: maps[i].Title, Href: notesHref(maps[i].RelPath), Count: mapNotes(maps[i].Branches), Current: s.current(maps[i].RelPath)})
+	indexes := s.Model.Maps()
+	links := make([]sidebarLink, 0, len(indexes))
+	for i := range indexes {
+		links = append(links, sidebarLink{Text: indexes[i].Title, Href: notesHref(indexes[i].RelPath), Count: indexNotes(indexes[i].Branches), Current: s.current(indexes[i].RelPath)})
 	}
 	return links
 }
 
-// mapNotes is how many notes an index's branches name that it could reach.
-func mapNotes(branches []nav.Branch) int {
+// indexNotes is how many notes an index's branches name that it could reach.
+func indexNotes(branches []nav.Branch) int {
 	total := 0
 	for i := range branches {
 		for _, entry := range branches[i].Entries {
@@ -328,7 +328,59 @@ func mapNotes(branches []nav.Branch) int {
 				total++
 			}
 		}
-		total += mapNotes(branches[i].Subbranches)
+		total += indexNotes(branches[i].Subbranches)
+	}
+	return total
+}
+
+// filterRows is how many rows a sidebar holds before it offers to narrow them:
+// a list that fits in one look needs no box to search it with.
+const filterRows = 20
+
+// FilterShown reports whether the sidebar's list is long enough to be worth
+// narrowing. The fold button is the head's own and is there either way.
+func (s *Sidebar) FilterShown(lang wording.Lang) bool {
+	return s.rows(lang) > filterRows
+}
+
+// rows is how many rows the mode's list holds, the tail the sidebar did not
+// have room for included, since those are the ones a reader would reach for the
+// filter to find.
+func (s *Sidebar) rows(lang wording.Lang) int {
+	switch s.Mode {
+	case SidebarLibrary:
+		folders, trimmed := s.libraryFolders()
+		return len(s.libraryLinks(lang)) + len(folders) + trimmed
+	case SidebarCourse:
+		view := s.bookView()
+		total := 0
+		for i := range view.Branches {
+			total += branchRowCount(&view.Branches[i], lang)
+		}
+		return total
+	case SidebarFolder:
+		if s.Model == nil {
+			return 0
+		}
+		return len(s.HereShelf(lang).Rows)
+	case SidebarIndex:
+		return len(s.indexLinks())
+	}
+	return 0
+}
+
+// branchRowCount is the units a branch of the course lists, the branches inside
+// it followed down.
+func branchRowCount(sec *PathBranchView, lang wording.Lang) int {
+	total := 0
+	for _, run := range sec.Runs(lang) {
+		for _, row := range run.railRows() {
+			if row.branch != nil {
+				total += branchRowCount(row.branch, lang)
+			} else {
+				total++
+			}
+		}
 	}
 	return total
 }

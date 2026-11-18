@@ -12,7 +12,7 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-func TestSidebarCourseShowsOnePath(t *testing.T) {
+func TestSidebarCourseShowsOneCourse(t *testing.T) {
 	t.Parallel()
 	model := buildModel(t)
 	current := "Writing/lessons/go/L01.md"
@@ -157,7 +157,7 @@ func TestTheLibraryListsWhatTheFolderHasAndMarksWhereThePageStands(t *testing.T)
 		`data-sidebar-mode="library"`,
 		`href="/"`,
 		`href="` + indexHref(courseMode) + `"`,
-		`aria-label="` + wording.Folders.In(wording.En) + `"`,
+		`<nav class="y-here y-here--flat" aria-label="` + wording.Folders.In(wording.En) + `">`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("library sidebar is missing %q:\n%s", want, html)
@@ -191,11 +191,11 @@ func TestADrawerOnlySidebarSaysSoAndKeepsTheLibrary(t *testing.T) {
 func TestTheIndexSidebarListsEachIndexAndMarksTheOneBeingRead(t *testing.T) {
 	t.Parallel()
 	model := buildModel(t)
-	maps := model.Maps()
-	if len(maps) == 0 {
+	indexes := model.Maps()
+	if len(indexes) == 0 {
 		t.Fatal("the fixture holds no index, so this proves nothing")
 	}
-	rel := maps[0].RelPath
+	rel := indexes[0].RelPath
 	sb := NewNoteSidebar(recordedShell(model), rel, "")
 	if sb.Mode != SidebarIndex {
 		t.Fatalf("a note that is an index stands on the %q sidebar, want %q", sb.Mode, SidebarIndex)
@@ -203,5 +203,24 @@ func TestTheIndexSidebarListsEachIndexAndMarksTheOneBeingRead(t *testing.T) {
 	html := renderedHTML(t, sidebar(sb, layouts.Chrome{Nonce: "n", Lang: wording.En}))
 	if !strings.Contains(html, `data-sidebar-mode="index"`) || !strings.Contains(html, `href="`+notesHref(rel)+`" aria-current="page"`) {
 		t.Errorf("the index sidebar does not mark the index being read (%s):\n%s", rel, html)
+	}
+}
+
+// TestACourseSidebarRowsCarryNoStatusDot holds the mark column of a course
+// beside a note: a unit is a plain row, and the column is drawn only for a unit
+// that is finished or holds the bookmark, so a dot on every row would read as
+// finished on all of them.
+func TestACourseSidebarRowsCarryNoStatusDot(t *testing.T) {
+	t.Parallel()
+	sb := NewNoteSidebar(recordedShell(buildModel(t)), "Writing/lessons/go/L01.md", "golang")
+	if sb.Mode != SidebarCourse {
+		t.Fatalf("a note a course teaches stands on the %q sidebar, want %q", sb.Mode, SidebarCourse)
+	}
+	html := renderedHTML(t, sidebar(sb, layouts.Chrome{Nonce: "n", Lang: wording.En}))
+	if !strings.Contains(html, `class="ui-navitem`) {
+		t.Fatal("the course sidebar draws no unit row, so this proves nothing")
+	}
+	if strings.Contains(html, "y-navdot") {
+		t.Errorf("a unit row of the course sidebar draws a status dot:\n%s", html)
 	}
 }

@@ -408,7 +408,7 @@ assert_redirect "/paths" "/courses"
 assert_face "/indexes" 'data-index="indexes"'
 assert_redirect "/maps" "/indexes"
 assert_redirect "/open-thoughts" "/marks"
-assert_face "/search?q=tortoise" 'class="y-result" href="/notes/Notes/alpha.md'
+assert_face "/search?q=tortoise" 'class="y-found__item" href="/notes/Notes/alpha.md'
 assert_face "/search/results?q=tortoise" 'data-live-search-results'
 
 # The reachability promise, checked on the live socket.

@@ -3,6 +3,7 @@
 // The inline initializer also works when the deferred enhancement is blocked;
 // this checks ownership at DOMContentLoaded, not the timing of the first paint.
 import { arrived } from './support/arrival.mjs';
+import { lengthenCourse } from './support/long-course.mjs';
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './support/base.mjs';
@@ -41,6 +42,7 @@ if (MUTATE === 'list') {
 }
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) process.exit(2);
 
+const restoreCourse = await lengthenCourse(BASE, PAGE);
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 async function arm(page, site) {
@@ -277,4 +279,8 @@ try {
   }
 } finally {
   await browser.close();
+  await restoreCourse().catch((error) => {
+    console.error(error);
+    process.exitCode ||= 1;
+  });
 }

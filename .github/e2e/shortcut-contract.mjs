@@ -13,7 +13,7 @@
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './support/base.mjs';
-const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
+const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/long-rail/Rail%20lesson%2001.md';
 const MUTATE = process.env.MUTATE || '';
 const FILTER = '[data-nav-filter]';
 const NAV_TOGGLE = '[data-nav-toggle]';

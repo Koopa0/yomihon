@@ -15,7 +15,7 @@
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './support/base.mjs';
-const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
+const PAGE = process.env.PAGE_PATH || '/notes/Notes/cutover.md';
 const MUTATE = process.env.MUTATE || '';
 const RAIL = '#_y-nav-rail';
 const TOGGLE = '[data-nav-toggle]';
@@ -349,6 +349,9 @@ try {
     if (!(await page.$(RAIL))) broken('the no-JS page has no #_y-nav-rail');
     const link = page.locator(`${RAIL} a[href]:not(.y-railspine):not([aria-current="page"])`).first();
     if (await link.count() !== 1) broken('the no-JS rail has no non-current navigation link to exercise');
+    // A long list scrolls the page to its current row, which can leave the first
+    // link above the window; the question is whether a link can be reached.
+    await link.scrollIntoViewIfNeeded();
     const hit = await link.evaluate((el) => {
       const rect = el.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return { visible: false, hit: false };

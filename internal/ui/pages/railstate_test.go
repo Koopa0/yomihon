@@ -3,8 +3,10 @@ package pages
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"html"
 	"os"
+	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -14,7 +16,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/assets"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 func TestRailFilterProjection(t *testing.T) {
@@ -152,16 +156,18 @@ func TestRailFilterCallerSet(t *testing.T) {
 		t.Fatalf("caught: settlement caller set changed: %v", callers)
 	}
 	c := layouts.Chrome{Nonce: "probe-nonce"}
+	long := longFolderSidebar(t)
 	input := regexp.MustCompile(`<input\b[^>]*\bdata-nav-filter\b`)
 	for _, tt := range []struct {
 		name      string
 		component templ.Component
 		filtered  bool
 	}{
-		{"library", sidebar(Sidebar{Mode: SidebarLibrary}, c), true},
-		{"book", sidebar(Sidebar{Mode: SidebarCourse}, c), true},
-		{"folder", sidebar(Sidebar{Mode: SidebarFolder}, c), true},
-		{"index", sidebar(Sidebar{Mode: SidebarIndex}, c), true},
+		{"library", sidebar(Sidebar{Mode: SidebarLibrary}, c), false},
+		{"book", sidebar(Sidebar{Mode: SidebarCourse}, c), false},
+		{"folder", sidebar(Sidebar{Mode: SidebarFolder}, c), false},
+		{"index", sidebar(Sidebar{Mode: SidebarIndex}, c), false},
+		{"a folder past the rows a list is narrowed at", sidebar(long, c), true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var b bytes.Buffer
@@ -192,15 +198,17 @@ func TestRailFilterCallerSet(t *testing.T) {
 func TestEveryRailKeepsItsScrollPositionAcrossPages(t *testing.T) {
 	t.Parallel()
 	c := layouts.Chrome{Nonce: "probe-nonce"}
+	long := longFolderSidebar(t)
 	for _, tt := range []struct {
 		name      string
 		component templ.Component
 		filtered  bool
 	}{
-		{"library", sidebar(Sidebar{Mode: SidebarLibrary}, c), true},
-		{"book", sidebar(Sidebar{Mode: SidebarCourse}, c), true},
-		{"folder", sidebar(Sidebar{Mode: SidebarFolder}, c), true},
-		{"index", sidebar(Sidebar{Mode: SidebarIndex}, c), true},
+		{"library", sidebar(Sidebar{Mode: SidebarLibrary}, c), false},
+		{"book", sidebar(Sidebar{Mode: SidebarCourse}, c), false},
+		{"folder", sidebar(Sidebar{Mode: SidebarFolder}, c), false},
+		{"index", sidebar(Sidebar{Mode: SidebarIndex}, c), false},
+		{"a folder past the rows a list is narrowed at", sidebar(long, c), true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -223,5 +231,47 @@ func TestEveryRailKeepsItsScrollPositionAcrossPages(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// longFolderSidebar is the sidebar of a note in a folder of more files than a
+// list is narrowed at, the one shape that draws the filter.
+func longFolderSidebar(t *testing.T) Sidebar {
+	t.Helper()
+	root := t.TempDir()
+	for i := range filterRows + 5 {
+		full := filepath.Join(root, "Long", fmt.Sprintf("note-%02d.md", i))
+		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("body\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return NewFolderSidebar(nav.Shell{Nav: modelOf(t, root)}, "Long/note-00.md")
+}
+
+// TestTheFilterComesOnlyPastTwentyRows holds the rule the head draws by: a list
+// that fits in one look has the fold button alone, and one longer than
+// filterRows has the box as well.
+func TestTheFilterComesOnlyPastTwentyRows(t *testing.T) {
+	t.Parallel()
+	c := layouts.Chrome{Nonce: "n", Lang: wording.En}
+	short := NewFolderSidebar(nav.Shell{Nav: buildModel(t)}, "Notes/alpha.md")
+	if short.FilterShown(c.Lang) {
+		t.Errorf("a folder of %d rows is offered a filter", short.rows(c.Lang))
+	}
+	long := longFolderSidebar(t)
+	if !long.FilterShown(c.Lang) {
+		t.Errorf("a folder of %d rows is offered no filter", long.rows(c.Lang))
+	}
+	for name, sb := range map[string]Sidebar{"short": short, "long": long} {
+		var b bytes.Buffer
+		if err := sidebar(sb, c).Render(t.Context(), &b); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(b.String(), "data-rail-toggle") {
+			t.Errorf("the %s sidebar draws no fold button", name)
+		}
 	}
 }
