@@ -940,7 +940,7 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 			Title:       "L01",
 			TitleRuns:   []SnippetRun{{Text: "L01"}},
 			Draft:       true,
-			Kind:        wording.FacetTypeUnit.In(lang),
+			Kind:        wording.SearchKindUnit.In(lang),
 			LandingBare: "kafka",
 			Lead:        []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " after"}},
 			WhereRuns:   []SnippetRun{{Text: "lessons › go"}},
@@ -974,8 +974,8 @@ func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 		},
 		Kinds: []SearchChoice{
 			{Label: wording.SearchAll.In(lang), Count: 3, Href: "/search?q=kafka", Active: true},
-			{Label: wording.FacetTypeUnit.In(lang), Count: 2, Href: "/search?kind=unit&q=kafka"},
-			{Label: wording.FacetTypeNote.In(lang), Count: 1, Href: "/search?kind=note&q=kafka"},
+			{Label: wording.SearchKindUnit.In(lang), Count: 2, Href: "/search?kind=unit&q=kafka"},
+			{Label: wording.SearchKindNote.In(lang), Count: 1, Href: "/search?kind=note&q=kafka"},
 		},
 		Locations: []SearchChoice{
 			{Label: wording.SearchAll.In(lang), Count: 3, Href: "/search?q=kafka", Active: true},

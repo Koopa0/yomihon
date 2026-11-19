@@ -75,17 +75,17 @@ func kindOf(r *lexical.Result, roles schema.NavigationRoles) string {
 func kindWord(kind string, lang wording.Lang) string {
 	switch kind {
 	case kindUnit:
-		return wording.FacetTypeUnit.In(lang)
+		return wording.SearchKindUnit.In(lang)
 	case kindCourse:
-		return wording.FacetTypeCourse.In(lang)
+		return wording.SearchKindCourse.In(lang)
 	case kindIndex:
-		return wording.FacetTypeIndex.In(lang)
+		return wording.SearchKindIndex.In(lang)
 	case kindDrill:
-		return wording.FacetTypeDrill.In(lang)
+		return wording.SearchKindDrill.In(lang)
 	case kindThought:
-		return wording.FacetTypeThought.In(lang)
+		return wording.SearchKindThought.In(lang)
 	}
-	return wording.FacetTypeNote.In(lang)
+	return wording.SearchKindNote.In(lang)
 }
 
 // placeOf is the folder a result is filed under, to the given depth, in the

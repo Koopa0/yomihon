@@ -64,10 +64,6 @@ func TestDisplayedExcerpts(t *testing.T) {
 	}
 }
 
-// TestDisplayedExcerptsHTMLIsSource pins that an HTML file is searched as the
-// characters it holds, wherever it sits: one left in the daily-briefing folder
-// a generator once wrote to is source like any other, its tags shown as text.
-
 func excerptMux(t *testing.T, relPath, source string) *http.ServeMux {
 	t.Helper()
 	root := t.TempDir()

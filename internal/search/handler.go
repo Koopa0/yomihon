@@ -67,9 +67,6 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	// A search answers in notes: the vault's other files stay in the index but
-	// are neither found nor counted here.
-	snap.Index = snap.Index.Notes()
 	lang := origin.Language(r)
 	st := readState(r, q)
 	view := answerView(&snap, h.query(snap.Index, q, lang, wholeAnswer), st, lang)
@@ -160,9 +157,6 @@ func (h *Handler) results(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	snap := h.snapshot()
-	// A search answers in notes: the vault's other files stay in the index but
-	// are neither found nor counted here.
-	snap.Index = snap.Index.Notes()
 	lang := origin.Language(r)
 	panel := r.URL.Query().Get(shapeParam) == shapePanel
 

@@ -17,9 +17,6 @@ func (idx *Index) NearWord(query string) string {
 	}
 	uses := map[string]int{}
 	for _, e := range idx.entries {
-		if e.isFile {
-			continue
-		}
 		for _, w := range titleWords(e.Title) {
 			uses[w]++
 		}
