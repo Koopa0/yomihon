@@ -9,24 +9,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/vault"
 )
-
-const (
-	// lockWait is how long a change waits for another process to finish its own.
-	lockWait = 5 * time.Second
-	// lockStaleAfter is how old a lock has to be before it is taken whoever
-	// holds it. A change takes milliseconds; this covers a holder whose process
-	// id has since been given to another process.
-	lockStaleAfter = 30 * time.Second
-)
-
-// holderSeq tells two claimants in one process apart.
-var holderSeq atomic.Uint64
 
 // Store is the list of vaults and the file that says a yomihon is running, both
 // in the reader's own directory. One value serves one process: the command line
@@ -85,7 +72,7 @@ func Open(configDir string, free func(port int) bool, options ...Option) (*Store
 		dir:     dir,
 		free:    free,
 		now:     time.Now,
-		wait:    lockWait,
+		wait:    confdir.LockWait,
 		touched: map[string]touch{},
 		removed: map[string]Entry{},
 		own:     map[int]bool{},
@@ -397,13 +384,12 @@ func (s *Store) read() (list []Entry, raw []byte, skipped []string, err error) {
 // answers the list to write and whether it differs; a list that cannot be read
 // is set aside first and the change is made to an empty one, which keeps what
 // the reader had in a file they can open and never deletes it.
-func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) (err error) {
-	lock, err := confdir.Acquire(s.dir, lockFile, newHolder(), abandoned, s.wait)
-	if err != nil {
-		return fmt.Errorf("lock the list of vaults: %w", err)
-	}
-	defer func() { err = errors.Join(err, lock.Release()) }()
+func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) error {
+	return confdir.Exclusive(s.dir, lockFile, s.wait, func() error { return s.updateHeld(change) })
+}
 
+// updateHeld is update with the lock already taken.
+func (s *Store) updateHeld(change func(list []Entry) ([]Entry, bool, error)) error {
 	list, raw, skipped, err := s.read()
 	damaged := errors.Is(err, ErrDamaged)
 	if err != nil && !damaged {
@@ -440,23 +426,6 @@ func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) (err er
 		s.stamp = stamped
 	}
 	return nil
-}
-
-// newHolder says who holds the lock: this process, and which claim of it.
-func newHolder() []byte {
-	return []byte(strconv.Itoa(os.Getpid()) + " " + strconv.FormatUint(holderSeq.Add(1), 10) + " " + strconv.FormatInt(time.Now().UnixNano(), 10))
-}
-
-// abandoned is the rule for a lock whose holder never released it: its process
-// is gone, or it is older than any change takes. A lock not yet written reads
-// as empty and is waited out.
-func abandoned(holder []byte, age time.Duration) bool {
-	if age > lockStaleAfter {
-		return true
-	}
-	pid, _, _ := strings.Cut(string(holder), " ")
-	n, err := strconv.Atoi(pid)
-	return err == nil && !processAlive(n)
 }
 
 // keepAside keeps the list as it is before it is replaced, for the reader to

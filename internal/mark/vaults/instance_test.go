@@ -14,21 +14,6 @@ import (
 // runtimeHasModes says whether file modes mean anything on this system.
 func runtimeHasModes() bool { return runtime.GOOS != "windows" }
 
-func TestProcessAliveKnowsThisProcessAndOneThatEnded(t *testing.T) {
-	t.Parallel()
-	if !processAlive(os.Getpid()) {
-		t.Error("this process was called gone")
-	}
-	if processAlive(deadPID(t)) {
-		t.Error("a process that has ended was called alive")
-	}
-	for _, pid := range []int{0, -1} {
-		if processAlive(pid) {
-			t.Errorf("processAlive(%d) = true", pid)
-		}
-	}
-}
-
 func TestARunningInstanceIsOneWhoseProcessIsStillThere(t *testing.T) {
 	t.Parallel()
 	s, _ := storeIn(t, t.TempDir(), nil)

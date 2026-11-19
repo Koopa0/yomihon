@@ -57,22 +57,22 @@ func (s *Store) Adopt(old string, admit func(relPath string) bool) error {
 		admit = func(string) bool { return false }
 	}
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	marks, _, err := s.loadMarks()
-	if err != nil {
-		return err
-	}
-	progress, err := s.loadProgress()
-	if err != nil {
-		return err
-	}
-	marks, marksChanged := adoptMarks(marks, theirs.marks, admit)
-	progress, progressChanged := adoptProgress(progress, theirs.progress, admit)
-	if len(marks) > MaxMarks || len(progress.bookmarks) > maxBookmarks || len(progress.finished) > maxFinished {
-		return fmt.Errorf("%w: what is kept for that path does not fit beside what is kept here", ErrInvalid)
-	}
-	return s.install(&adopted{marks: marks, marksChanged: marksChanged, progress: progress, progressChanged: progressChanged})
+	return s.exclusive(func() error {
+		marks, _, err := s.loadMarks()
+		if err != nil {
+			return err
+		}
+		progress, err := s.loadProgress()
+		if err != nil {
+			return err
+		}
+		marks, marksChanged := adoptMarks(marks, theirs.marks, admit)
+		progress, progressChanged := adoptProgress(progress, theirs.progress, admit)
+		if len(marks) > MaxMarks || len(progress.bookmarks) > maxBookmarks || len(progress.finished) > maxFinished {
+			return fmt.Errorf("%w: what is kept for that path does not fit beside what is kept here", ErrInvalid)
+		}
+		return s.install(&adopted{marks: marks, marksChanged: marksChanged, progress: progress, progressChanged: progressChanged})
+	})
 }
 
 // earlier is what was kept for the vault at old, or the reason there is none to
