@@ -41,7 +41,7 @@ func TestTheHeaderMarkIsOneBookmarkThatSaysWhetherItIsSet(t *testing.T) {
 		if !strings.Contains(button, want) {
 			t.Errorf("kept=%v: the bookmark does not carry %s; button = %q", kept, want, button)
 		}
-		if !strings.Contains(button, `aria-label="`+wording.MarkSetControl.In(wording.ZhHant)+`"`) {
+		if !strings.Contains(button, `aria-label="`+wording.BookmarkSetControl.In(wording.ZhHant)+`"`) {
 			t.Errorf("kept=%v: the bookmark is not named by its verb; button = %q", kept, button)
 		}
 	}
@@ -83,9 +83,9 @@ func TestTheHeaderMarkSpeaksTheInterfaceLanguage(t *testing.T) {
 		}
 		html := buf.String()
 		for _, want := range []string{
-			wording.MarkSetControl.In(lang),
-			wording.MarkSaved.In(lang),
-			wording.MarkNotStored.In(lang),
+			wording.BookmarkSetControl.In(lang),
+			wording.BookmarkSaved.In(lang),
+			wording.BookmarkNotStored.In(lang),
 		} {
 			if !strings.Contains(html, want) {
 				t.Errorf("the header control in %v does not carry %q; html = %q", lang, want, html)

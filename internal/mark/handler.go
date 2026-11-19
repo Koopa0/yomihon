@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -22,7 +23,9 @@ const maxFormBytes = 4096
 // boundary: the command reads them from here and hands them to the page, which
 // renders them rather than spelling its own. An address written twice is one
 // that drifts.
-var Paths = struct{ Bookmark, Question, Mark string }{Bookmark: "/bookmark", Question: "/questions", Mark: "/mark"}
+var Paths = struct{ Bookmark, Question, Mark, Finished string }{
+	Bookmark: "/bookmark", Question: "/questions", Mark: "/mark", Finished: "/finished",
+}
 
 // retiredBookmarkPath and retiredQuestionPath are where a bookmark and a
 // question were posted before the routes took their present names. A page drawn
@@ -32,16 +35,23 @@ const (
 	retiredQuestionPath = "/uncertainties"
 )
 
-// Places says whether a note is readable now and renders an anchor, and what
-// words it holds. An empty anchor names the note as a whole. The routes keep a
-// mark only in a note this reports readable, so none stores a path the vault
-// never showed. The question and mark routes also ask about the anchor; the
-// bookmark route holds its anchor to a shape only. Reading is what a quote is
-// found in, in the language the page is drawn in, because a page's own words
-// (a callout's title, a footnote's label) are part of what a reader selects.
+// Places says whether a note is readable now and renders an anchor, what words
+// it holds, and what the courses walk. An empty anchor names the note as a
+// whole. The routes keep a mark only in a note this reports readable, so none
+// stores a path the vault never showed. The question and mark routes also ask
+// about the anchor; the bookmark route holds its anchor to a shape only.
+// Reading is what a quote is found in, in the language the page is drawn in,
+// because a page's own words (a callout's title, a footnote's label) are part
+// of what a reader selects. Units is what a course walks: the notes of its main
+// line and, apart from them, those of its side branches; ok is false for a
+// course there is none of. Rows is what it counts: the rows its main line plans,
+// those not yet written included, and the notes of those a reader can open, one
+// for each row.
 type Places interface {
 	HasPlace(rel, anchor string) bool
 	Reading(rel string, lang wording.Lang) (Page, bool)
+	Units(course string) (mainLine, branches []string, ok bool)
+	Rows(course string) (planned int, rows []string, ok bool)
 }
 
 // Handler serves the routes a mark reaches the process through, and the ones a
@@ -82,6 +92,8 @@ func NewHandler(store *Store, places Places, log *slog.Logger) *Handler {
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+Paths.Bookmark, h.getBookmark)
 	mux.HandleFunc("POST "+Paths.Bookmark, h.postBookmark)
+	mux.HandleFunc("PUT "+Paths.Bookmark, h.putBookmark)
+	mux.HandleFunc("DELETE "+Paths.Bookmark, h.removeBookmark)
 	mux.HandleFunc("POST "+retiredBookmarkPath, movedTo(Paths.Bookmark))
 	mux.HandleFunc("GET "+Paths.Question, h.getQuestions)
 	mux.HandleFunc("POST "+Paths.Question, h.postQuestion)
@@ -91,6 +103,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("PUT "+Paths.Mark+"/{id}", h.putBack)
 	mux.HandleFunc("PATCH "+Paths.Mark+"/{id}", h.reviseMark)
 	mux.HandleFunc("DELETE "+Paths.Mark+"/{id}", h.removeMark)
+	mux.HandleFunc("PUT "+Paths.Finished+"/{path...}", h.finish(true))
+	mux.HandleFunc("DELETE "+Paths.Finished+"/{path...}", h.finish(false))
 }
 
 // movedTo answers a retired address with a permanent redirect that keeps the
@@ -109,16 +123,23 @@ func movedTo(target string) http.HandlerFunc {
 // getBookmark answers where the bookmark kept now is, for a page that was drawn
 // before it was last set: one shown again from the browser's cache is the page
 // of the visit before, and what it draws of the place is that visit's. It names
-// the note and the anchor, which is all a page needs to tell whether the place
-// is in it and where, and answers no content where none is kept. The browser is
-// told not to keep the answer: one that was kept would be the staleness this
-// exists to remove.
+// the note, the anchor, how far below it and when, which is all a page needs to
+// tell whether the place is in it, where, and how old it is; the identity is
+// the page's own business and is not sent. It answers no content where none is
+// kept. The course is the one the bookmark is kept for, and absent for reading
+// outside any. The browser is told not to keep the answer: one that was kept
+// would be the staleness this exists to remove.
 //
 // A file that cannot be read answers no content too, and is logged: the page
 // asked on the reader's behalf, and there is nowhere to continue from.
 func (h *Handler) getBookmark(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	kept, found, err := h.store.Bookmark(NoCourse)
+	course, ok := courseOf(r)
+	if !ok || (course != NoCourse && validatePath(course) != nil) {
+		http.Error(w, wording.BookmarkRefused.In(origin.Language(r)), http.StatusUnprocessableEntity)
+		return
+	}
+	kept, found, err := h.store.Bookmark(course)
 	if err != nil {
 		h.log.Warn("read the bookmark", "directory", h.store.Dir(), "error", err)
 	}
@@ -128,9 +149,11 @@ func (h *Handler) getBookmark(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err = json.NewEncoder(w).Encode(struct {
-		Path   string `json:"path"`
-		Anchor string `json:"anchor"`
-	}{Path: kept.RelPath, Anchor: kept.Anchor}); err != nil {
+		Path   string    `json:"path"`
+		Anchor string    `json:"anchor"`
+		Offset int       `json:"offset"`
+		At     time.Time `json:"at"`
+	}{Path: kept.RelPath, Anchor: kept.Anchor, Offset: kept.Offset, At: kept.At}); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "send the bookmark", "error", err)
 	}
 }
@@ -149,7 +172,7 @@ func (h *Handler) postBookmark(w http.ResponseWriter, r *http.Request) {
 	}
 	offset, err := strconv.Atoi(r.PostFormValue("offset"))
 	if err != nil {
-		http.Error(w, wording.MarkRefused.In(lang), http.StatusUnprocessableEntity)
+		http.Error(w, wording.BookmarkRefused.In(lang), http.StatusUnprocessableEntity)
 		return
 	}
 	kept := &Bookmark{
@@ -157,26 +180,39 @@ func (h *Handler) postBookmark(w http.ResponseWriter, r *http.Request) {
 		Anchor:   r.PostFormValue("anchor"),
 		Offset:   offset,
 		Identity: r.PostFormValue("identity"),
-		At:       time.Now(),
+		At:       stamp(),
 	}
-	switch err = h.keepBookmark(kept); {
-	case err == nil:
-		w.WriteHeader(http.StatusNoContent)
-	case errors.Is(err, ErrInvalid):
-		// The reader wrote none of these fields, so the refusal is a fault in
-		// the page rather than something they can correct. It is logged where
-		// it can be acted on and answered with the one sentence they can use.
-		h.log.Warn("a bookmark was refused", "error", err)
-		http.Error(w, wording.MarkRefused.In(lang), http.StatusUnprocessableEntity)
-	default:
-		h.log.Error("write the bookmark", "directory", h.store.Dir(), "error", err)
-		http.Error(w, wording.MarkNotStored.In(lang), http.StatusInternalServerError)
+	if _, _, err = h.keepBookmark(NoCourse, kept, nil); err != nil {
+		h.refuseBookmark(w, r, err, "keep the bookmark")
+		return
 	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
-// keepBookmark stores kept when its shape is one these files hold and its note
-// is one the vault holds. The shape is judged first, so a path no note could
-// carry never reaches the vault to be looked up.
+// refuseBookmark answers for a bookmark that was not kept or cleared.
+//
+// The reader wrote none of the fields of a refused one, so the refusal is a
+// fault in the page rather than something they can correct. It is logged where
+// it can be acted on and answered with the one sentence they can use.
+func (h *Handler) refuseBookmark(w http.ResponseWriter, r *http.Request, err error, doing string) {
+	lang := origin.Language(r)
+	if errors.Is(err, ErrChanged) {
+		http.Error(w, wording.BookmarkMovedElsewhere.In(lang), http.StatusConflict)
+		return
+	}
+	if errors.Is(err, ErrInvalid) {
+		h.log.Warn("a bookmark was refused", "doing", doing, "error", err)
+		http.Error(w, wording.BookmarkRefused.In(lang), http.StatusUnprocessableEntity)
+		return
+	}
+	h.log.Error("write the bookmark", "doing", doing, "directory", h.store.Dir(), "error", err)
+	http.Error(w, wording.BookmarkNotStored.In(lang), http.StatusInternalServerError)
+}
+
+// keepBookmark stores kept as the bookmark of course and answers the one it
+// replaced, if that is the one expect names, when its shape is one these files hold, its note is one the vault
+// holds and, for a course, the course walks it. The shape is judged first, so a
+// path no note could carry never reaches the vault to be looked up.
 //
 // Only the note is asked after: the empty anchor names it as a whole. An anchor
 // is any id the rendered body carries — a block address or a footnote as readily
@@ -184,14 +220,39 @@ func (h *Handler) postBookmark(w http.ResponseWriter, r *http.Request) {
 // asking it about the anchor would refuse a place a reading page honestly
 // stamps. The anchor stays bounded by its shape, and it only ever reaches the
 // desk inside an address.
-func (h *Handler) keepBookmark(kept *Bookmark) error {
-	if err := validateBookmark(NoCourse, kept); err != nil {
-		return err
+func (h *Handler) keepBookmark(course string, kept *Bookmark, expect *Expectation) (Bookmark, bool, error) {
+	if err := validateBookmark(course, kept); err != nil {
+		return Bookmark{}, false, err
 	}
 	if !h.places.HasPlace(kept.RelPath, "") {
-		return fmt.Errorf("%w: %q is not a note this vault holds", ErrInvalid, kept.RelPath)
+		return Bookmark{}, false, fmt.Errorf("%w: %q is not a note this vault holds", ErrInvalid, kept.RelPath)
 	}
-	return h.store.SetBookmark(NoCourse, kept)
+	if course != NoCourse && !h.walks(course, kept.RelPath) {
+		return Bookmark{}, false, fmt.Errorf("%w: %q does not walk %q", ErrInvalid, course, kept.RelPath)
+	}
+	return h.store.MoveBookmark(course, kept, expect)
+}
+
+// walks says whether the course walks rel, on its main line or on a side
+// branch.
+func (h *Handler) walks(course, rel string) bool {
+	mainLine, branches, ok := h.places.Units(course)
+	return ok && (slices.Contains(mainLine, rel) || slices.Contains(branches, rel))
+}
+
+// courseOf reads the course a request names in its query: none, for reading
+// outside any course, or one. It is false for a request that names two, which
+// no page makes.
+func courseOf(r *http.Request) (string, bool) {
+	named := r.URL.Query()["course"]
+	switch len(named) {
+	case 0:
+		return NoCourse, true
+	case 1:
+		return named[0], true
+	default:
+		return NoCourse, false
+	}
 }
 
 // getQuestions answers the questions kept now, as the page draws them: the note,

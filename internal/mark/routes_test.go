@@ -35,6 +35,15 @@ func (v aVault) Reading(rel string, _ wording.Lang) (mark.Page, bool) {
 	return mark.Page{Text: text, Identity: anIdentity}, ok
 }
 
+// Units and Rows are not asked of the mark routes.
+func (v aVault) Units(string) (mainLine, branches []string, ok bool) {
+	return nil, nil, false
+}
+
+func (v aVault) Rows(string) (planned int, rows []string, ok bool) {
+	return 0, nil, false
+}
+
 // answer is what a route sends: the mark, and where it stands in its note.
 type answer struct {
 	mark.Mark

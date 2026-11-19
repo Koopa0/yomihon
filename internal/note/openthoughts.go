@@ -240,7 +240,7 @@ func openMarkRow(kept *snapshot.OpenMark, places *placeResolver, lang wording.La
 			row.Place = pages.RowPlace{Text: "#" + kept.Anchor, Language: resolved.reading.Language}
 		}
 	} else {
-		row.Mark = wording.QuestionNoteNotFound.In(lang)
+		row.Mark = wording.NoteNotFound.In(lang)
 	}
 	row.Fault = true
 	row.Removal = &pages.QuestionRemoval{Endpoint: mark.Paths.Question, Path: kept.RelPath, Anchor: kept.Anchor,

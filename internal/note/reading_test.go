@@ -3,8 +3,13 @@ package note_test
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"io/fs"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -15,8 +20,10 @@ import (
 	"golang.org/x/net/html/atom"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -54,6 +61,204 @@ func TestReadingRefusesWhatNoReaderOpens(t *testing.T) {
 	}
 }
 
+// readingLibrary is the handler for the example vault and the generation it
+// answers from.
+func readingLibrary(t *testing.T) (*note.Handler, *snapshot.Generation) {
+	t.Helper()
+	rules := readingLibraryContract(t)
+	handler, snap, _ := readingLibraryUnder(t, func() schema.Authority { return schema.CaptureAuthority(rules, rules.Governance()) })
+	return handler, snap
+}
+
+// readingLibraryUnder is the same handler answering under the given authority,
+// and the name of the vault it holds, for what keeps marks of it.
+func readingLibraryUnder(t *testing.T, authority func() schema.Authority) (*note.Handler, *snapshot.Generation, string) {
+	t.Helper()
+	rules := readingLibraryContract(t)
+	log := slog.New(slog.DiscardHandler)
+	store, source := newSnapshotStore(t, readingLibraryRoot, log, rules, rules.Governance())
+	handler := note.New(&note.Sources{
+		Source: source, Contract: rules, Snapshot: store.Current, Bookmark: noMark, Log: log, Authority: authority,
+	})
+	return handler, store.Current().Capture(), source.Name()
+}
+
+// TestRulesThatCloseTheCoursesCloseWhatTheRoutesAskOfThem holds that a bookmark
+// in a course and a finished note that names one are judged by the courses the
+// sidebar draws, not by the raw navigation model: where the rules file cannot be
+// trusted there are no courses, so the courses answer none and the routes
+// refuse, and write nothing. The same requests are taken under open rules, so
+// the refusal is the closure and not a request that was wrong.
+func TestRulesThatCloseTheCoursesCloseWhatTheRoutesAskOfThem(t *testing.T) {
+	t.Parallel()
+
+	rules := readingLibraryContract(t)
+	open := func() schema.Authority { return schema.CaptureAuthority(rules, rules.Governance()) }
+	closed := func() schema.Authority {
+		return schema.CaptureAuthority(nil, schema.Unreadable(errors.New("the rules file cannot be read")))
+	}
+
+	_, snap, _ := readingLibraryUnder(t, open)
+	courses := snap.Navigation().Paths()
+	if len(courses) == 0 {
+		t.Fatal("the example vault has no course")
+	}
+	course := courses[0].RelPath
+	mainLine, _, _ := mustUnits(t, snap, course)
+	unit := mainLine[0]
+
+	for name, tt := range map[string]struct {
+		authority func() schema.Authority
+		want      int
+	}{
+		"rules that answer":     {open, http.StatusOK},
+		"rules that are closed": {closed, http.StatusUnprocessableEntity},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			handler, _, vaultName := readingLibraryUnder(t, tt.authority)
+			if _, _, ok := handler.Units(course); ok != (tt.want == http.StatusOK) {
+				t.Errorf("Units(%q) ok = %v under %s", course, ok, name)
+			}
+			if _, _, ok := handler.Rows(course); ok != (tt.want == http.StatusOK) {
+				t.Errorf("Rows(%q) ok = %v under %s", course, ok, name)
+			}
+			configDir := t.TempDir()
+			marks, err := mark.Open(configDir, vaultName)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mux := http.NewServeMux()
+			mark.NewHandler(marks, handler, slog.New(slog.DiscardHandler)).Register(mux)
+
+			body := `{"course":` + jsonString(course) + `,"path":` + jsonString(unit) + `,"anchor":"","offset":0,"identity":"` + strings.Repeat("a", 64) + `"}`
+			for _, request := range []struct{ method, target, body string }{
+				{http.MethodPut, "/bookmark", body},
+				{http.MethodPut, "/finished/" + (&url.URL{Path: unit}).EscapedPath() + "?course=" + url.QueryEscape(course), ""},
+			} {
+				got := httptest.NewRecorder()
+				req := httptest.NewRequestWithContext(t.Context(), request.method, request.target, strings.NewReader(request.body))
+				req.Header.Set("Content-Type", "application/json")
+				mux.ServeHTTP(got, req)
+				if got.Code != tt.want {
+					t.Errorf("%s %s under %s = %d %q, want %d", request.method, request.target, name, got.Code, got.Body.String(), tt.want)
+				}
+			}
+			_, found, err := marks.Bookmark(course)
+			if err != nil || found != (tt.want == http.StatusOK) {
+				t.Errorf("the course's bookmark kept = %v, %v under %s", found, err, name)
+			}
+			if tt.want != http.StatusOK {
+				if _, statErr := os.Stat(filepath.Join(marks.Dir(), "progress.json")); !errors.Is(statErr, fs.ErrNotExist) {
+					t.Errorf("a refused request left progress behind: %v", statErr)
+				}
+			}
+		})
+	}
+}
+
+func mustUnits(t *testing.T, snap *snapshot.Generation, course string) (mainLine, branches []string, ok bool) {
+	t.Helper()
+	main, side, ok := snap.Navigation().CourseUnits(course)
+	if !ok || len(main) == 0 {
+		t.Fatalf("the course %q has no unit to read", course)
+	}
+	for _, ref := range main {
+		mainLine = append(mainLine, ref.RelPath)
+	}
+	for _, ref := range side {
+		branches = append(branches, ref.RelPath)
+	}
+	return mainLine, branches, ok
+}
+
+func jsonString(s string) string {
+	data, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return string(data)
+}
+
+// TestUnitsAreWhatTheCoursesOfTheExampleVaultWalk holds the list the finished
+// count and a bookmark's course are judged by against the navigation model the
+// course page and the sidebar read: every course answers, each unit it names is a
+// note a reader can open, a course that walks a note is one the navigation says
+// walks it, and a note that is no course answers none.
+func TestUnitsAreWhatTheCoursesOfTheExampleVaultWalk(t *testing.T) {
+	t.Parallel()
+
+	handler, snap := readingLibrary(t)
+	model := snap.Navigation()
+	courses := model.Paths()
+	if len(courses) < 2 {
+		t.Fatalf("the example vault has %d courses, want its two", len(courses))
+	}
+	walked := 0
+	for i := range courses {
+		mainLine, branches, ok := handler.Units(courses[i].RelPath)
+		if !ok {
+			t.Errorf("Units(%q) = not a course, want the course the navigation holds", courses[i].RelPath)
+			continue
+		}
+		if len(mainLine) == 0 {
+			t.Errorf("Units(%q) has an empty main line", courses[i].RelPath)
+		}
+		planned, rows, rowsOK := handler.Rows(courses[i].RelPath)
+		if !rowsOK || planned != courses[i].Planned {
+			t.Errorf("Rows(%q) = %d planned, %v; want the %d the course page prints", courses[i].RelPath, planned, rowsOK, courses[i].Planned)
+		}
+		if planned < len(rows) {
+			t.Errorf("Rows(%q) names %d rows of %d planned", courses[i].RelPath, len(rows), planned)
+		}
+		for _, row := range rows {
+			if !slices.Contains(mainLine, row) {
+				t.Errorf("%q is a row of %q and not a unit of its main line", row, courses[i].RelPath)
+			}
+		}
+		for _, rel := range slices.Concat(mainLine, branches) {
+			walked++
+			if !handler.HasPlace(rel, "") {
+				t.Errorf("%q is a unit of %q and is not a note a reader can open", rel, courses[i].RelPath)
+			}
+			if !slices.ContainsFunc(model.PathNeighbors(rel), func(n nav.Neighbors) bool { return n.PathRelPath == courses[i].RelPath }) {
+				t.Errorf("%q is a unit of %q and the navigation says no such course walks it", rel, courses[i].RelPath)
+			}
+		}
+	}
+	if walked < 10 {
+		t.Fatalf("the courses walk %d units between them, so the check looked at too little to hold anything", walked)
+	}
+	// And the other way: a note the navigation says a course walks is a unit
+	// the course names, so a unit dropped from the list does not go unnoticed.
+	err := filepath.WalkDir(readingLibraryRoot, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || !strings.HasSuffix(path, ".md") {
+			return err
+		}
+		rel, err := filepath.Rel(readingLibraryRoot, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		for _, step := range model.PathNeighbors(rel) {
+			mainLine, branches, _ := handler.Units(step.PathRelPath)
+			if !slices.Contains(mainLine, rel) && !slices.Contains(branches, rel) {
+				t.Errorf("the navigation says %q walks %q and Units does not name it", step.PathRelPath, rel)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstUnit, _, _ := handler.Units(courses[0].RelPath)
+	for _, rel := range []string{"README.md", firstUnit[0], "Missing.md", ""} {
+		if _, _, ok := handler.Units(rel); ok {
+			t.Errorf("Units(%q) answered as a course", rel)
+		}
+	}
+}
+
 // TestEveryWordAPageShowsIsFoundWhereItIs holds what the mark routes depend on:
 // a reader who selects the words of one text node of a page, in any note of the
 // example vault, has chosen words Locate finds exactly. A rule of TextContent
@@ -62,14 +267,7 @@ func TestReadingRefusesWhatNoReaderOpens(t *testing.T) {
 func TestEveryWordAPageShowsIsFoundWhereItIs(t *testing.T) {
 	t.Parallel()
 
-	rules := readingLibraryContract(t)
-	log := slog.New(slog.DiscardHandler)
-	store, source := newSnapshotStore(t, readingLibraryRoot, log, rules, rules.Governance())
-	handler := note.New(&note.Sources{
-		Source: source, Contract: rules, Snapshot: store.Current, Bookmark: noMark, Log: log,
-		Authority: func() schema.Authority { return schema.CaptureAuthority(rules, rules.Governance()) },
-	})
-	snap := store.Current().Capture()
+	handler, snap := readingLibrary(t)
 
 	notes, nodes := 0, 0
 	err := filepath.WalkDir(readingLibraryRoot, func(path string, entry fs.DirEntry, err error) error {
