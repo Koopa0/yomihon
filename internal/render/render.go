@@ -289,6 +289,8 @@ func (r *Pipeline) figure(relPath string) FigureState {
 
 // pageMarkdown creates each consumer's parser from the page grammar. Parser
 // contexts and delimiter observations belong to that consumer's single parse.
+// extra options come after the page's own, for a consumer that watches the parse
+// without changing what it reads.
 //
 // Emphasis follows the CJK-friendly amendment to CommonMark's flanking rules.
 // Prose in Chinese and Japanese closes a bold run after full-width punctuation
@@ -296,8 +298,8 @@ func (r *Pipeline) figure(relPath string) FigureState {
 // that closer and leaves the asterisks on the page, while Obsidian's reading
 // view shows the bold. Only emphasis takes the amendment: strikethrough stays
 // goldmark's own parser, which the display-effect observation recognises.
-func pageMarkdown() goldmark.Markdown {
-	return goldmark.New(
+func pageMarkdown(extra ...goldmark.Option) goldmark.Markdown {
+	return goldmark.New(append([]goldmark.Option{
 		goldmark.WithExtensions(
 			extension.GFM,
 			cjkfriendly.CJKFriendlyEmphasis,
@@ -306,7 +308,7 @@ func pageMarkdown() goldmark.Markdown {
 			extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
 			highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
 		),
-	)
+	}, extra...)...)
 }
 
 // HTML renders one note's body: the markdown pipeline, plus the passes that
