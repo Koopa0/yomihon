@@ -1225,8 +1225,12 @@ func TestAVaultJustAddedWhosePortIsHeldIsNotKeptInTheList(t *testing.T) {
 	folder := newVaultFolder(t)
 	h := newHost(slog.New(slog.DiscardHandler), configDir, store)
 	cfg := &config{root: folder, port: strconv.Itoa(start), configDir: configDir}
-	if err = h.serveListed(t.Context(), func() {}, cfg, io.Discard); operatorFault(err) == nil {
+	err = h.serveListed(t.Context(), func() {}, cfg, io.Discard)
+	if operatorFault(err) == nil {
 		t.Fatalf("serveListed = %v, want a refusal the reader can correct", err)
+	}
+	if _, ok := errors.AsType[*listenError](err); !ok || !strings.Contains(err.Error(), "bind") {
+		t.Errorf("serveListed = %v, want the refusal to keep the failed bind it is about", err)
 	}
 	list, err := listOf(t, configDir).List()
 	if err != nil || len(list) != 1 || list[0].ID != before.ID {

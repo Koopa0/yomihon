@@ -105,7 +105,7 @@ func (h *host) mount(ctx context.Context, entry *vaults.Entry, listener net.List
 	if listener == nil {
 		var err error
 		if listener, err = listenLoopback(ctx, strconv.Itoa(entry.Port)); err != nil {
-			return &refusal{portHeld: true, msg: fmt.Sprintf("%s is on port %d, which something else holds (%v); stop that, or take the vault out of the list with `yomihon vaults remove` and open its folder again, which gives it another port",
+			return &refusal{cause: err, msg: fmt.Sprintf("%s is on port %d, which something else holds (%v); stop that, or take the vault out of the list with `yomihon vaults remove` and open its folder again, which gives it another port",
 				entry.Path, entry.Port, errors.Unwrap(err))}
 		}
 	}
@@ -494,22 +494,23 @@ func (h *host) record(root string, start int) (entry vaults.Entry, added bool, e
 	return typed, added, nil
 }
 
-// unlistIfNew takes the vault just given out of the list when err says the port
-// it was just given is held and this start is what added it. It was never served
-// there, so no address of it exists anywhere, and keeping it would send every
-// start after this one to the same refusal; a vault already listed may have been
-// served and keeps its port. err is returned as it was when the list cannot be
-// changed, whose text says how to do it by hand.
+// unlistIfNew takes the vault just given out of the list when err says its first
+// bind failed and this start is what added it. It was never served there, so no
+// address of it exists anywhere, and keeping it would send every start after this
+// one to the same refusal; a vault already listed may have been served and keeps
+// its port. mountAll answers only for the vault just given, so a failed bind in
+// err is its own. err is returned as it was when the list cannot be changed, whose
+// text says how to do it by hand.
 func (h *host) unlistIfNew(err error, entry *vaults.Entry, added bool) error {
-	fault, ok := errors.AsType[*refusal](err)
-	if !ok || !fault.portHeld || !added {
+	bind, ok := errors.AsType[*listenError](err)
+	if !ok || !added {
 		return err
 	}
 	if rmErr := takeOutOfList(h.store, entry.ID); rmErr != nil {
 		h.log.Warn("could not take the folder out of the list again", "folder", entry.Path, "error", rmErr)
 		return err
 	}
-	return &refusal{msg: fmt.Sprintf("%s was given port %d and something else holds it; the folder is not kept in the list, so opening it again gives it another port", entry.Path, entry.Port)}
+	return &refusal{cause: err, msg: fmt.Sprintf("%s was given port %d and could not bind it (%v); the folder is not kept in the list, so opening it again gives it another port", entry.Path, entry.Port, bind.err)}
 }
 
 // redirectPort answers the starting port, when no vault is on it, by sending a
