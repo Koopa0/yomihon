@@ -6,32 +6,32 @@ import "github.com/koopa0/yomihon/internal/ui/layouts"
 // read by date, so the month comes first as a month — a table a screen reader
 // announces as a calendar and paper prints as one — and the same rows every
 // other shelf draws follow underneath, so nothing the plain list gave is lost.
-//
-// It carries no left rail, as the other index pages do not: the rail is the
-// thing being read, and a list beside a copy of itself is a second
-// organisation of the same notes.
 templ JournalIndex(v JournalView, c layouts.Chrome) {
 	@layouts.Base(c) {
-		<main id="_y-main" tabindex="-1" class="y-main y-deskmain" data-index={ journalMode }>
-			<div class="y-home">
-				@indexHead(v.Count, v.Title, v.Lede, c.Lang)
-				if v.Fault != "" {
-					@indexFault(v.Fault, "", c)
-				} else {
-					@monthCalendar(v.Grid)
-					if len(v.Entries.Rows) == 0 && v.Entries.Empty != "" {
-						<p class="y-homeempty" data-index-empty>{ v.Entries.Empty }</p>
+		<div class="y-nav-scrim" data-nav-close></div>
+		<div class="y-shell2">
+			@sidebar(v.Sidebar, c)
+			<main id="_y-main" tabindex="-1" class="y-main y-deskmain" data-index={ journalMode }>
+				<div class="y-home">
+					@indexHead(v.Count, v.Title, v.Lede, c.Lang)
+					if v.Fault != "" {
+						@indexFault(v.Fault, "", c)
+					} else {
+						@monthCalendar(v.Grid)
+						if len(v.Entries.Rows) == 0 && v.Entries.Empty != "" {
+							<p class="y-homeempty" data-index-empty>{ v.Entries.Empty }</p>
+						}
+						@ShelfPage(v.Entries, c.Lang)
+						if len(v.Undated.Rows) > 0 {
+							<section class="y-journalundated" aria-labelledby="journal-undated-title" data-journal-undated>
+								<h2 id="journal-undated-title" class="y-railsummary y-railsummary--label">{ v.Undated.Title }</h2>
+								@ShelfPage(v.Undated, c.Lang)
+							</section>
+						}
 					}
-					@ShelfPage(v.Entries, c.Lang)
-					if len(v.Undated.Rows) > 0 {
-						<section class="y-journalundated" aria-labelledby="journal-undated-title" data-journal-undated>
-							<h2 id="journal-undated-title" class="y-railsummary y-railsummary--label">{ v.Undated.Title }</h2>
-							@ShelfPage(v.Undated, c.Lang)
-						</section>
-					}
-				}
-			</div>
-		</main>
+				</div>
+			</main>
+		</div>
 	}
 }
 

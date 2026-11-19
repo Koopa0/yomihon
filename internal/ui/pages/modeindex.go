@@ -35,6 +35,9 @@ const (
 // start yomihon again. It stands where Fault would, so the operator's English
 // line is not printed beside a sentence that already says it.
 type ListIndexView struct {
+	// Sidebar is the column beside the page, or the drawer it is where the page
+	// has no column.
+	Sidebar Sidebar
 	Mode    string
 	Count   string
 	Fault   string
@@ -556,7 +559,10 @@ func indexHref(mode string) string { return "/" + mode }
 // FolderIndexView is the page of every folder: a two-level table of contents,
 // the vault's top folders as headings and their folders as rows.
 type FolderIndexView struct {
-	Title string
+	// Sidebar is the column beside the page, or the drawer it is where the page
+	// has no column.
+	Sidebar Sidebar
+	Title   string
 	// Fault and Restart say why the page may be missing something, as every
 	// index states it.
 	Fault   string

@@ -55,6 +55,7 @@ func (h *Handler) compare(w http.ResponseWriter, r *http.Request) {
 		Concepts: loadConcepts(snap, mergedConceptRefs(refsA, refsB), lang),
 	}
 
+	view.Sidebar = pages.NewDrawerSidebar(h.projectShell(authority, snap), pages.LibraryNone)
 	title := fmt.Sprintf(wording.CompareTitleFmt.In(lang), a.Title, b.Title)
 	if err := pages.Compare(view, layouts.ChromeFromRequest(r, title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write compare page",

@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/yomihon/internal/course"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/approval"
+	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/preference"
@@ -146,10 +147,6 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 	// The opened object and its startup name stay fixed even when the selecting
 	// path changes. The scanner reports that divergence separately.
 	vaultName := shell.VaultName(source.Name())
-	searchProvider := func() search.RequestSnapshot {
-		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap), Roles: snap.NavigationRoles()}
-	}
 	// The marks a reader leaves are kept for the root the vault capability was
 	// actually taken on, which is the resolved absolute path rather than the
 	// one typed on the line: two spellings of one folder are one vault and
@@ -188,6 +185,19 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 			"reason", "the environment named no configuration directory")
 	}
 
+	// Every page that draws the library states how many things the reader left
+	// open, which only the marks can say, so the shell it draws from is
+	// projected here with that count.
+	libraryShell := func(captured schema.Authority, snap *snapshot.Generation) nav.Shell {
+		projected := shell.Project(vaultName, captured, snap)
+		projected.Marks = note.OpenCount(snap, questions)
+		return projected
+	}
+	searchProvider := func() search.RequestSnapshot {
+		snap := store.Current().Capture()
+		return search.RequestSnapshot{Index: snap.Search(), Shell: libraryShell(authority(), snap), Roles: snap.NavigationRoles()}
+	}
+
 	// The course face reads the kept place too — its cover opens at the lesson
 	// the reader left off in — so it is captured with the generation the rest of
 	// that page is drawn from rather than asked for separately.
@@ -196,7 +206,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 		captured := authority()
 		kept, marked := keptPlace()
 		return course.RequestSnapshot{
-			Shell:      shell.Project(vaultName, captured, snap),
+			Shell:      libraryShell(captured, snap),
 			Generation: snap,
 			Authority:  captured,
 			Kept:       kept,
@@ -225,7 +235,10 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 	preference.New(&preference.Dependencies{Log: log}).Register(mux)
 	search.NewHandler(searchProvider, log).Register(mux)
 	course.New(pathProvider, log).Register(mux)
-	report.New(func() *snapshot.Generation { return store.Current().Capture() }, log).Register(mux)
+	report.New(func() report.Request {
+		snap := store.Current().Capture()
+		return report.Request{Generation: snap, Shell: libraryShell(authority(), snap)}
+	}, log).Register(mux)
 	asset.Register(mux)
 
 	crossOrigin := http.NewCrossOriginProtection()

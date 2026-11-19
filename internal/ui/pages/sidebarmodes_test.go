@@ -177,7 +177,7 @@ func TestTheLibraryListsWhatTheFolderHasAndMarksWhereThePageStands(t *testing.T)
 // library, marked so the stylesheet can keep it out of the page's way.
 func TestADrawerOnlySidebarSaysSoAndKeepsTheLibrary(t *testing.T) {
 	t.Parallel()
-	html := renderedHTML(t, sidebar(NewDrawerSidebar(recordedShell(buildModel(t))), layouts.Chrome{Nonce: "n", Lang: wording.En}))
+	html := renderedHTML(t, sidebar(NewDrawerSidebar(recordedShell(buildModel(t)), LibraryNone), layouts.Chrome{Nonce: "n", Lang: wording.En}))
 	for _, want := range []string{`data-sidebar-mode="library"`, ` data-drawer-only`} {
 		if !strings.Contains(html, want) {
 			t.Errorf("drawer-only sidebar is missing %q:\n%s", want, html)
@@ -222,5 +222,31 @@ func TestACourseSidebarRowsCarryNoStatusDot(t *testing.T) {
 	}
 	if strings.Contains(html, "y-navdot") {
 		t.Errorf("a unit row of the course sidebar draws a status dot:\n%s", html)
+	}
+}
+
+// TestTheLibraryOffersMyMarksWhereThereAreSomeOrThePageIsTheirList holds the
+// library's row for the reader's marks: it states how many were left open, is
+// not offered while there are none, and stays on the page that lists them.
+func TestTheLibraryOffersMyMarksWhereThereAreSomeOrThePageIsTheirList(t *testing.T) {
+	t.Parallel()
+	model := buildModel(t)
+	row := `href="` + MarksAddress + `"`
+	for _, tc := range []struct {
+		name     string
+		marks    int
+		selected LibraryItem
+		want     bool
+	}{
+		{"some are open", 3, LibraryDesk, true},
+		{"none are open", 0, LibraryDesk, false},
+		{"none are open on the page that lists them", 0, LibraryMarks, true},
+	} {
+		shell := recordedShell(model)
+		shell.Marks = tc.marks
+		html := renderedHTML(t, sidebar(NewLibrarySidebar(shell, tc.selected, ""), layouts.Chrome{Nonce: "n", Lang: wording.En}))
+		if got := strings.Contains(html, row); got != tc.want {
+			t.Errorf("%s: the library offers the marks row = %v, want %v", tc.name, got, tc.want)
+		}
 	}
 }

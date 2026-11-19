@@ -372,7 +372,7 @@ func libraryBody(s Sidebar, lang wording.Lang) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		if s.Model != nil && s.Model.JournalClosure().Closed() {
+		if s.Model != nil && !s.FaultsStated && s.Model.JournalClosure().Closed() {
 			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "<section class=\"y-navdiag\" data-sidebar-group=\"journal-diagnostics\" aria-labelledby=\"_y-sidebar-journal-diagnostics-title\"><h2 class=\"y-railsummary y-railsummary--label\" id=\"_y-sidebar-journal-diagnostics-title\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

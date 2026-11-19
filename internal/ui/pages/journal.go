@@ -157,6 +157,9 @@ type MonthGrid struct {
 // holds nor that it holds none, because a vault whose declaration could not be
 // read is not a vault that declared nothing.
 type JournalView struct {
+	// Sidebar is the column beside the page, or the drawer it is where the page
+	// has no column.
+	Sidebar Sidebar
 	Count   string
 	Title   string
 	Lede    string

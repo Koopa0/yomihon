@@ -13,7 +13,6 @@ import (
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
-	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -35,7 +34,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	// the sentence would then be answered by a different set of files than the
 	// technical detail beside it lists.
 	fresh := snap.Freshness()
-	visible := shell.Project(h.sources.VaultName, authority, snap)
+	visible := h.projectShell(authority, snap)
 	visibleNav := visible.Nav
 	blocks := pages.NewDeskBlocks(visibleNav, snap.NavigationRoles(), pages.ContractStateFrom(visible.Governed, visible.OtherVersion, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
 	// The reason a way in is empty, stated once at the foot of the page. The
@@ -82,7 +81,9 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		Blocks:            blocks,
 		ReadmeMissing:     !hasReadme,
 		Continue:          continueRow(&kept, hasMark, snap, visibleNav, lang),
+		Sidebar:           pages.NewLibrarySidebar(visible, pages.LibraryDesk, ""),
 	}
+	view.Sidebar.FaultsStated = true
 	if err := pages.Home(view, layouts.ChromeFromRequest(r, "")).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write home page", "error", err)
 	}

@@ -174,6 +174,10 @@ const readShelf = (page) => page.evaluate(() => {
   });
   const spilling = [];
   for (const element of document.querySelectorAll('*')) {
+    // The sidebar is its own surface: a row's wash reaches back into the
+    // column's padding, which a box-by-box scan reads as content wider than
+    // its box, and the page it stands beside does not move for it.
+    if (element.closest('.y-rail-left')) continue;
     if (element.closest('.y-row__opening')) continue;
     const rect = element.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) continue;
