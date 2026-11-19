@@ -61,7 +61,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		// its first page, for the same reason: which rows are on screen is how
 		// the page is laid out.
 		Page:    pages.ParsePageNumber(r.URL.Query().Get("page")),
-		Sidebar: pages.NewSidebar(pageShell, ""),
+		Sidebar: pages.NewDrawerSidebar(pageShell),
 	}
 	if err := pages.Health(view, layouts.ChromeFromRequest(r, wording.HealthTitle.In(lang))).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write health page", "error", err)

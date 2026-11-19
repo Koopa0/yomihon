@@ -106,7 +106,7 @@ func railHead(c layouts.Chrome, filter bool) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if c.SingleKeyShortcutsEnabled {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, " aria-keyshortcuts=\"[\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, " aria-keyshortcuts=\"\\\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

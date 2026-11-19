@@ -18,7 +18,7 @@ import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './support/base.mjs';
-const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
+const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/long-rail/Rail%20lesson%2002.md';
 const MUTATE = process.env.MUTATE || '';
 
 const RAIL = '#_y-nav-rail';
@@ -36,8 +36,7 @@ const SHAPES = [
   ['book rail', '/notes/Course/C02.md'],
   ['folder rail', '/notes/Notes/cutover.md'],
   ['root note', '/notes/README.md'],
-  ['study path', '/courses/Maps/study.md'],
-  ['shared sidebar', '/health'],
+  ['library', '/courses/Maps/study.md'],
 ];
 
 const STRIP = 40;
@@ -52,7 +51,7 @@ const THREE_COLUMNS = 1280;
 // The reading measure of a note that declares no language, and a window where
 // the column is open. From the width where the column stands the text is
 // already at its measure beside it, so folding the column gives the text no
-// width back and only moves it.
+// width back, and the main keeps its start so that it does not move either.
 const MEASURE = 646;
 const FOLD_WIDTH = 1024;
 
@@ -288,10 +287,11 @@ const MUTATIONS = {
     target: 'reduced-motion-stops-the-fold',
     apply: injectStyle('html .y-shell:has(> .y-rail-left){transition-duration:120ms!important}', '.y-shell:has(> .y-rail-left)'),
   },
-  // Anchoring off, so a reflow moves the reader.
-  'turn-off-scroll-anchoring': {
+  // The main taking the strip's width at its start, so the reading slides left
+  // by what the column gave up.
+  'let-the-reading-follow-the-strip': {
     target: 'reading-position-survives',
-    apply: injectStyle('html,body,.y-main{overflow-anchor:none!important}', 'html'),
+    apply: injectStyle("html[data-rail='collapsed'] .y-shell2:has(> .y-rail-left) > .y-main,html[data-rail='collapsed'] .y-shell:has(> .y-rail-left) > .y-main{padding-left:0!important}", '.y-main'),
   },
   // Only the note shell folding.
   'fold-only-the-note-shell': {
@@ -341,8 +341,8 @@ const MUTATIONS = {
     target: 'off-shortcuts-do-not-advertise-the-key',
     apply: rewriteAsset(
       '**/preferences.js{,?*}',
-      "    if (keys) railToggle.setAttribute('aria-keyshortcuts', '[');\n    else railToggle.removeAttribute('aria-keyshortcuts');\n",
-      "    railToggle.setAttribute('aria-keyshortcuts', '[');\n",
+      "    if (keys) railToggle.setAttribute('aria-keyshortcuts', '\\\\');\n    else railToggle.removeAttribute('aria-keyshortcuts');\n",
+      "    railToggle.setAttribute('aria-keyshortcuts', '\\\\');\n",
     ),
   },
   // The usual ring offset, which runs a pixel past the strip.
@@ -492,12 +492,12 @@ try {
     const before = await geometry(page);
     if (!before.prose || Math.round(before.prose.width) !== MEASURE) broken(`the fixture page's text is ${before.prose?.width}px wide with the column shown at ${FOLD_WIDTH}, want its measure of ${MEASURE}px`);
     if (Math.round(before.rail.width) !== NOTE_OPEN_NARROW) broken(`the column is ${before.rail.width}px at ${FOLD_WIDTH}, want ${NOTE_OPEN_NARROW}`);
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const after = await geometry(page);
     if (Math.round(after.prose.width) !== MEASURE) fail('text-returns-to-the-measure', `collapsing left the text ${after.prose.width}px wide, want ${MEASURE}`);
     if (Math.round(after.rail.width) !== STRIP) fail('text-returns-to-the-measure', `the folded column is ${after.rail.width}px wide, want the ${STRIP}px strip`);
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const back = await geometry(page);
     if (Math.round(back.rail.width) !== NOTE_OPEN_NARROW || Math.round(back.prose.width) !== Math.round(before.prose.width)) {
@@ -509,7 +509,7 @@ try {
   await run('choice-survives-a-reload', async () => {
     const { page, context, checkProof } = await open('choice-survives-a-reload', PAGE);
     await checkProof();
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('html[data-js]');
@@ -517,7 +517,7 @@ try {
     if (after.state !== 'collapsed' || Math.round(after.rail.width) !== STRIP) {
       fail('choice-survives-a-reload', `after a reload the column is ${after.rail.width}px with rail=${after.state}, want the strip and collapsed (cookie=${await cookieValue(context)})`);
     }
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('html[data-js]');
@@ -544,7 +544,7 @@ try {
   await run('wide-key-leaves-the-drawer-alone', async () => {
     const { page, context, checkProof } = await open('wide-key-leaves-the-drawer-alone', PAGE, { width: 1024 });
     await checkProof();
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const g = await geometry(page);
     if (g.state !== 'collapsed' || g.nav === 'open') {
@@ -556,7 +556,7 @@ try {
   await run('drawer-key-still-opens-at-1023', async () => {
     const { page, context, checkProof } = await open('drawer-key-still-opens-at-1023', PAGE, { width: 1023 });
     await checkProof();
-    await key(page, '[');
+    await key(page, '\\');
     await page.waitForFunction(() => document.documentElement.dataset.nav === 'open', null, { timeout: 2000 }).catch(() => {});
     const g = await geometry(page);
     if (g.nav !== 'open' || g.state === 'collapsed') {
@@ -583,7 +583,7 @@ try {
     await checkProof();
     await page.locator(`${BODY} a[href]`).first().focus();
     if (await page.evaluate(() => document.activeElement?.closest('#_y-nav-rail-body') === null)) broken('focus did not enter the panel');
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const g = await geometry(page);
     if (!g.focusInToggle) {
@@ -592,7 +592,7 @@ try {
     }
     // The filter shares the head with the button and goes with the panel, so it
     // is a place focus can be when the fold happens too.
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     await page.locator(FILTER).focus();
     await page.evaluate(() => document.querySelector('[data-rail-toggle]').click());
@@ -691,7 +691,7 @@ try {
   await run('crossing-1023-leaves-nothing-stale', async () => {
     const { page, context, checkProof } = await open('crossing-1023-leaves-nothing-stale', PAGE, { width: 1281 });
     await checkProof();
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     let g = await geometry(page);
     if (g.nav === 'open') fail('crossing-1023-leaves-nothing-stale', `folding the column set nav=${g.nav}`);
@@ -716,7 +716,7 @@ try {
     if (g.inert !== false || g.hidden !== null || g.nav !== 'closed' || g.state !== 'collapsed') {
       fail('crossing-1023-leaves-nothing-stale', `back at 1024 and above inert=${g.inert} aria-hidden=${g.hidden} nav=${g.nav} rail=${g.state}, want none of the drawer's marks and the choice kept`);
     }
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     g = await geometry(page);
     if (g.state !== 'open' || g.nav !== 'closed' || g.inert !== false) {
@@ -728,7 +728,7 @@ try {
   await run('wide-fold-sets-no-inertness', async () => {
     const { page, context, checkProof } = await open('wide-fold-sets-no-inertness', PAGE, { width: 1281 });
     await checkProof();
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const g = await geometry(page);
     if (g.inert !== false || g.hidden !== null) {
@@ -742,14 +742,14 @@ try {
     await checkProof();
     let g = await geometry(page);
     const name = g.label;
-    if (g.expanded !== 'true' || g.controls !== '_y-nav-rail-body' || !g.title.includes('[')) {
+    if (g.expanded !== 'true' || g.controls !== '_y-nav-rail-body' || !g.title.includes('\\')) {
       fail('state-is-told-by-the-control', `shown: aria-expanded=${g.expanded} controls=${g.controls} title=${g.title}`);
     }
     const shownTitle = g.title;
     await page.locator(TOGGLE).click();
     await settled(page);
     g = await geometry(page);
-    if (g.expanded !== 'false' || g.label !== name || g.title === shownTitle || !g.title.includes('[')) {
+    if (g.expanded !== 'false' || g.label !== name || g.title === shownTitle || !g.title.includes('\\')) {
       fail('state-is-told-by-the-control', `folded: aria-expanded=${g.expanded} label=${g.label} (was ${name}) title=${g.title} (was ${shownTitle})`);
     }
     await page.reload({ waitUntil: 'domcontentloaded' });
@@ -790,7 +790,7 @@ try {
     if (!declared.property.includes('grid-template-columns') || Number.parseFloat(declared.duration) <= 0) {
       fail('fold-is-animated', `the shell declares transition ${declared.property} over ${declared.duration}`);
     }
-    await key(page, '[');
+    await key(page, '\\');
     await settled(page);
     const ran = await page.evaluate(() => window.__railTransitions);
     if (!ran.includes('grid-template-columns')) fail('fold-is-animated', `folding ran transitions ${JSON.stringify(ran)}, want grid-template-columns among them`);
@@ -823,12 +823,12 @@ try {
     await context.close();
   });
 
-  // The reader's place in the text survives the fold. Between the two widths
-  // where the text is narrower than its measure, folding widens it and every
-  // paragraph above the reader reflows; the browser's own anchoring has to keep
-  // the paragraph they are reading where it was. The page is lengthened by
-  // repeating its own prose, since no fixture note is long enough to scroll to
-  // the middle of.
+  // Folding the column hides it and does not move the reading: the paragraph
+  // being read keeps its left edge, its width and its place in the window, at
+  // the largest text size too, where the measure is wider than the room and the
+  // text would have been widened by what the strip gave up. The page is
+  // lengthened by repeating its own prose, since no fixture note is long enough
+  // to scroll to the middle of.
   //
   // The paragraph read is one from the middle of the page, brought to the top
   // edge of the window. Anchoring holds still the first thing the browser can
@@ -853,17 +853,16 @@ try {
         window.scrollTo(0, window.__reading.getBoundingClientRect().top + window.scrollY);
       });
       await page.waitForTimeout(150);
-      const before = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
-      await key(page, '[');
+      const read = () => page.evaluate(() => {
+        const box = window.__reading.getBoundingClientRect();
+        return { top: box.top, left: box.left, width: box.width };
+      });
+      const before = await read();
+      await key(page, '\\');
       await settled(page);
-      const after = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
-      // Where the text is narrower than its measure the fold widens it and the
-      // paragraphs above the reader reflow; the narrowest width has to be such a
-      // case, or the assertion below would pass for lack of anything to move. The
-      // widths above it are asked whichever way they fall, because the measure's
-      // edge sits within a few pixels of one of them and moves with the platform.
-      if (width === 1024 && !(after.width > before.width)) {
-        broken(`at 1024px the text was ${before.width}px and became ${after.width}px, so this case would not test a reflow`);
+      const after = await read();
+      if (Math.abs(after.left - before.left) > 1 || Math.abs(after.width - before.width) > 1) {
+        fail('reading-position-survives', `at ${width}px the paragraph being read started at ${before.left}px and was ${before.width}px wide, and then started at ${after.left}px and was ${after.width}px wide when the column folded`);
       }
       if (Math.abs(after.top - before.top) > 2) {
         fail('reading-position-survives', `at ${width}px the paragraph being read moved ${after.top - before.top}px when the column folded`);
@@ -877,7 +876,7 @@ try {
       const { page, context, checkProof } = await open('every-rail-page-folds', path, { width: 1281 });
       // The injected rule is aimed at the study-path shell, so only that page
       // can show it matched anything.
-      if (shape === 'study path') await checkProof();
+      if (shape === 'library') await checkProof();
       const before = await geometry(page);
       if (!before.toggle || before.toggle.display === 'none') broken(`${shape} (${path}) draws no control`);
       await page.locator(TOGGLE).click();
@@ -990,7 +989,7 @@ try {
     for (const width of [1024, THREE_COLUMNS - 1, THREE_COLUMNS, 1281]) {
       for (const [shape, path] of SHAPES) {
         const { page, context, checkProof } = await open('every-shell-keeps-its-open-width', path, { width });
-        if (shape === 'study path' && width === 1024) await checkProof();
+        if (shape === 'library' && width === 1024) await checkProof();
         const facts = await page.evaluate(() => {
           const shell = document.querySelector('.y-shell, .y-shell2');
           return { note: shell.classList.contains('y-shell'), rail: document.querySelector('#_y-nav-rail').getBoundingClientRect().width };
@@ -1110,13 +1109,13 @@ try {
       window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
     }, on);
     let g = await read();
-    if (g.title.includes('[') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `with single keys off the button says title=${JSON.stringify(g.title)} keys=${g.keys}`);
+    if (g.title.includes('\\') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `with single keys off the button says title=${JSON.stringify(g.title)} keys=${g.keys}`);
     await flip(true);
     g = await read();
-    if (!g.title.includes('[') || g.keys !== '[') fail('off-shortcuts-do-not-advertise-the-key', `turning single keys on left title=${JSON.stringify(g.title)} keys=${g.keys}`);
+    if (!g.title.includes('\\') || g.keys !== '\\') fail('off-shortcuts-do-not-advertise-the-key', `turning single keys on left title=${JSON.stringify(g.title)} keys=${g.keys}`);
     await flip(false);
     g = await read();
-    if (g.title.includes('[') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `turning single keys off left title=${JSON.stringify(g.title)} keys=${g.keys}`);
+    if (g.title.includes('\\') || g.keys !== null) fail('off-shortcuts-do-not-advertise-the-key', `turning single keys off left title=${JSON.stringify(g.title)} keys=${g.keys}`);
     await context.close();
   });
 

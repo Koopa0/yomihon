@@ -25,7 +25,7 @@
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './support/base.mjs';
-const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
+const PAGE = process.env.PAGE_PATH || '/notes/Notes/cutover.md';
 const FILTER = 'input[data-nav-filter]';
 const MUTATE = process.env.MUTATE || '';
 

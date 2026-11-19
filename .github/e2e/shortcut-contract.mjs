@@ -10,7 +10,7 @@
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './support/base.mjs';
-const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
+const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/long-rail/Rail%20lesson%2001.md';
 const MUTATE = process.env.MUTATE || '';
 const FILTER = '[data-nav-filter]';
 const NAV_TOGGLE = '[data-nav-toggle]';
@@ -136,7 +136,7 @@ const MUTATIONS = {
   },
   'disable-plain-drawer': {
     target: 'plain-drawer-toggles',
-    apply: rewriteScript("    if (event.key === '[') {", '    if (false) {'),
+    apply: rewriteScript("    if (event.key === '\\\\') {", '    if (false) {'),
   },
   // The help key answered before the modifier guard, so a chord the browser
   // or the system owns opens the panel instead.
@@ -364,7 +364,7 @@ try {
     { name: 'Alt', values: { altKey: true } },
   ];
   for (const { name, values } of modified) {
-    for (const [key, typed] of [['/', {}], ['[', {}], ['?', { shiftKey: true }]]) {
+    for (const [key, typed] of [['/', {}], ['\\', {}], ['?', { shiftKey: true }]]) {
       const chord = { ...values, ...typed };
       const result = await dispatch(page, 'keydown', key, chord);
       const during = await state(page);
@@ -383,12 +383,12 @@ try {
   await page.locator(NAV_TOGGLE).click();
   await page.waitForFunction(() => document.documentElement.dataset.nav === 'closed');
 
-  const bracket = await dispatch(page, 'keydown', '[');
+  const bracket = await dispatch(page, 'keydown', '\\');
   after = await state(page);
   if (!bracket.defaultPrevented || after.nav !== 'open') {
     fail('plain-drawer-toggles', `plain [ left nav=${after.nav}, prevented=${bracket.defaultPrevented}`);
   }
-  await press(page, '[');
+  await press(page, '\\');
   if ((await state(page)).nav !== 'closed') fail('plain-drawer-toggles', 'the second plain [ did not close the drawer');
 
   // The single-key block used to name the search dialog by identity, so the
@@ -418,9 +418,9 @@ try {
   };
 
   await openConceptSheet();
-  await dispatch(page, 'keydown', '[');
+  await dispatch(page, 'keydown', '\\');
   after = await state(page);
-  await dispatch(page, 'keyup', '[');
+  await dispatch(page, 'keyup', '\\');
   if (after.nav !== 'closed') {
     fail('open-sheet-holds-printables', `plain [ through an open concept sheet left nav=${after.nav}`);
   }
@@ -526,7 +526,7 @@ try {
     fail('disabled-persists', `the reading page after choosing off rendered shortcuts=${after.shortcuts}`);
   }
 
-  for (const [key, modifiers] of [['/', {}], ['[', {}], ['?', { shiftKey: true }]]) {
+  for (const [key, modifiers] of [['/', {}], ['\\', {}], ['?', { shiftKey: true }]]) {
     const result = await dispatch(page, 'keydown', key, modifiers);
     const during = await state(page);
     await dispatch(page, 'keyup', key, modifiers);
@@ -572,13 +572,13 @@ try {
   if (after.shortcuts !== 'on') {
     fail('reenable-restores', `re-enabled state rendered shortcuts=${after.shortcuts}`);
   }
-  const restoredBracket = await dispatch(page, 'keydown', '[');
+  const restoredBracket = await dispatch(page, 'keydown', '\\');
   after = await state(page);
   if (!restoredBracket.defaultPrevented || after.nav !== 'open') {
     fail('reenable-restores', `re-enabled [ left nav=${after.nav}, prevented=${restoredBracket.defaultPrevented}`);
   }
-  await dispatch(page, 'keyup', '[');
-  await press(page, '[');
+  await dispatch(page, 'keyup', '\\');
+  await press(page, '\\');
 
   // Above the width where the sidebar is a drawer the same key folds the
   // column instead, so what is asked here is that it acts there and that it
@@ -589,13 +589,13 @@ try {
   // this one are asked of the layout they were written for.
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.waitForFunction(() => !window.matchMedia('(max-width: 1023px)').matches);
-  const wideBracket = await dispatch(page, 'keydown', '[');
+  const wideBracket = await dispatch(page, 'keydown', '\\');
   after = await state(page);
-  await dispatch(page, 'keyup', '[');
+  await dispatch(page, 'keyup', '\\');
   if (!wideBracket.defaultPrevented || after.nav === 'open' || after.rail !== 'collapsed') {
     fail('wide-key-folds-the-column-not-the-drawer', `wide [ left nav=${after.nav}, rail=${after.rail}, prevented=${wideBracket.defaultPrevented}`);
   }
-  await press(page, '[');
+  await press(page, '\\');
   after = await state(page);
   if (after.rail !== 'open' || after.nav === 'open') {
     fail('wide-key-folds-the-column-not-the-drawer', `the second wide [ left nav=${after.nav}, rail=${after.rail}, want the column back`);
@@ -677,7 +677,7 @@ try {
     || narrow.box.left < 0
     || narrow.box.right > 360
     || !narrow.noteVisible
-    || !['/', '[', '?'].every((key) => narrow.noteText.includes(key))
+    || !['/', '\\', '?'].every((key) => narrow.noteText.includes(key))
   ) {
     fail('shortcut-control-reachable', `360px settings page: control=${JSON.stringify(narrow.box)}, noteVisible=${narrow.noteVisible}, note=${JSON.stringify(narrow.noteText)}`);
   }

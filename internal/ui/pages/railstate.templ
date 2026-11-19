@@ -35,7 +35,7 @@ templ railHead(c layouts.Chrome, filter bool) {
 			aria-controls="_y-nav-rail-body"
 			aria-expanded={ strconv.FormatBool(c.Rail != "collapsed") }
 			if c.SingleKeyShortcutsEnabled {
-				aria-keyshortcuts="["
+				aria-keyshortcuts="\"
 			}
 			aria-label={ wording.ToggleRail.In(c.Lang) }
 			title={ railToggleTitle(c.Rail, c.Lang, c.SingleKeyShortcutsEnabled) }

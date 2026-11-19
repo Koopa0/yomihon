@@ -2,35 +2,28 @@ package pages
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// sidebar is the left navigation rail the reading surfaces mount: the note,
-// folder, file, search, report, health and not-found pages.
-// The desk and the mode pages carry no rail at all, and the course page draws
-// its own. It is ordered for a daily reader: a filter box shipped hidden, the
-// "here" list of the current note's siblings, Paths and Maps, recent Journal
-// entries, reports, and the folder tree with the current note's branch
-// expanded. It takes one resolved Sidebar, so a report builds it with no
-// current note and every branch renders closed. A nil model renders nothing.
-templ sidebar(sb Sidebar, c layouts.Chrome) {
-	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.VaultNavigation.In(c.Lang) }>
-		@railHead(c, true)
+// sidebar is the left column: the one element every page's navigation is, in
+// whichever of its four modes the page asks for (Sidebar.Mode). The frame is
+// the same for all of them: the landmark, the fold button above the drawer
+// width, the name it keeps on its folded edge, the filter, what the model could
+// not project, and the foot that says which folder it is in. Only the list in
+// the middle differs, and it is drawn from the mode's own data.
+templ sidebar(s Sidebar, c layouts.Chrome) {
+	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.VaultNavigation.In(c.Lang) } data-sidebar-mode={ string(s.Mode) } data-drawer-only?={ s.DrawerOnly }>
+		@railHead(c, s.FilterShown(c.Lang))
+		@railSpine(s.spine(c.Lang))
 		<div class="y-railbody" id="_y-nav-rail-body">
 			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
 			<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
-			if sb.Model != nil {
-				@ShelfRail(sb.HereShelf(c.Lang), railWindow, sb.HereDir, wording.MoreInFolder.In(c.Lang))
-				// The rail carries a capability fault on every page it appears on,
-				// including a note opened straight from the command palette by a
-				// reader who never passes the desk. It appears only for a
-				// declaration the vault made and yomihon could not read: saying so
-				// for a folder that declared nothing would be an apology for the
-				// ordinary shape of a directory.
-				if faults := sb.CapabilityFaults(c.Lang); len(faults) > 0 {
+			if s.Model != nil {
+				if faults := s.CapabilityFaults(c.Lang); len(faults) > 0 {
 					<div class="y-railsep" aria-hidden="true"></div>
 					<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="_y-sidebar-navigation-diagnostics-title">
 						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.CoursesAndMaps.In(c.Lang) }</h2>
@@ -41,191 +34,153 @@ templ sidebar(sb Sidebar, c layouts.Chrome) {
 						}
 					</section>
 				}
-				if sb.Model.PathCount() > 0 {
-					<div class="y-railsep" aria-hidden="true"></div>
-					<details open?={ sb.pathsChainOpen() } data-sidebar-group="courses" { disclosureAttrs("courses", sb.pathsChainOpen())... }>
-						<summary class="y-railsummary">
-							@chevron()
-							{ wording.Courses.In(c.Lang) }
-						</summary>
-						<div class="y-railgroup">
-							for _, step := range sb.Steps {
-								<nav class="y-lessonsteps" aria-label={ fmt.Sprintf(wording.CourseOrderOf.In(c.Lang), step.PathTitle) }>
-									if len(sb.Steps) > 1 {
-										<div class="y-lessonsteps__path">{ step.PathTitle }</div>
-									}
-									if step.Prev.RelPath != "" {
-										<a class="ui-navitem" href={ templ.URL(notesHref(step.Prev.RelPath)) }>← { wording.Units.RailPrevious.In(c.Lang) }<span { authoredLanguageAttrs(step.Prev.Language)... }>{ step.Prev.Name }</span></a>
-									}
-									if step.Next.RelPath != "" {
-										<a class="ui-navitem" href={ templ.URL(notesHref(step.Next.RelPath)) }>{ wording.Units.RailNext.In(c.Lang) }<span { authoredLanguageAttrs(step.Next.Language)... }>{ step.Next.Name }</span> →</a>
-									}
-								</nav>
-							}
-							for _, p := range sb.Model.Paths() {
-								@pathTree(sb, c, p)
-							}
-						</div>
-					</details>
-				}
-				if sb.Model.MapCount() > 0 {
-					<div class="y-railsep" aria-hidden="true"></div>
-					<details open?={ sb.mapsChainOpen() } data-sidebar-group="indexes" { disclosureAttrs("indexes", sb.mapsChainOpen())... }>
-						<summary class="y-railsummary">
-							@chevron()
-							{ wording.Maps.In(c.Lang) }
-						</summary>
-						<div class="y-railgroup">
-							for _, m := range sb.Model.Maps() {
-								@mapTree(sb, c, m, notesHref(m.RelPath))
-							}
-						</div>
-					</details>
-				}
-				if journal := sb.Model.JournalClosure(); journal.Closed() || sb.Model.JournalCount() > 0 {
-					<div class="y-railsep" aria-hidden="true"></div>
-					<details open?={ sb.journalOpen() } data-sidebar-group="journal" { disclosureAttrs("journal", false)... }>
-						<summary class="y-railsummary">
-							@chevron()
-							{ wording.Journal.In(c.Lang) }
-						</summary>
-						<div class="y-railgroup">
-							if journal.Closed() {
-								<p>
-									@browserDiagnostic(wording.JournalUnavailable.In(c.Lang), journal.Diagnostic())
-								</p>
-							}
-							for _, entry := range sb.recentJournal() {
-								<a class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) } href={ templ.URL(notesHref(entry.RelPath)) } data-sidebar-journal-entry { currentAttr(sb.current(entry.RelPath))... }>{ entry.Title }</a>
-							}
-							if sb.Model.JournalCount() > 0 {
-								<a class="ui-navitem y-shelfall" href={ templ.URL(indexHref(journalMode)) } data-sidebar-journal-all>{ wording.ShelfAll.In(c.Lang) }</a>
-							}
-						</div>
-					</details>
-				}
-				if len(sb.Model.Reports()) > 0 {
-					<div class="y-railsep" aria-hidden="true"></div>
-					<details open?={ sb.reportsOpen() } data-sidebar-group="reports" { disclosureAttrs("reports", false)... }>
-						<summary class="y-railsummary">
-							@chevron()
-							{ wording.Reports.In(c.Lang) }
-						</summary>
-						<div class="y-railgroup">
-							for _, rep := range sb.Model.Reports() {
-								<a class="ui-navitem" href={ templ.URL(notesHref(rep.RelPath)) }>
-									{ reportLabel(&rep) }
-								</a>
-							}
-						</div>
-					</details>
-				}
 			}
-			@railFoot(sb.Vault, c.Lang)
+			switch s.Mode {
+				case SidebarLibrary:
+					@libraryBody(s, c.Lang)
+				case SidebarCourse:
+					@bookRail(s, c)
+				case SidebarFolder:
+					if s.Model != nil {
+						@folderRail(s, c)
+					}
+				case SidebarIndex:
+					@indexBody(s, c.Lang)
+			}
+			@railFoot(s.Vault, c.Lang)
 		</div>
 	</aside>
-	@settleRail(c, true)
+	@settleRail(c, s.FilterShown(c.Lang))
 }
 
-templ chevron() {
-	<svg class="y-chevron" aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"></path></svg>
-}
-
-// mapTree renders one map as a closed disclosure that opens when it holds the
-// current note. href points Paths at their dedicated route and other maps at
-// their note page.
-templ mapTree(sb Sidebar, c layouts.Chrome, m nav.Map, href string) {
-	<details open?={ sb.mapOpen(m.RelPath) } data-map-tree={ m.RelPath } { disclosureAttrs("map:"+m.RelPath, sb.mapOpen(m.RelPath))... }>
-		<summary class="y-railitem">
-			@chevron()
-			<span class="y-railitem__name">{ m.Title }</span>
-		</summary>
-		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(href) }>{ wording.OpenMap.In(c.Lang) }</a>
-			for _, branch := range m.Branches {
-				@branchNode(sb, c, m.RelPath, childChain(nil, branch.Heading), branch)
+// libraryBody is the sidebar of a page that is a way into the whole folder: the
+// desk and the lists, then the folder's top-level folders. The rows are the
+// folder's, so a page standing on one of them is marked.
+templ libraryBody(s Sidebar, lang wording.Lang) {
+	<nav class="y-here y-here--flat" aria-label={ wording.VaultNavigation.In(lang) }>
+		for _, link := range s.libraryLinks(lang) {
+			@sidebarLinkRow(link)
+		}
+	</nav>
+	{{ folders, trimmed := s.libraryFolders() }}
+	if len(folders) > 0 {
+		<nav class="y-here y-here--flat" aria-label={ wording.Folders.In(lang) }>
+			<a class="y-here__label" href={ templ.URL(indexHref(folderMode)) }>{ wording.Folders.In(lang) }</a>
+			for _, link := range folders {
+				@sidebarLinkRow(link)
 			}
-		</div>
-	</details>
-}
-
-// pathTree renders one study path as a closed disclosure that opens where it
-// holds the current note, drawing the structure navigation already read: a
-// branch outside the course is not in the rail, and a side branch sits under
-// the lesson it hangs from.
-templ pathTree(sb Sidebar, c layouts.Chrome, p nav.Course) {
-	<details open?={ sb.mapOpen(p.RelPath) } data-map-tree={ p.RelPath } { disclosureAttrs("map:"+p.RelPath, sb.mapOpen(p.RelPath))... }>
-		<summary class="y-railitem">
-			@chevron()
-			<span class="y-railitem__name">{ p.Title }</span>
-		</summary>
-		<div class="y-tree">
-			<a class="y-railitem__full" href={ templ.URL(courseHref(p.RelPath)) }>{ wording.ContentsLink.In(c.Lang) }</a>
-			for _, g := range p.Groups {
-				@pathGroupNode(sb, c, p.RelPath, childChain(nil, g.Name), g)
+			if trimmed > 0 {
+				<a class="y-here__more" href={ templ.URL(indexHref(folderMode)) } data-rail-trimmed={ strconv.Itoa(trimmed) } data-rail-dir="">{ fmt.Sprintf(wording.MoreFolders.In(lang), trimmed) }</a>
 			}
-		</div>
-	</details>
-}
-
-// pathGroupNode renders one branch of a study path, opened when it lies on the
-// way to the current note. A branch the grammar does not project draws nothing:
-// it is not part of the course, so it is not a way to a lesson.
-templ pathGroupNode(sb Sidebar, c layouts.Chrome, pathRel string, chain []string, g *nav.PathGroup) {
-	if g.Drawn() {
-		<details open?={ sb.branchOpen(pathRel, chain) } { disclosureAttrs("mapbranch:"+branchKey(pathRel, chain), sb.branchOpen(pathRel, chain))... }>
-			<summary class="y-treeitem">
-				@chevron()
-				{ g.Name }
-			</summary>
-			<div class="y-tree">
-				@pathGroupItems(sb, c, pathRel, chain, g)
-			</div>
-		</details>
+		</nav>
+	}
+	if s.Model != nil && s.Model.JournalClosure().Closed() {
+		<section class="y-navdiag" data-sidebar-group="journal-diagnostics" aria-labelledby="_y-sidebar-journal-diagnostics-title">
+			<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-journal-diagnostics-title">{ wording.Journal.In(lang) }</h2>
+			<p>
+				@browserDiagnostic(wording.JournalUnavailable.In(lang), s.Model.JournalClosure().Diagnostic())
+			</p>
+		</section>
 	}
 }
 
-// pathGroupItems draws a branch's lessons and side branches in source order.
-templ pathGroupItems(sb Sidebar, c layouts.Chrome, pathRel string, chain []string, g *nav.PathGroup) {
-	for _, item := range g.Items {
-		if item.Entry != nil {
-			if g.Teaches(item.Entry) {
-				@pathEntryLink(sb, c, item.Entry)
+// indexBody is the index mode: each index the folder has, with how many notes it
+// names, and the one being read marked.
+templ indexBody(s Sidebar, lang wording.Lang) {
+	<nav class="y-here" aria-label={ wording.Maps.In(lang) }>
+		<a class="y-here__label" href={ templ.URL(indexHref(mapMode)) }>{ wording.Maps.In(lang) }</a>
+		for _, link := range s.indexLinks() {
+			@sidebarLinkRow(link)
+		}
+	</nav>
+}
+
+// sidebarLinkRow is one row of the library or the index list: its words and,
+// where it has one, the figure at its end.
+templ sidebarLinkRow(link sidebarLink) {
+	<a class={ "ui-navitem", templ.KV("is-active", link.Current) } href={ templ.URL(link.Href) } { currentAttr(link.Current)... }>
+		<span class="y-pathitem__name">{ link.Text }</span>
+		if link.Count > 0 {
+			<span class="ui-navitem__count">{ strconv.Itoa(link.Count) }</span>
+		}
+	</a>
+}
+
+templ bookRail(rr Sidebar, c layouts.Chrome) {
+	if rr.book != nil {
+		{{ view := rr.bookView() }}
+		<div class="y-railbook" data-book-path={ rr.book.RelPath }>
+			<a class="y-railbook__title" href={ templ.URL(courseHrefFrom(rr.book.RelPath, rr.CurrentPath)) }>{ rr.book.Title }</a>
+			<p class="y-railbook__span">{ joinMarks(view.Extent(c.Lang)...) }</p>
+			for _, sec := range view.Branches {
+				@bookRailBranch(rr, c, rr.book.RelPath, nil, sec)
 			}
-		} else if item.Group != nil {
-			@pathGroupNode(sb, c, pathRel, childChain(chain, item.Group.Name), item.Group)
+		</div>
+	}
+}
+
+templ bookRailBranch(rr Sidebar, c layouts.Chrome, pathRel string, chain []string, sec PathBranchView) {
+	<details
+		open?={ rr.branchOpen(pathRel, childChain(chain, sec.Heading)) }
+		data-book-branch={ branchKey(pathRel, childChain(chain, sec.Heading)) }
+		{ disclosureAttrs("bookbranch:"+branchKey(pathRel, childChain(chain, sec.Heading)), rr.branchOpen(pathRel, childChain(chain, sec.Heading)))... }
+	>
+		<summary class="y-railsummary y-railsummary--label">
+			@chevron()
+			{ sec.Heading }
+		</summary>
+		<div class="y-railgroup">
+			@bookRailItems(rr, c, pathRel, childChain(chain, sec.Heading), sec)
+		</div>
+	</details>
+}
+
+templ bookRailItems(rr Sidebar, c layouts.Chrome, pathRel string, chain []string, sec PathBranchView) {
+	for _, run := range sec.Runs(c.Lang) {
+		for _, row := range run.railRows() {
+			if row.branch != nil {
+				@bookRailBranch(rr, c, pathRel, chain, *row.branch)
+			} else {
+				@bookRailEntry(c, *row.entry, rr.note)
+			}
 		}
 	}
 }
 
-// pathEntryLink renders one lesson row: one that resolves links and may mark the
-// current note, while a planned or ambiguous one stays non-interactive and keeps
-// its place in the course.
+// bookRailEntry is one row of the book: a lesson the reader can open, or the
+// words the course lists where nothing could be opened. The title carries
+// whatever language the view holds for it, while the draft chip and the
+// resolution word beside it stay the interface's. Both branches of the row ask
+// the same way, so neither can be left behind; navigation reads a declaration
+// only off a target that resolved, so today the second branch has none to carry.
 //
-// Its warning chip is plain where a map row's is amber, deliberately: a course
-// names its lessons before they are written, so a row for an unwritten one is
-// the ordinary state of a course being taught rather than a fault in it.
+// Which row the reader is on is decided where the view is built, so the rail
+// reads the answer rather than working it out a second time from the address.
+// The row the reader is on does not show its draft chip, which the page states
+// itself, but where it would print one it still draws the chip hidden so its
+// name wraps where it does on the rows beside it. A finished lesson prints
+// none, and the bookmark marks the one lesson the reader left off in.
 //
-// A row marks only a draft: a finished note prints no badge at all, being the
-// ordinary state. Neither this row nor a map's shows the badge for the note
-// being read, whose own page already says it is a draft. The badge is still
-// drawn, hidden, wherever the row would otherwise print one, because a row
-// without it is wider for its name: the name wrapped in a different place on
-// the note being read than on the lessons beside it, and the rows moved by a
-// line each time the reader went from one to the next.
-templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
+// The row that is the note carries the note's contents beneath it, as the list
+// the row opens into.
+templ bookRailEntry(c layouts.Chrome, entry PathEntryView, note *NoteView) {
 	if entry.Kind == nav.EntryResolved {
 		<a
-			class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) }
-			href={ templ.URL(notesHref(entry.RelPath)) }
-			{ currentAttr(sb.current(entry.RelPath))... }
+			class={ "ui-navitem", templ.KV("is-active", entry.Here) }
+			href={ templ.URL(entry.Href) }
+			{ currentAttr(entry.Here)... }
 		>
-			<span class="y-navdot" aria-hidden="true"></span>
 			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
+			if entry.Kept {
+				@keptPlace(c.Lang)
+			}
 			if entry.Draft {
-				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ wording.Draft.In(c.Lang) }</span>
+				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", entry.Here) }>{ wording.Draft.In(c.Lang) }</span>
 			}
 		</a>
+		if entry.Here {
+			@railContents(note, c.Lang)
+		}
 	} else {
 		<span
 			class="ui-navitem y-navitem--broken"
@@ -239,53 +194,63 @@ templ pathEntryLink(sb Sidebar, c layouts.Chrome, entry *nav.PathEntry) {
 	}
 }
 
-// branchNode renders one map branch as a disclosure, opened when it lies on the
-// path to the current note, and recurses for nested branches.
-templ branchNode(sb Sidebar, c layouts.Chrome, mapPath string, chain []string, branch nav.Branch) {
-	<details open?={ sb.branchOpen(mapPath, chain) } { disclosureAttrs("mapbranch:"+branchKey(mapPath, chain), sb.branchOpen(mapPath, chain))... }>
-		<summary class="y-treeitem">
-			@chevron()
-			{ branch.Heading }
-		</summary>
-		<div class="y-tree">
-			for _, sub := range branch.Subbranches {
-				@branchNode(sb, c, mapPath, childChain(chain, sub.Heading), sub)
+// folderRail is the sidebar of a note that is in no course: where it is, as the
+// word for the kind of place and the path itself, in the face a path is set in,
+// and then the files around it. Beside a report the files are the reports. The
+// path is the one thing in this sidebar that a course's own name would be, so it
+// is led by what it is.
+//
+// The window and its tail are the shelf's own, so this lists exactly what a page
+// with no contents lists; only the label above it and the contents under the row
+// that is the note are this mode's.
+templ folderRail(rr Sidebar, c layouts.Chrome) {
+	{{ shelf := rr.HereShelf(c.Lang) }}
+	if len(shelf.Rows) > 0 {
+		{{ shown, trimmed := railRows(&shelf, railWindow) }}
+		<nav class="y-here" aria-label={ shelf.Title }>
+			<div class="y-where">
+				<span class="y-where__label">{ wording.Folders.In(c.Lang) }</span>
+				<a class="y-where__path" href={ templ.URL(shelf.Href) }>{ rr.where(c.Lang) }</a>
+			</div>
+			for _, row := range shown {
+				<a
+					class={ "ui-navitem", templ.KV("is-active", row.Current) }
+					href={ templ.URL(row.Href) }
+					{ currentAttr(row.Current)... }
+				><span { authoredLanguageAttrs(row.Language)... }>{ row.Text }</span></a>
+				if row.Current {
+					@railContents(rr.note, c.Lang)
+				}
 			}
-			for _, entry := range branch.Entries {
-				@entryLink(sb, c, entry)
+			if trimmed > 0 {
+				<a class="y-here__more" href={ templ.URL(shelf.Href) } data-rail-trimmed={ strconv.Itoa(trimmed) } data-rail-dir={ rr.hereDir }>{ fmt.Sprintf(wording.MoreInFolder.In(c.Lang), trimmed) }</a>
 			}
-		</div>
-	</details>
+		</nav>
+	}
 }
 
-// entryLink renders one map row: governed unique targets link and may mark the
-// current note, while warning rows stay non-interactive.
-//
-// Its warning chip is amber where a course row's is plain, and the difference is
-// the point: a map claims its entries exist, so a row that reaches nothing is a
-// broken citation somebody has to repair.
-templ entryLink(sb Sidebar, c layouts.Chrome, entry nav.MapEntry) {
-	if entry.Kind == nav.EntryResolved {
-		<a
-			class={ "ui-navitem", templ.KV("is-active", sb.current(entry.RelPath)) }
-			href={ templ.URL(notesHref(entry.RelPath)) }
-			{ currentAttr(sb.current(entry.RelPath))... }
-		>
-			<span class="y-navdot" aria-hidden="true"></span>
-			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
-			if entry.Draft {
-				<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--reserved", sb.current(entry.RelPath)) }>{ wording.Draft.In(c.Lang) }</span>
-			}
-		</a>
-	} else {
-		<span
-			class="ui-navitem y-navitem--broken"
-			data-resolution={ entryResolutionCode(entry.Kind) }
-			title={ entryResolutionTitle(entry.Kind, c.Lang) }
-		>
-			<span class="y-navmark y-navmark--warn" aria-hidden="true">!</span>
-			<span { authoredLanguageAttrs(entry.Language)... }>{ entry.Name }</span>
-			<span class="ui-navitem__count y-navmark--warn">{ entryResolutionLabel(entry.Kind, c.Lang) }</span>
-		</span>
+// railContents is the note's own contents, under the row that is the note: its
+// headings, and last the row that leads down to what the note ends on. It draws
+// nothing for a note with neither, and for a rail built with no note to speak
+// for.
+templ railContents(note *NoteView, lang wording.Lang) {
+	if note != nil && (len(note.TOC) > 0 || note.endShown()) {
+		<nav class="y-railtoc" aria-label={ wording.OnThisPage.In(lang) }>
+			@tocList(*note, lang)
+		</nav>
 	}
+}
+
+// railSpine is the name the rail keeps on its folded edge, set along the strip
+// the way the spine of a book is: with the column folded it is what says which
+// course, folder or shelf the page is in. It is drawn into every rail that has
+// a name to give and shown only while the column is folded.
+templ railSpine(s railSpineView) {
+	if s.Title != "" {
+		<a class="y-railspine" href={ templ.URL(s.Href) } title={ s.Title }><span class="y-railspine__name">{ s.Title }</span></a>
+	}
+}
+
+templ chevron() {
+	<svg class="y-chevron" aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m6 9 6 6 6-6"></path></svg>
 }

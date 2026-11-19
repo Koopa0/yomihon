@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
@@ -12,102 +13,417 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// Sidebar is the fully resolved left navigation for one request: the shared
-// whole-vault model plus the current note's context. A page with no current note
-// builds one with an empty path, so every branch renders closed and unmarked.
-// The open sets are resolved once here, so a template looks up a boolean rather
-// than re-walking the tree.
-type Sidebar struct {
-	Model *nav.Model
-	// Vault is the folder this rail is a rail of, which its foot states.
-	Vault nav.Vault
+// SidebarMode names which of the four contents the sidebar holds. The page
+// decides, by what it is: the library is the way into the whole folder, a
+// course is the units of the course being read, a folder is the notes beside
+// the one being read, an index is the list of indexes.
+type SidebarMode string
 
+const (
+	SidebarLibrary SidebarMode = "library"
+	SidebarCourse  SidebarMode = "course"
+	SidebarFolder  SidebarMode = "folder"
+	SidebarIndex   SidebarMode = "index"
+)
+
+// LibraryItem names the row of the library the page being read stands on.
+type LibraryItem string
+
+const (
+	LibraryNone    LibraryItem = ""
+	LibraryDesk    LibraryItem = "desk"
+	LibraryCourses LibraryItem = "courses"
+	LibraryIndexes LibraryItem = "indexes"
+	LibraryJournal LibraryItem = "journal"
+	LibraryReports LibraryItem = "reports"
+)
+
+// Sidebar is the data of the left column for one request, whichever of its four
+// modes the page asks for: the mode, what the page stands on, and what that mode
+// lists. One component draws it, so what the four share (the landmark, the fold
+// button, the folded spine, the filter, the foot) is drawn once. A nil model is
+// tolerated, because the column is drawn beside the not-found page a reader
+// reaches when the folder could not be projected at all, and stopping there
+// would take down the page that exists to explain why.
+type Sidebar struct {
+	Mode  SidebarMode
+	Model *nav.Model
+	// Vault is the folder this sidebar is of, which its foot states.
+	Vault nav.Vault
+	// DrawerOnly is a page with no column of its own: the sidebar is there to be
+	// opened below the width where it is a drawer and is not drawn above it.
+	DrawerOnly bool
 	// CurrentPath is the note being read, empty on a page with no note.
 	CurrentPath string
-	// HereDir is the current note's directory; Here lists every file in it,
-	// the current one included, to be marked. The rail width decides how much
-	// of that list it has room for, so nothing is trimmed here.
-	HereDir string
-	Here    []nav.NoteRef
-	// Steps holds, per study path teaching the current note, the readable
-	// lessons on either side of it — the course order the paths drawer walks.
-	Steps        []nav.Neighbors
-	openMaps     map[string]bool
+	// KeptNote is the vault-relative note the reader kept a place in, empty
+	// where they kept none. The course marks the row of that unit, and a place
+	// kept in a note the course does not teach marks nothing.
+	KeptNote string
+
+	// note is the page this sidebar is drawn beside, which the row that is the
+	// note opens into the contents of. It is nil beside no note.
+	note *NoteView
+
+	// Library: the row the page stands on, and the top-level folder it is in.
+	selected LibraryItem
+	inFolder string
+	// Course.
+	book      *nav.Course
+	neighbors nav.Neighbors
+	// place is where the note sits in the course: its part, and what a side
+	// branch hands over at its ends. It is the zero value for a note the course
+	// does not walk, which is the case neighbors.PathRelPath says.
+	place        nav.Place
 	openBranches map[string]bool
+	// Folder: the folder the note is in and what is beside it, or the reports
+	// where the note is one.
+	hereDir string
+	here    []nav.NoteRef
+	reports bool
 }
 
-// NewSidebar resolves the left navigation for one page; currentPath is empty for
-// a page with no note. It takes no language, because the rail speaks whatever
-// the page around it speaks and the chrome carries that answer.
-//
-// A nil model is tolerated where every other constructor here panics: the rail
-// is drawn beside the not-found page a reader reaches when the vault could not
-// be projected at all, and stopping there would take down the page that exists
-// to explain why.
-func NewSidebar(shell nav.Shell, currentPath string) Sidebar {
-	model := shell.Nav
-	// The model's indexes are keyed by NFC paths; a request URL is not.
+// NewLibrarySidebar is the sidebar of a page that is a way into the folder
+// rather than one note: the desk, the lists, a search. selected is the row it
+// stands on, and inFolder the top-level folder it is in, either of them empty.
+func NewLibrarySidebar(shell nav.Shell, selected LibraryItem, inFolder string) Sidebar {
+	return Sidebar{Mode: SidebarLibrary, Model: shell.Nav, Vault: shell.Vault, selected: selected, inFolder: inFolder}
+}
+
+// NewDrawerSidebar is the sidebar of a page that has no column: the library,
+// drawn only where the sidebar is a drawer.
+func NewDrawerSidebar(shell nav.Shell) Sidebar {
+	s := NewLibrarySidebar(shell, LibraryNone, "")
+	s.DrawerOnly = true
+	return s
+}
+
+// NewFolderSidebar is the sidebar of a page about one file that no course or
+// index teaches: the folder it is in and the files beside it.
+func NewFolderSidebar(shell nav.Shell, currentPath string) Sidebar {
 	currentPath = vault.NormalizeNFC(currentPath)
-	sb := Sidebar{
-		Model:        model,
-		Vault:        shell.Vault,
-		CurrentPath:  currentPath,
-		openMaps:     map[string]bool{},
-		openBranches: map[string]bool{},
+	s := Sidebar{Mode: SidebarFolder, Model: shell.Nav, Vault: shell.Vault, CurrentPath: currentPath}
+	if s.Model != nil && currentPath != "" {
+		s.hereDir, s.here = s.Model.Siblings(currentPath)
 	}
-	if model == nil || currentPath == "" {
-		return sb
-	}
-
-	sb.HereDir, sb.Here = model.Siblings(currentPath)
-	sb.Steps = model.PathNeighbors(currentPath)
-
-	// Every heading prefix, so a branch's ancestors open with it.
-	for _, p := range model.Placements(currentPath) {
-		sb.openMaps[p.MapRelPath] = true
-		headings := p.Headings
-		for i := 1; i <= len(headings); i++ {
-			sb.openBranches[branchKey(p.MapRelPath, headings[:i])] = true
-		}
-	}
-
-	// A map being read is its own wayfinding, which Placements cannot say
-	// because a map does not place itself.
-	if model.IsMap(currentPath) || model.IsPath(currentPath) {
-		sb.openMaps[currentPath] = true
-	}
-
-	return sb
+	return s
 }
 
-// HereShelf is the folder the reader is in, as a shelf: every file in it in the
-// folder's own order, the one being read marked, and the folder's page as the
-// way to the rest of it.
-//
-// It is built here at render time because the words in it are the page's. The
-// rail speaks whatever the page around it speaks, and the model that resolved
-// this navigation was read before any of that was known.
+// NewNoteSidebar resolves the mode a note page should show: the course that
+// teaches it, else the index it is, else the folder it is in. noteDomain is the
+// declared domain of the note being read, used only to break a tie among several
+// courses.
+func NewNoteSidebar(shell nav.Shell, currentPath, noteDomain string) Sidebar {
+	model := shell.Nav
+	currentPath = vault.NormalizeNFC(currentPath)
+	s := Sidebar{Mode: SidebarFolder, Model: model, Vault: shell.Vault, CurrentPath: currentPath}
+	if model == nil || currentPath == "" {
+		return s
+	}
+	if nav.InReports(currentPath) {
+		s.reports = true
+		return s
+	}
+	if book := model.TeachingPath(currentPath, noteDomain); book != nil {
+		s.Mode = SidebarCourse
+		s.book = book
+		s.openBranches = map[string]bool{}
+		for _, p := range model.Placements(currentPath) {
+			if p.MapRelPath != book.RelPath {
+				continue
+			}
+			headings := p.Headings
+			for i := 1; i <= len(headings); i++ {
+				s.openBranches[branchKey(p.MapRelPath, headings[:i])] = true
+			}
+		}
+		neighbors := model.PathNeighbors(currentPath)
+		for i := range neighbors {
+			step := neighbors[i]
+			if step.PathRelPath == book.RelPath {
+				s.neighbors = step
+				s.place, _ = model.PathPlace(currentPath, book.RelPath)
+				break
+			}
+		}
+		return s
+	}
+	if model.IsMap(currentPath) {
+		s.Mode = SidebarIndex
+		return s
+	}
+	s.hereDir, s.here = model.Siblings(currentPath)
+	return s
+}
+
+// HereShelf is what the folder mode lists, as a shelf at sidebar width: every
+// file in the folder in its own order, the one being read marked, and the
+// folder's page as the way to the rest of it. Beside a report it is the
+// reports. It is built at render time because the words in it are the page's.
 func (s *Sidebar) HereShelf(lang wording.Lang) Shelf {
-	rows := make([]Row, 0, len(s.Here))
-	for _, n := range s.Here {
+	if s.reports {
+		rows := make([]Row, 0)
+		if s.Model != nil {
+			for _, rep := range s.Model.Reports() {
+				rows = append(rows, Row{Text: reportLabel(&rep), Href: notesHref(rep.RelPath), Current: s.current(rep.RelPath)})
+			}
+		}
+		return Shelf{Title: wording.Reports.In(lang), Href: indexHref(reportMode), Rows: rows}
+	}
+	rows := make([]Row, 0, len(s.here))
+	for _, n := range s.here {
 		rows = append(rows, Row{Text: n.Name, Href: notesHref(n.RelPath), Current: s.current(n.RelPath), Language: n.Language})
 	}
-	return Shelf{Title: hereLabel(s.HereDir, lang), Href: folderHref(s.HereDir), Rows: rows}
+	return Shelf{Title: hereLabel(s.hereDir, lang), Href: folderHref(s.hereDir), Rows: rows}
 }
 
-// current reports whether relPath is the note being read. The receiver is a
-// pointer only to avoid copying the resolved sets per lookup; nothing mutates.
+// where is how the folder mode says where it is: the folder's own path, or the
+// word for the folder's root where the note sits at the top.
+func (s *Sidebar) where(lang wording.Lang) string {
+	if s.reports {
+		return wording.Reports.In(lang)
+	}
+	if s.hereDir == "" {
+		return wording.VaultRoot.In(lang)
+	}
+	return s.hereDir
+}
+
+// railSpineView is the name a sidebar keeps on its folded edge and where that
+// name leads.
+type railSpineView struct {
+	Title string
+	Href  string
+}
+
+// spine is what this sidebar is called when it is folded to a strip: the
+// course's own title, the folder's path, the indexes, or the folder itself. A
+// sidebar that has none to give draws nothing there.
+func (s *Sidebar) spine(lang wording.Lang) railSpineView {
+	switch s.Mode {
+	case SidebarCourse:
+		if s.book != nil {
+			return railSpineView{Title: s.book.Title, Href: courseHrefFrom(s.book.RelPath, s.CurrentPath)}
+		}
+	case SidebarFolder:
+		if s.Model != nil {
+			if s.reports {
+				return railSpineView{Title: wording.Reports.In(lang), Href: indexHref(reportMode)}
+			}
+			return railSpineView{Title: s.where(lang), Href: folderHref(s.hereDir)}
+		}
+	case SidebarIndex:
+		return railSpineView{Title: wording.Maps.In(lang), Href: indexHref(mapMode)}
+	case SidebarLibrary:
+		if name := libraryName(s.Vault.Name, lang); name != "" {
+			return railSpineView{Title: name, Href: "/"}
+		}
+	}
+	return railSpineView{}
+}
+
 func (s *Sidebar) current(relPath string) bool {
 	return relPath != "" && relPath == s.CurrentPath
 }
 
-// mapOpen reports whether a map branch contains the current note.
-func (s *Sidebar) mapOpen(relPath string) bool { return s.openMaps[relPath] }
+// branchOpen reports whether a course branch lies on the path to the current
+// note.
+func (s *Sidebar) branchOpen(pathRel string, headings []string) bool {
+	return s.openBranches[branchKey(pathRel, headings)]
+}
 
-// branchOpen reports whether a map branch lies on the path to the current note,
-// rebuilding the key NewSidebar stored.
-func (s *Sidebar) branchOpen(mapRelPath string, headings []string) bool {
-	return s.openBranches[branchKey(mapRelPath, headings)]
+// CapabilityFaults lists what the sidebar has to say about closed navigation
+// projections, one entry per distinct cause: one cause commonly closes both
+// paths and instance projections, and saying it twice reads as two faults.
+func (s *Sidebar) CapabilityFaults(lang wording.Lang) []CapabilityFault {
+	return ModelCapabilityFaults(s.Model, lang)
+}
+
+// sidebarLink is one row of the library or the index list: where it goes, what
+// it is called, and the figure at its end where it has one.
+type sidebarLink struct {
+	Text    string
+	Href    string
+	Count   int
+	Current bool
+}
+
+// libraryLinks is the first block of the library: the desk, then each list the
+// folder has anything in, with how many. A list with nothing in it is not
+// offered, and the desk always is.
+func (s *Sidebar) libraryLinks(lang wording.Lang) []sidebarLink {
+	links := []sidebarLink{{Text: wording.HomeTitle.In(lang), Href: "/", Current: s.selected == LibraryDesk}}
+	if s.Model == nil {
+		return links
+	}
+	for _, item := range []struct {
+		id    LibraryItem
+		text  wording.Phrase
+		href  string
+		count int
+	}{
+		{LibraryCourses, wording.Courses, indexHref(courseMode), s.Model.PathCount()},
+		{LibraryIndexes, wording.Maps, indexHref(mapMode), s.Model.MapCount()},
+		{LibraryJournal, wording.Journal, indexHref(journalMode), s.Model.JournalCount()},
+		{LibraryReports, wording.Reports, indexHref(reportMode), len(s.Model.Reports())},
+	} {
+		if item.count > 0 {
+			links = append(links, sidebarLink{Text: item.text.In(lang), Href: item.href, Count: item.count, Current: s.selected == item.id})
+		}
+	}
+	return links
+}
+
+// libraryFolders is the folder's top-level folders, the fullest first, as far as
+// the sidebar has room for, and how many were left off.
+func (s *Sidebar) libraryFolders() (shown []sidebarLink, trimmed int) {
+	if s.Model == nil {
+		return nil, 0
+	}
+	folders := s.Model.ShelfFolders()
+	links := make([]sidebarLink, 0, len(folders))
+	for i := range folders {
+		links = append(links, sidebarLink{Text: folders[i].Name, Href: folderHref(folders[i].RelPath), Count: folderNotes(&folders[i]), Current: folders[i].RelPath == s.inFolder})
+	}
+	slices.SortStableFunc(links, func(a, b sidebarLink) int { return cmp.Compare(b.Count, a.Count) })
+	if len(links) > railWindow {
+		return links[:railWindow], len(links) - railWindow
+	}
+	return links, 0
+}
+
+// folderNotes is how many markdown notes a folder holds at every depth.
+func folderNotes(f *nav.Folder) int {
+	total := 0
+	for _, note := range f.Notes {
+		if vault.IsMarkdown(note.RelPath) {
+			total++
+		}
+	}
+	for i := range f.Subfolders {
+		total += folderNotes(&f.Subfolders[i])
+	}
+	return total
+}
+
+// indexLinks is the index mode's list: each index with how many notes it names,
+// the one being read marked.
+func (s *Sidebar) indexLinks() []sidebarLink {
+	if s.Model == nil {
+		return nil
+	}
+	indexes := s.Model.Maps()
+	links := make([]sidebarLink, 0, len(indexes))
+	for i := range indexes {
+		links = append(links, sidebarLink{Text: indexes[i].Title, Href: notesHref(indexes[i].RelPath), Count: indexNotes(indexes[i].Branches), Current: s.current(indexes[i].RelPath)})
+	}
+	return links
+}
+
+// indexNotes is how many notes an index's branches name that it could reach.
+func indexNotes(branches []nav.Branch) int {
+	total := 0
+	for i := range branches {
+		for _, entry := range branches[i].Entries {
+			if entry.Kind == nav.EntryResolved {
+				total++
+			}
+		}
+		total += indexNotes(branches[i].Subbranches)
+	}
+	return total
+}
+
+// filterRows is how many rows a sidebar holds before it offers to narrow them:
+// a list that fits in one look needs no box to search it with.
+const filterRows = 20
+
+// FilterShown reports whether the sidebar's list is long enough to be worth
+// narrowing. The fold button is the head's own and is there either way.
+func (s *Sidebar) FilterShown(lang wording.Lang) bool {
+	return s.rows(lang) > filterRows
+}
+
+// rows is how many rows the mode's list holds, the tail the sidebar did not
+// have room for included, since those are the ones a reader would reach for the
+// filter to find.
+func (s *Sidebar) rows(lang wording.Lang) int {
+	switch s.Mode {
+	case SidebarLibrary:
+		folders, trimmed := s.libraryFolders()
+		return len(s.libraryLinks(lang)) + len(folders) + trimmed
+	case SidebarCourse:
+		view := s.bookView()
+		total := 0
+		for i := range view.Branches {
+			total += branchRowCount(&view.Branches[i], lang)
+		}
+		return total
+	case SidebarFolder:
+		if s.Model == nil {
+			return 0
+		}
+		return len(s.HereShelf(lang).Rows)
+	case SidebarIndex:
+		return len(s.indexLinks())
+	}
+	return 0
+}
+
+// branchRowCount is the units a branch of the course lists, the branches inside
+// it followed down.
+func branchRowCount(sec *PathBranchView, lang wording.Lang) int {
+	total := 0
+	for _, run := range sec.Runs(lang) {
+		for _, row := range run.railRows() {
+			if row.branch != nil {
+				total += branchRowCount(row.branch, lang)
+			} else {
+				total++
+			}
+		}
+	}
+	return total
+}
+
+// railRow is one stop of the course in the sidebar: a unit, or a branch drawn
+// after the unit it hangs from.
+type railRow struct {
+	entry  *PathEntryView
+	branch *PathBranchView
+}
+
+// railRows lists what the sidebar draws for a run, in the order it draws it: a
+// nested branch alone, or each unit followed by the side branches hanging from
+// it, which is where the author wrote them. The sidebar draws a branch as a
+// disclosure of its own, so it is a row of its own here, and the order is
+// settled before the template walks it.
+func (r *PathRunView) railRows() []railRow {
+	if r.Branch != nil {
+		return []railRow{{branch: r.Branch}}
+	}
+	rows := make([]railRow, 0, len(r.Entries))
+	for i := range r.Entries {
+		rows = append(rows, railRow{entry: &r.Entries[i]})
+		for j := range r.Entries[i].Branches {
+			rows = append(rows, railRow{branch: &r.Entries[i].Branches[j]})
+		}
+	}
+	return rows
+}
+
+// bookView draws the teaching course into the page view the sidebar reuses. The
+// note being read is handed over as the row to mark, so the sidebar and the
+// course page both learn which row that is from the one comparison, and neither
+// keeps a second answer that could disagree with the other.
+//
+// Nothing else of the cover reaches here beyond the reader's kept place: the
+// sidebar is the course beside the note being read, and the opening and the verb
+// that opens a course belong to the page that is the course.
+func (s *Sidebar) bookView() PathView {
+	if s.book == nil {
+		return PathView{}
+	}
+	return BuildPathView(s.book, &CourseCover{Here: s.CurrentPath, KeptNote: s.KeptNote})
 }
 
 // currentAttr marks the entry the reader is on with aria-current="page" and
@@ -118,56 +434,6 @@ func currentAttr(isCurrent bool) templ.Attributes {
 	}
 	return nil
 }
-
-// pathsChainOpen reports whether a study path holds the current note, which
-// makes the surrounding group part of the wayfinding chain.
-func (s *Sidebar) pathsChainOpen() bool {
-	return s.chainOpen(s.Model.IsPath)
-}
-
-// The drawers below feed only the server-rendered default: each opens to meet
-// the page the reader is on and renders closed everywhere else. A disclosure the
-// reader toggled by hand still wins over that, and the wayfinding chain over
-// both.
-
-// mapsChainOpen reports whether a general map holds — or is — the current
-// note, which makes the surrounding group part of the wayfinding chain.
-func (s *Sidebar) mapsChainOpen() bool {
-	return s.chainOpen(s.Model.IsMap)
-}
-
-// chainOpen reports whether anything the wayfinding opened is of the kind
-// belongs answers for, asking the open set rather than every tree in the model.
-func (s *Sidebar) chainOpen(belongs func(relPath string) bool) bool {
-	for relPath := range s.openMaps {
-		if belongs(relPath) {
-			return true
-		}
-	}
-	return false
-}
-
-// journalOpen reports whether the page being read lives in the journal.
-func (s *Sidebar) journalOpen() bool { return s.Model.InJournal(s.CurrentPath) }
-
-// journalRailEntries is how many of the journal the rail has room for. It is
-// the rail's own figure rather than the projection's: the model holds the whole
-// journal, because the journal's page reads it a month at a time, and a rail
-// that listed every entry would be the journal rather than a way into it.
-const journalRailEntries = 5
-
-// recentJournal is the newest few entries, which is what the drawer shows. The
-// rest is one row away, at the page the drawer ends by offering.
-func (s *Sidebar) recentJournal() []nav.JournalEntry {
-	entries := s.Model.Journal()
-	if len(entries) > journalRailEntries {
-		return entries[:journalRailEntries]
-	}
-	return entries
-}
-
-// reportsOpen reports whether the page being read is one of the reports.
-func (s *Sidebar) reportsOpen() bool { return nav.InReports(s.CurrentPath) }
 
 // disclosureAttrs marks one sidebar disclosure for the state owner coordinating
 // <details open>: key names the section stably across pages, and chain marks a
@@ -231,13 +497,6 @@ func branchKey(mapRelPath string, headings []string) string {
 type CapabilityFault struct {
 	Summary string
 	Detail  string
-}
-
-// CapabilityFaults lists what the rail has to say about closed navigation
-// projections, one entry per distinct cause: one cause commonly closes both
-// paths and instance projections, and saying it twice reads as two faults.
-func (s *Sidebar) CapabilityFaults(lang wording.Lang) []CapabilityFault {
-	return ModelCapabilityFaults(s.Model, lang)
 }
 
 // ModelCapabilityFaults is the shared closure logic for any rail that carries
@@ -308,7 +567,7 @@ type Foot struct {
 // Foot.Course reports which order won, so the foot can print it: that and the
 // step words are all a sighted reader has to tell a course from folder
 // adjacency.
-func FooterSequence(rail *ReadingRail, lang wording.Lang) Foot {
+func FooterSequence(rail *Sidebar, lang wording.Lang) Foot {
 	if rail == nil || rail.Model == nil || rail.CurrentPath == "" {
 		return Foot{}
 	}

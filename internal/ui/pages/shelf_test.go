@@ -13,6 +13,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -205,15 +206,12 @@ func TestARailThatFitsSaysItLeftNothing(t *testing.T) {
 		t.Fatalf("a shelf of two at a limit of 24 gave %d rows and %d left out, want 2 and 0", len(window), trimmed)
 	}
 
-	var out strings.Builder
-	if err := ShelfRail(shelf, 24, "Notes", "另外 %d 篇 →").Render(t.Context(), &out); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	got := out.String()
+	sb := Sidebar{Mode: SidebarFolder, hereDir: "Notes", CurrentPath: "Notes/a.md", here: []nav.NoteRef{{Name: "a", RelPath: "Notes/a.md"}, {Name: "b", RelPath: "Notes/b.md"}}}
+	got := renderedHTML(t, folderRail(sb, layouts.Chrome{Lang: wording.ZhHant}))
 	if strings.Contains(got, "y-here__more") {
 		t.Errorf("a rail showing every row offered the rest of them:\n%s", got)
 	}
-	if !strings.Contains(got, `<a class="ui-navitem is-active" href="/a" aria-current="page"><span>a</span></a>`) {
+	if !strings.Contains(got, `<a class="ui-navitem is-active" href="/notes/Notes/a.md" aria-current="page"><span>a</span></a>`) {
 		t.Errorf("the rail does not mark the row the reader is on:\n%s", got)
 	}
 }
@@ -224,18 +222,12 @@ func TestARailThatFitsSaysItLeftNothing(t *testing.T) {
 func TestARailSaysWhatItCouldNotShow(t *testing.T) {
 	t.Parallel()
 
-	rows := make([]Row, 30)
+	rows := make([]nav.NoteRef, 30)
 	for i := range rows {
-		rows[i] = Row{Text: fmt.Sprintf("row %02d", i), Href: fmt.Sprintf("/notes/Diary/%02d.md", i)}
+		rows[i] = nav.NoteRef{Name: fmt.Sprintf("row %02d", i), RelPath: fmt.Sprintf("Diary/%02d.md", i)}
 	}
-	rows[0].Current = true
-	shelf := Shelf{Title: "Diary", Href: "/folders/Diary", Rows: rows}
-
-	var out strings.Builder
-	if err := ShelfRail(shelf, 24, "Diary", "另外 %d 篇 →").Render(t.Context(), &out); err != nil {
-		t.Fatalf("render: %v", err)
-	}
-	got := out.String()
+	sb := Sidebar{Mode: SidebarFolder, hereDir: "Diary", CurrentPath: rows[0].RelPath, here: rows}
+	got := renderedHTML(t, folderRail(sb, layouts.Chrome{Lang: wording.ZhHant}))
 	if !strings.Contains(got, `data-rail-trimmed="6" data-rail-dir="Diary"`) {
 		t.Errorf("the tail does not carry the count and the folder the filter needs:\n%s", got)
 	}

@@ -2,8 +2,7 @@
 // and nothing else. The name is the strong line and the extent is quiet meta
 // beneath it; a hairline closes the head; the part headings under it are
 // authored titles, so they are set as sentence-case sans text and never as an
-// uppercase, tracked label. Every rail sets them that way, a book's and the
-// library sidebar's alike. The rail carries no previous/next pair: the article
+// uppercase, tracked label. The rail carries no previous/next pair: the article
 // foot is the one place a lesson offers the step onward.
 //
 // Go tests cannot see this: what matters is what the browser resolved the
@@ -20,7 +19,6 @@ const SITES = [
   'the-name-outranks-the-extent',
   'the-name-is-never-clipped',
   'part-headings-are-not-labels',
-  'every-rail-sets-part-heads-in-sans',
 ];
 // One unbroken run, far wider than the rail: only a title allowed to break
 // anywhere holds it, so a rule that stopped wrapping cannot hide behind a name
@@ -96,12 +94,6 @@ const MUTATIONS = {
   'label-face-in-book-rails': {
     target: 'part-headings-are-not-labels',
     apply: appendRule(`#_y-nav-rail:has(.y-railbook) .y-railsummary{${LABEL_FACE}}`),
-  },
-  // The same label face on the rails that are not a book's, which the book
-  // rail's own measurement never reaches.
-  'label-face-in-other-rails': {
-    target: 'every-rail-sets-part-heads-in-sans',
-    apply: appendRule(`#_y-nav-rail:not(:has(.y-railbook)) .y-railsummary{${LABEL_FACE}}`),
   },
 };
 
@@ -207,35 +199,6 @@ try {
       fail('the-name-is-never-clipped', `at ${width}px a ${LONG_NAME.length}-character unbroken course name overflows its box, so it is clipped or pushes the rail`);
     }
     if (!m.documentFits) broken(`at ${width}px the page scrolls sideways`);
-  }
-
-  // The other rails set part headings the same way: the library sidebar that
-  // /health draws is not left on a label face of its own.
-  await page.goto(`${BASE}/health`, { waitUntil: 'domcontentloaded' });
-  await page.evaluate(() => document.fonts.ready);
-  if (proof) {
-    const issue = await proof();
-    if (issue) throw new NotApplied(`NOT-APPLIED book-rail-head: ${MUTATE}: ${issue}`);
-  }
-  const other = await page.evaluate(() => {
-    const el = document.querySelector('#_y-nav-rail .y-railsummary');
-    if (!el) return null;
-    const s = getComputedStyle(el);
-    return {
-      transform: s.textTransform,
-      spacing: s.letterSpacing,
-      face: s.fontFamily,
-      sans: getComputedStyle(document.documentElement).getPropertyValue('--font-sans'),
-      book: document.querySelectorAll('#_y-nav-rail .y-railbook').length,
-    };
-  });
-  if (other === null) broken('/health draws no sidebar part heading to measure');
-  if (other.book !== 0) broken('/health draws a book rail, so it cannot stand for the other rails');
-  if (other.transform !== 'none' || other.spacing !== 'normal' || !isSans(other.face, other.sans)) {
-    fail(
-      'every-rail-sets-part-heads-in-sans',
-      `a sidebar part heading outside a book rail resolves text-transform=${other.transform}, letter-spacing=${other.spacing}, face=${other.face}; every rail sets part headings as sentence-case sans text`,
-    );
   }
 
   // The name is a link, and reaching it from the keyboard has to show a ring.

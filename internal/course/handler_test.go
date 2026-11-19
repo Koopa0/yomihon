@@ -180,9 +180,8 @@ func TestShow(t *testing.T) {
 	}
 	main := syllabusMain(t, body)
 	for _, want := range []string{
-		`class="y-shell2"`,                    // the study-path shell rendered
-		wording.Courses.In(wording.ZhHant),    // the switcher label outside main
-		wording.ThisCourse.In(wording.ZhHant), // the part jump-nav outside main
+		`class="y-shell2"`,            // the study-path shell rendered
+		`data-sidebar-mode="library"`, // the column is the library, not a second contents
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("study-path shell missing %q; body = %q", want, body)

@@ -189,9 +189,11 @@ func columnMotion(css string) map[string]string {
 var columnMotionAllowed = []struct{ sheet, selector, properties, why string }{
 	{"components.css", "html[data-js][data-arrival='kept'] .y-main", "animation",
 		"a returning reader's column is held hidden until the page's module has scrolled to the kept place, and shown on a timer if it never does; TestOnlyAKeptPlaceHoldsTheColumnBack holds its exact form"},
-	{"components.css", ".y-shell:has(> .y-rail-left), .y-shell2:has(> .y-rail-left)", "transition",
+	{"components.css", ".y-shell:has(> .y-rail-left:not([data-drawer-only])), .y-shell2:has(> .y-rail-left:not([data-drawer-only]))", "transition",
 		"the sidebar folding and opening is a press: the grid's first track changes and the column follows it"},
-	{"components.css", "html[data-rail-settling] .y-shell:has(> .y-rail-left), html[data-rail-settling] .y-shell2:has(> .y-rail-left), html[data-rail-settling] .y-railbody, html[data-rail-settling] .y-railhead .y-filter", "transition",
+	{"components.css", ".y-shell:has(> .y-rail-left:not([data-drawer-only])) > .y-main, .y-shell2:has(> .y-rail-left:not([data-drawer-only])) > .y-main", "transition",
+		"the main's start follows the fold in step with the grid, so the reading stays where it was while the column goes"},
+	{"components.css", "html[data-rail-settling] .y-shell:has(> .y-rail-left:not([data-drawer-only])), html[data-rail-settling] .y-shell2:has(> .y-rail-left:not([data-drawer-only])), html[data-rail-settling] .y-shell:has(> .y-rail-left:not([data-drawer-only])) > .y-main, html[data-rail-settling] .y-shell2:has(> .y-rail-left:not([data-drawer-only])) > .y-main, html[data-rail-settling] .y-railbody, html[data-rail-settling] .y-railhead .y-filter", "transition",
 		"the same fold while it settles; the script marks the root for the length of that press only"},
 	{"components.css", ".y-prose :target", "animation",
 		"the wash a jump to a heading leaves on the heading it lands on, in ink; TestTheJumpedToHeadingEchoIsInkNotVermilion holds it"},

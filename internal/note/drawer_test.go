@@ -13,7 +13,7 @@ import (
 // The reading rail carries one map chosen by what is being read: the book
 // inside a study path, the folder on a plain note, or the list of reports on a
 // report — never the whole-vault drawers the desk offers.
-func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
+func TestTheSidebarShowsOneModeForThePageAtHand(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -51,7 +51,7 @@ func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
 			name: "a placed lesson carries the book alone",
 			url:  "/notes/Writing/lessons/golang/Slices.md",
 			want: []string{
-				`data-reading-rail="book"`,
+				`data-sidebar-mode="course"`,
 				`data-book-path="Maps/Go path.md"`,
 			},
 			ban:      []string{`data-sidebar-group=`, `y-lessonsteps`},
@@ -60,44 +60,44 @@ func TestReadingRailShowsOneMapForThePageAtHand(t *testing.T) {
 		{
 			name:     "the closing lesson carries the book alone",
 			url:      "/notes/Writing/lessons/golang/Maps%20lesson.md",
-			want:     []string{`data-reading-rail="book"`},
+			want:     []string{`data-sidebar-mode="course"`},
 			ban:      []string{`y-lessonsteps`},
 			footPrev: "/notes/Writing/lessons/golang/Slices.md",
 		},
 		{
 			name: "a journal entry carries its folder",
 			url:  "/notes/Diary/2026-07-31.md",
-			want: []string{`data-reading-rail="folder"`, `class="y-here"`},
+			want: []string{`data-sidebar-mode="folder"`, `class="y-here"`},
 			ban:  []string{`data-sidebar-group=`},
 		},
 		{
 			name: "a report carries the reports list",
 			url:  "/notes/System/reports/weekly.md",
-			want: []string{`data-reading-rail="reports"`, `data-reading-reports`, `weekly.md`},
+			want: []string{`data-sidebar-mode="folder"`, `weekly.md`},
 			ban:  []string{`data-sidebar-group=`},
 		},
 		{
 			name: "an unplaced note carries its folder",
 			url:  "/notes/Concepts/plain.md",
-			want: []string{`data-reading-rail="folder"`, `class="y-here"`},
+			want: []string{`data-sidebar-mode="folder"`, `class="y-here"`},
 			ban:  []string{"上一單元", "下一單元", `data-sidebar-group=`},
 		},
 		{
 			name: "a note some map places still carries its folder",
 			url:  "/notes/Concepts/linked.md",
-			want: []string{`data-reading-rail="folder"`, `class="y-here"`},
+			want: []string{`data-sidebar-mode="folder"`, `class="y-here"`},
 			ban:  []string{`data-sidebar-group=`},
 		},
 		{
-			name: "the map itself carries its folder",
+			name: "the map itself carries the indexes",
 			url:  "/notes/Maps/atlas.md",
-			want: []string{`data-reading-rail="folder"`},
-			ban:  []string{`data-map-tree=`, `data-sidebar-group=`},
+			want: []string{`data-sidebar-mode="index"`, `class="y-here"`},
+			ban:  []string{`data-sidebar-group=`},
 		},
 		{
 			name: "the study path note carries the book alone",
 			url:  "/notes/Maps/Go path.md",
-			want: []string{`data-reading-rail="book"`, `data-book-path="Maps/Go path.md"`},
+			want: []string{`data-sidebar-mode="course"`, `data-book-path="Maps/Go path.md"`},
 			ban:  []string{`data-sidebar-group=`},
 		},
 	}

@@ -75,7 +75,7 @@ type Chrome struct {
 	// or "hover". The root carries it, so a stylesheet answering it needs no
 	// script and the first paint is already as the reader left it.
 	SectionButtons            string
-	SingleKeyShortcutsEnabled bool // plain /, [ and ? are enabled
+	SingleKeyShortcutsEnabled bool // plain /, \ and ? are enabled
 	// Lang is the language the interface speaks for this request, and the
 	// language the document declares. The article inside it may declare its
 	// own; that answers what the note is written in, which is a different

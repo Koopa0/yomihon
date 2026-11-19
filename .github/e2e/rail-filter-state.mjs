@@ -1,6 +1,7 @@
 // The parsed rail owns remembered narrowing even if the deferred entry fails.
 // The early case also samples real frames and layout-shift entries; deferred
 // interaction uses the same retained state after explicit module acquisition.
+import { lengthenCourse } from './support/long-course.mjs';
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './support/base.mjs';
@@ -47,6 +48,7 @@ if (MUTATE === 'list') {
 }
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) process.exit(2);
 
+const restoreCourse = await lengthenCourse(BASE, PAGE);
 const browser = await chromium.launch({ channel: 'chrome', headless: true, ignoreDefaultArgs: ['--disable-back-forward-cache'] });
 function inputRows({ defaults = false, reach = [] } = {}) {
   let result = '';
@@ -324,7 +326,8 @@ try {
     control(await page.locator(FILTER).inputValue() === 'C0', 'BFCache restoration resynchronized retained DOM from newer tab-session storage');
     await context.close();
   }
-  for (const path of ['/notes/Notes/alpha.md', '/notes/System/reports/audit%20run.md', '/search']) {
+  // A folder's files and a course are the lists the fixture has long enough to be offered the box.
+  for (const path of ['/notes/Notes/cutover.md', '/notes/Writing/lessons/long-rail/Rail%20lesson%2005.md']) {
     const { page, context } = await open('', { path, remembered: 'missing-token' });
     control(await page.locator(FILTER).inputValue() === 'missing-token' && !(await page.locator('[data-filter-empty]').evaluate((element) => element.hidden)), `${path} entry did not use the same parsed filter owner`);
     await fill(page, '');
@@ -344,7 +347,7 @@ try {
     await page.waitForURL(BASE + NEXT);
     await context.close();
   }
-  for (const path of ['/courses/Maps/branches.md', '/preferences']) {
+  for (const path of ['/', '/preferences']) {
     const { page, context } = await open('', { path, remembered: 'missing-token', blocked: false });
     control(await page.locator(FILTER).count() === 0, `${path} control unexpectedly has a filter`);
     const inert = await page.evaluate(async () => { const { initSidebar } = await import('/static/sidebar.js'); return initSidebar().canFocusFilter(); });
@@ -370,4 +373,8 @@ try {
   }
 } finally {
   await browser.close();
+  await restoreCourse().catch((error) => {
+    console.error(error);
+    process.exitCode ||= 1;
+  });
 }

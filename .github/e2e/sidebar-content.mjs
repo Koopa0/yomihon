@@ -1,7 +1,6 @@
 // Behavior lock: a reading page carries one map — the book inside a study path
 // on alpha, with the current entry marked and study-path warnings kept — and
-// never the whole-vault drawers the desk offers. Vault sidebar order and
-// defaults on /search stay locked in vault-sidebar.mjs.
+// never the drawer groups the sidebar once offered beside it.
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './support/base.mjs';
@@ -11,7 +10,7 @@ const MAP_PAGE = '/notes/Maps/reading.md';
 const STUDY_PAGE = '/courses/Maps/study.md';
 const MUTATE = process.env.MUTATE || '';
 const SITES = [
-  'reading-rail-book',
+  'sidebar-course',
   'book-path-present',
   'current-entry',
   'path-noninstance-warning',
@@ -56,8 +55,8 @@ const replaceEvery = (needle, replacement) => rewriteDocument((body) => body.rep
 
 const MUTATIONS = {
   'drop-book-rail': {
-    target: 'reading-rail-book',
-    apply: replaceEvery('data-reading-rail="book"', 'data-reading-rail="folder"'),
+    target: 'sidebar-course',
+    apply: replaceEvery('data-sidebar-mode="course"', 'data-sidebar-mode="folder"'),
   },
   'drop-book-path': {
     target: 'book-path-present',
@@ -132,8 +131,8 @@ try {
   const sidebar = page.locator('aside.y-rail-left');
   if (await sidebar.count() !== 1) broken('the page has no single sidebar');
 
-  const kind = await sidebar.getAttribute('data-reading-rail');
-  if (kind !== 'book') fail('reading-rail-book', `reading rail kind is ${kind ?? 'absent'}, want book`);
+  const mode = await sidebar.getAttribute('data-sidebar-mode');
+  if (mode !== 'course') fail('sidebar-course', `sidebar mode is ${mode ?? 'absent'}, want course`);
 
   const book = sidebar.locator('[data-book-path="Maps/study.md"]');
   if (await book.count() !== 1) fail('book-path-present', 'the fixture study path did not become the book rail');
@@ -155,7 +154,7 @@ try {
   }
 
   const groups = await sidebar.locator('[data-sidebar-group]').count();
-  if (groups !== 0) fail('vault-drawers-absent', `the reading rail still carries ${groups} vault drawer group(s)`);
+  if (groups !== 0) fail('vault-drawers-absent', `the sidebar still carries ${groups} drawer group(s)`);
 
   await page.setViewportSize({ width: 1270, height: 720 });
   await page.goto(BASE + HOME, { waitUntil: 'domcontentloaded' });

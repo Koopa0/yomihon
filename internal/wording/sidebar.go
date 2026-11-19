@@ -29,7 +29,7 @@ var (
 	// RailKeyHint is appended to the tooltip while single-key shortcuts are on,
 	// and left off while they are not: the tooltip promises the key only when
 	// the key works.
-	RailKeyHint = both("（[）", " ([)")
+	RailKeyHint = both("（\\）", " (\\)")
 )
 
 // VaultRoot is what the rail calls the folder everything else sits under, since
@@ -47,6 +47,9 @@ var (
 // MoreInFolder is the link to the rest of a folder the rail could not show
 // whole. It carries the count, so it is a format rather than a sentence.
 var MoreInFolder = both("另外 %d 篇 →", "%d more →")
+
+// MoreFolders is the link to the folders the library's list had no room for.
+var MoreFolders = both("另外 %d 個資料夾 →", "%d more folders →")
 
 // The rail's section headings.
 var (
