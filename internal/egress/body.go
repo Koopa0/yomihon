@@ -1,10 +1,13 @@
 package egress
 
 import (
-	"path"
-	"regexp"
+	"errors"
 	"slices"
 	"strings"
+
+	"github.com/koopa0/yomihon/internal/graph"
+	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // Masked stands where Body removed a link. One token for every link, whatever it
@@ -13,62 +16,135 @@ import (
 // was an embed or an image.
 const Masked = "⟦withheld⟧"
 
+// ErrWithheldNote is the refusal to give the body of a note the gate does not
+// let out. The note's path is asked of the gate before anything is read from
+// the body, so it comes the same whether or not the note exists.
+var ErrWithheldNote = errors.New("this note lies under ground the rules file withholds from agent-facing output")
+
+// ErrFrontmatter is the refusal for a body that still opens with its note's
+// frontmatter block. A body is the text after that block; the fields it held
+// leave through the gate one by one, and the block is not text to mask.
+var ErrFrontmatter = errors.New("a body is a note's text after its frontmatter block, and this one still has the block")
+
 // Body is body with every link that could reach withheld ground replaced by
-// Masked, and every other byte as it was. A link is anything a page renders as
-// one, or would if the author had not quoted it: a wikilink with its alias and
-// heading or block part, an embed, an inline link with its text, an image, a
-// reference link and its definition, an autolink, and an href or src with the
-// words an anchor shows. The whole link goes, display text included, since a
-// display text can itself spell the name.
+// Masked, and every other byte as it was. A link is what the page's own parser
+// reads as one: an inline link or an image with its text, alt text and title, a
+// reference link, a reference definition wherever the parser found it, an
+// autolink, and a wikilink or an embed with its alias and its heading or block
+// part. The whole node goes, so nothing is left beside the token.
 //
-// What could reach withheld ground is the question Spells asks of a title:
-// names.NameWithin is false for the target, or the target spells a withheld
-// folder. The links are read twice, with the extractor the gate was opened with
-// and as plain text, since each finds what the other does not: the extractor
-// reads the page's links and the plain reader reads the ones a code span, a
-// comment or a backslash keeps the page from rendering, which are still bytes in
-// the output.
+// The links are found by the parser the page renders with, which says where
+// each one begins and ends, and not by a reading of Markdown of this package's
+// own; a link a code span or a code fence quotes is not one to that parser and
+// stays as the text it is. A wikilink is found by the extractor the gate was
+// opened with. Raw HTML is not read for its attributes: an element or a comment
+// whose text spells a withheld folder, in any of the forms Spells knows, goes
+// whole.
 //
-// rel is the path of the note the body is from, which a link to a file means
-// something relative to: ../Notes/A.md is a note in a folder beside this one's,
-// and is read as that note and not as a path that climbs out of the vault.
+// What could reach withheld ground is decided as the page decides where a link
+// goes. A Markdown destination is resolved from the note that wrote it with the
+// function the page resolves with, so it is masked whether or not anything is
+// there; a wikilink's target is asked of names, which are those of the generation the
+// output is read from, as Spells asks.
+//
+// body is the text after the note's frontmatter block, and a body that still
+// opens with one is refused, since a block is not text a mask can be laid over.
+// The refusal for a note the gate does not let out is ErrWithheldNote.
 //
 // places is how many times Masked was written, which the caller says before the
 // body: a note that itself contains the token is told from a masked one by that
 // count, which counting the token in the output could not do.
 //
-// A withheld note named in prose with no link around it is not masked. What
-// this keeps out of the output is a withheld note's content and its address, and
-// the address is what a link writes.
-func (g *Gate) Body(rel, body string, names Names) (masked string, places int) {
+// A withheld note named in prose with no link around it is not masked, nor is a
+// link inside code. What this keeps out of the output is a withheld note's
+// content and its address, and the address is what a link writes.
+func (g *Gate) Body(rel, body string, names Names) (masked string, places int, err error) {
 	readable := g.Readable(names)
-	dir := path.Dir(rel)
-	reaches := func(link plainLink) bool {
-		return slices.ContainsFunc(link.targets, func(target string) bool {
-			if link.path {
-				target = fromNote(dir, target)
-			}
-			return !names.NameWithin(target, readable)
-		}) || slices.ContainsFunc(link.written, func(address string) bool { return spellsWithheldDir(address, g.withheld) })
+	if !readable(rel) {
+		return "", 0, ErrWithheldNote
 	}
-	var spans [][2]int
+	if _, has := vault.SplitFrontmatter([]byte(body)); has {
+		return "", 0, ErrFrontmatter
+	}
+	spans, placed := g.reachingSpans(rel, body, names, readable)
+	if !placed {
+		// A link that cannot be placed cannot be masked in place, and what it
+		// addressed must not be shown.
+		return Masked, 1, nil
+	}
+	masked, places = mask(body, spans)
+	return masked, places, nil
+}
+
+// reachingSpans is where in body a link goes into withheld ground, as byte
+// spans: the wikilinks the gate's extractor finds, and what the page's parser
+// reads as a link, an image, a definition or raw HTML. It is false when a link
+// is reported at a place the body does not have.
+func (g *Gate) reachingSpans(rel, body string, names Names, readable func(string) bool) (spans [][2]int, placed bool) {
+	add := func(start, end int) bool {
+		if start < 0 || end > len(body) || start >= end {
+			return false
+		}
+		spans = append(spans, [2]int{start, end})
+		return true
+	}
+	tails := tailSpellings(g.withheld)
 	for _, link := range g.links(body) {
-		if !reaches(plainLink{targets: []string{link.Target}, written: []string{link.Target}}) {
+		if names.NameWithin(link.Target, readable) && !spellsWithheldDir(link.Target, tails) {
 			continue
 		}
-		if link.Start < 0 || link.End > len(body) || link.Start >= link.End {
-			// A link that cannot be placed cannot be masked in place, and what
-			// it addressed must not be shown.
-			return Masked, 1
-		}
-		spans = append(spans, [2]int{link.Start, link.End})
-	}
-	for _, link := range plainLinks(body) {
-		if reaches(link) {
-			spans = append(spans, [2]int{link.start, link.end})
+		if !add(link.Start, link.End) {
+			return nil, false
 		}
 	}
-	return mask(body, spans)
+	for _, link := range render.SourceLinks(body) {
+		if link.HTML {
+			if !spellsWithheldDir(body[min(max(link.Start, 0), len(body)):min(max(link.End, 0), len(body))], tails) {
+				continue
+			}
+		} else if !g.reaches(rel, link.Destination, readable) {
+			continue
+		}
+		if !add(link.Start, link.End) {
+			return nil, false
+		}
+	}
+	return spans, true
+}
+
+// reaches is whether a destination written in the note rel goes into withheld
+// ground. The page's own resolver says so for a path from the note; a backslash
+// read as a slash, which is how a browser takes one, is asked the same way. A
+// path spelled from the vault's root, with or without a leading slash, is the
+// full path of a folder and is the spelling check's.
+func (g *Gate) reaches(rel, destination string, readable func(string) bool) bool {
+	if spellsWithheldDir(destination, g.withheld) {
+		return true
+	}
+	absent := func(string) bool { return false }
+	for _, spelling := range []struct{ from, address string }{
+		{rel, destination},
+		{rel, strings.ReplaceAll(destination, `\`, "/")},
+	} {
+		if graph.ResolveMarkdown(spelling.from, spelling.address, readable, absent).Withheld {
+			return true
+		}
+	}
+	return false
+}
+
+// tailSpellings is every way an address written from a folder inside the vault
+// can spell a withheld folder: its path from the root and each tail of it, so
+// that Notes/Private is also Private to a note in Notes.
+func tailSpellings(dirs []string) []string {
+	var out []string
+	for _, dir := range dirs {
+		parts := strings.Split(dir, "/")
+		for i := range parts {
+			out = append(out, strings.Join(parts[i:], "/"))
+		}
+	}
+	return out
 }
 
 // mask replaces each span of body with Masked, and says how many it wrote. Spans
@@ -99,27 +175,4 @@ func mask(body string, spans [][2]int) (masked string, places int) {
 	}
 	out.WriteString(body[at:])
 	return out.String(), places
-}
-
-// scheme is the start of an address with a scheme of its own.
-var scheme = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.\-]*:`)
-
-// fromNote is a file destination as a vault path: one that starts at the root,
-// or that climbs, is resolved from the folder dir of the note that wrote it. A
-// destination that climbs out of the vault is left as written, which no path
-// the gate lets out is, and one with a scheme of its own is not a file here.
-func fromNote(dir, target string) string {
-	switch {
-	case scheme.MatchString(target):
-		return target
-	case strings.HasPrefix(target, "/"):
-		return strings.TrimLeft(target, "/")
-	case strings.HasPrefix(target, "./"), strings.HasPrefix(target, "../"), strings.Contains(target, "/../"):
-		joined := path.Join(dir, target)
-		if joined == ".." || strings.HasPrefix(joined, "../") {
-			return target
-		}
-		return joined
-	}
-	return target
 }

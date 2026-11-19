@@ -1,6 +1,7 @@
 package egress_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -25,16 +26,28 @@ func bodyNames() names {
 
 const masked = egress.Masked
 
+// bodyGate is a gate over a folder whose rules file withholds the given
+// folders.
+func bodyGate(t *testing.T, withheld string) *egress.Gate {
+	t.Helper()
+	gate, _ := open(t, rulesFile(t, withheld))
+	return gate
+}
+
 // bodyOf is what Body leaves of text, in the note rel.
-func bodyOf(gate *egress.Gate, rel, text string) string {
-	got, _ := gate.Body(rel, text, bodyNames())
+func bodyOf(t *testing.T, gate *egress.Gate, rel, text string) string {
+	t.Helper()
+	got, _, err := gate.Body(rel, text, bodyNames())
+	if err != nil {
+		t.Fatalf("Body(%q, %q) error = %v", rel, text, err)
+	}
 	return got
 }
 
 func TestBodyReplacesAWithheldLinkWithOneToken(t *testing.T) {
 	t.Parallel()
 
-	gate, _ := open(t, rulesFile(t, `"Private"`))
+	gate := bodyGate(t, `"Private"`)
 	for _, tt := range []struct {
 		name string
 		body string
@@ -55,32 +68,104 @@ func TestBodyReplacesAWithheldLinkWithOneToken(t *testing.T) {
 		{"an inline link in another case", "[x](private/x.md)", masked},
 		{"an inline link with the slash as a character reference", "[x](Private&#47;Unknown.md)", masked},
 		{"an inline link with a zero-width character in the folder", "[x](Priv\u200bate/Unknown.md)", masked},
-		{"an inline link to a note by name", "[x](Secret Plan.md)", "[x](Secret Plan.md)"},
 		{"an image", "![diagram](Private/fig.png)", masked},
 		{"an image inside a readable link", "[![a](Private/fig.png)](Notes/Plain.md)", "[" + masked + "](Notes/Plain.md)"},
 		{"a link whose text holds brackets", "[a [b] c](Private/x.md)", masked},
+		{"a link whose text holds a bracket in code", "[a `]` b](Private/x.md)", masked},
+		{"a link whose text runs over a line", "[multi\nline text](Private/x.md)", masked},
 		{"a reference link and its definition", "[the plan][sp] and more\n\n[sp]: Private/x.md\n", masked + " and more\n\n" + masked + "\n"},
 		{"a collapsed reference", "[sp][] here\n\n[sp]: Private/x.md", masked + " here\n\n" + masked},
 		{"a shortcut reference", "[sp] here\n\n[sp]: Private/x.md", masked + " here\n\n" + masked},
 		{"a reference label in another case", "[SP] here\n\n[sp]: Private/x.md", masked + " here\n\n" + masked},
 		{"an image reference", "![alt][sp]\n\n[sp]: Private/x.png", masked + "\n\n" + masked},
 		{"an autolink", "<file:///vault/Private/x.md> end", masked + " end"},
-		{"an anchor, its words with it", `see <a href="Private/x.md">the plan</a> now`, "see " + masked + " now"},
-		{"an anchor, single-quoted", `<A class=y HREF='Private/x.md'>the plan</A>`, masked},
 		{"an element with a src", `<img src="Private/x.png" alt="Secret Plan">`, masked},
-		{"a link the page would not render, in a code span", "`[[Secret Plan]]`", "`" + masked + "`"},
-		{"a link in a code fence", "```\n[[Secret Plan]]\n```\n", "```\n" + masked + "\n```\n"},
-		{"a link in an Obsidian comment", "%% [[Secret Plan]] %%", "%% " + masked + " %%"},
-		{"a link in an HTML comment", "<!-- [[Secret Plan]] -->", "<!-- " + masked + " -->"},
+		{"an element with a srcset", `<img srcset="Private/pic.png 2x">`, masked},
+		{"an element with a poster", `a <video poster="Private/pic.png"> b`, "a " + masked + " b"},
+		{"an element with a data", `<object data="Private/Secret.md">`, masked},
+		{"an anchor's tag goes and the words it shows stay", `see <a href="Private/x.md">the plan</a> now`, "see " + masked + "the plan</a> now"},
+		{"an html block", "<div>\n<img srcset=\"Private/p.png 2x\">\n</div>\n\nafter", masked + "\n\nafter"},
+		{"an html comment that spells it", "<!-- see Private/x.md -->", masked},
 		{"a link in a table cell", "| a | [[Secret Plan\\|plan]] |\n", "| a | " + masked + " |\n"},
 		{"a link in a heading", "## About [[Secret Plan]]\n", "## About " + masked + "\n"},
 		{"a note the walk left out", "see [[Ignored]]", "see " + masked},
 		{"words around it, in another script", "標題 [[Secret Plan]] 結尾", "標題 " + masked + " 結尾"},
+		{"a destination written with a backslash", `[t](Private\Secret.md)`, masked},
+		{"a destination at the vault's root", "[t](/Private/x.md)", masked},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := bodyOf(gate, "Notes/Citing.md", tt.body); got != tt.want {
+			if got := bodyOf(t, gate, "Notes/Citing.md", tt.body); got != tt.want {
+				t.Errorf("Body(%q) = %q, want %q", tt.body, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestBodyMasksWhatTheReviewFound holds the inputs an adversarial run found the
+// first Body to leave a withheld address or a display text in. Each of them is a
+// link to the parser the page renders with.
+func TestBodyMasksWhatTheReviewFound(t *testing.T) {
+	t.Parallel()
+
+	gate := bodyGate(t, `"Private"`)
+	for _, tt := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{"a definition in a block quote", "> [q][r]\n>\n> [r]: Private/Secret.md", "> " + masked + "\n>\n> " + masked},
+		{"a definition in a list item", "- [q][r]\n\n  [r]: Private/Secret.md", "- " + masked + "\n\n  " + masked},
+		{"a definition with its address on the next line", "[r3]:\n  Private/Secret.md\n\n[r3]", masked + "\n\n" + masked},
+		{"a duplicate definition, the first one wins", "[dup][d]\n\n[d]: Private/Secret.md\n[d]: Notes/Plain.md", masked + "\n\n" + masked + "\n[d]: Notes/Plain.md"},
+		{"a duplicate definition the page ignores", "[dup][d]\n\n[d]: Notes/Plain.md\n[d]: Private/Secret.md", "[dup][d]\n\n[d]: Notes/Plain.md\n" + masked},
+		{"display text over a line", "[multi\nline text](Private/Secret.md)", masked},
+		{"display text holding a closing bracket", "[a `]` b](Private/Secret.md)", masked},
+		{"display text of a reference use", "[a `]` b][r]\n\n[r]: Private/Secret.md", masked + "\n\n" + masked},
+		{"a backslash in the destination", `[t](Private\Secret.md)`, masked},
+		{"an element's srcset", `<img srcset="Private/pic.png 2x">`, masked},
+		{"an element's poster", `<video poster="Private/pic.png"></video>`, masked + "</video>"},
+		{"an element's data", `<object data="Private/Secret.md"></object>`, masked + "</object>"},
+		{"a path that stays in the readable note's folder", "[t](Missing.md)", "[t](Missing.md)"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := bodyOf(t, gate, "Notes/A.md", tt.body); got != tt.want {
+				t.Errorf("Body(%q) = %q, want %q", tt.body, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestBodyReadsAWithheldFolderBelowTheTopLevelFromTheNoteThatWritesTheLink holds
+// that a destination is resolved from the note, so a link to a folder inside the
+// note's own folder is withheld ground even though the folder is spelled with
+// its own name alone, and whether or not anything is there.
+func TestBodyReadsAWithheldFolderBelowTheTopLevelFromTheNoteThatWritesTheLink(t *testing.T) {
+	t.Parallel()
+
+	gate := bodyGate(t, `"Notes/Private"`)
+	for _, tt := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{"an inline link", "[t](Private/Missing.md)", masked},
+		{"an image", "![i](Private/pic.png)", masked},
+		{"an element", `<a href="Private/Missing.md">x</a>`, masked + "x</a>"},
+		{"a reference and its definition", "[t][r]\n\n[r]: Private/Missing.md", masked + "\n\n" + masked},
+		{"a wikilink", "[[Private/Missing]]", masked},
+		{"a note that exists", "[t](Private/Secret.md)", masked},
+		{"a destination written with a backslash", `[t](Private\Missing.md)`, masked},
+		{"a destination at the vault's root", "[t](/Notes/Private/Missing.md)", masked},
+		{"a readable folder of the same name elsewhere", "[t](../Elsewhere/Plain.md)", "[t](../Elsewhere/Plain.md)"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := bodyOf(t, gate, "Notes/A.md", tt.body); got != tt.want {
 				t.Errorf("Body(%q) = %q, want %q", tt.body, got, tt.want)
 			}
 		})
@@ -93,7 +178,7 @@ func TestBodyReplacesAWithheldLinkWithOneToken(t *testing.T) {
 func TestBodyLeavesEveryOtherByteAsItWas(t *testing.T) {
 	t.Parallel()
 
-	gate, _ := open(t, rulesFile(t, `"Private"`))
+	gate := bodyGate(t, `"Private"`)
 	for _, tt := range []struct {
 		name string
 		body string
@@ -113,12 +198,14 @@ func TestBodyLeavesEveryOtherByteAsItWas(t *testing.T) {
 		{"brackets that are not links", "an array [[1, 2], [3, 4]] and [x] and (y)"},
 		{"a checkbox", "- [x] done\n- [ ] not\n"},
 		{"a readable note in a table cell", "| a | [[Plain\\|the note]] |\n"},
+		{"a link in an inline code span", "`[x](Private/Secret.md)`"},
+		{"a link in a code fence", "```\n[x](Private/Secret.md)\n<img src=\"Private/p.png\">\n```\n"},
 		{"empty", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := bodyOf(gate, "Notes/Citing.md", tt.body); got != tt.body {
+			if got := bodyOf(t, gate, "Notes/Citing.md", tt.body); got != tt.body {
 				t.Errorf("Body(%q) = %q, want it unchanged", tt.body, got)
 			}
 		})
@@ -127,12 +214,12 @@ func TestBodyLeavesEveryOtherByteAsItWas(t *testing.T) {
 
 // TestBodyReadsAFileDestinationFromTheNoteThatWroteIt holds that a link to a
 // file is read where the note that wrote it sits: a readable note reached by a
-// path that climbs is still readable, and one that climbs into withheld ground,
-// or out of the vault, is not.
+// path that climbs is still readable, and one that climbs into withheld ground
+// is not.
 func TestBodyReadsAFileDestinationFromTheNoteThatWroteIt(t *testing.T) {
 	t.Parallel()
 
-	gate, _ := open(t, rulesFile(t, `"Private"`))
+	gate := bodyGate(t, `"Private"`)
 	const note = "Notes/Sub/Citing.md"
 	for _, tt := range []struct {
 		name string
@@ -140,7 +227,6 @@ func TestBodyReadsAFileDestinationFromTheNoteThatWroteIt(t *testing.T) {
 		want string
 	}{
 		{"a readable note one folder up", "[x](../Plain.md)", "[x](../Plain.md)"},
-		{"a readable note by a path from the root", "[x](/Notes/Plain.md)", "[x](/Notes/Plain.md)"},
 		{"a readable note two folders up", "[x](../../Notes/Plain.md)", "[x](../../Notes/Plain.md)"},
 		{"a file beside the note", "[x](./Plain.md)", "[x](./Plain.md)"},
 		{"an image one folder up", "![x](../fig.png)", "![x](../fig.png)"},
@@ -148,40 +234,14 @@ func TestBodyReadsAFileDestinationFromTheNoteThatWroteIt(t *testing.T) {
 		{"withheld ground by a path that climbs", "[x](../../Private/Unknown.md)", masked},
 		{"withheld ground by a path from the root", "[x](</Private/Secret Plan.md>)", masked},
 		{"a note the walk left out, by a path that climbs", "[x](../Ignored.md)", masked},
-		{"a path that climbs out of the vault", "[x](../../../Plain.md)", masked},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := bodyOf(gate, note, tt.body); got != tt.want {
+			if got := bodyOf(t, gate, note, tt.body); got != tt.want {
 				t.Errorf("Body(%q, %q) = %q, want %q", note, tt.body, got, tt.want)
 			}
 		})
-	}
-}
-
-// TestBodyReadsEveryLinkOnALineWithTheTextReaderAlone holds that the plain-text
-// reader does not stop at the first link of a line: the extractor reads nothing
-// here, as it does for a link in a code span or a comment, so this is the only
-// reader there is.
-func TestBodyReadsEveryLinkOnALineWithTheTextReaderAlone(t *testing.T) {
-	t.Parallel()
-
-	root := t.TempDir()
-	writeFile(t, root, "System/schemas/vault-schema.toml", rulesFile(t, `"Private"`))
-	gate, err := egress.Open(t.Context(), openFolder(t, root), func(string) []egress.Link { return nil })
-	if err != nil {
-		t.Fatal(err)
-	}
-	for body, want := range map[string]string{
-		"[[Plain]] [[Secret Plan]]":                     "[[Plain]] " + masked,
-		"[[Secret Plan]] [[Plain]] [[Secret Plan]]":     masked + " [[Plain]] " + masked,
-		"[[Plain]] and [x](Private/a.md) and [[Plain]]": "[[Plain]] and " + masked + " and [[Plain]]",
-		"[[ [[Secret Plan]]":                            "[[ " + masked,
-	} {
-		if got := bodyOf(gate, "Notes/Citing.md", body); got != want {
-			t.Errorf("Body(%q) = %q, want %q", body, got, want)
-		}
 	}
 }
 
@@ -190,7 +250,7 @@ func TestBodyReadsEveryLinkOnALineWithTheTextReaderAlone(t *testing.T) {
 func TestBodyCountsWhatItMasked(t *testing.T) {
 	t.Parallel()
 
-	gate, _ := open(t, rulesFile(t, `"Private"`))
+	gate := bodyGate(t, `"Private"`)
 	for _, tt := range []struct {
 		name string
 		body string
@@ -208,31 +268,67 @@ func TestBodyCountsWhatItMasked(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, got := gate.Body("Notes/Citing.md", tt.body, bodyNames()); got != tt.want {
-				t.Errorf("Body(%q) masked %d places, want %d", tt.body, got, tt.want)
+			if _, got, err := gate.Body("Notes/Citing.md", tt.body, bodyNames()); err != nil || got != tt.want {
+				t.Errorf("Body(%q) masked %d places, error %v, want %d", tt.body, got, err, tt.want)
 			}
 		})
 	}
-	if got, places := gate.Body("Notes/Citing.md", "body", names{}); got != "body" || places != 0 {
-		t.Errorf("Body(no links) = %q, %d", got, places)
-	}
 }
 
-// TestBodyOfAFolderThatWithholdsNothingIsTheBody holds that with no rules file
-// there is nothing to take out, whatever the links say.
 func TestBodyOfAFolderThatWithholdsNothingIsTheBody(t *testing.T) {
 	t.Parallel()
 
 	gate, _ := open(t, "")
-	body := "[[Secret Plan]] [x](Private/x.md) ![[Plain]]"
-	if got := bodyOf(gate, "Notes/Citing.md", body); got != body {
-		t.Errorf("Body(%q) = %q, want it unchanged", body, got)
+	const body = "see [[Secret Plan]] and [x](Private/y.md)"
+	if got := bodyOf(t, gate, "Notes/Citing.md", body); got != body {
+		t.Errorf("Body() = %q, want %q: a folder with no rules file withholds nothing", got, body)
 	}
 }
 
-// TestBodyReadsLinksWithTheExtractorTheGateWasOpenedWith holds that the
-// extractor's links are masked where it says they are: a link only it can see,
-// since nothing in the text spells one.
+// TestBodyRefusesANoteTheGateDoesNotLetOut holds that Body decides for itself
+// and does not rely on its caller: the answer is the same for a withheld note
+// that exists and for a withheld path with no note.
+func TestBodyRefusesANoteTheGateDoesNotLetOut(t *testing.T) {
+	t.Parallel()
+
+	gate := bodyGate(t, `"Private"`)
+	for _, rel := range []string{"Private/Secret Plan.md", "Private/Nothing here.md", "Private/Sub/Deep.md"} {
+		got, places, err := gate.Body(rel, "the withheld note's own text", bodyNames())
+		if !errors.Is(err, egress.ErrWithheldNote) || got != "" || places != 0 {
+			t.Errorf("Body(%q) = %q, %d, %v, want a refusal and no text", rel, got, places, err)
+		}
+	}
+	if _, _, err := gate.Body("Notes/Ignored.md", "text", bodyNames()); !errors.Is(err, egress.ErrWithheldNote) {
+		t.Errorf("Body(a note the scan left out) error = %v, want the refusal", err)
+	}
+}
+
+// TestBodyRefusesABodyThatStillHasItsFrontmatter states what Body does with the
+// block: it refuses, and does not strip it. A body is the text after the block,
+// and the fields it held leave through the gate one by one.
+func TestBodyRefusesABodyThatStillHasItsFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	gate := bodyGate(t, `"Private"`)
+	for _, body := range []string{
+		"---\ntitle: x\nbased_on: [[Secret Plan]]\n---\ntext",
+		"---\r\ntitle: x\r\n---\r\ntext",
+		"\xef\xbb\xbf---\ntitle: x\n---\n",
+	} {
+		if got, _, err := gate.Body("Notes/Citing.md", body, bodyNames()); !errors.Is(err, egress.ErrFrontmatter) || got != "" {
+			t.Errorf("Body(%q) = %q, %v, want the refusal", body, got, err)
+		}
+	}
+	for _, body := range []string{"---\nnot closed\ntext", "text\n\n---\n\nmore"} {
+		if _, _, err := gate.Body("Notes/Citing.md", body, bodyNames()); err != nil {
+			t.Errorf("Body(%q) error = %v: a rule, or a fence nothing closes, is text", body, err)
+		}
+	}
+}
+
+// TestBodyReadsLinksWithTheExtractorTheGateWasOpenedWith holds that a wikilink is
+// found by the extractor Open was given, which is what the archlock walk holds
+// every caller to: here it places a link no text spells.
 func TestBodyReadsLinksWithTheExtractorTheGateWasOpenedWith(t *testing.T) {
 	t.Parallel()
 
@@ -244,7 +340,7 @@ func TestBodyReadsLinksWithTheExtractorTheGateWasOpenedWith(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := bodyOf(gate, "Notes/Citing.md", "see HIDDEN shown there"), "see "+masked+" shown there"; got != want {
+	if got, want := bodyOf(t, gate, "Notes/Citing.md", "see HIDDEN shown there"), "see "+masked+" shown there"; got != want {
 		t.Errorf("Body() = %q, want %q: the extractor places a link no text spells", got, want)
 	}
 }
@@ -265,7 +361,7 @@ func TestBodyShowsNothingWhenAWithheldLinkCannotBePlaced(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := bodyOf(gate, "Notes/Citing.md", "body text"); got != masked {
+		if got := bodyOf(t, gate, "Notes/Citing.md", "body text"); got != masked {
 			t.Errorf("Body() with a link at %v = %q, want %q", span, got, masked)
 		}
 	}
@@ -277,22 +373,25 @@ func TestBodyShowsNothingWhenAWithheldLinkCannotBePlaced(t *testing.T) {
 func TestBodyLeavesNoWithheldAddressInAnyLink(t *testing.T) {
 	t.Parallel()
 
-	gate, _ := open(t, rulesFile(t, `"Private"`))
+	gate := bodyGate(t, `"Private"`)
 	body := strings.Join([]string{
 		"[[Secret Plan]] [[Secret Plan|plan-alias]] ![[Secret Plan#Goals|embed-alias]]",
 		"[inline-text](Private/Secret%20Plan.md) ![image-alt](<Private/Secret Plan.md>)",
 		"[reference-text][ref-label] [ref-label2]",
-		"<a href='Private/Secret Plan.md'>anchor-text</a> <img src=Private/Secret.png alt=img-alt>",
+		"<img src=Private/Secret.png alt=img-alt>",
 		"<file:///vault/Private/Secret%20Plan.md>",
-		"`[[Secret Plan|code-alias]]` %% [[Secret Plan|comment-alias]] %%",
 		"",
-		"[ref-label]: Private/Secret Plan.md",
+		"> [quoted-text][quoted-label]",
+		">",
+		"> [quoted-label]: <Private/Secret Plan.md>",
+		"",
+		"[ref-label]: <Private/Secret Plan.md>",
 		"[ref-label2]: <Private/Secret Plan.md> 'ref-title'",
 	}, "\n")
-	got := bodyOf(gate, "Notes/Citing.md", body)
+	got := bodyOf(t, gate, "Notes/Citing.md", body)
 	for _, leaked := range []string{
 		"Secret", "Private", "plan-alias", "embed-alias", "inline-text", "image-alt", "reference-text",
-		"ref-label", "anchor-text", "img-alt", "code-alias", "comment-alias", "ref-title",
+		"ref-label", "img-alt", "quoted-text", "quoted-label", "ref-title",
 	} {
 		if strings.Contains(got, leaked) {
 			t.Errorf("Body() still holds %q:\n%s", leaked, got)
@@ -303,12 +402,12 @@ func TestBodyLeavesNoWithheldAddressInAnyLink(t *testing.T) {
 	}
 }
 
-// TestBodyHoldsUpOnTextThatIsNotWhatItReads keeps the reader from being the
+// TestBodyHoldsUpOnTextThatIsNotWhatItReads keeps the parser from being the
 // thing a large or broken note breaks.
 func TestBodyHoldsUpOnTextThatIsNotWhatItReads(t *testing.T) {
 	t.Parallel()
 
-	gate, _ := open(t, rulesFile(t, `"Private"`))
+	gate := bodyGate(t, `"Private"`)
 	for name, body := range map[string]string{
 		"opening brackets only":    strings.Repeat("[[", 100_000),
 		"closing brackets only":    strings.Repeat("]](", 100_000),
@@ -320,7 +419,7 @@ func TestBodyHoldsUpOnTextThatIsNotWhatItReads(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			_ = bodyOf(gate, "Notes/Citing.md", body)
+			_ = bodyOf(t, gate, "Notes/Citing.md", body)
 		})
 	}
 }
