@@ -472,7 +472,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 		return nil, err
 	}
 
-	contract.domainTable = deriveDomainTable(contract.enumValues(domainField), decoded.Domains)
+	contract.domainTable = deriveDomainTable(contract.enumValues(domainField), decoded.Domains, &tomlMeta)
 	contract.navigationRoles = deriveNavigationRoles(contract.types)
 	contract.knowledgeScope = deriveKnowledgeScope(contract.folders.Checked)
 	contract.journalDir = deriveJournalDir(contract.folders.Journal, tomlMeta.IsDefined("folders", "journal"))

@@ -17,10 +17,10 @@ required = ["type"]
 # Two domains pin one endpaper, so the table pins nothing.
 [domains.golang]
 name = "Go"
-pattern = "endpaper-05"
+endpaper = 5
 
 [domains.japanese]
-pattern = "endpaper-05"
+endpaper = 5
 
 [privacy]
 never_egress_dirs = []

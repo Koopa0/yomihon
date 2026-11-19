@@ -28,7 +28,7 @@ func domainTableFinding() Finding {
 		Severity:        SeverityError,
 		Path:            schema.ContractRelPath,
 		Message:         "the [domains] table in the rules file could not be used, so no domain has the endpaper it asked for",
-		Evidence:        "a table that pins a pattern that is not endpaper-01 to endpaper-12, pins one pattern for two domains, or names a domain that enums.domain does not list pins nothing; every domain then takes the endpaper its place in enums.domain gives it, and the names still apply. The domain is not quoted here, because it is the name of a folder",
+		Evidence:        "a table that pins an endpaper that is not 1 to 12, pins one endpaper for two domains, or names a domain that enums.domain does not list pins nothing; every domain then takes the endpaper its place in enums.domain gives it, and the names still apply. The domain is not quoted here, because it is the name of a folder",
 		SuggestedAction: "correct the [domains] table in the rules file (yomihon serve logs the reason at startup), then judge the vault again",
 		SourceRule:      sourceContractDomains,
 		Fingerprint:     fingerprint(domainTableRule, schema.ContractRelPath, ""),

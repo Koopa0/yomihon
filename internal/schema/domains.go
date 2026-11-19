@@ -3,10 +3,11 @@ package schema
 import (
 	"fmt"
 	"maps"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/BurntSushi/toml"
 )
 
 // Domains is where a vault's notes get their domain: the first folder below a
@@ -63,23 +64,24 @@ func (d Domains) Name(domain, lang string) string {
 	return domain
 }
 
-// Pattern is the endpaper domain is printed on, "endpaper-01" to "endpaper-12",
-// or empty when it has none: a vault with no domains, a domain the rules file does
-// not list, or one beyond the twelve patterns there are. A pattern the table
+// Endpaper is the number, 1 to 12, of the endpaper domain is printed on, or 0
+// when it has none: a vault with no domains, a domain the rules file does not
+// list, or one beyond the twelve endpapers there are. An endpaper the table
 // pinned is used as written, and the rest are given out in the order enums.domain
-// lists the domains, so that no pattern belongs to two.
-func (d Domains) Pattern(domain string) string {
+// lists the domains, so that no endpaper belongs to two.
+func (d Domains) Endpaper(domain string) int {
 	if d.table == nil {
-		return ""
+		return 0
 	}
-	return d.table.patterns[NormalizeWord(domain)]
+	return d.table.endpapers[NormalizeWord(domain)]
 }
 
 // Claim reports how far the [domains] table got. It is unclaimed when the
 // rules file wrote none, held when it was read cleanly, and rejected when the
-// table named a pattern that does not exist, a pattern for two domains, or a
-// domain enums.domain does not list. A rejected table pins no pattern, so every
-// domain takes the one it would have had with no table; the names still apply.
+// table pinned an endpaper that is not 1 to 12, one endpaper for two domains, or
+// named a domain enums.domain does not list. A rejected table pins no endpaper,
+// so every domain takes the one it would have had with no table; the names still
+// apply.
 func (d Domains) Claim() Claim {
 	if d.table == nil {
 		return Claim{}
@@ -87,17 +89,18 @@ func (d Domains) Claim() Claim {
 	return d.table.claim
 }
 
-// patternCount is how many endpapers there are. The design draws twelve and
+// endpaperCount is how many endpapers there are. The design draws twelve and
 // reuses none, so the thirteenth domain has no endpaper.
-const patternCount = 12
+const endpaperCount = 12
 
-var patternName = regexp.MustCompile(`^endpaper-(0[1-9]|1[012])$`)
-
+// domainFile is one [domains.<name>] table. The endpaper is read as it was
+// written, so that a value of the wrong kind is a fault in the table and not a
+// refusal of the whole rules file.
 type domainFile struct {
-	Name    string `toml:"name"`
-	NameZh  string `toml:"name_zh"`
-	NameEn  string `toml:"name_en"`
-	Pattern string `toml:"pattern"`
+	Name     string         `toml:"name"`
+	NameZh   string         `toml:"name_zh"`
+	NameEn   string         `toml:"name_en"`
+	Endpaper toml.Primitive `toml:"endpaper"`
 }
 
 type domainNames struct {
@@ -108,9 +111,9 @@ type domainNames struct {
 // domainTable is what the rules file's [domains] tables came to, keyed by the
 // domain value as enums.domain spells it.
 type domainTable struct {
-	names    map[string]domainNames
-	patterns map[string]string
-	claim    Claim
+	names     map[string]domainNames
+	endpapers map[string]int
+	claim     Claim
 }
 
 // enumValues is the vocabulary a rules file lists for field, in the order it was
@@ -127,24 +130,24 @@ func (c *Contract) enumValues(field string) []string {
 // deriveDomainTable reads the [domains] tables against the domains enums.domain
 // lists, in the order it lists them. A rules file that lists no domain and wrote
 // no table gets nil, which answers every name with its own spelling and every
-// pattern with none. One that lists domains has them patterned in that order
-// whether or not it wrote a table.
+// endpaper with none. One that lists domains has them given endpapers in that
+// order whether or not it wrote a table.
 //
-// A fault does not refuse the rules file: the table only dresses a name and a
-// pattern, and the reader opens everything either way. It is recorded in the
+// A fault does not refuse the rules file: the table only dresses a name and an
+// endpaper, and the reader opens everything either way. It is recorded in the
 // claim, which `check` reports, and the table then pins nothing.
-func deriveDomainTable(order []string, tables map[string]domainFile) *domainTable {
+func deriveDomainTable(order []string, tables map[string]domainFile, meta *toml.MetaData) *domainTable {
 	if len(tables) == 0 && len(order) == 0 {
 		return nil
 	}
-	table := &domainTable{names: map[string]domainNames{}, patterns: assignPatterns(order, nil)}
+	table := &domainTable{names: map[string]domainNames{}, endpapers: assignEndpapers(order, nil)}
 	if len(tables) == 0 {
 		return table
 	}
 
 	var faults []string
-	pinned := map[string]string{}
-	pinnedBy := map[string]string{}
+	pinned := map[string]int{}
+	pinnedBy := map[int]string{}
 	for _, key := range slices.Sorted(maps.Keys(tables)) {
 		file := tables[key]
 		domain := NormalizeWord(key)
@@ -156,7 +159,7 @@ func deriveDomainTable(order []string, tables map[string]domainFile) *domainTabl
 			faults = append(faults, fmt.Sprintf("domains.%s: %q is not listed in enums.domain", key, domain))
 		}
 		table.names[domain] = namesOf(file)
-		if fault := pin(pinned, pinnedBy, key, domain, file.Pattern); fault != "" {
+		if fault := pin(pinned, pinnedBy, meta, key, domain, file.Endpaper); fault != "" {
 			faults = append(faults, fault)
 		}
 	}
@@ -167,7 +170,7 @@ func deriveDomainTable(order []string, tables map[string]domainFile) *domainTabl
 	} else {
 		table.claim = heldClaim()
 	}
-	table.patterns = assignPatterns(order, pinned)
+	table.endpapers = assignEndpapers(order, pinned)
 	return table
 }
 
@@ -184,49 +187,71 @@ func namesOf(file domainFile) domainNames {
 	return names
 }
 
-// pin records the pattern a table asks for, and says what is wrong with it
-// when it cannot be had: not one of the twelve, or already pinned by another
-// table. It says nothing for a table that pins none.
-func pin(pinned, pinnedBy map[string]string, key, domain, pattern string) string {
-	if pattern == "" {
+// pin records the endpaper a table asks for, and says what is wrong with it
+// when it cannot be had: not a whole number from 1 to 12, or already pinned by
+// another table. It says nothing for a table that pins none.
+func pin(pinned map[string]int, pinnedBy map[int]string, meta *toml.MetaData, key, domain string, raw toml.Primitive) string {
+	if !meta.IsDefined("domains", key, "endpaper") {
 		return ""
 	}
-	if !patternName.MatchString(pattern) {
-		return fmt.Sprintf("domains.%s.pattern: %s is not one of endpaper-01 to endpaper-12", key, strconv.Quote(pattern))
+	var value any
+	if err := meta.PrimitiveDecode(raw, &value); err != nil {
+		return fmt.Sprintf("domains.%s.endpaper: that value is not 1 to %d", key, endpaperCount)
 	}
-	if other, taken := pinnedBy[pattern]; taken {
-		return fmt.Sprintf("domains.%s.pattern: %s is also pinned by domains.%s", key, pattern, other)
+	number, whole := value.(int64)
+	if !whole || number < 1 || number > endpaperCount {
+		return fmt.Sprintf("domains.%s.endpaper: %s is not 1 to %d", key, written(value), endpaperCount)
 	}
-	pinnedBy[pattern] = key
-	pinned[domain] = pattern
+	if other, taken := pinnedBy[int(number)]; taken {
+		return fmt.Sprintf("domains.%s.endpaper: %d is also pinned by domains.%s", key, number, other)
+	}
+	pinnedBy[int(number)] = key
+	pinned[domain] = int(number)
 	return ""
 }
 
-// assignPatterns gives each domain its endpaper: the one it pinned, else the one
-// at its own place in the list, the first domain's endpaper-01 and the second's
-// endpaper-02, which is the design's rule. A pin takes a pattern from the domain
-// whose place it is, and that domain, and one placed past the twelfth, then take
-// the lowest pattern still free, in the order they are listed. So pinning one
-// domain moves no other that kept its own place; a domain left with none once
-// the twelve are given out has no entry.
-func assignPatterns(order []string, pinned map[string]string) map[string]string {
-	taken := map[string]bool{}
-	for _, pattern := range pinned {
-		taken[pattern] = true
+// written is a value of the rules file as a fault quotes it: a string with its
+// quotes, a number or a boolean as it reads, and any other kind (a list, a
+// date) by what it is. A table never reaches it: its own keys are unknown ones,
+// which refuse the rules file as they do anywhere else.
+func written(value any) string {
+	switch v := value.(type) {
+	case string:
+		return strconv.Quote(v)
+	case int64, float64, bool:
+		return fmt.Sprint(v)
+	case []any:
+		return "a list"
+	default:
+		return "a date"
 	}
-	patterns := map[string]string{}
+}
+
+// assignEndpapers gives each domain its endpaper: the one it pinned, else the one
+// at its own place in the list, the first domain's 1 and the second's 2, which is
+// the design's rule. A pin takes an endpaper from the domain whose place it is,
+// and that domain, and one placed past the twelfth, then take the lowest endpaper
+// still free, in the order they are listed. So pinning one domain moves no other
+// that kept its own place; a domain left with none once the twelve are given out
+// has no entry.
+func assignEndpapers(order []string, pinned map[string]int) map[string]int {
+	taken := map[int]bool{}
+	for _, endpaper := range pinned {
+		taken[endpaper] = true
+	}
+	endpapers := map[string]int{}
 	var displaced []string
 	for place, domain := range order {
-		if _, listed := patterns[domain]; listed {
+		if _, listed := endpapers[domain]; listed {
 			continue
 		}
-		if pattern, ok := pinned[domain]; ok {
-			patterns[domain] = pattern
+		if endpaper, ok := pinned[domain]; ok {
+			endpapers[domain] = endpaper
 			continue
 		}
-		own := fmt.Sprintf("endpaper-%02d", place+1)
-		if place < patternCount && !taken[own] {
-			patterns[domain] = own
+		own := place + 1
+		if own <= endpaperCount && !taken[own] {
+			endpapers[domain] = own
 			taken[own] = true
 			continue
 		}
@@ -234,13 +259,13 @@ func assignPatterns(order []string, pinned map[string]string) map[string]string 
 	}
 	free := 1
 	for _, domain := range displaced {
-		for ; free <= patternCount && taken[fmt.Sprintf("endpaper-%02d", free)]; free++ {
+		for ; free <= endpaperCount && taken[free]; free++ {
 		}
-		if free > patternCount {
+		if free > endpaperCount {
 			break
 		}
-		patterns[domain] = fmt.Sprintf("endpaper-%02d", free)
-		taken[patterns[domain]] = true
+		endpapers[domain] = free
+		taken[free] = true
 	}
-	return patterns
+	return endpapers
 }

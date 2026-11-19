@@ -25,7 +25,7 @@ func TestAPictureIsAMarkerThatCarriesItsNameAndIsHiddenFromReaders(t *testing.T)
 		{"icon", Icon("bookmark"), `<span class="y-icon" data-icon="bookmark" aria-hidden="true"></span>`},
 		{"icon with a hyphen", Icon("external-link"), `data-icon="external-link"`},
 		{"still", Still("desk-first"), `<div class="y-still" data-still="desk-first" aria-hidden="true"></div>`},
-		{"endpaper", Endpaper("endpaper-12"), `<div class="y-endpaper" data-endpaper="endpaper-12" aria-hidden="true"></div>`},
+		{"endpaper", Endpaper(12), `<div class="y-endpaper" data-endpaper="endpaper-12" aria-hidden="true"></div>`},
 		{"ornament", Ornament(), `<div class="y-ornament" aria-hidden="true"></div>`},
 	} {
 		got, err := renderPicture(t, tc.c)
@@ -55,10 +55,9 @@ func TestAPictureNamedForNothingIsAnErrorNotABlank(t *testing.T) {
 		{"nothing", Icon("")},
 		{"a still that is an endpaper", Still("endpaper-01")},
 		{"a still with its prefix", Still("still-desk-first")},
-		{"an endpaper that is a still", Endpaper("still-desk-first")},
-		{"an endpaper that is the ornament", Endpaper("ornament-end")},
-		{"a thirteenth endpaper", Endpaper("endpaper-13")},
-		{"an endpaper with no number", Endpaper("endpaper-")},
+		{"a thirteenth endpaper", Endpaper(13)},
+		{"an endpaper before the first", Endpaper(0)},
+		{"an endpaper below nothing", Endpaper(-1)},
 	} {
 		got, err := renderPicture(t, tc.c)
 		if err == nil {

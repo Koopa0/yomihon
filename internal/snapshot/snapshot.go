@@ -164,9 +164,6 @@ type Generation struct {
 	// projected through, kept so a surface can name what fills those two
 	// shelves with the same words the projection classified by.
 	navRoles schema.NavigationRoles
-	// domains names and patterns the domains this generation's notes sit in,
-	// kept so a surface that names one uses the words the rules file gave it.
-	domains schema.Domains
 
 	scan     vault.Scan
 	notes    map[string]Reading
@@ -395,17 +392,6 @@ func (g *Generation) PrivacyPolicy() schema.PrivacyPolicy {
 		return schema.PrivacyPolicy{}
 	}
 	return g.privacyPolicy
-}
-
-// Domains returns the domain declaration this generation was built through: how
-// a note's domain is found, what each is called and the endpaper it is printed
-// on. The zero value names no domain, which is the answer for a folder with no
-// rules file.
-func (g *Generation) Domains() schema.Domains {
-	if g == nil {
-		return schema.Domains{}
-	}
-	return g.domains
 }
 
 // NavigationRoles returns the navigation declaration this generation was built
@@ -1137,7 +1123,6 @@ func buildGeneration(
 		notes:          g.readings,
 		schemaFindings: g.findings,
 		domainRoots:    contract.Domains().Roots(),
-		domains:        contract.Domains(),
 		titles:         titles,
 		parsed:         g.parsed,
 		products:       g.products,

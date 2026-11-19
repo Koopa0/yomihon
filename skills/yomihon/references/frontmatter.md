@@ -181,20 +181,21 @@ optional too.
 |---|---|
 | `name` | what the reader calls the domain, in every language. Without it the domain shows its folder's name |
 | `name_zh`, `name_en` | the same for one language, winning over `name` for it |
-| `pattern` | the endpaper the domain's courses are printed on, `endpaper-01` to `endpaper-12` |
+| `endpaper` | the endpaper the domain's courses are printed on, a whole number from 1 to 12 |
 
-A domain that pins no pattern takes the one at its own place in
-`[enums] domain`, so with nothing pinned the first domain has `endpaper-01` and
-the second `endpaper-02`. A pin takes a pattern from the domain whose place it
-is, and that domain takes the lowest pattern no domain has; no other domain
-changes. Only twelve domains have one.
+A domain that pins no endpaper takes the one at its own place in
+`[enums] domain`, so with nothing pinned the first domain has endpaper 1 and the
+second 2. Pin one to keep a domain's endpaper when the list is reordered. A pin
+takes an endpaper from the domain whose place it is, and that domain takes the
+lowest endpaper no domain has; no other domain changes. Only twelve domains have
+one.
 
-A table that pins a pattern that does not exist, pins one pattern for two
-domains, or is written for a domain `[enums] domain` does not list is
-`schema.domain_table`, an error against the rules file; it pins nothing, so every
-domain takes the pattern at its own place in the list, and the names still
-apply. The finding does not name the domain, because a domain is a folder's
-name. A key the table does not define is refused with the rest of the rules file.
+A table that pins an endpaper that is not a whole number from 1 to 12, pins one
+endpaper for two domains, or is written for a domain `[enums] domain` does not
+list is `schema.domain_table`, an error against the rules file; it pins nothing,
+so every domain takes the endpaper at its own place in the list, and the names
+still apply. The finding does not name the domain, because a domain is a folder's
+name. A key the table does not define is refused with the rest of the rules file, and that includes a name for a language the interface does not speak, such as `name_fr`.
 
 ### `[fields]` — which keys may appear at all
 

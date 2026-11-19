@@ -277,7 +277,7 @@ func TestReadFacesNeverWriteTheVault(t *testing.T) {
 	vaultName := shell.VaultName(reader.Name())
 	searchProvider := func() search.RequestSnapshot {
 		snap := store.Current().Capture()
-		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap), Roles: snap.NavigationRoles(), Domains: snap.Domains()}
+		return search.RequestSnapshot{Index: snap.Search(), Shell: shell.Project(vaultName, authority(), snap), Roles: snap.NavigationRoles()}
 	}
 	pathProvider := func() course.RequestSnapshot {
 		snap := store.Current().Capture()

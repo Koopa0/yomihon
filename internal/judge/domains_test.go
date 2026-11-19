@@ -87,7 +87,7 @@ func TestTheDomainsFindingSurvivesEveryScope(t *testing.T) {
 }
 
 // TestADomainsTableThatIsUsableDrawsNoFinding is the control: the same vault
-// with the second pin changed to a pattern of its own, and the same vault with
+// with the second pin changed to an endpaper of its own, and the same vault with
 // no table at all, never carry the finding.
 func TestADomainsTableThatIsUsableDrawsNoFinding(t *testing.T) {
 	t.Parallel()
@@ -101,11 +101,11 @@ func TestADomainsTableThatIsUsableDrawsNoFinding(t *testing.T) {
 		name string
 		edit func(string) string
 	}{
-		{"two different patterns", func(text string) string {
-			return strings.Replace(text, "[domains.japanese]\npattern = \"endpaper-05\"", "[domains.japanese]\npattern = \"endpaper-06\"", 1)
+		{"two different endpapers", func(text string) string {
+			return strings.Replace(text, "[domains.japanese]\nendpaper = 5", "[domains.japanese]\nendpaper = 6", 1)
 		}},
-		{"no pattern pinned", func(text string) string {
-			return strings.ReplaceAll(text, "pattern = \"endpaper-05\"\n", "")
+		{"no endpaper pinned", func(text string) string {
+			return strings.ReplaceAll(text, "endpaper = 5\n", "")
 		}},
 		{"no table", func(text string) string {
 			before, _, _ := strings.Cut(text, "# Two domains")

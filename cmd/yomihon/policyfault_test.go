@@ -110,12 +110,12 @@ func TestStartupSaysWhyADomainsTableCouldNotBeUsed(t *testing.T) {
 	t.Parallel()
 
 	const privacy = "[privacy]\nnever_egress_dirs = [\"Private\"]\n"
-	refused := siteWithPrivacySection(t, "[domains.golang]\npattern = \"endpaper-13\"\n\n"+privacy)
-	if said := refused.said("domains.golang.pattern"); len(said) == 0 {
+	refused := siteWithPrivacySection(t, "[domains.golang]\nendpaper = 13\n\n"+privacy)
+	if said := refused.said("domains.golang.endpaper"); len(said) == 0 {
 		t.Errorf("startup said nothing about a domains table it could not use:\n%v", refused.records)
 	}
 
-	fine := siteWithPrivacySection(t, "[domains.golang]\npattern = \"endpaper-12\"\n\n"+privacy)
+	fine := siteWithPrivacySection(t, "[domains.golang]\nendpaper = 12\n\n"+privacy)
 	if noise := fine.said("domains"); len(noise) != 0 {
 		t.Errorf("a usable domains table was warned about: %v", noise)
 	}
