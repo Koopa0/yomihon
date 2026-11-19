@@ -831,18 +831,7 @@ func TestARequestForAnotherHostNameNeitherReadsTheVaultNorRecordsARead(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The vault was last read long ago, so a record of a read would be written.
-	long := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	data, err := json.Marshal(struct {
-		Version int            `json:"version"`
-		Vaults  []vaults.Entry `json:"vaults"`
-	}{1, []vaults.Entry{{ID: entry.ID, Path: entry.Path, Name: entry.Name, LastRead: long, Port: entry.Port}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(filepath.Join(configDir, "yomihon", "vaults.json"), data, 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
-		t.Fatal(err)
-	}
+	long := readLongAgo(t, configDir, &entry)
 
 	r := startRunning(t, configDir, newVaultFolder(t), start)
 	r.address(t)
@@ -891,16 +880,10 @@ func TestARequestForAnotherHostNameNeitherReadsTheVaultNorRecordsARead(t *testin
 // The record of a read is written before the host ends, and not after: one that
 // came later could land in a configuration directory that is being removed, or be
 // cut off halfway by the process ending.
-func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
-	t.Parallel()
-	configDir := t.TempDir()
-	start := someFreePort(t)
-	folder := newVaultFolder(t)
-	entry, _, err := listOf(t, configDir).Add(folder, start+5)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// The vault was last read long ago, so a record of a read would be written.
+// readLongAgo rewrites the list so that entry was last read long ago, which makes
+// the next read of it one that is recorded, and answers when that was.
+func readLongAgo(t *testing.T, configDir string, entry *vaults.Entry) time.Time {
+	t.Helper()
 	long := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	data, err := json.Marshal(struct {
 		Version int            `json:"version"`
@@ -912,6 +895,19 @@ func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
 	if err = os.WriteFile(filepath.Join(configDir, "yomihon", "vaults.json"), data, 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
 		t.Fatal(err)
 	}
+	return long
+}
+
+func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	start := someFreePort(t)
+	folder := newVaultFolder(t)
+	entry, _, err := listOf(t, configDir).Add(folder, start+5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := readLongAgo(t, configDir, &entry)
 	r := startRunning(t, configDir, newVaultFolder(t), start)
 	r.address(t)
 
@@ -957,11 +953,10 @@ func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
 	}
 }
 
-// A record asked for once the host has begun to end is dropped. The server that
-// closes after its grace does not wait for a request already being handled, so one
-// can still ask after the servers are counted as done; a record begun then could
-// be written after the host ended, or be added to the group that is being waited
-// for.
+// A record asked for once the host has begun to end is dropped. The group the
+// records are counted in is waited for after stopServing, so an Add that came
+// after it began would race the Wait, which -race reports, and Wait could return
+// before the record that Add made is written.
 func TestARecordAskedForAfterTheHostBeganToEndIsDropped(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
@@ -970,17 +965,7 @@ func TestARecordAskedForAfterTheHostBeganToEndIsDropped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	long := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	data, err := json.Marshal(struct {
-		Version int            `json:"version"`
-		Vaults  []vaults.Entry `json:"vaults"`
-	}{1, []vaults.Entry{{ID: entry.ID, Path: entry.Path, Name: entry.Name, LastRead: long, Port: entry.Port}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(filepath.Join(configDir, "yomihon", "vaults.json"), data, 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
-		t.Fatal(err)
-	}
+	long := readLongAgo(t, configDir, &entry)
 
 	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
 	if err = h.stopServing(); err != nil {

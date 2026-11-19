@@ -224,10 +224,11 @@ func (h *host) touch(ctx context.Context, m *mount) {
 		return
 	}
 	// The record outlives the request that asked for it, which may end first, and
-	// not the host: stopServing waits for it, so nothing writes to the list after
-	// the host has ended. A record asked for once the host is ending is dropped,
-	// and the group is added to under the lock stopServing closes under, so that
-	// every record is begun before the wait for them.
+	// not the host: the host waits for it before it ends, so nothing writes to the
+	// list after that. A record asked for once the host is ending is dropped. The
+	// group is added to under the lock stopServing closes under, so every record is
+	// begun before the wait for them: an Add that raced the Wait would be a data
+	// race, and Wait could return before the record it missed is written.
 	ctx = context.WithoutCancel(ctx)
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -316,9 +317,9 @@ func (h *host) ensure(ctx context.Context, entry *vaults.Entry) {
 	}
 }
 
-// stopServing waits for every listener to finish serving, for every read to
-// end, and for every record of a read to be written. Nothing can be mounted or
-// started after it begins.
+// stopServing waits for every listener to finish serving and for every read to
+// end. Nothing can be mounted, started or recorded after it begins; the records
+// already begun are waited for by endRecords.
 func (h *host) stopServing() error {
 	h.mu.Lock()
 	h.closing = true
@@ -331,9 +332,14 @@ func (h *host) stopServing() error {
 	}
 	h.serving.Wait()
 	h.reading.Wait()
-	h.recording.Wait()
 	return result
 }
+
+// endRecords waits for every record of a read that stopServing let begin to be
+// written. A record waits up to the list's lock timeout behind another process,
+// so the wait follows the announcement and the return of a second interrupt to the
+// process, and not the shutdown of the listeners.
+func (h *host) endRecords() { h.recording.Wait() }
 
 // closeSites closes every site. The wait that closing one makes has no
 // deadline, deliberately, so work already accepted is not abandoned.
@@ -367,6 +373,7 @@ func (h *host) await(ctx context.Context, cancel, stop func()) error {
 	result := errors.Join(cause, h.stopServing())
 	h.log.Info("yomihon no longer serving; finishing work already accepted")
 	stop()
+	h.endRecords()
 	result = errors.Join(result, h.closeSites())
 	if result == nil {
 		h.log.Info("yomihon stopped")
@@ -453,7 +460,9 @@ func (h *host) serveListed(ctx context.Context, stop func(), cfg *config, out io
 		if !held {
 			err = errors.Join(err, listener.Close())
 		}
-		return errors.Join(err, h.stopServing(), h.closeSites())
+		err = errors.Join(err, h.stopServing())
+		h.endRecords()
+		return errors.Join(err, h.closeSites())
 	}
 	if !held {
 		// The vault just given is listed on another port, and a listed vault is
