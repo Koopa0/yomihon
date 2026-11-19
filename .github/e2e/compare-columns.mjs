@@ -267,8 +267,18 @@ const boxOf = (locator) => locator.evaluate((element) => {
 
 // A note's outline sits below the comparison heading. All other article
 // bytes still have to match the standalone note, including authored levels.
-const nestedArticle = (article) => article.replace(/<\/?h([1-6])(?=[ >])/g,
-  (tag, level) => tag.slice(0, -1) + Math.min(Number(level) + 1, 6));
+// A column's page names its note and offers the controls that act on the whole
+// note itself, so of the note's own page the column keeps what is left once its
+// folders and its toolbar are set aside: the mark that says it is a draft.
+const DRAFT_MARK = /<span class="y-notewhere__draft"[^>]*><span[^>]*><\/span>[^<]*<\/span>/;
+const nestedArticle = (article) => article
+  .replace(/<p class="y-notewhere"([^>]*)>([\s\S]*?)<\/p>/, (_row, attrs, inner) => {
+    const draft = DRAFT_MARK.exec(inner)?.[0];
+    return draft ? `<p class="y-notewhere"${attrs}>${draft}</p>` : '';
+  })
+  .replace(/<div class="y-notetools"[^>]*>[\s\S]*?<\/div>/, '')
+  .replace(/<\/?h([1-6])(?=[ >])/g,
+    (tag, level) => tag.slice(0, -1) + Math.min(Number(level) + 1, 6));
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {

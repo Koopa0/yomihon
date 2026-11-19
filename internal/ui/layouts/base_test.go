@@ -530,11 +530,9 @@ func TestHeaderCarriesOnlyWhatReadingNeeds(t *testing.T) {
 		want   []string
 	}{
 		{name: "a page with neither", chrome: Chrome{}, want: []string{"y-searchbtn", "y-prefslink"}},
-		{name: "a page with readings", chrome: Chrome{Readings: true}, want: []string{"y-rubybtn", "y-searchbtn", "y-prefslink"}},
 		{name: "a note offering a mark", chrome: Chrome{Mark: mark}, want: []string{"y-searchbtn", "y-headermark", "y-prefslink"}},
-		{name: "a note with both", chrome: Chrome{Readings: true, Mark: mark}, want: []string{"y-rubybtn", "y-searchbtn", "y-headermark", "y-prefslink"}},
 	}
-	controls := []string{"y-rubybtn", "y-searchbtn", "y-headermark", "y-prefslink"}
+	controls := []string{"y-searchbtn", "y-headermark", "y-prefslink"}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

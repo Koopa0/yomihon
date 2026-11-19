@@ -152,23 +152,24 @@ func TestNoteFactsStandAtTheEndAndNothingStandsUnderTheTitle(t *testing.T) {
 	}
 }
 
-// TestNoteWithNoFactsDrawsNoFactsAndADraftIsOneWord is the other side of
+// TestNoteWithNoFactsDrawsNoFactsAndADraftSaysSoInItsHead is the other side of
 // factsShown: a note with none of the facts draws no list for either reader to
-// learn is empty, and a draft flag alone is the one quiet word with no list
-// beneath it.
-func TestNoteWithNoFactsDrawsNoFactsAndADraftIsOneWord(t *testing.T) {
+// learn is empty, and a draft says so where the note says where it is, not among
+// the facts at its end.
+func TestNoteWithNoFactsDrawsNoFactsAndADraftSaysSoInItsHead(t *testing.T) {
 	t.Parallel()
 	bare := renderNoteView(t, &NoteView{Title: "Bare"})
-	for _, kept := range []string{"y-metarow", "y-headmeta", "y-notefacts", "y-facts", `class="y-related"`} {
+	for _, kept := range []string{"y-metarow", "y-headmeta", "y-notefacts", "y-facts", `class="y-related"`, "data-note-draft"} {
 		if strings.Contains(bare, kept) {
 			t.Errorf("a note declaring no fact still drew %q:\n%s", kept, bare)
 		}
 	}
 	draft := renderNoteView(t, &NoteView{Title: "Bare", Draft: true})
-	if !strings.Contains(draft, `<span class="ui-status" lang="zh-Hant" data-note-draft>草稿</span>`) {
-		t.Errorf("a draft with no other fact lost its one word:\n%s", draft)
+	word, title := strings.Index(draft, "data-note-draft"), strings.Index(draft, `<h1 class="y-title">`)
+	if word < 0 || title < word {
+		t.Errorf("a draft's word is at %d and its title at %d, want the word first:\n%s", word, title, draft)
 	}
-	if strings.Contains(draft, "y-notefacts") {
-		t.Errorf("a draft with no other fact drew an empty list:\n%s", draft)
+	if strings.Contains(draft, "y-notefacts") || strings.Contains(draft, "y-facts") {
+		t.Errorf("a draft with no other fact drew a facts block:\n%s", draft)
 	}
 }

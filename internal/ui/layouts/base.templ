@@ -127,8 +127,7 @@ templ Base(c Chrome) {
 }
 
 // header is the shared top chrome, and it carries only what reading needs: the
-// wordmark and the folder's name, the furigana switch on a page that has
-// furigana, the control for keeping a reading place on a note that offers one,
+// wordmark and the folder's name, the control for keeping a reading place on a note that offers one,
 // the ⌘K search entry, the way to the reading choices, and where the left
 // column is a drawer the button that opens it. The theme, the text size, the language and
 // the single-key shortcuts are set on that page, beside the sentence that says
@@ -139,15 +138,7 @@ templ Base(c Chrome) {
 // search entry and the way to the choices hold the same place on every page and
 // only the controls about the note in front of the reader come and go.
 //
-// The furigana switch is drawn only where the page carries furigana. Its
-// setting is one cookie for the whole site, so a reader who switched readings
-// off on one Japanese note finds them off on the next; the settings page holds
-// the same choice and is one press away on every page, so nobody is left
-// without a way to switch them back on.
-//
-// The switch is a plain <button> whose look is CSS-driven from the root
-// data-ruby attribute and its own aria-pressed; preferences.js only flips the
-// attribute and the cookie on click. The search entry is a press that names
+// The search entry is a press that names
 // the palette and leaves the opening to the browser, so it answers on a page
 // running no script at all; the form inside the palette is the same ordinary
 // GET to /search it always was.
@@ -167,19 +158,6 @@ templ header(c Chrome) {
 			}
 		</div>
 		<div class="y-header__spacer"></div>
-		// Both lengths of the label are drawn and the stylesheet shows the one
-		// the row has room for, because which of them fits is a question about
-		// the window and the server answering it would have to guess. No single
-		// rule going missing can leave the control wordless — the worst an
-		// absent rule does is show both lengths at once, which is visibly
-		// wrong, where a control that had lost its words would say nothing at
-		// all and look deliberate.
-		if c.Readings {
-			<button class="y-iconbtn y-rubybtn" type="button" data-ruby-toggle aria-label={ wording.ToggleFurigana.In(c.Lang) } aria-pressed={ strconv.FormatBool(c.Ruby == "on") }>
-				<span class="y-rubybtn__label y-rubybtn__label--long" aria-hidden="true">{ wording.FuriganaLabel.In(c.Lang) }</span>
-				<span class="y-rubybtn__label y-rubybtn__label--short" aria-hidden="true">{ wording.FuriganaLabelShort.In(c.Lang) }</span>
-			</button>
-		}
 		// Native invokers open the palette without script. The script keeps a
 		// listener for engines without invokers; the link works without either.
 		<button class="y-searchbtn" type="button" command="show-modal" commandfor="_y-search-dialog" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>

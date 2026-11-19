@@ -16,7 +16,6 @@ import (
 // projection of the same nav.Map data the shared sidebar uses. All styling is
 // shipped y-* / ui-* classes; no inline style.
 templ Syllabus(v PathView, c layouts.Chrome) {
-	{{ c.Readings = render.CarriesReadings(v.OpeningHTML) }}
 	{{ c.Diagrams = render.CarriesDiagrams(v.OpeningHTML) }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
@@ -24,7 +23,7 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 			@syllabusRail(v, c)
 			<main id="_y-main" tabindex="-1" class="y-main">
 				<div class="y-syl">
-					@syllabusHead(v, c.Lang)
+					@syllabusHead(v, c.Ruby == "on", c.Lang)
 					if len(v.Branches) == 0 {
 						@syllabusNoCourse(v.NoCourse, c.Lang)
 					}
@@ -49,8 +48,11 @@ templ Syllabus(v PathView, c layouts.Chrome) {
 // twice. No path dek (subtitle) is rendered: there is no backing field for it,
 // and no data means no render — the same treatment the reading page gives a
 // note's subtitle.
-templ syllabusHead(v PathView, lang wording.Lang) {
+templ syllabusHead(v PathView, rubyOn bool, lang wording.Lang) {
 	<h1 class="y-title">{ v.Title }</h1>
+	if render.CarriesReadings(v.OpeningHTML) {
+		@readingsTools(rubyOn, lang)
+	}
 	// The author's own words about the course: what a note that opens on its
 	// title keeps under it, or what stands above the first heading of one that
 	// does not. They are printed unchanged. A note with neither has none, and

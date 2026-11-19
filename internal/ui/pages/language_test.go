@@ -78,7 +78,8 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 				`<a class="y-notefacts__door" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
 				`<p class="y-fileinfo__note" lang="` + tt.tag + `" data-note-stale>`,
 				`<nav class="y-steps y-steps--course" lang="` + tt.tag + `" aria-label="Japanese course">`,
-				`<span class="ui-status" lang="` + tt.tag + `" data-note-draft>` + wording.Draft.In(tt.lang) + `</span>`,
+				`<p class="y-notewhere" lang="` + tt.tag + `">`,
+				`data-note-draft>`,
 				`<span class="y-steps__name" lang="ja">L00 はじめに</span>`,
 				`<span class="y-steps__name">L02</span>`,
 			} {
