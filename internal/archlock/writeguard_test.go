@@ -966,8 +966,9 @@ func readWorld(at target) (*world, error) {
 		Dir: root,
 		// What the release is built with and not what the shell that ran the test
 		// has set: GOFLAGS could add files to or take them from the load, and a
-		// workspace could swap a module for another.
-		Env:   append(os.Environ(), "GOOS="+at.goos, "GOARCH="+at.goarch, "CGO_ENABLED=0", "GOFLAGS=", "GOWORK=off"),
+		// workspace could swap a module for another. An empty GOFLAGS gives way to
+		// one go env -w wrote, so the go env file is not read at all.
+		Env:   append(os.Environ(), "GOOS="+at.goos, "GOARCH="+at.goarch, "CGO_ENABLED=0", "GOFLAGS=", "GOWORK=off", "GOENV=off"),
 		Tests: false,
 	}, patterns...)
 	if err != nil {
@@ -1048,9 +1049,11 @@ func linkProblems(p *packages.Package) []string {
 var notGoSources = []string{".s", ".S", ".sx", ".syso", ".c", ".h", ".hh", ".hpp", ".cc", ".cpp", ".cxx", ".m", ".f", ".F", ".for", ".f90", ".swig", ".swigcxx"}
 
 // sourcesBeyondGo lists, under root, the files in a language the guard does not
-// read and the go.mod and go.work files besides the root's, wherever they are:
-// the go command skips a directory whose name begins with a dot or an underscore,
-// but a module that go.mod replaces with a path there is built from it.
+// read, the go.mod and go.work files besides the root's, and a vendor directory,
+// wherever they are: the go command skips a directory whose name begins with a
+// dot or an underscore, but a module that go.mod replaces with a path there is
+// built from it, and a vendored copy is built without being checked against
+// go.sum.
 func sourcesBeyondGo(root string) ([]string, error) {
 	var found []string
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -1058,17 +1061,21 @@ func sourcesBeyondGo(root string) ([]string, error) {
 			return walkErr
 		}
 		name := entry.Name()
-		if entry.IsDir() {
-			if name == ".git" || name == "node_modules" {
-				return fs.SkipDir
-			}
-			return nil
-		}
 		rel, err := filepath.Rel(root, path)
 		if err != nil {
 			return err
 		}
 		rel = filepath.ToSlash(rel)
+		if entry.IsDir() {
+			switch name {
+			case ".git", "node_modules":
+				return fs.SkipDir
+			case "vendor":
+				found = append(found, rel+": a vendored copy of modules, which go builds without checking it against go.sum")
+				return fs.SkipDir
+			}
+			return nil
+		}
 		switch {
 		case slices.Contains(notGoSources, filepath.Ext(name)):
 			found = append(found, rel+": a file in a language this guard does not read")

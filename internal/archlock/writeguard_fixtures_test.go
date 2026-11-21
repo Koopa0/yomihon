@@ -964,7 +964,7 @@ func TestWhatIsNotGoIsFoundWhereverItIs(t *testing.T) {
 	for _, name := range []string{
 		"go.mod", "main.go", "README.md", ".zzw/w.go",
 		"internal/note/zz_asm.s", "internal/note/zz_obj.syso", ".zzw/go.mod", "tools/go.work", "c/helper.h",
-		".git/x.s", "node_modules/y/z.c",
+		".git/x.s", "node_modules/y/z.c", "vendor/modules.txt", "vendor/github.com/natefinch/atomic/atomic.go",
 	} {
 		path := filepath.Join(root, filepath.FromSlash(name))
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
@@ -978,7 +978,7 @@ func TestWhatIsNotGoIsFoundWhereverItIs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{".zzw/go.mod", "c/helper.h", "internal/note/zz_asm.s", "internal/note/zz_obj.syso", "tools/go.work"}
+	want := []string{".zzw/go.mod", "c/helper.h", "internal/note/zz_asm.s", "internal/note/zz_obj.syso", "tools/go.work", "vendor"}
 	var names []string
 	for _, line := range got {
 		name, _, _ := strings.Cut(line, ":")
