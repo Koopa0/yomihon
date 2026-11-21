@@ -138,6 +138,24 @@ var writeFamilies = []string{
 // something yomihon touches except to ask whether it is there.
 var processFamilies = []string{"Kill", "Signal"}
 
+// listenerFamilies are the names a listen config answers to. Through an
+// interface the network it is called with is not judged, and a listener on a
+// unix socket makes a file that stays after it is closed.
+var listenerFamilies = []string{"Listen"}
+
+// listens reports whether a function of net, or a method of its ListenConfig,
+// opens a listener. They are matched by prefix, as the network test matches
+// them, so a listener the standard library adds is refused the day it appears;
+// only the constrainedCalls among them are allowed, and only on a tcp port.
+func listens(key string) bool {
+	name, isNet := strings.CutPrefix(key, "net.")
+	if !isNet {
+		return false
+	}
+	name = strings.TrimPrefix(name, "ListenConfig.")
+	return strings.HasPrefix(name, "Listen") && !strings.Contains(name, ".")
+}
+
 // alsoRefused are the symbols outside those packages that write to disk
 // anyway: they make files of their own, which the packages above would be
 // refused for. None is used, and each is one more way a reader would not look.
@@ -145,7 +163,6 @@ var alsoRefused = []string{
 	"runtime/debug.WriteHeapDump",
 	"net/http.Request.ParseMultipartForm", "net/http.Request.FormFile",
 	"mime/multipart.Reader.ReadForm",
-	"net.ListenUnix", "net.ListenUnixgram", "net.ListenPacket",
 	"runtime/coverage.WriteMetaDir", "runtime/coverage.WriteCountersDir",
 	// A form that is not urlencoded is parsed as a multipart one, and a part
 	// larger than the memory it is given is written to a temporary file. Each
@@ -363,13 +380,18 @@ func refusal(obj types.Object, dependency bool) (string, bool) {
 		// A package of another module calls the methods of its own types, whose
 		// names are its own business; what it reaches the filesystem with is a
 		// symbol of the packages above, which is judged.
-		if !dependency && (hasPrefixIn(sym.viaIfaceFor, writeFamilies) || hasPrefixIn(sym.viaIfaceFor, processFamilies)) {
-			return "a call through an interface to " + sym.viaIfaceFor + ", which a handle that writes answers", true
+		if !dependency && (hasPrefixIn(sym.viaIfaceFor, writeFamilies) || hasPrefixIn(sym.viaIfaceFor, processFamilies) || hasPrefixIn(sym.viaIfaceFor, listenerFamilies)) {
+			return "a call through an interface to " + sym.viaIfaceFor + ", which a handle that writes, signals or listens answers", true
 		}
 		return "", false
 	}
 	if slices.Contains(alsoRefused, sym.key) {
 		return sym.key + ", which makes files of its own", true
+	}
+	if _, isFunc := obj.(*types.Func); isFunc && listens(sym.key) {
+		if _, constrained := constrainedCalls[sym.key]; !constrained {
+			return sym.key + ", a listener other than the tcp one, which can make a socket file that stays after it is closed", true
+		}
 	}
 	if !reachesFilesystem(sym.path) || readOnly[sym.key] || (dependency && dependencyReads[sym.key] != "") {
 		return "", false

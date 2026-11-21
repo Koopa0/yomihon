@@ -619,6 +619,21 @@ func listen() error { _, err := net.Listen("unix", "/vault/x.sock"); return err 
 		want: []string{"net.Listen, which is not called with"},
 	},
 	{
+		name: "a packet listener of a listen config on a unix socket",
+		src: `package fixture
+import ("context"; "net")
+func listen(ctx context.Context) error { _, err := (&net.ListenConfig{}).ListenPacket(ctx, "unixgram", "/x"); return err }`,
+		want: []string{"net.ListenConfig.ListenPacket"},
+	},
+	{
+		name: "a listener reached through an interface a listen config answers",
+		src: `package fixture
+import ("context"; "net")
+type packets interface{ ListenPacket(context.Context, string, string) (net.PacketConn, error) }
+func listen(ctx context.Context, lc *net.ListenConfig) error { _, err := any(lc).(packets).ListenPacket(ctx, "unixgram", "/x"); return err }`,
+		want: []string{"through an interface to ListenPacket"},
+	},
+	{
 		name: "a listener whose network is a variable",
 		src: `package fixture
 import "net"
