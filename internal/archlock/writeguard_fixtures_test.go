@@ -32,6 +32,8 @@ type fixture struct {
 	// parsed is a fixture that cannot be type-checked at all, such as one that
 	// imports C, and is read for its syntax alone.
 	parsed bool
+	// dependency is a fixture that stands for a package of another module.
+	dependency bool
 	// want is a part of what each refusal says, one for each, in any order. Empty
 	// means the guard must say nothing.
 	want []string
@@ -105,15 +107,24 @@ func (f *fixture) read(w *world) (*unit, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &unit{path: path, fset: fset, files: []*ast.File{file}}, nil
+		return &unit{path: path, fset: fset, files: []*ast.File{file}, dependency: f.dependency}, nil
 	}
 	imp := &fixtureImporter{world: w, fset: fset, stubs: f.stubs, made: map[string]*types.Package{}}
 	pkg, files, info, err := imp.check(path, "fixture.go", f.src)
 	if err != nil {
 		return nil, err
 	}
-	return &unit{path: path, fset: fset, files: files, info: info, pkg: pkg}, nil
+	return &unit{path: path, fset: fset, files: files, info: info, pkg: pkg, dependency: f.dependency}, nil
 }
+
+// windowsStub is the part of golang.org/x/sys/windows the fixtures name, which
+// the platform they are checked against does not build.
+const windowsStub = `package windows
+type Handle uintptr
+type Overlapped struct{ Offset, OffsetHigh uint32 }
+const LOCKFILE_EXCLUSIVE_LOCK = 2
+func LockFileEx(file Handle, flags, reserved, low, high uint32, o *Overlapped) error { return nil }
+func UnlockFileEx(file Handle, reserved, low, high uint32, o *Overlapped) error { return nil }`
 
 // refusals is everything the guard says about a fixture read in w.
 func refusals(u *unit, w *world) []site {
@@ -265,6 +276,58 @@ const RENAME_EXCHANGE = 2
 func Renameat2(a int, b string, c int, d string, e uint) error { return nil }`,
 		},
 		want: []string{"golang.org/x/sys/unix.Renameat2", "golang.org/x/sys/unix.RENAME_EXCHANGE"},
+	},
+	// The packages of x/sys are not read inside, as syscall is not, so every use
+	// of one of their names is judged where it is made.
+	{
+		name: "the file lock of x/sys/windows",
+		src: `package fixture
+import "golang.org/x/sys/windows"
+func lock(h windows.Handle) error {
+	return windows.LockFileEx(h, windows.LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, new(windows.Overlapped))
+}`,
+		stubs: map[string]string{"golang.org/x/sys/windows": windowsStub},
+		want:  []string{"golang.org/x/sys/windows.Handle,", "golang.org/x/sys/windows.LockFileEx", "golang.org/x/sys/windows.LOCKFILE_EXCLUSIVE_LOCK", "golang.org/x/sys/windows.Overlapped"},
+	},
+	{
+		name:       "the file lock of x/sys/windows, in a package of another module",
+		as:         "github.com/yuin/goldmark/fixture",
+		dependency: true,
+		src: `package fixture
+import "golang.org/x/sys/windows"
+func unlock(h windows.Handle) error { return windows.UnlockFileEx(h, 0, 1, 0, new(windows.Overlapped)) }`,
+		stubs: map[string]string{"golang.org/x/sys/windows": windowsStub},
+		want:  []string{"golang.org/x/sys/windows.Handle,", "golang.org/x/sys/windows.UnlockFileEx", "golang.org/x/sys/windows.Overlapped"},
+	},
+	{
+		name: "the writer locking a file of a Dir with x/sys/windows",
+		as:   rawWriter,
+		src: `package confdir
+import ("os"; "golang.org/x/sys/windows")
+type Dir struct{ path string }
+type Lock struct {
+	dir  Dir
+	file *os.File
+}
+func Acquire(dir Dir) (*Lock, error) {
+	file, err := os.OpenFile(dir.path, os.O_RDWR|os.O_CREATE, 0o600)
+	if err != nil { return nil, err }
+	return &Lock{dir: dir, file: file}, windows.LockFileEx(windows.Handle(file.Fd()), windows.LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, new(windows.Overlapped))
+}
+func (l *Lock) Release() error { return windows.UnlockFileEx(windows.Handle(l.file.Fd()), 0, 1, 0, new(windows.Overlapped)) }`,
+		stubs: map[string]string{"golang.org/x/sys/windows": windowsStub},
+	},
+	{
+		name: "an exported function of the writer that locks a handle it is given with x/sys/windows",
+		as:   rawWriter,
+		src: `package confdir
+import "golang.org/x/sys/windows"
+type Dir struct{ path string }
+func LockHandle(h windows.Handle) error {
+	return windows.LockFileEx(h, windows.LOCKFILE_EXCLUSIVE_LOCK, 0, 1, 0, new(windows.Overlapped))
+}`,
+		stubs: map[string]string{"golang.org/x/sys/windows": windowsStub},
+		want:  []string{"LockHandle changes a file, or a process, and takes no Dir"},
 	},
 	{
 		name: "a socket that is a file",

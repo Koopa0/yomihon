@@ -46,9 +46,11 @@ import (
 //   - What is linked. The program is more than this module: the modules it
 //     links are read by the same names, may be only those on reviewedModules,
 //     may not be swapped by a replace, and may not hold a file in a language the
-//     guard does not read. What a call may be made with is held for the few
-//     calls whose harm is in an argument: a signal other than 0, and a network
-//     other than tcp.
+//     guard does not read. The packages of golang.org/x/sys are not read:
+//     like syscall, they are the system calls, so what is judged is each use of
+//     one of their names, by this module or another, and not what they do
+//     inside. What a call may be made with is held for the few calls whose harm
+//     is in an argument: a signal other than 0, and a network other than tcp.
 //
 // What this does not read: the one string the configuration directory begins as,
 // which the command takes from the platform and hands to the stores, so a Dir can
@@ -86,8 +88,15 @@ func reachesFilesystem(path string) bool {
 	case "os", "os/exec", "io/ioutil", "syscall", "plugin":
 		return true
 	}
-	return strings.HasPrefix(path, "golang.org/x/sys/")
+	return strings.HasPrefix(path, systemCalls+"/")
 }
+
+// systemCalls is the module that holds the system calls syscall no longer adds,
+// such as LockFileEx. Its packages are read the way syscall is: every name of
+// theirs is held to readOnly where it is used, and their own code, which is
+// those calls and the tables they are made from, is not read for names, any
+// more than the standard library's is.
+const systemCalls = "golang.org/x/sys"
 
 // readOnly is every symbol of those packages that code outside rawWriter may
 // name, each with what it is for. A symbol that is not here is refused, so
@@ -1111,9 +1120,14 @@ func replacesIn(goMod string) []string {
 	return found
 }
 
+// dependencyUnits are the linked packages of other modules, to be read for the
+// same names as this module's, except those of systemCalls.
 func (w *world) dependencyUnits() []*unit {
 	var units []*unit
 	for _, p := range w.dependencies {
+		if p.Module.Path == systemCalls {
+			continue
+		}
 		units = append(units, &unit{path: p.PkgPath, fset: p.Fset, files: p.Syntax, info: p.TypesInfo, pkg: p.Types, root: w.root, dependency: true})
 	}
 	return units
