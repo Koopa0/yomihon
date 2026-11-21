@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/mark/approval"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
 var approvedAt = time.Date(2026, 11, 12, 9, 0, 0, 0, time.UTC)
@@ -220,11 +222,14 @@ func lowerHex(sum [sha256.Size]byte) string { return hex.EncodeToString(sum[:]) 
 func upperHex(sum [sha256.Size]byte) string { return strings.ToUpper(hex.EncodeToString(sum[:])) }
 
 // Two stores on one directory are the command line and the running server, and
-// neither may write the other's approvals away.
+// neither may write the other's approvals away. A writer refused with ErrLocked
+// approves again, as the owner would run the command again; an approval that
+// answered nil is in the file.
 func TestTwoStoresOnOneDirectoryKeepEveryApproval(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	const each = 60
+	kept := make([][]string, 2)
 	var writers sync.WaitGroup
 	for w := range 2 {
 		store, err := approval.Open(config, "/vaults/notes")
@@ -233,10 +238,16 @@ func TestTwoStoresOnOneDirectoryKeepEveryApproval(t *testing.T) {
 		}
 		writers.Go(func() {
 			for i := range each {
-				if err := store.Approve(fmt.Sprintf("Figures/w%d-%d.html", w, i), sha256.Sum256([]byte("x")), approvedAt); err != nil {
+				figure := fmt.Sprintf("Figures/w%d-%d.html", w, i)
+				err := store.Approve(figure, sha256.Sum256([]byte("x")), approvedAt)
+				for errors.Is(err, confdir.ErrLocked) {
+					err = store.Approve(figure, sha256.Sum256([]byte("x")), approvedAt)
+				}
+				if err != nil {
 					t.Errorf("writer %d approve %d: %v", w, i, err)
 					return
 				}
+				kept[w] = append(kept[w], figure)
 			}
 		})
 	}
@@ -245,8 +256,22 @@ func TestTwoStoresOnOneDirectoryKeepEveryApproval(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if held, err := store.List(); err != nil || len(held) != 2*each {
-		t.Fatalf("two stores kept %d approvals, %v; want %d", len(held), err, 2*each)
+	held, err := store.List()
+	if err != nil {
+		t.Fatal(err)
+	}
+	approved := map[string]bool{}
+	for _, one := range held {
+		approved[one.RelPath] = true
+	}
+	for _, figure := range slices.Concat(kept...) {
+		if !approved[figure] {
+			t.Errorf("%s was answered approved and is not in the file", figure)
+			break
+		}
+	}
+	if len(held) != 2*each {
+		t.Errorf("two stores kept %d approvals; want %d", len(held), 2*each)
 	}
 }
 

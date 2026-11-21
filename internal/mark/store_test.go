@@ -19,6 +19,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
 // withoutIDs compares marks by what they say: an id is made when a mark is kept
@@ -370,31 +371,70 @@ func TestAskingToTakeAwayWhatIsNotThereLeavesNoDirectory(t *testing.T) {
 	}
 }
 
+// pressedAgain makes a write the way a reader does while another process holds
+// the lock: a refusal with ErrLocked is one the reader is shown, and they press
+// the control again. Any other answer is the write's own.
+func pressedAgain(write func() error) error {
+	for {
+		if err := write(); !errors.Is(err, confdir.ErrLocked) {
+			return err
+		}
+	}
+}
+
+// missing is what of kept, the writes that answered nil, list does not hold.
+func missing(kept [][]string, list []string) []string {
+	held := map[string]bool{}
+	for _, one := range list {
+		held[one] = true
+	}
+	var absent []string
+	for _, one := range slices.Concat(kept...) {
+		if !held[one] {
+			absent = append(absent, one)
+		}
+	}
+	return absent
+}
+
 // TestTwoStoresOnOneDirectoryKeepEveryMark is the command line and the running
 // server: two values over the same files, each with a lock of its own, whose
-// changes must not write one another away.
+// changes must not write one another away. A write that answered nil is in the
+// file; how long the other store kept the lock is not what this holds.
 func TestTwoStoresOnOneDirectoryKeepEveryMark(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	const each = 100
+	kept := make([][]string, 2)
 	var writers sync.WaitGroup
 	for w := range 2 {
 		store := newStoreFor(t, config, "/vaults/notes")
 		writers.Go(func() {
 			for i := range each {
-				kept := aQuestion()
-				kept.Anchor = fmt.Sprintf("w%d-%d", w, i)
-				if _, err := store.Add(kept); err != nil {
+				question := aQuestion()
+				question.Anchor = fmt.Sprintf("w%d-%d", w, i)
+				if err := pressedAgain(func() error { _, err := store.Add(question); return err }); err != nil {
 					t.Errorf("writer %d add %d: %v", w, i, err)
 					return
 				}
+				kept[w] = append(kept[w], question.Anchor)
 			}
 		})
 	}
 	writers.Wait()
 	held, err := newStoreFor(t, config, "/vaults/notes").List()
-	if err != nil || len(held) != 2*each {
-		t.Fatalf("two stores kept %d marks, %v; want %d", len(held), err, 2*each)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var anchors []string
+	for _, m := range held {
+		anchors = append(anchors, m.Anchor)
+	}
+	if absent := missing(kept, anchors); len(absent) > 0 {
+		t.Errorf("%d marks answered kept are not in the file, first %s", len(absent), absent[0])
+	}
+	if len(held) != 2*each {
+		t.Errorf("two stores kept %d marks; want %d", len(held), 2*each)
 	}
 }
 
@@ -404,22 +444,66 @@ func TestTwoStoresOnOneDirectoryKeepEveryFinishedNote(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	const each = 100
+	kept := make([][]string, 2)
 	var writers sync.WaitGroup
 	for w := range 2 {
 		store := newStoreFor(t, config, "/vaults/notes")
 		writers.Go(func() {
 			for i := range each {
-				if err := store.SetFinished(fmt.Sprintf("Notes/w%d-%d.md", w, i), true); err != nil {
+				note := fmt.Sprintf("Notes/w%d-%d.md", w, i)
+				if err := pressedAgain(func() error { return store.SetFinished(note, true) }); err != nil {
 					t.Errorf("writer %d finish %d: %v", w, i, err)
 					return
 				}
+				kept[w] = append(kept[w], note)
 			}
 		})
 	}
 	writers.Wait()
 	finished, err := newStoreFor(t, config, "/vaults/notes").FinishedNotes()
-	if err != nil || len(finished) != 2*each {
-		t.Fatalf("two stores kept %d finished notes, %v; want %d", len(finished), err, 2*each)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var notes []string
+	for _, f := range finished {
+		notes = append(notes, f.RelPath)
+	}
+	if absent := missing(kept, notes); len(absent) > 0 {
+		t.Errorf("%d notes answered finished are not in the file, first %s", len(absent), absent[0])
+	}
+	if len(finished) != 2*each {
+		t.Errorf("two stores kept %d finished notes; want %d", len(finished), 2*each)
+	}
+}
+
+// TestAChangeThatCannotTakeTheLockIsRefusedAndChangesNothing is the other half
+// of pressedAgain: another process holds the lock past the wait, and the change
+// answers ErrLocked, which the reader is shown, and leaves the file as it was.
+func TestAChangeThatCannotTakeTheLockIsRefusedAndChangesNothing(t *testing.T) {
+	t.Parallel()
+	config := t.TempDir()
+	store := newStoreFor(t, config, "/vaults/notes")
+	if _, err := store.Add(aQuestion()); err != nil {
+		t.Fatal(err)
+	}
+	before := directoryBytes(t, store.Dir())
+	dir, err := confdir.VaultDir(config, "/vaults/notes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	held, err := confdir.Acquire(dir, "marks.lock", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = held.Release() }) //nolint:errcheck // the temporary directory goes with it
+
+	another := aQuestion()
+	another.Anchor = "another"
+	if _, err := store.Add(another); !errors.Is(err, confdir.ErrLocked) {
+		t.Fatalf("Add while another process holds the lock past the wait = %v, want ErrLocked", err)
+	}
+	if diff := cmp.Diff(before, directoryBytes(t, store.Dir())); diff != "" {
+		t.Errorf("a refused change changed a file (-before +after):\n%s", diff)
 	}
 }
 
