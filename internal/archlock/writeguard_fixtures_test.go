@@ -518,6 +518,17 @@ var Save = os.WriteFile`,
 		want: []string{"Save is a variable that holds a function"},
 	},
 	{
+		name: "an exported function handed a Dir that hands back a function that writes",
+		as:   rawWriter,
+		src: `package confdir
+import "os"
+type Dir struct{ path string }
+type Hooks struct{ Wipe func(string) error }
+func Remover(d Dir) func(string) error { return func(path string) error { return os.Remove(path) } }
+func (d Dir) Hooks() Hooks { return Hooks{Wipe: os.Remove} }`,
+		want: []string{"Remover returns a function", "Dir.Hooks returns a function"},
+	},
+	{
 		name: "a function that writes, held in a variable an exported function calls",
 		as:   rawWriter,
 		src: `package confdir

@@ -646,7 +646,8 @@ var dirMakers = []string{"Home", "VaultDir"}
 // set or hand out, and that no variable of the package hands out either. A Dir
 // that a string converts to, that has a field to set, or that a method could
 // re-aim would leave the compiler saying nothing about where a write goes. So
-// does a function held in a variable, whose calls shape cannot follow.
+// does a function held in a variable or handed back by an exported one, whose
+// calls shape cannot follow.
 func dirIsOpaque(u *unit) []site {
 	if u.path != rawWriter {
 		return nil
@@ -677,19 +678,23 @@ func dirIsOpaque(u *unit) []site {
 	// holds, its exported fields, and what a function takes or returns.
 	reached := holding{is: isType(object), field: (*types.Var).Exported, throughFuncs: true}
 	function := holding{is: func(t types.Type) bool { _, isSig := t.(*types.Signature); return isSig }, field: func(*types.Var) bool { return true }}
-	returnsDir := func(sig *types.Signature) bool {
+	returns := func(sig *types.Signature, what holding) bool {
 		for result := range sig.Results().Variables() {
-			if reached.in(result.Type()) {
+			if what.in(result.Type()) {
 				return true
 			}
 		}
 		return false
 	}
+	const handsOut = " returns a function, or something that holds one: what calling it changes is not something shape can follow"
 	for _, name := range u.pkg.Scope().Names() {
 		switch member := u.pkg.Scope().Lookup(name).(type) {
 		case *types.Func:
-			if member.Exported() && returnsDir(member.Signature()) && !slices.Contains(dirMakers, member.Name()) {
+			if member.Exported() && returns(member.Signature(), reached) && !slices.Contains(dirMakers, member.Name()) {
 				found = append(found, at(member.Pos(), member.Name()+" returns a Dir, or something that holds one, and is not one of "+strings.Join(dirMakers, " and ")+", which are the only ways to make one"))
+			}
+			if member.Exported() && returns(member.Signature(), function) {
+				found = append(found, at(member.Pos(), member.Name()+handsOut))
 			}
 		case *types.Var:
 			if member.Exported() && reached.in(member.Type()) {
@@ -711,8 +716,11 @@ func dirIsOpaque(u *unit) []site {
 				}
 			}
 			for method := range typed.Methods() {
-				if method.Exported() && returnsDir(method.Signature()) {
+				if method.Exported() && returns(method.Signature(), reached) {
 					found = append(found, at(method.Pos(), typed.Obj().Name()+"."+method.Name()+" returns a Dir, which would put one somewhere else in the configuration directory or outside it"))
+				}
+				if method.Exported() && returns(method.Signature(), function) {
+					found = append(found, at(method.Pos(), typed.Obj().Name()+"."+method.Name()+handsOut))
 				}
 			}
 		}
