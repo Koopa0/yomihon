@@ -506,7 +506,7 @@ func (h *host) unlistIfNew(err error, entry *vaults.Entry, added bool) error {
 	if !ok || !added {
 		return err
 	}
-	if rmErr := takeOutOfList(h.store, entry.ID); rmErr != nil {
+	if _, rmErr := h.store.Remove(entry.ID); rmErr != nil {
 		h.log.Warn("could not take the folder out of the list again", "folder", entry.Path, "error", rmErr)
 		return err
 	}
