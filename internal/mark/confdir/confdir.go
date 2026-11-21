@@ -8,10 +8,11 @@
 // here means the promise that yomihon writes only under the configuration
 // directory rests on one function rather than on every package that has a file.
 //
-// What it works on is a Dir, which only Home and VaultDir make, and only from
-// the configuration directory. A function that changes a file takes one and
-// never a path, so a package that holds no Dir cannot point it into a vault, and
-// no package outside internal/mark has a way to make one.
+// What it works on is a Dir, which only Home and VaultDir make. A function that
+// changes a file takes one and never a path, so every write lands in a directory
+// one of the two named. Which directory that is comes from the string they are
+// handed: any package may call them, and that the string is the configuration
+// directory rests on the command that resolves it, not on this package.
 package confdir
 
 import (
@@ -50,9 +51,11 @@ const nameLength = 32
 
 // Dir is a directory of yomihon's own under the configuration directory: the
 // reader's home, or one vault's directory inside it. Home and VaultDir are the
-// only ways to have one, and there is no exported way to make one from a path,
-// so the compiler is what keeps every change to a file inside the configuration
-// directory. The zero Dir names nothing and is refused by everything here.
+// only ways to have one, and nothing outside this package can fill one in or
+// change where it points, so the compiler keeps every change to a file inside a
+// directory one of them named. It does not keep that directory under the
+// configuration directory: they build it from the string they are handed. The
+// zero Dir names nothing and is refused by everything here.
 type Dir struct{ path string }
 
 // Path is where the directory is, for a message that tells the reader which

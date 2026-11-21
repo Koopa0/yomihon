@@ -38,11 +38,11 @@ import (
 //     than the day somebody remembers a list. Nor may code import a package of
 //     the standard library that starts a program for it, as net/http/cgi does.
 //   - What it may be pointed at. The package that writes, internal/mark/confdir,
-//     works on a Dir, which only confdir makes and only from the configuration
-//     directory, and takes a Dir for everything that changes a file. A caller that
-//     holds none cannot aim a write at a vault, and the compiler is what says so.
-//     shape and dirIsOpaque hold the package to it: a function that changes a
-//     file takes a Dir, and the Dir stays a type only Home and VaultDir make.
+//     works on a Dir, which only its Home and VaultDir make, and takes a Dir for
+//     everything that changes a file, so a write goes where one of the two
+//     pointed it. shape and dirIsOpaque hold the package to that: a function or
+//     method that changes a file is handed a Dir, and nothing but Home and
+//     VaultDir makes a Dir, sets what one holds or hands one out.
 //   - What is linked. The program is more than this module: the modules it
 //     links are read by the same names, may be only those on reviewedModules,
 //     may not be swapped by a replace, and may not hold a file in a language the
@@ -52,9 +52,11 @@ import (
 //
 // What this does not read: the one string the configuration directory begins as,
 // which the command takes from the platform and hands to the stores, so a Dir can
-// still be aimed at a vault by the string it is made from; what a reviewed
-// module does with a path it is handed; and a write through a descriptor that
-// was open already, such as standard input on a terminal opened read-write.
+// still be aimed at a vault by the string it is made from; whether a function of
+// confdir that is handed a Dir writes inside it, which confdir's own name checks
+// and tests answer; what a reviewed module does with a path it is handed; and a
+// write through a descriptor that was open already, such as standard input on a
+// terminal opened read-write.
 // Reflection is not read either, so reflect and the template packages are
 // forbidden imports, and so are C, unsafe and go:linkname.
 
