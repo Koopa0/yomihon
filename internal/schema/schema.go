@@ -26,7 +26,7 @@ import (
 const (
 	// ContractRelPath is where the contract lives inside the vault.
 	ContractRelPath  = "System/schemas/vault-schema.toml"
-	supportedVersion = "2"
+	supportedVersion = "1"
 
 	// conceptType is the note type name yomihon reserves for distilled ideas,
 	// spelled once so no face keeps a second copy. It is a name, not a role: a

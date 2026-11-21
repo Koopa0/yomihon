@@ -20,7 +20,7 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-const openThoughtContract = `schema_version = "2"
+const openThoughtContract = `schema_version = "1"
 [folders]
 checked = ["Inside"]
 templates = []

@@ -58,25 +58,25 @@ func TestFolderNoticesSaysWhatDiffersAndWhichLineToChange(t *testing.T) {
 	}{
 		{
 			name:  "a line to change, in English",
-			rules: schema.VersionError{Declared: "1", Line: 3, Supported: "2"},
+			rules: schema.VersionError{Declared: "2", Line: 3, Supported: "1"},
 			lang:  wording.En,
-			want:  []string{`schema_version = "1"`, `reads "2"`, "line 3", `schema_version = "2"`},
+			want:  []string{`schema_version = "2"`, `reads "1"`, "line 3", `schema_version = "1"`},
 		},
 		{
 			name:  "a line to change, in Chinese",
-			rules: schema.VersionError{Declared: "1", Line: 3, Supported: "2"},
+			rules: schema.VersionError{Declared: "2", Line: 3, Supported: "1"},
 			lang:  wording.ZhHant,
-			want:  []string{`schema_version = "1"`, `讀 "2"`, "第 3 行", `schema_version = "2"`},
+			want:  []string{`schema_version = "2"`, `讀 "1"`, "第 3 行", `schema_version = "1"`},
 		},
 		{
 			name:  "no version declared",
-			rules: schema.VersionError{Missing: true, Supported: "2"},
+			rules: schema.VersionError{Missing: true, Supported: "1"},
 			lang:  wording.En,
-			want:  []string{"no schema_version", `reads "2"`, `Add the line schema_version = "2"`},
+			want:  []string{"no schema_version", `reads "1"`, `Add the line schema_version = "1"`},
 		},
 		{
 			name:  "a declared value too long to quote whole",
-			rules: schema.VersionError{Declared: strings.Repeat("x", 200), Line: 1, Supported: "2"},
+			rules: schema.VersionError{Declared: strings.Repeat("x", 200), Line: 1, Supported: "1"},
 			lang:  wording.En,
 			want:  []string{strings.Repeat("x", 24) + "…"},
 		},

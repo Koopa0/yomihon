@@ -13,7 +13,7 @@ import (
 // leftoverLockContract is the shared Lock vault for the #238 leftovers that
 // need a loaded contract: one knowledge note type under Notes, no report type,
 // and no field beyond type in any declared list.
-const leftoverLockContract = `schema_version = "2"
+const leftoverLockContract = `schema_version = "1"
 
 [folders]
 checked = ["Notes"]

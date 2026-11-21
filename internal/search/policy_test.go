@@ -42,7 +42,7 @@ func blankArtifactPolicy(tb testing.TB) schema.ArtifactPolicy {
 func artifactPolicyFromSection(tb testing.TB, section string) schema.ArtifactPolicy {
 	tb.Helper()
 	path := filepath.Join(tb.TempDir(), "vault-schema.toml")
-	contract := `schema_version = "2"
+	contract := `schema_version = "1"
 
 ` + section + `
 [types.concept]

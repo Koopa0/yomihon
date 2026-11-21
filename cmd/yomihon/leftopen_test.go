@@ -768,7 +768,7 @@ func TestLeftOpenRefusesARulesFileForAnotherVersion(t *testing.T) {
 		rules string
 		want  string
 	}{
-		{"a version this build does not read", "schema_version = \"1\"\n[privacy]\nnever_egress_dirs = [\"Private\"]\n", `declares schema_version "1"; this yomihon reads "2"`},
+		{"a version this build does not read", "schema_version = \"2\"\n[privacy]\nnever_egress_dirs = [\"Private\"]\n", `declares schema_version "2"; this yomihon reads "1"`},
 		{"no version at all", "[privacy]\nnever_egress_dirs = [\"Private\"]\n", "has no schema_version"},
 		{"a version that is not a plain number", "schema_version = \"SECRET-token\"\n[privacy]\nnever_egress_dirs = [\"Private\"]\n", "declares a schema_version this yomihon does not read"},
 	} {

@@ -16,7 +16,7 @@ It replaced an older approach that inferred types from folders. That note was de
 This excerpt declares where the notes are, two types and the fields a note may write:
 
 ```toml
-schema_version = "2"
+schema_version = "1"
 
 [folders]
 checked = ["Concepts", "Lessons", "Notes"]

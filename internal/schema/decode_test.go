@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const validContract = `schema_version = "2"
+const validContract = `schema_version = "1"
 
 [folders]
 checked = ["Writing"]
@@ -66,26 +66,26 @@ func TestContractVersion(t *testing.T) {
 		want string
 	}{
 		{
-			name: "earlier",
-			from: `schema_version = "2"`,
-			to:   `schema_version = "1"`,
-			want: `unsupported schema_version "1"; supported version is "2"`,
+			name: "next",
+			from: `schema_version = "1"`,
+			to:   `schema_version = "2"`,
+			want: `unsupported schema_version "2"; supported version is "1"`,
 		},
 		{
 			name: "later",
-			from: `schema_version = "2"`,
+			from: `schema_version = "1"`,
 			to:   `schema_version = "3"`,
-			want: `unsupported schema_version "3"; supported version is "2"`,
+			want: `unsupported schema_version "3"; supported version is "1"`,
 		},
 		{
 			name: "empty",
-			from: `schema_version = "2"`,
+			from: `schema_version = "1"`,
 			to:   `schema_version = ""`,
-			want: `unsupported schema_version ""; supported version is "2"`,
+			want: `unsupported schema_version ""; supported version is "1"`,
 		},
 		{
 			name: "missing",
-			from: "schema_version = \"2\"\n",
+			from: "schema_version = \"1\"\n",
 			to:   "",
 			want: `missing required key "schema_version"`,
 		},
@@ -114,11 +114,11 @@ func TestCoreDecodeErrorsCloseContract(t *testing.T) {
 	}{
 		{
 			name: "wrong core type",
-			data: []byte(strings.Replace(validContract, `schema_version = "2"`, `schema_version = 2`, 1)),
+			data: []byte(strings.Replace(validContract, `schema_version = "1"`, `schema_version = 2`, 1)),
 		},
 		{
 			name: "malformed TOML",
-			data: []byte(strings.Replace(validContract, `schema_version = "2"`, `schema_version = ["2"`, 1)),
+			data: []byte(strings.Replace(validContract, `schema_version = "1"`, `schema_version = ["2"`, 1)),
 		},
 		{
 			name: "wrong folders type",
@@ -151,8 +151,8 @@ func TestUnknownCoreKeys(t *testing.T) {
 	}{
 		{
 			name: "top level",
-			from: "schema_version = \"2\"\n",
-			to:   "schema_version = \"2\"\nunknown_zeta = true\nunknown_alpha = true\n",
+			from: "schema_version = \"1\"\n",
+			to:   "schema_version = \"1\"\nunknown_zeta = true\nunknown_alpha = true\n",
 			want: `unknown keys: "unknown_alpha", "unknown_zeta"`,
 		},
 		{
@@ -336,10 +336,10 @@ func FuzzDecodeContractDeterministic(f *testing.F) {
 	seeds := [][]byte{
 		nil,
 		[]byte(validContract),
-		[]byte(`schema_version = "2"`),
 		[]byte(`schema_version = "1"`),
+		[]byte(`schema_version = "2"`),
 		[]byte("not = [valid"),
-		[]byte(strings.Replace(validContract, "schema_version = \"2\"\n", "schema_version = \"2\"\nunknown = true\n", 1)),
+		[]byte(strings.Replace(validContract, "schema_version = \"1\"\n", "schema_version = \"1\"\nunknown = true\n", 1)),
 		[]byte(strings.Replace(validContract, "journal = \"Diary\"\n", "journal = \"Diary\"\nunknown = true\n", 1)),
 		[]byte(strings.Replace(validContract, "role = \"course\"\n", "role = \"course\"\nunknown = true\n", 1)),
 		[]byte(strings.Replace(validContract, "never_egress_dirs = [\"Private\"]\n", "never_egress_dirs = [\"Private\"]\nunknown = true\n", 1)),
@@ -396,7 +396,7 @@ func foldedKeyContract(shape string) string {
 		longS   = "\u017f" // ſ, which the decoder folds to s
 		dottedI = "\u0130" // İ, which the decoder does not fold to i
 	)
-	const versionLine = "schema_version = \"2\"\n"
+	const versionLine = "schema_version = \"1\"\n"
 	switch shape {
 	case "top-level":
 		return strings.Replace(validContract, versionLine, versionLine+"Schema_version = \"2\"\n", 1)

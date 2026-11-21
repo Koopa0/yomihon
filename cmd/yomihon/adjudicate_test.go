@@ -205,7 +205,7 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 			build: func(t *testing.T) string {
 				t.Helper()
 				root := t.TempDir()
-				writeFile(t, root, schema.ContractRelPath, "# rules\nschema_version = \"1\"\n")
+				writeFile(t, root, schema.ContractRelPath, "# rules\nschema_version = \"2\"\n")
 				return root
 			},
 			wantLine: func(string) string {
@@ -213,8 +213,8 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 			},
 			wantSaid: []string{
 				"System/schemas/vault-schema.toml",
-				`declares schema_version "1"; this yomihon reads "2"`,
-				`Change line 2 to schema_version = "2"`,
+				`declares schema_version "2"; this yomihon reads "1"`,
+				`Change line 2 to schema_version = "1"`,
 			},
 		},
 		{

@@ -136,7 +136,7 @@ func TestDeclaredOptionalEnums(t *testing.T) {
 			t.Parallel()
 
 			root := t.TempDir()
-			write(t, root, schema.ContractRelPath, `schema_version = "2"
+			write(t, root, schema.ContractRelPath, `schema_version = "1"
 [folders]
 checked = ["Notes"]
 templates = []
@@ -623,7 +623,7 @@ func describeFindings(findings []Finding) []string {
 // optionalEnumContract declares one word for one optional vocabulary, spelled
 // the way the caller asks, and leaves every other vocabulary open.
 func optionalEnumContract(field, declared string) string {
-	return `schema_version = "2"
+	return `schema_version = "1"
 
 [folders]
 checked = ["Notes"]
@@ -646,7 +646,7 @@ never_egress_dirs = []
 // typeRequiredContract declares a type that requires level, naming the type
 // the way the caller asks, beside a memo that does not.
 func typeRequiredContract(declared string) string {
-	return `schema_version = "2"
+	return `schema_version = "1"
 
 [folders]
 checked = ["Notes"]

@@ -155,7 +155,7 @@ func writeCourseContract(t *testing.T, root string) {
 	writeJudgeNote(t, root, schema.ContractRelPath, courseContract)
 }
 
-const courseContract = `schema_version = "2"
+const courseContract = `schema_version = "1"
 
 [folders]
 checked = ["Concepts", "Maps", "Writing"]

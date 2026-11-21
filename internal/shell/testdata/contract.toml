@@ -1,6 +1,6 @@
 # Loader fixture for the shell projection: one lesson type and a held
 # artifact policy.
-schema_version = "2"
+schema_version = "1"
 
 [folders]
 checked = ["Writing"]

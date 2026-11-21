@@ -149,7 +149,7 @@ clean report:
 probe=$(mktemp -d)
 mkdir -p "$probe/System/schemas"
 cat > "$probe/System/schemas/vault-schema.toml" <<'TOML'
-schema_version = "2"
+schema_version = "1"
 [types.probe]
 role = "course"
 [privacy]
@@ -188,7 +188,7 @@ accident:
 | **blind** | exit 0: it accepted `course.role_missing` as a real rule id and then reported none where one is guaranteed. Trust none of its quiet course reports |
 | **too old** | exit 2, `unknown --deny` on stderr: it has never heard of this rule, which is the plainest answer the probe can give you |
 | **no binary** | exit 127 |
-| **refused** | exit 2 with any other message: it could not read the probe vault and has said nothing about its rules. A binary built before the rules file format `schema_version = "2"` lands here too, because it cannot use that rules file. The message is printed for you |
+| **refused** | exit 2 with any other message: it could not read the probe vault and has said nothing about its rules. A binary built before this rules file format lands here too, because it cannot use that rules file. The message is printed for you |
 
 Keeping stderr is what separates the last three, and it is the difference
 between telling a reader their binary is out of date and sending them to debug

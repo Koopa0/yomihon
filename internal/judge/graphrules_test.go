@@ -10,7 +10,7 @@ import (
 // unlistedContract declares the lesson and course roles and derives each
 // note's domain from the folder under Writing/lessons, so a course and the
 // lessons beside it share a domain without either writing one.
-const unlistedContract = `schema_version = "2"
+const unlistedContract = `schema_version = "1"
 
 [folders]
 checked = ["Maps", "Writing"]

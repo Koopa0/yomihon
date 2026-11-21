@@ -17,8 +17,8 @@ func TestAContractForAnotherVersionNamesWhatItDeclaresAndWhereItIsWritten(t *tes
 	}{
 		{
 			name: "another version, on the second line",
-			data: "# rules\nschema_version = \"1\"\n",
-			want: &VersionError{Declared: "1", Line: 2, Supported: supportedVersion},
+			data: "# rules\nschema_version = \"2\"\n",
+			want: &VersionError{Declared: "2", Line: 2, Supported: supportedVersion},
 		},
 		{
 			name: "written with other spacing",
@@ -54,7 +54,7 @@ func TestAContractForAnotherVersionNamesWhatItDeclaresAndWhereItIsWritten(t *tes
 
 func TestAuthorityRemembersAContractForAnotherVersionWithoutClosingAnything(t *testing.T) {
 	t.Parallel()
-	cause := &VersionError{Declared: "1", Line: 1, Supported: supportedVersion}
+	cause := &VersionError{Declared: "2", Line: 1, Supported: supportedVersion}
 	authority := CaptureAuthority(nil, UnsupportedVersion(cause))
 	if got := authority.VersionMismatch(); got != cause {
 		t.Errorf("VersionMismatch() = %v, want %v", got, cause)

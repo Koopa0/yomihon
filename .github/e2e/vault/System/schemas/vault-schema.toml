@@ -8,7 +8,7 @@
 # mark the layout probes measure beside a name. fields.common carries created
 # so the reports shelf has a vault that dates a note by a declared field,
 # beside one it dates by the filename and one with no day at all.
-schema_version = "2"
+schema_version = "1"
 
 [folders]
 checked = ["Concepts", "Notes", "Maps", "Writing"]

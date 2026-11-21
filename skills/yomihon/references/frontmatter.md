@@ -14,10 +14,10 @@ what it is asking of you.
 `examples/vault/System/schemas/vault-schema.toml` in this repository is a small
 working one, written to be copied and then cut down.
 
-Before any table: the file's first line is `schema_version = "2"`, and it is
-required. A rules file without it is refused whole, and `"2"` is the only value
+Before any table: the file's first line is `schema_version = "1"`, and it is
+required. A rules file without it is refused whole, and `"1"` is the only value
 this yomihon accepts. A rules file written for another format is refused the same
-way, and so is a `yomihon` built before this one when it reads a `"2"` rules file.
+way, and so is a `yomihon` built before this one when it reads a `"1"` rules file.
 `check` says only that it could not use the rules file, except for a missing or
 different `schema_version`, where it names the version it found and the line to
 change. The folder is then read as though it carried no rules file, and `yomihon
@@ -25,7 +25,7 @@ serve` logs the reason:
 
 ```
 level=WARN msg="rules file is for another schema version"
-  error="decode rules file: unsupported schema_version \"1\"; supported version is \"2\""
+  error="decode rules file: unsupported schema_version \"2\"; supported version is \"1\""
 ```
 
 ## The fields yomihon defines

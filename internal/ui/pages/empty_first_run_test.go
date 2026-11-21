@@ -171,7 +171,7 @@ func declaringContract(t *testing.T, pathType string, mapTypes ...string) schema
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
 	var contractText strings.Builder
-	contractText.WriteString(`schema_version = "2"
+	contractText.WriteString(`schema_version = "1"
 
 [folders]
 checked = ["Notes"]

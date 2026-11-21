@@ -271,7 +271,7 @@ func loadSemanticRootContract(t *testing.T) (string, *schema.Contract) {
 // layer and the given lines, followed by the given type tables and privacy
 // section.
 func contractText(folders, types, privacy string) string {
-	return `schema_version = "2"
+	return `schema_version = "1"
 
 [folders]
 checked = ["Writing"]

@@ -11,7 +11,7 @@ import (
 // frontmatterContract is a vault of plain notes with one knowledge directory.
 // The caller substitutes the scan declaration, which is the only thing under
 // test here.
-const frontmatterContract = `schema_version = "2"
+const frontmatterContract = `schema_version = "1"
 
 [folders]
 checked = ["Notes"]
@@ -34,7 +34,7 @@ never_egress_dirs = []
 // inboxContract declares one required field set for every note and one more
 // field a capture must carry, so the two sets cannot be satisfied by the same
 // note.
-const inboxContract = `schema_version = "2"
+const inboxContract = `schema_version = "1"
 
 [folders]
 checked = ["Inbox", "Notes"]

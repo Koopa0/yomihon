@@ -10,7 +10,7 @@ import (
 // atlasContract declares a vault whose maps are called "atlas". A vault is free
 // to name its map types anything its contract lists, so the coverage face has
 // to read the vocabulary from the contract rather than recognise a fixed set.
-const atlasContract = `schema_version = "2"
+const atlasContract = `schema_version = "1"
 
 [folders]
 checked = ["Concepts", "Atlases"]
@@ -37,7 +37,7 @@ never_egress_dirs = []
 // noConceptContract declares a vault with no concept type at all: its notes are
 // called "note" and its maps "atlas". Nothing in it can be a concept, so the
 // concept tally has nothing to be about.
-const noConceptContract = `schema_version = "2"
+const noConceptContract = `schema_version = "1"
 
 [folders]
 checked = ["Notes", "Atlases"]

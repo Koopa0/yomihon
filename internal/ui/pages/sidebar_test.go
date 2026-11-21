@@ -551,7 +551,7 @@ func htmlEscape(s string) string {
 func rejectedCapabilityContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := `schema_version = "2"
+	text := `schema_version = "1"
 
 [folders]
 checked = ["Concepts"]
@@ -587,7 +587,7 @@ concept_requires_provenance = ["based_on"]
 func rejectedJournalDirContract(t *testing.T) *schema.Contract {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := `schema_version = "2"
+	text := `schema_version = "1"
 
 [folders]
 checked = ["Concepts"]

@@ -31,8 +31,8 @@ func TestTheReferenceContractLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFile(testdata/reference.toml) = %v", err)
 	}
-	if got := contract.Version(); got != "2" {
-		t.Errorf("Version() = %q, want %q", got, "2")
+	if got := contract.Version(); got != "1" {
+		t.Errorf("Version() = %q, want %q", got, "1")
 	}
 	want := schema.Definition{
 		Types: []schema.TypeDefinition{
@@ -97,37 +97,24 @@ func TestTheReferenceContractLoads(t *testing.T) {
 	}
 }
 
-// TestTheEarlierContractFormatIsRefusedByVersion holds the version check ahead
-// of everything else the loader would say. A contract written for the earlier
-// format carries tables this one no longer has, and its author is owed the one
-// sentence that names the cause rather than the first table that happens to be
-// unknown.
-func TestTheEarlierContractFormatIsRefusedByVersion(t *testing.T) {
+// TestTheContractShapeBeforeTheFieldRedesignIsNotRead holds that the loader
+// reads one shape. A contract written before the fields were redesigned
+// carries tables this one no longer has, and it is refused, not read in part:
+// the loader keeps no second reading of it.
+func TestTheContractShapeBeforeTheFieldRedesignIsNotRead(t *testing.T) {
 	t.Parallel()
 
-	const want = `unsupported schema_version "1"; supported version is "2"`
-	_, err := schema.LoadFile(filepath.Join("testdata", "reference-earlier-format.toml"))
-	if err == nil {
-		t.Fatal("LoadFile(testdata/reference-earlier-format.toml) error = nil, want the version refusal")
-	}
-	if !strings.HasSuffix(err.Error(), ": "+want) {
-		t.Errorf("LoadFile(testdata/reference-earlier-format.toml) error = %q, want it to end with %q", err, want)
+	if contract, err := schema.LoadFile(filepath.Join("testdata", "reference-earlier-format.toml")); err == nil {
+		t.Errorf("LoadFile(testdata/reference-earlier-format.toml) = %+v, nil, want a refusal", contract.Definition())
 	}
 
 	const lifecycle = "\n[[lifecycle]]\nstatus = \"draft\"\napplies_to = [\"*\"]\nfrom = []\nowner = []\n"
-	earlier := "schema_version = \"1\"\n" + lifecycle
-	if err := loadTextError(t, earlier); err == nil || !strings.HasSuffix(err.Error(), ": "+want) {
-		t.Errorf("LoadFile(earlier version with [[lifecycle]]) error = %v, want it to end with %q", err, want)
-	}
-	// The same table under the supported version is refused for what it is,
-	// so the sentence above is the version's and not the table's.
-	current := "schema_version = \"2\"\n" + lifecycle
-	if err := loadTextError(t, current); err == nil || !strings.Contains(err.Error(), `unknown keys: "lifecycle"`) {
-		t.Errorf("LoadFile(supported version with [[lifecycle]]) error = %v, want the unknown-keys refusal", err)
+	if err := loadTextError(t, "schema_version = \"1\"\n"+lifecycle); err == nil || !strings.Contains(err.Error(), `unknown keys: "lifecycle"`) {
+		t.Errorf("LoadFile(version 1 with [[lifecycle]]) error = %v, want the unknown-keys refusal", err)
 	}
 }
 
-const standingContract = `schema_version = "2"
+const standingContract = `schema_version = "1"
 
 [fields]
 common = ["type", "lang", "created"]
@@ -250,12 +237,12 @@ func TestSlugPatternAndTypeRole(t *testing.T) {
 func TestEnumKeysAreFieldsOrTheDomain(t *testing.T) {
 	t.Parallel()
 
-	contract := loadText(t, "schema_version = \"2\"\n\n[enums]\ndomain = [\"golang\"]\nlevel = [\"basic\"]\n")
+	contract := loadText(t, "schema_version = \"1\"\n\n[enums]\ndomain = [\"golang\"]\nlevel = [\"basic\"]\n")
 	if diff := cmp.Diff([]string{"golang"}, contract.EnumValues("domain")); diff != "" {
 		t.Errorf("EnumValues(domain) mismatch (-want +got):\n%s", diff)
 	}
 	for _, key := range []string{"title", "status", "tags", "topics"} {
-		err := loadTextError(t, "schema_version = \"2\"\n\n[enums]\n"+key+" = [\"x\"]\n")
+		err := loadTextError(t, "schema_version = \"1\"\n\n[enums]\n"+key+" = [\"x\"]\n")
 		want := `enums.` + key + `: "` + key + `" is not a field yomihon defines or derives`
 		if err == nil || !strings.HasSuffix(err.Error(), want) {
 			t.Errorf("LoadFile([enums] %s) error = %v, want it to end with %q", key, err, want)
@@ -268,7 +255,7 @@ func TestEnumKeysAreFieldsOrTheDomain(t *testing.T) {
 func TestTheTypeListIsTheEnumThenTheTables(t *testing.T) {
 	t.Parallel()
 
-	contract := loadText(t, `schema_version = "2"
+	contract := loadText(t, `schema_version = "1"
 
 [enums]
 type = ["zeta", "alpha"]
@@ -299,7 +286,7 @@ role = "map"
 func TestDomainsComeFromTheFolder(t *testing.T) {
 	t.Parallel()
 
-	contract := loadText(t, "schema_version = \"2\"\n\n[folders]\ndomain_from = [\"courses\", \"Writing/lessons\"]\n")
+	contract := loadText(t, "schema_version = \"1\"\n\n[folders]\ndomain_from = [\"courses\", \"Writing/lessons\"]\n")
 	domains := contract.Domains()
 	for path, want := range map[string]string{
 		"courses/go/a.md":                "go",
@@ -332,7 +319,7 @@ func TestDomainsComeFromTheFolder(t *testing.T) {
 func TestDatesAndLanguageNeedFieldsCommon(t *testing.T) {
 	t.Parallel()
 
-	common := loadText(t, "schema_version = \"2\"\n\n[fields]\ncommon = [\"type\", \"lang\", \"created\"]\n")
+	common := loadText(t, "schema_version = \"1\"\n\n[fields]\ncommon = [\"type\", \"lang\", \"created\"]\n")
 	if got := common.AuthoredDate().Field(); got != "created" {
 		t.Errorf("AuthoredDate().Field() = %q with created in fields.common, want %q", got, "created")
 	}
@@ -340,7 +327,7 @@ func TestDatesAndLanguageNeedFieldsCommon(t *testing.T) {
 		t.Error("ArticleLanguage().Declared() = false with lang in fields.common, want true")
 	}
 
-	oneType := loadText(t, "schema_version = \"2\"\n\n[fields]\ncommon = [\"type\"]\n\n[types.lesson]\nfields = [\"lang\", \"created\"]\n")
+	oneType := loadText(t, "schema_version = \"1\"\n\n[fields]\ncommon = [\"type\"]\n\n[types.lesson]\nfields = [\"lang\", \"created\"]\n")
 	if oneType.AuthoredDate().Declared() {
 		t.Errorf("AuthoredDate() = %q with created on one type only, want no field", oneType.AuthoredDate().Field())
 	}

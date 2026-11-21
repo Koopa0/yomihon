@@ -606,7 +606,7 @@ func TestLegalAndUngovernedNotesDoNotInventEnumFaults(t *testing.T) {
 // TestAnExplicitlyEmptyTypeVocabularyIsNamed distinguishes a declaration
 // allowing no value from an authority that could not answer at all.
 func TestAnExplicitlyEmptyTypeVocabularyIsNamed(t *testing.T) {
-	const source = `schema_version = "2"
+	const source = `schema_version = "1"
 [folders]
 checked = ["Writing"]
 frontmatter_optional = true

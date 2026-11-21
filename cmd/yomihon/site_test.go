@@ -166,7 +166,7 @@ func TestARulesFileForAnotherVersionIsReadAsNoRulesFile(t *testing.T) {
 	for path, content := range map[string]string{
 		"Writing/note.md": "# A note\n\nBody.\n",
 		schema.ContractRelPath: "# rules\n" +
-			"schema_version = \"1\"\n",
+			"schema_version = \"2\"\n",
 	} {
 		full := filepath.Join(root, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {

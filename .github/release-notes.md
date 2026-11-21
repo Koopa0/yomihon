@@ -2,7 +2,7 @@
 
 Since v0.3.0, yomihon only reads: nothing writes into a vault any more, and a note's fields are a closed list the contract declares. The reading room is redrawn around reading, with a new mark.
 
-**Upgrading needs the contract of your vault changed on the same day as the binary.** This release reads `schema_version = "2"` only, and v0.3.0 refuses it. See "Upgrading" below.
+**Upgrading needs the contract of your vault changed on the same day as the binary.** This release reads one format of the contract, and its version number starts again at `schema_version = "1"`. v0.3.0 and this release refuse each other's contract for the keys in it, and the version line does not tell them apart. See "Upgrading" below.
 
 ## What is new
 
@@ -21,8 +21,6 @@ Since v0.3.0, yomihon only reads: nothing writes into a vault any more, and a no
 
 1. Install this binary and the vault's migration on the same day. The old and the new loader refuse each other's contract on purpose: `check`, `coverage`, `exists` and `left-open` exit 2 with "privacy authority unavailable" when the contract is not the one they read.
 2. Restart every yomihon that is running, the server included, once this binary is installed. An older yomihon and this one running over the same configuration directory do not keep each other's changes apart, so one can write away a mark the other just kept.
-3. In the contract, remove `[[lifecycle]]`, `[enums.status]`, `[supersession]`, `[navigation]`, `[artifacts]`, `[scan]`, `known`, `lesson_only` and the other keys the closed contract no longer reads, and set `schema_version = "2"`. `docs/` and the yomihon skill describe the contract.
-4. In notes, move what frontmatter used to carry into the text: `title` becomes the first H1, `domain` the folder, `status` is dropped or becomes `draft: true`, `sources` and `tags` become text. A note that is replaced is deleted and its old name goes into the successor's `aliases`.
 
 For tools that read yomihon's output:
 

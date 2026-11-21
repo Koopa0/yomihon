@@ -47,7 +47,7 @@ func TestAFolderWithNoRulesFileIsAbsentAndOneWithAnUnreadableFileIsNot(t *testin
 	}{
 		{name: "no rules file", files: map[string]string{"Notes/a.md": "# a\n"}, want: true},
 		{name: "no System directory at all", files: map[string]string{}, want: true},
-		{name: "a rules file for a version this build does not read", files: map[string]string{ContractRelPath: "schema_version = \"1\"\n"}},
+		{name: "a rules file for a version this build does not read", files: map[string]string{ContractRelPath: "schema_version = \"2\"\n"}},
 		{name: "a rules file that is not TOML", files: map[string]string{ContractRelPath: "this is = = not toml"}},
 	}
 	for _, tt := range tests {
@@ -82,7 +82,7 @@ func TestARulesFileThatIsNotARegularFileIsNotAbsent(t *testing.T) {
 // none: that would withhold nothing from it.
 func TestARulesFileThatWentMissingAfterItWasFoundIsNotAbsent(t *testing.T) {
 	t.Parallel()
-	reader, root := openAbsentReader(t, map[string]string{ContractRelPath: "schema_version = \"2\"\n"})
+	reader, root := openAbsentReader(t, map[string]string{ContractRelPath: "schema_version = \"1\"\n"})
 	entry, err := reader.Lookup(ContractRelPath)
 	if err != nil {
 		t.Fatalf("Lookup() error = %v", err)
@@ -131,7 +131,7 @@ func TestARulesFileThatAppearsWithdrawsAnAbsentPolicy(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
-	if err := os.WriteFile(path, []byte("schema_version = \"2\"\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("schema_version = \"1\"\n"), 0o600); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 	got := policy.ValidateSource()
@@ -152,7 +152,7 @@ func TestAFolderAWalkEntersThatHoldsARulesFileWithdrawsAnAbsentPolicy(t *testing
 	appear := func(t *testing.T, root string) {
 		t.Helper()
 		for rel, content := range map[string]string{
-			"Later/" + ContractRelPath: "schema_version = \"2\"\n",
+			"Later/" + ContractRelPath: "schema_version = \"1\"\n",
 			"Later/Diary/secret.md":    "# secret\n",
 		} {
 			full := filepath.Join(root, filepath.FromSlash(rel))
@@ -278,9 +278,9 @@ func TestLoadForAgentsGivesNothingBackForAFileItCannotUse(t *testing.T) {
 		withoutRule bool
 	}{
 		{name: "no rules file", files: map[string]string{"Notes/a.md": "# a\n"}, withoutRule: true},
-		{name: "a version this build does not read", files: map[string]string{ContractRelPath: "schema_version = \"1\"\n"}, wantErr: true},
+		{name: "a version this build does not read", files: map[string]string{ContractRelPath: "schema_version = \"2\"\n"}, wantErr: true},
 		{name: "not TOML", files: map[string]string{ContractRelPath: "this is = = not toml"}, wantErr: true},
-		{name: "a rules file that declares no privacy", files: map[string]string{ContractRelPath: "schema_version = \"2\"\n"}},
+		{name: "a rules file that declares no privacy", files: map[string]string{ContractRelPath: "schema_version = \"1\"\n"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -310,7 +310,7 @@ func TestLoadForAgentsGivesNothingBackForAFileItCannotUse(t *testing.T) {
 // ordinary ones.
 func TestLoadForAgentsRefusesAFolderThatIsInsideOrAboveAVault(t *testing.T) {
 	t.Parallel()
-	rules := "schema_version = \"2\"\n"
+	rules := "schema_version = \"1\"\n"
 	tests := []struct {
 		name  string
 		files map[string]string
@@ -361,7 +361,7 @@ func TestLoadForAgentsRefusesAFolderThatIsInsideOrAboveAVault(t *testing.T) {
 // folder is not one that is known to have no rules.
 func TestARulesPathAtAnotherLetterCaseIsNeverTakenForNoRulesFile(t *testing.T) {
 	t.Parallel()
-	reader, _ := openAbsentReader(t, map[string]string{"system/schemas/vault-schema.toml": "schema_version = \"2\"\n"})
+	reader, _ := openAbsentReader(t, map[string]string{"system/schemas/vault-schema.toml": "schema_version = \"1\"\n"})
 	_, policy, err := LoadForAgents(t.Context(), reader)
 	if err == nil {
 		return // read as the rules file, which is what a disk that ignores case does
