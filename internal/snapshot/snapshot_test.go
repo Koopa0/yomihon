@@ -140,14 +140,14 @@ func closeReader(tb testing.TB, reader *vault.Reader) {
 	}
 }
 
-func writeNote(t *testing.T, root, rel, content string) {
-	t.Helper()
+func writeNote(tb testing.TB, root, rel, content string) {
+	tb.Helper()
 	full := filepath.Join(root, filepath.FromSlash(rel))
 	if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
-		t.Fatalf("mkdir for %s: %v", rel, err)
+		tb.Fatalf("mkdir for %s: %v", rel, err)
 	}
 	if err := os.WriteFile(full, []byte(content), 0o600); err != nil {
-		t.Fatalf("write %s: %v", rel, err)
+		tb.Fatalf("write %s: %v", rel, err)
 	}
 }
 

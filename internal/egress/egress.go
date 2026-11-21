@@ -2,12 +2,13 @@
 // output that leaves this process, and the only way such an output gets out.
 //
 // Every agent-facing command (check, coverage, exists, marks) opens a Gate
-// before it reads a note, asks it before it says a path, and seals what it
-// assembled through it. What the rules file's [privacy] section withholds
-// reaches none of them, and that is a property of this package rather than of
-// each command remembering it: a payload can only be written once the gate has
-// looked at the rules file again, and the archlock walk holds every caller to
-// the same extractor and the same writer.
+// before it reads a note, asks it before it says a path or a title, has it
+// mask the links in a body it prints, and seals what it assembled through it.
+// What the rules file's [privacy] section withholds reaches none of them, and
+// that is a property of this package rather than of each command remembering
+// it: a payload can only be written once the gate has looked at the rules file
+// again, and the archlock walk holds every caller to the same extractor and the
+// same writer.
 package egress
 
 import (
@@ -78,12 +79,29 @@ func (e *RulesVersionError) Is(target error) bool { return target == ErrUnavaila
 // plainVersion is what a declared version has to look like to be repeated.
 var plainVersion = regexp.MustCompile(`^\d{1,6}(?:\.\d{1,6}){0,2}$`)
 
-// LinkTargets reads the targets of the links a piece of text writes, in every
-// syntax a page renders as a link. It is a named type, and not a bare function
-// at the call site, so that what Open is handed says what it has to be: an
-// extractor that reads fewer links than the page does lets a withheld name
-// through. The archlock walk holds every production caller to the judge's.
-type LinkTargets func(text string) []string
+// Link is one link a piece of text writes: the name or path it addresses, and
+// the bytes it occupies, an embed's "!" and the display text included. Start and
+// End are byte offsets into the text it was read from.
+type Link struct {
+	Target     string
+	Start, End int
+}
+
+// Targets is the name or path each of links addresses, in order.
+func Targets(links []Link) []string {
+	targets := make([]string, len(links))
+	for i, link := range links {
+		targets[i] = link.Target
+	}
+	return targets
+}
+
+// LinkTargets reads the links a piece of text writes, in every syntax a page
+// renders as a link, with where each sits. It is a named type, and not a bare
+// function at the call site, so that what Open is handed says what it has to
+// be: an extractor that reads fewer links than the page does lets a withheld
+// name through. The archlock walk holds every production caller to the judge's.
+type LinkTargets func(text string) []Link
 
 // Gate is the privacy authority one agent-facing output is made under: the
 // rules file as it stood when the command began, and the means to ask it again.
@@ -100,7 +118,7 @@ type Gate struct {
 // folder with no rules file gets a gate that withholds nothing, once it has been
 // looked at above and inside; every other way a rules file can be missing or
 // unusable is a refusal, because that folder may withhold ground this process
-// never learned. links is what Spells reads links out of text with.
+// never learned. links is what Spells and Body read links out of text with.
 func Open(ctx context.Context, reader *vault.Reader, links LinkTargets) (*Gate, error) {
 	if links == nil {
 		panic("egress: Open needs the link extractor")

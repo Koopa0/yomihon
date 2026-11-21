@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/egress"
 )
 
 func TestLinkTargetsSkipHTMLComments(t *testing.T) {
@@ -26,7 +28,7 @@ func TestLinkTargetsSkipHTMLComments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if diff := cmp.Diff(tt.want, LinkTargets(tt.body)); diff != "" {
+			if diff := cmp.Diff(tt.want, egress.Targets(LinkTargets(tt.body))); diff != "" {
 				t.Errorf("LinkTargets HTML comments (-want +got):\n%s", diff)
 			}
 		})

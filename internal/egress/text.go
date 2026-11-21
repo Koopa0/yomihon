@@ -2,8 +2,6 @@ package egress
 
 import (
 	"html"
-	"net/url"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -55,126 +53,18 @@ func (g *Gate) Spells(text, body string, names Names) bool {
 		return true
 	}
 	readable := g.Readable(names)
-	targets := slices.Concat(g.links(text), rawLinkTargets(text))
+	targets := slices.Concat(Targets(g.links(text)), plainTargets(text))
 	if slices.ContainsFunc(targets, func(target string) bool { return !names.NameWithin(target, readable) }) {
 		return true
 	}
 	folded := graph.FoldFragment(text)
-	for _, target := range g.links(body) {
+	for _, target := range Targets(g.links(body)) {
 		name := graph.FoldFragment(strings.TrimSpace(target))
 		if name != "" && strings.Contains(folded, name) && !names.NameWithin(target, readable) {
 			return true
 		}
 	}
 	return false
-}
-
-// rawLinkTargets is every name text spells as a link, read as plain text
-// rather than as Markdown: a title is written out as it stands, so a code span
-// or a backslash that keeps a page from rendering a link keeps nothing out of
-// the list. It takes the target of each [[…]], with any alias, heading or
-// block part cut away; the destination of each inline link ](…) and of each
-// reference definition [label]: …, read by CommonMark's rule for a link
-// destination; and each HTML href. A destination is taken as written and
-// percent-decoded. One that climbs out of its folder needs no resolving here:
-// NameWithin's gate refuses any path that climbs.
-func rawLinkTargets(text string) []string {
-	var targets []string
-	for rest := text; ; {
-		_, after, found := strings.Cut(rest, "[[")
-		if !found {
-			break
-		}
-		rest = after
-		inner, _, closed := strings.Cut(after, "]]")
-		if !closed {
-			break
-		}
-		if i := strings.LastIndex(inner, "[["); i >= 0 {
-			inner = inner[i+len("[["):]
-		}
-		name, _, _ := strings.Cut(inner, "|")
-		name, _, _ = strings.Cut(name, "#")
-		name, _, _ = strings.Cut(name, "^")
-		targets = append(targets, name)
-	}
-	var destinations []string
-	for rest := text; ; {
-		_, after, found := strings.Cut(rest, "](")
-		if !found {
-			break
-		}
-		rest = after
-		destinations = append(destinations, linkDestination(after))
-	}
-	for _, definition := range referenceDefinition.FindAllStringSubmatch(text, -1) {
-		destinations = append(destinations, linkDestination(definition[1]))
-	}
-	for _, href := range htmlHref.FindAllStringSubmatch(text, -1) {
-		destinations = append(destinations, href[1]+href[2]+href[3])
-	}
-	for _, destination := range destinations {
-		destination, _, _ = strings.Cut(destination, "#")
-		destination, _, _ = strings.Cut(destination, "?")
-		targets = append(targets, destination)
-		if decoded, err := url.PathUnescape(destination); err == nil {
-			targets = append(targets, decoded)
-		}
-	}
-	return targets
-}
-
-var (
-	// referenceDefinition is a line [label]: destination, up to three spaces in.
-	referenceDefinition = regexp.MustCompile(`(?m)^ {0,3}\[[^\]]+\]:[ \t]*(.*)$`)
-	// htmlHref is an href attribute's value, double-, single- or unquoted.
-	htmlHref = regexp.MustCompile(`(?i)\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))`)
-)
-
-// linkDestination is the link destination that starts text, by CommonMark's
-// rule: after any leading space, a destination opened by < runs to the >
-// that closes it, spaces included; any other runs to the first space or
-// control character, or to a ) that closes no ( it opened. A backslash escapes
-// the character after it.
-func linkDestination(text string) string {
-	text = strings.TrimLeft(text, " \t\n")
-	var b strings.Builder
-	if rest, angled := strings.CutPrefix(text, "<"); angled {
-		for i := 0; i < len(rest); i++ {
-			switch c := rest[i]; {
-			case c == '\\' && i+1 < len(rest):
-				i++
-				b.WriteByte(rest[i])
-			case c == '>' || c == '\n':
-				return b.String()
-			default:
-				b.WriteByte(c)
-			}
-		}
-		return b.String()
-	}
-	depth := 0
-	for i := 0; i < len(text); i++ {
-		switch c := text[i]; {
-		case c == '\\' && i+1 < len(text):
-			i++
-			b.WriteByte(text[i])
-		case c <= ' ' || c == 0x7f:
-			return b.String()
-		case c == '(':
-			depth++
-			b.WriteByte(c)
-		case c == ')':
-			if depth == 0 {
-				return b.String()
-			}
-			depth--
-			b.WriteByte(c)
-		default:
-			b.WriteByte(c)
-		}
-	}
-	return b.String()
 }
 
 // spellsWithheldDir reports whether text, read past the ways it can be

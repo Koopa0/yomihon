@@ -866,9 +866,9 @@ func TestExtractKeepsTheFragmentBesideTheTarget(t *testing.T) {
 
 	links := extractWikilinks("[[Note#Sec|words]] and [[Note#^blk]] and ![[Note#Part]]\n", 1)
 	want := []wikiLink{
-		{target: "Note", address: "Note#Sec", heading: "Sec", offset: 0, line: 1},
-		{target: "Note", address: "Note#^blk", block: "blk", offset: 23, line: 1},
-		{target: "Note", address: "Note#Part", heading: "Part", embed: true, offset: 42, line: 1},
+		{target: "Note", address: "Note#Sec", heading: "Sec", offset: 0, start: 0, end: 18, line: 1},
+		{target: "Note", address: "Note#^blk", block: "blk", offset: 23, start: 23, end: 36, line: 1},
+		{target: "Note", address: "Note#Part", heading: "Part", embed: true, offset: 42, start: 41, end: 55, line: 1},
 	}
 	if diff := cmp.Diff(want, links, cmp.AllowUnexported(wikiLink{})); diff != "" {
 		t.Errorf("extractWikilinks mismatch (-want +got):\n%s", diff)
