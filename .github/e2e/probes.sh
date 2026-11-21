@@ -116,6 +116,7 @@ probes=(
   "back-scroll-restore.mjs|/notes/Notes/Back%20restore.md"
   "reading-face.mjs|/notes/Notes/reading-fidelity.md"
   "reading-scale.mjs|/notes/Notes/reading-scale.md"
+  "ruby-selection.mjs|/notes/Notes/ruby-selection.md"
   "a11y-audit.mjs|/notes/Notes/reading-fidelity.md"
   # Last, and they have to stay last: these keep a reading place, and from then
   # on every desk the run draws carries a row offering it back, and the course

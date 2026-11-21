@@ -1,7 +1,9 @@
-// Table-of-contents tracking: which entry is marked as the one being read.
-// The jump itself is the browser's, and lands at once. Alongside it, the one
-// reading a page holding two notes can ask for: moving through one of them
-// takes the other to the same place in its headings.
+// What a reader does with the page's text beyond reading it. Table-of-contents
+// tracking: which entry is marked as the one being read. The jump itself is the
+// browser's, and lands at once. Alongside it, the one reading a page holding two
+// notes can ask for: moving through one of them takes the other to the same
+// place in its headings. And what a reader selects and copies across a ruby (see
+// initRubySelection).
 
 // The line a heading has to cross to count as the one being read. It sits where
 // a jump to a heading actually parks it — the same clearance the anchor spends
@@ -184,4 +186,156 @@ export function initCompareAlign() {
     // only from the next time they scroll.
     follow(1);
   });
+}
+
+// A ruby's reading is not part of what a reader selects: the stylesheet does
+// not let it be, so a selection across a ruby is its base text and the server
+// places a selection by exactly that. It leaves two things for the browser to
+// get wrong, and this puts them right.
+//
+// A triple click stops at the first reading, because a reading that cannot be
+// selected ends the paragraph the browser is selecting; here the third click
+// selects the whole block instead. And a copy carries the reading the author
+// wrote: a ruby whose base text the selection covers in full is copied as its
+// base followed by its reading in full-width parentheses, each pair of base and
+// reading in turn. A base the selection covers only in part is copied as the
+// base text alone, and a ruby with no reading as it is.
+//
+// Only the plain text is written then, because a rich-text target that took the
+// markup instead would drop the readings again. Any other selection is copied
+// as the browser copies it.
+export function initRubySelection() {
+  document.addEventListener('click', selectTheBlockOnTheThirdClick);
+  document.addEventListener('copy', copyWithReadings);
+}
+
+// The blocks whose text a triple click selects, and the elements a click on
+// means something else by: a link follows, a summary folds.
+const TEXT_BLOCK = 'p, li, dd, dt, td, th, blockquote, figcaption, h1, h2, h3, h4, h5, h6';
+const ACTS_ON_CLICK = 'a, button, input, label, select, summary, textarea';
+// What starts a block of its own inside another, such as the list nested in a
+// list item, whose lines a triple click on the item's own text leaves out.
+const STARTS_A_BLOCK = /^(?:block|flex|flow-root|grid|list-item|table)/;
+
+function selectTheBlockOnTheThirdClick(event) {
+  if (event.detail < 3 || event.button !== 0 || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (!(event.target instanceof Element) || event.target.closest(ACTS_ON_CLICK)) return;
+  const block = event.target.closest(TEXT_BLOCK);
+  if (!block) return;
+  const range = document.createRange();
+  range.selectNodeContents(block);
+  const nested = [...block.children].find((child) => STARTS_A_BLOCK.test(getComputedStyle(child).display));
+  if (nested) range.setEndBefore(nested);
+  // A block with no reading in it is selected whole by the browser already.
+  if (![...block.querySelectorAll('rt')].some((reading) => range.intersectsNode(reading))) return;
+  const selection = getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function copyWithReadings(event) {
+  const selection = getSelection();
+  if (!event.clipboardData || !selection || selection.rangeCount !== 1 || selection.isCollapsed) return;
+  if (document.activeElement?.matches('input, textarea')) return;
+  const pairs = pairsCovered(selection.getRangeAt(0));
+  if (pairs.length === 0) return;
+  const text = textWithReadings(selection, pairs);
+  if (text === null) return;
+  event.clipboardData.setData('text/plain', text);
+  event.preventDefault();
+}
+
+// pairsCovered is each pair of base text and reading, in document order, whose
+// base text the range covers in full: the point the base ends at, and the
+// reading as it is copied. The enclosing ruby is read as well, for a selection
+// made inside one.
+function pairsCovered(range) {
+  const container = range.commonAncestorContainer;
+  const scope = container.nodeType === Node.TEXT_NODE ? container.parentElement : container;
+  const enclosing = scope.closest?.('ruby');
+  const rubies = [...(enclosing ? [enclosing] : []), ...scope.querySelectorAll('ruby')];
+  const covered = [];
+  for (const ruby of rubies) {
+    if (!range.intersectsNode(ruby)) continue;
+    for (const pair of pairsOf(ruby)) {
+      const solid = pair.texts.filter((text) => /\S/.test(text.data));
+      if (solid.length === 0) continue;
+      const first = solid[0];
+      const last = solid[solid.length - 1];
+      const end = last.data.trimEnd().length;
+      if (range.comparePoint(first, first.data.search(/\S/)) === 0 && range.comparePoint(last, end) === 0) {
+        covered.push({ endNode: last, endOffset: end, reading: pair.readings.map((reading) => `\uFF08${reading}\uFF09`).join('') });
+      }
+    }
+  }
+  return covered;
+}
+
+// pairsOf is the pairs of base text and reading a ruby holds: each run of
+// content that is not a reading, with the readings that follow it. A parenthesis
+// is the fallback for a browser that draws no ruby, and is no reading. A reading
+// with no words is nothing to write.
+function pairsOf(ruby) {
+  const pairs = [];
+  let open = null;
+  for (const child of ruby.childNodes) {
+    if (child.nodeType !== Node.ELEMENT_NODE && child.nodeType !== Node.TEXT_NODE) continue;
+    if (child.localName === 'rp') continue;
+    if (child.localName === 'rt') {
+      const reading = child.textContent.replace(/\s+/g, ' ').trim();
+      if (open && reading) open.readings.push(reading);
+      continue;
+    }
+    if (open?.readings.length) {
+      pairs.push(open);
+      open = null;
+    }
+    open ??= { texts: [], readings: [] };
+    open.texts.push(...baseText(child));
+  }
+  if (open?.readings.length) pairs.push(open);
+  return pairs;
+}
+
+// baseText is the text nodes of a ruby's content that are base text, and not
+// the reading of a ruby nested in it.
+function baseText(node) {
+  if (node.nodeType === Node.TEXT_NODE) return [node];
+  const found = [];
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+  for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+    if (!text.parentElement.closest('rt, rp')) found.push(text);
+  }
+  return found;
+}
+
+// textWithReadings is what the browser copies for the selection with each
+// pair's reading put where its base text ends. Where that is in the copied text
+// is asked of the browser itself, by selecting as far as the base's end and
+// reading how much it would copy, so that the text between is whatever the
+// browser makes of it, and then the selection is put back as it was. It is null
+// when the browser answers in a way that does not add up, and the copy is then
+// the browser's own.
+function textWithReadings(selection, pairs) {
+  const whole = selection.toString();
+  const { anchorNode, anchorOffset, focusNode, focusOffset } = selection;
+  const range = selection.getRangeAt(0);
+  const { startContainer, startOffset } = range;
+  const upTo = [];
+  try {
+    for (const { endNode, endOffset } of pairs) {
+      selection.setBaseAndExtent(startContainer, startOffset, endNode, endOffset);
+      upTo.push(selection.toString());
+    }
+  } finally {
+    selection.setBaseAndExtent(anchorNode, anchorOffset, focusNode, focusOffset);
+  }
+  let text = '';
+  let taken = 0;
+  for (const [i, before] of upTo.entries()) {
+    if (before.length < taken || !whole.startsWith(before)) return null;
+    text += whole.slice(taken, before.length) + pairs[i].reading;
+    taken = before.length;
+  }
+  return text + whole.slice(taken);
 }

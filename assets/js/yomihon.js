@@ -3,7 +3,7 @@
 // boundary; this entry attaches interactions and composes the remaining capabilities.
 // The server-rendered page remains usable when the graph is absent.
 import { initCodeCopy } from './codecopy.js';
-import { initCompareAlign, initContents } from './contents.js';
+import { initCompareAlign, initContents, initRubySelection } from './contents.js';
 import { initDiagrams } from './diagrams.js';
 import { initDrawer } from './drawer.js';
 import { initFreshness } from './freshness.js';
@@ -31,6 +31,7 @@ function init() {
   const preferences = initPreferences();
   initContents();
   initCompareAlign();
+  initRubySelection();
   initFreshness();
   const rail = initRail(preferences);
   const search = initSearch();
