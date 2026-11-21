@@ -141,9 +141,7 @@ func draftFacts(drafts ...string) map[string]noteFacts {
 func draftVault(t *testing.T) (root string, contract *schema.Contract) {
 	t.Helper()
 
-	text := `schema_version = "1"
-
-[folders]
+	text := `[folders]
 checked = ["Concepts", "Maps"]
 templates = ["System/templates"]
 

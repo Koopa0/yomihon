@@ -13,9 +13,7 @@ import (
 // scopeLockContract is the Lock vault: one concept under Notes, one under
 // System/notes, and a System note whose type the contract refuses. The
 // folders.checked line is the only thing each case changes.
-const scopeLockContract = `schema_version = "1"
-
-[folders]
+const scopeLockContract = `[folders]
 KNOWLEDGE_DIRS
 templates = []
 skipped_files = ["README.md"]
@@ -144,9 +142,7 @@ func TestCoverageIgnoresMountSourcesOutsideTheDeclaredLayer(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, `schema_version = "1"
-
-[folders]
+	write(t, root, schema.ContractRelPath, `[folders]
 checked = ["Notes"]
 templates = []
 
@@ -190,9 +186,7 @@ func TestCoverageUnroutedNotesFollowDeclaredKnowledgeScope(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	write(t, root, schema.ContractRelPath, `schema_version = "1"
-
-[folders]
+	write(t, root, schema.ContractRelPath, `[folders]
 checked = ["Notes", "System"]
 templates = []
 

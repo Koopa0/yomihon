@@ -149,7 +149,6 @@ clean report:
 probe=$(mktemp -d)
 mkdir -p "$probe/System/schemas"
 cat > "$probe/System/schemas/vault-schema.toml" <<'TOML'
-schema_version = "1"
 [types.probe]
 role = "course"
 [privacy]

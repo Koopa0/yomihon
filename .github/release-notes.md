@@ -2,8 +2,6 @@
 
 Since v0.3.0, yomihon only reads: nothing writes into a vault any more, and a note's fields are a closed list the contract declares. The reading room is redrawn around reading, with a new mark.
 
-**Upgrading needs the contract of your vault changed on the same day as the binary.** This release reads one format of the contract, and its version number starts again at `schema_version = "1"`. v0.3.0 and this release refuse each other's contract for the keys in it, and the version line does not tell them apart. See "Upgrading" below.
-
 ## What is new
 
 - **Read-only.** The status panel and `POST /status` are gone. The only things yomihon writes are your reader marks and figure approvals, under its configuration directory.
@@ -20,6 +18,8 @@ Since v0.3.0, yomihon only reads: nothing writes into a vault any more, and a no
 ## Upgrading
 
 Restart every yomihon that is running, the server included, once this binary is installed. An older yomihon and this one running over the same configuration directory do not keep each other's changes apart, so one can write away a mark the other just kept.
+
+The rules file no longer has a `schema_version`. One that still writes it is refused as an unknown key, like any other key this yomihon does not read.
 
 For tools that read yomihon's output:
 

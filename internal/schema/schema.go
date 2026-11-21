@@ -25,8 +25,7 @@ import (
 
 const (
 	// ContractRelPath is where the contract lives inside the vault.
-	ContractRelPath  = "System/schemas/vault-schema.toml"
-	supportedVersion = "1"
+	ContractRelPath = "System/schemas/vault-schema.toml"
 
 	// conceptType is the note type name yomihon reserves for distilled ideas,
 	// spelled once so no face keeps a second copy. It is a name, not a role: a
@@ -81,10 +80,9 @@ func DefaultPlannedInlineMarks() []string {
 // Contract is the validated, immutable vault authority. Its zero value carries
 // no authority; load one with [Load], [LoadFile], or [LoadReader]. A nil
 // *Contract answers as an ungoverned vault: every method is safe to call and
-// returns what a folder that declared nothing declares — no version, no
-// vocabulary, no capability.
+// returns what a folder that declared nothing declares — no vocabulary, no
+// capability.
 type Contract struct {
-	version    string
 	types      []typeDefinition
 	typeByName map[string]int
 	enums      []enumDefinition
@@ -173,7 +171,6 @@ type Folders struct {
 }
 
 type contractFile struct {
-	Version string              `toml:"schema_version"`
 	Folders folderSection       `toml:"folders"`
 	Enums   map[string][]string `toml:"enums"`
 	Fields  fieldSection        `toml:"fields"`
@@ -281,9 +278,9 @@ func LoadReader(ctx context.Context, reader *vault.Reader) (*Contract, error) {
 // program, and returns the privacy policy that command is bound by. A folder
 // whose lookup found no rules file gets PrivacyWithoutRules: it declared
 // nothing, so nothing is withheld. Every other failure — a file that is there
-// and cannot be read, one for another schema version, one that vanished after it
-// was found — returns an error and no policy, because that folder may withhold
-// ground this process never learned.
+// and cannot be read, one that vanished after it was found — returns an error
+// and no policy, because that folder may withhold ground this process never
+// learned.
 func LoadForAgents(ctx context.Context, reader *vault.Reader) (*Contract, PrivacyPolicy, error) {
 	contract, err := LoadReader(ctx, reader)
 	switch {
@@ -357,70 +354,11 @@ func loadEntry(ctx context.Context, reader *vault.Reader, entry vault.Entry) (*C
 	return contract, nil
 }
 
-// VersionError is a contract written for a schema version this binary does not
-// read, or for none. It carries what the file declares and the line it is on,
-// which is all a surface needs to say what differs and which line to change
-// without quoting anything else out of the file.
-type VersionError struct {
-	// Declared is what the file's schema_version says, empty when it says none.
-	Declared string
-	// Line is the 1-based line schema_version is written on, zero when it was
-	// not found.
-	Line int
-	// Missing is whether the file has no schema_version at all.
-	Missing bool
-	// Supported is the version this binary reads.
-	Supported string
-}
-
-func (e *VersionError) Error() string {
-	if e.Missing {
-		return `missing required key "schema_version"`
-	}
-	return fmt.Sprintf("unsupported schema_version %q; supported version is %q", e.Declared, e.Supported)
-}
-
-// checkVersion reads the contract's schema_version before anything else is
-// decoded, so a contract written for another version is refused with the one
-// sentence that names the mismatch. Decoded further, it would be reported as
-// whichever of its tables this version no longer has.
-func checkVersion(data []byte) error {
-	var probe struct {
-		Version string `toml:"schema_version"`
-	}
-	meta, err := toml.Decode(string(data), &probe)
-	if err != nil {
-		return err
-	}
-	if !meta.IsDefined("schema_version") {
-		return &VersionError{Missing: true, Supported: supportedVersion}
-	}
-	if probe.Version != supportedVersion {
-		return &VersionError{Declared: probe.Version, Line: versionLine(data), Supported: supportedVersion}
-	}
-	return nil
-}
-
-// versionLine is the 1-based line a top-level schema_version key starts on, or
-// zero when the key is written in a shape this does not recognise.
-func versionLine(data []byte) int {
-	for number, line := range strings.Split(string(data), "\n") {
-		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "schema_version")
-		if ok && strings.HasPrefix(strings.TrimSpace(rest), "=") {
-			return number + 1
-		}
-	}
-	return 0
-}
-
 func decodeContract(data []byte, source policySource) (*Contract, error) {
 	if err := checkContractDepth(data); err != nil {
 		return nil, err
 	}
 	if err := validateDistinctKeys(data); err != nil {
-		return nil, err
-	}
-	if err := checkVersion(data); err != nil {
 		return nil, err
 	}
 	var decoded contractFile
@@ -436,8 +374,7 @@ func decodeContract(data []byte, source policySource) (*Contract, error) {
 	}
 
 	contract := &Contract{
-		version: decoded.Version,
-		common:  slices.Clone(decoded.Fields.Common),
+		common: slices.Clone(decoded.Fields.Common),
 		written: writtenKeys{
 			frontmatterOptional: tomlMeta.IsDefined("folders", "frontmatter_optional"),
 			plannedGapMarks:     tomlMeta.IsDefined("rules", "planned_gap_marks"),
@@ -925,15 +862,6 @@ func validBasename(value string) bool {
 		value != ".." &&
 		!strings.ContainsRune(value, 0) &&
 		!strings.ContainsAny(value, `/\`)
-}
-
-// Version returns the contract format version, empty for a vault no contract
-// governs.
-func (c *Contract) Version() string {
-	if c == nil {
-		return ""
-	}
-	return c.version
 }
 
 // Definition returns a detached copy of the contract's declarative

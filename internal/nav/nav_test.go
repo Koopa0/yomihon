@@ -161,9 +161,7 @@ func loadCapabilityContract(t *testing.T, types, folders string) *schema.Contrac
 		types = capabilityRoles
 	}
 	contractPath := filepath.Join(t.TempDir(), "vault-schema.toml")
-	text := `schema_version = "1"
-
-[folders]
+	text := `[folders]
 checked = ["Concepts", "Maps"]
 ` + folders + `
 [fields]

@@ -11,8 +11,6 @@
 # it. Nothing records a note's progress beyond that flag: a note another one
 # replaces is deleted, and its name goes into the replacement's aliases.
 
-schema_version = "1"
-
 [folders]
 # The knowledge layer: `yomihon check` judges the notes under these
 # directories. Diary and System are still read and served, and not judged.

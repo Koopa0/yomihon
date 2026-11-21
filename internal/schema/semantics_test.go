@@ -8,9 +8,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-const semanticallyValidContract = `schema_version = "1"
-
-[folders]
+const semanticallyValidContract = `[folders]
 checked = ["Writing"]
 ignored = []
 templates = []

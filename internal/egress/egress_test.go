@@ -133,7 +133,7 @@ func TestAllowedAnswersAsTheGateDoesAndNoWhenTheRulesFileCannotBeHonoured(t *tes
 		{"a rules file that withholds the file", rulesFile(t, `"README.md"`), "README.md", false},
 		{"a rules file that withholds a folder above it", rulesFile(t, `"Private"`), "Private/README.md", false},
 		{"a rules file that declares no privacy", strings.TrimSuffix(rulesFile(t, `"Private"`), "\n[privacy]\nnever_egress_dirs = [\"Private\"]\n"), "README.md", false},
-		{"a rules file for another version", "schema_version = \"99\"\n", "README.md", false},
+		{"a rules file that still declares a version", "schema_version = \"1\"\n" + rulesFile(t, `"Private"`), "README.md", false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -224,19 +224,18 @@ func TestAPayloadWritesWhatWasSealedAndNothingElse(t *testing.T) {
 func TestOpenRefusesWhatItCannotRead(t *testing.T) {
 	t.Parallel()
 
-	t.Run("a rules file for another version", func(t *testing.T) {
+	t.Run("a rules file that still declares a version", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
-		writeFile(t, root, schema.ContractRelPath, "schema_version = \"999\"\n")
+		writeFile(t, root, schema.ContractRelPath, "schema_version = \"1\"\n"+rulesFile(t, `"Private"`))
 		reader := openFolder(t, root)
 		_, err := egress.Open(t.Context(), reader, wikilinks)
-		versionErr, ok := errors.AsType[*egress.RulesVersionError](err)
-		if !ok || !errors.Is(err, egress.ErrUnavailable) {
-			t.Fatalf("Open() error = %v, want a RulesVersionError that is a case of ErrUnavailable", err)
+		if !errors.Is(err, egress.ErrUnavailable) {
+			t.Fatalf("Open() error = %v, want ErrUnavailable", err)
 		}
-		if versionErr.Declared != "999" {
-			t.Errorf("Declared = %q, want the plain version 999", versionErr.Declared)
+		if strings.Contains(err.Error(), "schema_version") {
+			t.Errorf("the refusal quotes the rules file: %v", err)
 		}
 	})
 

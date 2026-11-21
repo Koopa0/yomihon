@@ -25,7 +25,7 @@ func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	snap := h.sources.Snapshot().Capture()
 	pageShell := shell.Project(h.sources.VaultName, authority, snap)
 	model := pageShell.Nav
-	view := pages.NewMapIndex(model.Maps(), snap.NavigationRoles(), model.DeclaredClosure(), pages.ContractStateFrom(pageShell.Governed, pageShell.OtherVersion, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
+	view := pages.NewMapIndex(model.Maps(), snap.NavigationRoles(), model.DeclaredClosure(), pages.ContractStateFrom(pageShell.Governed, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write map index", "error", err)
 	}
@@ -44,7 +44,7 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	model := pageShell.Nav
 
 	query := pages.ParseListQuery(r.URL.Query())
-	view := pages.NewFolderIndexView(model, pages.ContractStateFrom(pageShell.Governed, pageShell.OtherVersion, snap), query, time.Now(), lang)
+	view := pages.NewFolderIndexView(model, pages.ContractStateFrom(pageShell.Governed, snap), query, time.Now(), lang)
 	// Two of the three causes the desk states can degrade something drawn
 	// here: the contract and the artifact policy. The navigation declaration is
 	// not one of them — it decides which notes are courses and maps, and this

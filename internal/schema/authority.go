@@ -1,7 +1,5 @@
 package schema
 
-import "errors"
-
 // Authority is one immutable reading of the vault contract, captured once per
 // request: whether anything claimed governance over the folder, how far that
 // claim got, and the artifact policy as its source stood at capture. Its query
@@ -42,17 +40,6 @@ func (a Authority) Claim() Claim {
 		return a.policy.Claim()
 	}
 	return a.governance.Claim()
-}
-
-// VersionMismatch is what a contract written for another schema version
-// declares, nil for any other state. Such a contract closes nothing, so this is
-// the only place the fact is kept.
-func (a Authority) VersionMismatch() *VersionError {
-	if a.governance.Reason() != ReasonContractVersion {
-		return nil
-	}
-	mismatch, _ := errors.AsType[*VersionError](a.governance.claim.Cause())
-	return mismatch
 }
 
 // Closed reports whether this captured view cannot classify note instances.

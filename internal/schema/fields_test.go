@@ -31,9 +31,6 @@ func TestTheReferenceContractLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadFile(testdata/reference.toml) = %v", err)
 	}
-	if got := contract.Version(); got != "1" {
-		t.Errorf("Version() = %q, want %q", got, "1")
-	}
 	want := schema.Definition{
 		Types: []schema.TypeDefinition{
 			{
@@ -100,7 +97,8 @@ func TestTheReferenceContractLoads(t *testing.T) {
 // TestTheContractShapeBeforeTheFieldRedesignIsNotRead holds that the loader
 // reads one shape. A contract written before the fields were redesigned
 // carries tables this one no longer has, and it is refused, not read in part:
-// the loader keeps no second reading of it.
+// the loader keeps no second reading of it. That file begins with the version
+// key every such contract carried, which is one more key nothing reads.
 func TestTheContractShapeBeforeTheFieldRedesignIsNotRead(t *testing.T) {
 	t.Parallel()
 
@@ -109,14 +107,12 @@ func TestTheContractShapeBeforeTheFieldRedesignIsNotRead(t *testing.T) {
 	}
 
 	const lifecycle = "\n[[lifecycle]]\nstatus = \"draft\"\napplies_to = [\"*\"]\nfrom = []\nowner = []\n"
-	if err := loadTextError(t, "schema_version = \"1\"\n"+lifecycle); err == nil || !strings.Contains(err.Error(), `unknown keys: "lifecycle"`) {
-		t.Errorf("LoadFile(version 1 with [[lifecycle]]) error = %v, want the unknown-keys refusal", err)
+	if err := loadTextError(t, lifecycle); err == nil || !strings.Contains(err.Error(), `unknown keys: "lifecycle"`) {
+		t.Errorf("LoadFile([[lifecycle]]) error = %v, want the unknown-keys refusal", err)
 	}
 }
 
-const standingContract = `schema_version = "1"
-
-[fields]
+const standingContract = `[fields]
 common = ["type", "lang", "created"]
 required = ["type", "created"]
 
@@ -237,12 +233,12 @@ func TestSlugPatternAndTypeRole(t *testing.T) {
 func TestEnumKeysAreFieldsOrTheDomain(t *testing.T) {
 	t.Parallel()
 
-	contract := loadText(t, "schema_version = \"1\"\n\n[enums]\ndomain = [\"golang\"]\nlevel = [\"basic\"]\n")
+	contract := loadText(t, "[enums]\ndomain = [\"golang\"]\nlevel = [\"basic\"]\n")
 	if diff := cmp.Diff([]string{"golang"}, contract.EnumValues("domain")); diff != "" {
 		t.Errorf("EnumValues(domain) mismatch (-want +got):\n%s", diff)
 	}
 	for _, key := range []string{"title", "status", "tags", "topics"} {
-		err := loadTextError(t, "schema_version = \"1\"\n\n[enums]\n"+key+" = [\"x\"]\n")
+		err := loadTextError(t, "[enums]\n"+key+" = [\"x\"]\n")
 		want := `enums.` + key + `: "` + key + `" is not a field yomihon defines or derives`
 		if err == nil || !strings.HasSuffix(err.Error(), want) {
 			t.Errorf("LoadFile([enums] %s) error = %v, want it to end with %q", key, err, want)
@@ -255,9 +251,7 @@ func TestEnumKeysAreFieldsOrTheDomain(t *testing.T) {
 func TestTheTypeListIsTheEnumThenTheTables(t *testing.T) {
 	t.Parallel()
 
-	contract := loadText(t, `schema_version = "1"
-
-[enums]
+	contract := loadText(t, `[enums]
 type = ["zeta", "alpha"]
 
 [types.mid]
@@ -286,7 +280,7 @@ role = "map"
 func TestDomainsComeFromTheFolder(t *testing.T) {
 	t.Parallel()
 
-	contract := loadText(t, "schema_version = \"1\"\n\n[folders]\ndomain_from = [\"courses\", \"Writing/lessons\"]\n")
+	contract := loadText(t, "[folders]\ndomain_from = [\"courses\", \"Writing/lessons\"]\n")
 	domains := contract.Domains()
 	for path, want := range map[string]string{
 		"courses/go/a.md":                "go",
@@ -319,7 +313,7 @@ func TestDomainsComeFromTheFolder(t *testing.T) {
 func TestDatesAndLanguageNeedFieldsCommon(t *testing.T) {
 	t.Parallel()
 
-	common := loadText(t, "schema_version = \"1\"\n\n[fields]\ncommon = [\"type\", \"lang\", \"created\"]\n")
+	common := loadText(t, "[fields]\ncommon = [\"type\", \"lang\", \"created\"]\n")
 	if got := common.AuthoredDate().Field(); got != "created" {
 		t.Errorf("AuthoredDate().Field() = %q with created in fields.common, want %q", got, "created")
 	}
@@ -327,7 +321,7 @@ func TestDatesAndLanguageNeedFieldsCommon(t *testing.T) {
 		t.Error("ArticleLanguage().Declared() = false with lang in fields.common, want true")
 	}
 
-	oneType := loadText(t, "schema_version = \"1\"\n\n[fields]\ncommon = [\"type\"]\n\n[types.lesson]\nfields = [\"lang\", \"created\"]\n")
+	oneType := loadText(t, "[fields]\ncommon = [\"type\"]\n\n[types.lesson]\nfields = [\"lang\", \"created\"]\n")
 	if oneType.AuthoredDate().Declared() {
 		t.Errorf("AuthoredDate() = %q with created on one type only, want no field", oneType.AuthoredDate().Field())
 	}

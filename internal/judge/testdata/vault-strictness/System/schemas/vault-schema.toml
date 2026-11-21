@@ -1,5 +1,3 @@
-schema_version = "1"
-
 [folders]
 checked = ["Concepts", "Sources"]
 templates = ["System/templates"]

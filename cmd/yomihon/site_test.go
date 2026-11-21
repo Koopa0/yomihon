@@ -156,17 +156,17 @@ func writeRecoverySiteFixture(t *testing.T, root string) {
 	}
 }
 
-// TestARulesFileForAnotherVersionIsReadAsNoRulesFile holds the two halves of
-// that state together through the production composition: the folder reads as
-// one without a contract, and the desk says which line of the file to change,
-// in the language the browser asked for.
-func TestARulesFileForAnotherVersionIsReadAsNoRulesFile(t *testing.T) {
+// TestARulesFileThatStillDeclaresAVersionIsRefusedNamingTheKey holds the whole
+// path through the production composition for the key every earlier rules file
+// began with. The loader reads no version, so the key is one nothing reads, and
+// the desk says so in the decoder's own words, naming it.
+func TestARulesFileThatStillDeclaresAVersionIsRefusedNamingTheKey(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	for path, content := range map[string]string{
 		"Writing/note.md": "# A note\n\nBody.\n",
 		schema.ContractRelPath: "# rules\n" +
-			"schema_version = \"2\"\n",
+			"schema_version = \"1\"\n",
 	} {
 		full := filepath.Join(root, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
@@ -194,14 +194,14 @@ func TestARulesFileForAnotherVersionIsReadAsNoRulesFile(t *testing.T) {
 		t.Fatalf("GET / status = %d, want %d", home.Code, http.StatusOK)
 	}
 	body := home.Body.String()
-	for _, want := range []string{`<html lang="en"`, "Change line 2 to schema_version"} {
+	for _, want := range []string{`<html lang="en"`, "could not be read", "unknown keys", "schema_version"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the desk does not carry %q", want)
 		}
 	}
-	for _, unwanted := range []string{wording.RestartYomihon.In(wording.En), "could not be read"} {
+	for _, unwanted := range []string{"Change line", "this version reads"} {
 		if strings.Contains(body, unwanted) {
-			t.Errorf("the desk carries %q, which says this folder is broken or needs a restart", unwanted)
+			t.Errorf("the desk carries %q, the advice for a version number that is no longer asked for", unwanted)
 		}
 	}
 

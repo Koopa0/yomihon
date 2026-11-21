@@ -9,8 +9,6 @@
 # frontmatter 只放作者對這篇筆記的主張。title 取第一個 H1，domain 取 courses/ 下的資料夾，
 # 兩者都不寫。完成與否看 PR：合併進 main 就是完成；還沒寫完的筆記寫 `draft: true`。
 
-schema_version = "1"
-
 [folders]
 checked = ["courses"]
 templates = ["prompts"]

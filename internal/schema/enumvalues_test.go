@@ -62,8 +62,7 @@ func TestEnumValuesCompleteDeclaration(t *testing.T) {
 
 func TestEnumValuesAuthorityAndShape(t *testing.T) {
 	t.Parallel()
-	const declaration = `schema_version = "1"
-[enums]
+	const declaration = `[enums]
 type = ["article", "cafe\u0301"]
 domain = []
 level = ["cafe\u0301", "Café"]
