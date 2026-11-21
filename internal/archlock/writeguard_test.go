@@ -491,10 +491,12 @@ func judge(u *unit) (found []site, writerUses int, used map[string]bool) {
 }
 
 // shape is the rule that makes the writer's own signatures carry the other half:
-// an exported function of rawWriter that changes a file, however many of its
-// own helpers away, takes a Dir or is a method of a type this package makes.
-// Without it a new function that took a path would be one more way to write
-// into a vault, and nothing but its reader would notice.
+// an exported function or method of rawWriter that changes a file, however many
+// of its own helpers away, is handed a Dir, as a parameter or as a receiver that
+// holds one. A method is judged whatever its type is called, since a value of an
+// unexported type can still be handed out. Without it a new function that took
+// a path would be one more way to write into a vault, and nothing but its reader
+// would notice.
 func shape(u *unit) []site {
 	if u.path != rawWriter {
 		return nil
@@ -526,7 +528,7 @@ func shape(u *unit) []site {
 				fn.writes = true
 			}
 			if callee, isFunc := obj.(*types.Func); isFunc && callee.Pkg() == u.pkg {
-				fn.calls = append(fn.calls, callee)
+				fn.calls = append(fn.calls, callee.Origin())
 			}
 		}
 	}
@@ -544,32 +546,65 @@ func shape(u *unit) []site {
 			}
 		}
 	}
+	dir := u.pkg.Scope().Lookup("Dir")
 	var found []site
 	for _, fn := range functions {
-		if !fn.writes || !fn.obj.Exported() || !receiverExported(fn.decl) {
+		if !fn.writes || !fn.obj.Exported() || handedADir(fn.obj.Signature(), dir) {
 			continue
 		}
-		sig, isSig := fn.obj.Type().(*types.Signature)
-		if !isSig || sig.Recv() != nil || takesADir(sig, u.pkg) {
-			continue
+		name := fn.obj.Name()
+		if recv := fn.obj.Signature().Recv(); recv != nil {
+			name = typeName(recv.Type()) + "." + name
 		}
 		path, line := u.rel(fn.decl.Pos())
-		found = append(found, site{path: path, line: line, text: fn.obj.Name() + " changes a file and takes no Dir, so a caller could point it anywhere"})
+		found = append(found, site{path: path, line: line, text: name + " changes a file and takes no Dir, so a caller could point it anywhere"})
 	}
 	return found
 }
 
-// dirMakers are the only functions of rawWriter that return a Dir: one from the
-// configuration directory the command resolved, and one inside it. A function
-// that made a Dir from any other string, or one that moved a Dir to another
-// place, would be a way to aim a write at a vault with every signature still
-// taking a Dir.
+// handedADir says whether a function's caller hands it a Dir: its receiver, or
+// one of its parameters, is a Dir or holds one in any field.
+func handedADir(sig *types.Signature, dir types.Object) bool {
+	if dir == nil {
+		return false
+	}
+	carries := holding{is: isType(dir), field: func(*types.Var) bool { return true }}
+	if recv := sig.Recv(); recv != nil && carries.in(recv.Type()) {
+		return true
+	}
+	for param := range sig.Params().Variables() {
+		if carries.in(param.Type()) {
+			return true
+		}
+	}
+	return false
+}
+
+// typeName is the name of a receiver's type, for a message.
+func typeName(t types.Type) string {
+	t = types.Unalias(t)
+	if pointer, isPointer := t.(*types.Pointer); isPointer {
+		t = types.Unalias(pointer.Elem())
+	}
+	if named, isNamed := t.(*types.Named); isNamed {
+		return named.Obj().Name()
+	}
+	return t.String()
+}
+
+// dirMakers are the only functions of rawWriter that make a Dir or return one:
+// the reader's directory, and one vault's directory inside it. A function that
+// made a Dir from any other string, or one that moved a Dir to another place,
+// would be a way to aim a write at a vault with every signature still taking a
+// Dir.
 var dirMakers = []string{"Home", "VaultDir"}
 
 // dirIsOpaque holds the type that carries the other half of the rule to what it
-// says: a struct nothing outside the package can fill, and made by dirMakers
-// alone. A Dir that a string converts to, or that has a field to set, would
-// leave the compiler saying nothing about where a write goes.
+// says: a struct nothing outside the package can fill, that only dirMakers make,
+// set or hand out, and that no variable of the package hands out either. A Dir
+// that a string converts to, that has a field to set, or that a method could
+// re-aim would leave the compiler saying nothing about where a write goes. So
+// does a function held in a variable, whose calls shape cannot follow.
 func dirIsOpaque(u *unit) []site {
 	if u.path != rawWriter {
 		return nil
@@ -596,13 +631,13 @@ func dirIsOpaque(u *unit) []site {
 			found = append(found, at(field.Pos(), "Dir has an exported field, "+field.Name()+", so a Dir can be filled in from outside the package"))
 		}
 	}
+	// What a caller outside the package can reach: a value, what it points to or
+	// holds, its exported fields, and what a function takes or returns.
+	reached := holding{is: isType(object), field: (*types.Var).Exported, throughFuncs: true}
+	function := holding{is: func(t types.Type) bool { _, isSig := t.(*types.Signature); return isSig }, field: func(*types.Var) bool { return true }}
 	returnsDir := func(sig *types.Signature) bool {
 		for result := range sig.Results().Variables() {
-			typ := types.Unalias(result.Type())
-			if pointer, isPointer := typ.(*types.Pointer); isPointer {
-				typ = types.Unalias(pointer.Elem())
-			}
-			if got, ok := typ.(*types.Named); ok && got.Obj() == object {
+			if reached.in(result.Type()) {
 				return true
 			}
 		}
@@ -611,104 +646,201 @@ func dirIsOpaque(u *unit) []site {
 	for _, name := range u.pkg.Scope().Names() {
 		switch member := u.pkg.Scope().Lookup(name).(type) {
 		case *types.Func:
-			if sig, ok := member.Type().(*types.Signature); ok && member.Exported() && returnsDir(sig) && !slices.Contains(dirMakers, member.Name()) {
-				found = append(found, at(member.Pos(), member.Name()+" returns a Dir and is not one of "+strings.Join(dirMakers, " and ")+", which are the only ways to make one"))
+			if member.Exported() && returnsDir(member.Signature()) && !slices.Contains(dirMakers, member.Name()) {
+				found = append(found, at(member.Pos(), member.Name()+" returns a Dir, or something that holds one, and is not one of "+strings.Join(dirMakers, " and ")+", which are the only ways to make one"))
 			}
 		case *types.Var:
-			if member.Exported() && holdsDir(member.Type(), object, map[types.Type]bool{}) {
+			if member.Exported() && reached.in(member.Type()) {
 				found = append(found, at(member.Pos(), member.Name()+" is a variable that holds a Dir, which anyone could set to a Dir of their own or read one from"))
+			}
+			if function.in(member.Type()) {
+				found = append(found, at(member.Pos(), member.Name()+" is a variable that holds a function: what calling it changes is not something shape can follow, and anyone can call or set an exported one"))
 			}
 		case *types.TypeName:
 			typed, ok := member.Type().(*types.Named)
 			if !ok {
 				continue
 			}
-			if structure, isStructure := typed.Underlying().(*types.Struct); isStructure && member.Exported() && typed.Obj() != object {
-				for field := range structure.Fields() {
-					if field.Exported() && holdsDir(field.Type(), object, map[types.Type]bool{}) {
+			if other, isStruct := typed.Underlying().(*types.Struct); isStruct && member.Exported() && typed.Obj() != object {
+				for field := range other.Fields() {
+					if field.Exported() && reached.in(field.Type()) {
 						found = append(found, at(field.Pos(), typed.Obj().Name()+"."+field.Name()+" holds a Dir, which anyone could set to a Dir of their own"))
 					}
 				}
 			}
 			for method := range typed.Methods() {
-				if sig, isSig := method.Type().(*types.Signature); isSig && method.Exported() && returnsDir(sig) {
+				if method.Exported() && returnsDir(method.Signature()) {
 					found = append(found, at(method.Pos(), typed.Obj().Name()+"."+method.Name()+" returns a Dir, which would put one somewhere else in the configuration directory or outside it"))
 				}
 			}
 		}
 	}
+	return append(found, dirMadeElsewhere(u, object, structure)...)
+}
+
+// dirMadeElsewhere reports, outside the bodies of dirMakers, every place a Dir
+// is made or what one holds is set: a literal of it, a conversion to it, a
+// struct with its fields, which a Dir is assignable from and converts from, and
+// an assignment to one of its fields or a pointer taken to one. It is read from
+// the syntax with the types, so a promoted field, an elided literal type and a
+// type of another name are the Dir they are.
+func dirMadeElsewhere(u *unit, dir types.Object, structure *types.Struct) []site {
+	fields := map[types.Object]bool{}
+	for field := range structure.Fields() {
+		fields[field] = true
+	}
+	isDir := isType(dir)
+	// setsAField says whether an expression written to names a field of Dir,
+	// however deep the selector is.
+	setsAField := func(expr ast.Expr) (string, bool) {
+		for {
+			switch e := expr.(type) {
+			case *ast.ParenExpr:
+				expr = e.X
+			case *ast.StarExpr:
+				expr = e.X
+			case *ast.IndexExpr:
+				expr = e.X
+			case *ast.SelectorExpr:
+				if selection, ok := u.info.Selections[e]; ok && selection.Kind() == types.FieldVal && fields[selection.Obj()] {
+					return selection.Obj().Name(), true
+				}
+				expr = e.X
+			default:
+				return "", false
+			}
+		}
+	}
+	var found []site
+	report := func(node ast.Node, text string) {
+		path, line := u.rel(node.Pos())
+		found = append(found, site{path: path, line: line, text: text})
+	}
+	set := func(node ast.Node, expr ast.Expr) {
+		if name, ok := setsAField(expr); ok {
+			report(node, name+", a field of Dir, is set here, and only "+strings.Join(dirMakers, " and ")+" set one")
+		}
+	}
+	for _, file := range u.files {
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch n := node.(type) {
+			case *ast.FuncDecl:
+				if n.Recv == nil && slices.Contains(dirMakers, n.Name.Name) {
+					return false
+				}
+			case *ast.TypeSpec:
+				if u.info.Defs[n.Name] == dir {
+					return false
+				}
+			case *ast.StructType:
+				if tv, ok := u.info.Types[n]; ok && types.Identical(tv.Type, structure) {
+					report(n, "a struct with the fields of Dir, which is assignable and converts to one, so a Dir can be made from it outside "+strings.Join(dirMakers, " and "))
+				}
+			case *ast.CompositeLit:
+				if isDir(u.info.TypeOf(n)) {
+					report(n, "a Dir is made here, and only "+strings.Join(dirMakers, " and ")+" make one")
+				}
+			case *ast.CallExpr:
+				if tv, ok := u.info.Types[n.Fun]; ok && tv.IsType() && (isDir(tv.Type) || isDir(pointed(tv.Type))) {
+					report(n, "a value is converted to a Dir here, and only "+strings.Join(dirMakers, " and ")+" make one")
+				}
+			case *ast.AssignStmt:
+				for _, lhs := range n.Lhs {
+					set(lhs, lhs)
+				}
+			case *ast.IncDecStmt:
+				set(n, n.X)
+			case *ast.RangeStmt:
+				if n.Tok == token.ASSIGN {
+					for _, target := range []ast.Expr{n.Key, n.Value} {
+						if target != nil {
+							set(target, target)
+						}
+					}
+				}
+			case *ast.UnaryExpr:
+				if name, ok := setsAField(n.X); ok && n.Op == token.AND {
+					report(n, "the address of "+name+", a field of Dir, is taken here, so it can be set outside "+strings.Join(dirMakers, " and "))
+				}
+			}
+			return true
+		})
+	}
 	return found
 }
 
-// holdsDir says whether a value of the type can be a Dir, or can hold or hand
-// out one: through a pointer, a slice, an array, a map, a channel, the exported
-// fields of a struct, or a function that takes or returns one.
-func holdsDir(t types.Type, dir types.Object, seen map[types.Type]bool) bool {
+// isType is a test for one defined type, through any alias of it.
+func isType(object types.Object) func(types.Type) bool {
+	return func(t types.Type) bool {
+		named, isNamed := types.Unalias(t).(*types.Named)
+		return isNamed && named.Obj() == object
+	}
+}
+
+// pointed is what a pointer type points to, or nil.
+func pointed(t types.Type) types.Type {
+	if pointer, isPointer := types.Unalias(t).(*types.Pointer); isPointer {
+		return pointer.Elem()
+	}
+	return nil
+}
+
+// holding is a question asked of a type: whether a value of it is one that is
+// accepts, or holds one. A value holds what a pointer, slice, array, map or
+// channel of it holds, what those of its struct fields that field accepts hold,
+// and, when throughFuncs is set, what a function takes or returns.
+type holding struct {
+	is           func(types.Type) bool
+	field        func(*types.Var) bool
+	throughFuncs bool
+}
+
+func (h holding) in(t types.Type) bool { return h.walk(t, map[types.Type]bool{}) }
+
+func (h holding) walk(t types.Type, seen map[types.Type]bool) bool {
+	if t == nil {
+		return false
+	}
 	t = types.Unalias(t)
 	if seen[t] {
 		return false
 	}
 	seen[t] = true
+	if h.is(t) {
+		return true
+	}
 	switch typ := t.(type) {
 	case *types.Named:
-		if typ.Obj() == dir {
-			return true
-		}
-		return holdsDir(typ.Underlying(), dir, seen)
+		return h.walk(typ.Underlying(), seen)
 	case *types.Pointer:
-		return holdsDir(typ.Elem(), dir, seen)
+		return h.walk(typ.Elem(), seen)
 	case *types.Slice:
-		return holdsDir(typ.Elem(), dir, seen)
+		return h.walk(typ.Elem(), seen)
 	case *types.Array:
-		return holdsDir(typ.Elem(), dir, seen)
+		return h.walk(typ.Elem(), seen)
 	case *types.Chan:
-		return holdsDir(typ.Elem(), dir, seen)
+		return h.walk(typ.Elem(), seen)
 	case *types.Map:
-		return holdsDir(typ.Key(), dir, seen) || holdsDir(typ.Elem(), dir, seen)
+		return h.walk(typ.Key(), seen) || h.walk(typ.Elem(), seen)
 	case *types.Struct:
 		for field := range typ.Fields() {
-			if field.Exported() && holdsDir(field.Type(), dir, seen) {
+			if h.field(field) && h.walk(field.Type(), seen) {
 				return true
 			}
 		}
 	case *types.Signature:
+		if !h.throughFuncs {
+			return false
+		}
 		for param := range typ.Params().Variables() {
-			if holdsDir(param.Type(), dir, seen) {
+			if h.walk(param.Type(), seen) {
 				return true
 			}
 		}
 		for result := range typ.Results().Variables() {
-			if holdsDir(result.Type(), dir, seen) {
+			if h.walk(result.Type(), seen) {
 				return true
 			}
-		}
-	}
-	return false
-}
-
-func receiverExported(decl *ast.FuncDecl) bool {
-	if decl.Recv == nil || len(decl.Recv.List) == 0 {
-		return true
-	}
-	expr := decl.Recv.List[0].Type
-	if star, isStar := expr.(*ast.StarExpr); isStar {
-		expr = star.X
-	}
-	if index, isIndex := expr.(*ast.IndexExpr); isIndex {
-		expr = index.X
-	}
-	id, isIdent := expr.(*ast.Ident)
-	return isIdent && id.IsExported()
-}
-
-func takesADir(sig *types.Signature, pkg *types.Package) bool {
-	for param := range sig.Params().Variables() {
-		typ := types.Unalias(param.Type())
-		if pointer, isPointer := typ.(*types.Pointer); isPointer {
-			typ = types.Unalias(pointer.Elem())
-		}
-		if named, isNamed := typ.(*types.Named); isNamed && named.Obj().Pkg() == pkg && named.Obj().Name() == "Dir" {
-			return true
 		}
 	}
 	return false

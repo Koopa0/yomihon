@@ -73,7 +73,12 @@ func (i *fixtureImporter) check(path, name, src string) (*types.Package, []*ast.
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	info := &types.Info{Uses: map[*ast.Ident]types.Object{}, Defs: map[*ast.Ident]types.Object{}, Types: map[ast.Expr]types.TypeAndValue{}}
+	info := &types.Info{
+		Uses:       map[*ast.Ident]types.Object{},
+		Defs:       map[*ast.Ident]types.Object{},
+		Types:      map[ast.Expr]types.TypeAndValue{},
+		Selections: map[*ast.SelectorExpr]*types.Selection{},
+	}
 	var first error
 	config := types.Config{Importer: i, Error: func(err error) {
 		if first == nil {
@@ -424,7 +429,7 @@ type Dir struct{ path string; Path string }`,
 		src: `package confdir
 type Dir struct{ path string }
 func DirOf(path string) Dir { return Dir{path: path} }`,
-		want: []string{"DirOf returns a Dir"},
+		want: []string{"DirOf returns a Dir", "a Dir is made here"},
 	},
 	{
 		name: "a method that moves a Dir somewhere else",
@@ -432,13 +437,100 @@ func DirOf(path string) Dir { return Dir{path: path} }`,
 		src: `package confdir
 type Dir struct{ path string }
 func (d Dir) Sub(name string) Dir { return Dir{path: d.path + "/" + name} }`,
-		want: []string{"Dir.Sub returns a Dir"},
+		want: []string{"Dir.Sub returns a Dir", "a Dir is made here"},
 	},
 	{
 		name: "a writer with no Dir at all",
 		as:   rawWriter,
 		src:  `package confdir`,
 		want: []string{"there is no type Dir"},
+	},
+
+	// Only Home and VaultDir make a Dir or set what one holds, so no signature
+	// that takes a Dir can be handed one aimed anywhere else.
+	{
+		name: "a pointer receiver that aims its Dir elsewhere",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+func (d *Dir) Aim(path string) { d.path = path }`,
+		want: []string{"path, a field of Dir, is set here"},
+	},
+	{
+		name: "a Dir handed back through a pointer the caller passes",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+func Into(out *Dir, path string) { *out = Dir{path: path} }`,
+		want: []string{"a Dir is made here"},
+	},
+	{
+		name: "Dirs made into a slice, and set through one the caller passes",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+var homes = []Dir{{path: "/vault"}}
+func Dirs(paths ...string) []Dir {
+	var all []Dir
+	for _, p := range paths { all = append(all, Dir{path: p}) }
+	return all
+}
+func Fill(all []Dir, path string) { for i := range all { all[i].path = path } }`,
+		want: []string{"a Dir is made here", "Dirs returns a Dir", "a Dir is made here", "path, a field of Dir, is set here"},
+	},
+	{
+		name: "an exported method that writes a path it is given",
+		as:   rawWriter,
+		src: `package confdir
+import "os"
+type Dir struct{ path string }
+type saver struct{}
+func (saver) Save(path string, data []byte) error { return os.WriteFile(path, data, 0o600) }`,
+		want: []string{"saver.Save changes a file and takes no Dir"},
+	},
+	{
+		name: "an exported variable that holds a function that writes",
+		as:   rawWriter,
+		src: `package confdir
+import "os"
+type Dir struct{ path string }
+var Save = os.WriteFile`,
+		want: []string{"Save is a variable that holds a function"},
+	},
+	{
+		name: "a function that writes, held in a variable an exported function calls",
+		as:   rawWriter,
+		src: `package confdir
+import "os"
+type Dir struct{ path string }
+var save = os.WriteFile
+func Save(path string, data []byte) error { return save(path, data, 0o600) }`,
+		want: []string{"save is a variable that holds a function"},
+	},
+	{
+		name: "a struct with the fields of Dir, which is assignable to one",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+func of(path string) Dir { return struct{ path string }{path} }`,
+		want: []string{"a struct with the fields of Dir"},
+	},
+	{
+		name: "a Dir converted from a type of the same shape",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+type raw struct{ path string }
+func aim(r raw) Dir { return Dir(r) }`,
+		want: []string{"a struct with the fields of Dir", "converted to a Dir here"},
+	},
+	{
+		name: "a field of Dir set through its address",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+func aim(d *Dir, path string) { p := &d.path; *p = path }`,
+		want: []string{"the address of path, a field of Dir"},
 	},
 
 	// And what must stay quiet.
@@ -515,6 +607,8 @@ func VaultDir(configDir, vaultRoot string) (Dir, error) { return Dir{path: confi
 func (d Dir) Path() string { return d.path }
 func Wipe(dir Dir, name string) error { return os.Remove(dir.path + name) }
 func (d Dir) Clear(name string) error { return os.Remove(d.path + name) }
+type Lock struct{ dir Dir; name string }
+func (l *Lock) Release() error { return os.Remove(l.dir.path + l.name) }
 func Size(path string) (int64, error) { info, err := os.Stat(path); if err != nil { return 0, err }; return info.Size(), nil }`,
 	},
 
