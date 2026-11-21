@@ -113,7 +113,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 	case otherVersion:
 		// A contract for another schema version asserts nothing this binary can
 		// read, so the folder is read as one without a contract; the version is
-		// kept so the pages and the commands can say which line to change.
+		// kept so the pages and the commands can say what differs and what to do about it.
 		log.Warn("rules file is for another schema version", "error", err)
 		contract = nil
 		governance = schema.UnsupportedVersion(err)

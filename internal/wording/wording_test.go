@@ -295,8 +295,8 @@ func TestJoinGuide(t *testing.T) {
 
 // TestTraditionalChineseUsesFullWidthPunctuation keeps the Traditional Chinese
 // chrome on full-width marks. Half-width punctuation in CJK context was a copy
-// defect across fifteen sites; one phrase is exempt because it quotes YAML
-// syntax. English is held to straight quotes in the same walk: %q and the other
+// defect across fifteen sites; the phrases exempt quote YAML syntax or name a web
+// address. English is held to straight quotes in the same walk: %q and the other
 // format verbs already emit them at twenty-two sites, and curly at the four
 // former exceptions would mean StepBackOpen/StepBackClose-style splits at each
 // one — one more chance per site to put both conventions on one screen again.
@@ -307,6 +307,7 @@ func TestTraditionalChineseUsesFullWidthPunctuation(t *testing.T) {
 		"StatusFieldUnsupportedYAMLNext": "quotes YAML status: 值 syntax",
 		"NoDeclaredTypeEmptyFmt":         "quotes the YAML type: 值 line a reader would write",
 		"NoDeclaredTypesEmptyFmt":        "quotes the YAML type: 值 line a reader would write",
+		"rulesUpgradeGuideWhere":         "names a web address, whose colon is part of it",
 	}
 	halfWidth := regexp.MustCompile(`[,;():]`)
 	for _, p := range writtenPhrases(t) {

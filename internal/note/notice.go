@@ -37,13 +37,21 @@ func folderNotices(collision []string, root *snapshot.RootNotice, rules *schema.
 }
 
 // rulesVersionNotice says what differs between the rules file and the version
-// this one reads, and which line to change. The declared value is the vault's
-// own text, so a long one is cut rather than allowed to fill the notice.
+// this one reads, and what to do about it: which line to change, or for a file
+// in the older format, where the upgrade guide is, since the line alone does not
+// make that file readable. The declared value is the vault's own text, so a long
+// one is cut rather than allowed to fill the notice.
 func rulesVersionNotice(rules *schema.VersionError, lang wording.Lang) pages.FolderNotice {
 	const longest = 24
 	declared := rules.Declared
 	if runes := []rune(declared); len(runes) > longest {
 		declared = string(runes[:longest]) + "…"
+	}
+	if rules.Older() {
+		return pages.FolderNotice{
+			Title:   wording.NoticeRulesVersionTitle.In(lang),
+			Summary: wording.RulesVersionOlder(lang, declared, rules.Supported),
+		}
 	}
 	return pages.FolderNotice{
 		Title:   wording.NoticeRulesVersionTitle.In(lang),

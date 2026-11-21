@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/schema"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 // The front end of the three adjudicating commands — check, coverage and
@@ -261,10 +262,12 @@ func contractGuidance(err error) string {
 }
 
 // versionGuidance says what differs between a rules file and the version this
-// binary reads, and which line to change. It states only what the error
-// carries: a plain version number, a line number and the supported version, so
-// nothing of the vault's own words is printed under a policy that could not be
-// read.
+// binary reads, and what to do about it: which line to change, or for a file in
+// the older format, where the upgrade guide is, because that file is refused for
+// its keys and not only for its version line. It states only what the error
+// carries: a plain version number, a line number, whether the number is older
+// and the supported version, so nothing of the vault's own words is printed
+// under a policy that could not be read.
 func versionGuidance(mismatch *egress.RulesVersionError) string {
 	var declares, change string
 	switch {
@@ -276,7 +279,11 @@ func versionGuidance(mismatch *egress.RulesVersionError) string {
 	default:
 		declares = "declares a schema_version this yomihon does not read"
 	}
-	if change == "" {
+	switch {
+	case mismatch.Older:
+		migrate, where := wording.RulesOlderRepair(wording.En)
+		change = migrate + "\n  " + where
+	case change == "":
 		change = "Change the schema_version line to schema_version = \"" + mismatch.Supported + "\"."
 		if mismatch.Line > 0 {
 			change = "Change line " + strconv.Itoa(mismatch.Line) + " to schema_version = \"" + mismatch.Supported + "\"."

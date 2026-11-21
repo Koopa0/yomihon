@@ -49,8 +49,8 @@ func RulesVersionSummary(lang Lang, declared, supported string) string {
 	).In(lang), declared, supported)
 }
 
-// RulesVersionDetail says which line to change. A line of zero means none was
-// found, so the line is to be added.
+// RulesVersionDetail says which line to change, for a file whose only fault is
+// that line. A line of zero means none was found, so the line is to be added.
 func RulesVersionDetail(lang Lang, line int, supported string) string {
 	if line == 0 {
 		return fmt.Sprintf(both(
@@ -62,6 +62,40 @@ func RulesVersionDetail(lang Lang, line int, supported string) string {
 		"把第 %d 行改成 schema_version = \"%s\"。",
 		"Change line %d to schema_version = \"%s\".",
 	).In(lang), line, supported)
+}
+
+// rulesOlderFormat is what a rules file written in an older format is told in
+// place of a line to change: its keys differ, so the version line alone does not
+// make it readable.
+var rulesOlderFormat = both(
+	"這份書庫規則使用舊格式。請依升級說明遷移規則檔與筆記欄位。",
+	"This vault's rules use an older format. Follow the upgrade guide to migrate the rules file and the note fields.",
+)
+
+// rulesUpgradeGuideWhere says where that upgrade guide is: the file in the
+// repository, which a reader of an installed binary has no copy of, and the
+// address it can be opened at. yomihon only prints it; it makes no request.
+var rulesUpgradeGuideWhere = both(
+	"升級說明在 yomihon repo 的 docs/upgrading.md，網址是 https://github.com/koopa0/yomihon/blob/main/docs/upgrading.md",
+	"The upgrade guide is docs/upgrading.md in the yomihon repository, at https://github.com/koopa0/yomihon/blob/main/docs/upgrading.md",
+)
+
+// RulesOlderRepair is what a rules file in an older format is told: to migrate
+// it, and where the upgrade guide is. The two come apart because the command
+// line puts each on a line of its own and a page runs them together.
+func RulesOlderRepair(lang Lang) (migrate, where string) {
+	return rulesOlderFormat.In(lang), rulesUpgradeGuideWhere.In(lang)
+}
+
+// RulesVersionOlder is the summary for a rules file written in an older
+// format: the versions that differ, what to do, and where the upgrade guide is.
+func RulesVersionOlder(lang Lang, declared, supported string) string {
+	gap := ""
+	if lang == En {
+		gap = " "
+	}
+	migrate, where := RulesOlderRepair(lang)
+	return RulesVersionSummary(lang, declared, supported) + gap + migrate + gap + where
 }
 
 // RootDetail labels the selected path and startup name in the reader's language.

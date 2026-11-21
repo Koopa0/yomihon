@@ -186,6 +186,9 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 		wantLine func(root string) string
 		// wantSaid are the facts the paragraph under that line owes a reader.
 		wantSaid []string
+		// wantNot are words the paragraph must not carry: advice that does not
+		// hold for this kind of refusal.
+		wantNot []string
 	}{
 		{
 			name: "a contract that cannot be read",
@@ -201,7 +204,7 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 			wantSaid: unresolvedContractGuidance,
 		},
 		{
-			name: "a contract written for another version",
+			name: "a contract in the older format",
 			build: func(t *testing.T) string {
 				t.Helper()
 				root := t.TempDir()
@@ -214,8 +217,48 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 			wantSaid: []string{
 				"System/schemas/vault-schema.toml",
 				`declares schema_version "1"; this yomihon reads "2"`,
+				"older format",
+				"upgrade guide",
+				"docs/upgrading.md",
+				"https://github.com/koopa0/yomihon/blob/main/docs/upgrading.md",
+			},
+			wantNot: []string{"Change line", "Change the schema_version line", "Add the line"},
+		},
+		{
+			name: "a contract written for a newer version",
+			build: func(t *testing.T) string {
+				t.Helper()
+				root := t.TempDir()
+				writeFile(t, root, schema.ContractRelPath, "# rules\nschema_version = \"3\"\n")
+				return root
+			},
+			wantLine: func(string) string {
+				return "yomihon: privacy authority unavailable; agent-facing output disabled"
+			},
+			wantSaid: []string{
+				"System/schemas/vault-schema.toml",
+				`declares schema_version "3"; this yomihon reads "2"`,
 				`Change line 2 to schema_version = "2"`,
 			},
+			wantNot: []string{"older format", "upgrade guide"},
+		},
+		{
+			name: "a contract with no version",
+			build: func(t *testing.T) string {
+				t.Helper()
+				root := t.TempDir()
+				writeFile(t, root, schema.ContractRelPath, "[privacy]\nnever_egress_dirs = []\n")
+				return root
+			},
+			wantLine: func(string) string {
+				return "yomihon: privacy authority unavailable; agent-facing output disabled"
+			},
+			wantSaid: []string{
+				"System/schemas/vault-schema.toml",
+				"has no schema_version",
+				`Add the line schema_version = "2"`,
+			},
+			wantNot: []string{"older format", "upgrade guide"},
 		},
 		{
 			name: "a folder that is not there",
@@ -262,6 +305,11 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 						t.Errorf("stdout = %q, want empty", stdout.String())
 					}
 					assertRefusal(t, stderr.String(), folder.wantLine(root), folder.wantSaid)
+					for _, unwanted := range folder.wantNot {
+						if strings.Contains(stderr.String(), unwanted) {
+							t.Errorf("the refusal says %q, which is not true of this folder:\n%s", unwanted, stderr.String())
+						}
+					}
 				})
 			}
 		})
