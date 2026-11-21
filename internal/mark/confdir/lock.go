@@ -1,10 +1,8 @@
 package confdir
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"time"
 )
@@ -13,36 +11,31 @@ import (
 // allowed.
 var ErrLocked = errors.New("the lock is held by another")
 
-// lockPoll is how often a waiter looks again.
-const lockPoll = 10 * time.Millisecond
+const (
+	// LockWait is how long a change waits for another process to finish its own.
+	LockWait = 5 * time.Second
+	// lockPoll is how often a waiter looks again.
+	lockPoll = 10 * time.Millisecond
+)
 
-// Lock is an exclusive claim on a file name in a directory. It is held by
-// creating that file with nothing else able to have created it first, which
-// works on every platform yomihon is built for; the advisory locks of the
-// operating system do not.
+// Lock is an exclusive claim on a file in a directory, which the operating
+// system holds on an open handle of that file: flock on Unix and LockFileEx on
+// Windows. Two claims exclude each other whether two processes make them or two
+// goroutines of one, and the system lets a claim go when the process holding it
+// ends, however it ends, so no lock is left behind for a waiter to judge.
+//
+// The file is made by the first claim and never removed. A waiter that opened
+// it before a removal would lock a file no longer at that name, while the next
+// claimant made another and locked that.
 type Lock struct {
-	dir    Dir
-	name   string
-	holder []byte
+	dir  Dir
+	name string
+	file *os.File
 }
 
 // Acquire takes the lock called name in dir, waiting up to wait for whoever
-// holds it. holder is written into the lock file and says who holds it; it has
-// to differ between two claimants, which is how Release can tell its own lock
-// from one that took its place.
-//
-// A process that stops while holding the lock leaves the file behind, so the
-// caller says what an abandoned lock looks like: abandoned is given what the
-// file holds and how long ago it was made, and a lock it calls abandoned is
-// removed and taken. A nil abandoned never takes a lock from its holder.
-//
-// Two waiters that both find the same lock abandoned can both remove it, and
-// the second removal can take the lock the first waiter just made. That needs
-// a crashed holder and two waiters in the same few microseconds, and what it
-// costs is a read-modify-write that loses a concurrent change, which the reader
-// repeats by pressing the same control; closing it would take an operating
-// system lock this does not have.
-func Acquire(dir Dir, name string, holder []byte, abandoned func(holder []byte, age time.Duration) bool, wait time.Duration) (*Lock, error) {
+// holds it.
+func Acquire(dir Dir, name string, wait time.Duration) (*Lock, error) {
 	if err := dir.named(); err != nil {
 		return nil, err
 	}
@@ -52,108 +45,44 @@ func Acquire(dir Dir, name string, holder []byte, abandoned func(holder []byte, 
 	if err := os.MkdirAll(dir.path, 0o700); err != nil {
 		return nil, fmt.Errorf("create the directory: %w", err)
 	}
-	path := dir.Join(name)
+	file, err := openLock(dir, name)
+	if err != nil {
+		return nil, fmt.Errorf("open the lock %s: %w", name, err)
+	}
 	deadline := time.Now().Add(wait)
 	for {
-		err := create(path, holder)
-		if err == nil {
-			return &Lock{dir: dir, name: name, holder: holder}, nil
-		}
-		if !errors.Is(err, fs.ErrExist) {
-			return nil, fmt.Errorf("take the lock %s: %w", name, err)
-		}
-		retry, err := removeIfAbandoned(path, abandoned)
-		if err != nil {
-			return nil, err
-		}
-		if retry {
-			continue
-		}
-		if !time.Now().Before(deadline) {
-			return nil, fmt.Errorf("%w: %s", ErrLocked, name)
+		taken, err := tryLock(file)
+		switch {
+		case err != nil:
+			return nil, errors.Join(fmt.Errorf("take the lock %s: %w", name, err), file.Close())
+		case taken:
+			return &Lock{dir: dir, name: name, file: file}, nil
+		case !time.Now().Before(deadline):
+			return nil, errors.Join(fmt.Errorf("%w: %s", ErrLocked, name), file.Close())
 		}
 		time.Sleep(lockPoll)
 	}
 }
 
-// create makes the lock file and writes the holder into it. Of two callers
-// only one finds no file there, which is the whole of the exclusion; the error
-// for the other satisfies fs.ErrExist.
-func create(path string, holder []byte) error {
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600) // #nosec G304 -- a lock file of the configuration directory
+// Release gives the lock back and closes its file, which stays for the next
+// claim.
+func (l *Lock) Release() error {
+	if err := errors.Join(unlock(l.file), l.file.Close()); err != nil {
+		return fmt.Errorf("release the lock %s: %w", l.dir.Join(l.name), err)
+	}
+	return nil
+}
+
+// Exclusive runs change holding the lock called name in dir, so that a file
+// read inside change and replaced there is replaced from what the file holds
+// now. The command line and the running server are two processes over the same
+// directory, and without this the later of two changes writes over the earlier.
+// It waits up to wait for the lock.
+func Exclusive(dir Dir, name string, wait time.Duration, change func() error) (err error) {
+	lock, err := Acquire(dir, name, wait)
 	if err != nil {
 		return err
 	}
-	_, writeErr := file.Write(holder)
-	closeErr := file.Close()
-	if err := errors.Join(writeErr, closeErr); err != nil {
-		return errors.Join(fmt.Errorf("write the lock: %w", err), os.Remove(path))
-	}
-	return nil
-}
-
-// removeIfAbandoned takes away a lock the caller judges abandoned, and says
-// whether the lock should be tried for again at once: it was removed, or it was
-// gone, or it changed while it was being judged. It removes the file only while
-// it still holds what was judged, so a lock made in the meantime is not the one
-// taken away.
-func removeIfAbandoned(path string, abandoned func(holder []byte, age time.Duration) bool) (retry bool, err error) {
-	if abandoned == nil {
-		return false, nil
-	}
-	held, age, err := readLock(path)
-	if err != nil {
-		return errors.Is(err, fs.ErrNotExist), nil
-	}
-	if !abandoned(held, age) {
-		return false, nil
-	}
-	if !stillHolds(path, held) {
-		return true, nil
-	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return false, fmt.Errorf("remove the abandoned lock: %w", err)
-	}
-	return true, nil
-}
-
-// stillHolds says whether the lock file holds exactly held. A file that cannot
-// be read does not, and is looked at again.
-func stillHolds(path string, held []byte) bool {
-	now, _, err := readLock(path)
-	return err == nil && bytes.Equal(now, held)
-}
-
-// readLock is what a lock file holds and how long ago it was made. A file that
-// has just been made and not yet written reads as empty.
-func readLock(path string) (holder []byte, age time.Duration, err error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return nil, 0, err
-	}
-	holder, err = os.ReadFile(path) // #nosec G304 -- a lock file of the configuration directory
-	if err != nil {
-		return nil, 0, err
-	}
-	return holder, time.Since(info.ModTime()), nil
-}
-
-// Release gives the lock back. A lock that is no longer the holder's own, taken
-// away as abandoned while the holder was merely slow, is left where it is.
-func (l *Lock) Release() error {
-	path := l.dir.Join(l.name)
-	held, _, err := readLock(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("release the lock %s: %w", l.name, err)
-	}
-	if !bytes.Equal(held, l.holder) {
-		return nil
-	}
-	if err := os.Remove(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return fmt.Errorf("release the lock %s: %w", l.name, err)
-	}
-	return nil
+	defer func() { err = errors.Join(err, lock.Release()) }()
+	return change()
 }
