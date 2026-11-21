@@ -13,9 +13,9 @@ import (
 // the page. PlainText is the search index's text and differs at code spans,
 // math, ruby and the markers a footnote adds.
 //
-// A script, a style and a template are not words, and neither is the bracket a
-// browser hides around a ruby reading; the reading itself is selected with its
-// base and so is in the text.
+// A script, a style and a template are not words. Neither is a ruby reading or
+// the bracket around it: the page does not let a reading be selected, so what a
+// reader selects across a ruby is its base text, with the reading shown or not.
 func TextContent(fragment string) string {
 	var words wordReader
 	tokens := html.NewTokenizer(strings.NewReader(fragment))
@@ -81,11 +81,14 @@ func (r *wordReader) closes(token *html.Token) {
 	}
 }
 
-// hidesItsWords are the elements whose contents a browser does not show as
-// text: code a page runs, rules it is styled by, markup it only stamps out, and
-// the parentheses that stand around a ruby reading for a browser that draws no
+// hidesItsWords are the elements whose contents are not words a reader selects:
+// code a page runs, rules it is styled by, markup it only stamps out, a ruby
+// reading and the parentheses that stand around it for a browser that draws no
 // ruby.
-var hidesItsWords = map[string]bool{"script": true, "style": true, "template": true, "rp": true}
+var hidesItsWords = map[string]bool{
+	"script": true, "style": true, "template": true,
+	"rp": true, "rt": true, "rtc": true,
+}
 
 // endsALine are the elements a browser puts on a line of their own, or between
 // which it breaks one.

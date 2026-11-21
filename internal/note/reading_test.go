@@ -113,6 +113,56 @@ func TestEveryWordAPageShowsIsFoundWhereItIs(t *testing.T) {
 	}
 }
 
+// TestAQuoteOfTheBaseTextAcrossRubyIsFoundWhereItIs holds what a reader who
+// selects across a ruby has chosen: the base text, the reading being no part of
+// what is selected. Locate finds those words exactly, at the sentence they are
+// in, whether the author wrote the reading's brackets or not and however many
+// pairs of base and reading the ruby holds.
+func TestAQuoteOfTheBaseTextAcrossRubyIsFoundWhereItIs(t *testing.T) {
+	t.Parallel()
+
+	const rel = "Notes/Snow.md"
+	root := writeNotes(t, map[string]string{rel: "---\ntype: note\n---\n# Snow\n\n" +
+		"国境の長いトンネルを抜けると<ruby>雪国<rp>(</rp><rt>ゆきぐに</rt><rp>)</rp></ruby>であった。夜の底が白くなった。\n\n" +
+		"<ruby>東<rt>とう</rt>京<rt>きょう</rt></ruby>と<ruby>仮名</ruby>を読む。\n"})
+	log := slog.New(slog.DiscardHandler)
+	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
+	handler := note.New(&note.Sources{
+		Source: source, Snapshot: store.Current, Bookmark: noMark, Log: log,
+		Authority: func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) },
+	})
+	page, ok := handler.Reading(rel, wording.En)
+	if !ok {
+		t.Fatalf("Reading(%q) is not a note a reader can open", rel)
+	}
+
+	for _, tt := range []struct {
+		name, quote string
+		want        mark.Status
+	}{
+		{"across a ruby that has brackets", "国境の長いトンネルを抜けると雪国であった。", mark.Found},
+		{"the base alone", "雪国", mark.Found},
+		{"from inside a base to past it", "国であった。夜の底", mark.Found},
+		{"across a ruby of two pairs", "東京と", mark.Found},
+		{"across a ruby that has no reading", "と仮名を読む。", mark.Found},
+		{"a reading the page does not select", "雪国ゆきぐにであった", mark.Changed},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := mark.Locate(page.Text, nil, &mark.Mark{Kind: mark.Highlight, RelPath: rel, Quote: tt.quote})
+			if got.Status != tt.want {
+				t.Fatalf("Locate(%q) status = %v, want %v in %q", tt.quote, got.Status, tt.want, page.Text)
+			}
+			if tt.want != mark.Found {
+				return
+			}
+			if !got.Exact || page.Text[got.Start:got.End] != tt.quote {
+				t.Errorf("Locate(%q) = exact %v at %q, want the words themselves", tt.quote, got.Exact, page.Text[got.Start:got.End])
+			}
+		})
+	}
+}
+
 // places is how many places words begin in text, a place that overlaps another
 // counting as one more.
 func places(text, words string) int {
@@ -129,7 +179,8 @@ func places(text, words string) int {
 
 // textNodes is the words of each text node of an HTML fragment that a reader
 // can select, one string each, with the white space of each run made one space
-// and nothing but white space left out.
+// and nothing but white space left out. A ruby reading is not selected with
+// its base, so it is not among them.
 func textNodes(t *testing.T, fragment string) []string {
 	t.Helper()
 	root, err := htmlnode.ParseFragment(strings.NewReader(fragment), &htmlnode.Node{Type: htmlnode.ElementNode, Data: "div", DataAtom: atom.Div})
@@ -139,7 +190,7 @@ func textNodes(t *testing.T, fragment string) []string {
 	var words []string
 	var walk func(*htmlnode.Node)
 	walk = func(n *htmlnode.Node) {
-		if n.Type == htmlnode.ElementNode && slices.Contains([]string{"script", "style", "template", "rp"}, n.Data) {
+		if n.Type == htmlnode.ElementNode && slices.Contains([]string{"script", "style", "template", "rp", "rt", "rtc"}, n.Data) {
 			return
 		}
 		if n.Type == htmlnode.TextNode {
