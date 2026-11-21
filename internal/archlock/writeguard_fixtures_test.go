@@ -386,7 +386,7 @@ var t = template.Must(template.New("x").Parse("{{.Remove}}"))`,
 import "os"
 type Dir struct{ path string }
 func Wipe(path string) error { return os.Remove(path) }`,
-		want: []string{"Wipe changes a file and takes no Dir"},
+		want: []string{"Wipe changes a file, or a process, and takes no Dir"},
 	},
 	{
 		name: "the same, a helper away",
@@ -396,7 +396,7 @@ import "os"
 type Dir struct{ path string }
 func Wipe(path string) error { return wipe(path) }
 func wipe(path string) error { return os.Remove(path) }`,
-		want: []string{"Wipe changes a file and takes no Dir"},
+		want: []string{"Wipe changes a file, or a process, and takes no Dir"},
 	},
 	{
 		name: "an exported function of the writer that makes a directory from a path",
@@ -405,7 +405,7 @@ func wipe(path string) error { return os.Remove(path) }`,
 import "os"
 type Dir struct{ path string }
 func Prepare(path string) error { return os.MkdirAll(path, 0o700) }`,
-		want: []string{"Prepare changes a file and takes no Dir"},
+		want: []string{"Prepare changes a file, or a process, and takes no Dir"},
 	},
 
 	// The type that carries the rule is what it says it is.
@@ -486,7 +486,7 @@ import "os"
 type Dir struct{ path string }
 type saver struct{}
 func (saver) Save(path string, data []byte) error { return os.WriteFile(path, data, 0o600) }`,
-		want: []string{"saver.Save changes a file and takes no Dir"},
+		want: []string{"saver.Save changes a file, or a process, and takes no Dir"},
 	},
 	{
 		name: "an exported variable that holds a function that writes",
@@ -660,34 +660,53 @@ func run() error { var r runner = &exec.Cmd{Path: "/bin/sh"}; return r.Run() }`,
 		want: []string{"os/exec.Cmd, which is not one this guard knows"},
 	},
 	{
-		name: "a signal that is not zero",
-		src: `package fixture
-import ("os"; "syscall")
-func stop(pid int) error {
-	p, err := os.FindProcess(pid)
-	if err != nil { return err }
-	return p.Signal(syscall.Signal(9))
-}`,
-		want: []string{"os.Process.Signal, which is not called with the one argument"},
-	},
-	{
-		name: "a signal that is a variable",
-		src: `package fixture
-import ("os"; "syscall")
-func stop(pid int, n syscall.Signal) error {
-	p, err := os.FindProcess(pid)
-	if err != nil { return err }
-	return p.Signal(n)
-}`,
-		want: []string{"os.Process.Signal, which is not called with the one argument"},
-	},
-	{
-		name: "a signal of zero, which asks whether a process is there",
+		name: "a process found and signalled outside the writer",
 		src: `package fixture
 import ("os"; "syscall")
 func there(pid int) bool {
 	p, err := os.FindProcess(pid)
 	return err == nil && p.Signal(syscall.Signal(0)) == nil
+}`,
+		want: []string{"os.FindProcess", "os.Process.Signal", "syscall.Signal"},
+	},
+	{
+		name: "an exported function of the writer that sends a signal other than 0",
+		as:   rawWriter,
+		src: `package confdir
+import ("os"; "syscall")
+type Dir struct{ path string }
+func Stop(pid int) error {
+	p, err := os.FindProcess(pid)
+	if err != nil { return err }
+	return p.Signal(syscall.Signal(9))
+}`,
+		want: []string{"Stop changes a file, or a process, and takes no Dir"},
+	},
+	{
+		name: "an exported function of the writer that sends a signal it is given",
+		as:   rawWriter,
+		src: `package confdir
+import ("os"; "syscall")
+type Dir struct{ path string }
+func Stop(pid int, n syscall.Signal) error {
+	p, err := os.FindProcess(pid)
+	if err != nil { return err }
+	return p.Signal(n)
+}`,
+		want: []string{"Stop changes a file, or a process, and takes no Dir"},
+	},
+	{
+		name: "the writer asking whether a process is there, for any caller",
+		as:   rawWriter,
+		src: `package confdir
+import ("errors"; "os"; "runtime"; "syscall")
+type Dir struct{ path string }
+func ProcessAlive(pid int) bool {
+	p, err := os.FindProcess(pid)
+	if err != nil { return false }
+	if runtime.GOOS == "windows" { return p.Release() == nil }
+	err = p.Signal(syscall.Signal(0))
+	return err == nil || errors.Is(err, syscall.EPERM)
 }`,
 	},
 	{
@@ -699,8 +718,7 @@ func stop(v any) error { return v.(interface{ Kill() error }).Kill() }`,
 	{
 		name: "a signal sent through an interface",
 		src: `package fixture
-import "syscall"
-func stop(v any) error { return v.(interface{ Signal(syscall.Signal) error }).Signal(9) }`,
+func stop(v any) error { return v.(interface{ Signal(int) error }).Signal(9) }`,
 		want: []string{"through an interface to Signal"},
 	},
 

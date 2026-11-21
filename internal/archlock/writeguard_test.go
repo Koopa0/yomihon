@@ -107,22 +107,28 @@ func init() {
 		// The types of a handle, named so a value can be declared and passed; what a
 		// handle can do is judged by each method below, since a method of the type
 		// is a name of its own.
-		"os.File", "os.Root", "syscall.Signal",
+		"os.File", "os.Root",
 		"os.Getenv", "os.Getpid", "os.Getwd", "os.UserConfigDir",
 		// Looking at the filesystem without changing it.
 		"os.Stat", "os.ReadFile", "os.DirFS", "os.OpenRoot", "os.SameFile",
 		"os.DevNull", "os.ModeCharDevice", "os.ModeSymlink",
 		"os.File.Close", "os.File.Read", "os.File.Seek", "os.File.Stat",
 		"os.Root.Close", "os.Root.FS", "os.Root.Lstat", "os.Root.Open", "os.Root.OpenRoot", "os.Root.Stat",
-		// Asking whether a process is still there.
-		"os.FindProcess", "os.Process.Signal", "os.Process.Release",
-		"syscall.EPERM",
 		// What a closed connection and a termination look like.
 		"syscall.EPIPE", "syscall.ECONNRESET", "syscall.SIGTERM",
 	} {
 		readOnly[name] = true
 	}
 }
+
+// processQueries are the names the writer asks with whether a process is still
+// there: finding it by its id and sending it signal 0, which delivers nothing.
+// None changes a file or ends a process, so shape lets an exported function of
+// the writer that uses them take no Dir; that is ProcessAlive, which tells a lock
+// or a record of a running yomihon that its process left behind from one it
+// still holds. Outside the writer they are refused like any name not on
+// readOnly, since nothing else asks.
+var processQueries = []string{"os.FindProcess", "os.Process.Release", "os.Process.Signal", "syscall.Signal", "syscall.EPERM"}
 
 // writeFamilies are the prefixes of the names a handle that writes answers to.
 // They are prefixes because the standard library grows (Mkdir became MkdirAll
@@ -173,10 +179,11 @@ var alsoRefused = []string{
 }
 
 // constrainedCalls are the calls that are refused unless made with the one
-// argument that leaves them harmless: a signal of 0, which asks whether a
-// process is there and sends nothing, and a network that is tcp, which is a port
-// and not a file. A use that is not a call, or whose argument is not a constant
-// of that kind, is refused, since nothing then says what it is called with.
+// argument that leaves them harmless: a network that is tcp, which is a port and
+// not a file, and, among the processQueries only the writer may name, a signal of
+// 0, which asks whether a process is there and sends nothing. A use that is not
+// a call, or whose argument is not a constant of that kind, is refused, since
+// nothing then says what it is called with.
 var constrainedCalls = map[string]struct {
 	argument int
 	allowed  func(value constant.Value) bool
@@ -470,14 +477,16 @@ func judge(u *unit) (found []site, writerUses int, used map[string]bool) {
 	var uses []use
 	permitted := permittedCalls(u)
 	for id, obj := range u.info.Uses {
-		if what, refused := refusal(obj, u.dependency); refused {
+		sym, resolved := resolve(obj)
+		if what, refused := refusedUse(obj, id, permitted, u.dependency); refused {
 			uses = append(uses, use{id.Pos(), what})
-		} else if sym, ok := resolve(obj); ok {
-			if _, constrained := constrainedCalls[sym.key]; constrained && !permitted[id] {
-				uses = append(uses, use{id.Pos(), sym.key + ", which is not called with the one argument it is allowed with"})
-			} else if readOnly[sym.key] && !u.dependency {
+			// The writer may name anything, so what it uses says nothing of readOnly;
+			// it is what keeps processQueries from holding a name nothing asks with.
+			if u.path == rawWriter && resolved && slices.Contains(processQueries, sym.key) {
 				used[sym.key] = true
 			}
+		} else if resolved && readOnly[sym.key] && !u.dependency && u.path != rawWriter {
+			used[sym.key] = true
 		}
 	}
 	slices.SortFunc(uses, func(a, b use) int { return cmp.Compare(a.pos, b.pos) })
@@ -490,6 +499,21 @@ func judge(u *unit) (found []site, writerUses int, used map[string]bool) {
 		found = append(found, site{path: path, line: line, text: one.what})
 	}
 	return found, writerUses, used
+}
+
+// refusedUse is what a use of a name is refused as outside rawWriter, or that it
+// is not: refusal, and for a constrainedCalls name, the argument it is called
+// with.
+func refusedUse(obj types.Object, id *ast.Ident, permitted map[*ast.Ident]bool, dependency bool) (string, bool) {
+	if what, refused := refusal(obj, dependency); refused {
+		return what, true
+	}
+	if sym, ok := resolve(obj); ok {
+		if _, constrained := constrainedCalls[sym.key]; constrained && !permitted[id] {
+			return sym.key + ", which is not called with the one argument it is allowed with", true
+		}
+	}
+	return "", false
 }
 
 // shape is the rule that makes the writer's own signatures carry the other half:
@@ -521,12 +545,26 @@ func shape(u *unit) []site {
 			}
 		}
 	}
+	permitted := permittedCalls(u)
+	// What a use outside the writer would be refused for, it changes here too,
+	// except asking whether a process is there with signal 0.
+	changes := func(id *ast.Ident, obj types.Object) bool {
+		if _, refused := refusedUse(obj, id, permitted, false); !refused {
+			return false
+		}
+		sym, _ := resolve(obj)
+		if !slices.Contains(processQueries, sym.key) {
+			return true
+		}
+		_, constrained := constrainedCalls[sym.key]
+		return constrained && !permitted[id]
+	}
 	for id, obj := range u.info.Uses {
 		for _, fn := range functions {
 			if id.Pos() < fn.decl.Body.Pos() || id.Pos() >= fn.decl.Body.End() {
 				continue
 			}
-			if _, refused := refusal(obj, false); refused {
+			if changes(id, obj) {
 				fn.writes = true
 			}
 			if callee, isFunc := obj.(*types.Func); isFunc && callee.Pkg() == u.pkg {
@@ -559,7 +597,7 @@ func shape(u *unit) []site {
 			name = typeName(recv.Type()) + "." + name
 		}
 		path, line := u.rel(fn.decl.Pos())
-		found = append(found, site{path: path, line: line, text: name + " changes a file and takes no Dir, so a caller could point it anywhere"})
+		found = append(found, site{path: path, line: line, text: name + " changes a file, or a process, and takes no Dir, so a caller could point it anywhere"})
 	}
 	return found
 }
@@ -1160,12 +1198,17 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 	}
 	report(t, "this may change a file or reach past what this guard can read, and yomihon writes in exactly one place, outside the vault: the reader's own files, through internal/mark/confdir", found)
 
-	t.Logf("%d of %d readOnly names are used: %v", len(used), len(readOnly), slices.Sorted(maps.Keys(used)))
 	// A permission nobody uses is one more name that may be written later without
-	// anyone having decided it.
+	// anyone having decided it. The writer's own uses do not count for readOnly,
+	// since the writer may name anything.
 	for _, key := range slices.Sorted(maps.Keys(readOnly)) {
 		if !used[key] {
-			t.Errorf("%s is on readOnly and no shipped package names it; remove it", key)
+			t.Errorf("%s is on readOnly and no shipped package outside %s names it; remove it", key, rawWriter)
+		}
+	}
+	for _, key := range processQueries {
+		if !used[key] {
+			t.Errorf("%s is on processQueries and %s does not name it; remove it", key, rawWriter)
 		}
 	}
 	// A file that no platform builds is a file nothing here read.
@@ -1260,6 +1303,11 @@ func walkSystem(at target) systemWalk {
 // writes is refused whatever package it is in.
 func TestNoWriteIsOnTheReadOnlyList(t *testing.T) {
 	t.Parallel()
+	for _, key := range processQueries {
+		if readOnly[key] {
+			t.Errorf("%s is on readOnly and on processQueries, and belongs on one", key)
+		}
+	}
 	for key := range readOnly {
 		name := key[strings.LastIndexByte(key, '.')+1:]
 		if hasPrefixIn(name, writeFamilies) || strings.HasPrefix(name, "Write") {
