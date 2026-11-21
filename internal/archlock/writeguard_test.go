@@ -1315,18 +1315,61 @@ func TestNoWriteIsOnTheReadOnlyList(t *testing.T) {
 			t.Errorf("%s is on readOnly and on processQueries, and belongs on one", key)
 		}
 	}
-	for key := range readOnly {
+	for _, problem := range readOnlyProblems(slices.Sorted(maps.Keys(readOnly))) {
+		t.Error(problem)
+	}
+}
+
+// readOnlyProblems is what is wrong with names put on readOnly: one a write
+// answers to, or one of a package that does not reach the filesystem, which the
+// list would be judging for nothing.
+func readOnlyProblems(keys []string) []string {
+	var problems []string
+	for _, key := range keys {
 		name := key[strings.LastIndexByte(key, '.')+1:]
 		if hasPrefixIn(name, writeFamilies) || strings.HasPrefix(name, "Write") {
-			t.Errorf("%s is on readOnly and its name is one a write answers to", key)
+			problems = append(problems, key+" is on readOnly and its name is one a write answers to")
 		}
-		if !reachesFilesystem(key[:strings.LastIndexByte(key, '.')]) && !strings.Contains(key[:strings.LastIndexByte(key, '.')], ".") {
-			// A method key is package.Type.Method; its package is what is left of
-			// the type name.
-			pkg, _, _ := strings.Cut(key, ".")
-			if !reachesFilesystem(pkg) {
-				t.Errorf("%s is on readOnly and names a package that does not reach the filesystem, so the list is judging nothing", key)
-			}
+		if !reachesFilesystem(keyPackage(key)) {
+			problems = append(problems, key+" is on readOnly and names a package that does not reach the filesystem, so the list is judging nothing")
+		}
+	}
+	return problems
+}
+
+// keyPackage is the package a key of readOnly names: a key is package.Name or
+// package.Type.Method, and the last element of a package path holds no dot.
+func keyPackage(key string) string {
+	slash := strings.LastIndexByte(key, '/') + 1
+	dot := strings.IndexByte(key[slash:], '.')
+	if dot < 0 {
+		return key
+	}
+	return key[:slash+dot]
+}
+
+// The check on readOnly judges a method by the package of its type, so a method
+// of a package that reaches no file is caught as a function of one is.
+func TestTheReadOnlyCheckFindsWhatDoesNotBelong(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		key  string
+		want int
+	}{
+		{"os.Stat", 0},
+		{"os.Root.Open", 0},
+		{"golang.org/x/sys/unix.Getpid", 0},
+		{"golang.org/x/sys/windows.Handle.Close", 0},
+		{"os.Root.WriteFile", 1},
+		{"os.Chmod", 1},
+		{"net.Dial", 1},
+		{"net/http.Request.Context", 1},
+		{"golang.org/x/net/html.Node.AppendChild", 1},
+		{"net/http.Request.ParseMultipartForm", 1},
+		{"os/exec.Cmd.Run", 0},
+	} {
+		if got := readOnlyProblems([]string{tt.key}); len(got) != tt.want {
+			t.Errorf("readOnlyProblems(%q) = %q, want %d problems", tt.key, got, tt.want)
 		}
 	}
 }
