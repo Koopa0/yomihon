@@ -359,7 +359,7 @@ func loadEntry(ctx context.Context, reader *vault.Reader, entry vault.Entry) (*C
 
 // VersionError is a contract written for a schema version this binary does not
 // read, or for none. It carries what the file declares and the line it is on,
-// which is all a surface needs to say what differs and what to do about it
+// which is all a surface needs to say what differs and which line to change
 // without quoting anything else out of the file.
 type VersionError struct {
 	// Declared is what the file's schema_version says, empty when it says none.
@@ -371,19 +371,6 @@ type VersionError struct {
 	Missing bool
 	// Supported is the version this binary reads.
 	Supported string
-}
-
-// Older is whether the file declares a whole-number version below the one this
-// binary reads: the format before this one, whose keys differ, so changing the
-// version line is not its repair. A newer version, none, and a value that is not
-// a whole number are other mismatches.
-func (e *VersionError) Older() bool {
-	declared, err := strconv.ParseUint(e.Declared, 10, 64)
-	if err != nil {
-		return false
-	}
-	supported, err := strconv.ParseUint(e.Supported, 10, 64)
-	return err == nil && declared < supported
 }
 
 func (e *VersionError) Error() string {

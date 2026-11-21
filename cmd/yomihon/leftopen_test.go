@@ -759,8 +759,8 @@ func TestLeftOpenRefusesWithoutPrivacyAuthority(t *testing.T) {
 
 // A rules file written for another version is a refusal, never a folder with no
 // rules file: what it withholds is unknown, so a note under it must not be
-// listed, and nothing the file wrote comes back out. It says what differs, as
-// the other commands do.
+// listed, and nothing the file wrote comes back out. It says which line to
+// change, as the other commands do.
 func TestLeftOpenRefusesARulesFileForAnotherVersion(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {

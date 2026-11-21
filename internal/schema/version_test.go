@@ -6,8 +6,8 @@ import (
 )
 
 // TestAContractForAnotherVersionNamesWhatItDeclaresAndWhereItIsWritten holds
-// the facts a surface needs to say what differs and what to do about it: the
-// version the file declares and the line it is on, or that it declares none.
+// the facts a surface needs to say which line to change: the version the file
+// declares and the line it is on, or that it declares none.
 func TestAContractForAnotherVersionNamesWhatItDeclaresAndWhereItIsWritten(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -47,38 +47,6 @@ func TestAContractForAnotherVersionNamesWhatItDeclaresAndWhereItIsWritten(t *tes
 			}
 			if *got != *tt.want {
 				t.Errorf("checkVersion = %+v, want %+v", *got, *tt.want)
-			}
-		})
-	}
-}
-
-// TestOnlyAWholeNumberBelowTheVersionThisReadsIsOlder holds the line between a
-// rules file written in the format before this one and every other kind of
-// mismatch. A newer file, a missing version and a value that is not a number
-// are not older, so each keeps the message it had; and "10" is above "2" as a
-// number although it sorts below it as text.
-func TestOnlyAWholeNumberBelowTheVersionThisReadsIsOlder(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		name string
-		err  VersionError
-		want bool
-	}{
-		{"the version before this one", VersionError{Declared: "1", Supported: "2"}, true},
-		{"a version below any that was written", VersionError{Declared: "0", Supported: "2"}, true},
-		{"a newer version", VersionError{Declared: "3", Supported: "2"}, false},
-		{"a newer version that sorts below as text", VersionError{Declared: "10", Supported: "2"}, false},
-		{"a version with a fraction", VersionError{Declared: "1.0", Supported: "2"}, false},
-		{"a negative number", VersionError{Declared: "-1", Supported: "2"}, false},
-		{"a word", VersionError{Declared: "one", Supported: "2"}, false},
-		{"a number too long to hold", VersionError{Declared: "99999999999999999999", Supported: "2"}, false},
-		{"no version at all", VersionError{Missing: true, Supported: "2"}, false},
-		{"an empty declaration", VersionError{Supported: "2"}, false},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := tt.err.Older(); got != tt.want {
-				t.Errorf("%+v.Older() = %v, want %v", tt.err, got, tt.want)
 			}
 		})
 	}

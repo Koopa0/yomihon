@@ -158,8 +158,8 @@ func writeRecoverySiteFixture(t *testing.T, root string) {
 
 // TestARulesFileForAnotherVersionIsReadAsNoRulesFile holds the two halves of
 // that state together through the production composition: the folder reads as
-// one without a contract, and the desk says what to do about the file, in the
-// language the browser asked for.
+// one without a contract, and the desk says which line of the file to change,
+// in the language the browser asked for.
 func TestARulesFileForAnotherVersionIsReadAsNoRulesFile(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -194,12 +194,12 @@ func TestARulesFileForAnotherVersionIsReadAsNoRulesFile(t *testing.T) {
 		t.Fatalf("GET / status = %d, want %d", home.Code, http.StatusOK)
 	}
 	body := home.Body.String()
-	for _, want := range []string{`<html lang="en"`, "older format", "upgrade guide", "docs/upgrading.md"} {
+	for _, want := range []string{`<html lang="en"`, "Change line 2 to schema_version"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the desk does not carry %q", want)
 		}
 	}
-	for _, unwanted := range []string{"Change line", wording.RestartYomihon.In(wording.En), "could not be read"} {
+	for _, unwanted := range []string{wording.RestartYomihon.In(wording.En), "could not be read"} {
 		if strings.Contains(body, unwanted) {
 			t.Errorf("the desk carries %q, which says this folder is broken or needs a restart", unwanted)
 		}

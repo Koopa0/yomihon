@@ -21,7 +21,8 @@ Since v0.3.0, yomihon only reads: nothing writes into a vault any more, and a no
 
 1. Install this binary and the vault's migration on the same day. The old and the new loader refuse each other's contract on purpose: `check`, `coverage`, `exists` and `left-open` exit 2 with "privacy authority unavailable" when the contract is not the one they read.
 2. Restart every yomihon that is running, the server included, once this binary is installed. An older yomihon and this one running over the same configuration directory do not keep each other's changes apart, so one can write away a mark the other just kept.
-3. Move the vault's rules file and notes to the format this release reads, following [the upgrade guide](https://github.com/koopa0/yomihon/blob/main/docs/upgrading.md).
+3. In the contract, remove `[[lifecycle]]`, `[enums.status]`, `[supersession]`, `[navigation]`, `[artifacts]`, `[scan]`, `known`, `lesson_only` and the other keys the closed contract no longer reads, and set `schema_version = "2"`. `docs/` and the yomihon skill describe the contract.
+4. In notes, move what frontmatter used to carry into the text: `title` becomes the first H1, `domain` the folder, `status` is dropped or becomes `draft: true`, `sources` and `tags` become text. A note that is replaced is deleted and its old name goes into the successor's `aliases`.
 
 For tools that read yomihon's output:
 

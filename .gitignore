@@ -30,8 +30,6 @@ tests/
 /PROJECT_PROFILE.md
 /docs/*
 !/docs/judge-rules.md
-!/docs/upgrading.md
-!/docs/upgrading.zh-TW.md
 # The privacy inventory and the threat model state the software's behaviour
 # toward the person running it, which is the claim a stranger checks the code
 # against; the rest of docs/ is the history of how the work was decided and

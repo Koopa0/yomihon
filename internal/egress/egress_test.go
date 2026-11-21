@@ -238,25 +238,6 @@ func TestOpenRefusesWhatItCannotRead(t *testing.T) {
 		if versionErr.Declared != "999" {
 			t.Errorf("Declared = %q, want the plain version 999", versionErr.Declared)
 		}
-		if versionErr.Older {
-			t.Errorf("Older = true for version 999, want a newer version not to be called older")
-		}
-	})
-
-	t.Run("a rules file in the older format", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		writeFile(t, root, schema.ContractRelPath, "schema_version = \"1\"\n")
-		reader := openFolder(t, root)
-		_, err := egress.Open(t.Context(), reader, wikilinks)
-		versionErr, ok := errors.AsType[*egress.RulesVersionError](err)
-		if !ok {
-			t.Fatalf("Open() error = %v, want a RulesVersionError", err)
-		}
-		if !versionErr.Older {
-			t.Errorf("Older = false for version 1, want the refusal to say the format is older")
-		}
 	})
 
 	t.Run("a rules file that does not decode", func(t *testing.T) {

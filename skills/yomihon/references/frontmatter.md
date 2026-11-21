@@ -19,11 +19,8 @@ required. A rules file without it is refused whole, and `"2"` is the only value
 this yomihon accepts. A rules file written for another format is refused the same
 way, and so is a `yomihon` built before this one when it reads a `"2"` rules file.
 `check` says only that it could not use the rules file, except for a missing or
-different `schema_version`, where it names the version it found. It then says
-which line to change, except for a rules file in the older format: that file is
-refused for its keys and not only its version line, so `check` calls it the older
-format and sends the reader to the upgrade guide, `docs/upgrading.md` in the
-repository. The folder is read as though it carried no rules file, and `yomihon
+different `schema_version`, where it names the version it found and the line to
+change. The folder is then read as though it carried no rules file, and `yomihon
 serve` logs the reason:
 
 ```

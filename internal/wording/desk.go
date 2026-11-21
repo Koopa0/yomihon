@@ -38,7 +38,7 @@ var (
 		"Use your editor to add a .md file to this folder and start reading; no rules file is needed.",
 	)
 	// What an empty path or map listing says when the rules file is there and
-	// is written for another version. The page that can say what to do about it
+	// is written for another version. The page that can say which line to change
 	// is the desk, so this is the fact alone.
 	IndexRulesVersion = both(
 		"規則檔的版本不對。",

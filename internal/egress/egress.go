@@ -65,9 +65,6 @@ type RulesVersionError struct {
 	Line int
 	// Missing is whether the file declares no version at all.
 	Missing bool
-	// Older is whether the declared version is a whole number below the supported
-	// one. It is a fact about the number and carries none of the file's words.
-	Older bool
 	// Supported is the version this binary reads.
 	Supported string
 }
@@ -150,7 +147,7 @@ func refusalFor(err error) error {
 		if plainVersion.MatchString(mismatch.Declared) {
 			declared = mismatch.Declared
 		}
-		return &RulesVersionError{Declared: declared, Line: mismatch.Line, Missing: mismatch.Missing, Older: mismatch.Older(), Supported: mismatch.Supported}
+		return &RulesVersionError{Declared: declared, Line: mismatch.Line, Missing: mismatch.Missing, Supported: mismatch.Supported}
 	}
 	// The decoder's own words are deliberately dropped. A parse failure
 	// names keys from the rules file, and this face exists to hand its output

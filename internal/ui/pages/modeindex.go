@@ -146,8 +146,8 @@ func ContractStateFrom(governed, otherVersion bool, snap *snapshot.Generation) C
 // emptySentence chooses what an empty listing says. A rules file that arrived
 // after yomihon read the folder is a file on the shelf and no authority, so its
 // reader is told to start again; one written for another version is told that
-// and nothing more, since the desk is not the page that can say what to do about
-// it. Every other folder, with a rules file or without one, is told the
+// and nothing more, since the desk is not the page that can say which line to
+// change. Every other folder, with a rules file or without one, is told the
 // mode's own answer, which the caller gives: which type puts a note on the
 // shelf. A folder with no rules file reads the built-in types, so that answer
 // is true of it and it is asked for no file.
