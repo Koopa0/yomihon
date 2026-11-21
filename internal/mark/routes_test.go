@@ -182,6 +182,52 @@ func TestMarkRouteKeepsOnlyWordsTheNoteHas(t *testing.T) {
 	}
 }
 
+// A highlight of words that stand at several places of a note is kept only when
+// what was sent around them tells the places apart: kept at a guessed one, it
+// would be drawn in the wrong row.
+func TestMarkRouteRefusesWordsAtSeveralPlacesNothingTellsApart(t *testing.T) {
+	t.Parallel()
+
+	const table = "比較\n| 甲 | 仍可能 |\n| 乙 | 仍可能 |\n| 丙 | 仍可能 |\n| 丁 | 仍可能 |\n| 戊 | 仍可能 |\n"
+	for name, tt := range map[string]struct {
+		before, after string
+		status        int
+	}{
+		"nothing around them":                        {"", "", http.StatusUnprocessableEntity},
+		"what every row has around them":             {" | ", " |", http.StatusUnprocessableEntity},
+		"what the row has around them, and no other": {"戊 |", "|", http.StatusCreated},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			store := newStore(t)
+			notes := aVault{"Notes/source.md": table}
+			mux := http.NewServeMux()
+			mark.NewHandler(store, notes, slog.New(slog.DiscardHandler)).Register(mux)
+
+			fields := map[string]any{
+				"kind": "highlight", "path": "Notes/source.md", "anchor": "section-one",
+				"quote": "仍可能", "before": tt.before, "after": tt.after,
+			}
+			response := writeJSON(t, mux, http.MethodPost, mark.Paths.Mark, asJSON(t, fields))
+			if response.Code != tt.status {
+				t.Fatalf("status = %d, body %q; want %d", response.Code, response.Body.String(), tt.status)
+			}
+			if tt.status == http.StatusUnprocessableEntity {
+				if store.Stored() {
+					t.Error("a refused mark left a file")
+				}
+				return
+			}
+			if got := decodeAnswer(t, response); got.Placement != "found" {
+				t.Errorf("placement = %q, want found", got.Placement)
+			}
+			if held := listed(t, store); len(held) != 1 {
+				t.Errorf("%d marks are kept, want the one sent", len(held))
+			}
+		})
+	}
+}
+
 func TestMarkRouteKeepsAHighlightOnceAndEveryThoughtAsNew(t *testing.T) {
 	t.Parallel()
 
@@ -290,6 +336,29 @@ func TestMarkRoutePutsBackAMarkWhoseWordsHaveChanged(t *testing.T) {
 	}
 	if got := decodeAnswer(t, back); got.Placement != "changed" {
 		t.Errorf("placement = %q, want changed", got.Placement)
+	}
+	if held := listed(t, store); len(held) != 1 {
+		t.Errorf("%d marks are kept, want the one put back", len(held))
+	}
+}
+
+func TestMarkRoutePutsBackAMarkWhoseWordsNowStandAtSeveralPlaces(t *testing.T) {
+	t.Parallel()
+
+	store, notes, routes := newMarkRoutes(t)
+	kept := decodeAnswer(t, writeJSON(t, routes, http.MethodPost, mark.Paths.Mark, asJSON(t, aHighlightBody())))
+	removed := writeJSON(t, routes, http.MethodDelete, mark.Paths.Mark+"/"+kept.ID, "")
+	// The author repeated the sentence while the reader had the undo in view,
+	// so the words and what stood around them are now at two places.
+	const sentence = "In Japanese, the topic particle marks what the sentence is about."
+	notes["Notes/source.md"] = sentence + " " + sentence
+
+	back := writeJSON(t, routes, http.MethodPut, mark.Paths.Mark+"/"+kept.ID, removed.Body.String())
+	if back.Code != http.StatusOK {
+		t.Fatalf("PUT = %d, %q; want 200: the mark is still the reader's", back.Code, back.Body.String())
+	}
+	if got := decodeAnswer(t, back); got.Placement != "changed" {
+		t.Errorf("placement = %q, want changed: the words are at two places nothing tells apart", got.Placement)
 	}
 	if held := listed(t, store); len(held) != 1 {
 		t.Errorf("%d marks are kept, want the one put back", len(held))
