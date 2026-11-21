@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/a-h/templ"
 
@@ -40,13 +39,15 @@ func Still(name string) templ.Component {
 	return still(name)
 }
 
-// Endpaper draws the band at the top of a course page. pattern is the one
-// string the rules give a domain, "endpaper-01" to "endpaper-12".
-func Endpaper(pattern string) templ.Component {
-	if !strings.HasPrefix(pattern, "endpaper-") || !asset.HasPicture("art", pattern) {
-		return unknownPicture("endpaper", pattern)
+// Endpaper draws the band at the top of a course page. number is the endpaper
+// the rules file gives a domain, 1 to 12, which is the only way a page names
+// one: the picture's own name is built here.
+func Endpaper(number int) templ.Component {
+	name := fmt.Sprintf("endpaper-%02d", number)
+	if !asset.HasPicture("art", name) {
+		return unknownPicture("endpaper", name)
 	}
-	return endpaper(pattern)
+	return endpaper(name)
 }
 
 // Ornament draws the mark that closes a note.

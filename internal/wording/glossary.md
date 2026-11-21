@@ -11,6 +11,8 @@ A vault's own words belong to that vault, not to this page: the note types and d
 | The folder of Markdown yomihon reads | vault | 書庫 | The folder yomihon is pointed at. A directory inside it is a *folder*. | library, 知識庫, folder or root for the vault | `vault`, `internal/vault` |
 | A Markdown file yomihon reads as one | note | 筆記 (counted 篇) | A Markdown file in the index: rendered, searched, linked to and checked. | | |
 | An ordered run of units | course | 課程 | Units grouped in parts along a main line, with optional side branches of extra reading. | syllabus, study path, 學習路徑 | `nav.Course`, `internal/course`, `Course*`. The page is at `/courses/…` and the list at `/courses`; the retired `/syllabus/…` and `/paths` answer with a permanent redirect. |
+| A folder below a root the rules name, which a course sits in | domain | 領域 | The first folder below a root named in `folders.domain_from`. The rules may name it in each language and pin its endpaper. | 系列 | `schema.Domains` |
+| The picture at the top of a domain's course pages | endpaper | 蝴蝶頁 | One of twelve, chosen by `endpaper` in the domain's table in the rules file, else by the domain's place in `[enums] domain`. | 見返し | `schema.Domains.Endpaper`, `--endpaper`, `.y-endpaper` |
 | One note of a course | unit | 單元 | Counted "N 單元" everywhere, in every course, so a page never mixes two nouns. | lesson, 課, 課文, 課次 | `UnitWords` |
 | A Japanese sentence-pattern exercise | drill | 句型練習 | | the `lesson` package | `internal/drill` |
 | A note that lists notes by subject | index | 索引 | The page is at `/indexes`; the retired `/maps` answers with a permanent redirect. | map, moc, 地圖 | |
@@ -102,6 +104,8 @@ based on => source
 契約 => 規則
 日誌 => 日記
 診斷 => 發現
+系列 => 領域
+見返し => 蝴蝶頁
 健康報告 => 整體狀況
 判讀報告 => 檢查結果
 知識庫 => 書庫

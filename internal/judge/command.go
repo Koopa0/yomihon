@@ -55,6 +55,7 @@ func allRuleIDs() []RuleID {
 		"schema.frontmatter",
 		"schema.unmatched_knowledge_dir",
 		navigationUnavailableRule,
+		domainTableRule,
 		"scan.skipped",
 		unreadableRule,
 		"collision.name",

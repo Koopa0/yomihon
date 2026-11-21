@@ -40,6 +40,20 @@ domain = ["yomihon", "japanese", "go"]
 # How much a lesson assumes of its reader.
 level = ["fundamental", "intermediate"]
 
+# A domain may be given a name for the reader, in every language or in one, and
+# the endpaper its courses are printed on, a whole number from 1 to 12. All of
+# it is optional: a domain left out shows its folder's name and takes the
+# endpaper at its own place in the list above. Pin one to keep it when the list
+# is reordered: a domain that pins none moves with its place in the list.
+[domains.japanese]
+name = "Japanese"
+name_zh = "日文"
+
+[domains.go]
+name = "Go"
+name_zh = "Go 語言"
+endpaper = 3
+
 [fields]
 # The fields any note may write. The list is closed: a key that is not one of
 # yomihon's fields given here or to the note's type is reported. type and

@@ -62,6 +62,7 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 	}{
 		{"privacy", contract.PrivacyPolicy().Diagnostic()},
 		{"artifact", contract.ArtifactPolicy().Diagnostic()},
+		{"domains", contract.Domains().Claim().Diagnostic()},
 	} {
 		if fault.diagnostic == "" {
 			continue
