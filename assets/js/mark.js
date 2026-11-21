@@ -2,9 +2,9 @@
 // they return to it from the desk.
 //
 // Both halves are here because they are one agreement about what a position
-// is: the id of the anchor the reader is at, and how far below it the top of
-// the window sits. A pixel alone would not survive a change of text size or
-// typeface, and a mark is meant to survive days.
+// is: the id of the nearest anchor above the top of the window, and how far
+// below it the window sits. A pixel alone would not survive a change of text
+// size or typeface, and a mark is meant to survive days.
 //
 // A page is drawn from the place the server held when it was made, and a page
 // the browser shows again is older than that. So the place is also read back
@@ -19,8 +19,11 @@
 // the page needs nothing here.
 //
 // Beside it in the row is the control that copies the note's path for the
-// reader's own editor, with the line of the section they are in. Which section
-// that is is the bookmark's question too, so both ask one function.
+// reader's own editor, with the line of the section they are in. That section
+// is asked at the reading line under the header. The bookmark still asks at the
+// top of the window: the anchor a place is kept against and the distance kept
+// below it are one agreement, and moving the anchor alone would put a reader
+// back somewhere else.
 //
 // Every word this shows comes from the page, which is where the two languages
 // are decided.
@@ -61,12 +64,10 @@ function readingLine() {
   return under + (1 - Math.max(0, left) / view) * (view - under);
 }
 
-// anchorNow is where the reader is: the last anchor in the rendered body at or
-// above the reading line, and where it sits in the document. The bookmark keeps
-// its place against it and Copy path names the section that holds it, so the
-// two cannot disagree about where the reader is.
-function anchorNow() {
-  const line = Math.round(window.scrollY + readingLine());
+// lastAnchorAbove is the last anchor in the rendered body at or above the
+// point of the document at point, and where it sits; none where there is no
+// such anchor.
+function lastAnchorAbove(point) {
   const article = readingColumn();
   let anchor = '';
   let anchorTop = Number.NEGATIVE_INFINITY;
@@ -76,7 +77,7 @@ function anchorNow() {
       // A closed part of the note has IDs but no position in the document.
       if (element.getClientRects().length === 0) continue;
       const elementTop = documentTop(element);
-      if (elementTop <= line && elementTop > anchorTop) {
+      if (elementTop <= point && elementTop > anchorTop) {
         anchor = element.id;
         anchorTop = elementTop;
       }
@@ -85,13 +86,13 @@ function anchorNow() {
   return { anchor, anchorTop };
 }
 
-// positionNow is the place to keep: the anchor the reader is at, and the
-// distance from it down to the top of the window, none where the anchor is
-// below that top. A position with no anchor above it keeps the distance alone,
-// which is the weaker promise a pixel can make and the only one available there.
+// positionNow is the place to keep: the last anchor at or above the top of the
+// window in the rendered body, and the distance from it down to that top. A
+// position with no anchor above it keeps the distance alone, which is
+// the weaker promise a pixel can make and the only one available there.
 function positionNow() {
   const top = Math.max(0, Math.round(window.scrollY));
-  const { anchor, anchorTop } = anchorNow();
+  const { anchor, anchorTop } = lastAnchorAbove(top);
   if (anchor === '') return { anchor: '', offset: top };
   return { anchor, offset: Math.max(0, top - anchorTop) };
 }
@@ -347,12 +348,13 @@ function land() {
 
 // pathNow is what the copy control writes: the note's full path, then a colon
 // and the line its current section's heading opens on in the file. The section
-// is the one at the reading line, where the bookmark would keep the place.
-// Where there is none, or the page could not vouch for its line, the path
-// stands alone: a wrong line is worse than none.
+// is the one that holds the last anchor at or above the reading line. Where
+// there is none, or the page could not vouch for its line, the path stands
+// alone: a wrong line is worse than none.
 function pathNow(control) {
   const path = control.dataset.path ?? '';
-  const line = sectionAt(anchorNow().anchor)?.dataset.sourceLine;
+  const { anchor } = lastAnchorAbove(Math.round(window.scrollY + readingLine()));
+  const line = sectionAt(anchor)?.dataset.sourceLine;
   return line ? `${path}:${line}` : path;
 }
 
