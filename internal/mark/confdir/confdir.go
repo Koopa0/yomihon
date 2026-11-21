@@ -16,11 +16,13 @@
 package confdir
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -160,9 +162,11 @@ func Read(dir Dir, name string, limit int64) ([]byte, error) {
 // The bytes go to a sibling in the same directory and are renamed over the
 // file, so the rename stays inside one filesystem and is the atomic operation
 // it looks like: a machine that stops mid-write leaves the old file or the new
-// one and never half of either. Nothing is synchronized to the platter. What a
-// power cut loses is one write, which the reader repeats by pressing the same
-// control.
+// one and never half of either. Nil means the write is on stable storage: the
+// sibling is synced before the rename, the directory after it, and so is the
+// directory above each one this call made; then the file is read back and
+// compared with data. Any step that fails is an error, and one that fails
+// before the rename leaves the file holding what it held.
 //
 // Everything is owner-only: what a reader is partway through is theirs.
 func Replace(dir Dir, name string, data []byte) error {
@@ -172,9 +176,26 @@ func Replace(dir Dir, name string, data []byte) error {
 	if err := checkName(name); err != nil {
 		return err
 	}
+	made := absent(dir.path)
 	if err := os.MkdirAll(dir.path, 0o700); err != nil {
 		return fmt.Errorf("create the directory: %w", err)
 	}
+	// Opened before anything is installed, so that a directory that cannot be
+	// synced refuses the write while the file still holds what it held.
+	directories, err := openDirectories(dir.path, made)
+	if err != nil {
+		return fmt.Errorf("open the directory of %s to sync it: %w", name, err)
+	}
+	err = install(dir, name, data, directories)
+	for _, d := range directories {
+		err = errors.Join(err, d.close())
+	}
+	return err
+}
+
+// install writes data to a sibling of the file called name, syncs it, renames it
+// over the file, syncs directories, and reads the file back.
+func install(dir Dir, name string, data []byte, directories []directory) error {
 	extension := filepath.Ext(name)
 	tmp, err := os.CreateTemp(dir.path, "."+strings.TrimSuffix(name, extension)+"-*"+extension)
 	if err != nil {
@@ -184,13 +205,66 @@ func Replace(dir Dir, name string, data []byte) error {
 	if _, err = tmp.Write(data); err != nil {
 		return abandon(tmp, temporary, fmt.Errorf("write the temporary file for %s: %w", name, err))
 	}
+	if err = tmp.Sync(); err != nil {
+		return abandon(tmp, temporary, fmt.Errorf("sync the temporary file for %s: %w", name, err))
+	}
 	if err = tmp.Close(); err != nil {
 		return abandon(nil, temporary, fmt.Errorf("close the temporary file for %s: %w", name, err))
 	}
 	if err = os.Rename(temporary, dir.Join(name)); err != nil {
 		return abandon(nil, temporary, fmt.Errorf("install %s: %w", name, err))
 	}
+	for _, d := range directories {
+		if err = d.sync(); err != nil {
+			return fmt.Errorf("sync the directory after installing %s: %w", name, err)
+		}
+	}
+	held, err := Read(dir, name, int64(len(data)))
+	if err != nil {
+		return fmt.Errorf("read %s back: %w", name, err)
+	}
+	if !bytes.Equal(held, data) {
+		return fmt.Errorf("%s does not read back as what was written", name)
+	}
 	return nil
+}
+
+// absent is path and each directory above it that is not there, nearest first:
+// the ones MkdirAll is about to make.
+func absent(path string) []string {
+	var missing []string
+	for {
+		if _, err := os.Stat(path); !errors.Is(err, fs.ErrNotExist) {
+			return missing
+		}
+		missing = append(missing, path)
+		parent := filepath.Dir(path)
+		if parent == path {
+			return missing
+		}
+		path = parent
+	}
+}
+
+// openDirectories opens path, which the file is renamed into, and the directory
+// above each of made, which holds an entry this write is making.
+func openDirectories(path string, made []string) ([]directory, error) {
+	paths := []string{path}
+	for _, below := range made {
+		paths = append(paths, filepath.Dir(below))
+	}
+	opened := make([]directory, 0, len(paths))
+	for _, path := range paths {
+		d, err := openDirectory(path)
+		if err != nil {
+			for _, open := range opened {
+				_ = open.close() //nolint:errcheck // the open that failed is the cause to report
+			}
+			return nil, err
+		}
+		opened = append(opened, d)
+	}
+	return opened, nil
 }
 
 // abandon removes a temporary file whose bytes will not be installed and

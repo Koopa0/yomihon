@@ -14,8 +14,11 @@ var ErrLocked = errors.New("the lock is held by another")
 const (
 	// LockWait is how long a change waits for another process to finish its own.
 	LockWait = 5 * time.Second
-	// lockPoll is how often a waiter looks again.
-	lockPoll = 10 * time.Millisecond
+	// lockPoll is how often a waiter looks again. A change waits for its file
+	// and directory to reach stable storage, and between two changes of a busy
+	// writer the lock is free for an instant, so a waiter looks often enough to
+	// land in it.
+	lockPoll = time.Millisecond
 )
 
 // Lock is an exclusive claim on a file in a directory, which the operating
