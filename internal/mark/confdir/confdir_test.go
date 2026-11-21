@@ -123,6 +123,82 @@ func TestReplaceInstallsAFileOwnerOnlyAndLeavesNothingBesideIt(t *testing.T) {
 	}
 }
 
+// A write counts as kept only once its directory is on stable storage too. A
+// directory that can be written and searched but not read lets the file be made
+// and renamed, and refuses the open a sync of the directory needs, so a Replace
+// that answers success there never asked for one. The refusal comes before the
+// file is installed: what was kept before is what the file still holds.
+func TestReplaceRefusesAWriteWhoseDirectoryCannotBeSynced(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not open a directory by its permission bits")
+	}
+	dir := homeIn(t)
+	if err := confdir.Replace(dir, "marks.json", []byte("kept\n")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(dir.Path(), 0o300); err != nil { // #nosec G302 -- the test's own temporary directory, writable and searchable
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(dir.Path(), 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
+			t.Errorf("restore the directory's mode: %v", err)
+		}
+	})
+	if opened, err := os.Open(dir.Path()); err == nil {
+		_ = opened.Close() //nolint:errcheck // only whether it opened matters
+		t.Skip("this user opens a directory it may not read (a privileged user), so the fixture shows nothing")
+	}
+
+	if err := confdir.Replace(dir, "marks.json", []byte("new\n")); err == nil {
+		t.Fatal("Replace into a directory that cannot be synced = nil, want an error")
+	}
+	if err := os.Chmod(dir.Path(), 0o700); err != nil { // #nosec G302 -- the test's own temporary directory, readable again
+		t.Fatal(err)
+	}
+	if got, err := confdir.Read(dir, "marks.json", 1<<10); err != nil || string(got) != "kept\n" {
+		t.Errorf("after the refused write the file reads %q, %v; want what was kept before", got, err)
+	}
+	if entries, err := os.ReadDir(dir.Path()); err != nil || len(entries) != 1 {
+		t.Errorf("the directory holds %v, %v; want only marks.json, with no temporary file left beside it", entries, err)
+	}
+}
+
+// The first write makes the directory, and the entry that names it is in the
+// directory above, so that one is synced too or a power cut can lose the
+// directory with the file in it. A configuration directory that can be written
+// and searched but not read lets the directory be made and refuses that sync.
+func TestReplaceRefusesAFirstWriteWhoseParentCannotBeSynced(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not open a directory by its permission bits")
+	}
+	config := t.TempDir()
+	home, err := confdir.Home(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(config, 0o300); err != nil { // #nosec G302 -- the test's own temporary directory, writable and searchable
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(config, 0o700); err != nil { // #nosec G302 -- restores the mode the test removed so the directory can be cleaned up
+			t.Errorf("restore the directory's mode: %v", err)
+		}
+	})
+	if opened, err := os.Open(config); err == nil { // #nosec G304 -- the test's own temporary directory
+		_ = opened.Close() //nolint:errcheck // only whether it opened matters
+		t.Skip("this user opens a directory it may not read (a privileged user), so the fixture shows nothing")
+	}
+
+	if err := confdir.Replace(home, "vaults.json", []byte("{}")); err == nil {
+		t.Fatal("a first Replace whose new directory's parent cannot be synced = nil, want an error")
+	}
+	if _, err := os.Stat(home.Join("vaults.json")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("the refused write installed its file: %v", err)
+	}
+}
+
 // A name is a file of the directory and nothing else: a path in it would write
 // outside the directory this package exists to confine writes to.
 func TestReplaceRefusesAnythingButAFileName(t *testing.T) {
