@@ -535,24 +535,18 @@ func TestAPureFilterKeepsReadingOrder(t *testing.T) {
 	}
 }
 
-// TestTheSevenAnswerGroupsComeBackInRankedOrder pins the complete group
+// TestTheFourAnswerGroupsComeBackInRankedOrder pins the complete group
 // order. Paths deliberately reverse the evidence order, so reading order cannot
 // accidentally satisfy the rank assertion.
-func TestTheSevenAnswerGroupsComeBackInRankedOrder(t *testing.T) {
+func TestTheFourAnswerGroupsComeBackInRankedOrder(t *testing.T) {
 	t.Parallel()
 	idx := NewIndex([]Document{
-		{RelPath: "a-kafka/data.txt", Title: "data.txt", PlainText: "opaque", File: true},
 		{RelPath: "b-kafka/inside.md", Title: "Inside", PlainText: "unrelated"},
-		{RelPath: "d/notes.txt", Title: "notes.txt", PlainText: "mentions kafka once", File: true},
-		{RelPath: "e/kafka.txt", Title: "kafka.txt", PlainText: "plain", File: true},
 		{RelPath: "f-tag.md", Title: "Declared", Tags: []string{"kafka"}, PlainText: "unrelated"},
 		{RelPath: "h/note.md", Title: "Streaming", PlainText: "a kafka pipeline"},
 		{RelPath: "i/note.md", Title: "Kafka guide", PlainText: "nothing else"},
 	}, validArtifactPolicy(t))
-	want := []string{
-		"i/note.md", "h/note.md", "f-tag.md",
-		"e/kafka.txt", "d/notes.txt", "b-kafka/inside.md", "a-kafka/data.txt",
-	}
+	want := []string{"i/note.md", "h/note.md", "f-tag.md", "b-kafka/inside.md"}
 	if int(bucketCount) != len(want) {
 		t.Fatalf("complete answer group count = %d, want %d", bucketCount, len(want))
 	}
@@ -560,15 +554,15 @@ func TestTheSevenAnswerGroupsComeBackInRankedOrder(t *testing.T) {
 		t.Errorf("caught: Search(kafka) group order mismatch (-want +got):\n%s", diff)
 	}
 	limited, err := idx.Search(Parse("kafka"), 0)
-	if err != nil || limited.Total != 7 || len(limited.Results) != 0 {
-		t.Errorf("Search(kafka, 0) = (%+v, %v), want total 7 with no materialized results", limited, err)
+	if err != nil || limited.Total != 4 || len(limited.Results) != 0 {
+		t.Errorf("Search(kafka, 0) = (%+v, %v), want total 4 with no materialized results", limited, err)
 	}
 }
 
 // TestAKnowledgeLayerHitLeadsAnOutsideHitInItsGroup is the flatten-time
-// knowledge rank. A System file and a knowledge-layer note share one
+// knowledge rank. A System note and a knowledge-layer note share one
 // evidence group; the System path sorts first so path order cannot pass
-// this. The note leads; the file stays in the answer. Notes/ sorts before
+// this. The knowledge-layer note leads; the System note stays in the answer. Notes/ sorts before
 // System/ under ComparePaths, so the layer note here is Writing/.
 func TestAKnowledgeLayerHitLeadsAnOutsideHitInItsGroup(t *testing.T) {
 	t.Parallel()
@@ -953,7 +947,7 @@ func TestNewIndexDeterministicUnderAnyInputOrder(t *testing.T) {
 	docs := []Document{
 		{RelPath: "b.md", Title: "B", PlainText: "beta"},
 		{RelPath: "a.md", Title: "A", Domain: "x", PlainText: "alpha"},
-		{RelPath: "d.txt", Title: "d.txt", PlainText: "delta", File: true},
+		{RelPath: "d.md", Title: "D", PlainText: "delta"},
 		{RelPath: "c.md", Title: "C", PlainText: "gamma"},
 	}
 	policy := validArtifactPolicy(t)
@@ -1159,100 +1153,6 @@ func TestFrontmatterExcludedFromPlainText(t *testing.T) {
 	// the frontmatter is no field and narrows nothing.
 	if got := paths(searchResults(t, idx, Parse("domain:elsewhere"))); len(got) != 0 {
 		t.Errorf("domain:elsewhere = %v, want no match", got)
-	}
-}
-
-// fileCorpusFixture is one vault of notes plus the files that sit beside them.
-// The rel paths are chosen so a purely path-ordered index would interleave
-// them — "Notes/…" sorts between "Concepts/…" and "Writing/…" — which is what
-// makes the ordering assertions below able to fail.
-func fileCorpusFixture(tb testing.TB) (notesOnly, widened *Index) {
-	tb.Helper()
-	notes := []Document{
-		{RelPath: "Concepts/Focus.md", Title: "Focus", NoteType: "concept", PlainText: "a note about the flamingo"},
-		{RelPath: "Writing/Kafka.md", Title: "Kafka", NoteType: "lesson", Draft: true, PlainText: "another flamingo mention"},
-	}
-	files := []Document{
-		DocumentFromFile("Notes/todo.txt", []byte("renew the passport before flamingo season")),
-		DocumentFromFile("Writing/article.html", []byte("<h1>flamingo</h1>")),
-	}
-	policy := validArtifactPolicy(tb)
-	return NewIndex(notes, policy), NewIndex(append(append([]Document{}, notes...), files...), policy)
-}
-
-// TestSearchFindsAFileByItsText is the whole point of indexing files. A reader
-// who opened todo.txt from the rail, read it, and then searched for a word in
-// it used to get nothing back and no reason — the shape that makes someone
-// conclude the file was deleted and type it again.
-func TestSearchFindsAFileByItsText(t *testing.T) {
-	t.Parallel()
-	_, widened := fileCorpusFixture(t)
-
-	results := searchResults(t, widened, Parse("passport"))
-	want := []Result{{
-		RelPath:     "Notes/todo.txt",
-		Title:       "todo.txt",
-		Snippet:     "renew the passport before flamingo season",
-		Landing:     "passport",
-		LandingBare: "passport",
-		File:        true,
-	}}
-	if diff := cmp.Diff(want, results); diff != "" {
-		t.Errorf("Search(passport) mismatch (-want +got):\n%s", diff)
-	}
-}
-
-// TestNoteResultsOpenTheWidenedResults is the shape lock. Files are appended to
-// what a vault of notes alone answers, never interleaved with it: widening what
-// can be found must not move what could already be found, or every reader's
-// muscle memory for "it is the third one" breaks on a change that was supposed
-// to add.
-func TestNoteResultsOpenTheWidenedResults(t *testing.T) {
-	t.Parallel()
-	notesOnly, widened := fileCorpusFixture(t)
-
-	for _, query := range []string{"flamingo", "a", "draft:true", "folder:Writing"} {
-		t.Run(query, func(t *testing.T) {
-			t.Parallel()
-			before := searchResults(t, notesOnly, Parse(query))
-			after := searchResults(t, widened, Parse(query))
-			if len(after) < len(before) {
-				t.Fatalf("Search(%q) returned %d results over the widened corpus, fewer than the %d notes alone answered",
-					query, len(after), len(before))
-			}
-			if diff := cmp.Diff(before, after[:len(before)]); diff != "" {
-				t.Errorf("Search(%q) moved a note result (-notes only +widened prefix):\n%s", query, diff)
-			}
-		})
-	}
-}
-
-// TestFileEntriesAnswerNoMetadataProjection keeps every metadata filter what it
-// was. A file carries no frontmatter, so it is not an instance of anything, and
-// letting one into a "type:" or "draft:" filter would answer for a field no
-// file can declare.
-func TestFileEntriesAnswerNoMetadataProjection(t *testing.T) {
-	t.Parallel()
-	_, widened := fileCorpusFixture(t)
-
-	for _, query := range []string{"type:lesson", "draft:false", "flamingo draft:true"} {
-		if got := paths(searchResults(t, widened, Parse(query))); slices.Contains(got, "Notes/todo.txt") {
-			t.Errorf("Search(%q) answered with a file, which declares no metadata: %v", query, got)
-		}
-	}
-}
-
-// TestFileEntriesRemainReachableByFolder is the other side of that exclusion. A
-// folder is a fact about where a file sits, not a value it declared, so
-// narrowing by one must keep reaching files — otherwise "exclude files from
-// filters" would have been written one step too wide.
-func TestFileEntriesRemainReachableByFolder(t *testing.T) {
-	t.Parallel()
-	_, widened := fileCorpusFixture(t)
-
-	got := paths(searchResults(t, widened, Parse("folder:Notes")))
-	if diff := cmp.Diff([]string{"Notes/todo.txt"}, got); diff != "" {
-		t.Errorf("Search(folder:Notes) mismatch (-want +got):\n%s", diff)
 	}
 }
 

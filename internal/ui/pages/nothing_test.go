@@ -35,7 +35,6 @@ func TestEverySurfaceWithNothingToShowDrawsTheOneNotice(t *testing.T) {
 	// carries one again is a surface that went back to its own layout, which no
 	// assertion about the notice being present anywhere on the page would see.
 	const (
-		ownSearchShape   = `class="y-searchpage__empty"`
 		ownRecoveryShape = `class="y-recovery__summary"`
 		ownParagraph     = `class="y-homeempty"`
 	)
@@ -48,8 +47,6 @@ func TestEverySurfaceWithNothingToShowDrawsTheOneNotice(t *testing.T) {
 		// retired is markup this page may no longer draw.
 		retired []string
 	}{
-		{"search-page-empty", []string{"search"}, nil, []string{ownSearchShape}},
-		{"search-page-empty-english", []string{"search"}, nil, []string{ownSearchShape}},
 		{"notfound-page", []string{"notfound"}, nil, []string{ownRecoveryShape}},
 		{"notfound-page-english", []string{"notfound"}, nil, []string{ownRecoveryShape}},
 		{"notfound-page-unreadable", []string{"notfound"}, []string{"notfound"}, []string{ownRecoveryShape}},
@@ -95,13 +92,13 @@ func TestEverySurfaceWithNothingToShowDrawsTheOneNotice(t *testing.T) {
 	// that lost a row would go on passing over the rows it kept, and the page
 	// it stopped watching is exactly the one that would drift.
 	slices.Sort(covered)
-	want := []string{"degraded", "health", "notfound", "privacy", "search", "shelf"}
+	want := []string{"degraded", "health", "notfound", "privacy", "shelf"}
 	if diff := cmp.Diff(want, slices.Compact(covered)); diff != "" {
 		t.Errorf("the recordings above cover the wrong set of surfaces (-want +covered):\n%s", diff)
 	}
 }
 
-// TestTheNoticeIsDrawnInOnePlace keeps the six from growing a seventh shape
+// TestTheNoticeIsDrawnInOnePlace keeps the five from growing a sixth shape
 // quietly. Its markup is one component's, so the class belongs to that one
 // file: a page assembling the same div itself would satisfy every assertion
 // above and still be a second copy to keep in step.

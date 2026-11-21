@@ -42,7 +42,7 @@ func TestRecordedFilterKeys(t *testing.T) {
 	if *updateRenderBytes {
 		t.Skip("recordings are being updated; verify them in a separate read-only run")
 	}
-	for _, name := range []string{"search-page", "search-page-unasked", "search-results-english"} {
+	for _, name := range []string{"search-page", "search-results-english"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			data, err := os.ReadFile(filepath.Join("testdata", "render", name+".html")) // #nosec G304 -- a recording name from this test's fixed local table
@@ -930,51 +930,67 @@ func recordedFolderView(model *nav.Model) FolderView {
 // differently in another year is the same in every recording.
 var recordedNow = time.Date(2026, time.November, 18, 12, 0, 0, 0, time.UTC)
 
-// recordedSearchView takes the language because the column's headings and
-// its not-stated cell are written before the view leaves the handler:
-// everything else on this page is translated
-// inside the template, so without this the English recording would show a
-// Traditional Chinese column.
+// recordedSearchView is the answer to "kafka" with its order, one row of each
+// way of narrowing, and the way on, so each of them is in the recording.
 func recordedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 	return SearchView{
 		Query: "kafka",
 		Results: []SearchResult{{
 			RelPath:     "Writing/lessons/go/L01.md",
 			Title:       "L01",
+			TitleRuns:   []SnippetRun{{Text: "L01"}},
 			Draft:       true,
+			Kind:        wording.SearchKindUnit.In(lang),
 			LandingBare: "kafka",
-			SnippetRuns: []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " after"}},
-			PathRuns:    []SnippetRun{{Text: "Writing/"}, {Text: "lessons", Hit: true}},
+			Lead:        []SnippetRun{{Text: "before "}, {Text: "kafka", Hit: true}, {Text: " after"}},
+			WhereRuns:   []SnippetRun{{Text: "lessons › go"}},
 			AliasRuns:   []SnippetRun{{Text: "another name"}},
 		}, {
 			// A match with words on either side of it: the row that shows what
-			// the marked stretches do to the string they were cut from, which a
-			// match at the end of a path cannot show.
+			// the marked stretches do to the string they were cut from.
 			RelPath:     "Writing/lessons/go/Reading kafka from source.md",
 			Title:       "Reading kafka from source",
+			TitleRuns:   []SnippetRun{{Text: "Reading "}, {Text: "kafka", Hit: true}, {Text: " from source"}},
 			LandingBare: "kafka",
-			SnippetRuns: []SnippetRun{{Text: "the "}, {Text: "kafka", Hit: true}, {Text: " reader keeps its offsets"}},
-			PathRuns:    []SnippetRun{{Text: "Writing/lessons/go/Reading "}, {Text: "kafka", Hit: true}, {Text: " from source.md"}},
+			Lead:        []SnippetRun{{Text: "…the "}, {Text: "kafka", Hit: true}, {Text: " reader keeps its offsets"}},
+			LeadNear:    []SnippetRun{{Text: "…"}, {Text: "kafka", Hit: true}, {Text: " reader…"}},
+			WhereRuns:   []SnippetRun{{Text: "lessons › go"}},
+		}, {
+			RelPath:   "Notes/Config.md",
+			Title:     "Config",
+			TitleRuns: []SnippetRun{{Text: "Config"}},
+			Lead:      []SnippetRun{{Text: "kafka.conf", Hit: true}},
+			LeadCode:  true,
+			WhereRuns: []SnippetRun{{Text: "Notes"}},
 		}},
 		Total:             3,
+		Shown:             3,
 		UnknownFilterKeys: []string{"tag", "kind"},
 		FilterKeys:        lexical.FilterKeys(),
 		StepBacks:         []SearchStepBack{{Query: "kafka", Count: 2}},
-		Facets:            recordedSearchFacets(lang),
-		Sidebar:           NewSidebar(nav.Shell{Nav: model}, ""),
+		Sort: []SearchChoice{
+			{Label: wording.SearchSortRelevance.In(lang), Count: -1, Href: "/search?q=kafka", Active: true},
+			{Label: wording.SearchSortRecent.In(lang), Count: -1, Href: "/search?q=kafka&sort=recent"},
+		},
+		Kinds: []SearchChoice{
+			{Label: wording.SearchAll.In(lang), Count: 3, Href: "/search?q=kafka", Active: true},
+			{Label: wording.SearchKindUnit.In(lang), Count: 2, Href: "/search?kind=unit&q=kafka"},
+			{Label: wording.SearchKindNote.In(lang), Count: 1, Href: "/search?kind=note&q=kafka"},
+		},
+		Locations: []SearchChoice{
+			{Label: wording.SearchAll.In(lang), Count: 3, Href: "/search?q=kafka", Active: true},
+			{Label: "Writing", Count: 2, Href: "/search?in=Writing&q=kafka"},
+			{Label: "Notes", Count: 1, Href: "/search?in=Notes&q=kafka"},
+		},
+		Sidebar: NewSidebar(nav.Shell{Nav: model}, ""),
 	}
 }
 
-// recordedPagedSearchView is that same answer divided. The strip is built for
-// a listing of five hits two to a page, which is not a size the running server
-// ever asks for: what the recording is of is the second page of three, and the
-// page size never reaches the markup.
+// recordedPagedSearchView is that same answer with more of it to lay out.
 func recordedPagedSearchView(model *nav.Model, lang wording.Lang) SearchView {
 	view := recordedSearchView(model, lang)
-	view.Total = 5
-	view.Pager = NewPager(2, 2, view.Total, func(n PageNumber) string {
-		return SearchPageHref(view.Query, n)
-	})
+	view.Total = 45
+	view.More = SearchMore{Count: 20, Href: "/search?q=kafka&shown=40"}
 	return view
 }
 
@@ -998,32 +1014,6 @@ func recordedPagedHealthView(model *nav.Model) HealthView {
 		Page:        2,
 		Sidebar:     NewSidebar(nav.Shell{Nav: model}, ""),
 	}
-}
-
-// recordedSearchFacets is one of each row the column can draw: a plain value,
-// a value already in the query whose row leads back out of it, a value the
-// grammar cannot spell and so cannot offer, and the cell standing for the hits
-// that declared nothing. A recording that held only the first would leave the
-// other three unrecorded and free to change.
-func recordedSearchFacets(lang wording.Lang) []SearchFacet {
-	return []SearchFacet{{
-		Key:     "type",
-		Heading: wording.FacetHeading("type", lang),
-		Rows: []SearchFacetRow{
-			{Label: "lesson", Count: 2, Query: "kafka", Active: true},
-			{Label: "concept", Count: 1, Query: "kafka type:concept"},
-			{Label: wording.FacetUnstated.In(lang), Count: 1, Unstated: true},
-		},
-	}, {
-		Key:     "domain",
-		Heading: wording.FacetHeading("domain", lang),
-		Rows: []SearchFacetRow{
-			// A value the grammar cannot write back: its quote closes a group
-			// early, so the query would read as a shorter constraint and a
-			// stray word. The row keeps its count and offers no link.
-			{Label: `a" b`, Count: 1},
-		},
-	}}
 }
 
 // recordedCompareView is one page holding two notes, each carrying the id space

@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/render"
@@ -2186,77 +2185,6 @@ func TestShowKeepsUnresolvedGeneralMapRowOnNotePageOnly(t *testing.T) {
 	sidebar := body[asideStart : asideStart+asideEnd]
 	if strings.Contains(sidebar, "Ghost Essay") {
 		t.Error("general map unresolved row appears in sidebar navigation")
-	}
-}
-
-// TestFilePageAndSearchAgreeOnWhatIsText is the drift lock between two faces
-// that answer the same question. A file's page decides whether to show its
-// characters; the text index decides whether to read them. One rule holds
-// across both — if yomihon shows it to you as text, you can find it — and a
-// reader who is shown a file and then cannot search it learns that the tool is
-// unreliable rather than that the file is unusual.
-//
-// Both sides run for real here: the page comes from an HTTP request and the
-// answer comes from the generation's own index, so an agreement asserted over
-// two re-implementations of the rule is not what this proves.
-func TestFilePageAndSearchAgreeOnWhatIsText(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	files := []struct {
-		rel      string
-		body     string
-		term     string
-		wantText bool
-	}{
-		{rel: "todo.txt", body: "renew the flamingoterm passport", term: "flamingoterm", wantText: true},
-		{rel: "page.html", body: "<p>kingfisherterm</p>", term: "kingfisherterm", wantText: true},
-		{rel: "Makefile", body: "build:\n\tgo build # heronterm\n", term: "heronterm", wantText: true},
-		{rel: "drawing.svg", body: `<svg xmlns="http://www.w3.org/2000/svg"><text>pelicanterm</text></svg>`, term: "pelicanterm"},
-		{rel: "blob.bin", body: "storkterm\x00opaque", term: "storkterm"},
-		{
-			rel:  "huge.txt",
-			body: strings.Repeat("egretterm ", (render.MaxSourceBytes/10)+1),
-			term: "egretterm",
-		},
-	}
-	for _, f := range files {
-		if err := os.WriteFile(filepath.Join(root, f.rel), []byte(f.body), 0o600); err != nil {
-			t.Fatalf("write %s: %v", f.rel, err)
-		}
-	}
-	store, source := newSnapshotStore(t, root, slog.New(slog.DiscardHandler), nil, schema.Ungoverned())
-	mux := http.NewServeMux()
-	note.New(&note.Sources{
-		Source:    source,
-		Authority: func() schema.Authority { return schema.Authority{} },
-		Snapshot:  store.Current,
-		Bookmark:  noMark,
-		Log:       slog.New(slog.DiscardHandler),
-	}).Register(mux)
-	srv := httptest.NewServer(mux)
-	t.Cleanup(srv.Close)
-
-	for _, f := range files {
-		t.Run(f.rel, func(t *testing.T) {
-			t.Parallel()
-			code, page := get(t, srv.Client(), srv.URL+"/notes/"+f.rel)
-			if code != http.StatusOK {
-				t.Fatalf("GET /notes/%s status = %d, want 200", f.rel, code)
-			}
-			shown := strings.Contains(page, `class="y-prose y-source"`)
-			if shown != f.wantText {
-				t.Errorf("GET /notes/%s renders its characters = %v, want %v", f.rel, shown, f.wantText)
-			}
-			answer, err := store.Current().Search().Search(lexical.Parse(f.term), -1)
-			if err != nil {
-				t.Fatalf("Search(%q) error = %v", f.term, err)
-			}
-			found := len(answer.Results) == 1 && answer.Results[0].RelPath == f.rel
-			if found != shown {
-				t.Errorf("/notes/%s shows its characters = %v but search finds it = %v; one face contradicts the other",
-					f.rel, shown, found)
-			}
-		})
 	}
 }
 

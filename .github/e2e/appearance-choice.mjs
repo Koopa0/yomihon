@@ -15,7 +15,7 @@
 // Env: YOMIHON_BASE, PAGE_PATH (the settings page), and MUTATE.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/preferences';
 const MUTATE = process.env.MUTATE || '';
 const FIELD = '[data-pref-field="theme"]';

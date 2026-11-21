@@ -90,7 +90,7 @@ func TestAnAliasHitSaysWhichNameAnsweredTheQuery(t *testing.T) {
 	if !strings.Contains(named, "<mark>") {
 		t.Errorf("the row shows the name but never says which part the query met: %q", named)
 	}
-	if strings.Contains(row, `y-result__title">Goroutine`) && !strings.Contains(named, "green") {
+	if strings.Contains(row, `y-found__title">Goroutine`) && !strings.Contains(named, "green") {
 		t.Errorf("the row shows only the title, which is not what was searched for: %q", row)
 	}
 

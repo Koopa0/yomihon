@@ -5,7 +5,7 @@
 import { chromium } from 'playwright-core';
 import { arrived } from './support/arrival.mjs';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/long-rail/Rail%20lesson%2030.md';
 const MUTATE = process.env.MUTATE || '';
 const RAIL = '.y-rail-left';

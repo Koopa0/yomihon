@@ -60,17 +60,6 @@ func declarations(t *testing.T, where, body string) map[string]string {
 	return out
 }
 
-// ruleBodies returns the body of every rule written with exactly this
-// selector, including one nested in @starting-style. The bodies the arrival
-// reads hold no nested braces.
-func ruleBodies(css, selector string) []string {
-	var bodies []string
-	for _, match := range regexp.MustCompile(`(?m)^\s*`+regexp.QuoteMeta(selector)+` \{([^}]*)\}`).FindAllStringSubmatch(css, -1) {
-		bodies = append(bodies, match[1])
-	}
-	return bodies
-}
-
 // cssRules lists every rule of a sheet whose body holds no nested block, as the
 // selector it was written with and its body. A rule inside @media is read like
 // any other; an at-rule's own header, which has no body of declarations, is not
@@ -389,29 +378,6 @@ func TestPressAnsweredInPlaceCarriesNoTravel(t *testing.T) {
 	}
 	if got := squeeze(reply[0][1]); !regexp.MustCompile(`^from \{ opacity: [0-9.]+; \}$`).MatchString(got) {
 		t.Errorf("y-reply-in keyframes = %q, want a single from frame that sets opacity and nothing else", got)
-	}
-
-	var palette []string
-	for _, selector := range []string{".y-searchdialog", ".y-searchdialog[open]"} {
-		palette = append(palette, ruleBodies(css, selector)...)
-	}
-	var grows bool
-	for _, body := range palette {
-		rule := declarations(t, "a palette rule", body)
-		for _, travel := range []string{"transform", "translate"} {
-			if _, ok := rule[travel]; ok {
-				t.Errorf("a palette rule declares %s: %q; the palette comes forward by scale from its top edge and nothing in it climbs or drops", travel, rule[travel])
-			}
-		}
-		if strings.Contains(rule["transition"], "transform") {
-			t.Errorf("the palette transitions transform in %q, want scale", rule["transition"])
-		}
-		if rule["transform-origin"] == "top" && rule["scale"] != "" && strings.Contains(rule["transition"], "scale var(--dur-slow) var(--ease-standard)") {
-			grows = true
-		}
-	}
-	if !grows {
-		t.Errorf("no palette rule closes at a scale from transform-origin: top and transitions it over --dur-slow and --ease-standard, so the palette does not come forward from its top edge and leave the same way back")
 	}
 }
 

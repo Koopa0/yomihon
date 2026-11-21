@@ -585,7 +585,7 @@ func (h *host) giveFolder(ctx context.Context, cfg *config, running vaults.Insta
 		return err
 	}
 	if added {
-		if rmErr := takeOutOfList(h.store, entry.ID); rmErr != nil {
+		if _, rmErr := h.store.Remove(entry.ID); rmErr != nil {
 			h.log.Warn("could not take the folder out of the list again", "folder", resolved, "error", rmErr)
 		}
 	}

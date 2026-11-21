@@ -118,7 +118,7 @@ func TestShippedFailureWordsReachTheConcepts(t *testing.T) {
 					if node.Type != html.ElementNode {
 						continue
 					}
-					if node.Data == "a" && failureWordClass(node, "y-result") {
+					if node.Data == "a" && failureWordClass(node, "y-found__item") {
 						for _, attr := range node.Attr {
 							if attr.Key == "href" {
 								parsed, err := url.Parse(attr.Val)

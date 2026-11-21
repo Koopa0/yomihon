@@ -4,36 +4,22 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
-const (
-	// lockWait is how long a change waits for another process to finish its own.
-	lockWait = 5 * time.Second
-	// lockStaleAfter is how old a lock has to be before it is taken whoever
-	// holds it. A change takes milliseconds; this covers a holder whose process
-	// id has since been given to another process.
-	lockStaleAfter = 30 * time.Second
-)
-
-// holderSeq tells two claimants in one process apart.
-var holderSeq atomic.Uint64
-
 // Store is the list of vaults and the file that says a yomihon is running, both
 // in the reader's own directory. One value serves one process: the command line
 // and the running server are two processes with two Stores over the same files,
 // and the lock file is what orders their changes.
 type Store struct {
-	dir  string
+	dir  confdir.Dir
 	free func(port int) bool
 	now  func() time.Time
 	wait time.Duration
@@ -85,7 +71,7 @@ func Open(configDir string, free func(port int) bool, options ...Option) (*Store
 		dir:     dir,
 		free:    free,
 		now:     time.Now,
-		wait:    lockWait,
+		wait:    confdir.LockWait,
 		touched: map[string]touch{},
 		removed: map[string]Entry{},
 		own:     map[int]bool{},
@@ -118,7 +104,7 @@ func (s *Store) Hold(port int) {
 
 // InstanceFile is where the record that a yomihon is running is kept, for a
 // message that tells a reader which file to remove.
-func (s *Store) InstanceFile() string { return filepath.Join(s.dir, instanceFile) }
+func (s *Store) InstanceFile() string { return s.dir.Join(instanceFile) }
 
 // List is every vault, the one read most recently first. A list that cannot be
 // read answers ErrDamaged and no vaults; the next change sets it aside. An
@@ -397,13 +383,12 @@ func (s *Store) read() (list []Entry, raw []byte, skipped []string, err error) {
 // answers the list to write and whether it differs; a list that cannot be read
 // is set aside first and the change is made to an empty one, which keeps what
 // the reader had in a file they can open and never deletes it.
-func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) (err error) {
-	lock, err := confdir.Acquire(s.dir, lockFile, newHolder(), abandoned, s.wait)
-	if err != nil {
-		return fmt.Errorf("lock the list of vaults: %w", err)
-	}
-	defer func() { err = errors.Join(err, lock.Release()) }()
+func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) error {
+	return confdir.Exclusive(s.dir, lockFile, s.wait, func() error { return s.updateHeld(change) })
+}
 
+// updateHeld is update with the lock already taken.
+func (s *Store) updateHeld(change func(list []Entry) ([]Entry, bool, error)) error {
 	list, raw, skipped, err := s.read()
 	damaged := errors.Is(err, ErrDamaged)
 	if err != nil && !damaged {
@@ -442,23 +427,6 @@ func (s *Store) update(change func(list []Entry) ([]Entry, bool, error)) (err er
 	return nil
 }
 
-// newHolder says who holds the lock: this process, and which claim of it.
-func newHolder() []byte {
-	return []byte(strconv.Itoa(os.Getpid()) + " " + strconv.FormatUint(holderSeq.Add(1), 10) + " " + strconv.FormatInt(time.Now().UnixNano(), 10))
-}
-
-// abandoned is the rule for a lock whose holder never released it: its process
-// is gone, or it is older than any change takes. A lock not yet written reads
-// as empty and is waited out.
-func abandoned(holder []byte, age time.Duration) bool {
-	if age > lockStaleAfter {
-		return true
-	}
-	pid, _, _ := strings.Cut(string(holder), " ")
-	n, err := strconv.Atoi(pid)
-	return err == nil && !processAlive(n)
-}
-
 // keepAside keeps the list as it is before it is replaced, for the reader to
 // open: the bytes it had, or, when it was never read (raw is nil), the file
 // itself, renamed. It says what was wrong and where the list is kept.
@@ -476,7 +444,7 @@ func (s *Store) keepAside(raw []byte, damaged bool, skipped []string) error {
 		return fmt.Errorf("set the list of vaults aside: %w", err)
 	}
 	if s.say != nil {
-		where := filepath.Join(s.dir, name)
+		where := s.dir.Join(name)
 		if damaged {
 			s.say("the list of vaults could not be read and is kept as " + where + "; a new list was started")
 		} else {

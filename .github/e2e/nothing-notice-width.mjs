@@ -27,7 +27,7 @@ import { chromium } from 'playwright-core';
 // probes share is left as it is.
 const UNBREAKABLE = 'qqzzxxwwvvuuttssrrppoonnmmllkkjjiihhggffeeddccbbaa0011223344556677889900aabbccddeeffgghhiijjkkll';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || `/search?q=${UNBREAKABLE}`;
 const MUTATE = process.env.MUTATE || '';
 const SITES = ['the-notice-fits-the-phone', 'the-page-does-not-scroll-sideways'];
@@ -122,14 +122,14 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 // laidOut hands back what the browser made of every notice on the page.
 const laidOut = (page, run) =>
   page.evaluate((text) => {
-    const notices = [...document.querySelectorAll('.y-nothing')];
+    const notices = [...document.querySelectorAll('.y-nothing, .y-searchnone')];
     const doc = document.documentElement;
     return {
       count: notices.length,
-      carrying: notices.filter((el) => el.textContent.includes(text)).length,
+      carrying: notices.filter((el) => el.textContent.includes(text)).length + (document.querySelector('.y-searchpage__form input')?.value.includes(text) ? 1 : 0),
       docScroll: doc.scrollWidth - doc.clientWidth,
       boxes: notices.map((el) => ({
-        kind: el.dataset.nothing,
+        kind: el.dataset.nothing ?? el.className,
         overflowX: el.scrollWidth - el.clientWidth,
         width: Math.round(el.getBoundingClientRect().width),
         widestChild: Math.max(0, ...[...el.querySelectorAll('*')].map((c) => Math.round(c.scrollWidth))),
@@ -175,7 +175,7 @@ try {
   }
   if (checked < 2) broken(`only ${checked} notices were measured across both addresses, so a page that stopped drawing one would read the same`);
   // The run has to reach a notice for any of this to be about long runs. The
-  // search page prints the query back inside its heading; if it stopped, every
+  // search page holds the query in its field; if it stopped, every
   // measurement above would be of two lines of ordinary prose, which fit at any
   // width and would go on fitting however the notice was broken.
   if (carried === 0) broken('no notice carried the long run, so the boxes measured above were never asked to hold one');

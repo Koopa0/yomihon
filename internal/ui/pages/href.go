@@ -250,17 +250,6 @@ func plural(n int, one, many wording.Phrase, lang wording.Lang) string {
 	return fmt.Sprintf(many.In(lang), n)
 }
 
-// facetRowLabel names what following the row does, since the row itself shows
-// only a value and a number: a value already in the query leads out of it, and
-// every other one leads further in. Which field is being narrowed is in the
-// heading above, which a reader moving link by link never hears.
-func facetRowLabel(heading string, row SearchFacetRow, lang wording.Lang) string {
-	if row.Active {
-		return fmt.Sprintf(wording.FacetRemoveFmt.In(lang), row.Label)
-	}
-	return fmt.Sprintf(wording.FacetNarrowFmt.In(lang), heading, row.Label)
-}
-
 // folderHref builds the browse URL for a folder. The vault root is not a folder
 // under the tree — it is the mode's own listing — and the route for one level
 // refuses an empty path, so the root answers at the mode index rather than at a
@@ -290,11 +279,48 @@ func searchHref(q string) string {
 	return "/search?" + url.Values{"q": {q}}.Encode()
 }
 
-// SearchPageHref builds the URL for one stretch of a search answer. It is
-// exported because the face that puts the query to the index is the only one
-// that can say how many hits there were, and so the only one that can build
-// the strip — while how a search address is spelled stays here, beside the
-// address every other search link is written with.
-func SearchPageHref(q string, n PageNumber) string {
-	return "/search?" + url.Values{"q": {q}, "page": {n.String()}}.Encode()
+// SearchStep is how many notes one reading of the answer adds to the list.
+const SearchStep = 20
+
+// SearchState is everything an address of the results page says: the query,
+// the order it is read in, what it is narrowed to, and how many notes are
+// laid out. The zero value of each field is the default and is left out, so
+// the plain address of a search stays the one a typed query makes.
+type SearchState struct {
+	Query string
+	// Sort is "recent" or empty for the index's own order.
+	Sort string
+	// Kind and In narrow the answer to one kind of note and one place.
+	Kind string
+	In   string
+	// Shown is how many notes are laid out; below one step it is the step.
+	Shown int
+}
+
+// The names a search address uses for the parts of a SearchState. The handler
+// reads the same words, so an address written here reads back as it was.
+const (
+	SearchSortParam  = "sort"
+	SearchKindParam  = "kind"
+	SearchInParam    = "in"
+	SearchShownParam = "shown"
+	SearchSortRecent = "recent"
+)
+
+// Address is the URL that reads this state.
+func (s SearchState) Address() string {
+	v := url.Values{"q": {s.Query}}
+	if s.Sort != "" {
+		v.Set(SearchSortParam, s.Sort)
+	}
+	if s.Kind != "" {
+		v.Set(SearchKindParam, s.Kind)
+	}
+	if s.In != "" {
+		v.Set(SearchInParam, s.In)
+	}
+	if s.Shown > SearchStep {
+		v.Set(SearchShownParam, strconv.Itoa(s.Shown))
+	}
+	return "/search?" + v.Encode()
 }

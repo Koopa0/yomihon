@@ -37,7 +37,7 @@ const (
 // file is there at all. Each entry becomes a question about the whole section
 // its anchor names, with no reason and open, and an id derived from what it
 // says so that converting the same file twice names the same marks.
-func legacyQuestions(dir string) (marks []Mark, stored bool, err error) {
+func legacyQuestions(dir confdir.Dir) (marks []Mark, stored bool, err error) {
 	data, err := confdir.Read(dir, legacyQuestionFile, maxLegacyQuestionBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		return []Mark{}, false, nil
@@ -88,7 +88,7 @@ func legacyID(relPath, anchor string) string {
 // another version, or damaged, is ErrUnreadable and is left as it is: it is the
 // reader's only record of where they were, and nothing here can say what it
 // meant.
-func legacyBookmark(dir string) (held Bookmark, found bool, err error) {
+func legacyBookmark(dir confdir.Dir) (held Bookmark, found bool, err error) {
 	data, err := confdir.Read(dir, legacyBookmarkFile, maxLegacyBookmarkBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		return Bookmark{}, false, nil

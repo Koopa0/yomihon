@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -39,8 +38,12 @@ var ErrInvalid = errors.New("the approval is not a shape this file can hold")
 // version is the only shape of the file this reads back.
 const version = 1
 
-// fileName is the approvals file inside this vault's own directory.
-const fileName = "figures.json"
+const (
+	// fileName is the approvals file inside this vault's own directory.
+	fileName = "figures.json"
+	// lockFile orders the writers of that file.
+	lockFile = "figures.lock"
+)
 
 // maxFileBytes bounds what a read takes in and what a write installs. An entry
 // is a path of at most maxPathBytes, a digest and a time; a file this long
@@ -76,7 +79,7 @@ type document struct {
 // disk is the record, so a revocation takes effect at the next page and the
 // next frame request without a restart.
 type Store struct {
-	dir       string
+	dir       confdir.Dir
 	vaultRoot string
 	// mu serializes writers, which read the file and replace it whole.
 	mu sync.Mutex
@@ -85,7 +88,7 @@ type Store struct {
 // Open names this vault's approvals. It creates nothing: the directory and the
 // file appear when an owner first approves a figure.
 func Open(configDir, vaultRoot string) (*Store, error) {
-	dir, err := confdir.Dir(configDir, vaultRoot)
+	dir, err := confdir.VaultDir(configDir, vaultRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +98,7 @@ func Open(configDir, vaultRoot string) (*Store, error) {
 // Path is the file the approvals are kept in. It is what a message names when
 // it tells the owner where to look.
 func (s *Store) Path() string {
-	return filepath.Join(s.dir, fileName)
+	return s.dir.Join(fileName)
 }
 
 // Approved reports whether the figure at relPath with digest sum is approved,
@@ -162,29 +165,37 @@ func (s *Store) Approve(relPath string, sum [sha256.Size]byte, at time.Time) err
 	if err := validate(&approval); err != nil {
 		return err
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	held, err := s.List()
-	if err != nil {
-		return err
-	}
-	return s.write(append(without(held, relPath), approval))
+	return s.exclusive(func() error {
+		held, err := s.List()
+		if err != nil {
+			return err
+		}
+		return s.write(append(without(held, relPath), approval))
+	})
 }
 
 // Revoke removes the approval of relPath, whatever bytes it named, and reports
 // whether there was one. With none, nothing is written.
 func (s *Store) Revoke(relPath string) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	held, err := s.List()
-	if err != nil {
-		return false, err
-	}
-	kept := without(held, relPath)
-	if len(kept) == len(held) {
+	// Asking a store that holds nothing takes no lock: its directory would be
+	// left behind. The locked read below decides whenever there is something.
+	if held, err := s.List(); err == nil && len(without(held, relPath)) == len(held) {
 		return false, nil
 	}
-	return true, s.write(kept)
+	var revoked bool
+	err := s.exclusive(func() error {
+		held, err := s.List()
+		if err != nil {
+			return err
+		}
+		kept := without(held, relPath)
+		if len(kept) == len(held) {
+			return nil
+		}
+		revoked = true
+		return s.write(kept)
+	})
+	return revoked, err
 }
 
 func without(held []Approval, relPath string) []Approval {
@@ -195,6 +206,14 @@ func without(held []Approval, relPath string) []Approval {
 		}
 	}
 	return kept
+}
+
+// exclusive runs change as the only writer of the approvals, in this process
+// and in any other on the same directory.
+func (s *Store) exclusive(change func() error) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return confdir.Exclusive(s.dir, lockFile, confdir.LockWait, change)
 }
 
 // write installs the whole list. It refuses one the next read would refuse, so

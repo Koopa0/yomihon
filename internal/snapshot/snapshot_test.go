@@ -337,6 +337,7 @@ patterns:
           - {jp: 私, reading: わたし, zh: 我}
 `)
 	writeNote(t, root, "Diagrams/example.png", "not really an image")
+	writeNote(t, root, "Notes/todo.txt", "a small text file\n")
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
 	if err != nil {
@@ -356,18 +357,19 @@ patterns:
 	if source.scans != 1 {
 		t.Errorf("initial scans = %d, want 1", source.scans)
 	}
-	// The contract is on this list because a generation now reads it twice over
-	// in two different roles — the schema loader takes it as authority, and the
-	// text index takes it as one more vault file a reader can open — and each
-	// of those roles gets its own read of its own. What this asserts is that the
-	// generation reads it once, like everything else it reads.
 	for _, path := range []string{
 		"Concepts/Alpha.md",
 		"System/slots/L01.yaml",
-		schema.ContractRelPath,
 	} {
 		if source.reads[path] != 1 {
 			t.Errorf("reads[%q] = %d, want 1", path, source.reads[path])
+		}
+	}
+	// The contract arrives already loaded, and a small text file is neither a
+	// note nor a sidecar nor a figure, so no projection has a use for its bytes.
+	for _, path := range []string{schema.ContractRelPath, "Notes/todo.txt"} {
+		if got := source.reads[path]; got != 0 {
+			t.Errorf("non-generation reads[%q] = %d, want 0", path, got)
 		}
 	}
 	// A picture is settled by its name before any byte is touched: nothing on
@@ -950,23 +952,16 @@ func TestConcurrentReadDuringSwap(t *testing.T) {
 	readers.Wait()
 }
 
-// TestBuildGenerationIndexesTextFilesAndSkipsTheRest pins which vault files reach the
-// text corpus and, just as much, which do not. The rule is the file page's own:
-// if yomihon shows it to you as characters, you can find it. Each exclusion is
-// decided by a different thing — a picture by its name, a blob by its bytes, an
-// oversized file by its size — so each is listed separately, and a fix that
-// widens one must not quietly widen the others.
-func TestBuildGenerationIndexesTextFilesAndSkipsTheRest(t *testing.T) {
+// TestBuildGenerationIndexesNotesOnly pins that the text corpus holds notes and
+// nothing else: a file a reader can open as characters is not found by search,
+// whatever it holds and wherever it sits.
+func TestBuildGenerationIndexesNotesOnly(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeNote(t, root, "Concepts/Note.md", "---\ntype: concept\n---\n\nfindable body\n")
 	writeNote(t, root, "Notes/todo.txt", "findable body\n")
 	writeNote(t, root, "Notes/page.html", "<p>findable body</p>\n")
-	// Its bytes are characters and its page is a picture: a hit inside one would
-	// open a page where the matched word is nowhere on the screen.
 	writeNote(t, root, "Diagrams/drawing.svg", `<svg xmlns="http://www.w3.org/2000/svg"><text>findable body</text></svg>`)
-	writeNote(t, root, "Notes/blob.bin", "findable\x00body")
-	writeNote(t, root, "Notes/huge.txt", strings.Repeat("findable body ", (render.MaxSourceBytes/14)+1))
 
 	contract := testContract(t, root)
 	reader, err := vault.Open(root)
@@ -979,13 +974,15 @@ func TestBuildGenerationIndexesTextFilesAndSkipsTheRest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := make([]string, 0, 3)
+	got := make([]string, 0, 1)
 	for _, result := range snapshotSearch(t, store.Current().Search(), "findable body") {
 		got = append(got, result.RelPath)
 	}
-	want := []string{"Concepts/Note.md", "Notes/page.html", "Notes/todo.txt"}
-	if diff := cmp.Diff(want, got); diff != "" {
+	if diff := cmp.Diff([]string{"Concepts/Note.md"}, got); diff != "" {
 		t.Errorf("indexed entries mismatch (-want +got):\n%s", diff)
+	}
+	if n := store.Current().Search().Len(); n != 1 {
+		t.Errorf("the index holds %d entries, want the one note", n)
 	}
 }
 

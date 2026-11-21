@@ -22,7 +22,7 @@ import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/search?q=%22alpha%20beta%20gamma%22';
 const MUTATE = process.env.MUTATE || '';
 const SITES = ['narrow-endpoints-in-view', 'wide-endpoints-in-view', 'narrow-cleaned-hit-in-view', 'wide-cleaned-hit-in-view'];
@@ -198,10 +198,10 @@ const land = async (browser, width, apply) => {
   const proof = apply ? await apply(page) : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
 
-  const rows = page.locator('ol.y-results > li a.y-result');
+  const rows = page.locator('ol.y-found > li a.y-found__item');
   const rowCount = await rows.count();
   if (rowCount < 1) broken(`the fixture search returned ${rowCount} rows, want the long note`);
-  const link = page.locator('a.y-result[href*="Audit%20cross%20block"]').first();
+  const link = page.locator('a.y-found__item[href*="Audit%20cross%20block"]').first();
   if (await link.count() !== 1) broken('the results do not offer the long note this probe was written around');
   const href = await link.getAttribute('href');
 
@@ -241,10 +241,10 @@ const landCleaned = async (browser, width, mutation) => {
     await arrived(page);
     if ((await oneArticleWord(page, 'primary')).inView) broken('the cleaned-hit fixture is already visible at the top');
     await page.goto(BASE + CLEAN_PAGE, { waitUntil: 'load' });
-    const link = page.locator(`a.y-result[href^="${CLEAN_NOTE}"]`);
+    const link = page.locator(`a.y-found__item[href^="${CLEAN_NOTE}"]`);
     if (await link.count() !== 1) broken('the results do not offer exactly one cleaned-hit fixture');
     const href = await link.getAttribute('href');
-    const snippet = await link.locator('.y-result__snippet').textContent();
+    const snippet = await link.locator('.y-found__lead').textContent();
     await link.click();
     await page.waitForURL(/Excerpt%20landing/);
     await page.waitForLoadState('load');

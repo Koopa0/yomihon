@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/schema"
+
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/lexical"
 	"github.com/koopa0/yomihon/internal/nav"
@@ -397,17 +399,13 @@ func TestSearchResultSaysWhenACrossingMatchCannotBeLocated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
-	view := viewResults(answer.Results, q.Tokens())
+	view := viewResults(answer.Results, q.Tokens(), schema.NavigationRoles{}, wording.ZhHant)
 	if len(view) != 1 {
 		t.Fatalf("viewResults = %+v, want one row", view)
 	}
 	if view[0].Landing != "" || view[0].LandingEnd != "" || !view[0].BlockCrossing {
 		t.Fatalf("viewResults did not produce an empty-landing crossing: %+v", view[0])
 	}
-	if view[0].Snippet == "" {
-		t.Fatalf("snippet is empty, so the excerpt chain would not have hidden the sentence; row = %+v", view[0])
-	}
-
 	var buf bytes.Buffer
 	if err := pages.SearchResults(pages.SearchView{
 		Query:   `"  xxx  "`,
@@ -477,7 +475,7 @@ func TestEverySearchResultRowLocatesOrSaysSo(t *testing.T) {
 
 func assertEveryResultRowLocatesOrSaysSo(t *testing.T, body string) {
 	t.Helper()
-	const prefix = `class="y-result" href="`
+	const prefix = `class="y-found__item" href="`
 	found := 0
 	rest := body
 	for {
@@ -505,7 +503,7 @@ func assertEveryResultRowLocatesOrSaysSo(t *testing.T, body string) {
 
 func resultHref(t *testing.T, body string) string {
 	t.Helper()
-	const prefix = `class="y-result" href="`
+	const prefix = `class="y-found__item" href="`
 	_, rest, ok := strings.Cut(body, prefix)
 	if !ok {
 		t.Fatalf("no result href; body = %q", body)

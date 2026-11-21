@@ -4,10 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -216,3 +218,51 @@ func TestApproveRefusesAPathItCouldNotHandBack(t *testing.T) {
 func lowerHex(sum [sha256.Size]byte) string { return hex.EncodeToString(sum[:]) }
 
 func upperHex(sum [sha256.Size]byte) string { return strings.ToUpper(hex.EncodeToString(sum[:])) }
+
+// Two stores on one directory are the command line and the running server, and
+// neither may write the other's approvals away.
+func TestTwoStoresOnOneDirectoryKeepEveryApproval(t *testing.T) {
+	t.Parallel()
+	config := t.TempDir()
+	const each = 60
+	var writers sync.WaitGroup
+	for w := range 2 {
+		store, err := approval.Open(config, "/vaults/notes")
+		if err != nil {
+			t.Fatal(err)
+		}
+		writers.Go(func() {
+			for i := range each {
+				if err := store.Approve(fmt.Sprintf("Figures/w%d-%d.html", w, i), sha256.Sum256([]byte("x")), approvedAt); err != nil {
+					t.Errorf("writer %d approve %d: %v", w, i, err)
+					return
+				}
+			}
+		})
+	}
+	writers.Wait()
+	store, err := approval.Open(config, "/vaults/notes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if held, err := store.List(); err != nil || len(held) != 2*each {
+		t.Fatalf("two stores kept %d approvals, %v; want %d", len(held), err, 2*each)
+	}
+}
+
+// Asking to revoke what was never approved is not approving, and a directory
+// made to hold the lock would be the first thing left behind.
+func TestRevokingWhatWasNeverApprovedLeavesNoDirectory(t *testing.T) {
+	t.Parallel()
+	config := t.TempDir()
+	store, err := approval.Open(config, "/vaults/notes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if revoked, err := store.Revoke("Figures/a.html"); err != nil || revoked {
+		t.Fatalf("Revoke = %v, %v", revoked, err)
+	}
+	if _, err := os.Stat(filepath.Join(config, "yomihon")); !os.IsNotExist(err) {
+		t.Errorf("asking created %s", filepath.Join(config, "yomihon"))
+	}
+}

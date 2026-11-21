@@ -184,7 +184,13 @@ templ header(c Chrome) {
 		// listener for engines without invokers; the link works without either.
 		<button class="y-searchbtn" type="button" command="show-modal" commandfor="_y-search-dialog" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>
 			<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-			<span class="y-searchbtn__label">{ wording.SearchNotesPrompt.In(c.Lang) }</span>
+			<span class="y-searchbtn__label">
+				if c.SearchQuery != "" {
+					{ c.SearchQuery }
+				} else {
+					{ wording.SearchNotesPrompt.In(c.Lang) }
+				}
+			</span>
 			<span class="ui-kbd">⌘K</span>
 		</button>
 		<noscript><a class="y-searchfallback" href="/search">{ wording.SearchTitle.In(c.Lang) }</a></noscript>
@@ -284,33 +290,30 @@ templ KeyboardKeys(lang wording.Lang) {
 	</dl>
 }
 
-// searchDialog is the ⌘K command palette: a native <dialog> (top layer,
-// backdrop, focus trap, Esc — all free) whose body is a GET form to /search.
-// The data hooks add live lexical results while preserving that ordinary form.
+// searchDialog is the phone's search surface: a native <dialog> (top layer,
+// backdrop, focus trap, Esc — all free) opened by the header's press, whose body
+// is a GET form to /search with the answer's few rows under the field. The
+// data hooks add live rows while preserving that ordinary form.
 //
 // It carries an id because the header's press names it: the button declares
 // the act and the browser opens the dialog, with no script in between. On a
 // page running none, the form inside is still an ordinary GET to the search
-// page, so the palette answers with or without the live rows.
+// page, so the surface answers with or without the live rows.
 templ searchDialog(lang wording.Lang) {
-	<dialog id="_y-search-dialog" class="y-searchdialog ui-dialog" data-search data-live-search data-live-search-endpoint="/search/results" closedby="any" aria-label={ wording.SearchNotes.In(lang) }>
-		// The palette a reader opens with the keyboard is the same capability
-		// the full page offers, so it is announced as the same landmark. The
-		// element carries that meaning itself, which is one fewer attribute to
-		// keep in step across the two surfaces.
+	<dialog id="_y-search-dialog" class="y-searchsurface ui-dialog" data-search data-live-search data-live-search-endpoint="/search/results" closedby="any" aria-label={ wording.SearchNotes.In(lang) }>
 		<search>
-			<form class="y-searchdialog__form" method="get" action="/search" data-live-search-form>
-				<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-				<input class="y-searchdialog__input" type="search" name="q" placeholder={ wording.SearchNotesPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } data-live-search-input autofocus/>
-				<span class="ui-kbd">esc</span>
+			<form class="y-searchsurface__bar" method="get" action="/search" data-live-search-form>
+				<span class="y-searchsurface__field">
+					<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+					<input type="search" name="q" placeholder={ wording.SearchNotesPrompt.In(lang) } aria-label={ wording.SearchNotes.In(lang) } enterkeyhint="search" autocomplete="off" spellcheck="false" data-live-search-input autofocus/>
+					<button type="button" class="y-searchsurface__clear" aria-label={ wording.SearchClearField.In(lang) } data-live-search-clear hidden>
+						@Icon("close")
+					</button>
+				</span>
+				<button type="button" class="y-searchsurface__cancel" data-search-close>{ wording.SearchCancel.In(lang) }</button>
 			</form>
 		</search>
 		@LiveSearchStatus(lang)
-		<div class="y-searchresults" data-live-search-results data-result-count="0" aria-busy="false"></div>
-		<div class="y-searchdialog__foot">
-			<span>↑↓ { wording.SearchDialogChoose.In(lang) }</span>
-			<span>↵ { wording.SearchDialogEnter.In(lang) }</span>
-			<span>esc { wording.SearchDialogEsc.In(lang) }</span>
-		</div>
+		<div class="y-searchsurface__panel" data-live-search-panel></div>
 	</dialog>
 }

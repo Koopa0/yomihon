@@ -16,6 +16,11 @@ type Result struct {
 	Title   string
 	Draft   bool
 	Snippet string
+	// NoteType is the type the note declares, as written, for a page that
+	// names a result's kind. Empty for a note that declares none.
+	NoteType string
+	// Lead is the passage a result page shows under the title; see Lead.
+	Lead Lead
 	// SnippetRuns carries display effects and original query evidence when
 	// the corpus includes syntax the destination consumes.
 	SnippetRuns []ExcerptRun
@@ -28,11 +33,6 @@ type Result struct {
 	// Tag is the frontmatter tag that answered when stronger evidence did not,
 	// in the author's spelling. Tag-only hits have no body excerpt or landing.
 	Tag string
-
-	// File marks a hit that is not a note but a vault file read as characters.
-	// It has no frontmatter, so it carries no draft flag and never will, and a
-	// surface that dresses a hit in note furniture can tell the two apart.
-	File bool
 
 	// Landing is the selected first-block stretch, with its tail grown to
 	// a word boundary and whitespace collapsed the way a snippet is. Empty when
@@ -119,60 +119,25 @@ const (
 	landingPrefixRunes = 30
 )
 
-// Answer is everything one pass over the index found for a query: the results
-// the caller asked to have built, how many hits there truly were, and how the
-// whole matching set — not the built stretch of it — divides along the keys a
-// reader can narrow by. The three arrive together because they are one walk of
-// the entries, and a division counted over the built stretch alone would be
-// wrong by exactly the tail the limit left out.
+// Answer is what one pass over the index found for a query: the results the
+// caller asked to have built, and how many hits there truly were.
 type Answer struct {
 	Results []Result
 	Total   int
-
-	// Facets is one division per key, in the order a reader meets them, and is
-	// empty where nothing matched or where the artifact policy leaves metadata
-	// unavailable — there a narrowed query would refuse rather than answer, and
-	// an offer nothing can keep is not made.
-	Facets []Facet
-}
-
-// Facet is one key the answer divides along: the values the matching notes
-// carry, and how many of them carry none. Unstated is kept apart from the
-// values rather than counted as one of them, because "no domain declared" is
-// not a domain and markup handed both in one list would dress it as one. Its
-// count is what makes the division add up: every hit is either at one of the
-// values or in it.
-type Facet struct {
-	Key      string
-	Values   []FacetValue
-	Unstated int
-}
-
-// FacetValue is one value the matching notes carry, in the spelling the first
-// note to carry it gave it, with how many hits are at it. The spelling is the
-// note's own rather than the folded form the index compares, because it is
-// both what the reader reads and what a narrowed query is written with: the
-// parser folds a filter value on the way back in, so the two cannot disagree
-// about which notes the offer selects.
-type FacetValue struct {
-	Value string
-	Count int
 }
 
 // Search runs a parsed query against the index and returns results in the final
-// deterministic order, seven groups concatenated: a note's title hits, a note's
-// body hits, a note's tag hits, the first two over vault
-// files that are not notes, then the path-only hits, notes again before files. Each group keeps
-// the vault's reading order, except that a fold-equal exact title leads the
-// title-note group, a knowledge-layer hit leads an outside-knowledge hit
-// inside the same group, and every text hit outranks every path-only hit.
+// deterministic order, four groups concatenated: title hits, body hits, tag hits,
+// then the path-only hits. Each group keeps the vault's reading order, except
+// that a fold-equal exact title leads the title group, a knowledge-layer hit
+// leads an outside-knowledge hit inside the same group, and every text hit
+// outranks every path-only hit.
 //
 // An empty query returns nothing and a pure-filter query lands every match in
 // the title bucket. A metadata filter excludes non-instance artifacts, and
 // returns ErrMetadataUnavailable when the artifact policy was declared and could
 // not be honoured. At most limit results are materialized, a negative limit all
-// of them; Total counts every hit, the tail beyond limit is never built, and
-// the facets are tallied over every hit rather than over the built stretch.
+// of them; Total counts every hit and the tail beyond limit is never built.
 func (idx *Index) Search(q *Query, limit int) (Answer, error) {
 	if len(q.tokens) == 0 && len(q.filters) == 0 {
 		return Answer{}, nil
@@ -183,7 +148,6 @@ func (idx *Index) Search(q *Query, limit int) (Answer, error) {
 		return Answer{}, idx.metadataUnavailableError()
 	}
 	var answers resultBuckets
-	var divisions facetTally
 	for _, e := range idx.entries {
 		if requiresMetadata && !e.metadataCapable {
 			continue
@@ -191,18 +155,12 @@ func (idx *Index) Search(q *Query, limit int) (Answer, error) {
 		if !e.matchesFilters(q.filters) {
 			continue
 		}
-		// Tallied on the way past rather than from the hits afterwards, and
-		// only for an entry that was actually filed: passing every filter is
-		// not being a hit, since an entry whose words answer none of the terms
-		// leaves place with no bucket to sit in and is not counted in Total.
-		if answers.place(e, q.tokens) && metadataAvailable {
-			divisions.add(e)
-		}
+		answers.place(e, q.tokens)
 	}
 	answers.raiseKnowledge()
 	answers.raiseExactTitles(q.tokens)
 	hits := answers.ordered()
-	answer := Answer{Total: len(hits), Facets: divisions.facets()}
+	answer := Answer{Total: len(hits)}
 	if limit >= 0 && len(hits) > limit {
 		hits = hits[:limit]
 	}
@@ -226,18 +184,15 @@ type hit struct {
 }
 
 // bucket names one answer group. This declaration order is the result order and
-// the only statement of it, so a group moves by moving its constant: notes before
-// files under each kind of evidence, and title and body before an address.
+// the only statement of it, so a group moves by moving its constant: title and body
+// before a tag, and every text hit before an address.
 type bucket uint8
 
 const (
-	titleNote bucket = iota
-	bodyNote
-	tagNote
-	titleFile
-	bodyFile
-	pathNote
-	pathFile
+	bucketTitle bucket = iota
+	bucketBody
+	bucketTag
+	bucketPath
 	bucketCount
 )
 
@@ -248,40 +203,26 @@ type resultBuckets struct {
 }
 
 // place files one filter-matching entry into its answer group by what the
-// tokens matched: the title, the body, a declared tag, or only the path. It
-// reports whether the entry was filed at all — matching every filter and none
-// of the terms is not a hit, and a caller counting what the query found has to
-// be able to tell the two apart.
-func (b *resultBuckets) place(e *entry, tokens []string) bool {
+// tokens matched: the title, the body, a declared tag, or only the path. An
+// entry that passed every filter and whose words answer none of the terms is not
+// a hit, and is filed nowhere.
+func (b *resultBuckets) place(e *entry, tokens []string) {
 	switch {
 	case allContain(e.TitleFold, tokens):
 		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
-		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence})
+		b.groups[bucketTitle] = append(b.groups[bucketTitle], hit{entry: e, bodyEvidence: bodyEvidence})
 	case aliasAnswering(e, tokens) != "":
 		// An alias stands with the title: a link written to one resolves and a
 		// link written to a title does not.
 		bodyEvidence := len(tokens) != 0 && allContain(e.PlainFold, tokens)
-		b.add(titleNote, titleFile, hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
+		b.groups[bucketTitle] = append(b.groups[bucketTitle], hit{entry: e, bodyEvidence: bodyEvidence, alias: aliasAnswering(e, tokens)})
 	case allContain(e.PlainFold, tokens):
-		b.add(bodyNote, bodyFile, hit{entry: e, bodyEvidence: true})
+		b.groups[bucketBody] = append(b.groups[bucketBody], hit{entry: e, bodyEvidence: true})
 	case tagAnswering(e, tokens) != "":
-		b.groups[tagNote] = append(b.groups[tagNote], hit{entry: e, tag: tagAnswering(e, tokens)})
+		b.groups[bucketTag] = append(b.groups[bucketTag], hit{entry: e, tag: tagAnswering(e, tokens)})
 	case allContain(e.PathFold, tokens):
-		b.add(pathNote, pathFile, hit{entry: e})
-	default:
-		return false
+		b.groups[bucketPath] = append(b.groups[bucketPath], hit{entry: e})
 	}
-	return true
-}
-
-// add files one hit under the group its evidence and its kind put it in. The hit
-// carries which kind it is, so the caller names the pair and never chooses.
-func (b *resultBuckets) add(note, file bucket, h hit) {
-	g := note
-	if h.entry.isFile {
-		g = file
-	}
-	b.groups[g] = append(b.groups[g], h)
 }
 
 // raiseExactTitles is the one tie-break inside the title-note group: a title
@@ -294,7 +235,7 @@ func (b *resultBuckets) raiseExactTitles(tokens []string) {
 		return
 	}
 	needle := strings.Join(tokens, " ")
-	slices.SortStableFunc(b.groups[titleNote], func(left, right hit) int {
+	slices.SortStableFunc(b.groups[bucketTitle], func(left, right hit) int {
 		return cmp.Compare(exactTitleRank(right.entry.TitleFold, needle), exactTitleRank(left.entry.TitleFold, needle))
 	})
 }
@@ -347,7 +288,7 @@ func tagTokens(tokens []string) []string {
 }
 
 func tagAnswering(e *entry, tokens []string) string {
-	if e.isFile || len(e.TagFolds) == 0 {
+	if len(e.TagFolds) == 0 {
 		return ""
 	}
 	terms := tagTokens(tokens)
@@ -551,18 +492,25 @@ func (e *entry) result(tokens []string, bodyEvidence, metadataAvailable bool, al
 	var bodyRuns []ExcerptRun
 	var terms landingTerms
 	var fromFence bool
+	var lead Lead
 	if bodyEvidence {
 		bodySnippet, bodyRuns, terms, fromFence = e.bodyExcerpt(tokens)
+		lead = e.lead(tokens)
+	}
+	noteType := ""
+	if metadataAvailable && e.metadataCapable {
+		noteType = e.NoteType
 	}
 	return Result{
 		RelPath:       e.RelPath,
 		Title:         e.Title,
+		NoteType:      noteType,
+		Lead:          lead,
 		Draft:         draft,
 		Snippet:       bodySnippet,
 		SnippetRuns:   bodyRuns,
 		Alias:         alias,
 		Tag:           tag,
-		File:          e.isFile,
 		Landing:       terms.first,
 		LandingBare:   terms.bare,
 		LandingEnd:    terms.last,

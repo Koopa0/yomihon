@@ -7,7 +7,7 @@ import { mkdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const MUTATE = process.env.MUTATE || '';
 const MODES = ['drop-finding-clearance', 'drop-finding-class'];
 const SITE = 'finding-clears-the-header';
