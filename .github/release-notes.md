@@ -17,6 +17,7 @@ Since v0.3.0, yomihon only reads: nothing writes into a vault any more, and a no
 - **Drawings sit on a mat.** An SVG alone in its paragraph and a figure's frame scroll sideways on a narrow screen instead of shrinking until the words cannot be read.
 - **A new mark.** The favicon and the README image stay visible on dark browser tabs.
 - **Copy path.** Beside the bookmark, wherever the left column is not a drawer, a note offers its full path with the line of the section you are reading (`…/mvcc.md:42`), for an editor that opens `path:line`. The Obsidian link stays for a folder Obsidian opened.
+- **The section you are reading** is the one at a line just under the header, where the text you read starts, and no longer the one at the top of the window the header covers. Over the last screen of a note the line moves down to the bottom of the window, so a short section at the end is reached in its turn. The bookmark keeps its place in that section, and Copy path names it.
 
 ## Upgrading
 
