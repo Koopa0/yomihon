@@ -224,9 +224,15 @@ func (e *listenError) Unwrap() error { return e.err }
 
 // refusal is something the operator can correct, told in the words that say
 // how. It ends the start the way a port that cannot be bound does.
-type refusal struct{ msg string }
+type refusal struct {
+	msg string
+	// cause is the failure the refusal is about, when there is one.
+	cause error
+}
 
 func (e *refusal) Error() string { return e.msg }
+
+func (e *refusal) Unwrap() error { return e.cause }
 
 // operatorFault is err when it is a setting the operator corrects before the
 // next start, and nil for any other failure.
