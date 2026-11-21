@@ -11,17 +11,18 @@ import (
 type Status int
 
 // The standings a mark can have. A mark that is Changed is still the reader's:
-// it is kept and shown as such, never dropped, because the words it was about
-// are what changed, not the mark.
+// it is kept and shown as such, never dropped, because it is the note that no
+// longer says where the words it was about are, not the mark that is at fault.
 const (
-	// Found means the words the reader chose are in the note, or a mark of a
-	// whole section has its section.
+	// Found means the words the reader chose are in the note, at one place, or
+	// a mark of a whole section has its section.
 	Found Status = iota + 1
 	// SectionOnly means the mark names a section or the note as a whole, not a
 	// span of text, and the section is there.
 	SectionOnly
 	// Changed means the words are not in the note and what stood around them
-	// does not place them, or the section a mark of a section names is gone.
+	// does not place them, or they are at several places that nothing tells
+	// apart, or the section a mark of a section names is gone.
 	Changed
 )
 
@@ -54,10 +55,11 @@ var contextSteps = [...]int{maxContextBytes, 96, 32}
 //
 // A mark of a whole section has no words, so it stands where its section does.
 // A mark of a span is found by its words first. Where they occur more than once
-// the one with the most of the same words around it wins, and the first of
-// several the same. Where they do not occur, the span between the words that
-// stood before and after them is found instead, when exactly one such span is
-// near enough to be an edit of them: a wrong place is worse than none, so an
+// the one with the most of the same words around it wins. Where several have as
+// much, nothing tells them apart and the answer is Changed, with no place
+// chosen among them. Where the words do not occur, the span between the words
+// that stood before and after them is found instead, when exactly one such span
+// is near enough to be an edit of them: a wrong place is worse than none, so an
 // unclear answer is Changed. Runs of white space are one space throughout,
 // because a selection and the page it came from break lines differently.
 //
@@ -75,7 +77,10 @@ func Locate(text string, sections []string, m *Mark) Placement {
 		return Placement{Status: Changed}
 	}
 	v := newView(text)
-	if start, end, ok := v.exact(quote, squeezed(m.Before), squeezed(m.After)); ok {
+	if start, end, found, alone := v.exact(quote, squeezed(m.Before), squeezed(m.After)); found {
+		if !alone {
+			return Placement{Status: Changed, SectionKept: kept}
+		}
 		return v.placed(start, end, true, kept)
 	}
 	if start, end, ok := v.between(quote, squeezed(m.Before), squeezed(m.After)); ok {
@@ -130,19 +135,24 @@ func (v *view) placed(start, end int, exact, kept bool) Placement {
 }
 
 // exact is the place in the view where quote occurs with the most of before
-// and after around it, and false where it does not occur.
-func (v *view) exact(quote, before, after string) (start, end int, ok bool) {
+// and after around it. found is false where quote does not occur, and alone is
+// false where another place has as much around it, so that start and end are
+// one of several the same.
+func (v *view) exact(quote, before, after string) (start, end int, found, alone bool) {
 	best := -1
 	for from := 0; ; {
 		at := strings.Index(v.text[from:], quote)
 		if at < 0 {
-			return start, end, ok
+			return start, end, found, alone
 		}
 		s := from + at
 		e := s + len(quote)
 		score := commonSuffix(strings.TrimRight(v.text[:s], " "), before) + commonPrefix(strings.TrimLeft(v.text[e:], " "), after)
-		if score > best {
-			best, start, end, ok = score, s, e, true
+		switch {
+		case score > best:
+			best, start, end, found, alone = score, s, e, true, true
+		case score == best:
+			alone = false
 		}
 		from = s + 1
 	}

@@ -56,9 +56,10 @@ func TestReadingRefusesWhatNoReaderOpens(t *testing.T) {
 
 // TestEveryWordAPageShowsIsFoundWhereItIs holds what the mark routes depend on:
 // a reader who selects the words of one text node of a page, in any note of the
-// example vault, has chosen words Locate finds exactly. A rule of TextContent
-// that dropped or changed words would show here as a highlight the server
-// refuses.
+// example vault, has chosen words Locate finds exactly, or, where the page has
+// them at several places and the selection says nothing of what stands around
+// them, words it does not place. A rule of TextContent that dropped or changed
+// words would show here as a highlight the server refuses.
 func TestEveryWordAPageShowsIsFoundWhereItIs(t *testing.T) {
 	t.Parallel()
 
@@ -87,10 +88,18 @@ func TestEveryWordAPageShowsIsFoundWhereItIs(t *testing.T) {
 		}
 		notes++
 		reading, _ := snap.Note(rel)
+		squeezed := strings.Join(strings.Fields(page.Text), " ")
 		for _, words := range textNodes(t, snap.Render(rel, reading.Body, wording.ZhHant).HTML) {
-			nodes++
 			m := &mark.Mark{Kind: mark.Highlight, RelPath: rel, Quote: words}
-			if found := mark.Locate(page.Text, nil, m); found.Status != mark.Found || !found.Exact {
+			found := mark.Locate(page.Text, nil, m)
+			if places(squeezed, words) > 1 {
+				if found.Status != mark.Changed {
+					t.Errorf("%s: the words %q of a text node are at several places of the page's words, and Locate answers status %v", rel, words, found.Status)
+				}
+				continue
+			}
+			nodes++
+			if found.Status != mark.Found || !found.Exact {
 				t.Errorf("%s: the words %q of a text node are not found exactly in the page's words (status %v)", rel, words, found.Status)
 			}
 		}
@@ -100,7 +109,21 @@ func TestEveryWordAPageShowsIsFoundWhereItIs(t *testing.T) {
 		t.Fatal(err)
 	}
 	if notes < 10 || nodes < 100 {
-		t.Fatalf("the walk read %d notes and %d text nodes, so it looked at too little to hold anything", notes, nodes)
+		t.Fatalf("the walk read %d notes and %d text nodes it could place, so it looked at too little to hold anything", notes, nodes)
+	}
+}
+
+// places is how many places words begin in text, a place that overlaps another
+// counting as one more.
+func places(text, words string) int {
+	n := 0
+	for from := 0; ; from++ {
+		at := strings.Index(text[from:], words)
+		if at < 0 {
+			return n
+		}
+		n++
+		from += at
 	}
 }
 

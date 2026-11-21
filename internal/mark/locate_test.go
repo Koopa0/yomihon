@@ -78,7 +78,7 @@ func TestWordsInAnyScriptAreFoundAtTheirOwnBytes(t *testing.T) {
 }
 
 // Of several places the same words are, the one with the most of the same
-// words around it is the mark's; with nothing around them, the first.
+// words around it is the mark's.
 func TestWordsThatOccurMoreThanOnceAreToldApartByWhatSurroundsThem(t *testing.T) {
 	t.Parallel()
 	text := "The cache is cold. See the note. Later: the cache is warm. See the table."
@@ -91,7 +91,6 @@ func TestWordsThatOccurMoreThanOnceAreToldApartByWhatSurroundsThem(t *testing.T)
 	}{
 		{"before the first", "The cache is cold.", " the note.", first},
 		{"before the second", "Later: the cache is warm.", " the table.", second},
-		{"nothing around them", "", "", first},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -99,6 +98,64 @@ func TestWordsThatOccurMoreThanOnceAreToldApartByWhatSurroundsThem(t *testing.T)
 			got := mark.Locate(text, nil, aSpan("See", tt.before, tt.after))
 			if got.Status != mark.Found || got.Start != tt.want {
 				t.Errorf("Locate = %+v, want found at %d", got, tt.want)
+			}
+		})
+	}
+}
+
+// A wrong place is worse than none: words that occur at several places, with
+// nothing around them that tells the places apart, are not placed at one of them.
+func TestAQuoteAtSeveralPlacesNothingTellsApartIsNotPlaced(t *testing.T) {
+	t.Parallel()
+	// The shape of a comparison table: one cell value in the same column of five rows.
+	cell := func(row string) string { return "| " + row + " | 仍可能 |\n" }
+	table := "比較\n" + cell("甲") + cell("乙") + cell("丙") + cell("丁") + cell("戊")
+	const prose = "The cache is cold. See the note. Later: the cache is warm. See the table."
+	// Three places say "A:" or "B:" before a word; two of them say the same.
+	const labelled = "A: See. B: See. B: See."
+	// A word the author doubled: each of its two places has as much around it as
+	// the other, and what stood around it is still there, one stretch between.
+	const doubled = "A send on a channel blocks blocks until a receiver is ready."
+	nth := func(text, sub string, n int) int {
+		at := -1
+		for range n {
+			at += strings.Index(text[at+1:], sub) + 1
+		}
+		return at
+	}
+	tests := []struct {
+		name          string
+		text          string
+		quote         string
+		before, after string
+		sections      []string
+		want          mark.Placement
+	}{
+		{"no context, as a quote read back from a file has", table, "仍可能", "", "", []string{"first"}, mark.Placement{Status: mark.Changed, SectionKept: true}},
+		{"context every place shares", table, "仍可能", " | ", " |", []string{"first"}, mark.Placement{Status: mark.Changed, SectionKept: true}},
+		{"prose, with nothing around the words", prose, "See", "", "", []string{"first"}, mark.Placement{Status: mark.Changed, SectionKept: true}},
+		{"the section is gone as well", table, "仍可能", "", "", nil, mark.Placement{Status: mark.Changed}},
+		{"two places share the most of what stood around the words", labelled, "See", "B:", "", []string{"first"}, mark.Placement{Status: mark.Changed, SectionKept: true}},
+		{"the words twice in a row, with what stood around them still there", doubled, "blocks", "A send on a channel", "until a receiver is", []string{"first"}, mark.Placement{Status: mark.Changed, SectionKept: true}},
+		{
+			"the last of five, told apart by its row", table, "仍可能", "戊 |", "|", []string{"first"},
+			mark.Placement{Status: mark.Found, Start: nth(table, "仍可能", 5), End: nth(table, "仍可能", 5) + len("仍可能"), Exact: true, SectionKept: true},
+		},
+		{
+			"the second of five, told apart by its row", table, "仍可能", "乙 |", "|", []string{"first"},
+			mark.Placement{Status: mark.Found, Start: nth(table, "仍可能", 2), End: nth(table, "仍可能", 2) + len("仍可能"), Exact: true, SectionKept: true},
+		},
+		{
+			"one place has the most of what stood around the words, the others are alike", labelled, "See", "A:", "", []string{"first"},
+			mark.Placement{Status: mark.Found, Start: nth(labelled, "See", 1), End: nth(labelled, "See", 1) + len("See"), Exact: true, SectionKept: true},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := mark.Locate(tt.text, tt.sections, aSpan(tt.quote, tt.before, tt.after))
+			if diff := cmp.Diff(tt.want, got); diff != "" {
+				t.Errorf("Locate (-want +got):\n%s", diff)
 			}
 		})
 	}
