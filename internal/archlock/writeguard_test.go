@@ -453,7 +453,9 @@ type unit struct {
 func (u *unit) rel(pos token.Pos) (path string, line int) {
 	position := u.fset.Position(pos)
 	if u.dependency {
-		return u.path, position.Line
+		// A file of another module is named by its package, since where the module
+		// cache keeps it is nothing to the reader of the report.
+		return u.path + "/" + filepath.Base(position.Filename), position.Line
 	}
 	name := position.Filename
 	if u.root != "" {
