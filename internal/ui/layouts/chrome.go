@@ -96,6 +96,12 @@ type Chrome struct {
 	// it, because whether a note can be marked is the reading page's question
 	// and an answer worked out a second time here would be a second answer.
 	Mark *MarkOffer
+	// FilePath is the full path of the note file this request is reading, which
+	// the header offers to copy with the line of the section being read, for
+	// the reader's own editor. It is never the ~ form, because the reader
+	// pastes it back. Empty on every page that reads no note, and the header
+	// then draws no such control.
+	FilePath string
 }
 
 // MarkOffer is the note a reading place would be kept in: its address, the

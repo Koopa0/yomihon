@@ -202,6 +202,12 @@ templ header(c Chrome) {
 		if c.Mark != nil {
 			@headerMark(c.Mark, c.Lang)
 		}
+		// The note's file for the reader's own editor, beside the bookmark
+		// because both act on where the reader is now, which is why it is in
+		// the row that stays put while the note scrolls.
+		if c.FilePath != "" {
+			@headerPath(c.FilePath, c.Lang)
+		}
 		// The way to the reading choices. It carries the page the reader is on,
 		// so applying a choice returns them to it. Where the row is narrow the
 		// word gives way to a mark of three sliders — not a gear, which promises
@@ -251,6 +257,30 @@ templ headerMark(mark *MarkOffer, lang wording.Lang) {
 			<span class="y-headermark__label" aria-hidden="true">{ wording.MarkSetControl.In(lang) }</span>
 		</button>
 		@Reply("y-headermark__said", templ.Attributes{"data-mark-said": true})
+	</div>
+}
+
+// headerPath is the control that copies the note's full path, with the line of
+// the file its current section's heading opens on where the page knows one,
+// for the reader to paste into their own editor. It is drawn as the bookmark
+// beside it is, a mark with its words, and only where the left column is a
+// column: where it is a drawer the row has no room for one more control. Its
+// reply hangs out of the row's flow as the bookmark's does. Where the browser
+// refuses the copy, the reply holds the path itself, selected, so it can be
+// copied by hand.
+templ headerPath(path string, lang wording.Lang) {
+	<div
+		class="y-headerpath"
+		data-path-control
+		data-path={ path }
+		data-path-copied={ wording.CodeCopied.In(lang) }
+		data-path-failed={ wording.CopyPathByHand.In(lang) }
+	>
+		<button class="y-iconbtn y-headerpath__button" type="button" data-path-button aria-label={ wording.CopyPath.In(lang) } title={ wording.CopyPath.In(lang) }>
+			<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="1.5"></rect><path d="M16 4H5.5A1.5 1.5 0 0 0 4 5.5V16"></path></svg>
+			<span class="y-headerpath__label" aria-hidden="true">{ wording.CopyPath.In(lang) }</span>
+		</button>
+		@Reply("y-headerpath__said", templ.Attributes{"data-path-said": true})
 	</div>
 }
 

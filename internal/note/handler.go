@@ -22,6 +22,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -477,6 +478,7 @@ func (h *Handler) reading(
 		VerifiedAt:        verifiedAt,
 		Prerequisites:     prerequisites(snap, rel),
 		ObsidianHref:      obsidianOpenHref(h.sources.Source, n.RelPath),
+		FilePath:          notePath(h.sources.Source, n.RelPath),
 		Diagnostic:        n.FMDiagnostic,
 		Stale:             n.Stale,
 		ParsePanic:        cause.ParsePanic,
@@ -530,6 +532,17 @@ func verifiedDay(n *snapshot.Reading) (display, machine string) {
 	}
 	day := n.VerifiedOn.Format(time.DateOnly)
 	return day, day
+}
+
+// notePath is the full path of the note's file, spelt the way this system
+// spells one, for a reader to paste into their own editor; empty where the
+// vault has no path.
+func notePath(source *vault.Reader, rel string) string {
+	root := source.Name()
+	if root == "" || rel == "" {
+		return ""
+	}
+	return filepath.Join(root, filepath.FromSlash(rel))
 }
 
 // prerequisites are the notes the author named as ones to know first, each with

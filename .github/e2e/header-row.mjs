@@ -1,8 +1,9 @@
 // Browser lock for the header row: it carries only what reading needs. To the
 // right of the wordmark there is the furigana switch on a page that has
-// furigana, the search, the bookmark for keeping a reading place, the way to
-// the settings and, where the left column is a drawer, the button that opens it
-// — in that order, which is the design's, and nothing else, at every width.
+// furigana, the search, the bookmark for keeping a reading place, on a note the
+// control that copies its path where the left column is not a drawer, the way
+// to the settings and, where the left column is a drawer, the button that opens
+// it — in that order, which is the design's, and nothing else, at every width.
 // Everything
 // a reader sets once and leaves alone lives on the settings page.
 //
@@ -38,10 +39,11 @@ const PLACE_WIDTHS = [DRAWER, DRAWER + 1, RAIL - 1, RAIL, RAIL + 1, 1440];
 // restyling, in the order the row draws them.
 const RUBY = '[data-ruby-toggle]';
 const MARK = '.y-headermark [data-mark-button]';
+const PATH = '.y-headerpath [data-path-button]';
 const SEARCH = '[data-search-open]';
 const SETTINGS = '.y-prefslink';
 const SIDEBAR = '.y-sidebtn';
-const CLUSTER = [RUBY, SEARCH, MARK, SETTINGS, SIDEBAR];
+const CLUSTER = [RUBY, SEARCH, MARK, PATH, SETTINGS, SIDEBAR];
 
 const SITES = [
   'reading-place-reachable',
@@ -317,7 +319,7 @@ const readRow = (page, cluster) => page.evaluate((selectors) => {
 
 // Where each control of the row stands, so a sentence that pushed one aside
 // shows as a difference between two readings.
-const rowRects = (page) => page.evaluate(() => ['.y-brand', '[data-search-open]', '.y-prefslink', '.y-headermark__button'].map((selector) => {
+const rowRects = (page) => page.evaluate(() => ['.y-brand', '[data-search-open]', '.y-prefslink', '.y-headermark__button', '.y-headerpath__button'].map((selector) => {
   const box = document.querySelector(selector).getBoundingClientRect();
   return [selector, Math.round(box.left * 10) / 10, Math.round(box.top * 10) / 10, Math.round(box.width * 10) / 10];
 }));
@@ -369,6 +371,7 @@ try {
     for (const [kind, page] of [['note', note], ['readings', readings]]) {
       const hasSwitch = kind === 'readings';
       const hasMark = await page.locator('.y-headermark').count() === 1;
+      const hasPath = await page.locator('.y-headerpath').count() === 1;
       for (const width of WIDTHS) {
         await page.setViewportSize({ width, height: 800 });
         const row = await readRow(page, CLUSTER);
@@ -382,6 +385,7 @@ try {
         const want = CLUSTER.filter((selector) => {
           if (selector === RUBY) return hasSwitch;
           if (selector === MARK) return hasMark;
+          if (selector === PATH) return hasPath && width > DRAWER;
           if (selector === SIDEBAR) return width <= DRAWER;
           return true;
         });
@@ -495,17 +499,22 @@ try {
     if (proveRewrite && !proveRewrite()) notApplied('the module rewrite found no single needle to change');
 
     // A reader on the keyboard reaches the cluster from the folder's name, the
-    // last stop of the brand, in the order the row draws it.
-    await note.reload({ waitUntil: 'load' });
-    if (mutation?.on === 'note' && mutation.apply) await mutation.apply(note);
-    await note.locator('.y-brand__vault').focus();
-    const walked = [];
-    for (let press = 0; press < 3; press += 1) {
-      await note.keyboard.press('Tab');
-      walked.push(await note.evaluate((selectors) => selectors.findIndex((selector) => document.activeElement?.matches(selector) ?? false), [SEARCH, MARK, SETTINGS]));
-    }
-    if (walked.join(',') !== '0,1,2') {
-      fail('keyboard-walks-the-cluster', `${language}: tabbing from the folder's name reached ${JSON.stringify(walked)}, want the search, the bookmark and the settings in turn (-1 is somewhere else)`);
+    // last stop of the brand, in the order the row draws it: on a phone, and
+    // where the row also carries the copy of the path.
+    for (const [width, stops] of [[390, [SEARCH, MARK, SETTINGS]], [1440, [SEARCH, MARK, PATH, SETTINGS]]]) {
+      await note.setViewportSize({ width, height: 800 });
+      await note.reload({ waitUntil: 'load' });
+      if (mutation?.on === 'note' && mutation.apply) await mutation.apply(note);
+      await note.locator('.y-brand__vault').focus();
+      const walked = [];
+      for (let press = 0; press < stops.length; press += 1) {
+        await note.keyboard.press('Tab');
+        walked.push(await note.evaluate((selectors) => selectors.findIndex((selector) => document.activeElement?.matches(selector) ?? false), stops));
+      }
+      const want = stops.map((_, i) => i).join(',');
+      if (walked.join(',') !== want) {
+        fail('keyboard-walks-the-cluster', `${language} at ${width}px: tabbing from the folder's name reached ${JSON.stringify(walked)}, want ${JSON.stringify(stops)} in turn (-1 is somewhere else)`);
+      }
     }
     await context.close();
 
@@ -521,7 +530,7 @@ try {
     await touch.close();
   }
 
-  console.log('PASS header-row: the row carries the furigana switch only where there is furigana, the bookmark below the rail width, the search and the settings, in that order and nothing else; one reading-place control at every width; the row fits with the wordmark whole; the bookmark is a named toggle that turns on when the place is kept; the search and the settings keep their names when drawn as marks; the bookmark takes a thumb and is in the keyboard order');
+  console.log('PASS header-row: the row carries the furigana switch only where there is furigana, the bookmark below the rail width, the copy of the path on a note where the left column is not a drawer, the search and the settings, in that order and nothing else; one reading-place control at every width; the row fits with the wordmark whole; the bookmark is a named toggle that turns on when the place is kept; the search and the settings keep their names when drawn as marks; the bookmark takes a thumb and is in the keyboard order');
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

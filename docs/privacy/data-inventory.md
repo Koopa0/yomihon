@@ -119,9 +119,11 @@ About those rows:
   and never described. An `exists` report on a name, including a vault path or
   path suffix, may carry a bare `withheld` flag, naming no path, field, or
   value.
-- **`obsidian://open` links carry the note's absolute path inside the page.**
-  Following one hands that URI to the local Obsidian application; no network
-  request is made.
+- **`obsidian://open` links and the Copy path control carry the note's
+  absolute path inside the page.** Following a link hands that URI to the local
+  Obsidian application. Pressing the control writes the path, with the line of
+  the section being read, to the OS clipboard, or shows it for copying by hand
+  where the browser refuses. No network request is made.
 - **The optional thought handoff belongs to the external editor.** Copying the
   proposed Markdown or choosing `obsidian://new` passes frontmatter and a source
   link, not a copy of the source body. The editor owns any note it creates;

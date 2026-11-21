@@ -45,12 +45,17 @@ func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *
 		Sections: make(map[string]pages.SectionMargin),
 	}
 	marked := h.marksIn(n.RelPath)
+	lines := result.HeadingLines(n.Title, n.Body)
 	for _, entry := range result.Outline() {
 		if strings.TrimSpace(entry.Text) == "" {
 			continue
 		}
 		at, isMarked := marked[strings.TrimPrefix(entry.ID, idPrefix)]
-		plan.Sections[entry.ID] = pages.SectionMargin{Text: entry.Text, Marked: isMarked, MarkedOn: at}
+		margin := pages.SectionMargin{Text: entry.Text, Marked: isMarked, MarkedOn: at}
+		if line, ok := lines[entry.ID]; ok {
+			margin.Line = n.BodyLine + line
+		}
+		plan.Sections[entry.ID] = margin
 	}
 	if place != nil && place.Anchor != "" {
 		plan.PlaceAnchor = idPrefix + place.Anchor
