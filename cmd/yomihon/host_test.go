@@ -877,9 +877,6 @@ func TestARequestForAnotherHostNameNeitherReadsTheVaultNorRecordsARead(t *testin
 	eventually(t, "a request for this machine to record a read", func() bool { return lastRead().After(long) })
 }
 
-// The record of a read is written before the host ends, and not after: one that
-// came later could land in a configuration directory that is being removed, or be
-// cut off halfway by the process ending.
 // readLongAgo rewrites the list so that entry was last read long ago, which makes
 // the next read of it one that is recorded, and answers when that was.
 func readLongAgo(t *testing.T, configDir string, entry *vaults.Entry) time.Time {
@@ -898,6 +895,9 @@ func readLongAgo(t *testing.T, configDir string, entry *vaults.Entry) time.Time 
 	return long
 }
 
+// The record of a read is written before the host ends, and not after: one that
+// came later could land in a configuration directory that is being removed, or be
+// cut off halfway by the process ending.
 func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
@@ -916,7 +916,7 @@ func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	lock, err := confdir.Acquire(home, "vaults.lock", []byte(strconv.Itoa(os.Getpid())+" 1 1"), nil, 0)
+	lock, err := confdir.Acquire(home, "vaults.lock", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
