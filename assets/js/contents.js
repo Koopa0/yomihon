@@ -1,7 +1,9 @@
-// Table-of-contents tracking: which entry is marked as the one being read.
-// The jump itself is the browser's, and lands at once. Alongside it, the one
-// reading a page holding two notes can ask for: moving through one of them
-// takes the other to the same place in its headings.
+// What a reader does with the page's text beyond reading it. Table-of-contents
+// tracking: which entry is marked as the one being read. The jump itself is the
+// browser's, and lands at once. Alongside it, the one reading a page holding two
+// notes can ask for: moving through one of them takes the other to the same
+// place in its headings. And what a reader selects across a ruby (see
+// initRubySelection).
 
 // The line a heading has to cross to count as the one being read. It sits where
 // a jump to a heading actually parks it — the same clearance the anchor spends
@@ -184,4 +186,38 @@ export function initCompareAlign() {
     // only from the next time they scroll.
     follow(1);
   });
+}
+
+// A ruby's reading is not part of what a reader selects: the stylesheet does
+// not let it be, so a selection across a ruby is its base text and the server
+// places a selection by exactly that. The browser's triple click does not know
+// that. It stops at the first reading, because a reading that cannot be selected
+// ends the paragraph it is selecting, so the third click selects the whole block
+// here instead. A block with no reading in it is left to the browser.
+export function initRubySelection() {
+  document.addEventListener('click', selectTheBlockOnTheThirdClick);
+}
+
+// The blocks whose text a triple click selects, and the elements a click on
+// means something else by: a link follows, a summary folds.
+const TEXT_BLOCK = 'p, li, dd, dt, td, th, blockquote, figcaption, h1, h2, h3, h4, h5, h6';
+const ACTS_ON_CLICK = 'a, button, input, label, select, summary, textarea';
+// What starts a block of its own inside another, such as the list nested in a
+// list item, whose lines a triple click on the item's own text leaves out.
+const STARTS_A_BLOCK = /^(?:block|flex|flow-root|grid|list-item|table)/;
+
+function selectTheBlockOnTheThirdClick(event) {
+  if (event.detail < 3 || event.button !== 0 || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+  if (!(event.target instanceof Element) || event.target.closest(ACTS_ON_CLICK)) return;
+  const block = event.target.closest(TEXT_BLOCK);
+  if (!block) return;
+  const range = document.createRange();
+  range.selectNodeContents(block);
+  const nested = [...block.children].find((child) => STARTS_A_BLOCK.test(getComputedStyle(child).display));
+  if (nested) range.setEndBefore(nested);
+  // A block with no reading in it is selected whole by the browser already.
+  if (![...block.querySelectorAll('rt')].some((reading) => range.intersectsNode(reading))) return;
+  const selection = getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
