@@ -518,7 +518,7 @@ func TestChangedLooksAtTheFileWithoutReadingIt(t *testing.T) {
 	}
 }
 
-func TestAChangeLeavesOnlyTheListInTheDirectory(t *testing.T) {
+func TestAChangeLeavesOnlyTheListAndItsLockInTheDirectory(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	s, _ := storeIn(t, config, nil)
@@ -533,11 +533,13 @@ func TestAChangeLeavesOnlyTheListInTheDirectory(t *testing.T) {
 	for _, e := range entries {
 		names = append(names, e.Name())
 	}
-	if !slices.Equal(names, []string{listFile}) {
-		t.Fatalf("the directory holds %v, want only %s: no lock, temporary file or anything else left behind", names, listFile)
+	if want := []string{listFile, lockFile}; !slices.Equal(names, want) {
+		t.Fatalf("the directory holds %v, want only %v: no temporary file or anything else left behind", names, want)
 	}
-	if got, want := fileMode(t, filepath.Join(config, "yomihon", listFile)), os.FileMode(0o600); runtimeHasModes() && got != want {
-		t.Errorf("the list is mode %v, want %v: what the reader has opened is theirs alone", got, want)
+	for _, name := range names {
+		if got, want := fileMode(t, filepath.Join(config, "yomihon", name)), os.FileMode(0o600); runtimeHasModes() && got != want {
+			t.Errorf("%s is mode %v, want %v: what the reader has opened is theirs alone", name, got, want)
+		}
 	}
 }
 
@@ -570,35 +572,19 @@ func deadPID(t *testing.T) int {
 	return cmd.ProcessState.Pid()
 }
 
-func TestALockLeftByAProcessThatIsGoneIsTakenAtOnce(t *testing.T) {
+func TestALockHeldByAnotherIsWaitedForAndThenGivenUpOn(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
 	s, _ := storeIn(t, config, nil)
-	s.wait = 5 * time.Second
-	home := homeAt(t, config)
-	if err := confdir.Replace(home, lockFile, []byte(strconv.Itoa(deadPID(t))+" 1 1")); err != nil {
+	held, err := confdir.Acquire(homeAt(t, config), lockFile, 0)
+	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = held.Release() }) //nolint:errcheck // the temporary directory goes with it
 
-	begun := time.Now()
-	mustAdd(t, s, folder(t, "a"))
-	if took := time.Since(begun); took > 2*time.Second {
-		t.Fatalf("a lock left by a process that is gone took %v to be taken, want at once", took)
-	}
-}
-
-func TestALockHeldByALiveProcessIsWaitedForAndThenGivenUpOn(t *testing.T) {
-	t.Parallel()
-	config := t.TempDir()
-	s, _ := storeIn(t, config, nil)
-	home := homeAt(t, config)
-	if err := confdir.Replace(home, lockFile, []byte(strconv.Itoa(os.Getpid())+" 1 1")); err != nil {
-		t.Fatal(err)
-	}
-
-	_, _, err := s.Add(folder(t, "a"), 8800)
+	_, _, err = s.Add(folder(t, "a"), 8800)
 	if !errors.Is(err, confdir.ErrLocked) {
-		t.Fatalf("Add under a live holder's fresh lock = %v, want ErrLocked", err)
+		t.Fatalf("Add while another holds the lock = %v, want ErrLocked", err)
 	}
 	if list, listErr := s.List(); listErr != nil || len(list) != 0 {
 		t.Fatalf("a refused Add changed the list: %v, %v", list, listErr)

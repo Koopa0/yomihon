@@ -46,9 +46,11 @@ import (
 //   - What is linked. The program is more than this module: the modules it
 //     links are read by the same names, may be only those on reviewedModules,
 //     may not be swapped by a replace, and may not hold a file in a language the
-//     guard does not read. What a call may be made with is held for the few
-//     calls whose harm is in an argument: a signal other than 0, and a network
-//     other than tcp.
+//     guard does not read. The packages of golang.org/x/sys are not read:
+//     like syscall, they are the system calls, so what is judged is each use of
+//     one of their names, by this module or another, and not what they do
+//     inside. What a call may be made with is held for the few calls whose harm
+//     is in an argument: a signal other than 0, and a network other than tcp.
 //
 // What this does not read: the one string the configuration directory begins as,
 // which the command takes from the platform and hands to the stores, so a Dir can
@@ -86,8 +88,15 @@ func reachesFilesystem(path string) bool {
 	case "os", "os/exec", "io/ioutil", "syscall", "plugin":
 		return true
 	}
-	return strings.HasPrefix(path, "golang.org/x/sys/")
+	return strings.HasPrefix(path, systemCalls+"/")
 }
+
+// systemCalls is the module that holds the system calls syscall no longer adds,
+// such as LockFileEx. Its packages are read the way syscall is: every name of
+// theirs is held to readOnly where it is used, and their own code, which is
+// those calls and the tables they are made from, is not read for names, any
+// more than the standard library's is.
+const systemCalls = "golang.org/x/sys"
 
 // readOnly is every symbol of those packages that code outside rawWriter may
 // name, each with what it is for. A symbol that is not here is refused, so
@@ -124,9 +133,9 @@ func init() {
 // processQueries are the names the writer asks with whether a process is still
 // there: finding it by its id and sending it signal 0, which delivers nothing.
 // None changes a file or ends a process, so shape lets an exported function of
-// the writer that uses them take no Dir; that is ProcessAlive, which tells a lock
-// or a record of a running yomihon that its process left behind from one it
-// still holds. Outside the writer they are refused like any name not on
+// the writer that uses them take no Dir; that is ProcessAlive, which tells a
+// record of a running yomihon that its process left behind from one whose
+// process still runs. Outside the writer they are refused like any name not on
 // readOnly, since nothing else asks.
 var processQueries = []string{"os.FindProcess", "os.Process.Release", "os.Process.Signal", "syscall.Signal", "syscall.EPERM"}
 
@@ -1111,9 +1120,14 @@ func replacesIn(goMod string) []string {
 	return found
 }
 
+// dependencyUnits are the linked packages of other modules, to be read for the
+// same names as this module's, except those of systemCalls.
 func (w *world) dependencyUnits() []*unit {
 	var units []*unit
 	for _, p := range w.dependencies {
+		if p.Module.Path == systemCalls {
+			continue
+		}
 		units = append(units, &unit{path: p.PkgPath, fset: p.Fset, files: p.Syntax, info: p.TypesInfo, pkg: p.Types, root: w.root, dependency: true})
 	}
 	return units
@@ -1240,8 +1254,9 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 // into the program. The guard reads them for the same names as this module's own,
 // and no more: reflection, assembly and what they do with a path they are handed
 // by this module are not read, so a module that is not on this list is code that
-// nobody has decided to trust. It is every module with a package in the build,
-// which is a smaller set than the ones go.mod requires.
+// nobody has decided to trust. systemCalls is on it and is not read at all, as
+// syscall is not. It is every module with a package in the build, which is a
+// smaller set than the ones go.mod requires.
 var reviewedModules = []string{
 	"github.com/BurntSushi/toml",
 	"github.com/a-h/templ",
@@ -1251,7 +1266,43 @@ var reviewedModules = []string{
 	"github.com/yuin/goldmark",
 	"go.yaml.in/yaml/v3",
 	"golang.org/x/net",
+	systemCalls,
 	"golang.org/x/text",
+}
+
+// TestTheSystemCallsAreLinkedAndNotRead holds the one exception to reading what
+// is linked to what it is: the packages of systemCalls, and nothing else, are
+// left unread. It is read on a platform that links one, so the rule is seen
+// deciding something, and it reads that package anyway to show that leaving it
+// out is what keeps its own code from being refused.
+func TestTheSystemCallsAreLinkedAndNotRead(t *testing.T) {
+	t.Parallel()
+	w, err := loadWorld(target{"windows", "amd64"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	read := map[string]bool{}
+	for _, u := range w.dependencyUnits() {
+		read[u.path] = true
+	}
+	var unread []*packages.Package
+	for _, p := range w.dependencies {
+		if p.Module.Path == systemCalls {
+			unread = append(unread, p)
+		}
+		if read[p.PkgPath] == (p.Module.Path == systemCalls) {
+			t.Errorf("%s, a package of %s, is read: %v", p.PkgPath, p.Module.Path, read[p.PkgPath])
+		}
+	}
+	if len(unread) == 0 {
+		t.Fatalf("no package of %s is linked on windows/amd64, so nothing here is left unread", systemCalls)
+	}
+	for _, p := range unread {
+		u := &unit{path: p.PkgPath, fset: p.Fset, files: p.Syntax, info: p.TypesInfo, pkg: p.Types, root: w.root, dependency: true}
+		if found, _, _ := judge(u); len(found) == 0 {
+			t.Errorf("%s, read for names, is refused nothing, so leaving it unread decides nothing", p.PkgPath)
+		}
+	}
 }
 
 // dependencyReads are the names of os that a package of another module may use
