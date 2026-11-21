@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -34,7 +35,8 @@ import (
 //     (os, syscall, io/ioutil, os/exec, golang.org/x/sys, plugin) that readOnly
 //     lists. Everything else they hold is refused by being absent, so a function
 //     the standard library adds tomorrow is refused the day it appears rather
-//     than the day somebody remembers a list.
+//     than the day somebody remembers a list. Nor may code import a package of
+//     the standard library that starts a program for it, as net/http/cgi does.
 //   - What it may be pointed at. The package that writes, internal/mark/confdir,
 //     works on a Dir, which only confdir makes and only from the configuration
 //     directory, and takes a Dir for everything that changes a file. A caller that
@@ -219,6 +221,75 @@ func permittedCalls(u *unit) map[*ast.Ident]bool {
 // on a root nobody named is not a use of os.Root.Remove anywhere in the source.
 // No shipped package imports one of them; one that needs to is a decision.
 var forbiddenImports = []string{"C", "unsafe", "reflect", "text/template", "html/template"}
+
+// programStarters are the packages that start or load another program, whose
+// writes are no name in this module's source. Their own symbols are judged by
+// name like those of os; a package of the standard library that imports one,
+// however far down, is refused by startsAProgram, since what it runs on its
+// caller's behalf is not a name its caller writes.
+var programStarters = []string{"os/exec", "plugin"}
+
+// startersAllowed are the packages of the standard library that reach a
+// program starter and may be imported all the same, each with why. There are
+// none: nothing yomihon ships starts a program.
+var startersAllowed = map[string]string{}
+
+// startersReached says, for every package of the standard library the world
+// holds, which program starter it reaches through its own imports, or "" for
+// none. It is read from the packages that were loaded, so a package the
+// standard library adds, or one that starts importing os/exec, is judged the day
+// it does.
+func startersReached(byPath map[string]*packages.Package) map[string]string {
+	reached := map[string]string{}
+	var visit func(p *packages.Package) string
+	visit = func(p *packages.Package) string {
+		if starter, done := reached[p.PkgPath]; done {
+			return starter
+		}
+		reached[p.PkgPath] = ""
+		if slices.Contains(programStarters, p.PkgPath) {
+			reached[p.PkgPath] = p.PkgPath
+			return p.PkgPath
+		}
+		for _, path := range slices.Sorted(maps.Keys(p.Imports)) {
+			if imported := p.Imports[path]; whose(imported) == standardLibrary {
+				if starter := visit(imported); starter != "" {
+					reached[p.PkgPath] = starter
+					return starter
+				}
+			}
+		}
+		return ""
+	}
+	for _, p := range byPath {
+		if whose(p) == standardLibrary {
+			visit(p)
+		}
+	}
+	return reached
+}
+
+// startsAProgram reports each import of a standard-library package that reaches
+// a program starter, such as net/http/cgi, go/build or go/importer: each can run
+// another program from a call that names nothing this guard refuses.
+func startsAProgram(u *unit, reached map[string]string) []site {
+	var found []site
+	for _, file := range u.files {
+		for _, imp := range file.Imports {
+			path, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				continue
+			}
+			starter := reached[path]
+			if starter == "" || starter == path || startersAllowed[path] != "" {
+				continue
+			}
+			name, line := u.rel(imp.Pos())
+			found = append(found, site{path: name, line: line, text: "imports " + path + ", which starts a program through " + starter + ", and what that program changes is no name this guard can read"})
+		}
+	}
+	return found
+}
 
 func hasPrefixIn(name string, families []string) bool {
 	for _, family := range families {
@@ -636,6 +707,8 @@ type world struct {
 	// problems are what is wrong with the code the program links that is not a
 	// name a use of it makes.
 	problems []string
+	// starters is startersReached for the packages of this world.
+	starters map[string]string
 }
 
 // Import lets a fixture name any package the world holds, so that a fixture is
@@ -651,6 +724,7 @@ func (w *world) Import(path string) (*types.Package, error) {
 // imports itself. Each is loaded on top of the tree, so the two share packages.
 var fixtureImports = []string{
 	"context", "io", "net", "net/http", "os", "os/exec", "io/ioutil", "plugin", "runtime/coverage", "syscall",
+	"net/http/cgi", "go/build", "go/importer",
 }
 
 var (
@@ -707,6 +781,7 @@ func readWorld(at target) (*world, error) {
 	}
 	w := &world{byPath: map[string]*packages.Package{}, root: root, target: at}
 	packages.Visit(pkgs, nil, func(p *packages.Package) { w.byPath[p.PkgPath] = p })
+	w.starters = startersReached(w.byPath)
 	for _, path := range slices.Sorted(maps.Keys(w.byPath)) {
 		p := w.byPath[path]
 		// A package that did not load is not read, so it fails the test whatever it
@@ -867,6 +942,7 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 		used      = map[string]bool{}
 		problems  = map[string]bool{}
 		linked    = map[string]bool{}
+		imported  = map[string]bool{}
 	)
 	for _, result := range results {
 		if result.err != nil {
@@ -887,6 +963,7 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 		maps.Copy(analysed, result.files)
 		maps.Copy(used, result.used)
 		maps.Copy(linked, result.modules)
+		maps.Copy(imported, result.imports)
 		for _, problem := range result.problems {
 			problems[problem] = true
 		}
@@ -897,6 +974,11 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 	for _, module := range reviewedModules {
 		if !linked[module] {
 			t.Errorf("%s is on reviewedModules and no package of it is linked; remove it", module)
+		}
+	}
+	for _, path := range slices.Sorted(maps.Keys(startersAllowed)) {
+		if !imported[path] {
+			t.Errorf("%s is on startersAllowed and no package imports it; remove it", path)
 		}
 	}
 	beyond, err := sourcesBeyondGo(repoRoot)
@@ -966,18 +1048,20 @@ var dependencyReads = map[string]string{
 
 // systemWalk is what reading the tree for one platform found.
 type systemWalk struct {
-	at       target
-	found    []site
-	written  int
-	used     map[string]bool
-	files    map[string]bool
-	modules  map[string]bool
+	at      target
+	found   []site
+	written int
+	used    map[string]bool
+	files   map[string]bool
+	modules map[string]bool
+	// imports are the import paths the program's packages write.
+	imports  map[string]bool
 	problems []string
 	err      error
 }
 
 func walkSystem(at target) systemWalk {
-	out := systemWalk{at: at, used: map[string]bool{}, files: map[string]bool{}, modules: map[string]bool{}}
+	out := systemWalk{at: at, used: map[string]bool{}, files: map[string]bool{}, modules: map[string]bool{}, imports: map[string]bool{}}
 	w, err := loadWorld(at)
 	if err != nil {
 		out.err = err
@@ -987,13 +1071,20 @@ func walkSystem(at target) systemWalk {
 	for _, p := range w.dependencies {
 		out.modules[p.Module.Path] = true
 	}
+	for _, p := range append(slices.Clone(w.production), w.dependencies...) {
+		for path := range p.Imports {
+			out.imports[path] = true
+		}
+	}
 	for _, u := range w.dependencyUnits() {
 		sites, _, _ := judge(u)
 		out.found = append(out.found, sites...)
+		out.found = append(out.found, startsAProgram(u, w.starters)...)
 	}
 	for _, u := range w.units() {
 		sites, uses, usedHere := judge(u)
 		out.found = append(out.found, sites...)
+		out.found = append(out.found, startsAProgram(u, w.starters)...)
 		out.written += uses
 		maps.Copy(out.used, usedHere)
 		out.found = append(out.found, shape(u)...)

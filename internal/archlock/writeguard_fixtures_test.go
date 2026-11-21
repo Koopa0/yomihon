@@ -109,14 +109,15 @@ func (f *fixture) read(w *world) (*unit, error) {
 	return &unit{path: path, fset: fset, files: files, info: info, pkg: pkg}, nil
 }
 
-// refusals is everything the guard says about a fixture.
-func refusals(u *unit) []site {
+// refusals is everything the guard says about a fixture read in w.
+func refusals(u *unit, w *world) []site {
 	if u.info == nil {
-		return forbidden(u)
+		return append(forbidden(u), startsAProgram(u, w.starters)...)
 	}
 	found, _, _ := judge(u)
 	found = append(found, shape(u)...)
 	found = append(found, dirIsOpaque(u)...)
+	found = append(found, startsAProgram(u, w.starters)...)
 	return append(found, forbidden(u)...)
 }
 
@@ -303,6 +304,30 @@ func (h Handle[T]) wipe() error { return h.held.Remove("y") }`,
 type maker interface{ Mkdir(string, uint32) error }
 func make(m maker) error { return m.Mkdir("x", 0o700) }`,
 		want: []string{"through an interface to Mkdir"},
+	},
+
+	// A package of the standard library that starts a program for its caller:
+	// the program is what writes, and nothing it does is a name in the source.
+	{
+		name: "a program started through the CGI handler",
+		src: `package fixture
+import "net/http/cgi"
+var handler = &cgi.Handler{Path: "/bin/sh"}`,
+		want: []string{"imports net/http/cgi, which starts a program through os/exec"},
+	},
+	{
+		name: "a program started by the package that finds packages",
+		src: `package fixture
+import "go/build"
+func find() { _, _ = build.Import("x", ".", 0) }`,
+		want: []string{"imports go/build, which starts a program through os/exec"},
+	},
+	{
+		name: "a program started by the package that imports export data",
+		src: `package fixture
+import "go/importer"
+var types = importer.Default()`,
+		want: []string{"imports go/importer, which starts a program through os/exec"},
 	},
 
 	// What reaches the disk past what the types say.
@@ -704,7 +729,7 @@ func TestTheWriteGuardCatchesEveryShapeOfWrite(t *testing.T) {
 				t.Fatalf("the fixture does not read: %v", err)
 			}
 			var said []string
-			for _, found := range refusals(u) {
+			for _, found := range refusals(u, w) {
 				said = append(said, found.text)
 			}
 			if len(said) != len(f.want) {
