@@ -66,7 +66,8 @@ func (v aMovedVault) keepEverything(t *testing.T) {
 }
 
 // directoryBytes is every file of dir by name, for telling that nothing in it
-// changed or appeared.
+// changed or appeared. The lock is left out: the first change makes it, empty,
+// and it stays whether the change writes anything or not.
 func directoryBytes(t *testing.T, dir string) map[string]string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -78,6 +79,9 @@ func directoryBytes(t *testing.T, dir string) map[string]string {
 	}
 	held := map[string]string{}
 	for _, entry := range entries {
+		if entry.Name() == "marks.lock" {
+			continue
+		}
 		data, err := os.ReadFile(filepath.Join(dir, entry.Name())) // #nosec G304 -- a file of this test's own temporary directory
 		if err != nil {
 			t.Fatal(err)

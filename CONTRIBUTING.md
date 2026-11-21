@@ -189,12 +189,14 @@ When you work from an issue:
 
 Three proposals are worth pricing before you write them:
 
-- **A new dependency.** `go.mod` names ten direct requirements and each
+- **A new dependency.** `go.mod` names twelve direct requirements and each
   earned its place: goldmark and chroma to render, a goldmark extension that
   lets emphasis close beside CJK punctuation, templ for the templates, a TOML
   decoder for the rules file, a YAML decoder for frontmatter, two
-  `golang.org/x` libraries for runtime behavior, and go-cmp plus
-  `golang.org/x/mod` for the tests. The client side is vanilla
+  `golang.org/x` libraries for runtime behavior, `golang.org/x/sys` for the
+  Windows file lock that keeps two writers of the configuration directory
+  apart, and go-cmp, `golang.org/x/mod` and `golang.org/x/tools` for the
+  tests. The client side is vanilla
   JavaScript in flat native modules, with one exception: the Mermaid renderer,
   vendored under `assets/js/mermaid` as pre-built modules with their own license
   and checksums. That is the bar for a third-party client library, and the only

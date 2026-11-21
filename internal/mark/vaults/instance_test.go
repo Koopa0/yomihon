@@ -3,7 +3,6 @@ package vaults
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -85,7 +84,7 @@ func TestAnInstanceFileNothingCouldHaveWrittenIsNoInstance(t *testing.T) {
 	} {
 		config := t.TempDir()
 		s, _ := storeIn(t, config, nil)
-		if err := confdir.Replace(filepath.Join(config, "yomihon"), instanceFile, []byte(content)); err != nil {
+		if err := confdir.Replace(homeAt(t, config), instanceFile, []byte(content)); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := s.ReadInstance(); !errors.Is(err, ErrNoInstance) {

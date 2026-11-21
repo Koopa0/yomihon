@@ -147,16 +147,16 @@ func (h *Handler) postBookmark(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, wording.MarkFormUnreadable.In(lang), http.StatusBadRequest)
 		return
 	}
-	offset, err := strconv.Atoi(r.PostFormValue("offset"))
+	offset, err := strconv.Atoi(r.PostForm.Get("offset"))
 	if err != nil {
 		http.Error(w, wording.MarkRefused.In(lang), http.StatusUnprocessableEntity)
 		return
 	}
 	kept := &Bookmark{
-		RelPath:  r.PostFormValue("path"),
-		Anchor:   r.PostFormValue("anchor"),
+		RelPath:  r.PostForm.Get("path"),
+		Anchor:   r.PostForm.Get("anchor"),
 		Offset:   offset,
-		Identity: r.PostFormValue("identity"),
+		Identity: r.PostForm.Get("identity"),
 		At:       time.Now(),
 	}
 	switch err = h.keepBookmark(kept); {
@@ -231,8 +231,8 @@ func (h *Handler) postQuestion(w http.ResponseWriter, r *http.Request) {
 	}
 	kept := &Mark{
 		Kind:    Question,
-		RelPath: r.PostFormValue("path"),
-		Anchor:  r.PostFormValue("anchor"),
+		RelPath: r.PostForm.Get("path"),
+		Anchor:  r.PostForm.Get("anchor"),
 		At:      time.Now(),
 	}
 	marked, err := h.store.Toggle(kept, func(m *Mark) bool { return h.places.HasPlace(m.RelPath, m.Anchor) })

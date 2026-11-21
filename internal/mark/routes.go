@@ -18,8 +18,8 @@ import (
 const maxMarkBytes = 64 << 10
 
 // The placements a route tells a mark has in its note as the note is now, which
-// are Locate's three answers: the words are there, the mark is of a section and
-// the section is there, or neither is.
+// are Locate's three answers: the words are there, at one place, the mark is of
+// a section and the section is there, or neither is.
 const (
 	placedFound   = "found"
 	placedSection = "section"
@@ -111,9 +111,10 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 }
 
 // standsIn reports whether m can be kept in the note page is: the anchor is a
-// place the note renders, and the words are in it exactly as chosen. Words the
-// note never had are not a mark. The words around them are kept as they were
-// sent: they only choose between several places the words are in, later.
+// place the note renders, and the words are in it exactly as chosen, at one
+// place. Words the note never had are not a mark, and neither are words at
+// several places that what was sent around them does not tell apart. The words
+// around them are kept as they were sent, to place the words again later.
 func (h *Handler) standsIn(m *Mark, page *Page) bool {
 	if !h.places.HasPlace(m.RelPath, m.Anchor) {
 		return false

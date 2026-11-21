@@ -204,10 +204,10 @@ func TestAFileIsOwnerOnlyAndNothingIsLeftBesideIt(t *testing.T) {
 	for _, entry := range entries {
 		names = append(names, entry.Name())
 	}
-	if diff := cmp.Diff([]string{"marks.json", "progress.json"}, names); diff != "" {
-		t.Errorf("the directory holds more than the two files (-want +got):\n%s", diff)
+	if diff := cmp.Diff([]string{"marks.json", "marks.lock", "progress.json"}, names); diff != "" {
+		t.Errorf("the directory holds more than the two files and their lock (-want +got):\n%s", diff)
 	}
-	for _, path := range []string{marksPath(store), progressPath(store)} {
+	for _, path := range []string{marksPath(store), progressPath(store), filepath.Join(store.Dir(), "marks.lock")} {
 		if info, statErr := os.Stat(path); statErr != nil || info.Mode().Perm() != 0o600 {
 			t.Errorf("%s mode = %v, %v; want 600", filepath.Base(path), info, statErr)
 		}
