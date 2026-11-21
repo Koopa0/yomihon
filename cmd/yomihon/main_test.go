@@ -468,8 +468,8 @@ var envReaders = map[string]map[string]string{
 		// widened while the guard stayed green. Its two siblings read the same
 		// variables and are here for that reason alone: an allowlist that
 		// admits one door and not the two beside it guards nothing.
-		// UserConfigDir is refused everywhere but the one file named below;
-		// the other two are refused everywhere.
+		// UserConfigDir and UserHomeDir are each refused everywhere but the one
+		// file named below; UserCacheDir is refused everywhere.
 		"UserConfigDir": "reads HOME, and XDG_CONFIG_HOME where the platform has one, inside the standard library, so no key reaches this guard",
 		"UserHomeDir":   "reads HOME, and USERPROFILE where the platform has one, inside the standard library, so no key reaches this guard",
 		"UserCacheDir":  "reads HOME, and XDG_CACHE_HOME where the platform has one, inside the standard library, so no key reaches this guard",
@@ -624,8 +624,14 @@ func envReads(fset *token.FileSet, files []*ast.File, allowed map[string]bool) [
 // once, validates it, and hands the result to the packages that use it. A
 // package reaching for the environment itself is the shape this forbids, and
 // it is forbidden by location because there is no key here to allow.
+//
+// os.UserHomeDir is the one read that is not the command's own: vault.Tilde
+// spells a path under the reader's home directory as ~, wherever a path is
+// shown, and a path is spelled the same only if one function reads for it. The
+// read changes how a path is written and nothing the command does.
 var envReadersPermittedIn = map[string]string{
 	"os.UserConfigDir": "cmd/yomihon/main.go",
+	"os.UserHomeDir":   "internal/vault/tilde.go",
 }
 
 // readAt reports whether filename is the file that "where" names, given as a
@@ -768,7 +774,8 @@ func goTargetEnvironment(target goTarget) []string {
 
 // TestOnlyKnownEnvVarsAreRead fixes the command's configuration surface. The
 // listener binds the loopback address and only the port is configurable, so the
-// port is the only environment value this binary may interpret. The
+// port is the only environment value this binary may interpret, besides the
+// home directory that vault.Tilde reads to spell a path for the reader. The
 // test parses every file the command is built from — its own and each package it
 // links, as the toolchain reports them — and asserts that every reach for the
 // environment, through os or through the syscall package beneath it, called or
@@ -786,7 +793,7 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 		for _, o := range offenders {
 			lines = append(lines, fmt.Sprintf("%s: %s", o.Pos, o.Why))
 		}
-		t.Errorf("this command may configure only YOMIHON_PORT, but found:\n%s",
+		t.Errorf("this command may configure only YOMIHON_PORT, and read the home directory only to spell a path, but found:\n%s",
 			strings.Join(lines, "\n"))
 	}
 }

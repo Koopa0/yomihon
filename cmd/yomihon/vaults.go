@@ -92,7 +92,7 @@ func listVaults(store *vaults.Store, format judge.Format, stdout, stderr io.Writ
 	}
 	table := tabwriter.NewWriter(stdout, 0, 4, 2, ' ', 0)
 	for i := range lines {
-		if _, err = fmt.Fprintf(table, "%s\t%s\t%s\n", lines[i].Name, lines[i].Path, lines[i].Address); err != nil {
+		if _, err = fmt.Fprintf(table, "%s\t%s\t%s\n", lines[i].Name, vault.Tilde(lines[i].Path), lines[i].Address); err != nil {
 			return commandError(stderr, fmt.Errorf("write output: %w", err))
 		}
 	}
@@ -116,7 +116,7 @@ func removeVault(store *vaults.Store, which string, stdout, stderr io.Writer) in
 	if _, err = store.Remove(chosen.ID); err != nil {
 		return commandError(stderr, fmt.Errorf("remove the vault: %w", err))
 	}
-	if _, err = fmt.Fprintf(stdout, "removed %s  %s\n", chosen.Name, chosen.Path); err != nil {
+	if _, err = fmt.Fprintf(stdout, "removed %s  %s\n", chosen.Name, vault.Tilde(chosen.Path)); err != nil {
 		return commandError(stderr, fmt.Errorf("write output: %w", err))
 	}
 	return 0
