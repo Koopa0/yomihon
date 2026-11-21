@@ -51,14 +51,6 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 			folder:   guide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext),
 		},
 		{
-			name:     "contract written for another schema version",
-			contract: ContractOtherVersion,
-			roles:    declared,
-			path:     func(lang wording.Lang) string { return wording.IndexRulesVersion.In(lang) },
-			mapState: func(lang wording.Lang) string { return wording.IndexRulesVersion.In(lang) },
-			folder:   guide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext),
-		},
-		{
 			name:     "contract that reached the folder after yomihon started",
 			contract: ContractUnloaded,
 			roles:    declared,
@@ -111,9 +103,6 @@ func TestEmptyPathAndMapGuideFirstRun(t *testing.T) {
 					modes = append(modes, block.Mode)
 				}
 				wantOrder := "courses,indexes,reports,folders"
-				if tt.contract == ContractOtherVersion {
-					wantOrder = "folders,courses,indexes,reports"
-				}
 				if tt.contract == ContractAbsent {
 					// Nothing to explain an empty block with, so only the way in is drawn.
 					wantOrder = "folders"
@@ -171,9 +160,7 @@ func declaringContract(t *testing.T, pathType string, mapTypes ...string) schema
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "vault-schema.toml")
 	var contractText strings.Builder
-	contractText.WriteString(`schema_version = "2"
-
-[folders]
+	contractText.WriteString(`[folders]
 checked = ["Notes"]
 templates = ["System/templates"]
 
@@ -258,13 +245,6 @@ func TestEmptyPathAndMapIndexPagesRenderTheGuide(t *testing.T) {
 			path:     declaredGuide("course", "study-path"),
 			mapState: declaredGuide("index", "map", "moc"),
 			folder:   guide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext),
-		},
-		{
-			name:     "contract written for another schema version",
-			contract: ContractOtherVersion,
-			path:     func(lang wording.Lang) string { return wording.IndexRulesVersion.In(lang) },
-			mapState: func(lang wording.Lang) string { return wording.IndexRulesVersion.In(lang) },
-			folder:   guide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext),
 		},
 		{
 			name:     "contract this process never loaded",
@@ -358,20 +338,14 @@ func TestContractStateReadsTheFileOffTheScanThePageListsFrom(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			snap := ungovernedSnapshot(t, tt.files)
-			if got := ContractStateFrom(false, false, snap); got != tt.want {
-				t.Errorf("ContractStateFrom(false, false, snap) = %s, want %s", got, tt.want)
+			if got := ContractStateFrom(false, snap); got != tt.want {
+				t.Errorf("ContractStateFrom(false, snap) = %s, want %s", got, tt.want)
 			}
 			// A folder something claims authority over is that, whatever is on
 			// its shelf: the sentence about a file nobody loaded belongs only
 			// to the reader who has no authority behind the page.
-			if got := ContractStateFrom(true, false, snap); got != ContractGoverning {
-				t.Errorf("ContractStateFrom(true, false, snap) = %s, want %s", got, ContractGoverning)
-			}
-			// A contract for another schema version is on the shelf and never
-			// will be loaded by starting again, so it must not say to restart, and
-			// being there it must not say there is none.
-			if got := ContractStateFrom(false, true, snap); got != ContractOtherVersion {
-				t.Errorf("ContractStateFrom(false, true, snap) = %s, want %s", got, ContractOtherVersion)
+			if got := ContractStateFrom(true, snap); got != ContractGoverning {
+				t.Errorf("ContractStateFrom(true, snap) = %s, want %s", got, ContractGoverning)
 			}
 		})
 	}
@@ -390,7 +364,6 @@ func TestAContractStateNamesItself(t *testing.T) {
 		{ContractGoverning, "governing"},
 		{ContractAbsent, "absent"},
 		{ContractUnloaded, "unloaded"},
-		{ContractOtherVersion, "other-version"},
 	} {
 		t.Run(tc.want, func(t *testing.T) {
 			t.Parallel()

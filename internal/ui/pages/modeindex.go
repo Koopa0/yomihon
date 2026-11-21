@@ -99,15 +99,10 @@ const (
 	// does not. The contract is read once, when yomihon starts, so one that
 	// arrives afterwards is a file on the shelf and no authority at all.
 	ContractUnloaded
-	// ContractOtherVersion is a contract file written for a schema version this
-	// yomihon does not read. The file is there, so it is not absent, and
-	// starting again loads nothing new, so it is not unloaded. It governs
-	// nothing, and the folder is read as one without a contract.
-	ContractOtherVersion
 )
 
 // String names a contract state for a diagnostic or a log line. A state
-// outside the four constants is a programming error and panics.
+// outside the three constants is a programming error and panics.
 func (s ContractState) String() string {
 	switch s {
 	case ContractGoverning:
@@ -116,8 +111,6 @@ func (s ContractState) String() string {
 		return "absent"
 	case ContractUnloaded:
 		return "unloaded"
-	case ContractOtherVersion:
-		return "other-version"
 	default:
 		panic("pages: unknown ContractState: " + strconv.Itoa(int(s)))
 	}
@@ -128,15 +121,11 @@ func (s ContractState) String() string {
 // generation this page lists from saw the contract file. Seeing the name in
 // that reading is the whole of the evidence — nothing here opens the file,
 // reads it or acts on it, and the folder stays ungoverned until yomihon is
-// started again. A contract written for another schema version is the one file
-// that is there and never will be loaded by starting again, so it is neither of
-// those.
-func ContractStateFrom(governed, otherVersion bool, snap *snapshot.Generation) ContractState {
+// started again.
+func ContractStateFrom(governed bool, snap *snapshot.Generation) ContractState {
 	switch {
 	case governed:
 		return ContractGoverning
-	case otherVersion:
-		return ContractOtherVersion
 	case snap.Contains(schema.ContractRelPath):
 		return ContractUnloaded
 	}
@@ -145,18 +134,14 @@ func ContractStateFrom(governed, otherVersion bool, snap *snapshot.Generation) C
 
 // emptySentence chooses what an empty listing says. A rules file that arrived
 // after yomihon read the folder is a file on the shelf and no authority, so its
-// reader is told to start again; one written for another version is told that
-// and nothing more, since the desk is not the page that can say which line to
-// change. Every other folder, with a rules file or without one, is told the
-// mode's own answer, which the caller gives: which type puts a note on the
-// shelf. A folder with no rules file reads the built-in types, so that answer
-// is true of it and it is asked for no file.
+// reader is told to start again. Every other folder, with a rules file or
+// without one, is told the mode's own answer, which the caller gives: which
+// type puts a note on the shelf. A folder with no rules file reads the built-in
+// types, so that answer is true of it and it is asked for no file.
 func emptySentence(contract ContractState, governed string, lang wording.Lang) string {
 	switch contract {
 	case ContractUnloaded:
 		return wording.JoinGuide(wording.IndexContractUnloaded, wording.RestartYomihon, lang)
-	case ContractOtherVersion:
-		return wording.IndexRulesVersion.In(lang)
 	default:
 		return governed
 	}
@@ -327,10 +312,6 @@ func NewFolderIndex(model *nav.Model, contract ContractState, lang wording.Lang,
 	switch contract {
 	case ContractAbsent:
 		empty = wording.JoinGuide(wording.FolderIndexEmpty, wording.FolderIndexUngovernedNext, lang)
-	case ContractOtherVersion:
-		// Browsing files never depended on the rules, so this listing is empty of
-		// files and of nothing else.
-		empty = wording.JoinGuide(wording.FolderIndexEmpty, wording.IndexDeclaredEmptyNext, lang)
 	case ContractGoverning, ContractUnloaded:
 		// emptySentence has already said what these states say.
 	}
@@ -465,12 +446,7 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 	folderIndex.Shelf.Rows = folderRows(model.RootNotes(), readableFolders, lang, true, articleLang)
 	folderBlock := deskBlock(&folderIndex)
 	// A plain folder already has a way to read. Put it before the modes whose
-	// organisation the reader has not declared. A rules file for another version
-	// declares nothing this build reads, so it is ordered the same way, and its
-	// blocks are all drawn: each says why it is empty.
-	if contract == ContractOtherVersion {
-		return []DeskBlock{folderBlock, pathBlock, mapBlock, reportBlock}
-	}
+	// organisation the reader has not declared.
 	// With no rules file at all, draw only the blocks that hold something: there
 	// is nothing to explain an empty one with. The folder block stays, since it
 	// is the way in. A present contract keeps its own order and diagnostics even

@@ -162,9 +162,6 @@ func TestZeroContractCarriesNoAuthority(t *testing.T) {
 	t.Parallel()
 
 	var contract schema.Contract
-	if got := contract.Version(); got != "" {
-		t.Errorf("Version() = %q, want empty", got)
-	}
 	if got := contract.EnumValues("type"); got != nil {
 		t.Errorf(`EnumValues("type") = %v, want nil`, got)
 	}
@@ -271,9 +268,7 @@ func loadSemanticRootContract(t *testing.T) (string, *schema.Contract) {
 // layer and the given lines, followed by the given type tables and privacy
 // section.
 func contractText(folders, types, privacy string) string {
-	return `schema_version = "2"
-
-[folders]
+	return `[folders]
 checked = ["Writing"]
 ` + folders + `
 [fields]
@@ -1587,12 +1582,6 @@ func TestANilContractAnswersAsAnUngovernedVault(t *testing.T) {
 	// Each row answers with the complaint to make, or empty when the method
 	// answered as a vault no contract governs.
 	answers := map[string]func() string{
-		"Version": func() string {
-			if got := c.Version(); got != "" {
-				return fmt.Sprintf("Version() = %q, want empty", got)
-			}
-			return ""
-		},
 		"Definition": func() string {
 			if diff := cmp.Diff(schema.Definition{}, c.Definition()); diff != "" {
 				return "Definition() mismatch (-want +got):\n" + diff

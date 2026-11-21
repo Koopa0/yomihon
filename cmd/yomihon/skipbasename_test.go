@@ -18,9 +18,7 @@ import (
 // a README.md the contract names under folders.skipped_files. The README
 // carries a type the contract refuses, so check would report it if the scan
 // still treated it as a note.
-const skipBasenameLockContract = `schema_version = "2"
-
-[folders]
+const skipBasenameLockContract = `[folders]
 checked = ["Notes"]
 skipped_files = ["README.md"]
 

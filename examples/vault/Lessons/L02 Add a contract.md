@@ -29,7 +29,6 @@ remain available.
 
 | Section | What it opens |
 | --- | --- |
-| `schema_version` | The format the file is written in. A contract without the version yomihon reads is refused whole, and the folder is read as though it carried none. |
 | `[folders]` | Which directories hold knowledge, which hold templates to copy rather than notes, the journal, and the roots a note's domain is read from. What lies outside the checked directories is still read, and is not judged. |
 | `[types.<name>]` | A note type, the fields it adds, and its role: `lesson`, `course`, `map` or `thought`. Study paths and maps come from the roles. |
 | `[fields]` | The fields every type may write and the ones every note must. Leave it out and every key but `type`, `draft` and Obsidian's own is reported as one nothing declares. |

@@ -9,11 +9,6 @@ import "github.com/koopa0/yomihon/internal/schema"
 type Shell struct {
 	Nav      *Model
 	Governed bool
-	// OtherVersion is whether the folder's contract is written for a schema
-	// version this one does not read. It governs nothing, so the folder reads
-	// as one without a contract; the pages that say what an empty list is empty
-	// of need the difference.
-	OtherVersion bool
 	// Vault is the folder itself, as the rail's foot states it.
 	Vault Vault
 }

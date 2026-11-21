@@ -192,9 +192,7 @@ func TestTheDomainIsReadOffTheFolder(t *testing.T) {
 
 // aliasCitationContract is the alias-resolution vault: plain notes, and a
 // thought whose based_on is the citation the rule reads.
-const aliasCitationContract = `schema_version = "2"
-
-[folders]
+const aliasCitationContract = `[folders]
 checked = ["Notes", "Thoughts", "Private"]
 templates = []
 

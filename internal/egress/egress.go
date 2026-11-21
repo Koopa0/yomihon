@@ -13,7 +13,6 @@ package egress
 import (
 	"context"
 	"errors"
-	"regexp"
 
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
@@ -51,32 +50,6 @@ var ErrRulesFileUnknown = errors.New("yomihon could not tell whether a rules fil
 // that declared nothing withholds nothing, and the commands read it as they read
 // any other.
 const NoRulesFile = "No rules file in this folder: nothing is withheld."
-
-// RulesVersionError is a rules file written for another schema version. It is
-// the one rules file that could not be used whose cause is stated, because what
-// is stated cannot carry the vault's own words: the declared version only when
-// it is a plain number, and the line it is on. It is still a refusal of the
-// privacy authority, so everything that asks for that refusal gets it.
-type RulesVersionError struct {
-	// Declared is the version the file declares, empty when it is not a plain
-	// number or the file declares none.
-	Declared string
-	// Line is the line schema_version is written on, zero when it was not found.
-	Line int
-	// Missing is whether the file declares no version at all.
-	Missing bool
-	// Supported is the version this binary reads.
-	Supported string
-}
-
-func (e *RulesVersionError) Error() string { return ErrUnavailable.Error() }
-
-// Is makes the refusal for another version a case of the refusal for an
-// unusable rules file.
-func (e *RulesVersionError) Is(target error) bool { return target == ErrUnavailable }
-
-// plainVersion is what a declared version has to look like to be repeated.
-var plainVersion = regexp.MustCompile(`^\d{1,6}(?:\.\d{1,6}){0,2}$`)
 
 // LinkTargets reads the targets of the links a piece of text writes, in every
 // syntax a page renders as a link. It is a named type, and not a bare function
@@ -117,7 +90,13 @@ func Open(ctx context.Context, reader *vault.Reader, links LinkTargets) (*Gate, 
 	case errors.Is(err, schema.ErrRulesFileUnknown):
 		return nil, ErrRulesFileUnknown
 	case err != nil:
-		return nil, refusalFor(err)
+		// The decoder's own words are deliberately dropped. A parse failure
+		// names keys from the rules file, and this face exists to hand its
+		// output to an agent, so explaining the fault here would send vault
+		// content out under exactly the policy that is missing. The operator
+		// reads the cause where reading is the point: the server states it on
+		// the page and logs it at startup.
+		return nil, ErrUnavailable
 	}
 	gate := &Gate{rules: rules, privacy: privacy, links: links, withheld: privacy.WithheldDirs()}
 	if err := gate.Check(); err != nil {
@@ -134,28 +113,6 @@ func Open(ctx context.Context, reader *vault.Reader, links LinkTargets) (*Gate, 
 func Allowed(ctx context.Context, reader *vault.Reader, rel string) bool {
 	_, privacy, err := schema.LoadForAgents(ctx, reader)
 	return err == nil && privacy.EgressAllowed(rel)
-}
-
-// refusalFor is the refusal owed for a rules file that did not load, so every
-// command that loads one answers the same way. Only a rules file for another
-// schema version says more than that it could not be used, and it is a refusal
-// all the same: it is never taken for a folder with no rules file. A folder
-// with none never reaches this, because the loader grants it a policy of its own.
-func refusalFor(err error) error {
-	if mismatch, ok := errors.AsType[*schema.VersionError](err); ok {
-		declared := ""
-		if plainVersion.MatchString(mismatch.Declared) {
-			declared = mismatch.Declared
-		}
-		return &RulesVersionError{Declared: declared, Line: mismatch.Line, Missing: mismatch.Missing, Supported: mismatch.Supported}
-	}
-	// The decoder's own words are deliberately dropped. A parse failure
-	// names keys from the rules file, and this face exists to hand its output
-	// to an agent, so explaining the fault here would send vault content
-	// out under exactly the policy that is missing. The operator reads the
-	// cause where reading is the point: the server states it on the page
-	// and logs it at startup.
-	return ErrUnavailable
 }
 
 // Rules is the rules file's other half, read in the same load: the scan

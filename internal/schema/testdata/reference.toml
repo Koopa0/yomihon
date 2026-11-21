@@ -3,13 +3,11 @@
 # in line with it. Read with: yomihon serve --root <this repo>
 #
 # 需要新載入器：這份契約是欄位重新設計後的形狀（[types]、[folders]、通用 [enums]），
-# 只有欄位重新設計之後的 yomihon 讀得懂；在那之前的 binary 會以 schema_version 不符拒絕。
+# 只有欄位重新設計之後的 yomihon 讀得懂；在那之前的 binary 會因不認得的鍵而拒絕它。
 # yomihon 與本 repo 同日切換。
 #
 # frontmatter 只放作者對這篇筆記的主張。title 取第一個 H1，domain 取 courses/ 下的資料夾，
 # 兩者都不寫。完成與否看 PR：合併進 main 就是完成；還沒寫完的筆記寫 `draft: true`。
-
-schema_version = "2"
 
 [folders]
 checked = ["courses"]

@@ -1,8 +1,6 @@
 # Loader fixture only — the runtime contract is the real vault's
 # System/schemas/vault-schema.toml (wall 3). Other packages' tests read this
 # file and edit it by string replacement, so its lines keep their shape.
-schema_version = "2"
-
 [folders]
 checked = ["Concepts", "Sources", "Maps", "Writing", "Synthesis", "Inbox"]
 templates = ["System/templates"]

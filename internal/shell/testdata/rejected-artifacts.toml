@@ -1,8 +1,6 @@
 # Loader fixture for the shell projection: the same contract with a
 # template directory that climbs out of the vault, so the artifact policy
 # is rejected while the contract still loads.
-schema_version = "2"
-
 [folders]
 checked = ["Writing"]
 templates = ["../escape"]
