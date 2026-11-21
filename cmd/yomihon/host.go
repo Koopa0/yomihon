@@ -67,6 +67,8 @@ type host struct {
 
 	reading sync.WaitGroup
 	serving sync.WaitGroup
+	// recording is the records of a read that are being written to the list.
+	recording sync.WaitGroup
 	// fatal carries the failure of a read that has to succeed for the process
 	// to be worth running: the vault the reader just typed.
 	fatal chan error
@@ -221,12 +223,23 @@ func (h *host) touch(ctx context.Context, m *mount) {
 	if h.store == nil || !m.touching.CompareAndSwap(false, true) {
 		return
 	}
-	// The record outlives the request that asked for it, which may end first.
+	// The record outlives the request that asked for it, which may end first, and
+	// not the host: the host waits for it before it ends, so nothing writes to the
+	// list after that. A record asked for once the host is ending is dropped. The
+	// group is added to under the lock stopServing closes under, so every record is
+	// begun before the wait for them: an Add that raced the Wait would be a data
+	// race, and Wait could return before the record it missed is written.
 	ctx = context.WithoutCancel(ctx)
-	go func() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.closing {
+		m.touching.Store(false)
+		return
+	}
+	h.recording.Go(func() {
 		defer m.touching.Store(false)
 		h.recordRead(ctx, m)
-	}()
+	})
 }
 
 // recordRead writes the read, and the name the list keeps, to the list.
@@ -305,7 +318,8 @@ func (h *host) ensure(ctx context.Context, entry *vaults.Entry) {
 }
 
 // stopServing waits for every listener to finish serving and for every read to
-// end. Nothing can be mounted or started after it begins.
+// end. Nothing can be mounted, started or recorded after it begins; the records
+// already begun are waited for by endRecords.
 func (h *host) stopServing() error {
 	h.mu.Lock()
 	h.closing = true
@@ -320,6 +334,12 @@ func (h *host) stopServing() error {
 	h.reading.Wait()
 	return result
 }
+
+// endRecords waits for every record of a read that stopServing let begin to be
+// written. A record waits up to the list's lock timeout behind another process,
+// so the wait follows the announcement and the return of a second interrupt to the
+// process, and not the shutdown of the listeners.
+func (h *host) endRecords() { h.recording.Wait() }
 
 // closeSites closes every site. The wait that closing one makes has no
 // deadline, deliberately, so work already accepted is not abandoned.
@@ -353,6 +373,7 @@ func (h *host) await(ctx context.Context, cancel, stop func()) error {
 	result := errors.Join(cause, h.stopServing())
 	h.log.Info("yomihon no longer serving; finishing work already accepted")
 	stop()
+	h.endRecords()
 	result = errors.Join(result, h.closeSites())
 	if result == nil {
 		h.log.Info("yomihon stopped")
@@ -439,7 +460,9 @@ func (h *host) serveListed(ctx context.Context, stop func(), cfg *config, out io
 		if !held {
 			err = errors.Join(err, listener.Close())
 		}
-		return errors.Join(err, h.stopServing(), h.closeSites())
+		err = errors.Join(err, h.stopServing())
+		h.endRecords()
+		return errors.Join(err, h.closeSites())
 	}
 	if !held {
 		// The vault just given is listed on another port, and a listed vault is

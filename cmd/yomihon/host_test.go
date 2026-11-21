@@ -831,18 +831,7 @@ func TestARequestForAnotherHostNameNeitherReadsTheVaultNorRecordsARead(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	// The vault was last read long ago, so a record of a read would be written.
-	long := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
-	data, err := json.Marshal(struct {
-		Version int            `json:"version"`
-		Vaults  []vaults.Entry `json:"vaults"`
-	}{1, []vaults.Entry{{ID: entry.ID, Path: entry.Path, Name: entry.Name, LastRead: long, Port: entry.Port}}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(filepath.Join(configDir, "yomihon", "vaults.json"), data, 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
-		t.Fatal(err)
-	}
+	long := readLongAgo(t, configDir, &entry)
 
 	r := startRunning(t, configDir, newVaultFolder(t), start)
 	r.address(t)
@@ -886,6 +875,111 @@ func TestARequestForAnotherHostNameNeitherReadsTheVaultNorRecordsARead(t *testin
 		t.Fatalf("a request for this machine = %d", status)
 	}
 	eventually(t, "a request for this machine to record a read", func() bool { return lastRead().After(long) })
+}
+
+// readLongAgo rewrites the list so that entry was last read long ago, which makes
+// the next read of it one that is recorded, and answers when that was.
+func readLongAgo(t *testing.T, configDir string, entry *vaults.Entry) time.Time {
+	t.Helper()
+	long := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	data, err := json.Marshal(struct {
+		Version int            `json:"version"`
+		Vaults  []vaults.Entry `json:"vaults"`
+	}{1, []vaults.Entry{{ID: entry.ID, Path: entry.Path, Name: entry.Name, LastRead: long, Port: entry.Port}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(configDir, "yomihon", "vaults.json"), data, 0o600); err != nil { // #nosec G703 -- a file under t.TempDir
+		t.Fatal(err)
+	}
+	return long
+}
+
+// The record of a read is written before the host ends, and not after: one that
+// came later could land in a configuration directory that is being removed, or be
+// cut off halfway by the process ending.
+func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	start := someFreePort(t)
+	folder := newVaultFolder(t)
+	entry, _, err := listOf(t, configDir).Add(folder, start+5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := readLongAgo(t, configDir, &entry)
+	r := startRunning(t, configDir, newVaultFolder(t), start)
+	r.address(t)
+
+	// Another process is changing the list, so the record has to wait its turn.
+	home, err := confdir.Home(configDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lock, err := confdir.Acquire(home, "vaults.lock", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var release sync.Once
+	letGo := func() { release.Do(func() { _ = lock.Release() }) } //nolint:errcheck // the lock is a file of this test's directory
+	t.Cleanup(letGo)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, addressOfEntry(&entry), http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	resp, err := (&http.Client{Timeout: 10 * time.Second}).Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	stopped := make(chan error, 1)
+	go func() { stopped <- r.stop(t) }()
+	select {
+	case err = <-stopped:
+		t.Fatalf("the host ended while the record of a read was still waiting to be written: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	letGo()
+	if err = <-stopped; err != nil {
+		t.Fatalf("stopping: %v", err)
+	}
+	if got := idOf(t, listOf(t, configDir), folder).LastRead; !got.After(long) {
+		t.Errorf("the record was not written before the host ended: last read is %v", got)
+	}
+}
+
+// A record asked for once the host has begun to end is dropped. The group the
+// records are counted in is waited for after stopServing, so an Add that came
+// after it began would race the Wait, which -race reports, and Wait could return
+// before the record that Add made is written.
+func TestARecordAskedForAfterTheHostBeganToEndIsDropped(t *testing.T) {
+	t.Parallel()
+	configDir := t.TempDir()
+	start := someFreePort(t)
+	entry, _, err := listOf(t, configDir).Add(newVaultFolder(t), start)
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := readLongAgo(t, configDir, &entry)
+
+	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
+	if err = h.stopServing(); err != nil {
+		t.Fatal(err)
+	}
+	m := &mount{entry: entry}
+	h.touch(t.Context(), m)
+	h.recording.Wait()
+	if got := idOf(t, listOf(t, configDir), entry.Path).LastRead; !got.Equal(long) {
+		t.Errorf("a record asked for after the host began to end was written: last read is %v", got)
+	}
+	if m.touching.Load() {
+		t.Error("the dropped record left the vault marked as being recorded")
+	}
 }
 
 func TestStoppingLeavesNothingThatSaysYomihonIsRunning(t *testing.T) {
