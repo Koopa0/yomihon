@@ -19,8 +19,7 @@ Since v0.3.0, yomihon only reads: nothing writes into a vault any more, and a no
 
 ## Upgrading
 
-1. Install this binary and the vault's migration on the same day. The old and the new loader refuse each other's contract on purpose: `check`, `coverage`, `exists` and `left-open` exit 2 with "privacy authority unavailable" when the contract is not the one they read.
-2. Restart every yomihon that is running, the server included, once this binary is installed. An older yomihon and this one running over the same configuration directory do not keep each other's changes apart, so one can write away a mark the other just kept.
+Restart every yomihon that is running, the server included, once this binary is installed. An older yomihon and this one running over the same configuration directory do not keep each other's changes apart, so one can write away a mark the other just kept.
 
 For tools that read yomihon's output:
 
