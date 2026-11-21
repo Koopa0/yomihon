@@ -86,7 +86,7 @@ func (s *Store) earlier(old string) (kept, error) {
 	if confdir.VaultID(old) == confdir.VaultID(s.vaultRoot) {
 		return kept{}, ErrOwnPath
 	}
-	oldDir, err := confdir.Dir(s.configDir, old)
+	oldDir, err := confdir.VaultDir(s.configDir, old)
 	if err != nil {
 		return kept{}, err
 	}
@@ -170,7 +170,7 @@ func (s *Store) read() (held kept, found bool, err error) {
 // recordedVault is the vault path a file in dir says it was made for. ok is
 // false when the file is not there. The file has been read whole and strictly
 // by the caller already, so only the one field is looked at.
-func recordedVault(dir, name string) (path string, ok bool, err error) {
+func recordedVault(dir confdir.Dir, name string) (path string, ok bool, err error) {
 	data, err := confdir.Read(dir, name, maxMarksFileBytes)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", false, nil

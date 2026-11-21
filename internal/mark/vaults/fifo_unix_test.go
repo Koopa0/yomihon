@@ -4,7 +4,6 @@ package vaults
 
 import (
 	"errors"
-	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ func TestAListThatIsANamedPipeIsNotOpenedAndIsSetAside(t *testing.T) {
 	if err := mkdirHome(s); err != nil {
 		t.Fatal(err)
 	}
-	if err := syscall.Mkfifo(filepath.Join(s.dir, listFile), 0o600); err != nil {
+	if err := syscall.Mkfifo(s.dir.Join(listFile), 0o600); err != nil {
 		t.Skipf("no named pipes here: %v", err)
 	}
 

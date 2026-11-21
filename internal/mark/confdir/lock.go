@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -22,7 +21,7 @@ const lockPoll = 10 * time.Millisecond
 // works on every platform yomihon is built for; the advisory locks of the
 // operating system do not.
 type Lock struct {
-	dir    string
+	dir    Dir
 	name   string
 	holder []byte
 }
@@ -43,14 +42,17 @@ type Lock struct {
 // costs is a read-modify-write that loses a concurrent change, which the reader
 // repeats by pressing the same control; closing it would take an operating
 // system lock this does not have.
-func Acquire(dir, name string, holder []byte, abandoned func(holder []byte, age time.Duration) bool, wait time.Duration) (*Lock, error) {
+func Acquire(dir Dir, name string, holder []byte, abandoned func(holder []byte, age time.Duration) bool, wait time.Duration) (*Lock, error) {
+	if err := dir.named(); err != nil {
+		return nil, err
+	}
 	if err := checkName(name); err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(dir.path, 0o700); err != nil {
 		return nil, fmt.Errorf("create the directory: %w", err)
 	}
-	path := filepath.Join(dir, name)
+	path := dir.Join(name)
 	deadline := time.Now().Add(wait)
 	for {
 		err := create(path, holder)
@@ -139,7 +141,7 @@ func readLock(path string) (holder []byte, age time.Duration, err error) {
 // Release gives the lock back. A lock that is no longer the holder's own, taken
 // away as abandoned while the holder was merely slow, is left where it is.
 func (l *Lock) Release() error {
-	path := filepath.Join(l.dir, l.name)
+	path := l.dir.Join(l.name)
 	held, _, err := readLock(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
