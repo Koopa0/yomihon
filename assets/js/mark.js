@@ -18,6 +18,10 @@
 // there is and reads each one's own words, so a face added to some other part of
 // the page needs nothing here.
 //
+// Beside it in the row is the control that copies the note's path for the
+// reader's own editor, with the line of the section they are in. Which section
+// that is is the bookmark's question too, so both ask one function.
+//
 // Every word this shows comes from the page, which is where the two languages
 // are decided.
 
@@ -70,6 +74,14 @@ function positionNow() {
 const SAID_FOR = 4000;
 const saidTimers = new WeakMap();
 
+// hush empties a sentence at once, with whatever was waiting to empty it.
+function hush(said) {
+  clearTimeout(saidTimers.get(said));
+  said.textContent = '';
+  delete said.dataset.replyTone;
+  delete said.dataset.replyFading;
+}
+
 export function lapse(said) {
   clearTimeout(saidTimers.get(said));
   delete said.dataset.replyFading;
@@ -77,19 +89,22 @@ export function lapse(said) {
     said,
     setTimeout(() => {
       const fade = (Number.parseFloat(getComputedStyle(said).transitionDuration) || 0) * 1000;
-      const clear = () => {
-        said.textContent = '';
-        delete said.dataset.replyTone;
-        delete said.dataset.replyFading;
-      };
       if (fade < 1) {
-        clear();
+        hush(said);
         return;
       }
       said.dataset.replyFading = '';
-      saidTimers.set(said, setTimeout(clear, fade));
+      saidTimers.set(said, setTimeout(() => hush(said), fade));
     }, SAID_FOR),
   );
+}
+
+// The row's sentences hang in one place, so the one a press earns takes the
+// place of any other still there.
+function quietRow(except) {
+  for (const said of document.querySelectorAll('.y-header .y-reply')) {
+    if (said !== except && said.textContent !== '') hush(said);
+  }
 }
 
 // drawKept says on every face of the control whether the place kept is in this
@@ -109,6 +124,7 @@ function say(control, words, kept) {
   if (kept) drawKept(true);
   const said = control.querySelector('[data-mark-said]');
   if (!said) return;
+  quietRow(said);
   clearTimeout(saidTimers.get(said));
   delete said.dataset.replyFading;
   said.dataset.replyTone = kept ? 'kept' : 'refused';
@@ -116,23 +132,31 @@ function say(control, words, kept) {
   if (words) lapse(said);
 }
 
-// showPlace draws the mark of the place kept in the margin of the section that
-// holds it, and takes it off every other: a reader keeps one place, so the page
-// shows one. The section is the last heading at or above the anchor, which is how
-// the server chose it for a note that already held the place.
-function showPlace(anchor) {
+// sectionAt is the section the element with the id anchor stands in: the last
+// one whose heading is that element or comes before it, which is how the server
+// chose it for a note that already held the place. It is null where there is no
+// such element or it stands above the first section.
+function sectionAt(anchor) {
   const article = readingColumn();
-  if (!article) return;
-  for (const label of article.querySelectorAll('[data-section-bookmark]')) label.hidden = true;
   const element = anchor ? document.getElementById(anchor) : null;
-  if (!element) return;
+  if (!article || !element) return null;
   let held = null;
   for (const section of article.querySelectorAll('.y-prose .y-sect')) {
     const heading = section.firstElementChild;
     if (heading !== element && !(heading.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING)) break;
     held = section;
   }
-  held?.querySelector('[data-section-bookmark]')?.removeAttribute('hidden');
+  return held;
+}
+
+// showPlace draws the mark of the place kept in the margin of the section that
+// holds it, and takes it off every other: a reader keeps one place, so the page
+// shows one.
+function showPlace(anchor) {
+  const article = readingColumn();
+  if (!article) return;
+  for (const label of article.querySelectorAll('[data-section-bookmark]')) label.hidden = true;
+  sectionAt(anchor)?.querySelector('[data-section-bookmark]')?.removeAttribute('hidden');
 }
 
 // How many times this document has kept a place. A reading of where the place is
@@ -291,6 +315,74 @@ function land() {
   );
 }
 
+// pathNow is what the copy control writes: the note's full path, then a colon
+// and the line its current section's heading opens on in the file. The section
+// is the one the bookmark would keep the place in. Where there is none, or the
+// page could not vouch for its line, the path stands alone: a wrong line is
+// worse than none.
+function pathNow(control) {
+  const path = control.dataset.path ?? '';
+  const line = sectionAt(positionNow().anchor)?.dataset.sourceLine;
+  return line ? `${path}:${line}` : path;
+}
+
+// A refused copy leaves the path in the sentence for the reader to copy by
+// hand, so it stays until they have copied it, pressed Escape, or pressed
+// somewhere else. This ends whatever is waiting for that.
+let byHand = null;
+
+// copyPath writes the path to the clipboard. Nothing it does scrolls or moves
+// focus: the reader pressed it from the middle of the note and is still there.
+async function copyPath(control) {
+  const said = control.querySelector('[data-path-said]');
+  const value = pathNow(control);
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(value);
+    copied = true;
+  } catch {
+    copied = false;
+  }
+  if (!said) return;
+  byHand?.abort();
+  byHand = null;
+  quietRow(said);
+  hush(said);
+  if (copied) {
+    said.dataset.replyTone = 'kept';
+    said.textContent = control.dataset.pathCopied ?? '';
+    lapse(said);
+    return;
+  }
+  const path = document.createElement('span');
+  path.className = 'y-headerpath__path';
+  path.translate = false;
+  path.textContent = value;
+  said.dataset.replyTone = 'refused';
+  said.append(control.dataset.pathFailed ?? '', path);
+  getSelection()?.selectAllChildren(path);
+  const done = new AbortController();
+  byHand = done;
+  const end = () => {
+    done.abort();
+    if (byHand === done) byHand = null;
+  };
+  document.addEventListener('copy', () => {
+    end();
+    lapse(said);
+  }, { signal: done.signal });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    end();
+    hush(said);
+  }, { signal: done.signal });
+  document.addEventListener('pointerdown', (event) => {
+    if (said.contains(event.target) || control.contains(event.target)) return;
+    end();
+    hush(said);
+  }, { signal: done.signal });
+}
+
 export function initMark() {
   land();
   recall();
@@ -302,6 +394,11 @@ export function initMark() {
     if (!button) continue;
     button.addEventListener('click', () => {
       keep(control);
+    });
+  }
+  for (const control of document.querySelectorAll('[data-path-control]')) {
+    control.querySelector('[data-path-button]')?.addEventListener('click', () => {
+      copyPath(control);
     });
   }
 }

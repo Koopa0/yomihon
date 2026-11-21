@@ -114,6 +114,7 @@ probes=(
   "section-marks.mjs|/notes/Notes/Reading%20flow.md"
   "return-from-a-detour.mjs|/notes/Notes/Reading%20flow.md"
   "back-scroll-restore.mjs|/notes/Notes/Back%20restore.md"
+  "copy-path.mjs|/notes/Notes/Back%20restore.md"
   "reading-face.mjs|/notes/Notes/reading-fidelity.md"
   "reading-scale.mjs|/notes/Notes/reading-scale.md"
   "a11y-audit.mjs|/notes/Notes/reading-fidelity.md"

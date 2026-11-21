@@ -14,6 +14,15 @@ var (
 	OpenInObsidian = both("在 Obsidian 開啟", "Open in Obsidian")
 )
 
+// CopyPath names the header's control that copies the note's full path, with
+// the line of the section being read, for the reader's own editor. A copy the
+// browser accepted is answered with CodeCopied, and one it refused with
+// CopyPathByHand above the path itself.
+var (
+	CopyPath       = both("複製路徑", "Copy path")
+	CopyPathByHand = both("請手動複製下方路徑。", "Copy the path below by hand.")
+)
+
 // Draft marks a note whose author declared draft: true: on its own page, and
 // on the rows of the sidebar and the course that reach it. A finished note is
 // the ordinary state and carries no mark.

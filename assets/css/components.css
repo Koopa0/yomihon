@@ -7977,23 +7977,30 @@ samp,
    page that stays put while the note scrolls. It has its words beside the
    bookmark where the row has the width and the bookmark alone below it, the
    words then being its name. The script is the condition, for the reason it is
-   the control's: what the press sends is where the window is. */
-.y-headermark {
+   the control's: what the press sends is where the window is. The control
+   beside it that copies the note's path is drawn the same way, and waits for
+   the script for the same reason: the line it copies is the section the
+   window is in. */
+.y-headermark,
+.y-headerpath {
   display: none;
   flex: none;
 }
 
-[data-js] .y-headermark {
+[data-js] .y-headermark,
+[data-js] .y-headerpath {
   display: flex;
 }
 
-.y-headermark__button {
+.y-headermark__button,
+.y-headerpath__button {
   gap: var(--sp-2);
   padding: 0 var(--sp-3) 0 var(--sp-2);
   width: auto;
 }
 
-.y-headermark__label {
+.y-headermark__label,
+.y-headerpath__label {
   font-family: var(--font-sans);
   font-size: var(--fs-14);
   font-weight: var(--fw-medium);
@@ -8008,6 +8015,16 @@ samp,
   }
 
   .y-headermark__label {
+    display: none;
+  }
+}
+
+/* The copy of the path leaves the row where the left column becomes a drawer
+   and the drawer's button joins it. Below that the row is full: on a note with
+   readings in English it already has no room to spare, and the bookmark, the
+   verb a reader uses on every page, is the control it keeps. */
+@media (max-width: 1023px) {
+  [data-js] .y-headerpath {
     display: none;
   }
 }
@@ -8029,7 +8046,8 @@ samp,
    can be hidden for a few seconds without losing a control. It takes no
    pointer, so nothing under it is hard to press, and it fades before it is
    emptied. */
-.y-headermark__said {
+.y-headermark__said,
+.y-headerpath__said {
   inset-block-start: calc(100% + 4px);
   inset-inline-end: var(--sp-5);
   margin: 0;
@@ -8039,13 +8057,15 @@ samp,
   width: max-content;
 }
 
-.y-headermark__said:not(:empty) {
+.y-headermark__said:not(:empty),
+.y-headerpath__said:not(:empty) {
   background: var(--elevated);
   border-radius: var(--r-sm);
   padding: var(--sp-1) var(--sp-2);
 }
 
-.y-headermark__said[data-reply-fading] {
+.y-headermark__said[data-reply-fading],
+.y-headerpath__said[data-reply-fading] {
   opacity: 0;
   transition: opacity var(--dur-slow) linear;
 }
@@ -8056,6 +8076,22 @@ samp,
     inset-inline: var(--sp-7) auto;
     translate: 0 -50%;
   }
+}
+
+/* A copy the browser refused leaves the path in the sentence, to be selected
+   and copied by hand, so this one takes the pointer and the width a path
+   needs. */
+.y-headerpath__said[data-reply-tone='refused'] {
+  max-width: min(64ch, calc(100vw - 2 * var(--sp-4)));
+  pointer-events: auto;
+}
+
+.y-headerpath__path {
+  color: var(--fg);
+  display: block;
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
 }
 
 /* The reader's own place, in the reader's blue: a bookmark. It is

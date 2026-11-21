@@ -154,10 +154,10 @@ func TestNoPageMeasureIsWrittenAsAPixelLiteral(t *testing.T) {
 	t.Parallel()
 
 	allowed := map[string]string{
-		".y-headermark__said": "the sentence the header's bookmark answers with, kept off a phone's edges",
-		".y-home__head > p":   "the desk's opening line",
-		".y-kbdhelp":          "the keyboard-help popover",
-		".y-searchsurface":    "the search box on a wide window",
+		".y-headermark__said, .y-headerpath__said": "the sentence the header's bookmark and its copy of the path answer with, kept off a phone's edges",
+		".y-home__head > p":                        "the desk's opening line",
+		".y-kbdhelp":                               "the keyboard-help popover",
+		".y-searchsurface":                         "the search box on a wide window",
 	}
 
 	for _, rule := range componentRules(t) {

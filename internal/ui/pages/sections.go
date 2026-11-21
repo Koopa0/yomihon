@@ -55,6 +55,10 @@ type SectionMargin struct {
 	MarkedOn time.Time
 	// Thoughts are the reader's own notes whose source is this section.
 	Thoughts []ThoughtLine
+	// Line is the line of the note's file the heading opens on, counted from
+	// 1, which a copy of the note's path names for the section being read. It
+	// is 0 where the file cannot vouch for one.
+	Line int
 }
 
 // ThoughtLine is one thought of the reader's own, listed beside what it answers:
@@ -148,7 +152,11 @@ func (w *weave) start(ctx context.Context, token html.Token, raw []byte) bool {
 		if !w.plan.drawn(id, &margin) {
 			return false
 		}
-		w.out.WriteString(`<div class="y-sect">`)
+		if margin.Line > 0 {
+			fmt.Fprintf(&w.out, `<div class="y-sect" data-source-line="%d">`, margin.Line)
+		} else {
+			w.out.WriteString(`<div class="y-sect">`)
+		}
 		w.out.Write(raw)
 		w.open, w.openID = token.Data, id
 		return true
