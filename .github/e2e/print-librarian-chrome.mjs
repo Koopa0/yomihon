@@ -12,7 +12,7 @@
 // MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const FOLDER_PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const COURSE_PAGE = '/notes/Notes/alpha.md';
 const FILE_PAGE = '/notes/Notes/plain.txt';

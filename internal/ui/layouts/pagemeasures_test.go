@@ -76,7 +76,7 @@ func TestEveryPageShellTakesItsOwnMeasure(t *testing.T) {
 		{class: ".y-home", measure: "var(--measure-list)"},
 		{class: ".y-prefs", measure: "var(--measure-read)"},
 		{class: ".y-recovery", measure: "var(--measure-read)"},
-		{class: ".y-searchpage", measure: "var(--measure-answer)"},
+		{class: ".y-searchpage", measure: "var(--measure-list)"},
 		{class: ".y-syl", measure: "var(--measure-read)"},
 	}
 
@@ -157,7 +157,7 @@ func TestNoPageMeasureIsWrittenAsAPixelLiteral(t *testing.T) {
 		".y-headermark__said": "the sentence the header's bookmark answers with, kept off a phone's edges",
 		".y-home__head > p":   "the desk's opening line",
 		".y-kbdhelp":          "the keyboard-help popover",
-		".y-searchdialog":     "the palette box",
+		".y-searchsurface":    "the search box on a wide window",
 	}
 
 	for _, rule := range componentRules(t) {

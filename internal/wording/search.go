@@ -2,8 +2,6 @@ package wording
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 	"strings"
 )
 
@@ -26,30 +24,14 @@ func SearchTitleFor(lang Lang, query string) string {
 	return SearchTitle.In(lang) + both("：", ": ").In(lang) + words
 }
 
-// The counts over a result list. The second form is for a search that returned
-// everything it found, which is a different claim from one that was cut short.
-var (
-	ResultCountShownFmt = both("共 %d 筆，顯示前 %d 筆", "%d results; showing the first %d")
-	ResultCountOne      = both("共 %d 筆", "%d result")
-	ResultCountMany     = both("共 %d 筆", "%d results")
-)
-
-// ResultRangeFmt is what a divided answer says in place of the tally: which of
-// the hits are on this page, and how many there are in all. The tally alone
-// would be true and useless on the second page, and "the first twenty" would
-// be false there.
-var ResultRangeFmt = both("第 %d–%d 筆，共 %d 筆", "Results %d–%d of %d")
-
 // What the results say about their own limits.
 var (
 	MetadataSearchUnavailable = both("依欄位篩選目前無法使用。", "Filtering by field is unavailable right now.")
 	GovernanceUnavailable     = both("狀態與類型資料目前無法使用。", "Status and type data are unavailable right now.")
-	ResultKindFile            = both("檔案", "File")
 )
 
 // The empty result, and the way back out of it.
 var (
-	NoResultsFmt           = both("找不到「%s」的結果。", "Nothing matches %q.")
 	StepBackLabel          = both("改用較短的詞：", "Try a shorter query: ")
 	StepBackOpen           = both("「", "\"")
 	StepBackClose          = both("」", "\"")
@@ -81,14 +63,6 @@ func LiteralOperatorSentence(lang Lang, terms []string) string {
 	return fmt.Sprintf(sentence.In(lang), strings.Join(quoted, ListSeparator.In(lang)))
 }
 
-// What search covers, said where a reader has just been told it found nothing.
-var (
-	SearchScopeHint = both(
-		"圖片、PDF 這類檔案只列出，不讀內容。請試較少或不同的詞。",
-		"Search covers notes and any file that can be shown as text. Images, PDFs and other binary files are listed in the navigation but never read. Try fewer or different words.",
-	)
-)
-
 // What the search face says when the query itself is refused, and when the
 // index behind it cannot answer. The two refusals name what is wrong with the
 // query rather than restating that it failed.
@@ -119,19 +93,6 @@ var (
 // looks broken rather than translated.
 var ListSeparator = both("、", ", ")
 
-// FilterKeysAvailable opens the blank search page with the constraints the
-// field understands. A reader who has typed nothing cannot discover them any
-// other way, and this is the one moment saying so costs them no answer.
-var FilterKeysAvailable = both("可用的篩選器：", "Filters you can use: ")
-
-// SearchEmptyLede opens the search page before anything has been asked. The
-// prefixes below it are the field's grammar, which is worth knowing and is not
-// what a reader who has just arrived is looking for.
-var SearchEmptyLede = both(
-	"按 Enter 看全部結果。",
-	"Press Enter for every result.",
-)
-
 // ResultAliasLabel introduces the name a result answered to when it was not
 // the title the row shows. Without the word, the name would sit beside the
 // title looking like a second title. The gap after the label belongs to the
@@ -141,12 +102,6 @@ var ResultAliasLabel = both("又稱 ", "also called ")
 
 // ResultTagLabel names the frontmatter tag that explains a tag-only result.
 var ResultTagLabel = both("標籤： ", "tag: ")
-
-// ResultSourceLabel names a hit whose deciding excerpt is fenced source
-// rather than a sentence the note wrote. The word sits on the row with
-// the alias, so the excerpt itself stays the fence's own
-// lines and MarkHits never sees a label yomihon wrote.
-var ResultSourceLabel = both("原始碼", "source")
 
 // SearchHitUnlocated is the line a result carries when the index found a
 // match the opened page cannot locate — a phrase that spans two blocks, and
@@ -182,48 +137,45 @@ var LiveSearchStaleFmt = both(
 	"下方結果回答的是先前的查詢「%s」。",
 	"The results below answer the earlier query \"%s\".")
 
-// The column beside the results that says what the current answer is made of.
-// A heading names one of the keys a reader can narrow by; the key itself stays
-// the contract's word, and only the name of the field is written here.
-var (
-	FacetsTitle    = both("篩選", "Filters")
-	FacetUnstated  = both("未指定", "Not stated")
-	FacetRemoveFmt = both("移除篩選：%s", "Remove filter: %s")
-	FacetNarrowFmt = both("只留下%s：%s", "Keep only %s: %s")
-	FacetCountFmt  = both("%d 筆", "%d")
-)
-
-// facetHeadings names each key a reader narrows by. It is a table rather than
-// a switch because the consumer's test reads the set back to compare it with
-// the grammar's, and it is unexported so the names cannot be rewritten from
-// outside the package that owns them.
-var facetHeadings = map[string]Phrase{
-	"type":   both("類型", "Type"),
-	"domain": both("領域", "Domain"),
-}
-
-// The words a filter row shows for a note type that the rules give a role. Any
+// The words the kind row shows for a note type that the rules give a role. Any
 // other type is the vault's own word and is shown as written.
 var (
-	FacetTypeUnit   = both("單元", "Unit")
-	FacetTypeCourse = both("課程", "Course")
-	FacetTypeIndex  = both("索引", "Index")
+	SearchKindUnit    = both("單元", "Unit")
+	SearchKindCourse  = both("課程", "Course")
+	SearchKindIndex   = both("索引", "Index")
+	SearchKindNote    = both("筆記", "Note")
+	SearchKindDrill   = both("句型練習", "Sentence practice")
+	SearchKindThought = both("想法", "Thought")
 )
 
-// FacetHeading names one of the keys a reader narrows by. A key with no name
-// here reads as empty rather than as its own spelling, so a column cannot
-// quietly print a grammar key at a reader; the consumer's test is what keeps
-// the two sets together.
-func FacetHeading(key string, lang Lang) string {
-	heading, ok := facetHeadings[key]
-	if !ok {
-		return ""
-	}
-	return heading.In(lang)
-}
+// The results page's own controls: what the order is by, what the list is
+// narrowed to, and how it goes on.
+var (
+	SearchSortRelevance = both("依相關", "By relevance")
+	SearchSortRecent    = both("依最近變更", "By last change")
+	SearchSortLabel     = both("排序", "Order")
+	SearchKindLabel     = both("種類", "Kind")
+	SearchLocationLabel = both("位置", "Location")
+	SearchAll           = both("全部", "All")
+	SearchTopLevel      = both("最上層", "Top level")
+	SearchShowMoreFmt   = both("再顯示 %d 篇", "Show %d more")
+	SearchShownOfFmt    = both("%s / %s", "%s of %s")
+	SearchNoneFmt       = both("沒有符合「%s」的筆記", "No note matches \"%s\"")
+	SearchDidYouMeanFmt = both("要找的是「%s」嗎？", "Did you mean \"%s\"?")
+	SearchBrowseFolders = both("瀏覽資料夾", "Browse folders")
+	SearchSeeAllFmt     = both("看全部 %s 篇", "See all %s")
+	SearchRecent        = both("最近搜尋", "Recent searches")
+	SearchClear         = both("清除", "Clear")
+	SearchClearField    = both("清除輸入", "Clear the field")
+	SearchCancel        = both("取消", "Cancel")
+)
 
-// FacetHeadingKeys names every key this package can write a heading for, so a
-// consumer can compare that set with the grammar's own.
-func FacetHeadingKeys() []string {
-	return slices.Sorted(maps.Keys(facetHeadings))
-}
+// SearchSearchFor is the row that offers the nearest word in place of a query
+// nothing matched, written as the search it runs.
+var SearchSearchFor = both("搜尋「%s」", "Search for \"%s\"")
+
+// The brackets a results page puts round the query it is titled by.
+var (
+	SearchQueryOpen  = both("「", "\"")
+	SearchQueryClose = both("」", "\"")
+)

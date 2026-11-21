@@ -83,7 +83,7 @@ func TestHeadingHitsRespectDecodedReadingContext(t *testing.T) {
 	}
 }
 
-var resultLink = regexp.MustCompile(`<a class="y-result" href="([^"]+)">`)
+var resultLink = regexp.MustCompile(`<a class="y-found__item" href="([^"]+)">`)
 
 // TestSearchDirectivesNameAdjacentReadingText follows production result links
 // into the article, including the localized words external links insert.
@@ -117,7 +117,7 @@ func TestSearchDirectivesNameAdjacentReadingText(t *testing.T) {
 			path := "Notes/" + tt.name + ".md"
 			site := homeSite(t, map[string]string{path: tt.body})
 			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+				for _, route := range []string{"/search?", "/search/results?", "/search/results?"} {
 					page := readingPageIn(t, site, route+url.Values{"q": {tt.query}}.Encode(), lang)
 					rows := resultLink.FindAllStringSubmatch(page, -1)
 					if len(rows) != 1 {
@@ -192,7 +192,7 @@ func TestSearchConsumesProseMarkupAndKeepsCodeLiteral(t *testing.T) {
 		{"span-escape-source", "`snake\\_case`\n", `snake\_case`, 1, "snake\\_case"},
 		{"fence-entity-source", "```\nTom &amp; Jerry\n```\n", "&amp;", 1, "Tom &amp; Jerry"},
 		{"fence-escape-source", "```\nsnake\\_case\n```\n", `snake\_case`, 1, "snake\\_case"},
-		{"wikilink-alias-entity-literal", "See [[Other|Tom &amp; Jerry]] here.\n", "&amp;", 1, "See Other Tom &amp; Jerry here."},
+		{"wikilink-alias-entity-literal", "See [[Other|Tom &amp; Jerry]] here.\n", "&amp;", 1, "See Tom &amp; Jerry here."},
 		{"wikilink-alias-entity-decoded", "See [[Other|Tom &amp; Jerry]] here.\n", `"Tom & Jerry"`, 0, ""},
 		{"wikilink-target-escape-literal", "[[snake\\_case]]\n", `snake\_case`, 1, "snake\\_case"},
 		{"wikilink-target-escape-decoded", "[[snake\\_case]]\n", "snake_case", 0, ""},
@@ -204,7 +204,7 @@ func TestSearchConsumesProseMarkupAndKeepsCodeLiteral(t *testing.T) {
 			t.Parallel()
 			site := homeSite(t, map[string]string{"Notes/Reading.md": tt.body})
 			for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+				for _, route := range []string{"/search?", "/search/results?", "/search/results?"} {
 					page := readingPageIn(t, site, route+url.Values{"q": {tt.query}}.Encode(), lang)
 					if rows := len(resultLink.FindAllStringSubmatch(page, -1)); rows != tt.rows {
 						t.Errorf("caught: prose-code corpus case=%s lang=%s route=%s rows=%d, want %d", tt.name, lang, route, rows, tt.rows)
@@ -218,7 +218,7 @@ func TestSearchConsumesProseMarkupAndKeepsCodeLiteral(t *testing.T) {
 						var visit func(*nethtml.Node)
 						visit = func(n *nethtml.Node) {
 							for _, attr := range n.Attr {
-								if attr.Key == "class" && slices.Contains(strings.Fields(attr.Val), "y-result__snippet") {
+								if attr.Key == "class" && slices.Contains(strings.Fields(attr.Val), "y-found__lead") {
 									snippets = append(snippets, searchExcerptText(n))
 								}
 							}
@@ -319,7 +319,7 @@ func TestDroppedTitleLandsWithDecodedOpening(t *testing.T) {
 					assertDroppedTitlePage(t, page, tt.name)
 					t.Logf("invoked: dropped title page lang=%s status=200 title=1 bodyH1=0 toc=0", lang)
 				}
-				for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+				for _, route := range []string{"/search?", "/search/results?", "/search/results?"} {
 					page := readingPageIn(t, site, route+url.Values{"q": {tt.query}}.Encode(), lang)
 					matches := resultLink.FindAllStringSubmatch(page, -1)
 					if len(matches) != 1 {
@@ -406,7 +406,7 @@ func assertDroppedTitlePage(t *testing.T, page, title string) {
 func assertLandingOnEveryRoute(t *testing.T, site http.Handler, query, path, fragment string) {
 	t.Helper()
 	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-		for _, route := range []string{"/search?", "/search/results?", "/search/results?facets=1&"} {
+		for _, route := range []string{"/search?", "/search/results?", "/search/results?"} {
 			body := readingPageIn(t, site, route+url.Values{"q": {query}}.Encode(), lang)
 			var got []string
 			for _, m := range resultLink.FindAllStringSubmatch(body, -1) {

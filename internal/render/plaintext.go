@@ -395,6 +395,10 @@ type rewrittenLines struct {
 	changed      []bool
 	literalRoles []bool
 	wikilinks    [][2]int
+	// wikilinkTargets are the stretches of a link's words that name its
+	// destination when the author wrote a display beside it: findable, and not
+	// on the page.
+	wikilinkTargets [][2]int
 }
 
 // lineAt returns the index of the line holding off.
@@ -436,6 +440,7 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 	lines := strings.Split(body, "\n")
 	rewritten := rewrittenLines{starts: make([]int, len(lines)), changed: make([]bool, len(lines)), literalRoles: make([]bool, len(lines))}
 	wikiLines := make([][][2]int, len(lines))
+	targetLines := make([][][2]int, len(lines))
 	inFence := false
 	var fenceByte byte
 	var fenceLen int
@@ -467,60 +472,76 @@ func plainPreprocess(body string) (string, rewrittenLines) {
 			if !owned[i] {
 				line = graph.WithoutBlockAddress(line)
 			}
-			lines[i] = plainLine(line, code[i], &wikiLines[i])
+			lines[i] = plainLine(line, code[i], &wikiLines[i], &targetLines[i])
 			rewritten.changed[i] = lines[i] != original
 		}
 	}
 	off := 0
 	for i, line := range lines {
 		rewritten.starts[i] = off
-		for _, span := range wikiLines[i] {
-			rewritten.wikilinks = append(rewritten.wikilinks, [2]int{off + span[0], off + span[1]})
-		}
+		rewritten.wikilinks = appendShifted(rewritten.wikilinks, wikiLines[i], off)
+		rewritten.wikilinkTargets = appendShifted(rewritten.wikilinkTargets, targetLines[i], off)
 		off += len(line) + 1 // the newline the join puts back
 	}
 	return strings.Join(lines, "\n"), rewritten
+}
+
+// appendShifted adds a line's spans to the note's, moved from the line's own
+// offsets to the note's.
+func appendShifted(all, spans [][2]int, off int) [][2]int {
+	for _, span := range spans {
+		all = append(all, [2]int{off + span[0], off + span[1]})
+	}
+	return all
 }
 
 // plainLine normalizes one non-fence line: it strips a callout marker (keeping
 // the title) and rewrites wikilinks to plain "target display" text. A line an
 // indented code block holds keeps its marker, because the page shows it as
 // written.
-func plainLine(line string, code bool, wikilinks *[][2]int) string {
+func plainLine(line string, code bool, wikilinks, targets *[][2]int) string {
 	if m := calloutStartPattern.FindStringSubmatch(line); m != nil && !code {
 		// Drop the marker, keep the callout's title. The body lines that follow
 		// keep their quote marker and are collected as ordinary quoted text.
 		line = m[3]
 	}
-	return replaceWikilinksPlain(line, wikilinks)
+	return replaceWikilinksPlain(line, wikilinks, targets)
 }
 
 // replaceWikilinksPlain replaces every [[...]]/![[...]] token in line with its
 // clean target and display text (deduplicated when they are equal), using the
 // same target/display split the renderer uses (graph.SplitWikilink).
-func replaceWikilinksPlain(line string, wikilinks *[][2]int) string {
+func replaceWikilinksPlain(line string, wikilinks, targets *[][2]int) string {
 	var out strings.Builder
 	last := 0
 	for _, token := range graph.WikilinkTokens(line) {
 		out.WriteString(line[last:token.Start])
 		start := out.Len()
-		out.WriteString(plainWikilink(token.Inner))
+		words, hidden := plainWikilink(token.Inner)
+		out.WriteString(words)
 		*wikilinks = append(*wikilinks, [2]int{start, out.Len()})
+		if hidden > 0 {
+			*targets = append(*targets, [2]int{start, start + hidden})
+		}
 		last = token.End
 	}
 	out.WriteString(line[last:])
 	return out.String()
 }
 
-func plainWikilink(inner string) string {
+// plainWikilink is the words a link contributes and how many of them, from the
+// start, only name where it goes. A link written with its own display shows
+// the display, so the target and the space after it are searchable and not
+// displayed.
+func plainWikilink(inner string) (words string, hidden int) {
 	target, display, ok := graph.SplitWikilink(inner)
 	switch {
 	case !ok:
-		return display // e.g. [[#heading]] — a same-file anchor: display only
+		return display, 0 // e.g. [[#heading]] — a same-file anchor: display only
 	case target == display:
-		return target
+		return target, 0
 	default:
-		return target + " " + display
+		return target + " " + display, len(target) + 1
 	}
 }
 

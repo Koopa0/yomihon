@@ -18,14 +18,14 @@
 // Env: YOMIHON_BASE and MUTATE.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const MUTATE = process.env.MUTATE || '';
 
 const WITH_SIDEBAR = [
   ['a lesson', '/notes/Course/C02.md', '.y-article h1.y-title'],
   ['a course', '/courses/Maps/study.md', '.y-syl h1.y-title'],
   ['the findings', '/health', '.y-healthpage h1.y-title'],
-  ['a search', '/search?q=alpha', '.y-searchpage__form'],
+  ['a search', '/search?q=alpha', '.y-searchpage h1.y-title'],
   ['a file', '/notes/Notes/plain.txt', '.y-article h1.y-title'],
 ];
 // The pages whose sidebar opens on a title, a book's or a folder's, or on the

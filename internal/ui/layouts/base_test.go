@@ -432,7 +432,7 @@ func TestTheHeaderPressNamesTheDialogItOpens(t *testing.T) {
 	}
 }
 
-func TestSearchDialogKeepsGETFallbackAroundLiveResults(t *testing.T) {
+func TestSearchSurfaceKeepsGETFallbackAroundLiveResults(t *testing.T) {
 	t.Parallel()
 
 	var buf bytes.Buffer
@@ -454,7 +454,7 @@ func TestSearchDialogKeepsGETFallbackAroundLiveResults(t *testing.T) {
 		`role="status"`,
 		`aria-live="polite"`,
 		`aria-atomic="true"`,
-		`data-live-search-results`,
+		`data-live-search-panel`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("searchDialog() is missing %q; html = %q", want, html)

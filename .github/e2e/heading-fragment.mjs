@@ -20,14 +20,14 @@
 // below the header once the caret did, and could not tell a landing on the
 // marked line from a landing on the paragraph.
 //
-// Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (the note that
+// Env: YOMIHON_BASE (required), PAGE_PATH (the note that
 // carries the links). MUTATE names one of the self-test modes below;
 // MUTATE=list prints them.
 import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/reading-fidelity.md';
 const DESTINATION = '/notes/Notes/Glass%20Tide.md';
 const OPENING = '/notes/Notes/seedling-inbox.md';

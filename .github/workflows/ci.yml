@@ -167,9 +167,10 @@ jobs:
 
   # The full analysis, generation, race, and fuzz gates run once on Linux. A
   # real Darwin runner also executes the complete suite. Windows builds and
-  # vets every package, compiles every test, then drives its product-specific
-  # contract: the reading server answers every route and writes nothing into
-  # the vault.
+  # vets every package, compiles every test, runs the configuration
+  # directory's tests, whose lock is its own code there, then drives its
+  # product-specific contract: the reading server answers every route and
+  # writes nothing into the vault.
   portable-core:
     strategy:
       fail-fast: false
@@ -197,6 +198,10 @@ jobs:
       - name: Compile every test package on Windows
         if: runner.os == 'Windows'
         run: go test ./... -run '^$' -count=1
+
+      - name: Run the configuration directory's tests on Windows
+        if: runner.os == 'Windows'
+        run: go test ./internal/mark/confdir -count=1 -v
 
       # The contract test is asked for by name before it is run. A -run
       # pattern that matches nothing is not an error to Go and exits 0 without

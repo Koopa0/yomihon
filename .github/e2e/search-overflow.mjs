@@ -17,7 +17,7 @@
 // regression.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/search?q=stoppedAt';
 const MUTATE = process.env.MUTATE || '';
 const WIDTHS = [390, 375];
@@ -80,7 +80,7 @@ const MUTATIONS = {
   // words, not its markup, so the address has to be written in the text.
   'let-the-snippet-refuse-to-wrap': {
     target: 'results-list-fits-the-phone-viewport',
-    before: overrideProperty('.y-result__snippet', 'overflow-wrap', '.y-result__snippet{overflow-wrap:normal}', 'normal'),
+    before: overrideProperty('.y-found__lead', 'overflow-wrap', '.y-found__lead{overflow-wrap:normal}', 'normal'),
   },
 };
 
@@ -112,9 +112,9 @@ if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) {
 // snippet again, so this changes nothing the assertions below see.
 const widestSnippetRun = (page) =>
   page.evaluate(() => {
-    const results = document.querySelector('ol.y-results');
+    const results = document.querySelector('ol.y-found');
     if (!results) return null;
-    const snippets = [...document.querySelectorAll('.y-result__snippet')];
+    const snippets = [...document.querySelectorAll('.y-found__lead')];
     let unwrapped = 0;
     let ownWidth = 0;
     for (const el of snippets) {
@@ -150,16 +150,16 @@ try {
     // moves the carrying result off this page reports itself here instead of
     // the assertions below going quiet.
     const widest = await widestSnippetRun(page);
-    if (widest === null) broken(`the page at ${width}px carries no ol.y-results to measure`);
-    if (widest.count === 0) broken(`${PAGE} at ${width}px draws no .y-result__snippet, so nothing here could carry an unbreakable run`);
+    if (widest === null) broken(`the page at ${width}px carries no ol.y-found to measure`);
+    if (widest.count === 0) broken(`${PAGE} at ${width}px draws no .y-found__lead, so nothing here could carry an unbreakable run`);
     if (widest.unwrapped <= widest.ownWidth) {
       broken(
-        `no .y-result__snippet on ${PAGE} at ${width}px is wider unbroken (${widest.unwrapped}px) than its own ${widest.ownWidth}px box — this page carries no run this lock is about, so pick one whose first screen still holds a snippet with an unbreakable path or URL`,
+        `no .y-found__lead on ${PAGE} at ${width}px is wider unbroken (${widest.unwrapped}px) than its own ${widest.ownWidth}px box — this page carries no run this lock is about, so pick one whose first screen still holds a snippet with an unbreakable path or URL`,
       );
     }
 
     const measured = await page.evaluate(() => {
-      const results = document.querySelector('ol.y-results');
+      const results = document.querySelector('ol.y-found');
       return {
         docScrollWidth: document.documentElement.scrollWidth,
         docClientWidth: document.documentElement.clientWidth,
@@ -168,7 +168,7 @@ try {
       };
     });
     if (measured.resultsScrollWidth === null) {
-      broken(`the page at ${width}px carries no ol.y-results to measure`);
+      broken(`the page at ${width}px carries no ol.y-found to measure`);
     }
     if (measured.docScrollWidth > measured.docClientWidth) {
       fail(
@@ -179,7 +179,7 @@ try {
     if (measured.resultsScrollWidth > measured.resultsClientWidth) {
       fail(
         'results-list-fits-the-phone-viewport',
-        `at ${width}px ol.y-results scrollWidth=${measured.resultsScrollWidth} > clientWidth=${measured.resultsClientWidth}`,
+        `at ${width}px ol.y-found scrollWidth=${measured.resultsScrollWidth} > clientWidth=${measured.resultsClientWidth}`,
       );
     }
     await context.close();

@@ -26,7 +26,7 @@ import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/search?q=%E7%8D%A8%E8%A7%92%E7%8D%B8';
 const MUTATE = process.env.MUTATE || '';
 const SITES = ['match-in-view', 'heading-in-view', 'english-heading-in-view', 'strike-in-view'];
@@ -183,7 +183,7 @@ try {
   proof = apply ? await apply(page) : null;
 
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
-  const link = page.locator('a.y-result[href*="%E7%81%B0%E5%B8%83%E5%B8%B3%E5%86%8A"]').first();
+  const link = page.locator('a.y-found__item[href*="%E7%81%B0%E5%B8%83%E5%B8%B3%E5%86%8A"]').first();
   if (await link.count() !== 1) broken('the results do not offer the Chinese note this probe was written around');
   const href = await link.getAttribute('href');
 
@@ -242,7 +242,7 @@ try {
         const page = await context.newPage();
         proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
         await page.goto(BASE + '/search?q=' + encodeURIComponent(testCase.query), { waitUntil: 'load' });
-        const row = page.locator('a.y-result[href*="%E7%81%B0%E5%B8%83%E5%B8%B3%E5%86%8A"]');
+        const row = page.locator('a.y-found__item[href*="%E7%81%B0%E5%B8%83%E5%B8%B3%E5%86%8A"]');
         if (await row.count() !== 1) broken('the context query does not offer exactly one fixture result');
         const href = await row.getAttribute('href');
         await row.click();

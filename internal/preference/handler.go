@@ -45,7 +45,7 @@ func (h *Handler) apply(w http.ResponseWriter, r *http.Request) {
 	}
 	// #nosec G710 -- LocalNext admits only a same-site absolute path; every
 	// other shape of the client-controlled field falls back to Home.
-	http.Redirect(w, r, origin.LocalNext(r.PostFormValue(nextField)), http.StatusSeeOther)
+	http.Redirect(w, r, origin.LocalNext(r.PostForm.Get(nextField)), http.StatusSeeOther)
 }
 
 // returnAddress is where applying a choice sends the reader. It is the address

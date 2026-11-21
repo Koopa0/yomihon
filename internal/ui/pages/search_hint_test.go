@@ -8,23 +8,6 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// When a search finds nothing, the page advises fewer or different words and
-// teaches no lifecycle filter: the reading pages hold no status to narrow by.
-func TestEmptySearchAdvisesWithoutAStatusFilter(t *testing.T) {
-	t.Parallel()
-	var buf bytes.Buffer
-	if err := SearchResults(SearchView{Query: "沒有這個詞"}, wording.ZhHant).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("SearchResults(...).Render() error = %v", err)
-	}
-	got := buf.String()
-	if !strings.Contains(got, "請試較少或不同的詞") {
-		t.Errorf("SearchResults lost the advice that always applies; html = %q", got)
-	}
-	if strings.Contains(got, "status:") {
-		t.Errorf("SearchResults still teaches a status filter; html = %q", got)
-	}
-}
-
 // When the empty page has loosened searches to offer, each arrives as a real
 // link with its count — and when it has none, the section is absent rather
 // than an empty promise.

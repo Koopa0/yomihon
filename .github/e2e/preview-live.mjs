@@ -8,7 +8,7 @@ import { basename, dirname, join } from 'node:path';
 import { setTimeout as pause } from 'node:timers/promises';
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const MUTATE = process.env.MUTATE || '';
 const MODES = {
   'hold-the-first-body-after-update': 'updated',

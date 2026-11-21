@@ -26,9 +26,6 @@ var (
 // stop looking alike.
 var NoStructureRead = both("未讀到課程結構", "No course structure read")
 
-// SearchSubmit is the button on the desk's own search field.
-var SearchSubmit = both("搜尋", "Search")
-
 // DegradedNotice says how much of the page may be missing or stale, and where
 // the detail is. It carries the count, so it is a pair like the other tallies.
 var (

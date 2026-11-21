@@ -45,7 +45,7 @@ import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const REPORT_QUERY = 'れ、';
 const PAGE = process.env.PAGE_PATH || `/search?q=${encodeURIComponent(REPORT_QUERY)}`;
 const MUTATE = process.env.MUTATE || '';
@@ -252,7 +252,7 @@ const land = async (browser, testCase, width, furigana, apply) => {
   const proof = apply ? await apply(page) : null;
   await page.goto(BASE + (testCase.query === REPORT_QUERY ? PAGE : searchPath(testCase.query)), { waitUntil: 'domcontentloaded' });
 
-  const link = page.locator('a.y-result[href*="Suffix%20landing"]').first();
+  const link = page.locator('a.y-found__item[href*="Suffix%20landing"]').first();
   if (await link.count() !== 1) broken(`the results for ${JSON.stringify(testCase.query)} do not offer the note this probe was written around`);
   const href = await link.getAttribute('href');
 

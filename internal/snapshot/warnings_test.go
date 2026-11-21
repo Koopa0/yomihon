@@ -209,18 +209,18 @@ func TestSnapshotWarningIdentity(t *testing.T) {
 	for _, name := range []string{"path", "size", "mtime", "message"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
-			path := "fault.txt"
+			path := "fault.html"
 			writeNote(t, root, path, "first body\n")
 			modified := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
 			setWarningTime(t, root, path, modified)
 			if name == "path" {
-				writeNote(t, root, "other.txt", "first body\n")
-				setWarningTime(t, root, "other.txt", modified)
+				writeNote(t, root, "other.html", "first body\n")
+				setWarningTime(t, root, "other.html", modified)
 			}
 			f := newWarningFixture(t, root, func(s *warningSource) {
 				s.refuse[path] = errors.New("same failure")
 				if name == "path" {
-					s.refuse["other.txt"] = errors.New("same failure")
+					s.refuse["other.html"] = errors.New("same failure")
 				}
 			})
 			if !f.store.Current().Freshness().Complete {
@@ -318,7 +318,7 @@ func TestSnapshotWarningProducers(t *testing.T) {
 			want := 1
 			switch name {
 			case "source":
-				writeNote(t, root, "fault.txt", "unreadablefilebody\n")
+				writeNote(t, root, "fault.html", "unreadablefilebody\n")
 				message = "vault source unavailable in snapshot generation"
 			case "sidecar":
 				writeNote(t, root, "System/slots/bad.yaml", "slug: bad\npatterns:\n  - id: p\n    template: '{A}'\n    gloss_zh: '{B}'\n")
@@ -328,7 +328,7 @@ func TestSnapshotWarningProducers(t *testing.T) {
 			}
 			f := newWarningFixture(t, root, func(s *warningSource) {
 				if name == "source" {
-					s.refuse["fault.txt"] = errors.New("refused source")
+					s.refuse["fault.html"] = errors.New("refused source")
 				}
 			})
 			for generation := range 3 {
@@ -344,7 +344,7 @@ func TestSnapshotWarningProducers(t *testing.T) {
 				}
 				switch name {
 				case "source":
-					if _, ok := gen.Entry("fault.txt"); !ok {
+					if _, ok := gen.Entry("fault.html"); !ok {
 						t.Fatal("refused source disappeared from scan")
 					}
 					if got := snapshotSearch(t, gen.Search(), "unreadablefilebody"); len(got) != 0 {
@@ -372,7 +372,7 @@ func TestSnapshotWarningProducers(t *testing.T) {
 				}
 				return
 			}
-			wantRecords := []map[string]any{{"level": "WARN", "msg": message, "path": "fault.txt", "error": "refused source"}}
+			wantRecords := []map[string]any{{"level": "WARN", "msg": message, "path": "fault.html", "error": "refused source"}}
 			if diff := cmp.Diff(wantRecords, warningRecords(t, f.logs.Bytes(), message)); diff != "" {
 				t.Fatalf("original source diagnostic attrs (-want +got):\n%s", diff)
 			}
@@ -406,26 +406,26 @@ func TestSnapshotWarningsCanceled(t *testing.T) {
 	for _, name := range []string{"new report", "partial recovery"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
-			writeNote(t, root, "a-fault.txt", "faultybody\n")
+			writeNote(t, root, "a-fault.html", "faultybody\n")
 			writeNote(t, root, "zz.md", "lastbody\n")
 			f := newWarningFixture(t, root, func(s *warningSource) {
 				if name == "partial recovery" {
-					s.refuse["a-fault.txt"] = errors.New("same refusal")
+					s.refuse["a-fault.html"] = errors.New("same refusal")
 				}
 			})
 			previous := f.store.Current()
 			fresh := previous.Freshness()
 			lastRebuild := f.store.lastRebuild
 			if name == "new report" {
-				f.source.refuse["a-fault.txt"] = errors.New("same refusal")
+				f.source.refuse["a-fault.html"] = errors.New("same refusal")
 			} else {
-				delete(f.source.refuse, "a-fault.txt")
+				delete(f.source.refuse, "a-fault.html")
 			}
 			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 			visited := false
 			f.source.beforeRead = func(_ context.Context, entry vault.Entry) {
-				if entry.Path() == "a-fault.txt" {
+				if entry.Path() == "a-fault.html" {
 					visited = true
 				}
 				if entry.Path() == "zz.md" {
@@ -445,7 +445,7 @@ func TestSnapshotWarningsCanceled(t *testing.T) {
 				t.Fatal("canceled attempt advanced the rebuild clock")
 			}
 			f.source.beforeRead = nil
-			f.source.refuse["a-fault.txt"] = errors.New("same refusal")
+			f.source.refuse["a-fault.html"] = errors.New("same refusal")
 			f.rescan(t)
 			if f.store.Current() == previous || !f.store.Current().Freshness().Complete {
 				t.Fatal("noncanceled control did not publish")
@@ -575,7 +575,7 @@ func TestSnapshotWarningProducerRecovery(t *testing.T) {
 	for _, name := range []string{"source", "sidecar"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
-			path, body, message := "fault.txt", "ordinarybody\n", "vault source unavailable in snapshot generation"
+			path, body, message := "fault.html", "ordinarybody\n", "vault source unavailable in snapshot generation"
 			wantChanged, wantRelapsed := 2, 3
 			if name == "sidecar" {
 				path, body, message = "System/slots/bad.yaml", "slug: bad\npatterns:\n  - id: p\n    template: '{A}'\n    gloss_zh: '{B}'\n", "slot sidecar unusable in snapshot generation"
@@ -609,8 +609,8 @@ func TestSnapshotWarningProducerRecovery(t *testing.T) {
 			}
 			switch name {
 			case "source":
-				if got := snapshotSearch(t, gen.Search(), "ordinarybody"); len(got) != 1 || got[0].RelPath != path {
-					t.Fatalf("recovered source search = %+v", got)
+				if !gen.Figure(path).Read {
+					t.Fatal("recovered source figure was not read")
 				}
 			case "sidecar":
 				if _, ok := gen.Slots().Lookup("bad"); !ok {
@@ -636,7 +636,7 @@ func TestSnapshotWarningScope(t *testing.T) {
 	for _, name := range []string{"root refusal", "scan refusal", "metadata fast path", "retry backoff"} {
 		t.Run(name, func(t *testing.T) {
 			root := t.TempDir()
-			path := "fault.txt"
+			path := "fault.html"
 			if name == "retry backoff" {
 				path = "fault.md"
 			}

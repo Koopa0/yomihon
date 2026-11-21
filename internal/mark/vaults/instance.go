@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"runtime"
-	"syscall"
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
@@ -69,7 +67,7 @@ func (s *Store) ReadInstance() (Instance, error) {
 // that nothing is running without asking the network.
 func (s *Store) Running() (Instance, bool) {
 	in, err := s.ReadInstance()
-	if err != nil || !processAlive(in.PID) {
+	if err != nil || !confdir.ProcessAlive(in.PID) {
 		return Instance{}, false
 	}
 	return in, true
@@ -93,23 +91,4 @@ func (s *Store) RemoveInstance(pid int) error {
 		return fmt.Errorf("remove the running instance: %w", err)
 	}
 	return nil
-}
-
-// processAlive says whether a process with the id exists. Signal 0 delivers
-// nothing and reports only whether it could be delivered; a process that is not
-// ours answers permission denied, which is still a process. Windows has no
-// such signal, and there a process that cannot be opened by id is gone.
-func processAlive(pid int) bool {
-	if pid < 1 {
-		return false
-	}
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	if runtime.GOOS == "windows" {
-		return process.Release() == nil
-	}
-	err = process.Signal(syscall.Signal(0))
-	return err == nil || errors.Is(err, syscall.EPERM)
 }

@@ -3,7 +3,6 @@ package vaults
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
@@ -13,21 +12,6 @@ import (
 
 // runtimeHasModes says whether file modes mean anything on this system.
 func runtimeHasModes() bool { return runtime.GOOS != "windows" }
-
-func TestProcessAliveKnowsThisProcessAndOneThatEnded(t *testing.T) {
-	t.Parallel()
-	if !processAlive(os.Getpid()) {
-		t.Error("this process was called gone")
-	}
-	if processAlive(deadPID(t)) {
-		t.Error("a process that has ended was called alive")
-	}
-	for _, pid := range []int{0, -1} {
-		if processAlive(pid) {
-			t.Errorf("processAlive(%d) = true", pid)
-		}
-	}
-}
 
 func TestARunningInstanceIsOneWhoseProcessIsStillThere(t *testing.T) {
 	t.Parallel()
@@ -100,7 +84,7 @@ func TestAnInstanceFileNothingCouldHaveWrittenIsNoInstance(t *testing.T) {
 	} {
 		config := t.TempDir()
 		s, _ := storeIn(t, config, nil)
-		if err := confdir.Replace(filepath.Join(config, "yomihon"), instanceFile, []byte(content)); err != nil {
+		if err := confdir.Replace(homeAt(t, config), instanceFile, []byte(content)); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := s.ReadInstance(); !errors.Is(err, ErrNoInstance) {

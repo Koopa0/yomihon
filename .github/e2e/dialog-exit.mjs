@@ -10,7 +10,7 @@
 // plain wikilink), and MUTATE. MUTATE=list prints every watched regression.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 const SEARCH = '[data-search]';
@@ -160,7 +160,7 @@ const MUTATIONS = {
   'restore-search-open-only': {
     target: 'search-exit-has-frames',
     apply: appendStylesheet(
-      '.y-searchdialog{transition:none;opacity:1;scale:none}.y-searchdialog[open]{transition:opacity 200ms,scale 200ms}',
+      '.y-searchsurface{transition:none;opacity:1;scale:none}.y-searchsurface[open]{transition:opacity 200ms,scale 200ms}',
     ),
   },
   'restore-sheet-open-only': {
@@ -196,7 +196,7 @@ const MUTATIONS = {
   'keep-exit-under-reduced-motion': {
     target: 'reduced-motion-cuts-through',
     apply: appendStylesheet(
-      '@media (prefers-reduced-motion: reduce){.yomihon .y-searchdialog,.yomihon .y-conceptsheet,.yomihon .y-preview{transition-duration:200ms!important}}',
+      '@media (prefers-reduced-motion: reduce){.yomihon .y-searchsurface,.yomihon .y-conceptsheet,.yomihon .y-preview{transition-duration:200ms!important}}',
     ),
   },
 };

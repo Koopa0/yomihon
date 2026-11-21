@@ -7,11 +7,11 @@
 // fixture does not acquire test-only content and both cases exercise the real
 // renderer, stylesheet, module request, and boot path.
 //
-// Env: YOMIHON_BASE (default http://127.0.0.1:9610), PAGE_PATH (a note page).
+// Env: YOMIHON_BASE (required), PAGE_PATH (a note page).
 // MUTATE names one self-test mode below; MUTATE=list prints them.
 import { chromium } from 'playwright-core';
 
-const BASE = process.env.YOMIHON_BASE || 'http://127.0.0.1:9610';
+import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
 const MUTATE = process.env.MUTATE || '';
 const DIAGRAM_SOURCE = 'graph TD\n  Alpha --> Beta';

@@ -36,7 +36,7 @@ var commandHelp = map[string]string{
 		"running, yomihon <dir> gives it the folder and prints the folder's address.\n" +
 		"\n" +
 		"A file larger than 1 MiB is not read as characters: the page names the\n" +
-		"bytes and search leaves it out. An in-place rewrite that keeps the same\n" +
+		"bytes. An in-place rewrite that keeps the same\n" +
 		"inode, mode, size and mtime can stay stale for about an hour; an ordinary\n" +
 		"save that changes size or mtime rebuilds at once.\n",
 	vaultsCommand: "Usage: yomihon " + vaultsCommand + " [--format json|human]\n" +

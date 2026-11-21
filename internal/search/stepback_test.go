@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/ui/pages"
+
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/lexical"
@@ -17,8 +19,8 @@ import (
 func TestStepBackCountIsNotBoundedByThePage(t *testing.T) {
 	t.Parallel()
 
-	docs := make([]lexical.Document, 0, searchPageSize+30)
-	for i := range searchPageSize + 30 {
+	docs := make([]lexical.Document, 0, pages.SearchStep+30)
+	for i := range pages.SearchStep + 30 {
 		docs = append(docs, lexical.Document{
 			RelPath:   fmt.Sprintf("臨床/n%03d.md", i),
 			Title:     fmt.Sprintf("Note %03d", i),
@@ -28,7 +30,7 @@ func TestStepBackCountIsNotBoundedByThePage(t *testing.T) {
 	idx := lexical.NewIndex(docs, schema.ArtifactPolicy{})
 
 	got := idx.StepBacks("furosemide zzznotpresent")
-	want := []lexical.StepBack{{Query: "furosemide", Count: searchPageSize + 30}}
+	want := []lexical.StepBack{{Query: "furosemide", Count: pages.SearchStep + 30}}
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("StepBacks() mismatch (-want +got):\n%s", diff)
 	}

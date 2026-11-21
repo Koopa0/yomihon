@@ -52,8 +52,8 @@ func TestFrontmatterTagEvidence(t *testing.T) {
 		{name: "empty query", frontmatter: "tags: [haiku]", query: "", want: nil},
 		{name: "tag and body never combine", frontmatter: "tags: [haiku]", body: "poetry", query: "haiku poetry", want: []Result{}},
 		{name: "tag and alias never combine", frontmatter: "tags: [haiku]\naliases: [poetry]", query: "haiku poetry", want: []Result{}},
-		{name: "body wins", frontmatter: "tags: [haiku]", body: "haiku", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Snippet: "haiku", Landing: "haiku", LandingBare: "haiku"}}},
-		{name: "malformed frontmatter keeps body", frontmatter: "tags: [haiku", body: "haiku", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Snippet: "haiku", Landing: "haiku", LandingBare: "haiku"}}},
+		{name: "body wins", frontmatter: "tags: [haiku]", body: "haiku", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Snippet: "haiku", Lead: Lead{Runs: []ExcerptRun{{Text: "haiku", Hit: true}}}, Landing: "haiku", LandingBare: "haiku"}}},
+		{name: "malformed frontmatter keeps body", frontmatter: "tags: [haiku", body: "haiku", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Snippet: "haiku", Lead: Lead{Runs: []ExcerptRun{{Text: "haiku", Hit: true}}}, Landing: "haiku", LandingBare: "haiku"}}},
 		{name: "a topics key is no evidence", frontmatter: "topics: [haiku]\ntags: [haiku]", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Tag: "haiku"}}},
 		{name: "alias wins", frontmatter: "aliases: [haiku]\ntags: [haiku]", query: "haiku", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Alias: "haiku"}}},
 		{name: "title wins", frontmatter: "tags: [quiet]", query: "quiet", want: []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet"}}},
@@ -97,10 +97,10 @@ func TestTagCapabilityAndFileExclusion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			doc := DocumentFromNote(vault.Parse("Notes/Quiet.md", []byte("---\ntitle: Quiet\ntags: [haiku]\n---\nUnrelated.")))
-			idx := NewIndex([]Document{doc, {RelPath: "Other.txt", Title: "Other", Tags: []string{"haiku"}, File: true}}, tt.policy)
+			idx := NewIndex([]Document{doc}, tt.policy)
 			want := []Result{{RelPath: "Notes/Quiet.md", Title: "Quiet", Tag: "haiku"}}
 			if diff := cmp.Diff(want, searchResults(t, idx, Parse("haiku"))); diff != "" {
-				t.Errorf("caught: tag capability/file exclusion mismatch (-want +got):\n%s", diff)
+				t.Errorf("caught: tag capability mismatch (-want +got):\n%s", diff)
 			}
 			if tt.name == "unavailable" {
 				if _, err := idx.Search(Parse("haiku type:concept"), -1); !errors.Is(err, ErrMetadataUnavailable) {

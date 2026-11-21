@@ -36,12 +36,12 @@ func (s *finalCancelSource) ScanAvailable(ctx context.Context) (vault.Scan, erro
 }
 
 func (s *finalCancelSource) ReadFile(ctx context.Context, entry vault.Entry) ([]byte, error) {
-	if entry.Path() == "A-fault.txt" && s.refuse {
+	if entry.Path() == "A-fault.html" && s.refuse {
 		s.refusalHits++
 		return nil, errors.New("unchanged refusal")
 	}
 	data, err := s.reader.ReadFile(ctx, entry)
-	if entry.Path() == "A-fault.txt" && !s.refuse && err == nil {
+	if entry.Path() == "A-fault.html" && !s.refuse && err == nil {
 		s.recoveryHits++
 	}
 	if s.cancel != nil && entry.Path() == s.last && err == nil {
@@ -61,7 +61,7 @@ func finalRefusalWarnings(t *testing.T, data []byte) int {
 		if err := json.Unmarshal(line, &record); err != nil {
 			t.Fatal(err)
 		}
-		if record["level"] == "WARN" && record["msg"] == "vault source unavailable in snapshot generation" && record["path"] == "A-fault.txt" {
+		if record["level"] == "WARN" && record["msg"] == "vault source unavailable in snapshot generation" && record["path"] == "A-fault.html" {
 			count++
 		}
 	}
@@ -71,7 +71,7 @@ func finalRefusalWarnings(t *testing.T, data []byte) int {
 func TestSnapshotWarningsFinalCancellation(t *testing.T) {
 	const last, body = "zz.md", "last body\n"
 	root := t.TempDir()
-	for path, data := range map[string]string{"A-fault.txt": "refused body\n", last: body} {
+	for path, data := range map[string]string{"A-fault.html": "refused body\n", last: body} {
 		full := filepath.Join(root, filepath.FromSlash(path))
 		if err := os.MkdirAll(filepath.Dir(full), 0o750); err != nil {
 			t.Fatal(err)

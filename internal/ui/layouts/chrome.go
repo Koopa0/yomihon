@@ -21,6 +21,10 @@ import (
 // the ones its own controls govern, along with their cookies. The
 // server-rendered page remains usable without enhancement.
 type Chrome struct {
+	// SearchQuery is the query a search page answers, written in the header's
+	// entry in place of its prompt so the page that holds the answer says what
+	// it was asked. Every other page leaves it empty.
+	SearchQuery string
 	// Title is the page's own title, which the tab shows before the vault's
 	// name. It is empty for the vault's own desk, which the tab names by the
 	// vault alone.

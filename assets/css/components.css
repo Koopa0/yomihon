@@ -1181,8 +1181,7 @@ html:not([data-js]) .y-rubybtn {
    the blanket motion kill reaches elements and ::before/::after, not this
    pseudo-element, so each fold is turned off by name. */
 .y-rail-left details::details-content,
-.y-toc-inline::details-content,
-.y-facets::details-content {
+.y-toc-inline::details-content {
   height: 0;
   interpolate-size: allow-keywords;
   overflow: clip;
@@ -1197,8 +1196,7 @@ html:not([data-js]) .y-rubybtn {
 }
 
 .y-rail-left details[open]::details-content,
-.y-toc-inline[open]::details-content,
-.y-facets[open]::details-content {
+.y-toc-inline[open]::details-content {
   height: auto;
 }
 
@@ -1439,13 +1437,8 @@ html:not([data-js]) .y-rubybtn {
   margin-right: auto;
 }
 
-.y-main > .y-healthpage {
+.y-main > :is(.y-healthpage, .y-searchpage) {
   margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2 + var(--gutter-read) - var(--gutter-list)));
-  margin-right: auto;
-}
-
-.y-main > .y-searchpage {
-  margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2 + var(--gutter-read) - var(--gutter-answer)));
   margin-right: auto;
 }
 
@@ -1470,7 +1463,8 @@ html:not([data-js]) .y-rubybtn {
    title, a figure and a status — so it is laid out wider than a paragraph, and
    the width is stated once for all of them rather than found again per page. */
 .y-healthpage,
-.y-home {
+.y-home,
+.y-searchpage {
   margin: 0 auto;
   max-width: calc(var(--measure-list) + 2 * var(--gutter-list));
   padding: 42px var(--gutter-list) 120px;
@@ -3286,40 +3280,34 @@ button.y-freshness__action {
 /* ============================================================
    The search field — one shape wherever it is asked for
    ============================================================ */
-/* Two places ask a reader to type a search: the search page and the palette
-   the keyboard opens. They are one field, so the height, the corner, the type
-   and the icon are written once here and each place adds only the ground it
-   sits on.
-
-   The resting line is an outline drawn inward rather than a border, so focus
-   can thicken it from one pixel to two and colour it without a single glyph
-   moving. That is the whole of the answer: the fields autofocus, and the
-   page-wide ring firing on every open is news the reader did not ask for, so
-   the ring stays off the input and the field around it carries the state —
-   the same outline every other control answers focus with, drawn where this
-   one already has a line. */
-.y-searchdialog__form,
+/* The field is the phone's: a wider window asks through the header, which
+   holds the query. A phone's page opens on the field alone, 44 high, with its
+   text at sixteen so the browser does not zoom the page to read one word. The
+   resting line is an outline drawn inward, so focus can thicken it without a
+   glyph moving. */
 .y-searchpage__form {
   align-items: center;
   border-radius: var(--r-sm);
-  display: flex;
+  display: none;
   gap: var(--sp-3);
   height: 44px;
+  margin-bottom: var(--sp-4);
   outline: 1px solid var(--outline);
   outline-offset: -1px;
-  padding: 0 var(--sp-3);
+  padding: 0 0 0 var(--sp-3);
 }
 
-.y-searchdialog__form:focus-within,
+@media (max-width: 720px) {
+  .y-searchpage__form {
+    display: flex;
+  }
+}
+
 .y-searchpage__form:focus-within {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 
-/* A phone zooms the page when it focuses an input set below its own body
-   size, which moves the whole layout to read one word. Sixteen pixels is
-   where that stops, and it is the size the typed query deserves anyway. */
-.y-searchdialog__input,
 .y-searchpage__form input {
   background: transparent;
   border: 0;
@@ -3331,323 +3319,55 @@ button.y-freshness__action {
   outline: 0;
 }
 
-.y-searchdialog__input:focus-visible,
 .y-searchpage__form input:focus-visible {
   outline: 0;
 }
 
-/* The browser's own clear control is drawn in the system's accent colour, which
-   is a blue nothing else in this interface uses. It keeps its place and its
-   behaviour; only the mark is redrawn, as a cross in the subtle ink. */
-.y-searchdialog__input::-webkit-search-cancel-button,
-.y-searchpage__form input::-webkit-search-cancel-button {
+/* The browser's own clear control is drawn in the system's accent colour, a
+   blue that belongs to the reader's marks and nothing else. Every field of the
+   search draws its own, from the close picture, in the secondary ink. */
+[data-live-search-input]::-webkit-search-cancel-button {
   appearance: none;
-  background: linear-gradient(45deg, transparent 43%, var(--fg-subtle) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--fg-subtle) 43% 57%, transparent 57%);
-  cursor: pointer;
-  height: 14px;
-  width: 14px;
+  display: none;
 }
 
-.y-searchdialog__input::-webkit-search-cancel-button:hover,
-.y-searchpage__form input::-webkit-search-cancel-button:hover {
-  background: linear-gradient(45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--fg) 43% 57%, transparent 57%);
+.y-searchpage__clear,
+.y-searchsurface__clear {
+  --icon-size: 16px;
+  align-items: center;
+  background: none;
+  border: 0;
+  color: var(--fg-muted);
+  display: inline-flex;
+  flex: none;
+  height: 44px;
+  justify-content: center;
+  width: 44px;
+}
+
+.y-searchpage__clear[hidden],
+.y-searchsurface__clear[hidden] {
+  display: none;
 }
 
 /* One glyph size for every way into search, the header's entry included. */
 .y-searchbtn svg,
-.y-searchdialog__form svg,
 .y-searchpage__form svg {
   flex: none;
   height: 16px;
   width: 16px;
 }
 
-/* The header's entry takes its ink from the control around it, which is why
-   it is not in this list. */
-.y-searchdialog__form svg,
 .y-searchpage__form svg {
   color: var(--fg-subtle);
-}
-
-.y-searchpage__form .y-xbtn {
-  flex: none;
-  height: 32px;
-  padding: 0 var(--sp-4);
-  width: auto;
-}
-
-/* What a reader came to look at is what they are looking for, so the query is
-   the largest text on the page: 28px in the reading face, which a phone does
-   not zoom for. The field grows to hold it, and a phone's width takes it down
-   a step so the button is still reached without scrolling sideways. */
-.y-searchpage__form {
-  height: auto;
-  min-height: 56px;
-  padding-block: var(--sp-1);
-}
-
-.y-searchpage__form input {
-  font-family: var(--font-serif);
-  font-size: 1.75rem;
-  line-height: 1.3;
-}
-
-@media (max-width: 600px) {
-  .y-searchpage__form input {
-    font-size: 1.375rem;
-  }
-}
-
-/* ============================================================
-   ⌘K search dialog (native <dialog>)
-   ============================================================ */
-.y-searchdialog {
-  border: none;
-  margin: 12vh auto auto;
-  max-width: 600px;
-  padding: 0;
-  width: min(600px, 92vw);
-}
-
-.y-searchdialog::backdrop {
-  background: var(--overlay-mask);
-}
-/* In the palette the field is the panel's head rather than a box inside it:
-   it spans the panel, and one hairline under it parts the question from the
-   answers. It is the only field there and it opens focused, so it draws no
-   ring; a reader who has moved focus elsewhere and back still sees where it
-   is, by the hairline under it turning to the line every focused field
-   draws, which colours the edge without moving a glyph. */
-.y-searchdialog__form,
-.y-searchdialog__form:focus-within {
-  border-radius: 0;
-  box-shadow: inset 0 -1px 0 var(--line);
-  height: 52px;
-  margin: 0;
-  outline: 0;
-  padding: 0 var(--sp-4);
-}
-
-.y-searchdialog__form:focus-within {
-  box-shadow: inset 0 -2px 0 var(--focus);
-}
-
-.y-searchdialog .y-live-search__status {
-  margin-inline: var(--sp-4);
-}
-/* The fragment still prints a count so /search names how many it found without
-   a script. The palette already announces that number in the live status, so
-   a second line here is the same fact in a second voice. */
-.y-searchdialog .y-results__count {
-  display: none;
-}
-
-.y-searchdialog .y-searchresults {
-  max-height: min(52vh, 480px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding: 0 var(--sp-2) var(--sp-3);
-}
-
-.y-searchdialog .y-results {
-  gap: 2px;
-  margin-top: var(--sp-3);
-}
-/* One step in from the page's row: the panel is a glance rather than a place
-   to read, and a shorter row puts more of the answer inside it. The row a
-   pointer is over, the one the keyboard has reached, and the one chosen with
-   the arrow keys all stand on the same faint wash, so the three ways of
-   pointing at a hit look like one. */
-.y-searchdialog .y-result {
-  border-bottom: 0;
-  padding: var(--sp-3);
-}
-
-.y-searchdialog .y-result:hover {
-  box-shadow: none;
-}
-
-.y-searchdialog .y-result:hover,
-.y-searchdialog .y-result:focus-visible,
-.y-searchdialog .y-result[aria-selected='true'] {
-  background: var(--wash);
-}
-
-.y-searchdialog .y-searchpage__empty {
-  margin: var(--sp-4) var(--sp-3) var(--sp-2);
-}
-
-.y-searchdialog__foot {
-  align-items: center;
-  background: var(--elevated);
-  color: var(--fg-muted);
-  display: flex;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  gap: var(--sp-4);
-  padding: var(--sp-3) var(--sp-4);
 }
 
 /* ============================================================
    Lexical search results — shared by the full page and ⌘K panel
    ============================================================ */
 /* ============================================================
-   The answer shell
+   The search status line
    ============================================================ */
-/* What a search comes back as. The results are read as prose and take a
-   measure of their own, and at the widths where there is room the divisions
-   the answer is made of stand in a narrow column beside them rather than
-   above. The column and the space before it are named here once: the page's
-   own width is the measure plus both of them, so the two figures cannot be
-   stated in one place and forgotten in the other. */
-.y-searchpage {
-  --facet-column: 192px;
-  --facet-gap: 28px;
-  margin: 0 auto;
-  max-width: calc(var(--measure-answer) + 2 * var(--gutter-answer));
-  padding: var(--sp-7) var(--gutter-answer) var(--sp-9);
-}
-
-/* The divisions beside the results. The page's own column is a reading
-   measure, so the answer and what it is made of are laid out as a pair rather
-   than by squeezing one into the other: the results keep the measure and the
-   divisions take a narrow column of their own.
-
-   The column is a <details> in the markup and stays one here at the widths
-   where there is no room for a second column — a list of values standing above
-   the results would push them off the first screen of a phone. Where the pair
-   fits, the fold is held open and the control that closes it is taken away,
-   since a fold nobody can close is a heading with a triangle beside it. Both
-   halves of that are inside @supports: an engine that cannot hold the fold open
-   keeps its summary, and the reader opens the column themselves, rather than
-   being left with a region they can neither see nor reach. */
-.y-facets {
-  margin: var(--sp-5) 0 0;
-}
-
-.y-facets__summary {
-  align-items: center;
-  color: var(--fg-muted);
-  display: flex;
-  font-size: var(--fs-13);
-  gap: var(--sp-1);
-  padding: var(--sp-2) var(--sp-1);
-}
-
-.y-facets__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-  padding: var(--sp-2) var(--sp-1) 0;
-}
-
-.y-facetgroup__head {
-  color: var(--fg-muted);
-  font-family: var(--font-sans);
-  font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
-  margin: 0 0 var(--sp-1);
-}
-
-.y-facetlist {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.y-facetrow {
-  align-items: baseline;
-  border-radius: var(--r-sm);
-  color: var(--fg-muted);
-  display: flex;
-  font-size: var(--fs-13);
-  gap: var(--sp-2);
-  margin-inline: calc(-1 * var(--sp-2));
-  padding: var(--sp-1) var(--sp-2);
-}
-/* stylelint-disable-next-line selector-no-qualifying-type -- an empty facet
-   query renders this class on a span, not an anchor, so it has nothing to
-   hover; the type keeps the highlight on the row that is actually clickable. */
-a.y-facetrow:hover {
-  background: var(--overlay);
-  color: var(--fg);
-}
-
-.y-facetrow__label {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-/* The count is machinery, so it is set in the machinery's face, and it is
-   aligned on its own edge so a column of them reads as a column. */
-.y-facetrow__count {
-  color: var(--fg-muted);
-  flex: none;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-variant-numeric: tabular-nums;
-}
-/* A value already in the query leads back out of it, so it is marked as
-   standing rather than as somewhere to go: selected, the one way the interface
-   draws a choice. */
-.y-facetrow--active {
-  background: var(--selected);
-  color: var(--on-selected);
-  font-weight: var(--fw-semibold);
-}
-/* A row with nothing to ask for is a cell, and reads as one. */
-.y-facetrow--quiet {
-  color: var(--fg-muted);
-}
-
-/* The pair appears only where both halves can have their own width. The
-   results keep the measure they have always had — the column is added beside
-   the page rather than taken out of it, so the page grows by exactly the
-   column and the gap and a line of prose is the same length it was. Below this
-   the page is its old self with a fold above the results. */
-@media (width >= 1280px) {
-  .y-searchpage {
-    max-width: calc(var(--measure-answer) + var(--facet-gap) + var(--facet-column) + 2 * var(--gutter-answer));
-  }
-
-  .y-searchpage .y-searchresults {
-    align-items: start;
-    display: grid;
-    gap: var(--facet-gap);
-    grid-template-columns: minmax(0, 1fr) var(--facet-column);
-  }
-
-  .y-searchpage .y-facets {
-    margin: 0;
-    order: 2;
-    position: sticky;
-    top: 24px;
-  }
-
-  .y-searchpage .y-searchresults__body {
-    min-width: 0;
-    order: 1;
-  }
-  @supports selector(::details-content) {
-    .y-searchpage .y-facets > summary {
-      display: none;
-    }
-
-    .y-searchpage .y-facets::details-content {
-      block-size: auto;
-      content-visibility: visible;
-    }
-  }
-}
-/* The palette asks the same route for the same rows and has no column to put a
-   division in, so it never asks for one; nothing here paints one out. */
-.y-searchpage__form {
-  background: var(--panel);
-  margin-bottom: var(--sp-4);
-}
 /* The count line prints the query back, and a query can be one run with
    nowhere to break — the same thing that used to carry the notice below it off
    the side of a phone. It takes the same last-resort break, or a reader on a
@@ -3705,73 +3425,21 @@ a.y-facetrow:hover {
 .y-searchpage__empty p {
   margin: 0;
 }
-
-.y-searchpage__emptylede {
-  margin-top: var(--sp-2);
-}
 /* The grammar sits under the sentence, quieter than it. */
 .y-searchpage__empty .y-searchpage__hint {
   color: var(--fg-muted);
   font-size: var(--fs-12);
   margin-top: var(--sp-4);
 }
-/* An answer is a shelf of its own, so its rows are the shelf's rows: the same
-   inset, and nothing drawn around any one of them and no line between them.
-   What a list of findings needs is a place for the eye to stop between one and
-   the next, and the room each hit is given does that. The row is taller than a
-   shelf row because it carries a sentence under its title as well as a path. */
-.y-results {
-  display: flex;
-  flex-direction: column;
-  margin: var(--sp-5) 0 0;
-}
-
-/* A hit's words start under the field's own edge, and the wash a pointer
-   brings reaches past it, as a shelf row's does. */
-.y-result {
-  border-radius: var(--r-sm);
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-1);
-  padding: var(--sp-4) 0;
-}
-
-.y-result__title {
-  color: var(--fg);
-  font-family: var(--font-serif);
-  font-size: var(--fs-ed-17);
-  transition: color var(--dur-base) var(--ease-standard);
-}
-
-.y-result__meta {
-  color: var(--fg-muted);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-  overflow-wrap: anywhere;
-}
 
 .y-result__sep {
   margin: 0 var(--sp-2);
-}
-
-.y-result__meta .ui-status {
-  margin-inline-start: var(--sp-2);
 }
 
 .y-result__kind {
   color: var(--fg-muted);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-}
-
-/* Half the snippets on this page are Chinese, and Chinese prose needs the
-   reading leading rather than the interface's. */
-.y-result__snippet {
-  color: var(--fg-subtle);
-  font-family: var(--font-serif);
-  font-size: var(--fs-13);
-  line-height: var(--lh-read);
-  overflow-wrap: anywhere;
 }
 
 /* ============================================================
@@ -4765,7 +4433,6 @@ a.y-facetrow:hover {
 }
 
 .y-row:hover,
-.y-result:hover,
 .y-modeblock .ui-navitem:hover {
   background: var(--wash);
   box-shadow: calc(-1 * var(--bleed)) 0 0 var(--wash), var(--bleed) 0 0 var(--wash);
@@ -5525,14 +5192,6 @@ a.y-facetrow:hover {
   }
 }
 
-/* What the reader can do next sits under the sentence, quieter than it. */
-.y-nothing__says .y-nothing__hint {
-  color: var(--fg-muted);
-  font-size: var(--fs-12);
-  line-height: var(--lh-normal);
-  margin-top: var(--sp-4);
-}
-
 .y-nothing--fault {
   background: var(--warn-bg);
   border-radius: var(--r-lg);
@@ -5583,12 +5242,6 @@ a.y-facetrow:hover {
 
 .y-homeblock--faults .y-homeempty {
   color: var(--fg-muted);
-}
-
-/* The palette is a floating box rather than a page, and the notice sits inside
-   its own padding. */
-.y-searchdialog .y-nothing {
-  margin: var(--sp-4) var(--sp-3) var(--sp-2);
 }
 
 .y-syl-kicker {
@@ -6153,8 +5806,7 @@ pre,
 samp,
 .y-fileinfo__list dd,
 .y-findings__path,
-.y-notefacts__path,
-.y-result__meta {
+.y-notefacts__path {
   text-autospace: no-autospace;
 }
 
@@ -6232,28 +5884,6 @@ samp,
     box-shadow: 0 0 0 6px transparent;
   }
 }
-
-/* Top-layer open and close. The transition lives on the element, not on
-   [open]: removing the open state used to drop the declaration, so the
-   exit had nowhere to live and the surface vanished mid-curve. display
-   and overlay stay in the list with allow-discrete so the element remains
-   on the top layer while it fades; display alone would keep painting
-   frames after it had already left, behind the backdrop.
-   The palette answers a press in place, so it comes forward from its top
-   edge, a little small and faint and growing into place, and leaves the same
-   way back. */
-.y-searchdialog {
-  opacity: 0;
-  scale: 0.98;
-  transform-origin: top;
-  transition: display var(--dur-slow) var(--ease-standard), overlay var(--dur-slow) var(--ease-standard), opacity var(--dur-slow) var(--ease-standard), scale var(--dur-slow) var(--ease-standard);
-  transition-behavior: allow-discrete;
-}
-
-.y-searchdialog[open] {
-  opacity: 1;
-  scale: none;
-}
 /* The sheet is held against the right edge of the window, so it arrives from
    there: a short travel inward beside the fade, which says where the panel
    came from and where the close control on that same edge sends it back to.
@@ -6271,11 +5901,6 @@ samp,
   transform: none;
 }
 @starting-style {
-  .y-searchdialog[open] {
-    opacity: 0;
-    scale: 0.98;
-  }
-
   .y-conceptsheet[open] {
     opacity: 0;
     transform: translateX(16px);
@@ -6615,7 +6240,8 @@ samp,
   }
 
   .y-healthpage,
-  .y-home {
+  .y-home,
+  .y-searchpage {
     padding: var(--sp-6) var(--gutter-list) 120px;
   }
 
@@ -6759,7 +6385,6 @@ samp,
      keeps a frame in the system's text colour. */
   .ui-navitem[aria-current='page'],
   .ui-navitem.is-active,
-  .y-facetrow--active,
   .y-pager__page[aria-current='page'],
   .y-ttsbar button[aria-pressed='true'],
   .y-order button[aria-pressed='true'],
@@ -6810,8 +6435,7 @@ samp,
   }
 
   .y-rail-left details::details-content,
-  .y-toc-inline::details-content,
-  .y-facets::details-content {
+  .y-toc-inline::details-content {
     transition: none;
   }
 }
@@ -6921,7 +6545,6 @@ samp,
   .y-related,
   .y-margin,
   .y-predict,
-  .y-searchdialog,
   .y-nav-scrim,
   .y-skiplink,
   .y-preview,
@@ -6931,7 +6554,6 @@ samp,
   .y-cellspeak,
   .y-slotcontrols,
   .y-slotactions,
-  .y-facets,
   .y-pager,
   .y-months {
     display: none !important;
@@ -8952,4 +8574,529 @@ samp,
   mask-repeat: no-repeat;
   mask-size: 100% 100%;
   width: 64px;
+}
+
+/* ============================================================
+   Search — the results page, the dropdown under a field, and the
+   phone's full-screen surface. Hits are set heavier, not washed:
+   a page of hits is mostly marks, and a wash on each makes the page
+   a texture.
+   ============================================================ */
+.y-searchpage__title {
+  margin-bottom: var(--sp-4);
+}
+
+.y-found mark,
+.y-sp mark {
+  background: none;
+  color: var(--fg);
+  font-weight: var(--fw-semibold);
+}
+
+.y-countline--search {
+  margin-bottom: var(--sp-4);
+}
+
+.y-countline--search .y-results__count {
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+.y-searchfilters {
+  display: grid;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-5);
+}
+
+.y-searchfilter {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-4);
+}
+
+.y-searchfilter__label {
+  color: var(--fg-muted);
+  flex: none;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-semibold);
+  min-width: 3em;
+}
+
+.y-searchfilter .y-seg {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.y-seg__count {
+  color: var(--fg-subtle);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+  margin-inline-start: var(--sp-1);
+}
+
+.y-seg a[aria-pressed='true'] .y-seg__count {
+  color: inherit;
+}
+
+.y-searchfilter__select {
+  background: var(--bg);
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  display: none;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  min-height: 44px;
+  padding-inline: var(--sp-3);
+}
+
+.y-found {
+  border-top: 1px solid var(--line-strong);
+  display: grid;
+  gap: var(--sp-6);
+  list-style: none;
+  margin: 0;
+  padding: var(--sp-6) 0 0;
+}
+
+.y-found__item {
+  color: inherit;
+  display: grid;
+  gap: var(--sp-1);
+  text-decoration: none;
+}
+
+.y-found__title {
+  color: var(--fg);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-20);
+  line-height: 32px;
+  overflow-wrap: anywhere;
+}
+
+.y-found__item:hover .y-found__title {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.y-found__lead {
+  -webkit-box-orient: vertical;
+  color: var(--fg-muted);
+  display: -webkit-box;
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-15);
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  line-height: 28px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.y-found__lead--code {
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  font-variant-ligatures: none;
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+.y-found__narrow {
+  display: none;
+}
+
+.y-found__where {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+}
+
+.y-found__where .y-result__sep {
+  margin: 0 var(--sp-1);
+}
+
+.y-found__date {
+  color: var(--fg-faint);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+}
+
+.y-more {
+  align-items: center;
+  display: flex;
+  gap: var(--sp-4);
+  margin-top: var(--sp-7);
+}
+
+.y-more__button {
+  align-items: center;
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  display: inline-flex;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  min-height: 44px;
+  padding-inline: var(--sp-4);
+  text-decoration: none;
+}
+
+.y-more__button:hover {
+  background: var(--selected);
+}
+
+.y-more__tally {
+  color: var(--fg-subtle);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-variant-numeric: tabular-nums;
+}
+
+.y-searchnone {
+  font-family: var(--font-sans);
+  margin-top: var(--sp-6);
+}
+
+.y-searchnone__near {
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+  line-height: 28px;
+  margin: 0 0 var(--sp-4);
+}
+
+.y-searchnone__near a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.y-searchnone__hint {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  line-height: var(--lh-normal);
+  margin: 0 0 var(--sp-3);
+}
+
+.y-searchnone__way {
+  font-size: var(--fs-14);
+  margin: 0;
+}
+
+.y-searchnone__way a {
+  color: var(--fg);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.y-recent__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* The few rows under a field. The panel's own box — where it hangs, how wide
+   it is, its ground and its shadow — belongs to the header; what is inside it
+   is drawn here, and is the same on the phone's surface. */
+.y-sp {
+  font-family: var(--font-sans);
+  padding-block: var(--sp-2);
+}
+
+.y-sp__row {
+  align-items: baseline;
+  border-radius: var(--r-sm);
+  color: var(--fg);
+  display: flex;
+  gap: var(--sp-4);
+  min-height: 44px;
+  padding: var(--sp-2) var(--sp-4);
+  text-decoration: none;
+}
+
+.y-sp__row:hover,
+.y-sp__row[data-current],
+.y-sp__all[data-current] {
+  background: var(--selected);
+  color: var(--on-selected);
+}
+
+.y-sp__title {
+  flex: 1 1 auto;
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-17);
+  line-height: 28px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.y-sp__where {
+  color: var(--fg-muted);
+  flex: none;
+  font-size: var(--fs-13);
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.y-sp__row[data-current]::after {
+  color: var(--fg-muted);
+  content: '↵';
+  flex: none;
+  font-size: var(--fs-12);
+}
+
+/* A folder's row leads with its picture, sixteen in a cell of twenty, and the
+   name and the count both stand in from the row's edge by the cell and its gap. */
+.y-sp__row--folder {
+  align-items: baseline;
+  column-gap: var(--sp-2);
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) max-content;
+}
+
+.y-sp__row--folder .y-sp__where {
+  max-width: none;
+}
+
+.y-sp__icon {
+  --icon-size: 16px;
+  align-self: center;
+  color: var(--fg-muted);
+  display: flex;
+  justify-content: center;
+}
+
+.y-sp__all {
+  border-top: 1px solid var(--line);
+  color: var(--fg);
+  display: block;
+  font-size: var(--fs-14);
+  margin-top: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  text-decoration: none;
+}
+
+.y-sp__status {
+  color: var(--fg-muted);
+  font-size: var(--fs-14);
+  margin: 0;
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.y-sp .y-recent {
+  padding-inline: var(--sp-4);
+}
+
+.y-searchsurface .y-sp .y-recent,
+.y-searchsurface .y-sp__row,
+.y-searchsurface .y-sp__all,
+.y-searchsurface .y-sp__status {
+  padding-inline: var(--gutter-phone);
+}
+
+/* The dialog is a box under the top of the window where there is room for
+   one, and the phone's whole screen where there is not. */
+.y-searchsurface {
+  background: var(--panel);
+  color: var(--fg);
+  margin: 12vh auto auto;
+  max-height: 70vh;
+  max-width: 600px;
+  overflow: hidden;
+  padding: 0;
+  width: min(600px, 92vw);
+}
+
+.y-searchsurface::backdrop {
+  background: var(--overlay-mask);
+}
+
+@media (width <= 720px) {
+  .y-searchsurface {
+    background: var(--bg);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    height: 100dvh;
+    inset: 0;
+    margin: 0;
+    max-height: none;
+    max-width: none;
+    width: 100vw;
+  }
+}
+
+.y-searchsurface {
+  opacity: 0;
+  transition: display var(--dur-slow) var(--ease-standard), overlay var(--dur-slow) var(--ease-standard), opacity var(--dur-slow) var(--ease-standard);
+  transition-behavior: allow-discrete;
+}
+
+.y-searchsurface[open] {
+  display: flex;
+  flex-direction: column;
+  opacity: 1;
+}
+
+@starting-style {
+  .y-searchsurface[open] {
+    opacity: 0;
+  }
+}
+
+.y-searchsurface__bar {
+  align-items: center;
+  background: var(--panel);
+  display: flex;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--gutter-phone);
+}
+
+.y-searchsurface__field {
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--outline);
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  display: flex;
+  flex: 1;
+  gap: var(--sp-2);
+  height: 44px;
+  min-width: 0;
+  padding-inline: var(--sp-3) 0;
+}
+
+.y-searchsurface__field:focus-within {
+  border-color: var(--fg);
+  box-shadow: 0 0 0 1px var(--fg);
+}
+
+.y-searchsurface__field input {
+  background: none;
+  border: 0;
+  color: var(--fg);
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: var(--fs-16);
+  min-width: 0;
+  outline: 0;
+}
+
+.y-searchsurface__field input:focus-visible {
+  outline: 0;
+}
+
+.y-searchsurface .y-live-search__status {
+  clip-path: inset(50%);
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.y-searchsurface__cancel {
+  background: none;
+  border: 0;
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  min-height: 44px;
+  padding-inline: var(--sp-2);
+}
+
+.y-searchsurface__panel {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* On the phone's surface a touch has no current row, so nothing is washed ahead
+   of the reader, and a row says what it is on two lines. The box a wider window
+   gets keeps the dropdown's rows: one line, and the current row for the keyboard. */
+@media (width <= 720px) {
+  .y-searchsurface .y-sp__row {
+    display: grid;
+    gap: 2px;
+  }
+
+  .y-searchsurface .y-sp__row[data-current],
+  .y-searchsurface .y-sp__all[data-current] {
+    background: none;
+    color: var(--fg);
+  }
+
+  .y-searchsurface .y-sp__row[data-current]::after {
+    content: none;
+  }
+
+  .y-searchsurface .y-sp__title {
+    -webkit-box-orient: vertical;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+  }
+
+  .y-searchsurface .y-sp__where {
+    max-width: none;
+  }
+
+  .y-searchsurface .y-sp__row--folder {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .y-searchsurface .y-sp__row--folder .y-sp__icon {
+    grid-row: 1 / span 2;
+  }
+
+  .y-searchsurface .y-sp__row--folder .y-sp__title,
+  .y-searchsurface .y-sp__row--folder .y-sp__where {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 720px) {
+  .y-searchpage__title {
+    clip-path: inset(50%);
+    height: 1px;
+    margin: 0;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
+  .y-found__title {
+    font-size: var(--fs-ed-17);
+    line-height: 28px;
+  }
+
+  .y-found__lead {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .y-found__wide {
+    display: none;
+  }
+
+  .y-found__narrow {
+    display: inline;
+  }
+
+  .y-seg--wide {
+    display: none;
+  }
+
+  .y-searchfilter__select {
+    display: block;
+  }
 }

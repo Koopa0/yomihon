@@ -117,6 +117,7 @@ func buildRegistry() map[string]entry {
 		"diagrams.js",
 		"lesson.js",
 		"list.js",
+		"recent.js",
 		"mark.js",
 		"preview.js",
 		"thought.js",

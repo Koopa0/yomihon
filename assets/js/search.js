@@ -1,28 +1,38 @@
-// Live lexical results and the native search dialog. Every surface remains an
-// ordinary GET form; this module only updates results while the reader types.
+// Live search. Three surfaces share one mechanism: the search page, whose
+// results are a list; a field's dropdown, whose panel opens under it; and the
+// phone's full-screen surface, a dialog whose panel is always open. Each is an
+// ordinary GET form that works without this module; the module only answers
+// while the reader types.
+import { fillRecent, recentSearches } from './recent.js';
+
 export function initSearch() {
   const delay = 180;
 
-  // What a region has to be asked when it is shown again. A dialog keeps its
+  // What a surface has to be asked when it is shown again. A dialog keeps its
   // rows while it is closed, so this is registered per region and run from the
   // one place that opens one.
   const onReopen = new Map();
+  // The fields that open a dropdown, for the ones that ask whether one is open
+  // or want to open one.
+  const fields = [];
 
   document.querySelectorAll('[data-live-search]').forEach((region) => {
     const form = region.querySelector('[data-live-search-form]');
     const input = region.querySelector('[data-live-search-input]');
-    const results = region.querySelector('[data-live-search-results]');
+    const panel = region.querySelector('[data-live-search-panel]');
+    const target = panel ?? region.querySelector('[data-live-search-results]');
     const status = region.querySelector('[data-live-search-status]');
     const endpoint = region.getAttribute('data-live-search-endpoint');
-    if (!form || !input || !results || !status || !endpoint) return;
+    if (!form || !input || !target || !endpoint) return;
 
     const endpointURL = new URL(endpoint, location.href);
     if (endpointURL.origin !== location.origin) return;
 
-    // The search page marks itself as the one region whose results the
-    // address bar describes; the dialog never does, because it floats over
-    // pages whose address it does not own. form.action is the no-JS truth,
-    // so the synced URL is exactly what submitting the form would produce.
+    const isDialog = region.tagName === 'DIALOG';
+    // The search page marks itself as the one region whose results the address
+    // bar describes; the others float over pages whose address they do not
+    // own. form.action is the no-JS truth, so the synced URL is exactly what
+    // submitting the form would produce.
     const formURL = new URL(form.action, location.href);
     const syncsAddress =
       region.hasAttribute('data-live-search-sync-url') && formURL.origin === location.origin;
@@ -31,9 +41,19 @@ export function initSearch() {
     let activeController = null;
     let latestRequest = 0;
     let composing = false;
-    // Told whenever the rows stop being the ones a choice was made among. Only
-    // the palette makes choices; elsewhere there is nothing to forget.
-    let rowsChanged = () => {};
+
+    const rows = () => [...target.querySelectorAll('[data-live-search-row]')];
+    const currentRow = () => target.querySelector('[data-current]');
+
+    // The row Enter opens. The first is current while the reader is typing a
+    // query; with the field empty nothing is, so Enter does nothing.
+    function setCurrent(row) {
+      for (const other of rows()) {
+        if (other === row) other.setAttribute('data-current', '');
+        else other.removeAttribute('data-current');
+      }
+      row?.scrollIntoView({ block: 'nearest' });
+    }
 
     function cancelPending() {
       clearTimeout(timer);
@@ -41,14 +61,33 @@ export function initSearch() {
       latestRequest += 1;
       activeController?.abort();
       activeController = null;
-      results.setAttribute('aria-busy', 'false');
+      target.setAttribute('aria-busy', 'false');
     }
 
-    function clearResults() {
-      results.replaceChildren();
-      results.dataset.resultCount = '0';
-      status.textContent = '';
-      rowsChanged();
+    // Written by the server hidden, shown when the reader has recent searches.
+    function showRecent() {
+      let any = 0;
+      for (const section of target.querySelectorAll('[data-recent-searches]')) {
+        any += fillRecent(section);
+        section.querySelector('[data-recent-clear]')?.addEventListener('click', () => {
+          recentSearches.clear();
+          fillRecent(section);
+          afterRender();
+        });
+      }
+      return any;
+    }
+
+    function afterRender() {
+      const typed = input.value.trim() !== '';
+      const recent = showRecent();
+      if (panel) {
+        const first = rows()[0];
+        setCurrent(typed ? first : null);
+        // A dropdown under a field with nothing typed and nothing remembered
+        // has nothing to say, so it is not drawn.
+        if (!isDialog) panel.hidden = !typed && recent === 0;
+      }
     }
 
     // The rows left on screen answer whichever query last reached the region.
@@ -56,23 +95,32 @@ export function initSearch() {
     // read as an answer to what is in the box now, so the set is made to say
     // which query it does answer. The sentence travels with the rows, written
     // by the server that answered them, and stays hidden while they are still
-    // the current answer.
-    //
-    // Assigned, never merely revealed: a reader who types their way back to the
-    // query these rows do answer has stopped looking at an earlier answer, and
-    // being told otherwise is the same false claim in the other direction. Both
-    // sides are trimmed, because the field drops the padding an address can
-    // carry and the same search must not read as two.
+    // the current answer. Both sides are trimmed, because the field drops the
+    // padding an address can carry and the same search must not read as two.
     function markStaleNote(query) {
-      const note = results.querySelector('[data-live-search-stale]');
+      const note = target.querySelector('[data-live-search-stale]');
       if (note) note.hidden = (note.dataset.liveSearchStale ?? '').trim() === query;
     }
 
-    async function refresh(query, requestID) {
+    // What the page keeps of the reader's reading of an answer while they type:
+    // the order, not the narrowing, which belonged to the words before.
+    function pageParams(query) {
+      const params = new URLSearchParams({ q: query });
+      const sort = new URLSearchParams(location.search).get('sort');
+      if (syncsAddress && sort && query) params.set('sort', sort);
+      return params;
+    }
+
+    // ask fetches the fragment for these parameters and writes it into the
+    // region. The request is the only one in flight: asking again abandons the
+    // one before.
+    async function ask(params, requestID) {
       const requestController = new AbortController();
       activeController = requestController;
       const url = new URL(endpointURL);
-      url.searchParams.set('q', query);
+      for (const [name, value] of params) url.searchParams.set(name, value);
+      if (panel) url.searchParams.set('shape', 'panel');
+      const query = (params.get('q') ?? '').trim();
 
       try {
         const response = await fetch(url, {
@@ -90,56 +138,84 @@ export function initSearch() {
         if (requestID !== latestRequest) return;
 
         const imported = document.importNode(fragment, true);
-        results.replaceChildren(...imported.childNodes);
-        results.dataset.resultCount = String(count);
-        rowsChanged();
-        status.textContent = resultCount(status, query, count);
+        if (panel) {
+          panel.replaceChildren(imported);
+        } else {
+          target.replaceChildren(...imported.childNodes);
+          target.dataset.resultCount = String(count);
+        }
+        afterRender();
+        if (status) status.textContent = resultCount(status, query, count);
         if (syncsAddress) {
           // The results on screen just changed, so the address follows and a
           // copied URL reproduces them. Replaced, not pushed: typing is one
           // continuing search, not a trail of history entries.
           const address = new URL(formURL);
-          address.searchParams.set('q', query);
+          for (const [name, value] of params) if (value) address.searchParams.set(name, value);
           history.replaceState(history.state, '', address);
         }
       } catch (error) {
         if (error.name === 'AbortError' || requestID !== latestRequest) return;
-        status.textContent = status.dataset.liveSearchOffline ?? '';
+        if (status) status.textContent = status.dataset.liveSearchOffline ?? '';
         markStaleNote(query);
       } finally {
         if (requestID === latestRequest) {
-          results.setAttribute('aria-busy', 'false');
+          target.setAttribute('aria-busy', 'false');
           if (activeController === requestController) activeController = null;
         }
       }
     }
 
-    function schedule() {
+    function schedule(now = false) {
       clearTimeout(timer);
       const query = input.value.trim();
       const requestID = ++latestRequest;
       activeController?.abort();
       activeController = null;
-      if (!query) {
+      target.setAttribute('aria-busy', 'true');
+      const run = () => {
         timer = null;
-        results.setAttribute('aria-busy', 'false');
-        clearResults();
-        // A local clear is a successful empty answer: the address must
-        // drop the query the results no longer show, or a reload brings
-        // it back. The dialog never sets the marker, so a note under
-        // the palette keeps its own URL.
-        if (syncsAddress) {
-          history.replaceState(history.state, '', new URL(formURL));
-        }
-        return;
-      }
-
-      results.setAttribute('aria-busy', 'true');
-      timer = setTimeout(() => {
-        timer = null;
-        refresh(query, requestID);
-      }, delay);
+        ask(pageParams(query), requestID);
+      };
+      if (now) run();
+      else timer = setTimeout(run, delay);
     }
+
+    // A choice on the page — an order, a kind, a place, the way on — asks the
+    // same endpoint for the same answer read another way, and the list is
+    // rewritten in place so the reader keeps their scroll.
+    function readAnother(href) {
+      const params = new URL(href, location.href).searchParams;
+      cancelPending();
+      const requestID = ++latestRequest;
+      target.setAttribute('aria-busy', 'true');
+      ask(params, requestID);
+    }
+
+    if (!panel) {
+      target.addEventListener('click', (event) => {
+        const choice = event.target.closest?.('[data-search-choice]');
+        if (!choice || event.metaKey || event.ctrlKey || event.shiftKey) return;
+        event.preventDefault();
+        readAnother(choice.getAttribute('href'));
+      });
+      target.addEventListener('change', (event) => {
+        const select = event.target.closest?.('[data-search-select]');
+        if (select) readAnother(select.value);
+      });
+    }
+
+    // Following a result or a panel row is the reader having searched for what
+    // is in the field; a recent search is remembered as itself.
+    region.addEventListener('click', (event) => {
+      const row = event.target.closest?.('[data-live-search-row], .y-found__item');
+      if (!row || !target.contains(row)) return;
+      recentSearches.add(row.dataset.recentQuery ?? input.value);
+    });
+    form.addEventListener('submit', () => {
+      recentSearches.add(input.value);
+      cancelPending();
+    });
 
     input.addEventListener('compositionstart', () => {
       composing = true;
@@ -150,53 +226,118 @@ export function initSearch() {
       schedule();
     });
     input.addEventListener('input', () => {
-      rowsChanged();
       if (!composing) schedule();
     });
-    form.addEventListener('submit', cancelPending);
-    if (region.tagName === 'DIALOG') {
+
+    if (panel) {
+      const field = { region, input, panel, isDialog };
+      if (!isDialog) fields.push(field);
+
+      input.setAttribute('role', 'combobox');
+      input.setAttribute('aria-autocomplete', 'list');
+      if (!panel.id) panel.id = `_y-search-panel-${fields.length}-${isDialog ? 'd' : 'f'}`;
+      input.setAttribute('aria-controls', panel.id);
+
+      // Focus stays in the field, where the reader is typing. A press on the
+      // panel is kept from taking it, so the row that was pressed is followed
+      // rather than the panel being closed from under the press.
+      panel.addEventListener('pointerdown', (event) => event.preventDefault());
+
+      input.addEventListener('keydown', (event) => {
+        // A key that is still part of composing a word belongs to the input method.
+        if (event.isComposing) return;
+        const found = rows();
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          if (found.length === 0) return;
+          event.preventDefault();
+          const at = found.indexOf(currentRow());
+          const step = event.key === 'ArrowDown' ? 1 : -1;
+          const start = step > 0 ? -1 : found.length;
+          setCurrent(found[(((at < 0 ? start : at) + step) % found.length + found.length) % found.length]);
+        } else if (event.key === 'Enter' && !event.shiftKey) {
+          const row = currentRow();
+          if (row) {
+            event.preventDefault();
+            row.click();
+          } else if (input.value.trim() === '') {
+            // An empty field has nothing to search for.
+            event.preventDefault();
+          }
+        } else if (event.key === 'Enter' && event.shiftKey) {
+          event.preventDefault();
+          form.requestSubmit();
+        }
+      });
+
+      if (!isDialog) {
+        input.addEventListener('focus', () => schedule(true));
+        region.addEventListener('focusout', (event) => {
+          if (!region.contains(event.relatedTarget)) panel.hidden = true;
+        });
+        document.addEventListener('pointerdown', (event) => {
+          if (!region.contains(event.target)) panel.hidden = true;
+        });
+      }
+    }
+
+    // A clear that empties the field and keeps the reader in it, on every
+    // surface that draws one: the browser's own is blue, which is the reader's
+    // marks' colour and nothing else's.
+    const clear = region.querySelector('[data-live-search-clear]');
+    if (clear) {
+      const sync = () => {
+        clear.hidden = input.value === '';
+      };
+      input.addEventListener('input', sync);
+      clear.addEventListener('click', () => {
+        input.value = '';
+        sync();
+        input.focus();
+        schedule(true);
+      });
+      sync();
+    }
+
+    if (isDialog) {
+      // The phone's surface is the dialog, with a cancel that closes it.
+      region.querySelector('[data-search-close]')?.addEventListener('click', () => region.close());
       // Closing clears the attribute at once and announces itself afterwards,
       // so a reader who reopens quickly can have the announcement arrive after
       // the reopening. Cancelling then would throw away the search the reopen
-      // had just asked for, and the palette would sit on the old rows with
-      // nothing on its way. The announcement is about a dialog that is closed;
+      // had just asked for. The announcement is about a surface that is closed;
       // if it is open again by the time it lands, there is nothing to stop.
-      // A row chosen before closing is not still chosen on the way back in:
-      // the reader returns to the field, and Enter there searches again.
       region.addEventListener('close', () => {
-        if (!region.open) {
-          cancelPending();
-          rowsChanged();
-        }
+        if (!region.open) cancelPending();
       });
-      // Closing leaves the rows where they are and stops whatever was on its
-      // way to replace them. So the box and the rows can disagree by the time
-      // the reader comes back: they typed something these rows never answered.
-      // Reopening is the only moment that can be noticed, and nothing was
-      // noticing it — the rows went on standing for a search the reader had
-      // already moved off. Asking again is the same debounce a keystroke uses,
-      // and until it lands the rows say which query they do answer.
-      rowsChanged = chooseWithArrows(input, results);
+      // Closing leaves the rows where they are, so the box and the rows can
+      // disagree by the time the reader comes back; the rows are asked for
+      // again, and until they land say which query they do answer.
       onReopen.set(region, () => {
         const query = input.value.trim();
-        if (!query) return;
-        const note = results.querySelector('[data-live-search-stale]');
-        if ((note?.dataset.liveSearchStale ?? '').trim() === query) return;
-        markStaleNote(query);
-        schedule();
+        const note = target.querySelector('[data-live-search-stale]');
+        if (query && (note?.dataset.liveSearchStale ?? '').trim() === query) return;
+        if (query) markStaleNote(query);
+        schedule(true);
       });
     }
+
+    // The page's own list may arrive holding recent searches to fill, and a
+    // dropdown's panel is empty until the field is focused.
+    if (!panel) afterRender();
   });
 
-  const dialog = document.querySelector('[data-search]');
+  const dialog = document.querySelector('dialog[data-search]');
 
-  // The header's press opens this dialog from the markup and the keyboard
-  // opens it from here, so the question "what is it showing now" is asked of
-  // the dialog itself rather than of any one way in. The browser announces
-  // every opening the same way, whichever asked for it, so a way added later
-  // arrives already answered.
+  // The header's press opens the dialog from the markup and the keyboard opens
+  // it from here, so the question "what is it showing now" is asked of the
+  // dialog itself rather than of any one way in. The browser announces every
+  // opening the same way, whichever asked for it, so a way added later arrives
+  // already answered.
   dialog?.addEventListener('toggle', (event) => {
-    if (event.newState === 'open') onReopen.get(dialog)?.();
+    if (event.newState === 'open') {
+      onReopen.get(dialog)?.();
+      dialog.querySelector('[data-live-search-input]')?.focus();
+    }
   });
 
   function open() {
@@ -217,94 +358,39 @@ export function initSearch() {
     });
   }
 
+  // The field drawn in the header, where there is one to type in.
+  const visibleField = () => fields.find((field) => field.input.offsetParent !== null);
+  const openField = () => fields.find((field) => !field.panel.hidden);
+
   function toggle() {
+    const field = visibleField();
+    if (field) {
+      if (document.activeElement === field.input) field.input.blur();
+      else {
+        field.input.focus();
+        field.input.select();
+      }
+      return;
+    }
     if (!dialog) return;
     if (dialog.open) dialog.close();
     else open();
   }
 
   function closeAndRestoreFocus() {
-    if (!dialog?.open) return;
+    const field = openField();
+    if (field) {
+      field.panel.hidden = true;
+      return;
+    }
     // The return is the platform's and is not overridden.
-    dialog.close();
+    if (dialog?.open) dialog.close();
   }
 
   return {
-    isOpen: () => Boolean(dialog?.open),
+    isOpen: () => Boolean(dialog?.open) || Boolean(openField()),
     toggle,
     closeAndRestoreFocus,
-  };
-}
-
-// chooseWithArrows makes the palette's field a combobox over its rows. Focus
-// stays in the field, where the reader is typing; ↑ and ↓ move a choice through
-// the rows, and Enter opens the chosen one. With nothing chosen, and always
-// with Shift held, Enter submits the form, which opens the full search page. The rows are the page's ordinary list of links; they are named a list
-// to choose from only here, each time they land. The returned function forgets
-// the choice and renames the rows, and is called whenever the rows or the query
-// change, so a choice made among one set of rows never opens a row of another.
-function chooseWithArrows(input, results) {
-  let chosen = -1;
-  const rows = () => [...results.querySelectorAll('a.y-result')];
-
-  input.setAttribute('role', 'combobox');
-  input.setAttribute('aria-autocomplete', 'list');
-  input.setAttribute('aria-expanded', 'false');
-
-  function choose(index) {
-    const found = rows();
-    chosen = index;
-    for (const [at, row] of found.entries()) row.setAttribute('aria-selected', String(at === index));
-    const row = found[index];
-    if (!row) {
-      input.removeAttribute('aria-activedescendant');
-      return;
-    }
-    input.setAttribute('aria-activedescendant', row.id);
-    row.scrollIntoView({ block: 'nearest' });
-  }
-
-  input.addEventListener('keydown', (event) => {
-    // A key that is still part of composing a word belongs to the input method.
-    if (event.isComposing) return;
-    const found = rows();
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      if (found.length === 0) return;
-      event.preventDefault();
-      const step = event.key === 'ArrowDown' ? 1 : -1;
-      const start = step > 0 ? -1 : found.length;
-      choose((((chosen < 0 ? start : chosen) + step) % found.length + found.length) % found.length);
-    } else if (event.key === 'Enter' && !event.shiftKey && found[chosen]) {
-      event.preventDefault();
-      found[chosen].click();
-    } else if (event.key === 'Enter' && event.shiftKey) {
-      // A held Shift is not taken as a submit by every engine, and here it
-      // has to mean the whole search page whatever is chosen.
-      event.preventDefault();
-      input.form?.requestSubmit();
-    }
-  });
-
-  return () => {
-    chosen = -1;
-    input.removeAttribute('aria-activedescendant');
-    const list = results.querySelector('.y-results');
-    const found = rows();
-    input.setAttribute('aria-expanded', String(found.length > 0));
-    if (!list) {
-      input.removeAttribute('aria-controls');
-      return;
-    }
-    list.id = '_y-search-hits';
-    list.setAttribute('role', 'listbox');
-    input.setAttribute('aria-controls', list.id);
-    for (const [at, row] of found.entries()) {
-      const item = row.parentElement;
-      if (item) item.setAttribute('role', 'none');
-      row.setAttribute('role', 'option');
-      row.setAttribute('aria-selected', 'false');
-      row.id = `_y-search-hit-${at}`;
-    }
   };
 }
 

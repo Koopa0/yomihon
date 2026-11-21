@@ -8,6 +8,7 @@ import (
 	"os"
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
@@ -23,7 +24,7 @@ type Store struct {
 	// configDir is kept to name the directory of another vault's marks, which
 	// Adopt reads.
 	configDir string
-	dir       string
+	dir       confdir.Dir
 	// vaultRoot is written inside each file, because the directory holding it
 	// is named after a digest.
 	vaultRoot string
@@ -40,7 +41,7 @@ type Store struct {
 // which names which vault these marks belong to. Either one empty is refused
 // with ErrNotNamed.
 func Open(configDir, vaultRoot string) (*Store, error) {
-	dir, err := confdir.Dir(configDir, vaultRoot)
+	dir, err := confdir.VaultDir(configDir, vaultRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +51,7 @@ func Open(configDir, vaultRoot string) (*Store, error) {
 // Dir is the directory this keeps its files in. It is what the interface names
 // when it tells a reader where their marks live.
 func (s *Store) Dir() string {
-	return s.dir
+	return s.dir.Path()
 }
 
 // List returns the marks of the given kinds, or of every kind when none is
@@ -102,7 +103,7 @@ func (s *Store) Add(m *Mark) (Mark, error) {
 			return nil, false, fmt.Errorf("%w: %d marks are already kept", ErrInvalid, len(held))
 		}
 		if slices.ContainsFunc(held, func(other Mark) bool { return other.ID == kept.ID }) {
-			return nil, false, fmt.Errorf("%w: a mark already has the id %s", ErrInvalid, kept.ID)
+			return nil, false, fmt.Errorf("%w: a mark already has the id %s: %w", ErrInvalid, kept.ID, ErrExists)
 		}
 		return append(held, kept), true, nil
 	})
@@ -116,7 +117,8 @@ func (s *Store) Add(m *Mark) (Mark, error) {
 // removed can be offered back. With no such mark nothing is written and found
 // is false.
 func (s *Store) Remove(id string) (removed Mark, found bool, err error) {
-	err = s.change(func(held []Mark) ([]Mark, bool, error) {
+	err = s.changeIfThereIsAnyToChange(func(held []Mark) ([]Mark, bool, error) {
+		removed, found = Mark{}, false
 		i := slices.IndexFunc(held, func(m Mark) bool { return m.ID == id })
 		if i < 0 {
 			return nil, false, nil
@@ -125,6 +127,123 @@ func (s *Store) Remove(id string) (removed Mark, found bool, err error) {
 		return slices.Delete(held, i, i+1), true, nil
 	})
 	return removed, found && err == nil, err
+}
+
+// Keep keeps m as a new mark, or says which mark already stands where m would.
+// A mark of the same kind in the same note, anchor and words is that mark, and
+// is returned with added false and nothing written; a thought is never the same
+// act twice, so it is always new. The check and the write are one step under
+// the writers' lock, so two submissions of one highlight at once keep one.
+//
+// admit is asked while the file is locked, and only for a mark that is new. It
+// is what the caller knows about the note that the file does not. A refusal
+// wraps ErrInvalid and writes nothing. m is read and never written through.
+func (s *Store) Keep(m *Mark, admit func(*Mark) bool) (kept Mark, added bool, err error) {
+	if m == nil {
+		return Mark{}, false, fmt.Errorf("%w: no mark", ErrInvalid)
+	}
+	candidate := *m
+	if candidate.ID, err = newID(); err != nil {
+		return Mark{}, false, err
+	}
+	if invalid := validateMark(&candidate); invalid != nil {
+		return Mark{}, false, invalid
+	}
+	err = s.change(func(held []Mark) ([]Mark, bool, error) {
+		if candidate.Kind != Thought {
+			if i := slices.IndexFunc(held, func(other Mark) bool { return sameMark(&other, &candidate) }); i >= 0 {
+				kept = held[i]
+				return nil, false, nil
+			}
+		}
+		if admit == nil || !admit(&candidate) {
+			return nil, false, fmt.Errorf("%w: the place is not one this vault renders", ErrInvalid)
+		}
+		if len(held) >= MaxMarks {
+			return nil, false, fmt.Errorf("%w: %d marks are already kept", ErrInvalid, len(held))
+		}
+		kept, added = candidate, true
+		return append(held, candidate), true, nil
+	})
+	if err != nil {
+		return Mark{}, false, err
+	}
+	return kept, added, nil
+}
+
+// Revision is a change to a mark that is kept. A field left nil is left as it
+// is. Each says something only a mark of one kind has: a reason and a
+// resolution are a question's, a body is a thought's.
+type Revision struct {
+	Reason   *string
+	Body     *string
+	Resolved *bool
+}
+
+// Revise changes the mark with the given id and returns it as it is now. With
+// no such mark, or an id the Store never issues, nothing is read or written and
+// found is false. A change the mark's kind does not have, a revision that
+// names nothing, or a result these files cannot hold is a refusal that wraps
+// ErrInvalid, and nothing is written.
+//
+// Resolving a question that is resolved already leaves the time it was
+// resolved at; reopening it clears the time. now is the moment a resolution is
+// made at.
+func (s *Store) Revise(id string, r Revision, now time.Time) (revised Mark, found bool, err error) {
+	if !isID(id) {
+		return Mark{}, false, nil
+	}
+	err = s.changeIfThereIsAnyToChange(func(held []Mark) ([]Mark, bool, error) {
+		found = false
+		i := slices.IndexFunc(held, func(m Mark) bool { return m.ID == id })
+		if i < 0 {
+			return nil, false, nil
+		}
+		found = true
+		next, refused := revision(&held[i], r, now)
+		if refused != nil {
+			return nil, false, refused
+		}
+		revised = next
+		changed := slices.Clone(held)
+		changed[i] = next
+		return changed, true, nil
+	})
+	if err != nil {
+		return Mark{}, false, err
+	}
+	return revised, found, nil
+}
+
+// revision applies r to a copy of m and returns it, validated.
+func revision(held *Mark, r Revision, now time.Time) (Mark, error) {
+	m := *held
+	switch {
+	case r.Reason == nil && r.Body == nil && r.Resolved == nil:
+		return Mark{}, fmt.Errorf("%w: nothing to change", ErrInvalid)
+	case (r.Reason != nil || r.Resolved != nil) && m.Kind != Question:
+		return Mark{}, fmt.Errorf("%w: only a question has a reason or is resolved", ErrInvalid)
+	case r.Body != nil && m.Kind != Thought:
+		return Mark{}, fmt.Errorf("%w: only a thought has a body", ErrInvalid)
+	}
+	if r.Reason != nil {
+		m.Reason = *r.Reason
+	}
+	if r.Body != nil {
+		m.Body = *r.Body
+	}
+	if r.Resolved != nil {
+		switch {
+		case !*r.Resolved:
+			m.ResolvedAt = time.Time{}
+		case m.ResolvedAt.IsZero():
+			m.ResolvedAt = now
+		}
+	}
+	if err := validateMark(&m); err != nil {
+		return Mark{}, err
+	}
+	return m, nil
 }
 
 // Toggle keeps m when no mark of its kind already names the same note, anchor
@@ -172,21 +291,46 @@ func sameMark(a, b *Mark) bool {
 // edit says it did. It runs under the writers' lock, so two changes never
 // overwrite each other's.
 func (s *Store) change(edit func(held []Mark) (changed []Mark, did bool, err error)) error {
+	return s.exclusive(func() error {
+		held, _, err := s.loadMarks()
+		if err != nil {
+			return err
+		}
+		changed, did, err := edit(held)
+		if err != nil || !did {
+			return err
+		}
+		data, err := encode(marksDocument{Version: documentVersion, Vault: s.vaultRoot, Marks: changed}, maxMarksFileBytes)
+		if err != nil {
+			return err
+		}
+		return confdir.Replace(s.dir, marksFile, data)
+	})
+}
+
+// changeIfThereIsAnyToChange is change for an edit that only takes away or
+// alters what is already kept. Asked of a store that holds nothing, such an edit
+// answers from an unlocked read and takes no lock, because the lock's directory
+// would be the first thing a reader who kept nothing left behind. The locked
+// read decides when there is something, so a mark another process is adding
+// at this moment is not missed: the removal of what was absent comes first.
+func (s *Store) changeIfThereIsAnyToChange(edit func(held []Mark) ([]Mark, bool, error)) error {
+	if held, _, err := s.loadMarks(); err == nil {
+		if _, did, editErr := edit(slices.Clone(held)); editErr == nil && !did {
+			return nil
+		}
+	}
+	return s.change(edit)
+}
+
+// exclusive runs change as the only writer of this vault's marks and progress,
+// in this process and in any other on the same directory: a change reads a file
+// and replaces it whole, so one that read before another replaced would write
+// the other's away.
+func (s *Store) exclusive(change func() error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	held, _, err := s.loadMarks()
-	if err != nil {
-		return err
-	}
-	changed, did, err := edit(held)
-	if err != nil || !did {
-		return err
-	}
-	data, err := encode(marksDocument{Version: documentVersion, Vault: s.vaultRoot, Marks: changed}, maxMarksFileBytes)
-	if err != nil {
-		return err
-	}
-	return confdir.Replace(s.dir, marksFile, data)
+	return confdir.Exclusive(s.dir, lockFile, confdir.LockWait, change)
 }
 
 // loadMarks reads marks.json. When it is not there the marks are those an

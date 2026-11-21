@@ -1065,7 +1065,7 @@ func buildGeneration(
 			continue
 		}
 		if !note {
-			g.captureFile(relPath, data, want.indexable)
+			g.captureFile(relPath, data)
 			continue
 		}
 		if reason := g.readNote(entry, data, capabilities.Language, contract, lint, log); reason != "" {
@@ -1080,7 +1080,7 @@ func buildGeneration(
 	graphIndex := graph.New(slices.Concat(g.ordered, g.unreadable), g.resources)
 	titles := titlesByName(g.ordered)
 	navigation := nav.New(entries, g.parsed, graphIndex, capabilities.Navigation, capabilities.Knowledge, projectionPolicy, capabilities.Journal, capabilities.Language, capabilities.Dated)
-	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.products, g.files, capabilities.Knowledge, capabilities.Language), projectionPolicy)
+	searchIndex := lexical.NewIndex(indexDocuments(g.ordered, g.products, capabilities.Knowledge, capabilities.Language), projectionPolicy)
 
 	slots, slotProblems := drill.NewSlotIndex(g.sidecars)
 	g.warnSlotProblems(scan, slotProblems, log)
@@ -1168,8 +1168,6 @@ type build struct {
 	readings map[string]Reading
 	// sidecars are the practice files the lesson parser reads.
 	sidecars map[string][]byte
-	// files are the index documents for vault files that are not notes.
-	files []lexical.Document
 	// resources are every non-note path, read or not: a wikilink may name any.
 	resources []string
 	// findings are the schema's verdicts, kept only for notes that drew one.
@@ -1202,7 +1200,6 @@ func newGeneration(entries int) *build {
 		unreadable:   make([]*vault.Note, 0),
 		readings:     make(map[string]Reading),
 		sidecars:     make(map[string][]byte),
-		files:        make([]lexical.Document, 0, entries),
 		resources:    make([]string, 0, entries),
 		findings:     make(map[string][]judge.Finding),
 		skippedNotes: make(map[string]struct{}),
@@ -1473,17 +1470,17 @@ func (g *build) unread(from carriedGeneration, relPath string, note bool, want b
 	if want.holdsBackGeneration {
 		g.blocked = append(g.blocked, BlockedSource{Path: relPath, Reason: reason, ParsePanic: parsePanic})
 	}
-	g.carry(from, relPath, note, want)
+	g.carry(from, relPath, note)
 }
 
 // carry gives this generation whatever the fallback held for a source this
 // reading could not open, by whether that source is a note or a practice file.
-func (g *build) carry(from carriedGeneration, relPath string, note bool, want bytesWanted) {
+func (g *build) carry(from carriedGeneration, relPath string, note bool) {
 	if note {
 		g.carryNote(from, relPath)
 		return
 	}
-	g.carryFile(from, relPath, want)
+	g.carryFile(from, relPath)
 }
 
 // carryNote gives the generation being built the copy of relPath the fallback
@@ -1510,12 +1507,12 @@ func (g *build) carryNote(from carriedGeneration, relPath string) {
 
 // carryFile gives the generation being built the practice file the fallback read,
 // when it read one. Any other unreadable file is simply absent.
-func (g *build) carryFile(from carriedGeneration, relPath string, want bytesWanted) {
+func (g *build) carryFile(from carriedGeneration, relPath string) {
 	lastKnown, ok := from.sidecars[relPath]
 	if !ok {
 		return
 	}
-	g.captureFile(relPath, lastKnown, want.indexable)
+	g.captureFile(relPath, lastKnown)
 }
 
 // blockedFromProblems carries the scan's unobservable paths into the build's
@@ -1536,31 +1533,22 @@ func blockedFromProblems(problems []vault.Diagnostic) []BlockedSource {
 }
 
 // captureFile files one vault entry that is not a note into the projections that
-// can use it: its own parser, if it is a lesson sidecar, and the text corpus, if
-// its bytes are characters. The bytes decide that last question, as they do on
-// the file's own page, because a name is not evidence about what is inside.
-func (g *build) captureFile(relPath string, data []byte, indexable bool) {
+// read its bytes: its own parser, if it is a lesson sidecar or a figure.
+func (g *build) captureFile(relPath string, data []byte) {
 	if drill.IsSlotSidecar(relPath) {
 		g.sidecars[relPath] = data
 	}
 	if figure.Is(relPath) {
 		g.figures[relPath] = figure.Inspect(data)
 	}
-	// indexable carries the decision the entry itself was judged by; deciding again
-	// here would index a file whose own page says it is not searched.
-	if !indexable || !render.IsText(data) {
-		return
-	}
-	g.files = append(g.files, lexical.DocumentFromFile(relPath, data))
 }
 
 // bytesWanted is why a generation reads one vault file, and what follows if not.
 type bytesWanted struct {
-	read      bool
-	indexable bool
+	read bool
 	// holdsBackGeneration means an unread file leaves the reading surface
 	// incomplete, so the generation is retried rather than published. A note and
-	// a lesson's sidecar qualify; any other file only lends the index its words,
+	// a lesson's sidecar qualify; a figure only lends its page its measurements,
 	// and holding the folder to one permanently unreadable file would stop every
 	// later change from ever being published.
 	holdsBackGeneration bool
@@ -1576,31 +1564,27 @@ func wantedBytes(entry vault.Entry, note bool) bytesWanted {
 			// change through degradeAfter. The name can stay. The body cannot.
 			return bytesWanted{}
 		}
-		return bytesWanted{read: true, indexable: true, holdsBackGeneration: true}
+		return bytesWanted{read: true, holdsBackGeneration: true}
 	}
 	sidecar := drill.IsSlotSidecar(entry.Path())
-	indexable := readableAsText(entry)
 	return bytesWanted{
-		read:                sidecar || indexable,
-		indexable:           indexable,
+		read:                sidecar || (figure.Is(entry.Path()) && withinSourceCap(entry)),
 		holdsBackGeneration: sidecar,
 	}
 }
 
-// indexDocuments gathers what this generation will answer searches from. Every
-// captured note is here: a note over the source bound never reached the
-// generation, so this loop does not decide size. Files join only when their
-// own page shows their characters. Knowledge-layer membership is Includes
-// on the contract's scope, not a second copy of that directory list. The note
-// entries are the ones made when each note was read; none is parsed here.
+// indexDocuments gathers what this generation will answer searches from: every
+// captured note. A note over the source bound never reached the generation, so
+// this loop does not decide size. Knowledge-layer membership is Includes on the
+// contract's scope, not a second copy of that directory list. The entries are
+// the ones made when each note was read; none is parsed here.
 func indexDocuments(
 	notes []*vault.Note,
 	products map[string]noteProducts,
-	files []lexical.Document,
 	knowledge schema.KnowledgeScope,
 	languages schema.ArticleLanguage,
 ) []lexical.Document {
-	documents := make([]lexical.Document, 0, len(notes)+len(files))
+	documents := make([]lexical.Document, 0, len(notes))
 	for _, note := range notes {
 		doc := products[note.RelPath].document
 		if tag, err := languages.Resolve(note.Frontmatter); err == nil {
@@ -1609,27 +1593,11 @@ func indexDocuments(
 		doc.OutsideKnowledge = !knowledge.Includes(note.RelPath)
 		documents = append(documents, doc)
 	}
-	for i := range files {
-		file := files[i]
-		file.OutsideKnowledge = !knowledge.Includes(file.RelPath)
-		documents = append(documents, file)
-	}
 	return documents
 }
 
-// readableAsText reports whether a vault file that is not a note is a candidate
-// for the text index: not a picture, not a PDF, and small enough that its own
-// page shows its characters. The predicates are the page's, so if yomihon shows
-// a file to you as text you can find it.
-func readableAsText(entry vault.Entry) bool {
-	relPath := entry.Path()
-	return !render.IsPicture(relPath) &&
-		!render.IsPDF(relPath) &&
-		withinSourceCap(entry)
-}
-
-// withinSourceCap reports whether a file is small enough for its characters to be
-// held. It is the ceiling the file page applies, so search and display agree.
+// withinSourceCap reports whether a file is small enough for its bytes to be
+// held. It is the ceiling the file page applies, so the two agree.
 func withinSourceCap(entry vault.Entry) bool {
 	return entry.Size() <= render.MaxSourceBytes
 }
