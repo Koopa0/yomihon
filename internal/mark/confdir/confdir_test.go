@@ -160,9 +160,15 @@ func TestReadRefusesAnythingButAFileName(t *testing.T) {
 	if err := confdir.Replace(dir, "own.json", []byte("x")); err != nil {
 		t.Fatal(err)
 	}
+	// ".." is the parent directory, which Read would refuse as not a regular file
+	// even with no check of the name, so a refusal for what is on disk is not the
+	// refusal this asks for.
 	for _, name := range []string{"..", "../x.json", "sub/b.json", `sub\b.json`, "/abs.json"} {
-		if data, err := confdir.Read(dir, name, 10); err == nil {
+		data, err := confdir.Read(dir, name, 10)
+		if err == nil {
 			t.Errorf("Read(%q) = %q, want a refusal", name, data)
+		} else if errors.Is(err, confdir.ErrNotRegular) || errors.Is(err, os.ErrNotExist) {
+			t.Errorf("Read(%q) = %v, want it refused for its name and not for what is there", name, err)
 		}
 	}
 	if data, err := confdir.Read(dir, "own.json", 10); err != nil || string(data) != "x" {

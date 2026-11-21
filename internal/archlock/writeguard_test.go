@@ -918,7 +918,7 @@ func (w *world) Import(path string) (*types.Package, error) {
 // imports itself. Each is loaded on top of the tree, so the two share packages.
 var fixtureImports = []string{
 	"context", "io", "net", "net/http", "os", "os/exec", "io/ioutil", "plugin", "runtime/coverage", "syscall",
-	"net/http/cgi", "go/build", "go/importer",
+	"net/http/cgi", "go/build", "go/importer", "mime/multipart", "runtime/debug",
 }
 
 var (

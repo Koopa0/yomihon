@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -302,6 +303,25 @@ func wipe[T interface{ Remove(string) error }](x T) error { return x.Remove("y")
 type Handle[T interface{ Remove(string) error }] struct{ held T }
 func (h Handle[T]) wipe() error { return h.held.Remove("y") }`,
 		want: []string{"through an interface to Remove"},
+	},
+	{
+		name: "every name a write answers to, through an interface",
+		src: `package fixture
+type handle interface {
+	Chmod(); Chown(); Chtimes(); Create(); Lchown(); Link(); Mkdir()
+	OpenFile(); Remove(); Rename(); Symlink(); Truncate(); WriteFile()
+}
+func use(h handle) {
+	h.Chmod(); h.Chown(); h.Chtimes(); h.Create(); h.Lchown(); h.Link(); h.Mkdir()
+	h.OpenFile(); h.Remove(); h.Rename(); h.Symlink(); h.Truncate(); h.WriteFile()
+}`,
+		want: []string{
+			"through an interface to Chmod", "through an interface to Chown", "through an interface to Chtimes",
+			"through an interface to Create", "through an interface to Lchown", "through an interface to Link",
+			"through an interface to Mkdir", "through an interface to OpenFile", "through an interface to Remove",
+			"through an interface to Rename", "through an interface to Symlink", "through an interface to Truncate",
+			"through an interface to WriteFile",
+		},
 	},
 	{
 		name: "an interface method that creates",
@@ -790,6 +810,18 @@ import "net/http"
 func read(r *http.Request) string { _ = r.ParseForm(); return r.PostForm.Get("a") }`,
 	},
 	{
+		name: "the other names that make files of their own",
+		src: `package fixture
+import ("mime/multipart"; "net/http"; "runtime/coverage"; "runtime/debug")
+func spill(r *http.Request, m *multipart.Reader) {
+	_, _, _ = r.FormFile("a")
+	_, _ = m.ReadForm(1 << 20)
+	debug.WriteHeapDump(0)
+	_ = coverage.WriteCountersDir("/x")
+}`,
+		want: []string{"net/http.Request.FormFile", "mime/multipart.Reader.ReadForm", "runtime/debug.WriteHeapDump", "runtime/coverage.WriteCountersDir"},
+	},
+	{
 		name: "coverage data written by the program",
 		src: `package fixture
 import "runtime/coverage"
@@ -882,9 +914,13 @@ func anyContains(texts []string, part string) bool {
 
 // A fixture that is meant to refuse and names nothing to refuse would pass by
 // saying nothing, so every fixture that is not a quiet one has to say something.
+// And every row of a list the guard refuses by is shown refused by a fixture, so
+// a row cannot stop being refused, and its fixture cannot be dropped, without
+// one of these going red.
 func TestEveryFixtureOfTheWriteGuardSaysWhatItExpects(t *testing.T) {
 	t.Parallel()
 	seen := map[string]bool{}
+	var said []string
 	for _, f := range writeGuardFixtures {
 		if seen[f.name] {
 			t.Errorf("two fixtures are called %q", f.name)
@@ -896,9 +932,21 @@ func TestEveryFixtureOfTheWriteGuardSaysWhatItExpects(t *testing.T) {
 		if strings.TrimSpace(f.src) == "" {
 			t.Errorf("%q has no source", f.name)
 		}
+		said = append(said, f.want...)
 	}
-	if len(seen) < 30 {
-		t.Errorf("only %d fixtures are left; the shapes of write the guard has been shown are not to be dropped quietly", len(seen))
+	var rows []string
+	rows = append(rows, alsoRefused...)
+	rows = append(rows, slices.Sorted(maps.Keys(constrainedCalls))...)
+	for _, path := range forbiddenImports {
+		rows = append(rows, "imports "+path)
+	}
+	for _, family := range slices.Concat(writeFamilies, processFamilies, listenerFamilies) {
+		rows = append(rows, "through an interface to "+family)
+	}
+	for _, row := range rows {
+		if !anyContains(said, row) {
+			t.Errorf("no fixture shows %q refused", row)
+		}
 	}
 }
 
