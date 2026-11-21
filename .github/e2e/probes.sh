@@ -128,6 +128,7 @@ probes=(
   "bookmark-size.mjs|/"
   "bookmark-first-frame.mjs|/"
   "bookmark-after-back.mjs|/"
+  "bookmark-return.mjs|/"
 )
 
 # The probes above that leave a kept reading place behind, in the order the
@@ -140,6 +141,7 @@ leaves_a_place=(
   "bookmark-size.mjs"
   "bookmark-first-frame.mjs"
   "bookmark-after-back.mjs"
+  "bookmark-return.mjs"
 )
 
 fail() {
