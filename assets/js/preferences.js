@@ -15,8 +15,15 @@
 // after a cache restore, that the revived document still speaks the language
 // the cookie names — and asks for a fresh page when it does not, since no
 // script can retranslate a rendered document.
+import { forgetPositions } from './positions.js';
+
 export function initPreferences() {
   const root = document.documentElement;
+
+  // A page drawn with the setting off empties what this browser kept of where
+  // the reader stopped in notes. The choice may have been made where no script
+  // ran, or in another tab, and the browser is cleared when it is next seen.
+  if (root.dataset.position === 'off') forgetPositions();
 
   function readCookie(name) {
     for (const part of document.cookie.split(';')) {
@@ -176,6 +183,12 @@ export function initPreferences() {
     sectionbuttons(value) {
       setPreference('sectionbuttons', value);
     },
+    // Turning it off stops the writing, which the module that writes reads from
+    // the cookie, and clears what was kept.
+    position(value) {
+      setPreference('position', value);
+      if (value === 'off') forgetPositions();
+    },
     shortcuts: writeShortcuts,
   };
 
@@ -307,6 +320,11 @@ export function initPreferences() {
     // Only the literal "hover" is hover, matching the server's stamp: any other
     // cookie, or none, shows the buttons all the time.
     root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') === 'hover' ? 'hover' : 'always';
+    // Only the literal "off" is off, as for the furigana. A page revived from the
+    // cache may have been left while the setting was on, and what the browser
+    // kept is emptied the way a page drawn with it off empties it.
+    root.dataset.position = readCookie('yomihon_position') === 'off' ? 'off' : 'on';
+    if (root.dataset.position === 'off') forgetPositions();
     // The column is put in its stored state at once. The fold answers a
     // reader's press with a transition, and a restore is not a press: the
     // stylesheet is told to hold still for the length of the write, which is

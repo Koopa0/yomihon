@@ -36,13 +36,18 @@ var (
 	// heading. Always is the fallback, because a button nobody is shown is a
 	// button nobody finds.
 	sectionButtonsChoice = preference{cookie: "yomihon_sectionbuttons", values: []string{"always", "hover"}, fallback: "always"}
+
+	// positionChoice is whether a note opens where the reader last stopped in
+	// it. On is the fallback: a reader who never chose is offered the
+	// behaviour, and the setting that turns it off also clears what it kept.
+	positionChoice = preference{cookie: "yomihon_position", values: []string{"on", "off"}, fallback: "on"}
 )
 
 // preferences is every reading choice in one place. The interface language is
 // not among them: each row here resolves to a short value the root carries for
 // the stylesheet to answer, while the language decides which words the server
 // writes at all, so it is read beside the dictionary those words come from.
-var preferences = [...]preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice, railChoice, sectionButtonsChoice}
+var preferences = [...]preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice, railChoice, sectionButtonsChoice, positionChoice}
 
 // read answers one choice for this request: the stored value when the cookie
 // carries one the row honours, and the row's fallback otherwise. An unknown

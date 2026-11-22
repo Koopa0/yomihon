@@ -251,6 +251,17 @@ var choices = []choice{
 		inForce: func(c *layouts.Chrome) string { return c.SectionButtons },
 	},
 	{
+		name:   "position",
+		cookie: "yomihon_position",
+		legend: wording.PrefPosition,
+		note:   wording.PrefPositionNote,
+		labels: map[string]wording.Phrase{
+			stateOn:  wording.PrefOn,
+			stateOff: wording.PrefOff,
+		},
+		inForce: func(c *layouts.Chrome) string { return c.Position },
+	},
+	{
 		name:   "shortcuts",
 		cookie: "yomihon_shortcuts",
 		legend: wording.PrefShortcuts,

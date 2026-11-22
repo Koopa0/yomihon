@@ -30,6 +30,7 @@ func TestStorageAccountNamesEveryStoredChoice(t *testing.T) {
 		"yomihon_rail":      {"側欄", "sidebar"},
 
 		"yomihon_sectionbuttons": {"小節旁的按鈕", "buttons beside sections"},
+		"yomihon_position":       {"自動記位置", "remember my position in notes"},
 	}
 	kept := []string{wording.CookieName}
 	for _, p := range layouts.Preferences() {

@@ -22,6 +22,11 @@ templ Base(c Chrome) {
 		data-textsize={ c.TextSize }
 		data-rail={ c.Rail }
 		data-sectionbuttons={ c.SectionButtons }
+		data-position={ c.Position }
+		if c.Reading != nil {
+			data-note-vault={ c.Reading.Vault }
+			data-note-path={ c.Reading.Path }
+		}
 		if c.Font != "" {
 			data-font={ c.Font }
 		}
@@ -57,6 +62,35 @@ templ Base(c Chrome) {
 					if (new URLSearchParams(location.search).has("at")) d.dataset.arrival = "kept";
 				}
 			</script>
+			// A note opens where the reader last stopped in it, and that can be
+			// done only once the note is laid out, which is after the browser may
+			// have painted its first frame. So the column is held out of sight
+			// by the same mark a return to a bookmark uses, here, before the
+			// first frame, and only when the browser's storage names a place
+			// this note will open at: a note nothing is kept for is never held.
+			// The way in decides it with the same three questions the module that
+			// puts the place back asks. The setting is on; the address names no
+			// section, because a fragment is where the reader asked to go; and
+			// the document was opened afresh, because Back, Forward and a reload
+			// are put back by the browser itself. The module reveals the column
+			// whatever it finds, and the stylesheet does after a delay if the
+			// module never runs.
+			if c.Reading != nil {
+				<script nonce={ c.Nonce }>
+					{
+						try {
+							const d = document.documentElement;
+							const way = performance.getEntriesByType("navigation")[0];
+							if (d.dataset.position === "on" && !location.hash && way && way.type === "navigate") {
+								const kept = JSON.parse(localStorage.getItem("yomihon.positions") || "[]");
+								if (kept.some((p) => p.vault === d.dataset.noteVault && p.path === d.dataset.notePath)) d.dataset.arrival = "kept";
+							}
+						} catch {
+							// A tab without storage has no places; the note opens at its top.
+						}
+					}
+				</script>
+			}
 			// A diagram is drawn after the page is laid out, and the browser puts a
 			// returning reader's position back against that first layout, so a
 			// drawing that arrives later moves everything under it away from where

@@ -74,7 +74,11 @@ type Chrome struct {
 	// SectionButtons is when the buttons beside a section are drawn: "always"
 	// or "hover". The root carries it, so a stylesheet answering it needs no
 	// script and the first paint is already as the reader left it.
-	SectionButtons            string
+	SectionButtons string
+	// Position is whether a note opens where the reader last stopped in it:
+	// "on" or "off". The root carries it, so the head can tell before the first
+	// frame whether a note is held back for the place it will open at.
+	Position                  string
 	SingleKeyShortcutsEnabled bool // plain /, [ and ? are enabled
 	// Lang is the language the interface speaks for this request, and the
 	// language the document declares. The article inside it may declare its
@@ -102,6 +106,21 @@ type Chrome struct {
 	// pastes it back. Empty on every page that reads no note, and the header
 	// then draws no such control.
 	FilePath string
+	// Reading is the note this request is reading, named the way the browser's
+	// storage names it, so that the place the reader stops at is kept against
+	// this note in this vault and nowhere else. Nil on every page that is not
+	// a note, and the root then names no note.
+	Reading *ReadingNote
+}
+
+// ReadingNote is a note as the browser keeps a reader's place in it: the
+// vault's id and the note's path inside the vault. The id is there because a
+// vault that is removed gives its port to the next vault opened, and an origin
+// and a path alone would hand that vault's note of the same name an old place.
+// The id is derived from the vault's location and spells none of it.
+type ReadingNote struct {
+	Vault string
+	Path  string
 }
 
 // MarkOffer is the note a reading place would be kept in: its address, the
@@ -194,6 +213,7 @@ func ChromeFromRequest(r *http.Request, title string) Chrome {
 		Font:                      read(r, fontChoice),
 		Rail:                      read(r, railChoice),
 		SectionButtons:            read(r, sectionButtonsChoice),
+		Position:                  read(r, positionChoice),
 		SingleKeyShortcutsEnabled: read(r, shortcutsChoice) == "on",
 		// The request's own address, so a control the server answers can bring
 		// the reader back to this page afterwards. Only an address a GET can

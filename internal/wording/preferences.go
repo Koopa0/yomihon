@@ -85,6 +85,18 @@ var (
 	PrefSectionButtonsHover  = both("滑鼠停留時顯示", "Show on hover")
 )
 
+// Whether a note opens where the reader last stopped in it. The row's one
+// sentence says where that place is kept, because a reader who turns it on is
+// being told a note remembers something about them: in this browser, for this
+// address, and nowhere else.
+var (
+	PrefPosition     = both("自動記位置", "Remember my position in notes")
+	PrefPositionNote = both(
+		"只存在這個瀏覽器、這個位址上；關閉時一併清除。",
+		"Kept in this browser, for this address only; turning it off clears it.",
+	)
+)
+
 // The face the reading is set in, and the three it may be set in. Each side
 // names them as its own readers know them: the Chinese page by the characters,
 // the English page by the names those faces carry in English.
@@ -177,8 +189,8 @@ var (
 		"Settings are cookies on this address; sidebar section disclosure and filter text die with the tab; none of it leaves this machine.",
 	)
 	PrefStorageCookies = both(
-		"cookie 記著：介面語言、外觀、字級、字體、顯示讀音、單鍵快捷鍵、側欄、小節旁的按鈕",
-		"Cookies: language, appearance, text size, typeface, readings, single-key shortcuts, sidebar, buttons beside sections",
+		"cookie 記著：介面語言、外觀、字級、字體、顯示讀音、單鍵快捷鍵、側欄、小節旁的按鈕、自動記位置",
+		"Cookies: language, appearance, text size, typeface, readings, single-key shortcuts, sidebar, buttons beside sections, remember my position in notes",
 	)
 	PrefStorageSession = both(
 		"分頁內的值：側欄各區的展開狀態、側欄篩選字",

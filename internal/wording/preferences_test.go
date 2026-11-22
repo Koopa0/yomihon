@@ -123,10 +123,47 @@ func TestSectionButtonsRowUsesTheApprovedWords(t *testing.T) {
 			t.Errorf("the %s reads %q in English, want the approved %q", tt.name, got, tt.en)
 		}
 	}
-	if got, want := PrefStorageCookies.In(ZhHant), "、"+PrefSectionButtons.In(ZhHant); !strings.HasSuffix(got, want) {
+	if got, want := PrefStorageCookies.In(ZhHant), "、"+PrefSectionButtons.In(ZhHant)+"、"; !strings.Contains(got, want) {
+		t.Errorf("the Chinese cookie list reads %q, want it to carry %q", got, want)
+	}
+	if got, want := PrefStorageCookies.In(En), ", buttons beside sections, "; !strings.Contains(got, want) {
+		t.Errorf("the English cookie list reads %q, want it to carry %q", got, want)
+	}
+}
+
+// The row that returns a reader to where they stopped tells them where the place
+// is kept, in the words the owner asked for: in this browser, for this address.
+// A browser keeps one store for each address, so "this machine" would promise a
+// place that 127.0.0.1 and localhost do not share, and a private window or
+// cleared site data does not keep.
+func TestThePositionRowSaysWhereThePlaceIsKept(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		lang     Lang
+		wants    []string
+		refuseds []string
+	}{
+		{ZhHant, []string{"這個瀏覽器", "這個位址"}, []string{"電腦", "機器"}},
+		{En, []string{"this browser", "this address"}, []string{"machine", "computer"}},
+	} {
+		got := PrefPositionNote.In(tt.lang)
+		for _, want := range tt.wants {
+			if !strings.Contains(got, want) {
+				t.Errorf("the position row reads %q in %s, want it to say %q", got, tt.lang, want)
+			}
+		}
+		for _, refused := range tt.refuseds {
+			if strings.Contains(got, refused) {
+				t.Errorf("the position row reads %q in %s, want no %q: the place is in the browser's storage, not on the machine", got, tt.lang, refused)
+			}
+		}
+	}
+	// The cookie list names the row by the same words as its heading.
+	if got, want := PrefStorageCookies.In(ZhHant), "、"+PrefPosition.In(ZhHant); !strings.HasSuffix(got, want) {
 		t.Errorf("the Chinese cookie list reads %q, want it to end with %q", got, want)
 	}
-	if got, want := PrefStorageCookies.In(En), ", buttons beside sections"; !strings.HasSuffix(got, want) {
+	if got, want := PrefStorageCookies.In(En), ", "+strings.ToLower(PrefPosition.In(En)[:1])+PrefPosition.In(En)[1:]; !strings.HasSuffix(got, want) {
 		t.Errorf("the English cookie list reads %q, want it to end with %q", got, want)
 	}
 }

@@ -294,6 +294,16 @@ func (v *NoteView) markOffer() *layouts.MarkOffer {
 	}
 }
 
+// readingNote is the note as the browser keeps the reader's place in it, or nil
+// where the page cannot name both halves: a place kept against a note with no
+// vault, or a vault with no note, would be handed to whatever came next.
+func (v *NoteView) readingNote() *layouts.ReadingNote {
+	if v.VaultID == "" || v.RelPath == "" {
+		return nil
+	}
+	return &layouts.ReadingNote{Vault: v.VaultID, Path: v.RelPath}
+}
+
 // citedByShown reports whether the answer about what links here means anything
 // on this page: either there are citations, or the library has links at all and
 // their absence is itself the finding. It counts among the aids, so a rail

@@ -25,8 +25,19 @@
 // below it are one agreement, and moving the anchor alone would put a reader
 // back somewhere else.
 //
+// A note also opens where the reader last stopped in it, without their having
+// pressed anything. That place is kept in this browser's own storage, against
+// the section the reading line is in, and is put back by the same agreement the
+// bookmark's is: an anchor and a distance below it, here measured at the
+// reading line rather than at the top of the window, with the line's own
+// movement in the last screen run the other way so the window comes back where
+// it was. The bookmark and this are two places and neither stands in for the
+// other.
+//
 // Every word this shows comes from the page, which is where the two languages
 // are decided.
+
+import { forgetPosition, positionOn, recallPosition, rememberPosition } from './positions.js';
 
 // The distance below the anchor rides on the address as a query, spent and
 // removed here. The anchor itself is the fragment, so a browser running none
@@ -49,19 +60,45 @@ function documentTop(element) {
 // line is set this far below its lower edge.
 const READING_LINE_BELOW_HEADER = 24;
 
-// readingLine is the reading line's distance from the top of the window. In the
-// last screen of the document it moves down with the scroll, evenly, and is at
-// the bottom of the window where the document ends: a short section at the end
-// can never be scrolled up to the line under the header, and would otherwise
-// never be the one being read.
-function readingLine() {
+// readingGeometry is what the reading line depends on: its distance under the
+// header, the window's height, and how far the document scrolls.
+function readingGeometry() {
   const header = document.querySelector('.y-header');
   const under = Math.max(0, header?.getBoundingClientRect().bottom ?? 0) + READING_LINE_BELOW_HEADER;
   const scroller = document.scrollingElement ?? document.documentElement;
   const view = window.innerHeight;
-  const left = Math.max(0, scroller.scrollHeight - view) - window.scrollY;
+  return { under, view, range: Math.max(0, scroller.scrollHeight - view) };
+}
+
+// readingLineAt is the reading line's distance from the top of the window when
+// the window is scrolled to top. In the last screen of the document it moves
+// down with the scroll, evenly, and is at the bottom of the window where the
+// document ends: a short section at the end can never be scrolled up to the
+// line under the header, and would otherwise never be the one being read.
+function readingLineAt(top, { under, view, range } = readingGeometry()) {
+  const left = range - top;
   if (left >= view) return under;
   return under + (1 - Math.max(0, left) / view) * (view - under);
+}
+
+function readingLine() {
+  return readingLineAt(window.scrollY);
+}
+
+// scrollForPoint is the window top that puts the reading line on a point of the
+// document, which is readingLineAt run the other way: the point the line is on
+// grows with the top, so there is one answer. Above the last screen the line
+// stands a fixed distance down and the answer is that distance back from the
+// point. Inside it the line moves, along a straight line, and the answer is
+// solved from that line. Asked for a point the document does not reach, it
+// answers the nearest top there is.
+function scrollForPoint(point) {
+  const { under, view, range } = readingGeometry();
+  const plain = point - under;
+  if (plain <= range - view) return Math.max(0, plain);
+  // The line moves this far down for each pixel scrolled in the last screen.
+  const slope = Math.max(0, (view - under) / view);
+  return Math.min(range, Math.max(0, (point - view + range * slope) / (1 + slope)));
 }
 
 // lastAnchorAbove is the last anchor in the rendered body at or above the
@@ -272,7 +309,147 @@ function afterBrowserPlacement(then) {
   window.addEventListener('load', once, { once: true });
 }
 
-// land finishes the return to a kept place the address asked for. The browser
+// settle puts the window where apply puts it and reveals the column, in the
+// order that leaves nothing seen at a wrong place. The placing waits for the
+// browser to have finished its own move, and the column is revealed in the same
+// task: the first frame the reader sees is then already at the place. The two
+// later placements stay because the page can still change height after that, and
+// they correct the place without anything having been seen at the wrong one;
+// done is called after the last of them, when the window is where it will stay
+// until the reader moves it.
+function settle(apply, reveal, done) {
+  afterBrowserPlacement(() => {
+    apply();
+    reveal();
+  });
+  // The column's own measurements settle a frame or two after this file first
+  // runs — a web font arrives, a diagram takes its height — and a position
+  // applied before that lands against a page that has since moved.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      apply();
+      done();
+    });
+  });
+  window.addEventListener(
+    'pagereveal',
+    () => {
+      apply();
+    },
+    { once: true },
+  );
+}
+
+// The note this document is, as the browser keeps a reader's place in it, or
+// null where the document is not a note. The page names both halves on the root
+// for the head script, which has to ask before the column is painted.
+function readingNote() {
+  const root = document.documentElement;
+  const vault = root.dataset.noteVault;
+  const path = root.dataset.notePath;
+  return vault && path ? { vault, path } : null;
+}
+
+// How long the reader has to have stopped before the place is written. A place
+// written mid-scroll is replaced by the next, so this only spares the storage.
+const STOPPED_FOR = 400;
+
+// placeAtReadingLine is the place to keep for a note: the last anchor at or
+// above the reading line, and the distance from it down to the line. The
+// bookmark asks at the top of the window; this is the section the reader's eyes
+// are in. A line with no anchor above it keeps its depth alone, the weaker
+// promise a pixel can make.
+function placeAtReadingLine() {
+  const point = Math.round(window.scrollY + readingLine());
+  const { anchor, anchorTop } = lastAnchorAbove(point);
+  if (anchor === '') return { anchor: '', offset: point };
+  return { anchor, offset: Math.max(0, point - anchorTop) };
+}
+
+// windowTopFor is where the window has to be for the reading line to stand on a
+// kept place, or null where the note no longer has the section the place was
+// kept against, or has it closed. A depth measured from nothing would drop the
+// reader at an unrelated place, so such a note opens at its top.
+function windowTopFor({ anchor, offset }) {
+  if (anchor === '') return scrollForPoint(offset);
+  const element = document.getElementById(anchor);
+  const prose = readingColumn()?.querySelector('.y-prose');
+  if (!element || !prose?.contains(element) || !element.hasAttribute('data-mark-anchor')) return null;
+  if (element.getClientRects().length === 0) return null;
+  return scrollForPoint(documentTop(element) + offset);
+}
+
+// placeToOpenAt is the place kept for this note, when this document is one to
+// put it back in. It is asked the three things the head script asks before the
+// first frame: the setting is on, the address names no section, because a
+// fragment is where the reader asked to go, and the document was opened afresh,
+// because Back, Forward and a reload are put back by the browser.
+function placeToOpenAt() {
+  const note = readingNote();
+  if (!note || !positionOn() || location.hash !== '') return null;
+  if (performance.getEntriesByType('navigation')[0]?.type !== 'navigate') return null;
+  return recallPosition(note.vault, note.path);
+}
+
+// openWhereStopped puts a note where the reader last stopped in it. A note with
+// no place to open at is only revealed, which the head script has not held back
+// for it either.
+function openWhereStopped(reveal) {
+  const place = placeToOpenAt();
+  if (place === null) {
+    reveal();
+    watchStops();
+    return;
+  }
+  settle(
+    () => {
+      const top = windowTopFor(place);
+      if (top !== null) window.scrollTo({ top, behavior: 'instant' });
+    },
+    reveal,
+    watchStops,
+  );
+}
+
+let watching = false;
+
+// watchStops keeps the place the reader is at whenever they stop: after the
+// window has been still for a moment, and when the page is hidden or left,
+// which a reader who scrolls and closes the tab within that moment would
+// otherwise lose. It starts only after the note has been put where it opens, so
+// its own moving is not taken for the reader's. A note read from its top keeps
+// no place, which is what a note opens at when it keeps none.
+function watchStops() {
+  const note = readingNote();
+  if (watching || !note) return;
+  watching = true;
+  let moved = false;
+  let still = 0;
+  const keep = () => {
+    clearTimeout(still);
+    if (!moved) return;
+    moved = false;
+    if (!positionOn()) return;
+    if (window.scrollY < 1) forgetPosition(note.vault, note.path);
+    else rememberPosition(note.vault, note.path, placeAtReadingLine());
+  };
+  window.addEventListener(
+    'scroll',
+    () => {
+      moved = true;
+      clearTimeout(still);
+      still = setTimeout(keep, STOPPED_FOR);
+    },
+    { passive: true },
+  );
+  window.addEventListener('pagehide', keep);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') keep();
+  });
+}
+
+// land finishes the return to a kept place the address asked for, and opens a
+// note where its reader stopped when the address asked for nothing. The browser
 // goes to the fragment by itself; what is left is the distance below it,
 // measured from the same anchor the mark was taken against.
 //
@@ -280,9 +457,7 @@ function afterBrowserPlacement(then) {
 // out of here reveals it. The distance is applied once the browser has moved to
 // the fragment, and the column is revealed in the same task: the first frame
 // the reader sees is then already at the place, where revealing it as soon as
-// this file ran showed the heading for a frame and then moved. The two later
-// placements stay because the page can still change height after that, and they
-// correct the place without anything having been seen at the wrong one.
+// this file ran showed the heading for a frame and then moved.
 //
 // The query is spent whatever happens to the number in it, so a reload after
 // landing is an ordinary reading of the note rather than a second return.
@@ -294,7 +469,7 @@ function land() {
   const address = new URL(location.href);
   const carried = address.searchParams.get(OFFSET_PARAM);
   if (carried === null) {
-    reveal();
+    openWhereStopped(reveal);
     return;
   }
   address.searchParams.delete(OFFSET_PARAM);
@@ -303,6 +478,7 @@ function land() {
   const offset = Number(carried);
   if (!Number.isInteger(offset) || offset < 0) {
     reveal();
+    watchStops();
     return;
   }
 
@@ -321,28 +497,16 @@ function land() {
     // the document by the same address; this leaves them there too.
     if (!anchor) {
       reveal();
+      watchStops();
       return;
     }
   }
-  const apply = () => {
-    window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);
-  };
-  afterBrowserPlacement(() => {
-    apply();
-    reveal();
-  });
-  // The column's own measurements settle a frame or two after this file first
-  // runs — a web font arrives, a diagram takes its height — and a position
-  // applied before that lands against a page that has since moved.
-  requestAnimationFrame(() => {
-    requestAnimationFrame(apply);
-  });
-  window.addEventListener(
-    'pagereveal',
+  settle(
     () => {
-      apply();
+      window.scrollTo(0, (anchor ? documentTop(anchor) : 0) + offset);
     },
-    { once: true },
+    reveal,
+    watchStops,
   );
 }
 
