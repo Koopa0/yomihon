@@ -36,6 +36,9 @@ var checkGoldens = []struct {
 	// The same vault under a contract whose [navigation] table is refused:
 	// the course finding above is replaced by the one saying it could not run.
 	{name: "a refused navigation table", fixture: "testdata/vault-navigation-unavailable", golden: "testdata/golden/navigation-unavailable.jsonl"},
+	// A [domains] table that pins one endpaper for two domains: the finding
+	// says the table could not be used and names no domain.
+	{name: "a refused domains table", fixture: "testdata/vault-domain-table", golden: "testdata/golden/domain-table.jsonl"},
 	{name: "extraction edges", fixture: "testdata/vault-edges", golden: "testdata/golden/edges.jsonl"},
 	// The fragment half of a link: a section and a block address that
 	// place, one of each that does not, a same-file fragment the page

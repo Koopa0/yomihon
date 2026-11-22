@@ -80,6 +80,7 @@ func checkAction(a *action, paths []string, all bool) ([]Finding, error) {
 	// that went silent did so for every scope.
 	findings = append(findings, checkUnreadable(a.unreadable, a.authority)...)
 	findings = append(findings, checkNavigation(a.authority.roles())...)
+	findings = append(findings, checkDomains(a.authority.contract.Domains())...)
 	sortFindings(findings)
 	return findings, nil
 }

@@ -110,6 +110,9 @@ const (
 	// sourceContractFolders is its [folders] table, which declares the
 	// directories the frontmatter rules govern.
 	sourceContractFolders = "vault-schema.toml#folders"
+	// sourceContractDomains is its [domains] tables, which give a domain a
+	// display name and an endpaper.
+	sourceContractDomains = "vault-schema.toml#domains"
 	// sourceContractTypes is its [types] tables, which declare each note
 	// type's role, fields and slug pattern.
 	sourceContractTypes = "vault-schema.toml#types"
