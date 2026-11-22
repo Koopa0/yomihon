@@ -33,7 +33,10 @@ type NoteView struct {
 	// ObsidianHref is the obsidian://open URI for this note, already built
 	// and escaped by ObsidianHref. Empty renders no editor link.
 	ObsidianHref string
-	Diagnostic   string
+	// FilePath is the note's file as its full path, which the header offers to
+	// copy for the reader's own editor. Empty where the vault has no path.
+	FilePath   string
+	Diagnostic string
 	// Stale is set where the file could not be read while this page was built,
 	// so the words below are the last ones read rather than the current ones.
 	Stale bool
@@ -158,6 +161,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 	// this is where it learns it may: only a reading page hands the chrome an
 	// offer, so every other page's header has nothing to draw.
 	{{ c.Mark = v.markOffer() }}
+	{{ c.FilePath = v.FilePath }}
 	// The same holds for the furigana switch: only the page knows whether
 	// what it rendered carries any readings to switch.
 	{{ c.Readings = v.carriesReadings() }}

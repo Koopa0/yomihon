@@ -16,8 +16,11 @@ type Reading struct {
 	RelPath string
 	Title   string
 	Body    string
-	Type    string
-	Domain  string
+	// BodyLine is the line of the file Body begins on, counted from 1, so a
+	// line of Body can be named as the line of the file an editor shows.
+	BodyLine int
+	Type     string
+	Domain   string
 	// Draft is whether the author declared the note unfinished.
 	Draft              bool
 	Slug               string
@@ -61,6 +64,7 @@ func newReading(parsed *vault.Note, data []byte, languages schema.ArticleLanguag
 		RelPath:            parsed.RelPath,
 		Title:              graph.TitleOf(parsed),
 		Body:               parsed.Body,
+		BodyLine:           parsed.BodyLine,
 		Type:               parsed.Type(),
 		Domain:             parsed.Domain,
 		Draft:              schema.Draft(parsed.Frontmatter),

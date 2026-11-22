@@ -267,7 +267,7 @@ func TestAHeadingWithNoWordsHasNoMargin(t *testing.T) {
 	if !strings.Contains(page, `data-section-anchor="named"`) {
 		t.Errorf("the section with a name has no mark button")
 	}
-	if got := strings.Count(article, `<div class="y-sect"><h3`); got != 1 {
+	if got := strings.Count(article, `<div class="y-sect"`); got != 1 {
 		t.Errorf("%d headings are wrapped as sections, want only the one with a name", got)
 	}
 }
