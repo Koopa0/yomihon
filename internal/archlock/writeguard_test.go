@@ -131,13 +131,18 @@ func init() {
 }
 
 // processQueries are the names the writer asks with whether a process is still
-// there: finding it by its id and sending it signal 0, which delivers nothing.
-// None changes a file or ends a process, so shape lets an exported function of
-// the writer that uses them take no Dir; that is ProcessAlive, which tells a
-// record of a running yomihon that its process left behind from one whose
-// process still runs. Outside the writer they are refused like any name not on
-// readOnly, since nothing else asks.
-var processQueries = []string{"os.FindProcess", "os.Process.Release", "os.Process.Signal", "syscall.Signal", "syscall.EPERM"}
+// there: on Unix, finding it by its id and sending it signal 0, which delivers
+// nothing; on Windows, opening it to ask about it, waiting on it for no time and
+// closing the handle. None changes a file or ends a process, so shape lets an
+// exported function of the writer that uses them take no Dir; that is
+// ProcessAlive, which tells a record of a running yomihon that its process left
+// behind from one whose process still runs. Outside the writer they are refused
+// like any name not on readOnly, since nothing else asks.
+var processQueries = []string{
+	"os.FindProcess", "os.Process.Signal", "syscall.Signal", "syscall.EPERM",
+	"golang.org/x/sys/windows.OpenProcess", "golang.org/x/sys/windows.PROCESS_QUERY_LIMITED_INFORMATION", "golang.org/x/sys/windows.SYNCHRONIZE",
+	"golang.org/x/sys/windows.WaitForSingleObject", "golang.org/x/sys/windows.WAIT_TIMEOUT", "golang.org/x/sys/windows.CloseHandle",
+}
 
 // writeFamilies are the prefixes of the names a handle that writes answers to.
 // They are prefixes because the standard library grows (Mkdir became MkdirAll

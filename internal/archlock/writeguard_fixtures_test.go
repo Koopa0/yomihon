@@ -124,7 +124,14 @@ type Handle uintptr
 type Overlapped struct{ Offset, OffsetHigh uint32 }
 const LOCKFILE_EXCLUSIVE_LOCK = 2
 func LockFileEx(file Handle, flags, reserved, low, high uint32, o *Overlapped) error { return nil }
-func UnlockFileEx(file Handle, reserved, low, high uint32, o *Overlapped) error { return nil }`
+func UnlockFileEx(file Handle, reserved, low, high uint32, o *Overlapped) error { return nil }
+const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+const SYNCHRONIZE = 0x00100000
+const WAIT_TIMEOUT = 258
+func OpenProcess(access uint32, inherit bool, pid uint32) (Handle, error) { return 0, nil }
+func WaitForSingleObject(h Handle, milliseconds uint32) (uint32, error) { return 0, nil }
+func CloseHandle(h Handle) error { return nil }
+func TerminateProcess(h Handle, code uint32) error { return nil }`
 
 // refusals is everything the guard says about a fixture read in w.
 func refusals(u *unit, w *world) []site {
@@ -793,15 +800,56 @@ func Stop(pid int, n syscall.Signal) error {
 		name: "the writer asking whether a process is there, for any caller",
 		as:   rawWriter,
 		src: `package confdir
-import ("errors"; "os"; "runtime"; "syscall")
+import ("errors"; "os"; "syscall")
 type Dir struct{ path string }
 func ProcessAlive(pid int) bool {
 	p, err := os.FindProcess(pid)
 	if err != nil { return false }
-	if runtime.GOOS == "windows" { return p.Release() == nil }
 	err = p.Signal(syscall.Signal(0))
 	return err == nil || errors.Is(err, syscall.EPERM)
 }`,
+	},
+	{
+		name: "the writer asking Windows whether a process is there, for any caller",
+		as:   rawWriter,
+		src: `package confdir
+import "golang.org/x/sys/windows"
+type Dir struct{ path string }
+func ProcessAlive(pid int) bool {
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION|windows.SYNCHRONIZE, false, uint32(pid))
+	if err != nil { return false }
+	event, err := windows.WaitForSingleObject(h, 0)
+	_ = windows.CloseHandle(h)
+	return err == nil && event == windows.WAIT_TIMEOUT
+}`,
+		stubs: map[string]string{"golang.org/x/sys/windows": windowsStub},
+	},
+	{
+		name: "a process opened and waited on outside the writer",
+		src: `package fixture
+import "golang.org/x/sys/windows"
+func there(pid uint32) bool {
+	h, err := windows.OpenProcess(windows.SYNCHRONIZE, false, pid)
+	if err != nil { return false }
+	event, _ := windows.WaitForSingleObject(h, 0)
+	return event == windows.WAIT_TIMEOUT
+}`,
+		stubs: map[string]string{"golang.org/x/sys/windows": windowsStub},
+		want:  []string{"golang.org/x/sys/windows.OpenProcess", "golang.org/x/sys/windows.SYNCHRONIZE", "golang.org/x/sys/windows.WaitForSingleObject", "golang.org/x/sys/windows.WAIT_TIMEOUT"},
+	},
+	{
+		name: "an exported function of the writer that ends a process on Windows",
+		as:   rawWriter,
+		src: `package confdir
+import "golang.org/x/sys/windows"
+type Dir struct{ path string }
+func Stop(pid uint32) error {
+	h, err := windows.OpenProcess(windows.SYNCHRONIZE, false, pid)
+	if err != nil { return err }
+	return windows.TerminateProcess(h, 1)
+}`,
+		stubs: map[string]string{"golang.org/x/sys/windows": windowsStub},
+		want:  []string{"Stop changes a file, or a process, and takes no Dir"},
 	},
 	{
 		name: "a process ended through an interface",

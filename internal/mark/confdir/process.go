@@ -1,27 +1,13 @@
 package confdir
 
-import (
-	"errors"
-	"os"
-	"runtime"
-	"syscall"
-)
-
-// ProcessAlive says whether a process with the id exists. Signal 0 delivers
-// nothing and reports only whether it could be delivered; a process that is not
-// ours answers permission denied, which is still a process. Windows has no
-// such signal, and there a process that cannot be opened by id is gone.
+// ProcessAlive says whether a process with the id is running.
+//
+// On Unix, signal 0 delivers nothing and reports only whether it could be
+// delivered; a process that is not ours answers permission denied, which is
+// still a process. On Windows a process object outlives its process for as long
+// as any handle to it is open, anyone's, so being able to open one says
+// nothing: it is running while a wait on it that waits for nothing runs out.
+// There, one that cannot be opened is gone.
 func ProcessAlive(pid int) bool {
-	if pid < 1 {
-		return false
-	}
-	process, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	if runtime.GOOS == "windows" {
-		return process.Release() == nil
-	}
-	err = process.Signal(syscall.Signal(0))
-	return err == nil || errors.Is(err, syscall.EPERM)
+	return pid >= 1 && running(pid)
 }
