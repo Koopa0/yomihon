@@ -757,20 +757,20 @@ func TestLeftOpenRefusesWithoutPrivacyAuthority(t *testing.T) {
 	}
 }
 
-// A rules file written for another version is a refusal, never a folder with no
-// rules file: what it withholds is unknown, so a note under it must not be
-// listed, and nothing the file wrote comes back out. It says which line to
-// change, as the other commands do.
-func TestLeftOpenRefusesARulesFileForAnotherVersion(t *testing.T) {
+// A rules file that cannot be used is a refusal, never a folder with no rules
+// file: what it withholds is unknown, so a note under it must not be listed,
+// and nothing the file wrote comes back out. That holds for the key every
+// earlier rules file began with, which is one more key nothing reads.
+func TestLeftOpenRefusesARulesFileItCannotUse(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name  string
 		rules string
 		want  string
 	}{
-		{"a version this build does not read", "schema_version = \"1\"\n[privacy]\nnever_egress_dirs = [\"Private\"]\n", `declares schema_version "1"; this yomihon reads "2"`},
-		{"no version at all", "[privacy]\nnever_egress_dirs = [\"Private\"]\n", "has no schema_version"},
-		{"a version that is not a plain number", "schema_version = \"SECRET-token\"\n[privacy]\nnever_egress_dirs = [\"Private\"]\n", "declares a schema_version this yomihon does not read"},
+		{"a version key", "schema_version = \"1\"\n[privacy]\nnever_egress_dirs = [\"Private\"]\n", "could not use it"},
+		{"a key nothing reads", "unknown_key = true\n[privacy]\nnever_egress_dirs = [\"Private\"]\n", "could not use it"},
+		{"a key whose value is a secret", "SecretKey = \"SECRET-token\"\n[privacy]\nnever_egress_dirs = [\"Private\"]\n", "could not use it"},
 	} {
 		for _, format := range []string{"json", "human"} {
 			t.Run(tt.name+"/"+format, func(t *testing.T) {
@@ -780,7 +780,7 @@ func TestLeftOpenRefusesARulesFileForAnotherVersion(t *testing.T) {
 				putOpenThoughtFile(t, root, "Private/Hidden thought.md", openThoughtNote("Hidden thought", "thought", draftFlag, "2026-09-02"))
 				got := leftOpen(t, root, configDir, "--format", format)
 				if got.exit != 2 || got.stdout != "" {
-					t.Errorf("caught: marks read a folder whose rules file is for another version: exit %d, stdout %q; want 2 and nothing", got.exit, got.stdout)
+					t.Errorf("caught: marks read a folder whose rules file cannot be used: exit %d, stdout %q; want 2 and nothing", got.exit, got.stdout)
 				}
 				if first, _, _ := strings.Cut(got.stderr, "\n"); first != "yomihon: "+egress.ErrUnavailable.Error() {
 					t.Errorf("stderr first line = %q, want the unavailable-authority refusal", first)
@@ -788,7 +788,7 @@ func TestLeftOpenRefusesARulesFileForAnotherVersion(t *testing.T) {
 				if !strings.Contains(got.stderr, tt.want) {
 					t.Errorf("stderr = %q, want it to say %q", got.stderr, tt.want)
 				}
-				for _, leaked := range []string{"SECRET-token", "Private", "Hidden thought", egress.NoRulesFile} {
+				for _, leaked := range []string{"SecretKey", "SECRET-token", "Private", "Hidden thought", egress.NoRulesFile} {
 					if strings.Contains(got.stdout+got.stderr, leaked) {
 						t.Errorf("caught: the refusal or the output carries %q: %q", leaked, got.stdout+got.stderr)
 					}

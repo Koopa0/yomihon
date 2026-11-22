@@ -201,21 +201,18 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 			wantSaid: unresolvedContractGuidance,
 		},
 		{
-			name: "a contract written for another version",
+			name: "a contract that still declares a version",
 			build: func(t *testing.T) string {
 				t.Helper()
 				root := t.TempDir()
-				writeFile(t, root, schema.ContractRelPath, "# rules\nschema_version = \"1\"\n")
+				// Otherwise a usable rules file, so the key is the only fault.
+				writeFile(t, root, schema.ContractRelPath, "schema_version = \"1\"\n[privacy]\nnever_egress_dirs = []\n")
 				return root
 			},
 			wantLine: func(string) string {
 				return "yomihon: privacy authority unavailable; agent-facing output disabled"
 			},
-			wantSaid: []string{
-				"System/schemas/vault-schema.toml",
-				`declares schema_version "1"; this yomihon reads "2"`,
-				`Change line 2 to schema_version = "2"`,
-			},
+			wantSaid: unresolvedContractGuidance,
 		},
 		{
 			name: "a folder that is not there",
@@ -268,14 +265,14 @@ func TestARefusalCarriesTheParagraphItsClassEarns(t *testing.T) {
 	}
 }
 
-// TestAVersionRefusalRepeatsNothingTheVaultWrote guards the one place a
-// refusal states a cause. The contract cannot be read, so what its privacy
-// section withholds is unknown, and nothing it wrote may come back out: not a
-// version that is not a plain number, and not a folder it names.
-func TestAVersionRefusalRepeatsNothingTheVaultWrote(t *testing.T) {
+// TestARefusalRepeatsNothingTheVaultWrote guards what a refusal leaves out. The
+// contract cannot be read, so what its privacy section withholds is unknown,
+// and nothing it wrote may come back out: not a key it carries that nothing
+// reads, not that key's value, and not a folder it names.
+func TestARefusalRepeatsNothingTheVaultWrote(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	writeFile(t, root, schema.ContractRelPath, "schema_version = \"SECRET-token\"\n[privacy]\nnever_egress_dirs = [\"PrivateFolder\"]\n")
+	writeFile(t, root, schema.ContractRelPath, "SecretKey = \"SECRET-token\"\n[privacy]\nnever_egress_dirs = [\"PrivateFolder\"]\n")
 	for _, command := range []string{"check", "coverage", "exists"} {
 		t.Run(command, func(t *testing.T) {
 			t.Parallel()
@@ -287,13 +284,13 @@ func TestAVersionRefusalRepeatsNothingTheVaultWrote(t *testing.T) {
 			if exit := runCommand(t.Context(), command, args, &stdout, &stderr, false); exit != 2 {
 				t.Errorf("exit = %d, want 2", exit)
 			}
-			for _, leaked := range []string{"SECRET-token", "PrivateFolder"} {
+			for _, leaked := range []string{"SecretKey", "SECRET-token", "PrivateFolder"} {
 				if strings.Contains(stdout.String()+stderr.String(), leaked) {
 					t.Errorf("caught: the refusal repeats %q out of the contract:\n%s%s", leaked, stdout.String(), stderr.String())
 				}
 			}
-			if !strings.Contains(stderr.String(), "declares a schema_version this yomihon does not read") {
-				t.Errorf("the refusal never says the version is the problem:\n%s", stderr.String())
+			if !strings.Contains(stderr.String(), "could not use it") {
+				t.Errorf("the refusal never says the rules file could not be used:\n%s", stderr.String())
 			}
 		})
 	}

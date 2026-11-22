@@ -42,11 +42,6 @@ const (
 	// is restart. The diagnostic stays the operator's English line for the log
 	// and for check; a page speaking to a reader says it from the dictionary.
 	ReasonContractChanged
-	// ReasonContractVersion is a contract written for a schema version this
-	// binary does not read. Nothing is closed by it: the folder is read as one
-	// that carries no contract, and Cause carries the *VersionError a surface
-	// says what differs from.
-	ReasonContractVersion
 )
 
 // String names a rejection reason for a diagnostic, a log line or a panic.
@@ -61,8 +56,6 @@ func (r Reason) String() string {
 		return "contract-unreadable"
 	case ReasonContractChanged:
 		return "contract-changed"
-	case ReasonContractVersion:
-		return "contract-version"
 	default:
 		panic("schema: unknown Reason: " + strconv.Itoa(int(r)))
 	}
@@ -148,14 +141,6 @@ func Ungoverned() Governance { return Governance{} }
 // anything, so only the surface knows which language to say it in.
 func Unreadable(err error) Governance {
 	return Governance{claim: unreadableClaim(err)}
-}
-
-// UnsupportedVersion records a contract file written for another schema
-// version. It claims nothing, so the folder reads exactly as one with no
-// contract; the reason and the loader's error are kept so a surface can say
-// what differs.
-func UnsupportedVersion(err error) Governance {
-	return Governance{claim: Claim{reason: ReasonContractVersion, cause: err}}
 }
 
 // unreadableClaim is the outcome for a contract file that exists and could not

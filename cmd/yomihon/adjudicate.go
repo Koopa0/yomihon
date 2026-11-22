@@ -7,7 +7,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/koopa0/yomihon/internal/egress"
@@ -245,9 +244,6 @@ func (args *commandArgs) setFlag(name, value string) error {
 // redaction these commands refuse: what they withhold is an account of an
 // existing file's keys, which is vault content, and a path is not.
 func contractGuidance(err error) string {
-	if mismatch, ok := errors.AsType[*egress.RulesVersionError](err); ok {
-		return versionGuidance(mismatch)
-	}
 	switch {
 	case errors.Is(err, egress.ErrUnavailable):
 		return "  The rules file is at " + schema.ContractRelPath + " and yomihon could not use it.\n" +
@@ -258,33 +254,6 @@ func contractGuidance(err error) string {
 	default:
 		return ""
 	}
-}
-
-// versionGuidance says what differs between a rules file and the version this
-// binary reads, and which line to change. It states only what the error
-// carries: a plain version number, a line number and the supported version, so
-// nothing of the vault's own words is printed under a policy that could not be
-// read.
-func versionGuidance(mismatch *egress.RulesVersionError) string {
-	var declares, change string
-	switch {
-	case mismatch.Missing:
-		declares = "has no schema_version"
-		change = "Add the line schema_version = \"" + mismatch.Supported + "\"."
-	case mismatch.Declared != "":
-		declares = "declares schema_version \"" + mismatch.Declared + "\""
-	default:
-		declares = "declares a schema_version this yomihon does not read"
-	}
-	if change == "" {
-		change = "Change the schema_version line to schema_version = \"" + mismatch.Supported + "\"."
-		if mismatch.Line > 0 {
-			change = "Change line " + strconv.Itoa(mismatch.Line) + " to schema_version = \"" + mismatch.Supported + "\"."
-		}
-	}
-	return "  The rules file at " + schema.ContractRelPath + " " + declares + "; this yomihon reads \"" + mismatch.Supported + "\".\n" +
-		"  " + change + "\n" +
-		"  Reading and search need none of it: yomihon <dir>\n"
 }
 
 func commandError(stderr io.Writer, err error) int {

@@ -37,7 +37,7 @@ func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 		IslandCount:           healthIslandCount(found.Islands),
 		Collisions:            healthCollisions(found.Collisions, articleLang),
 		Blocked:               healthBlocked(found.Blocked),
-		Notices:               folderNotices(found.Collision, found.Root, authority.VersionMismatch(), lang),
+		Notices:               folderNotices(found.Collision, found.Root, lang),
 		Skipped:               healthSkipped(found.Skipped),
 		FrontmatterUnreadable: healthNoteFindings(found.FrontmatterUnreadable, articleLang),
 		SchemaFaults:          healthEnumFindings(healthNoteFindings(found.SchemaFaults, articleLang), snap, lang, contract),

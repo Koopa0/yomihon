@@ -7,9 +7,7 @@ import (
 	"testing"
 )
 
-const validContract = `schema_version = "2"
-
-[folders]
+const validContract = `[folders]
 checked = ["Writing"]
 templates = ["System/templates"]
 journal = "Diary"
@@ -56,50 +54,31 @@ func TestDynamicContractMapKeysDecode(t *testing.T) {
 	}
 }
 
-func TestContractVersion(t *testing.T) {
+// TestAVersionKeyIsAnUnknownKey holds that a rules file declares no version.
+// The key the rules files of an earlier yomihon began with is refused like any
+// key nothing reads, and named, whatever it says: it is not read, not asked
+// for, and not quietly ignored.
+func TestAVersionKeyIsAnUnknownKey(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
 		name string
-		from string
-		to   string
-		want string
+		line string
 	}{
-		{
-			name: "earlier",
-			from: `schema_version = "2"`,
-			to:   `schema_version = "1"`,
-			want: `unsupported schema_version "1"; supported version is "2"`,
-		},
-		{
-			name: "later",
-			from: `schema_version = "2"`,
-			to:   `schema_version = "3"`,
-			want: `unsupported schema_version "3"; supported version is "2"`,
-		},
-		{
-			name: "empty",
-			from: `schema_version = "2"`,
-			to:   `schema_version = ""`,
-			want: `unsupported schema_version ""; supported version is "2"`,
-		},
-		{
-			name: "missing",
-			from: "schema_version = \"2\"\n",
-			to:   "",
-			want: `missing required key "schema_version"`,
-		},
+		{"the number an earlier rules file carried", `schema_version = "1"`},
+		{"another number", `schema_version = "2"`},
+		{"an empty value", `schema_version = ""`},
+		{"a value that is not a string", `schema_version = 1`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			data := []byte(strings.Replace(validContract, tt.from, tt.to, 1))
-			_, err := decodeContract(data, policySource{})
+			_, err := decodeContract([]byte(tt.line+"\n"+validContract), policySource{})
 			if err == nil {
-				t.Fatalf("decodeContract(%s schema_version) error = nil, want %q", tt.name, tt.want)
+				t.Fatalf("decodeContract(%s) error = nil, want the key refused", tt.line)
 			}
-			if got := err.Error(); got != tt.want {
-				t.Errorf("decodeContract(%s schema_version) error = %q, want %q", tt.name, got, tt.want)
+			if got, want := err.Error(), `unknown keys: "schema_version"`; got != want {
+				t.Errorf("decodeContract(%s) error = %q, want %q", tt.line, got, want)
 			}
 		})
 	}
@@ -113,12 +92,8 @@ func TestCoreDecodeErrorsCloseContract(t *testing.T) {
 		data []byte
 	}{
 		{
-			name: "wrong core type",
-			data: []byte(strings.Replace(validContract, `schema_version = "2"`, `schema_version = 2`, 1)),
-		},
-		{
 			name: "malformed TOML",
-			data: []byte(strings.Replace(validContract, `schema_version = "2"`, `schema_version = ["2"`, 1)),
+			data: []byte(strings.Replace(validContract, `journal = "Diary"`, `journal = ["Diary"`, 1)),
 		},
 		{
 			name: "wrong folders type",
@@ -151,8 +126,8 @@ func TestUnknownCoreKeys(t *testing.T) {
 	}{
 		{
 			name: "top level",
-			from: "schema_version = \"2\"\n",
-			to:   "schema_version = \"2\"\nunknown_zeta = true\nunknown_alpha = true\n",
+			from: "[folders]\n",
+			to:   "unknown_zeta = true\nunknown_alpha = true\n\n[folders]\n",
 			want: `unknown keys: "unknown_alpha", "unknown_zeta"`,
 		},
 		{
@@ -268,7 +243,6 @@ func loadContractBytes(t *testing.T, data []byte) (*Contract, error) {
 
 type decodeClassification struct {
 	errClass             string
-	version              string
 	typeRoles            string
 	navigationAvailable  bool
 	navigationDiagnostic string
@@ -286,7 +260,6 @@ func classifyDecode(data []byte) decodeClassification {
 		return decodeClassification{errClass: classifyDecodeError(err)}
 	}
 	return decodeClassification{
-		version:              s.Version(),
 		typeRoles:            typeRoles(s),
 		navigationAvailable:  s.NavigationRoles().Available(),
 		navigationDiagnostic: s.NavigationRoles().Diagnostic(),
@@ -313,10 +286,6 @@ func typeRoles(contract *Contract) string {
 
 func classifyDecodeError(err error) string {
 	switch message := err.Error(); {
-	case message == `missing required key "schema_version"`:
-		return "missing-version"
-	case strings.HasPrefix(message, "unsupported schema_version "):
-		return "unsupported-version"
 	case strings.HasPrefix(message, "unknown keys: "):
 		return "unknown-core"
 	case strings.HasPrefix(message, "rules file keys differ only by letter case: "):
@@ -336,10 +305,8 @@ func FuzzDecodeContractDeterministic(f *testing.F) {
 	seeds := [][]byte{
 		nil,
 		[]byte(validContract),
-		[]byte(`schema_version = "2"`),
-		[]byte(`schema_version = "1"`),
 		[]byte("not = [valid"),
-		[]byte(strings.Replace(validContract, "schema_version = \"2\"\n", "schema_version = \"2\"\nunknown = true\n", 1)),
+		[]byte("unknown = true\n" + validContract),
 		[]byte(strings.Replace(validContract, "journal = \"Diary\"\n", "journal = \"Diary\"\nunknown = true\n", 1)),
 		[]byte(strings.Replace(validContract, "role = \"course\"\n", "role = \"course\"\nunknown = true\n", 1)),
 		[]byte(strings.Replace(validContract, "never_egress_dirs = [\"Private\"]\n", "never_egress_dirs = [\"Private\"]\nunknown = true\n", 1)),
@@ -396,10 +363,9 @@ func foldedKeyContract(shape string) string {
 		longS   = "\u017f" // ſ, which the decoder folds to s
 		dottedI = "\u0130" // İ, which the decoder does not fold to i
 	)
-	const versionLine = "schema_version = \"2\"\n"
 	switch shape {
 	case "top-level":
-		return strings.Replace(validContract, versionLine, versionLine+"Schema_version = \"2\"\n", 1)
+		return "alpha = 1\nAlpha = 2\n" + validContract
 	case "nested-table":
 		return validContract + "\n[Folders]\nchecked = [\"Writing\"]\n"
 	case "array-of-tables":
@@ -435,13 +401,11 @@ func foldedKeyContract(shape string) string {
 	case "inline-table-array":
 		// Written as an array of inline tables, the rows arrive as a different
 		// Go type from the same rows written as tables.
-		return strings.Replace(validContract, versionLine,
-			versionLine+"rows = [{status = \"draft\", Status = \"archived\"}]\n", 1)
+		return "rows = [{status = \"draft\", Status = \"archived\"}]\n" + validContract
 	case "lowercases-together-only":
 		// The other direction: these two lowercase to the same string and the
 		// decoder still keeps them apart, so they are two unknown keys.
-		return strings.Replace(validContract, versionLine,
-			versionLine+"initial = true\n\""+dottedI+"nitial\" = true\n", 1)
+		return "initial = true\n\"" + dottedI + "nitial\" = true\n" + validContract
 	}
 	panic("unknown shape " + shape)
 }
@@ -453,7 +417,7 @@ func TestDecodeRefusesKeysThatFoldTogether(t *testing.T) {
 		shape string
 		names [2]string
 	}{
-		{"top-level", [2]string{`"Schema_version"`, `"schema_version"`}},
+		{"top-level", [2]string{`"Alpha"`, `"alpha"`}},
 		{"nested-table", [2]string{`"Folders"`, `"folders"`}},
 		{"array-of-tables", [2]string{`"Rows"`, `"rows"`}},
 		{"key-in-table", [2]string{`"fields.Required"`, `"fields.required"`}},
