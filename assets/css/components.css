@@ -7505,6 +7505,16 @@ samp,
   }
 }
 
+/* A row that also carries the furigana switch is full sooner: in English it
+   has no room for the grounds below about 1120, and the folder's name was
+   drawn over the switch and the search there. The grounds go first there
+   too, a step wider than the widths that measured short. */
+@media (max-width: 1199px) {
+  .y-header:has(.y-rubybtn) .y-paperswitch {
+    display: none;
+  }
+}
+
 .y-prefslink__mark {
   display: none;
   flex: none;
@@ -8157,6 +8167,24 @@ samp,
    verb a reader uses on every page, is the control it keeps. */
 @media (max-width: 1023px) {
   [data-js] .y-headerpath {
+    display: none;
+  }
+
+  /* A note with readings carries the furigana switch as well, and with the
+     search a field there is no room left for words: in English the folder's
+     name was drawn over the switch down to 720. The link to My marks goes, as
+     on a phone (the desk and the sidebar lead to it), and the bookmark keeps
+     its mark alone, its words being its name. */
+  .y-header:has(.y-rubybtn) .y-headerlink {
+    display: none;
+  }
+
+  .y-header:has(.y-rubybtn) .y-headermark__button {
+    padding: 0;
+    width: var(--control-h);
+  }
+
+  .y-header:has(.y-rubybtn) .y-headermark__label {
     display: none;
   }
 }
