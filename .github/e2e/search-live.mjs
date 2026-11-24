@@ -1,6 +1,9 @@
 // Behavior lock for the parts of search that exist only in a browser: the
 // results page answers a new query in place without a page change and keeps
-// the address true, a search the reader made is offered back next time, and the
+// the address true, a search the reader made is offered back next time, the
+// header's field on a wider window answers under itself as the reader types —
+// reached from the keyboard, followed with the arrows and Enter, put away by
+// Escape or a press outside it, never a dialog over the page (D94) — and the
 // phone's full-screen surface opens, answers and closes. The handler's own
 // answers are covered by Go tests; this reads what a reader would see.
 //
@@ -68,17 +71,52 @@ try {
   const keys = await (await browser.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
   await keys.goto(`${BASE}/`, { waitUntil: 'load' });
   await keys.waitForSelector('html[data-js]');
-  await keys.keyboard.press('Control+k');
-  const palette = keys.locator('dialog[data-search][open]');
-  await palette.waitFor();
-  const room = await palette.boundingBox();
-  check(room !== null && room.width <= 600, `the keyboard opened a ${room?.width}px dialog on a wide window, want a box of at most 600px`);
+  const headerField = '.y-searchfield [data-live-search-input]';
+  const panel = keys.locator('.y-searchfield [data-live-search-panel]');
+  const inField = () => keys.evaluate((selector) => document.activeElement?.matches(selector) === true, headerField);
+  const anyDialogOpen = () => keys.evaluate(() => document.querySelector('dialog[open]') !== null);
+  await keys.keyboard.press('ControlOrMeta+k');
+  check(await inField(), 'on a wide window the keyboard chord did not put the reader in the header\'s search field');
+  check(!(await anyDialogOpen()), 'on a wide window the keyboard chord opened a dialog over the page, want the header\'s field');
   await keys.keyboard.type('alpha', { delay: 30 });
-  const rows = palette.locator('[data-live-search-row]');
+  const rows = panel.locator('[data-live-search-row]');
+  await rows.nth(1).waitFor();
+  // The answer drops under the field, inside the window, and is not a dialog.
+  const placed = await keys.evaluate((selector) => {
+    const form = document.querySelector(selector).closest('form').getBoundingClientRect();
+    const list = document.querySelector('.y-searchfield [data-live-search-panel]').getBoundingClientRect();
+    return { top: list.top, formBottom: form.bottom, left: list.left, right: list.right, width: innerWidth };
+  }, headerField);
+  check(placed.top >= placed.formBottom - 0.5 && placed.left >= 0 && placed.right <= placed.width,
+    `the field's answer is drawn at ${JSON.stringify(placed)}, want it under the field and inside the window`);
+  check(!(await anyDialogOpen()), 'typing in the header\'s field opened a dialog over the page');
+  // Escape puts the list away and leaves the reader in the field, typing.
+  await keys.keyboard.press('Escape');
+  check(await panel.isHidden(), 'Escape left the field\'s answer open');
+  check(await inField(), 'the first Escape took the reader out of the field, want only the list put away');
+  // A press anywhere outside the field puts the list away too.
+  await keys.keyboard.press('Backspace');
+  await rows.first().waitFor();
+  const spacer = await keys.locator('.y-header__spacer').boundingBox();
+  check(spacer !== null && spacer.width > 4, `the header has no room beside the field to press: ${JSON.stringify(spacer)}`);
+  if (spacer) await keys.mouse.click(spacer.x + spacer.width / 2, spacer.y + spacer.height / 2);
+  check(await panel.isHidden(), 'a press outside the field left its answer open');
+  // Back by the keyboard, the arrows choose a row and Enter opens it.
+  // The field still holds what was typed before and answers it again on
+  // focus, so the rows are read only once the answer to this query is drawn.
+  const answered = keys.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname === '/search/results' && url.searchParams.get('q') === 'alpha';
+  });
+  await keys.keyboard.press('ControlOrMeta+k');
+  check(await inField(), 'the chord did not bring the reader back to the field');
+  await keys.keyboard.type('alpha', { delay: 30 });
+  await answered;
+  await keys.waitForFunction(() => document.querySelector('.y-searchfield [data-live-search-panel]')?.getAttribute('aria-busy') === 'false');
   await rows.nth(1).waitFor();
   const second = new URL(await rows.nth(1).getAttribute('href'), BASE).pathname;
   await keys.keyboard.press('ArrowDown');
-  check(await keys.evaluate(() => document.activeElement?.matches('[data-live-search-input]') === true), 'a press of ArrowDown took focus out of the field');
+  check(await inField(), 'a press of ArrowDown took focus out of the field');
   await keys.keyboard.press('Enter');
   await keys.waitForURL((url) => url.pathname !== '/');
   check(new URL(keys.url()).pathname === second, `Enter opened ${new URL(keys.url()).pathname}, want the row ArrowDown chose, ${second}`);
@@ -106,4 +144,4 @@ if (failures.length > 0) {
   console.error(`FAIL search-live: ${failures.join('; ')}`);
   process.exit(1);
 }
-console.log('PASS search-live: the results page answers in place and keeps its address, the keyboard opens a palette whose rows ArrowDown and Enter reach, recent searches come back, and the phone surface opens, answers and closes');
+console.log('PASS search-live: the results page answers in place and keeps its address, recent searches come back, on a wide window the keyboard reaches the header\'s field whose answer drops under it, is put away by Escape or a press outside, and whose rows ArrowDown and Enter reach, and the phone surface opens, answers and closes');

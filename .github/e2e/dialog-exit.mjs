@@ -1,5 +1,8 @@
 // Behavior lock: the three top-layer surfaces close on the same curve they
-// open. The transition used to be declared only on [open] / :popover-open, so
+// open. The search is one of them only on a phone, where the header's glass
+// opens it over the whole screen; above a phone's width it is a field in the
+// header whose list drops under it and is not a top-layer surface (D94), so
+// the search's exit is asked at a phone's width. The transition used to be declared only on [open] / :popover-open, so
 // native close dropped the declaration and the surface vanished mid-curve.
 // Go tests cannot see CSS. The probe opens each surface, closes it the way a
 // reader does, and reads the animations that started. The preview is also
@@ -15,6 +18,9 @@ const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const MUTATE = process.env.MUTATE || '';
 const SEARCH = '[data-search]';
 const SEARCH_OPEN = '[data-search-open]';
+// The width the search is a dialog at, and the one the rest is asked at.
+const PHONE = 390;
+const WIDE = 1280;
 const SHEET = '[data-concept-sheet]';
 const CONCEPT = '[data-concept]';
 const PREVIEW = '[data-preview-card]';
@@ -311,7 +317,7 @@ const closePreviewAsReader = (page, selector) =>
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: WIDE, height: 900 } });
   const page = await context.newPage();
   // Each mutation aims at one site, and the named-section site runs on its own
   // pages below, so this page takes every mode except those. Arming on the aim
@@ -327,10 +333,13 @@ try {
     if (issue) notApplied(`${MUTATE}: ${issue}`);
   }
 
+  // Opened the way a phone's reader opens it, from the glass in the row.
+  await page.setViewportSize({ width: PHONE, height: 900 });
   await page.locator(SEARCH_OPEN).click();
   await page.locator(`${SEARCH}[open]`).waitFor();
   await waitSettled(page, SEARCH);
   const searchExit = await closeAndRead(page, SEARCH, 'dialog');
+  await page.setViewportSize({ width: WIDE, height: 900 });
   if (searchExit.error) broken(`search close: ${searchExit.error}`);
   if (searchExit.count < 1 || longest(searchExit) < 50) {
     fail(
@@ -389,10 +398,12 @@ try {
   }
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: PHONE, height: 900 });
   await page.locator(SEARCH_OPEN).click();
   await page.locator(`${SEARCH}[open]`).waitFor();
   await waitSettled(page, SEARCH);
   const reduced = await closeAndRead(page, SEARCH, 'dialog');
+  await page.setViewportSize({ width: WIDE, height: 900 });
   if (reduced.error) broken(`reduced-motion close: ${reduced.error}`);
   if (longest(reduced) >= 50) {
     fail(

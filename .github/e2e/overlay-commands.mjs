@@ -2,11 +2,14 @@
 // browser, because the markup says so, rather than by this site's script.
 //
 // A press that names what it opens is performed by the browser itself, so the
-// palette answers a reader whose browser is running none of our JavaScript.
-// That is the claim, and the only way to ask it is with scripting switched
-// off — a Go test reads markup and cannot tell an attribute the browser acts
-// on from one it ignores. The keys themselves answer only to script, and a
-// reader without it finds them explained on the settings page.
+// search a phone's glass opens over the whole screen answers a reader whose
+// browser is running none of our JavaScript. That is the claim, and the only
+// way to ask it is with scripting switched off — a Go test reads markup and
+// cannot tell an attribute the browser acts on from one it ignores. Above a
+// phone's width the search is a field in the header (D94), an ordinary form
+// that needs no script at all, and it is asked to search with none. The keys
+// themselves answer only to script, and a reader without it finds them
+// explained on the settings page.
 //
 // The concept sheet is the other half. Its opening stays with the script, for
 // reasons the module says at the call; its closing does not, and the press
@@ -31,6 +34,9 @@ const MUTATE = process.env.MUTATE || '';
 // found reads as a probe that timed out rather than as the lock it is.
 const SEARCH_OPEN = '[data-search-open]';
 const SEARCH = '[data-search]';
+const SEARCH_FIELD = '.y-searchfield [data-live-search-input]';
+// The search is the glass at this width and below, the field above it.
+const PHONE = 720;
 const KEYS_EXPLAINED = '.y-prefs__shortcuts .y-kbdhelp__list';
 const SHEET = '[data-concept-sheet]';
 const SHEET_CLOSE = '[data-concept-sheet] .y-conceptsheet__head button';
@@ -40,12 +46,15 @@ const CONCEPT = '[data-concept]';
 // draws only on a page that marks itself as running script.
 const SCRIPT_ONLY = ['.y-rubybtn', '.y-headermark [data-mark-button]'];
 const SCRIPT_ONLY_RULE = /html:not\(\[data-js\]\)\s+\.y-rubybtn\s*\{\s*display:\s*none;\s*\}/g;
-const BOOKMARK_RULE = /^\.y-headermark\s*\{\s*display:\s*none;/gm;
+// The bookmark shares its rule with the copy of the path beside it, which
+// waits for script for the same reason.
+const BOOKMARK_RULE = /^\.y-headermark,\s*\.y-headerpath\s*\{\s*display:\s*none;/gm;
 
 const SITES = [
   'script-only-header-controls-stay-out-of-the-way',
   'scriptless-preferences-remains-a-keyboard-destination',
   'the-palette-opens-with-no-script',
+  'the-header-field-searches-with-no-script',
   'search-remains-reachable-with-neither-feature',
   'the-keys-are-explained-with-no-script',
   'the-sheet-closes-with-no-listener',
@@ -156,7 +165,7 @@ const drawTheBookmarkAlways = async (page) => {
     const body = await response.text();
     const hits = [...body.matchAll(BOOKMARK_RULE)].length;
     perLoad.push(hits);
-    await route.fulfill({ response, body: hits === 1 ? body.replace(BOOKMARK_RULE, '.y-headermark { display: flex;') : body });
+    await route.fulfill({ response, body: hits === 1 ? body.replace(BOOKMARK_RULE, '.y-headermark,\n.y-headerpath { display: flex;') : body });
   });
   return () => perLoad.length === 0 || perLoad.some((hits) => hits !== 1)
     ? `bookmark rule matched [${perLoad}], want exactly 1 per load` : '';
@@ -191,14 +200,14 @@ const MUTATIONS = {
   'widen-the-scriptless-search-link': {
     target: 'search-remains-reachable-with-neither-feature',
     apply: distortScriptlessHeader(
-      /\.y-searchfallback\s*\{/g,
+      /^\.y-searchfallback\s*\{/gm,
       '.y-searchfallback { display: inline-block; min-width: 1500px; }',
     ),
   },
   'truncate-the-scriptless-wordmark': {
     target: 'search-remains-reachable-with-neither-feature',
     apply: distortScriptlessHeader(
-      /\.y-brand__name\s*>\s*span\s*\{/g,
+      /^\.y-brand__word\s*\{/gm,
       '.y-brand__name > span { max-width: 1px; }',
     ),
   },
@@ -210,6 +219,26 @@ const MUTATIONS = {
       'command="show-modal" commandfor="_y-search-dialog"',
       'data-retired-command="show-modal"',
       'the command on the header press',
+    ),
+  },
+  // The header's field stops naming the search page, so a reader with no
+  // script who types in it and presses Enter is taken nowhere they asked.
+  'send-the-header-field-elsewhere': {
+    target: 'the-header-field-searches-with-no-script',
+    apply: rewriteMarkup(
+      'class="y-searchfield__form" method="get" action="/search"',
+      'class="y-searchfield__form" method="get" action="/"',
+      'the header field\'s form',
+    ),
+  },
+  // The field is drawn only once script has run, as the bookmark is, which
+  // leaves a reader with no script above a phone's width no way into search
+  // in the row: the fallback link is a phone's.
+  'draw-the-header-field-only-with-script': {
+    target: 'search-remains-reachable-with-neither-feature',
+    apply: distortScriptlessHeader(
+      /^\.y-searchfield\s*\{/gm,
+      'html:not([data-js]) .y-searchfield { display: none; }',
     ),
   },
   // The settings page stops listing the keys, so a reader whose browser runs
@@ -338,9 +367,11 @@ try {
   }
 
   // --- The palette, on a page running no script of ours -----------------
+  //
+  // At a phone's width, where the header draws the glass that opens it.
   {
     const site = 'the-palette-opens-with-no-script';
-    const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1280, height: 800 } });
+    const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 390, height: 800 } });
     const page = await context.newPage();
     const proof = await applyMutation(page, site);
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
@@ -358,12 +389,41 @@ try {
     }
     // What the reader can do with it once it is there: the form inside is an
     // ordinary GET, which is the whole of the palette without live rows.
-    const form = await page.$eval('[data-live-search-form]', (element) => ({
+    const form = await page.$eval(`${SEARCH} [data-live-search-form]`, (element) => ({
       method: element.getAttribute('method'),
       action: new URL(element.action, location.href).pathname,
     }));
     if (form.method !== 'get' || form.action !== '/search') {
       fail(site, `the palette a reader with no script reaches submits ${JSON.stringify(form)}, want a get to /search`);
+    }
+    await context.close();
+  }
+
+  // --- The header's field, on a page running no script of ours ---------
+  //
+  // Above a phone's width the search is the field itself. Typed in and sent
+  // with Enter, it is the same ordinary GET to /search the palette's form is.
+  for (const width of [1280, 721]) {
+    const site = 'the-header-field-searches-with-no-script';
+    const context = await browser.newContext({ javaScriptEnabled: false, viewport: { width, height: 800 } });
+    const page = await context.newPage();
+    const proof = await applyMutation(page, site);
+    await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
+    if (await page.$eval('html', (root) => root.hasAttribute('data-js'))) broken('script ran in the no-script fixture');
+    const field = page.locator(`header ${SEARCH_FIELD}`);
+    if (await field.count() !== 1) broken(`${PAGE} carries no single header search field`);
+    if (!(await field.isVisible()) || !((await field.getAttribute('aria-label')) ?? '').trim()) {
+      fail(site, `at ${width}px with no script the header's search field is not drawn with a name`);
+    }
+    await field.fill('alpha');
+    await Promise.all([
+      page.waitForURL((url) => url.pathname !== new URL(BASE + PAGE).pathname, { timeout: 4000 }).catch(() => {}),
+      field.press('Enter'),
+    ]);
+    checkProof(proof);
+    const landed = new URL(page.url());
+    if (landed.pathname !== '/search' || landed.searchParams.get('q') !== 'alpha') {
+      fail(site, `at ${width}px with no script, Enter in the header's field reached ${landed.pathname}${landed.search}, want /search?q=alpha`);
     }
     await context.close();
   }
@@ -391,20 +451,25 @@ try {
       checkProof(proof);
       fail(site, 'the page offers no visible, named scriptless search link');
     }
-    for (const width of [1281, 1280, 938, 937, 720, 521, 520, 390, 375, 360]) {
+    // On a phone the way in is the link; above a phone's width it is the
+    // header's field, an ordinary form, and the link gives way to it. One of
+    // them is drawn, whole and inside the window, at every width.
+    for (const width of [1281, 1280, 938, 937, 721, 720, 521, 520, 390, 375, 360]) {
       await page.setViewportSize({ width, height: 800 });
-      const row = await page.evaluate(() => {
+      const row = await page.evaluate(({ field, phone }) => {
         const header = document.querySelector('header');
         const name = document.querySelector('.y-brand__name > span');
-        const link = document.querySelector('.y-searchfallback').getBoundingClientRect();
+        const way = innerWidth > phone ? document.querySelector(field) : document.querySelector('.y-searchfallback');
+        const box = way.getBoundingClientRect();
         return {
+          way: innerWidth > phone ? 'field' : 'link',
           overflow: header.scrollWidth - header.clientWidth,
           nameLost: name.scrollWidth - name.clientWidth,
-          linkFits: link.left >= 0 && link.right <= innerWidth && link.width > 0,
+          wayFits: way.checkVisibility() && box.left >= 0 && box.right <= innerWidth && box.width > 0,
         };
-      });
+      }, { field: SEARCH_FIELD, phone: PHONE });
       checkProof(proof);
-      if (row.overflow > 1 || row.nameLost > 1 || !row.linkFits) {
+      if (row.overflow > 1 || row.nameLost > 1 || !row.wayFits) {
         fail(site, `${language} at ${width}px: the scriptless header does not fit: ${JSON.stringify(row)}`);
       }
       if (language === 'en' && width === 375 && row.nameLost !== 0) {
@@ -412,6 +477,7 @@ try {
       }
     }
     // Tab to the link from the document; do not supply focus the reader cannot reach.
+    await page.setViewportSize({ width: 375, height: 800 });
     let reached = false;
     for (let step = 0; step < 20; step += 1) {
       await page.keyboard.press('Tab');
@@ -478,7 +544,8 @@ try {
   // the listener this module keeps for exactly that case.
   {
     const site = 'an-engine-without-commands-keeps-a-way-in';
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    // At a phone's width, where the header draws the press this is about.
+    const context = await browser.newContext({ viewport: { width: 390, height: 800 } });
     const page = await context.newPage();
     const proof = await applyMutation(page, site);
     await page.addInitScript(() => {
@@ -508,7 +575,7 @@ try {
   }
 
   console.log(
-    'PASS overlay-commands: the palette opens from a press on a page running no script, the settings page explains the keys,'
+    'PASS overlay-commands: the palette opens from a phone\'s press on a page running no script, the header\'s field searches with none above a phone, the settings page explains the keys,'
     + ' the concept sheet closes on a press nothing listens for, and an engine without the markup form of a'
     + ' press still has a way into the palette; with neither feature a keyboard link reaches /search'
     + '; script-only header controls stay hidden and unfocusable while native preferences remains keyboard reachable',

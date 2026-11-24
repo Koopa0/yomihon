@@ -1,7 +1,10 @@
 // Behavior lock for the global shortcut boundary. The three printable-key
 // actions are deliberately available without modifiers, while browser and OS
-// chords remain untouched. Escape and the command-palette chord are outside
-// that printable-key guard and keep their native roles. The switch for the
+// chords remain untouched. Escape and the search chord are outside that
+// printable-key guard and keep their roles: above a phone's width the chord
+// puts the reader in the header's search field and Escape takes them out of
+// it; on a phone, where the header has only the glass, the chord opens the
+// search over the whole screen and Escape closes it. The switch for the
 // printable keys is on the settings page, and the ? key opens the panel that
 // lists them all.
 //
@@ -15,6 +18,9 @@ const MUTATE = process.env.MUTATE || '';
 const FILTER = '[data-nav-filter]';
 const NAV_TOGGLE = '[data-nav-toggle]';
 const DIALOG = '[data-search]';
+const SEARCH_FIELD = '.y-searchfield [data-live-search-input]';
+// Above this width the header's search is a field; at it and below, the glass.
+const PHONE = 720;
 const CONCEPT_SHEET = '[data-concept-sheet]';
 const CONCEPT_TRIGGER = '[data-concept]';
 const HELP_PANEL = '#_y-kbd-help';
@@ -313,18 +319,28 @@ const dispatch = (page, type, key, modifiers = {}) => page.evaluate(({ type, key
   return { defaultPrevented: event.defaultPrevented || !accepted };
 }, { type, key, modifiers });
 
-const state = (page) => page.evaluate(({ dialog, filter, help }) => ({
+const state = (page) => page.evaluate(({ dialog, filter, help, field }) => ({
   nav: document.documentElement.dataset.nav,
   rail: document.documentElement.dataset.rail,
   shortcuts: document.documentElement.dataset.singleKeyShortcuts,
   dialogOpen: Boolean(document.querySelector(dialog)?.open),
+  fieldFocused: document.activeElement === document.querySelector(field),
   filterFocused: document.activeElement === document.querySelector(filter),
   helpOpen: Boolean(document.querySelector(help)?.matches(':popover-open')),
 }), {
   dialog: DIALOG,
   filter: FILTER,
   help: HELP_PANEL,
+  field: SEARCH_FIELD,
 });
+
+// What the search chord should have done at this width, read off a state: the
+// field focused and no dialog above a phone, the dialog open on one.
+const searchAnswered = (reading, width) => (width > PHONE
+  ? reading.fieldFocused && !reading.dialogOpen
+  : reading.dialogOpen && !reading.fieldFocused);
+const searchQuiet = (reading) => !reading.fieldFocused && !reading.dialogOpen;
+const searchWords = (reading) => `field focused=${reading.fieldFocused}, dialog open=${reading.dialogOpen}`;
 
 // Which option of the single-key choice the settings page shows in force.
 const shownChoice = (page) => page.evaluate((field) => (
@@ -452,20 +468,32 @@ try {
   }
   await closeConceptSheet();
 
-  for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
-    for (const key of ['k', 'K']) {
-      const chordModifiers = key === 'K' ? { ...modifiers, shiftKey: true } : modifiers;
-      const chord = await dispatch(page, 'keydown', key, chordModifiers);
-      after = await state(page);
-      if (!chord.defaultPrevented || !after.dialogOpen) {
-        fail('command-palette-chord', `command-palette chord left open=${after.dialogOpen}, prevented=${chord.defaultPrevented}`);
+  // The chord at both of the header's shapes: the field above a phone's
+  // width, the glass on a phone. The page is put back at this probe's width
+  // afterwards, so the questions after this one are asked of the layout they
+  // were written for.
+  for (const width of [800, 390]) {
+    await page.setViewportSize({ width, height: 800 });
+    // The field is drawn exactly where the header has room for it; waited on
+    // so the chord is asked of the shape this width draws.
+    await page.waitForFunction(({ field, wide }) => (document.querySelector(field)?.offsetParent != null) === wide, { field: SEARCH_FIELD, wide: width > PHONE });
+    for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
+      for (const key of ['k', 'K']) {
+        const chordModifiers = key === 'K' ? { ...modifiers, shiftKey: true } : modifiers;
+        if (!searchQuiet(await state(page))) broken(`at ${width}px the search was already open before the chord`);
+        const chord = await dispatch(page, 'keydown', key, chordModifiers);
+        after = await state(page);
+        if (!chord.defaultPrevented || !searchAnswered(after, width)) {
+          fail('command-palette-chord', `at ${width}px the search chord left ${searchWords(after)}, prevented=${chord.defaultPrevented}, want ${width > PHONE ? 'the field focused' : 'the dialog open'}`);
+        }
+        await dispatch(page, 'keyup', key, chordModifiers);
+        await press(page, 'Escape');
+        after = await state(page);
+        if (!searchQuiet(after)) fail('escape-dismisses', `at ${width}px Escape did not put the search away: ${searchWords(after)}`);
       }
-      await dispatch(page, 'keyup', key, chordModifiers);
-      await press(page, 'Escape');
-      after = await state(page);
-      if (after.dialogOpen) fail('escape-dismisses', 'Escape did not close the command palette');
     }
   }
+  await page.setViewportSize({ width: 800, height: 800 });
 
   // A composing input method owns Escape: it is how a half-typed word is
   // abandoned, and the page taking it instead cancels nothing and closes
@@ -540,14 +568,14 @@ try {
 
   const disabledChord = await dispatch(page, 'keydown', 'k', { ctrlKey: true });
   after = await state(page);
-  if (!disabledChord.defaultPrevented || !after.dialogOpen) {
-    fail('disabled-command-and-escape', `disabled Ctrl+K left open=${after.dialogOpen}, prevented=${disabledChord.defaultPrevented}`);
+  if (!disabledChord.defaultPrevented || !searchAnswered(after, 800)) {
+    fail('disabled-command-and-escape', `disabled Ctrl+K left ${searchWords(after)}, prevented=${disabledChord.defaultPrevented}`);
   }
   await dispatch(page, 'keyup', 'k', { ctrlKey: true });
   const disabledEscape = await press(page, 'Escape');
   after = await state(page);
-  if (disabledEscape.defaultPrevented !== true || after.dialogOpen) {
-    fail('disabled-command-and-escape', `disabled Escape left open=${after.dialogOpen}, prevented=${disabledEscape.defaultPrevented}`);
+  if (disabledEscape.defaultPrevented !== true || !searchQuiet(after)) {
+    fail('disabled-command-and-escape', `disabled Escape left ${searchWords(after)}, prevented=${disabledEscape.defaultPrevented}`);
   }
 
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -583,25 +611,37 @@ try {
   await dispatch(page, 'keyup', '[');
   await press(page, '[');
 
-  // Above the width where the sidebar is a drawer the same key folds the
-  // column instead, so what is asked here is that it acts there and that it
-  // acts on the column alone: the drawer's own state stays closed. The media
-  // query is waited on rather than the drawer's own state, which reads closed
-  // at both widths and would let this pass without the viewport ever having
-  // changed. The second press puts the column back, so the questions after
-  // this one are asked of the layout they were written for.
+  // Above the width where the sidebar is a drawer the same key folds or
+  // unfolds the column instead, so what is asked here is that it acts there
+  // and that it acts on the column alone: the drawer's own state stays closed.
+  // The column starts the way a reader who never chose finds it (folded, D94),
+  // so the key is asked to turn it the other way rather than to fold it. The
+  // media query is waited on rather than the drawer's own state, which reads
+  // closed at both widths and would let this pass without the viewport ever
+  // having changed. The second press puts the column back, so the questions
+  // after this one are asked of the layout they were written for.
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.waitForFunction(() => !window.matchMedia('(max-width: 1023px)').matches);
+  const railBefore = (await state(page)).rail;
+  if (!['open', 'collapsed'].includes(railBefore)) broken(`the wide column reads rail=${railBefore}, neither open nor folded`);
+  const railTurned = railBefore === 'open' ? 'collapsed' : 'open';
   const wideBracket = await dispatch(page, 'keydown', '[');
   after = await state(page);
   await dispatch(page, 'keyup', '[');
-  if (!wideBracket.defaultPrevented || after.nav === 'open' || after.rail !== 'collapsed') {
-    fail('wide-key-folds-the-column-not-the-drawer', `wide [ left nav=${after.nav}, rail=${after.rail}, prevented=${wideBracket.defaultPrevented}`);
+  if (!wideBracket.defaultPrevented || after.nav === 'open' || after.rail !== railTurned) {
+    fail('wide-key-folds-the-column-not-the-drawer', `wide [ from rail=${railBefore} left nav=${after.nav}, rail=${after.rail}, prevented=${wideBracket.defaultPrevented}, want rail=${railTurned}`);
   }
   await press(page, '[');
   after = await state(page);
-  if (after.rail !== 'open' || after.nav === 'open') {
-    fail('wide-key-folds-the-column-not-the-drawer', `the second wide [ left nav=${after.nav}, rail=${after.rail}, want the column back`);
+  if (after.rail !== railBefore || after.nav === 'open') {
+    fail('wide-key-folds-the-column-not-the-drawer', `the second wide [ left nav=${after.nav}, rail=${after.rail}, want the column back at ${railBefore}`);
+  }
+  // The filter questions below are about a filter the reader can type in,
+  // which a folded column does not offer, so the column is unfolded for them
+  // the way a reader would unfold it.
+  if (after.rail !== 'open') {
+    await press(page, '[');
+    if ((await state(page)).rail !== 'open') broken('the wide [ did not unfold the column for the filter questions');
   }
 
   // At this width the filter's Escape has nothing behind it to fall through

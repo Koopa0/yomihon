@@ -407,18 +407,31 @@ try {
 				`module boot/filter reveal failed: data-js=${await page.evaluate(() => document.documentElement.dataset.js)}, hidden=${filterHidden}`,
 			);
 		}
-		// The chord, not the header control. Pressing that control opens the
-		// palette because the markup says so, which a browser does whether or
-		// not a single line of ours ran — so it would answer here for the wrong
-		// reason. A chord is not a press on anything the markup can name, so it
-		// reaches the palette only through the module this case is about.
+		// The chord, not a press on the header. At this width the header's
+		// search is a field, which a press focuses whether or not a single line
+		// of ours ran, and on a phone the glass opens the search because the
+		// markup says so — either would answer here for the wrong reason. A
+		// chord is not a press on anything the markup can name, so it reaches
+		// the field only through the module this case is about.
+		const searchField = ".y-searchfield [data-live-search-input]";
+		if (
+			await page.evaluate(
+				(field) => document.activeElement?.matches(field) ?? false,
+				searchField,
+			)
+		) {
+			broken("the header's search field held focus before the chord, so the chord's answer cannot be told from it");
+		}
 		await page.keyboard.press("ControlOrMeta+k");
 		if (
-			!(await page.locator("[data-search]").evaluate((dialog) => dialog.open))
+			!(await page.evaluate(
+				(field) => document.activeElement?.matches(field) ?? false,
+				searchField,
+			))
 		) {
 			fail(
 				"application-runtime-survives",
-				"the nonce-authorized module did not answer the palette chord",
+				"the nonce-authorized module did not answer the search chord: focus is not in the header's search field",
 			);
 		}
 		await context.close();
