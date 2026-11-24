@@ -152,7 +152,7 @@ const MUTATIONS = {
   // Words as text between a heading and the paragraph after it.
   'put-the-words-in-text-beside-the-heading': {
     target: 'a-landing-on-a-heading-survives',
-    apply: rewriteDocument('data-text="留下自己的想法"></a>', 'data-text="留下自己的想法">留下自己的想法</a>'),
+    apply: rewriteDocument('data-text="寫想法"></a>', 'data-text="寫想法">寫想法</a>'),
   },
 };
 
