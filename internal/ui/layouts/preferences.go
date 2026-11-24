@@ -29,13 +29,22 @@ var (
 	textSizeChoice  = preference{cookie: "yomihon_textsize", values: []string{"m", "l", "xl"}, fallback: "m"}
 	shortcutsChoice = preference{cookie: "yomihon_shortcuts", values: []string{"on", "off"}, fallback: "on"}
 	fontChoice      = preference{cookie: "yomihon_font", values: []string{"serif", "sans", "kai"}, fallback: ""}
-	railChoice      = preference{cookie: "yomihon_rail", values: []string{"open", "collapsed"}, fallback: "open"}
+
+	// railChoice is whether the left column stands beside the text on a wide
+	// window. Collapsed is the fallback: a reader who never chose reads full
+	// screen, with the text alone in the middle of the window (D94).
+	railChoice = preference{cookie: "yomihon_rail", values: []string{"open", "collapsed"}, fallback: "collapsed"}
 
 	// sectionButtonsChoice is when the buttons beside a section are drawn:
 	// quietly all the time, or only while the reader is at the section's
-	// heading. Always is the fallback, because a button nobody is shown is a
-	// button nobody finds.
-	sectionButtonsChoice = preference{cookie: "yomihon_sectionbuttons", values: []string{"always", "hover"}, fallback: "always"}
+	// heading. Hover is the fallback, so a page read straight through carries
+	// nothing beside its sections the reader did not reach for (D94).
+	sectionButtonsChoice = preference{cookie: "yomihon_sectionbuttons", values: []string{"always", "hover"}, fallback: "hover"}
+
+	// paperChoice is the paper the light theme is set on: stone, washi or
+	// white. It is a daytime choice: the night lamp is one paper, and the
+	// stylesheet answers dark the same whichever paper is stored.
+	paperChoice = preference{cookie: "yomihon_paper", values: []string{"stone", "washi", "white"}, fallback: "stone"}
 
 	// positionChoice is whether a note opens where the reader last stopped in
 	// it. On is the fallback: a reader who never chose is offered the
@@ -47,7 +56,7 @@ var (
 // not among them: each row here resolves to a short value the root carries for
 // the stylesheet to answer, while the language decides which words the server
 // writes at all, so it is read beside the dictionary those words come from.
-var preferences = [...]preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice, railChoice, sectionButtonsChoice, positionChoice}
+var preferences = [...]preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice, railChoice, sectionButtonsChoice, positionChoice, paperChoice}
 
 // read answers one choice for this request: the stored value when the cookie
 // carries one the row honours, and the row's fallback otherwise. An unknown

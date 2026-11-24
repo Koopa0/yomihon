@@ -175,6 +175,9 @@ export function initPreferences() {
       writeTheme(null, false);
     },
     textsize: writeTextSize,
+    paper(value) {
+      setPreference('paper', value);
+    },
     font(value) {
       setPreference('font', value);
     },
@@ -317,9 +320,13 @@ export function initPreferences() {
       delete root.dataset.font;
     }
     root.dataset.singleKeyShortcuts = readCookie('yomihon_shortcuts') === 'off' ? 'off' : 'on';
-    // Only the literal "hover" is hover, matching the server's stamp: any other
-    // cookie, or none, shows the buttons all the time.
-    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') === 'hover' ? 'hover' : 'always';
+    // Only the literal "always" is always, matching the server's stamp: any
+    // other cookie, or none, shows the buttons on hover.
+    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') === 'always' ? 'always' : 'hover';
+    // The paper honours the same three names the server does; any other cookie,
+    // or none, is stone.
+    const paper = readCookie('yomihon_paper');
+    root.dataset.paper = paper === 'washi' || paper === 'white' ? paper : 'stone';
     // Only the literal "off" is off, as for the furigana. A page revived from the
     // cache may have been left while the setting was on, and what the browser
     // kept is emptied the way a page drawn with it off empties it.
@@ -329,7 +336,9 @@ export function initPreferences() {
     // reader's press with a transition, and a restore is not a press: the
     // stylesheet is told to hold still for the length of the write, which is
     // made to take effect before it is lifted.
-    const rail = readCookie('yomihon_rail') === 'collapsed' ? 'collapsed' : 'open';
+    // Only the literal "open" is open, matching the server's stamp: any other
+    // cookie, or none, folds the column.
+    const rail = readCookie('yomihon_rail') === 'open' ? 'open' : 'collapsed';
     root.dataset.railSettling = '';
     keepFocusOutOfFoldedRail(rail);
     root.dataset.rail = rail;

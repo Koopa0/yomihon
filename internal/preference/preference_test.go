@@ -236,6 +236,7 @@ var storedChoices = map[string][]string{
 
 	"sectionbuttons": {"always", "hover"},
 	"position":       {"on", "off"},
+	"paper":          {"stone", "washi", "white"},
 }
 
 // cookieFor is the cookie each field lands in, again spelled out rather than
@@ -253,6 +254,7 @@ var cookieFor = map[string]string{
 
 	"sectionbuttons": "yomihon_sectionbuttons",
 	"position":       "yomihon_position",
+	"paper":          "yomihon_paper",
 }
 
 // TestApplyingAChoiceStoresItAndReturnsTheReader pins the whole no-script path
@@ -309,8 +311,8 @@ func TestApplyingAChoiceStoresItAndReturnsTheReader(t *testing.T) {
 			})
 		}
 	}
-	if stored != 20 {
-		t.Errorf("the table covers %d stored values, want the 20 the page offers", stored)
+	if stored != 23 {
+		t.Errorf("the table covers %d stored values, want the 23 the page offers", stored)
 	}
 }
 
@@ -334,6 +336,7 @@ func TestAValueNoChoiceOffersIsRefusedWithNothingStored(t *testing.T) {
 
 		"sectionbuttons": {"", "Hover", "on-hover", "never"},
 		"position":       {"", "OFF", "no"},
+		"paper":          {"", "Washi", "shiro"},
 	}
 	for field, offered := range storedChoices {
 		if len(refused[field]) < 3 {
@@ -403,6 +406,7 @@ func TestResetClearsEveryStoredChoice(t *testing.T) {
 	want := []string{
 		"yomihon_font",
 		"yomihon_lang",
+		"yomihon_paper",
 		"yomihon_position",
 		"yomihon_rail",
 		"yomihon_ruby",
@@ -561,12 +565,13 @@ func TestOneSubmissionSavesEveryChoiceItCarries(t *testing.T) {
 			form: url.Values{
 				"lang": {"en"}, "theme": {"light"}, "textsize": {"l"},
 				"font": {"kai"}, "ruby": {"off"}, "shortcuts": {"off"},
-				"rail": {"collapsed"}, "sectionbuttons": {"hover"}, "position": {"off"}, "next": {"/notes/A.md"},
+				"rail": {"collapsed"}, "sectionbuttons": {"hover"}, "position": {"off"}, "paper": {"washi"}, "next": {"/notes/A.md"},
 			},
 			want: map[string]string{
 				"yomihon_lang": "en", "yomihon_theme": "light", "yomihon_textsize": "l",
 				"yomihon_font": "kai", "yomihon_ruby": "off", "yomihon_shortcuts": "off",
 				"yomihon_rail": "collapsed", "yomihon_sectionbuttons": "hover", "yomihon_position": "off",
+				"yomihon_paper": "washi",
 			},
 		},
 		{
@@ -992,8 +997,8 @@ func TestExactlyOneOptionIsMarkedForEachChoice(t *testing.T) {
 			name: "a browser carrying nothing",
 			want: map[string]string{
 				"lang": "zh-Hant", "theme": "system", "textsize": "m",
-				"font": "serif", "ruby": "on", "shortcuts": "on", "rail": "open",
-				"sectionbuttons": "always", "position": "on",
+				"font": "serif", "ruby": "on", "shortcuts": "on", "rail": "collapsed",
+				"sectionbuttons": "hover", "position": "on", "paper": "stone",
 			},
 		},
 		{
@@ -1008,11 +1013,12 @@ func TestExactlyOneOptionIsMarkedForEachChoice(t *testing.T) {
 				"yomihon_rail=collapsed",
 				"yomihon_sectionbuttons=hover",
 				"yomihon_position=off",
+				"yomihon_paper=white",
 			},
 			want: map[string]string{
 				"lang": "en", "theme": "dark", "textsize": "xl",
 				"font": "kai", "ruby": "off", "shortcuts": "off", "rail": "collapsed",
-				"sectionbuttons": "hover", "position": "off",
+				"sectionbuttons": "hover", "position": "off", "paper": "white",
 			},
 		},
 		{
@@ -1023,11 +1029,12 @@ func TestExactlyOneOptionIsMarkedForEachChoice(t *testing.T) {
 				"yomihon_textsize=chartreuse",
 				"yomihon_sectionbuttons=chartreuse",
 				"yomihon_position=chartreuse",
+				"yomihon_paper=chartreuse",
 			},
 			want: map[string]string{
 				"lang": "zh-Hant", "theme": "system", "textsize": "m",
-				"font": "serif", "ruby": "on", "shortcuts": "on", "rail": "open",
-				"sectionbuttons": "always", "position": "on",
+				"font": "serif", "ruby": "on", "shortcuts": "on", "rail": "collapsed",
+				"sectionbuttons": "hover", "position": "on", "paper": "stone",
 			},
 		},
 	}

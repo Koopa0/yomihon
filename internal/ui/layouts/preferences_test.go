@@ -73,14 +73,14 @@ func storedChoices() []storedChoice {
 		{
 			cookie:   "yomihon_rail",
 			values:   []string{"open", "collapsed"},
-			fallback: "open",
+			fallback: "collapsed",
 			unknown:  []string{"", "Collapsed", "closed", "hidden", "1"},
 			answer:   func(c Chrome) string { return c.Rail },
 		},
 		{
 			cookie:   "yomihon_sectionbuttons",
 			values:   []string{"always", "hover"},
-			fallback: "always",
+			fallback: "hover",
 			unknown:  []string{"", "Hover", "HOVER", "on-hover", "never"},
 			answer:   func(c Chrome) string { return c.SectionButtons },
 		},
@@ -90,6 +90,13 @@ func storedChoices() []storedChoice {
 			fallback: "on",
 			unknown:  []string{"", "OFF", "Off", "0", "no"},
 			answer:   func(c Chrome) string { return c.Position },
+		},
+		{
+			cookie:   "yomihon_paper",
+			values:   []string{"stone", "washi", "white"},
+			fallback: "stone",
+			unknown:  []string{"", "Washi", "shiro", "auto", "dark"},
+			answer:   func(c Chrome) string { return c.Paper },
 		},
 	}
 }
@@ -147,9 +154,10 @@ func TestPreferencesPublishesEveryStoredChoice(t *testing.T) {
 		{Cookie: "yomihon_textsize", Values: []string{"m", "l", "xl"}, Fallback: "m"},
 		{Cookie: "yomihon_shortcuts", Values: []string{"on", "off"}, Fallback: "on"},
 		{Cookie: "yomihon_font", Values: []string{"serif", "sans", "kai"}, Fallback: ""},
-		{Cookie: "yomihon_rail", Values: []string{"open", "collapsed"}, Fallback: "open"},
-		{Cookie: "yomihon_sectionbuttons", Values: []string{"always", "hover"}, Fallback: "always"},
+		{Cookie: "yomihon_rail", Values: []string{"open", "collapsed"}, Fallback: "collapsed"},
+		{Cookie: "yomihon_sectionbuttons", Values: []string{"always", "hover"}, Fallback: "hover"},
 		{Cookie: "yomihon_position", Values: []string{"on", "off"}, Fallback: "on"},
+		{Cookie: "yomihon_paper", Values: []string{"stone", "washi", "white"}, Fallback: "stone"},
 	}
 	if diff := cmp.Diff(want, Preferences()); diff != "" {
 		t.Errorf("Preferences() mismatch (-want +got):\n%s", diff)
@@ -190,9 +198,10 @@ func TestPreferencesHandsOutNothingACallerCanWriteThrough(t *testing.T) {
 		{Cookie: "yomihon_textsize", Values: []string{"m", "l", "xl"}, Fallback: "m"},
 		{Cookie: "yomihon_shortcuts", Values: []string{"on", "off"}, Fallback: "on"},
 		{Cookie: "yomihon_font", Values: []string{"serif", "sans", "kai"}, Fallback: ""},
-		{Cookie: "yomihon_rail", Values: []string{"open", "collapsed"}, Fallback: "open"},
-		{Cookie: "yomihon_sectionbuttons", Values: []string{"always", "hover"}, Fallback: "always"},
+		{Cookie: "yomihon_rail", Values: []string{"open", "collapsed"}, Fallback: "collapsed"},
+		{Cookie: "yomihon_sectionbuttons", Values: []string{"always", "hover"}, Fallback: "hover"},
 		{Cookie: "yomihon_position", Values: []string{"on", "off"}, Fallback: "on"},
+		{Cookie: "yomihon_paper", Values: []string{"stone", "washi", "white"}, Fallback: "stone"},
 	}
 	if diff := cmp.Diff(want, Preferences()); diff != "" {
 		t.Errorf("Preferences() after a caller wrote through it (-want +got):\n%s", diff)

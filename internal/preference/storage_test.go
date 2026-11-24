@@ -22,7 +22,7 @@ func TestStorageAccountNamesEveryStoredChoice(t *testing.T) {
 	t.Parallel()
 	legends := map[string][2]string{
 		"yomihon_lang":      {"介面語言", "language"},
-		"yomihon_theme":     {"外觀", "appearance"},
+		"yomihon_theme":     {"主題", "theme"},
 		"yomihon_textsize":  {"字級", "text size"},
 		"yomihon_font":      {"字體", "typeface"},
 		"yomihon_ruby":      {"顯示讀音", "readings"},
@@ -31,6 +31,7 @@ func TestStorageAccountNamesEveryStoredChoice(t *testing.T) {
 
 		"yomihon_sectionbuttons": {"小節旁的按鈕", "buttons beside sections"},
 		"yomihon_position":       {"自動記閱讀位置", "reading position"},
+		"yomihon_paper":          {"紙色", "paper"},
 	}
 	kept := []string{wording.CookieName}
 	for _, p := range layouts.Preferences() {
