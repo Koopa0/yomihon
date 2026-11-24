@@ -90,10 +90,10 @@ var (
 // being told a note remembers something about them: in this browser, for this
 // address, and nowhere else.
 var (
-	PrefPosition     = both("自動記位置", "Remember my position in notes")
+	PrefPosition     = both("自動記閱讀位置", "Reading position")
 	PrefPositionNote = both(
-		"只存在這個瀏覽器、這個位址上；關閉時一併清除。",
-		"Kept in this browser, for this address only; turning it off clears it.",
+		"每篇重新打開時，回到上次讀到的地方；不影響書籤。只存在這個瀏覽器、這個位址上；關閉時一併清除。",
+		"Each note reopens where you last stopped reading; bookmarks are not affected. Kept only in this browser, for this address; turning it off clears it.",
 	)
 )
 
@@ -185,12 +185,16 @@ var PrefSaveRefused = both(
 var (
 	PrefStorageTitle = both("這個瀏覽器記著什麼", "What this browser remembers")
 	PrefStorageNote  = both(
-		"設定存成這個位址上的 cookie，側欄各區的展開狀態與篩選字只活到分頁關閉；沒有任何一項離開這台機器。",
-		"Settings are cookies on this address; sidebar section disclosure and filter text die with the tab; none of it leaves this machine.",
+		"設定存成這個位址上的 cookie，每篇的閱讀位置與最近的搜尋留在這個瀏覽器，側欄各區的展開狀態與篩選字只活到分頁關閉；沒有任何一項離開這台機器。",
+		"Settings are cookies on this address; where you stopped in each note and recent searches stay in this browser; sidebar section disclosure and filter text die with the tab; none of it leaves this machine.",
 	)
 	PrefStorageCookies = both(
-		"cookie 記著：介面語言、外觀、字級、字體、顯示讀音、單鍵快捷鍵、側欄、小節旁的按鈕、自動記位置",
-		"Cookies: language, appearance, text size, typeface, readings, single-key shortcuts, sidebar, buttons beside sections, remember my position in notes",
+		"cookie 記著：介面語言、外觀、字級、字體、顯示讀音、單鍵快捷鍵、側欄、小節旁的按鈕、自動記閱讀位置",
+		"Cookies: language, appearance, text size, typeface, readings, single-key shortcuts, sidebar, buttons beside sections, reading position",
+	)
+	PrefStorageLocal = both(
+		"留在這個瀏覽器的：每篇的閱讀位置、最近的搜尋",
+		"Kept in this browser: where you stopped in each note, recent searches",
 	)
 	PrefStorageSession = both(
 		"分頁內的值：側欄各區的展開狀態、側欄篩選字",

@@ -30,7 +30,7 @@ func TestStorageAccountNamesEveryStoredChoice(t *testing.T) {
 		"yomihon_rail":      {"側欄", "sidebar"},
 
 		"yomihon_sectionbuttons": {"小節旁的按鈕", "buttons beside sections"},
-		"yomihon_position":       {"自動記位置", "remember my position in notes"},
+		"yomihon_position":       {"自動記閱讀位置", "reading position"},
 	}
 	kept := []string{wording.CookieName}
 	for _, p := range layouts.Preferences() {
@@ -48,20 +48,23 @@ func TestStorageAccountNamesEveryStoredChoice(t *testing.T) {
 		column    int
 		prefix    string
 		separator string
+		local     string
 		session   string
 		note      string
 	}{
 		{
 			name: "chinese", lang: wording.ZhHant, column: 0,
 			prefix: "cookie 記著：", separator: "、",
+			local:   "留在這個瀏覽器的：每篇的閱讀位置、最近的搜尋",
 			session: "分頁內的值：側欄各區的展開狀態、側欄篩選字",
-			note:    "設定存成這個位址上的 cookie，側欄各區的展開狀態與篩選字只活到分頁關閉；沒有任何一項離開這台機器。",
+			note:    "設定存成這個位址上的 cookie，每篇的閱讀位置與最近的搜尋留在這個瀏覽器，側欄各區的展開狀態與篩選字只活到分頁關閉；沒有任何一項離開這台機器。",
 		},
 		{
 			name: "english", lang: wording.En, column: 1,
 			prefix: "Cookies: ", separator: ", ",
+			local:   "Kept in this browser: where you stopped in each note, recent searches",
 			session: "Per-tab values: sidebar section disclosure, sidebar filter text",
-			note:    "Settings are cookies on this address; sidebar section disclosure and filter text die with the tab; none of it leaves this machine.",
+			note:    "Settings are cookies on this address; where you stopped in each note and recent searches stay in this browser; sidebar section disclosure and filter text die with the tab; none of it leaves this machine.",
 		},
 	}
 	for _, tt := range cases {
@@ -74,8 +77,8 @@ func TestStorageAccountNamesEveryStoredChoice(t *testing.T) {
 			}
 			lists, notes := storageAccount(t, body)
 			t.Logf("invoked: committed storage account %s", tt.lang)
-			if len(lists) != 2 || len(notes) != 1 || !strings.HasPrefix(lists[0], tt.prefix) {
-				t.Fatalf("caught: storage account shape = lists %q, notes %q, want two lists and one note with prefix %q", lists, notes, tt.prefix)
+			if len(lists) != 3 || len(notes) != 1 || !strings.HasPrefix(lists[0], tt.prefix) {
+				t.Fatalf("caught: storage account shape = lists %q, notes %q, want three lists (cookies, this browser, this tab) and one note with prefix %q", lists, notes, tt.prefix)
 			}
 			got := strings.Split(strings.TrimPrefix(lists[0], tt.prefix), tt.separator)
 			slices.Sort(got)
@@ -87,7 +90,7 @@ func TestStorageAccountNamesEveryStoredChoice(t *testing.T) {
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("caught: storage account omits or invents cookie legends (-want +got):\n%s", diff)
 			}
-			if diff := cmp.Diff([]string{tt.session, tt.note}, []string{lists[1], notes[0]}); diff != "" {
+			if diff := cmp.Diff([]string{tt.local, tt.session, tt.note}, []string{lists[1], lists[2], notes[0]}); diff != "" {
 				t.Errorf("caught: per-tab account conflates section disclosure with the stored sidebar choice (-want +got):\n%s", diff)
 			}
 		})
