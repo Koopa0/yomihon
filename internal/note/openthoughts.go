@@ -16,14 +16,15 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-const openThoughtsAddress = "/marks"
+const openThoughtsAddress = pages.MarksAddress
 
 func (h *Handler) openThoughts(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	snap := h.sources.Snapshot().Capture()
 	order := pages.ParseOpenOrder(r.URL.Query().Get("order"))
-	shelf, fault := h.openThoughtShelf(snap, h.sources.Authority().Governed(), lang, 0, order)
-	view := pages.ListIndexView{Mode: "marks", Notice: fault, Shelf: shelf, Order: openOrderChoices(order, lang)}
+	authority := h.sources.Authority()
+	shelf, fault := h.openThoughtShelf(snap, authority.Governed(), lang, 0, order)
+	view := pages.ListIndexView{Mode: "marks", Notice: fault, Shelf: shelf, Order: openOrderChoices(order, lang), Sidebar: pages.NewLibrarySidebar(h.projectShell(authority, snap), pages.LibraryMarks, "")}
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write open thoughts", "error", err)
 	}
@@ -83,18 +84,36 @@ func (h *Handler) openThoughtShelf(snap *snapshot.Generation, governed bool, lan
 	return shelf, fault
 }
 
+// OpenCount is how many things the reader has left open in this generation: the
+// rows the marks page lists, which the sidebar's row for it states. A mark file
+// that cannot be read counts for nothing here; the marks page is where that is
+// said.
+func OpenCount(snap *snapshot.Generation, questions func() ([]mark.Mark, error)) int {
+	marks, err := openMarksOf(questions)
+	if err != nil {
+		return len(snap.OpenItems(nil))
+	}
+	return len(snap.OpenItems(marks))
+}
+
+// openMarksOf reads the reader's stored marks as the open items the snapshot
+// selects among. A nil source is a process with nowhere to keep any.
+func openMarksOf(questions func() ([]mark.Mark, error)) (marks []snapshot.OpenMark, err error) {
+	if questions == nil {
+		return nil, nil
+	}
+	kept, err := questions()
+	return OpenMarks(kept), err
+}
+
 // openCandidates reads every stored mark and asks the snapshot for the one
 // selection of open items, already newest first. Mark identities remain
 // candidates even when their note or place is gone. The fault is set when the
 // mark file cannot be read.
 func (h *Handler) openCandidates(snap *snapshot.Generation, lang wording.Lang) (candidates []openThoughtCandidate, fault string) {
-	var marks []snapshot.OpenMark
-	if h.sources.Questions != nil {
-		kept, err := h.sources.Questions()
-		if err != nil {
-			fault = wording.QuestionUnavailable.In(lang)
-		}
-		marks = OpenMarks(kept)
+	marks, err := openMarksOf(h.sources.Questions)
+	if err != nil {
+		fault = wording.QuestionUnavailable.In(lang)
 	}
 	for _, item := range snap.OpenItems(marks) {
 		if item.Mark != nil {

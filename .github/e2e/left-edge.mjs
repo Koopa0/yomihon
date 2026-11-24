@@ -1,6 +1,6 @@
 // Behavior lock for the shared left edge. The text of every page that has a
-// sidebar starts at one place, the reading column's, and the text of every page
-// that has none starts at one place, the desk's. It is measured where the
+// sidebar, or has it only as a drawer, starts at one place, the reading
+// column's. The settings page has neither and is not held to it. It is measured where the
 // heading's first glyph is (the query field's box, on the page that has no
 // heading to see), at the widths a window is opened at and with the
 // sidebar open and folded, so a page whose box was centred on its own measure,
@@ -26,21 +26,24 @@ const WITH_SIDEBAR = [
   ['a course', '/courses/Maps/study.md', '.y-syl h1.y-title'],
   ['a search', '/search?q=alpha', '.y-searchpage h1.y-title'],
   ['a file', '/notes/Notes/plain.txt', '.y-article h1.y-title'],
+  ['the desk', '/', '.y-home h1.y-title'],
+  ['the courses', '/courses', '.y-home h1.y-title'],
+  ['the folders', '/folders', '.y-home h1.y-title'],
+  ['a folder', '/folders/Notes', '.y-home h1.y-title'],
+  ['the marks', '/marks', '.y-home h1.y-title'],
 ];
 // The pages whose sidebar opens on a title, a book's or a folder's, or on the
 // first row of the library, set the first words at the header's inset. The
-// findings page draws its sidebar only as a drawer, so at these widths it has no
-// column to show, and its text still starts where the text of a page with one
-// does: the track the column would have had is left empty.
+// findings, the journal, the reports and the listening page draw their sidebar
+// only as a drawer, so at these widths they have no column to show, and their
+// text still starts where the text of a page with one does: the track the
+// column would have had is left empty.
 const OPENS_ON_A_TITLE = new Set(['a lesson', 'a course', 'a file', 'a search']);
 const TITLES = '.y-railbook__title, .y-where__label, .y-here--flat > .ui-navitem';
 const DRAWER_ONLY = [
   ['the findings', '/health', '.y-healthpage h1.y-title'],
-];
-const WITHOUT_SIDEBAR = [
-  ['the desk', '/', '.y-home h1.y-title'],
-  ['a shelf', '/courses', '.y-home h1.y-title'],
-  ['the reading choices', '/preferences', '.y-prefs h1.y-title'],
+  ['the journal', '/journal', '.y-home h1.y-title'],
+  ['the reports', '/reports', '.y-home h1.y-title'],
   ['a course read aloud', '/listen/Maps/listen.md', '.y-listen h1.y-title'],
 ];
 
@@ -48,8 +51,8 @@ const MODES = {
   'move-the-findings-page': { css: '.y-main > .y-healthpage{margin-left:64px !important}', group: 'sidebar' },
   'centre-the-search-page': { css: '.y-main > .y-searchpage{margin-left:auto !important;margin-right:auto !important}', group: 'sidebar' },
   'pin-the-course-to-the-sidebar': { css: '.y-main > .y-syl{margin-left:0 !important}', group: 'sidebar' },
-  'centre-the-reading-choices': { css: '.y-prefs{margin-left:auto !important;margin-right:auto !important}', group: 'desk' },
-  'centre-the-listening-page': { css: '.y-main > .y-listen{margin-left:auto !important;margin-right:auto !important}', group: 'desk' },
+  'centre-the-listening-page': { css: '.y-main > .y-listen{margin-left:auto !important;margin-right:auto !important}', group: 'sidebar' },
+  'centre-the-desk': { css: '.y-main > .y-home{margin-left:auto !important;margin-right:auto !important;max-width:640px !important}', group: 'sidebar' },
   'centre-the-shell-again': { css: '.y-shell{margin-inline:auto;max-width:1280px}', group: 'window-edge' },
   'crowd-the-sidebar-against-the-edge': { css: ':root{--rail-pad-start:6px}', group: 'window-edge' },
   'pad-the-sidebar-past-the-header': { css: '.y-rail-left{padding-left:44px}', group: 'window-edge' },
@@ -176,17 +179,16 @@ try {
     };
     const check = (group, found) => {
       const spread = Math.max(...found.map((f) => f.left)) - Math.min(...found.map((f) => f.left));
-      console.log(`left-edge: ${rail} sidebar at ${width}px, pages ${group === 'sidebar' ? 'with' : 'without'} a sidebar start at ${JSON.stringify(found.map((f) => `${f.name} ${f.left}`))}`);
+      console.log(`left-edge: ${rail} sidebar at ${width}px, pages with a sidebar start at ${JSON.stringify(found.map((f) => `${f.name} ${f.left}`))}`);
       if (spread > 1) {
-        throw new LockFired(group, `${rail === 'open' ? 'open' : 'folded'} sidebar at ${width}px: the text of the pages ${group === 'sidebar' ? 'with' : 'without'} a sidebar starts ${spread}px apart: ${found.map((f) => `${f.name} at ${f.left}`).join(', ')}`);
+        throw new LockFired(group, `${rail === 'open' ? 'open' : 'folded'} sidebar at ${width}px: the text of the pages with a sidebar starts ${spread}px apart: ${found.map((f) => `${f.name} at ${f.left}`).join(', ')}`);
       }
     };
     check('sidebar', await measure([...WITH_SIDEBAR, ...DRAWER_ONLY]));
-    check('desk', await measure(WITHOUT_SIDEBAR));
     await context.close();
   }
   if (mode && (requests < 1 || planted !== requests)) throw new NotApplied(`NOT-APPLIED left-edge: the planted rule reached ${planted} of ${requests} stylesheet requests`);
-  console.log(`PASS left-edge: at 1920px the sidebar stands against the window's side with its words on the header's line; at ${widths.join(', ')}px and with the sidebar folded, pages with a sidebar start their text at one edge and pages without one at another`);
+  console.log(`PASS left-edge: at 1920px the sidebar stands against the window's side with its words on the header's line; at ${widths.join(', ')}px and with the sidebar folded, pages with a sidebar, or with only a drawer, start their text at one edge`);
 } catch (error) {
   console.error(error.message);
   if (error instanceof NotApplied) {

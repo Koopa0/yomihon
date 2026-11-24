@@ -31,13 +31,30 @@ func TestTwoColumnShellsUseOnlyTheirDeclaredColumns(t *testing.T) {
 		children []string
 	}{
 		{"contractchanged.templ", ContractChanged, []string{"main"}},
+		{"folder.templ", func(c layouts.Chrome) templ.Component {
+			return Folder(with(recordedFolderView(model), func(v *FolderView) { v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryNone, "Writing") }), c)
+		}, []string{"left", "main"}},
 		{"health.templ", func(c layouts.Chrome) templ.Component { return Health(recordedHealthView(model), c) }, []string{"left", "main"}},
-		{"listen.templ", func(c layouts.Chrome) templ.Component { return Listen(recordedListenView(), c) }, []string{"main"}},
+		{"home.templ", func(c layouts.Chrome) templ.Component {
+			return Home(with(recordedHomeView(model), func(v *HomeView) { v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryDesk, "") }), c)
+		}, []string{"left", "main"}},
+		{"journal.templ", func(c layouts.Chrome) templ.Component {
+			return JournalIndex(with(recordedJournalView(c.Lang), func(v *JournalView) { v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryJournal) }), c)
+		}, []string{"left", "main"}},
+		{"listen.templ", func(c layouts.Chrome) templ.Component {
+			return Listen(with(recordedListenView(), func(v *ListenView) { v.Sidebar = NewDrawerSidebar(recordedShell(model), LibraryNone) }), c)
+		}, []string{"left", "main"}},
+		{"modeindex.templ", func(c layouts.Chrome) templ.Component {
+			return ListIndex(with(recordedOpenThoughtsView(c.Lang), func(v *ListIndexView) { v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryMarks, "") }), c)
+		}, []string{"left", "main"}},
+		{"modeindex.templ", func(c layouts.Chrome) templ.Component {
+			return FolderIndex(with(NewFolderIndexView(model, ContractGoverning, ListQuery{}, recordedNow, c.Lang), func(v *FolderIndexView) { v.Sidebar = NewLibrarySidebar(recordedShell(model), LibraryNone, "") }), c)
+		}, []string{"left", "main"}},
 		{"notfound.templ", func(c layouts.Chrome) templ.Component {
-			return NotFound(NotFoundView{Asked: "/notes/absent.md", Sidebar: NewDrawerSidebar(nav.Shell{Nav: model})}, c)
+			return NotFound(NotFoundView{Asked: "/notes/absent.md", Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}, LibraryNone)}, c)
 		}, []string{"left", "main"}},
 		{"refusal.templ", func(c layouts.Chrome) templ.Component {
-			return RequestRefused(RequestRefusedView{Title: "Method not allowed", Lede: "This address does not accept that request.", Sidebar: NewDrawerSidebar(nav.Shell{Nav: model})}, c)
+			return RequestRefused(RequestRefusedView{Title: "Method not allowed", Lede: "This address does not accept that request.", Sidebar: NewDrawerSidebar(nav.Shell{Nav: model}, LibraryNone)}, c)
 		}, []string{"left", "main"}},
 		{"scanning.templ", func(c layouts.Chrome) templ.Component {
 			return Scanning(ScanningView{VaultName: "notes", VaultPath: "/home/reader/notes", Done: 2, Total: 5}, c)

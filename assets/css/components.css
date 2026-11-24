@@ -1428,22 +1428,22 @@ html:not([data-js]) .y-rubybtn {
   padding: 44px var(--gutter-read) 120px;
 }
 
-/* One left edge. The text of every page that has a sidebar starts where the
-   reading column does, and the text of every page that has none starts where
-   the desk's container does, so moving from one page to the next moves nothing
-   the reader's eye is on. The edge is the margin that stands the block in the
-   middle of the room, taken as the box's own margin with the gutter that the
+/* One left edge. The text of every page that has a sidebar, or only a drawer,
+   starts where the reading column does, and the text of the settings page,
+   which has neither, starts where its own container does, so moving from one
+   page to the next moves nothing the reader's eye is on. The edge is the
+   margin that stands the block in the middle of the room, taken as the box's own margin with the gutter that the
    box's text sits in from it already counted, so pages whose gutters differ
    still start their text at the same place. Where the room is narrower than the
    block the margin is nothing and the column fills it. Below 1024, where the
    column is a drawer, the margin is nothing whatever the room, so the text
    starts at the page's own side margin. */
-.y-main > :is(.y-article, .y-syl) {
+.y-main > :is(.y-article, .y-syl, .y-listen) {
   margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2));
   margin-right: auto;
 }
 
-.y-main > :is(.y-healthpage, .y-searchpage) {
+.y-main > :is(.y-healthpage, .y-searchpage, .y-home) {
   margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2 + var(--gutter-read) - var(--gutter-list)));
   margin-right: auto;
 }
@@ -1453,7 +1453,6 @@ html:not([data-js]) .y-rubybtn {
   margin-right: auto;
 }
 
-.y-main > .y-listen,
 .y-shell2:not(:has(> .y-rail-left)) > .y-main > .y-recovery,
 .y-prefs {
   margin-left: max(0px, calc((100% - var(--measure-list) - 2 * var(--gutter-list)) / 2 + var(--gutter-list) - var(--gutter-read)));

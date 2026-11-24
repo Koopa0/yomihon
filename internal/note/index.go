@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/origin"
-	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
@@ -23,9 +22,11 @@ func (h *Handler) maps(w http.ResponseWriter, r *http.Request) {
 	// between them puts one note's title beside another version's language, and
 	// the row describes something the vault never held.
 	snap := h.sources.Snapshot().Capture()
-	pageShell := shell.Project(h.sources.VaultName, authority, snap)
+	pageShell := h.projectShell(authority, snap)
 	model := pageShell.Nav
 	view := pages.NewMapIndex(model.Maps(), snap.NavigationRoles(), model.DeclaredClosure(), pages.ContractStateFrom(pageShell.Governed, snap), lang, pages.ArticleLanguageFromSnapshot(snap))
+	view.Sidebar = pages.NewIndexSidebar(pageShell)
+	view.Sidebar.FaultsStated = true
 	if err := pages.ListIndex(view, layouts.ChromeFromRequest(r, view.Shelf.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write map index", "error", err)
 	}
@@ -40,7 +41,7 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	authority := h.sources.Authority()
 	snap := h.sources.Snapshot().Capture()
-	pageShell := shell.Project(h.sources.VaultName, authority, snap)
+	pageShell := h.projectShell(authority, snap)
 	model := pageShell.Nav
 
 	query := pages.ParseListQuery(r.URL.Query())
@@ -54,6 +55,8 @@ func (h *Handler) folders(w http.ResponseWriter, r *http.Request) {
 		authority.Diagnostic(),
 		model.ArtifactClosure().Diagnostic(),
 	)
+	view.Sidebar = pages.NewLibrarySidebar(pageShell, pages.LibraryNone, "")
+	view.Sidebar.FaultsStated = true
 	chrome := layouts.ChromeFromRequest(r, view.Title)
 	if err := pages.FolderIndex(view, chrome).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write folder index", "error", err)

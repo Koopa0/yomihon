@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/origin"
-	"github.com/koopa0/yomihon/internal/shell"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
@@ -30,13 +29,15 @@ func (h *Handler) journal(w http.ResponseWriter, r *http.Request) {
 	// from this one reading of the published pointer. Taken twice, a rebuild
 	// between them puts one entry's title in another generation's month.
 	snap := h.sources.Snapshot().Capture()
-	pageShell := shell.Project(h.sources.VaultName, authority, snap)
+	pageShell := h.projectShell(authority, snap)
 	model := pageShell.Nav
 	month, named := pages.ParseMonth(r.URL.Query().Get(pages.JournalMonthParam))
 	if !named {
 		month = pages.MonthOf(time.Now())
 	}
 	view := pages.NewJournalIndex(model.Journal(), month, model.JournalClosure(), lang, articleLanguageLookup(snap))
+	view.Sidebar = pages.NewDrawerSidebar(pageShell, pages.LibraryJournal)
+	view.Sidebar.FaultsStated = true
 	if err := pages.JournalIndex(view, layouts.ChromeFromRequest(r, view.Title)).Render(r.Context(), w); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write journal index", "month", month.String(), "error", err)
 	}

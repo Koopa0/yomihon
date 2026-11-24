@@ -234,13 +234,13 @@ func (h *Handler) showMissing(
 	authority schema.Authority,
 	snap *snapshot.Generation,
 ) {
-	pageShell := shell.Project(h.sources.VaultName, authority, snap)
+	pageShell := h.projectShell(authority, snap)
 	view := pages.NotFoundView{
 		Asked:      asked,
 		Unreadable: unreadable,
 		ParsePanic: cause.ParsePanic,
 		Reason:     cause.Reason,
-		Sidebar:    pages.NewDrawerSidebar(pageShell),
+		Sidebar:    pages.NewDrawerSidebar(pageShell, pages.LibraryNone),
 	}
 	lang := origin.Language(r)
 	title := wording.NotFoundKicker.In(lang)
@@ -253,6 +253,15 @@ func (h *Handler) showMissing(
 	if err := pages.WriteNotFound(r.Context(), w, view, layouts.ChromeFromRequest(r, title)); err != nil {
 		h.sources.Log.Log(r.Context(), origin.WriteFailureLevel(r, err), "write not-found page", "path", asked, "error", err)
 	}
+}
+
+// projectShell is the shell a page's sidebar is drawn from: the folder's
+// navigation and the count of what the reader left open, which the library
+// states beside its row for the marks.
+func (h *Handler) projectShell(authority schema.Authority, snap *snapshot.Generation) nav.Shell {
+	projected := shell.Project(h.sources.VaultName, authority, snap)
+	projected.Marks = OpenCount(snap, h.sources.Questions)
+	return projected
 }
 
 // folder shows one folder whole. The rail reaches any note one disclosure at a
@@ -268,7 +277,7 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	dir = vault.NormalizeNFC(dir)
-	pageShell := shell.Project(h.sources.VaultName, authority, snap)
+	pageShell := h.projectShell(authority, snap)
 	notes, subfolders, ok := pageShell.Nav.Directory(dir)
 	if !ok {
 		h.showNotFound(w, r, r.URL.Path, authority, snap)
@@ -284,6 +293,8 @@ func (h *Handler) folder(w http.ResponseWriter, r *http.Request) {
 		Lang: lang, ArticleLang: articleLanguageLookup(snap),
 	})
 	view.Cover = cover
+	top, _, _ := strings.Cut(dir, "/")
+	view.Sidebar = pages.NewLibrarySidebar(pageShell, pages.LibraryNone, top)
 	if r.URL.Query().Get("fragment") == "1" {
 		// The script asks for the list alone, to put in place of the one it has.
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
