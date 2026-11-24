@@ -426,15 +426,21 @@ samp {
 /* ============================================================
    Header
    ============================================================ */
+/* The header is the paper itself, a little translucent so the page passing
+   under it shows as a blur rather than being cut off by a band of another
+   tone, with the faintest line under it. Its contents stand on the same stage
+   as the page: on a window wider than the stage they keep to its edges
+   rather than running out to the window's. */
 .y-header {
   align-items: center;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(12px) saturate(1.1);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  border-bottom: 1px solid var(--line-faint);
   display: flex;
   flex: none;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
   height: var(--hdr-h);
-  padding: 0 var(--sp-5);
+  padding-inline: max(var(--sp-5), calc((100% - var(--stage-max)) / 2 + var(--sp-5)));
   position: sticky;
   top: 0;
   z-index: 30;
@@ -2862,11 +2868,6 @@ button.y-freshness__action {
 
 .y-margin .y-margin__said:empty {
   display: none;
-}
-
-.y-margin .y-margin__said[data-reply-fading] {
-  opacity: 0;
-  transition: opacity var(--dur-slow) linear;
 }
 
 /* The line above a question that starts closed. It is small print among the
@@ -5927,9 +5928,9 @@ samp,
 }
 
 .y-readline {
-  background: var(--fg-subtle);
+  background: linear-gradient(90deg, var(--reader-line), var(--reader));
   bottom: -1px;
-  height: 1px;
+  height: 1.5px;
   left: 0;
   pointer-events: none;
   position: absolute;
@@ -7356,7 +7357,8 @@ samp,
 /* The reading choices, reached by a word where the row has room for one. The
    word is the link's name at every width; where the row narrows to icons the
    mark of three sliders stands in for it beside the search entrance's glass. */
-.y-prefslink {
+.y-prefslink,
+.y-headerlink {
   align-items: center;
   border-radius: var(--r-sm);
   color: var(--fg-muted);
@@ -7374,9 +7376,93 @@ samp,
   white-space: nowrap;
 }
 
-.y-prefslink:hover {
+.y-prefslink:hover,
+.y-headerlink:hover {
   background: var(--wash);
   color: var(--fg);
+}
+
+/* The page of what the reader left goes from a phone's row, which has no room
+   for its word; the desk and the sidebar lead to it there. */
+@media (max-width: 720px) {
+  .y-headerlink {
+    display: none;
+  }
+}
+
+.y-headerlink[aria-current='page'] {
+  color: var(--fg);
+}
+
+/* ---- The grounds: the three papers and the night lamp ----
+   One segmented control. Each option is a button in a form of its own, laid
+   side by side with no gap so the three read as one control. */
+.y-paperswitch {
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1px var(--line);
+  display: flex;
+  flex: none;
+  margin-inline: var(--sp-1);
+  padding: 2px;
+}
+
+.y-paperswitch__form {
+  display: contents;
+}
+
+.y-paperswitch__option {
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  height: calc(var(--control-h) - 4px);
+  padding: 0 var(--sp-2);
+  white-space: nowrap;
+}
+
+.y-paperswitch__option:hover {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+/* The lit option is the stylesheet's to draw. A stored dark theme is the
+   night lamp; a stored light theme, or none, is the stored paper, until a dark
+   system turns a reader who stored no theme to the night lamp as well. The
+   server always stamps a paper, so exactly one option is lit. */
+:root:is([data-theme='light'], :not([data-theme]))[data-paper='stone'] .y-paperswitch__option[data-paper-option='stone'],
+:root:is([data-theme='light'], :not([data-theme]))[data-paper='washi'] .y-paperswitch__option[data-paper-option='washi'],
+:root:is([data-theme='light'], :not([data-theme]))[data-paper='white'] .y-paperswitch__option[data-paper-option='white'],
+:root[data-theme='dark'] .y-paperswitch__option[data-paper-option='dark'] {
+  background: var(--selected);
+  color: var(--on-selected);
+  font-weight: var(--fw-semibold);
+}
+
+@media (prefers-color-scheme: dark) {
+  /* As specific as the rule that lit the paper, and later, so it wins. */
+  :root:not([data-theme])[data-paper] .y-paperswitch__option:not([data-paper-option='dark']) {
+    background: transparent;
+    color: var(--fg-muted);
+    font-weight: var(--fw-medium);
+  }
+
+  :root:not([data-theme='light']) .y-paperswitch__option[data-paper-option='dark'] {
+    background: var(--selected);
+    color: var(--on-selected);
+    font-weight: var(--fw-semibold);
+  }
+}
+
+/* The switch is the first thing in a crowded row to go: below 1024 the
+   settings page holds the same choice one press away. */
+@media (max-width: 1023px) {
+  .y-paperswitch {
+    display: none;
+  }
 }
 
 .y-prefslink__mark {
@@ -8049,9 +8135,9 @@ samp,
    out of its flow, so it never pushes the row's other controls aside and never
    covers the title: under the row at its right end where the row is wide, and
    over the wordmark where it is narrow, which is the one thing in the row that
-   can be hidden for a few seconds without losing a control. It takes no
-   pointer, so nothing under it is hard to press, and it fades before it is
-   emptied. */
+   be covered for a moment without losing a control. It takes no pointer, so
+   nothing under it is hard to press, and the reader's next press or key
+   empties it. */
 .y-headermark__said,
 .y-headerpath__said {
   inset-block-start: calc(100% + 4px);
@@ -8068,12 +8154,6 @@ samp,
   background: var(--elevated);
   border-radius: var(--r-sm);
   padding: var(--sp-1) var(--sp-2);
-}
-
-.y-headermark__said[data-reply-fading],
-.y-headerpath__said[data-reply-fading] {
-  opacity: 0;
-  transition: opacity var(--dur-slow) linear;
 }
 
 @media (max-width: 720px) {

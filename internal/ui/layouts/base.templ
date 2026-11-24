@@ -194,6 +194,15 @@ templ Base(c Chrome) {
 // GET to /search it always was.
 templ header(c Chrome) {
 	<header class="y-header">
+		// First in the row, where the column it opens is, and shown only where
+		// the left column is a drawer. Its word is its name wherever the word is
+		// drawn and where a phone's row has room for a mark alone, so the name is
+		// taken by reference from a word that stays in the page; aria-expanded
+		// says which way a press goes.
+		<button class="y-sidebtn" type="button" data-nav-toggle aria-expanded="false" aria-controls="_y-nav-rail" aria-labelledby="_y-sidebtn-word">
+			<svg class="y-sidebtn__mark" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
+			<span class="y-sidebtn__word" id="_y-sidebtn-word">{ wording.SidebarButton.In(c.Lang) }</span>
+		</button>
 		// The folder's name is the book's title and the wordmark its publisher:
 		// both from 721, and on a phone the name alone, standing where the
 		// wordmark was. The link is named by the wordmark's own text, which a
@@ -249,6 +258,10 @@ templ header(c Chrome) {
 		if c.FilePath != "" {
 			@headerPath(c.FilePath, c.Lang)
 		}
+		@paperSwitch(c)
+		// The page of what the reader has left in the notes, by its name, as
+		// the settings link beside it is.
+		<a class="y-headerlink" href="/marks" { destinationAttrs(c.Path, "/marks")... }>{ wording.OpenThoughtsTitle.In(c.Lang) }</a>
 		// The way to the reading choices. It carries the page the reader is on,
 		// so applying a choice returns them to it. Where the row is narrow the
 		// word gives way to a mark of three sliders — not a gear, which promises
@@ -258,14 +271,6 @@ templ header(c Chrome) {
 			<svg class="y-prefslink__mark" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>
 			<span class="y-prefslink__label" aria-hidden="true">{ wording.PreferencesLink.In(c.Lang) }</span>
 		</a>
-		// Last in the row, and shown only where the left column is a drawer. Its
-		// word is its name wherever the word is drawn and where a phone's row
-		// has room for a mark alone, so the name is taken by reference from a
-		// word that stays in the page; aria-expanded says which way a press goes.
-		<button class="y-sidebtn" type="button" data-nav-toggle aria-expanded="false" aria-controls="_y-nav-rail" aria-labelledby="_y-sidebtn-word">
-			<svg class="y-sidebtn__mark" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
-			<span class="y-sidebtn__word" id="_y-sidebtn-word">{ wording.SidebarButton.In(c.Lang) }</span>
-		</button>
 		<span class="y-readline" aria-hidden="true"></span>
 	</header>
 }
@@ -277,7 +282,8 @@ templ header(c Chrome) {
 // place again, where the reader now is.
 //
 // The sentence a press earns is a small label that hangs under the row, or over
-// the wordmark where the row is narrow, and goes by itself after a few seconds.
+// the wordmark where the row is narrow, and stays until the reader's next press
+// or key.
 // It is positioned out of the row's flow, so it neither covers the title nor
 // moves the search entry beside it, and it is said once here: the sentence about
 // a place living on one machine is said on the desk, beside the place it
@@ -387,4 +393,38 @@ templ searchDialog(lang wording.Lang) {
 		@LiveSearchStatus(lang)
 		<div class="y-searchsurface__panel" data-live-search-panel></div>
 	</dialog>
+}
+
+// paperSwitch is the row's grounds: the three light papers and the night
+// lamp. Each is its own small form posting what it sets to the page that
+// stores reading choices, so it works with no script: a paper sets the light
+// theme and itself together, the night lamp sets dark and
+// leaves the paper kept for the day. Following the system is chosen on the
+// settings page.
+//
+// Which option is lit is the stylesheet's to draw, from the root's theme and
+// paper and, for a reader following the system, from the system's own
+// preference, so the row is never left with none lit and follows the system
+// as it changes without a script. The script keeps aria-pressed saying the
+// same thing to a screen reader.
+templ paperSwitch(c Chrome) {
+	<div class="y-paperswitch" role="group" aria-label={ wording.PrefAppearance.In(c.Lang) }>
+		@paperOption(c, "stone", wording.PrefPaperStone.In(c.Lang))
+		@paperOption(c, "washi", wording.PrefPaperWashi.In(c.Lang))
+		@paperOption(c, "white", wording.PrefPaperWhite.In(c.Lang))
+		@paperOption(c, "dark", wording.PrefAppearanceDark.In(c.Lang))
+	</div>
+}
+
+templ paperOption(c Chrome, option, label string) {
+	<form class="y-paperswitch__form" method="post" action="/preferences">
+		if option == "dark" {
+			<input type="hidden" name="theme" value="dark"/>
+		} else {
+			<input type="hidden" name="theme" value="light"/>
+			<input type="hidden" name="paper" value={ option }/>
+		}
+		<input type="hidden" name="next" value={ c.ReturnTo }/>
+		<button class="y-paperswitch__option" type="submit" data-paper-option={ option } aria-pressed={ paperPressed(c, option) }>{ label }</button>
+	</form>
 }

@@ -59,7 +59,6 @@ var clientOwned = []string{
 	"data-readaloud-idle",
 	"data-recent-query",
 	"data-reading",
-	"data-reply-fading",
 	"data-speaking",
 	"data-speech",
 	"data-speech-rate",

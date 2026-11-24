@@ -760,9 +760,10 @@ func TestThePageOpenedDirectlyReturnsToItself(t *testing.T) {
 }
 
 // ownForms is the markup of each form this page posts back to itself. The
-// chrome around it carries a form of its own; what that one does with the
-// return address is the chrome's business, and counting it here would move this
-// assertion every time the chrome does.
+// chrome around it carries forms of its own — the search, and the header's
+// paper switch, which posts here too and returns to whatever page it is on;
+// what those do with the return address is the chrome's business, and counting
+// them here would move this assertion every time the chrome does.
 func ownForms(t *testing.T, markup string) []string {
 	t.Helper()
 	var out []string
@@ -776,7 +777,7 @@ func ownForms(t *testing.T, markup string) []string {
 		if end < 0 {
 			t.Fatalf("a form on the page is never closed: %q", rest[:min(len(rest), 200)])
 		}
-		if form := rest[:end]; attr(form, "action") == "/preferences" {
+		if form := rest[:end]; attr(form, "action") == "/preferences" && !strings.Contains(attr(form, "class"), "y-paperswitch__form") {
 			out = append(out, form)
 		}
 		rest = rest[end:]
