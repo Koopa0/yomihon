@@ -212,7 +212,7 @@ try {
     const proof = MUTATE && lang === 'zh-Hant' ? await MUTATIONS[MUTATE].apply(page) : null;
     const response = await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
     if (response?.status() !== 200) throw new Error(`GET returned ${response?.status()}`);
-    await page.waitForSelector('.y-ttsbar__play');
+    await page.waitForSelector('[data-readaloud-play]');
     if (proof) { proof(); applied = true; }
 
     const cells = await page.locator('.y-prose td').evaluateAll((elements) => elements.map((element) => {

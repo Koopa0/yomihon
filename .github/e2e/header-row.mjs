@@ -57,10 +57,6 @@ const MARKS = '.y-headerlink[href="/marks"]';
 const SETTINGS = '.y-prefslink';
 const SIDEBAR = '.y-sidebtn';
 const PHONE = 720;
-// A row that also carries the furigana switch has no room for the grounds
-// until it is this wide,
-const CROWDED = 1199;
-// and it keeps the link to My marks only where the left column is a column.
 const CLUSTER = [RUBY, SEARCH_FIELD, SEARCH, MARK, PATH, ...PAPERS, MARKS, SETTINGS];
 // What may stand ahead of the wordmark: the sidebar button alone.
 const LEAD = [SIDEBAR];
@@ -68,7 +64,7 @@ const LEAD = [SIDEBAR];
 const SITES = [
   'reading-place-reachable',
   'cluster-holds-only-what-reading-needs',
-  'switch-only-with-furigana',
+  'no-switch-in-the-header',
   'row-fits',
   'wordmark-whole',
   'bookmark-says-whether-it-is-set',
@@ -219,9 +215,9 @@ const MUTATIONS = {
       if (!placed) notApplied('there is no search control to place a setting beside');
     },
   },
-  // The switch is drawn whether or not the page has anything for it to show.
-  'draw-the-switch-on-every-page': {
-    target: 'switch-only-with-furigana',
+  // The furigana switch comes back to the header, which only the page head draws.
+  'draw-the-switch-in-the-header': {
+    target: 'no-switch-in-the-header',
     on: 'note',
     apply: async (page) => {
       const placed = await page.evaluate(() => {
@@ -229,7 +225,7 @@ const MUTATIONS = {
         if (!search) return false;
         const ruby = document.createElement('button');
         ruby.type = 'button';
-        ruby.className = 'y-iconbtn y-rubybtn';
+        ruby.className = 'y-iconbtn';
         ruby.setAttribute('data-ruby-toggle', '');
         ruby.setAttribute('aria-pressed', 'true');
         search.before(ruby);
@@ -237,19 +233,6 @@ const MUTATIONS = {
       });
       if (!placed) notApplied('there is no search control to place the switch beside');
     },
-  },
-  // The switch is in the markup of a page with furigana and drawn nowhere.
-  'hide-the-switch-with-furigana': {
-    target: 'switch-only-with-furigana',
-    on: 'readings',
-    apply: (page) => injectRule(page, RUBY, `${RUBY} { display: none; }`),
-  },
-  // The grounds stay in a row that also carries the furigana switch where it
-  // has no room for both, and the folder's name is drawn over the switch.
-  'crowd-the-grounds-into-the-furigana-row': {
-    target: 'cluster-holds-only-what-reading-needs',
-    on: 'readings',
-    apply: (page) => injectRule(page, '.y-paperswitch', '.y-header .y-paperswitch { display: flex !important; }'),
   },
   // One control is drawn over the next, which the window's edges alone
   // would never show.
@@ -269,8 +252,8 @@ const MUTATIONS = {
   // the brand under the cluster, which the cluster's own question sees first.
   'let-a-control-take-the-name': {
     target: 'wordmark-whole',
-    on: 'readings',
-    apply: (page) => injectRule(page, '.y-rubybtn', '.y-rubybtn { min-width: 400px; } .y-brand__name { flex: 0 1 auto; min-width: 0; } .y-brand__word { overflow: hidden; }'),
+    on: 'note',
+    apply: (page) => injectRule(page, '.y-searchfield', '.y-searchfield { min-width: 400px; } .y-brand__name { flex: 0 1 auto; min-width: 24px; } .y-brand__word { overflow: hidden; }'),
   },
   // The bookmark loses the attribute that tells a screen reader it is a
   // toggle and whether it is on.
@@ -489,7 +472,6 @@ try {
     await foldedContext.close();
 
     for (const [kind, page] of [['note', note], ['readings', readings]]) {
-      const hasSwitch = kind === 'readings';
       const hasMark = await page.locator('.y-headermark').count() === 1;
       const hasPath = await page.locator('.y-headerpath').count() === 1;
       for (const width of WIDTHS) {
@@ -499,24 +481,24 @@ try {
         const where = `${language} ${kind === 'note' ? PAGE : READINGS_PAGE} at ${width}px`;
 
         const switchDrawn = row.drawn.includes(RUBY);
-        if (switchDrawn !== hasSwitch) {
-          fail('switch-only-with-furigana', `${where}: the furigana switch is ${switchDrawn ? 'drawn' : 'not drawn'}, want it ${hasSwitch ? 'drawn' : 'absent'} on a page ${hasSwitch ? 'with' : 'without'} furigana`);
+        if (switchDrawn) {
+          fail('no-switch-in-the-header', `${where}: the furigana switch is drawn in the header, which belongs to the page head's toolbar`);
         }
         const want = CLUSTER.filter((selector) => {
-          if (selector === RUBY) return hasSwitch;
+          if (selector === RUBY) return false;
           if (selector === SEARCH_FIELD) return width > PHONE;
           if (selector === SEARCH) return width <= PHONE;
           if (selector === MARK) return hasMark;
           if (selector === PATH) return hasPath && width > DRAWER;
-          if (PAPERS.includes(selector)) return width > (hasSwitch ? CROWDED : DRAWER);
-          if (selector === MARKS) return width > (hasSwitch ? DRAWER : PHONE);
+          if (PAPERS.includes(selector)) return width > DRAWER;
+          if (selector === MARKS) return width > PHONE;
           return true;
         });
         // The furigana question is its own site, so the order is asked of the
         // rest of the cluster.
         const order = row.drawn.filter((entry) => entry !== RUBY);
         const wantOrder = want.filter((selector) => selector !== RUBY);
-        if (JSON.stringify(order) !== JSON.stringify(wantOrder) || (hasSwitch && row.drawn[0] !== RUBY)) {
+        if (JSON.stringify(order) !== JSON.stringify(wantOrder)) {
           fail('cluster-holds-only-what-reading-needs', `${where}: the row draws ${JSON.stringify(row.drawn)} after the wordmark, want ${JSON.stringify(want)}`);
         }
         // Ahead of the wordmark, the sidebar button where the column is a
@@ -547,11 +529,10 @@ try {
           return { drawn: style.display !== 'none' && box.width > 0, width: box.width, em: parseFloat(style.fontSize) };
         });
         if (vault) {
-          const wantDrawn = !(hasSwitch && width <= 720);
-          if (vault.drawn !== wantDrawn) {
-            fail('row-fits', `${where}: the folder's name is ${vault.drawn ? 'drawn' : 'not drawn'}, want it ${wantDrawn ? 'drawn' : 'left out beside the furigana switch'}`);
+          if (!vault.drawn) {
+            fail('row-fits', `${where}: the folder's name is not drawn, nothing beside it takes its room`);
           }
-          if (vault.drawn && vault.width < 4 * vault.em - 0.5) {
+          if (vault.width < 4 * vault.em - 0.5) {
             fail('row-fits', `${where}: the folder's name is ${vault.width}px wide, less than the four letters it is drawn at least as wide as`);
           }
         }
@@ -702,7 +683,7 @@ try {
     await touch.close();
   }
 
-  console.log('PASS header-row: the sidebar button stands ahead of the wordmark only where the column is a drawer; after it the row carries the furigana switch only where there is furigana, the search field (the glass on a phone), the bookmark, the copy of the path and the grounds where the left column is not a drawer, My marks above a phone and the settings, in that order and nothing else; one reading-place control at every width; the row fits with the wordmark whole; the bookmark is a named toggle that turns on when the place is kept, and its sentence moves nothing, covers nothing and stays until the next press or key; the search and the settings keep their names; the bookmark takes a thumb and is in the keyboard order');
+  console.log('PASS header-row: the sidebar button stands ahead of the wordmark only where the column is a drawer; after it the row carries no furigana switch, the search field (the glass on a phone), the bookmark, the copy of the path and the grounds where the left column is not a drawer, My marks above a phone and the settings, in that order and nothing else; one reading-place control at every width; the row fits with the wordmark whole; the bookmark is a named toggle that turns on when the place is kept, and its sentence moves nothing, covers nothing and stays until the next press or key; the search and the settings keep their names; the bookmark takes a thumb and is in the keyboard order');
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

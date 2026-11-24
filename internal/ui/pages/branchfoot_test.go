@@ -257,27 +257,55 @@ func TestALessonTheCourseTeachesNeverFallsBackToTheFolder(t *testing.T) {
 	}
 }
 
-// TestNothingStandsAboveTheTitle holds the head of a note to its title. The
-// sidebar already says which course the note is in and which part, or which
-// folder, so a line over the heading said it twice: the running head of a
-// course's lesson and the folder's breadcrumb of any other note are both gone,
-// and the first thing in the head is the heading itself.
-func TestNothingStandsAboveTheTitle(t *testing.T) {
+// TestTheHeadOpensOnWhereTheNoteIs holds the row above a note's title: a unit
+// names its course, any other note the folders it lies in, and the title
+// follows.
+func TestTheHeadOpensOnWhereTheNoteIs(t *testing.T) {
 	t.Parallel()
 
 	model := footVault(t)
-	for _, current := range []string{"Writing/C03.md", "Writing/L1.md", "Writing/C02a.md", "Maps/Solo.md"} {
+	for _, tt := range []struct {
+		current, link string
+		absent        string
+	}{
+		{"Writing/C03.md", `href="/courses/Maps/Course.md?from=Writing%2FC03.md"`, `/folders/`},
+		{"Writing/L1.md", `href="/courses/Maps/Course.md?from=Writing%2FL1.md"`, `/folders/`},
+		{"Writing/C02a.md", `href="/folders/Writing"`, `/courses/`},
+		{"Maps/Solo.md", `href="/folders/Maps"`, `/courses/`},
+	} {
 		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-			_, view := footView(model, current, lang)
+			_, view := footView(model, tt.current, lang)
 			view.Title = "T"
+			view.vault = "Shelf"
 			html := renderedHTML(t, articleHead(view, lang))
-			if !strings.HasPrefix(html, `<h1 class="y-title">T</h1>`) {
-				t.Errorf("the head of %s in %s does not open on the title; html = %q", current, lang, html)
+			opening := `<header class="y-frontis"><p class="y-notewhere"`
+			vault, place := strings.Index(html, `<a href="/">Shelf</a>`), strings.Index(html, tt.link)
+			title := strings.Index(html, `<h1 class="y-title">T</h1>`)
+			if !strings.HasPrefix(html, opening) || vault < 0 || place < vault || title < place {
+				t.Errorf("the head of %s in %s does not open on its row, the vault then where the note is, and then its title; html = %q", tt.current, lang, html)
 			}
-			if strings.Contains(html, "y-crumbs") {
-				t.Errorf("the head of %s in %s still draws a path or a running head; html = %q", current, lang, html)
+			if strings.Contains(html, tt.absent) {
+				t.Errorf("the row of %s in %s draws %s; html = %q", tt.current, lang, tt.absent, html)
 			}
 		}
+	}
+}
+
+// TestANoteAtTheVaultsTopNamesTheVaultAlone holds the row to a note at the top
+// of the vault: it has no folder to name, and the row is then the vault alone,
+// with no mark between it and nothing. A page made with no vault name has no
+// row to draw for such a note.
+func TestANoteAtTheVaultsTopNamesTheVaultAlone(t *testing.T) {
+	t.Parallel()
+
+	view := NoteView{Title: "T", RelPath: "Top.md", vault: "Shelf"}
+	html := renderedHTML(t, noteWhere(view, wording.En))
+	if !strings.Contains(html, `<a href="/">Shelf</a>`) || strings.Contains(html, "›") {
+		t.Errorf("a note at the top draws %q, want the vault alone", html)
+	}
+	view.vault = ""
+	if html := renderedHTML(t, noteWhere(view, wording.En)); html != "" {
+		t.Errorf("a note at the top of an unnamed vault draws %q, want nothing", html)
 	}
 }
 

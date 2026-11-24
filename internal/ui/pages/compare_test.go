@@ -63,7 +63,11 @@ func TestACompareColumnIsTheNotesOwnArticle(t *testing.T) {
 		t.Fatalf("the side-by-side page draws %d articles, want one per note", got)
 	}
 
-	alone := renderedBytes(t, t.Context(), noteArticle(a, lang))
+	// The note page starts the row above the title from the vault its chrome
+	// names; the article alone is told the same name.
+	solo := a
+	solo.vault = recordedChrome().Vault
+	alone := renderedBytes(t, t.Context(), noteArticle(solo, lang))
 	if diff := cmp.Diff(alone, articleAt(t, page, 0)); diff != "" {
 		t.Errorf("the note page's article is not the component it draws (-component +page):\n%s", diff)
 	}

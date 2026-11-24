@@ -13,7 +13,6 @@ import (
 // no right rail and no status bar, a file having no contents, no diagnostics
 // and no status.
 templ File(v FileView, c layouts.Chrome) {
-	{{ c.Readings = render.CarriesReadings(v.BodyHTML) }}
 	{{ c.Diagrams = render.CarriesDiagrams(v.BodyHTML) }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
@@ -22,6 +21,9 @@ templ File(v FileView, c layouts.Chrome) {
 			<main id="_y-main" tabindex="-1" class="y-main">
 				<article class="y-article">
 					@fileHead(v, c.Lang)
+					if render.CarriesReadings(v.BodyHTML) {
+						@readingsTools(c.Ruby == "on", c.Lang)
+					}
 					switch v.Kind {
 						case FileSource:
 							<div class="y-prose y-source">

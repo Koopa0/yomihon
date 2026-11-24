@@ -264,24 +264,24 @@ async function composition(browser, width, language, theme, fixture, noAPI) {
     }
     check(JSON.stringify(await page.locator('.y-slotlive').allTextContents()) === JSON.stringify(shuffle), 'shuffle-isolation', `${identity} speech changed shuffle announcements`);
     if (!noAPI && fixture.paragraphs > 1) {
-      await pressForHandoff(page, '.y-ttsbar__play');
+      await pressForHandoff(page, '[data-readaloud-play]');
       const count = await page.evaluate(() => window.__speechFixture.utterances.length);
       await page.evaluate(() => window.__speechFixture.utterances.at(-1).dispatchEvent(new Event('end')));
       await waitForHandoff(page, count + 1);
       check(await page.evaluate(() => window.__speechFixture.utterances.length) === count + 1, 'automatic-advance', `${identity} end did not advance once`);
       await page.evaluate(() => window.__speechFixture.utterances.at(-1).dispatchEvent(new Event('error')));
-      check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await page.locator('.y-ttsbar__play').getAttribute('aria-pressed') === 'false' && await page.locator('[data-speaking], [data-reading]').count() === 0 && await page.evaluate(() => window.__speechFixture.utterances.length) === count + 1, 'advance-error', `${identity} error did not end the walk`);
+      check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await page.locator('[data-readaloud-play]').getAttribute('aria-pressed') === 'false' && await page.locator('[data-speaking], [data-reading]').count() === 0 && await page.evaluate(() => window.__speechFixture.utterances.length) === count + 1, 'advance-error', `${identity} error did not end the walk`);
       for (const selector of ['.y-ttsbar__prev', '.y-ttsbar__next']) {
         await pressForHandoff(page, selector);
         await page.evaluate(() => window.__speechFixture.utterances.at(-1).dispatchEvent(new Event('error')));
         check(await page.locator(STATUS).textContent() === UNAVAILABLE[language] && await page.locator('[data-speaking], [data-reading]').count() === 0, 'step-error', `${identity} ${selector} refusal failed`);
       }
-      await pressForHandoff(page, '.y-ttsbar__play');
+      await pressForHandoff(page, '[data-readaloud-play]');
       await page.click('.y-ttsbar__stop');
       const stopped = await page.locator(STATUS).textContent();
       await page.evaluate(() => window.__speechFixture.utterances.at(-1).dispatchEvent(new Event('error')));
       check(await page.locator(STATUS).textContent() === stopped && await page.locator('[data-speaking], [data-reading]').count() === 0, 'stopped-error', `${identity} stopped callback changed status`);
-      await pressForHandoff(page, '.y-ttsbar__play');
+      await pressForHandoff(page, '[data-readaloud-play]');
       const beforeHide = await page.locator(STATUS).textContent();
       const beforeHideCount = await page.evaluate(() => window.__speechFixture.utterances.length);
       await page.evaluate(() => {

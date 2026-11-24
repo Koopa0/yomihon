@@ -166,6 +166,7 @@ export function initLesson(enhanceCodeCopy) {
   let playAllButton = null;
   let previousButton = null;
   let nextButton = null;
+  let stopButton = null;
 
   // The paragraph the voice is on, which the stylesheet colours. It is state
   // about a moment rather than a fact about the note, so no server can know it
@@ -196,10 +197,11 @@ export function initLesson(enhanceCodeCopy) {
   // off, and a control that goes dead under the reader's finger takes their
   // place in the page with it: focus falls to the document and the next Tab
   // starts again from the top. Play through is the control beside it and is
-  // never off, so the reader is left standing in the bar they were using.
+  // never off, so the reader is left standing in the bar they were using. Where
+  // that entry stands in the page head instead, the bar's stop is the one left.
   function setStep(button, off) {
     if (!button) return;
-    if (off && document.activeElement === button) playAllButton?.focus();
+    if (off && document.activeElement === button) (playAllButton?.closest('.y-ttsbar') ? playAllButton : stopButton)?.focus();
     button.disabled = off;
   }
 
@@ -352,7 +354,11 @@ export function initLesson(enhanceCodeCopy) {
       speechStatus.setAttribute('lang', document.documentElement.lang);
       column.append(speechStatus);
     }
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window)) {
+      // The head's entry has nothing to start without a voice.
+      document.querySelector('[data-readaloud-play]')?.remove();
+      return;
+    }
     // Above the test for marked paragraphs, because the practice card can be
     // speaking on a note that marks none. Speech outlives the page it was
     // started on, so a reader who leaves mid-sentence is otherwise followed by
@@ -369,7 +375,11 @@ export function initLesson(enhanceCodeCopy) {
     toolbar.className = 'y-ttsbar';
     toolbar.setAttribute('role', 'group');
     toolbar.setAttribute('aria-label', controlsLabel);
-    playAllButton = barButton(playAllLabel, 'y-ttsbar__play');
+    // A note's page head carries the entry; a page with no head for one, such as
+    // the one that lists a whole course to be heard, gets its own in the bar.
+    const headEntry = document.querySelector('[data-readaloud-play]');
+    playAllButton = headEntry ?? barButton(playAllLabel, '');
+    playAllButton.setAttribute('data-readaloud-play', '');
     playAllButton.addEventListener('click', () => {
       if (running) {
         endRun();
@@ -385,12 +395,13 @@ export function initLesson(enhanceCodeCopy) {
     previousButton.addEventListener('click', () => step(-1));
     nextButton = barButton(nextLabel, 'y-ttsbar__next');
     nextButton.addEventListener('click', () => step(1));
-    const stopButton = barButton(stopLabel, 'y-ttsbar__stop');
+    stopButton = barButton(stopLabel, 'y-ttsbar__stop');
     stopButton.addEventListener('click', () => {
       endRun();
       stopSpeech();
     });
-    toolbar.append(playAllButton, previousButton, nextButton, stopButton);
+    if (headEntry) toolbar.append(previousButton, nextButton, stopButton);
+    else toolbar.append(playAllButton, previousButton, nextButton, stopButton);
     const label = document.createElement('span');
     label.className = 'y-ttsbar__label';
     label.textContent = speedLabel;

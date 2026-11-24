@@ -38,7 +38,6 @@ func File(v FileView, c layouts.Chrome) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		c.Readings = render.CarriesReadings(v.BodyHTML)
 		c.Diagrams = render.CarriesDiagrams(v.BodyHTML)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -68,6 +67,12 @@ func File(v FileView, c layouts.Chrome) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
+			if render.CarriesReadings(v.BodyHTML) {
+				templ_7745c5c3_Err = readingsTools(c.Ruby == "on", c.Lang).Render(ctx, templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
 			switch v.Kind {
 			case FileSource:
 				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"y-prose y-source\">")
@@ -94,7 +99,7 @@ func File(v FileView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(wording.SkippedDocumentNote.In(c.Lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 32, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 34, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -124,7 +129,7 @@ func File(v FileView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(rawHref(v.RelPath))).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 46, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 48, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 				if templ_7745c5c3_Err != nil {
@@ -137,7 +142,7 @@ func File(v FileView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Title).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 46, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 48, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 				if templ_7745c5c3_Err != nil {
@@ -155,7 +160,7 @@ func File(v FileView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(rawHref(v.RelPath))).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 49, Col: 70}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 51, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 				if templ_7745c5c3_Err != nil {
@@ -168,7 +173,7 @@ func File(v FileView, c layouts.Chrome) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.NewAttributeExpression(v.Title).Resolve(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 49, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 51, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 				if templ_7745c5c3_Err != nil {
@@ -236,7 +241,7 @@ func fileHead(v FileView, lang wording.Lang) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(folderHref(seg.RelPath))).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 68, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 70, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
 				if templ_7745c5c3_Err != nil {
@@ -249,7 +254,7 @@ func fileHead(v FileView, lang wording.Lang) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(seg.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 68, Col: 84}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 70, Col: 84}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -272,7 +277,7 @@ func fileHead(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(v.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 72, Col: 30}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 74, Col: 30}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {
@@ -285,7 +290,7 @@ func fileHead(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fileKindLabel(v.Kind, lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 74, Col: 53}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 76, Col: 53}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -298,7 +303,7 @@ func fileHead(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(v.RelPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 75, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 77, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -352,7 +357,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 				var templ_7745c5c3_Var15 string
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(wording.DocumentOverReadingLimit.In(lang), humanSize(v.Size, lang), readingLimit(v.SourceLimit)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 86, Col: 142}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 88, Col: 142}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
@@ -370,7 +375,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(wording.NoteOverReadingLimit.In(lang), humanSize(v.Size, lang), readingLimit(v.SourceLimit)))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 88, Col: 138}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 90, Col: 138}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -393,7 +398,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(sourceBoundHealthHref(v.RelPath))).ResolveURL(ctx)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 91, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 93, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var17)
 				if templ_7745c5c3_Err != nil {
@@ -406,7 +411,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 				var templ_7745c5c3_Var18 string
 				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoteReadingLimitHealth.In(lang))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 91, Col: 104}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 93, Col: 104}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 				if templ_7745c5c3_Err != nil {
@@ -425,7 +430,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(wording.NoReaderForFile.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 94, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 96, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -443,7 +448,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(wording.FileName.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 97, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 99, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -456,7 +461,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(v.Title)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 98, Col: 16}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 100, Col: 16}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -469,7 +474,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(wording.FileSize.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 99, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 101, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -482,7 +487,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(humanSize(v.Size, lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 100, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 102, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -495,7 +500,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var24 string
 		templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(wording.FileType.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 101, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 103, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 		if templ_7745c5c3_Err != nil {
@@ -508,7 +513,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(v.ContentType)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 102, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 104, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
@@ -521,7 +526,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(rawHref(v.RelPath))).ResolveURL(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 104, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 106, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var26)
 		if templ_7745c5c3_Err != nil {
@@ -535,7 +540,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 			var templ_7745c5c3_Var27 string
 			templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(wording.DownloadFile.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 106, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 108, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 			if templ_7745c5c3_Err != nil {
@@ -545,7 +550,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(wording.OpenRawBytes.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 108, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 110, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -559,7 +564,7 @@ func fileInfo(v FileView, lang wording.Lang) templ.Component {
 		var templ_7745c5c3_Var29 string
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(wording.FileNotIndexed.In(lang))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 111, Col: 63}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 113, Col: 63}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
@@ -601,7 +606,7 @@ func documentRawDoor(v FileView, lang wording.Lang) templ.Component {
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templruntime.NewAttributeExpression(templ.URL(rawHref(v.RelPath))).ResolveURL(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 120, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 122, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var31)
 			if templ_7745c5c3_Err != nil {
@@ -614,7 +619,7 @@ func documentRawDoor(v FileView, lang wording.Lang) templ.Component {
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(wording.RawFile.In(lang))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 120, Col: 93}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/file.templ`, Line: 122, Col: 93}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {

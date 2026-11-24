@@ -11,7 +11,6 @@ import (
 // elements, so the runtime that reads one note through reads a whole course
 // through without knowing this page exists.
 templ Listen(v ListenView, c layouts.Chrome) {
-	{{ c.Readings = v.carriesReadings() }}
 	@layouts.Base(c) {
 		<div class="y-nav-scrim" data-nav-close></div>
 		<div class="y-shell2">
@@ -23,6 +22,9 @@ templ Listen(v ListenView, c layouts.Chrome) {
 					<a class="y-syl-read" href={ templ.URL(v.PathHref) }>
 						{ wording.ContentsLink.In(c.Lang) + " " }<span aria-hidden="true">→</span>
 					</a>
+					if v.carriesReadings() {
+						@readingsTools(c.Ruby == "on", c.Lang)
+					}
 					if len(v.Lessons) == 0 {
 						<p class="y-listen__none">{ wording.ListenNothingMarked.In(c.Lang) }</p>
 					} else {

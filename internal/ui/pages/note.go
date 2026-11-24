@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"path"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -91,13 +92,12 @@ func fenceDiagLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 
 // factsShown reports whether the end of the note has a fact to draw: the same
 // ones noteFacts gates row by row, so a note with none of them draws no block
-// for them. A draft always has a path, so its mark is drawn whenever it is owed.
+// for them.
 func (v *NoteView) factsShown() bool {
-	return v.Draft || v.factRows()
+	return v.factRows()
 }
 
-// factRows reports whether the facts have a row to draw, so a draft with nothing
-// else to say is one word and not an empty list.
+// factRows reports whether the facts have a row to draw.
 func (v *NoteView) factRows() bool {
 	return v.Type != "" || v.Language != "" || v.RelPath != "" || v.VerifiedOn != "" || len(v.Prerequisites) > 0
 }
@@ -362,4 +362,41 @@ func conceptsCarryReadings(concepts []drill.ConceptDoc) bool {
 		}
 	}
 	return false
+}
+
+// folder is one level of the path a note lies under: its name, and the path
+// that is its address in the vault.
+type folder struct {
+	Name string
+	Path string
+}
+
+// folders are the directories above the note, outermost first. A note in the
+// vault's root lies in none.
+func (v *NoteView) folders() []folder {
+	dirs := strings.Split(path.Dir(v.RelPath), "/")
+	if v.RelPath == "" || path.Dir(v.RelPath) == "." {
+		return nil
+	}
+	out := make([]folder, len(dirs))
+	for i, name := range dirs {
+		out[i] = folder{Name: name, Path: strings.Join(dirs[:i+1], "/")}
+	}
+	return out
+}
+
+// whereShown reports whether the head has a place to name: the vault, the
+// course a unit belongs to, or the folders a note lies in.
+func (v *NoteView) whereShown() bool {
+	if v.vault != "" || (v.StepsCourse && v.StepsPath.RelPath != "") {
+		return true
+	}
+	return len(v.folders()) > 0
+}
+
+// readsAloud reports whether the note marks paragraphs to be read aloud, which
+// is the question the script asks before it builds the controls the head's
+// entry starts.
+func (v *NoteView) readsAloud() bool {
+	return strings.Contains(v.BodyHTML, speakButtonMarker)
 }
