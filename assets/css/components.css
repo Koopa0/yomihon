@@ -428,9 +428,9 @@ samp {
    ============================================================ */
 /* The header is the paper itself, a little translucent so the page passing
    under it shows as a blur rather than being cut off by a band of another
-   tone, with the faintest line under it. Its contents stand on the same stage
-   as the page: on a window wider than the stage they keep to its edges
-   rather than running out to the window's. */
+   tone, with the faintest line under it. Its ends stay at the window's edges
+   for now, where the left column is: the two move onto the 1680px stage
+   together, with the note's grid (D94, Phase 2). */
 .y-header {
   align-items: center;
   backdrop-filter: blur(12px) saturate(1.1);
@@ -440,7 +440,7 @@ samp {
   flex: none;
   gap: var(--sp-1);
   height: var(--hdr-h);
-  padding-inline: max(var(--sp-5), calc((100% - var(--stage-max)) / 2 + var(--sp-5)));
+  padding: 0 var(--sp-5);
   position: sticky;
   top: 0;
   z-index: 30;
