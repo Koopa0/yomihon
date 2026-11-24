@@ -1608,7 +1608,10 @@ html[data-js][data-arrival='kept'] .y-main {
   font-size: clamp(29px, 3.3vw, 37px);
   font-weight: var(--fw-semibold);
   letter-spacing: -0.015em;
-  line-height: 1.32;
+  /* Whole pixels: a line box with a fraction left over sets everything below
+     the title on fractional offsets, and a reading place put back under it
+     lands a pixel or more from where it was kept. */
+  line-height: round(1.32em, 1px);
   margin: 0;
 }
 
