@@ -2930,6 +2930,10 @@ button.y-freshness__action {
       min-height: 28px;
     }
 
+    /* A pointer resting on a section brings its buttons in after a short wait
+       and a fade, so scrolling under a still pointer never makes them blink.
+       Keyboard focus brings them in at once: a reader who tabbed to a button
+       has to see it the moment it has focus. */
     @media (pointer: fine) {
       :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-margin__act:not([aria-pressed='true']) {
         opacity: 0;
@@ -2947,7 +2951,7 @@ button.y-freshness__action {
     :root:not([data-textsize='l'], [data-textsize='xl'])[data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
       opacity: 1;
       pointer-events: auto;
-      transition-delay: initial;
+      transition: none;
     }
   }
 }
@@ -2994,7 +2998,7 @@ button.y-freshness__action {
     :root[data-textsize='l'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
       opacity: 1;
       pointer-events: auto;
-      transition-delay: initial;
+      transition: none;
     }
   }
 }
@@ -3041,7 +3045,7 @@ button.y-freshness__action {
     :root[data-textsize='xl'][data-sectionbuttons='hover'] .y-main > .y-article .y-sect:has(:focus-visible) .y-margin__act {
       opacity: 1;
       pointer-events: auto;
-      transition-delay: initial;
+      transition: none;
     }
   }
 }
