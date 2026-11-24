@@ -133,6 +133,20 @@ const MUTATIONS = {
       'the section buttons write',
     ),
   },
+  // The paper row is held to the same two: kept past the page view, and sent
+  // by the form when nothing runs.
+  'paper-kept-for-this-page-view-only': {
+    target: 'choices-survive-the-journey',
+    apply: rewriteModule(
+      "      setPreference('paper', value);\n",
+      '      root.dataset.paper = value;\n',
+      'the paper write',
+    ),
+  },
+  'paper-field-loses-its-name': {
+    target: 'no-javascript-fallback',
+    apply: rewriteSettingsPage('name="paper"', 'name="paper-unnamed"', 'the field name of the paper radios', 3),
+  },
   'hide-the-submit-from-everyone': {
     target: 'no-javascript-fallback',
     apply: rewriteCSS('[data-js] .y-prefs__fallback {', '.y-prefs__fallback {', 'the enhancement test on the submit'),
@@ -166,6 +180,7 @@ const rootState = (page) =>
     const root = document.documentElement;
     return {
       theme: root.dataset.theme ?? '',
+      paper: root.dataset.paper ?? '',
       textsize: root.dataset.textsize ?? '',
       font: root.dataset.font ?? '',
       ruby: root.dataset.ruby ?? '',
@@ -200,14 +215,16 @@ try {
     broken(`the page carries no way back to a note (href ${reading}), so it was not reached from one`);
   }
   const start = await checkedValues(page);
-  if (start.textsize !== 'm' || start.font !== 'serif' || start.sectionbuttons !== 'always') {
-    broken(`this browser arrives with size ${start.textsize}, face ${start.font} and section buttons ${start.sectionbuttons} already set, so the changes below prove nothing`);
+  // Each choice arrives on its default, so every pick below moves it.
+  if (start.textsize !== 'm' || start.font !== 'serif' || start.sectionbuttons !== 'hover' || start.paper !== 'stone') {
+    broken(`this browser arrives with size ${start.textsize}, face ${start.font}, section buttons ${start.sectionbuttons} and paper ${start.paper} already set, so the changes below prove nothing`);
   }
 
   // ── What is picked here is still true everywhere else ───────────────────
   await pick(page, 'textsize', 'l');
   await pick(page, 'font', 'kai');
-  await pick(page, 'sectionbuttons', 'hover');
+  await pick(page, 'sectionbuttons', 'always');
+  await pick(page, 'paper', 'washi');
   await page.waitForTimeout(200);
 
   await page.reload({ waitUntil: 'domcontentloaded' });
@@ -225,14 +242,20 @@ try {
       `after a reload the page shows size=${reloadedRadios.textsize} face=${reloadedRadios.font} as chosen, want l and kai`,
     );
   }
-  if (reloaded.sectionbuttons !== 'hover' || reloadedRadios.sectionbuttons !== 'hover') {
+  if (reloaded.sectionbuttons !== 'always' || reloadedRadios.sectionbuttons !== 'always') {
     fail(
       'choices-survive-the-journey',
-      `after a reload the buttons beside sections are stamped ${reloaded.sectionbuttons || 'nothing'} and shown as ${reloadedRadios.sectionbuttons}, want hover in both`,
+      `after a reload the buttons beside sections are stamped ${reloaded.sectionbuttons || 'nothing'} and shown as ${reloadedRadios.sectionbuttons}, want always in both`,
+    );
+  }
+  if (reloaded.paper !== 'washi' || reloadedRadios.paper !== 'washi') {
+    fail(
+      'choices-survive-the-journey',
+      `after a reload the paper is stamped ${reloaded.paper || 'nothing'} and shown as ${reloadedRadios.paper}, want washi in both`,
     );
   }
 
-  // The reading itself, which is what the two choices above are for.
+  // The reading itself, which is what the choices above are for.
   await page.goto(BASE + reading, { waitUntil: 'domcontentloaded' });
   const onTheNote = await rootState(page);
   if (onTheNote.textsize !== 'l' || onTheNote.font !== 'kai') {
@@ -241,8 +264,11 @@ try {
       `the note is stamped size=${onTheNote.textsize || 'nothing'} face=${onTheNote.font || 'nothing'}, want the l and kai chosen before it`,
     );
   }
-  if (onTheNote.sectionbuttons !== 'hover') {
-    fail('choices-survive-the-journey', `the note is stamped sectionbuttons=${onTheNote.sectionbuttons || 'nothing'}, want the hover chosen before it`);
+  if (onTheNote.sectionbuttons !== 'always') {
+    fail('choices-survive-the-journey', `the note is stamped sectionbuttons=${onTheNote.sectionbuttons || 'nothing'}, want the always chosen before it`);
+  }
+  if (onTheNote.paper !== 'washi') {
+    fail('choices-survive-the-journey', `the note is stamped paper=${onTheNote.paper || 'nothing'}, want the washi chosen before it`);
   }
 
   // Back to the choices, then forward to the note again. The radios are left
@@ -325,7 +351,8 @@ try {
   }
   await plain.click('[data-pref-field="textsize"] input[value="xl"]');
   await plain.click('[data-pref-field="font"] input[value="sans"]');
-  await plain.click('[data-pref-field="sectionbuttons"] input[value="hover"]');
+  await plain.click('[data-pref-field="sectionbuttons"] input[value="always"]');
+  await plain.click('[data-pref-field="paper"] input[value="white"]');
   await plain.click('.y-prefs__fallback');
   await plain.waitForLoadState('domcontentloaded');
   const applied = {};
@@ -336,15 +363,22 @@ try {
       `the form stored size=${applied.yomihon_textsize || 'nothing'} face=${applied.yomihon_font || 'nothing'}, want xl and sans together`,
     );
   }
-  if (applied.yomihon_sectionbuttons !== 'hover') {
-    fail('no-javascript-fallback', `the form stored sectionbuttons=${applied.yomihon_sectionbuttons || 'nothing'} beside the others, want hover`);
+  if (applied.yomihon_sectionbuttons !== 'always') {
+    fail('no-javascript-fallback', `the form stored sectionbuttons=${applied.yomihon_sectionbuttons || 'nothing'} beside the others, want always`);
+  }
+  if (applied.yomihon_paper !== 'white') {
+    fail('no-javascript-fallback', `the form stored paper=${applied.yomihon_paper || 'nothing'} beside the others, want white`);
   }
   if (new URL(plain.url()).pathname !== reading) {
     fail('no-javascript-fallback', `applying the form landed on ${plain.url()}, want the reader back on ${reading}`);
   }
   const served = await plain.getAttribute('html', 'data-sectionbuttons');
-  if (served !== 'hover') {
-    fail('no-javascript-fallback', `the page the reader lands on is stamped sectionbuttons=${served ?? 'nothing'} by the server, want hover with no script to set it`);
+  if (served !== 'always') {
+    fail('no-javascript-fallback', `the page the reader lands on is stamped sectionbuttons=${served ?? 'nothing'} by the server, want always with no script to set it`);
+  }
+  const paper = await plain.getAttribute('html', 'data-paper');
+  if (paper !== 'white') {
+    fail('no-javascript-fallback', `the page the reader lands on is stamped paper=${paper ?? 'nothing'} by the server, want white with no script to set it`);
   }
 
   console.log(

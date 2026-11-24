@@ -66,7 +66,11 @@ function prove() {
 function side(page) {
   return page.locator('#_y-nav-rail details[data-key]').filter({ has: page.locator(':scope > summary', { hasText: '支線' }) });
 }
+// Every journey starts here, and keeps the column open by its cookie: the
+// disclosures are pressed where a reader presses them, and a reader who never
+// chose meets the column folded, its rows out of reach.
 async function fixture(page) {
+  await page.context().addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
   if (await side(page).count() !== 1 || await page.locator('#_y-nav-rail details[data-chain]').count() === 0) {
     throw new Error('fixture needs one side branch and the current lesson ancestry');

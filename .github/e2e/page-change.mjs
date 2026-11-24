@@ -96,8 +96,12 @@ const recorder = () => {
   requestAnimationFrame(sample);
 };
 
+// The left sidebar is kept open by its cookie: its rows are what a reader
+// follows here, and its scroll is what is kept, while a reader who never chose
+// meets it folded.
 const open = async (options = {}) => {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, reducedMotion: 'no-preference', ...options.context });
+  await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
   await context.addInitScript(recorder);
   const page = await context.newPage();
   const planted = [];

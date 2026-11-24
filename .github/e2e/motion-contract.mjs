@@ -93,6 +93,18 @@ const fail = (site, message) => {
 const broken = (message) => { throw new ProbeBroken(`BROKEN motion-contract: ${message}`); };
 const notApplied = (message) => { throw new NotApplied(`NOT-APPLIED motion-contract: ${message}`); };
 
+// Every duration is held at zero until the head's script marks the root
+// is-ready, two frames after the first paint, so a page read before then
+// reports no motion whatever its rules say: a transition the reader would see
+// would be read as collapsed. Each page is read once it is ready.
+const motionReady = async (page, where) => {
+  try {
+    await page.waitForFunction(() => document.documentElement.classList.contains('is-ready'), null, { timeout: 3000 });
+  } catch {
+    broken(`${where} was never marked is-ready, so its durations are still the zero they hold before the first paint`);
+  }
+};
+
 // A mutation edits what the browser receives. Appending lands the rule after
 // everything the product's own sheet declares, which is what a later rule
 // undoing an earlier one looks like.
@@ -391,6 +403,10 @@ const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const quiet = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'reduce' });
   const moving = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: 'no-preference' });
+  // Some of the folds stand in the left column, so both readers keep it open:
+  // folded, which is how a reader who never chose meets it, the column draws
+  // none of them.
+  for (const context of [quiet, moving]) await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
   // Both contexts carry the injection: a mutation aimed at the reduced-motion
   // reader and one aimed at the moving reader are the same edit to the same
   // served sheet, and routing only one context would leave the other reading
@@ -415,6 +431,7 @@ try {
     await quietPage.setViewportSize({ width: stop.width, height: 900 });
     const response = await quietPage.goto(BASE + (stop.path ?? PAGE), { waitUntil: 'load' });
     if (!response || response.status() !== 200) broken(`${stop.name} answered ${response?.status() ?? 'nothing'}, want 200`);
+    await motionReady(quietPage, stop.name);
     await confirm(quietPage, 'quiet');
     const reading = await readQuiet(quietPage, stop.folds);
     if (reading.total < 50) broken(`${stop.name} rendered ${reading.total} elements, which is not a page this can judge`);
@@ -439,6 +456,7 @@ try {
     await page.setViewportSize({ width: fold.width, height: 900 });
     const response = await page.goto(BASE + (fold.path ?? PAGE), { waitUntil: 'load' });
     if (!response || response.status() !== 200) broken(`the page carrying the ${fold.key} answered ${response?.status() ?? 'nothing'}, want 200`);
+    await motionReady(page, `the page carrying the ${fold.key}`);
     await confirm(page, 'moving');
     const wanted = await readToken(page, '--dur-base');
     const reading = await openAndMeasure(page, fold.selector);
@@ -468,6 +486,7 @@ try {
   const lesson = await page.goto(BASE + PAGE, { waitUntil: 'load' });
   if (!lesson || lesson.status() !== 200) broken(`${PAGE} answered ${lesson?.status() ?? 'nothing'}, want 200`);
   await page.waitForSelector('html[data-js]');
+  await motionReady(page, PAGE);
   await confirm(page, 'moving');
   const slow = await readToken(page, '--dur-slow');
   const arrival = await openSheetAndMeasure(page);

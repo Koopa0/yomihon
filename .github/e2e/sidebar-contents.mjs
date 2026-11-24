@@ -66,8 +66,11 @@ const broken = (message) => { throw new Error(`BROKEN sidebar-contents: ${messag
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 
+// The sidebar is opened by its cookie: the contents hang in the open column,
+// and a reader who never chose meets it folded.
 const open = async (width, height, touch = false) => {
   const context = await browser.newContext({ viewport: { width, height }, reducedMotion: 'no-preference', hasTouch: touch });
+  await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
   const page = await context.newPage();
   const mode = MUTATE ? MODES[MUTATE] : null;
   const seen = { requests: 0, matches: 0 };

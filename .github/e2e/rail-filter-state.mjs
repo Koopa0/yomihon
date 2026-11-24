@@ -48,6 +48,10 @@ if (MUTATE === 'list') {
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) process.exit(2);
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, ignoreDefaultArgs: ['--disable-back-forward-cache'] });
+// Every context keeps the column open by its cookie: the filter is typed into
+// where a reader types it, and a reader who never chose meets the column
+// folded, its filter out of reach.
+const keepRailOpen = (context) => context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
 function inputRows({ defaults = false, reach = [] } = {}) {
   let result = '';
   if (defaults) {
@@ -63,6 +67,7 @@ function inputRows({ defaults = false, reach = [] } = {}) {
 }
 async function open(site, options = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await keepRailOpen(context);
   if (options.lang) await context.addCookies([{ name: 'yomihon_lang', value: options.lang, url: BASE }]);
   await context.addInitScript(({ remembered, disclosure, refuse }) => {
     if (window.top !== window) return;
@@ -307,6 +312,7 @@ try {
   // rewriting and no preseeded storage; typing is the preference's only source.
   {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await keepRailOpen(context);
     const page = await context.newPage();
     await page.addInitScript(() => {
       window.addEventListener('pageshow', (event) => { window.fromBFCache = event.persisted; });
@@ -333,6 +339,7 @@ try {
   }
   {
     const context = await browser.newContext({ javaScriptEnabled: false });
+    await keepRailOpen(context);
     const page = await context.newPage();
     await page.goto(BASE + PAGE);
     control(await page.locator(FILTER).evaluate((element) => element.hidden), 'no-JavaScript filter showed an inert control');
