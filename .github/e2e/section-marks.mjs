@@ -4,16 +4,18 @@
 // "Mark as question" is one fixed name: pressing it changes whether the section is
 // marked and never what the button is called. The mark and its day are in the
 // page the server sends, so a reader who returns the next day finds them with no
-// script running at all; the sentence a press earns lapses by itself; the
-// buttons are drawn and quiet by default and, where the reader chose to see them
-// only on hover, wait out a dwell and never blink under a pointer that is
-// resting while the page scrolls. And none of this costs the reader a search
-// result: the words beside a heading are drawn from attributes, because text
-// between a heading and the paragraph after it makes a browser's landing on the
-// heading miss. The shapes that say a section is marked, and where the reader
-// left off, are fills, which forced colors replaces with the page's own ground,
-// so they are drawn in a system color; and a touch screen, which has nothing to
-// rest on a heading, is shown the buttons whatever the setting.
+// script running at all; the sentence a press earns lapses by itself; by
+// default the buttons wait for the pointer, as they do where the reader chose
+// hover: they wait out a dwell, never blink under a pointer that is resting
+// while the page scrolls, and come at once to the keyboard; where the reader
+// chose to see them always, they are drawn and quiet. And none of this costs
+// the reader a search result: the words beside a heading are drawn from
+// attributes, because text between a heading and the paragraph after it makes
+// a browser's landing on the heading miss. The shapes that say a section is
+// marked, and where the reader left off, are fills, which forced colors
+// replaces with the page's own ground, so they are drawn in a system color;
+// and a touch screen, which has nothing to rest on a heading, is shown the
+// buttons whatever the setting.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note with several sections in a vault whose
 // contract names a place to write a thought), and MUTATE. MUTATE=list prints
@@ -31,6 +33,7 @@ const SITES = [
   'a-mark-and-its-day-are-in-the-page',
   'the-status-line-lapses',
   'the-buttons-follow-the-setting',
+  'the-buttons-wait-for-hover-by-default',
   'a-touch-screen-is-shown-the-buttons',
   'the-diamond-keeps-its-shape-in-forced-colors',
   'the-bookmark-keeps-its-shape-in-forced-colors',
@@ -116,8 +119,13 @@ const MUTATIONS = {
     target: 'the-status-line-lapses',
     apply: rewriteModule('      lapse(said);\n', '      void lapse;\n'),
   },
-  // Buttons that are meant to be there are gone until the pointer comes.
-  'draw-the-buttons-only-on-hover-by-default': {
+  // A browser that never chose is answered as if it had chosen always.
+  'draw-the-buttons-always-by-default': {
+    target: 'the-buttons-wait-for-hover-by-default',
+    apply: rewriteDocument('data-sectionbuttons="hover"', 'data-sectionbuttons="always"'),
+  },
+  // Buttons the reader chose to see always are gone until the pointer comes.
+  'draw-the-buttons-only-on-hover-when-always-is-chosen': {
     target: 'the-buttons-follow-the-setting',
     apply: addRule('.y-article .y-margin__act:not([aria-pressed="true"]){opacity:0 !important;pointer-events:none !important}'),
   },
@@ -144,7 +152,7 @@ const MUTATIONS = {
   // Words as text between a heading and the paragraph after it.
   'put-the-words-in-text-beside-the-heading': {
     target: 'a-landing-on-a-heading-survives',
-    apply: rewriteDocument('data-text="留下自己的想法"></a>', 'data-text="留下自己的想法">留下自己的想法</a>'),
+    apply: rewriteDocument('data-text="寫想法"></a>', 'data-text="寫想法">寫想法</a>'),
   },
 };
 
@@ -197,9 +205,28 @@ const settled = async (page, selector, wanted) => {
 try {
   if ((await records()).length !== 0) broken('the fixture starts with marks');
   const first = '[data-section-mark][data-section-anchor="the-first-mechanism"]';
+  const resting = async (page) => page.evaluate(() => {
+    const button = document.querySelector('[data-section-mark][aria-pressed="false"]');
+    return { opacity: Number(getComputedStyle(button).opacity), events: getComputedStyle(button).pointerEvents };
+  });
 
-  // A reader presses one button.
+  // A reader who never chose: the page carries nothing beside its sections the
+  // reader did not reach for, so the buttons wait for the pointer.
+  {
+    const unchosen = await open();
+    await unchosen.page.goto(BASE + PAGE, { waitUntil: 'load' });
+    await settled(unchosen.page, first, false);
+    const setting = await unchosen.page.evaluate(() => document.documentElement.dataset.sectionbuttons);
+    const rest = await resting(unchosen.page);
+    if (setting !== 'hover' || rest.opacity !== 0 || rest.events !== 'none') {
+      fail('the-buttons-wait-for-hover-by-default', `a browser storing nothing is stamped sectionbuttons=${setting} and an unmarked button rests at ${JSON.stringify(rest)}, want hover, hidden and not pressable`);
+    }
+    await unchosen.context.close();
+  }
+
+  // A reader who chose to see the buttons always presses one.
   const reading = await open();
+  await reading.context.addCookies([{ name: 'yomihon_sectionbuttons', value: 'always', url: BASE }]);
   const { page } = reading;
   const response = await page.goto(BASE + PAGE, { waitUntil: 'load' });
   if (response?.status() !== 200) broken(`${PAGE} answered ${response?.status()}, want 200`);
@@ -208,12 +235,9 @@ try {
   };
   if (MUTATE && MUTATE !== 'send-the-mark-only-to-a-script') applied();
   await settled(page, first, false);
-  // By default the buttons are drawn and can be pressed, before anything has been done.
-  const atRest = await page.evaluate(() => {
-    const button = document.querySelector('[data-section-mark][aria-pressed="false"]');
-    return { opacity: Number(getComputedStyle(button).opacity), events: getComputedStyle(button).pointerEvents };
-  });
-  if (atRest.opacity < 1 || atRest.events === 'none') fail('the-buttons-follow-the-setting', `by default an unmarked button rests at ${JSON.stringify(atRest)}, want drawn and pressable`);
+  // With always chosen the buttons are drawn and can be pressed, before anything has been done.
+  const atRest = await resting(page);
+  if (atRest.opacity < 1 || atRest.events === 'none') fail('the-buttons-follow-the-setting', `with the setting on always an unmarked button rests at ${JSON.stringify(atRest)}, want drawn and pressable`);
   const buttons = page.getByRole('button', { name: NAME, exact: true });
   const before = await buttons.count();
   if (before < 3) broken(`${PAGE} has ${before} section buttons, want at least three`);
@@ -252,10 +276,6 @@ try {
   await next.context.close();
 
   // On hover only, where the reader chose it.
-  const resting = async (page) => page.evaluate(() => {
-    const button = document.querySelector('[data-section-mark][aria-pressed="false"]');
-    return { opacity: Number(getComputedStyle(button).opacity), events: getComputedStyle(button).pointerEvents };
-  });
   {
     const hover = await open();
     await hover.context.addCookies([{ name: 'yomihon_sectionbuttons', value: 'hover', url: BASE }]);

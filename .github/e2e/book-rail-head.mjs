@@ -166,7 +166,10 @@ const measure = (page) =>
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
+  // The head is measured where it is drawn, in the open column: folded, which
+  // is how a reader who never chose meets it, the column shows only its strip.
   const context = await browser.newContext({ viewport: { width: WIDTHS[0], height: 900 } });
+  await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
   const page = await context.newPage();
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
 

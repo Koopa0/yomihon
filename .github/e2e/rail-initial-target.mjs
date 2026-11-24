@@ -38,8 +38,11 @@ const broken = (message) => { throw new Error(`BROKEN rail-initial-target: ${mes
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 // The script placer is part of the document, so it is removed from the
 // document's response, and only where scripting runs.
+// The column is opened by its cookie: folded, which is how a reader who never
+// chose meets it, it draws no rows at all, so there would be nothing to place.
 const open = async (path, options, remove) => {
   const context = await browser.newContext({ viewport: { width: 1440, height: 800 }, ...options });
+  await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
   const page = await context.newPage();
   const routed = [];
   for (const name of remove) {

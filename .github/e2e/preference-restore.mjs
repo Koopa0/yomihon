@@ -1,16 +1,19 @@
 // Behavior lock for the cache-restore path in preferences.js. After a
 // back/forward-cache restore the cookies are the truth, and every persisted
-// preference — theme, text size, typeface, furigana, single-key shortcuts, and
-// the buttons beside sections — has to agree with them: the root attributes on a reading page, the
-// furigana switch that page draws, and the options the settings page shows in
-// force.
+// preference — theme, paper, text size, typeface, furigana, single-key
+// shortcuts, and the buttons beside sections — has to agree with them: the root
+// attributes on a reading page, the furigana switch that page draws, and the
+// options the settings page shows in force. The column's fold is restored on
+// the same path and is held by rail-collapse, which watches it not animate.
 //
 // A real bfcache restore is not driven here: Chrome refused one under this
 // automation, and the restore branch is the same handler a dispatched
 // PageTransitionEvent({ persisted: true }) reaches. Theme and text size
 // already move on that path; the lock is that furigana and shortcuts move
-// with them, and that only the literal cookie "off" is off and only the literal
-// "hover" holds the buttons back.
+// with them, that only the literal cookie "off" is off, that only the literal
+// "always" keeps the buttons beside sections drawn (hover is what a reader who
+// never chose is given), and that only a paper the server names is honoured
+// (any other is stone).
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note carrying furigana, so the switch for
 // them is drawn), and MUTATE.
@@ -19,7 +22,7 @@ import { chromium } from 'playwright-core';
 import { baseUrl as BASE } from './support/base.mjs';
 const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/japanese/L01.md';
 const SETTINGS = '/preferences';
-const CHOICES = ['theme', 'textsize', 'font', 'ruby', 'shortcuts', 'sectionbuttons'];
+const CHOICES = ['theme', 'paper', 'textsize', 'font', 'ruby', 'shortcuts', 'sectionbuttons'];
 const MUTATE = process.env.MUTATE || '';
 
 const SITES = [
@@ -31,7 +34,9 @@ const SITES = [
   'restore-ruby-unknown-is-on',
   'restore-shortcuts-unknown-is-on',
   'restore-sectionbuttons',
-  'restore-sectionbuttons-unknown-is-always',
+  'restore-sectionbuttons-unknown-is-hover',
+  'restore-paper',
+  'restore-paper-unknown-is-stone',
 ];
 
 class LockFired extends Error {
@@ -108,17 +113,33 @@ const MUTATIONS = {
   'skip-sectionbuttons-resync': {
     target: 'restore-sectionbuttons',
     apply: rewriteModule(
-      "    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') === 'hover' ? 'hover' : 'always';\n",
+      "    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') === 'always' ? 'always' : 'hover';\n",
       '',
       'section buttons restore',
     ),
   },
-  'treat-unknown-sectionbuttons-as-hover': {
-    target: 'restore-sectionbuttons-unknown-is-always',
+  'treat-unknown-sectionbuttons-as-always': {
+    target: 'restore-sectionbuttons-unknown-is-hover',
     apply: rewriteModule(
-      "    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') === 'hover' ? 'hover' : 'always';\n",
-      "    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') !== 'always' ? 'hover' : 'always';\n",
+      "    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') === 'always' ? 'always' : 'hover';\n",
+      "    root.dataset.sectionbuttons = readCookie('yomihon_sectionbuttons') !== 'hover' ? 'always' : 'hover';\n",
       'section buttons normalisation',
+    ),
+  },
+  'skip-paper-resync': {
+    target: 'restore-paper',
+    apply: rewriteModule(
+      "    root.dataset.paper = paper === 'washi' || paper === 'white' ? paper : 'stone';\n",
+      '',
+      'paper restore',
+    ),
+  },
+  'treat-unknown-paper-as-white': {
+    target: 'restore-paper-unknown-is-stone',
+    apply: rewriteModule(
+      "    root.dataset.paper = paper === 'washi' || paper === 'white' ? paper : 'stone';\n",
+      "    root.dataset.paper = paper === 'washi' || paper === 'stone' ? paper : 'white';\n",
+      'paper normalisation',
     ),
   },
   'treat-unknown-ruby-as-off': {
@@ -170,6 +191,7 @@ const preferenceState = (page) =>
     const rubyToggle = document.querySelector('[data-ruby-toggle]');
     return {
       theme: root.dataset.theme ?? '',
+      paper: root.dataset.paper ?? '',
       textsize: root.dataset.textsize ?? '',
       ruby: root.dataset.ruby ?? '',
       font: root.dataset.font ?? '',
@@ -229,15 +251,17 @@ try {
 
     // Cookies say what the reader chose on a later page; the revived document
     // still carries the older stamp. Dispatching pageshow is the restore path.
+    // The stale stamp is each choice's default and the cookies each name
+    // another value, so a choice the restore walks past stays visibly wrong.
     await stampStale(page, {
-      root: { theme: 'light', textsize: 'm', ruby: 'on', singleKeyShortcuts: 'on', font: 'serif', sectionbuttons: 'always' },
+      root: { theme: 'light', paper: 'stone', textsize: 'm', ruby: 'on', singleKeyShortcuts: 'on', font: 'serif', sectionbuttons: 'hover' },
       rubyPressed: 'true',
-      shown: { theme: 'light', textsize: 'm', font: 'serif', ruby: 'on', shortcuts: 'on', sectionbuttons: 'always' },
-    }, { theme: 'dark', textsize: 'xl', ruby: 'off', shortcuts: 'off', font: 'sans', sectionbuttons: 'hover' });
+      shown: { theme: 'light', paper: 'stone', textsize: 'm', font: 'serif', ruby: 'on', shortcuts: 'on', sectionbuttons: 'hover' },
+    }, { theme: 'dark', paper: 'washi', textsize: 'xl', ruby: 'off', shortcuts: 'off', font: 'sans', sectionbuttons: 'always' });
 
     const before = await preferenceState(page);
-    if (before.theme !== 'light' || before.textsize !== 'm' || before.ruby !== 'on' || before.shortcuts !== 'on' || before.sectionbuttons !== 'always') {
-      broken(`stale stamp did not take: theme=${before.theme} textsize=${before.textsize} ruby=${before.ruby} shortcuts=${before.shortcuts} sectionbuttons=${before.sectionbuttons}`);
+    if (before.theme !== 'light' || before.paper !== 'stone' || before.textsize !== 'm' || before.ruby !== 'on' || before.shortcuts !== 'on' || before.sectionbuttons !== 'hover') {
+      broken(`stale stamp did not take: theme=${before.theme} paper=${before.paper} textsize=${before.textsize} ruby=${before.ruby} shortcuts=${before.shortcuts} sectionbuttons=${before.sectionbuttons}`);
     }
 
     await dispatchRestore(page);
@@ -265,18 +289,22 @@ try {
       fail('restore-shortcuts', `${where}: after restore shortcuts=${after.shortcuts} shown=${after.shown.shortcuts}, want off`);
     }
 
-    if (after.sectionbuttons !== 'hover' || !shows('sectionbuttons', 'hover')) {
-      fail('restore-sectionbuttons', `${where}: after restore sectionbuttons=${after.sectionbuttons} shown=${after.shown.sectionbuttons}, want hover`);
+    if (after.sectionbuttons !== 'always' || !shows('sectionbuttons', 'always')) {
+      fail('restore-sectionbuttons', `${where}: after restore sectionbuttons=${after.sectionbuttons} shown=${after.shown.sectionbuttons}, want always`);
+    }
+    if (after.paper !== 'washi' || !shows('paper', 'washi')) {
+      fail('restore-paper', `${where}: after restore paper=${after.paper} shown=${after.shown.paper}, want washi`);
     }
 
-    // A cookie the server would ignore must not turn the aids off. Stamp the
-    // page off, store a value that is not the literal "off", and the restore
-    // has to put both back on.
+    // A cookie the server would ignore must not turn the aids off, nor hold
+    // the buttons beside sections drawn, nor lay any paper but the default.
+    // Stamp the page away from each default, store values the server does
+    // not honour, and the restore has to put each back on its default.
     await stampStale(page, {
-      root: { ruby: 'off', singleKeyShortcuts: 'off', sectionbuttons: 'hover' },
+      root: { ruby: 'off', singleKeyShortcuts: 'off', sectionbuttons: 'always', paper: 'white' },
       rubyPressed: 'false',
-      shown: { ruby: 'off', shortcuts: 'off', sectionbuttons: 'hover' },
-    }, { ruby: 'maybe', shortcuts: 'disabled', sectionbuttons: 'sometimes' });
+      shown: { ruby: 'off', shortcuts: 'off', sectionbuttons: 'always', paper: 'white' },
+    }, { ruby: 'maybe', shortcuts: 'disabled', sectionbuttons: 'sometimes', paper: 'parchment' });
     await dispatchRestore(page);
     const normalised = await preferenceState(page);
     if (normalised.ruby !== 'on' || (!onSettings && normalised.rubyPressed !== 'true') || (onSettings && normalised.shown.ruby !== 'on')) {
@@ -285,14 +313,17 @@ try {
     if (normalised.shortcuts !== 'on' || (onSettings && normalised.shown.shortcuts !== 'on')) {
       fail('restore-shortcuts-unknown-is-on', `${where}: unknown shortcuts cookie left shortcuts=${normalised.shortcuts} shown=${normalised.shown.shortcuts}, want on`);
     }
-    if (normalised.sectionbuttons !== 'always' || (onSettings && normalised.shown.sectionbuttons !== 'always')) {
-      fail('restore-sectionbuttons-unknown-is-always', `${where}: unknown sectionbuttons cookie left sectionbuttons=${normalised.sectionbuttons} shown=${normalised.shown.sectionbuttons}, want always`);
+    if (normalised.sectionbuttons !== 'hover' || (onSettings && normalised.shown.sectionbuttons !== 'hover')) {
+      fail('restore-sectionbuttons-unknown-is-hover', `${where}: unknown sectionbuttons cookie left sectionbuttons=${normalised.sectionbuttons} shown=${normalised.shown.sectionbuttons}, want hover`);
+    }
+    if (normalised.paper !== 'stone' || (onSettings && normalised.shown.paper !== 'stone')) {
+      fail('restore-paper-unknown-is-stone', `${where}: unknown paper cookie left paper=${normalised.paper} shown=${normalised.shown.paper}, want stone`);
     }
     // Nothing the next page is drawn with may be left over from this one.
     await context.clearCookies();
   }
 
-  console.log('PASS preference-restore: every persisted preference, the furigana switch and the options the settings page shows agree with the cookies after a persisted pageshow, and only the literal off is off');
+  console.log('PASS preference-restore: every persisted preference, the furigana switch and the options the settings page shows agree with the cookies after a persisted pageshow, only the literal off is off, only the literal always keeps the section buttons drawn, and an unknown paper is stone');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);

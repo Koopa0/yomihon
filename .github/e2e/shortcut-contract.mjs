@@ -340,7 +340,10 @@ const press = async (page, key, modifiers = {}) => {
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
+  // The column is kept open by its cookie: the wide [ below folds it and puts
+  // it back, and a reader who never chose meets it already folded.
   const context = await browser.newContext({ viewport: { width: 800, height: 800 } });
+  await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
   const page = await context.newPage();
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });

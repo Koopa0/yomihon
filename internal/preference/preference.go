@@ -189,6 +189,18 @@ var choices = []choice{
 		inForce:   func(c *layouts.Chrome) string { return c.Theme },
 	},
 	{
+		name:   "paper",
+		cookie: "yomihon_paper",
+		legend: wording.PrefPaper,
+		note:   wording.PrefPaperNote,
+		labels: map[string]wording.Phrase{
+			"stone": wording.PrefPaperStone,
+			"washi": wording.PrefPaperWashi,
+			"white": wording.PrefPaperWhite,
+		},
+		inForce: func(c *layouts.Chrome) string { return c.Paper },
+	},
+	{
 		name:   "textsize",
 		cookie: "yomihon_textsize",
 		legend: wording.PrefTextSize,

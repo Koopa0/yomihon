@@ -12,6 +12,10 @@
 // href: a correct-looking address and any nonzero scroll both pass while the
 // evidence stays below the screen.
 //
+// The rail competes only while it is open, and a reader who never chose meets
+// it folded, so these legs keep it open by its cookie: the wide leg is the one
+// where the competition is drawn.
+//
 // The narrow width is the control. The rail is not drawn there, nothing
 // competes, and the same link has always landed — so a change that only
 // appears to work because the competition is gone is visible as a wide leg
@@ -194,6 +198,7 @@ const railLabelShown = (page, label) => page.evaluate((text) => {
 // had moved.
 const land = async (browser, width, apply) => {
   const context = await browser.newContext({ viewport: { width, height: 900 } });
+  await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
   const page = await context.newPage();
   const proof = apply ? await apply(page) : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });

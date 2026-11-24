@@ -78,7 +78,10 @@ type Chrome struct {
 	// Position is whether a note opens where the reader last stopped in it:
 	// "on" or "off". The root carries it, so the head can tell before the first
 	// frame whether a note is held back for the place it will open at.
-	Position                  string
+	Position string
+	// Paper is the light theme's paper: "stone", "washi" or "white". It is
+	// always one of the three, and the stylesheet ignores it in dark.
+	Paper                     string
 	SingleKeyShortcutsEnabled bool // plain /, [ and ? are enabled
 	// Lang is the language the interface speaks for this request, and the
 	// language the document declares. The article inside it may declare its
@@ -214,6 +217,7 @@ func ChromeFromRequest(r *http.Request, title string) Chrome {
 		Rail:                      read(r, railChoice),
 		SectionButtons:            read(r, sectionButtonsChoice),
 		Position:                  read(r, positionChoice),
+		Paper:                     read(r, paperChoice),
 		SingleKeyShortcutsEnabled: read(r, shortcutsChoice) == "on",
 		// The request's own address, so a control the server answers can bring
 		// the reader back to this page afterwards. Only an address a GET can

@@ -29,6 +29,8 @@ const SITES = [
   'size-and-typeface-together',
   'section-buttons-apply-and-store',
   'section-buttons-need-no-server',
+  'paper-applies-and-stores',
+  'paper-needs-no-server',
   'refusal-puts-the-choice-back',
   'a-kept-choice-clears-the-sentence',
 ];
@@ -119,6 +121,24 @@ const MUTATIONS = {
       'the section buttons entry among the choices the script carries out',
     ),
   },
+  // The paper goes through the same door: a write that lays the paper on the
+  // root and forgets the cookie leaves the next page on the old one.
+  'paper-stores-nothing': {
+    target: 'paper-applies-and-stores',
+    apply: rewriteModule(
+      "      setPreference('paper', value);\n",
+      '      root.dataset.paper = value;\n',
+      'the paper write',
+    ),
+  },
+  'paper-asks-the-server': {
+    target: 'paper-needs-no-server',
+    apply: rewriteModule(
+      "    paper(value) {\n      setPreference('paper', value);\n    },\n",
+      '',
+      'the paper entry among the choices the script carries out',
+    ),
+  },
   // The one the whole refusal path rests on: believing the write instead of
   // reading it back leaves a refused choice looking chosen.
   'skip-the-read-back': {
@@ -177,6 +197,7 @@ const rootState = (page) =>
     const root = document.documentElement;
     return {
       theme: root.dataset.theme ?? '',
+      paper: root.dataset.paper ?? '',
       textsize: root.dataset.textsize ?? '',
       font: root.dataset.font ?? '',
       ruby: root.dataset.ruby ?? '',
@@ -235,16 +256,19 @@ try {
   const fields = await page.evaluate(() =>
     [...document.querySelectorAll('[data-pref-field]')].map((f) => f.dataset.prefField),
   );
-  for (const needed of ['theme', 'textsize', 'font', 'ruby', 'shortcuts', 'sectionbuttons']) {
+  for (const needed of ['theme', 'paper', 'textsize', 'font', 'ruby', 'shortcuts', 'sectionbuttons']) {
     if (!fields.includes(needed)) broken(`the page carries no ${needed} choice, so nothing below is being tested`);
   }
   const onArrival = await cookies(context);
-  for (const name of ['yomihon_theme', 'yomihon_textsize', 'yomihon_font', 'yomihon_sectionbuttons']) {
+  for (const name of ['yomihon_theme', 'yomihon_paper', 'yomihon_textsize', 'yomihon_font', 'yomihon_sectionbuttons']) {
     if (onArrival[name]) broken(`${name} was already stored on arrival, so a stored value proves nothing`);
   }
   const arrived = await rootState(page);
-  if (arrived.sectionbuttons !== 'always' || (await checkedValue(page, 'sectionbuttons')) !== 'always') {
-    broken(`a browser storing nothing arrives with the buttons beside sections at ${arrived.sectionbuttons || 'nothing'}, want the default always`);
+  if (arrived.sectionbuttons !== 'hover' || (await checkedValue(page, 'sectionbuttons')) !== 'hover') {
+    broken(`a browser storing nothing arrives with the buttons beside sections at ${arrived.sectionbuttons || 'nothing'}, want the default hover`);
+  }
+  if (arrived.paper !== 'stone' || (await checkedValue(page, 'paper')) !== 'stone') {
+    broken(`a browser storing nothing arrives on the paper ${arrived.paper || 'nothing'}, want the default stone`);
   }
 
   // ── Nothing is asked of the server ──────────────────────────────────────
@@ -320,12 +344,12 @@ try {
     );
   }
 
-  // ── The buttons beside sections: held back, then shown again ─────────────
-  // Both options store a value, the default one included: choosing "always"
-  // after "hover" has to leave a cookie saying so, since deleting it would be
+  // ── The buttons beside sections: shown always, then held back again ──────
+  // Both options store a value, the default one included: choosing "hover"
+  // after "always" has to leave a cookie saying so, since deleting it would be
   // a second way of holding the same answer.
   const postedBefore = posted.length;
-  await pick(page, 'sectionbuttons', 'hover');
+  await pick(page, 'sectionbuttons', 'always');
   await page.waitForTimeout(200);
   if (posted.length !== postedBefore) {
     fail('section-buttons-need-no-server', `picking the buttons beside sections sent ${posted.length - postedBefore} POST to /preferences, want none`);
@@ -333,6 +357,16 @@ try {
   if (new URL(page.url()).pathname !== new URL(landed).pathname) {
     fail('section-buttons-need-no-server', `picking the buttons beside sections left the page for ${page.url()}, want to stay on ${landed}`);
   }
+  const shown = await cookies(context);
+  const afterShown = await rootState(page);
+  if (afterShown.sectionbuttons !== 'always' || shown.yomihon_sectionbuttons !== 'always') {
+    fail(
+      'section-buttons-apply-and-store',
+      `the buttons beside sections picked as always left the page at ${afterShown.sectionbuttons || 'nothing'} and stored ${shown.yomihon_sectionbuttons || 'nothing'}, want always in both`,
+    );
+  }
+  await pick(page, 'sectionbuttons', 'hover');
+  await page.waitForTimeout(200);
   const held = await cookies(context);
   const afterHeld = await rootState(page);
   if (afterHeld.sectionbuttons !== 'hover' || held.yomihon_sectionbuttons !== 'hover') {
@@ -341,15 +375,29 @@ try {
       `the buttons beside sections picked as hover left the page at ${afterHeld.sectionbuttons || 'nothing'} and stored ${held.yomihon_sectionbuttons || 'nothing'}, want hover in both`,
     );
   }
-  await pick(page, 'sectionbuttons', 'always');
+
+  // ── The paper: another one laid, then the default again ─────────────────
+  // Every paper stores a value, stone included, for the same reason.
+  const postedBeforePaper = posted.length;
+  await pick(page, 'paper', 'washi');
   await page.waitForTimeout(200);
-  const shown = await cookies(context);
-  const afterShown = await rootState(page);
-  if (afterShown.sectionbuttons !== 'always' || shown.yomihon_sectionbuttons !== 'always') {
-    fail(
-      'section-buttons-apply-and-store',
-      `the buttons beside sections picked as always left the page at ${afterShown.sectionbuttons || 'nothing'} and stored ${shown.yomihon_sectionbuttons || 'nothing'}, want always in both`,
-    );
+  if (posted.length !== postedBeforePaper) {
+    fail('paper-needs-no-server', `picking a paper sent ${posted.length - postedBeforePaper} POST to /preferences, want none`);
+  }
+  if (new URL(page.url()).pathname !== new URL(landed).pathname) {
+    fail('paper-needs-no-server', `picking a paper left the page for ${page.url()}, want to stay on ${landed}`);
+  }
+  const laid = await cookies(context);
+  const afterLaid = await rootState(page);
+  if (afterLaid.paper !== 'washi' || laid.yomihon_paper !== 'washi') {
+    fail('paper-applies-and-stores', `the paper picked as washi left the page at ${afterLaid.paper || 'nothing'} and stored ${laid.yomihon_paper || 'nothing'}, want washi in both`);
+  }
+  await pick(page, 'paper', 'stone');
+  await page.waitForTimeout(200);
+  const relaid = await cookies(context);
+  const afterRelaid = await rootState(page);
+  if (afterRelaid.paper !== 'stone' || relaid.yomihon_paper !== 'stone') {
+    fail('paper-applies-and-stores', `the paper picked back as stone left the page at ${afterRelaid.paper || 'nothing'} and stored ${relaid.yomihon_paper || 'nothing'}, want stone in both`);
   }
 
   // ── A write this browser will not keep ──────────────────────────────────

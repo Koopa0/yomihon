@@ -40,14 +40,25 @@ var (
 
 // The light and dark grounds, and what choosing neither means.
 var (
-	PrefAppearance     = both("外觀", "Appearance")
+	PrefAppearance     = both("主題", "Theme")
 	PrefAppearanceNote = both(
 		"跟隨系統時，深淺由作業系統決定。",
 		"Following the system leaves light and dark to the operating system.",
 	)
 	PrefAppearanceSystem = both("跟隨系統", "Follow the system")
-	PrefAppearanceLight  = both("亮色", "Light")
-	PrefAppearanceDark   = both("暗色", "Dark")
+	PrefAppearanceLight  = both("淺色", "Light")
+	PrefAppearanceDark   = both("夜燈", "Dark")
+)
+
+// The paper the light theme is set on. The dark theme is one paper of its
+// own, which the note says so a reader in dark who picks one and sees nothing
+// change knows why.
+var (
+	PrefPaper      = both("紙色", "Paper")
+	PrefPaperNote  = both("淺色主題使用。", "Used by the light theme.")
+	PrefPaperStone = both("石紙", "Stone")
+	PrefPaperWashi = both("和紙", "Washi")
+	PrefPaperWhite = both("白", "White")
 )
 
 // The reading column's measure. The note draws the line the control does not:
@@ -189,8 +200,8 @@ var (
 		"Settings are cookies on this address; where you stopped in each note and recent searches stay in this browser; sidebar section disclosure and filter text die with the tab; none of it leaves this machine.",
 	)
 	PrefStorageCookies = both(
-		"cookie 記著：介面語言、外觀、字級、字體、顯示讀音、單鍵快捷鍵、側欄、小節旁的按鈕、自動記閱讀位置",
-		"Cookies: language, appearance, text size, typeface, readings, single-key shortcuts, sidebar, buttons beside sections, reading position",
+		"cookie 記著：介面語言、主題、紙色、字級、字體、顯示讀音、單鍵快捷鍵、側欄、小節旁的按鈕、自動記閱讀位置",
+		"Cookies: language, theme, paper, text size, typeface, readings, single-key shortcuts, sidebar, buttons beside sections, reading position",
 	)
 	PrefStorageLocal = both(
 		"留在這個瀏覽器的：每篇的閱讀位置、最近的搜尋",

@@ -5,6 +5,11 @@
 // run, the key and the button and the filter key all agree about it, and none
 // of it leaks into the drawer below the width where the column is one.
 //
+// A reader who never chose meets the column folded. Every page here but the one
+// that asks that of the server says which state it starts in by the cookie, so
+// a site about folding the column starts from it open, as a reader who opened
+// it would.
+//
 // Each site is independent: it opens its own page, sets its own state, and is
 // the only place its mutation is applied. A mutation is therefore judged by the
 // one assertion it aims at rather than by whichever fired first.
@@ -57,6 +62,7 @@ const MEASURE = 660;
 const FOLD_WIDTH = 1024;
 
 const SITES = [
+  'an-unchosen-column-is-folded',
   'text-returns-to-the-measure',
   'choice-survives-a-reload',
   'first-paint-is-collapsed-without-script',
@@ -166,6 +172,12 @@ const rewriteDocument = (needle, replacement) => async (page) => {
 };
 
 const MUTATIONS = {
+  // The server answering a browser that never chose with the column open, as
+  // it did before the fold became the default.
+  'stamp-an-unchosen-column-open': {
+    target: 'an-unchosen-column-is-folded',
+    apply: rewriteDocument('data-rail="collapsed"', 'data-rail="open"'),
+  },
   // The collapsed grid rule gone: the column empties and the track stays.
   'drop-the-collapsed-grid-rule': {
     target: 'text-returns-to-the-measure',
@@ -270,14 +282,18 @@ const MUTATIONS = {
     apply: injectStyle('.y-shell:has(> .y-rail-left),.y-shell2:has(> .y-rail-left){transition:none!important}', '.y-shell:has(> .y-rail-left)'),
   },
   // The state arriving by script after the first paint, so the page paints
-  // open and then folds — which is a transition on every load.
+  // open and then folds — which is a transition on every load. It is written
+  // a few frames after the load: motion is held still until the page is
+  // marked ready, two frames after its first, so a write made before that
+  // would be one the page never paints.
   'fold-after-the-first-paint': {
     target: 'nothing-animates-on-load',
     apply: async (page) => {
       await page.addInitScript(() => {
-        window.addEventListener('DOMContentLoaded', () => {
+        const late = (frames, then) => (frames ? requestAnimationFrame(() => late(frames - 1, then)) : then());
+        window.addEventListener('load', () => late(4, () => {
           document.documentElement.dataset.rail = 'collapsed';
-        }, { once: true });
+        }), { once: true });
       });
       const rewrite = await rewriteDocument('data-rail="collapsed"', 'data-rail="open"')(page);
       return rewrite;
@@ -411,11 +427,13 @@ const recordTransitions = () => {
 
 // Opens a page in a context of its own. The mutation is applied only when the
 // site being run is the one it aims at, so every other page is the real one.
+// The column starts open or folded as the cookie says; unchosen sends no
+// cookie at all, which is the browser of a reader who never chose.
 const open = async (site, path, {
-  width = 1281, height = 800, collapsed = false, script = true, reducedMotion = 'no-preference', wait = true, mutate = true, scrollbars = false,
+  width = 1281, height = 800, collapsed = false, unchosen = false, script = true, reducedMotion = 'no-preference', wait = true, mutate = true, scrollbars = false,
 } = {}) => {
   const context = await (scrollbars ? await classic() : browser).newContext({ viewport: { width, height }, javaScriptEnabled: script, reducedMotion });
-  if (collapsed) await context.addCookies([{ name: 'yomihon_rail', value: 'collapsed', url: BASE }]);
+  if (!unchosen) await context.addCookies([{ name: 'yomihon_rail', value: collapsed ? 'collapsed' : 'open', url: BASE }]);
   const page = await context.newPage();
   await page.addInitScript(recordTransitions);
   const mutation = MUTATE ? MUTATIONS[MUTATE] : null;
@@ -486,6 +504,22 @@ const run = async (site, work) => {
 };
 
 try {
+  // A reader who never chose reads with the column folded, from the first
+  // paint: no script runs, so the strip is what the server stamped and the
+  // stylesheet drew. With the script running it stays folded.
+  await run('an-unchosen-column-is-folded', async () => {
+    for (const script of [false, true]) {
+      const { page, context, checkProof } = await open('an-unchosen-column-is-folded', PAGE, { unchosen: true, script });
+      await checkProof();
+      if (await cookieValue(context) !== null) broken('the unchosen browser carries a rail cookie');
+      const g = await geometry(page);
+      if (g.state !== 'collapsed' || Math.round(g.rail.width) !== STRIP || g.body.display !== 'none') {
+        fail('an-unchosen-column-is-folded', `with no choice stored and script ${script ? 'on' : 'off'} the column is ${g.rail.width}px with rail=${g.state} and its panel display=${g.body.display}, want the folded strip`);
+      }
+      await context.close();
+    }
+  });
+
   await run('text-returns-to-the-measure', async () => {
     const { page, context, checkProof } = await open('text-returns-to-the-measure', PAGE, { width: FOLD_WIDTH });
     await checkProof();
@@ -782,6 +816,9 @@ try {
   await run('fold-is-animated', async () => {
     const { page, context, checkProof } = await open('fold-is-animated', PAGE, { width: 1281 });
     await checkProof();
+    // Every duration is zero until the root is marked is-ready, two frames
+    // after the first paint, so the declared transition is read after that.
+    await page.waitForSelector('html.is-ready', { state: 'attached' });
     const declared = await page.evaluate(() => {
       const shell = document.querySelector('.y-shell:has(> .y-rail-left), .y-shell2:has(> .y-rail-left)');
       const style = getComputedStyle(shell);
@@ -897,6 +934,7 @@ try {
     // The runtime module is held back, so whatever is drawn was drawn by the
     // document alone.
     const context = await browser.newContext({ viewport: { width: 1281, height: 800 } });
+    await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
     const page = await context.newPage();
     // Whether the runtime ran is told by its request having been refused. The
     // root's script mark cannot tell it any more: the document sets that mark

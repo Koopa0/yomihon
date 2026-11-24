@@ -48,6 +48,10 @@ if (MUTATE === 'list') {
 if (MUTATE && !Object.hasOwn(MUTATIONS, MUTATE)) process.exit(2);
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true, ignoreDefaultArgs: ['--disable-back-forward-cache'] });
+// Every context keeps the column open by its cookie: the filter is typed into
+// where a reader types it, and a reader who never chose meets the column
+// folded, its filter out of reach.
+const keepRailOpen = (context) => context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
 function inputRows({ defaults = false, reach = [] } = {}) {
   let result = '';
   if (defaults) {
@@ -63,6 +67,7 @@ function inputRows({ defaults = false, reach = [] } = {}) {
 }
 async function open(site, options = {}) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await keepRailOpen(context);
   if (options.lang) await context.addCookies([{ name: 'yomihon_lang', value: options.lang, url: BASE }]);
   await context.addInitScript(({ remembered, disclosure, refuse }) => {
     if (window.top !== window) return;
@@ -179,6 +184,9 @@ try {
     const value = await page.locator(FILTER).inputValue();
     check(value === 'C02' && await page.locator('#_y-nav-rail a[href="/notes/Course/C01.md"]').evaluate((row) => row.hidden), 'early-owner', `remembered narrowing depends on the deferred entry: input=${JSON.stringify(value)}, want "C02" with the other lesson hidden`);
     await page.waitForFunction(() => window.railFrames.length >= 3);
+    // The paint entry is queued after the frame that painted, so it is waited
+    // for rather than read at whatever moment the frames were.
+    await page.waitForFunction(() => performance.getEntriesByType('paint').some((entry) => entry.name === 'first-contentful-paint'), null, { timeout: 5000 }).catch(() => {});
     const frames = await page.evaluate(() => ({ frames: window.railFrames, shifts: window.railShifts, paints: performance.getEntriesByType('paint').map((entry) => ({ name: entry.name, startTime: entry.startTime })) }));
     check(frames.frames.every((frame) => frame.value === 'C02' && JSON.stringify(frame.visible) === JSON.stringify(['C02 \u8349\u7a3f'])), 'early-owner', `a sampled rail frame was unfiltered: ${JSON.stringify(frames)}`);
     control(frames.paints.some((paint) => paint.name === 'first-contentful-paint'), 'fixture did not positively paint');
@@ -307,6 +315,7 @@ try {
   // rewriting and no preseeded storage; typing is the preference's only source.
   {
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await keepRailOpen(context);
     const page = await context.newPage();
     await page.addInitScript(() => {
       window.addEventListener('pageshow', (event) => { window.fromBFCache = event.persisted; });
@@ -333,6 +342,7 @@ try {
   }
   {
     const context = await browser.newContext({ javaScriptEnabled: false });
+    await keepRailOpen(context);
     const page = await context.newPage();
     await page.goto(BASE + PAGE);
     control(await page.locator(FILTER).evaluate((element) => element.hidden), 'no-JavaScript filter showed an inert control');
