@@ -84,7 +84,7 @@ func TestBaseCarriesOnlyTheScriptedMarkRulesImportMapAndModuleEntry(t *testing.T
 	const importMap = `<script type="importmap" nonce="response-nonce">`
 	// The statement stands on its own line because that is how templ fmt lays
 	// out a script element, and the format check keeps it so.
-	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tif (new URLSearchParams(location.search).has(\"at\")) d.dataset.arrival = \"kept\";\n\t\t\t\t}\n\t\t\t</script>"
+	const mark = "<script nonce=\"response-nonce\">\n\t\t\t\t{\n\t\t\t\t\tconst d = document.documentElement;\n\t\t\t\t\td.dataset.js = \"on\";\n\t\t\t\t\tif (new URLSearchParams(location.search).has(\"at\")) d.dataset.arrival = \"kept\";\n\t\t\t\t\trequestAnimationFrame(() => requestAnimationFrame(() => d.classList.add(\"is-ready\")));\n\t\t\t\t}\n\t\t\t</script>"
 	const rules = `<script type="speculationrules" nonce="response-nonce">` + `{"prefetch":`
 	if got := strings.Count(html, entry); got != 1 {
 		t.Errorf("Base() module entries = %d, want 1 opening %q; html = %q", got, entry, html)

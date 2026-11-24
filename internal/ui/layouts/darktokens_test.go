@@ -19,7 +19,9 @@ import (
 // color-scheme, and the ways into it — a stored choice on the attribute, a
 // dark system for a reader who stored none — set that and nothing else: a
 // token declared again inside one of them would be the second copy this shape
-// exists to remove.
+// exists to remove. The papers are the one second declaration allowed, and
+// only of the tokens each replaces; TestEveryPaperKeepsTheNightLamp holds them
+// to the root's dark half.
 //
 // A colour literal outside light-dark() is a colour chosen for one theme only.
 // The overlay mask is the one such value: a fixed black wash that reads over
@@ -88,11 +90,14 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 	}
 	for _, token := range slices.Sorted(maps.Keys(pairs)) {
 		places := pairs[token]
-		if slices.Equal(places, []string{":root", whitePaper}) && whitePaperTokens[token] {
+		if len(places) == 0 || places[0] != ":root" {
+			t.Errorf("%s is declared at %v, want first at :root", token, places)
 			continue
 		}
-		if !slices.Equal(places, []string{":root"}) {
-			t.Errorf("%s is declared at %v, want once, at :root", token, places)
+		for _, place := range places[1:] {
+			if !paperTokens[place][token] {
+				t.Errorf("%s is declared again at %s, want once, at :root, or restated by a paper that replaces it", token, place)
+			}
 		}
 	}
 
@@ -109,13 +114,101 @@ func TestEveryColourTokenIsOnePairDeclaredOnce(t *testing.T) {
 
 const overlayMask = "--overlay-mask"
 
-// The white paper is the one place a colour token is declared a second time: it
-// restates the paper tokens it replaces, and no other.
-const whitePaper = ":root[data-paper='shiro']"
+// The papers are the one place a colour token is declared a second time: each
+// restates the paper tokens it replaces, and no other. Washi is a warmer paper
+// and a warmer ink with it; white changes the paper alone.
+var paperTokens = map[string]map[string]bool{
+	":root[data-paper='washi']": {
+		"--bg": true, "--bg-glow": true, "--panel": true, "--elevated": true, "--selected": true,
+		"--overlay": true, "--code-ground": true, "--mat": true, "--endpaper": true,
+		"--fg": true, "--fg-muted": true, "--fg-faint": true,
+	},
+	":root[data-paper='white']": {
+		"--bg": true, "--bg-glow": true, "--panel": true, "--elevated": true, "--selected": true,
+		"--overlay": true, "--code-ground": true, "--mat": true, "--endpaper": true,
+	},
+}
 
-var whitePaperTokens = map[string]bool{
-	"--bg": true, "--panel": true, "--selected": true,
-	"--overlay": true, "--code-ground": true, "--mat": true, "--endpaper": true,
+// TestEveryPaperKeepsTheNightLamp holds a paper to being a daytime choice. A
+// paper restates the light half of each token it replaces and must repeat the
+// dark half of the root's pair exactly: a reader who keeps washi or white for
+// the day and reads on a dark system, or chose dark, reads on the same night
+// lamp as everyone else. A paper that changed a dark half would leave its
+// readers on a night lamp of its own that nobody designed.
+func TestEveryPaperKeepsTheNightLamp(t *testing.T) {
+	t.Parallel()
+	const path = "../../../assets/css/tokens.css"
+	source, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	root := map[string]string{}
+	papers := map[string]map[string]string{}
+	for _, rule := range parseRules(t, withoutComments(string(source)), nil) {
+		if len(rule.within) > 0 {
+			continue
+		}
+		switch {
+		case rule.selector == ":root":
+			maps.Copy(root, cssDeclarations(t, rule.body))
+		case paperTokens[rule.selector] != nil:
+			papers[rule.selector] = cssDeclarations(t, rule.body)
+		}
+	}
+	for _, paper := range slices.Sorted(maps.Keys(paperTokens)) {
+		declared := papers[paper]
+		if declared == nil {
+			t.Errorf("tokens.css has no rule %s; the scan is reading the wrong text or the paper is gone", paper)
+			continue
+		}
+		for _, token := range slices.Sorted(maps.Keys(declared)) {
+			value, base := declared[token], root[token]
+			if base == "" {
+				t.Errorf("%s restates %s, which the root does not declare", paper, token)
+				continue
+			}
+			if got, want := darkHalves(value), darkHalves(base); len(want) == 0 || !slices.Equal(got, want) {
+				t.Errorf("%s writes %s with the dark half %v, want the root's %v", paper, token, got, want)
+			}
+			if got, want := withoutLightDark(value), withoutLightDark(base); got != want {
+				t.Errorf("%s writes %s around its light-dark() as %q, want the root's %q", paper, token, got, want)
+			}
+		}
+	}
+}
+
+// darkHalves returns the second argument of every light-dark() call in a value,
+// in order, with whitespace folded.
+func darkHalves(value string) []string {
+	const opener = "light-dark("
+	var out []string
+	for rest := value; ; {
+		at := strings.Index(rest, opener)
+		if at < 0 {
+			return out
+		}
+		depth, comma, end := 1, -1, -1
+		for i := at + len(opener); i < len(rest) && end < 0; i++ {
+			switch rest[i] {
+			case '(':
+				depth++
+			case ')':
+				depth--
+				if depth == 0 {
+					end = i
+				}
+			case ',':
+				if depth == 1 && comma < 0 {
+					comma = i
+				}
+			}
+		}
+		if end < 0 || comma < 0 {
+			return out
+		}
+		out = append(out, strings.Join(strings.Fields(rest[comma+1:end]), " "))
+		rest = rest[end+1:]
+	}
 }
 
 // oneThemeColourIn returns the first colour a value writes outside

@@ -94,8 +94,8 @@ func TestAMatIsToneAndEightPixelsWrittenOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(withoutComments(string(source)), "--mat: light-dark(#ebe6da, #2b2a25);") {
-		t.Error("tokens.css does not declare --mat as the pair #ebe6da and #2b2a25, the mat's two tones in the design")
+	if !strings.Contains(withoutComments(string(source)), "--mat: light-dark(#ece8df, #1b1b18);") {
+		t.Error("tokens.css does not declare --mat as the pair #ece8df and #1b1b18, the mat's two tones in the design")
 	}
 }
 

@@ -28,16 +28,16 @@ const (
 // declared, a named one is renamed, or one changes value — whichever stylesheet
 // it is written in. A measure declared in a second sheet would otherwise be
 // invisible to a check that only read the token file. The reading measure is
-// declared twice, once for every article and once for an article tagged as
-// Latin text, and both values are held, so a third declaration of it anywhere
-// is a change this fails on too.
+// declared once for each of the reader's three text sizes and once more for an
+// article tagged as Latin text, and all four values are held, so a fifth
+// declaration of it anywhere is a change this fails on too.
 func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 	t.Parallel()
 
 	want := map[string][]string{
 		"--measure-answer": {"720px"},
 		"--measure-list":   {"896px"},
-		"--measure-read":   {"calc(var(--fs-ed-17) * 31)", "calc(var(--fs-ed-17) * 38)"},
+		"--measure-read":   {"660px", "700px", "740px", "calc(var(--fs-ed-17) * 31)"},
 	}
 
 	sheets := handWrittenStylesheets(t)

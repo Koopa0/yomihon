@@ -53,7 +53,7 @@ const THREE_COLUMNS = 1280;
 // the column is open. From the width where the column stands the text is
 // already at its measure beside it, so folding the column gives the text no
 // width back and only moves it.
-const MEASURE = 646;
+const MEASURE = 660;
 const FOLD_WIDTH = 1024;
 
 const SITES = [

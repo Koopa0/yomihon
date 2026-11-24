@@ -59,7 +59,7 @@ const DARK_KEYWORD = '#ff7b72';
 // are the ink: the string colour the stylesheet takes from --code-string. The
 // highlighter's own dark keyword red is no longer drawn on screen, so it can
 // prove nothing about dark mode, but it still proves a dark palette reached paper.
-const DARK_STRING = '#a8cfac';
+const DARK_STRING = '#8bc9a0';
 
 // The token kinds a code block has to keep legible, each named by the classes
 // the highlighter writes for it. A measurement pass that never saw one of
