@@ -237,6 +237,12 @@ export function initSearch() {
       input.setAttribute('aria-autocomplete', 'list');
       if (!panel.id) panel.id = `_y-search-panel-${fields.length}-${isDialog ? 'd' : 'f'}`;
       input.setAttribute('aria-controls', panel.id);
+      // A combobox says whether its list is showing. The list is shown and
+      // put away from several places, so the attribute follows the panel
+      // itself rather than each of them.
+      const syncExpanded = () => input.setAttribute('aria-expanded', String(!panel.hidden));
+      new MutationObserver(syncExpanded).observe(panel, { attributes: true, attributeFilter: ['hidden'] });
+      syncExpanded();
 
       // Focus stays in the field, where the reader is typing. A press on the
       // panel is kept from taking it, so the row that was pressed is followed
