@@ -7460,6 +7460,9 @@ samp,
   font-size: var(--fs-12);
   font-weight: var(--fw-medium);
   height: calc(var(--control-h) - 4px);
+  /* A one-character option is as wide as it is tall at the least, so the
+     target is never narrower than a pointer needs whatever face draws it. */
+  min-width: calc(var(--control-h) - 4px);
   padding: 0 var(--sp-2);
   white-space: nowrap;
 }
