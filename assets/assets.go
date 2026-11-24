@@ -64,5 +64,5 @@ import "embed"
 //     served at /static/fonts/*.woff2 by fonts.css's @font-face, so no
 //     request ever leaves the machine.
 //
-//go:embed js/yomihon.js js/codecopy.js js/preferences.js js/drawer.js js/rail.js js/sidebar.js js/rail-filter.js js/contents.js js/freshness.js js/langform.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/list.js js/mark.js js/recent.js js/preview.js js/thought.js js/question.js js/mermaid css/reset.css css/fonts.css css/tokens.css css/components.css css/art.css fonts icons art brand/yomihon-mark.svg brand/yomihon-mark-on-paper.svg
+//go:embed js/yomihon.js js/codecopy.js js/preferences.js js/drawer.js js/rail.js js/sidebar.js js/rail-filter.js js/contents.js js/freshness.js js/langform.js js/search.js js/shortcuts.js js/diagrams.js js/lesson.js js/list.js js/mark.js js/positions.js js/recent.js js/preview.js js/thought.js js/question.js js/mermaid css/reset.css css/fonts.css css/tokens.css css/components.css css/art.css fonts icons art brand/yomihon-mark.svg brand/yomihon-mark-on-paper.svg
 var Files embed.FS

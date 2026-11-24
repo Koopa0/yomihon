@@ -181,8 +181,9 @@ the browser or operating system's speech service.
 
 ## Browser state
 
-Cookies and session storage hold the reading choices, where the reader had
-the left rail, and how tall the diagrams on a page came out. Eight cookies carry the choices, and the server writes
+Cookies, session storage and local storage hold the reading choices, where the
+reader had the left rail, how tall the diagrams on a page came out, and where
+the reader last stopped in each note. Nine cookies carry the choices, and the server writes
 every one of them at `/preferences`. Every one but the interface language is
 also written by the page's own script when a choice is picked, under the same
 name and for the same year, so a choice made with script and one made without
@@ -200,11 +201,13 @@ rail and one carries the diagram heights.
 | `yomihon_rail` | Whether the left column is shown or folded to a strip on wide windows, `open` or `collapsed` | A year from the last write |
 | `yomihon_sectionbuttons` | When the buttons beside each section are drawn, `always` or `hover`; no value shows them always | A year from the last write |
 | `yomihon_shortcuts` | Whether single-key shortcuts answer, `on` or `off` | A year from the last write |
+| `yomihon_position` | Whether a note opens where the reader last stopped in it, `on` or `off`; no value leaves it on | A year from the last write |
 | `yomihon.nav` | Which folders of the left rail the reader opened or closed, one true-or-false each | Until the tab closes |
 | `yomihon.nav.filter` | The text the reader typed into the rail's filter box, kept as typed so a narrowing survives opening a note | Until the tab closes |
 | `yomihon.railTop` | How far the left rail was scrolled when a page was left, and which rail it was scrolled in — a course's own vault path, or the kind of rail — so the next page of the same rail starts where it was | Until the tab closes |
 | `yomihon.diagramHeights` | How tall each diagram came out when it was drawn, under a short hash of its source, and the window width and reading choices it was measured in, so a page the reader comes back to holds each diagram at that height before it is drawn again | Until the tab closes |
 | `yomihon.recentSearches` | In `localStorage`: the words of the reader's last five searches, newest first, one each; the search panel's Clear removes them | Until the reader clears them |
+| `yomihon.positions` | In `localStorage`: where the reader last stopped in each of the last 200 notes they read, newest last. Each entry is the vault's id, the note's path inside the vault, the id of the heading the reader's eyes were under and how far below it | Until the reader turns the setting off or clears it |
 
 - **The cookies go to the loopback listener and nowhere else.** Each carries
   `Path=/` and `SameSite=Lax`, and is deliberately neither `Secure` nor
@@ -221,6 +224,25 @@ rail and one carries the diagram heights.
   until the reader clears it. The words are whatever the reader typed, so
   they may name a person or a subject; a browser's own "clear site data"
   removes them too.
+- **The places are kept in this browser's storage for this address, and
+  nowhere else.** `yomihon.positions` is in `localStorage`, which is never
+  attached to a request, so the server never learns where anyone stopped. A
+  browser keeps one store for each address: `127.0.0.1` and `localhost` are two
+  stores, a place kept at one is not found at the other, and a private window
+  or a cleared site starts with none. Each entry names the vault by its id as
+  well as the note by its path, because a vault that is removed gives its port
+  to the next vault opened and a path alone would hand that vault's note of the
+  same name an old place; the id is derived from where the vault is and spells
+  none of it. An entry holds no text of a note, but the path and the heading's
+  id are the vault's own names and may say what the reader was studying. The
+  list holds the last 200 notes and drops the one read longest ago. It is
+  written when the reader stops scrolling and when the page is hidden or left,
+  and a note read from its top keeps no entry. The setting `yomihon_position`
+  turns it off, and turning it off removes the whole list; a page drawn while
+  it is off removes it as well, which is how the choice reaches a browser that
+  made it where no script ran. The bookmark is another place and this does
+  not touch it: the server keeps it, in the configuration directory, when the
+  reader presses for it.
 - **The session keys are sent nowhere at all.** `sessionStorage` is never
   attached to a request: the rail's state, its scroll position, the filter
   text and the diagram heights stay in the tab holding them and go when it
@@ -232,8 +254,8 @@ rail and one carries the diagram heights.
   typed that browser storage holds: yomihon itself writes no note title or body
   there, and the only vault names it keeps are the paths that say which course
   or folder a rail's open or scrolled state belongs to. All of it clears — the
-  settings page's return to defaults drops the eight cookies, and the browser's
-  own controls drop all eleven.
+  settings page's return to defaults drops the nine cookies, and the browser's
+  own controls drop all fifteen.
 
 No hosted reader exists for a user's own vault; a vault stays on the machine
 that reads it. One public instance exists over this repository's own sample

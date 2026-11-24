@@ -433,3 +433,24 @@ func TestTheFuriganaSwitchIsDrawnOnlyWhereThePageHasFurigana(t *testing.T) {
 		})
 	}
 }
+
+// A place the browser keeps is against a vault and a note together. A page that
+// can name only one of them names neither, so a place is never kept against a
+// note with no vault, which would be found by whichever vault came next.
+func TestAPageNamesItsNoteForTheBrowsersPlaceOnlyWithBothHalves(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name string
+		view NoteView
+		want *layouts.ReadingNote
+	}{
+		{"both", NoteView{VaultID: "v1", RelPath: "Notes/a.md"}, &layouts.ReadingNote{Vault: "v1", Path: "Notes/a.md"}},
+		{"no vault", NoteView{RelPath: "Notes/a.md"}, nil},
+		{"no note", NoteView{VaultID: "v1"}, nil},
+	} {
+		got := tt.view.readingNote()
+		if (got == nil) != (tt.want == nil) || (got != nil && *got != *tt.want) {
+			t.Errorf("%s: readingNote() = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}

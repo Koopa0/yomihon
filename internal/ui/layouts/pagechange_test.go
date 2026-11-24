@@ -405,6 +405,93 @@ func TestTheKeptPlaceNamesTheQueryTheHeadScriptReads(t *testing.T) {
 	}
 }
 
+// TestTheHeadHoldsANoteOnlyForAPlaceTheModuleWillPutBack holds the second thing
+// the head can mark. A note opens where the reader last stopped, which the
+// module can do only once the note is laid out, so the head holds the column
+// back first, but only when the browser's storage names a place for this very
+// note and the module that puts the place back would act on it. The head asks
+// the module's three questions in its own words, and a question that drifted
+// from the module's would hold a note that is then shown at its top, or paint a
+// note at its top that the module then moves.
+//
+// The script is written only for a note: a page that is not one names no note
+// to look for, and reading the storage there would be reading for nothing.
+func TestTheHeadHoldsANoteOnlyForAPlaceTheModuleWillPutBack(t *testing.T) {
+	t.Parallel()
+	render := func(c Chrome) string {
+		t.Helper()
+		var buf bytes.Buffer
+		if err := Base(c).Render(t.Context(), &buf); err != nil {
+			t.Fatalf("render base: %v", err)
+		}
+		return buf.String()
+	}
+	scriptsNaming := func(html, needle string) []string {
+		var found []string
+		for _, m := range regexp.MustCompile(`(?s)<script[^>]*>(.*?)</script>`).FindAllStringSubmatch(html, -1) {
+			if strings.Contains(m[1], needle) {
+				found = append(found, squeeze(m[1]))
+			}
+		}
+		return found
+	}
+
+	note := render(Chrome{Title: "測試", Nonce: "response-nonce", Position: "on", Reading: &ReadingNote{Vault: "v1", Path: "a b.md"}})
+	scripts := scriptsNaming(note, "yomihon.positions")
+	if len(scripts) != 1 {
+		t.Fatalf("a note page carries %d head scripts that read the kept places, want 1", len(scripts))
+	}
+	for _, want := range []string{
+		`d.dataset.position === "on"`,
+		`!location.hash`,
+		`way.type === "navigate"`,
+		`localStorage.getItem("yomihon.positions")`,
+		`p.vault === d.dataset.noteVault`,
+		`p.path === d.dataset.notePath`,
+		`d.dataset.arrival = "kept";`,
+	} {
+		if !strings.Contains(scripts[0], want) {
+			t.Errorf("the head script lacks %q; script = %q", want, scripts[0])
+		}
+	}
+	for _, want := range []string{`data-note-vault="v1"`, `data-note-path="a b.md"`, `data-position="on"`} {
+		if !strings.Contains(note, want) {
+			t.Errorf("a note page's root lacks %s; the head script and the module read the note from it", want)
+		}
+	}
+	if elsewhere := render(Chrome{Title: "測試", Nonce: "response-nonce", Position: "on"}); strings.Contains(elsewhere, "yomihon.positions") || strings.Contains(elsewhere, "data-note-") {
+		t.Error("a page that is not a note reads the kept places or names a note on its root")
+	}
+
+	// The module is the other reader of the same key, fields and questions.
+	for _, reader := range []struct {
+		path  string
+		wants []string
+	}{
+		{"../../../assets/js/positions.js", []string{
+			`const KEY = 'yomihon.positions';`,
+			`entry.vault === vault && entry.path === path`,
+			`typeof entry.anchor === 'string'`,
+		}},
+		{"../../../assets/js/mark.js", []string{
+			`root.dataset.noteVault`,
+			`root.dataset.notePath`,
+			`!positionOn() || location.hash !== ''`,
+			`performance.getEntriesByType('navigation')[0]?.type !== 'navigate'`,
+		}},
+	} {
+		source, err := os.ReadFile(reader.path)
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", reader.path, err)
+		}
+		for _, want := range reader.wants {
+			if !strings.Contains(string(source), want) {
+				t.Errorf("%s lacks %q; the head script asks the same question in Base, so the two change together", reader.path, want)
+			}
+		}
+	}
+}
+
 // TestOnlyTheMarkModuleClearsTheKeptPlaceMark holds the root attribute to one
 // writer and one reader. The head script sets it, and the module that places
 // the page removes it once it has; no other module may keep state under the

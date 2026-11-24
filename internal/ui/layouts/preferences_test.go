@@ -84,6 +84,13 @@ func storedChoices() []storedChoice {
 			unknown:  []string{"", "Hover", "HOVER", "on-hover", "never"},
 			answer:   func(c Chrome) string { return c.SectionButtons },
 		},
+		{
+			cookie:   "yomihon_position",
+			values:   []string{"on", "off"},
+			fallback: "on",
+			unknown:  []string{"", "OFF", "Off", "0", "no"},
+			answer:   func(c Chrome) string { return c.Position },
+		},
 	}
 }
 
@@ -142,6 +149,7 @@ func TestPreferencesPublishesEveryStoredChoice(t *testing.T) {
 		{Cookie: "yomihon_font", Values: []string{"serif", "sans", "kai"}, Fallback: ""},
 		{Cookie: "yomihon_rail", Values: []string{"open", "collapsed"}, Fallback: "open"},
 		{Cookie: "yomihon_sectionbuttons", Values: []string{"always", "hover"}, Fallback: "always"},
+		{Cookie: "yomihon_position", Values: []string{"on", "off"}, Fallback: "on"},
 	}
 	if diff := cmp.Diff(want, Preferences()); diff != "" {
 		t.Errorf("Preferences() mismatch (-want +got):\n%s", diff)
@@ -150,7 +158,7 @@ func TestPreferencesPublishesEveryStoredChoice(t *testing.T) {
 	// list. A row left off it is a preference a reader carries and no surface
 	// can name, which is the drift the one table exists to prevent.
 	published := Preferences()
-	for _, row := range []preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice, railChoice, sectionButtonsChoice} {
+	for _, row := range []preference{themeChoice, rubyChoice, textSizeChoice, shortcutsChoice, fontChoice, railChoice, sectionButtonsChoice, positionChoice} {
 		if !slices.ContainsFunc(published, func(p Preference) bool { return p.Cookie == row.cookie }) {
 			t.Errorf("the chrome reads %q, which Preferences() does not list", row.cookie)
 		}
@@ -184,6 +192,7 @@ func TestPreferencesHandsOutNothingACallerCanWriteThrough(t *testing.T) {
 		{Cookie: "yomihon_font", Values: []string{"serif", "sans", "kai"}, Fallback: ""},
 		{Cookie: "yomihon_rail", Values: []string{"open", "collapsed"}, Fallback: "open"},
 		{Cookie: "yomihon_sectionbuttons", Values: []string{"always", "hover"}, Fallback: "always"},
+		{Cookie: "yomihon_position", Values: []string{"on", "off"}, Fallback: "on"},
 	}
 	if diff := cmp.Diff(want, Preferences()); diff != "" {
 		t.Errorf("Preferences() after a caller wrote through it (-want +got):\n%s", diff)

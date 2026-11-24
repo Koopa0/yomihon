@@ -31,6 +31,7 @@ import (
 	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
@@ -88,6 +89,11 @@ type Handler struct {
 	// requests: what it last said about a note it could not read, so a page
 	// polling every few seconds does not repeat one fault into the log.
 	freshnessFailures freshnessLog
+	// vaultID is what the browser keeps a reader's place in a note against,
+	// next to the note's path. It is derived from the root the vault was
+	// opened at, once, because the root does not change under a running
+	// handler.
+	vaultID string
 }
 
 // New wires the reading feature. It defensively copies the startup-owned
@@ -113,7 +119,7 @@ func New(d *Sources) *Handler {
 	if d.Log == nil {
 		panic("note: New requires a non-nil Log")
 	}
-	return &Handler{sources: *d}
+	return &Handler{sources: *d, vaultID: confdir.VaultID(d.Source.Name())}
 }
 
 // indexesAddress is the page that lists the vault's indexes. It was served at
@@ -505,6 +511,7 @@ func (h *Handler) reading(
 		IDPrefix:          idPrefix,
 		ContentIdentity:   hex.EncodeToString(n.ContentIdentity[:]),
 		MarkAddress:       h.sources.MarkAddress,
+		VaultID:           h.vaultID,
 		PlaceKept:         marked && kept.RelPath == n.RelPath,
 		QuestionAddress:   h.sources.QuestionAddress,
 		ThoughtDoor:       door,
