@@ -87,12 +87,52 @@ export function initPreferences() {
 
   // A reader who stored no choice is following the system, and the system can
   // change while they are reading: the stylesheet repaints on its own, but
-  // anything drawn in the theme's colours is told here. A stored choice fixes
-  // the theme, so the same change moves nothing and says nothing.
+  // anything drawn in the theme's colours is told here, and so is the header's
+  // paper switch, whose lit option is the night lamp exactly while the system
+  // is dark. A stored choice fixes the theme, so the same change moves nothing
+  // and says nothing.
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    syncPaperSwitch();
     if (root.dataset.theme) return;
     themeChanged();
   });
+
+  // The header's grounds. The stylesheet lights the option in force; this
+  // says the same thing to a screen reader, from the same three facts: the
+  // stored theme, the system's preference when none is stored, and the paper.
+  const paperOptions = [...document.querySelectorAll('[data-paper-option]')];
+
+  function groundInForce() {
+    return effectiveTheme() === 'dark' ? 'dark' : root.dataset.paper || 'stone';
+  }
+
+  function syncPaperSwitch() {
+    const lit = groundInForce();
+    for (const option of paperOptions) {
+      option.setAttribute('aria-pressed', String(option.dataset.paperOption === lit));
+    }
+  }
+
+  // A press sets the ground here, at once, rather than posting the form and
+  // drawing the page again. Each option's form says what it sets, so the
+  // script reads its fields rather than keeping a second copy of the rule.
+  // A write this address may not keep is not believed: the form then goes to
+  // the server, which answers a browser that keeps nothing the same way it
+  // answers one that runs nothing.
+  for (const option of paperOptions) {
+    option.form?.addEventListener('submit', (event) => {
+      const fields = new FormData(option.form);
+      const theme = fields.get('theme');
+      const paper = fields.get('paper');
+      if (paper) setPreference('paper', paper);
+      writeTheme(theme, true);
+      const kept = readCookie('yomihon_theme') === theme && (!paper || readCookie('yomihon_paper') === paper);
+      if (!kept) return;
+      event.preventDefault();
+      syncPaperSwitch();
+    });
+  }
+  syncPaperSwitch();
 
   function writeTextSize(size) {
     setPreference('textsize', size);
@@ -166,6 +206,7 @@ export function initPreferences() {
     theme(value, stored) {
       if (stored) {
         writeTheme(value, true);
+        syncPaperSwitch();
         return;
       }
       // Following the system is held by the absence of a stored value, so
@@ -173,10 +214,12 @@ export function initPreferences() {
       // the same deletion the server writes for this option.
       document.cookie = 'yomihon_theme=;path=/;max-age=0;samesite=lax';
       writeTheme(null, false);
+      syncPaperSwitch();
     },
     textsize: writeTextSize,
     paper(value) {
       setPreference('paper', value);
+      syncPaperSwitch();
     },
     font(value) {
       setPreference('font', value);
@@ -327,6 +370,7 @@ export function initPreferences() {
     // or none, is stone.
     const paper = readCookie('yomihon_paper');
     root.dataset.paper = paper === 'washi' || paper === 'white' ? paper : 'stone';
+    syncPaperSwitch();
     // Only the literal "off" is off, as for the furigana. A page revived from the
     // cache may have been left while the setting was on, and what the browser
     // kept is emptied the way a page drawn with it off empties it.

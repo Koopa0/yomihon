@@ -357,11 +357,12 @@
      column's. */
   --shell-max: 1280px;
 
+
   /* The header's height and the control's. The phone's header and a thumb's
      control are smaller or larger by a query in the stylesheet, which a media
      query is the only place to write. The search field's width, --field-w, is
      declared with the lists above, which draw a field of the same width. */
-  --hdr-h: 56px;
+  --hdr-h: 44px;
   --hdr-h-phone: 48px;
   --control-h: 32px;
 

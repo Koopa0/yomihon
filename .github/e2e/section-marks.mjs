@@ -31,7 +31,7 @@ const NAME = '標為疑問';
 const SITES = [
   'the-name-never-changes',
   'a-mark-and-its-day-are-in-the-page',
-  'the-status-line-lapses',
+  'the-status-line-waits-for-the-next-action',
   'the-buttons-follow-the-setting',
   'the-buttons-wait-for-hover-by-default',
   'a-touch-screen-is-shown-the-buttons',
@@ -114,10 +114,15 @@ const MUTATIONS = {
     target: 'a-mark-and-its-day-are-in-the-page',
     apply: rewriteDocument('aria-pressed="true"', 'aria-pressed="false"'),
   },
-  // The sentence a press earns is left standing.
+  // The sentence a press earns is left standing past the reader's next action.
   'leave-the-status-line-standing': {
-    target: 'the-status-line-lapses',
+    target: 'the-status-line-waits-for-the-next-action',
     apply: rewriteModule('      lapse(said);\n', '      void lapse;\n'),
+  },
+  // The sentence a press earns goes on a timer, before a slow reader has read it.
+  'put-the-status-line-on-a-timer': {
+    target: 'the-status-line-waits-for-the-next-action',
+    apply: rewriteModule('      lapse(said);\n', '      lapse(said); setTimeout(() => { said.textContent = ""; }, 1000);\n'),
   },
   // A browser that never chose is answered as if it had chosen always.
   'draw-the-buttons-always-by-default': {
@@ -248,12 +253,17 @@ try {
   const marked = await records();
   if (marked.length !== 1 || marked[0].path !== NOTE || marked[0].anchor !== 'the-first-mechanism') broken(`the press stored ${JSON.stringify(marked)}`);
 
-  // The status line lapses by itself.
+  // The status line is not on a timer: a slow reader still finds it, and the
+  // reader's next action takes it away (D93, D94).
   const said = page.locator('[data-section-said]').first();
   const earned = (await said.textContent())?.trim();
-  if (!earned) fail('the-status-line-lapses', 'pressing the button earned no sentence');
-  await page.waitForFunction((selector) => document.querySelector(selector).textContent.trim() === '', '[data-section-said]', { timeout: 6500 }).catch(() => {
-    fail('the-status-line-lapses', `the sentence ${JSON.stringify(earned)} was still on the page 6.5 seconds after the press`);
+  if (!earned) fail('the-status-line-waits-for-the-next-action', 'pressing the button earned no sentence');
+  await page.waitForTimeout(5500);
+  const standing = (await said.textContent())?.trim();
+  if (standing !== earned) fail('the-status-line-waits-for-the-next-action', `the sentence ${JSON.stringify(earned)} read ${JSON.stringify(standing)} 5.5 seconds after the press, with nothing done since`);
+  await page.keyboard.press('Shift');
+  await page.waitForFunction((selector) => document.querySelector(selector).textContent.trim() === '', '[data-section-said]', { timeout: 2000 }).catch(() => {
+    fail('the-status-line-waits-for-the-next-action', `the sentence ${JSON.stringify(earned)} was still on the page after the reader's next key`);
   });
   await reading.context.close();
 
@@ -392,7 +402,7 @@ try {
     if (placed.scrollY < 100 || placed.top < 0 || placed.top > placed.height) fail('a-landing-on-a-heading-survives', `following a result that names the heading left the page at ${JSON.stringify(placed)}, the heading out of the window`);
     await landing.context.close();
   }
-  console.log('PASS section-marks: the name never changes with the mark; the mark and its day are in the page with no script; the status line lapses; the buttons are quiet by default and wait out a dwell on hover, and a touch screen is shown them; the diamond and the bookmark keep their shape in forced colors; a result still lands on a heading');
+  console.log('PASS section-marks: the name never changes with the mark; the mark and its day are in the page with no script; the status line stays until the next action; the buttons are quiet by default and wait out a dwell on hover, and a touch screen is shown them; the diamond and the bookmark keep their shape in forced colors; a result still lands on a heading');
 } catch (error) {
   console.error(error.message);
   if (error instanceof NotApplied) {

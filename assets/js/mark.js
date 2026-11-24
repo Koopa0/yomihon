@@ -134,37 +134,34 @@ function positionNow() {
   return { anchor, offset: Math.max(0, top - anchorTop) };
 }
 
-// The sentence a press earns is a small label, not a message left standing: it
-// is there for a few seconds, then fades and is emptied, so it never lingers
-// over the page or under the row. The fade is the stylesheet's, and the
-// emptying waits for as long as the stylesheet says the fade lasts, which is
-// none for a reader who asked for less motion.
-const SAID_FOR = 4000;
-const saidTimers = new WeakMap();
+// The sentence a press earns is a small label beside the control. It is not on
+// a timer: a sentence that leaves by itself is one a slow reader never got to
+// read (D93, D94). It stays until the reader does the next thing — presses
+// anywhere, or a key — and that action takes it away, the way a reader's next
+// move ends any reply.
+const saidUntil = new WeakMap();
 
 // hush empties a sentence at once, with whatever was waiting to empty it.
 function hush(said) {
-  clearTimeout(saidTimers.get(said));
+  saidUntil.get(said)?.abort();
+  saidUntil.delete(said);
   said.textContent = '';
   delete said.dataset.replyTone;
-  delete said.dataset.replyFading;
 }
 
 export function lapse(said) {
-  clearTimeout(saidTimers.get(said));
-  delete said.dataset.replyFading;
-  saidTimers.set(
-    said,
-    setTimeout(() => {
-      const fade = (Number.parseFloat(getComputedStyle(said).transitionDuration) || 0) * 1000;
-      if (fade < 1) {
-        hush(said);
-        return;
-      }
-      said.dataset.replyFading = '';
-      saidTimers.set(said, setTimeout(() => hush(said), fade));
-    }, SAID_FOR),
-  );
+  saidUntil.get(said)?.abort();
+  const next = new AbortController();
+  saidUntil.set(said, next);
+  // The press that earned the sentence is still being dispatched while it is
+  // written, so the listeners start on the next task: the next action is the
+  // reader's next one, not this one arriving at the document.
+  setTimeout(() => {
+    if (next.signal.aborted) return;
+    const end = () => hush(said);
+    document.addEventListener('pointerdown', end, { once: true, signal: next.signal });
+    document.addEventListener('keydown', end, { once: true, signal: next.signal });
+  });
 }
 
 // The row's sentences hang in one place, so the one a press earns takes the
@@ -193,8 +190,7 @@ function say(control, words, kept) {
   const said = control.querySelector('[data-mark-said]');
   if (!said) return;
   quietRow(said);
-  clearTimeout(saidTimers.get(said));
-  delete said.dataset.replyFading;
+  saidUntil.get(said)?.abort();
   said.dataset.replyTone = kept ? 'kept' : 'refused';
   said.textContent = words ?? '';
   if (words) lapse(said);

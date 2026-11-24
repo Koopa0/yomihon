@@ -472,8 +472,7 @@ func searchPageHTML(t *testing.T, pageHTML string) string {
 }
 
 // TestAResultsRowSaysWhereTheNoteLivesAndTheHeaderSaysWhatWasAsked holds the
-// location line's words, and that the header's entry carries the query where a
-// wider window has no field on the page.
+// location line's words, and that the header's search field carries the query.
 func TestAResultsRowSaysWhereTheNoteLivesAndTheHeaderSaysWhatWasAsked(t *testing.T) {
 	t.Parallel()
 	idx := lexical.NewIndex([]lexical.Document{
@@ -488,7 +487,7 @@ func TestAResultsRowSaysWhereTheNoteLivesAndTheHeaderSaysWhatWasAsked(t *testing
 	rr := httptest.NewRecorder()
 	h.search(rr, req)
 	body := rr.Body.String()
-	for _, want := range []string{"<span>Notes › go</span>", "<span>最上層</span>", `<span class="y-searchbtn__label">needle</span>`} {
+	for _, want := range []string{"<span>Notes › go</span>", "<span>最上層</span>", `name="q" value="needle"`} {
 		if !strings.Contains(strings.Join(strings.Fields(body), " "), want) {
 			t.Errorf("the page does not hold %q", want)
 		}

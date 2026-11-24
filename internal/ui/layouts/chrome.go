@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"github.com/a-h/templ"
 
@@ -186,6 +187,22 @@ func singleKeyShortcutsState(enabled bool) string {
 		return "on"
 	}
 	return "off"
+}
+
+// paperPressed answers whether the header's paper switch draws an option as
+// chosen, as far as the server can tell. A stored dark theme is the night
+// lamp; a stored light theme is the stored paper. A reader following the
+// system is answered false for all three, because only the browser knows the
+// system's answer; the script sets the one it is before anyone can press, and
+// the stylesheet lights it without one.
+func paperPressed(theme, paper, option string) string {
+	switch theme {
+	case "dark":
+		return strconv.FormatBool(option == "dark")
+	case "light":
+		return strconv.FormatBool(option == paper)
+	}
+	return "false"
 }
 
 // ChromeFromRequest builds the page chrome from the request: the page title
