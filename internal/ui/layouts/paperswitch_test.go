@@ -33,10 +33,10 @@ func attrsOf(tag string) map[string]string {
 	return out
 }
 
-func renderPaperForms(t *testing.T, c Chrome) []paperForm {
+func renderPaperForms(t *testing.T, c *Chrome) []paperForm {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := header(c).Render(t.Context(), &buf); err != nil {
+	if err := header(*c).Render(t.Context(), &buf); err != nil {
 		t.Fatalf("render header: %v", err)
 	}
 	var out []paperForm
@@ -64,7 +64,7 @@ func renderPaperForms(t *testing.T, c Chrome) []paperForm {
 // the page they pressed it on.
 func TestThePaperSwitchPostsWhatEachGroundSets(t *testing.T) {
 	t.Parallel()
-	got := renderPaperForms(t, Chrome{Theme: "light", Paper: "washi", ReturnTo: "/notes/A.md?x=1"})
+	got := renderPaperForms(t, &Chrome{Theme: "light", Paper: "washi", ReturnTo: "/notes/A.md?x=1"})
 	post := func(option string, fields map[string]string, pressed string) paperForm {
 		return paperForm{Option: option, Action: "/preferences", Method: "post", Fields: fields, Pressed: pressed}
 	}
@@ -101,7 +101,7 @@ func TestThePaperSwitchPressesWhatTheServerKnows(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var got []string
-			for _, form := range renderPaperForms(t, Chrome{Theme: tt.theme, Paper: tt.paper}) {
+			for _, form := range renderPaperForms(t, &Chrome{Theme: tt.theme, Paper: tt.paper}) {
 				got = append(got, form.Pressed)
 			}
 			if diff := cmp.Diff(tt.want, got); diff != "" {

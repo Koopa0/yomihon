@@ -433,6 +433,6 @@ templ paperOption(c Chrome, option, label string) {
 			<input type="hidden" name="paper" value={ option }/>
 		}
 		<input type="hidden" name="next" value={ c.ReturnTo }/>
-		<button class="y-paperswitch__option" type="submit" data-paper-option={ option } aria-pressed={ paperPressed(c, option) }>{ label }</button>
+		<button class="y-paperswitch__option" type="submit" data-paper-option={ option } aria-pressed={ paperPressed(c.Theme, c.Paper, option) }>{ label }</button>
 	</form>
 }
