@@ -80,8 +80,10 @@ samp {
   translate: 0;
 }
 
+/* The page's ground is the paper under the faint light from above the desk.
+   The light is fixed to the window, so it stays overhead as the page scrolls. */
 .yomihon {
-  background: var(--bg);
+  background: var(--bg-glow) fixed, var(--bg);
   color: var(--fg);
   display: flex;
   flex-direction: column;

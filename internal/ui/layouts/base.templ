@@ -55,11 +55,17 @@ templ Base(c Chrome) {
 			// would stop and start matching as the reader moved about the page.
 			// The way in is not called nav: the drawer already keeps that name on
 			// the root, and its first write would overwrite this one.
+			//
+			// Motion waits for the first paint. Every duration is zero until the
+			// root is marked is-ready, two frames after the first one, so the
+			// preferences the server stamped on the root never play as a
+			// transition on arrival, and a browser running no script never moves.
 			<script nonce={ c.Nonce }>
 				{
 					const d = document.documentElement;
 					d.dataset.js = "on";
 					if (new URLSearchParams(location.search).has("at")) d.dataset.arrival = "kept";
+					requestAnimationFrame(() => requestAnimationFrame(() => d.classList.add("is-ready")));
 				}
 			</script>
 			// A note opens where the reader last stopped in it, and that can be

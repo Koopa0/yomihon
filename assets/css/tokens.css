@@ -1,73 +1,126 @@
 /* ============================================================
    yomihon — design tokens
    ------------------------------------------------------------
-   Paper and ink, three voices. The ink sets the text and everything the
-   interface does: links, focus and every action are ink. The reader's blue
-   belongs to the reader alone, the marks they leave and nothing else. The
-   ochre and the plum are what yomihon finds. Each voice also carries a shape
+   Paper and ink, and three mineral voices. The ink sets the text and
+   everything the interface does: links and every action are ink. The
+   reader's indigo belongs to the reader alone — the marks they leave, the
+   bookmark, where they last stopped, and the focus ring that says where they
+   are. The ochre is a question still open, and nothing else. The crimson is
+   a write that failed or a file that cannot be read, and nothing else: two
+   machines disagreeing, a source that changed and a mark whose note is gone
+   are ordinary states and are drawn in ink. Each voice also carries a shape
    or a word, so none is told by colour alone.
 
-   Every colour token is declared once, here, as light-dark(light, dark), with
-   one exception: the white paper below, which restates the paper tokens it
-   replaces. The theme is the root's color-scheme and nothing else: light unless
-   the reader stored dark ([data-theme="dark"], stamped server-side from a
-   cookie, so no flash) or stored nothing on a dark system. A Go test holds the
-   sheet to that shape.
+   The values are the Atelier handoff's (design decision D94). Its token
+   names are mapped onto the names this product already used, so the
+   components did not have to be renamed:
+     --ink / --ink-2 / --ink-3       → --fg / --fg-muted / --fg-faint
+     --code-bg / --mat-bg            → --code-ground / --mat
+     --reader-soft(-strong)          → --reader-wash(-strong)
+     --ochre-soft(-strong)           → --ochre-wash(-strong)
+     --crimson-soft                  → --crimson-wash
+     --syn-str / -kw / -com / -type / -num
+                                     → --code-string / -keyword / -comment / -type / -number
+     --ink-faint                     → --fg-ornament
+     --shadow-card / --shadow-pop    → --shadow-1 / --shadow-2
+     --hit-bg                        → --hit-ground
+     --hover                         → --wash
+
+   Every colour token is declared once, here, as light-dark(light, dark).
+   The papers are the one exception: washi and white restate the light half
+   of the paper tokens they replace and repeat the dark half unchanged, so a
+   reader on a dark system, or one who chose dark, reads on the night lamp
+   whatever paper they keep for the day. The theme is the root's
+   color-scheme and nothing else: light unless the reader stored dark
+   ([data-theme="dark"], stamped server-side from a cookie, so no flash) or
+   stored nothing on a dark system. A Go test holds the sheet to that shape.
    ============================================================ */
 
 :root {
   color-scheme: light;
 
-  /* ---- Paper: 生成 (unbleached) in light, 消炭 (charcoal) in dark ---- */
-  --bg: light-dark(#f7f4ec, #1b1a17);
-  --panel: light-dark(#f0ece1, #22211d);
-  --elevated: light-dark(#fff, #2a2924);
-  --overlay: light-dark(#e6e1d4, #34322c);
+  /* ---- Paper: 石紙 (stone) in light, 夜燈 (night lamp) in dark ---- */
+  --bg: light-dark(#f6f4ef, #161614);
+  /* The faint light falling on the top of the page from above the desk. It
+     is a gradient rather than a colour, so it is drawn under the content and
+     never behind a word that needs its contrast measured. */
+  --bg-glow: radial-gradient(ellipse 85% 42% at 50% 0%, light-dark(rgb(255 253 248 / 0.88), rgb(235 220 188 / 0.042)), transparent 72%);
+  --panel: light-dark(#f0ede7, #1c1c19);
+  --elevated: light-dark(#fcfbf8, #22221f);
+  --overlay: light-dark(#e4e2dd, #2b2b28);
   /* Selected: one treatment everywhere, a tonal ground and a heavier weight,
      so a choice reads without colour. */
-  --selected: light-dark(#e6e1d4, #34322c);
+  --selected: light-dark(#e4e2dd, #2b2b28);
   --on-selected: var(--fg);
-  /* The ground of a code block. */
-  --code-ground: light-dark(#efeadf, #23221e);
+  /* The ground of a code block, and the hairline of light along its top edge
+     that makes it read as set into the page rather than laid on it. */
+  --code-ground: light-dark(#efece5, #1d1d1a);
+  --code-edge: light-dark(rgb(28 27 24 / 0.06), rgb(232 228 218 / 0.07));
   /* The mat an author's picture or figure sits on. It is a step off the page
      in both themes, so a drawing made for a light ground is set apart by tone
      and by nothing else. */
-  --mat: light-dark(#ebe6da, #2b2a25);
+  --mat: light-dark(#ece8df, #1b1b18);
   /* The left rail's ground: the header's tone, a step off the page in both
      themes. */
   --rail-ground: var(--panel);
-  /* A switch that is on: the neutral control ink, a step off the text, so a
-     control that is set does not outweigh the words beside it. */
-  --switch-on: light-dark(#55514a, #dcd6ca);
 
   /* ---- Ink, three steps. The text; the variant every quieter word takes; and
-     the faint step for numbers, dates and Latin letters only, which is set on
-     the paper, the rail, a raised surface or a hovered ground and never on
-     --selected or --reader-wash, where it falls short of 4.5:1 and the muted
-     step takes its place. ---- */
-  --fg: light-dark(#22201c, #dcd6ca);
-  --fg-muted: light-dark(#55514a, #aaa498);
-  --fg-faint: light-dark(#6d685f, #96918a);
+     the faint step for numbers, dates, paths and Latin letters only, which is
+     set on the paper, the rail, a raised surface or a hovered ground and never
+     on --selected or --reader-wash, where it falls short of 4.5:1 and the
+     muted step takes its place. The ornament step is below any text contrast
+     and draws only what nobody has to read: a code block's line numbers. ---- */
+  --fg: light-dark(#1c1b18, #e0ded6);
+  --fg-muted: light-dark(#504e48, #a6a39a);
+  --fg-faint: light-dark(#6c6961, #8d8a81);
   --fg-subtle: var(--fg-muted);
+  --fg-ornament: color-mix(in srgb, var(--fg) 36%, transparent);
 
-  /* ---- The reader's blue: the marks the reader leaves, and nothing else. The
-     blue itself draws their small icons and words; the wash is only ever a
-     ground, because it sits 1.18:1 from the paper and so carries no
-     information of its own. Neither one marks an action: an action is ink. ---- */
-  --reader: light-dark(#2f5781, #9cc3ea);
-  --reader-wash: light-dark(#d6e4f0, #253a50);
+  /* ---- The reader's indigo: the marks the reader leaves, the bookmark's
+     ribbon, where they last stopped, the reading line, and focus. The indigo
+     itself draws their small icons and words; the wash is only ever a ground
+     and carries no information of its own. Neither one marks an action: an
+     action is ink. ---- */
+  --reader: light-dark(#244e82, #86b5eb);
+  --reader-wash: light-dark(rgb(36 78 130 / 0.125), rgb(134 181 235 / 0.14));
+  --reader-wash-strong: light-dark(rgb(36 78 130 / 0.21), rgb(134 181 235 / 0.25));
+  --reader-line: light-dark(rgb(36 78 130 / 0.42), rgb(134 181 235 / 0.44));
+  /* The bookmark ribbon is cloth, a shade off the ink-blue so it reads as an
+     object lying on the page rather than as a word on it. */
+  --reader-ribbon: light-dark(#29558b, #5d92ce);
   /* Aliases of the pair above for one release, so a page not yet moved onto
      them keeps drawing; the vermilion they used to name is gone. */
   --accent: var(--reader);
   --accent-wash: var(--reader-wash);
 
+  /* ---- A question still open: burnt ochre, and only that. A question the
+     reader settles goes back to ink, with no colour of celebration. ---- */
+  --ochre: light-dark(#964e0c, #e3af5b);
+  --ochre-wash: light-dark(rgb(150 78 12 / 0.11), rgb(227 175 91 / 0.14));
+  --ochre-wash-strong: light-dark(rgb(150 78 12 / 0.19), rgb(227 175 91 / 0.25));
+  --ochre-line: light-dark(rgb(150 78 12 / 0.46), rgb(227 175 91 / 0.46));
+
+  /* ---- A write that failed, a file that cannot be read: deep carmine, and
+     only that. Never two machines disagreeing, a changed source or a note
+     that is gone. ---- */
+  --crimson: light-dark(#9e2b3e, #eb7c90);
+  --crimson-wash: light-dark(rgb(158 43 62 / 0.10), rgb(235 124 144 / 0.14));
+
+  /* A switch that is on carries the reader's indigo: it is a choice the
+     reader made about their own reading. */
+  --switch-on: var(--reader);
+
   /* ---- Links, focus and selection. A link is ink under a hairline, so it is
-     found without colour; focus is an ink ring; a selection is grey, because a
-     blue one would read as the reader's own highlight. ---- */
+     found without colour; focus is the reader's indigo, because it says where
+     the reader is; a selection is a light indigo, the same family as a
+     highlight about to be made from it. ---- */
   --link: var(--fg);
-  --link-line: light-dark(#8a857b, #8a857b);
-  --focus: var(--fg);
-  --selection: light-dark(rgb(34 32 28 / 0.14), rgb(220 214 202 / 0.20));
+  --link-line: light-dark(rgb(28 27 24 / 0.32), rgb(224 222 214 / 0.34));
+  --focus: var(--reader);
+  --selection: light-dark(rgb(36 78 130 / 0.16), rgb(134 181 235 / 0.24));
+  /* The ground under a search hit: ink, never the reader's indigo, so a hit
+     cannot be taken for something the reader marked. */
+  --hit-ground: light-dark(rgb(28 27 24 / 0.075), rgb(224 222 214 / 0.14));
 
   /* ---- Lines. The outline is the edge of anything interactive and the rule
      under a table's head, at 3:1 or more; the variant is a table's inner
@@ -75,16 +128,22 @@
   --outline: light-dark(#827d73, #8c877c);
   --outline-variant: var(--line);
 
-  /* ---- Honest diagnostics — muted ochre, never angry red (金繼ぎ) ---- */
+  /* ---- Honest diagnostics: a muted ochre a step yellower than a question's,
+     never an angry red (金繼ぎ) ---- */
   --warn: light-dark(#7a5a0e, #e0c27a);
   --warn-bg: light-dark(#f1e7cc, #332c1b);
-  /* A finding that blocks the folder: a muted plum, its own hue, so it is told
-     from a warning at a glance. */
-  --error: light-dark(#733d76, #dcaade);
-  --error-bg: light-dark(#efe1ec, #352536);
+  /* A finding that blocks the folder is a file that cannot be read, so it
+     takes the crimson. */
+  --error: var(--crimson);
+  --error-bg: var(--crimson-wash);
 
-  /* ---- Code: the one colour a code block has beside the ink. ---- */
-  --code-string: light-dark(#405e40, #a8cfac);
+  /* ---- Code: four mineral colours beside the ink, none of them neon. A
+     keyword is the ink at weight; a comment is the faint ink in italic. ---- */
+  --code-keyword: light-dark(#1c1b18, #eceae2);
+  --code-string: light-dark(#2d6247, #8bc9a0);
+  --code-type: light-dark(#694173, #c7a5d8);
+  --code-number: light-dark(#3e5b75, #98b5ce);
+  --code-comment: light-dark(#767268, #87847b);
 
   /* ---- Growth track — muted sage (never out-shouts the accent) ---- */
   --sage: light-dark(oklch(0.450 0.060 145), oklch(0.820 0.065 148));
@@ -108,8 +167,12 @@
   --slot-verb: light-dark(#387447, #92cd9e);
   --slot-num: light-dark(#954a7e, #ec9dd2);
 
-  --shadow-1: 0 2px 8px -2px light-dark(oklch(0.30 0.02 107 / 0.10), transparent), 0 1px 2px light-dark(oklch(0.30 0.02 107 / 0.07), transparent);
-  --shadow-2: 0 18px 40px -12px light-dark(oklch(0.28 0.02 107 / 0.18), transparent), 0 4px 12px light-dark(oklch(0.28 0.02 107 / 0.10), transparent);
+  /* Two lifts and a ribbon. --shadow-1 is a card resting on the page;
+     --shadow-2 is a surface the reader summoned, which in the dark also takes
+     a one-pixel rim so it does not sink into the night lamp. */
+  --shadow-1: 0 1px 2px light-dark(rgb(24 22 18 / 0.04), transparent), 0 10px 28px light-dark(rgb(24 22 18 / 0.045), rgb(0 0 0 / 0.34)), inset 0 1px 0 light-dark(transparent, rgb(255 255 255 / 0.03));
+  --shadow-2: 0 14px 36px light-dark(rgb(24 22 18 / 0.10), rgb(0 0 0 / 0.54)), 0 1px 3px light-dark(rgb(24 22 18 / 0.06), transparent), 0 0 0 1px light-dark(transparent, rgb(224 222 214 / 0.08));
+  --shadow-ribbon: 0 4px 10px light-dark(rgb(24 34 48 / 0.18), rgb(0 0 0 / 0.48));
 
 
   /* ---- Non-colour tokens (theme-independent) ---- */
@@ -120,11 +183,11 @@
      with review/*.png. So the serif/kai stacks name macOS Mincho/Kai
      explicitly before the generic serif, and the sans/display stacks name a
      system Gothic. Zero bytes, no @font-face, no request. */
-  --font-display: 'Geist', 'Noto Sans TC', 'PingFang TC', 'Hiragino Sans', system-ui, sans-serif;
-  --font-serif: 'Newsreader', 'Noto Serif TC', 'Noto Serif JP', 'Songti TC', 'Hiragino Mincho ProN', Georgia, serif;
-  --font-sans: 'Geist', 'Noto Sans TC', 'PingFang TC', 'Hiragino Sans', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, 'Noto Sans TC', monospace;
-  --font-kai: 'LXGW WenKai TC', 'Kaiti TC', 'Kaiti SC', 'Noto Serif TC', 'Songti TC', 'Hiragino Mincho ProN', serif;
+  --font-display: 'Geist', 'PingFang TC', 'Hiragino Sans', 'Noto Sans TC', 'Noto Sans CJK TC', system-ui, sans-serif;
+  --font-serif: 'Newsreader', 'Hiragino Mincho ProN', 'Songti TC', 'Noto Serif TC', 'Noto Serif CJK TC', 'Noto Serif JP', 'PMingLiU', Georgia, serif;
+  --font-sans: 'Geist', 'PingFang TC', 'Hiragino Sans', 'Noto Sans TC', 'Noto Sans CJK TC', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, 'Noto Sans TC', monospace;
+  --font-kai: 'LXGW WenKai TC', 'Kaiti TC', 'STKaiti', 'Kaiti SC', 'DFKai-SB', 'BiauKai', 'Noto Serif TC', 'Songti TC', 'Hiragino Mincho ProN', serif;
 
   /* Han characters share code points across languages but not their shapes.
      Japanese prose needs a Japanese face before the Chinese fallbacks, while
@@ -137,6 +200,9 @@
      than the product's tokens, so they are pointed at the tokens here. */
   --default-font-family: var(--font-sans);
   --default-mono-font-family: var(--font-mono);
+  /* Proportional CJK punctuation and Latin kerning everywhere the reset sets
+     a face. Code is set from the reset's mono default, which keeps neither. */
+  --default-font-feature-settings: 'palt' 1, 'kern' 1;
 
   /* The face a reader's own choice sets their reading in. Having chosen
      nothing leaves the root without data-font and this base value answers: the
@@ -215,10 +281,14 @@
      itself, so a hairline over the paper and a hairline over a panel are the
      same ink at the same weight, and all of them turn over with the theme
      because the ink does. */
-  --line: color-mix(in srgb, var(--fg) 12%, transparent);
-  --line-faint: color-mix(in srgb, var(--fg) 6%, transparent);
-  --line-strong: color-mix(in srgb, var(--fg) 28%, transparent);
-  --wash: color-mix(in srgb, var(--fg) 5%, transparent);
+  --line: color-mix(in srgb, var(--fg) 10%, transparent);
+  --line-faint: color-mix(in srgb, var(--fg) 5.5%, transparent);
+  --line-strong: color-mix(in srgb, var(--fg) 24%, transparent);
+  /* The upper line of the double rule that marks a threshold — under a
+     note's frontispiece, a section of the desk, a toolbar. The lower line is
+     --line, half a pixel. */
+  --rule-double: color-mix(in srgb, var(--fg) 38%, transparent);
+  --wash: color-mix(in srgb, var(--fg) 4.5%, transparent);
   /* A state the interface is in for a while, such as the voice reading a
      paragraph: twice the hover's wash, so it holds while the pointer moves. */
   --wash-strong: color-mix(in srgb, var(--fg) 10%, transparent);
@@ -254,13 +324,14 @@
      shell is what a search comes back as, which takes a narrow column of its
      own beside the results wherever there is room for one.
 
-     The reading measure is counted in characters, not pixels: thirty-eight
-     body-size ems is thirty-eight Han characters a line, which is where a line
-     of Chinese or Japanese stays easy to carry from its end to the start of
-     the next, and it grows and shrinks with the reader's chosen text size so a
-     larger setting costs words a line rather than the line's length. */
+     The reading measure is 660px at the base size, about thirty-nine Han
+     characters a line, which is where a line of Chinese or Japanese stays
+     easy to carry from its end to the start of the next. The larger sizes
+     widen it less than they enlarge the type (700px and 740px), so a larger
+     setting costs a few characters a line rather than pushing the line out
+     past where the eye can carry it. */
   --field-w: 240px;
-  --measure-read: calc(var(--fs-ed-17) * 38);
+  --measure-read: 660px;
   --gutter-read: 48px;
   --measure-list: 896px;
   --gutter-list: 48px;
@@ -323,11 +394,18 @@
      pointer rests on a section's row before the buttons the reader chose to
      see only on hover appear, so that scrolling under a resting pointer never
      makes them blink. */
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --dur-base: 120ms;
-  --dur-slow: 200ms;
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Nothing moves until the page has painted once: the head's script marks
+     the root is-ready two frames after the first paint, and only then do the
+     durations take their values. A preference stamped on the first byte
+     therefore never plays as a transition, and a browser running no script
+     never animates at all. */
+  --dur-base: 0ms;
+  --dur-slow: 0ms;
   --dur-dwell: 1100ms;
   --dur-hover-wait: 300ms;
+  --dur-base-ready: 120ms;
+  --dur-slow-ready: 200ms;
 
   /* The pictures (system.md §10, §11). An icon is drawn at the size its place
      names, 16, 20 or 24, and takes the ink of the place; --icon-size is the
@@ -340,16 +418,37 @@
   --endpaper-h: var(--sp-9);
 }
 
-/* The optional white paper. It restates only the light value of each paper
-   token it replaces: the dark value is the one above, so the choice does
-   nothing in dark. */
-:root[data-paper='shiro'] {
-  --bg: light-dark(#fff, #1b1a17);
-  --panel: light-dark(#f6f5f2, #22211d);
-  --selected: light-dark(#ebe9e4, #34322c);
-  --overlay: light-dark(#ebe9e4, #34322c);
-  --code-ground: light-dark(#f4f3ef, #23221e);
-  --mat: light-dark(#f1efea, #2b2a25);
+/* The two other papers, 和紙 (washi) and 白紙 (white). Each restates the
+   light half of the paper tokens it replaces and repeats the dark half of the
+   root's pair unchanged, so the paper is a daytime choice only: a reader on a
+   dark system who stored no theme, and a reader who stored dark, both read on
+   the night lamp whichever paper they keep. They sit before the theme's
+   entrances so that order is visible here too, though light-dark() is what
+   decides it. A Go test holds every dark half here to the root's. */
+:root[data-paper='washi'] {
+  --bg: light-dark(#f5efe2, #161614);
+  --bg-glow: radial-gradient(ellipse 85% 42% at 50% 0%, light-dark(rgb(255 250 236 / 0.72), rgb(235 220 188 / 0.042)), transparent 72%);
+  --panel: light-dark(#efe8da, #1c1c19);
+  --elevated: light-dark(#faf6ec, #22221f);
+  --selected: light-dark(#e4ded2, #2b2b28);
+  --overlay: light-dark(#e4ded2, #2b2b28);
+  --code-ground: light-dark(#ece4d4, #1d1d1a);
+  --mat: light-dark(#e8dfce, #1b1b18);
+  --endpaper: light-dark(#eae3d3, #2a2925);
+  --fg: light-dark(#221e19, #e0ded6);
+  --fg-muted: light-dark(#575046, #a6a39a);
+  --fg-faint: light-dark(#70675b, #8d8a81);
+}
+
+:root[data-paper='white'] {
+  --bg: light-dark(#fff, #161614);
+  --bg-glow: radial-gradient(ellipse 85% 42% at 50% 0%, light-dark(transparent, rgb(235 220 188 / 0.042)), transparent 72%);
+  --panel: light-dark(#f7f6f3, #1c1c19);
+  --elevated: light-dark(#fff, #22221f);
+  --selected: light-dark(#ebeae6, #2b2b28);
+  --overlay: light-dark(#ebeae6, #2b2b28);
+  --code-ground: light-dark(#f5f4f0, #1d1d1a);
+  --mat: light-dark(#f2f1ec, #1b1b18);
   --endpaper: light-dark(#f0efef, #2a2925);
 }
 
@@ -370,10 +469,11 @@
   }
 }
 
-/* The reading column's editorial scale at the owner's chosen size. Only the
-   ed tokens move: the chrome keeps its own type, because the preference tunes
+/* The reading column's editorial scale at the owner's chosen size, and the
+   measure that goes with it. Only the reading tokens move: the chrome keeps its own type, because the preference tunes
    the reading, never the furniture around it. */
 :root[data-textsize='l'] {
+  --measure-read: 700px;
   --fs-ed-13: 0.9375rem;
   --fs-ed-14: 1rem;
   --fs-ed-15: 1.0625rem;
@@ -385,6 +485,7 @@
 }
 
 :root[data-textsize='xl'] {
+  --measure-read: 740px;
   --fs-ed-13: 1.0625rem;
   --fs-ed-14: 1.125rem;
   --fs-ed-15: 1.1875rem;
@@ -447,4 +548,10 @@
 :root[data-font='kai'] {
   --font-read: var(--font-kai);
   --font-read-ja: var(--font-kai-ja);
+}
+
+/* Motion arrives once the first paint is on the screen. */
+:root.is-ready {
+  --dur-base: var(--dur-base-ready);
+  --dur-slow: var(--dur-slow-ready);
 }
