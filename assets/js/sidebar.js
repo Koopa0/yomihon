@@ -8,19 +8,29 @@ import { initRailFilter } from './rail-filter.js';
 export function initSidebar() {
   const rail = document.querySelector('.y-rail-left');
   const input = rail?.querySelector('[data-nav-filter]');
-  if (!input) {
-    return { canFocusFilter: () => false, focusFilter() {} };
-  }
+  const none = { canFocusFilter: () => false, focusFilter() {} };
+  if (!rail) return none;
 
   const storageKey = 'yomihon.nav';
   const filterKey = 'yomihon.nav.filter';
-  const state = initRailFilter(rail, input);
-  state.restore();
+  // A list short enough to need no filter has none, and still keeps what the
+  // reader opened and closed in it.
+  const state = input ? initRailFilter(rail, input) : null;
+  state?.restore();
+
+  function readDisclosureState() {
+    if (state) return state.readDisclosureState();
+    try {
+      return JSON.parse(sessionStorage.getItem(storageKey) || '{}') || {};
+    } catch {
+      return {};
+    }
+  }
 
   rail.addEventListener('toggle', (event) => {
     const details = event.target;
-    if (state.filtering || !details.dataset?.key || details.hasAttribute('data-chain')) return;
-    const stored = state.readDisclosureState();
+    if (state?.filtering || !details.dataset?.key || details.hasAttribute('data-chain')) return;
+    const stored = readDisclosureState();
     stored[details.dataset.key] = details.open;
     try {
       sessionStorage.setItem(storageKey, JSON.stringify(stored));
@@ -28,6 +38,8 @@ export function initSidebar() {
       // A refused write leaves the native disclosure usable on this page.
     }
   }, true);
+
+  if (!input) return none;
 
   function rememberFilter() {
     try {

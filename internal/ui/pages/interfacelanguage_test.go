@@ -71,11 +71,11 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 				t.Errorf("the reading page is not speaking %q: want %q", lang, wording.RawFile.In(lang))
 			}
 			var rail bytes.Buffer
-			if err := sidebar(NewSidebar(nav.Shell{}, ""), chrome).Render(t.Context(), &rail); err != nil {
+			if err := sidebar(NewLibrarySidebar(nav.Shell{}, LibraryNone, ""), chrome).Render(t.Context(), &rail); err != nil {
 				t.Fatalf("render rail: %v", err)
 			}
-			if !strings.Contains(rail.String(), wording.FilterNavigation.In(lang)) {
-				t.Errorf("the rail is not speaking %q: want %q", lang, wording.FilterNavigation.In(lang))
+			if !strings.Contains(rail.String(), wording.ToggleRail.In(lang)) {
+				t.Errorf("the rail is not speaking %q: want %q", lang, wording.ToggleRail.In(lang))
 			}
 		})
 	}

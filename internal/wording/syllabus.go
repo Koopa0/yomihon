@@ -69,12 +69,6 @@ var (
 	BranchTag       = both("支線", "Branch")
 )
 
-// The course page's own sidebar.
-var (
-	CourseNav  = both("課程導覽", "Course navigation")
-	ThisCourse = both("這個課程", "This course")
-)
-
 // What the page says over an empty course, split by which repair is due.
 // The first pair teaches the grammar to a note that wrote no marker: which
 // markers declare structure, and that a heading without one is not read as a

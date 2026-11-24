@@ -136,43 +136,26 @@ func TestSearchUnlocatedNoteUsesNoArticleLanguage(t *testing.T) {
 	}
 }
 
-// TestRailListingLanguageComesOnlyFromAuthority holds the left-rail folder shelf
-// and map rows the same way: declared language on the row span, absent otherwise.
+// TestRailListingLanguageComesOnlyFromAuthority holds the sidebar's folder rows
+// the same way: declared language on the row span, absent otherwise.
 func TestRailListingLanguageComesOnlyFromAuthority(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
-		lang string
+		note nav.NoteRef
 		want string
 	}{
-		{name: "undeclared note states no language", want: `<a class="ui-navitem" href="/notes/Notes/alpha.md"><span>Alpha</span></a>`},
-		{name: "Japanese note stamps title", lang: "ja", want: `<a class="ui-navitem" href="/notes/Writing/lessons/japanese/L01.md"><span lang="ja">L01</span></a>`},
+		{name: "undeclared note states no language", note: nav.NoteRef{Name: "Alpha", RelPath: "Notes/alpha.md"}, want: `<a class="ui-navitem" href="/notes/Notes/alpha.md"><span>Alpha</span></a>`},
+		{name: "Japanese note stamps title", note: nav.NoteRef{Name: "L01", RelPath: "Writing/lessons/japanese/L01.md", Language: "ja"}, want: `<a class="ui-navitem" href="/notes/Writing/lessons/japanese/L01.md"><span lang="ja">L01</span></a>`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			row := Row{Text: "Alpha", Href: "/notes/Notes/alpha.md"}
-			if tt.lang == "ja" {
-				row = Row{Text: "L01", Href: "/notes/Writing/lessons/japanese/L01.md", Language: tt.lang}
-			}
-			shelf := Shelf{Title: "here", Href: "/folders/here", Rows: []Row{row}}
-			var buf bytes.Buffer
-			if err := ShelfRail(shelf, 24, "here", "另外 %d 篇 →").Render(t.Context(), &buf); err != nil {
-				t.Fatalf("render: %v", err)
-			}
-			if html := buf.String(); !strings.Contains(html, tt.want) {
-				t.Errorf("ShelfRail() missing %q in %q", tt.want, html)
+			sb := Sidebar{Mode: SidebarFolder, hereDir: "here", here: []nav.NoteRef{tt.note}}
+			if html := renderedHTML(t, folderRail(sb, layouts.Chrome{})); !strings.Contains(html, tt.want) {
+				t.Errorf("folderRail() missing %q in %q", tt.want, html)
 			}
 		})
-	}
-
-	entry := nav.MapEntry{Kind: nav.EntryResolved, RelPath: "Writing/lessons/japanese/L01.md", Name: "L01", Language: "ja"}
-	var buf bytes.Buffer
-	if err := entryLink(Sidebar{}, layouts.Chrome{}, entry).Render(t.Context(), &buf); err != nil {
-		t.Fatalf("render map row: %v", err)
-	}
-	if html := buf.String(); !strings.Contains(html, `<span lang="ja">L01</span>`) {
-		t.Errorf("entryLink missing Japanese language stamp in %q", html)
 	}
 }
 

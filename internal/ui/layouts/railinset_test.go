@@ -67,13 +67,6 @@ func TestTheLeftRailStartsItsTextCloseToItsEdge(t *testing.T) {
 	if diff := cmp.Diff([]string{"6px"}, row.values("column-gap")); diff != "" {
 		t.Errorf("a row in the left column sets its name and its status apart by (-want +got):\n%s", diff)
 	}
-	dot := onlyRule(t, rules, ".y-rail-left .ui-navitem > .y-navdot")
-	if diff := cmp.Diff([]string{"absolute"}, dot.values("position")); diff != "" {
-		t.Errorf("the status dot still takes a slot beside the name (-want +got):\n%s", diff)
-	}
-	if diff := cmp.Diff([]string{"-3px"}, dot.values("inset-inline-start")); diff != "" {
-		t.Errorf("the status dot is not centred on the row's rule (-want +got):\n%s", diff)
-	}
 	if got := row.values("gap"); len(got) > 0 {
 		t.Errorf("a row in the left column sets gap: %v, which would also move a wrapped row's lines apart; the rule sets the column gap alone", got)
 	}

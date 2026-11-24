@@ -23,7 +23,7 @@ import { arrived } from './support/arrival.mjs';
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './support/base.mjs';
-const PAGE = process.env.PAGE_PATH || '/notes/Notes/alpha.md';
+const PAGE = process.env.PAGE_PATH || '/notes/Writing/lessons/long-rail/Rail%20lesson%2002.md';
 const MUTATE = process.env.MUTATE || '';
 
 const RAIL = '#_y-nav-rail';
@@ -41,8 +41,7 @@ const SHAPES = [
   ['book rail', '/notes/Course/C02.md'],
   ['folder rail', '/notes/Notes/cutover.md'],
   ['root note', '/notes/README.md'],
-  ['study path', '/courses/Maps/study.md'],
-  ['shared sidebar', '/health'],
+  ['library', '/courses/Maps/study.md'],
 ];
 
 const STRIP = 40;
@@ -57,7 +56,7 @@ const THREE_COLUMNS = 1280;
 // The reading measure of a note that declares no language, and a window where
 // the column is open. From the width where the column stands the text is
 // already at its measure beside it, so folding the column gives the text no
-// width back and only moves it.
+// width back, and the main keeps its start so that it does not move either.
 const MEASURE = 660;
 const FOLD_WIDTH = 1024;
 
@@ -304,10 +303,11 @@ const MUTATIONS = {
     target: 'reduced-motion-stops-the-fold',
     apply: injectStyle('html .y-shell:has(> .y-rail-left){transition-duration:120ms!important}', '.y-shell:has(> .y-rail-left)'),
   },
-  // Anchoring off, so a reflow moves the reader.
-  'turn-off-scroll-anchoring': {
+  // The main taking the strip's width at its start, so the reading slides left
+  // by what the column gave up.
+  'let-the-reading-follow-the-strip': {
     target: 'reading-position-survives',
-    apply: injectStyle('html,body,.y-main{overflow-anchor:none!important}', 'html'),
+    apply: injectStyle("html[data-rail='collapsed'] .y-shell2:has(> .y-rail-left) > .y-main,html[data-rail='collapsed'] .y-shell:has(> .y-rail-left) > .y-main{padding-left:0!important}", '.y-main'),
   },
   // Only the note shell folding.
   'fold-only-the-note-shell': {
@@ -860,12 +860,12 @@ try {
     await context.close();
   });
 
-  // The reader's place in the text survives the fold. Between the two widths
-  // where the text is narrower than its measure, folding widens it and every
-  // paragraph above the reader reflows; the browser's own anchoring has to keep
-  // the paragraph they are reading where it was. The page is lengthened by
-  // repeating its own prose, since no fixture note is long enough to scroll to
-  // the middle of.
+  // Folding the column hides it and does not move the reading: the paragraph
+  // being read keeps its left edge, its width and its place in the window, at
+  // the largest text size too, where the measure is wider than the room and the
+  // text would have been widened by what the strip gave up. The page is
+  // lengthened by repeating its own prose, since no fixture note is long enough
+  // to scroll to the middle of.
   //
   // The paragraph read is one from the middle of the page, brought to the top
   // edge of the window. Anchoring holds still the first thing the browser can
@@ -890,17 +890,16 @@ try {
         window.scrollTo(0, window.__reading.getBoundingClientRect().top + window.scrollY);
       });
       await page.waitForTimeout(150);
-      const before = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
+      const read = () => page.evaluate(() => {
+        const box = window.__reading.getBoundingClientRect();
+        return { top: box.top, left: box.left, width: box.width };
+      });
+      const before = await read();
       await key(page, '[');
       await settled(page);
-      const after = await page.evaluate(() => ({ top: window.__reading.getBoundingClientRect().top, width: window.__reading.getBoundingClientRect().width }));
-      // Where the text is narrower than its measure the fold widens it and the
-      // paragraphs above the reader reflow; the narrowest width has to be such a
-      // case, or the assertion below would pass for lack of anything to move. The
-      // widths above it are asked whichever way they fall, because the measure's
-      // edge sits within a few pixels of one of them and moves with the platform.
-      if (width === 1024 && !(after.width > before.width)) {
-        broken(`at 1024px the text was ${before.width}px and became ${after.width}px, so this case would not test a reflow`);
+      const after = await read();
+      if (Math.abs(after.left - before.left) > 1 || Math.abs(after.width - before.width) > 1) {
+        fail('reading-position-survives', `at ${width}px the paragraph being read started at ${before.left}px and was ${before.width}px wide, and then started at ${after.left}px and was ${after.width}px wide when the column folded`);
       }
       if (Math.abs(after.top - before.top) > 2) {
         fail('reading-position-survives', `at ${width}px the paragraph being read moved ${after.top - before.top}px when the column folded`);
@@ -914,7 +913,7 @@ try {
       const { page, context, checkProof } = await open('every-rail-page-folds', path, { width: 1281 });
       // The injected rule is aimed at the study-path shell, so only that page
       // can show it matched anything.
-      if (shape === 'study path') await checkProof();
+      if (shape === 'library') await checkProof();
       const before = await geometry(page);
       if (!before.toggle || before.toggle.display === 'none') broken(`${shape} (${path}) draws no control`);
       await page.locator(TOGGLE).click();
@@ -1028,7 +1027,7 @@ try {
     for (const width of [1024, THREE_COLUMNS - 1, THREE_COLUMNS, 1281]) {
       for (const [shape, path] of SHAPES) {
         const { page, context, checkProof } = await open('every-shell-keeps-its-open-width', path, { width });
-        if (shape === 'study path' && width === 1024) await checkProof();
+        if (shape === 'library' && width === 1024) await checkProof();
         const facts = await page.evaluate(() => {
           const shell = document.querySelector('.y-shell, .y-shell2');
           return { note: shell.classList.contains('y-shell'), rail: document.querySelector('#_y-nav-rail').getBoundingClientRect().width };

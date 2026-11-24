@@ -41,7 +41,7 @@ func renderCourse(t *testing.T, view *PathView, lang wording.Lang) string {
 
 // courseOf reads a built course into the page view the cover gives it.
 func courseOf(path *nav.Course, cover *CourseCover) *PathView {
-	view := BuildPathView(path, nil, cover)
+	view := BuildPathView(path, cover)
 	return &view
 }
 
@@ -160,26 +160,6 @@ func TestTheBookRailMarksDraftsAndBookmarkByTheSameRules(t *testing.T) {
 	}
 	if html := row(PathEntryView{Draft: true}, wording.En); strings.Contains(html, "y-bookmark__ribbon") {
 		t.Errorf("a lesson that holds no kept place carries the bookmark: %s", html)
-	}
-}
-
-func TestTheVaultSidebarMarksOnlyDrafts(t *testing.T) {
-	t.Parallel()
-
-	chrome := layouts.Chrome{Lang: wording.En}
-	pathRow := func(draft bool) string {
-		return renderComponent(t, pathEntryLink(Sidebar{}, chrome, &nav.PathEntry{Name: "N", RelPath: "N.md", Kind: nav.EntryResolved, Draft: draft}))
-	}
-	mapRow := func(draft bool) string {
-		return renderComponent(t, entryLink(Sidebar{}, chrome, nav.MapEntry{Name: "N", RelPath: "N.md", Kind: nav.EntryResolved, Draft: draft}))
-	}
-	for name, row := range map[string]func(bool) string{"course row": pathRow, "map row": mapRow} {
-		if html := row(false); strings.Contains(html, "ui-navitem__count") {
-			t.Errorf("%s: a finished note prints a mark: %s", name, html)
-		}
-		if html := row(true); !strings.Contains(html, `<span class="ui-navitem__count">Draft</span>`) {
-			t.Errorf("%s: a draft prints no mark: %s", name, html)
-		}
 	}
 }
 

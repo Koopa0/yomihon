@@ -48,6 +48,9 @@ var (
 // whole. It carries the count, so it is a format rather than a sentence.
 var MoreInFolder = both("另外 %d 篇 →", "%d more →")
 
+// MoreFolders is the link to the folders the library's list had no room for.
+var MoreFolders = both("另外 %d 個資料夾 →", "%d more folders →")
+
 // The rail's section headings.
 var (
 	CoursesAndMaps = both("課程與索引", "Courses and indexes")

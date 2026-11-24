@@ -208,7 +208,7 @@ func TestTheFootChoosesTheOrderItCanKnow(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			resolved := NewReadingRail(nav.Shell{Nav: model}, tt.current, "")
+			resolved := NewNoteSidebar(nav.Shell{Nav: model}, tt.current, "")
 			foot := FooterSequence(&resolved, wording.ZhHant)
 			if foot.Prev.RelPath != tt.wantPrev {
 				t.Errorf("FooterSequence(%q) prev = %q, want %q", tt.current, foot.Prev.RelPath, tt.wantPrev)
@@ -324,14 +324,14 @@ func TestOnlyTheFootOffersTheCourseStep(t *testing.T) {
 
 	model := buildStepsModel(t)
 	current := "Course/C02.md"
-	resolved := NewReadingRail(nav.Shell{Nav: model}, current, "golang")
+	resolved := NewNoteSidebar(nav.Shell{Nav: model}, current, "golang")
 	chosen := FooterSequence(&resolved, wording.ZhHant)
 	if !chosen.Course || chosen.Label == "" {
 		t.Fatalf("FooterSequence(%q) did not choose a course foot: label=%q course=%v", current, chosen.Label, chosen.Course)
 	}
 
 	var rail bytes.Buffer
-	if err := readingRail(resolved, layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &rail); err != nil {
+	if err := sidebar(resolved, layouts.Chrome{Lang: wording.ZhHant}).Render(t.Context(), &rail); err != nil {
 		t.Fatalf("render reading rail: %v", err)
 	}
 	if strings.Contains(rail.String(), "<nav") {

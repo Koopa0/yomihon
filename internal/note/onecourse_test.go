@@ -55,7 +55,7 @@ func TestThePageOffersOneStepOnwardInTheFoot(t *testing.T) {
 				"Maps/golang/Primary path.md":     syllabus("Primary path", "Primary next"),
 				"Maps/japanese/Secondary path.md": syllabus("Secondary path", "Other next"),
 			},
-			wantKind: "book",
+			wantKind: "course",
 			wantFoot: primaryNext,
 		},
 		{
@@ -63,7 +63,7 @@ func TestThePageOffersOneStepOnwardInTheFoot(t *testing.T) {
 			courses: map[string]string{
 				"Maps/golang/Primary path.md": syllabus("Primary path", "Primary next"),
 			},
-			wantKind: "book",
+			wantKind: "course",
 			wantFoot: primaryNext,
 		},
 		{
@@ -91,8 +91,8 @@ func TestThePageOffersOneStepOnwardInTheFoot(t *testing.T) {
 			if code != http.StatusOK {
 				t.Fatalf("note page status = %d, want %d", code, http.StatusOK)
 			}
-			if kind := `data-reading-rail="` + tt.wantKind + `"`; !strings.Contains(page, kind) {
-				t.Fatalf("the page carries no %s rail, so its step onward proves nothing", tt.wantKind)
+			if kind := `data-sidebar-mode="` + tt.wantKind + `"`; !strings.Contains(page, kind) {
+				t.Fatalf("the page carries no %s sidebar, so its step onward proves nothing", tt.wantKind)
 			}
 			if strings.Contains(page, `class="y-lessonsteps"`) {
 				t.Error("the rail offers a step onward as well as the foot; one page offers one")

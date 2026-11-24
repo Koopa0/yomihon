@@ -246,7 +246,6 @@ samp {
 
 .y-here .ui-navitem,
 .y-railgroup .ui-navitem,
-.y-railreports .ui-navitem,
 .y-citedby .ui-navitem,
 .y-basedon .ui-navitem,
 .y-pair .ui-navitem {
@@ -257,7 +256,6 @@ samp {
 
 .y-here .ui-navitem:hover,
 .y-railgroup .ui-navitem:hover,
-.y-railreports .ui-navitem:hover,
 .y-citedby .ui-navitem:hover,
 .y-basedon .ui-navitem:hover,
 .y-pair .ui-navitem:hover {
@@ -267,13 +265,11 @@ samp {
 
 .y-here .ui-navitem.is-active,
 .y-railgroup .ui-navitem.is-active,
-.y-railreports .ui-navitem.is-active,
 .y-citedby .ui-navitem.is-active,
 .y-basedon .ui-navitem.is-active,
 .y-pair .ui-navitem.is-active,
 .y-here .ui-navitem[aria-current='page'],
-.y-railgroup .ui-navitem[aria-current='page'],
-.y-railreports .ui-navitem[aria-current='page'] {
+.y-railgroup .ui-navitem[aria-current='page'] {
   background: var(--selected);
   color: var(--on-selected);
 }
@@ -293,15 +289,39 @@ samp {
 
 /* A folder's neighbourhood and the reports are lists the way a group's rows
    are, so their rule stands at the same place under their heading. */
-.y-rail-left .y-here > .ui-navitem,
-.y-rail-left .y-railreports > .ui-navitem {
+.y-rail-left .y-here > .ui-navitem {
   margin-left: var(--rail-list-inset);
 }
 
-.y-rail-left .ui-navitem > .y-navdot {
-  inset-block-start: calc(4px + (1.5rem - 6px) / 2);
-  inset-inline-start: -3px;
-  position: absolute;
+/* The library's destinations are not a thread of stops, so they carry no rule:
+   a row's words stand on the column's own padding, where the header's logo
+   stands, and its wash reaches back by the row's inset on both sides. */
+.y-rail-left .y-here.y-here--flat > .ui-navitem {
+  border-radius: var(--r-sm);
+  box-shadow: none;
+  margin-inline: calc(-1 * var(--sp-2));
+  padding-left: var(--sp-2);
+}
+
+.y-rail-left .y-here.y-here--flat > .ui-navitem:hover {
+  background: var(--wash);
+  box-shadow: none;
+}
+
+.y-rail-left .y-here.y-here--flat > .ui-navitem.is-active {
+  background: var(--selected);
+}
+
+/* The name over a flat list is a quiet label, not a heading: it and the rows
+   under it stand on the same left edge. */
+.y-rail-left .y-here--flat > .y-here__label {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-regular);
+}
+
+.y-rail-left .y-here--flat > .y-here__more {
+  padding-inline: 0;
 }
 
 /* A row whose entry names nothing carries a warning glyph in the dot's place.
@@ -1277,9 +1297,10 @@ html:not([data-js]) .y-rubybtn {
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: var(--fs-14);
+  height: var(--control-h);
   margin: var(--sp-2) 0 var(--sp-1);
   outline: none;
-  padding: var(--sp-2) var(--sp-3);
+  padding: 0 var(--sp-3);
   width: 100%;
 }
 
@@ -1319,13 +1340,6 @@ html:not([data-js]) .y-rubybtn {
   white-space: nowrap;
 }
 
-/* map tree — nested heading disclosures */
-.y-tree {
-  border-left: 1px solid var(--line);
-  margin-left: var(--sp-2);
-  padding-left: var(--sp-3);
-}
-
 .y-navmark {
   color: var(--fg-subtle);
   font-family: var(--font-sans);
@@ -1361,62 +1375,6 @@ html:not([data-js]) .y-rubybtn {
   font-size: var(--fs-13);
   line-height: 1.5;
   margin: 3px 0 var(--sp-2);
-}
-
-/* a course summary (the study-path title) and a section summary (a heading) */
-.y-railitem,
-.y-treeitem {
-  align-items: center;
-  border-radius: var(--r-sm);
-  color: var(--fg-muted);
-  cursor: pointer;
-  display: flex;
-  font-size: var(--fs-14);
-  gap: 7px;
-  line-height: 1.25rem;
-  padding: 6px 8px;
-}
-
-.y-railitem {
-  color: var(--fg);
-  font-weight: var(--fw-semibold);
-}
-
-.y-railitem:hover,
-.y-treeitem:hover {
-  background: var(--wash);
-  color: var(--fg);
-}
-
-.y-railitem__name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.y-lessonsteps {
-  padding: 2px 0 var(--sp-1);
-}
-
-.y-lessonsteps__path {
-  color: var(--fg-subtle);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-medium);
-  padding: var(--sp-1) 0 2px;
-}
-
-.y-railitem__full {
-  color: var(--fg-muted);
-  display: block;
-  font-family: var(--font-sans);
-  font-size: var(--fs-13);
-  padding: 4px 8px 6px;
-}
-
-.y-railitem__full:hover {
-  color: var(--fg);
 }
 
 /* the foot of the rail — which folder this is, and how large it is. It is the label face the rail's own headings
@@ -5576,31 +5534,12 @@ button.y-freshness__action {
   color: var(--fg-muted);
 }
 
-.y-pathitem__num {
-  color: var(--fg-muted);
-  flex: none;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  min-width: 16px;
-}
-
 .y-pathitem__name {
   display: block;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* The course page's sidebar opens on this label, which stands at the header's
-   line like the first words of a lesson's or a file's: an indent of its own put
-   them eight pixels in from where every other page's sidebar starts. */
-.y-syl-raillabel {
-  padding: 0 0 var(--sp-2);
-}
-
-.y-syl-raillabel--gap {
-  padding-top: 20px;
 }
 
 /* The words end on a space and the arrow follows as inline text, the way the
@@ -6196,13 +6135,39 @@ samp,
    no row reflows on the way; it fades over the same time and leaves the tree
    at the end, which is what lets the strip hold only the button. */
 @media (min-width: 1024px) {
-  .y-shell:has(> .y-rail-left),
-  .y-shell2:has(> .y-rail-left) {
+  .y-shell:has(> .y-rail-left:not([data-drawer-only])),
+  .y-shell2:has(> .y-rail-left:not([data-drawer-only])) {
     transition: grid-template-columns var(--dur-base) var(--ease-standard);
+  }
+
+  .y-shell:has(> .y-rail-left:not([data-drawer-only])) > .y-main,
+  .y-shell2:has(> .y-rail-left:not([data-drawer-only])) > .y-main {
+    transition: padding-left var(--dur-base) var(--ease-standard);
   }
 
   .y-rail-left {
     overflow-x: hidden;
+  }
+
+  /* A column of this width ends in nothing: which folder it is stays in the
+     header, and the drawer, where the column is a sheet, keeps its foot. */
+  .y-railsep:has(+ .y-railfoot),
+  .y-railfoot {
+    display: none;
+  }
+
+  /* A page whose column is only a drawer (the 404, the findings, a refused
+     request) has no column to stand beside from here up: the sidebar is not
+     drawn and the page is the one thing in the shell, as a page with no
+     sidebar is. */
+  .y-rail-left[data-drawer-only] {
+    display: none;
+  }
+
+  /* The page keeps the track a column would have left it, so its text starts
+     where it does on a page with a column: one left edge across the site. */
+  .y-shell2:has(> .y-rail-left[data-drawer-only]) > .y-main {
+    grid-column: 2;
   }
 
   .y-railbody,
@@ -6240,9 +6205,16 @@ samp,
   }
   /* stylelint-enable length-zero-no-unit */
 
-  html[data-rail='collapsed'] .y-shell:has(> .y-rail-left),
-  html[data-rail='collapsed'] .y-shell2:has(> .y-rail-left) {
+  html[data-rail='collapsed'] .y-shell:has(> .y-rail-left:not([data-drawer-only])),
+  html[data-rail='collapsed'] .y-shell2:has(> .y-rail-left:not([data-drawer-only])) {
     grid-template-columns: var(--rail-strip) minmax(0, 1fr);
+  }
+
+  /* Folding hides the column and does not move the reading: the main keeps the
+     start it had beside the open column, in what the strip gives up. */
+  html[data-rail='collapsed'] .y-shell:has(> .y-rail-left:not([data-drawer-only])) > .y-main,
+  html[data-rail='collapsed'] .y-shell2:has(> .y-rail-left:not([data-drawer-only])) > .y-main {
+    padding-left: calc(var(--rail-open) - var(--rail-strip));
   }
 
   html[data-rail='collapsed'] .y-railbody,
@@ -6260,8 +6232,10 @@ samp,
   /* A page restored from the back/forward cache is put in the state its cookie
      names at once: the fold is answered by a transition only when the reader
      asked for it, and a restore is not the reader asking. */
-  html[data-rail-settling] .y-shell:has(> .y-rail-left),
-  html[data-rail-settling] .y-shell2:has(> .y-rail-left),
+  html[data-rail-settling] .y-shell:has(> .y-rail-left:not([data-drawer-only])),
+  html[data-rail-settling] .y-shell2:has(> .y-rail-left:not([data-drawer-only])),
+  html[data-rail-settling] .y-shell:has(> .y-rail-left:not([data-drawer-only])) > .y-main,
+  html[data-rail-settling] .y-shell2:has(> .y-rail-left:not([data-drawer-only])) > .y-main,
   html[data-rail-settling] .y-railbody,
   html[data-rail-settling] .y-railhead .y-filter {
     transition: none;

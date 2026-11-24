@@ -70,7 +70,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	lang := origin.Language(r)
 	st := readState(r, q)
 	view := answerView(&snap, h.query(snap.Index, q, lang, wholeAnswer), st, lang)
-	view.Sidebar = pages.NewSidebar(snap.Shell, "")
+	view.Sidebar = pages.NewLibrarySidebar(snap.Shell, pages.LibraryNone, "")
 	chrome := layouts.ChromeFromRequest(r, wording.SearchTitleFor(lang, q))
 	chrome.SearchQuery = view.Query
 	if err := pages.Search(view, chrome).Render(r.Context(), w); err != nil {
