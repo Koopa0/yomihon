@@ -253,7 +253,7 @@ const MUTATIONS = {
   'let-a-control-take-the-name': {
     target: 'wordmark-whole',
     on: 'note',
-    apply: (page) => injectRule(page, '.y-searchfield', '.y-searchfield { min-width: 400px; } .y-brand__name { flex: 0 1 auto; min-width: 0; } .y-brand__word { overflow: hidden; }'),
+    apply: (page) => injectRule(page, '.y-searchfield', '.y-searchfield { min-width: 400px; } .y-brand__name { flex: 0 1 auto; min-width: 24px; } .y-brand__word { overflow: hidden; }'),
   },
   // The bookmark loses the attribute that tells a screen reader it is a
   // toggle and whether it is on.
