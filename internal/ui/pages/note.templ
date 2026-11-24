@@ -135,6 +135,10 @@ type NoteView struct {
 	// rubyOn is whether the reader has readings switched on, which the page
 	// learns from its chrome and the switch in its head must be drawn to match.
 	rubyOn bool
+	// vault is what the vault is called, which the row above the title starts
+	// from, as a book's running head starts from the book. The page learns it
+	// from its chrome; empty where the page was made with none.
+	vault string
 	// PlaceKept is whether the place the reader left off at is in this note.
 	// The control for keeping one then says so, so a reader who comes back to
 	// the note is told it already holds their place and not asked to guess.
@@ -176,6 +180,7 @@ templ Note(v NoteView, c layouts.Chrome) {
 	// vault and this path, so the page says which note it is.
 	{{ c.Reading = v.readingNote() }}
 	{{ v.rubyOn = c.Ruby == "on" }}
+	{{ v.vault = c.Vault }}
 	{{ c.Diagrams = render.CarriesDiagrams(v.BodyHTML) }}
 	@layouts.Base(c) {
 		// The sheet owns an id outside the authored section namespace.
@@ -257,40 +262,50 @@ templ conceptSheet(concepts []drill.ConceptDoc, lang wording.Lang) {
 // A title with thoughts of the reader's own about the note as a whole stands in
 // a row with them, as a heading stands with its section's margin.
 templ articleHead(v NoteView, lang wording.Lang) {
-	@noteWhere(v, lang)
-	if len(v.TitleThoughts) > 0 {
-		<div class="y-sect y-sect--title">
+	<header class="y-frontis">
+		@noteWhere(v, lang)
+		if len(v.TitleThoughts) > 0 {
+			<div class="y-sect y-sect--title">
+				@noteTitle(v)
+				@titleMargin(v.TitleThoughts, lang)
+			</div>
+		} else {
 			@noteTitle(v)
-			@titleMargin(v.TitleThoughts, lang)
-		</div>
-	} else {
-		@noteTitle(v)
-	}
-	if v.ParsePanic {
-		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteParseStale.In(lang) } <code lang="en">{ v.ParseReason }</code></p>
-	} else if v.Stale {
-		<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
-	}
-	@noteTools(v, lang)
+		}
+		if v.ParsePanic {
+			<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteParseStale.In(lang) } <code lang="en">{ v.ParseReason }</code></p>
+		} else if v.Stale {
+			<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
+		}
+		@noteTools(v, lang)
+	</header>
 }
 
-// noteWhere is the row above the title that says where the note is: the folders
-// it lies in, each a link, or the course a unit belongs to. A draft says so at
-// its end. A note on a page holding two notes has no place to name, the page
+// noteWhere is the row above the title that says where the note is: the vault,
+// then the folders it lies in or the course a unit belongs to, each a link. A
+// draft says so at its end. A note on a page holding two notes has no place to name, the page
 // naming each column, but still says it is a draft.
 templ noteWhere(v NoteView, lang wording.Lang) {
 	if v.Draft || (!v.NestedTitle && v.whereShown()) {
 		<p class="y-notewhere" lang={ lang.Tag() }>
 			if v.NestedTitle {
 				// The page names the column's note itself.
-			} else if v.StepsCourse && v.StepsPath.RelPath != "" {
-				<a href={ templ.URL(courseHrefFrom(v.StepsPath.RelPath, v.RelPath)) } { authoredLanguageAttrs(v.StepsPath.Language)... }>{ v.StepsPath.Name }</a>
 			} else {
-				for i, folder := range v.folders() {
-					if i > 0 {
+				if v.vault != "" {
+					<a href="/">{ v.vault }</a>
+				}
+				if v.StepsCourse && v.StepsPath.RelPath != "" {
+					if v.vault != "" {
 						<span aria-hidden="true">›</span>
 					}
-					<a href={ templ.URL(folderHref(folder.Path)) }>{ folder.Name }</a>
+					<a href={ templ.URL(courseHrefFrom(v.StepsPath.RelPath, v.RelPath)) } { authoredLanguageAttrs(v.StepsPath.Language)... }>{ v.StepsPath.Name }</a>
+				} else {
+					for i, folder := range v.folders() {
+						if i > 0 || v.vault != "" {
+							<span aria-hidden="true">›</span>
+						}
+						<a href={ templ.URL(folderHref(folder.Path)) }>{ folder.Name }</a>
+					}
 				}
 			}
 			if v.Draft {

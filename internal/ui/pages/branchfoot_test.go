@@ -276,15 +276,36 @@ func TestTheHeadOpensOnWhereTheNoteIs(t *testing.T) {
 		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
 			_, view := footView(model, tt.current, lang)
 			view.Title = "T"
+			view.vault = "Shelf"
 			html := renderedHTML(t, articleHead(view, lang))
-			where, title := strings.Index(html, `<p class="y-notewhere"`), strings.Index(html, `<h1 class="y-title">T</h1>`)
-			if where != 0 || title < where {
-				t.Errorf("the head of %s in %s does not open on its row and then its title; html = %q", tt.current, lang, html)
+			opening := `<header class="y-frontis"><p class="y-notewhere"`
+			vault, place := strings.Index(html, `<a href="/">Shelf</a>`), strings.Index(html, tt.link)
+			title := strings.Index(html, `<h1 class="y-title">T</h1>`)
+			if !strings.HasPrefix(html, opening) || vault < 0 || place < vault || title < place {
+				t.Errorf("the head of %s in %s does not open on its row, the vault then where the note is, and then its title; html = %q", tt.current, lang, html)
 			}
-			if !strings.Contains(html, tt.link) || strings.Contains(html, tt.absent) {
-				t.Errorf("the row of %s in %s lacks %s or draws %s; html = %q", tt.current, lang, tt.link, tt.absent, html)
+			if strings.Contains(html, tt.absent) {
+				t.Errorf("the row of %s in %s draws %s; html = %q", tt.current, lang, tt.absent, html)
 			}
 		}
+	}
+}
+
+// TestANoteAtTheVaultsTopNamesTheVaultAlone holds the row to a note at the top
+// of the vault: it has no folder to name, and the row is then the vault alone,
+// with no mark between it and nothing. A page made with no vault name has no
+// row to draw for such a note.
+func TestANoteAtTheVaultsTopNamesTheVaultAlone(t *testing.T) {
+	t.Parallel()
+
+	view := NoteView{Title: "T", RelPath: "Top.md", vault: "Shelf"}
+	html := renderedHTML(t, noteWhere(view, wording.En))
+	if !strings.Contains(html, `<a href="/">Shelf</a>`) || strings.Contains(html, "›") {
+		t.Errorf("a note at the top draws %q, want the vault alone", html)
+	}
+	view.vault = ""
+	if html := renderedHTML(t, noteWhere(view, wording.En)); html != "" {
+		t.Errorf("a note at the top of an unnamed vault draws %q, want nothing", html)
 	}
 }
 

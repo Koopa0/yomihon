@@ -385,10 +385,10 @@ func (v *NoteView) folders() []folder {
 	return out
 }
 
-// whereShown reports whether the head has a place to name: the course a unit
-// belongs to, or the folders a note lies in.
+// whereShown reports whether the head has a place to name: the vault, the
+// course a unit belongs to, or the folders a note lies in.
 func (v *NoteView) whereShown() bool {
-	if v.StepsCourse && v.StepsPath.RelPath != "" {
+	if v.vault != "" || (v.StepsCourse && v.StepsPath.RelPath != "") {
 		return true
 	}
 	return len(v.folders()) > 0

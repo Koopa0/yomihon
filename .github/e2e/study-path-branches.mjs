@@ -301,8 +301,8 @@ try {
         href: title?.getAttribute('href') ?? null,
         face: title ? getComputedStyle(title).fontFamily : null,
         parts,
-        where: document.querySelector('.y-article')?.firstElementChild?.matches('p.y-notewhere') ?? false,
-        first: document.querySelector('.y-article')?.firstElementChild?.nextElementSibling?.tagName ?? null,
+        where: document.querySelector('.y-article > .y-frontis:first-child')?.firstElementChild?.matches('p.y-notewhere') ?? false,
+        first: document.querySelector('.y-article > .y-frontis:first-child')?.firstElementChild?.nextElementSibling?.tagName ?? null,
       };
     });
   };

@@ -752,13 +752,16 @@ samp {
 }
 /* The page head's toolbar holds the two controls only a page with something to
    read aloud or with readings has: each is one press, drawn the same way, and
-   the one that is a switch says so by its pressed state alone (the wash, no
-   frame). Both depend on script, which is what they act through. */
+   the one that is a switch says so by its pressed state (the selected ground).
+   They stand at the end of the row under the title, where the head's quiet
+   controls are kept, so the title and the text below it are what the eye
+   meets first. Both depend on script, which is what they act through. */
 .y-notetools {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
-  margin-block-start: var(--sp-5);
+  justify-content: flex-end;
+  margin-block-start: 20px;
 }
 
 html:not([data-js]) .y-toolbtn {
@@ -766,29 +769,31 @@ html:not([data-js]) .y-toolbtn {
 }
 
 .y-toolbtn {
-  --icon-size: 16px;
+  --icon-size: 13px;
   align-items: center;
   background: transparent;
-  border: 1px solid var(--outline);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
-  color: var(--fg);
+  color: var(--fg-muted);
   cursor: pointer;
   display: inline-flex;
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  font-weight: var(--fw-medium);
-  gap: var(--sp-2);
-  min-height: 32px;
-  padding: 0 var(--sp-3);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-regular);
+  gap: 5px;
+  min-height: 27px;
+  padding: 0 10px;
 }
 
 .y-toolbtn:hover {
   background: var(--wash);
+  color: var(--fg);
 }
 
 .y-toolbtn[aria-pressed='true'] {
   background: var(--selected);
-  border-color: transparent;
+  color: var(--fg);
+  font-weight: var(--fw-semibold);
 }
 
 @media (max-width: 720px) {
@@ -1548,24 +1553,63 @@ html[data-js][data-arrival='kept'] .y-main {
 
 /* Where the note is, above its title: quiet, with the links the ink of the page
    and underlined as links are in the text. */
+/* The note's head is a frontispiece: the row that says where the note is, the
+   title, and the controls that act on the whole note, closed by a printer's
+   double rule (a heavier line over a hairline) that parts the head from the
+   text as a title page is parted from the first chapter. */
+.y-frontis {
+  margin-block-end: 44px;
+  padding-block-end: 30px;
+  position: relative;
+}
+
+.y-frontis::after {
+  border-block-end: 0.5px solid var(--line);
+  border-block-start: 1px solid var(--rule-double);
+  content: '';
+  height: 5px;
+  inset: auto 0 0;
+  position: absolute;
+}
+
+/* The running head: the vault, then the folders or the course, each a link set
+   back in the secondary ink, with the separators fainter still. A link takes
+   its underline under a pointer, as a running head is read past, not into. */
 .y-notewhere {
   align-items: center;
-  color: var(--fg-subtle);
+  color: var(--fg-faint);
   display: flex;
   flex-wrap: wrap;
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  gap: var(--sp-1) var(--sp-3);
+  gap: var(--sp-1) var(--sp-2);
+  letter-spacing: 0.02em;
   line-height: 1.25rem;
-  margin: 0 0 var(--sp-3);
+  margin: 0 0 14px;
 }
 
 .y-notewhere a {
+  color: var(--fg-muted);
+  text-decoration: none;
+}
+
+.y-notewhere a:hover {
   color: var(--fg);
   text-decoration: underline;
   text-decoration-color: var(--link-line);
   text-decoration-thickness: 1px;
   text-underline-offset: 0.24em;
+}
+
+/* The title in a note's head is set as the frontispiece sets it: a touch
+   tighter and heavier than a list page's title, scaled with the window between
+   a phone's size and the desk's, the same leading for every script. */
+.y-frontis .y-title {
+  font-size: clamp(29px, 3.3vw, 37px);
+  font-weight: var(--fw-semibold);
+  letter-spacing: -0.015em;
+  line-height: 1.32;
+  margin: 0;
 }
 
 .y-notewhere__draft {
