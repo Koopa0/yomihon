@@ -184,6 +184,9 @@ try {
     const value = await page.locator(FILTER).inputValue();
     check(value === 'C02' && await page.locator('#_y-nav-rail a[href="/notes/Course/C01.md"]').evaluate((row) => row.hidden), 'early-owner', `remembered narrowing depends on the deferred entry: input=${JSON.stringify(value)}, want "C02" with the other lesson hidden`);
     await page.waitForFunction(() => window.railFrames.length >= 3);
+    // The paint entry is queued after the frame that painted, so it is waited
+    // for rather than read at whatever moment the frames were.
+    await page.waitForFunction(() => performance.getEntriesByType('paint').some((entry) => entry.name === 'first-contentful-paint'), null, { timeout: 5000 }).catch(() => {});
     const frames = await page.evaluate(() => ({ frames: window.railFrames, shifts: window.railShifts, paints: performance.getEntriesByType('paint').map((entry) => ({ name: entry.name, startTime: entry.startTime })) }));
     check(frames.frames.every((frame) => frame.value === 'C02' && JSON.stringify(frame.visible) === JSON.stringify(['C02 \u8349\u7a3f'])), 'early-owner', `a sampled rail frame was unfiltered: ${JSON.stringify(frames)}`);
     control(frames.paints.some((paint) => paint.name === 'first-contentful-paint'), 'fixture did not positively paint');

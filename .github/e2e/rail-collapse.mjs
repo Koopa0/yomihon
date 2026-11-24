@@ -816,6 +816,9 @@ try {
   await run('fold-is-animated', async () => {
     const { page, context, checkProof } = await open('fold-is-animated', PAGE, { width: 1281 });
     await checkProof();
+    // Every duration is zero until the root is marked is-ready, two frames
+    // after the first paint, so the declared transition is read after that.
+    await page.waitForSelector('html.is-ready', { state: 'attached' });
     const declared = await page.evaluate(() => {
       const shell = document.querySelector('.y-shell:has(> .y-rail-left), .y-shell2:has(> .y-rail-left)');
       const style = getComputedStyle(shell);
