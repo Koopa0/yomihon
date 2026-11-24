@@ -230,18 +230,26 @@ templ header(c Chrome) {
 				<span class="y-rubybtn__label y-rubybtn__label--short" aria-hidden="true">{ wording.FuriganaLabelShort.In(c.Lang) }</span>
 			</button>
 		}
-		// Native invokers open the palette without script. The script keeps a
-		// listener for engines without invokers; the link works without either.
+		// The search is a field in the row where the row has room for one: an
+		// ordinary GET form to the search page, which needs no script, and a
+		// list that drops under it as the reader types where there is one. It
+		// is not a dialog, so nothing covers the page the reader is searching
+		// from (D94); Escape closes the list and a press outside it does too.
+		<search class="y-searchfield" data-live-search data-live-search-endpoint="/search/results">
+			<form class="y-searchfield__form" method="get" action="/search" data-live-search-form>
+				<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
+				<input type="search" name="q" value={ c.SearchQuery } placeholder={ wording.SearchNotesPrompt.In(c.Lang) } aria-label={ wording.SearchNotes.In(c.Lang) } enterkeyhint="search" autocomplete="off" spellcheck="false" data-live-search-input/>
+				<span class="ui-kbd" aria-hidden="true">⌘K</span>
+			</form>
+			@LiveSearchStatus(c.Lang)
+			<div class="y-searchfield__panel" data-live-search-panel hidden></div>
+		</search>
+		// A phone's row has no room for a field, so it carries the glass alone,
+		// which opens the search over the whole screen. Native invokers open it
+		// without script; the script keeps a listener for engines without
+		// invokers, and the link works without either.
 		<button class="y-searchbtn" type="button" command="show-modal" commandfor="_y-search-dialog" data-search-open aria-label={ wording.SearchNotes.In(c.Lang) }>
 			<svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>
-			<span class="y-searchbtn__label">
-				if c.SearchQuery != "" {
-					{ c.SearchQuery }
-				} else {
-					{ wording.SearchNotesPrompt.In(c.Lang) }
-				}
-			</span>
-			<span class="ui-kbd">⌘K</span>
 		</button>
 		<noscript><a class="y-searchfallback" href="/search">{ wording.SearchTitle.In(c.Lang) }</a></noscript>
 		// The reader's own verb on the note in front of them. It is in the

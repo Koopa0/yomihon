@@ -362,11 +362,29 @@ export function initSearch() {
   const visibleField = () => fields.find((field) => field.input.offsetParent !== null);
   const openField = () => fields.find((field) => !field.panel.hidden);
 
+  // Where the reader was when the keyboard sent them to the field, so the
+  // way out of it can put them back there rather than on the page's body.
+  let cameFrom = null;
+  // Focus that goes anywhere else first makes that place stale.
+  document.addEventListener('focusin', (event) => {
+    if (!fields.some((field) => field.region.contains(event.target))) cameFrom = null;
+  });
+
+  function leaveField(field) {
+    field.panel.hidden = true;
+    const back = cameFrom;
+    cameFrom = null;
+    if (back?.isConnected) back.focus();
+    else field.input.blur();
+  }
+
   function toggle() {
     const field = visibleField();
     if (field) {
-      if (document.activeElement === field.input) field.input.blur();
+      if (document.activeElement === field.input) leaveField(field);
       else {
+        const here = document.activeElement;
+        cameFrom = here && here !== document.body ? here : null;
         field.input.focus();
         field.input.select();
       }
@@ -377,10 +395,18 @@ export function initSearch() {
     else open();
   }
 
+  // Escape closes the list first and leaves the reader in the field, where
+  // they were typing; a second Escape leaves the field for where they were
+  // before it.
   function closeAndRestoreFocus() {
     const field = openField();
     if (field) {
       field.panel.hidden = true;
+      return;
+    }
+    const focused = fields.find((candidate) => document.activeElement === candidate.input);
+    if (focused) {
+      leaveField(focused);
       return;
     }
     // The return is the platform's and is not overridden.
@@ -388,7 +414,10 @@ export function initSearch() {
   }
 
   return {
-    isOpen: () => Boolean(dialog?.open) || Boolean(openField()),
+    isOpen: () =>
+      Boolean(dialog?.open) ||
+      Boolean(openField()) ||
+      fields.some((field) => document.activeElement === field.input),
     toggle,
     closeAndRestoreFocus,
   };
