@@ -1438,7 +1438,7 @@ html:not([data-js]) .y-rubybtn {
    block the margin is nothing and the column fills it. Below 1024, where the
    column is a drawer, the margin is nothing whatever the room, so the text
    starts at the page's own side margin. */
-.y-main > :is(.y-article, .y-syl) {
+.y-main > :is(.y-article, .y-syl, .y-listen) {
   margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2));
   margin-right: auto;
 }
@@ -1453,7 +1453,6 @@ html:not([data-js]) .y-rubybtn {
   margin-right: auto;
 }
 
-.y-main > .y-listen,
 .y-shell2:not(:has(> .y-rail-left)) > .y-main > .y-recovery,
 .y-prefs {
   margin-left: max(0px, calc((100% - var(--measure-list) - 2 * var(--gutter-list)) / 2 + var(--gutter-list) - var(--gutter-read)));
