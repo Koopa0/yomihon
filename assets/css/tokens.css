@@ -88,6 +88,9 @@
   /* The bookmark ribbon is cloth, a shade off the ink-blue so it reads as an
      object lying on the page rather than as a word on it. */
   --reader-ribbon: light-dark(#29558b, #5d92ce);
+  /* The two threads woven along the ribbon's edges, a light that sits on the
+     cloth in either theme rather than on the page. */
+  --reader-ribbon-edge: light-dark(rgb(255 255 255 / 0.18), rgb(255 255 255 / 0.18));
   /* Aliases of the pair above for one release, so a page not yet moved onto
      them keeps drawing; the vermilion they used to name is gone. */
   --accent: var(--reader);
@@ -399,7 +402,9 @@
      rather than an interface one. --dur-hover-wait is a dwell too: how long a
      pointer rests on a section's row before the buttons the reader chose to
      see only on hover appear, so that scrolling under a resting pointer never
-     makes them blink. */
+     makes them blink. --dur-ribbon is the bookmark's ribbon falling onto the
+     page or being drawn back up: an object lying on the paper, slower than a
+     surface the reader summoned because cloth settles rather than slides. */
   --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
   /* Nothing moves until the page has painted once: the head's script marks
      the root is-ready two frames after the first paint, and only then do the
@@ -412,6 +417,8 @@
   --dur-hover-wait: 300ms;
   --dur-base-ready: 120ms;
   --dur-slow-ready: 200ms;
+  --dur-ribbon: 0ms;
+  --dur-ribbon-ready: 420ms;
 
   /* The pictures (system.md §10, §11). An icon is drawn at the size its place
      names, 16, 20 or 24, and takes the ink of the place; --icon-size is the
@@ -560,4 +567,5 @@
 :root.is-ready {
   --dur-base: var(--dur-base-ready);
   --dur-slow: var(--dur-slow-ready);
+  --dur-ribbon: var(--dur-ribbon-ready);
 }

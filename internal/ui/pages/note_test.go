@@ -104,7 +104,7 @@ func TestSchemaNoticesStandInReadingColumn(t *testing.T) {
 	if strings.Contains(html, "y-rail-right") {
 		t.Fatal("the page draws a right rail, which is gone")
 	}
-	proseStart := strings.Index(article, `<div class="y-prose">`)
+	proseStart := strings.Index(article, `<div class="y-prose"`)
 	noticeStart := strings.Index(article, notice)
 	if proseStart < 0 || noticeStart < 0 || noticeStart > proseStart {
 		t.Errorf("the schema notices block must sit above the prose; notice@%d prose@%d", noticeStart, proseStart)
@@ -135,7 +135,7 @@ func TestDiagnosticsStandAtTheEndOfTheText(t *testing.T) {
 	}
 	got := buf.String()
 
-	prose := strings.Index(got, `<div class="y-prose">`)
+	prose := strings.Index(got, `<div class="y-prose"`)
 	related := strings.Index(got, `<div class="y-related"`)
 	list := strings.Index(got, "y-diaglist")
 	if prose < 0 || related < 0 || list < 0 {
@@ -183,7 +183,7 @@ func TestTheEndOfTheTextHoldsEveryAidAndNothingStandsAboveTheProse(t *testing.T)
 	}
 	article := buf.String()
 
-	prose := strings.Index(article, `<div class="y-prose">`)
+	prose := strings.Index(article, `<div class="y-prose"`)
 	related := strings.Index(article, `<div class="y-related" id="_y-end"`)
 	steps := strings.Index(article, `<nav class="y-steps`)
 	if prose < 0 || related < 0 || steps < 0 {

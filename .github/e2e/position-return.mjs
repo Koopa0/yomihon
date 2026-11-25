@@ -138,7 +138,7 @@ try {
       await page.route(`**${addressOf(one.note)}`, async (route) => {
         const response = await route.fetch();
         const body = await response.text();
-        const edited = body.replace('<div class="y-prose">', `<div class="y-prose"><div style="height:${SPACER}px" aria-hidden="true"></div>`);
+        const edited = body.replace(/<div class="y-prose"[^>]*>/, (opening) => `${opening}<div style="height:${SPACER}px" aria-hidden="true"></div>`);
         if (edited === body) broken('the block above the body was not written, so the note was served unchanged');
         await route.fulfill({ response, body: edited });
       });

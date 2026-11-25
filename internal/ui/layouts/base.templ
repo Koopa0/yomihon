@@ -277,7 +277,12 @@ templ header(c Chrome) {
 			<svg class="y-prefslink__mark" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"></path><circle cx="16" cy="7" r="2"></circle><circle cx="10" cy="17" r="2"></circle></svg>
 			<span class="y-prefslink__label" aria-hidden="true">{ wording.PreferencesLink.In(c.Lang) }</span>
 		</a>
-		<span class="y-readline" aria-hidden="true"></span>
+		// How far through the note the reader is, along the row's bottom edge.
+		// Only a page reading a note draws it: a list or a form has no start
+		// and end to be part way through.
+		if c.Reading != nil {
+			<span class="y-readline" aria-hidden="true"></span>
+		}
 	</header>
 }
 

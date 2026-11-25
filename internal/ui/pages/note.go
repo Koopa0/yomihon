@@ -2,6 +2,7 @@ package pages
 
 import (
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -292,6 +293,51 @@ func (v *NoteView) markOffer() *layouts.MarkOffer {
 		Endpoint: v.MarkAddress,
 		Kept:     v.PlaceKept,
 	}
+}
+
+// carriesRibbon reports whether the note's head hangs the bookmark's ribbon.
+// It is the picture of the header's control, so it is drawn where that control
+// is, and only on a note's own page: a page holding two notes has one header
+// and no single note for a ribbon to belong to.
+func (v *NoteView) carriesRibbon() bool {
+	return !v.NestedTitle && v.offersMark()
+}
+
+// numbersSections reports whether the note's sections are given their ordinal
+// beside their headings. Only a note's own page numbers them, and only a note
+// whose sections the author did not number already: one ## heading that opens
+// on a number of its own means the author counts the sections, and a second
+// count beside the first would contradict it wherever the two disagree. It is
+// all or nothing, so a note is never half numbered by the author and half by
+// the page.
+func (v *NoteView) numbersSections() bool {
+	if v.NestedTitle {
+		return false
+	}
+	sections := 0
+	for _, entry := range v.TOC {
+		if entry.Level != 2 {
+			continue
+		}
+		if opensOnOwnNumber(entry.Text) {
+			return false
+		}
+		sections++
+	}
+	return sections > 0
+}
+
+// ownNumber is how a heading reads when its author numbered it: a digit in any
+// script ("3 Replication", "1.2", "３"), a section sign, a Chinese ordinal
+// ("第三章", "第2節"), a run of Chinese numerals closed by an enumeration
+// comma or a stop ("一、", "貳．"), or an upper-case Roman numeral closed by a
+// stop or a parenthesis ("IV. ", "II) ").
+var ownNumber = regexp.MustCompile(`^(?:\p{Nd}|§|第[\p{Nd}〇零一二三四五六七八九十百千兩]|[〇零一二三四五六七八九十百千壹貳參叁肆伍陸柒捌玖拾]+[、.．]|[IVXLC]+[.)]\s)`)
+
+// opensOnOwnNumber reports whether a heading's text begins with a number its
+// author wrote.
+func opensOnOwnNumber(text string) bool {
+	return ownNumber.MatchString(strings.TrimSpace(text))
 }
 
 // readingNote is the note as the browser keeps the reader's place in it, or nil

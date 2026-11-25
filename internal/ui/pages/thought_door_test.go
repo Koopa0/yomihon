@@ -71,7 +71,7 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 
 			// The facts end the text, so the prose's own opening is the anchor
 			// the door has to come after.
-			prose := strings.Index(page, `<div class="y-prose">`)
+			prose := strings.Index(page, `<div class="y-prose"`)
 			facts := strings.Index(page, `<dl class="y-notefacts">`)
 			if prose < 0 || facts < prose {
 				t.Fatalf("prose at %d, facts at %d; want the facts after the prose", prose, facts)

@@ -136,6 +136,7 @@ probes=(
   "bookmark-first-frame.mjs|/"
   "bookmark-after-back.mjs|/"
   "bookmark-return.mjs|/"
+  "reading-furniture.mjs|/notes/Notes/Reading%20flow.md"
 )
 
 # The probes above that leave a kept reading place behind, in the order the
@@ -149,6 +150,7 @@ leaves_a_place=(
   "bookmark-first-frame.mjs"
   "bookmark-after-back.mjs"
   "bookmark-return.mjs"
+  "reading-furniture.mjs"
 )
 
 fail() {

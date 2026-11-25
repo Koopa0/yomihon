@@ -41,7 +41,7 @@ func TestAFenceThatNeverClosesIsStated(t *testing.T) {
 				t.Fatal("the article is not closed")
 			}
 			noticeAt := strings.Index(article, notice)
-			proseAt := strings.Index(article, `<div class="y-prose">`)
+			proseAt := strings.Index(article, `<div class="y-prose"`)
 			if noticeAt < 0 || proseAt < 0 || noticeAt > proseAt {
 				t.Errorf("the notice must sit in the article above the prose; notice@%d prose@%d", noticeAt, proseAt)
 			}
