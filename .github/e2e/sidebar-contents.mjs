@@ -107,7 +107,7 @@ const open = async (width, height, touch = false) => {
 };
 
 // Which of the end block's blocks a child is, in the order the page draws them.
-const RANKS = ['y-pair', 'y-basedon', 'y-basedon-declared', 'y-citedby', 'y-diag', 'y-facts'];
+const RANKS = ['y-pair', 'y-prereq', 'y-basedon', 'y-basedon-declared', 'y-citedby', 'y-diag'];
 
 try {
   console.log(`sidebar-contents: Chrome ${browser.version()}`);
@@ -149,7 +149,7 @@ try {
       top: child.getBoundingClientRect().top,
       kind: child.matches('nav.y-basedon[data-declared-by]') ? 'y-basedon-declared'
         : child.querySelector('.y-diaglist') ? 'y-diag'
-          : [...child.classList].find((name) => ['y-pair', 'y-basedon', 'y-citedby'].includes(name)) ?? child.className,
+          : [...child.classList].find((name) => ['y-pair', 'y-prereq', 'y-basedon', 'y-citedby'].includes(name)) ?? child.className,
     })).sort((a, b) => a.top - b.top).map((child) => child.kind);
     const style = getComputedStyle(block);
     return { first: clone?.textContent.trim() ?? null, kids, display: style.display, prose: document.querySelector('.y-prose')?.getBoundingClientRect().top ?? null, top: block.getBoundingClientRect().top + scrollY };
@@ -159,7 +159,7 @@ try {
   if (contents.last.text !== end.first) fail(LEADS, `the last contents row says ${JSON.stringify(contents.last.text)}, but the block it leads to opens with ${JSON.stringify(end.first)}`);
   const ranks = end.kids.map((kid) => RANKS.indexOf(kid));
   if (end.kids.length < 4 || ranks.includes(-1) || ranks.some((rank, i) => i > 0 && rank < ranks[i - 1])) {
-    fail(ORDER, `the end block holds ${JSON.stringify(end.kids)}, want the note to read beside, the sources, the notes declared on it, the notes citing it, the findings and the facts, in that order`);
+    fail(ORDER, `the end block holds ${JSON.stringify(end.kids)}, want the note to read beside, the notes to know first, the sources, the notes declared on it, the notes citing it and the findings, in that order`);
   }
   console.log(`sidebar-contents: ${contents.headings.length} headings and a last row ${JSON.stringify(contents.last.text)}; the end block holds ${end.kids.join(', ')}`);
 

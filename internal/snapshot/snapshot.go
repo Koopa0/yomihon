@@ -324,11 +324,6 @@ func (g *Generation) Health() Health {
 	return health
 }
 
-// AnyCitations reports whether any note in this generation cites another.
-func (g *Generation) AnyCitations() bool {
-	return g != nil && g.backlinks.Any()
-}
-
 // TrackedForwardReference reports whether target is a name the vault is
 // deliberately writing toward: it resolves to no file, and some note declared it
 // as a concept still owed, so the link records intent rather than a fault.

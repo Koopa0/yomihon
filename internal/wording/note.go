@@ -65,13 +65,12 @@ var NoteParseStale = both(
 // different claim, so the two labels stay visibly different rather than one
 // number that mixes them.
 var (
-	OnThisPage  = both("本頁內容", "On this page")
-	NoteHealth  = both("筆記狀況", "Note health")
-	CitedBy     = both("正文連到這篇", "Cited in the text")
-	CitedByNav  = both("正文連到這篇的筆記", "Notes that cite this one in the text")
-	CitedByNone = both("目前沒有其他筆記在正文連到這篇。", "No other note cites this one in the text.")
-	BasedOn     = both("出自", "Sources")
-	BasedOnNav  = both("這篇出自", "Sources of this note")
+	OnThisPage = both("本頁內容", "On this page")
+	NoteHealth = both("筆記狀況", "Note health")
+	CitedBy    = both("正文連到這篇", "Cited in the text")
+	CitedByNav = both("正文連到這篇的筆記", "Notes that cite this one in the text")
+	BasedOn    = both("出自", "Sources")
+	BasedOnNav = both("這篇出自", "Sources of this note")
 )
 
 // FrontmatterNotYAML is the summary for a frontmatter block that is not valid

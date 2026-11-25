@@ -17,13 +17,14 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// TestTheFootNamesTheOrderItWalks locks what a sighted reader is shown at the
-// foot of the article: the order's printed name and per-link step words, not
-// just an accessible name. A course's declared order and the folder's file
-// adjacency can disagree completely, and before the label was printed the two
-// feet were pixel-identical. It would catch the label falling back into the
-// accessible name alone, a folder foot borrowing the course's words, and the
-// printed label drifting from what assistive technology is told.
+// TestTheFootNamesTheOrderItWalks locks what a sighted reader is shown in the
+// colophon's way on: per-link step words that name the order, not just an
+// accessible name. A course's declared order and the folder's file adjacency
+// can disagree completely, and before the words differed the two feet were
+// pixel-identical. It would catch a folder foot borrowing the course's words, a
+// course's borrowing the folder's, and the landmark's name drifting from the
+// order it walks. The arrow stands on the title's outer side, never in the
+// word.
 func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 	t.Parallel()
 
@@ -42,10 +43,9 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				StepsCourse: true,
 			},
 			want: []string{
-				`<nav class="y-steps y-steps--course" lang="zh-Hant" aria-label="Go course 從此步往下">`,
-				`<p class="y-steps__source">Go course 從此步往下</p>`,
-				`<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一單元</span>`,
-				`<span class="y-steps__role">下一單元 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
+				`<nav class="y-steps y-steps--course" aria-label="Go course 從此步往下">`,
+				`<span class="y-steps__role">上一單元</span> <span class="y-steps__name"><span class="y-steps__dir" aria-hidden="true">←</span> Setup</span>`,
+				`<span class="y-steps__role">下一單元</span> <span class="y-steps__name">Basics <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
 				`href="/notes/Writing/Setup.md" rel="prev"`,
 				`href="/notes/Writing/Basics.md" rel="next"`,
 			},
@@ -62,8 +62,8 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				StepsCourse: true,
 			},
 			want: []string{
-				`<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一單元</span>`,
-				`<span class="y-steps__role">下一單元 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
+				`<span class="y-steps__role">上一單元</span>`,
+				`<span class="y-steps__role">下一單元</span>`,
 			},
 			forbidden: []string{"上一份", "下一份"},
 		},
@@ -75,14 +75,13 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				StepsLabel: "同資料夾的前後檔案",
 			},
 			want: []string{
-				`<nav class="y-steps" lang="zh-Hant" aria-label="同資料夾的前後檔案">`,
-				`<p class="y-steps__source">同資料夾的前後檔案</p>`,
-				`<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一份</span>`,
-				`<span class="y-steps__role">下一份 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
+				`<nav class="y-steps" aria-label="同資料夾的前後檔案">`,
+				`<span class="y-steps__role">上一份</span>`,
+				`<span class="y-steps__role">下一份</span>`,
 				`rel="prev"`,
 				`rel="next"`,
 			},
-			forbidden: []string{"課程順序"},
+			forbidden: []string{"課程順序", "上一單元", "下一單元", "y-steps__source"},
 		},
 		{
 			name: "a first lesson has no step back",
@@ -91,7 +90,7 @@ func TestTheFootNamesTheOrderItWalks(t *testing.T) {
 				StepsLabel:  "Go course 從此步往下",
 				StepsCourse: true,
 			},
-			want:      []string{`<p class="y-steps__source">Go course 從此步往下</p>`, `<span class="y-steps__role">下一單元 <span class="y-steps__dir" aria-hidden="true">→</span></span>`},
+			want:      []string{`<span class="y-steps__role">下一單元</span>`},
 			forbidden: []string{`rel="prev"`},
 		},
 	}

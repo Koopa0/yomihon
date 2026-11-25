@@ -1,4 +1,4 @@
-// Behavior lock for the note's facts at the end of its text: at phone width the
+// Behavior lock for the note's facts in the colophon that ends it: at phone width the
 // list of them fits the window, with a long path wrapping rather than widening
 // the page, and with no script running at all the dt/dd pairs are there, drawn,
 // and in order after the prose, because they are the content that arrives.
@@ -56,12 +56,12 @@ const MUTATIONS = {
   // The list is wider than the phone it is read on.
   'stretch-the-facts-past-the-phone': {
     target: 'the-facts-fit-the-phone-viewport',
-    apply: appendRule('.y-notefacts{min-width:900px}', () => getComputedStyle(document.querySelector('.y-notefacts')).minWidth, '900px'),
+    apply: appendRule('.y-colophon__facts{min-width:900px}', () => getComputedStyle(document.querySelector('.y-colophon__facts')).minWidth, '900px'),
   },
   // The facts wait for a script to draw them.
   'draw-the-facts-only-once-a-script-has-run': {
     target: 'the-facts-arrive-with-no-script-running',
-    apply: appendRule(':root:not([data-js]) .y-facts{display:none}', () => getComputedStyle(document.querySelector('.y-facts')).display, 'none'),
+    apply: appendRule(':root:not([data-js]) .y-colophon__facts{display:none}', () => getComputedStyle(document.querySelector('.y-colophon__facts')).display, 'none'),
   },
 };
 
@@ -104,7 +104,7 @@ try {
     await page.evaluate(() => document.fonts.ready);
     await prove(proof, 'the phone reading');
     const measured = await page.evaluate(() => {
-      const list = document.querySelector('.y-related .y-notefacts');
+      const list = document.querySelector('.y-colophon .y-colophon__facts');
       if (!list) return null;
       const box = list.getBoundingClientRect();
       return { left: box.left, right: box.right, rows: list.querySelectorAll('dt').length, document: document.documentElement.scrollWidth, window: innerWidth };
@@ -129,7 +129,7 @@ try {
     await page.goto(BASE + PAGE, { waitUntil: 'load' });
     await prove(proof, 'the reading with no script');
     const arrived = await page.evaluate(() => {
-      const list = document.querySelector('.y-related .y-notefacts');
+      const list = document.querySelector('.y-colophon .y-colophon__facts');
       const prose = document.querySelector('.y-prose');
       if (!list || !prose) return null;
       return {

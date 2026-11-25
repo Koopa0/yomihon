@@ -24,8 +24,8 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 		lang wording.Lang
 		door string
 	}{
-		{wording.ZhHant, `<a class="y-notefacts__door" lang="zh-Hant" href="/thought/Notes/Probe.md" aria-label="寫想法：Probe">寫想法</a>`},
-		{wording.En, `<a class="y-notefacts__door" lang="en" href="/thought/Notes/Probe.md" aria-label="Write a note: Probe">Write a note</a>`},
+		{wording.ZhHant, `<a class="y-colophon__door" lang="zh-Hant" href="/thought/Notes/Probe.md" aria-label="寫想法：Probe">寫想法</a>`},
+		{wording.En, `<a class="y-colophon__door" lang="en" href="/thought/Notes/Probe.md" aria-label="Write a note: Probe">Write a note</a>`},
 	} {
 		t.Run(tc.lang.Tag(), func(t *testing.T) {
 			t.Parallel()
@@ -69,10 +69,10 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 				t.Errorf("the sidebar carries a door to a thought; a section's door stands in its own margin")
 			}
 
-			// The facts end the text, so the prose's own opening is the anchor
-			// the door has to come after.
+			// The facts are in the colophon that ends the text, so the prose's
+			// own opening is the anchor the door has to come after.
 			prose := strings.Index(page, `<div class="y-prose"`)
-			facts := strings.Index(page, `<dl class="y-notefacts">`)
+			facts := strings.Index(page, `<dl class="y-colophon__facts">`)
 			if prose < 0 || facts < prose {
 				t.Fatalf("prose at %d, facts at %d; want the facts after the prose", prose, facts)
 			}
@@ -80,7 +80,7 @@ func TestThoughtDoorsStayInsideTheirPlaces(t *testing.T) {
 				t.Errorf("page-level doors = %d, want 1", got)
 			}
 			if at := strings.Index(page, tc.door); at < facts {
-				t.Errorf("the page door %q is at %d, not among the facts that begin at %d", tc.door, at, facts)
+				t.Errorf("the page door %q is at %d, not in the colophon after the facts that begin at %d", tc.door, at, facts)
 			}
 		})
 	}

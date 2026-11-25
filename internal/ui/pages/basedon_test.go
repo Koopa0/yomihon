@@ -28,11 +28,10 @@ func TestDeclaredSourceAndTextCitationLabelsDiffer(t *testing.T) {
 
 	var noteBuf bytes.Buffer
 	noteView := NoteView{
-		Title:         "Derived model",
-		RelPath:       "Concepts/yomihon/Derived model.md",
-		VaultHasLinks: true,
-		BasedOn:       []snapshot.DeclaredSource{{Name: "Source model", RelPath: "Concepts/yomihon/Source model.md"}},
-		CitedBy:       []nav.NoteRef{{Name: "Other", RelPath: "Concepts/yomihon/Other.md"}},
+		Title:   "Derived model",
+		RelPath: "Concepts/yomihon/Derived model.md",
+		BasedOn: []snapshot.DeclaredSource{{Name: "Source model", RelPath: "Concepts/yomihon/Source model.md"}},
+		CitedBy: []nav.NoteRef{{Name: "Other", RelPath: "Concepts/yomihon/Other.md"}},
 	}
 	if err := Note(noteView, layouts.Chrome{}).Render(t.Context(), &noteBuf); err != nil {
 		t.Fatalf("render note: %v", err)

@@ -505,7 +505,6 @@ func (h *Handler) reading(
 		BasedOn:           declaredSources,
 		DeclaredBy:        declaredBy(snap, rel, &result, idPrefix, lang),
 		Pair:              pairOffer(snap, state.shell.Nav, n),
-		VaultHasLinks:     snap.AnyCitations(),
 		Prev:              foot.Prev,
 		Next:              foot.Next,
 		StepsLabel:        foot.Label,

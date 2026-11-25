@@ -110,7 +110,7 @@ func TestASideBranchLessonLeavesItsBranchByTheCoursesOwnPages(t *testing.T) {
 	last := foot(page(dir + "Epilogue.md"))
 	for _, want := range []string{
 		`y-steps__link--back" href="/notes/Writing/lessons/golang/Wrapping%20up.md"`,
-		`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FEpilogue.md"><span class="y-steps__role">回到目錄</span></a>`,
+		`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/courses/Maps/Go%20course.md?from=Writing%2Flessons%2Fgolang%2FEpilogue.md"><span class="y-steps__role">回到目錄</span> <span class="y-steps__name">Go course <span class="y-steps__dir" aria-hidden="true">→</span></span></a>`,
 	} {
 		if !strings.Contains(last, want) {
 			t.Errorf("the last branch lesson does not carry %q; foot = %q", want, last)

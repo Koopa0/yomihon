@@ -57,12 +57,6 @@ func (b *Backlinks) To(relPath string) []nav.NoteRef {
 	return slices.Clone(b.byTarget[relPath])
 }
 
-// Any reports whether anything in this generation cites anything at all — a
-// folder written in a form that does not use links has no link problem.
-func (b *Backlinks) Any() bool {
-	return b != nil && len(b.byTarget) > 0
-}
-
 // Citing reports how many notes cite relPath.
 func (b *Backlinks) Citing(relPath string) int {
 	if b == nil {
