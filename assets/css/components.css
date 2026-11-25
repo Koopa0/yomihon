@@ -1326,9 +1326,12 @@ html:not([data-js]) .y-toolbtn {
 .y-prefs,
 .y-recovery,
 .y-syl {
+  /* The room between the header and the first line of the page, named so
+     that what hangs from the header's edge into it can be measured from it. */
+  --read-top: 44px;
   margin: 0 auto;
   max-width: calc(var(--measure-read) + 2 * var(--gutter-read));
-  padding: 44px var(--gutter-read) 120px;
+  padding: var(--read-top) var(--gutter-read) 120px;
 }
 
 /* ============================================================
@@ -1487,6 +1490,56 @@ html[data-js][data-arrival='kept'] .y-main {
   height: 5px;
   inset: auto 0 0;
   position: absolute;
+}
+
+/* The bookmark's ribbon: a swallow-tailed silk ribbon that hangs from the
+   header's lower edge over the text's right edge while this note holds the
+   place the reader kept, and is drawn back up out of sight while it does not.
+   It hangs in the room above the head, which is longer than the ribbon, so it
+   lies on the paper and over no word; it is placed out of flow from the head,
+   so having it or not moves nothing on the page.
+
+   It is a picture of the header's control and carries no state of its own:
+   what lowers it is the control saying the place is in this note, which the
+   server writes on the first byte, so the picture is right with no script,
+   and which the script keeps true when the reader keeps a place or the place
+   moves to another note. It answers no pointer, because the control is the
+   one thing a press acts on.
+
+   Being drawn up is being pulled past the header's edge: the box clips at
+   that edge and nowhere else, so the shadow falls on the page beside and
+   below the cloth while none of it shows above. Its fall is the ribbon tempo,
+   which is nothing until the page has painted once, so a note opened on its
+   bookmark shows the ribbon already lying there rather than falling. */
+.y-ribbon {
+  block-size: 42px;
+  clip-path: inset(0 -24px -24px);
+  inline-size: 15px;
+  inset-block-start: calc(-1 * var(--read-top));
+  inset-inline-end: 6px;
+  pointer-events: none;
+  position: absolute;
+}
+
+.y-ribbon__cloth {
+  display: block;
+  filter: drop-shadow(var(--shadow-ribbon));
+  transition: translate var(--dur-ribbon) var(--ease-standard);
+  translate: 0 calc(-100% - 24px);
+}
+
+:root:has([data-mark-control][data-mark-kept]) .y-ribbon__cloth {
+  translate: none;
+}
+
+.y-ribbon__face {
+  fill: var(--reader-ribbon);
+}
+
+.y-ribbon__edge {
+  fill: none;
+  stroke: var(--reader-ribbon-edge);
+  stroke-width: 0.6;
 }
 
 /* The running head: the vault, then the folders or the course, each a link set
@@ -1758,6 +1811,96 @@ html[data-js][data-arrival='kept'] .y-main {
    inherits the same margin. */
 .y-prose > [data-level]:first-child {
   margin-top: 0;
+}
+
+/* A note's sections are counted beside their headings: the ordinal of each
+   top-level ## heading, set small in the mono face and the faint ink, hung in
+   the margin left of the text so every heading's first word stands on the
+   text's own edge. Where the margin has no room for it, the number stands
+   inline before the heading instead. The server opts a note in, and leaves out
+   one whose author numbered the sections already, so no heading is counted
+   twice.
+
+   The number is generated content, which a selection does not copy, and its
+   alternative text is empty, so it is no part of the heading's name for a
+   screen reader or of what a link to the section quotes: the order is the
+   document's own, which assistive technology already reads. It hangs by
+   giving its box the hang as a width and the same amount back as a negative
+   start margin, which keeps it on the heading's first baseline whatever the
+   heading's size and takes nothing from the line; inline, it takes the gap
+   after it instead. --section-hang is the one switch between the two, and
+   unset, as it is by default, it is no hang. */
+.y-prose[data-section-numbers] {
+  counter-reset: y-section;
+}
+
+.y-prose[data-section-numbers] > [data-level='2'],
+.y-prose[data-section-numbers] > .y-sect > [data-level='2'] {
+  counter-increment: y-section;
+}
+
+.y-prose[data-section-numbers] > [data-level='2']::before,
+.y-prose[data-section-numbers] > .y-sect > [data-level='2']::before {
+  color: var(--fg-faint);
+  content: counter(y-section, decimal-leading-zero) / '';
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.06em;
+  margin-inline: calc(-1 * var(--section-hang, 0px)) max(0px, 0.625rem - var(--section-hang, 0px));
+  min-inline-size: var(--section-hang, 0);
+}
+
+/* The margin holds the number from 821, where the page is wide enough for the
+   text and fifty-four pixels either side of it: the forty-six of the hang and
+   eight to the window's edge. The text is centred, so that is the reading
+   measure and 108 more, which each text size states for itself because a
+   container query cannot read the measure: 660 + 108 at the base size, 700 +
+   108 and 740 + 108 at the larger two. */
+@media (min-width: 821px) {
+  @container y-main (width >= 48rem) {
+    :root:not([data-textsize='l'], [data-textsize='xl']) .y-prose {
+      --section-hang: 46px;
+    }
+  }
+
+  @container y-main (width >= 50.5rem) {
+    :root[data-textsize='l'] .y-prose {
+      --section-hang: 46px;
+    }
+  }
+
+  @container y-main (width >= 53rem) {
+    :root[data-textsize='xl'] .y-prose {
+      --section-hang: 46px;
+    }
+  }
+}
+
+/* Where the left column stands beside the text, the number also has to clear
+   the column: its 256 pixels, then the hang and the same eight, on each side
+   of the centred measure, which is the measure and 620 more. Below that the
+   hang is unset and the number goes back inline rather than under the column.
+   A column the reader folded leaves the margin free again. */
+@media (min-width: 1321px) {
+  @container y-main (width < 80rem) {
+    :root:not([data-rail='collapsed']):not([data-textsize='l'], [data-textsize='xl']) .y-prose {
+      --section-hang: initial;
+    }
+  }
+
+  @container y-main (width < 82.5rem) {
+    :root:not([data-rail='collapsed'])[data-textsize='l'] .y-prose {
+      --section-hang: initial;
+    }
+  }
+
+  @container y-main (width < 85rem) {
+    :root:not([data-rail='collapsed'])[data-textsize='xl'] .y-prose {
+      --section-hang: initial;
+    }
+  }
 }
 
 .y-prose ul,
@@ -5648,7 +5791,6 @@ button.y-freshness__action {
    ============================================================ */
 html {
   scroll-behavior: auto;
-  scroll-timeline: --y-read block;
   scrollbar-gutter: stable;
 }
 
@@ -5834,40 +5976,42 @@ samp,
   }
 }
 
-/* Reading-position hairline — the header's bottom edge doubles as the
-   indicator: a quiet ink fill rides the existing 1px hairline, driven by the
-   reading column's scroll position through a named scroll timeline (the
-   header is not a descendant of the scroller, so the scope is lifted to
-   their common ancestor). It is scroll position, not completion — the
-   syllabus bars own "done" — and it is essential state display: reduced
-   motion keeps it, via the explicit exemption in the blanket kill below.
-   A page with nothing to scroll leaves the timeline inactive and the
-   fill invisible. */
-.yomihon {
-  timeline-scope: --y-read;
-}
-
+/* Reading-position hairline: how far through the note the reader is, drawn
+   along the header's bottom edge as a line that grows with the document's own
+   scroll. Only a note's page draws it (the header renders it there alone),
+   because only there is the page one text read from start to end. It is
+   scroll position, not completion — the course bars own "done" — and it is
+   essential state rather than decoration: it moves only as the reader moves
+   the page, so reduced motion keeps it, via the explicit exemption in the
+   blanket kill below. The timeline is the root scroller's, named as such
+   rather than looked up by name: the header and the document share no
+   scroller below the root, and a scope lifted to the page's wrapper hid the
+   root's timeline from it, leaving the line at nothing however far the reader
+   went. A page with nothing to scroll leaves the timeline inactive and the
+   line undrawn. */
 .y-readline {
   background: linear-gradient(90deg, var(--reader-line), var(--reader));
   bottom: -1px;
   height: 1.5px;
   left: 0;
+  opacity: 0.85;
   pointer-events: none;
   position: absolute;
   right: 0;
   transform: scaleX(0);
   transform-origin: left;
 }
-/* The hairline is driven only where a scroll timeline exists. Guarding the
+/* The line is driven only where a scroll timeline exists. Guarding the
    animation keeps an engine without scroll timelines at the resting scaleX(0)
    — no line — rather than snapping to a permanently full one, which is what a
    scroll-bound animation with no timeline and no duration would otherwise do.
-   The explicit auto duration keeps the time component valid for the timeline. */
+   The explicit auto duration keeps the time component valid for the timeline,
+   and the timeline is written after the shorthand, which would reset it. */
 @supports (animation-timeline: scroll()) {
   .y-readline {
     animation: y-readline linear both;
     animation-duration: auto;
-    animation-timeline: --y-read;
+    animation-timeline: scroll(root block);
   }
 }
 @keyframes y-readline {
@@ -6266,7 +6410,16 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   .y-prefs,
   .y-recovery,
   .y-syl {
-    padding: var(--sp-6) var(--gutter-read) 120px;
+    --read-top: var(--sp-6);
+    padding: var(--read-top) var(--gutter-read) 120px;
+  }
+
+  /* With less room above the head than the ribbon is long, it hangs in the
+     margin beyond the text's right edge, centred there, where nothing of the
+     head can run under it however long the row naming the note's place
+     grows: the fore-edge of the page rather than the page. */
+  .y-ribbon {
+    inset-inline-end: calc(-0.5 * (var(--gutter-read) + 15px));
   }
 }
 @media (max-width: 520px) {
@@ -6468,7 +6621,8 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   .y-slotcontrols,
   .y-slotactions,
   .y-pager,
-  .y-months {
+  .y-months,
+  .y-ribbon {
     display: none !important;
   }
   /* Librarian chrome in the opening column is for repair on screen, not for

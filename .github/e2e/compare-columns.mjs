@@ -270,6 +270,9 @@ const boxOf = (locator) => locator.evaluate((element) => {
 // A column's page names its note and offers the controls that act on the whole
 // note itself, so of the note's own page the column keeps what is left once its
 // folders and its toolbar are set aside: the mark that says it is a draft.
+// The bookmark's ribbon and the count beside the sections are the furniture of
+// a note's own page, which has one header for the ribbon to hang from and the
+// margin the numbers stand in, so the column leaves both out too.
 const DRAFT_MARK = /<span class="y-notewhere__draft"[^>]*><span[^>]*><\/span>[^<]*<\/span>/;
 const nestedArticle = (article) => article
   .replace(/<p class="y-notewhere"([^>]*)>([\s\S]*?)<\/p>/, (_row, attrs, inner) => {
@@ -277,6 +280,8 @@ const nestedArticle = (article) => article
     return draft ? `<p class="y-notewhere"${attrs}>${draft}</p>` : '';
   })
   .replace(/<div class="y-notetools"[^>]*>[\s\S]*?<\/div>/, '')
+  .replace(/<span class="y-ribbon"[^>]*>[\s\S]*?<\/svg><\/span>/, '')
+  .replace('<div class="y-prose" data-section-numbers>', '<div class="y-prose">')
   .replace(/<\/?h([1-6])(?=[ >])/g,
     (tag, level) => tag.slice(0, -1) + Math.min(Number(level) + 1, 6));
 

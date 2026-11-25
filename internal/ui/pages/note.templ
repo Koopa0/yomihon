@@ -209,7 +209,7 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 		@schemaNotices(v, lang)
 		@inlineAids(v, lang)
 		@layouts.CodeCopy(lang)
-		<div class="y-prose">
+		<div class="y-prose" data-section-numbers?={ v.numbersSections() }>
 			if strings.TrimSpace(v.BodyHTML) == "" && !v.hasUnclosedComment() {
 				@nothingToShow(nothingNotice{Kind: "note"}) {
 					<p lang={ lang.Tag() }>{ wording.NoteEmptyBody.In(lang) }</p>
@@ -278,7 +278,29 @@ templ articleHead(v NoteView, lang wording.Lang) {
 			<p class="y-fileinfo__note" lang={ lang.Tag() } data-note-stale>{ wording.NoteStale.In(lang) }</p>
 		}
 		@noteTools(v, lang)
+		if v.carriesRibbon() {
+			@bookmarkRibbon()
+		}
 	</header>
+}
+
+// bookmarkRibbon is the bookmark as a picture: a silk ribbon hanging from the
+// header's lower edge over the text's right edge, there while this note holds
+// the place the reader kept and drawn back up out of sight while it does not.
+// It is a picture of state and nothing else. The header's control is the one
+// thing that keeps a place and says so to a screen reader, so the ribbon is
+// hidden from assistive technology and answers no pointer. It carries no state
+// of its own either: the stylesheet reads whether the header's control says
+// the place is here, which the server writes on the first byte and the script
+// keeps true as the reader keeps a place or the place moves away, so the two
+// cannot disagree.
+templ bookmarkRibbon() {
+	<span class="y-ribbon" aria-hidden="true">
+		<svg class="y-ribbon__cloth" width="15" height="42" viewBox="0 0 15 42" focusable="false">
+			<path class="y-ribbon__face" d="M0 0H15V42L7.5 34.5L0 42Z"></path>
+			<path class="y-ribbon__edge" d="M2 0V38M13 0V38"></path>
+		</svg>
+	</span>
 }
 
 // noteWhere is the row above the title that says where the note is: the vault,
