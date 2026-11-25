@@ -478,8 +478,154 @@ samp {
   }
 }
 
+/* The room the row has left, which only a note's running head is drawn in.
+   It is a container, so the running head asks how much room there is rather
+   than how wide the window is: the row's words are wider in English than in
+   Chinese, and a folder's long name takes room too. Its own content never
+   widens it, so nothing else in the row moves for what it holds. */
 .y-header__spacer {
+  align-items: center;
+  container: y-headroom / inline-size;
+  display: flex;
   flex: 1;
+}
+
+/* The running head: the section being read, its number where the page counts
+   the sections, and a turn that says it opens. It follows the folder's name
+   after a space rather than a rule, because it is the note's head and not one
+   more step of where the note is.
+
+   It is drawn only where the room is wide enough for the number and a dozen
+   words beside it, and only once the script says it knows the section: a page
+   with no script draws none of it. Out of sight it is hidden, not removed, so
+   its coming and going is a fade and moves nothing. It fades only after the
+   reader has moved (the script marks that), at the pace of a surface the
+   reader called up, and the motion gate and the reduced-motion blanket hold
+   it as they hold everything else. */
+.y-runhead {
+  align-items: center;
+  anchor-name: --y-runhead;
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  color: var(--fg-muted);
+  cursor: pointer;
+  display: none;
+  font-family: var(--font-sans);
+  gap: var(--sp-2);
+  height: var(--control-h);
+  margin-inline-start: var(--sp-5);
+  max-width: min(26rem, 100% - var(--sp-5));
+  min-width: 0;
+  padding: 0 var(--sp-2);
+}
+
+@container y-headroom (width >= 15rem) {
+  .y-runhead[data-running-head-ready] {
+    display: inline-flex;
+  }
+}
+
+.y-runhead:not([data-running-head-shown]) {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.y-runhead[data-running-head-fades] {
+  transition: opacity var(--dur-slow) var(--ease-standard), visibility var(--dur-slow) var(--ease-standard);
+}
+
+.y-runhead:hover,
+.y-runhead[aria-expanded='true'] {
+  background: var(--wash);
+  color: var(--fg);
+}
+
+/* The number is the one hung beside the section's heading, in its face and
+   its faint ink. */
+.y-runhead__num,
+.y-contentspop__num {
+  color: var(--fg-faint);
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-medium);
+  letter-spacing: 0.06em;
+}
+
+.y-runhead__num:empty,
+.y-contentspop__num:empty {
+  display: none;
+}
+
+.y-runhead__title {
+  font-family: var(--font-read);
+  font-size: var(--fs-14);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A Japanese note's words are set in the Japanese reading face, as they are in
+   the text. */
+.y-runhead__title:lang(ja) {
+  font-family: var(--font-read-ja);
+}
+
+.y-runhead__mark {
+  color: var(--fg-faint);
+  flex: none;
+}
+
+/* The note's contents, dropped under the running head and as wide as a list of
+   section names needs, long ones wrapping. A long note scrolls inside it. It
+   is a surface the reader called up and sends away, so it is drawn as the
+   other such surfaces in the header are. Where the browser cannot tie it to
+   the press, it hangs under the header's middle instead. */
+.y-contentspop {
+  background: var(--elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+  box-sizing: border-box;
+  color: var(--fg);
+  inset: auto;
+  left: 50%;
+  margin: 0;
+  max-height: min(70vh, 34rem);
+  overflow-y: auto;
+  padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-2);
+  position: fixed;
+  top: calc(var(--hdr-h) + var(--sp-2));
+  translate: -50% 0;
+  width: min(22rem, 100vw - 2 * var(--sp-4));
+}
+
+@supports (position-area: block-end) {
+  .y-contentspop {
+    left: auto;
+    margin-block-start: var(--sp-1);
+    position-anchor: --y-runhead;
+    position-area: block-end span-inline-end;
+    position-try-fallbacks: flip-inline;
+    top: auto;
+    translate: none;
+  }
+}
+
+.y-contentspop__name {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  margin: 0 0 var(--sp-2) var(--sp-4);
+}
+
+.y-contentspop .y-toc__row > a {
+  align-items: baseline;
+  display: flex;
+  gap: var(--sp-3);
+  text-decoration: none;
 }
 /* The folder's name is what gives when the row runs out of room, then the
    search field, and the wordmark does not: a flex item refuses by default to

@@ -227,7 +227,13 @@ templ header(c Chrome) {
 				<a class="y-brand__vault" href="/">{ c.Vault }</a>
 			}
 		</div>
-		<div class="y-header__spacer"></div>
+		// The room between the folder's name and the search, which only the
+		// running head of a note is ever drawn in.
+		<div class="y-header__spacer">
+			if c.RunningHead != nil {
+				@runningHead(c.RunningHead, c.Lang)
+			}
+		</div>
 		// The search is a field in the row where the row has room for one: an
 		// ordinary GET form to the search page, which needs no script, and a
 		// list that drops under it as the reader types where there is one. It
@@ -284,6 +290,52 @@ templ header(c Chrome) {
 			<span class="y-readline" aria-hidden="true"></span>
 		}
 	</header>
+}
+
+// runningHead is the head a book prints over each page: the section the reader
+// is in, its number where the page counts the sections, and a press that opens
+// the note's contents under it, to go to another. It is drawn only once the
+// note's own head has gone up under the row, because while that head is on the
+// screen it says more than this could; and only where the row has room left
+// beside its other controls, which the stylesheet asks of the room itself
+// rather than of the window, since the words of the row are wider in one
+// language than in the other.
+//
+// It is a press that names a native popover and leaves the opening, the
+// dismissal by Escape or a press outside, and the return of focus to the
+// browser. Nothing here works without script, which is what tells which section
+// is being read, so the stylesheet draws none of it until the script says it
+// is ready; the page reads exactly as it always did without it.
+//
+// The press is named by the section's own words, which are what it shows; the
+// number beside them is the picture of the count in the margin, which a screen
+// reader is not given there either. Its tooltip, which is also its
+// description, says what it opens. The list is the contents' anatomy, so the
+// entry being read is marked by the same script, in the same way, as the
+// contents in the left column.
+templ runningHead(head *RunningHead, lang wording.Lang) {
+	<button
+		class="y-runhead"
+		type="button"
+		popovertarget="_y-contents"
+		aria-expanded="false"
+		title={ wording.OnThisPage.In(lang) }
+		data-running-head
+	>
+		<span class="y-runhead__num" aria-hidden="true" data-running-head-num></span>
+		<span class="y-runhead__title" { headLanguage(head.Language)... } data-running-head-title></span>
+		<svg class="y-runhead__mark" aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg>
+	</button>
+	<nav id="_y-contents" class="y-contentspop" popover aria-labelledby="_y-contents-name">
+		<p class="y-contentspop__name" id="_y-contents-name">{ wording.OnThisPage.In(lang) }</p>
+		<div class="y-toc__list" { headLanguage(head.Language)... } data-running-contents>
+			for _, section := range head.Sections {
+				<div class="y-toc__row">
+					<a href={ templ.URL("#" + section.ID) } data-level="2"><span class="y-contentspop__num" aria-hidden="true"></span><span class="y-contentspop__title">{ section.Text }</span></a>
+				</div>
+			}
+		</div>
+	</nav>
 }
 
 // headerMark is the control for keeping a place: a bookmark with its words

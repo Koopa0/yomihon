@@ -17,7 +17,9 @@ function readingLineOf(heading) {
   return (Number.parseFloat(getComputedStyle(heading).scrollMarginTop) || 0) + 8;
 }
 
-export function initContents() {
+// onMark, where given, is told each time the mark moves, after it has; the
+// running head in the header names whichever entry of its own list is marked.
+export function initContents(onMark) {
   const lists = [...document.querySelectorAll('.y-toc__list')];
   if (lists.length === 0) return;
 
@@ -33,33 +35,49 @@ export function initContents() {
     if (!scoped.has(column)) scoped.set(column, []);
     scoped.get(column).push(list);
   }
-  for (const own of scoped.values()) trackReading(own);
+  for (const own of scoped.values()) trackReading(own, onMark);
 }
 
 // trackReading marks which entry of one note's contents list is the one being
 // read, and holds that mark still while a jump it started is travelling.
-function trackReading(lists) {
+//
+// The lists need not name the same headings. The left column's names every
+// heading, and the running head's only the sections, so each list marks the
+// last of its own entries at or above the heading being read: a list of
+// sections marks the section a subheading stands in.
+function trackReading(lists, onMark) {
   const root = document.documentElement;
-  const links = lists.flatMap((list) => [...list.querySelectorAll('a[href^="#"]')]);
+  const owned = lists.map((list) => [...list.querySelectorAll('a[href^="#"]')]);
+  const links = owned.flat();
   if (links.length === 0) return;
 
   const targetID = (link) => decodeURIComponent(link.getAttribute('href').slice(1));
   const headings = [...new Set(links.map(targetID))]
     .map((id) => document.getElementById(id))
-    .filter(Boolean);
+    .filter(Boolean)
+    .sort((one, two) => (one.compareDocumentPosition(two) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
   if (headings.length === 0) return;
+  const order = new Map(headings.map((heading, i) => [heading.id, i]));
 
   let locked = null;
   let settleTimer = null;
   const readingLine = readingLineOf(headings[0]);
 
   function mark(id) {
-    links.forEach((link) => {
-      const active = targetID(link) === id;
-      link.classList.toggle('is-active', active);
-      if (active) link.setAttribute('aria-current', 'location');
-      else link.removeAttribute('aria-current');
+    const at = order.get(id) ?? -1;
+    owned.forEach((own) => {
+      let current = null;
+      for (const link of own) {
+        if ((order.get(targetID(link)) ?? Number.POSITIVE_INFINITY) <= at) current = link;
+      }
+      own.forEach((link) => {
+        const active = link === current;
+        link.classList.toggle('is-active', active);
+        if (active) link.setAttribute('aria-current', 'location');
+        else link.removeAttribute('aria-current');
+      });
     });
+    onMark?.();
   }
 
   function recompute() {

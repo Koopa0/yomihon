@@ -4,8 +4,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
 
 // TestAHeadingTheAuthorNumberedIsRecognised is the reading of a heading that
@@ -114,5 +117,25 @@ func TestTheRibbonHangsWhereTheBookmarkIsOffered(t *testing.T) {
 	nested.NestedTitle = true
 	if nested.carriesRibbon() {
 		t.Error("a note nested in a page holding two notes hangs a ribbon; the page has one header and no one note for it")
+	}
+}
+
+// TestTheRunningHeadNamesTheNotesSections holds what the header's running head
+// is drawn from: the note's level-two headings and nothing deeper, on a note's
+// own page, and nothing at all for a note with no such heading or for a note
+// standing in a page that holds two.
+func TestTheRunningHeadNamesTheNotesSections(t *testing.T) {
+	t.Parallel()
+	toc := []render.TOCEntry{{Level: 2, Text: "Alpha", ID: "alpha"}, {Level: 3, Text: "Inside", ID: "inside"}, {Level: 2, Text: "Beta", ID: "beta"}}
+	got := (&NoteView{Language: "en", TOC: toc}).runningHead()
+	want := &layouts.RunningHead{Language: "en", Sections: []layouts.RunningSection{{ID: "alpha", Text: "Alpha"}, {ID: "beta", Text: "Beta"}}}
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("runningHead() mismatch (-want +got):\n%s", diff)
+	}
+	if head := (&NoteView{TOC: toc[1:2]}).runningHead(); head != nil {
+		t.Errorf("a note with no ## heading has a running head: %+v", head)
+	}
+	if head := (&NoteView{NestedTitle: true, TOC: toc}).runningHead(); head != nil {
+		t.Errorf("a note in a page holding two has a running head: %+v", head)
 	}
 }

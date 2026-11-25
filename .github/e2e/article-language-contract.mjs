@@ -143,7 +143,7 @@ const readLanguages = () => ({
   ttsLanguages: Array.from(document.querySelectorAll('.y-tts'), (element) => element.getAttribute('lang')),
   readingLanguages: Array.from(document.querySelectorAll('.y-reading'), (element) => element.getAttribute('lang')),
   contentsEntries: Array.from(document.querySelectorAll('.y-toc__list .y-toc__row:not(.y-toc__row--end) a'), (entry) => ({
-    where: entry.closest('.y-railtoc') ? 'the sidebar contents' : 'a contents list in no known place',
+    where: entry.closest('.y-railtoc') ? 'the sidebar contents' : entry.closest('.y-contentspop') ? "the running head's contents" : 'a contents list in no known place',
     inherits: entry.closest('[lang]')?.getAttribute('lang') ?? null,
   })),
 });
@@ -352,8 +352,9 @@ try {
   // article entirely, would otherwise read them in the document's language: a
   // Japanese heading announced in the reader's interface language is announced
   // wrong. The row that leads to the end of the note is the interface's word
-  // and is not an entry.
-  const contentsPlaces = ['the sidebar contents'];
+  // and is not an entry. The running head's contents, in the header, reprint
+  // the same headings and owe them the same language.
+  const contentsPlaces = ['the sidebar contents', "the running head's contents"];
   for (const [pass, entries] of [['reading it', declaredDOM.contentsEntries], ['reading it in English', switchedDOM.contentsEntries]]) {
     for (const place of contentsPlaces) {
       if (!entries.some((entry) => entry.where === place)) {

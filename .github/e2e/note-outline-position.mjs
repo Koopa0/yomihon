@@ -1,11 +1,12 @@
 // Behavior lock for the outline marking the section the reader is in (#583):
 // while scrolling, the on-page contents list marks the heading whose section
 // holds the reading line with aria-current="location", one entry at a time,
-// in every copy of the list the page carries; scrolling back moves the mark
-// again; with no script running, no entry is marked and the plain list of
-// links is unchanged; and the reading rail's own current-page mark, sitting
-// beside the outline but answering a different question, still announces
-// aria-current="page".
+// in every copy of the list the page carries, and the header's list of the
+// note's sections marks the section that heading stands in; scrolling back
+// moves the mark again; with no script running, no entry is marked and the
+// plain list of links is unchanged; and the reading rail's own current-page
+// mark, sitting beside the outline but answering a different question, still
+// announces aria-current="page".
 //
 // None of this is reachable from a Go test: which heading counts as "on
 // screen" is a number only a laid-out, scrolled page has, and "no script
@@ -33,6 +34,10 @@ const SITES = [
 // enter the list cannot shift what "third" means here.
 const FIRST_ID = '第三節-失約的燈';
 const THIRD_ID = 'fifth-level-landing';
+// The header's running head lists the note's sections alone, so it marks the
+// section a heading stands in rather than the heading: the fifth-level heading
+// stands in the first section.
+const THIRD_SECTION_ID = FIRST_ID;
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -89,8 +94,8 @@ const MUTATIONS = {
     target: 'exactly-one-entry-marked-at-the-third-section',
     apply: rewrite(
       (url) => url.pathname === '/static/contents.js',
-      "      if (active) link.setAttribute('aria-current', 'location');\n      else link.removeAttribute('aria-current');",
-      "      if (active) link.setAttribute('aria-current', 'location');",
+      "        if (active) link.setAttribute('aria-current', 'location');\n        else link.removeAttribute('aria-current');",
+      "        if (active) link.setAttribute('aria-current', 'location');",
       { exact: true },
     ),
   },
@@ -172,6 +177,7 @@ const readOutline = (page) =>
     return lists.map((list) => {
       const links = [...list.querySelectorAll('a[href^="#"]')];
       return {
+        sections: list.closest('.y-contentspop') !== null,
         hrefs: links.map((a) => a.getAttribute('href')),
         current: links.filter((a) => a.getAttribute('aria-current') === 'location').map((a) => a.getAttribute('href')),
       };
@@ -258,10 +264,11 @@ try {
   await settle(page);
   const atThird = await readOutline(page);
   for (const list of atThird) {
-    if (list.current.length !== 1 || list.current[0] !== `#${THIRD_ID}`) {
+    const want = list.sections ? THIRD_SECTION_ID : THIRD_ID;
+    if (list.current.length !== 1 || list.current[0] !== `#${want}`) {
       fail(
         'exactly-one-entry-marked-at-the-third-section',
-        `after scrolling to #${THIRD_ID}, a contents list marks ${JSON.stringify(list.current)}, want exactly ["#${THIRD_ID}"]`,
+        `after scrolling to #${THIRD_ID}, ${list.sections ? "the running head's list of sections" : 'a contents list'} marks ${JSON.stringify(list.current)}, want exactly ["#${want}"]`,
       );
     }
   }
