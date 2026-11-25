@@ -303,6 +303,26 @@ func (v *NoteView) carriesRibbon() bool {
 	return !v.NestedTitle && v.offersMark()
 }
 
+// runningHead is what the header names the note's sections from: its level-two
+// headings, on a note's own page only. A page holding two notes has one header
+// and no single note for it to speak for, and a note with no section has no
+// running head.
+func (v *NoteView) runningHead() *layouts.RunningHead {
+	if v.NestedTitle {
+		return nil
+	}
+	var sections []layouts.RunningSection
+	for _, entry := range v.TOC {
+		if entry.Level == 2 {
+			sections = append(sections, layouts.RunningSection{ID: entry.ID, Text: entry.Text})
+		}
+	}
+	if len(sections) == 0 {
+		return nil
+	}
+	return &layouts.RunningHead{Language: v.Language, Sections: sections}
+}
+
 // numbersSections reports whether the note's sections are given their ordinal
 // beside their headings. Only a note's own page numbers them, and only a note
 // whose sections the author did not number already: one ## heading that opens

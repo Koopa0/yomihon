@@ -138,8 +138,14 @@ func TestFragmentNormalizationReadingPage(t *testing.T) {
 			t.Errorf("caught: fragment-normalization source page missing %q: %s", want, source)
 		}
 	}
-	if got := strings.Count(source, "href=\"#\u1e99-child\" data-level=\"2\""); got != 1 {
-		t.Errorf("caught: fragment-normalization contents count = %d, want 1", got)
+	// The contents are listed twice on a note's page, in the left column and
+	// in the running head's popover, and each lists the section once.
+	for _, list := range []string{`class="y-railtoc"`, `id="_y-contents"`} {
+		_, contents, _ := strings.Cut(source, list)
+		contents, _, _ = strings.Cut(contents, "</nav>")
+		if got := strings.Count(contents, "href=\"#\u1e99-child\" data-level=\"2\""); got != 1 {
+			t.Errorf("caught: fragment-normalization contents count in %s = %d, want 1", list, got)
+		}
 	}
 	code, claim := get(t, srv.Client(), srv.URL+"/notes/Claim.md")
 	if code != http.StatusOK {

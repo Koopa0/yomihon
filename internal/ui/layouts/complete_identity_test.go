@@ -116,8 +116,8 @@ func TestBaseAndStylesheetUseCompleteServedByteAddresses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("walk embedded Base modules: %v", err)
 	}
-	if len(wantImports) != 22 {
-		t.Fatalf("embedded Base module set = %d, want 22", len(wantImports))
+	if len(wantImports) != 23 {
+		t.Fatalf("embedded Base module set = %d, want 23", len(wantImports))
 	}
 	if diff := cmp.Diff(wantImports, imports.Imports); diff != "" {
 		t.Errorf("caught: Base complete module addresses (-want +got):\n%s", diff)

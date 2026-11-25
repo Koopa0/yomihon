@@ -73,6 +73,7 @@ probes=(
   "overlay-commands.mjs|/notes/Writing/lessons/japanese/L01.md"
   "appearance-choice.mjs|/preferences"
   "header-row.mjs|/notes/Notes/alpha.md"
+  "running-head.mjs|/notes/Notes/Back%20restore.md"
   "japanese-reading-face.mjs|/notes/Writing/lessons/japanese/L01.md"
   "preference-restore.mjs|/notes/Writing/lessons/japanese/L01.md"
   "preference-immediate.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"

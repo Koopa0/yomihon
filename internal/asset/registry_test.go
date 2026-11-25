@@ -61,6 +61,7 @@ func TestProductScriptRegistryIsExact(t *testing.T) {
 		"rail-filter.js",
 		"rail.js",
 		"recent.js",
+		"runninghead.js",
 		"search.js",
 		"shortcuts.js",
 		"sidebar.js",

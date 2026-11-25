@@ -179,6 +179,8 @@ templ Note(v NoteView, c layouts.Chrome) {
 	// The browser keeps where the reader stopped in this note, against this
 	// vault and this path, so the page says which note it is.
 	{{ c.Reading = v.readingNote() }}
+	// The header names the section being read and lists the others.
+	{{ c.RunningHead = v.runningHead() }}
 	{{ v.rubyOn = c.Ruby == "on" }}
 	{{ v.vault = c.Vault }}
 	{{ c.Diagrams = render.CarriesDiagrams(v.BodyHTML) }}

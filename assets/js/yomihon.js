@@ -14,6 +14,7 @@ import { initMark } from './mark.js';
 import { initPreferences } from './preferences.js';
 import { initPreview } from './preview.js';
 import { initRail } from './rail.js';
+import { initRunningHead } from './runninghead.js';
 import { initSearch } from './search.js';
 import { initShortcuts } from './shortcuts.js';
 import { initSidebar } from './sidebar.js';
@@ -29,7 +30,10 @@ function init() {
   const sidebar = initSidebar();
   initLangForm();
   const preferences = initPreferences();
-  initContents();
+  // The running head's list is counted before the contents are tracked, so
+  // the tracking sees only the entries it keeps.
+  const runningHead = initRunningHead();
+  initContents(runningHead?.follow);
   initCompareAlign();
   initRubySelection();
   initFreshness();

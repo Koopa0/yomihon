@@ -109,6 +109,29 @@ type Chrome struct {
 	// this note in this vault and nowhere else. Nil on every page that is not
 	// a note, and the root then names no note.
 	Reading *ReadingNote
+	// RunningHead is the note this request is reading, by its sections, which
+	// the header names as the reader passes each one and lists for a jump.
+	// Nil on every page that is not a note's own page, or reads a note with no
+	// section, and the header then draws neither.
+	RunningHead *RunningHead
+}
+
+// RunningHead is what the header's running head is drawn from: each section
+// of the note, by the id its heading carries and the heading's own words, and
+// the language the note declared, which those words are in. The sections are
+// the note's level-two headings, the ones the page counts beside the text; the
+// script that shows the running head numbers them as that count does, from the
+// headings it finds, because only the page can see which of them the count
+// reached.
+type RunningHead struct {
+	Language string
+	Sections []RunningSection
+}
+
+// RunningSection is one section a running head can name.
+type RunningSection struct {
+	ID   string
+	Text string
 }
 
 // ReadingNote is a note as the browser keeps a reader's place in it: the
@@ -181,6 +204,17 @@ func singleKeyShortcutsState(enabled bool) string {
 		return "on"
 	}
 	return "off"
+}
+
+// headLanguage stamps the language a note declared on the running head's words,
+// which stand in the header, where the document's language is the interface's.
+// A note that declared none stamps nothing, and its words take the page's, as
+// they do everywhere else on the page.
+func headLanguage(tag string) templ.Attributes {
+	if tag == "" {
+		return nil
+	}
+	return templ.Attributes{"lang": tag}
 }
 
 // paperPressed answers whether the header's paper switch draws an option as

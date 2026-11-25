@@ -44,7 +44,10 @@ var datasetName = regexp.MustCompile(`dataset\.([a-zA-Z0-9]+)`)
 // kept place, which the head script marks before the first style so the
 // stylesheet holds the column back, and the module that scrolls to the place
 // removes, and the moment a sentence the reader's press earned is fading out
-// before it is emptied, which the stylesheet reads to draw the fade.
+// before it is emptied, which the stylesheet reads to draw the fade, and the
+// running head's three states: that the script knows the section and the head
+// may be drawn, that the note's own head has gone and it is shown, and that the
+// reader has moved, so it fades rather than simply being there.
 var clientOwned = []string{
 	"data-arrival",
 	"data-current",
@@ -54,6 +57,9 @@ var clientOwned = []string{
 	"data-preview-open",
 	"data-rail-restoring",
 	"data-rail-settling",
+	"data-running-head-fades",
+	"data-running-head-ready",
+	"data-running-head-shown",
 	"data-readaloud-idle",
 	"data-recent-query",
 	"data-reading",

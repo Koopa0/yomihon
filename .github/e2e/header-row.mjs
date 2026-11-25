@@ -12,6 +12,12 @@
 // link to My marks for a column rather than a drawer. Everything else a reader
 // sets once and leaves alone lives on the settings page.
 //
+// Past a note's own head, the header names the section being read in the room
+// between the folder's name and the search, where that room is wide enough
+// (running-head.mjs asks where it is drawn). The row is asked again there, on
+// the note that carries one: the same controls in the same order, inside the
+// window, none drawn over another, and the running head inside its room.
+//
 // What is asked here is what a reader can see and reach, measured rather than
 // read off the stylesheet: at each width the row fits inside the window, the
 // wordmark keeps all of its letters, the cluster holds exactly its controls in
@@ -240,6 +246,13 @@ const MUTATIONS = {
       });
       if (!placed) notApplied('there is no search control to place the switch beside');
     },
+  },
+  // The running head, past the note's head, takes more than the room the
+  // row leaves it and runs under the search.
+  'run-the-running-head-into-the-search': {
+    target: 'row-fits',
+    on: 'readings',
+    apply: (page) => injectRule(page, '[data-running-head]', '.y-runhead[data-running-head-shown] { flex: none !important; max-width: none !important; min-width: 640px !important; }'),
   },
   // One control is drawn over the next, which the window's edges alone
   // would never show.
@@ -523,6 +536,35 @@ try {
         }
         if (row.overlaps.length > 0) {
           fail('row-fits', `${where}: controls in the row are drawn over each other: ${JSON.stringify(row.overlaps)}`);
+        }
+
+        // Past the note's own head the header names the section being read,
+        // in the room the row leaves between the folder's name and the
+        // search, where it has room for it. The row is asked again there:
+        // the same controls in the same order, still inside the window and
+        // none over another, and the running head inside that room.
+        if (await page.locator('[data-running-head]').count() === 1) {
+          await page.evaluate(() => document.querySelectorAll('.y-prose [data-level="2"]')[1]?.scrollIntoView({ block: 'start' }));
+          await page.waitForTimeout(120);
+          const past = await readRow(page, CLUSTER, LEAD);
+          if (past.issue) broken(past.issue);
+          const head = await page.evaluate(() => {
+            const button = document.querySelector('[data-running-head]');
+            const spacer = document.querySelector('.y-header__spacer').getBoundingClientRect();
+            const box = button.getBoundingClientRect();
+            return { drawn: button.checkVisibility({ visibilityProperty: true }) && box.width > 0, left: box.left, right: box.right, roomLeft: spacer.left, roomRight: spacer.right };
+          });
+          if (JSON.stringify(past.drawn) !== JSON.stringify(row.drawn) || JSON.stringify(past.ahead) !== JSON.stringify(row.ahead)) {
+            fail('cluster-holds-only-what-reading-needs', `${where}, past the note's head: the row draws ${JSON.stringify(past.ahead)} and ${JSON.stringify(past.drawn)}, want what it drew at the top, ${JSON.stringify(row.ahead)} and ${JSON.stringify(row.drawn)}`);
+          }
+          if (past.headerLeft < -0.5 || past.headerRight > past.windowWidth + 0.5 || past.headerOverflow > 0.5 || past.overlaps.length > 0) {
+            fail('row-fits', `${where}, past the note's head: the row no longer fits — ${JSON.stringify({ overflow: past.headerOverflow, overlaps: past.overlaps })}`);
+          }
+          if (head.drawn && (head.left < head.roomLeft - 0.5 || head.right > head.roomRight + 0.5)) {
+            fail('row-fits', `${where}, past the note's head: the running head spans ${Math.round(head.left)}–${Math.round(head.right)}px, outside the room the row leaves it, ${Math.round(head.roomLeft)}–${Math.round(head.roomRight)}px`);
+          }
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await page.waitForTimeout(120);
         }
 
         // The folder's name is drawn at least four letters wide or not at all,
