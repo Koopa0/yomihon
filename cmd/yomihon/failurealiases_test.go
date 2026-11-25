@@ -13,6 +13,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"golang.org/x/net/html"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -85,7 +86,7 @@ func TestShippedFailureAliasesHaveOneOwner(t *testing.T) {
 
 func TestShippedFailureWordsReachTheConcepts(t *testing.T) {
 	t.Parallel()
-	site, err := newReadingSite(t.Context(), failureVaultRoot, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), failureVaultRoot, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -30,6 +30,10 @@ type opaqueType struct {
 	makers []string
 	// place is where a value of it holds a write to, for a message.
 	place string
+	// optional is a type whose absence is held elsewhere, and so is not said
+	// here: without ConfigDir, the fixtures that hand Home, VaultDir and the
+	// stores a vault's root would compile.
+	optional bool
 }
 
 // writer is a package that may name what changes a file, and what holds it.
@@ -48,7 +52,10 @@ type writer struct {
 // machinefile writes one file of the reader folder, inside a Folder, by the
 // names it is permitted.
 var writers = map[string]writer{
-	rawWriter: {carrier: opaqueType{name: "Dir", makers: dirMakers, place: "the configuration directory"}},
+	rawWriter: {
+		carrier: opaqueType{name: "Dir", makers: dirMakers, place: "the configuration directory"},
+		names:   []opaqueType{{name: "ConfigDir", makers: configDirMakers, place: "the configuration directory", optional: true}},
+	},
 	machineFileWriter: {
 		carrier: opaqueType{name: "Folder", makers: []string{"Open"}, place: "the reader folder"},
 		names: []opaqueType{

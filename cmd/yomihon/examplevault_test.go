@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -66,7 +67,7 @@ var offersAControl = regexp.MustCompile(`status panel|status control|狀態面�
 // Every request in this file is a GET, so the vault is only read.
 func exampleSite(t *testing.T) http.Handler {
 	t.Helper()
-	site, err := newReadingSite(t.Context(), "../../examples/vault", t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), "../../examples/vault", confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite over examples/vault: %v", err)
 	}

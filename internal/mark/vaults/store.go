@@ -62,7 +62,7 @@ type touch struct {
 // whether a port can be bound right now; it is how a new vault is kept off a
 // port something else holds, and nil says every port is free. Nothing is read or
 // written until the Store is used.
-func Open(configDir string, free func(port int) bool, options ...Option) (*Store, error) {
+func Open(configDir confdir.ConfigDir, free func(port int) bool, options ...Option) (*Store, error) {
 	dir, err := confdir.Home(configDir)
 	if err != nil {
 		return nil, err

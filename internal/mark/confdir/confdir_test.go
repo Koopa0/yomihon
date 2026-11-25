@@ -13,7 +13,7 @@ import (
 
 func dirFor(t *testing.T, configDir, vaultRoot string) confdir.Dir {
 	t.Helper()
-	dir, err := confdir.VaultDir(configDir, vaultRoot)
+	dir, err := confdir.VaultDir(confdir.At(configDir), vaultRoot)
 	if err != nil {
 		t.Fatalf("VaultDir(%q, %q): %v", configDir, vaultRoot, err)
 	}
@@ -24,7 +24,7 @@ func dirFor(t *testing.T, configDir, vaultRoot string) confdir.Dir {
 // and empty, which is the one kind of Dir there is to work in.
 func homeIn(t *testing.T) confdir.Dir {
 	t.Helper()
-	home, err := confdir.Home(t.TempDir())
+	home, err := confdir.Home(confdir.At(t.TempDir()))
 	if err != nil {
 		t.Fatalf("Home: %v", err)
 	}
@@ -36,10 +36,14 @@ func homeIn(t *testing.T) confdir.Dir {
 
 func TestADirectoryNeedsBothThingsThatNameIt(t *testing.T) {
 	t.Parallel()
-	for _, tt := range []struct{ name, configDir, vaultRoot string }{
-		{"no configuration directory", "", "/vaults/notes"},
-		{"no vault root", "/config", ""},
-		{"neither", "", ""},
+	for _, tt := range []struct {
+		name      string
+		configDir confdir.ConfigDir
+		vaultRoot string
+	}{
+		{"no configuration directory", confdir.ConfigDir{}, "/vaults/notes"},
+		{"no vault root", confdir.At(t.TempDir()), ""},
+		{"neither", confdir.ConfigDir{}, ""},
 	} {
 		if dir, err := confdir.VaultDir(tt.configDir, tt.vaultRoot); !errors.Is(err, confdir.ErrNotNamed) {
 			t.Errorf("%s: VaultDir = %q, %v; want ErrNotNamed", tt.name, dir.Path(), err)
@@ -174,7 +178,7 @@ func TestReplaceRefusesAFirstWriteWhoseParentCannotBeSynced(t *testing.T) {
 		t.Skip("Windows does not open a directory by its permission bits")
 	}
 	config := t.TempDir()
-	home, err := confdir.Home(config)
+	home, err := confdir.Home(confdir.At(config))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +276,7 @@ func TestReadRefusesAFileBeyondItsLimit(t *testing.T) {
 func TestHomeHoldsEveryVaultsDirectory(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
-	home, err := confdir.Home(config)
+	home, err := confdir.Home(confdir.At(config))
 	if err != nil {
 		t.Fatalf("Home: %v", err)
 	}
@@ -283,7 +287,7 @@ func TestHomeHoldsEveryVaultsDirectory(t *testing.T) {
 	if want := filepath.Join(home.Path(), confdir.VaultID("/vaults/notes")); dir.Path() != want {
 		t.Errorf("VaultDir = %q, want the vault's id under Home, %q", dir.Path(), want)
 	}
-	if _, err := confdir.Home(""); !errors.Is(err, confdir.ErrNotNamed) {
+	if _, err := confdir.Home(confdir.ConfigDir{}); !errors.Is(err, confdir.ErrNotNamed) {
 		t.Errorf("Home(\"\") = %v, want ErrNotNamed", err)
 	}
 }

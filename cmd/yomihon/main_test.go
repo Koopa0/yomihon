@@ -465,7 +465,7 @@ var envReaders = map[string]map[string]string{
 		"Expand":    "reads the environment through a mapping this guard cannot follow",
 		// The three directory readers name no key for this guard to check:
 		// each reads HOME, and the platform's own variable beside it, inside
-		// the standard library. UserConfigDir is here because the command does
+		// the standard library. UserConfigDir is here because the program does
 		// make that read — the reader's own marks are kept under the directory
 		// it returns — and a read the guard cannot see is a surface that
 		// widened while the guard stayed green. Its two siblings read the same
@@ -625,15 +625,23 @@ func envReads(fset *token.FileSet, files []*ast.File, allowed map[string]bool) [
 //
 // Configuration is the process's own business: the command reads what it needs
 // once, validates it, and hands the result to the packages that use it. A
-// package reaching for the environment itself is the shape this forbids, and
-// it is forbidden by location because there is no key here to allow.
+// package reaching for the environment of its own accord is the shape this
+// forbids, and it is forbidden by location because there is no key here to
+// allow. Each entry has to be read where it is permitted, so a permission the
+// code no longer uses is found rather than left for a later read to take.
+//
+// os.UserConfigDir is read in confdir.Platform, which the command calls at the
+// start, because the type it answers, confdir.ConfigDir, is the only thing a
+// directory the reader's files are kept in can be made from, and nothing
+// outside confdir can make one. The read is the command's all the same: it is
+// made when the command asks for it and at no other time.
 //
 // os.UserHomeDir is the one read that is not the command's own: vault.Tilde
 // spells a path under the reader's home directory as ~, wherever a path is
 // shown, and a path is spelled the same only if one function reads for it. The
 // read changes how a path is written and nothing the command does.
 var envReadersPermittedIn = map[string]string{
-	"os.UserConfigDir": "cmd/yomihon/main.go",
+	"os.UserConfigDir": "internal/mark/confdir/configdir.go",
 	"os.UserHomeDir":   "internal/vault/tilde.go",
 }
 
@@ -790,7 +798,8 @@ func goTargetEnvironment(target goTarget) []string {
 func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 	t.Parallel()
 	fset := token.NewFileSet()
-	offenders := envOffenders(envReads(fset, productionGoFiles(t, fset), allowedEnvKeys))
+	reads := envReads(fset, productionGoFiles(t, fset), allowedEnvKeys)
+	offenders := envOffenders(reads)
 	if len(offenders) > 0 {
 		lines := make([]string, 0, len(offenders))
 		for _, o := range offenders {
@@ -799,6 +808,27 @@ func TestOnlyKnownEnvVarsAreRead(t *testing.T) {
 		t.Errorf("this command may configure only YOMIHON_PORT, and read the home directory only to spell a path, but found:\n%s",
 			strings.Join(lines, "\n"))
 	}
+	for _, unread := range unusedPermissions(reads) {
+		t.Errorf("%s is permitted in %s and is not read there; remove the permission", unread, envReadersPermittedIn[unread])
+	}
+}
+
+// unusedPermissions are the entries of envReadersPermittedIn no read is made
+// under, in order.
+func unusedPermissions(reads []envRead) []string {
+	used := map[string]bool{}
+	for _, r := range reads {
+		if where, located := envReadersPermittedIn[r.Pkg+"."+r.Symbol]; located && readAt(r.Pos.Filename, where) {
+			used[r.Pkg+"."+r.Symbol] = true
+		}
+	}
+	var unused []string
+	for _, key := range slices.Sorted(maps.Keys(envReadersPermittedIn)) {
+		if !used[key] {
+			unused = append(unused, key)
+		}
+	}
+	return unused
 }
 
 func TestEnvironmentGuardIncludesTargetSpecificProductionFiles(t *testing.T) {
@@ -860,16 +890,16 @@ func f() (string, bool) {
 		want: nil,
 	},
 	{
-		name: "the configuration directory read from anywhere but the command",
+		name: "the configuration directory read anywhere but in confdir.Platform",
 		src: `package thing
 import "os"
 func where() (string, error) { return os.UserConfigDir() }`,
 		want: []string{"os.UserConfigDir reads HOME, and XDG_CONFIG_HOME where the platform has one, inside the standard library, so no key reaches this guard"},
 	},
 	{
-		// The command is allowed the configuration directory and neither of
-		// the two beside it, so this fixture is the command's own package: the
-		// one file that may read a directory may not read these.
+		// The configuration directory is read in one file and neither of the
+		// two beside it is, so this fixture is the command's own package: no
+		// file of it may read these.
 		name: "the home and cache directories, which no file may read",
 		src: `package main
 import "os"

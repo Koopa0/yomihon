@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/approval"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/render"
@@ -100,7 +101,7 @@ func newFigureServer(t *testing.T, root string, marks *approval.Store) *httptest
 
 func approvalsFor(t *testing.T) *approval.Store {
 	t.Helper()
-	marks, err := approval.Open(t.TempDir(), "/vaults/figures")
+	marks, err := approval.Open(confdir.At(t.TempDir()), "/vaults/figures")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,6 +20,7 @@ import (
 	"golang.org/x/net/html/atom"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -124,7 +125,7 @@ func TestRulesThatCloseTheCoursesCloseWhatTheRoutesAskOfThem(t *testing.T) {
 				t.Errorf("Rows(%q) ok = %v under %s", course, ok, name)
 			}
 			configDir := t.TempDir()
-			marks, err := mark.Open(configDir, vaultName)
+			marks, err := mark.Open(confdir.At(configDir), vaultName)
 			if err != nil {
 				t.Fatal(err)
 			}

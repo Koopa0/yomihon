@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/vaults"
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -16,7 +17,7 @@ import (
 func runVaultsCommand(t *testing.T, configDir string, isTerminal bool, args ...string) (exit int, stdout, stderr string) {
 	t.Helper()
 	var out, errOut bytes.Buffer
-	exit = runVaults(t.Context(), args, config{configDir: configDir}, &out, &errOut, isTerminal)
+	exit = runVaults(t.Context(), args, config{configDir: confdir.At(configDir)}, &out, &errOut, isTerminal)
 	return exit, out.String(), errOut.String()
 }
 

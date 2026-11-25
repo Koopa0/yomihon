@@ -18,6 +18,7 @@ import (
 	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/schema"
@@ -140,7 +141,7 @@ const (
 // openRequest is one resolved invocation of the command.
 type openRequest struct {
 	root      string
-	configDir string
+	configDir confdir.ConfigDir
 	// noConfigDir is why no configuration directory was resolved, when none
 	// was: the marks cannot be found, and a list without them is incomplete.
 	noConfigDir string
@@ -358,7 +359,7 @@ func (r *openRequest) adoptEarlier(vaultRoot string, snap *snapshot.Generation, 
 	if r.adopt == "" {
 		return false, nil
 	}
-	if r.configDir == "" {
+	if r.configDir.IsZero() {
 		reason := cmp.Or(r.noConfigDir, "the environment names none")
 		return false, fmt.Errorf(`no configuration directory, so the marks for the earlier path cannot be found: %s; nothing was adopted`, reason)
 	}
@@ -391,7 +392,7 @@ func (r *openRequest) adoptEarlier(vaultRoot string, snap *snapshot.Generation, 
 // marks reads the reader's marked locations for this vault, never writing
 // the file. stored tells no marks file from one that holds none.
 func (r *openRequest) marks(vaultRoot string) (kept []mark.Mark, stored bool, err error) {
-	if r.configDir == "" {
+	if r.configDir.IsZero() {
 		reason := cmp.Or(r.noConfigDir, "the environment names none")
 		return nil, false, fmt.Errorf(`no configuration directory, so the marks for this folder cannot be found: %s; nothing was listed`, reason)
 	}

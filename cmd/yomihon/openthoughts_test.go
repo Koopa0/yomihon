@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -281,7 +282,7 @@ func admitMark(*mark.Mark) bool { return true }
 func openThoughtSite(t *testing.T, root string) (*readingSite, *mark.Store) {
 	t.Helper()
 	config := t.TempDir()
-	site, err := newReadingSite(t.Context(), root, config, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(config), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +295,7 @@ func openThoughtSite(t *testing.T, root string) (*readingSite, *mark.Store) {
 	// happened between writing and reading.
 	site.cancel()
 	site.watchers.Wait()
-	marks, err := mark.Open(config, site.source.Name())
+	marks, err := mark.Open(confdir.At(config), site.source.Name())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -39,7 +40,7 @@ func openedSite(t *testing.T) *readingSite {
 	t.Helper()
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -171,7 +172,7 @@ func TestServingGivesTheAddressBeforeTheVaultIsRead(t *testing.T) {
 	result := make(chan error, 1)
 	go func() {
 		result <- serveVault(ctx, func() {}, orderedLog(events),
-			&config{root: root, port: "0", configDir: t.TempDir()}, orderedWriter{events})
+			&config{root: root, port: "0", configDir: confdir.At(t.TempDir())}, orderedWriter{events})
 	}()
 	deadline := time.After(10 * time.Second)
 	for indexOf(events.snapshot(), "log: vault snapshot built") < 0 {

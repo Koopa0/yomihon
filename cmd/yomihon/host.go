@@ -52,7 +52,7 @@ const (
 // it: twenty listed vaults are not twenty scanners from the first second.
 type host struct {
 	log       *slog.Logger
-	configDir string
+	configDir confdir.ConfigDir
 	// store is the list of vaults, or nil where nothing is remembered: with no
 	// configuration directory, or with a port left to the system. Then there is
 	// one vault, the one given, and no list to watch.
@@ -88,7 +88,7 @@ type mount struct {
 	touchWarned atomic.Bool
 }
 
-func newHost(log *slog.Logger, configDir string, store *vaults.Store) *host {
+func newHost(log *slog.Logger, configDir confdir.ConfigDir, store *vaults.Store) *host {
 	return &host{
 		log:       log,
 		configDir: configDir,

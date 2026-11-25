@@ -24,7 +24,7 @@ var approvedAt = time.Date(2026, 11, 12, 9, 0, 0, 0, time.UTC)
 
 func newStore(t *testing.T) *approval.Store {
 	t.Helper()
-	store, err := approval.Open(t.TempDir(), "/vaults/notes")
+	store, err := approval.Open(confdir.At(t.TempDir()), "/vaults/notes")
 	if err != nil {
 		t.Fatalf("approval.Open: %v", err)
 	}
@@ -33,9 +33,12 @@ func newStore(t *testing.T) *approval.Store {
 
 func TestAnApprovalStoreNeedsAConfigurationDirectoryAndAVaultRoot(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct{ configDir, vaultRoot string }{{"", "/vaults/notes"}, {t.TempDir(), ""}} {
+	for _, tc := range []struct {
+		configDir confdir.ConfigDir
+		vaultRoot string
+	}{{confdir.ConfigDir{}, "/vaults/notes"}, {confdir.At(t.TempDir()), ""}} {
 		if _, err := approval.Open(tc.configDir, tc.vaultRoot); err == nil {
-			t.Errorf("approval.Open(%q, %q) = nil error, want a refusal", tc.configDir, tc.vaultRoot)
+			t.Errorf("approval.Open(%v, %q) = nil error, want a refusal", tc.configDir, tc.vaultRoot)
 		}
 	}
 }
@@ -232,7 +235,7 @@ func TestTwoStoresOnOneDirectoryKeepEveryApproval(t *testing.T) {
 	kept := make([][]string, 2)
 	var writers sync.WaitGroup
 	for w := range 2 {
-		store, err := approval.Open(config, "/vaults/notes")
+		store, err := approval.Open(confdir.At(config), "/vaults/notes")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -252,7 +255,7 @@ func TestTwoStoresOnOneDirectoryKeepEveryApproval(t *testing.T) {
 		})
 	}
 	writers.Wait()
-	store, err := approval.Open(config, "/vaults/notes")
+	store, err := approval.Open(confdir.At(config), "/vaults/notes")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,7 +283,7 @@ func TestTwoStoresOnOneDirectoryKeepEveryApproval(t *testing.T) {
 func TestRevokingWhatWasNeverApprovedLeavesNoDirectory(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
-	store, err := approval.Open(config, "/vaults/notes")
+	store, err := approval.Open(confdir.At(config), "/vaults/notes")
 	if err != nil {
 		t.Fatal(err)
 	}

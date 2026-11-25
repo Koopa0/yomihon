@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/approval"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
 const approvalFigure = "<!doctype html><p>x</p><script>fetch('https://outside.test/a')</script>\n"
@@ -40,7 +41,7 @@ func runApproval(t *testing.T, root, configDir string, interactive bool, typed s
 	var stdout, stderr bytes.Buffer
 	exit = runFigureCommand(t.Context(), args[0], append([]string{"--root", root}, args[1:]...), &figureIO{
 		in: strings.NewReader(typed), out: &stdout, errOut: &stderr, interactive: interactive,
-	}, configDir, func() time.Time { return time.Date(2026, 11, 12, 9, 0, 0, 0, time.UTC) })
+	}, confdir.At(configDir), func() time.Time { return time.Date(2026, 11, 12, 9, 0, 0, 0, time.UTC) })
 	return exit, stdout.String(), stderr.String()
 }
 
@@ -50,7 +51,7 @@ func approvedHere(t *testing.T, root, configDir string) bool {
 	if err != nil {
 		t.Fatal(err)
 	}
-	marks, err := approval.Open(configDir, resolved)
+	marks, err := approval.Open(confdir.At(configDir), resolved)
 	if err != nil {
 		t.Fatal(err)
 	}

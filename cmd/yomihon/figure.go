@@ -16,6 +16,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/figure"
 	"github.com/koopa0/yomihon/internal/mark/approval"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -99,7 +100,7 @@ func (stdio *figureIO) faultf(format string, args ...any) {
 // it did what was asked, 1 when it declined — a refused figure, one with
 // nothing to approve, a confirmation that did not match — and 2 when it could
 // not run: bad arguments, no terminal, an unreadable vault or record.
-func runFigureCommand(ctx context.Context, command string, args []string, stdio *figureIO, configDir string, now func() time.Time) int {
+func runFigureCommand(ctx context.Context, command string, args []string, stdio *figureIO, configDir confdir.ConfigDir, now func() time.Time) int {
 	root, rel, err := figureArgs(command, args)
 	if err != nil {
 		stdio.faultf("%v", err)
@@ -111,7 +112,7 @@ func runFigureCommand(ctx context.Context, command string, args []string, stdio 
 		stdio.faultf("%s", figureNeedsTerminal)
 		return 2
 	}
-	if configDir == "" {
+	if configDir.IsZero() {
 		stdio.faultf("%s", figureNoConfigDir)
 		return 2
 	}

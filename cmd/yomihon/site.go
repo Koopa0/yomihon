@@ -13,6 +13,7 @@ import (
 	"github.com/koopa0/yomihon/internal/course"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/approval"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/nav"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/origin"
@@ -80,7 +81,7 @@ func logPolicyFaults(log *slog.Logger, contract *schema.Contract) {
 // never open this; marks answers about the reader without it, reading the
 // question marks through mark.Store, and the two figure commands open it to
 // approve and revoke.
-func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logger) (*readingSite, error) {
+func newReadingSite(ctx context.Context, root string, configDir confdir.ConfigDir, log *slog.Logger) (*readingSite, error) {
 	source, err := vault.Open(root)
 	if err != nil {
 		return nil, fmt.Errorf("open vault source: %w", err)
@@ -92,7 +93,7 @@ func newReadingSite(ctx context.Context, root, configDir string, log *slog.Logge
 // from here: a failure closes it. The first read is reported into progress,
 // which a nil value leaves unwatched. The serving command opens the vault
 // itself so that it can say which folder it is before the read has finished.
-func composeReadingSite(ctx context.Context, source *vault.Reader, configDir string, log *slog.Logger, progress *snapshot.Progress) (_ *readingSite, resultErr error) {
+func composeReadingSite(ctx context.Context, source *vault.Reader, configDir confdir.ConfigDir, log *slog.Logger, progress *snapshot.Progress) (_ *readingSite, resultErr error) {
 	defer func() {
 		if resultErr != nil {
 			resultErr = errors.Join(resultErr, source.Close())
@@ -155,7 +156,7 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir str
 	var questions func() ([]mark.Mark, error)
 	var figureApproved func(string, [sha256.Size]byte) (render.Approval, error)
 	var marks *mark.Store
-	if configDir != "" {
+	if !configDir.IsZero() {
 		if marks, err = mark.Open(configDir, source.Name()); err != nil {
 			return nil, fmt.Errorf("name the reader's marks: %w", err)
 		}

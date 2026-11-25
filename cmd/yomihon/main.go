@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/vaults"
 )
 
@@ -60,8 +61,9 @@ func main() {
 		os.Exit(exit)
 	case openCommand:
 		// The reader's marks live under the platform's configuration directory,
-		// which is resolved here and only here. Without one the marks cannot be
-		// found, and the command says so rather than list thoughts alone.
+		// which is resolved here, before the command runs. Without one the marks
+		// cannot be found, and the command says so rather than list thoughts
+		// alone.
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		exit := runOpenThoughts(ctx, args, userConfig(), os.Stdout, os.Stderr, stdoutIsTerminal())
 		stop()
@@ -75,19 +77,15 @@ func main() {
 		os.Exit(exit)
 	case approveFigureCommand, revokeFigureCommand:
 		// These two speak about the reader, so they open the reader's own
-		// directory, resolved here like the server's: the one place this
-		// process asks the environment where that is.
-		configDir, err := os.UserConfigDir()
-		if err != nil {
-			configDir = ""
-		}
+		// directory, resolved here like the server's. Without one they say so,
+		// whatever the reason the platform gave.
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		exit := runFigureCommand(ctx, command, args, &figureIO{
 			in:          os.Stdin,
 			out:         os.Stdout,
 			errOut:      os.Stderr,
 			interactive: isTerminal(os.Stdin) && isTerminal(os.Stdout),
-		}, configDir, time.Now)
+		}, userConfig().configDir, time.Now)
 		stop()
 		os.Exit(exit)
 	default:
@@ -98,9 +96,10 @@ func main() {
 }
 
 // userConfig is the reader's configuration directory as the platform names it,
-// or why there is none. It is asked for here and only here.
+// or why there is none. confdir.Platform is the one place it is asked, and the
+// command asks it here and in loadConfig.
 func userConfig() config {
-	configDir, err := os.UserConfigDir()
+	configDir, err := confdir.Platform()
 	if err != nil {
 		return config{noConfigDir: err.Error()}
 	}
@@ -176,17 +175,20 @@ type config struct {
 	// own choice from the one used when they made none.
 	portSet bool
 	// configDir is where this platform keeps a program's own files, resolved
-	// once here because reading the environment is the process's business.
-	// The standard library reads HOME for it, and XDG_CONFIG_HOME on Linux, so
-	// this is the second thing outside the arguments that decides where the
-	// binary looks — which is why it is resolved in one place, held in this
-	// struct like the port, and handed to the package that needs it.
+	// once at the start because reading the environment is the process's
+	// business. The standard library reads HOME for it, XDG_CONFIG_HOME on
+	// Linux and %AppData% on Windows, so this is the second thing outside the
+	// arguments that decides where the binary looks — which is why
+	// confdir.Platform is the one place that asks, and why what it answers is
+	// held in this struct like the port and handed to the packages that need
+	// it, as a type a vault's path cannot be passed as.
 	//
-	// Empty where the environment names none. That is not a reason to refuse
-	// to start: reading is the product and a kept reading place is a
-	// convenience on top of it, so the room opens and the convenience is the
-	// thing that is missing.
-	configDir string
+	// The zero ConfigDir where the environment names none, or names one that
+	// is not an absolute path. That is not a reason to refuse to start:
+	// reading is the product and a kept reading place is a convenience on top
+	// of it, so the room opens and the convenience is the thing that is
+	// missing.
+	configDir confdir.ConfigDir
 	// noConfigDir is why none was resolved, for the one line that says so.
 	noConfigDir string
 }
@@ -255,7 +257,7 @@ func loadConfig(root string) (config, error) {
 	if cfg.port == "" {
 		cfg.port = defaultPort
 	}
-	if configDir, dirErr := os.UserConfigDir(); dirErr != nil {
+	if configDir, dirErr := confdir.Platform(); dirErr != nil {
 		cfg.noConfigDir = dirErr.Error()
 	} else {
 		cfg.configDir = configDir
@@ -323,7 +325,7 @@ func (c *config) startPort() int {
 // not one a reader can come back to, and with no configuration directory there
 // is nowhere to keep the list.
 func (c *config) remembers() bool {
-	return c.configDir != "" && c.startPort() != 0
+	return !c.configDir.IsZero() && c.startPort() != 0
 }
 
 // portFree says whether nothing is listening on the loopback port. It is asked

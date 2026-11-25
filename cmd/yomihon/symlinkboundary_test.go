@@ -9,6 +9,8 @@ import (
 	"testing"
 
 	"log/slog"
+
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
 // TestASymlinkOutOfTheVaultIsNeitherIndexedNorServed writes down the boundary
@@ -41,7 +43,7 @@ func TestASymlinkOutOfTheVaultIsNeitherIndexedNorServed(t *testing.T) {
 		t.Skipf("this filesystem will not hold a symbolic link: %v", err)
 	}
 
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}

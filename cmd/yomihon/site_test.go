@@ -18,6 +18,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
@@ -176,7 +177,7 @@ func TestARulesFileThatStillDeclaresAVersionIsRefusedNamingTheKey(t *testing.T) 
 			t.Fatalf("write %s: %v", path, err)
 		}
 	}
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -221,7 +222,7 @@ func TestTheDeskNamesTheFolderByItsReadmeAndSaysWhereItIs(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Field Notes\n\nWords.\n"), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
 		t.Fatalf("write README: %v", err)
 	}
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -260,7 +261,7 @@ func TestEveryPageHeaderNamesTheFolderByItsReadme(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte("# Field Notes\n\nWords.\n"), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
 		t.Fatalf("write README: %v", err)
 	}
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -327,7 +328,7 @@ func TestContractAbsenceIsNotReportedAsAFault(t *testing.T) {
 			}
 
 			var logged lockedBuffer
-			site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.NewTextHandler(&logged, nil)))
+			site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.NewTextHandler(&logged, nil)))
 			if err != nil {
 				t.Fatalf("newReadingSite: %v", err)
 			}
@@ -431,7 +432,7 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -495,7 +496,7 @@ func TestTheSiteRefusesAWriteToTheReadersFilesFromAnotherSiteOrAnotherName(t *te
 		t.Fatalf("write a course that walks it: %v", err)
 	}
 	configDir := t.TempDir()
-	site, err := newReadingSite(t.Context(), root, configDir, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(configDir), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -583,7 +584,7 @@ func TestTheSiteKeepsNoPlaceInANoteItDoesNotHold(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -644,7 +645,7 @@ func TestTheSiteRefusesARequestAddressedElsewhere(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -756,7 +757,7 @@ func TestEveryPageTitlesItsTabWithTheVaultsName(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}

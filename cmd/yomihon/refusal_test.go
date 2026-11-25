@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
 // TestRoutingRefusalsKeepTheReadingShell checks requests refused before any
@@ -18,7 +20,7 @@ import (
 func TestRoutingRefusalsKeepTheReadingShell(t *testing.T) {
 	root := t.TempDir()
 	writeDeskFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +138,7 @@ func TestRoutingRefusalsKeepTheReadingShell(t *testing.T) {
 func TestRefusalReplaysKeepTheWireReply(t *testing.T) {
 	root := t.TempDir()
 	writeDeskFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +198,7 @@ func TestRefusalReplaysKeepTheWireReply(t *testing.T) {
 func TestRefusalRenderingKeepsCancellation(t *testing.T) {
 	root := t.TempDir()
 	writeDeskFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}
