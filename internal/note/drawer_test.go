@@ -137,8 +137,8 @@ func TestTheSidebarShowsOneModeForThePageAtHand(t *testing.T) {
 // Five trial readers asked the same question standing on a note — who cites
 // this — and two of them pointed out the resolver already knew, because it
 // could report the citations that were broken. The answer is on the page now,
-// and the empty answer is said out loud: a note nothing cites is an island,
-// which is a finding, not a blank.
+// where there is one: a note nothing cites draws no block, so its end is not a
+// line read to learn nothing.
 func TestCitedByAnswersOnThePage(t *testing.T) {
 	t.Parallel()
 
@@ -172,15 +172,10 @@ func TestCitedByAnswersOnThePage(t *testing.T) {
 	if code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", code)
 	}
-	island := citedByBlock(t, body)
-	if !strings.Contains(island, "目前沒有其他筆記在正文連到這篇。") {
-		t.Errorf("the island does not say it is one; block = %q", island)
-	}
-	// Scoped to the block on purpose: the rail lists every note in the folder,
-	// so a whole-page search for the citer's href would pass whatever the
-	// cited-by block said.
-	if strings.Contains(island, `href="/notes/Concepts/citer.md"`) {
-		t.Errorf("the island lists a citation it does not have; block = %q", island)
+	// The rail lists every note in the folder, so the absence is asked of the
+	// block itself rather than of the citer's href anywhere on the page.
+	if strings.Contains(body, `<nav class="y-citedby"`) {
+		t.Errorf("the island draws a cited-by block for citations it does not have; page = %q", body)
 	}
 }
 
@@ -549,14 +544,13 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	if strings.Contains(body, `rel="prev"`) {
 		t.Errorf("the first lesson of the course offers a step back")
 	}
-	// The order's name is printed for every reader, not spoken only to
-	// assistive technology, and each link says it hands over a lesson. The role
-	// is the words and then the direction arrow in a span of its own; the same
-	// two literals are what a folder's foot is later refused, so the pattern
+	// The order is printed for every reader, not spoken only to assistive
+	// technology: each link's word says it hands over a lesson. The same two
+	// literals are what a folder's foot is later refused, so the pattern
 	// refused is one this page has been seen to print.
 	const (
-		prevCourseRole = `<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 上一單元</span>`
-		nextCourseRole = `<span class="y-steps__role">下一單元 <span class="y-steps__dir" aria-hidden="true">→</span></span>`
+		prevCourseRole = `<span class="y-steps__role">上一單元</span>`
+		nextCourseRole = `<span class="y-steps__role">下一單元</span>`
 	)
 	for _, want := range []string{
 		`aria-label="Go course 從此步往下"`,
@@ -589,8 +583,8 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	}
 	for _, want := range []string{
 		`href="/notes/Diary/2026-08-02%E8%AA%B2%E7%A8%8B%E7%AD%86%E8%A8%98.md" rel="next"`,
-		`<p class="y-steps__source">同資料夾的前後檔案</p>`,
-		`<span class="y-steps__role">下一份 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
+		`aria-label="同資料夾的前後檔案"`,
+		`<span class="y-steps__role">下一份</span>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("an entry no course teaches lost its folder line: missing %q", want)
@@ -604,7 +598,7 @@ func TestTheArrowWalksTheCourseThatTeachesTheNote(t *testing.T) {
 	for _, forbidden := range []string{
 		prevCourseRole,
 		nextCourseRole,
-		`<p class="y-steps__source">Go course 從此步往下</p>`,
+		`<p class="y-steps__source">`,
 		`aria-label="Go course 從此步往下"`,
 	} {
 		if strings.Contains(foot, forbidden) {

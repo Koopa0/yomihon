@@ -11,11 +11,11 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// dlBlock finds the one <dl class="y-notefacts">…</dl> region so a count taken
+// dlBlock finds the one <dl class="y-colophon__facts">…</dl> region so a count taken
 // inside it says something about that list specifically, not about the whole
 // page — a dt or dd anywhere else on a reading page (the keyboard-help panel
 // carries its own) must not inflate or deflate what this counts.
-var dlBlock = regexp.MustCompile(`(?s)<dl class="y-notefacts">.*?</dl>`)
+var dlBlock = regexp.MustCompile(`(?s)<dl class="y-colophon__facts">.*?</dl>`)
 
 func renderNoteView(t *testing.T, view *NoteView) string {
 	t.Helper()
@@ -29,9 +29,9 @@ func renderNoteView(t *testing.T, view *NoteView) string {
 // TestNoteFactsAreAllDtDdPairs is the acceptance line itself: every fact the
 // note shows is a dt/dd pair in one list. Rather than enumerating the fields by
 // name — a table that silently stops proving anything the day another fact is
-// added beside them instead of inside noteFacts — it derives how many pairs are
-// owed from how many of NoteView's own fact fields are populated, and checks
-// the rendered list against that count. A fact added outside noteFacts (a stray
+// added beside them instead of inside the colophon's foot — it derives how many
+// pairs are owed from how many of NoteView's own fact fields are populated, and
+// checks the rendered list against that count. A fact added outside it (a stray
 // span beside the title, say) would grow the visible facts without growing this
 // count, which is exactly the regression this test exists to catch.
 func TestNoteFactsAreAllDtDdPairs(t *testing.T) {
@@ -52,10 +52,10 @@ func TestNoteFactsAreAllDtDdPairs(t *testing.T) {
 		view NoteView
 		want int
 	}{
-		{name: "every fact declared", view: full, want: 5},
-		{name: "no language declared", view: func() NoteView { v := full; v.Language = ""; return v }(), want: 4},
-		{name: "no day declared", view: func() NoteView { v := full; v.VerifiedOn, v.VerifiedAt = "", ""; return v }(), want: 4},
-		{name: "no prerequisites declared", view: func() NoteView { v := full; v.Prerequisites = nil; return v }(), want: 4},
+		{name: "every fact declared", view: full, want: 4},
+		{name: "no language declared", view: func() NoteView { v := full; v.Language = ""; return v }(), want: 3},
+		{name: "no day declared", view: func() NoteView { v := full; v.VerifiedOn, v.VerifiedAt = "", ""; return v }(), want: 3},
+		{name: "no type declared", view: func() NoteView { v := full; v.Type = ""; return v }(), want: 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestNoteFactsAreAllDtDdPairs(t *testing.T) {
 			html := renderNoteView(t, &tt.view)
 			blocks := dlBlock.FindAllString(html, -1)
 			if len(blocks) != 1 {
-				t.Fatalf("found %d y-notefacts lists, want exactly one", len(blocks))
+				t.Fatalf("found %d y-colophon__facts lists, want exactly one", len(blocks))
 			}
 			dts, dds := strings.Count(blocks[0], "<dt"), strings.Count(blocks[0], "<dd")
 			if dts != tt.want || dds != tt.want {
@@ -76,6 +76,9 @@ func TestNoteFactsAreAllDtDdPairs(t *testing.T) {
 // TestNoteFactValues locks which dt names which dd: a reordering or a
 // mismatched pair would pass a bare count and fail this. The day is the author's
 // own and is labelled as theirs; the file's change time is nowhere on the page.
+// The path's term is for a screen reader alone, and the notes to know first are
+// not a fact of the file but a list beside the note, with the other notes that
+// stand beside it.
 func TestNoteFactValues(t *testing.T) {
 	t.Parallel()
 	view := NoteView{
@@ -90,16 +93,16 @@ func TestNoteFactValues(t *testing.T) {
 	}
 	html := renderNoteView(t, &view)
 	for _, want := range []string{
-		`<dt lang="zh-Hant">類型</dt><dd>lesson</dd>`,
-		`<dt lang="zh-Hant">語言</dt><dd>ja</dd>`,
-		`<dt lang="zh-Hant">` + wording.VerifiedOn.In(wording.ZhHant) + `</dt><dd><time datetime="2026-07-10">2026-07-10</time></dd>`,
-		`<dt lang="zh-Hant">原始檔</dt><dd><a class="y-notefacts__path" href="/raw/Writing/lessons/go/L01.md">Writing/lessons/go/L01.md</a></dd>`,
+		`<dt>類型</dt><dd>lesson</dd>`,
+		`<dt>語言</dt><dd>ja</dd>`,
+		`<dt>` + wording.VerifiedOn.In(wording.ZhHant) + `</dt><dd><time datetime="2026-07-10">2026-07-10</time></dd>`,
+		`<dt class="y-offscreen">原始檔</dt><dd><a class="y-colophon__path" href="/raw/Writing/lessons/go/L01.md">Writing/lessons/go/L01.md</a></dd>`,
 	} {
 		if strings.Count(html, want) != 1 {
 			t.Errorf("want %q exactly once, found %d", want, strings.Count(html, want))
 		}
 	}
-	prerequisites := `<dt lang="zh-Hant">` + wording.Prerequisites.In(wording.ZhHant) + `</dt><dd><ul class="y-notefacts__links" role="list"><li><a href="/notes/Writing/lessons/go/L00.md">L00</a></li><li><span>not written yet</span></li></ul></dd>`
+	prerequisites := `<nav class="y-prereq" aria-label="先備知識"><div class="ui-side__label">先備知識</div><ul class="y-related__list" role="list"><li><a class="ui-navitem" href="/notes/Writing/lessons/go/L00.md">L00</a></li><li><span class="ui-navitem">not written yet</span></li></ul></nav>`
 	if !strings.Contains(html, prerequisites) {
 		t.Errorf("the prerequisites are not a list of links with the unplaced one left as text; want %q", prerequisites)
 	}
@@ -121,9 +124,9 @@ func TestNoteFactValues(t *testing.T) {
 }
 
 // TestNoteFactsStandAtTheEndAndNothingStandsUnderTheTitle holds where the facts
-// are: with what ends the text, after the prose, and not between the title and
-// the first sentence. The title is the head and has nothing after it but the
-// words of the note.
+// are: in the colophon that ends the note, after the prose, and not between the
+// title and the first sentence. The title is the head and has nothing after it
+// but the words of the note. The doors out of the page follow the facts.
 func TestNoteFactsStandAtTheEndAndNothingStandsUnderTheTitle(t *testing.T) {
 	t.Parallel()
 	view := NoteView{
@@ -138,11 +141,11 @@ func TestNoteFactsStandAtTheEndAndNothingStandsUnderTheTitle(t *testing.T) {
 		ObsidianHref: "obsidian://open?path=x",
 	}
 	html := renderNoteView(t, &view)
-	title, prose, facts, end := strings.Index(html, `<h1 class="y-title">`), strings.Index(html, "<p>The prose.</p>"), strings.Index(html, `<dl class="y-notefacts">`), strings.Index(html, `class="y-related"`)
+	title, prose, facts, end := strings.Index(html, `<h1 class="y-title">`), strings.Index(html, "<p>The prose.</p>"), strings.Index(html, `<dl class="y-colophon__facts">`), strings.Index(html, `class="y-colophon"`)
 	if title < 0 || prose < title || end < prose || facts < end {
 		t.Fatalf("title@%d prose@%d end@%d facts@%d, want them in that order", title, prose, end, facts)
 	}
-	if between := html[title:prose]; strings.Contains(between, "y-notefacts") || strings.Contains(between, "data-note-draft") || strings.Contains(between, "y-metarow") || strings.Contains(between, "y-headmeta") {
+	if between := html[title:prose]; strings.Contains(between, "y-colophon") || strings.Contains(between, "data-note-draft") || strings.Contains(between, "y-metarow") || strings.Contains(between, "y-headmeta") {
 		t.Errorf("something of the note's facts stands between its title and its prose:\n%s", between)
 	}
 	for _, door := range []string{`href="obsidian://open?path=x"`} {
@@ -153,13 +156,13 @@ func TestNoteFactsStandAtTheEndAndNothingStandsUnderTheTitle(t *testing.T) {
 }
 
 // TestNoteWithNoFactsDrawsNoFactsAndADraftSaysSoInItsHead is the other side of
-// factsShown: a note with none of the facts draws no list for either reader to
-// learn is empty, and a draft says so where the note says where it is, not among
-// the facts at its end.
+// colophonShown: a note with no fact, no door and no step draws no colophon for
+// either reader to learn is empty, and a draft says so where the note says where
+// it is, not among the facts at its end.
 func TestNoteWithNoFactsDrawsNoFactsAndADraftSaysSoInItsHead(t *testing.T) {
 	t.Parallel()
 	bare := renderNoteView(t, &NoteView{Title: "Bare"})
-	for _, kept := range []string{"y-metarow", "y-headmeta", "y-notefacts", "y-facts", `class="y-related"`, "data-note-draft"} {
+	for _, kept := range []string{"y-metarow", "y-headmeta", "y-colophon", "y-facts", `class="y-related"`, "data-note-draft"} {
 		if strings.Contains(bare, kept) {
 			t.Errorf("a note declaring no fact still drew %q:\n%s", kept, bare)
 		}
@@ -169,7 +172,7 @@ func TestNoteWithNoFactsDrawsNoFactsAndADraftSaysSoInItsHead(t *testing.T) {
 	if word < 0 || title < word {
 		t.Errorf("a draft's word is at %d and its title at %d, want the word first:\n%s", word, title, draft)
 	}
-	if strings.Contains(draft, "y-notefacts") || strings.Contains(draft, "y-facts") {
+	if strings.Contains(draft, "y-colophon") || strings.Contains(draft, "y-facts") {
 		t.Errorf("a draft with no other fact drew a facts block:\n%s", draft)
 	}
 }

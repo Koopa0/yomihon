@@ -2507,8 +2507,8 @@ func TestTheFactsDateIsTheAuthorsCheckedDayAndNeverTheFilesTime(t *testing.T) {
 		lang  wording.Lang
 		label string
 	}{
-		{wording.ZhHant, `<dt lang="zh-Hant">作者寫的查證日</dt>`},
-		{wording.En, `<dt lang="en">Checked on, as the author wrote it</dt>`},
+		{wording.ZhHant, `<dt>作者寫的查證日</dt>`},
+		{wording.En, `<dt>Checked on, as the author wrote it</dt>`},
 	} {
 		page := fetchAs(t, srv, "/notes/Writing/Checked.md", tc.lang)
 		if want := tc.label + `<dd><time datetime="2026-07-20">2026-07-20</time></dd>`; !strings.Contains(page, want) {
@@ -2550,7 +2550,7 @@ func TestPrerequisitesAreLinksToTheNotesTheyNameAndTextWhereTheyNameNone(t *test
 	srv := newServer(t, root)
 
 	page := fetchAs(t, srv, "/notes/Writing/Needs.md", wording.ZhHant)
-	if want := `<dt lang="zh-Hant">先備知識</dt><dd><ul class="y-notefacts__links" role="list"><li><a href="/notes/Writing/Basics.md">Basics</a></li><li><span>not written yet</span></li></ul></dd>`; !strings.Contains(page, want) {
+	if want := `<div class="ui-side__label">先備知識</div><ul class="y-related__list" role="list"><li><a class="ui-navitem" href="/notes/Writing/Basics.md">Basics</a></li><li><span class="ui-navitem">not written yet</span></li></ul>`; !strings.Contains(page, want) {
 		t.Errorf("the prerequisites are not one link to the note they name, once, and the unwritten one as text; want %q", want)
 	}
 }
@@ -2588,17 +2588,17 @@ func TestPrerequisitesThatPlaceNoNoteAreWordsAndNeverTheSyntaxOfALink(t *testing
 	srv := newServer(t, root)
 
 	page := fetchAs(t, srv, "/notes/Writing/Needs.md", wording.ZhHant)
-	want := `<dt lang="zh-Hant">先備知識</dt><dd><ul class="y-notefacts__links" role="list">` +
-		`<li><a href="/notes/Writing/Basics.md">Basics</a></li>` +
-		`<li><span>No such note</span></li>` +
-		`<li><span>what the author called it</span></li>` +
-		`<li><span>Twin</span></li>` +
-		`<li><span>either twin</span></li>` +
-		`<li><span>plain words</span></li></ul></dd>`
+	want := `<div class="ui-side__label">先備知識</div><ul class="y-related__list" role="list">` +
+		`<li><a class="ui-navitem" href="/notes/Writing/Basics.md">Basics</a></li>` +
+		`<li><span class="ui-navitem">No such note</span></li>` +
+		`<li><span class="ui-navitem">what the author called it</span></li>` +
+		`<li><span class="ui-navitem">Twin</span></li>` +
+		`<li><span class="ui-navitem">either twin</span></li>` +
+		`<li><span class="ui-navitem">plain words</span></li></ul>`
 	if !strings.Contains(page, want) {
-		_, facts, _ := strings.Cut(page, `<dt lang="zh-Hant">先備知識</dt>`)
-		facts, _, _ = strings.Cut(facts, "</dd>")
-		t.Errorf("the prerequisites are not, in order, the one note placed and the words of each that placed none, with the note itself left out;\nwant %s\ngot  <dt lang=\"zh-Hant\">先備知識</dt>%s</dd>", want, facts)
+		_, list, _ := strings.Cut(page, `<div class="ui-side__label">先備知識</div>`)
+		list, _, _ = strings.Cut(list, "</ul>")
+		t.Errorf("the prerequisites are not, in order, the one note placed and the words of each that placed none, with the note itself left out;\nwant %s\ngot  <div class=\"ui-side__label\">先備知識</div>%s</ul>", want, list)
 	}
 	if strings.Contains(page, "[[") || strings.Contains(page, "]]") {
 		t.Errorf("the page prints the brackets of a link that placed no note")

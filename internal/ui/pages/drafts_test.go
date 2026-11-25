@@ -175,8 +175,8 @@ func TestTheHeadMarksADraftOnceAndTheFactsCarryNone(t *testing.T) {
 		if got := strings.Count(head, "data-note-draft"); got != 1 || !strings.Contains(head, wording.Draft.In(lang)) || !strings.Contains(head, `<p class="y-notewhere" lang="`+lang.Tag()+`">`) {
 			t.Errorf("%s: the head carries the draft's mark %d times, want once in the interface's language: %s", lang.Tag(), got, head)
 		}
-		if facts := renderComponent(t, noteFacts(view, lang)); strings.Contains(facts, "data-note-draft") {
-			t.Errorf("%s: the facts still carry the draft's mark: %s", lang.Tag(), facts)
+		if facts := renderComponent(t, colophon(view, lang)); strings.Contains(facts, "data-note-draft") {
+			t.Errorf("%s: the colophon still carries the draft's mark: %s", lang.Tag(), facts)
 		}
 		finished := renderComponent(t, articleHead(NoteView{Title: "A", RelPath: "a.md", Type: "note"}, lang))
 		if strings.Contains(finished, "data-note-draft") {

@@ -245,29 +245,20 @@ samp {
 }
 
 .y-here .ui-navitem,
-.y-railgroup .ui-navitem,
-.y-citedby .ui-navitem,
-.y-basedon .ui-navitem,
-.y-pair .ui-navitem {
+.y-railgroup .ui-navitem {
   border-radius: 0;
   box-shadow: inset 1px 0 0 var(--line);
   padding-left: 16px;
 }
 
 .y-here .ui-navitem:hover,
-.y-railgroup .ui-navitem:hover,
-.y-citedby .ui-navitem:hover,
-.y-basedon .ui-navitem:hover,
-.y-pair .ui-navitem:hover {
+.y-railgroup .ui-navitem:hover {
   background: transparent;
   box-shadow: inset 1px 0 0 var(--line-strong);
 }
 
 .y-here .ui-navitem.is-active,
 .y-railgroup .ui-navitem.is-active,
-.y-citedby .ui-navitem.is-active,
-.y-basedon .ui-navitem.is-active,
-.y-pair .ui-navitem.is-active,
 .y-here .ui-navitem[aria-current='page'],
 .y-railgroup .ui-navitem[aria-current='page'] {
   background: var(--selected);
@@ -1609,12 +1600,9 @@ html[data-js][data-arrival='kept'] .y-main {
   background: var(--wash);
   color: var(--fg);
 }
-/* The note's facts, at the end of the text with what stands beside the note: a
+/* The facts a page that could not read the vault lists under its notice: a
    description list with its terms in one column and its values in the next,
-   quiet, since a reader who has finished looks here for what the note is and
-   where the file is and no one reads it ahead of the prose. The draft mark
-   stands above it. A path is long and breaks anywhere rather than running out
-   of the column; the doors out of the page stand under it, on one line. */
+   quiet, in the interface's face. */
 .y-facts {
   color: var(--fg-subtle);
   font-family: var(--font-sans);
@@ -1763,36 +1751,6 @@ html[data-js][data-arrival='kept'] .y-main {
 .y-notefacts dd {
   margin: 0;
   overflow-wrap: anywhere;
-}
-
-.y-notefacts__links {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.y-notefacts a {
-  color: var(--link);
-  text-decoration: underline;
-  text-decoration-color: var(--link-line);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.24em;
-}
-
-.y-notefacts a:hover {
-  text-decoration-color: currentcolor;
-}
-
-.y-notefacts__path {
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
-}
-
-.y-notefacts__door {
-  display: block;
-  font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
-  margin-top: var(--sp-1);
 }
 
 @media (max-width: 720px) {
@@ -3675,24 +3633,6 @@ button.y-freshness__action {
   }
 }
 
-/* The block that ends the text: what stands beside the note, in one column
-   below the way the prose ends, a wide gap above it so the text has finished
-   before it begins. Each aid keeps the anatomy it had when it stood in a
-   column of its own — a small quiet label over a list of links — so a reader
-   who knew it there finds it unchanged, and the sidebar's last contents row
-   leads here. It is the row's target, so a jump parks it clear of the header. */
-.y-related {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-5);
-  margin-top: 56px;
-  scroll-margin-top: var(--header-clearance);
-}
-
-.y-related:focus {
-  outline: none;
-}
-
 .y-toc__list {
   display: flex;
   flex-direction: column;
@@ -3720,27 +3660,25 @@ button.y-freshness__action {
   box-shadow: inset 1px 0 0 var(--line-strong);
   color: var(--fg);
 }
-/* In the reading aids only the contents' own name is a heading. Every other
-   block's name — the note to read beside this one, the sources, the notes
-   citing it, the note's health, and the status — is a label over a list, a
-   step smaller and quieter, so the eye finds the contents first. The aids'
-   links are one anatomy whatever list they are in: the quiet ink at rest and
-   the full ink under a pointer, the same as the contents' own rows. */
-:is(.y-toc-inline__body, .y-related) .ui-side__label {
+/* In the folded contents of a column only the contents' own name is a
+   heading; any other label there is a step smaller and quieter, so the eye
+   finds the contents first, and its links are the quiet ink at rest and the
+   full ink under a pointer, the same as the contents' own rows. */
+.y-toc-inline__body .ui-side__label {
   color: var(--fg-muted);
   font-size: var(--fs-13);
   font-weight: var(--fw-medium);
 }
 
-:is(.y-toc-inline__body, .y-related) .ui-side__label .ui-navitem__count {
+.y-toc-inline__body .ui-side__label .ui-navitem__count {
   font-size: var(--fs-13);
 }
 
-:is(.y-toc-inline__body, .y-related) .ui-navitem {
+.y-toc-inline__body .ui-navitem {
   color: var(--fg-subtle);
 }
 
-:is(.y-toc-inline__body, .y-related) .ui-navitem:hover {
+.y-toc-inline__body .ui-navitem:hover {
   color: var(--fg);
 }
 
@@ -3806,94 +3744,6 @@ button.y-freshness__action {
 .y-xbtn--primary {
   box-shadow: inset 0 0 0 1px var(--line-strong);
   color: var(--fg);
-}
-
-/* diagnostics rail */
-.y-diaghead {
-  align-items: center;
-  display: flex;
-  gap: var(--sp-2);
-}
-
-.y-diagcount {
-  background: var(--warn-bg);
-  border-radius: var(--r-sm);
-  color: var(--warn);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-variant-numeric: tabular-nums;
-  font-weight: var(--fw-semibold);
-  line-height: 1.25rem;
-  padding: 0 var(--sp-1);
-}
-
-.y-diaglist {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  margin-top: var(--sp-3);
-}
-
-.y-diag {
-  background: var(--warn-bg);
-  border-radius: var(--r-lg);
-  padding: var(--sp-3) var(--sp-4);
-}
-
-.y-diag__label {
-  align-items: center;
-  color: var(--warn);
-  display: flex;
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  font-weight: var(--fw-semibold);
-  gap: var(--sp-2);
-  line-height: 1.25rem;
-  margin-bottom: var(--sp-1);
-}
-
-.y-diag__label svg {
-  flex: none;
-  height: 13px;
-  width: 13px;
-}
-
-/* The card says what is wrong in the interface's face, small; only the address
-   a link was written to is set in the machine face, because that is the part a
-   reader copies to find the link in the note. */
-.y-diag__body {
-  color: var(--fg-muted);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  line-height: 1.125rem;
-  margin: 0;
-}
-
-.y-diag__body code {
-  color: var(--fg);
-  font-family: var(--font-sans);
-  font-size: inherit;
-}
-
-.y-diag__body .y-diag__target {
-  font-family: var(--font-mono);
-}
-/* how a link naming a section was read, stated under the diagnostic it
-   belongs to. It is a second paragraph rather than more of the first because
-   the first says what failed and this says how the words were split, and a
-   reader scanning for one should not have to read past the other. */
-.y-diag__split {
-  color: var(--fg-muted);
-  font-family: var(--font-sans);
-  font-size: var(--fs-12);
-  line-height: 1.125rem;
-  margin: var(--sp-2) 0 0;
-}
-
-.y-diag__split code {
-  color: var(--fg);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
 }
 
 /* the diagnostics rail's amber accent on a schema notice, so the notice reads
@@ -6391,7 +6241,7 @@ pre,
 samp,
 .y-fileinfo__list dd,
 .y-findings__path,
-.y-notefacts__path {
+.y-colophon__path {
   text-autospace: no-autospace;
 }
 
@@ -6635,13 +6485,6 @@ samp,
 .y-compare__column .y-inlineaids {
   display: block;
   margin: var(--sp-4) 0 0;
-}
-
-.y-compare__column .y-related {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-5);
-  margin-top: 56px;
 }
 
 .y-compare__head {
@@ -7185,12 +7028,13 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   .y-ribbon {
     display: none !important;
   }
-  /* Librarian chrome in the opening column is for repair on screen, not for
-     paper. A printed page is the title and the body; path crumbs, type and
-     Obsidian metarow, and folder previous/next stay off the sheet. Course
-     lesson-order prev/next may remain — it is part of the book. */
+  /* Librarian chrome is for repair on screen, not for paper. A printed page is
+     the title and the body; path crumbs, the colophon's foot (the file, its
+     type and its doors) and folder previous/next stay off the sheet. The seal
+     and a course's previous and next remain: they are part of the book. */
   .y-crumbs,
   .y-metarow,
+  .y-colophon__foot,
   .y-steps:not(.y-steps--course) {
     display: none !important;
   }
@@ -7381,60 +7225,6 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   line-height: 1.6;
   margin: 0;
 }
-/* Cited-by and declared sources share spacing: two lists of names in the
-   rail, answering different questions. Cited-by keeps its heading when the
-   list is empty, because a note nothing cites in the text is a finding
-   rather than a blank — the block disappearing would leave the reader
-   unable to tell an island from a feature this interface does not have.
-   Declared sources hide when the note wrote none. */
-.y-citedby,
-.y-basedon {
-  margin-top: 0;
-}
-
-.y-basedon__groups,
-.y-basedon__locations {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.y-basedon__locations {
-  margin-inline-start: var(--sp-4);
-}
-
-.y-basedon__places {
-  margin-left: 1rem;
-}
-
-.y-basedon .ui-navitem {
-  overflow-wrap: anywhere;
-}
-
-.y-basedon .ui-navitem:not([href]) {
-  cursor: default;
-}
-
-.y-basedon__reason {
-  color: var(--fg-subtle);
-  display: block;
-  font-size: var(--fs-12);
-  margin-top: 3px;
-}
-
-.y-basedon .wikilink-degraded {
-  -webkit-text-decoration: underline dotted;
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-}
-
-.y-citedby__none {
-  color: var(--fg-subtle);
-  font-size: var(--fs-13);
-  line-height: 1.6;
-  margin: var(--sp-1) 0 0;
-}
-
 /* Whole-folder health: a reading page, not a dashboard. The file a finding is
    about is set at reading size, because that name is what a person is deciding
    whether to open; everything the machinery contributes beside it — the weight,
@@ -8428,40 +8218,267 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   margin: var(--sp-2) 0 0;
 }
 
-/* Footnotes already close the piece with a hairline of their own, so the way
-   onward under them stands off by space alone; a second rule a few lines below
-   the first read as two endings. */
-.y-article:has(.footnotes) .y-steps {
-  border-top: 0;
+/* ============================================================
+   The end of a note: what stands beside it, then its colophon
+   ============================================================ */
+/* What stands beside the note, between its last words and its colophon. Each
+   block is a quiet label beside its list, as a book's apparatus sets a heading
+   beside its entries: the label small, in the interface face and the second
+   ink, and the titles in the reading face and the ink, because they are the
+   names of notes to read. Nothing is boxed and nothing is ruled; space alone
+   parts the blocks. A narrow column stands each label over its list. The
+   sidebar's last contents row leads here, so a jump parks it clear of the
+   header. */
+.y-related {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
   margin-top: var(--sp-7);
+  scroll-margin-top: var(--header-clearance);
 }
 
-/* The way onward, closing the article. The source line names the order the
-   links walk — a course's declared order or the folder's file adjacency —
-   because the two can disagree completely and nothing else on the links says
-   which one the reader is holding. It takes the full first row; the two links
-   share the second. */
-.y-steps {
-  border-top: 1px solid var(--line);
+.y-related:focus {
+  outline: none;
+}
+
+.y-related > * {
+  align-items: baseline;
+  column-gap: var(--sp-5);
+  display: grid;
+  grid-template-columns: 9em minmax(0, 1fr);
+  margin: 0;
+}
+
+.y-related > * > :not(.ui-side__label) {
+  grid-column: 2;
+}
+
+.y-related .ui-side__label {
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+  font-weight: var(--fw-medium);
+  line-height: 1.5rem;
+  text-wrap: balance;
+}
+
+.y-related .ui-side__label .ui-navitem__count {
+  color: var(--fg-faint);
+  font-size: var(--fs-13);
+}
+
+.y-related__list,
+.y-basedon__groups,
+.y-basedon__locations,
+.y-basedon__places {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.y-related :is(.y-related__list, .y-basedon__groups) > li + li {
+  margin-top: var(--sp-1);
+}
+
+/* A title is a name to follow, set as the colophon sets the way on: the
+   reading face, the ink, and a line under it only while it is pointed at. A
+   name the vault could not place is the author's text and stays unlinked, in
+   the second ink. */
+.y-related .ui-navitem {
+  background: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--fg);
+  display: block;
+  font-family: var(--font-read);
+  font-size: var(--fs-ed-15);
+  line-height: round(1.6em, 1px);
+  overflow-wrap: anywhere;
+  padding: 0;
+  text-decoration: none;
+  text-wrap: pretty;
+}
+
+.y-related .ui-navitem:lang(ja) {
+  font-family: var(--font-read-ja);
+}
+
+.y-related .ui-navitem[href]:hover {
+  background: none;
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.24em;
+}
+
+.y-related .ui-navitem:not([href]) {
+  color: var(--fg-muted);
+  cursor: default;
+}
+
+/* The places in a source are smaller than the source and in the interface's
+   face: a heading or a block id the author pointed at, under the file it is
+   in. */
+.y-basedon__locations,
+.y-basedon__places {
+  margin-inline-start: var(--sp-4);
+}
+
+.y-related :is(.y-basedon__locations, .y-basedon__places) .ui-navitem {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  line-height: 1.5rem;
+}
+
+.y-basedon__reason {
+  color: var(--fg-muted);
+  display: block;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  line-height: 1.125rem;
+}
+
+.y-basedon .wikilink-degraded {
+  -webkit-text-decoration: underline dotted;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+/* What the check found is the author's to act on, so it is said in full and in
+   order, and never as an alarm: the note still reads. Each finding hangs on a
+   one-and-a-half pixel rule in the warning's ochre, as a question hangs in the
+   margin, with its kind in that ochre over the sentence in the second ink. The
+   count is a figure in the same ochre, not a badge. The low-level detail stays
+   beside the sentence, smaller, for whoever has to find the fault in the
+   file. */
+.y-diaghead {
+  align-items: baseline;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-3) var(--sp-4);
-  justify-content: space-between;
-  margin: 64px 0 0;
-  padding-top: var(--sp-6);
+  gap: 0 var(--sp-2);
 }
 
-.y-steps__source {
-  color: var(--fg-subtle);
-  flex: 0 0 100%;
+.y-related .y-diagcount {
+  color: var(--warn);
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--fw-semibold);
+}
+
+.y-diaglist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.y-diag {
+  box-shadow: inset 1.5px 0 0 var(--warn);
+  padding-inline-start: var(--sp-3);
+}
+
+.y-diag__label {
+  color: var(--warn);
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  font-weight: var(--fw-semibold);
+  line-height: 1.25rem;
+}
+
+/* The sentence says what is wrong in the interface's face; only the address a
+   link was written to is set in the machine face, because that is the part a
+   reader copies to find the link in the note. */
+.y-diag__body,
+.y-diag__split {
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  line-height: 1.25rem;
   margin: 0;
   overflow-wrap: anywhere;
 }
 
-/* The course's title in the source line is a way to its contents, and reads as
-   the quiet line it replaced until it is pointed at. */
+.y-diag__split {
+  margin-top: var(--sp-1);
+}
+
+.y-diag__body code,
+.y-diag__split code {
+  background: none;
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+}
+
+.y-diag__body code[lang='en'] {
+  color: var(--fg-muted);
+  display: block;
+  font-family: var(--font-sans);
+  margin-top: 2px;
+}
+
+@container y-main (width < 36rem) {
+  .y-related > * {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .y-related > * > :not(.ui-side__label) {
+    grid-column: 1;
+  }
+}
+
+/* The colophon closes every note the same way: a wide space and a rule, a
+   small seal, the way on between two faint rules, and a foot. The seal is two
+   short strong hairlines either side of the bookmark, in the faint ink. */
+.y-colophon {
+  border-top: 1px solid var(--line);
+  margin-top: var(--sp-8);
+  padding-top: var(--sp-6);
+}
+
+.y-colophon__seal {
+  --icon-size: 14px;
+  align-items: center;
+  color: var(--fg-faint);
+  display: flex;
+  gap: var(--sp-3);
+  justify-content: center;
+  margin-bottom: var(--sp-5);
+}
+
+.y-colophon__rule {
+  background: var(--line-strong);
+  block-size: 1px;
+  inline-size: var(--sp-6);
+}
+
+/* The way on: the note before on the left and the note after on the right,
+   each a small faint word over its title in the reading face, with the arrow
+   on the title's outer side. A course's title stands centred over them as the
+   way to its contents, and a branch hanging from this lesson centred under
+   them, beside the steps and never one of them. */
+.y-steps {
+  border-block: 1px solid var(--line-faint);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3) var(--sp-5);
+  justify-content: space-between;
+  padding: var(--sp-4) 0;
+}
+
+.y-steps__source,
+.y-steps__aside {
+  color: var(--fg-muted);
+  flex: 0 0 100%;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  line-height: 1.25rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
 .y-steps__path {
   color: inherit;
   text-decoration: none;
@@ -8470,72 +8487,141 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 .y-steps__path:hover {
   color: var(--fg);
   text-decoration: underline;
+  text-underline-offset: 0.24em;
 }
 
 .y-steps__link {
-  border-radius: var(--r-sm);
   color: var(--fg);
   display: flex;
-  flex: 0 1 calc(50% - 8px);
+  flex: 0 1 calc(50% - var(--sp-3));
   flex-direction: column;
   gap: 2px;
-  margin: calc(-1 * var(--sp-3)) calc(-1 * var(--sp-4));
   min-width: 0;
-  padding: var(--sp-3) var(--sp-4);
   text-decoration: none;
 }
 
-.y-steps__link:hover {
-  background: var(--wash);
-}
-
 .y-steps__link--next {
-  margin-left: auto;
-  text-align: right;
+  align-items: flex-end;
+  margin-inline-start: auto;
+  text-align: end;
 }
 
 .y-steps__role {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  line-height: 1.25rem;
-  white-space: nowrap;
+  font-size: var(--fs-12);
+  line-height: 1.125rem;
+}
+
+.y-steps__name,
+.y-steps__asidelink {
+  font-family: var(--font-read);
+  overflow-wrap: anywhere;
 }
 
 .y-steps__name {
-  font-family: var(--font-serif);
-  font-size: var(--fs-16);
-  font-weight: var(--fw-medium);
-  line-height: 1.5rem;
-  overflow-wrap: anywhere;
+  font-size: var(--fs-ed-16);
+  line-height: round(1.5em, 1px);
   text-wrap: balance;
 }
 
+:is(.y-steps__name, .y-steps__asidelink):lang(ja) {
+  font-family: var(--font-read-ja);
+}
+
+.y-steps__link:hover .y-steps__name,
+.y-steps__asidelink:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.24em;
+}
+
 .y-steps__dir {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-family: var(--font-sans);
 }
 
-/* A side branch hanging from this lesson, as one quiet line under the steps. It
-   is beside them and never one of them, so it takes a row of its own and the
-   lesson's own previous and next keep the places they always had. */
-.y-steps__aside {
-  color: var(--fg-subtle);
-  flex: 0 0 100%;
+.y-steps__asidelink {
+  color: var(--fg);
+  font-size: var(--fs-ed-15);
+  text-decoration: none;
+}
+
+/* The foot: the note's facts on the left, the file's path first in figures
+   that keep their width, and the doors out of the page on the right, all small
+   and quiet. The path breaks anywhere rather than widening a phone's page. */
+.y-colophon__foot {
+  color: var(--fg-muted);
+  display: flex;
+  flex-wrap: wrap;
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: var(--fs-12);
+  gap: var(--sp-2) var(--sp-5);
+  justify-content: space-between;
+  line-height: 1.125rem;
+  margin-top: var(--sp-4);
+}
+
+.y-colophon__facts {
+  flex: 1 1 18em;
+  margin: 0;
+  min-width: 0;
+}
+
+.y-colophon__facts :is(div, dt, dd) {
+  display: inline;
+}
+
+.y-colophon__facts > div + div::before {
+  color: var(--fg-muted);
+  content: '·' / '';
+  margin-inline: var(--sp-2);
+}
+
+.y-colophon__facts dt {
+  color: var(--fg-muted);
+  margin-inline-end: var(--sp-1);
+}
+
+/* The path's term is there for a screen reader alone; it takes back the one
+   pixel it is drawn in, so the path starts on the column's edge. */
+.y-colophon__facts .y-offscreen {
+  display: inline-block;
+  margin-inline-end: -1px;
+}
+
+.y-colophon__facts dd {
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
   margin: 0;
   overflow-wrap: anywhere;
 }
 
-.y-steps__asidelink {
+.y-colophon__path {
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-decoration: none;
+}
+
+.y-colophon__doors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--sp-4);
+  margin: 0;
+}
+
+.y-colophon__door {
   color: var(--fg-muted);
   text-decoration: none;
 }
 
-.y-steps__asidelink:hover {
+:is(.y-colophon__path, .y-colophon__door):hover {
   color: var(--fg);
   text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.24em;
 }
 
 /* The siblings block is a neighbourhood, not the folder — it says what it left
@@ -8588,8 +8674,8 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
    still readable after the pointer has crossed into the card. */
 .y-basedon .ui-navitem[data-preview-open] {
   anchor-name: --y-preview-anchor;
-  background: var(--overlay);
   color: var(--fg);
+  text-decoration-line: underline;
 }
 
 .y-preview {

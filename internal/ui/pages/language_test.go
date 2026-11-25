@@ -17,7 +17,8 @@ import (
 // article speaks the author's language, and each block the page adds inside it
 // out of yomihon's own words — the schema findings, the file row, the sentence
 // about a file that could not be re-read, the foot of the article and the
-// status bar — declares the interface language again. Without that a Japanese
+// status bar — declares the interface language again; the colophon declares it
+// once for all of its own words. Without that a Japanese
 // note has its Chinese or English chrome announced to assistive technology as
 // Japanese.
 //
@@ -69,28 +70,29 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 			for _, want := range []string{
 				`<article class="y-article" lang="ja">`,
 				`<div lang="` + tt.tag + `"><p class="y-statuspanel__notice y-statusflag">`,
-				// The fact's dt is yomihon's own word for it and declares the
-				// interface language; the dd right after it is the note's own
-				// path and carries none — the literal string between them is the
-				// proof, since a lang attribute sneaking onto the <a> would break
-				// this exact match.
-				`<dt lang="` + tt.tag + `">` + wording.RawFile.In(tt.lang) + `</dt><dd><a class="y-notefacts__path" href="/raw/Writing/lessons/japanese/L01.md">`,
-				`<a class="y-notefacts__door" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
+				// The colophon is yomihon's own words and declares the interface
+				// language once for everything in it; the path's dd is the
+				// note's own path and carries none — the literal string between
+				// them is the proof, since a lang attribute sneaking onto the <a>
+				// would break this exact match.
+				`<footer class="y-colophon" lang="` + tt.tag + `">`,
+				`<dt class="y-offscreen">` + wording.RawFile.In(tt.lang) + `</dt><dd><a class="y-colophon__path" href="/raw/Writing/lessons/japanese/L01.md">`,
+				`<a class="y-colophon__door" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
 				`<p class="y-fileinfo__note" lang="` + tt.tag + `" data-note-stale>`,
-				`<nav class="y-steps y-steps--course" lang="` + tt.tag + `" aria-label="Japanese course">`,
+				`<nav class="y-steps y-steps--course" aria-label="Japanese course">`,
 				`<p class="y-notewhere" lang="` + tt.tag + `">`,
 				`data-note-draft>`,
-				`<span class="y-steps__name" lang="ja">L00 はじめに</span>`,
-				`<span class="y-steps__name">L02</span>`,
+				`<span class="y-steps__name" lang="ja"><span class="y-steps__dir" aria-hidden="true">←</span> L00 はじめに</span>`,
+				`<span class="y-steps__name">L02 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
 			} {
 				if !strings.Contains(html, want) {
 					t.Errorf("the reading page is missing %q; html = %q", want, html)
 				}
 			}
-			// The facts stand inside the end of the text, which restores the
+			// The facts stand inside the colophon, which restores the
 			// interface's language inside an article written in the note's own,
 			// so nothing in them may still be announced in the note's language.
-			at := strings.Index(html, `class="y-facts"`)
+			at := strings.Index(html, `class="y-colophon__facts"`)
 			if at < 0 {
 				t.Fatalf("the reading page carries no facts; html = %q", html)
 			}
@@ -101,8 +103,8 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 			if strings.Contains(facts, `lang="ja"`) {
 				t.Errorf("the facts announce yomihon's own words in the note's language; facts = %q", facts)
 			}
-			if end := strings.Index(html, `class="y-related"`); end < 0 || !strings.Contains(html[end:at], `lang="`+tt.tag+`"`) {
-				t.Errorf("the end of the text does not restore the interface language %q before the facts", tt.tag)
+			if end := strings.Index(html, `class="y-colophon"`); end < 0 || !strings.Contains(html[end:at], `lang="`+tt.tag+`"`) {
+				t.Errorf("the colophon does not restore the interface language %q before the facts", tt.tag)
 			}
 		})
 	}

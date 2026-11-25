@@ -29,7 +29,6 @@ func TestTheMarkControlSurvivesANoteWithNoOtherAids(t *testing.T) {
 		RelPath:         "a.md",
 		ContentIdentity: "abc123",
 		MarkAddress:     "/bookmark",
-		VaultHasLinks:   false,
 	}
 	if bare.citedByShown() || bare.endShown() {
 		t.Fatal("this fixture was meant to have no aids at all, so it is not the case this test is about")

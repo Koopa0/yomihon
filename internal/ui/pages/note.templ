@@ -87,12 +87,7 @@ type NoteView struct {
 	StepsOnward     nav.NoteRef
 	StepsToContents bool
 	StepsAsides     []nav.NoteRef
-	// VaultHasLinks says some note in this folder cites another. Where none
-	// does, an empty cited-by block on every page is furniture; where the
-	// folder does use links, an empty block is a finding and stays.
-	VaultHasLinks bool
-	// CitedBy are the notes whose text links here. An empty list is an answer —
-	// the note is an island — so the block states that rather than vanishing.
+	// CitedBy are the notes whose text links here. An empty list draws nothing.
 	CitedBy []nav.NoteRef
 	// BasedOn are the sources this note declared in based_on, in declaration
 	// order, grouped by file with the authored locations retained. An unresolved
@@ -199,7 +194,8 @@ templ Note(v NoteView, c layouts.Chrome) {
 }
 
 // noteArticle is one note as it reads: its head, whatever the schema said about
-// it, the rendered body, the notes that stand beside it, and the way onward. It is a component rather than markup inside the page because a page
+// it, the rendered body, the notes that stand beside it, and the colophon. It is
+// a component rather than markup inside the page because a page
 // showing two notes beside one another draws the same thing twice, and a second
 // copy of this would be free to drift from the one a reader sees on the note's
 // own page.
@@ -221,7 +217,7 @@ templ noteArticle(v NoteView, lang wording.Lang) {
 			}
 		</div>
 		@relatedAids(v, lang)
-		@sequenceSteps(v, lang)
+		@colophon(v, lang)
 	</article>
 }
 
@@ -398,96 +394,127 @@ templ noteTitle(v NoteView) {
 	}
 }
 
-// noteFacts is the note's own facts, read as a description list: one dt/dd
-// pair per fact the note declared, in the same order every time. They stand at
-// the end of the text with what stands beside the note, so there is one place
-// to look for what the note is. Every term carries the interface's language and
-// every value the note's own: a type, a BCP 47 tag and a path are the contract's
-// own spelling, never translated, so only the label beside each is.
+// colophon is where a note ends, as a book ends on its colophon: a rule, a
+// small seal, the way on to the note before and after this one, and a foot that
+// says what the file is and offers the two doors out of the page. It closes
+// every note, whatever stands above it, so a reader always finds the end in the
+// same place and the same shape.
+//
+// The seal is a picture and nothing else. The way on is the one place a page
+// offers a previous and a next, whether the order is a course's or the folder's.
+// The foot holds nothing the header already does: the header copies the file's
+// full path and leads home, to the marks and to the settings, and the foot
+// prints the path within the vault, which opens the file as it is on disk.
+templ colophon(v NoteView, lang wording.Lang) {
+	if v.colophonShown() {
+		<footer class="y-colophon" lang={ lang.Tag() }>
+			<span class="y-colophon__seal" aria-hidden="true">
+				<span class="y-colophon__rule"></span>
+				@layouts.Icon("bookmark")
+				<span class="y-colophon__rule"></span>
+			</span>
+			@sequenceSteps(v, lang)
+			@colophonFoot(v, lang)
+		</footer>
+	}
+}
+
+// colophonFoot is the foot of the colophon: the note's facts on the left, read
+// as a description list, and the doors out of the page on the right.
+//
+// Every term carries the interface's language and every value the note's own:
+// a type, a BCP 47 tag and a path are the contract's own spelling, never
+// translated, so only the label beside each is. The path needs no label on the
+// page, its shape says what it is, so its term is there for a screen reader
+// alone.
 //
 // The day is the author's: the one they wrote as the day they checked the note,
 // never the file's change time, which a checkout stamps on every file at once. A
-// note that wrote none shows no day. The two doors out of the page, to the file
-// in its editor and to a thought of the reader's own about the whole note, stand
-// with the file they leave from.
-templ noteFacts(v NoteView, lang wording.Lang) {
-	if v.factsShown() {
-		<div class="y-facts">
+// note that wrote none shows no day.
+templ colophonFoot(v NoteView, lang wording.Lang) {
+	if v.factRows() || v.ObsidianHref != "" || v.ThoughtDoor {
+		<div class="y-colophon__foot">
 			if v.factRows() {
-				<dl class="y-notefacts">
+				<dl class="y-colophon__facts">
+					if v.RelPath != "" {
+						<div>
+							<dt class="y-offscreen">{ wording.RawFile.In(lang) }</dt>
+							<dd><a class="y-colophon__path" href={ templ.URL(rawHref(v.RelPath)) }>{ v.RelPath }</a></dd>
+						</div>
+					}
 					if v.Type != "" {
 						<div>
-							<dt lang={ lang.Tag() }>{ wording.FileType.In(lang) }</dt>
+							<dt>{ wording.FileType.In(lang) }</dt>
 							<dd>{ v.Type }</dd>
 						</div>
 					}
-					// A note that declared no lang shows no row for one: the absence is
-					// the answer, not a blank waiting to be filled in.
+					// A note that declared no lang shows no fact for one: the absence
+					// is the answer, not a blank waiting to be filled in.
 					if v.Language != "" {
 						<div>
-							<dt lang={ lang.Tag() }>{ wording.NoteLanguage.In(lang) }</dt>
+							<dt>{ wording.NoteLanguage.In(lang) }</dt>
 							<dd>{ v.Language }</dd>
 						</div>
 					}
 					if v.VerifiedOn != "" {
 						<div>
-							<dt lang={ lang.Tag() }>{ wording.VerifiedOn.In(lang) }</dt>
+							<dt>{ wording.VerifiedOn.In(lang) }</dt>
 							<dd><time datetime={ v.VerifiedAt }>{ v.VerifiedOn }</time></dd>
 						</div>
 					}
-					if len(v.Prerequisites) > 0 {
-						<div>
-							<dt lang={ lang.Tag() }>{ wording.Prerequisites.In(lang) }</dt>
-							<dd>
-								<ul class="y-notefacts__links" role="list">
-									for _, ref := range v.Prerequisites {
-										<li>
-											if ref.RelPath != "" {
-												<a href={ templ.URL(notesHref(ref.RelPath)) } { authoredLanguageAttrs(ref.Language)... }>{ ref.Name }</a>
-											} else {
-												<span>{ ref.Name }</span>
-											}
-										</li>
-									}
-								</ul>
-							</dd>
-						</div>
-					}
-					if v.RelPath != "" {
-						<div>
-							<dt lang={ lang.Tag() }>{ wording.RawFile.In(lang) }</dt>
-							<dd>
-								<a class="y-notefacts__path" href={ templ.URL(rawHref(v.RelPath)) }>{ v.RelPath }</a>
-								@obsidianDoor(v, lang)
-								@thoughtDoor(v, lang)
-							</dd>
-						</div>
-					}
 				</dl>
+			}
+			if v.ObsidianHref != "" || v.ThoughtDoor {
+				<p class="y-colophon__doors">
+					@obsidianDoor(v, lang)
+					@thoughtDoor(v, lang)
+				</p>
 			}
 		</div>
 	}
 }
 
+// prerequisites are the notes the author named as ones to know first, in the
+// order they wrote them. A name that placed one note is a link; any other stays
+// the author's own text.
+templ prerequisites(v NoteView, lang wording.Lang) {
+	if len(v.Prerequisites) > 0 {
+		<nav class="y-prereq" aria-label={ wording.Prerequisites.In(lang) }>
+			<div class="ui-side__label">{ wording.Prerequisites.In(lang) }</div>
+			<ul class="y-related__list" role="list">
+				for _, ref := range v.Prerequisites {
+					<li>
+						if ref.RelPath != "" {
+							<a class="ui-navitem" href={ templ.URL(notesHref(ref.RelPath)) } { authoredLanguageAttrs(ref.Language)... }>{ ref.Name }</a>
+						} else {
+							<span class="ui-navitem">{ ref.Name }</span>
+						}
+					</li>
+				}
+			</ul>
+		</nav>
+	}
+}
+
 // obsidianDoor is the way to where a repair actually happens. It is not a fact
-// about the note, so it sits beside the path rather than being a row of its
-// own: every repair yomihon's diagnostics report is a hand edit, and this is
+// about the note, so it stands with the doors at the foot rather than among
+// the facts: every repair yomihon's diagnostics report is a hand edit, and this is
 // the page's one door to where that edit is made. The href is already built and
 // escaped server-side, so it bypasses the sanitizer that would reject its custom
 // scheme.
 templ obsidianDoor(v NoteView, lang wording.Lang) {
 	if v.ObsidianHref != "" {
-		<a class="y-notefacts__door" lang={ lang.Tag() } href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
+		<a class="y-colophon__door" lang={ lang.Tag() } href={ templ.SafeURL(v.ObsidianHref) }>{ wording.OpenInObsidian.In(lang) }</a>
 	}
 }
 
 // thoughtDoor is the page-level way to leave a thought about the note as a
-// whole. It stands beside the Obsidian door, in the same link style, so it reads
+// whole. It stands beside the Obsidian door, in the same quiet style, so it reads
 // as something the reader can do with the note rather than as a stray line of the
 // article. A section has its own beside its heading.
 templ thoughtDoor(v NoteView, lang wording.Lang) {
 	if v.ThoughtDoor {
-		<a class="y-notefacts__door" lang={ lang.Tag() } href={ templ.URL(thoughtHref(v.RelPath, "")) } aria-label={ fmt.Sprintf(wording.ThoughtSectionFmt.In(lang), v.Title) }>{ wording.ThoughtDoor.In(lang) }</a>
+		<a class="y-colophon__door" lang={ lang.Tag() } href={ templ.URL(thoughtHref(v.RelPath, "")) } aria-label={ fmt.Sprintf(wording.ThoughtSectionFmt.In(lang), v.Title) }>{ wording.ThoughtDoor.In(lang) }</a>
 	}
 }
 
@@ -561,97 +588,71 @@ templ sourceLocation(relPath, prefix string, location render.SourceLocation) {
 	</a>
 }
 
-// citedBy lists the notes whose text links to this one. Nothing is a real
-// answer and is said out loud: a block that vanished at zero would leave a
-// reader unable to tell an island from an interface that does not know.
+// citedBy lists the notes whose text links to this one. A note nothing links
+// to draws no block: the end shows what stands beside the note, and an empty
+// list there is a line the reader reads to learn nothing.
 templ citedBy(v NoteView, lang wording.Lang) {
 	if v.citedByShown() {
-		@citedByBlock(v, lang)
+		<nav class="y-citedby" aria-label={ wording.CitedByNav.In(lang) }>
+			<div class="ui-side__label">
+				{ wording.CitedBy.In(lang) }
+				<span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span>
+			</div>
+			<ul class="y-related__list" role="list">
+				for _, ref := range v.CitedBy {
+					<li><a class="ui-navitem" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a></li>
+				}
+			</ul>
+		</nav>
 	}
 }
 
-// citedByBlock is the block itself, rendered only where the answer means
-// something.
-templ citedByBlock(v NoteView, lang wording.Lang) {
-	<nav class="y-citedby" aria-label={ wording.CitedByNav.In(lang) }>
-		<div class="ui-side__label">
-			{ wording.CitedBy.In(lang) }
-			if len(v.CitedBy) > 0 {
-				<span class="ui-navitem__count">{ strconv.Itoa(len(v.CitedBy)) }</span>
-			}
-		</div>
-		if len(v.CitedBy) > 0 {
-			for _, ref := range v.CitedBy {
-				<a class="ui-navitem" href={ templ.URL(notesHref(ref.RelPath)) }>{ ref.Name }</a>
-			}
-		} else {
-			<p class="y-citedby__none">{ wording.CitedByNone.In(lang) }</p>
-		}
-	</nav>
-}
-
-// sequenceSteps closes the article with the way onward: a folder of dated
-// entries is a line, and so is a course of lessons. The foot says which order
-// arrived, so the arrow never claims one it is not walking, and it is printed
-// rather than only spoken, because a course's declared order and folder
-// adjacency can disagree completely.
+// sequenceSteps is the way on, in the colophon: the note before this one on
+// the left and the note after it on the right, each a small label over its
+// title. It is the only previous and next the page draws, whichever order
+// arrived: a course's declared order, or the files either side of this one in
+// its folder. The step words say which, so the arrow never claims an order it is
+// not walking: a course steps by unit and a folder by file, because the two can
+// disagree completely. A course also prints its own title over the steps, as a
+// link to its contents, which is the way off the foot the book offers wherever
+// the reader is.
 //
-// The folder's foot prints its label and names the landmark with the same
-// field, so the two cannot drift apart. A course's foot prints the path's title
-// as a link to its contents and names the landmark with the step onward, on
-// purpose: the sidebar already carries a landmark named for the course's order,
-// and a second landmark with the same words as the link inside it would be one
-// name heard twice.
+// The landmark is named for the order. A course's is named with the step onward
+// from this note rather than with the course's title, on purpose: the sidebar
+// already carries a landmark named for the course's order, and a second
+// landmark with the same words as the link inside it would be one name heard
+// twice.
 //
-// The foot's own words belong to the interface, and the two titles it names
-// belong to the notes they lead to, each carrying whatever language that note
-// declared and none where it declared nothing.
+// The step words belong to the interface, and the titles to the notes they lead
+// to, each carrying whatever language that note declared and none where it
+// declared nothing.
 templ sequenceSteps(v NoteView, lang wording.Lang) {
 	if v.hasSteps() {
-		<nav class={ "y-steps", templ.KV("y-steps--course", v.StepsCourse) } lang={ lang.Tag() } aria-label={ v.StepsLabel }>
-			// A course names itself with a link to its contents, which is the
-			// way off the foot the book offers wherever the reader is; the
-			// folder's order is only named. The landmark's own name stays the
-			// step onward from this note, so it is not the link's words twice.
+		<nav class={ "y-steps", templ.KV("y-steps--course", v.StepsCourse) } aria-label={ v.StepsLabel }>
 			if v.StepsCourse && v.StepsPath.RelPath != "" {
 				<p class="y-steps__source"><a class="y-steps__path" href={ templ.URL(courseHrefFrom(v.StepsPath.RelPath, v.RelPath)) } { authoredLanguageAttrs(v.StepsPath.Language)... }>{ v.StepsPath.Name }</a></p>
-			} else {
-				<p class="y-steps__source">{ v.StepsLabel }</p>
 			}
 			// The left place is the step back, or on a side branch's first
 			// lesson, which has none, the way back to the lesson it hangs
 			// from. The right is the step on, or on its last lesson the way
-			// on to the main line. A lesson is never both a branch's first and
-			// a main-line lesson with a step back, so the two never compete.
+			// on to the main line or back to the contents. A lesson is never
+			// both a branch's first and a main-line lesson with a step back,
+			// so the two never compete.
 			if v.Prev.RelPath != "" {
-				<a class="y-steps__link y-steps__link--prev" href={ templ.URL(notesHref(v.Prev.RelPath)) } rel="prev">
-					<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> { stepWordPrev(v.StepsCourse, lang) }</span>
-					<span class="y-steps__name" { authoredLanguageAttrs(v.Prev.Language)... }>{ v.Prev.Name }</span>
-				</a>
+				@stepBack("", notesHref(v.Prev.RelPath), "prev", stepWordPrev(v.StepsCourse, lang), v.Prev)
 			} else if v.StepsBack.RelPath != "" {
-				<a class="y-steps__link y-steps__link--prev y-steps__link--back" href={ templ.URL(notesHref(v.StepsBack.RelPath)) }>
-					<span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> { wording.BranchBackTo.In(lang) }</span>
-					<span class="y-steps__name" { authoredLanguageAttrs(v.StepsBack.Language)... }>{ v.StepsBack.Name }</span>
-				</a>
+				@stepBack("y-steps__link--back", notesHref(v.StepsBack.RelPath), "", wording.BranchBackTo.In(lang), v.StepsBack)
 			}
 			if v.Next.RelPath != "" {
-				<a class="y-steps__link y-steps__link--next" href={ templ.URL(notesHref(v.Next.RelPath)) } rel="next">
-					<span class="y-steps__role">{ stepWordNext(v.StepsCourse, lang) } <span class="y-steps__dir" aria-hidden="true">→</span></span>
-					<span class="y-steps__name" { authoredLanguageAttrs(v.Next.Language)... }>{ v.Next.Name }</span>
-				</a>
+				@stepOn("", notesHref(v.Next.RelPath), "next", stepWordNext(v.StepsCourse, lang), v.Next)
 			} else if v.StepsOnward.RelPath != "" {
-				<a class="y-steps__link y-steps__link--next y-steps__link--onward" href={ templ.URL(notesHref(v.StepsOnward.RelPath)) }>
-					<span class="y-steps__role">{ wording.BranchOnward.In(lang) }</span>
-					<span class="y-steps__name" { authoredLanguageAttrs(v.StepsOnward.Language)... }>{ v.StepsOnward.Name } <span class="y-steps__dir" aria-hidden="true">→</span></span>
-				</a>
+				@stepOn("y-steps__link--onward", notesHref(v.StepsOnward.RelPath), "", wording.BranchOnward.In(lang), v.StepsOnward)
 			} else if v.StepsToContents && v.StepsPath.RelPath != "" {
-				<a class="y-steps__link y-steps__link--next y-steps__link--onward" href={ templ.URL(courseHrefFrom(v.StepsPath.RelPath, v.RelPath)) }>
-					<span class="y-steps__role">{ wording.BranchToContents.In(lang) }</span>
-				</a>
+				@stepOn("y-steps__link--onward", courseHrefFrom(v.StepsPath.RelPath, v.RelPath), "", wording.BranchToContents.In(lang), v.StepsPath)
 			}
-			// The branches hanging from this lesson, as one quiet line each. They
-			// are beside the steps and not among them: the next lesson is still
-			// the main line's.
+			// The branches hanging from this lesson, as one quiet line each,
+			// under the steps. They are beside the steps and not among them:
+			// the next lesson is still the main line's.
 			for _, aside := range v.StepsAsides {
 				<p class="y-steps__aside">
 					<span class="y-steps__asidelabel">{ wording.BranchPrefix.In(lang) }</span><a class="y-steps__asidelink" href={ templ.URL(notesHref(aside.RelPath)) } { authoredLanguageAttrs(aside.Language)... }>{ aside.Name }</a>
@@ -659,6 +660,24 @@ templ sequenceSteps(v NoteView, lang wording.Lang) {
 			}
 		</nav>
 	}
+}
+
+// stepBack and stepOn are the two sides of the way on: the step's word, small,
+// over the title of the note it leads to, with the arrow on the title's outer
+// side. class is the link's modifiers, and rel the relation a step in the order
+// has, which the ways off a side branch do not.
+templ stepBack(class, href, rel, word string, to nav.NoteRef) {
+	<a class={ "y-steps__link y-steps__link--prev", templ.KV(class, class != "") } href={ templ.URL(href) } { stepRel(rel)... }>
+		<span class="y-steps__role">{ word }</span>
+		<span class="y-steps__name" { authoredLanguageAttrs(to.Language)... }><span class="y-steps__dir" aria-hidden="true">←</span> { to.Name }</span>
+	</a>
+}
+
+templ stepOn(class, href, rel, word string, to nav.NoteRef) {
+	<a class={ "y-steps__link y-steps__link--next", templ.KV(class, class != "") } href={ templ.URL(href) } { stepRel(rel)... }>
+		<span class="y-steps__role">{ word }</span>
+		<span class="y-steps__name" { authoredLanguageAttrs(to.Language)... }>{ to.Name } <span class="y-steps__dir" aria-hidden="true">→</span></span>
+	</a>
 }
 
 // tocList is the table-of-contents link list: the sidebar draws it under the
@@ -718,27 +737,25 @@ templ inlineAids(v NoteView, lang wording.Lang) {
 	}
 }
 
-// relatedAids closes the article with what stands beside the note and what the
-// note is: the note to read beside it, the sources it declared, the notes
-// declared on it, the notes whose text links here, what the check found in it,
-// and its facts. They are what a reader who has finished looks for next, so they
-// wait at the end of the text, at every width, in one block rather than between
-// the title and the first sentence or in a column of their own, and the
-// sidebar's last contents row leads down to them. Nothing in the block writes
-// anywhere: the facts are the author's words, shown.
+// relatedAids is what stands beside the note, between its last words and its
+// colophon: the note to read beside it, the notes to know first, the sources it
+// declared, the notes declared on it, the notes whose text links here, and last
+// what the check found in it, nearest the foot that opens the file where a
+// repair is made. Each is a quiet label beside its list, and a list with nothing
+// in it is not drawn, so a note with none of them goes from its text straight to
+// its colophon. Nothing in the block writes anywhere.
 //
-// The block is the target of that row, so it can be focused without being a stop
-// of its own. A note with only facts has no row leading to it, and so no name to
-// be led to by.
+// The block is the target of the sidebar's last contents row, so it can be
+// focused without being a stop of its own.
 templ relatedAids(v NoteView, lang wording.Lang) {
-	if v.endShown() || v.factsShown() {
+	if v.endShown() {
 		<div class="y-related" { v.endAttrs()... } lang={ lang.Tag() }>
 			@pairOffer(v, lang)
+			@prerequisites(v, lang)
 			@basedOn(v, lang)
 			@declaredByBlock(v, lang)
 			@citedBy(v, lang)
 			@diagnostics(v, lang)
-			@noteFacts(v, lang)
 		</div>
 	}
 }
@@ -785,8 +802,11 @@ templ fragmentSplit(target, section string, lang wording.Lang) {
 	</p>
 }
 
-// diagnostics is the read-only diagnostics rail: the frontmatter diagnostic and
-// every render diagnostic, stated but never repaired.
+// diagnostics is what the check found in the note: the frontmatter diagnostic
+// and every render diagnostic, stated but never repaired. They are the author's
+// to act on, so they say what is wrong plainly and in order, each finding on a
+// quiet rule in the warning's ochre; nothing about them is an alarm, since the
+// note still reads.
 templ diagnostics(v NoteView, lang wording.Lang) {
 	if v.Diagnostic != "" || len(v.RenderDiagnostics) > 0 {
 		<section>

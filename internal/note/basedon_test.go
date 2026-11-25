@@ -210,20 +210,21 @@ func TestCitationScopeLabelsDifferOnNoteAndHealth(t *testing.T) {
 	if !strings.Contains(derived, declared) {
 		t.Errorf("the declaring note does not show the declared-source label %q", declared)
 	}
-	if !strings.Contains(derived, cited) {
-		t.Errorf("the declaring note does not show the text-citation label %q", cited)
+	// Nothing's text links to the declaring note, so it draws no text-citation
+	// block: the declaration it makes is not a citation of it either.
+	if strings.Contains(derived, cited) {
+		t.Errorf("the declaring note, which nothing links to in the text, shows the text-citation label %q", cited)
 	}
 
 	code, source := get(t, srv.Client(), srv.URL+"/notes/Concepts/yomihon/Source%20model.md")
 	if code != http.StatusOK {
 		t.Fatalf("source status = %d, want 200", code)
 	}
-	citedBlock := citedByBlock(t, source)
-	if !strings.Contains(citedBlock, "目前沒有其他筆記在正文連到這篇。") {
-		t.Errorf("the source note's backlinks do not say they count text citations; block = %q", citedBlock)
-	}
-	if strings.Contains(citedBlock, `href="/notes/Concepts/yomihon/Derived`) {
-		t.Errorf("backlinks mixed in a based_on declaration; block = %q", citedBlock)
+	// A based_on declaration is not a text citation, so the source, which no
+	// note's text links to, draws no text-citation block at all: a backlink
+	// that mixed the declaration in would draw one listing the declarer.
+	if strings.Contains(source, `<nav class="y-citedby"`) || strings.Contains(source, cited) {
+		t.Errorf("the source note's text citations count a based_on declaration; page = %q", source)
 	}
 
 	code, health := get(t, srv.Client(), srv.URL+"/health")

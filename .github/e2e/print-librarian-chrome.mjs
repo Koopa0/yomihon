@@ -75,6 +75,10 @@ const MUTATIONS = {
   },
   'drop-hide-note-facts': {
     target: 'note-facts-and-margins-off-paper',
+    apply: weakenStylesheet('@media print{.y-colophon__foot{display:flex !important}}'),
+  },
+  'drop-hide-what-stands-beside': {
+    target: 'note-facts-and-margins-off-paper',
     apply: weakenStylesheet('@media print{.y-related{display:flex !important}}'),
   },
   'drop-hide-section-margins': {
@@ -155,7 +159,7 @@ try {
   // pass print hide for the wrong reason — the page was empty of chrome to
   // begin with.
   await page.emulateMedia({ media: 'screen' });
-  for (const surface of ['.y-related .y-facts', '.y-margin__act', '.y-predict']) {
+  for (const surface of ['.y-related', '.y-colophon__foot', '.y-margin__act', '.y-predict']) {
     if (!(await laidOut(page.locator(surface)))) {
       broken(`the folder note paints no ${surface} on screen, so print hide cannot be judged`);
     }
@@ -166,7 +170,7 @@ try {
   }
 
   await page.emulateMedia({ media: 'print' });
-  for (const surface of ['.y-related', '.y-margin', '.y-predict']) {
+  for (const surface of ['.y-related', '.y-colophon__foot', '.y-margin', '.y-predict']) {
     if (await laidOut(page.locator(surface))) {
       fail('note-facts-and-margins-off-paper', `${surface} still lays out on paper`);
     }

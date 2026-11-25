@@ -94,7 +94,7 @@ func TestAWayOffASideBranchIsLabelledAndIsNeverAStep(t *testing.T) {
 			current: "Writing/B1.md",
 			lang:    wording.ZhHant,
 			want: []string{
-				`<a class="y-steps__link y-steps__link--prev y-steps__link--back" href="/notes/Writing/C02.md"><span class="y-steps__role"><span class="y-steps__dir" aria-hidden="true">←</span> 回到</span> <span class="y-steps__name">C02</span></a>`,
+				`<a class="y-steps__link y-steps__link--prev y-steps__link--back" href="/notes/Writing/C02.md"><span class="y-steps__role">回到</span> <span class="y-steps__name"><span class="y-steps__dir" aria-hidden="true">←</span> C02</span></a>`,
 				`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/notes/Writing/C03.md"><span class="y-steps__role">回到主線：</span> <span class="y-steps__name">C03 <span class="y-steps__dir" aria-hidden="true">→</span></span></a>`,
 			},
 			absent: []string{`rel="prev"`, `rel="next"`, "y-steps__aside", "上一課", "下一課", "上一份"},
@@ -104,7 +104,7 @@ func TestAWayOffASideBranchIsLabelledAndIsNeverAStep(t *testing.T) {
 			current: "Writing/B1.md",
 			lang:    wording.En,
 			want: []string{
-				`<span class="y-steps__dir" aria-hidden="true">←</span> Back to</span> <span class="y-steps__name">C02</span>`,
+				`<span class="y-steps__role">Back to</span> <span class="y-steps__name"><span class="y-steps__dir" aria-hidden="true">←</span> C02</span>`,
 				`<span class="y-steps__role">Back to the main line: </span> <span class="y-steps__name">C03 <span class="y-steps__dir" aria-hidden="true">→</span></span>`,
 			},
 			absent: []string{`rel="prev"`, `rel="next"`},
@@ -134,7 +134,7 @@ func TestAWayOffASideBranchIsLabelledAndIsNeverAStep(t *testing.T) {
 			current: "Writing/E1.md",
 			lang:    wording.ZhHant,
 			want: []string{
-				`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/courses/Maps/Course.md?from=Writing%2FE1.md"><span class="y-steps__role">回到目錄</span></a>`,
+				`<a class="y-steps__link y-steps__link--next y-steps__link--onward" href="/courses/Maps/Course.md?from=Writing%2FE1.md"><span class="y-steps__role">回到目錄</span> <span class="y-steps__name">Course <span class="y-steps__dir" aria-hidden="true">→</span></span></a>`,
 				`y-steps__link--back" href="/notes/Writing/C04.md">`,
 			},
 			absent: []string{`rel="next"`},

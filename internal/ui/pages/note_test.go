@@ -158,24 +158,26 @@ func TestDiagnosticsStandAtTheEndOfTheText(t *testing.T) {
 // TestTheEndOfTheTextHoldsEveryAidAndNothingStandsAboveTheProse holds the shape
 // of a note that has them all. The contents are in the sidebar and everything
 // else waits after the text, in one block, in one order: the note to read
-// beside this one, the sources it declared, the notes declared on it, the notes
-// whose text links here, what the check found. Nothing is folded between the
-// title and the first sentence, and the block comes before the way onward.
+// beside this one, the notes to know first, the sources it declared, the notes
+// declared on it, the notes whose text links here, what the check found.
+// Nothing is folded between the title and the first sentence, and the block
+// comes before the colophon and its way onward.
 func TestTheEndOfTheTextHoldsEveryAidAndNothingStandsAboveTheProse(t *testing.T) {
 	t.Parallel()
 
 	view := NoteView{
-		Title:      "T",
-		RelPath:    "Notes/T.md",
-		TOC:        []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}},
-		Diagnostic: "unterminated string",
-		BasedOn:    []snapshot.DeclaredSource{{Name: "Book notes", RelPath: "Book notes.md"}},
-		DeclaredBy: []DeclaringNoteView{{Note: nav.NoteRef{Name: "Essay", RelPath: "Essay.md"}}},
-		Pair:       nav.NoteRef{Name: "Other half", RelPath: "Notes/Other.md"},
-		CitedBy:    []nav.NoteRef{{Name: "C01", RelPath: "C01.md"}, {Name: "C02", RelPath: "C02.md"}},
-		Next:       nav.NoteRef{Name: "Next", RelPath: "Notes/U.md"},
-		StepsLabel: "Notes",
-		BodyHTML:   "<p>body</p>",
+		Title:         "T",
+		RelPath:       "Notes/T.md",
+		TOC:           []render.TOCEntry{{Level: 2, Text: "H", ID: "h"}},
+		Diagnostic:    "unterminated string",
+		BasedOn:       []snapshot.DeclaredSource{{Name: "Book notes", RelPath: "Book notes.md"}},
+		DeclaredBy:    []DeclaringNoteView{{Note: nav.NoteRef{Name: "Essay", RelPath: "Essay.md"}}},
+		Pair:          nav.NoteRef{Name: "Other half", RelPath: "Notes/Other.md"},
+		CitedBy:       []nav.NoteRef{{Name: "C01", RelPath: "C01.md"}, {Name: "C02", RelPath: "C02.md"}},
+		Next:          nav.NoteRef{Name: "Next", RelPath: "Notes/U.md"},
+		StepsLabel:    "Notes",
+		BodyHTML:      "<p>body</p>",
+		Prerequisites: []nav.NoteRef{{Name: "First", RelPath: "Notes/First.md"}},
 	}
 	var buf bytes.Buffer
 	if err := noteArticle(view, wording.En).Render(t.Context(), &buf); err != nil {
@@ -185,7 +187,7 @@ func TestTheEndOfTheTextHoldsEveryAidAndNothingStandsAboveTheProse(t *testing.T)
 
 	prose := strings.Index(article, `<div class="y-prose"`)
 	related := strings.Index(article, `<div class="y-related" id="_y-end"`)
-	steps := strings.Index(article, `<nav class="y-steps`)
+	steps := strings.Index(article, `<footer class="y-colophon"`)
 	if prose < 0 || related < 0 || steps < 0 {
 		t.Fatalf("prose@%d related@%d steps@%d; every one of them has to render:\n%s", prose, related, steps, article)
 	}
@@ -197,7 +199,7 @@ func TestTheEndOfTheTextHoldsEveryAidAndNothingStandsAboveTheProse(t *testing.T)
 	}
 	after := article[related:steps]
 	last := -1
-	for _, block := range []string{`class="y-pair"`, `class="y-basedon"`, `declared-by`, `class="y-citedby"`, `y-diaglist`} {
+	for _, block := range []string{`class="y-pair"`, `aria-label="Prerequisites"`, `class="y-basedon"`, `declared-by`, `class="y-citedby"`, `y-diaglist`} {
 		at := strings.Index(after, block)
 		if at < 0 {
 			t.Errorf("%s is not in the block that ends the text:\n%s", block, after)
@@ -207,6 +209,24 @@ func TestTheEndOfTheTextHoldsEveryAidAndNothingStandsAboveTheProse(t *testing.T)
 			t.Errorf("%s comes before the block that should precede it", block)
 		}
 		last = at
+	}
+}
+
+// TestAnEmptyListAtTheEndIsNotDrawn holds the end to what is there: a note
+// nothing links to draws no cited-by block and says nothing about the absence,
+// so a note with nothing beside it goes from its text to its colophon.
+func TestAnEmptyListAtTheEndIsNotDrawn(t *testing.T) {
+	t.Parallel()
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		page := renderedHTML(t, noteArticle(NoteView{Title: "T", RelPath: "Notes/T.md", BodyHTML: "<p>body</p>"}, lang))
+		for _, absent := range []string{`class="y-citedby"`, `class="y-related"`, wording.CitedBy.In(lang)} {
+			if strings.Contains(page, absent) {
+				t.Errorf("%s: a note nothing links to still draws %q:\n%s", lang.Tag(), absent, page)
+			}
+		}
+		if !strings.Contains(page, `<footer class="y-colophon"`) {
+			t.Errorf("%s: the note does not end on its colophon:\n%s", lang.Tag(), page)
+		}
 	}
 }
 
@@ -226,6 +246,7 @@ func TestTheContentsRowThatLeadsDownIsNamedByWhatItLeadsTo(t *testing.T) {
 		want func(wording.Lang) string
 	}{
 		{"a note to read beside", NoteView{Pair: nav.NoteRef{Name: "O", RelPath: "O.md"}, CitedBy: cited}, func(l wording.Lang) string { return wording.CompareOffer.In(l) }},
+		{"notes to know first", NoteView{Prerequisites: []nav.NoteRef{{Name: "P", RelPath: "P.md"}}, CitedBy: cited}, func(l wording.Lang) string { return wording.Prerequisites.In(l) }},
 		{"declared sources", NoteView{BasedOn: []snapshot.DeclaredSource{{Name: "B", RelPath: "B.md"}}, CitedBy: cited}, func(l wording.Lang) string { return wording.BasedOn.In(l) }},
 		{"notes declared on it", NoteView{DeclaredBy: []DeclaringNoteView{{Note: nav.NoteRef{Name: "E", RelPath: "E.md"}}}, CitedBy: cited}, func(l wording.Lang) string { return wording.DeclaredBy.In(l) }},
 		{"notes linking here", NoteView{CitedBy: cited}, func(l wording.Lang) string { return wording.CitedBy.In(l) }},
@@ -254,9 +275,9 @@ func TestTheContentsRowThatLeadsDownIsNamedByWhatItLeadsTo(t *testing.T) {
 		}
 	}
 
-	// A note with no aids ends on its text, and the facts that follow it are not
-	// a place the contents lead to: the contents have no row, and the block
-	// carries no address for one to name.
+	// A note with no aids goes from its text to its colophon, which is not a
+	// place the contents lead to: the contents have no row, no end block is
+	// drawn, and nothing carries an address for a row to name.
 	bare := NoteView{RelPath: "Notes/T.md", TOC: toc, BodyHTML: "<p>body</p>"}
 	if bare.endShown() {
 		t.Fatal("this fixture was meant to end on its text")
@@ -264,8 +285,8 @@ func TestTheContentsRowThatLeadsDownIsNamedByWhatItLeadsTo(t *testing.T) {
 	if contents := renderedHTML(t, railContents(&bare, wording.En)); strings.Contains(contents, "_y-end") {
 		t.Errorf("the contents lead to an end the note does not have:\n%s", contents)
 	}
-	if page := renderedHTML(t, noteArticle(bare, wording.En)); strings.Contains(page, "_y-end") || !strings.Contains(page, `<div class="y-related" lang="en"><div class="y-facts">`) {
-		t.Errorf("a note with no aids does not end on its facts alone, with no address:\n%s", page)
+	if page := renderedHTML(t, noteArticle(bare, wording.En)); strings.Contains(page, "_y-end") || strings.Contains(page, `class="y-related"`) || !strings.Contains(page, `<footer class="y-colophon" lang="en">`) {
+		t.Errorf("a note with no aids does not go from its text to its colophon, with no address:\n%s", page)
 	}
 }
 

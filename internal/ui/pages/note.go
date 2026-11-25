@@ -91,16 +91,27 @@ func fenceDiagLabel(kind render.DiagnosticKind, lang wording.Lang) string {
 	return wording.DiagRiskyFence.In(lang)
 }
 
-// factsShown reports whether the end of the note has a fact to draw: the same
-// ones noteFacts gates row by row, so a note with none of them draws no block
-// for them.
-func (v *NoteView) factsShown() bool {
-	return v.factRows()
+// factRows reports whether the colophon's foot has a fact to print: the file,
+// its type, its language or the author's checked day.
+func (v *NoteView) factRows() bool {
+	return v.Type != "" || v.Language != "" || v.RelPath != "" || v.VerifiedOn != ""
 }
 
-// factRows reports whether the facts have a row to draw.
-func (v *NoteView) factRows() bool {
-	return v.Type != "" || v.Language != "" || v.RelPath != "" || v.VerifiedOn != "" || len(v.Prerequisites) > 0
+// colophonShown reports whether the note has a colophon to end on: a way on to
+// another note, or a foot with a fact or a door in it. Every note read from the
+// vault has a path, so only a page made with nothing to say draws none.
+func (v *NoteView) colophonShown() bool {
+	return v.hasSteps() || v.factRows() || v.ObsidianHref != "" || v.ThoughtDoor
+}
+
+// stepRel is a step's relation to this note, written only where the link is a
+// step in the order: the ways off a side branch lead somewhere that is neither
+// the note before this one nor the note after it.
+func stepRel(rel string) templ.Attributes {
+	if rel == "" {
+		return nil
+	}
+	return templ.Attributes{"rel": rel}
 }
 
 // authoredLanguageAttrs states the language the note's author wrote in, only
@@ -209,13 +220,14 @@ func (v *NoteView) diagCount() int {
 	return n
 }
 
-// endShown reports whether the article ends on a block of what stands beside
-// it: a note to read beside it, the sources it declared, the notes declared on
-// it, the answer about which notes link here, or what the check found in it. A
-// note with none of them ends on its text, and the sidebar draws no row that
-// leads to an end it does not have.
+// endShown reports whether the article has a block of what stands beside it
+// before its colophon: a note to read beside it, notes to know first, the
+// sources it declared, the notes declared on it, the notes whose text links
+// here, or what the check found in it. A note with none of them goes from its
+// text to its colophon, and the sidebar draws no row that leads to an end block
+// it does not have.
 func (v *NoteView) endShown() bool {
-	return v.Pair.RelPath != "" || len(v.BasedOn) > 0 || len(v.DeclaredBy) > 0 || v.citedByShown() || v.diagCount() > 0
+	return v.Pair.RelPath != "" || len(v.Prerequisites) > 0 || len(v.BasedOn) > 0 || len(v.DeclaredBy) > 0 || v.citedByShown() || v.diagCount() > 0
 }
 
 // endAttrs are the end block's id and its place in the tab order, which only a
@@ -244,6 +256,8 @@ func (v *NoteView) endLabel(lang wording.Lang) string {
 	switch {
 	case v.Pair.RelPath != "":
 		return wording.CompareOffer.In(lang)
+	case len(v.Prerequisites) > 0:
+		return wording.Prerequisites.In(lang)
 	case len(v.BasedOn) > 0:
 		return wording.BasedOn.In(lang)
 	case len(v.DeclaredBy) > 0:
@@ -370,12 +384,10 @@ func (v *NoteView) readingNote() *layouts.ReadingNote {
 	return &layouts.ReadingNote{Vault: v.VaultID, Path: v.RelPath}
 }
 
-// citedByShown reports whether the answer about what links here means anything
-// on this page: either there are citations, or the library has links at all and
-// their absence is itself the finding. It counts among the aids, so a rail
-// holding only this block is not an empty one.
+// citedByShown reports whether any note's text links here. None draws no
+// block, since an empty list at the end of a note is a line read for nothing.
 func (v *NoteView) citedByShown() bool {
-	return len(v.CitedBy) > 0 || v.VaultHasLinks
+	return len(v.CitedBy) > 0
 }
 
 // diagnosticAddress spells an address the way its author wrote it. The
