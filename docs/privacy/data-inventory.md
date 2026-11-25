@@ -199,7 +199,7 @@ rail and one carries the diagram heights.
 | `yomihon_font` | The typeface, `serif`, `sans` or `kai`; no value is the serif face as well | A year from the last write |
 | `yomihon_ruby` | Whether furigana show, `on` or `off` | A year from the last write |
 | `yomihon_paper` | The light theme's paper, `stone`, `washi` or `white`; no value is stone, and dark ignores it | A year from the last write |
-| `yomihon_rail` | Whether the left column is shown or folded to a strip on wide windows, `open` or `collapsed`; no value folds it | A year from the last write |
+| `yomihon_rail` | Whether the left column stands beside the text or is folded away on wide windows, `open` or `collapsed`; no value folds it. Where the column is a drawer, whether the drawer is open is never written here | A year from the last write |
 | `yomihon_sectionbuttons` | When the buttons beside each section are drawn, `always` or `hover`; no value shows them on hover | A year from the last write |
 | `yomihon_shortcuts` | Whether single-key shortcuts answer, `on` or `off` | A year from the last write |
 | `yomihon_position` | Whether a note opens where the reader last stopped in it, `on` or `off`; no value leaves it on | A year from the last write |

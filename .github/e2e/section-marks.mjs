@@ -191,7 +191,7 @@ const today = () => {
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const open = async (options = {}) => {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, ...options });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 800 }, ...options });
   const page = await context.newPage();
   if (MUTATE) await MUTATIONS[MUTATE].apply(page);
   return { context, page };

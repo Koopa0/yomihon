@@ -2,7 +2,6 @@ package pages
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -13,13 +12,12 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// TestEveryRailCarriesTheFoldControlBesideItsPanel holds the three rails to one
-// shape: the button that folds the column is the first thing in the rail and a
-// sibling of the panel it controls, never inside what it hides, and the panel
-// is the one element the button's aria-controls names. A rail that kept its
-// contents outside the panel would leave the fold with nothing to hide; a
-// button inside it would go with the column and leave nothing to bring it back.
-func TestEveryRailCarriesTheFoldControlBesideItsPanel(t *testing.T) {
+// TestNoRailCarriesAControlOfItsOwn holds every rail to the shape the header's
+// button relies on: the column is the one element the button names, and
+// nothing inside it opens or folds it. A control inside the column would go
+// with the column when it folds, and the reader would be left with nothing on
+// screen to bring it back with; the header's button stays where it is.
+func TestNoRailCarriesAControlOfItsOwn(t *testing.T) {
 	t.Parallel()
 	model := buildModel(t)
 	rails := []struct {
@@ -32,6 +30,9 @@ func TestEveryRailCarriesTheFoldControlBesideItsPanel(t *testing.T) {
 		{"shared sidebar", func(c layouts.Chrome) templ.Component {
 			return sidebar(NewLibrarySidebar(nav.Shell{Nav: model}, LibraryNone, ""), c)
 		}},
+		{"long folder", func(c layouts.Chrome) templ.Component {
+			return sidebar(longFolderSidebar(t), c)
+		}},
 	}
 	for _, r := range rails {
 		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
@@ -42,113 +43,53 @@ func TestEveryRailCarriesTheFoldControlBesideItsPanel(t *testing.T) {
 					t.Fatalf("render: %v", err)
 				}
 				html := buf.String()
-				if got := strings.Count(html, "data-rail-toggle"); got != 1 {
-					t.Fatalf("%d fold controls, want exactly one", got)
+				if got := strings.Count(html, `id="_y-nav-rail"`); got != 1 {
+					t.Fatalf("the column is drawn with the id the header's button controls %d times, want exactly once", got)
 				}
-				toggle := strings.Index(html, "data-rail-toggle")
-				body := strings.Index(html, `id="_y-nav-rail-body"`)
-				if body < 0 {
-					t.Fatal("the rail has no panel with id _y-nav-rail-body")
-				}
-				if strings.Count(html, `id="_y-nav-rail-body"`) != 1 {
-					t.Error("the panel id is not unique")
-				}
-				if toggle > body {
-					t.Error("the fold control comes after the panel it controls; it has to lead the rail")
-				}
-				panel := html[body:]
-				panel, _, _ = strings.Cut(panel, "</aside>")
-				if strings.Contains(panel, "data-rail-toggle") {
-					t.Error("the fold control is inside the panel it hides")
-				}
-				if !strings.Contains(html, `aria-controls="_y-nav-rail-body"`) {
-					t.Error("the fold control does not name the panel")
-				}
-				if !strings.Contains(html, `<div class="y-railhead" hidden>`) {
-					t.Error("the rail's head row is not drawn hidden; without script a press would do nothing")
-				}
-				if !strings.Contains(html, "head.hidden = false") {
-					t.Error("the script that settles the rail does not reveal the control before the first paint")
-				}
-				// The panel closes before the rail does, so nothing but the panel
-				// and the control is a child of the aside.
-				if !strings.Contains(html, "</div></aside>") {
-					t.Error("the panel does not close directly before the rail")
-				}
-			})
-		}
-	}
-}
-
-// TestFoldControlStatesTheColumnFromTheCookie holds what the button says on the
-// first byte to what the request carried: aria-expanded is the column's state,
-// the name does not change with it, and the tooltip names the action from that
-// state. The fallback is a column that is shown. The key is advertised, in the
-// tooltip and in aria-keyshortcuts, only while single-key shortcuts are on.
-func TestFoldControlStatesTheColumnFromTheCookie(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		rail     string
-		keys     bool
-		expanded string
-		action   func(wording.Lang) string
-	}{
-		{"", true, "true", wording.HideRail.In},
-		{"open", true, "true", wording.HideRail.In},
-		{"collapsed", true, "false", wording.ShowRail.In},
-		{"open", false, "true", wording.HideRail.In},
-		{"collapsed", false, "false", wording.ShowRail.In},
-	}
-	for _, tt := range tests {
-		for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
-			t.Run(fmt.Sprintf("%s/%v/%s", tt.rail, tt.keys, lang), func(t *testing.T) {
-				t.Parallel()
-				var buf bytes.Buffer
-				if err := railHead(layouts.Chrome{Lang: lang, Rail: tt.rail, SingleKeyShortcutsEnabled: tt.keys}, true).Render(t.Context(), &buf); err != nil {
-					t.Fatalf("render: %v", err)
-				}
-				html := buf.String()
-				title := tt.action(lang)
-				if tt.keys {
-					title += wording.RailKeyHint.In(lang)
-				}
-				for _, want := range []string{
-					`aria-expanded="` + tt.expanded + `"`,
-					`aria-label="` + wording.ToggleRail.In(lang) + `"`,
-					`title="` + title + `"`,
-					`data-title-hide="` + wording.HideRail.In(lang) + `"`,
-					`data-title-show="` + wording.ShowRail.In(lang) + `"`,
-					`data-title-key="` + wording.RailKeyHint.In(lang) + `"`,
-				} {
-					if !strings.Contains(html, want) {
-						t.Errorf("fold control missing %q; html = %q", want, html)
+				_, aside, _ := strings.Cut(html, `id="_y-nav-rail"`)
+				aside, _, _ = strings.Cut(aside, "</aside>")
+				for _, control := range []string{"data-rail-toggle", "data-nav-toggle", "<button"} {
+					if strings.Contains(aside, control) {
+						t.Errorf("the column carries %q, a control of its own that would leave with it", control)
 					}
 				}
-				if got := strings.Contains(html, `aria-keyshortcuts="["`); got != tt.keys {
-					t.Errorf("aria-keyshortcuts advertised = %v with single keys %v", got, tt.keys)
-				}
 			})
 		}
 	}
 }
 
-// TestRailHeadHoldsTheFilterBesideTheButton keeps the filter in the head row,
-// after the button and outside the panel, on the rails that have one, and off
-// the study-path rail that never had one.
-func TestRailHeadHoldsTheFilterBesideTheButton(t *testing.T) {
+// TestRailHeadIsTheFilterAlone keeps the head row to the one thing in it: the
+// filter, drawn hidden for the script to reveal before the first paint, on the
+// rails long enough to have one, and no row at all on the rails that are not.
+// An empty sticky row would be a band of nothing standing over the tree.
+func TestRailHeadIsTheFilterAlone(t *testing.T) {
 	t.Parallel()
-	var with, without bytes.Buffer
-	if err := railHead(layouts.Chrome{Lang: wording.En}, true).Render(t.Context(), &with); err != nil {
-		t.Fatal(err)
-	}
-	if err := railHead(layouts.Chrome{Lang: wording.En}, false).Render(t.Context(), &without); err != nil {
-		t.Fatal(err)
-	}
-	button, filter := strings.Index(with.String(), "data-rail-toggle"), strings.Index(with.String(), "data-nav-filter")
-	if button < 0 || filter < button {
-		t.Errorf("the filter does not follow the button in the head row: button at %d, filter at %d", button, filter)
-	}
-	if strings.Contains(without.String(), "data-nav-filter") {
-		t.Error("a rail without a filter drew one")
+	c := layouts.Chrome{Nonce: "n", Lang: wording.En}
+	short := NewFolderSidebar(nav.Shell{Nav: buildModel(t)}, "Notes/alpha.md")
+	for _, tt := range []struct {
+		name string
+		s    Sidebar
+		head bool
+	}{
+		{"short", short, false},
+		{"long", longFolderSidebar(t), true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			var b bytes.Buffer
+			if err := sidebar(tt.s, c).Render(t.Context(), &b); err != nil {
+				t.Fatal(err)
+			}
+			html := b.String()
+			if got := strings.Contains(html, `<div class="y-railhead" hidden>`); got != tt.head {
+				t.Errorf("head row drawn hidden = %v, want %v", got, tt.head)
+			}
+			if got := strings.Contains(html, `<input class="y-filter"`); got != tt.head {
+				t.Errorf("filter drawn = %v, want %v", got, tt.head)
+			}
+			if tt.head && !strings.Contains(html, "head.hidden = false") {
+				t.Error("the script that settles the rail does not reveal the head row before the first paint")
+			}
+		})
 	}
 }

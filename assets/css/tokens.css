@@ -329,34 +329,35 @@
      easy to carry from its end to the start of the next. The larger sizes
      widen it less than they enlarge the type (700px and 740px), so a larger
      setting costs a few characters a line rather than pushing the line out
-     past where the eye can carry it. */
+     past where the eye can carry it. The list measure is 884px, the width a
+     row runs to inside the 940px column the Atelier handoff gives every list
+     page (D94). */
   --field-w: 240px;
   --measure-read: 660px;
   --gutter-read: 48px;
-  --measure-list: 896px;
+  --measure-list: 884px;
   --gutter-list: 48px;
   --measure-answer: 720px;
   --gutter-answer: 24px;
   --gutter-mid: 32px;
   --gutter-phone: 20px;
 
-  /* The reading block: the column, the gap, and the margin beside it that the
-     page reserves for the reader's own actions on a section. Pages with a
-     sidebar stand this block in the middle of the room beside it and start
-     their own text where its column starts, so a note, a course, a search and
-     the page of findings all begin at one left edge. It is stated from the
-     reading measure of the root, not of an article, so a note written in
-     English, whose own measure is narrower, still starts where the rest do. */
-  --margin-col: 13rem;
-  --margin-gap: 2.5rem;
-  --read-block: calc(var(--measure-read) + var(--margin-gap) + var(--margin-col));
+  /* The margin beside the reading column, where a section's actions and the
+     reader's own thoughts on it stand on a wide window: a column of its own
+     and the gap between it and the text. */
+  --margin-col: 15.5rem;
+  --margin-gap: 3rem;
 
-  /* The widest a page with no rail grows to. Past it the page stands in the
-     middle of the window. A page with rails has no such width: its rails sit
-     against the window's edges and the room between them is the reading
-     column's. */
-  --shell-max: 1280px;
-
+  /* The stage: the widest the page grows to, centred in the window, with the
+     header's row, the left column and the page's block all kept on it. The
+     left column, where it stands beside the text, is a panel of its own width
+     over the stage's left edge, taking no room from the page. The wide lines
+     are the measure a block set wider than the text would run to, centred on
+     the text as the text is on the stage; the margin stands outside them on a
+     window wide enough to hold both. */
+  --stage-max: 1680px;
+  --rail-w: 256px;
+  --wide-read: 1040px;
 
   /* The header's height and the control's. The phone's header and a thumb's
      control are smaller or larger by a query in the stylesheet, which a media
@@ -366,12 +367,16 @@
   --hdr-h-phone: 48px;
   --control-h: 32px;
 
-  /* The three widths a layout may change at. A media query cannot read a
-     custom property, so these state the values the queries write out: a phone
-     up to 720, the rail from 1024, the margin column from 1280. */
+  /* The widths a layout may change at. A media query cannot read a custom
+     property, so these state the values the queries write out: a phone up to
+     720; the left column standing beside a reading page's text, and its
+     margin drawn, from 1321; the column beside a list from 1481; the margin
+     outside the wide lines from 1760. Below its width the column is a
+     drawer. */
   --bp-phone: 720px;
-  --bp-rail: 1024px;
-  --bp-margin: 1280px;
+  --bp-rail: 1321px;
+  --bp-rail-list: 1481px;
+  --bp-margin-wide: 1760px;
 
   /* A notice, which is one heading and a sentence or two rather than an
      article. It is narrower than the reading measure on purpose: a page whose

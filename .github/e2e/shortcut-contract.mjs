@@ -620,8 +620,8 @@ try {
   // closed at both widths and would let this pass without the viewport ever
   // having changed. The second press puts the column back, so the questions
   // after this one are asked of the layout they were written for.
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.waitForFunction(() => !window.matchMedia('(max-width: 1023px)').matches);
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.waitForFunction(() => !window.matchMedia('(max-width: 1320px)').matches);
   const railBefore = (await state(page)).rail;
   if (!['open', 'collapsed'].includes(railBefore)) broken(`the wide column reads rail=${railBefore}, neither open nor folded`);
   const railTurned = railBefore === 'open' ? 'collapsed' : 'open';

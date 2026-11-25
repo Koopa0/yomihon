@@ -10,29 +10,18 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
-	"strconv"
-
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// railHead is the first row of every navigation rail: the button that folds the
-// whole left column away above the drawer width and, on a rail that has one,
-// the filter box beside it. It is the panel's sibling and never inside what it
-// hides — a control that went with the column would leave nothing to bring it
-// back with — and it is one row, so the filter stays where it can be reached
-// while the tree under it scrolls. The state is the server's, the cookie the
-// request carried, so the button is right on the first byte and the script only
-// keeps it in step afterwards.
+// railHead is the first row of a rail long enough to need narrowing: the
+// filter box. It is one row, sticking to the top of the rail's own scroll box,
+// so the filter stays where it can be reached while the tree under it scrolls.
 //
 // The whole row is drawn hidden and the script that settles the rail reveals it
-// before the first paint, as it always did the filter. The button does nothing
-// without script, and a control that only pretends is worse than one that is
-// absent; the preferences page is the way back for a reader running none.
-//
-// The tooltip and the advertised key follow the single-key setting, because a
-// key the reader has turned off is not one to promise.
-func railHead(c layouts.Chrome, filter bool) templ.Component {
+// before the first paint, as it always did the filter: a box that filters
+// nothing without script is worse than one that is absent.
+func railHead(c layouts.Chrome) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -49,131 +38,33 @@ func railHead(c layouts.Chrome, filter bool) templ.Component {
 		}
 		ctx = templ.InitializeContext(ctx)
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"y-railhead\" hidden><button class=\"y-iconbtn y-railtoggle__button\" type=\"button\" data-rail-toggle data-title-hide=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"y-railhead\" hidden><input class=\"y-filter\" type=\"text\" placeholder=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
-		templ_7745c5c3_Var2, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.HideRail.In(c.Lang)).Resolve(ctx)
+		templ_7745c5c3_Var2, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.FilterNavigation.In(c.Lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 32, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 20, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var2)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" data-title-show=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "\" aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var3 string
-		templ_7745c5c3_Var3, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.ShowRail.In(c.Lang)).Resolve(ctx)
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.FilterNavigationLabel.In(c.Lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 33, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 21, Col: 56}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var3)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" data-title-key=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var4 string
-		templ_7745c5c3_Var4, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.RailKeyHint.In(c.Lang)).Resolve(ctx)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 34, Col: 50}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "\" aria-controls=\"_y-nav-rail-body\" aria-expanded=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var5 string
-		templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(strconv.FormatBool(c.Rail != "collapsed")).Resolve(ctx)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 36, Col: 60}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if c.SingleKeyShortcutsEnabled {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, " aria-keyshortcuts=\"[\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, " aria-label=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var6 string
-		templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.ToggleRail.In(c.Lang)).Resolve(ctx)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 40, Col: 45}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\" title=\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var7 string
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.NewAttributeExpression(railToggleTitle(c.Rail, c.Lang, c.SingleKeyShortcutsEnabled)).Resolve(ctx)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 41, Col: 71}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\"><svg aria-hidden=\"true\" width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"16\" rx=\"2\"></rect><path d=\"M9 4v16\"></path><rect class=\"y-railtoggle__pane\" x=\"3\" y=\"4\" width=\"6\" height=\"16\" rx=\"2\"></rect></svg></button> ")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		if filter {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<input class=\"y-filter\" type=\"text\" placeholder=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var8 string
-			templ_7745c5c3_Var8, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.FilterNavigation.In(c.Lang)).Resolve(ctx)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 49, Col: 53}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var8)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\" aria-label=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var9 string
-			templ_7745c5c3_Var9, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.FilterNavigationLabel.In(c.Lang)).Resolve(ctx)
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 50, Col: 57}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var9)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "\" autocomplete=\"off\" spellcheck=\"false\" data-nav-filter hidden>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "\" autocomplete=\"off\" spellcheck=\"false\" data-nav-filter hidden></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -205,56 +96,56 @@ func settleRail(c layouts.Chrome, filter bool) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<script nonce=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<script nonce=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var11 string
-		templ_7745c5c3_Var11, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 69, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 39, Col: 24}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var11)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var5)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\">\n\t\t(() => {\n\t\t\t\"use strict\";\n\t\t\tconst filter = document.querySelector(\".y-rail-left [data-nav-filter]\");\n\t\t\tif (filter) {\n\t\t\t\tfilter.hidden = false;\n\t\t\t}\n\t\t\tconst head = document.querySelector(\".y-rail-left .y-railhead\");\n\t\t\tif (head) {\n\t\t\t\thead.hidden = false;\n\t\t\t}\n\t\t\tlet stored = {};\n\t\t\ttry {\n\t\t\t\tstored =\n\t\t\t\t\tJSON.parse(sessionStorage.getItem(\"yomihon.nav\") || \"{}\") || {};\n\t\t\t} catch {\n\t\t\t\tstored = {};\n\t\t\t}\n\t\t\tdocument\n\t\t\t\t.querySelectorAll(\".y-rail-left details[data-key]\")\n\t\t\t\t.forEach((d) => {\n\t\t\t\t\tif (d.hasAttribute(\"data-chain\")) {\n\t\t\t\t\t\td.open = true;\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tconst want = stored[d.dataset.key];\n\t\t\t\t\tif (typeof want === \"boolean\") {\n\t\t\t\t\t\td.open = want;\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\">\n\t\t(() => {\n\t\t\t\"use strict\";\n\t\t\tconst filter = document.querySelector(\".y-rail-left [data-nav-filter]\");\n\t\t\tif (filter) {\n\t\t\t\tfilter.hidden = false;\n\t\t\t}\n\t\t\tconst head = document.querySelector(\".y-rail-left .y-railhead\");\n\t\t\tif (head) {\n\t\t\t\thead.hidden = false;\n\t\t\t}\n\t\t\tlet stored = {};\n\t\t\ttry {\n\t\t\t\tstored =\n\t\t\t\t\tJSON.parse(sessionStorage.getItem(\"yomihon.nav\") || \"{}\") || {};\n\t\t\t} catch {\n\t\t\t\tstored = {};\n\t\t\t}\n\t\t\tdocument\n\t\t\t\t.querySelectorAll(\".y-rail-left details[data-key]\")\n\t\t\t\t.forEach((d) => {\n\t\t\t\t\tif (d.hasAttribute(\"data-chain\")) {\n\t\t\t\t\t\td.open = true;\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tconst want = stored[d.dataset.key];\n\t\t\t\t\tif (typeof want === \"boolean\") {\n\t\t\t\t\t\td.open = want;\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if filter {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 16, "<script nonce=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<script nonce=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var12 string
-			templ_7745c5c3_Var12, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
+			var templ_7745c5c3_Var6 string
+			templ_7745c5c3_Var6, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 102, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 72, Col: 25}
 			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var12)
+			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var6)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "\">\n\t\t\t(() => {\n\t\t\t\t\"use strict\";\n\t\t\t\tdocument.querySelector(\".y-rail-left\")?.railFilterState?.restore();\n\t\t\t})();\n\t\t</script>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "\">\n\t\t\t(() => {\n\t\t\t\t\"use strict\";\n\t\t\t\tdocument.querySelector(\".y-rail-left\")?.railFilterState?.restore();\n\t\t\t})();\n\t\t</script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<script nonce=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<script nonce=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		var templ_7745c5c3_Var13 string
-		templ_7745c5c3_Var13, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
+		var templ_7745c5c3_Var7 string
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templruntime.NewAttributeExpression(c.Nonce).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 119, Col: 24}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/railstate.templ`, Line: 89, Col: 24}
 		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var13)
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var7)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\">\n\t\t(() => {\n\t\t\t\"use strict\";\n\t\t\tconst rail = document.querySelector(\".y-rail-left\");\n\t\t\tif (!rail) return;\n\t\t\tconst id =\n\t\t\t\trail.querySelector(\"[data-book-path]\")?.dataset.bookPath ??\n\t\t\t\trail.dataset.readingRail ??\n\t\t\t\trail.getAttribute(\"aria-label\") ??\n\t\t\t\t\"\";\n\t\t\tlet kept = null;\n\t\t\ttry {\n\t\t\t\tkept = JSON.parse(sessionStorage.getItem(\"yomihon.railTop\") || \"null\");\n\t\t\t} catch {\n\t\t\t\tkept = null;\n\t\t\t}\n\t\t\tconst reloaded =\n\t\t\t\tperformance.getEntriesByType(\"navigation\")[0]?.type === \"reload\";\n\t\t\tconst same =\n\t\t\t\t!reloaded && kept !== null && kept.id === id && Number.isFinite(kept.top);\n\t\t\tif (same) rail.scrollTop = kept.top;\n\t\t\tconst row = [...rail.querySelectorAll(\".ui-navitem[aria-current='page']\")].find(\n\t\t\t\t(item) => item.getClientRects().length > 0,\n\t\t\t);\n\t\t\tif (row) {\n\t\t\t\tconst box = rail.getBoundingClientRect();\n\t\t\t\tconst top =\n\t\t\t\t\tbox.top +\n\t\t\t\t\trail.clientTop +\n\t\t\t\t\t(Number.parseFloat(getComputedStyle(rail).scrollPaddingTop) || 0);\n\t\t\t\tconst bottom = box.top + rail.clientTop + rail.clientHeight;\n\t\t\t\tconst place = row.getBoundingClientRect();\n\t\t\t\tif (place.top < top) rail.scrollTop += place.top - top;\n\t\t\t\telse if (place.bottom > bottom && same) rail.scrollTop += place.bottom - bottom;\n\t\t\t\telse if (place.bottom > bottom) rail.scrollTop += place.top - top;\n\t\t\t}\n\t\t\t// A folded column has no height to read a position from, and what it\n\t\t\t// would store is the top; the position kept is the one from before.\n\t\t\taddEventListener(\"pagehide\", () => {\n\t\t\t\tif (rail.querySelector(\".y-railbody\")?.getClientRects().length === 0) return;\n\t\t\t\ttry {\n\t\t\t\t\tsessionStorage.setItem(\n\t\t\t\t\t\t\"yomihon.railTop\",\n\t\t\t\t\t\tJSON.stringify({ id, top: rail.scrollTop }),\n\t\t\t\t\t);\n\t\t\t\t} catch {\n\t\t\t\t\t// A page without storage keeps nothing; the next one starts at the top.\n\t\t\t\t}\n\t\t\t});\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\">\n\t\t(() => {\n\t\t\t\"use strict\";\n\t\t\tconst rail = document.querySelector(\".y-rail-left\");\n\t\t\tif (!rail) return;\n\t\t\tconst id =\n\t\t\t\trail.querySelector(\"[data-book-path]\")?.dataset.bookPath ??\n\t\t\t\trail.dataset.readingRail ??\n\t\t\t\trail.getAttribute(\"aria-label\") ??\n\t\t\t\t\"\";\n\t\t\tlet kept = null;\n\t\t\ttry {\n\t\t\t\tkept = JSON.parse(sessionStorage.getItem(\"yomihon.railTop\") || \"null\");\n\t\t\t} catch {\n\t\t\t\tkept = null;\n\t\t\t}\n\t\t\tconst reloaded =\n\t\t\t\tperformance.getEntriesByType(\"navigation\")[0]?.type === \"reload\";\n\t\t\tconst same =\n\t\t\t\t!reloaded && kept !== null && kept.id === id && Number.isFinite(kept.top);\n\t\t\tif (same) rail.scrollTop = kept.top;\n\t\t\tconst row = [...rail.querySelectorAll(\".ui-navitem[aria-current='page']\")].find(\n\t\t\t\t(item) => item.getClientRects().length > 0,\n\t\t\t);\n\t\t\tif (row) {\n\t\t\t\tconst box = rail.getBoundingClientRect();\n\t\t\t\tconst top =\n\t\t\t\t\tbox.top +\n\t\t\t\t\trail.clientTop +\n\t\t\t\t\t(Number.parseFloat(getComputedStyle(rail).scrollPaddingTop) || 0);\n\t\t\t\tconst bottom = box.top + rail.clientTop + rail.clientHeight;\n\t\t\t\tconst place = row.getBoundingClientRect();\n\t\t\t\tif (place.top < top) rail.scrollTop += place.top - top;\n\t\t\t\telse if (place.bottom > bottom && same) rail.scrollTop += place.bottom - bottom;\n\t\t\t\telse if (place.bottom > bottom) rail.scrollTop += place.top - top;\n\t\t\t}\n\t\t\t// A folded column is hidden rather than removed, so it keeps the\n\t\t\t// position it had and that is the one kept.\n\t\t\taddEventListener(\"pagehide\", () => {\n\t\t\t\ttry {\n\t\t\t\t\tsessionStorage.setItem(\n\t\t\t\t\t\t\"yomihon.railTop\",\n\t\t\t\t\t\tJSON.stringify({ id, top: rail.scrollTop }),\n\t\t\t\t\t);\n\t\t\t\t} catch {\n\t\t\t\t\t// A page without storage keeps nothing; the next one starts at the top.\n\t\t\t\t}\n\t\t\t});\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -252,8 +252,7 @@ func longFolderSidebar(t *testing.T) Sidebar {
 }
 
 // TestTheFilterComesOnlyPastTwentyRows holds the rule the head draws by: a list
-// that fits in one look has the fold button alone, and one longer than
-// filterRows has the box as well.
+// that fits in one look has no filter, and one longer than filterRows has one.
 func TestTheFilterComesOnlyPastTwentyRows(t *testing.T) {
 	t.Parallel()
 	c := layouts.Chrome{Nonce: "n", Lang: wording.En}
@@ -264,14 +263,5 @@ func TestTheFilterComesOnlyPastTwentyRows(t *testing.T) {
 	long := longFolderSidebar(t)
 	if !long.FilterShown(c.Lang) {
 		t.Errorf("a folder of %d rows is offered no filter", long.rows(c.Lang))
-	}
-	for name, sb := range map[string]Sidebar{"short": short, "long": long} {
-		var b bytes.Buffer
-		if err := sidebar(sb, c).Render(t.Context(), &b); err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(b.String(), "data-rail-toggle") {
-			t.Errorf("the %s sidebar draws no fold button", name)
-		}
 	}
 }

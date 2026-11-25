@@ -1,6 +1,6 @@
-// Browser lock for the header row: it carries only what reading needs. Where
-// the left column is a drawer, the button that opens it stands first, ahead of
-// the wordmark, where the column it opens is. To the right of the wordmark
+// Browser lock for the header row: it carries only what reading needs. At
+// every width the button that opens and folds the left column stands first,
+// ahead of the wordmark, over the column it acts on. To the right of the wordmark
 // there is the furigana switch on a page that has furigana, the search — a
 // field above a phone's width, the glass that opens it over the whole screen
 // on a phone — the bookmark for keeping a reading place, on a note the control
@@ -188,6 +188,13 @@ const MUTATIONS = {
     target: 'cluster-holds-only-what-reading-needs',
     on: 'note',
     apply: (page) => injectRule(page, SEARCH, `${SEARCH} { display: inline-flex !important; }`),
+  },
+  // The sidebar button drawn only where the column is a drawer, as it was
+  // before it also folded the column beside the text.
+  'draw-the-sidebar-button-only-for-the-drawer': {
+    target: 'cluster-holds-only-what-reading-needs',
+    on: 'note',
+    apply: (page) => injectRule(page, SIDEBAR, `@media (min-width: 1321px) { [data-js] ${SIDEBAR} { display: none !important; } }`),
   },
   // The sidebar button goes back to the end of the row, away from the column
   // it opens.
@@ -503,7 +510,7 @@ try {
         }
         // Ahead of the wordmark, the sidebar button where the column is a
         // drawer, and nothing at all where it is a column.
-        const wantAhead = width <= DRAWER ? [SIDEBAR] : [];
+        const wantAhead = [SIDEBAR];
         if (JSON.stringify(row.ahead) !== JSON.stringify(wantAhead)) {
           fail('cluster-holds-only-what-reading-needs', `${where}: the row draws ${JSON.stringify(row.ahead)} ahead of the wordmark, want ${JSON.stringify(wantAhead)}`);
         }
@@ -683,7 +690,7 @@ try {
     await touch.close();
   }
 
-  console.log('PASS header-row: the sidebar button stands ahead of the wordmark only where the column is a drawer; after it the row carries no furigana switch, the search field (the glass on a phone), the bookmark, the copy of the path and the grounds where the left column is not a drawer, My marks above a phone and the settings, in that order and nothing else; one reading-place control at every width; the row fits with the wordmark whole; the bookmark is a named toggle that turns on when the place is kept, and its sentence moves nothing, covers nothing and stays until the next press or key; the search and the settings keep their names; the bookmark takes a thumb and is in the keyboard order');
+  console.log('PASS header-row: the sidebar button stands ahead of the wordmark at every width; after it the row carries no furigana switch, the search field (the glass on a phone), the bookmark, the copy of the path and the grounds where the left column is not a drawer, My marks above a phone and the settings, in that order and nothing else; one reading-place control at every width; the row fits with the wordmark whole; the bookmark is a named toggle that turns on when the place is kept, and its sentence moves nothing, covers nothing and stays until the next press or key; the search and the settings keep their names; the bookmark takes a thumb and is in the keyboard order');
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

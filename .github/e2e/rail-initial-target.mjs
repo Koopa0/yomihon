@@ -94,8 +94,7 @@ const geometry = (page) => page.evaluate(({ railSelector, currentSelector }) => 
 }, { railSelector: RAIL, currentSelector: CURRENT });
 
 const settled = async (page) => {
-  await page.waitForFunction(() => !document.documentElement.hasAttribute('data-rail-moving')
-    && !document.getAnimations().some((animation) => animation instanceof CSSTransition));
+  await page.waitForFunction(() => !document.getAnimations().some((animation) => animation instanceof CSSTransition));
 };
 
 try {
@@ -137,11 +136,10 @@ try {
           return rail.scrollTop;
         });
         if (chosen < 100 || Math.abs(chosen - actual.railTop) < 100) broken('the chosen position is not distinct from arrival');
-        // Driver locator clicks scroll a sticky button's natural position
-        // into view. Press its visible position as a reader would instead.
+        // The header's button, which stays where it is while the column goes.
         const press = async () => {
-          const box = await subject.page.locator('[data-rail-toggle]').boundingBox();
-          if (!box) broken('the fold button is not visible');
+          const box = await subject.page.locator('[data-nav-toggle]').boundingBox();
+          if (!box) broken('the sidebar button is not visible');
           await subject.page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
         };
         await press();

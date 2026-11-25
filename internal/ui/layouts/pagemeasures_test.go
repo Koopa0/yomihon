@@ -36,7 +36,7 @@ func TestThePageMeasuresAreTheNamedOnes(t *testing.T) {
 
 	want := map[string][]string{
 		"--measure-answer": {"720px"},
-		"--measure-list":   {"896px"},
+		"--measure-list":   {"884px"},
 		"--measure-read":   {"660px", "700px", "740px", "calc(var(--fs-ed-17) * 31)"},
 	}
 

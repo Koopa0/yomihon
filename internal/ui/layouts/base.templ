@@ -169,8 +169,8 @@ templ Base(c Chrome) {
 
 // header is the shared top chrome, and it carries only what reading needs: the
 // wordmark and the folder's name, the control for keeping a reading place on a note that offers one,
-// the ⌘K search entry, the way to the reading choices, and where the left
-// column is a drawer the button that opens it. The theme, the text size, the language and
+// the ⌘K search entry, the way to the reading choices, and the button that
+// opens and folds the left column. The theme, the text size, the language and
 // the single-key shortcuts are set on that page, beside the sentence that says
 // what each one does; the whole-folder view is reached from the desk; the
 // keyboard help is opened by its own key.
@@ -185,12 +185,32 @@ templ Base(c Chrome) {
 // GET to /search it always was.
 templ header(c Chrome) {
 	<header class="y-header">
-		// First in the row, where the column it opens is, and shown only where
-		// the left column is a drawer. Its word is its name wherever the word is
+		// First in the row, over the column it acts on, and shown at every width
+		// on a page that has a column and a script to act with: where the column
+		// stands beside the text it shows or folds it, and where the column is a
+		// drawer it opens the drawer. Its word is its name wherever the word is
 		// drawn and where a phone's row has room for a mark alone, so the name is
-		// taken by reference from a word that stays in the page; aria-expanded
-		// says which way a press goes.
-		<button class="y-sidebtn" type="button" data-nav-toggle aria-expanded="false" aria-controls="_y-nav-rail" aria-labelledby="_y-sidebtn-word">
+		// taken by reference from a word that stays in the page. aria-expanded
+		// says whether the column, or the drawer, is open; the tooltip names
+		// what a press will do from that state, with the key that does the same
+		// while single keys are on. The first byte states the cookie's choice,
+		// which is the wide window's, and the script keeps both in step with
+		// whichever of the two the width makes it.
+		<button
+			class="y-sidebtn"
+			type="button"
+			data-nav-toggle
+			data-title-hide={ wording.HideRail.In(c.Lang) }
+			data-title-show={ wording.ShowRail.In(c.Lang) }
+			data-title-key={ wording.RailKeyHint.In(c.Lang) }
+			aria-expanded={ strconv.FormatBool(c.Rail == "open") }
+			aria-controls="_y-nav-rail"
+			if c.SingleKeyShortcutsEnabled {
+				aria-keyshortcuts="["
+			}
+			aria-labelledby="_y-sidebtn-word"
+			title={ sideButtonTitle(c.Rail, c.Lang, c.SingleKeyShortcutsEnabled) }
+		>
 			<svg class="y-sidebtn__mark" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg>
 			<span class="y-sidebtn__word" id="_y-sidebtn-word">{ wording.SidebarButton.In(c.Lang) }</span>
 		</button>

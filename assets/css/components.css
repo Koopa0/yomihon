@@ -448,9 +448,10 @@ samp {
    ============================================================ */
 /* The header is the paper itself, a little translucent so the page passing
    under it shows as a blur rather than being cut off by a band of another
-   tone, with the faintest line under it. Its ends stay at the window's edges
-   for now, where the left column is: the two move onto the 1680px stage
-   together, with the note's grid (D94, Phase 2). */
+   tone, with the faintest line under it. The band runs the window's width;
+   its row keeps to the stage, so on a window wider than the stage the first
+   control stands over the left column's edge and the last over the stage's
+   right one (D94). */
 .y-header {
   align-items: center;
   backdrop-filter: blur(12px) saturate(1.1);
@@ -460,7 +461,7 @@ samp {
   flex: none;
   gap: var(--sp-1);
   height: var(--hdr-h);
-  padding: 0 var(--sp-5);
+  padding: 0 calc(var(--stage-inset) + var(--sp-5));
   position: sticky;
   top: 0;
   z-index: 30;
@@ -802,9 +803,11 @@ html:not([data-js]) .y-toolbtn {
   }
 }
 
-/* The button that opens the left column as a drawer. It is named by its word,
-   as the settings link is, and drawn only where there is a column to open and
-   the column is a drawer (the 1023 block below). */
+/* The button that opens and folds the left column, first in the header at
+   every width: where the column stands beside the text it shows or folds it,
+   and where the column is a drawer it opens the drawer. It is named by its
+   word, as the settings link is, and drawn only where there is a column for it
+   to act on and a script to act with (the shell's block below). */
 .y-sidebtn {
   align-items: center;
   background: transparent;
@@ -857,22 +860,29 @@ html:not([data-js]) .y-toolbtn {
 }
 
 /* ============================================================
-   Shell + rails
+   Shell + the left column
    ============================================================ */
+/* The page stands on a stage at most 1680px wide, centred in the window: the
+   header's row, the left column and the page's own block all keep to it, so a
+   very wide window gains margins rather than a header whose two ends drift
+   away from the text between them. The inset is the stage's distance from the
+   window's side, nothing until the window is wider than the stage. It is a
+   percentage resolved where it is used, against a box as wide as the window's
+   content (the header, and the window itself for the fixed column), so every
+   reader of it measures the same stage. */
 :root {
-  --rail-open: 272px;
+  --stage-inset: max(0px, calc((100% - var(--stage-max)) / 2));
 }
 
-/* The rail is the window's own edge, as a desktop application's pane is, and
-   the reading column takes whatever width is left beside it. Nothing here
-   centres or caps the shell: capped, it would leave the rail floating in from
-   the window's side, short of the header's end above it. The article keeps its
-   own measure and stands in the column. */
-.y-shell {
-  align-items: start;
-  display: grid;
+/* The left column takes no room of its own. The page's block is centred on the
+   stage whether the column is there or not, so opening or folding the column
+   moves nothing the reader is reading; the column stands over the stage's left
+   edge, in the room the centred block leaves there, from the width at which
+   that room holds it (the panel block under Responsive). */
+.y-shell,
+.y-shell2 {
   flex: 1;
-  grid-template-columns: var(--rail-open) minmax(0, 1fr);
+  min-width: 0;
   width: 100%;
 }
 
@@ -884,17 +894,17 @@ html:not([data-js]) .y-toolbtn {
   z-index: 44;
 }
 
-/* The rails stay put while the prose moves under them: sticky to just below
-   the header, each with its own overflow so a long tree scrolls without
-   taking the reading column with it. */
+/* The column's own box: the folder's ways in, scrolling by itself so a long
+   tree scrolls without taking the page with it. Without a script, on a window
+   too narrow for it to stand beside the text, this is all it is: ordinary
+   content ahead of the page, every row still reachable. The two forms it takes
+   otherwise, the panel beside the text and the drawer, are under Responsive. */
 .y-rail-left {
-  background: var(--rail-ground);
-  border-right: 1px solid var(--line);
-  height: calc(100vh - var(--hdr-h));
+  --rail-glow: none;
+  background: var(--rail-glow) fixed, var(--rail-ground);
+  box-sizing: border-box;
   overflow-y: auto;
   padding: 6px var(--rail-pad) 48px var(--rail-pad-start);
-  position: sticky;
-  top: var(--hdr-h);
 }
 
 /* Without scripting, arrival brings the current row into the rail's view and
@@ -909,35 +919,25 @@ html:not([data-js]) .y-toolbtn {
   }
 }
 
-/* The rail's first row: the button that folds the whole left column away and,
-   beside it, the filter. It is one row, and it sticks to the top of the rail's
-   own scroll box, because the rail scrolls by itself and neither the button nor
-   the filter may scroll out of reach exactly when the tree is long. The
-   negative margins take the row out to the rail's edges so the panel colour,
-   not the tree passing underneath, is what sits behind it.
-
-   The button is held to the row's left edge, four pixels in, because that is
-   where it stays when the column folds: the strip it is left standing in is
-   forty pixels wide, and a control that slid sideways between the two states
-   would be a different thing each time it was looked for.
+/* The rail's first row: the filter, on a rail long enough to have one. It
+   sticks to the top of the rail's own scroll box, because the rail scrolls by
+   itself and the filter may not scroll out of reach exactly when the tree is
+   long. The negative margins take the row out to the rail's edges so the
+   rail's ground, not the tree passing underneath, is what sits behind it.
 
    Its height is fixed, and named, because the rail's scroll padding has to
    equal it: focus moved by the keyboard scrolls a row into the part of the rail
    that is not under this one.
 
-   The script reveals the row before the first paint; with no script it is never
-   drawn, filter included, as the filter never was. Below the width where the
-   column becomes a drawer the row is only the filter, as it was, and the
-   header's own button owns the act of opening it.
+   The script reveals the row before the first paint; with no script it is
+   never drawn, as the filter never was.
 
    Three lengths set every rail's left edge, so moving it is one change: where
    the rail's titles, part heads and summaries start, how far in from there a
    list's rule stands (under the centre of a summary's chevron, so the line
    reads as running down out of it), and how far a row's words stand from that
-   rule. The titles start the header's inset in from the window's edge, in the
-   drawer a phone opens as in the column beside the page, so they begin where
-   the header does. The button above them is the exception: it keeps to the
-   strip's own edge, for the reason given. */
+   rule. The titles start the header's inset in from the column's edge, in the
+   drawer as in the panel beside the page, and the filter starts with them. */
 :root {
   --rail-head-height: 44px;
   --rail-list-inset: 6px;
@@ -946,55 +946,35 @@ html:not([data-js]) .y-toolbtn {
   --rail-row-inset: 12px;
 }
 
-.y-railtoggle__button {
+.y-railhead {
+  align-items: center;
+  background: var(--rail-glow) fixed, var(--rail-ground);
+  box-sizing: border-box;
+  display: flex;
+  height: var(--rail-head-height);
+  margin: -6px calc(-1 * var(--rail-pad)) 4px calc(-1 * var(--rail-pad-start));
+  padding: 0 var(--rail-pad) 0 var(--rail-pad-start);
+  position: sticky;
+  /* Held six pixels above the content edge, which is the rail's own top
+     padding: the row reaches the very top of the rail, so no row of the tree
+     passes in the gap above it. */
+  top: -6px;
+  z-index: 1;
+}
+
+.y-railhead[hidden] {
   display: none;
 }
 
-@media (min-width: 1024px) {
-  .y-railhead {
-    align-items: center;
-    background: var(--rail-ground);
-    box-sizing: border-box;
-    display: flex;
-    gap: 6px;
-    height: var(--rail-head-height);
-    margin: -6px calc(-1 * var(--rail-pad)) 4px calc(-1 * var(--rail-pad-start));
-    padding: 0 var(--rail-pad) 0 4px;
-    position: sticky;
-    /* Held six pixels above the content edge, which is the rail's own top
-       padding: the row reaches the very top of the rail, so no row of the tree
-       passes in the gap above it. */
-    top: -6px;
-    z-index: 1;
-  }
-
-  .y-railhead[hidden] {
-    display: none;
-  }
-
-  .y-railtoggle__button {
-    display: inline-flex;
-  }
-
-  .y-railhead .y-filter {
-    flex: 1;
-    margin: 0;
-    min-width: 0;
-    width: auto;
-  }
-
-  .y-rail-left {
-    scroll-padding-top: var(--rail-head-height);
-  }
+.y-railhead .y-filter {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+  width: auto;
 }
 
-/* The mark is a window with its left pane. The pane is filled while the column
-   is shown and empty once it is folded, so the glyph is a picture of the state
-   rather than of the act. */
-.y-railtoggle__pane {
-  fill: currentColor;
-  fill-opacity: 0.28;
-  stroke: none;
+.y-rail-left:has(> .y-railhead:not([hidden])) {
+  scroll-padding-top: var(--rail-head-height);
 }
 
 /* The document scrolls, not this element. A reader arrives with focus on the
@@ -1138,44 +1118,6 @@ html:not([data-js]) .y-toolbtn {
 .y-where__path:hover {
   text-decoration: underline;
   text-underline-offset: 3px;
-}
-
-/* The name a folded column keeps, set along the strip the way the spine of a
-   book is. It is drawn into the rail and shown only while the column is
-   folded; the strip is forty pixels wide and holds the button that unfolds it
-   and this, and a name too long for the height is cut with an ellipsis and
-   kept whole in the link's title. */
-.y-railspine {
-  display: none;
-}
-
-@media (min-width: 1024px) {
-  html[data-rail='collapsed'] .y-railspine {
-    color: var(--fg);
-    display: flex;
-    justify-content: center;
-    margin: 12px calc(-1 * var(--rail-pad)) 0 calc(-1 * var(--rail-pad-start));
-    text-decoration: none;
-  }
-
-  .y-railspine__name {
-    font-family: var(--font-serif);
-    font-size: var(--fs-14);
-    font-weight: var(--fw-medium);
-    line-height: 1.2;
-    max-block-size: calc(100vh - var(--hdr-h) - var(--rail-head-height) - 48px);
-    overflow: hidden;
-    padding-block: 4px;
-    text-orientation: mixed;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    writing-mode: vertical-rl;
-  }
-
-  html[data-rail='collapsed'] .y-railspine:hover .y-railspine__name {
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
 }
 
 .y-railsep {
@@ -1374,7 +1316,11 @@ html:not([data-js]) .y-toolbtn {
    The line length is the constant and the gutter is what changes, so the box is
    derived from both rather than fixed on its own. Held the other way round, a
    narrower window spent its reclaimed gutter on longer lines: the measure grew
-   by a tenth exactly when the reader had less room, which is backwards. */
+   by a tenth exactly when the reader had less room, which is backwards.
+
+   Every page's block is centred, and the left column takes no room from it,
+   so the text stands on the window's middle whether the column is open,
+   folded or a drawer, and does not move when the column does. */
 .y-article,
 .y-listen,
 .y-prefs,
@@ -1385,37 +1331,6 @@ html:not([data-js]) .y-toolbtn {
   padding: 44px var(--gutter-read) 120px;
 }
 
-/* One left edge. The text of every page that has a sidebar, or only a drawer,
-   starts where the reading column does, and the text of the settings page,
-   which has neither, starts where its own container does, so moving from one
-   page to the next moves nothing the reader's eye is on. The edge is the
-   margin that stands the block in the middle of the room, taken as the box's own margin with the gutter that the
-   box's text sits in from it already counted, so pages whose gutters differ
-   still start their text at the same place. Where the room is narrower than the
-   block the margin is nothing and the column fills it. Below 1024, where the
-   column is a drawer, the margin is nothing whatever the room, so the text
-   starts at the page's own side margin. */
-.y-main > :is(.y-article, .y-syl, .y-listen) {
-  margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2));
-  margin-right: auto;
-}
-
-.y-main > :is(.y-healthpage, .y-searchpage, .y-home) {
-  margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2 + var(--gutter-read) - var(--gutter-list)));
-  margin-right: auto;
-}
-
-.y-shell2:has(> .y-rail-left) > .y-main > .y-recovery {
-  margin-left: max(0px, calc((100% - 2 * var(--gutter-read) - var(--read-block)) / 2));
-  margin-right: auto;
-}
-
-.y-shell2:not(:has(> .y-rail-left)) > .y-main > .y-recovery,
-.y-prefs {
-  margin-left: max(0px, calc((100% - var(--measure-list) - 2 * var(--gutter-list)) / 2 + var(--gutter-list) - var(--gutter-read)));
-  margin-right: auto;
-}
-
 /* ============================================================
    The shelf shell
    ============================================================ */
@@ -1423,7 +1338,9 @@ html:not([data-js]) .y-toolbtn {
    read: the desk, the four ways in, a folder seen whole, and the page naming
    what the folder owes. A list is read across as well as down — a row carries a
    title, a figure and a status — so it is laid out wider than a paragraph, and
-   the width is stated once for all of them rather than found again per page. */
+   the width is stated once for all of them rather than found again per page.
+   It is centred as the reading block is; being wider, it leaves the column
+   room to stand beside it only on a wider window (the panel block). */
 .y-healthpage,
 .y-home,
 .y-searchpage {
@@ -2915,20 +2832,29 @@ button.y-freshness__action {
   font-size: var(--fs-12);
 }
 
-/* The room beside the reading column: the column, the gap and the margin the
-   block reserves, and the gutter the column's box keeps at its left, must all
-   fit in the container. It is asked of a note that stands alone in the window:
-   two notes side by side have a column each and no room beside either, so their
-   margins stay at the end of their headings' lines. Each text size changes the column, so each has its own
-   width to ask for. The shared rules are the same three times over because a
-   container query cannot name a custom property. Only a pointer that can rest
-   on a heading hides the buttons until it does: a touch screen has nothing to
-   rest, so the buttons are drawn whatever the setting. The margin is the
-   widest layout's alone (§2.2): below 1280 the actions stand under their
-   section, so the media query is what keeps a drawer-width window, whose main
-   column is wide enough, from drawing it. */
-@media (min-width: 1280px) {
-  @container y-main (min-width: 58.875rem) {
+/* The room beside the reading column: the column is centred in the window, so
+   the margin stands at the window's middle, half the column, and the gap out
+   from there, and the window has to hold it with sixteen pixels to spare at its
+   right. The left column does not enter into it: it stands on the other side
+   of the text. It is asked of a note that stands alone in the window: two notes
+   side by side have a column each and no room beside either, so their margins
+   stay at the end of their headings' lines. Each text size changes the column,
+   so each has its own width to ask for, counted from the middle of the window
+   (the container is the whole main): 2 × (330 + 48 + 248 + 16) is 1284 at the
+   base size, 1324 at the large and 1364 at the largest. The shared rules are
+   the same three times over because a container query cannot name a custom
+   property. Only a pointer that can rest on a heading hides the buttons until
+   it does: a touch screen has nothing to rest, so the buttons are drawn
+   whatever the setting. The margin is the widest layout's alone: below 1321 the
+   actions stand under their section, which is where a note's column turns
+   into a drawer, so the media query is what keeps a drawer-width window from
+   drawing it.
+
+   From 1760 the margin stands outside the wide lines instead, 520 from the
+   middle and 36 beyond, where nothing set to the wide measure can run under
+   it. */
+@media (min-width: 1321px) {
+  @container y-main (min-width: 80.25rem) {
     :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-sect {
       align-items: start;
       display: block;
@@ -2941,6 +2867,12 @@ button.y-freshness__action {
       inset-inline-start: calc(100% + var(--margin-gap));
       position: absolute;
       width: var(--margin-col);
+    }
+
+    @media (min-width: 1760px) {
+      :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin {
+        inset-inline-start: calc(50% + var(--wide-read) / 2 + 36px);
+      }
     }
 
     :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin > * {
@@ -2978,8 +2910,8 @@ button.y-freshness__action {
   }
 }
 
-@media (min-width: 1280px) {
-  @container y-main (min-width: 63.625rem) {
+@media (min-width: 1321px) {
+  @container y-main (min-width: 82.75rem) {
     :root[data-textsize='l'] .y-main > .y-article .y-sect {
       align-items: start;
       display: block;
@@ -2992,6 +2924,12 @@ button.y-freshness__action {
       inset-inline-start: calc(100% + var(--margin-gap));
       position: absolute;
       width: var(--margin-col);
+    }
+
+    @media (min-width: 1760px) {
+      :root[data-textsize='l'] .y-main > .y-article .y-margin {
+        inset-inline-start: calc(50% + var(--wide-read) / 2 + 36px);
+      }
     }
 
     :root[data-textsize='l'] .y-main > .y-article .y-margin > * {
@@ -3025,8 +2963,8 @@ button.y-freshness__action {
   }
 }
 
-@media (min-width: 1280px) {
-  @container y-main (min-width: 68.375rem) {
+@media (min-width: 1321px) {
+  @container y-main (min-width: 85.25rem) {
     :root[data-textsize='xl'] .y-main > .y-article .y-sect {
       align-items: start;
       display: block;
@@ -3039,6 +2977,12 @@ button.y-freshness__action {
       inset-inline-start: calc(100% + var(--margin-gap));
       position: absolute;
       width: var(--margin-col);
+    }
+
+    @media (min-width: 1760px) {
+      :root[data-textsize='xl'] .y-main > .y-article .y-margin {
+        inset-inline-start: calc(50% + var(--wide-read) / 2 + 36px);
+      }
     }
 
     :root[data-textsize='xl'] .y-main > .y-article .y-margin > * {
@@ -4094,32 +4038,6 @@ button.y-freshness__action {
   }
 }
 /* stylelint-enable declaration-no-important */
-
-/* ============================================================
-   Syllabus page (study-path) — a full-page render of nav.Map.
-   Two-column shell (no right rail). Reuses ui-status / ui-navitem /
-   y-metarow / y-navdot; warning markers reuse y-navmark--warn.
-   The page says how long a course is and where in it the reader is
-   standing; it has no figure for how much of one is behind them.
-   ============================================================ */
-.y-shell2 {
-  align-items: start;
-  display: grid;
-  flex: 1;
-  grid-template-columns: var(--rail-open) minmax(0, 1fr);
-  width: 100%;
-}
-
-/* A page with no rail has the one column to fill. Left on the two tracks, its
-   main would land in the track the rail would have had and be read at the width
-   of a sidebar. With no rail to put against the window's edge it is the one
-   thing on the page, and it stands in the middle of the window rather than
-   running out to its sides. */
-.y-shell2:not(:has(> .y-rail-left)) {
-  grid-template-columns: minmax(0, 1fr);
-  margin-inline: auto;
-  max-width: var(--shell-max);
-}
 
 /* Home — the quiet reading desk, ending in a link to the vault README. The
    same shell dresses the four mode index pages, and the blocks here are what
@@ -6128,219 +6046,174 @@ samp,
   }
 }
 
-/* Below the width where a note's facts stand open beside its title the note's
-   sidebar narrows to leave the text its room. */
-@media (max-width: 1279px) {
-  .y-shell {
-    --rail-open: 248px;
+/* The column as a drawer: wherever it cannot stand beside the text, and at
+   every width on a page whose column is only a drawer (the 404, the findings,
+   a refused request). It is the script's, because a drawer is opened and
+   closed and only a script can; with none, below the panel's width the column
+   is the stacked list above. The drawer is a raised sheet with an edge,
+   sliding over the page from the left under the header, and its open state is
+   the drawer module's alone: it is never written to the cookie, which keeps
+   only the choice made where the column stands beside the text.
+
+   The closed drawer waits just off the left edge with no shadow: a shadow
+   drawn around it would reach back across that edge into the page as a grey
+   band. The shadow belongs to the open drawer, where it lifts the sheet off the
+   page, and it fades with the slide so a closing drawer does not leave it
+   behind. */
+html[data-js] .y-rail-left {
+  --rail-ground: var(--elevated);
+  border-right: 1px solid var(--line);
+  bottom: 0;
+  box-shadow: none;
+  left: 0;
+  position: fixed;
+  top: var(--hdr-h);
+  transform: translateX(-100%);
+  transition: box-shadow var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
+  width: min(290px, 85vw);
+  z-index: 45;
+}
+
+html[data-js][data-nav='open'] .y-rail-left {
+  box-shadow: var(--shadow-2);
+  transform: none;
+}
+
+html[data-js][data-nav='open'] .y-nav-scrim {
+  display: block;
+}
+
+html[data-js][data-nav='open'] .y-main {
+  overflow: hidden;
+}
+
+/* A page with no column has nothing for the button to act on. */
+html[data-js] .yomihon:has(.y-rail-left) .y-sidebtn {
+  display: inline-flex;
+}
+
+/* The column as a panel beside the text: from 1321 beside a reading block,
+   whose measure centred in the window leaves room on its left for the 256px
+   panel and a gap, and from 1481 beside a list, whose wider block leaves that
+   room only there. A page whose column is only a drawer never stands one. The
+   panel stands over the stage's left edge from the header down, on the page's
+   own paper with no edge of its own (the light falling on the page included,
+   fixed to the window as the page's is, so the two meet without a seam), and
+   the text beside it does not move.
+
+   Folded, it is gone: no strip and nothing kept on the edge, the header's
+   button being the way back. It fades and steps back ten pixels as it goes and
+   leaves the tree when the fade ends, so nothing in it can be reached while it
+   is not drawn; opened, it is in the tree at once and fades in, so the filter
+   the slash key opens it for can take focus in the same moment. The leaving
+   is the folded state's transition and the arriving the open state's, which
+   is why each state names its own. Being hidden rather than removed, it keeps
+   its scroll position across a fold.
+
+   The rule reads the root, which the server writes from the cookie before
+   anything is painted, so the first style the page computes is the final one
+   and nothing moves on load: only a press or the key is answered by the
+   transition. With no script the column is drawn as the cookie says, and the
+   reading choices are where a reader running none changes it.
+
+   The two widths are two rules because a media query cannot ask which page it
+   is on; the list pages are named by the block their main holds. The page
+   kind is wrapped in :where() so that no rule here weighs more than the
+   restore rule below, which comes later and so wins. */
+@media (min-width: 1321px) {
+  .y-shell > .y-rail-left:not([data-drawer-only]),
+  .y-shell2:where(:not(:has(> .y-main > :is(.y-home, .y-searchpage, .y-healthpage)))) > .y-rail-left:not([data-drawer-only]) {
+    --rail-glow: var(--bg-glow);
+    --rail-ground: var(--bg);
+    border-right: 0;
+    bottom: 0;
+    box-shadow: none;
+    left: var(--stage-inset);
+    position: fixed;
+    top: var(--hdr-h);
+    transform: none;
+    transition: opacity var(--dur-base) var(--ease-standard), translate var(--dur-base) var(--ease-standard);
+    width: var(--rail-w);
+    z-index: 20;
+  }
+
+  html[data-rail='collapsed'] .y-shell > .y-rail-left:not([data-drawer-only]),
+  html[data-rail='collapsed'] .y-shell2:where(:not(:has(> .y-main > :is(.y-home, .y-searchpage, .y-healthpage)))) > .y-rail-left:not([data-drawer-only]) {
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-standard), translate var(--dur-base) var(--ease-standard), visibility var(--dur-base);
+    translate: -10px 0;
+    visibility: hidden;
+  }
+
+  /* A panel beside the page ends in nothing: which folder it is stays in the
+     header, and the drawer, where the column is a sheet, keeps its foot. */
+  .y-shell > .y-rail-left:not([data-drawer-only]) .y-railsep:has(+ .y-railfoot),
+  .y-shell > .y-rail-left:not([data-drawer-only]) .y-railfoot,
+  .y-shell2:where(:not(:has(> .y-main > :is(.y-home, .y-searchpage, .y-healthpage)))) > .y-rail-left:not([data-drawer-only]) .y-railsep:has(+ .y-railfoot),
+  .y-shell2:where(:not(:has(> .y-main > :is(.y-home, .y-searchpage, .y-healthpage)))) > .y-rail-left:not([data-drawer-only]) .y-railfoot {
+    display: none;
   }
 }
-/* The left column folded away, above the width where it is a drawer. What is
-   left of it is a strip holding the one button that brings it back, so the
-   reader is never left without a way to undo the choice and the navigation
-   landmark stays, labelled, holding a button. The strip is the rail itself
-   narrowed — the same ground and the same edge — not a second element.
 
-   The rule reads the root rather than anything the script sets, because the
-   script arrives after the first paint and a column that painted and then
-   vanished on every page would be worse than one that never folded. It is held
-   to the shells that have a rail: a page without one has nothing in the first
-   track to give up, and its main would otherwise slide into the strip.
-
-   Everything here sits inside the width query. A cookie that says collapsed
-   read at a narrow width must leave the drawer whole, not empty.
-
-   The fold is a transition between two settled states. The server writes the
-   state on the root before anything is painted, so the first style the page
-   ever computes is already the final one and nothing moves on load; a change
-   afterwards, by the button or the key, is what the transition answers. While
-   the track narrows the panel keeps the width it had and the rail clips it, so
-   no row reflows on the way; it fades over the same time and leaves the tree
-   at the end, which is what lets the strip hold only the button. */
-@media (min-width: 1024px) {
-  .y-shell:has(> .y-rail-left:not([data-drawer-only])),
-  .y-shell2:has(> .y-rail-left:not([data-drawer-only])) {
-    transition: grid-template-columns var(--dur-base) var(--ease-standard);
+@media (min-width: 1481px) {
+  .y-shell2 > .y-rail-left:not([data-drawer-only]) {
+    --rail-glow: var(--bg-glow);
+    --rail-ground: var(--bg);
+    border-right: 0;
+    bottom: 0;
+    box-shadow: none;
+    left: var(--stage-inset);
+    position: fixed;
+    top: var(--hdr-h);
+    transform: none;
+    transition: opacity var(--dur-base) var(--ease-standard), translate var(--dur-base) var(--ease-standard);
+    width: var(--rail-w);
+    z-index: 20;
   }
 
-  .y-shell:has(> .y-rail-left:not([data-drawer-only])) > .y-main,
-  .y-shell2:has(> .y-rail-left:not([data-drawer-only])) > .y-main {
-    transition: padding-left var(--dur-base) var(--ease-standard);
-  }
-
-  .y-rail-left {
-    overflow-x: hidden;
-  }
-
-  /* A column of this width ends in nothing: which folder it is stays in the
-     header, and the drawer, where the column is a sheet, keeps its foot. */
-  .y-railsep:has(+ .y-railfoot),
-  .y-railfoot {
-    display: none;
-  }
-
-  /* A page whose column is only a drawer (the 404, the findings, a refused
-     request) has no column to stand beside from here up: the sidebar is not
-     drawn and the page is the one thing in the shell, as a page with no
-     sidebar is. */
-  .y-rail-left[data-drawer-only] {
-    display: none;
-  }
-
-  /* The page keeps the track a column would have left it, so its text starts
-     where it does on a page with a column: one left edge across the site. */
-  .y-shell2:has(> .y-rail-left[data-drawer-only]) > .y-main {
-    grid-column: 2;
-  }
-
-  .y-railbody,
-  .y-railhead .y-filter {
-    opacity: 1;
-    transition: display var(--dur-base) var(--ease-standard), opacity var(--dur-base) var(--ease-standard);
-    transition-behavior: allow-discrete;
-  }
-
-  /* Held at the width the column has when open for as long as the column is
-     moving, either way, so no row reflows on the way and the rail's scroll
-     position means the same thing at both ends. Only while it moves: an open
-     panel at rest is as wide as the room it has, which is less than the column
-     by the rail's padding, its edge, and the scrollbar when it scrolls, and a
-     floor set from the column alone would push the panel's right side under
-     that scrollbar. The subtraction is the two sides of the rail's padding
-     and its one-pixel edge. */
-  html[data-rail-moving] .y-railbody {
-    min-width: calc(var(--rail-open) - var(--rail-pad) - var(--rail-pad-start) - 1px);
-  }
-
-  html[data-rail='collapsed'] {
-    --rail-strip: 40px;
-  }
-
-  /* The strip is narrower than the padding the open column keeps on its two
-     sides, which would make it wider than itself. What stands in it is drawn
-     across its whole width by margins that read the same two lengths, so
-     taking both to nothing here moves none of it. */
-  /* stylelint-disable length-zero-no-unit -- both are read inside calc(),
-     where a bare 0 is a number and not a length. */
-  html[data-rail='collapsed'] .y-rail-left {
-    --rail-pad: 0px;
-    --rail-pad-start: 0px;
-  }
-  /* stylelint-enable length-zero-no-unit */
-
-  html[data-rail='collapsed'] .y-shell:has(> .y-rail-left:not([data-drawer-only])),
-  html[data-rail='collapsed'] .y-shell2:has(> .y-rail-left:not([data-drawer-only])) {
-    grid-template-columns: var(--rail-strip) minmax(0, 1fr);
-  }
-
-  /* Folding hides the column and does not move the reading: the main keeps the
-     start it had beside the open column, in what the strip gives up. */
-  html[data-rail='collapsed'] .y-shell:has(> .y-rail-left:not([data-drawer-only])) > .y-main,
-  html[data-rail='collapsed'] .y-shell2:has(> .y-rail-left:not([data-drawer-only])) > .y-main {
-    padding-left: calc(var(--rail-open) - var(--rail-strip));
-  }
-
-  html[data-rail='collapsed'] .y-railbody,
-  html[data-rail='collapsed'] .y-railhead .y-filter {
-    display: none;
+  html[data-rail='collapsed'] .y-shell2 > .y-rail-left:not([data-drawer-only]) {
     opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-standard), translate var(--dur-base) var(--ease-standard), visibility var(--dur-base);
+    translate: -10px 0;
+    visibility: hidden;
   }
 
-  /* The ring's edge is the reach of the outline, and with the usual offset it
-     would run a pixel past the strip's inside edge on the right. */
-  html[data-rail='collapsed'] .y-railtoggle__button:focus-visible {
-    outline-offset: 0;
+  /* A panel beside the page ends in nothing: which folder it is stays in the
+     header, and the drawer, where the column is a sheet, keeps its foot. */
+  .y-shell2 > .y-rail-left:not([data-drawer-only]) .y-railsep:has(+ .y-railfoot),
+  .y-shell2 > .y-rail-left:not([data-drawer-only]) .y-railfoot {
+    display: none;
   }
+}
 
-  /* A page restored from the back/forward cache is put in the state its cookie
-     names at once: the fold is answered by a transition only when the reader
-     asked for it, and a restore is not the reader asking. */
-  html[data-rail-settling] .y-shell:has(> .y-rail-left:not([data-drawer-only])),
-  html[data-rail-settling] .y-shell2:has(> .y-rail-left:not([data-drawer-only])),
-  html[data-rail-settling] .y-shell:has(> .y-rail-left:not([data-drawer-only])) > .y-main,
-  html[data-rail-settling] .y-shell2:has(> .y-rail-left:not([data-drawer-only])) > .y-main,
-  html[data-rail-settling] .y-railbody,
-  html[data-rail-settling] .y-railhead .y-filter {
-    transition: none;
-  }
+/* A page restored from the back/forward cache is put in the state its cookie
+   names at once: the fold is answered by a transition only when the reader
+   asked for it, and a restore is not the reader asking. */
+html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
+  transition: none;
+}
 
-  html[data-rail='collapsed'] .y-railtoggle__pane {
-    fill-opacity: 0;
+/* A drawer-only column with no script to open it is not drawn where the page
+   stands alone in the window. */
+@media (min-width: 1321px) {
+  html:not([data-js]) .y-rail-left[data-drawer-only] {
+    display: none;
   }
 }
 
 @media (max-width: 1023px) {
-  /* The page's side margins by width (system.md §2.1): 48 beside the column,
-     32 where the column is a drawer, 20 on a phone. They are set on the root,
-     so every page that reads them narrows together and none restates them. */
+  /* The page's side margins by width (system.md §2.1): 48 on a wide window,
+     32 below 1024, 20 on a phone. They are set on the root, so every page that
+     reads them narrows together and none restates them. */
   :root {
     --gutter-list: var(--gutter-mid);
     --gutter-read: var(--gutter-mid);
-  }
-
-  .y-shell,
-  .y-shell2 {
-    grid-template-columns: 1fr;
   }
 
   .y-healthpage,
   .y-home,
   .y-searchpage {
     padding: var(--sp-6) var(--gutter-list) 120px;
-  }
-
-  /* One left edge, 32 in from the window, for every page: with the column a
-     drawer there is no sidebar to stand the block beside, so nothing is
-     centred and the margin column is not drawn (§2.1, §2.2). */
-  .y-main > :is(.y-article, .y-syl, .y-healthpage, .y-searchpage, .y-listen),
-  .y-shell2:has(> .y-rail-left) > .y-main > .y-recovery,
-  .y-shell2:not(:has(> .y-rail-left)) > .y-main > .y-recovery,
-  .y-home,
-  .y-prefs {
-    margin-left: 0;
-  }
-
-  /* The sidebar is ordinary stacked content until the enhancement runtime
-     marks the document. With JS off it therefore remains reachable, and the
-     drawer-only sidebar button keeps no dead face in the header. */
-  .y-rail-left {
-    max-height: none;
-    position: static;
-    width: auto;
-  }
-  /* A page with no rail has nothing for the drawer to open. */
-  html[data-js] .yomihon:has(.y-rail-left) .y-sidebtn {
-    display: inline-flex;
-  }
-
-  /* The closed drawer waits just off the left edge, and a shadow drawn around
-     it reaches back across that edge into the page as a grey band. The shadow
-     belongs to the open drawer, where it lifts the panel off the page, and it
-     fades with the slide so a closing drawer does not leave it behind. */
-  html[data-js] .y-rail-left {
-    bottom: 0;
-    box-shadow: none;
-    left: 0;
-    max-height: none;
-    position: fixed;
-    top: var(--hdr-h);
-    transform: translateX(-102%);
-    transition: box-shadow var(--dur-slow) var(--ease-standard), transform var(--dur-slow) var(--ease-standard);
-    width: min(300px, 86vw);
-    z-index: 45;
-  }
-
-  html[data-js][data-nav='open'] .y-rail-left {
-    box-shadow: var(--shadow-2), inset -1px 0 0 light-dark(transparent, var(--line));
-    transform: none;
-  }
-
-  html[data-js][data-nav='open'] .y-nav-scrim {
-    display: block;
-  }
-
-  html[data-js][data-nav='open'] .y-main {
-    overflow: hidden;
   }
 }
 
@@ -6474,10 +6347,6 @@ samp,
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .y-rail-left {
-    transition: none;
-  }
-
   .y-rail-left details::details-content,
   .y-toc-inline::details-content {
     transition: none;
@@ -6667,11 +6536,6 @@ samp,
 
   .y-findings__sort::after {
     content: none;
-  }
-
-  .y-shell,
-  .y-shell2 {
-    display: block;
   }
 
   .y-main {
@@ -8151,9 +8015,9 @@ samp,
   }
 }
 
-/* The copy of the path leaves the row where the left column becomes a drawer
-   and the drawer's button joins it. Below that the row is full, and the
-   bookmark, the verb a reader uses on every page, is the control it keeps. */
+/* The copy of the path leaves the row below 1024, where the row is full, and
+   the bookmark, the verb a reader uses on every page, is the control it
+   keeps. */
 @media (max-width: 1023px) {
   [data-js] .y-headerpath {
     display: none;
@@ -8180,7 +8044,7 @@ samp,
 .y-headermark__said,
 .y-headerpath__said {
   inset-block-start: calc(100% + 4px);
-  inset-inline-end: var(--sp-5);
+  inset-inline-end: calc(var(--stage-inset) + var(--sp-5));
   margin: 0;
   max-width: min(280px, calc(100vw - 16px));
   pointer-events: none;

@@ -3,11 +3,11 @@
 // where what the health page has to say about the folder is offered now that
 // the rail leaves it to the desk.
 //
-// Four things only a browser can answer. That the foot is not drawn at reading
-// width, where the column ends with its list and which folder it is stays in
-// the header. That the same element, which the stylesheet turns into the drawer at
-// phone width, still carries it once the drawer is open — one element, two
-// widths, so a foot that goes missing there went missing for a rule nobody
+// Four things only a browser can answer. That the foot is not drawn where the
+// column stands open beside the text, where it ends with its list and which
+// folder it is stays in the header. That the same element, which the stylesheet
+// turns into the drawer below that width, still carries it once the drawer is
+// open — one element, two widths, so a foot that goes missing there went missing for a rule nobody
 // wrote down. That the desk's line leads to the health page, is drawn, and
 // states no number: how many things the page holds is read there, where they
 // are listed, and a figure on the desk would turn a way in into a debt. And
@@ -110,7 +110,7 @@ const MUTATIONS = {
   'draw-the-foot-at-reading-width': {
     target: 'foot-on-the-rail',
     apply: appendRule(
-      '@media (min-width: 1024px){.y-railfoot{display:flex !important}}',
+      '@media (min-width: 1321px){.y-railfoot{display:flex !important}}',
       '.y-railfoot',
       'display',
       'flex',
@@ -119,14 +119,14 @@ const MUTATIONS = {
   // The foot states how many notes the folder holds again.
   'restore-the-count': {
     target: 'foot-on-the-rail',
-    apply: rewritePage(PAGE, (body) => body.replace('</p></div></div></aside>', '</p><p class="y-railfoot__size">12 notes</p></div></div></aside>')),
+    apply: rewritePage(PAGE, (body) => body.replace('</p></div></aside>', '</p><p class="y-railfoot__size">12 notes</p></div></aside>')),
   },
   // The foot survives at reading width and is taken away from the drawer,
   // which is the shape a rule written for one width and not the other has.
   'hide-foot-in-the-drawer': {
     target: 'foot-in-the-drawer',
     apply: appendRule(
-      '@media (max-width: 1023px){.y-railfoot{display:none}}',
+      '@media (max-width: 1320px){.y-railfoot{display:none}}',
       '.y-railfoot',
       'display',
       'none',
@@ -216,13 +216,17 @@ const readDesk = (page) =>
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let proof = null;
 try {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  // The column stands open beside the text: a window wide enough for it, and
+  // the reader's choice to have it there.
+  const context = await browser.newContext({ viewport: { width: 1440, height: 800 } });
+  await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
+  const page = await context.newPage();
   proof = MUTATE ? await MUTATIONS[MUTATE].apply(page) : null;
   await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
 
   const wide = await readFoot(page);
   if (wide === null) fail('foot-on-the-rail', 'the page carrying a left rail holds no foot, so the drawer has none to show');
-  if (wide.drawn) fail('foot-on-the-rail', 'the foot is drawn at 1280px, so the column ends in the name of the folder the header already gives');
+  if (wide.drawn) fail('foot-on-the-rail', 'the foot is drawn at 1440px with the column open, so the column ends in the name of the folder the header already gives');
   if (wide.count !== 1) fail('foot-on-the-rail', `the page draws ${wide.count} rail feet, want exactly 1`);
   if (!wide.inRail) fail('foot-on-the-rail', 'the foot is not inside the left rail');
   if (!wide.last) fail('foot-on-the-rail', 'the foot is not the last thing in the rail, so the rail does not end with it');
@@ -323,7 +327,7 @@ try {
   }
 
   console.log(
-    `PASS rail-foot: the foot is not drawn beside the column at 1280px, and the opened drawer at 390px ends with ${JSON.stringify(wide.name)} and no count, and the desk leads to the health page and states no count`,
+    `PASS rail-foot: the foot is not drawn in the open column at 1440px, and the opened drawer at 390px ends with ${JSON.stringify(wide.name)} and no count, and the desk leads to the health page and states no count`,
   );
 } catch (err) {
   if (err instanceof NotApplied) {
