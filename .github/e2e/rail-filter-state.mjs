@@ -68,7 +68,7 @@ function inputRows({ defaults = false, reach = [] } = {}) {
   return result;
 }
 async function open(site, options = {}) {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   await keepRailOpen(context);
   if (options.lang) await context.addCookies([{ name: 'yomihon_lang', value: options.lang, url: BASE }]);
   await context.addInitScript(({ remembered, disclosure, refuse }) => {
@@ -316,7 +316,7 @@ try {
   // Normal next navigation uses the production footer, with no document input
   // rewriting and no preseeded storage; typing is the preference's only source.
   {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await keepRailOpen(context);
     const page = await context.newPage();
     await page.addInitScript(() => {

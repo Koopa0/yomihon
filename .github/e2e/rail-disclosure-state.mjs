@@ -128,7 +128,7 @@ async function armDisclosureWrite(page, site) {
 
 async function deniedJourney(kind) {
   const site = `denied-${kind}`;
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 800 } });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));

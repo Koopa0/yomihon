@@ -304,6 +304,9 @@ const INTRO = 'Introduction context';
 
 const journey = async (browser, width, placement) => {
   const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
+  // The column is chosen open, so at the wide width its row for the source is
+  // one of the links asked about; folded, it is out of reach.
+  await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
   if (mutation) proof = await mutation.apply(context);
   const requests = [];
   context.on('request', (request) => {
@@ -429,7 +432,7 @@ const journey = async (browser, width, placement) => {
       const before = requests.length;
       const outside = [];
       for (const link of await page.locator('a.ui-navitem[href$="source-locations-source.md"], a.y-steps__link').all()) {
-        if (await link.evaluate((el) => !el.closest('.y-basedon') && el.offsetParent !== null)) outside.push(link);
+        if (await link.evaluate((el) => !el.closest('.y-basedon') && el.checkVisibility({ visibilityProperty: true }))) outside.push(link);
       }
       if (outside.length < 2) broken(`${outside.length} navigation links to the next note are visible outside the declared-sources block, want the sidebar row and the step link`);
       for (const link of outside) {

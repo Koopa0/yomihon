@@ -37,7 +37,7 @@ const CONCEPT = '[data-concept]';
 
 // A width just under where a note stands in its wide form, which is where the
 // compared notes and the folded contents they carry are measured.
-const NARROW_NOTE = 1279;
+const NARROW_NOTE = 1320;
 
 // The folds the interface owns, with the page and width each one is actually
 // reachable on. The folded contents ride a column of the page that holds two
@@ -55,7 +55,7 @@ const FOLDS = [
 // first: a clip on any fold that qualifies is a real regression, and a fold
 // this run skips over would let one walk past unseen.
 const RING_CANDIDATES = [
-  { key: 'rail groups', path: null, width: 1280, selector: '.y-rail-left details', wrapper: '.y-rail-left details::details-content' },
+  { key: 'rail groups', path: null, width: 1440, selector: '.y-rail-left details', wrapper: '.y-rail-left details::details-content' },
   { key: 'folded contents', path: COMPARE, width: NARROW_NOTE, selector: 'details.y-toc-inline', wrapper: '.y-toc-inline::details-content' },
 ];
 

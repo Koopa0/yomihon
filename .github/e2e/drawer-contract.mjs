@@ -1,5 +1,11 @@
-// Behavior lock for the narrow navigation drawer's progressive-enhancement
-// and focus contracts. At 800px it exercises two different products:
+// Behavior lock for the navigation drawer's progressive-enhancement, geometry
+// and focus contracts. The left column is a drawer wherever it cannot stand
+// beside the text: below 1321 beside a note, below 1481 beside a list. Across
+// those widths the drawer is asked where it starts and what it draws: closed,
+// it is off the page with no shadow and no scrim; open, it lies over the page
+// from the left edge under the header, a raised sheet with an edge, its
+// shadow and the scrim behind it. At 800px it exercises two different
+// products:
 //
 //   - JavaScript off: the sidebar remains in normal flow and its links really
 //     navigate; the sidebar button has no face and cannot receive focus.
@@ -43,7 +49,13 @@ const SITES = [
   'escape-focus-return',
   'toggle-focus-return',
   'touch-open-leaves-the-filter-alone',
+  'drawer-below-the-panel-width',
+  'shadow-only-when-open',
+  'scrim-only-when-open',
 ];
+
+// The sites the geometry case asks, which no other case carries.
+const GEOMETRY = ['drawer-below-the-panel-width', 'shadow-only-when-open', 'scrim-only-when-open'];
 
 class LockFired extends Error {
   constructor(site, message) {
@@ -108,6 +120,29 @@ const rewriteRuntime = (moduleName, needle, replacement) => async (page) => {
 };
 
 const MUTATIONS = {
+  // The drawer stopping at the width it stopped at when the column beside the
+  // text took a track of its own: from there up the column stands in the
+  // page's flow and runs under the centred text.
+  'stop-the-drawer-at-1023': {
+    target: 'drawer-below-the-panel-width',
+    apply: injectDocumentStyle('@media (min-width:1024px){html[data-js] .y-rail-left{position:static!important;transform:none!important}}'),
+  },
+  // The script turning at the old width while the stylesheet draws the drawer
+  // up to the new one, so a press there folds a column nobody sees.
+  'turn-the-script-at-1023': {
+    target: 'drawer-below-the-panel-width',
+    apply: rewriteRuntime('drawer.js', "'(max-width: 1320px)'", "'(max-width: 1023px)'"),
+  },
+  // A shadow drawn around the closed drawer too, reaching into the page.
+  'shadow-the-closed-drawer': {
+    target: 'shadow-only-when-open',
+    apply: injectDocumentStyle('html[data-js] .y-rail-left{box-shadow:var(--shadow-2)!important}'),
+  },
+  // No scrim behind the open drawer.
+  'drop-the-scrim': {
+    target: 'scrim-only-when-open',
+    apply: injectDocumentStyle("html[data-js][data-nav='open'] .y-nav-scrim{display:none!important}"),
+  },
   // The background is never taken out of the tree.
   'never-inert-background': {
     target: 'open-background-inert',
@@ -124,11 +159,11 @@ const MUTATIONS = {
   },
   'hide-no-js-sidebar': {
     target: 'no-js-sidebar-navigation',
-    apply: injectDocumentStyle('@media (max-width:1023px){.y-rail-left{position:fixed!important;transform:translateX(-102%)!important}}'),
+    apply: injectDocumentStyle('@media (max-width:1320px){.y-rail-left{position:fixed!important;transform:translateX(-102%)!important}}'),
   },
   'show-no-js-sidebar-button': {
     target: 'no-js-sidebar-button-hidden',
-    apply: injectDocumentStyle('@media (max-width:1023px){.y-sidebtn{display:inline-flex!important}}'),
+    apply: injectDocumentStyle('@media (max-width:1320px){.y-sidebtn{display:inline-flex!important}}'),
   },
   'suppress-closed-inert': {
     target: 'closed-rail-inert',
@@ -389,7 +424,7 @@ try {
   // Case 2: the enhanced drawer owns the full three-state focus lifecycle —
   // closed (inert), open (focus inside and contained), closed again (trigger).
   {
-    const sites = SITES.filter((site) => !site.startsWith('no-js-'));
+    const sites = SITES.filter((site) => !site.startsWith('no-js-') && !GEOMETRY.includes(site));
     const page = await browser.newPage({ viewport: { width: 800, height: 800 } });
     const proof = await arm(page, sites);
     await page.goto(BASE + PAGE, { waitUntil: 'domcontentloaded' });
@@ -696,7 +731,85 @@ try {
     await context.close();
   }
 
-  console.log('PASS drawer-contract: no-JS navigation works; enhanced drawer focus is inert → contained → restored');
+  // Case 4: where the drawer is, and what it draws. A note's column is a
+  // drawer up to 1320 and a list's up to 1480; one pixel wider, each stands
+  // beside the text and is no drawer at all. The column is chosen open, so the
+  // wider side shows a column that would be drawn if the drawer had not let
+  // go of it.
+  {
+    const sites = GEOMETRY;
+    const read = (page) => page.evaluate(({ railSelector, toggleSelector }) => {
+      const rail = document.querySelector(railSelector);
+      const box = rail.getBoundingClientRect();
+      const style = getComputedStyle(rail);
+      const scrim = document.querySelector('.y-nav-scrim');
+      const veil = scrim.getBoundingClientRect();
+      const header = document.querySelector('.y-header').getBoundingClientRect().bottom;
+      const paper = getComputedStyle(document.body).backgroundColor;
+      const toggle = document.querySelector(toggleSelector);
+      return {
+        nav: document.documentElement.dataset.nav,
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        width: box.width,
+        inert: rail.inert,
+        shadow: style.boxShadow,
+        edge: style.borderRightWidth,
+        ground: style.backgroundColor,
+        paper,
+        header,
+        room: window.innerWidth,
+        scrim: getComputedStyle(scrim).display,
+        veil: { left: veil.left, top: veil.top, right: veil.right },
+        button: Boolean(toggle && toggle.getClientRects().length > 0),
+      };
+    }, { railSelector: RAIL, toggleSelector: TOGGLE });
+    for (const [path, drawerUpTo] of [[PAGE, 1320], ['/', 1480]]) {
+      for (const width of [drawerUpTo, drawerUpTo + 1]) {
+        const context = await browser.newContext({ viewport: { width, height: 800 }, reducedMotion: 'reduce' });
+        await context.addCookies([{ name: 'yomihon_rail', value: 'open', url: BASE }]);
+        const page = await context.newPage();
+        const proof = path === PAGE || MUTATE === 'turn-the-script-at-1023' ? await arm(page, sites) : null;
+        await page.goto(BASE + path, { waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('html[data-js][data-nav="closed"]');
+        await waitForAppStyles(page);
+        if (path === PAGE) proveApplied(proof);
+        const closed = await read(page);
+        if (!closed.button) broken(`${path} at ${width}px draws no sidebar button`);
+        if (width > drawerUpTo) {
+          if (closed.inert || closed.left !== 0 || closed.width !== 256) {
+            fail('drawer-below-the-panel-width', `${path} at ${width}px: the column chosen open is inert=${closed.inert} at ${closed.left}px, ${closed.width}px wide, want it standing beside the text`);
+          }
+          await page.locator(TOGGLE).click();
+          await page.waitForTimeout(50);
+          const pressed = await read(page);
+          if (pressed.nav === 'open') fail('drawer-below-the-panel-width', `${path} at ${width}px: the button opened a drawer where the column stands beside the text`);
+          await context.close();
+          continue;
+        }
+        if (closed.right > 0 || !closed.inert) {
+          fail('drawer-below-the-panel-width', `${path} at ${width}px: the closed drawer stands at ${closed.left}-${closed.right}px with inert=${closed.inert}, want it off the page and out of reach`);
+        }
+        if (closed.shadow !== 'none') fail('shadow-only-when-open', `${path} at ${width}px: the closed drawer casts ${closed.shadow}`);
+        if (closed.scrim !== 'none') fail('scrim-only-when-open', `${path} at ${width}px: the scrim is drawn with the drawer closed`);
+        await openDrawer(page);
+        await page.waitForTimeout(100);
+        const opened = await read(page);
+        const want = Math.min(290, opened.room * 0.85);
+        if (opened.left !== 0 || Math.abs(opened.width - want) > 0.5 || Math.abs(opened.top - opened.header) > 1 || opened.edge !== '1px' || opened.ground === opened.paper) {
+          fail('drawer-below-the-panel-width', `${path} at ${width}px: the open drawer is at ${opened.left}px, ${opened.width}px wide from ${opened.top}px with a ${opened.edge} edge on ${opened.ground} (paper ${opened.paper}), want ${want}px from the left edge under the header, a raised sheet with a hairline`);
+        }
+        if (opened.shadow === 'none') fail('shadow-only-when-open', `${path} at ${width}px: the open drawer casts no shadow`);
+        if (opened.scrim !== 'block' || opened.veil.left !== 0 || Math.abs(opened.veil.top - opened.header) > 1 || opened.veil.right < opened.room - 20) {
+          fail('scrim-only-when-open', `${path} at ${width}px: the open drawer's scrim is ${opened.scrim} at ${JSON.stringify(opened.veil)}, want it over the page under the header`);
+        }
+        await context.close();
+      }
+    }
+  }
+
+  console.log('PASS drawer-contract: no-JS navigation works; enhanced drawer focus is inert → contained → restored; the drawer is the column below 1321 beside a note and 1481 beside a list, off the page with no shadow and no scrim when closed, and over the page with both when open');
 } catch (err) {
   if (err instanceof NotApplied) {
     console.error(err.message);
