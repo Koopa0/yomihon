@@ -4903,7 +4903,7 @@ button.y-freshness__action {
    the folder's own introduction and the whole-folder view, the quietest lines
    on the page. The view names its page and says nothing of what is on it: the
    colour that asks for attention is the health page's own. */
-.y-colophon {
+.y-deskfoot {
   align-items: baseline;
   border-top: 1px solid var(--line);
   color: var(--fg-faint);
@@ -4917,7 +4917,7 @@ button.y-freshness__action {
   padding-top: var(--sp-5);
 }
 
-.y-colophon > p {
+.y-deskfoot > p {
   margin: 0;
 }
 
