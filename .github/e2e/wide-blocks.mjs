@@ -205,6 +205,21 @@ try {
       for (const size of SIZES) {
         const token = `${latin ? 'latin-' : ''}${size}`;
         await at({ width: 1920, size }, path, async (page) => {
+          // The renderer counts a Han or kana character as one em, which is what
+          // every reader's system face draws. A machine with no East Asian face
+          // (a bare CI runner) draws them narrower, and there the browser's line
+          // is no witness for those blocks; the count itself is held by the
+          // renderer's own boundary test.
+          const hanEm = await page.evaluate(() => {
+            const pre = document.querySelector('.y-main > .y-article > .y-prose > .y-code pre');
+            const probe = document.createElement('span');
+            probe.textContent = '漢';
+            pre.append(probe);
+            const ratio = probe.getBoundingClientRect().width / Number.parseFloat(getComputedStyle(pre).fontSize);
+            probe.remove();
+            return ratio;
+          });
+          const eastAsianFace = hanEm > 0.95;
           const measured = await page.evaluate(() => [...document.querySelectorAll('.y-main > .y-article > .y-prose > .y-code')].map((block) => {
             const pre = block.querySelector('pre');
             const style = getComputedStyle(pre);
@@ -229,6 +244,7 @@ try {
               width: block.getBoundingClientRect().width,
               wide: (block.dataset.wide ?? '').split(' ').filter(Boolean),
               first: pre.textContent.split('\n')[0].slice(0, 40),
+              eastAsian: /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\uFF01-\uFF60\uFFE0-\uFFE6]/u.test(pre.textContent),
             };
           }));
           if (measured.length < 2) broken(`${path} has ${measured.length} blocks in its text`);
@@ -238,13 +254,14 @@ try {
             const needs = block.longest > block.room + 0.01;
             const claims = block.wide.includes(token);
             if (claims) claimed += 1;
-            if (needs !== claims) {
+            if (needs !== claims && (eastAsianFace || !block.eastAsian)) {
               fire('need', `${path} at ${size}: the block "${block.first}" draws a ${block.longest}px line in ${block.room}px of room but its data-wide is "${block.wide.join(' ')}"`);
             }
             if ((block.width > block.prose + 0.5) !== claims) {
               fire('need', `${path} at ${size}: the block "${block.first}" is ${block.width}px in a ${block.prose}px text, claiming "${block.wide.join(' ')}"`);
             }
           }
+          if (!eastAsianFace && measured.some((block) => block.eastAsian)) console.log(`NOTE wide-blocks: no East Asian face here (Han draws ${hanEm.toFixed(2)}em); East Asian blocks are held by the renderer's count test`);
           if (claimed === 0 || claimed === measured.length) broken(`${path} at ${size}: ${claimed} of ${measured.length} blocks claim ${token}, so the boundary is not exercised`);
           const nested = (await read(page)).blocks.filter((block) => !block.direct);
           if (path === NOTE && !nested.some((block) => block.wide.length > 0)) broken(`${path} has no block in a callout that names a measure`);
