@@ -46,10 +46,10 @@ func TestProseHeadingLookFollowsAuthoredLevel(t *testing.T) {
 		why      string
 	}{
 		{`.y-prose [data-level='1'] {`, "font-size", "var(--fs-ed-30)", "an authored # is the size it was when the tag was h1"},
-		{`.y-prose [data-level='2'] {`, "font-size", "var(--fs-ed-24)", "an authored ## is the size it was when the tag was h2"},
+		{`.y-prose [data-level='2'] {`, "font-size", "var(--fs-ed-22)", "an authored ## is a section's heading, set at the size the Atelier note sets one"},
 		{`.y-prose [data-level='3'] {`, "font-size", "var(--fs-ed-20)", "an authored ### is the size it was when the tag was h3"},
 		{`.y-prose [data-level='4'] {`, "font-size", "var(--fs-ed-17)", "an authored #### is a step of the reading scale, so a reader who enlarges the prose enlarges it too and it never ends up smaller than its own paragraphs"},
-		{`.y-prose [data-level='4'] {`, "line-height", "1.647", "the smallest heading sits closest to the prose and takes the loosest measure of the four"},
+		{`.y-prose [data-level='4'] {`, "line-height", "round(1.647em, 1px)", "the smallest heading sits closest to the prose and takes the loosest measure of the four"},
 		{`.y-prose [data-level='5'],
 .y-prose [data-level='6'] {`, "font-size", "var(--fs-ed-17)", "the deepest two stop at the body's size instead of shrinking below it"},
 		{`.y-prose [data-level='5'],

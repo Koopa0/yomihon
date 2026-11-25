@@ -1856,8 +1856,12 @@ html[data-js][data-arrival='kept'] .y-main {
   margin-top: 0;
 }
 
+/* A paragraph is set flush to the start and never justified, which in a
+   column this narrow opens rivers between Han; the last line is kept from
+   ending on a lone character where the browser can manage it. */
 .y-prose p {
   margin: var(--sp-block) 0 0;
+  text-wrap: pretty;
 }
 /* Size and the fragment landing pad follow the authored
    level the renderer stamps, not the HTML tag. The tag is one step down so
@@ -1873,35 +1877,35 @@ html[data-js][data-arrival='kept'] .y-main {
    it is while the prose under it grows past it. Line-height is declared per
    level rather than in the shared rule below, because that rule ties these
    on specificity and sits later, so a value written here would lose to it.
+   Each line is rounded to a whole pixel, so a heading at the larger sizes
+   never moves the lines under it by a fraction a restored place would miss.
    The gap above a heading says which heading it is before a word of it is
    read: the two deepest share one step, and the top two share the largest. */
 .y-prose [data-level='1'] {
   font-size: var(--fs-ed-30);
-  line-height: 1.4;
+  line-height: round(1.4em, 1px);
   margin: var(--sp-h2) 0 var(--sp-after-h2);
 }
 
+/* A section's heading is set as the Atelier note sets it: 22 on a line of
+   1.42, which is loose enough for Han and for a Latin heading that wraps, so
+   one measure serves both. The line is rounded to a whole pixel, as every
+   line in the column is, so a restored place lands where it was left. */
 .y-prose [data-level='2'] {
-  font-size: var(--fs-ed-24);
-  line-height: 1.3333;
+  font-size: var(--fs-ed-22);
+  line-height: round(1.42em, 1px);
   margin: var(--sp-h2) 0 var(--sp-after-h2);
-}
-
-.y-prose [data-level='2']:lang(ja),
-.y-prose [data-level='2']:lang(ko),
-.y-prose [data-level='2']:lang(zh) {
-  line-height: 1.4;
 }
 
 .y-prose [data-level='3'] {
   font-size: var(--fs-ed-20);
-  line-height: 1.4;
+  line-height: round(1.4em, 1px);
   margin: var(--sp-h3) 0 var(--sp-after-h3);
 }
 
 .y-prose [data-level='4'] {
   font-size: var(--fs-ed-17);
-  line-height: 1.647;
+  line-height: round(1.647em, 1px);
   margin: var(--sp-h4) 0 var(--sp-after-h4);
 }
 
@@ -1941,7 +1945,7 @@ html[data-js][data-arrival='kept'] .y-main {
   font-family: var(--font-read);
   font-size: var(--fs-ed-17);
   font-weight: var(--fw-medium);
-  line-height: 1.647;
+  line-height: round(1.647em, 1px);
   margin: var(--sp-h4) 0 var(--sp-after-h4);
   scroll-margin-top: var(--header-clearance);
   text-wrap: balance;
@@ -2067,6 +2071,20 @@ html[data-js][data-arrival='kept'] .y-main {
 .y-prose ol {
   list-style: decimal;
 }
+
+/* The bullet and the figure are the list's furniture, not its words, so they
+   take the faint ink the section numbers take, and a column of figures keeps
+   its digits one width so 9 and 10 end on one line. */
+.y-prose li::marker {
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A list inside an item belongs to the item: it follows the item's own line
+   at an item's distance, not a block's. */
+.y-prose li > :is(ul, ol) {
+  margin-top: var(--sp-1);
+}
 /* A GFM task item already carries a checkbox. The label has two
    shapes: a tight item puts it on the li, while a loose or
    multi-paragraph item wraps it in a p. The disc
@@ -2089,13 +2107,35 @@ html[data-js][data-arrival='kept'] .y-main {
 
 .y-prose li {
   margin: var(--sp-1) 0;
+  text-wrap: pretty;
 }
 
+/* A quotation is set off as the Atelier note sets off a passage in another
+   hand: one strong hairline down its start and the words a step in, in the
+   second ink. The excerpt of another note and a quotation callout stand the
+   same way, so everything on the page that is someone else's words is drawn
+   alike. The hairline is an inset shadow, as a table's rules are, because a
+   border is drawn in whole pixels and would round it down to one. */
 .y-prose blockquote {
-  border-left: 2px solid var(--border-strong);
-  color: var(--fg-subtle);
+  box-shadow: inset 1.5px 0 0 var(--line-strong);
+  color: var(--fg-muted);
   margin: var(--sp-block) 0 0;
-  padding: 2px 0 2px var(--sp-4);
+  padding: 0 0 0 var(--sp-5);
+}
+
+.y-prose :is(blockquote, .callout-body, .embed) > :first-child {
+  margin-top: 0;
+}
+
+/* A block drawn with a rule down its start is set off by a little more than a
+   paragraph's room on either side, so the rule reads as the block's edge and
+   not as a line the paragraphs share. */
+.y-prose > :is(blockquote, .callout, .embed):not(:first-child) {
+  margin-top: var(--sp-6);
+}
+
+.y-prose > :is(blockquote, .callout, .embed) + * {
+  margin-top: var(--sp-6);
 }
 
 .y-prose hr {
@@ -2122,7 +2162,7 @@ html[data-js][data-arrival='kept'] .y-main {
   text-decoration: underline;
   text-decoration-color: var(--link-line);
   text-decoration-thickness: 1px;
-  text-underline-offset: 0.24em;
+  text-underline-offset: 0.26em;
 }
 
 .y-fileinfo__raw:hover,
@@ -2153,17 +2193,26 @@ html[data-js][data-arrival='kept'] .y-main {
   color: var(--fg-subtle);
   font-family: var(--font-sans);
   font-size: var(--fs-ed-14);
-  line-height: var(--lh-read);
+  line-height: round(1.8em, 1px);
   margin: var(--sp-h2) 0 0;
 }
 
+/* The notes are divided from the text by a short rule, as a book divides
+   them: a full-width line there would read as the author's own break. */
 .y-prose .footnotes hr {
+  border-top-color: var(--line-strong);
+  inline-size: 6em;
   margin: 0 0 var(--sp-4);
 }
 
 .y-prose .footnotes ol {
   margin: 0;
   padding-left: 1.4em;
+}
+
+/* An excerpt's own notes stay inside the excerpt, at a block's distance. */
+.y-prose .embed .footnotes {
+  margin-top: var(--sp-block);
 }
 
 .y-prose .footnotes li {
@@ -2184,6 +2233,18 @@ html[data-js][data-arrival='kept'] .y-main {
   text-decoration: none;
 }
 
+/* The mark in the sentence is a figure in the second ink: small, findable,
+   and never mistaken for a word of the text. */
+.y-prose .footnote-ref {
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  padding-inline: 0.1em;
+}
+
+.y-prose .footnote-backref {
+  color: var(--fg-muted);
+}
+
 .y-prose .footnote-backref {
   display: inline-block;
   min-width: 1.2em;
@@ -2199,14 +2260,27 @@ html[data-js][data-arrival='kept'] .y-main {
   scroll-margin-top: var(--header-clearance);
 }
 
-/* inline code + fenced code (chroma) */
+/* inline code + fenced code (chroma). Code in a sentence sits on the code
+   block's own ground, with no edge: the tone alone sets it apart from the
+   words around it. */
 .y-prose code {
-  background: var(--wash);
+  background: var(--code-ground);
   border-radius: var(--r-sm);
   color: var(--fg);
   font-family: var(--font-mono);
   font-size: 0.82em;
-  padding: 1px 5px;
+  padding: 0.09em 0.34em;
+}
+
+/* A key is code's size and face with an edge instead of a ground: an object
+   the reader presses, where code in a sentence is something to read. */
+.y-prose kbd {
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: 0.82em;
+  padding: 0.09em 0.34em;
 }
 
 /* A code block is a box set into the page rather than laid on it: the code's
@@ -2497,18 +2571,21 @@ html[data-js][data-arrival='kept'] .y-main {
 }
 
 /* wikilinks — the renderer's real classes (a.wikilink / .wikilink-broken / .wikilink-ambiguous) */
+/* A link at fault keeps the link's own line, at the link's offset and weight,
+   so it sits where a working link's line would; only the line's pattern and
+   ink say what is wrong. */
 .y-prose .wikilink-broken {
-  border-bottom: 1px dashed var(--warn);
   color: var(--fg-muted);
   cursor: help;
-  text-decoration: none;
+  text-decoration: underline dashed var(--warn) 1px;
+  text-underline-offset: 0.26em;
 }
 
 .y-prose .wikilink-ambiguous {
-  border-bottom: 1px dotted var(--fg-muted);
   color: var(--fg-muted);
   cursor: help;
-  text-decoration: none;
+  text-decoration: underline dotted var(--fg-muted) 1px;
+  text-underline-offset: 0.26em;
 }
 /* A picture whose file the vault does not hold. The browser draws its own
    broken-image mark and this says why: the same dashed warn line an unwritten
@@ -2526,19 +2603,29 @@ html[data-js][data-arrival='kept'] .y-main {
    says this is the smaller of the two faults. The dashed warn line stays
    reserved for a name with no target at all. */
 .y-prose .wikilink-degraded {
-  border-bottom: 1px dotted var(--fg-muted);
-  text-decoration: none;
+  text-decoration: underline dotted var(--fg-muted) 1px;
 }
 
 .y-prose .wikilink-degraded:hover {
-  border-bottom-color: var(--fg-subtle);
+  text-decoration-color: var(--fg);
 }
 
-/* embeds */
+/* embeds — an excerpt of another note stands as a quotation does: the one
+   strong hairline and the words a step in. They stay in the first ink, since
+   they are the vault's own text rather than someone else's. */
 .y-prose .embed {
-  border-left: 2px solid var(--line-strong);
+  box-shadow: inset 1.5px 0 0 var(--line-strong);
   margin: var(--sp-block) 0 0;
-  padding: 2px var(--sp-4);
+  padding: 0 0 0 var(--sp-5);
+}
+
+/* An excerpt's headings are the other note's, quoted inside one of this note's
+   sections, so none of them may outrank the section it stands in: the note's
+   title it opens with, and any top level after it, take the third level's
+   size. */
+.y-prose .embed :is([data-level='1'], [data-level='2']) {
+  font-size: var(--fs-ed-20);
+  line-height: round(1.4em, 1px);
 }
 /* A machine detail is one unbroken identifier as often as not, and the places
    that show one are the narrowest columns on the page — the rail's status
@@ -2644,7 +2731,7 @@ button.y-freshness__action {
    warn ink on its rule is what marks it as a fault the reader can see, since
    the block itself is otherwise as quiet as an excerpt. */
 .y-prose .embed--withheld {
-  border-left-color: var(--warn);
+  box-shadow: inset 1.5px 0 0 var(--warn);
 }
 /* The lines an excerpt carries above itself: whose note the words come from,
    and — when it applies — that the fragment named a section the source
@@ -2654,9 +2741,10 @@ button.y-freshness__action {
    link and takes the prose link ink. */
 .y-prose .embed__source,
 .y-prose .embed__note {
-  color: var(--fg-subtle);
+  color: var(--fg-faint);
   font-family: var(--font-sans);
-  font-size: var(--fs-12);
+  font-size: var(--fs-ed-13);
+  line-height: round(1.6em, 1px);
   margin: 0 0 var(--sp-2);
 }
 
@@ -2798,19 +2886,42 @@ button.y-freshness__action {
 }
 
 /* callouts — the renderer emits .callout (note, warning or quote) with a type
-   word, a title and a body. Nothing here is tinted or ruled: the word says what
-   kind it is and the indent sets the block off, so a printed page, a
-   forced-colour display and a screen reader tell one from another as readily as
-   the eye did by colour. The title row hangs out into the indent. */
+   word, a title and a body. A callout is the Atelier note's principle: a rule
+   in the second ink down its start with a hairline a breath inside it, the
+   type word small in the faint ink, the title after it in the ink, and the
+   words a step smaller than the text in the second ink. Nothing is tinted:
+   the word says what kind it is and the rule sets the block off, so a printed
+   page, a forced-colour display and a screen reader tell one from another as
+   readily as the eye does. A warning's rule is the full ink and its word is
+   bold; a quotation is someone else's words, so it stands as a quotation does,
+   on the one hairline and without the second line. */
 .y-prose .callout {
-  --callout-indent: calc(var(--fs-ed-17) * 2);
-
+  border-left: 2px solid var(--fg-muted);
   margin: var(--sp-block) 0 0;
-  padding: 0 0 0 var(--callout-indent);
+  padding: var(--sp-1) 0 var(--sp-1) var(--sp-5);
+  position: relative;
 }
 
-.y-prose .callout-quote .callout-body {
-  color: var(--fg-subtle);
+.y-prose .callout::before {
+  background: var(--line-strong);
+  content: '';
+  inline-size: 0.5px;
+  inset-block: 0;
+  inset-inline-start: 3px;
+  position: absolute;
+}
+
+.y-prose .callout-warning {
+  border-left-color: var(--fg);
+}
+
+.y-prose .callout-quote {
+  border-left: 0;
+  box-shadow: inset 1.5px 0 0 var(--line-strong);
+}
+
+.y-prose .callout-quote::before {
+  content: none;
 }
 /* The title row is set in sentence case, never tracked capitals: these titles
    are authored words — 口述紀錄, a person's name — and capitals with spacing
@@ -2821,32 +2932,31 @@ button.y-freshness__action {
   cursor: default;
   display: flex;
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: var(--fs-ed-14);
   font-weight: var(--fw-semibold);
   gap: var(--sp-2);
-  line-height: 1.25rem;
-  margin: 0 0 var(--sp-2) calc(-1 * var(--callout-indent));
+  line-height: round(1.5em, 1px);
+  margin: 0 0 var(--sp-2);
 }
-/* The type word is underlined where the page's own words are small print, so it
-   reads as a label and not as part of the title. It is as wide as the indent
-   less the gap, which sets a two-character Chinese word and the title after it
-   on the body's own left edge. An English word is longer than the indent and
-   starts at the body's edge instead of hanging out of it. */
+/* The type word is a label over the title rather than part of it: smaller, in
+   the faint ink, and on the title's baseline. */
 .y-prose .callout-type {
-  border-bottom: 1px solid currentcolor;
+  color: var(--fg-faint);
   flex: none;
-  font-size: var(--fs-12);
-  line-height: 1.25rem;
-  min-width: calc(var(--callout-indent) - 8px);
+  font-size: var(--fs-ed-13);
   white-space: nowrap;
 }
 
-.y-prose .callout-title:has(> .callout-type:lang(en)) {
-  margin-inline-start: 0;
+.y-prose .callout-warning .callout-type {
+  color: var(--fg);
+  font-weight: var(--fw-bold);
 }
 
-.y-prose .callout-warning .callout-type {
-  font-weight: var(--fw-bold);
+/* The word is the interface's, in the interface's language, and is set in the
+   title's own face: its language tag would otherwise hand it the reading face
+   the article's other tagged words take. */
+.y-prose .callout-title > .callout-type[lang] {
+  font-family: inherit;
 }
 /* stylelint-disable-next-line selector-no-qualifying-type -- a callout renders
    as either a details (foldable, clickable summary) or a div (plain, nothing
@@ -2898,13 +3008,9 @@ button.y-freshness__action {
 .y-prose .callout-body {
   color: var(--fg-muted);
   font-family: var(--font-serif);
-  font-size: var(--fs-ed-17);
-  line-height: var(--lh-read);
+  font-size: var(--fs-ed-16);
+  line-height: round(1.86em, 1px);
   margin: 0;
-}
-
-.y-prose .callout-body > :first-child {
-  margin-top: 0;
 }
 
 /* Carried out of sight but not out of the page: text meant for a reader who
@@ -6855,6 +6961,14 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   .y-prose .y-code {
     outline: 1px solid CanvasText;
     outline-offset: -1px;
+  }
+
+  /* The hairline down a quotation and an excerpt is a shadow too, so it
+     becomes a border of the system's text colour. */
+  .y-prose blockquote,
+  .y-prose .callout-quote,
+  .y-prose .embed {
+    border-left: 1px solid CanvasText;
   }
 
   /* A bookmark is a fill, and a fill is what forced colours takes away; so is
