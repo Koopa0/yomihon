@@ -1,0 +1,2 @@
+go test fuzz v1
+string("[r]\n>[r]:0PrivAte/0.md")

@@ -93,14 +93,19 @@ func testContractWithRules(tb testing.TB, root, extraRules string) *schema.Contr
 // testContractDeclaringPrivacy writes the shared contract fixture with an
 // egress declaration appended, because the fixture itself declares none and a
 // policy that was never claimed cannot go stale. The section is added before
-// the contract is read, so the digest the policy pins is the one on disk.
-func testContractDeclaringPrivacy(tb testing.TB, root, dir string) *schema.Contract {
+// the contract is read, so the digest the policy pins is the one on disk. Each
+// of dirs is one folder the declaration withholds.
+func testContractDeclaringPrivacy(tb testing.TB, root string, dirs ...string) *schema.Contract {
 	tb.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "schema", "testdata", "contract.toml"))
 	if err != nil {
 		tb.Fatalf("read contract fixture: %v", err)
 	}
-	data = append(data, []byte("\n[privacy]\nnever_egress_dirs = [\""+dir+"\"]\n")...)
+	quoted := make([]string, len(dirs))
+	for i, dir := range dirs {
+		quoted[i] = strconv.Quote(dir)
+	}
+	data = append(data, []byte("\n[privacy]\nnever_egress_dirs = ["+strings.Join(quoted, ", ")+"]\n")...)
 	contractPath := filepath.Join(root, filepath.FromSlash(schema.ContractRelPath))
 	if mkdirErr := os.MkdirAll(filepath.Dir(contractPath), 0o750); mkdirErr != nil {
 		tb.Fatalf("mkdir contract fixture: %v", mkdirErr)

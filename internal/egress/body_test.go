@@ -128,6 +128,19 @@ func TestBodyMasksWhatTheReviewFound(t *testing.T) {
 		{"an element's poster", `<video poster="Private/pic.png"></video>`, masked + "</video>"},
 		{"an element's data", `<object data="Private/Secret.md"></object>`, masked + "</object>"},
 		{"a path that stays in the readable note's folder", "[t](Missing.md)", "[t](Missing.md)"},
+		{"a wikilink a comment splits", "[[Sec%%x%%ret Plan]]", masked},
+		{"a wikilink a placeholder rune splits", "[[Sec\ue000ret Plan]]", masked},
+		{"a wikilink an HTML comment splits", "[[Sec<!--x-->ret Plan]]", masked},
+		{"a destination a comment splits", "[a](Pri%%x%%vate/Secret.md)", masked},
+		{"a definition a comment splits", "[r]\n\n[r]: Pri%%c%%vate/p.md", masked},
+		{"a tab inside an element's href", "<a href=\"Priv\tate/Secret.md\">x</a>", masked + "x</a>"},
+		{"a line feed inside an element's href", "<a href=\"Private\n/Secret.md\">x</a>", masked + "x</a>"},
+		{"a carriage return inside an element's href", "<a href=\"Pri\rvate/Secret.md\">x</a>", masked + "x</a>"},
+		{"a tab written as a reference", "<a href=\"Priv&#9;ate/Secret.md\">x</a>", masked + "x</a>"},
+		{"a line feed written as a reference", "<a href=\"Priv&#10;ate/Secret.md\">x</a>", masked + "x</a>"},
+		{"a carriage return written as a reference", "<a href=\"Priv&#13;ate/Secret.md\">x</a>", masked + "x</a>"},
+		{"a tab written by name", "<a href=\"Priv&Tab;ate/Secret.md\">x</a>", masked + "x</a>"},
+		{"a line feed written by name", "<a href=\"Priv&NewLine;ate/Secret.md\">x</a>", masked + "x</a>"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

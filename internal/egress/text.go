@@ -78,24 +78,43 @@ func (g *Gate) Spells(text, body string, names Names) bool {
 // are listed as written. The boundary is judged on the folded text, after
 // what draws nothing is gone, so an invisible letter cannot stand in front of
 // the name.
+//
+// A URL parser drops every tab, line feed and carriage return in an address, so
+// the text is also read with those gone, however they were written; the text as
+// it stands is read too, since a line feed can be all that stands between a
+// word and the name.
 func spellsWithheldDir(text string, withheldDirs []string) bool {
 	folded := foldDisguises(text)
+	joined := strings.Map(func(r rune) rune {
+		if r == '\t' || r == '\n' || r == '\r' {
+			return -1
+		}
+		return r
+	}, folded)
 	for _, dir := range withheldDirs {
 		name := foldDisguises(dir) + "/"
-		for from := 0; ; {
-			at := strings.Index(folded[from:], name)
-			if at < 0 {
-				break
-			}
-			at += from
-			before, _ := utf8.DecodeLastRuneInString(folded[:at])
-			if at == 0 || !unicode.IsLetter(before) && !unicode.IsNumber(before) {
-				return true
-			}
-			from = at + 1
+		if spellsAt(folded, name) || joined != folded && spellsAt(joined, name) {
+			return true
 		}
 	}
 	return false
+}
+
+// spellsAt is whether name stands in folded at its start or after a character
+// that is neither a letter nor a digit.
+func spellsAt(folded, name string) bool {
+	for from := 0; ; {
+		at := strings.Index(folded[from:], name)
+		if at < 0 {
+			return false
+		}
+		at += from
+		before, _ := utf8.DecodeLastRuneInString(folded[:at])
+		if at == 0 || !unicode.IsLetter(before) && !unicode.IsNumber(before) {
+			return true
+		}
+		from = at + 1
+	}
 }
 
 // foldDisguises reads text past what would hide a word from a comparison:

@@ -41,6 +41,12 @@ var ErrFrontmatter = errors.New("a body is a note's text after its frontmatter b
 // whose text spells a withheld folder, in any of the forms Spells knows, goes
 // whole.
 //
+// The page parses a body only after it has taken its comments off and its own
+// runes out, which can join a link that was apart in the text as written, such
+// as [[Sec%%x%%ret Plan]]. So what was masked is read again as the page reads it
+// (render.PageSource), and when that reading still finds a link into withheld
+// ground, the link has no place in body to mask and the whole body is Masked.
+//
 // What could reach withheld ground is decided as the page decides where a link
 // goes. A Markdown destination is resolved from the note that wrote it with the
 // function the page resolves with, so it is masked whether or not anything is
@@ -73,6 +79,14 @@ func (g *Gate) Body(rel, body string, names Names) (masked string, places int, e
 		return Masked, 1, nil
 	}
 	masked, places = mask(body, spans)
+	if page := render.PageSource(masked); page != masked {
+		// The page reads the text with its comments off and its own runes
+		// taken out, which can join a link that was apart in what was masked.
+		// Such a link has no place in body to mask, so nothing of it is shown.
+		if left, placed := g.reachingSpans(rel, page, names, readable); !placed || len(left) > 0 {
+			return Masked, 1, nil
+		}
+	}
 	return masked, places, nil
 }
 

@@ -47,3 +47,26 @@ func TestSourceLinksReportWhereTheParserFoundEachOne(t *testing.T) {
 		})
 	}
 }
+
+func TestPageSourceIsTheTextThePageParses(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name, body, want string
+	}{
+		{"an Obsidian comment comes off", "[[Sec%%x%%ret Plan]]", "[[Secret Plan]]"},
+		{"an HTML comment comes off", "[a](Pri<!--x-->vate/p.md)", "[a](Private/p.md)"},
+		{"a placeholder rune comes out", "[[Secret Plan]]", "[[Secret Plan]]"},
+		{"the block marker's prefix is not the renderer's", "```\n<!--yomihon-block:1-->\n```", "```\n&lt;!--yomihon-block:1-->\n```"},
+		{"a comment in a fence stays", "```\n%%x%%\n```", "```\n%%x%%\n```"},
+		{"text with none of them is as it was", "[[Plain]] and [a](b.md)", "[[Plain]] and [a](b.md)"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := render.PageSource(tt.body); got != tt.want {
+				t.Errorf("PageSource(%q) = %q, want %q", tt.body, got, tt.want)
+			}
+		})
+	}
+}
