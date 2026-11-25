@@ -38,6 +38,7 @@ type wikiLink struct {
 	block           string
 	embed           bool
 	offset          int
+	start, end      int
 	line            int
 	underGapHeading bool
 }
@@ -132,10 +133,12 @@ func inspectBody(body string, headingMarks []string) bodyStructure {
 }
 
 // rawLink is one [[...]] pair from the raw scan: the byte offset of the opening
-// bracket and the inner text between the brackets.
+// bracket, the inner text between the brackets, and the whole token's bytes, an
+// embed's "!" included.
 type rawLink struct {
-	offset int
-	inner  string
+	offset     int
+	inner      string
+	start, end int
 }
 
 // extractWikilinks returns every [[target]] in body, skipping those inside code
@@ -170,6 +173,8 @@ func extractWikilinksFrom(body string, bodyStartLine int, facts *bodyStructure) 
 			block:           parsed.Block,
 			embed:           raw.offset > 0 && body[raw.offset-1] == '!',
 			offset:          raw.offset,
+			start:           raw.start,
+			end:             raw.end,
 			line:            bodyStartLine + strings.Count(body[:raw.offset], "\n"),
 			underGapHeading: inGapSection(headings, raw.offset),
 		})
@@ -439,7 +444,7 @@ func rawWikilinks(body string) []rawLink {
 	tokens := graph.WikilinkTokens(body)
 	out := make([]rawLink, len(tokens))
 	for i, token := range tokens {
-		out[i] = rawLink{offset: token.Open(), inner: token.Inner}
+		out[i] = rawLink{offset: token.Open(), inner: token.Inner, start: token.Start, end: token.End}
 	}
 	return out
 }

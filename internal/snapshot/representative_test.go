@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/lexical"
@@ -122,7 +123,7 @@ func inspectRepresentative(ctx context.Context, f *representativeFixture, gen *G
 		if !ok || reading.Body != body || reading.FMDiagnostic != "" || reading.Stale {
 			return metrics, fmt.Errorf("caught: published reading differs from source at %s", rel)
 		}
-		for _, target := range judge.LinkTargets(body) {
+		for _, target := range egress.Targets(judge.LinkTargets(body)) {
 			metrics.Links++
 			answer := gen.Graph().Resolve(target)
 			if answer.Kind != graph.KindUnique || answer.RelPath != "Concepts/golang/"+target+".md" {

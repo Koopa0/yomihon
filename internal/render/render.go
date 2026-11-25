@@ -289,6 +289,8 @@ func (r *Pipeline) figure(relPath string) FigureState {
 
 // pageMarkdown creates each consumer's parser from the page grammar. Parser
 // contexts and delimiter observations belong to that consumer's single parse.
+// extra options come after the page's own, for a consumer that watches the parse
+// without changing what it reads.
 //
 // Emphasis follows the CJK-friendly amendment to CommonMark's flanking rules.
 // Prose in Chinese and Japanese closes a bold run after full-width punctuation
@@ -296,8 +298,8 @@ func (r *Pipeline) figure(relPath string) FigureState {
 // that closer and leaves the asterisks on the page, while Obsidian's reading
 // view shows the bold. Only emphasis takes the amendment: strikethrough stays
 // goldmark's own parser, which the display-effect observation recognises.
-func pageMarkdown() goldmark.Markdown {
-	return goldmark.New(
+func pageMarkdown(extra ...goldmark.Option) goldmark.Markdown {
+	return goldmark.New(append([]goldmark.Option{
 		goldmark.WithExtensions(
 			extension.GFM,
 			cjkfriendly.CJKFriendlyEmphasis,
@@ -306,7 +308,7 @@ func pageMarkdown() goldmark.Markdown {
 			extension.NewFootnote(extension.WithFootnoteIDPrefixFunction(footnoteRegionPrefix)),
 			highlightExtension{}, codeBlockExtension{}, tableWrapExtension{}, safeMarkupExtension{}, footnoteBacklinkExtension{}, externalLinkExtension{}, taskListExtension{},
 		),
-	)
+	}, extra...)...)
 }
 
 // HTML renders one note's body: the markdown pipeline, plus the passes that
@@ -552,16 +554,7 @@ type bodyInput struct {
 func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *composition, region string) Result {
 	body, address := input.text, input.address
 	col := &collector{page: page, relPath: input.path, body: input.original, onPage: input.onPage}
-	// This prefix belongs to preprocess, never to vault text. Neutralizing an
-	// authored copy before placeholders exist prevents source from selecting or
-	// relocating renderer-owned HTML during substituteBlocks.
-	body = strings.ReplaceAll(body, "<!--yomihon-block:", "&lt;!--yomihon-block:")
-	body = strings.Map(func(r rune) rune {
-		if strings.ContainsRune(inlinePlaceholderRunes, r) {
-			return -1
-		}
-		return r
-	}, body)
+	body = neutralizeRendererMarks(body)
 	source, marks := r.preprocess(body, BlockAddressLines(address, body), allowEmbed, col)
 	source = expandInlineFootnotes(source)
 
@@ -590,6 +583,34 @@ func (r *Pipeline) renderBody(input *bodyInput, allowEmbed embedPolicy, page *co
 	named := nameTaskLabels(buf.String(), marks.inline, page.lang)
 	htmlOut, blocks := substituteMarkedBlocks(named, marks)
 	return Result{HTML: htmlOut, Blocks: blocks, Diagnostics: col.diags}
+}
+
+// neutralizeRendererMarks takes out of authored text what belongs to the
+// renderer. The block marker's prefix belongs to preprocess, never to vault
+// text: neutralizing an authored copy before placeholders exist prevents source
+// from selecting or relocating renderer-owned HTML during substituteBlocks. The
+// placeholder runes are dropped for the same reason, which joins the text either
+// side of each one.
+func neutralizeRendererMarks(body string) string {
+	body = strings.ReplaceAll(body, blockMarkOpen, "&lt;!--yomihon-block:")
+	return strings.Map(func(r rune) rune {
+		if strings.ContainsRune(inlinePlaceholderRunes, r) {
+			return -1
+		}
+		return r
+	}, body)
+}
+
+// PageSource is body as the page's parser is handed it: its Obsidian and HTML
+// comments off, and what belongs to the renderer taken out, by the same two
+// steps a page takes. Each step can join text that was apart in body, so a link
+// can be one in this text and not in body; a reader that has to find every link
+// the page will draw reads this as well as body. The page's removal of the
+// heading its title came from is not among the steps, since it only takes text
+// away and leaves a blank line where it did.
+func PageSource(body string) string {
+	stripped, _ := stripBody(body)
+	return neutralizeRendererMarks(stripped.text)
 }
 
 // DropsTitleHeading reports whether the page removes body's title heading

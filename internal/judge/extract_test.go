@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+
+	"github.com/koopa0/yomihon/internal/egress"
 )
 
 // A backslash in front of a wikilink is the author showing the syntax rather
@@ -34,7 +36,7 @@ func TestExtractedLinksSkipEscapedBrackets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := LinkTargets(tt.body)
+			got := egress.Targets(LinkTargets(tt.body))
 			if len(got) == 0 {
 				got = nil
 			}
@@ -75,7 +77,7 @@ func TestExtractedLinksSkipUnclosedComments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := LinkTargets(tt.body)
+			got := egress.Targets(LinkTargets(tt.body))
 			if len(got) == 0 {
 				got = nil
 			}

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/drill"
+	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/figure"
 	"github.com/koopa0/yomihon/internal/graph"
 	"github.com/koopa0/yomihon/internal/judge"
@@ -1288,7 +1289,7 @@ var parsers = noteParsers{
 	note:     vault.Parse,
 	document: lexical.DocumentFromNote,
 	planned:  plannedNames,
-	links:    judge.LinkTargets,
+	links:    func(body string) []string { return egress.Targets(judge.LinkTargets(body)) },
 }
 
 // plannedNames harvests the concept names one body declares it still owes.
