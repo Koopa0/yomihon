@@ -2290,7 +2290,7 @@ html[data-js][data-arrival='kept'] .y-main {
    sideways. A line is a whole number of pixels tall at every text size, so a
    block's height is too and nothing below it is set on a fraction. The 20px
    either side is what the renderer counts a measure's room from
-   (codeMeasures). */
+   (codeFits). */
 .y-prose pre {
   background: none;
   font-family: var(--font-mono);
@@ -2386,16 +2386,44 @@ html[data-js][data-arrival='kept'] .y-main {
   }
 }
 
-/* tables — a table wider than the column scrolls inside its own box (the
-   renderer wraps every table in .y-tablewrap) so the article never scrolls */
+/* Tables are set as a book sets them, in booktabs: a heavier rule over the
+   table and under it, a lighter one under the header, the faintest between
+   rows, and nothing drawn down the columns or round the outside, so the
+   columns are made by their own alignment and the space between them. The
+   two heavy rules are drawn by the scroll container rather than the table, so
+   they stay put while a wide table scrolls under them sideways; the renderer
+   wraps every table in .y-tablewrap so a table wider than its room scrolls
+   inside it and never takes the page sideways. The heavy rules are 1.5px and
+   the header's 0.75px, weights a border cannot take (a browser draws a border
+   in whole pixels), so they are drawn as shadows inside the box, which take no
+   room either: the table is as tall as its rows, a whole number of pixels. A
+   table whose columns would crowd the text names the measures it does not fit
+   in data-wide (widenTables) and is set to the wide measure there.
+
+   The table is set in the sans at --fs-ed-14 on a whole-pixel line of about
+   1.66, its header a step down at --fs-ed-13 in the semibold and the variant
+   ink, each growing with the reader's text size. A header is set on one line;
+   a column is aligned as its delimiter row says, which the renderer writes on
+   each cell, and its figures are tabular so they line up down the column.
+   Every column but the last ends in 16px before the next (tableColumnGap);
+   the first starts where a paragraph does and the last ends where one ends,
+   so the table stands on the text's own edges. */
 .y-prose table {
   border-collapse: collapse;
-  font-size: var(--fs-ed-15);
+  font-size: var(--fs-ed-14);
+  line-height: round(1.66em, 1px);
   margin: var(--sp-block) 0 0;
   width: 100%;
 }
 
+/* A reading over a word needs the reading line's room above it, as it does
+   in the text. */
+.y-prose table:has(rt) {
+  line-height: round(2em, 1px);
+}
+
 .y-prose .y-tablewrap {
+  box-shadow: inset 0 1.5px 0 var(--rule-double), inset 0 -1.5px 0 var(--rule-double);
   margin: var(--sp-block) 0 0;
   overflow-x: auto;
 }
@@ -2405,35 +2433,31 @@ html[data-js][data-arrival='kept'] .y-main {
 }
 
 .y-prose th {
-  border-bottom: 1px solid var(--outline);
-  color: var(--fg);
+  box-shadow: inset 0 -0.75px 0 var(--line-strong);
+  color: var(--fg-muted);
   font-family: var(--font-sans);
-  font-size: inherit;
+  font-size: var(--fs-ed-13);
   font-weight: var(--fw-semibold);
-  padding: var(--sp-2) var(--sp-4);
+  letter-spacing: 0.02em;
+  padding: 11px 16px 10px 0;
   text-align: left;
+  white-space: nowrap;
 }
 
 .y-prose td {
-  border-bottom: 1px solid var(--outline-variant);
-  color: var(--fg-muted);
-  font-family: var(--font-serif);
+  border-bottom: 1px solid var(--line-faint);
+  color: var(--fg);
+  font-family: var(--font-sans);
   font-size: inherit;
   font-variant-numeric: tabular-nums;
-  padding: var(--sp-3) var(--sp-4);
+  padding: 12px 16px 12px 0;
+  vertical-align: top;
 }
 
 /* A table reading starts above ten pixels at the smallest editorial step,
    and its relative size keeps growing with the word it explains. */
 .y-prose td rt {
-  font-size: 0.7em;
-}
-
-/* A table stands on the text's own edges: its first column starts where a
-   paragraph does and its last ends where one ends, so it does not read as a
-   box set a little inside the column. */
-.y-prose :is(th, td):first-child {
-  padding-inline-start: 0;
+  font-size: 0.72em;
 }
 
 .y-prose :is(th, td):last-child {
@@ -2442,6 +2466,15 @@ html[data-js][data-arrival='kept'] .y-main {
 
 .y-prose tr:last-child td {
   border-bottom: none;
+}
+
+/* The row under the pointer is washed, so the eye can follow it across; a
+   touch screen has no pointer resting anywhere, and a wash left where a
+   finger last landed would mark a row nobody chose. */
+@media (hover: hover) {
+  .y-prose tbody tr:hover {
+    background: var(--wash);
+  }
 }
 
 /* highlight (==text== → <mark>, no class). Scoped to the shell rather than to
@@ -2644,23 +2677,62 @@ button.y-freshness__action {
   padding: var(--sp-3) var(--sp-4);
 }
 
-/* What an author drew sits on a mat: an SVG alone in its paragraph, or a
-   figure's frame. A raster picture or a photograph is not a drawing made for a
-   light ground and has none. The mat is tone and 8px with no frame line, and it
-   is the one place that inset is written. It takes the system's light or dark
-   rather than the page's, because what it holds can only know the system's: a
-   drawing's own stylesheet, and a figure that is not running script, ask the
-   browser for prefers-color-scheme and the browser answers with the system. A figure the
-   owner approved is told the page's theme instead, so its mat follows the page.
+/* A picture alone in its paragraph, a diagram and a figure's frame each sit
+   on a mat: a plate, set into the page by tone, a faint ring and a small
+   radius, with no frame line taking room from what it holds. What it holds
+   is centred in it, and under it stands a caption where the author gave one
+   (plateLonePictures). The mat's inset, 26px above, 28px either side and
+   26px below, or 18px below a caption, is written here and nowhere else; a
+   phone has less room to give it, so there it is 18px and 16px.
+
+   A mat takes the light or dark of what it holds. A drawing's own stylesheet,
+   and a figure that is not running script, ask the browser for
+   prefers-color-scheme, which answers with the system, so their mat takes the
+   system's rather than the page's. A raster picture is the same in either, and
+   a diagram is drawn again in the page's theme whenever it changes, so their
+   mats (mat--page) take the page's. A figure the owner approved is told the
+   page's theme, so its mat follows the page too.
+
    Narrower than its floor a mat scrolls sideways rather than shrinking what it
    holds; the floor is set by the drawing's own width, which the browser knows
    and a stylesheet does not. */
 .y-prose .mat {
   --mat-floor: 560px;
+  --mat-top: 26px;
+  --mat-side: 28px;
+  --mat-foot: var(--mat-top);
   background: var(--mat);
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 0 0 1px var(--line-faint);
   color-scheme: light dark;
+  margin: var(--sp-block) 0 0;
   overflow-x: auto;
-  padding: var(--sp-2);
+  padding: var(--mat-top) var(--mat-side) var(--mat-foot);
+}
+
+/* A figure's frame stands on its mat inside the figure, which keeps the
+   text's rhythm itself. */
+.y-prose .figure-embed > .mat {
+  margin: 0;
+}
+
+.y-prose .mat:has(> figcaption) {
+  --mat-foot: 18px;
+}
+
+@media (max-width: 720px) {
+  .y-prose .mat {
+    --mat-top: 18px;
+    --mat-side: 16px;
+  }
+}
+
+/* A raster picture has no floor: it is a photograph or a screen as often as a
+   drawing, and it shrinks to the column as it always has. A diagram is drawn
+   to the room it is given and has none either. */
+.y-prose .mat--page {
+  --mat-floor: 0%;
+  color-scheme: inherit;
 }
 
 .y-prose .mat:has(> .figure-embed__frame[data-figure-scripts]) {
@@ -2670,12 +2742,28 @@ button.y-freshness__action {
 
 .y-prose .mat > img {
   display: block;
+  margin-inline: auto;
+}
+
+/* The caption is the author's words for what stands above it, set under a
+   faint rule in the sans a step below the table's body, in the variant ink,
+   which still reads at 4.5:1 on either mat. */
+.y-prose figcaption {
+  border-top: 1px solid var(--line-faint);
+  color: var(--fg-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-ed-13);
+  line-height: round(1.6em, 1px);
+  margin-top: 14px;
+  padding-top: 10px;
 }
 
 /* A hover card is a glance at another note, not a place to scroll: what it
-   shows is fitted to the card. */
+   shows is fitted to the card, on the phone's narrower inset. */
 .y-preview .y-prose .mat {
   --mat-floor: 0%;
+  --mat-top: 18px;
+  --mat-side: 16px;
 }
 
 /* A figure is a vault's interactive HTML in a frame of its own. The frame is
@@ -2842,23 +2930,27 @@ button.y-freshness__action {
   width: 1px;
 }
 
-/* mermaid placeholder / rendered svg */
+/* mermaid placeholder / rendered svg. The diagram stands on a plate, whose
+   ground and inset are the mat's; until it is drawn its source stands there
+   as written. */
 .y-prose .mermaid-diagram {
-  background: var(--panel);
-  border: 1px dashed var(--line-strong);
-  border-radius: 0;
   color: var(--fg-subtle);
   font-family: var(--font-mono);
   font-size: var(--fs-13);
   margin: var(--sp-block) 0 0;
   overflow-x: auto;
-  padding: var(--sp-3);
   text-align: center;
   white-space: pre-wrap;
 }
 
+.y-prose .mat > .mermaid-diagram {
+  margin: 0;
+}
+
 .y-prose .mermaid-diagram svg {
+  display: block;
   height: auto;
+  margin-inline: auto;
   max-width: 100%;
 }
 /* Shimmer while the client render is genuinely coming: gated on the boot
@@ -2895,7 +2987,7 @@ button.y-freshness__action {
 [data-js][data-mermaid-error] .y-prose .mermaid-diagram:not(:has(svg)),
 [data-js] .y-prose .mermaid-diagram[data-mermaid-error]:not(:has(svg)) {
   animation: none;
-  background: var(--panel);
+  background: none;
   color: var(--fg-subtle);
 }
 @keyframes y-shimmer {
@@ -3206,13 +3298,15 @@ button.y-freshness__action {
 /* ============================================================
    The wide measure
    ============================================================ */
-/* A block whose content needs more than the text's width, a code block whose
-   longest line does not fit it, is set to the wide measure instead: 1040px,
-   centred on the same axis as the text, so the text keeps its place and its
-   line and the block runs out into the room either side. The renderer names
-   in data-wide each measure the block does not fit (codeMeasures), so a block
-   is wide only at the text sizes and in the articles where it needs to be;
-   everything else stays at the text's width. Only a block standing directly in
+/* A block whose content needs more than the text's width (a code block whose
+   longest line does not fit it, a table whose columns would crowd it, a
+   picture the author made wider than it, a diagram that runs across the page)
+   is set to the wide measure instead: 1040px, centred on the same axis as the
+   text, so the text keeps its place and its line and the block runs out into
+   the room either side. The renderer names in data-wide each measure the
+   block does not fit (readingMeasures), so a block is wide only at the text
+   sizes and in the articles where it needs to be; everything else stays at
+   the text's width. Only a block standing directly in
    a note's or a file's text is set wide, never one inside a list, a quote, a
    callout or an embed, and never in the compare page's columns, which have no
    room beside them.
@@ -6239,11 +6333,11 @@ samp,
 
 /* Prose components keep their declared serif or sans role when their
    authored language asks for Japanese glyph shapes. */
-.y-prose :where(.footnotes, th, .embed__source, .embed__note, .callout-title):lang(ja) {
+.y-prose :where(.footnotes, th, td, figcaption, .embed__source, .embed__note, .callout-title):lang(ja) {
   font-family: var(--font-sans-ja);
 }
 
-.y-prose :where(td, .callout-body):lang(ja) {
+.y-prose :where(.callout-body):lang(ja) {
   font-family: var(--font-serif-ja);
 }
 
@@ -6793,6 +6887,17 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
     border: 1px solid CanvasText;
   }
 
+  /* A table's rules over it, under it and under its header are shadows, which
+     forced colours takes away, so they are drawn as lines of the system's
+     text colour instead. */
+  .y-prose .y-tablewrap {
+    border-block: 1px solid CanvasText;
+  }
+
+  .y-prose th {
+    border-bottom: 1px solid CanvasText;
+  }
+
   /* A callout's fold chevron is a mask over its background, and the background
      is what forced colours replaces, leaving no shape. The system text colour
      keeps it drawn. */
@@ -6820,6 +6925,10 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 
   .y-prose a {
     text-decoration-color: currentcolor;
+  }
+
+  .y-prose td {
+    border-bottom-color: var(--outline);
   }
 }
 
@@ -6906,8 +7015,21 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   .y-prose .mat {
     --mat-floor: 0%;
     background: none;
+    box-shadow: none;
     color-scheme: light;
     overflow-x: visible;
+  }
+
+  /* Paper prints no shadow unless asked to, so a table's rules go on paper as
+     lines, at the weight a printed line can take. */
+  .y-prose .y-tablewrap {
+    border-block: 1px solid var(--rule-double);
+    box-shadow: none;
+  }
+
+  .y-prose th {
+    border-bottom: 1px solid var(--line-strong);
+    box-shadow: none;
   }
 
   .y-prose .figure-embed__print {

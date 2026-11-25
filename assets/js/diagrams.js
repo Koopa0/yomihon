@@ -55,15 +55,17 @@ function initFigures(preferences) {
   };
 }
 
-// A mat holding a drawing wider than itself scrolls sideways. A scroller that
-// holds a frame cannot be reached from the keyboard on its own, so a mat that
-// overflows takes a place in the tab order, and is named by the drawing it
-// holds so that place is said. The place is held only while it overflows: a
-// stop that moves nothing is noise on every page where the drawing fits. The
-// name stays once given, since it describes the drawing and not the width.
+// A mat holding a drawing wider than itself scrolls sideways, and so does a
+// table wider than its room. A scroller that holds a frame, or one in a browser
+// that does not make a scroller a stop of its own, cannot be reached from the
+// keyboard, so one that overflows takes a place in the tab order; a mat is
+// named by the drawing it holds so that place is said, and a table is read out
+// as the table it is. The place is held only while it overflows: a stop that
+// moves nothing is noise on every page where the drawing or the table fits.
+// The name stays once given, since it describes the drawing and not the width.
 function initMats() {
   if (typeof ResizeObserver === 'undefined') return;
-  const mats = document.querySelectorAll('.mat');
+  const mats = document.querySelectorAll('.mat, .y-tablewrap');
   if (mats.length === 0) return;
   const held = new WeakSet();
   const settle = (mat) => {
@@ -86,7 +88,7 @@ function initMats() {
   // The mat changes size with the window and its drawing with its load, so both
   // are watched.
   const watch = new ResizeObserver((entries) => {
-    for (const entry of entries) settle(entry.target.closest('.mat'));
+    for (const entry of entries) settle(entry.target.closest('.mat, .y-tablewrap'));
   });
   for (const mat of mats) {
     watch.observe(mat);

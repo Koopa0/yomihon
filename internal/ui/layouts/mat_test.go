@@ -59,24 +59,51 @@ func wantValue(t *testing.T, rule cssRule, property, want, why string) {
 	}
 }
 
-// TestAMatIsToneAndEightPixelsWrittenOnce holds the one inset the SVG and
-// the figure share. Both are the author's drawing on the same ground, so a
-// second inset anywhere is two mats that disagree by a few pixels, which is
-// all the edge a tone-only mat has. The frame inside it takes none of its own:
-// a border or padding on the frame would be the frame line the mat does without.
-func TestAMatIsToneAndEightPixelsWrittenOnce(t *testing.T) {
+// TestAMatIsAPlateWithItsInsetWrittenOnce holds the one inset every mat
+// shares: a picture's, a diagram's and a figure's frame. Each is something on
+// the same ground, so a second inset anywhere is two plates that disagree by a
+// few pixels. The inset is 26px above, 28px either side and as much below as
+// above, 18px below a caption, and 18px and 16px on a phone; the renderer counts
+// a picture's room at each measure without the 28px either side (plateInset),
+// so the two are held to one number here. The plate is set into the page by
+// its tone, a faint ring and the small radius, with no line taking room. The
+// frame inside it takes none of its own: a border or padding on the frame would
+// be the frame line the mat does without.
+func TestAMatIsAPlateWithItsInsetWrittenOnce(t *testing.T) {
 	t.Parallel()
 	rules := componentRules(t)
 
 	mat := theOne(t, rules, matSelector, "")
-	wantValue(t, mat, "padding", "var(--sp-2)", "the SVG and the figure sit on one mat, and its inset is written here and nowhere else")
+	wantValue(t, mat, "padding", "var(--mat-top) var(--mat-side) var(--mat-foot)", "every mat's inset is written here and nowhere else")
+	wantValue(t, mat, "--mat-top", "26px", "the plate's inset above what it holds")
+	wantValue(t, mat, "--mat-side", "28px", "the plate's inset either side, which plateInset counts a picture's room without")
+	wantValue(t, mat, "--mat-foot", "var(--mat-top)", "with no caption the plate is as deep below as above")
 	wantValue(t, mat, "background", "var(--mat)", "a mat is a tone, and the tone is the token")
+	wantValue(t, mat, "border-radius", "var(--r-sm)", "the plate's corners are the small radius")
+	wantValue(t, mat, "box-shadow", "inset 0 0 0 1px var(--line-faint)", "the plate's edge is a faint ring drawn inside it, which takes no room")
+	wantValue(t, theOne(t, rules, matSelector+":has(> figcaption)", ""), "--mat-foot", "18px", "a caption stands closer to the plate's foot")
+	narrow := theOne(t, rules, matSelector, "@media (max-width: 720px)")
+	wantValue(t, narrow, "--mat-top", "18px", "a phone gives the plate less room")
+	wantValue(t, narrow, "--mat-side", "16px", "a phone gives the plate less room")
+
+	plate, err := os.ReadFile("../../../internal/render/plate.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(plate), "const plateInset = 2 * 28") {
+		t.Error("render/plate.go no longer counts a picture's room without 28px either side, the plate's --mat-side")
+	}
 
 	for _, rule := range rules {
 		if !matOrFigure.MatchString(rule.selector) {
 			continue
 		}
 		if len(rule.within) != 0 {
+			continue
+		}
+		// The caption's padding is the space between its own rule and its
+		// words, inside the mat's inset rather than beside it.
+		if rule.selector == ".y-prose figcaption" {
 			continue
 		}
 		for _, property := range []string{"padding", "padding-inline", "padding-block", "padding-left", "padding-right", "padding-top", "padding-bottom"} {
@@ -157,6 +184,9 @@ func TestAMatFollowsTheSystemUnlessTheFigureIsToldTheTheme(t *testing.T) {
 	themed := theOne(t, rules, themedSelector, "")
 	wantValue(t, themed, "color-scheme", "inherit", "an approved figure is told the page's theme, so its mat is in the page's scheme")
 	wantValue(t, themed, "background", "var(--panel)", "a mat in the page's own scheme is a step off the page, the same step a panel is")
+	page := theOne(t, rules, ".y-prose .mat--page", "")
+	wantValue(t, page, "color-scheme", "inherit", "a raster picture is the same in either light, and a diagram is drawn again in the page's theme, so their mat is in the page's scheme")
+	wantValue(t, page, "--mat-floor", "0%", "a raster picture shrinks to the column as it always has")
 
 	script, err := os.ReadFile("../../../assets/js/diagrams.js")
 	if err != nil {

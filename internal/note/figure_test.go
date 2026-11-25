@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -303,7 +304,10 @@ func TestEveryFramedFigureSitsOnAMat(t *testing.T) {
 	if mats := strings.Count(page, `<div class="mat">`); mats != frames {
 		t.Errorf("the page has %d mats for %d frames, want one each", mats, frames)
 	}
-	if got := strings.Count(page, `<div class="figure-embed"><div class="mat"><iframe class="figure-embed__frame" `); got != frames {
+	// A figure the embed gives a width wider than the text names the
+	// measures it misses on its own block; the mat inside is the same.
+	onItsMat := regexp.MustCompile(`<div class="figure-embed"(?: data-wide="[a-z -]+")?><div class="mat"><iframe class="figure-embed__frame" `)
+	if got := len(onItsMat.FindAllString(page, -1)); got != frames {
 		t.Errorf("%d frames are the first thing on their mat, inside their figure, want %d", got, frames)
 	}
 	if got := strings.Count(page, `</iframe></div><p class="figure-embed__print">`); got != frames {

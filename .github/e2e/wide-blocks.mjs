@@ -5,9 +5,16 @@
 // not fit, counted from the code face's advances, and here each fixture block
 // is laid out in the browser at each text size, in a note that takes the
 // reading measure and in one that takes the Latin one, and the line the browser
-// actually draws is held to what the attribute claims. A block that does not
-// need the room stays at the text's width; one inside a callout stays inside
-// the callout.
+// actually draws is held to what the attribute claims. A table names the
+// measures its columns would crowd, each at the width it reads comfortably at,
+// and here each fixture table is laid out at its widest and its narrowest and
+// the browser's count is held to the claim, for every table that stands clear
+// of the boundary. A block that does not need the room stays at the text's
+// width; one inside a callout stays inside the callout.
+//
+// Tables, pictures, diagrams and figures that are wide are held to every
+// guarantee below that a code block is, on a note of their own beside the
+// margin.
 //
 // Where it is wide, the block spans the 1040px wide lines centred on the text's
 // axis; it never reaches the open left column; and it never runs under the
@@ -34,6 +41,11 @@ const MUTATE = process.env.MUTATE || '';
 const NOTE = '/notes/Notes/wide-code.md';
 const LATIN = '/notes/Notes/wide-code-latin.md';
 const COMPARE = '/compare/Notes/wide-code.md?with=Notes%2Fwide-code-latin.md';
+const TABLES = '/notes/Notes/tables-plates.md';
+// The section whose wide table the margin's thought runs down beside.
+const TABLE_SECTION = '寬的表';
+// The widest, in ems of a table's body face, the renderer counts a column at.
+const COLUMN_CAP = 15;
 const SIZES = ['m', 'l', 'xl'];
 const WIDE = 1040;
 const RAIL_GAP = 32;
@@ -86,6 +98,20 @@ const MODES = {
   'faint-on-touch-too': css('.y-code:not(:hover,:focus-within) .y-code__head .y-xbtn{box-shadow:none !important;color:var(--fg-faint) !important}', 'faint'),
   // The compare page's columns setting their blocks wide.
   'widen-blocks-in-the-compare-columns': css(".y-compare .y-article > .y-prose > [data-wide~='m']{margin-inline:-100px !important}", 'compare'),
+  // Every table in the text set wide, needed or not.
+  'widen-every-table': css('.y-main > .y-article > .y-prose > .y-tablewrap{margin-inline:calc(-1 * var(--wing-start)) !important}', 'table-need'),
+  // A wide table keeping its right wing where the margin stands beside the text.
+  'run-wide-tables-under-the-margin': css('.y-main > .y-article > .y-prose > .y-tablewrap[data-wide]{margin-inline-end:calc(-1 * var(--wing-start)) !important}', 'margin'),
+  // A wide plate keeping its right wing where the margin stands beside the text.
+  'run-wide-plates-under-the-margin': css('.y-main > .y-article > .y-prose > .mat[data-wide]{margin-inline-end:calc(-1 * var(--wing-start)) !important}', 'margin'),
+  // A wide plate running out to the open column.
+  'let-wide-plates-reach-the-column': css('.y-main > .y-article > .y-prose > .mat[data-wide]{margin-inline-start:calc(-1 * var(--wing-start) - 160px) !important}', 'rail'),
+  // A wide table set off the text's axis.
+  'set-wide-tables-off-axis': css('.y-main > .y-article > .y-prose > .y-tablewrap[data-wide]{margin-inline-end:0 !important}', 'axis'),
+  // A table as wide as its columns rather than scrolling inside its wrapper.
+  'stop-scrolling-inside-the-table': css('.y-prose .y-tablewrap{overflow-x:visible !important}', 'sideways'),
+  // Plates on a narrow window set wide.
+  'widen-plates-below-1120': css('@container y-main (width < 70rem){.y-main > .y-article > .y-prose > .mat{margin-inline:-40px !important}}', 'narrow'),
 };
 
 if (MUTATE === 'list') {
@@ -128,7 +154,7 @@ const read = (page) => page.evaluate(() => {
     margins: [...document.querySelectorAll('.y-main > .y-article .y-margin')]
       .filter((m) => m.getClientRects().length > 0 && m.getBoundingClientRect().width > 0)
       .map((m) => ({ ...box(m), section: m.closest('.y-sect')?.textContent.trim() ?? '' })),
-    blocks: [...document.querySelectorAll('.y-code')].map((c) => ({
+    blocks: [...document.querySelectorAll('.y-code, .y-tablewrap, .y-prose .mat:not(.figure-embed > .mat), .figure-embed')].map((c) => ({
       ...box(c),
       wide: (c.dataset.wide ?? '').split(' ').filter(Boolean),
       direct: c.parentElement.matches('.y-main > .y-article > .y-prose'),
@@ -276,18 +302,91 @@ try {
     console.log('wide-blocks: every block claims the measures its longest line does not fit, in both measures at every size, and only those are drawn wide');
   }
 
+  // A table is wide where its columns would crowd the text. Each table standing
+  // in the text is laid out at its widest, every column at its longest line,
+  // and at its narrowest, every column at its longest unbroken word, and each
+  // column is counted at its longest line but never past the cap and never
+  // under its word: the width it reads comfortably at, with the padding the
+  // cell carries. The table claims the measure exactly when those add up to
+  // more than the text's width, wherever the sum stands clear of the boundary
+  // (the renderer's count is an estimate of a proportional face, as the
+  // browser's own table layout is), and is drawn wider than the text exactly
+  // when it claims it.
+  if (runs('table-need')) {
+    for (const size of SIZES) {
+      await at({ width: 1920, size }, TABLES, async (page) => {
+        const tables = await page.evaluate((cap) => [...document.querySelectorAll('.y-main > .y-article > .y-prose > .y-tablewrap')].map((wrap) => {
+          const table = wrap.querySelector('table');
+          const body = Number.parseFloat(getComputedStyle(table).fontSize);
+          const columns = (width) => {
+            table.style.width = width;
+            const widths = [...table.rows[0].cells].map((cell) => cell.getBoundingClientRect().width);
+            table.style.width = '';
+            return widths;
+          };
+          const longest = columns('max-content');
+          const narrowest = columns('min-content');
+          const padding = [...table.rows[0].cells].map((cell) => Number.parseFloat(getComputedStyle(cell).paddingRight));
+          const need = longest.reduce((sum, line, i) => sum + Math.max(narrowest[i], Math.min(line, cap * body + padding[i])), 0);
+          const probe = document.createElement('span');
+          probe.textContent = '漢';
+          table.rows[1].cells[0].append(probe);
+          const hanEm = probe.getBoundingClientRect().width / body;
+          probe.remove();
+          return {
+            need,
+            prose: wrap.parentElement.getBoundingClientRect().width,
+            width: wrap.getBoundingClientRect().width,
+            wide: (wrap.dataset.wide ?? '').split(' ').filter(Boolean),
+            first: table.rows[0].cells[0].textContent.trim(),
+            eastAsian: /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(table.textContent),
+            hanEm,
+          };
+        }), COLUMN_CAP);
+        if (tables.length < 4) broken(`${TABLES} has ${tables.length} tables in its text`);
+        const eastAsianFace = tables[0].hanEm > 0.95;
+        const compared = { claims: 0, fits: 0 };
+        for (const table of tables) {
+          const claims = table.wide.includes(size);
+          if ((table.width > table.prose + 0.5) !== claims) {
+            fire('table-need', `${TABLES} at ${size}: the table "${table.first}" is ${table.width}px in a ${table.prose}px text, claiming "${table.wide.join(' ')}"`);
+          }
+          if (Math.abs(table.need / table.prose - 1) < 0.1) {
+            console.log(`NOTE wide-blocks: at ${size} the table "${table.first}" needs ${Math.round(table.need)}px of ${table.prose}, too near the boundary to hold an estimate to`);
+            continue;
+          }
+          if (table.eastAsian && !eastAsianFace) continue;
+          const needs = table.need > table.prose;
+          if (needs !== claims) fire('table-need', `${TABLES} at ${size}: the table "${table.first}" needs ${Math.round(table.need)}px in ${table.prose}px of text but its data-wide is "${table.wide.join(' ')}"`);
+          compared[claims ? 'claims' : 'fits'] += 1;
+        }
+        console.log(`wide-blocks: at ${size} the tables need ${tables.map((table) => `${Math.round(table.need)}${table.wide.includes(size) ? ' (wide)' : ''}`).join(', ')} of ${tables[0].prose}px`);
+        if (!eastAsianFace) console.log(`NOTE wide-blocks: no East Asian face here (Han draws ${tables[0].hanEm.toFixed(2)}em); East Asian tables are held by the renderer's count test`);
+        if (compared.claims === 0 || compared.fits === 0) broken(`${TABLES} at ${size}: ${compared.claims} tables that claim and ${compared.fits} that fit were compared, so the boundary is not exercised`);
+        const nested = (await read(page)).blocks.filter((block) => !block.direct && block.wide.length > 0);
+        if (nested.length === 0) broken(`${TABLES} has no table in a callout that names a measure`);
+        for (const block of nested) {
+          if (block.left < block.container.left - 0.5 || block.right > block.container.right + 0.5) {
+            fire('table-need', `${TABLES} at ${size}: a table inside a callout runs ${block.left}-${block.right}, outside its container ${block.container.left}-${block.container.right}`);
+          }
+        }
+      });
+    }
+    console.log('wide-blocks: every table clear of the boundary claims the measures its columns crowd at every size, only those are drawn wide, and one in a callout stays in it');
+  }
+
   // At 1920 with the column folded the margin stands outside the wide lines,
   // so a wide block takes both wings: 1040px, centred on the text.
   if (runs('axis')) {
-    for (const size of SIZES) {
-      await at({ width: 1920, size }, NOTE, async (page) => {
+    for (const path of [NOTE, TABLES]) for (const size of SIZES) {
+      await at({ width: 1920, size }, path, async (page) => {
         const got = await read(page);
         const wide = got.blocks.filter((block) => block.direct && block.wide.includes(size));
-        if (wide.length === 0) broken(`no block claims ${size}`);
+        if (wide.length === 0) broken(`no block on ${path} claims ${size}`);
         const axis = (got.prose.left + got.prose.right) / 2;
         for (const block of wide) {
           if (!near(block.width, WIDE) || !near((block.left + block.right) / 2, axis)) {
-            fire('axis', `at 1920 and ${size} a wide block runs ${block.left}-${block.right} (${block.width}px), want ${WIDE}px centred on the text's axis ${axis}`);
+            fire('axis', `${path} at 1920 and ${size}: a wide block runs ${block.left}-${block.right} (${block.width}px), want ${WIDE}px centred on the text's axis ${axis}`);
           }
         }
       });
@@ -298,9 +397,9 @@ try {
   // With the column open beside the page, a wide block stops 32px short of it,
   // or at the text's own edge where that is nearer.
   if (runs('rail')) {
-    for (const width of [1321, 1440, 1512, 1720]) {
+    for (const path of [NOTE, TABLES]) for (const width of [1321, 1440, 1512, 1720]) {
       for (const size of SIZES) {
-        await at({ width, size, rail: 'open' }, NOTE, async (page) => {
+        await at({ width, size, rail: 'open' }, path, async (page) => {
           const got = await read(page);
           if (!got.rail) broken(`the column is not open beside the page at ${width}`);
           for (const block of got.blocks.filter((b) => b.direct && b.wide.includes(size))) {
@@ -309,7 +408,7 @@ try {
             // wing on that side at all.
             const limit = Math.min(got.prose.left, got.rail.right + RAIL_GAP);
             if (block.left < limit - 0.5) {
-              fire('rail', `at ${width} and ${size} with the column open a wide block starts at ${block.left}, past ${limit}: the column ends at ${got.rail.right} and the text starts at ${got.prose.left}`);
+              fire('rail', `${path} at ${width} and ${size} with the column open a wide block starts at ${block.left}, past ${limit}: the column ends at ${got.rail.right} and the text starts at ${got.prose.left}`);
             }
           }
         });
@@ -324,17 +423,19 @@ try {
   // begins, wherever the margin's words fall down the page.
   if (runs('margin')) {
     const cases = [];
-    for (const width of [1321, 1440, 1512, 1720, 1760, 2560]) {
-      for (const size of SIZES) {
-        for (const rail of ['open', 'collapsed']) cases.push({ width, size, rail, js: true });
+    for (const path of [NOTE, TABLES]) {
+      for (const width of [1321, 1440, 1512, 1720, 1760, 2560]) {
+        for (const size of SIZES) {
+          for (const rail of ['open', 'collapsed']) cases.push({ path, width, size, rail, js: true });
+        }
       }
+      for (const width of [1440, 1512, 1760]) for (const size of SIZES) cases.push({ path, width, size, rail: 'collapsed', js: false });
     }
-    for (const width of [1440, 1512, 1760]) for (const size of SIZES) cases.push({ width, size, rail: 'collapsed', js: false });
     let beside = 0;
-    for (const settings of cases) {
-      await at(settings, NOTE, async (page) => {
+    for (const { path, ...settings } of cases) {
+      await at(settings, path, async (page) => {
         const got = await read(page);
-        const named = `${settings.width} at ${settings.size}, column ${settings.rail}${settings.js ? '' : ', no script'}`;
+        const named = `${path} at ${settings.width} at ${settings.size}, column ${settings.rail}${settings.js ? '' : ', no script'}`;
         if (got.margins.length === 0) broken(`no margin is drawn at ${named}`);
         const wide = got.blocks.filter((block) => block.direct && block.wide.includes(settings.size));
         for (const margin of got.margins) {
@@ -349,10 +450,11 @@ try {
         // The case the rule exists for: at 1512 the thought beside the long
         // line's heading runs down beside the block's first lines.
         if (settings.width === 1512 && settings.size === 'm' && settings.js) {
-          const margin = got.margins.find((m) => m.section.startsWith(LONG_SECTION));
-          const block = wide.find((b) => b.section.startsWith(LONG_SECTION));
-          if (!margin || !block) broken(`at 1512 the ${LONG_SECTION} section has no margin or no wide block`);
-          if (!(block.top < margin.bottom && margin.top < block.bottom)) broken(`at 1512 the margin beside ${LONG_SECTION} (${margin.top}-${margin.bottom}) does not run down beside its block (${block.top}-${block.bottom}), so this proves nothing`);
+          const section = path === NOTE ? LONG_SECTION : TABLE_SECTION;
+          const margin = got.margins.find((m) => m.section.startsWith(section));
+          const block = wide.find((b) => b.section.startsWith(section));
+          if (!margin || !block) broken(`${path} at 1512: the ${section} section has no margin or no wide block`);
+          if (!(block.top < margin.bottom && margin.top < block.bottom)) broken(`${path} at 1512: the margin beside ${section} (${margin.top}-${margin.bottom}) does not run down beside its block (${block.top}-${block.bottom}), so this proves nothing`);
         }
       });
     }
@@ -363,7 +465,7 @@ try {
   // A main narrower than 1120px sets every block at the text's width.
   if (runs('narrow')) {
     for (const width of [390, 1100]) {
-      for (const path of [NOTE, LATIN]) {
+      for (const path of [NOTE, LATIN, TABLES]) {
         await at({ width }, path, async (page) => {
           const got = await read(page);
           for (const block of got.blocks.filter((b) => b.direct)) {
@@ -379,7 +481,7 @@ try {
   if (runs('sideways')) {
     for (const [width, rail] of [[390, 'collapsed'], [1100, 'collapsed'], [1512, 'open'], [2560, 'open'], [2560, 'collapsed']]) {
       for (const size of ['m', 'xl']) {
-        for (const path of [NOTE, LATIN]) {
+        for (const path of [NOTE, LATIN, TABLES]) {
           await at({ width, rail, size }, path, async (page) => {
             const got = await read(page);
             if (got.scroll > got.room) fire('sideways', `${path} at ${width} and ${size} with the column ${rail} is ${got.scroll}px wide in a ${got.room}px window`);
@@ -394,8 +496,8 @@ try {
   // heading keeps its left and right edges when no block on the page claims a
   // measure any longer.
   if (runs('still')) {
-    for (const [width, rail] of [[1512, 'collapsed'], [1512, 'open'], [1920, 'collapsed']]) {
-      await at({ width, rail }, NOTE, async (page) => {
+    for (const [path, width, rail] of [[NOTE, 1512, 'collapsed'], [NOTE, 1512, 'open'], [NOTE, 1920, 'collapsed'], [TABLES, 1512, 'collapsed'], [TABLES, 1920, 'collapsed']]) {
+      await at({ width, rail }, path, async (page) => {
         const edges = () => page.evaluate(() => [...document.querySelectorAll('.y-main > .y-article > .y-prose > :is(p, .y-sect), .y-main > .y-article h1')]
           .map((element) => { const r = element.getBoundingClientRect(); return [r.left, r.right]; }));
         const served = await edges();
@@ -404,7 +506,7 @@ try {
         if (served.length < 5) broken(`only ${served.length} paragraphs and headings to compare`);
         served.forEach(([left, right], i) => {
           if (!near(left, plain[i][0]) || !near(right, plain[i][1])) {
-            fire('still', `at ${width} with the column ${rail} text element ${i} stands at ${left}-${right} with wide blocks and ${plain[i][0]}-${plain[i][1]} without`);
+            fire('still', `${path} at ${width} with the column ${rail} text element ${i} stands at ${left}-${right} with wide blocks and ${plain[i][0]}-${plain[i][1]} without`);
           }
         });
       });
@@ -523,7 +625,7 @@ try {
   }
 
   if (mode && (requests < 1 || planted !== requests)) throw new NotApplied(`NOT-APPLIED wide-blocks: the mutation reached ${planted} of ${requests} requests`);
-  console.log('PASS wide-blocks: blocks are wide exactly where their lines need it, span the wide lines on the text\'s axis, keep clear of the open column and the margin at every width and size with and without script, fall back to the text\'s width on a narrow window and in the compare columns, move no text and scroll nothing sideways; the copy control stands in the head above the code, copies only the code, and is faint only where a pointer can rest');
+  console.log('PASS wide-blocks: blocks are wide exactly where their lines or columns need it, span the wide lines on the text\'s axis, keep clear of the open column and the margin at every width and size with and without script, fall back to the text\'s width on a narrow window and in the compare columns, move no text and scroll nothing sideways; the copy control stands in the head above the code, copies only the code, and is faint only where a pointer can rest');
 } catch (error) {
   failure = error;
 } finally {

@@ -727,7 +727,8 @@ func CarriesDiagrams(htmlOut string) bool {
 // the raw source twice: HTML-escaped as the element's text, which is what a
 // reader without scripting sees, and URL-encoded in data-mermaid-code, whose
 // charset needs no further attribute escaping. The browser side decodes that
-// attribute and replaces the content with the rendered diagram.
+// attribute and replaces the content with the rendered diagram. The
+// placeholder stands on a plate (diagramPlate).
 func consumeMermaid(st *preprocessState, marker byte, openerLen int) {
 	st.i++
 	start := st.i
@@ -739,12 +740,12 @@ func consumeMermaid(st *preprocessState, marker byte, openerLen int) {
 		st.i++ // consume the closing fence line
 	}
 	//nolint:gocritic // sprintfQuotedString false positive: the quotes are HTML attribute syntax, not Go string quoting; url.QueryEscape's output charset (letters, digits, "-_.~%+") never needs further escaping
-	block := fmt.Sprintf(
+	block := diagramPlate(src, fmt.Sprintf(
 		`<div class="mermaid-diagram" data-mermaid-key="%s" data-mermaid-code="%s">%s</div>`,
 		diagramKey(src),
 		url.QueryEscape(src),
 		html.EscapeString(src),
-	)
+	))
 	st.kept = append(st.kept, "", blockPlaceholder(st.marks.plantBlock(block)), "")
 }
 

@@ -7,12 +7,14 @@
 //
 // A green run means: the mat of a drawing and of a figure nobody approved takes
 // the system's tone whatever the page is, and the picture's own dark variant
-// agrees with it; an approved figure's mat takes the page's; both are one 8px
-// inset; on a phone a drawing wider than the screen is held at 560px inside a
-// mat that scrolls, the page does not, and the mat is a named stop in the tab
-// order that a key scrolls; on a desk nothing scrolls and nothing is a stop; a
-// small drawing is left at the size it was given; a picture inside a sentence
-// is never held to the floor; and a raster picture has no mat.
+// agrees with it; an approved figure's mat and a raster picture's take the
+// page's; every mat is one inset, 26px above and below and 28px either side on
+// a desk and 18px and 16px on a phone; on a phone a drawing wider than the
+// screen is held at 560px inside a mat that scrolls, the page does not, and the
+// mat is a named stop in the tab order that a key scrolls; on a desk nothing
+// scrolls and nothing is a stop; a small drawing is left at the size it was
+// given; a picture inside a sentence is never held to the floor; and a raster
+// picture is held to no floor.
 //
 // Env: YOMIHON_BASE, YOMIHON_FIXTURE_ROOT, YOMIHON_FIXTURE_HOME, PAGE_PATH and
 // MUTATE. MUTATE=list prints the modes.
@@ -29,7 +31,9 @@ const MUTATE = process.env.MUTATE || '';
 
 // The tones are written out, not read from the stylesheet: a lock that took
 // its expected colour from the rule under test would agree with any rule.
-const SYSTEM_TONE = { light: 'rgb(236, 232, 223)', dark: 'rgb(27, 27, 24)' };
+// MAT_TONE is the mat's own tone in the light or the dark it is drawn in,
+// whichever of the system's or the page's that is.
+const MAT_TONE = { light: 'rgb(236, 232, 223)', dark: 'rgb(27, 27, 24)' };
 const PAGE_TONE = { light: 'rgb(240, 237, 231)', dark: 'rgb(28, 28, 25)' };
 const FLOOR = 560;
 
@@ -40,7 +44,7 @@ const SITES = [
   'mat-scrolls',
   'small-picture-kept',
   'floor-stays-on-the-mat',
-  'raster-stays-bare',
+  'raster-on-the-page-mat',
   'mat-focus',
 ];
 
@@ -51,9 +55,11 @@ const MUTATIONS = {
   // The mat takes the page's scheme instead of the system's.
   'mat-follows-page': { site: 'mat-ground', file: 'app.css', replace: ['color-scheme: light dark;', 'color-scheme: inherit;'] },
   // The approved figure's mat takes the system's scheme instead of the page's.
-  'approved-mat-follows-system': { site: 'mat-themed', file: 'app.css', replace: ['color-scheme: inherit;', 'color-scheme: light dark;'] },
+  'approved-mat-follows-system': { site: 'mat-themed', file: 'app.css', replace: ['background: var(--panel);\n  color-scheme: inherit;', 'background: var(--panel);\n  color-scheme: light dark;'] },
   // The figure's mat gets a different inset from the picture's.
   'uneven-inset': { site: 'mat-inset', file: 'app.css', append: '.y-prose .figure-embed .mat { padding: 6px; }' },
+  // The phone keeps the desk's inset.
+  'wide-inset-on-a-phone': { site: 'mat-inset', file: 'app.css', append: '@media (max-width: 720px) { .y-prose .mat { --mat-top: 26px; --mat-side: 28px; } }' },
   // The mat no longer holds a wide drawing at a floor.
   'shrink-wide-picture': { site: 'mat-scrolls', file: 'app.css', replace: ['--mat-floor: 560px;', '--mat-floor: 0%;'] },
   // The mat no longer scrolls what it holds.
@@ -62,8 +68,10 @@ const MUTATIONS = {
   'upscale-small-picture': { site: 'small-picture-kept', file: 'app.css', append: '.y-prose .mat > img { min-width: var(--mat-floor); }' },
   // A picture inside a sentence is held to the floor too.
   'floor-outside-mat': { site: 'floor-stays-on-the-mat', file: 'app.css', replace: ['max-width: max(100%, var(--mat-floor, 0%));', 'max-width: max(100%, 560px);'] },
-  // A raster picture is set on a mat as a drawing is.
-  'matte-raster-picture': { site: 'raster-stays-bare', file: 'page', replace: ['<p><img src="/raw/Notes/raster-picture.png"', '<p class="mat"><img src="/raw/Notes/raster-picture.png"'] },
+  // A raster picture's mat takes the system's light or dark, as a drawing's does.
+  'raster-mat-follows-system': { site: 'raster-on-the-page-mat', file: 'page', replace: ['<figure class="mat mat--page"><img src="/raw/Notes/raster-picture.png"', '<figure class="mat"><img src="/raw/Notes/raster-picture.png"'] },
+  // A raster picture is held to the drawing's floor.
+  'floor-under-a-raster': { site: 'raster-on-the-page-mat', file: 'app.css', append: '.y-prose .mat--page { --mat-floor: 560px; }' },
   // A mat that overflows is not given a place in the tab order.
   'no-focus-stop': { site: 'mat-focus', file: 'diagrams.js', replace: ["mat.setAttribute('tabindex', '0');", ''] },
   // Every mat is a tab stop, whether or not there is anything to scroll to.
@@ -129,10 +137,12 @@ const readPage = () => {
     const rect = drawing.getBoundingClientRect();
     const style = getComputedStyle(mat);
     const figure = drawing.matches('iframe');
+    const src = figure ? '' : drawing.getAttribute('src');
     return {
-      kind: figure ? (drawing.hasAttribute('data-figure-scripts') ? 'approved' : 'figure') : (drawing.getAttribute('src').includes('wide-drawing') ? 'wide' : 'small'),
+      kind: figure ? (drawing.hasAttribute('data-figure-scripts') ? 'approved' : 'figure') : src.includes('raster-picture') ? 'raster' : src.includes('wide-drawing') ? 'wide' : 'small',
       background: style.backgroundColor,
       padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft],
+      inset: Number.parseFloat(style.paddingLeft) + Number.parseFloat(style.paddingRight),
       overflowX: style.overflowX,
       clientWidth: mat.clientWidth,
       scrollWidth: mat.scrollWidth,
@@ -159,7 +169,7 @@ const readPage = () => {
   }
   return {
     mats,
-    raster: raster && { width: raster.getBoundingClientRect().width, inMat: raster.closest('.mat') !== null },
+    raster: raster && { width: raster.getBoundingClientRect().width, natural: raster.naturalWidth, inMat: raster.closest('.mat') !== null },
     inline: inline && { width: inline.getBoundingClientRect().width, inMat: inline.closest('.mat') !== null },
     column: column.width,
     pageWidth: document.documentElement.scrollWidth,
@@ -216,19 +226,16 @@ try {
 
       const seen = await page.evaluate(readPage);
       if (errors.length) throw new ProbeBroken(`BROKEN figure-mat: ${errors.join('; ')}`);
-      // raster-stays-bare: read before the fixture's shape is, since a raster
-      // picture on a mat changes the count of mats the shape check holds.
       if (!seen.raster) throw new ProbeBroken('BROKEN figure-mat: the fixture holds no raster picture');
-      if (seen.raster.inMat) fail('raster-stays-bare', `${where}: the raster picture is on a mat, which is for a drawing and not for a picture`);
       const byKind = Object.fromEntries(seen.mats.map((mat) => [mat.kind, mat]));
-      if (seen.mats.length !== 4 || ['wide', 'small', 'figure', 'approved'].some((kind) => !byKind[kind])) {
-        throw new ProbeBroken(`BROKEN figure-mat: the fixture holds ${JSON.stringify(seen.mats.map((mat) => mat.kind))}, want a wide picture, a small one, a figure and an approved figure`);
+      if (seen.mats.length !== 5 || ['wide', 'small', 'raster', 'figure', 'approved'].some((kind) => !byKind[kind])) {
+        throw new ProbeBroken(`BROKEN figure-mat: the fixture holds ${JSON.stringify(seen.mats.map((mat) => mat.kind))}, want a wide picture, a small one, a raster one, a figure and an approved figure`);
       }
 
       // mat-ground
       for (const kind of ['wide', 'small', 'figure']) {
-        if (byKind[kind].background !== SYSTEM_TONE[system]) {
-          fail('mat-ground', `${where}: the ${kind} mat is ${byKind[kind].background}, want the system's ${SYSTEM_TONE[system]}`);
+        if (byKind[kind].background !== MAT_TONE[system]) {
+          fail('mat-ground', `${where}: the ${kind} mat is ${byKind[kind].background}, want the system's ${MAT_TONE[system]}`);
         }
       }
       if (seen.variant !== (system === 'dark' ? 'rgb(31, 45, 39)' : 'rgb(232, 240, 228)')) {
@@ -241,8 +248,9 @@ try {
       }
 
       // mat-inset
+      const inset = width < 720 ? ['18px', '16px', '18px', '16px'] : ['26px', '28px', '26px', '28px'];
       for (const mat of seen.mats) {
-        if (mat.padding.some((side) => side !== '8px')) fail('mat-inset', `${where}: the ${mat.kind} mat has padding ${mat.padding.join(' ')}, want 8px on every side`);
+        if (mat.padding.join(' ') !== inset.join(' ')) fail('mat-inset', `${where}: the ${mat.kind} mat has padding ${mat.padding.join(' ')}, want ${inset.join(' ')}`);
       }
 
       // floor-stays-on-the-mat: read before the page is, since a picture held to
@@ -250,6 +258,16 @@ try {
       // should name the picture.
       if (seen.inline.inMat || seen.inline.width > seen.column + 1) {
         fail('floor-stays-on-the-mat', `${where}: the picture inside a sentence is ${seen.inline.width}px wide in a ${seen.column}px column, want it no wider than the column`);
+      }
+
+      // raster-on-the-page-mat: a raster picture is the same in either light,
+      // so its mat is the page's, and it shrinks to the column like any
+      // picture outside a mat rather than being held at the drawing's floor.
+      if (byKind.raster.background !== MAT_TONE[theme]) {
+        fail('raster-on-the-page-mat', `${where}: the raster picture's mat is ${byKind.raster.background}, want the page's ${MAT_TONE[theme]}`);
+      }
+      if (byKind.raster.drawingWidth > Math.min(seen.raster.natural, byKind.raster.clientWidth - byKind.raster.inset) + 1 || byKind.raster.scrollWidth > byKind.raster.clientWidth + 1) {
+        fail('raster-on-the-page-mat', `${where}: the raster picture is ${byKind.raster.drawingWidth}px wide on a mat with ${byKind.raster.clientWidth - byKind.raster.inset}px of room, want it shrunk to the room`);
       }
 
       // mat-scrolls and small-picture-kept
@@ -260,9 +278,9 @@ try {
       }
       if (Math.abs(small.drawingWidth - 120) > 1) fail('small-picture-kept', `${where}: the small picture is ${small.drawingWidth}px wide, want the 120px it was given`);
       if (small.scrollWidth > small.clientWidth + 1) fail('small-picture-kept', `${where}: the small picture's mat scrolls`);
-      const wideMats = seen.mats.filter((mat) => mat.kind !== 'small');
+      const wideMats = seen.mats.filter((mat) => mat.kind !== 'small' && mat.kind !== 'raster');
       for (const mat of wideMats) {
-        const room = mat.clientWidth - 16;
+        const room = mat.clientWidth - mat.inset;
         if (room < FLOOR) {
           if (mat.drawingWidth < FLOOR - 1) fail('mat-scrolls', `${where}: the ${mat.kind} drawing is ${mat.drawingWidth}px wide in ${room}px of room, want it held at ${FLOOR}px`);
           if (mat.scrollWidth <= mat.clientWidth + 1) fail('mat-scrolls', `${where}: the ${mat.kind} mat does not scroll though its drawing is wider than it`);
@@ -272,7 +290,7 @@ try {
       }
 
       // mat-focus
-      const scrolling = new Set(wideMats.filter((mat) => mat.clientWidth - 16 < FLOOR).map((mat) => mat.kind));
+      const scrolling = new Set(wideMats.filter((mat) => mat.clientWidth - mat.inset < FLOOR).map((mat) => mat.kind));
       for (const mat of seen.mats) {
         const stop = mat.tabindex === '0';
         if (stop !== scrolling.has(mat.kind)) {

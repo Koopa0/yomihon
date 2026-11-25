@@ -135,14 +135,30 @@ try {
       assert('ratio', boxes[5] && Math.abs(boxes[5].height - boxes[5].width * 600 / 800) <= 1, `800x600 image lost its loaded ratio: ${boxes[5]?.width}x${boxes[5]?.height}`);
       // A drawing (an SVG) alone in its paragraph sits on a mat, which scrolls: it is
       // held at the mat's floor rather than shrunk to a narrow column, so it may
-      // be wider than the column while the mat that holds it is not.
+      // be wider than the room inside its mat while the mat that holds it is not.
+      // A picture the author made wider than the text stands on a mat set to
+      // the wide measure where the window has room for one, and never wider.
       const floor = 560;
+      const wideMeasure = 1040;
       const mats = [];
-      for (let i = 0; i < expected.length; i++) mats.push(await images.nth(i).evaluate((image) => image.closest('.mat')?.getBoundingClientRect().width ?? image.getBoundingClientRect().width));
+      for (let i = 0; i < expected.length; i++) {
+        mats.push(await images.nth(i).evaluate((image) => {
+          const mat = image.closest('.mat');
+          if (!mat) return null;
+          const style = getComputedStyle(mat);
+          return {
+            width: mat.getBoundingClientRect().width,
+            room: mat.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight),
+            wide: mat.hasAttribute('data-wide'),
+          };
+        }));
+      }
       for (const [i, [expectedWidth, , , naturalWidth, naturalHeight]] of expected.entries()) {
         const box = boxes[i];
-        assert('cap', box && column && box.width <= Math.max(column.width, floor) + 1, `image ${i} escaped the column and the floor of its mat`);
-        assert('cap', mats[i] <= column.width + 1, `the mat of image ${i} escaped the column`);
+        const mat = mats[i];
+        const room = mat ? mat.room : column.width;
+        assert('cap', box && column && box.width <= Math.max(room, floor) + 1, `image ${i} is ${box?.width}px, past the ${room}px of room it has and the floor of its mat`);
+        if (mat) assert('cap', mat.width <= (mat.wide ? wideMeasure : column.width) + 1, `the mat of image ${i} is ${mat.width}px, past the ${mat.wide ? 'wide measure' : 'column'}`);
         if (expectedWidth && Number(expectedWidth) < column.width) assert(expected[i][5], Math.abs(box.width - Number(expectedWidth)) <= 1, `image ${i} lost its actual width`);
         assert('ratio', Math.abs(box.height - box.width * naturalHeight / naturalWidth) <= 1, `image ${i} lost its loaded natural ratio: ${box.width}x${box.height}`);
       }
