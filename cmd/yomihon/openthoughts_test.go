@@ -60,11 +60,11 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 			t.Parallel()
 			home := openThoughtPage(t, site, "/", lang)
 			block := openThoughtBlock(t, home)
-			if got := strings.Count(block, "data-desk-item"); got != 5 {
-				t.Errorf("open desk rows = %d, want exactly five", got)
+			if got := strings.Count(block, "data-desk-item"); got != 4 {
+				t.Errorf("open desk rows = %d, want exactly four", got)
 			}
-			if got := strings.Count(block, "data-open-kind"); got != 5 {
-				t.Errorf("open desk rows drawn as open rows = %d, want five", got)
+			if got := strings.Count(block, "data-open-kind"); got != 4 {
+				t.Errorf("open desk rows drawn as open rows = %d, want four", got)
 			}
 			if !strings.Contains(block, `href="/marks"`) || !strings.Contains(block, `class="ui-navitem y-shelfall"`) {
 				t.Error("open desk does not expose the existing All shelf link")
@@ -250,10 +250,11 @@ func TestOpenThoughtsKeepsAMarkWhoseNoteIsNotInTheSnapshot(t *testing.T) {
 	}
 }
 
-// TestOpenThoughtsHomeShowsFiveAndStatesNoCount pins that the desk's block is
-// a window onto the shelf rather than a second selection: it draws the five
-// rows it has room for, and states no number for the seven the shelf holds.
-func TestOpenThoughtsHomeShowsFiveAndStatesNoCount(t *testing.T) {
+// TestOpenThoughtsHomeShowsFourAndStatesNoCount pins that the desk's block is
+// a window onto the shelf rather than a second selection: it draws the four
+// rows it has room for, two rows of two, and states no number for the seven
+// the shelf holds.
+func TestOpenThoughtsHomeShowsFourAndStatesNoCount(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	putOpenThoughtFile(t, root, schema.ContractRelPath, openThoughtContract)
@@ -262,8 +263,8 @@ func TestOpenThoughtsHomeShowsFiveAndStatesNoCount(t *testing.T) {
 	}
 	site, _ := openThoughtSite(t, root)
 	home := openThoughtPage(t, site, "/", "en")
-	if got := strings.Count(openThoughtBlock(t, home), "data-desk-item"); got != 5 {
-		t.Errorf("Home rows = %d, want five", got)
+	if got := strings.Count(openThoughtBlock(t, home), "data-desk-item"); got != 4 {
+		t.Errorf("Home rows = %d, want four", got)
 	}
 	// The head of the block is its name and nothing beside it: a figure would
 	// stand in a paragraph there.

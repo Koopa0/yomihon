@@ -3,32 +3,46 @@ package pages
 import "github.com/koopa0/yomihon/internal/wording"
 
 // continueRow is the desk's way back to the place the reader kept, and the
-// largest thing on it: the reader came back for this place, so its name is set
-// at the size a page's own title is, with where it sits above it and the
-// heading the mark was kept under below. The way back is one link, the
-// bookmark leading the verb, drawn as the course page draws its own. The title
-// is not a second link: the desk offers exactly one way back.
+// largest thing on it: the reader came back for this place, so it is set as a
+// plate lifted off the desk, the bookmark's ribbon hanging from its top edge,
+// with what it is and where it sits above its name, the heading the mark was
+// kept under below, and the one way back under both. The title is not a second
+// link: the desk offers exactly one way back.
+//
+// The words over the kicker are the ones a listener was always told; they are
+// drawn because the plate now says in words, as well as by its ribbon, whose
+// place this is.
 //
 // A row whose note is gone is a sentence and offers no link.
 templ continueRow(row ContinueRow, lang wording.Lang) {
 	if row.Show {
 		<section class="y-continue" data-home-continue aria-labelledby="home-continue-title">
-			<p class="y-offscreen">{ wording.BookmarkKeptHere.In(lang) }</p>
-			if row.Kicker != "" {
-				<p class="y-continue__kicker" { authoredLanguageAttrs(row.KickerLanguage)... }>{ row.Kicker }</p>
+			// The ribbon is the bookmark lying in a note that is there to open; a
+			// row whose note is gone is a sentence and wears none.
+			if row.Href != "" {
+				<svg class="y-continue__ribbon" width="14" height="34" viewBox="0 0 14 34" aria-hidden="true" focusable="false">
+					<path class="y-continue__ribbonface" d="M0 0H14V34L7 27.5L0 34Z"></path>
+					<path class="y-continue__ribbonedge" d="M2 0V30M12 0V30"></path>
+				</svg>
 			}
+			<div class="y-continue__head">
+				<p class="y-continue__tag">{ wording.BookmarkKeptHere.In(lang) }</p>
+				if row.Kicker != "" {
+					<p class="y-continue__kicker" { authoredLanguageAttrs(row.KickerLanguage)... }>{ row.Kicker }</p>
+				}
+			</div>
 			<h2 class="y-continue__title" id="home-continue-title" { authoredLanguageAttrs(row.Language)... }>{ row.Title }</h2>
 			if row.Section.Text != "" {
 				<p class="y-continue__section" { authoredLanguageAttrs(row.Section.Language)... }>{ row.Section.Text }</p>
 			}
-			if row.Href != "" {
-				<a class="y-continue__note" href={ templ.URL(row.Href) } aria-describedby="home-continue-title" data-continue-link>
-					<span class="y-bookmark__ribbon" aria-hidden="true"></span>
-					<span class="y-cover__verb">{ wording.ContinueReading.In(lang) }</span>
-				</a>
-			}
 			if row.Notice != "" {
 				<p class="y-continue__notice">{ row.Notice }</p>
+			}
+			if row.Href != "" {
+				<a class="y-continue__note" href={ templ.URL(row.Href) } aria-describedby="home-continue-title" data-continue-link>
+					<span class="y-cover__verb">{ wording.ContinueReading.In(lang) }</span>
+					<span class="y-continue__arrow" aria-hidden="true">→</span>
+				</a>
 			}
 			<p class="y-continue__device">{ wording.BookmarkPerDevice.In(lang) }</p>
 		</section>

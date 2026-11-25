@@ -3768,14 +3768,12 @@ button.y-freshness__action {
    glyph moving. */
 .y-searchpage__form {
   align-items: center;
-  border-radius: var(--r-sm);
   display: none;
   gap: var(--sp-3);
-  height: 44px;
   margin-bottom: var(--sp-4);
-  outline: 1px solid var(--outline);
-  outline-offset: -1px;
-  padding: 0 0 0 var(--sp-3);
+  min-height: 52px;
+  padding-bottom: var(--sp-2);
+  position: relative;
 }
 
 @media (max-width: 720px) {
@@ -3789,15 +3787,23 @@ button.y-freshness__action {
   outline-offset: -2px;
 }
 
+/* On a phone the field is the page's title, as the query is on a wider window:
+   the reading face at a heading's size, with no box but the rule under it. */
 .y-searchpage__form input {
   background: transparent;
   border: 0;
   color: var(--fg);
   flex: 1;
-  font-family: var(--font-sans);
-  font-size: var(--fs-16);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-24);
+  font-weight: var(--fw-medium);
   min-width: 0;
   outline: 0;
+}
+
+.y-searchpage__form input::placeholder {
+  color: var(--fg-faint);
+  font-weight: var(--fw-regular);
 }
 
 .y-searchpage__form input:focus-visible {
@@ -4587,89 +4593,229 @@ button.y-freshness__action {
   display: block;
 }
 
-/* The desk's shelves are sections of one page rather than cards laid on it:
-   each opens on a hairline and its heading, two to a row with a wide gutter
-   between, and nothing draws a box around a list a reader only scans. */
-.y-homegrid {
-  display: grid;
-  gap: var(--sp-7) var(--sp-7);
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-}
-
-/* The reader's return shelf precedes the four navigation modes as one row;
-   those four keep their existing two-by-two organisation beneath it. */
-.y-homegrid > [data-home-block='marks'] {
-  grid-column: 1 / -1;
-}
-
+/* The desk's bands are sections of one page rather than cards laid on it:
+   each opens on its name over the double rule the Atelier sets under every
+   structural threshold, with how much it holds beside the name and the way to
+   its whole shelf at the far end of the same line. */
 .y-homeblock {
-  border-top: 1px solid var(--line);
+  margin: 0 0 var(--sp-7);
   min-width: 0;
-  padding: var(--sp-5) 0 0;
 }
 
+.y-homeblock__head {
+  align-items: baseline;
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+  padding-bottom: var(--sp-3);
+  position: relative;
+}
 
+/* The double rule: a firm hairline over a half-weight one, four pixels apart.
+   It is painted, so it takes no room of its own under the words. */
+.y-homeblock__head::after {
+  border-bottom: 0.5px solid var(--line);
+  border-top: 1px solid var(--rule-double);
+  bottom: 0;
+  box-sizing: border-box;
+  content: '';
+  height: 4px;
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
+}
 
-/* The four ways in sit two by two; the desk's own search field is not one of
-   them and takes the width under them. */
-.y-modeblock {
-  grid-column: span 6;
+/* The ways in stand two to a row, as shelves side by side; the folders, and a
+   block that would otherwise stand alone, take the whole row. */
+.y-homegrid {
+  column-gap: var(--sp-7);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.y-homeway {
+  min-width: 0;
+}
+
+.y-homeway--whole {
+  grid-column: 1 / -1;
 }
 
 .y-modeblock h2 a {
   color: inherit;
+  text-decoration: none;
 }
 
 .y-modeblock h2 a:hover {
-  color: var(--link);
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.25em;
 }
 
-/* A shelf's rows start where its heading does, and the wash a pointer brings
-   reaches out past that edge, as a shelf page's rows do. */
-.y-modeblock .ui-navitem {
-  padding-inline: 0;
+/* A shelf's row is one line of the author's words with its fact at the far
+   end, on a hairline: the name in the reading face, wrapping where it must
+   rather than clipped, and the line a report opens with under it. The wash a
+   pointer brings reaches past the words, as a shelf page's rows do. */
+.y-modeblock .ui-navitem:not(.y-shelfall) {
+  align-items: baseline;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--fg);
+  column-gap: var(--sp-3);
+  flex-wrap: wrap;
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-16);
+  line-height: round(1.5em, 1px);
+  padding: var(--sp-3) 0;
+  text-wrap: pretty;
 }
 
-/* The way to the whole shelf is one more line under its rows, in the rows'
-   own size and a step quieter, and only as wide as its words. */
+.y-modeblock__rows > .ui-navitem:last-child {
+  border-bottom-color: transparent;
+}
+
+.y-modeblock .ui-navitem:not(.y-shelfall) > span:not([class]),
+.y-modeblock .ui-navitem--by-title > :first-child,
+.y-modeblock .ui-navitem__when + span:not([class]) {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.y-modeblock .ui-navitem__when,
+.y-modeblock .ui-navitem__count {
+  color: var(--fg-faint);
+  font-size: var(--fs-12);
+  line-height: inherit;
+  margin-inline-start: 0;
+}
+
+/* Written under the block it sits in, which outranks the rule that keeps a
+   dated row's name to one line. */
+.y-modeblock .y-modeblock__opening {
+  -webkit-box-orient: vertical;
+  color: var(--fg-muted);
+  display: -webkit-box;
+  flex-basis: 100%;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  line-height: 20px;
+  margin-top: var(--sp-1);
+  overflow: hidden;
+  white-space: normal;
+}
+
+/* The way to the whole shelf is the last thing on the band's head line,
+   quieter than the name and only as wide as its words. */
 .y-modeblock .y-shelfall {
   color: var(--fg-muted);
-  display: inline-flex;
-  font-size: var(--fs-14);
-  margin-top: var(--sp-1);
+  flex: none;
+  font-size: var(--fs-13);
+  line-height: 20px;
+  margin-inline: auto calc(-1 * var(--sp-2));
+  padding: 0 var(--sp-2);
 }
 
-/* With no place kept the courses lead the desk, in a block of their own above
+.y-modeblock .y-shelfall:hover {
+  background: none;
+  box-shadow: none;
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.25em;
+}
+
+/* The folders run across the desk as a strip of their own, three to a row:
+   the name and its count, each cell on its hairline. */
+[data-home-block='folders'] .y-modeblock__rows {
+  column-gap: var(--sp-6);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+[data-home-block='folders'] .y-modeblock__rows > .ui-navitem:last-child {
+  border-bottom-color: var(--line);
+}
+
+/* A shelf that takes the whole row alone flows its rows into two columns, so
+   a band of three is not three lines across a page. */
+.y-homeway--whole [data-home-block]:not([data-home-block='folders']) .y-modeblock__rows {
+  column-count: 2;
+  column-gap: var(--sp-7);
+}
+
+.y-homeway--whole [data-home-block]:not([data-home-block='folders']) .y-modeblock__rows > * {
+  break-inside: avoid;
+}
+
+/* What the reader left open: short stacks two to a row, each told from its
+   neighbours by a line down its start in the colour of its kind, the same
+   colour its tag is drawn in, rather than by a box. */
+[data-home-block='marks'] .y-modeblock__rows {
+  display: grid;
+  gap: var(--sp-4) var(--sp-6);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: var(--sp-2);
+}
+
+[data-home-block='marks'] .y-openitem {
+  align-content: start;
+  border-inline-start: 1.5px solid var(--reader);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4);
+}
+
+[data-home-block='marks'] .y-openitem[data-open-kind='thought'] {
+  border-inline-start-color: var(--fg-faint);
+}
+
+[data-home-block='marks'] .y-openitem[data-open-kind='lost'] {
+  border-inline-start-color: var(--warn);
+}
+
+[data-home-block='marks'] .y-openitem:has(.y-openitem__name[href]:hover) {
+  background: var(--wash);
+}
+
+[data-home-block='marks'] .y-openitem__name {
+  font-size: var(--fs-ed-16);
+  line-height: round(1.6em, 1px);
+}
+
+/* With no place kept the courses lead the desk, in a band of their own above
    the rest: one to a line at the size a page's own title is set at, because a
    reader who kept nothing came to choose one. */
 .y-homelead {
   margin: 0 0 var(--sp-7);
 }
 
-.y-modeblock--lead {
-  border-top: 0;
-  padding-top: 0;
-}
-
-.y-modeblock--lead .ui-navitem {
-  color: var(--fg);
-  font-family: var(--font-serif);
+.y-modeblock--lead .ui-navitem:not(.y-shelfall) {
   font-size: var(--fs-ed-30);
-  line-height: 1.35;
-  padding-block: var(--sp-2);
+  line-height: round(1.3em, 1px);
+  padding-block: var(--sp-4);
 }
 
-.y-modeblock--lead .ui-navitem:hover {
-  color: var(--link);
+.y-modeblock--lead .ui-navitem:not(.y-shelfall):hover {
+  color: var(--fg);
 }
 
-/* The way on past the three is the quiet line it is everywhere else. */
-.y-modeblock--lead .y-shelfall {
-  color: var(--fg-muted);
-  font-family: var(--font-sans);
-  font-size: var(--fs-14);
-  line-height: 1.5rem;
-  padding-block: var(--sp-1);
+@media (max-width: 820px) {
+  .y-homegrid,
+  [data-home-block='marks'] .y-modeblock__rows {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-home-block='folders'] .y-modeblock__rows {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .y-homeway--whole [data-home-block]:not([data-home-block='folders']) .y-modeblock__rows {
+    column-count: 1;
+  }
 }
 
 /* The thought door shows the Markdown it composed as a reading code block, set
@@ -4716,38 +4862,33 @@ button.y-freshness__action {
 
 
 /* A fault the whole page is subject to is full-width news, and it reads as a
-   sentence rather than a column of items. Without a track of its own it auto-
-   places into a single twelfth and the message renders as an unreadable
-   one-character-wide tower. */
+   sentence rather than a column of items. */
 .y-homeblock--faults {
   grid-column: 1 / -1;
 }
 
-.y-homeblock__head {
-  align-items: baseline;
-  display: flex;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-4);
-}
 /* CJK min-content is one character, so a five-character title beside its lede
    orphans the last glyph before the description wraps. Keep the heading intact
    and let the description take the wrap. */
 .y-homeblock__head h2 {
   color: var(--fg);
   flex: none;
-  font-family: var(--font-display);
-  font-size: var(--fs-16);
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
   font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
+  line-height: 20px;
   margin: 0;
   white-space: nowrap;
 }
 
 .y-homeblock__head p {
-  color: var(--fg-muted);
+  color: var(--fg-faint);
   font-family: var(--font-sans);
   font-size: var(--fs-12);
-  margin: 0 0 0 auto;
-  text-align: right;
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
+  margin: 0;
 }
 
 .y-homeempty {
@@ -4758,64 +4899,44 @@ button.y-freshness__action {
   margin: var(--sp-1) 0 0;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/* The way to the folder's own README closes the desk. It is set in the reading
-   measure, and it begins where everything stacked above it begins: centred, its
-   rule and its one line both started a hundred pixels in from the shelves and
-   read as a block belonging to some other page. */
-.y-homereadme {
-  border-top: 1px solid var(--border);
-  margin: 58px 0 0;
-  max-width: var(--measure-read);
-  padding-top: 34px;
-}
-
-/* The desk's last line, the way to the whole-folder view. It is the quietest
-   line on the page, and it names the page without saying what is on it: the
+/* The desk's colophon: which folder this desk is of and where it lives, then
+   the folder's own introduction and the whole-folder view, the quietest lines
+   on the page. The view names its page and says nothing of what is on it: the
    colour that asks for attention is the health page's own. */
-.y-deskhealth,
-.y-deskvault {
-  color: var(--fg-subtle);
-  font-family: var(--font-sans);
-  font-size: var(--fs-13);
-  line-height: 1.25rem;
-  margin: 28px 0 0;
-}
-
-.y-deskhealth a {
-  color: inherit;
-  display: inline-flex;
-  gap: var(--sp-2);
-  text-decoration: none;
-}
-
-.y-deskhealth a:hover {
-  color: var(--fg);
-}
-
-/* Which folder this desk is of: the same quiet line as the one under it, with
-   the path in the mono face and left to break where the folder names do. */
-.y-deskvault {
+.y-deskfoot {
+  align-items: baseline;
+  border-top: 1px solid var(--line);
+  color: var(--fg-faint);
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  gap: var(--sp-2) var(--sp-4);
+  line-height: 20px;
+  margin-top: var(--sp-8);
+  padding-top: var(--sp-5);
+}
+
+.y-deskfoot > p {
+  margin: 0;
+}
+
+/* Which folder: its name in the reading face and its path in the mono one,
+   left to break where the folder names do. It takes the line's slack, so the
+   two ways on keep to the far end. */
+.y-deskvault {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin-inline-end: auto;
+  min-width: 0;
+}
+
+.y-deskvault span {
+  color: var(--fg-muted);
+  font-family: var(--font-serif);
+  font-size: var(--fs-ed-14);
 }
 
 .y-deskvault code {
@@ -4824,16 +4945,18 @@ button.y-freshness__action {
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 1180px) {
-  .y-modeblock {
-    grid-column: 1 / -1;
-  }
+.y-homereadme a,
+.y-deskhealth a {
+  color: var(--fg-muted);
+  text-decoration: none;
+}
 
-  /* Every shelf spans the row here, so the gutter between twelve tracks is
-     never seen, and eleven of them would hold the grid wider than a phone. */
-  .y-homegrid {
-    column-gap: 0;
-  }
+.y-homereadme a:hover,
+.y-deskhealth a:hover {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.25em;
 }
 
 /* The four mode index pages — one kind of thing, listed whole. They carry no
@@ -5677,6 +5800,11 @@ button.y-freshness__action {
   padding: var(--sp-5);
 }
 
+/* A fault is news, not a threshold: its head draws no double rule. */
+.y-homeblock--faults .y-homeblock__head::after {
+  content: none;
+}
+
 .y-homeblock--faults .y-nothing {
   background: none;
   border-radius: 0;
@@ -6095,13 +6223,12 @@ button.y-freshness__action {
   background: var(--overlay);
 }
 
-/* The way back to the place the reader kept is drawn one way on the desk and on
-   the course: an outline in the ink, no fill, with the reader's own bookmark
-   leading the words. Blue is the bookmark and nothing else about it, and
-   it fills nothing. Starting a course has no place to return to, so it stays
-   the tonal button it was. */
-.y-cover__open[data-course-action='continue'],
-.y-continue__note[href] {
+/* The way back to the place the reader kept in a course: an outline in the
+   ink, no fill, with the reader's own bookmark leading the words. Blue is the
+   bookmark and nothing else about it, and it fills nothing. Starting a course
+   has no place to return to, so it stays the tonal button it was. The desk's
+   way back stands on a plate of its own and is drawn there. */
+.y-cover__open[data-course-action='continue'] {
   align-items: center;
   background: transparent;
   border: 1px solid var(--outline);
@@ -6114,15 +6241,13 @@ button.y-freshness__action {
   text-decoration: none;
 }
 
-.y-cover__open[data-course-action='continue']:hover,
-.y-continue__note[href]:hover {
+.y-cover__open[data-course-action='continue']:hover {
   background: var(--wash);
   text-decoration: none;
 }
 
 @media (pointer: coarse), (max-width: 720px) {
-  .y-cover__open[data-course-action='continue'],
-  .y-continue__note[href] {
+  .y-cover__open[data-course-action='continue'] {
     min-height: 44px;
   }
 }
@@ -6728,13 +6853,13 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 @media (max-width: 900px) {
-  .y-homeblock__head {
+  .y-homeblock--faults .y-homeblock__head {
     align-items: flex-start;
     flex-direction: column;
     gap: 3px;
   }
 
-  .y-homeblock__head p {
+  .y-homeblock--faults .y-homeblock__head p {
     margin-left: 0;
     text-align: left;
   }
@@ -8168,14 +8293,33 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   color: var(--fg);
 }
 
+/* A list page's name is set on a whole-pixel line, in every script. */
+.y-home__head .y-title {
+  line-height: round(1.3em, 1px);
+}
+
+/* A folder's trail is the quietest line over its name: the vault and each
+   folder above, the links in the secondary ink on a hairline. */
+.y-home__head .y-crumbs {
+  font-size: var(--fs-13);
+  gap: var(--sp-2);
+}
+
+.y-home__head .y-crumbs__link {
+  text-decoration-color: var(--link-line);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.25em;
+}
+
 /* A folder's README stands in front of its listing as its first paragraph,
-   in the reading face and the reading measure. */
+   in the reading face, a step down from the reading size, and the reading
+   measure. */
 .y-cover {
   color: var(--fg-muted);
   font-family: var(--font-read);
-  font-size: var(--fs-ed-20);
-  line-height: 1.6;
-  margin-top: 16px;
+  font-size: var(--fs-ed-17);
+  line-height: round(1.76em, 1px);
+  margin-top: var(--sp-3);
   max-width: var(--measure-read);
 }
 
@@ -8189,19 +8333,19 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   font-family: var(--font-sans);
   font-size: var(--fs-13);
   line-height: 20px;
-  margin-top: 8px;
+  margin-top: var(--sp-2);
   text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.25em;
 }
 
-/* On a phone the cover is set smaller and looser (17/34), and the way on is
-   a touch target: padding grows the box to 44px, and the negative margins
-   give back what the padding took, so no word moves. */
-@media (max-width: 720px) {
-  .y-cover {
-    font-size: var(--fs-ed-17);
-    line-height: 34px;
-  }
+.y-cover__more:hover {
+  color: var(--fg);
+}
 
+/* On a phone the way on is a touch target: padding grows the box to 44px, and
+   the negative margins give back what the padding took, so no word moves. */
+@media (max-width: 720px) {
   .y-cover__more {
     display: block;
     margin-block: -4px -7px;
@@ -8917,74 +9061,144 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   flex: none;
 }
 
-/* The way back to the place the reader kept, ahead of the four ways in, and
-   the largest text on the desk: the reader came back for this place. Where it
-   sits is a line of the interface's own voice above, the heading it was kept
-   under a line of the page's below, and the one way back under both. */
+/* The way back to the place the reader kept, ahead of the ways in, and the
+   largest text on the desk: the reader came back for this place. It is a
+   plate lifted off the desk, the bookmark's ribbon hanging from its top edge;
+   what it is and where it sits is one line of the interface's own voice above
+   its name, the heading it was kept under a line of the page's below, and the
+   one way back, in the ink, under both. */
 .y-continue {
-  margin: 0 0 56px;
+  background: var(--elevated);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-1);
+  margin: 0 0 var(--sp-7);
+  padding: clamp(var(--sp-5), 4vw, var(--sp-6));
+  position: relative;
+}
+
+.y-continue__ribbon {
+  filter: drop-shadow(var(--shadow-ribbon));
+  height: 34px;
+  inset-block-start: -1px;
+  inset-inline-end: var(--sp-5);
+  pointer-events: none;
+  position: absolute;
+  width: 14px;
+}
+
+.y-continue__ribbonface {
+  fill: var(--reader-ribbon);
+}
+
+.y-continue__ribbonedge {
+  fill: none;
+  stroke: var(--reader-ribbon-edge);
+  stroke-width: 0.6;
+}
+
+/* The line over the name keeps clear of the ribbon at its end. */
+.y-continue__head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  gap: var(--sp-1) var(--sp-2);
+  letter-spacing: 0.04em;
+  line-height: 20px;
+  margin: 0 0 var(--sp-3);
+  padding-inline-end: var(--sp-7);
+}
+
+.y-continue__tag {
+  color: var(--reader);
+  font-weight: var(--fw-semibold);
+  margin: 0;
 }
 
 .y-continue__kicker {
-  color: var(--fg-muted);
-  font-family: var(--font-sans);
-  font-size: var(--fs-13);
-  font-weight: var(--fw-medium);
-  line-height: 1.5;
-  margin: var(--sp-2) 0 0;
+  color: var(--fg-faint);
+  margin: 0;
+}
+
+.y-continue__kicker::before {
+  content: '·';
+  margin-inline-end: var(--sp-2);
 }
 
 .y-continue__title {
   color: var(--fg);
   font-family: var(--font-serif);
-  font-size: var(--fs-ed-30);
-  font-weight: var(--fw-regular);
-  line-height: 1.25;
-  margin: var(--sp-3) 0 var(--sp-2);
+  font-size: var(--fs-ed-36);
+  font-weight: var(--fw-medium);
+  letter-spacing: -0.01em;
+  line-height: round(1.3em, 1px);
+  margin: 0 0 var(--sp-3);
   overflow-wrap: anywhere;
   text-wrap: pretty;
-}
-
-.y-continue__title:lang(ja),
-.y-continue__title:lang(ko),
-.y-continue__title:lang(zh) {
-  line-height: 1.4;
 }
 
 .y-continue__section {
   color: var(--fg-muted);
   font-family: var(--font-serif);
-  font-size: var(--fs-ed-17);
-  line-height: 1.6;
+  font-size: var(--fs-ed-16);
+  line-height: round(1.7em, 1px);
   margin: 0;
 }
 
-/* The way back sits under the place it leads to, a step apart from it, and is
-   as wide as its words. */
-.y-continue__note {
-  margin-top: var(--sp-5);
-}
-
-/* A row whose note is gone is a sentence and keeps the ink. */
+/* A row whose note has changed or gone says so before the way back. */
 .y-continue__notice {
   color: var(--fg-muted);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--fs-13);
-  line-height: 1.6;
-  margin: var(--sp-4) 0 0;
+  line-height: 20px;
+  margin: var(--sp-3) 0 0;
+}
+
+/* The way back is the one filled control on the desk: the paper's colour on
+   the ink, as wide as its words. */
+.y-continue__note[href] {
+  align-items: center;
+  background: var(--fg);
+  border: 1px solid var(--fg);
+  border-radius: var(--r-sm);
+  color: var(--bg);
+  column-gap: var(--sp-2);
+  display: inline-flex;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  letter-spacing: 0.02em;
+  margin-top: var(--sp-5);
+  min-height: 40px;
+  padding: 0 var(--sp-5);
+  text-decoration: none;
+}
+
+.y-continue__arrow {
+  flex: none;
+}
+
+.y-continue__note[href]:hover {
+  background: color-mix(in srgb, var(--fg) 86%, var(--bg));
+}
+
+.y-continue__note[href]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .y-continue__device {
-  color: var(--fg-subtle);
-  font-family: var(--font-serif);
+  color: var(--fg-faint);
+  font-family: var(--font-sans);
   font-size: var(--fs-12);
-  line-height: 1.6;
-  margin: var(--sp-2) 0 0;
+  line-height: 20px;
+  margin: var(--sp-3) 0 0;
 }
 
-@media (min-width: 721px) {
-  .y-continue__title {
-    font-size: 3.25rem;
+@media (pointer: coarse), (max-width: 720px) {
+  .y-continue__note[href] {
+    min-height: 44px;
   }
 }
 
@@ -9031,46 +9245,58 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
    over a run of rows; a bar above them holds the filter and the order.
    ============================================================ */
 .y-list2 {
-  margin-top: var(--sp-7);
+  margin-top: 0;
 }
 
-/* The page's count line, with the order at its far end on the same baseline;
-   the list begins a fixed step below it. */
+/* The page's count line: a quiet fact over the toolbar. */
 .y-countline {
   align-items: baseline;
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-1) var(--sp-4);
-  margin-bottom: var(--sp-7);
+  margin-bottom: var(--sp-4);
 }
 
 .y-countline .y-indexcount {
-  color: var(--fg-subtle);
+  color: var(--fg-faint);
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
   margin: 0;
 }
 
-.y-countline .y-seg {
-  margin-inline-start: auto;
-}
-
+/* The toolbar: the order, what the page unfolds, and the field that narrows
+   the list at its far end, closed by the double rule a threshold takes. */
 .y-listbar {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--sp-2) var(--sp-4);
-  margin-bottom: var(--sp-4);
+  gap: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-5);
+  padding-bottom: var(--sp-4);
+  position: relative;
 }
 
-/* When the bar is the list's head, its rule closes it across every column. */
+.y-listbar::after {
+  border-bottom: 0.5px solid var(--line);
+  border-top: 1px solid var(--rule-double);
+  bottom: 0;
+  box-sizing: border-box;
+  content: '';
+  height: 4px;
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* When the bar heads the list itself, the rows follow its rule closely. */
 .y-listbar--ruled {
-  border-bottom: 1px solid var(--line-strong);
   margin-bottom: 0;
-  padding-bottom: var(--sp-2);
+  padding-bottom: var(--sp-3);
 }
 
-.y-listbar--ruled + .y-listbody > .y-lgroup:first-child {
+.y-listbar + .y-listbody > .y-lgroup:not(.y-lgroup--headed):first-child {
   border-top: 0;
 }
 
@@ -9090,20 +9316,38 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 
 /* The count beside a head label is a quiet fact, not a second label. */
 .y-listbar .y-listbar__count {
-  margin-inline: calc(-1 * var(--sp-2)) 0;
+  margin-inline: calc(-1 * var(--sp-1)) 0;
 }
 
 .y-listfilter {
   background: transparent;
-  border: 1px solid var(--outline);
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
   color: var(--fg);
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: var(--fs-13);
   height: 32px;
   margin-inline-start: auto;
   padding: 0 var(--sp-3);
   width: var(--field-w);
+}
+
+.y-listfilter::placeholder {
+  color: var(--fg-faint);
+}
+
+.y-listfilter:focus {
+  background: var(--elevated);
+  border-color: var(--fg-muted);
+}
+
+/* A bar that a heading leads keeps its controls together at the far end. */
+.y-listbar__label ~ :is(.y-seg, .y-listbar__toggle, .y-listfilter) {
+  margin-inline-start: auto;
+}
+
+.y-listbar__label ~ :is(.y-seg, .y-listbar__toggle, .y-listfilter) ~ :is(.y-seg, .y-listbar__toggle, .y-listfilter) {
+  margin-inline-start: 0;
 }
 
 .y-listbar__toggle,
@@ -9132,17 +9376,31 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   display: inline-flex;
 }
 
-/* In the bar the toggle and the order sit at the far end, after whatever is
-   already there; the filter takes the slack when it is. */
-.y-listbar > .y-listbar__toggle,
-.y-listbar > .y-seg {
-  margin-inline-start: auto;
+/* The choice of order is one segmented control: a hairline round the group
+   and between its members, the chosen one on the tonal ground in a heavier
+   word. The toggle beside it is drawn as one more such segment. */
+.y-listbar .y-seg,
+.y-countline--search .y-seg {
+  align-items: stretch;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-sm);
+  overflow: hidden;
 }
 
-.y-listfilter ~ .y-listbar__toggle,
-.y-listfilter ~ .y-seg,
-.y-listbar__toggle ~ .y-seg {
-  margin-inline-start: 0;
+.y-listbar .y-seg a,
+.y-countline--search .y-seg a {
+  border-radius: 0;
+  min-height: 30px;
+}
+
+.y-listbar .y-seg a + a,
+.y-countline--search .y-seg a + a {
+  border-inline-start: 1px solid var(--line);
+}
+
+.y-listbar__toggle {
+  border: 1px solid var(--line-strong);
+  min-height: 30px;
 }
 
 .y-seg a[aria-pressed='true'] {
@@ -9183,8 +9441,9 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 .y-lgroup__name {
   color: var(--fg-muted);
   font-family: var(--font-sans);
-  font-size: var(--fs-13);
+  font-size: var(--fs-12);
   font-weight: var(--fw-semibold);
+  letter-spacing: 0.04em;
   line-height: 20px;
   margin: 0;
 }
@@ -9193,11 +9452,13 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   color: var(--fg);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-17);
+  font-weight: var(--fw-semibold);
+  letter-spacing: 0;
   line-height: 28px;
 }
 
 .y-lgroup__count {
-  color: var(--fg-subtle);
+  color: var(--fg-faint);
   flex: none;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
@@ -9275,7 +9536,7 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 .y-lrow__title {
   font-family: var(--font-serif);
   font-size: var(--fs-ed-17);
-  line-height: 28px;
+  line-height: round(1.5em, 1px);
   min-width: 0;
   overflow-wrap: anywhere;
   text-wrap: pretty;
@@ -9299,7 +9560,7 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 .y-lrow__fact {
-  color: var(--fg-subtle);
+  color: var(--fg-faint);
   flex: none;
   font-family: var(--font-sans);
   font-size: var(--fs-12);
@@ -9325,7 +9586,7 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   font-size: var(--fs-13);
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 821px) {
   .y-listbody--wide {
     column-count: 2;
     column-gap: var(--sp-7);
@@ -9334,7 +9595,9 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 
 @media (max-width: 720px), (pointer: coarse) {
   .y-listbar__toggle,
-  .y-seg a {
+  .y-seg a,
+  .y-listbar .y-seg a,
+  .y-countline--search .y-seg a {
     min-height: 44px;
   }
 
@@ -9407,52 +9670,104 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
    a page of hits is mostly marks, and a wash on each makes the page
    a texture.
    ============================================================ */
-.y-searchpage__title {
-  margin-bottom: var(--sp-4);
+/* The page is named by what it answers: the query, at a page title's size,
+   over the double rule a threshold takes. */
+.y-title.y-searchpage__title {
+  line-height: round(1.3em, 1px);
 }
 
-.y-found mark,
+.y-searchpage__title {
+  margin: 0 0 var(--sp-4);
+  padding-bottom: var(--sp-4);
+  position: relative;
+}
+
+.y-searchpage__title::after,
+.y-searchpage__form::after {
+  border-bottom: 0.5px solid var(--line);
+  border-top: 1px solid var(--rule-double);
+  bottom: 0;
+  box-sizing: border-box;
+  content: '';
+  height: 4px;
+  inset-inline: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* A hit in a dropdown row is set heavier. On the results page it is also
+   laid on a faint ground, the Atelier's, which is not the reader's blue: a
+   result's words are the author's, and the blue is kept for the reader's own
+   marks. */
 .y-sp mark {
   background: none;
   color: var(--fg);
   font-weight: var(--fw-semibold);
 }
 
+/* No padding at its sides: a hit is often the head of a longer word, and
+   room beside it would split the word where the query stopped. */
+.y-found mark {
+  background: var(--hit-ground);
+  border-radius: 2px;
+  color: var(--fg);
+  font-weight: var(--fw-semibold);
+}
+
 .y-countline--search {
+  align-items: center;
   margin-bottom: var(--sp-4);
 }
 
+.y-countline--search .y-seg {
+  margin-inline-start: auto;
+}
+
 .y-countline--search .y-results__count {
-  color: var(--fg-subtle);
+  color: var(--fg-muted);
   font-family: var(--font-sans);
-  font-size: var(--fs-14);
+  font-size: var(--fs-13);
+  font-variant-numeric: tabular-nums;
   margin: 0;
 }
 
+/* The rows that narrow the answer: a label column and the choices beside it,
+   quiet chips with their counts, the chosen one on the tonal ground. The box
+   closes on a firm hairline above the results. */
 .y-searchfilters {
+  border-bottom: 1px solid var(--line-strong);
   display: grid;
   gap: var(--sp-2);
   margin-bottom: var(--sp-5);
+  padding: var(--sp-2) 0 var(--sp-4);
 }
 
 .y-searchfilter {
   align-items: baseline;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--sp-1) var(--sp-4);
+  column-gap: var(--sp-2);
+  display: grid;
+  grid-template-columns: 3.5em minmax(0, 1fr);
 }
 
 .y-searchfilter__label {
-  color: var(--fg-muted);
-  flex: none;
+  color: var(--fg-faint);
   font-family: var(--font-sans);
   font-size: var(--fs-13);
-  font-weight: var(--fw-semibold);
-  min-width: 3em;
 }
 
 .y-searchfilter .y-seg {
   flex-wrap: wrap;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.y-searchfilter .y-seg a {
+  min-height: 28px;
+  padding: 0 var(--sp-2);
+}
+
+.y-searchfilter__select {
+  grid-column: 2;
   min-width: 0;
 }
 
@@ -9479,33 +9794,36 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   padding-inline: var(--sp-3);
 }
 
+/* The answers are boxless: space parts them, and the wash a pointer brings
+   reaches past the words on every side. */
 .y-found {
-  border-top: 1px solid var(--line-strong);
   display: grid;
-  gap: var(--sp-6);
+  gap: var(--sp-4);
   list-style: none;
-  margin: 0;
-  padding: var(--sp-6) 0 0;
+  margin: 0 calc(-1 * var(--sp-3));
+  padding: 0;
 }
 
 .y-found__item {
+  border-radius: var(--r-sm);
   color: inherit;
   display: grid;
   gap: var(--sp-1);
+  padding: var(--sp-3);
   text-decoration: none;
+}
+
+.y-found__item:hover {
+  background: var(--wash);
 }
 
 .y-found__title {
   color: var(--fg);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-20);
-  line-height: 32px;
+  font-weight: var(--fw-medium);
+  line-height: round(1.45em, 1px);
   overflow-wrap: anywhere;
-}
-
-.y-found__item:hover .y-found__title {
-  text-decoration: underline;
-  text-underline-offset: 4px;
 }
 
 .y-found__lead {
@@ -9516,17 +9834,25 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   font-size: var(--fs-ed-15);
   -webkit-line-clamp: 2;
   line-clamp: 2;
-  line-height: 28px;
+  line-height: round(1.74em, 1px);
+  max-width: var(--measure-answer);
   overflow: hidden;
   overflow-wrap: anywhere;
 }
 
+/* A hit found only in code is shown as the line of code it is, on the code's
+   own ground. */
 .y-found__lead--code {
+  background: var(--code-ground);
+  border-radius: var(--r-sm);
   font-family: var(--font-mono);
-  font-size: 0.82em;
+  font-size: var(--fs-13);
   font-variant-ligatures: none;
   -webkit-line-clamp: 1;
   line-clamp: 1;
+  line-height: 20px;
+  max-width: none;
+  padding: var(--sp-1) var(--sp-3);
 }
 
 .y-found__narrow {
@@ -9534,9 +9860,10 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 }
 
 .y-found__where {
-  color: var(--fg-muted);
+  color: var(--fg-faint);
   font-family: var(--font-sans);
   font-size: var(--fs-13);
+  line-height: 20px;
 }
 
 .y-found__where .y-result__sep {
@@ -9582,21 +9909,32 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
 
 .y-searchnone {
   font-family: var(--font-sans);
-  margin-top: var(--sp-6);
+  margin-top: var(--sp-4);
 }
 
-.y-searchnone__near {
+/* Nothing matched: said once, in the reading face, under the query. */
+.y-searchnone__lead {
   color: var(--fg-muted);
   font-family: var(--font-serif);
   font-size: var(--fs-ed-17);
   line-height: 28px;
+  margin: var(--sp-5) 0 0;
+  overflow-wrap: anywhere;
+}
+
+.y-searchnone__near {
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--fs-ed-15);
+  line-height: 24px;
   margin: 0 0 var(--sp-4);
 }
 
 .y-searchnone__near a {
+  border-bottom: 1.5px solid var(--fg);
   color: var(--fg);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  font-weight: var(--fw-semibold);
+  text-decoration: none;
 }
 
 .y-searchnone__hint {

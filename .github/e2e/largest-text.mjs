@@ -58,7 +58,7 @@ const MUTATIONS = {
   // The query put back at the size of body text.
   'shrink-the-query': { target: QUERY_SITE, apply: appendStyle('.y-searchpage__title{font-size:1rem}') },
   // The courses set at body size: a desk that opens on nothing in particular.
-  'shrink-the-lead-courses': { target: DESK_SITE, apply: appendStyle('.y-modeblock--lead .ui-navitem{font-size:1rem}') },
+  'shrink-the-lead-courses': { target: DESK_SITE, apply: appendStyle('.y-modeblock--lead .ui-navitem:not(.y-shelfall){font-size:1rem}') },
   // A group's name set at a figure's size: the page's own name is outshouted.
   'enlarge-a-group-name': { target: HEALTH_SITE, apply: appendStyle('.y-healthgroup__title{font-size:3rem}') },
   // A hairline under every hit, which is the line the answer was drawn with.

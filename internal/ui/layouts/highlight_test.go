@@ -48,9 +48,10 @@ func TestTheHighlightWashReachesEveryMarkAndNotOnlyTheProse(t *testing.T) {
 		washed = append(washed, selector)
 	}
 	slices.Sort(washed)
-	// The search surfaces set a hit heavier rather than washed, so they say
-	// "no wash" once, for their own two containers.
-	want := []string{".y-sp mark", ".yomihon mark"}
+	// The dropdown sets a hit heavier rather than washed and says "no wash"
+	// once for itself; the results page lays its hits on the faint hit ground
+	// the Atelier gives them, which is not the highlight's gold.
+	want := []string{".y-found mark", ".y-sp mark", ".yomihon mark"}
 	if !slices.Equal(washed, want) {
 		t.Errorf("the highlight background is written for %v, want %v — anything narrower leaves some surface's marks to the browser's own yellow, and anything wider means two rules now decide one colour", washed, want)
 	}

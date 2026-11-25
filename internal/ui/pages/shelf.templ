@@ -8,10 +8,11 @@ import (
 
 // ShelfBlock is a shelf at its narrowest: what the organisation is called, how
 // much of it there is, and the first few linked or fault rows. It is a way in
-// rather than a fifth listing, so it ends by handing the reader to the shelf's
-// own page instead of going on. The shelf's lede belongs to that page: the
-// heading already says what the block is, and a sentence under it restated the
-// listing's own wording where the two could disagree.
+// rather than a fifth listing, so its head hands the reader to the shelf's own
+// page instead of going on, at the far end of the line its name stands on. The
+// shelf's lede belongs to that page: the heading already says what the block
+// is, and a sentence under it restated the listing's own wording where the two
+// could disagree.
 //
 // What the block shows and what the shelf holds are different questions. A
 // shelf whose rows are all listed without being stops — a course whose lessons
@@ -29,6 +30,9 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang, lead bool) {
 			if s.Count != "" {
 				<p>{ s.Count }</p>
 			}
+			if len(s.Rows) > 0 {
+				<a class="ui-navitem y-shelfall" href={ templ.URL(s.Href) }>{ wording.ShelfAll.In(lang) }</a>
+			}
 		</header>
 		if len(s.Rows) == 0 {
 			if s.Empty != "" {
@@ -37,14 +41,15 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang, lead bool) {
 				}
 			}
 		} else {
-			for _, row := range shelfRows(&s, limit) {
-				if s.Open {
-					@openRow(row, lang, true)
-				} else {
-					@shelfRowLink(row)
+			<div class="y-modeblock__rows">
+				for _, row := range shelfRows(&s, limit) {
+					if s.Open {
+						@openRow(row, lang, true)
+					} else {
+						@shelfRowLink(row)
+					}
 				}
-			}
-			<a class="ui-navitem y-shelfall" href={ templ.URL(s.Href) }>{ wording.ShelfAll.In(lang) }</a>
+			</div>
 		}
 		{ children... }
 	</section>
@@ -53,8 +58,9 @@ templ ShelfBlock(s Shelf, id string, limit int, lang wording.Lang, lead bool) {
 // shelfRowLink shows a narrow shelf row as a link or inert fault text. Its
 // removal action stays beside the row so it never becomes part of navigation.
 // A row read by date leads with its day here too, and a row read by its title
-// follows the title with it; the line the document opens with is left to the
-// full width, a block being a corner of the shelf rather than a listing.
+// follows the title with it. A row that has a line of its own to lend — the
+// line a report opens with — carries it under the name, held to two lines, so
+// a report on the desk says what it answers as it does on its shelf.
 templ shelfRowLink(row Row) {
 	if row.Href == "" {
 		<span class={ "ui-navitem", templ.KV("ui-navitem--by-title", row.ByTitle) } data-desk-item>
@@ -82,6 +88,9 @@ templ shelfNarrowBody(row Row) {
 	}
 	if row.Mark != "" {
 		<span class={ "ui-navitem__count", templ.KV("ui-navitem__count--warn", row.Fault) }>{ row.Mark }</span>
+	}
+	if row.Opening != "" {
+		<span class="y-modeblock__opening" { authoredLanguageAttrs(row.Language)... }>{ row.Opening }</span>
 	}
 }
 

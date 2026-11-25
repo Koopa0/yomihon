@@ -393,9 +393,10 @@ templ SearchResults(v SearchView, lang wording.Lang) {
 					</div>
 				}
 			} else if v.Query != "" {
-				// The page title is the query, the count is none, and what is left
-				// is the nearest way out. Nothing here explains how the index works.
-				<p class="y-results__count">{ searchCount(&v, lang) }</p>
+				// The page title is the query, the line under it says nothing
+				// matched it, and what is left is the nearest way out. Nothing here
+				// explains how the index works.
+				<p class="y-results__count y-searchnone__lead">{ fmt.Sprintf(wording.SearchNoneFmt.In(lang), v.Query) }</p>
 				<div class="y-searchnone" data-search-none>
 					if v.Near.Word != "" {
 						<p class="y-searchnone__near">

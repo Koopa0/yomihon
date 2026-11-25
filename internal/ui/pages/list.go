@@ -135,15 +135,16 @@ type ListParam struct{ Name, Value string }
 
 // List is every group of a list with the controls over it.
 type List struct {
-	// Count is the page's line saying what the list holds. The choice of order
-	// sits at its far end when there is one, and in the bar when there is not.
+	// Count is the page's line saying what the list holds, above the bar that
+	// carries the choice of order.
 	Count string
 	// Label heads the list when it is one group whose heading has risen into
 	// the bar, with its count; the bar's rule then closes the head.
 	Label         string
 	LabelCount    string
 	LabelAuthored bool
-	// Ruled draws the strong rule under the bar, across the whole list.
+	// Ruled says the bar heads the list itself, a lone group's heading having
+	// risen into it, so no group heading follows its rule.
 	Ruled  bool
 	Groups []ListGroup
 	Switch ListSwitch

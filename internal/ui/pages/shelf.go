@@ -6,8 +6,9 @@ import (
 	"github.com/a-h/templ"
 )
 
-// OpenThoughtsHomeRows is how many open-thought rows the desk has room for.
-const OpenThoughtsHomeRows = 5
+// OpenThoughtsHomeRows is how many open-thought rows the desk has room for:
+// two rows of two, side by side.
+const OpenThoughtsHomeRows = 4
 
 // Shelf is one organisation's listing of documents, in the order that
 // organisation puts them: a name, a measure, one sentence, and rows. The vault

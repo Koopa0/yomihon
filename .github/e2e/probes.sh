@@ -141,6 +141,7 @@ probes=(
   "bookmark-first-frame.mjs|/"
   "bookmark-after-back.mjs|/"
   "bookmark-return.mjs|/"
+  "list-pages.mjs|/"
   "reading-furniture.mjs|/notes/Notes/Reading%20flow.md"
 )
 
@@ -155,6 +156,7 @@ leaves_a_place=(
   "bookmark-first-frame.mjs"
   "bookmark-after-back.mjs"
   "bookmark-return.mjs"
+  "list-pages.mjs"
   "reading-furniture.mjs"
 )
 
