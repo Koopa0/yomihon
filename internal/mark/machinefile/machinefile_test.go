@@ -401,29 +401,68 @@ func TestAWriteMeasuresEachStep(t *testing.T) {
 	}
 }
 
-// A temporary file older than a minute is what a crash between creating it and
-// renaming it leaves, and the next write removes it. A younger one may be
-// another process's write in progress, and a file that is not named as this
-// package names one is not this package's, and both are left.
+// A temporary file older than ten minutes is what a crash between creating it
+// and renaming it leaves, and the next write removes it. A younger one may be
+// another process's write in progress, slow to sync on a USB disk or a network
+// share, and is left; so is any file not named as this package names a
+// temporary file, another machine's file of marks above all.
 func TestAStaleTemporaryFileIsRemovedAndNothingElse(t *testing.T) {
 	t.Parallel()
 	root := aVault(t)
 	f := opened(t, root)
 	replace(t, f, "kept\n")
 	marks := "reader-notes/.yomihon/marks/"
-	old := time.Now().Add(-2 * time.Minute)
-	for _, name := range []string{".tmp-0123456789ab", ".tmp-0123456789abc", ".tmp-ABCDEF012345", "notes.md"} {
+	aged := func(name string, age time.Duration) {
 		write(t, root, marks+name, "x")
-		if err := os.Chtimes(filepath.Join(root, filepath.FromSlash(marks+name)), old, old); err != nil {
+		at := time.Now().Add(-age)
+		if err := os.Chtimes(filepath.Join(root, filepath.FromSlash(marks+name)), at, at); err != nil {
 			t.Fatal(err)
 		}
 	}
-	write(t, root, marks+".tmp-fedcba987654", "young, and shaped like ours")
+	aged(".tmp-0123456789ab", 20*time.Minute)
+	aged(".tmp-0123456789abc", 20*time.Minute)
+	aged(".tmp-ABCDEF012345", 20*time.Minute)
+	aged("c2e4b815.jsonl", 20*time.Minute)
+	aged("notes.md", 20*time.Minute)
+	aged(".tmp-fedcba987654", 5*time.Minute)
+	aged(".tmp-a1b2c3d4e5f6", 0)
 	before := snapshot(t, root)
 	replace(t, f, "new\n")
 	want := []string{marks + ".tmp-0123456789ab (gone)", machinePath}
 	if got := changed(before, snapshot(t, root)); !slices.Equal(got, want) {
 		t.Errorf("the write changed %q, want %q", got, want)
+	}
+}
+
+// Every write makes sure the folders on the way are on stable storage, not
+// only the write that made them: a write that made a folder and could not sync
+// the folder above it failed, and the next one, finding the folder there, has
+// to sync it all the same before it says its file is kept. A vault folder that
+// can be written and searched but not read lets the reader folder be made and
+// refuses the open its sync needs.
+func TestEveryWriteSyncsTheFoldersOnTheWay(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not open a folder by its permission bits")
+	}
+	root := aVault(t)
+	f := opened(t, root)
+	if err := os.Chmod(root, 0o300); err != nil { // #nosec G302 -- the test's own vault, writable and searchable
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chmod(root, 0o755); err != nil { // #nosec G302 -- restores the mode so the vault can be removed
+			t.Errorf("restore the vault's mode: %v", err)
+		}
+	})
+	if probe, err := os.Open(root); err == nil { // #nosec G304 -- the test's own vault
+		_ = probe.Close() //nolint:errcheck // only whether it opened matters
+		t.Skip("this user opens a folder it may not read (a privileged user), so the fixture shows nothing")
+	}
+	for _, write := range []string{"the first, which makes the reader folder", "the next, which finds it"} {
+		if _, err := f.ReplaceMachineFile(thisMachine, []byte("x\n")); err == nil {
+			t.Errorf("%s: a write whose vault folder cannot be synced = nil, want an error", write)
+		}
 	}
 }
 

@@ -50,8 +50,10 @@ const (
 	// crash leaves behind is never read as another machine's marks.
 	tempPrefix = ".tmp-"
 	// staleAfter is how old a temporary file has to be before a write removes
-	// it. A younger one may be another process's write still in progress.
-	staleAfter = time.Minute
+	// it. A younger one may be another process's write still in progress, and a
+	// sync on a USB disk or a network share can take a long time, so the margin
+	// is wide: a temporary file a crash left costs nothing while it waits.
+	staleAfter = 10 * time.Minute
 	folderMode = 0o755
 	fileMode   = 0o644
 )
@@ -147,14 +149,21 @@ type Measurement struct {
 // ReplaceMachineFile installs data as the machine file of machineID, making the
 // folders on the way on the first write.
 //
+// machineID is this machine's own id, which the caller keeps and passes. Only
+// its shape is checked here: nothing in this package or in the guard can tell
+// this machine's id from another machine's, so a caller that passed another's
+// would replace that machine's file.
+//
 // The bytes go to a temporary file in the marks folder, which is synced and
 // renamed over the machine file, so a machine that stops part way leaves the
 // old file or the new one and never part of either. Nil means the write is on
-// stable storage: the folder is synced after the rename, and so is the folder
-// above each folder this call made; then the file is read back and compared
-// with data. A step that fails is an error, and one that fails before the
-// rename leaves the machine file as it was. A temporary file older than a
-// minute, which only a crash leaves, is removed first.
+// stable storage: each folder on the way is synced before the temporary file is
+// written, the marks folder after the rename, and the file is read back and
+// compared with data. A step that fails is an error. One that fails before the
+// rename leaves the machine file as it was; one that fails after it, a sync of
+// the marks folder or the read back, means the new file is installed and
+// whether it is on stable storage is not known. A temporary file older than ten
+// minutes, which only a crash leaves, is removed first.
 //
 // The measurement says what each step that ran took, whether or not it failed.
 func (f *Folder) ReplaceMachineFile(machineID string, data []byte) (Measurement, error) {
@@ -317,22 +326,22 @@ func (f *Folder) enter() (*folders, error) {
 }
 
 // prepare is enter for a write: it makes each of the three folders that is not
-// there before it enters it, and syncs the folder above it so that the new
-// entry is on stable storage too.
+// there before it enters it, and syncs the folder above each, whether this
+// write made the folder or found it.
 func (f *Folder) prepare() (*folders, error) {
 	d := &folders{}
-	err := made(f.vault, f.vault.Mkdir(readerFolder, folderMode))
+	err := held(f.vault, f.vault.Mkdir(readerFolder, folderMode))
 	if err == nil {
 		d.notes, err = enterReaderFolder(f.vault)
 	}
 	if err == nil {
-		err = made(d.notes, d.notes.Mkdir(yomihonFolder, folderMode))
+		err = held(d.notes, d.notes.Mkdir(yomihonFolder, folderMode))
 	}
 	if err == nil {
 		d.yomihon, err = enterYomihonFolder(d.notes)
 	}
 	if err == nil {
-		err = made(d.yomihon, d.yomihon.Mkdir(marksFolder, folderMode))
+		err = held(d.yomihon, d.yomihon.Mkdir(marksFolder, folderMode))
 	}
 	if err == nil {
 		d.marks, err = enterMarksFolder(d.yomihon)
@@ -355,13 +364,14 @@ func enterMarksFolder(yomihon *os.Root) (*os.Root, error) {
 	return entered(yomihon, marksFolder, opened, err)
 }
 
-// made is what a Mkdir in parent answered: nil when the folder was made and
-// the parent synced, or when it was already there; the failure otherwise.
-func made(parent *os.Root, mkdir error) error {
-	if errors.Is(mkdir, fs.ErrExist) {
-		return nil
-	}
-	if mkdir != nil {
+// held takes what a Mkdir in parent answered and syncs parent, so that the
+// folder's entry in it is on stable storage: nil when the folder was made or
+// was there already and the sync succeeded, the failure otherwise. A folder that
+// was there is synced too, since nothing says that the write that made it
+// synced it: that write may have failed at this very step. It costs a sync of
+// each of the three folders above the machine file on every write.
+func held(parent *os.Root, mkdir error) error {
+	if mkdir != nil && !errors.Is(mkdir, fs.ErrExist) {
 		return fmt.Errorf("make a folder on the way to the machine file: %w", mkdir)
 	}
 	d, err := openDirectory(parent)
@@ -369,7 +379,7 @@ func made(parent *os.Root, mkdir error) error {
 		err = errors.Join(d.sync(), d.close())
 	}
 	if err != nil {
-		return fmt.Errorf("sync the folder above a folder this write made: %w", err)
+		return fmt.Errorf("sync the folder above a folder on the way to the machine file: %w", err)
 	}
 	return nil
 }

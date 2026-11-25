@@ -108,9 +108,14 @@ var machineFilePermits = map[string]permit{
 	"os.File.Sync":  {call: true},
 	// Windows flushes a folder only through a handle that may write, which os
 	// does not open, so the flush reopens it by the path of the handle os.Root
-	// opened. It may create nothing: the open is of a folder that exists.
-	"os.File.Fd":                       {file: flushFile, call: true},
-	windowsSystemCalls + ".CreateFile": {file: flushFile, call: true, args: []argument{free, free, free, free, constantOf(windowsSystemCalls, "OPEN_EXISTING"), free, free}},
+	// opened. It may create nothing and may only write: the open is of a folder
+	// that exists, for writing, and never to delete it on close.
+	"os.File.Fd": {file: flushFile, call: true},
+	windowsSystemCalls + ".CreateFile": {file: flushFile, call: true, args: []argument{
+		free, constantOf(windowsSystemCalls, "GENERIC_WRITE"), free, free,
+		constantOf(windowsSystemCalls, "OPEN_EXISTING"),
+		constantOf(windowsSystemCalls, "FILE_FLAG_BACKUP_SEMANTICS", "FILE_FLAG_OPEN_REPARSE_POINT"), free,
+	}},
 }
 
 func init() {
@@ -374,6 +379,8 @@ const (
 	OPEN_EXISTING = 3
 	CREATE_ALWAYS = 2
 	FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
+	FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+	FILE_FLAG_DELETE_ON_CLOSE = 0x04000000
 )
 func CreateFile(name *uint16, access uint32, mode uint32, sa *SecurityAttributes, createmode uint32, attrs uint32, templatefile Handle) (Handle, error) { return 0, nil }
 func FlushFileBuffers(h Handle) error { return nil }
@@ -558,7 +565,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 func flush(path *uint16) error {
-	h, err := windows.CreateFile(path, windows.GENERIC_WRITE, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS, 0)
+	h, err := windows.CreateFile(path, windows.GENERIC_WRITE, windows.FILE_SHARE_READ, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
 	if err != nil {
 		return err
 	}
@@ -577,6 +584,31 @@ func flush(h windows.Handle) error { return windows.FlushFileBuffers(h) }`},
 		name: "a file's handle taken outside the file that flushes", prelude: true,
 		files: one(`func bad(f *os.File) uintptr { return f.Fd() }`),
 		want:  []string{"os.File.Fd, which this writer may name only in " + flushFile},
+	},
+	{
+		name: "a temporary file opened without O_EXCL", prelude: true,
+		files: one(`func bad(marks *os.Root, t tempName) { f, _ := marks.OpenFile(t.temp, os.O_WRONLY|os.O_CREATE, 0o644); _ = f }`),
+		want:  []string{"os.Root.OpenFile, which is called here with argument 2 other than a constant that is exactly O_WRONLY|O_CREATE|O_EXCL"},
+	},
+	{
+		name: "a folder opened to be deleted when it is closed, by literal flags", prelude: true,
+		stubs: map[string]string{windowsSystemCalls: flushStub},
+		files: map[string]string{flushFile: `package machinefile
+import "golang.org/x/sys/windows"
+func open(path *uint16) (windows.Handle, error) {
+	return windows.CreateFile(path, 0x00010000, 0, nil, windows.OPEN_EXISTING, 0x02000000|0x04000000, 0)
+}`},
+		want: []string{windowsSystemCalls + ".CreateFile, which is called here with argument 2 other than a constant that is exactly GENERIC_WRITE"},
+	},
+	{
+		name: "a folder opened to be deleted when it is closed, by name", prelude: true,
+		stubs: map[string]string{windowsSystemCalls: flushStub},
+		files: map[string]string{flushFile: `package machinefile
+import "golang.org/x/sys/windows"
+func open(path *uint16) (windows.Handle, error) {
+	return windows.CreateFile(path, windows.GENERIC_WRITE, 0, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_BACKUP_SEMANTICS|windows.FILE_FLAG_OPEN_REPARSE_POINT|windows.FILE_FLAG_DELETE_ON_CLOSE, 0)
+}`},
+		want: []string{windowsSystemCalls + ".CreateFile, which is called here with argument 6 other than a constant that is exactly FILE_FLAG_BACKUP_SEMANTICS|FILE_FLAG_OPEN_REPARSE_POINT", windowsSystemCalls + ".FILE_FLAG_DELETE_ON_CLOSE"},
 	},
 	{
 		name: "a file made by path in the file that flushes", prelude: true,

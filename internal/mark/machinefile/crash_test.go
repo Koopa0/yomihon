@@ -74,9 +74,13 @@ func writeUntilKilled(root string) {
 func TestAWriterKilledAtAnyMomentLeavesTheOldFileOrTheNew(t *testing.T) {
 	t.Parallel()
 	root := aVault(t)
-	const kills = 12
-	caughtWriting := 0
-	for kill := range kills {
+	// Kills go on until one has landed between making a temporary file and
+	// renaming it, and at least minKills have, up to maxKills: a run in which no
+	// kill reached the window it exists for has shown nothing.
+	const minKills, maxKills = 12, 200
+	caughtWriting, kills := 0, 0
+	for kill := 0; kill < maxKills && (kill < minKills || caughtWriting == 0); kill++ {
+		kills++
 		cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^$") // #nosec G204 G702 -- this test binary, run again as the writer
 		cmd.Env = append(os.Environ(), crashVaultVar+"="+root)
 		cmd.Stderr = os.Stderr
@@ -122,6 +126,9 @@ func TestAWriterKilledAtAnyMomentLeavesTheOldFileOrTheNew(t *testing.T) {
 		if len(temps) > kill+1 {
 			t.Fatalf("after kill %d the marks folder holds %d temporary files, more than one a kill", kill, len(temps))
 		}
+	}
+	if caughtWriting == 0 {
+		t.Fatalf("none of %d kills landed between making a temporary file and renaming it", kills)
 	}
 	t.Logf("%d of %d kills landed between making a temporary file and renaming it", caughtWriting, kills)
 }
