@@ -1,11 +1,13 @@
-// Behavior lock for a note's running head: once the note's own head has gone up
-// under the header, the header names the section being read, and a press on
-// it opens the note's contents in place.
+// Behavior lock for a note's running head: once the reader is in the note's
+// first section, the header names the section being read, and a press on it
+// opens the note's contents in place.
 //
 // What a reader sees and reaches is asked, not what the stylesheet says. With
 // no script nothing of it is drawn or reached. With script it is out of sight
-// while the note's head is on the screen, comes once the head has gone under
-// the header, and goes again when the reader scrolls back up. It names the
+// while the note's head is on the screen, and over the words the note says
+// before its first section, where there is no section to name; it comes once
+// the first section's heading reaches the reading line, with the note's head
+// gone by then, and goes again when the reader scrolls back up. It names the
 // section the contents in the left column mark, by the heading's own words,
 // with the number hung beside that heading where the note's sections are
 // counted and with none where they are not, and it follows the reader down
@@ -53,6 +55,7 @@ const POP = '#_y-contents';
 const SITES = [
   'nothing-without-script',
   'hidden-while-the-head-shows',
+  'quiet-over-the-introduction',
   'follows-the-head',
   'names-the-section',
   'contents-in-place',
@@ -113,14 +116,18 @@ const MUTATIONS = {
   // The stylesheet draws the press whether or not a script said it is ready.
   'drawn-without-script': { target: 'nothing-without-script', plant: appendStyle('.y-runhead.y-runhead{display:inline-flex!important;opacity:1!important;visibility:visible!important}') },
   // The head is shown from the top, over the note's own head.
-  'shown-from-the-top': { target: 'hidden-while-the-head-shows', plant: rewriteModule('const shown = past && marked;', 'const shown = marked;') },
+  'shown-from-the-top': { target: 'hidden-while-the-head-shows', plant: rewriteModule('const shown = begun && marked;', 'const shown = marked;') },
   // Once shown, it stays when the reader scrolls back up to the note's head.
+  // The first section's heading is watched in a window that ends at the
+  // bottom of the screen, so a jump straight past it says nothing.
+  'blind-to-a-jump': { target: 'follows-the-head', plant: rewriteModule("const PAST_ANY_NOTE = '100000%';", "const PAST_ANY_NOTE = '0px';") },
   'never-leaves': { target: 'follows-the-head', plant: rewriteModule("    button.removeAttribute('data-running-head-shown');\n", '') },
-  // It is shown as soon as the head's first line goes under the header, while
-  // the rest of the head is still on the screen.
-  'shown-early': {
-    target: 'follows-the-head',
-    plant: served('**/runninghead.js{,?*}', (text) => once('past = !entry.isIntersecting &&', 'past = entry.intersectionRatio < 1 &&')(once("0px 0px 0px` });", "0px 0px 0px`, threshold: 1 });")(text)), 'the module needles for an early head'),
+  // The running head comes once the note's own head has gone, as it first
+  // did, and so names the introduction before the first section as the first
+  // section, which is what the left column's contents mark there.
+  'names-the-intro-as-01': {
+    target: 'quiet-over-the-introduction',
+    plant: served('**/runninghead.js{,?*}', (text) => once('observer.observe(first);', "observer.observe(document.querySelector('.y-frontis'));")(once('begun = entry.boundingClientRect.top <=', 'begun = !entry.isIntersecting && entry.boundingClientRect.top <=')(text)), 'the module needles for a head that comes with the note\'s head gone'),
   },
   // It keeps the first section's words however far the reader goes.
   'stuck-on-the-first': { target: 'names-the-section', plant: rewriteModule('if (title.textContent !== shownTitle) title.textContent = shownTitle;', 'if (!title.textContent) title.textContent = shownTitle;') },
@@ -253,6 +260,8 @@ const look = (page) => page.evaluate(({ head, pop }) => {
   };
 }, { head: HEAD, pop: POP });
 
+const shownNow = (page) => page.evaluate((head) => document.querySelector(head)?.hasAttribute('data-running-head-shown') ?? false, HEAD);
+
 const waitSeen = async (page, want, site, what) => {
   await page.waitForFunction(({ head, seen }) => {
     const button = document.querySelector(head);
@@ -355,7 +364,7 @@ try {
     await context.close();
   }
 
-  // --- With script: hidden at the top, there once the head has gone ---------
+  // --- With script: hidden at the top and over the introduction ------------
   {
     const context = await open();
     const page = await visit(context, PAGE);
@@ -367,19 +376,52 @@ try {
     await page.keyboard.press('Tab');
     if (await page.evaluate((head) => document.activeElement?.matches(head), HEAD)) fail('hidden-while-the-head-shows', 'at the top of the note Tab reaches the running head');
 
-    // Just before the head's last line goes under the header, and just after.
-    const edge = await page.evaluate(() => {
+    // Where the note's head goes under the header, and where the first
+    // section's heading reaches the reading line: between the two is the
+    // note's introduction, which names no section.
+    const at = await page.evaluate((selector) => {
       const frontis = document.querySelector('.y-article .y-frontis').getBoundingClientRect();
       const header = document.querySelector('.y-header').getBoundingClientRect();
-      return Math.round(frontis.bottom + window.scrollY - header.bottom);
-    });
-    await scrollTo(page, edge - 40);
+      const heading = document.querySelector(selector);
+      const line = (Number.parseFloat(getComputedStyle(heading).scrollMarginTop) || 0) + 8;
+      return {
+        headGone: Math.round(frontis.bottom + window.scrollY - header.bottom),
+        sectionBegins: Math.round(heading.getBoundingClientRect().top + window.scrollY - line),
+        words: heading.textContent.replace(/\s+/g, ' ').trim(),
+      };
+    }, SECTION);
+    if (at.sectionBegins - at.headGone < 60) broken(`${PAGE} has ${at.sectionBegins - at.headGone}px of introduction between its head and its first section, too little to ask about`);
+    await scrollTo(page, at.headGone - 40);
     await page.waitForTimeout(150);
-    if ((await look(page)).seen) fail('follows-the-head', `with the note's head 40px from the header's edge, the running head is already shown`);
-    await scrollTo(page, edge + 40);
-    await waitSeen(page, true, 'follows-the-head', 'with the note\'s head gone under the header');
+    if ((await look(page)).seen) fail('follows-the-head', 'with the note\'s head 40px from the header\'s edge, the running head is already shown');
+    for (const y of [at.headGone + 10, at.sectionBegins - 10]) {
+      await scrollTo(page, y);
+      await page.waitForTimeout(150);
+      const intro = await look(page);
+      if (!intro.headGone) broken(`at ${y}px down the note's head is still on the screen`);
+      if (intro.seen) fail('quiet-over-the-introduction', `over the introduction, ${at.sectionBegins - y}px before the first section begins, the running head names ${JSON.stringify([intro.number, intro.words])}`);
+    }
+    await scrollTo(page, at.sectionBegins + 2);
+    await waitSeen(page, true, 'follows-the-head', 'with the first section\'s heading at the reading line');
+    const begun = await look(page);
+    if (!begun.headGone) fail('follows-the-head', 'the running head is shown while the note\'s head is still on the screen');
+    if (begun.words !== at.words) fail('names-the-section', `as the first section begins the running head names ${JSON.stringify(begun.words)}, want ${JSON.stringify(at.words)}`);
     await scrollTo(page, 0);
     await waitSeen(page, false, 'follows-the-head', 'scrolled back to the top');
+    // A jump from the top straight to a later section, past the first one's
+    // heading in one step, as a link or the left column's contents make, and
+    // straight back, in a window short enough that the first section's
+    // heading is below it at the top, as a long introduction leaves it.
+    if (at.sectionBegins < 240) broken(`${PAGE}'s first section begins ${at.sectionBegins}px down, too near the top to leave its heading below a window`);
+    await page.setViewportSize({ width: 1512, height: at.sectionBegins });
+    await frames(page);
+    if (await page.evaluate((selector) => document.querySelector(selector).getBoundingClientRect().top <= innerHeight, SECTION)) broken('the first section\'s heading is on the screen at the top, so a jump does not pass it unseen');
+    await page.evaluate((selector) => document.querySelectorAll(selector)[2].scrollIntoView({ block: 'start' }), SECTION);
+    await frames(page);
+    await waitSeen(page, true, 'follows-the-head', 'after a jump from the top to the third section');
+    await scrollTo(page, 0);
+    await waitSeen(page, false, 'follows-the-head', 'after a jump back to the top');
+    await page.setViewportSize({ width: 1512, height: HEIGHT });
 
     // Down the note, section by section.
     const sections = await walk(page, 'names-the-section', PAGE);
@@ -485,7 +527,7 @@ try {
     const context = await open();
     const page = await visit(context, PAGE, { sample: true });
     await page.mouse.move(700, 500);
-    for (let i = 0; i < 12 && !(await look(page)).headGone; i += 1) {
+    for (let i = 0; i < 24 && !(await shownNow(page)); i += 1) {
       await page.mouse.wheel(0, 200);
       await frames(page, 2);
     }
@@ -517,7 +559,7 @@ try {
     const context = await open({ motion: 'reduce' });
     const page = await visit(context, PAGE, { sample: true });
     await page.mouse.move(700, 500);
-    for (let i = 0; i < 12 && !(await look(page)).headGone; i += 1) {
+    for (let i = 0; i < 24 && !(await shownNow(page)); i += 1) {
       await page.mouse.wheel(0, 200);
       await frames(page, 2);
     }
@@ -576,7 +618,7 @@ try {
 
   const missed = planted?.proof();
   if (missed) notApplied(missed);
-  console.log('PASS running-head: nothing without script; out of sight while the note\'s head shows and there once it has gone, both ways; names the section the contents mark, numbered only where the margin counts; opens the contents in place, every section listed and the current one marked, a pick goes there and closes it, Escape and a press on nothing hand focus back to the press while a press on a control or the text keeps it there; fades as the reader moves, still on a reload or a kept place and for less motion; drawn only where the row has room, in both languages; on a note\'s page only');
+  console.log('PASS running-head: nothing without script; out of sight over the note\'s head and its introduction, there once the first section begins, both ways; names the section the contents mark, numbered only where the margin counts; opens the contents in place, every section listed and the current one marked, a pick goes there and closes it, Escape and a press on nothing hand focus back to the press while a press on a control or the text keeps it there; fades as the reader moves, still on a reload or a kept place and for less motion; drawn only where the row has room, in both languages; on a note\'s page only');
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);

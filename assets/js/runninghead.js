@@ -1,13 +1,15 @@
-// The running head: once the note's own head has gone up under the header, the
-// header names the section being read, and a press on it opens the note's
-// contents to go to another.
+// The running head: once the reader is in the note's first section, the header
+// names the section being read, and a press on it opens the note's contents to
+// go to another. Above that, over the note's own head and whatever the note
+// says before its first section, there is no section to name, so nothing is
+// named.
 //
 // Which section is being read is not decided here. The contents list in the
 // popover is the contents' anatomy, so the module that marks the entry being
 // read in the left column marks it in this list too, by the same reading line,
 // and tells this module when the mark moves; the running head is a copy of the
-// entry it marked. Whether the note's head has gone is asked of the browser by
-// an intersection observer, so nothing here runs while the page scrolls.
+// entry it marked. Whether the first section has begun is asked of the browser
+// by an intersection observer, so nothing here runs while the page scrolls.
 //
 // The popover is the browser's: the press names it, and opening, closing on
 // Escape or a press outside, and handing focus back on Escape are all native.
@@ -25,22 +27,25 @@
 // numbers in the margin.
 const SECTION = ':scope > [data-level="2"], :scope > .y-sect > [data-level="2"]';
 
+// How far below the screen the window that watches the first section's
+// heading runs: further than any note goes.
+const PAST_ANY_NOTE = '100000%';
+
 export function initRunningHead() {
   const button = document.querySelector('[data-running-head]');
   const list = document.querySelector('[data-running-contents]');
   const popover = list?.closest('[popover]');
-  const article = document.querySelector('.y-article');
-  const frontis = article?.querySelector('.y-frontis');
-  const prose = article?.querySelector('.y-prose');
+  const prose = document.querySelector('.y-article .y-prose');
   // An engine without popovers would draw a press that opens nothing, so it
   // draws none, as a page with no script does.
-  if (!button || !popover || !frontis || !prose || !('popover' in HTMLElement.prototype)) return null;
+  if (!button || !popover || !prose || !('popover' in HTMLElement.prototype)) return null;
 
-  if (!countSections(list, prose)) return null;
+  const first = countSections(list, prose);
+  if (!first) return null;
 
   const number = button.querySelector('[data-running-head-num]');
   const title = button.querySelector('[data-running-head-title]');
-  let past = false;
+  let begun = false;
   let marked = false;
 
   // follow copies the entry the contents module marked, and is what that
@@ -58,7 +63,7 @@ export function initRunningHead() {
   }
 
   function show() {
-    const shown = past && marked;
+    const shown = begun && marked;
     if (shown === button.hasAttribute('data-running-head-shown')) return;
     if (shown) {
       button.setAttribute('data-running-head-shown', '');
@@ -72,15 +77,23 @@ export function initRunningHead() {
     button.removeAttribute('data-running-head-shown');
   }
 
-  // The note's head has gone once all of it is above the header's lower edge,
-  // which is where the text the reader is reading starts.
-  const header = document.querySelector('.y-header');
-  const under = Math.max(0, Math.round(header?.getBoundingClientRect().bottom ?? 0));
+  // The first section has begun once its heading is at or above the reading
+  // line, the line the contents module marks entries by: the clearance a jump
+  // to a heading leaves above it, and eight pixels more. The note's own head
+  // is gone by then, because the space under it is wider than the line is
+  // below the header. The observer's window starts at that line and runs on
+  // past the end of any note, so the heading is wholly inside it while it is
+  // still to come, partly inside as its top crosses the line, and outside
+  // once it has gone up: a jump straight past it, from the top to a later
+  // section and back, crosses a threshold as a scroll through it does. A
+  // window ending at the bottom of the screen would see the heading outside
+  // it both before and after such a jump, and say nothing.
+  const line = Math.round((Number.parseFloat(getComputedStyle(first).scrollMarginTop) || 0) + 8);
   const observer = new IntersectionObserver(([entry]) => {
-    past = !entry.isIntersecting && entry.boundingClientRect.top < (entry.rootBounds?.top ?? under);
+    begun = entry.boundingClientRect.top <= (entry.rootBounds?.top ?? line) + 0.5;
     show();
-  }, { rootMargin: `-${under}px 0px 0px 0px` });
-  observer.observe(frontis);
+  }, { rootMargin: `-${line}px 0px ${PAST_ANY_NOTE} 0px`, threshold: [0, 1] });
+  observer.observe(first);
 
   // The running head fades in and out as the reader moves through the note,
   // and is simply there or not when the page arrives somewhere by itself: a
@@ -126,10 +139,11 @@ export function initRunningHead() {
 
 // countSections keeps the entries the stylesheet counts, in the order it counts
 // them, and gives each its number where the note's sections are numbered. It
-// reports whether any entry is left to name.
+// answers the first section's heading, or null where no entry is left to name.
 function countSections(list, prose) {
   const counted = new Set(prose.querySelectorAll(SECTION));
   const numbered = prose.hasAttribute('data-section-numbers');
+  let first = null;
   let ordinal = 0;
   for (const link of [...list.querySelectorAll('a[href^="#"]')]) {
     const heading = document.getElementById(decodeURIComponent(link.getAttribute('href').slice(1)));
@@ -138,8 +152,9 @@ function countSections(list, prose) {
       continue;
     }
     ordinal += 1;
+    first ??= heading;
     const slot = link.querySelector('.y-contentspop__num');
     if (slot && numbered) slot.textContent = String(ordinal).padStart(2, '0');
   }
-  return ordinal > 0;
+  return first;
 }

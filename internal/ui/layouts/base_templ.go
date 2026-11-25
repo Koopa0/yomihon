@@ -826,11 +826,11 @@ func header(c Chrome) templ.Component {
 // runningHead is the head a book prints over each page: the section the reader
 // is in, its number where the page counts the sections, and a press that opens
 // the note's contents under it, to go to another. It is drawn only once the
-// note's own head has gone up under the row, because while that head is on the
-// screen it says more than this could; and only where the row has room left
-// beside its other controls, which the stylesheet asks of the room itself
-// rather than of the window, since the words of the row are wider in one
-// language than in the other.
+// reader is in the note's first section: over the note's own head, and over
+// whatever the note says before its first section, there is no section to
+// name. And only where the row has room left beside its other controls,
+// which the stylesheet asks of the room itself rather than of the window,
+// since the words of the row are wider in one language than in the other.
 //
 // It is a press that names a native popover and leaves the opening, the
 // dismissal by Escape or a press outside, and the return of focus to the

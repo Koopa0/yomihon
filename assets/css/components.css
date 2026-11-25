@@ -502,8 +502,11 @@ samp {
    reader has moved (the script marks that), at the pace of a surface the
    reader called up, and the motion gate and the reduced-motion blanket hold
    it as they hold everything else. */
+/* The number and the words stand on one baseline, as the number in the margin
+   stands on its heading's; the line they make is centred in the press by its
+   padding, and the turn is centred on its own. */
 .y-runhead {
-  align-items: center;
+  align-items: baseline;
   anchor-name: --y-runhead;
   background: transparent;
   border: 0;
@@ -514,10 +517,11 @@ samp {
   font-family: var(--font-sans);
   gap: var(--sp-2);
   height: var(--control-h);
+  line-height: 1.25rem;
   margin-inline-start: var(--sp-5);
   max-width: min(26rem, 100% - var(--sp-5));
   min-width: 0;
-  padding: 0 var(--sp-2);
+  padding: calc((var(--control-h) - 1.25rem) / 2) var(--sp-2);
 }
 
 @container y-headroom (width >= 15rem) {
@@ -574,6 +578,7 @@ samp {
 }
 
 .y-runhead__mark {
+  align-self: center;
   color: var(--fg-faint);
   flex: none;
 }
