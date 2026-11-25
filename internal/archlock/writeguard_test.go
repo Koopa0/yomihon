@@ -20,29 +20,35 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// yomihon writes in exactly one place, and that place is outside the vault: the
-// reader's own records, in files of yomihon's own under the platform's
-// configuration directory. Nothing writes into a vault. The sentence the privacy
-// inventory and the threat model both make to a stranger rests on that being true
-// of the code rather than of anyone's memory of it, so the code is read with its
-// types: a name says what a programmer called something, and a type says what it
-// is.
+// yomihon writes in two places, and each is held to what it may write there by
+// the types of its code. One is outside the vault: the reader's own records, in
+// files of yomihon's own under the platform's configuration directory, which
+// internal/mark/confdir writes. The other is inside it, and is one file: this
+// machine's file of marks in the vault's reader folder, which
+// internal/mark/machinefile writes and nothing else may (writers_test.go). No
+// route calls it yet, so today nothing writes into a vault. The sentences the
+// privacy inventory and the threat model make to a stranger rest on that being
+// true of the code rather than of anyone's memory of it, so the code is read
+// with its types: a name says what a programmer called something, and a type
+// says what it is.
 //
 // The rule has three parts, and none is a list of writes.
 //
-//   - What may be named. Outside the one package that writes, code may name only
+//   - What may be named. Outside the packages that write, code may name only
 //     the symbols of the packages that reach the filesystem or run a program
 //     (os, syscall, io/ioutil, os/exec, golang.org/x/sys, plugin) that readOnly
 //     lists. Everything else they hold is refused by being absent, so a function
 //     the standard library adds tomorrow is refused the day it appears rather
 //     than the day somebody remembers a list. Nor may code import a package of
 //     the standard library that starts a program for it, as net/http/cgi does.
-//   - What it may be pointed at. The package that writes, internal/mark/confdir,
-//     works on a Dir, which only its Home and VaultDir make, and takes a Dir for
-//     everything that changes a file, so a write goes where one of the two
-//     pointed it. shape and dirIsOpaque hold the package to that: a function or
-//     method that changes a file is handed a Dir, and nothing but Home and
-//     VaultDir makes a Dir, sets what one holds or hands one out.
+//   - What it may be pointed at. Each package that writes works on a type only
+//     it makes, and takes one for everything that changes a file, so a write goes
+//     where that type was pointed: confdir's Dir, which only Home and VaultDir
+//     make, and machinefile's Folder, which only Open makes. shape and
+//     dirIsOpaque hold each package to that: a function or method that changes a
+//     file is handed one, and nothing but its makers makes one, sets what one
+//     holds or hands one out. machinefile is held further, to the few names its
+//     permits list and to what each of their calls is made with.
 //   - What is linked. The program is more than this module: the modules it
 //     links are read by the same names, may be only those on reviewedModules,
 //     may not be swapped by a replace, and may not hold a file in a language the
@@ -62,9 +68,10 @@ import (
 // Reflection is not read either, so reflect and the template packages are
 // forbidden imports, and so are C, unsafe and go:linkname.
 
-// rawWriter is the one package that may name what changes a file. Everything
-// else in internal/mark goes through it, and this guard checks that they do: the
-// survey that made this list found no write outside it.
+// rawWriter is the package that may name anything that changes a file, inside
+// the directory it is handed. Everything else in internal/mark goes through it
+// or through machinefile, and this guard checks that they do: the survey that
+// made this list found no write outside it.
 const rawWriter = module + "/internal/mark/confdir"
 
 // target is a platform the release is built for.
@@ -98,7 +105,7 @@ func reachesFilesystem(path string) bool {
 // more than the standard library's is.
 const systemCalls = "golang.org/x/sys"
 
-// readOnly is every symbol of those packages that code outside rawWriter may
+// readOnly is every symbol of those packages that code outside the writers may
 // name, each with what it is for. A symbol that is not here is refused, so
 // adding one is a decision somebody makes and a reviewer reads, and the thing it
 // has to be is something that cannot change a file.
@@ -492,8 +499,23 @@ func judge(u *unit) (found []site, writerUses int, used map[string]bool) {
 	}
 	var uses []use
 	permitted := permittedCalls(u)
+	permits, at := writers[u.path].permits, sitesOf(u)
 	for id, obj := range u.info.Uses {
 		sym, resolved := resolve(obj)
+		if p, held := permits[sym.key]; resolved && held {
+			// A name a writer is permitted is judged by its permit, use by use,
+			// and by nothing else.
+			if what, refused := p.refuses(u, sym.key, id, at); refused {
+				uses = append(uses, use{id.Pos(), what})
+			} else {
+				writerUses++
+				used[permitKey(u.path, sym.key)] = true
+			}
+			if readOnly[sym.key] {
+				used[sym.key] = true
+			}
+			continue
+		}
 		if what, refused := refusedUse(obj, id, permitted, u.dependency); refused {
 			uses = append(uses, use{id.Pos(), what})
 			// The writer may name anything, so what it uses says nothing of readOnly;
@@ -540,7 +562,8 @@ func refusedUse(obj types.Object, id *ast.Ident, permitted map[*ast.Ident]bool, 
 // a path would be one more way to write into a vault, and nothing but its reader
 // would notice.
 func shape(u *unit) []site {
-	if u.path != rawWriter {
+	w, isWriter := writers[u.path]
+	if !isWriter {
 		return nil
 	}
 	type function struct {
@@ -602,7 +625,7 @@ func shape(u *unit) []site {
 			}
 		}
 	}
-	dir := u.pkg.Scope().Lookup("Dir")
+	dir := u.pkg.Scope().Lookup(w.carrier.name)
 	var found []site
 	for _, fn := range functions {
 		if !fn.writes || !fn.obj.Exported() || handedADir(fn.obj.Signature(), dir) {
@@ -613,7 +636,7 @@ func shape(u *unit) []site {
 			name = typeName(recv.Type()) + "." + name
 		}
 		path, line := u.rel(fn.decl.Pos())
-		found = append(found, site{path: path, line: line, text: name + " changes a file, or a process, and takes no Dir, so a caller could point it anywhere"})
+		found = append(found, site{path: path, line: line, text: name + " changes a file, or a process, and takes no " + w.carrier.name + ", so a caller could point it anywhere"})
 	}
 	return found
 }
@@ -655,67 +678,98 @@ func typeName(t types.Type) string {
 // Dir.
 var dirMakers = []string{"Home", "VaultDir"}
 
-// dirIsOpaque holds the type that carries the other half of the rule to what it
-// says: a struct nothing outside the package can fill, that only dirMakers make,
-// set or hand out, and that no variable of the package hands out either. A Dir
-// that a string converts to, that has a field to set, or that a method could
-// re-aim would leave the compiler saying nothing about where a write goes. So
-// does a function held in a variable or handed back by an exported one, whose
-// calls shape cannot follow.
+// dirIsOpaque holds the types a writer is pointed with to what they say: the
+// carrier and each name type of writers, a struct nothing outside the package
+// can fill, that only its makers make, set or hand out, and that no variable of
+// the package hands out either. A Dir that a string converts to, that has a
+// field to set, or that a method could re-aim would leave the compiler saying
+// nothing about where a write goes. So does a function held in a variable or
+// handed back by an exported one, whose calls shape cannot follow.
 func dirIsOpaque(u *unit) []site {
-	if u.path != rawWriter {
+	w, isWriter := writers[u.path]
+	if !isWriter {
 		return nil
 	}
 	at := func(pos token.Pos, text string) site {
 		path, line := u.rel(pos)
 		return site{path: path, line: line, text: text}
 	}
-	object := u.pkg.Scope().Lookup("Dir")
+	function := holding{is: func(t types.Type) bool { _, isSig := t.(*types.Signature); return isSig }, field: func(*types.Var) bool { return true }}
+	var found []site
+	const handsOut = " returns a function, or something that holds one: what calling it changes is not something shape can follow"
+	for _, name := range u.pkg.Scope().Names() {
+		switch member := u.pkg.Scope().Lookup(name).(type) {
+		case *types.Func:
+			if member.Exported() && returns(member.Signature(), function) {
+				found = append(found, at(member.Pos(), member.Name()+handsOut))
+			}
+		case *types.Var:
+			if function.in(member.Type()) {
+				found = append(found, at(member.Pos(), member.Name()+" is a variable that holds a function: what calling it changes is not something shape can follow, and anyone can call or set an exported one"))
+			}
+		case *types.TypeName:
+			if typed, ok := member.Type().(*types.Named); ok {
+				for method := range typed.Methods() {
+					if method.Exported() && returns(method.Signature(), function) {
+						found = append(found, at(method.Pos(), typed.Obj().Name()+"."+method.Name()+handsOut))
+					}
+				}
+			}
+		}
+	}
+	for _, kind := range append([]opaqueType{w.carrier}, w.names...) {
+		found = append(found, opaque(u, kind)...)
+	}
+	return found
+}
+
+// returns says whether a function hands back something what accepts.
+func returns(sig *types.Signature, what holding) bool {
+	for result := range sig.Results().Variables() {
+		if what.in(result.Type()) {
+			return true
+		}
+	}
+	return false
+}
+
+// opaque is dirIsOpaque for one type.
+func opaque(u *unit, kind opaqueType) []site {
+	at := func(pos token.Pos, text string) site {
+		path, line := u.rel(pos)
+		return site{path: path, line: line, text: text}
+	}
+	name, makers := kind.name, strings.Join(kind.makers, " and ")
+	object := u.pkg.Scope().Lookup(name)
 	if object == nil {
-		return []site{at(u.files[0].Pos(), "there is no type Dir, so no write is held to the configuration directory by its type")}
+		return []site{at(u.files[0].Pos(), "there is no type "+name+", so no write is held to "+kind.place+" by its type")}
 	}
 	var found []site
 	named, isNamed := object.Type().(*types.Named)
 	if !isNamed {
-		return []site{at(object.Pos(), "Dir is not a defined type")}
+		return []site{at(object.Pos(), name+" is not a defined type")}
 	}
 	structure, isStruct := named.Underlying().(*types.Struct)
 	if !isStruct {
-		return []site{at(object.Pos(), "Dir is not a struct, so a string converts to it and a Dir can be made from any path")}
+		return []site{at(object.Pos(), name+" is not a struct, so a string converts to it and a "+name+" can be made from any path")}
 	}
 	for field := range structure.Fields() {
 		if field.Exported() {
-			found = append(found, at(field.Pos(), "Dir has an exported field, "+field.Name()+", so a Dir can be filled in from outside the package"))
+			found = append(found, at(field.Pos(), name+" has an exported field, "+field.Name()+", so a "+name+" can be filled in from outside the package"))
 		}
 	}
 	// What a caller outside the package can reach: a value, what it points to or
 	// holds, its exported fields, and what a function takes or returns.
 	reached := holding{is: isType(object), field: (*types.Var).Exported, throughFuncs: true}
-	function := holding{is: func(t types.Type) bool { _, isSig := t.(*types.Signature); return isSig }, field: func(*types.Var) bool { return true }}
-	returns := func(sig *types.Signature, what holding) bool {
-		for result := range sig.Results().Variables() {
-			if what.in(result.Type()) {
-				return true
-			}
-		}
-		return false
-	}
-	const handsOut = " returns a function, or something that holds one: what calling it changes is not something shape can follow"
-	for _, name := range u.pkg.Scope().Names() {
-		switch member := u.pkg.Scope().Lookup(name).(type) {
+	for _, member := range u.pkg.Scope().Names() {
+		switch member := u.pkg.Scope().Lookup(member).(type) {
 		case *types.Func:
-			if member.Exported() && returns(member.Signature(), reached) && !slices.Contains(dirMakers, member.Name()) {
-				found = append(found, at(member.Pos(), member.Name()+" returns a Dir, or something that holds one, and is not one of "+strings.Join(dirMakers, " and ")+", which are the only ways to make one"))
-			}
-			if member.Exported() && returns(member.Signature(), function) {
-				found = append(found, at(member.Pos(), member.Name()+handsOut))
+			if member.Exported() && returns(member.Signature(), reached) && !slices.Contains(kind.makers, member.Name()) {
+				found = append(found, at(member.Pos(), member.Name()+" returns a "+name+", or something that holds one, and is not one of "+makers+", which are the only ways to make one"))
 			}
 		case *types.Var:
 			if member.Exported() && reached.in(member.Type()) {
-				found = append(found, at(member.Pos(), member.Name()+" is a variable that holds a Dir, which anyone could set to a Dir of their own or read one from"))
-			}
-			if function.in(member.Type()) {
-				found = append(found, at(member.Pos(), member.Name()+" is a variable that holds a function: what calling it changes is not something shape can follow, and anyone can call or set an exported one"))
+				found = append(found, at(member.Pos(), member.Name()+" is a variable that holds a "+name+", which anyone could set to a "+name+" of their own or read one from"))
 			}
 		case *types.TypeName:
 			typed, ok := member.Type().(*types.Named)
@@ -725,37 +779,35 @@ func dirIsOpaque(u *unit) []site {
 			if other, isStruct := typed.Underlying().(*types.Struct); isStruct && member.Exported() && typed.Obj() != object {
 				for field := range other.Fields() {
 					if field.Exported() && reached.in(field.Type()) {
-						found = append(found, at(field.Pos(), typed.Obj().Name()+"."+field.Name()+" holds a Dir, which anyone could set to a Dir of their own"))
+						found = append(found, at(field.Pos(), typed.Obj().Name()+"."+field.Name()+" holds a "+name+", which anyone could set to a "+name+" of their own"))
 					}
 				}
 			}
 			for method := range typed.Methods() {
 				if method.Exported() && returns(method.Signature(), reached) {
-					found = append(found, at(method.Pos(), typed.Obj().Name()+"."+method.Name()+" returns a Dir, which would put one somewhere else in the configuration directory or outside it"))
-				}
-				if method.Exported() && returns(method.Signature(), function) {
-					found = append(found, at(method.Pos(), typed.Obj().Name()+"."+method.Name()+handsOut))
+					found = append(found, at(method.Pos(), typed.Obj().Name()+"."+method.Name()+" returns a "+name+", which would put one somewhere else in "+kind.place+" or outside it"))
 				}
 			}
 		}
 	}
-	return append(found, dirMadeElsewhere(u, object, structure)...)
+	return append(found, dirMadeElsewhere(u, object, structure, kind)...)
 }
 
-// dirMadeElsewhere reports, outside the bodies of dirMakers, every place a Dir
-// is made or what one holds is set: a literal of it, a conversion to it, a
-// struct with its fields, which a Dir is assignable from and converts from, and
-// an assignment to one of its fields or a pointer taken to one. It is read from
-// the syntax with the types, so a promoted field, an elided literal type and a
-// type of another name are the Dir they are.
-func dirMadeElsewhere(u *unit, dir types.Object, structure *types.Struct) []site {
+// dirMadeElsewhere reports, outside the bodies of the type's makers, every
+// place a value of it is made or what one holds is set: a literal of it, a
+// conversion to it, a struct with its fields, which it is assignable from and
+// converts from, and an assignment to one of its fields or a pointer taken to
+// one. It is read from the syntax with the types, so a promoted field, an
+// elided literal type and a type of another name are the type they are.
+func dirMadeElsewhere(u *unit, dir types.Object, structure *types.Struct, kind opaqueType) []site {
+	name, makers := kind.name, strings.Join(kind.makers, " and ")
 	fields := map[types.Object]bool{}
 	for field := range structure.Fields() {
 		fields[field] = true
 	}
 	isDir := isType(dir)
-	// setsAField says whether an expression written to names a field of Dir,
-	// however deep the selector is.
+	// setsAField says whether an expression written to names a field of the
+	// type, however deep the selector is.
 	setsAField := func(expr ast.Expr) (string, bool) {
 		for {
 			switch e := expr.(type) {
@@ -781,15 +833,15 @@ func dirMadeElsewhere(u *unit, dir types.Object, structure *types.Struct) []site
 		found = append(found, site{path: path, line: line, text: text})
 	}
 	set := func(node ast.Node, expr ast.Expr) {
-		if name, ok := setsAField(expr); ok {
-			report(node, name+", a field of Dir, is set here, and only "+strings.Join(dirMakers, " and ")+" set one")
+		if field, ok := setsAField(expr); ok {
+			report(node, field+", a field of "+name+", is set here, and only "+makers+" set one")
 		}
 	}
 	for _, file := range u.files {
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch n := node.(type) {
 			case *ast.FuncDecl:
-				if n.Recv == nil && slices.Contains(dirMakers, n.Name.Name) {
+				if n.Recv == nil && slices.Contains(kind.makers, n.Name.Name) {
 					return false
 				}
 			case *ast.TypeSpec:
@@ -798,15 +850,15 @@ func dirMadeElsewhere(u *unit, dir types.Object, structure *types.Struct) []site
 				}
 			case *ast.StructType:
 				if tv, ok := u.info.Types[n]; ok && types.Identical(tv.Type, structure) {
-					report(n, "a struct with the fields of Dir, which is assignable and converts to one, so a Dir can be made from it outside "+strings.Join(dirMakers, " and "))
+					report(n, "a struct with the fields of "+name+", which is assignable and converts to one, so a "+name+" can be made from it outside "+makers)
 				}
 			case *ast.CompositeLit:
 				if isDir(u.info.TypeOf(n)) {
-					report(n, "a Dir is made here, and only "+strings.Join(dirMakers, " and ")+" make one")
+					report(n, "a "+name+" is made here, and only "+makers+" make one")
 				}
 			case *ast.CallExpr:
 				if tv, ok := u.info.Types[n.Fun]; ok && tv.IsType() && (isDir(tv.Type) || isDir(pointed(tv.Type))) {
-					report(n, "a value is converted to a Dir here, and only "+strings.Join(dirMakers, " and ")+" make one")
+					report(n, "a value is converted to a "+name+" here, and only "+makers+" make one")
 				}
 			case *ast.AssignStmt:
 				for _, lhs := range n.Lhs {
@@ -823,8 +875,8 @@ func dirMadeElsewhere(u *unit, dir types.Object, structure *types.Struct) []site
 					}
 				}
 			case *ast.UnaryExpr:
-				if name, ok := setsAField(n.X); ok && n.Op == token.AND {
-					report(n, "the address of "+name+", a field of Dir, is taken here, so it can be set outside "+strings.Join(dirMakers, " and "))
+				if field, ok := setsAField(n.X); ok && n.Op == token.AND {
+					report(n, "the address of "+field+", a field of "+name+", is taken here, so it can be set outside "+makers)
 				}
 			}
 			return true
@@ -1178,11 +1230,13 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 		if result.err != nil {
 			t.Fatal(result.err)
 		}
-		// The writer has to have been seen writing. A walk that never reached it
+		// Each writer has to have been seen writing. A walk that never reached one
 		// would report a tree with no writes in it at all, which is the one result
 		// that would look like success and mean nothing.
-		if result.written == 0 {
-			t.Fatalf("no write was seen in %s on %s, so this walk never reached the package it is meant to permit", rawWriter, result.at)
+		for _, writer := range slices.Sorted(maps.Keys(writers)) {
+			if result.written[writer] == 0 {
+				t.Fatalf("no write was seen in %s on %s, so this walk never reached the package it is meant to permit", writer, result.at)
+			}
 		}
 		for _, one := range result.found {
 			if _, seen := systemsOf[one]; !seen {
@@ -1232,7 +1286,7 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 		}
 		found = append(found, one)
 	}
-	report(t, "this may change a file or reach past what this guard can read, and yomihon writes in exactly one place, outside the vault: the reader's own files, through internal/mark/confdir", found)
+	report(t, "this may change a file or reach past what this guard can read, and yomihon writes only the reader's own files, through internal/mark/confdir, and this machine's file of marks, through internal/mark/machinefile", found)
 
 	// A permission nobody uses is one more name that may be written later without
 	// anyone having decided it. The writer's own uses do not count for readOnly,
@@ -1245,6 +1299,13 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 	for _, key := range processQueries {
 		if !used[key] {
 			t.Errorf("%s is on processQueries and %s does not name it; remove it", key, rawWriter)
+		}
+	}
+	for _, writer := range slices.Sorted(maps.Keys(writers)) {
+		for _, key := range slices.Sorted(maps.Keys(writers[writer].permits)) {
+			if !used[permitKey(writer, key)] {
+				t.Errorf("%s is permitted to %s and no use of it there is one its permit allows; remove it", key, writer)
+			}
 		}
 	}
 	// A file that no platform builds is a file nothing here read.
@@ -1320,9 +1381,10 @@ var dependencyReads = map[string]string{
 
 // systemWalk is what reading the tree for one platform found.
 type systemWalk struct {
-	at      target
-	found   []site
-	written int
+	at    target
+	found []site
+	// written is how many uses of what changes a file each writer made.
+	written map[string]int
 	used    map[string]bool
 	files   map[string]bool
 	modules map[string]bool
@@ -1333,7 +1395,7 @@ type systemWalk struct {
 }
 
 func walkSystem(at target) systemWalk {
-	out := systemWalk{at: at, used: map[string]bool{}, files: map[string]bool{}, modules: map[string]bool{}, imports: map[string]bool{}}
+	out := systemWalk{at: at, written: map[string]int{}, used: map[string]bool{}, files: map[string]bool{}, modules: map[string]bool{}, imports: map[string]bool{}}
 	w, err := loadWorld(at)
 	if err != nil {
 		out.err = err
@@ -1357,7 +1419,7 @@ func walkSystem(at target) systemWalk {
 		sites, uses, usedHere := judge(u)
 		out.found = append(out.found, sites...)
 		out.found = append(out.found, startsAProgram(u, w.starters)...)
-		out.written += uses
+		out.written[u.path] += uses
 		maps.Copy(out.used, usedHere)
 		out.found = append(out.found, shape(u)...)
 		out.found = append(out.found, dirIsOpaque(u)...)
