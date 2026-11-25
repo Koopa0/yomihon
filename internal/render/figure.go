@@ -129,8 +129,14 @@ func figureEmbed(relPath string, link graph.Wikilink, state *FigureState, col *c
 	if width != "" {
 		sized = ` width="` + width + `"` + sized
 	}
+	// A figure the embed gives a width wider than the text is set to the wide
+	// measure, as a picture given one is.
+	wide := ""
+	if width != "" {
+		wide = wideForWidth(width)
+	}
 	var b strings.Builder
-	b.WriteString(`<div class="figure-embed"><div class="mat">`)
+	b.WriteString(`<div class="figure-embed"` + wideAttribute(wide) + `><div class="mat">`)
 	fmt.Fprintf(&b, `<iframe class="figure-embed__frame" src="%s" title="%s" sandbox="%s" referrerpolicy="no-referrer" allow=""%s%s></iframe>`,
 		attributeEscaper.Replace(figureHref(relPath)), html.EscapeString(title), sandbox, sized, marker)
 	b.WriteString(`</div><p class="figure-embed__print">` + standIn + `</p>`)

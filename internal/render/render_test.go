@@ -189,6 +189,28 @@ func TestTableWrappedForOverflow(t *testing.T) {
 	}
 }
 
+// TestAWideTableNamesItsMeasuresOnItsWrapper holds where the wide measure is
+// asked for: on the scroll container, which is the block standing in the text,
+// and only for a table its columns crowd. The table inside keeps the alignment
+// its delimiter row gave each column.
+func TestAWideTableNamesItsMeasuresOnItsWrapper(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	sentence := strings.Repeat("讀", 40)
+	body := "| a | b |\n|---|--:|\n| x | 12 |\n\n" +
+		"| a | b | c |\n|---|---|---|\n| " + sentence + " | " + sentence + " | " + sentence + " |\n"
+	got := r.HTML("note.md", "", body, wording.ZhHant).HTML
+	if n := strings.Count(got, `<div class="y-tablewrap"><table>`); n != 1 {
+		t.Errorf("tables at the text's width = %d, want 1:\n%s", n, got)
+	}
+	if n := strings.Count(got, `<div class="y-tablewrap" data-wide="latin-xl latin-l latin-m xl l m"><table>`); n != 1 {
+		t.Errorf("wide tables = %d, want 1:\n%s", n, got)
+	}
+	if !strings.Contains(got, `<td style="text-align:right">12</td>`) {
+		t.Errorf("the right-aligned column lost its alignment:\n%s", got)
+	}
+}
+
 // TestHeadingSlugsTreatInertRawHeadingAsText pins the new authority boundary:
 // an authored heading tag is visible source text, not a nested live heading.
 // The containing Markdown heading therefore remains a normal navigable heading
@@ -773,7 +795,7 @@ func TestEmbedPictureTargetPaintsInline(t *testing.T) {
 		t.Parallel()
 		r := newRenderer(t, nil, []string{"attachments/pic.png"}, nil)
 		got := r.HTML("note.md", "", "![[pic.png]]\n", wording.ZhHant)
-		const wantHTML = "<p><img src=\"/raw/attachments/pic.png\" alt=\"pic.png\"></p>\n"
+		const wantHTML = "<figure class=\"mat mat--page\"><img src=\"/raw/attachments/pic.png\" alt=\"pic.png\"></figure>\n"
 		if got.HTML != wantHTML {
 			t.Errorf("HTML().HTML = %q, want exactly %q", got.HTML, wantHTML)
 		}

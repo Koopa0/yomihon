@@ -12,15 +12,16 @@ const READING_CHOICES = ['serif', 'sans', 'kai'];
 const EXCLUDED = 'code, pre, kbd, samp, button, input, select, textarea, code *, pre *, kbd *, samp *, button *, select *, textarea *';
 const FAMILY_SELECTOR = `.y-prose :where(p, rt, [data-level], [lang]):lang(ja):not(:where(${EXCLUDED}))`;
 const RESET_SELECTOR = `.y-prose [lang]:not(:lang(ja)):not(:where(${EXCLUDED}))`;
-const SANS_PROSE_SELECTOR = '.y-prose :where(.footnotes, th, .embed__source, .embed__note, .callout-title):lang(ja)';
-const SERIF_PROSE_SELECTOR = '.y-prose :where(td, .callout-body):lang(ja)';
+const SANS_PROSE_SELECTOR = '.y-prose :where(.footnotes, th, td, figcaption, .embed__source, .embed__note, .callout-title):lang(ja)';
+const SERIF_PROSE_SELECTOR = '.y-prose :where(.callout-body):lang(ja)';
 const PROSE_FACES = [
   ['.callout-body', 'serif'],
   ['.callout-title', 'sans'],
   ['.embed__note', 'sans'],
   ['.embed__source', 'sans'],
   ['.footnotes', 'sans'],
-  ['td', 'serif'],
+  ['figcaption', 'sans'],
+  ['td', 'sans'],
   ['th', 'sans'],
 ];
 const MODES = {
@@ -179,7 +180,7 @@ try {
             const ordinary = rule.style?.fontFamily;
             if (rule.selectorText?.includes('.y-prose') && ['var(--font-sans)', 'var(--font-serif)'].includes(ordinary)) {
               for (const selector of rule.selectorText.split(',').map((value) => value.trim())) {
-                const match = /^\.y-prose (\.[\w-]+|th|td)$/.exec(selector);
+                const match = /^\.y-prose (\.[\w-]+|th|td|figcaption)$/.exec(selector);
                 if (!match) throw new Error(`unreadable prose family declaration ${selector}`);
                 declared.push([match[1], ordinary === 'var(--font-sans)' ? 'sans' : 'serif']);
               }
@@ -191,6 +192,16 @@ try {
           if ((sheet.href || '').includes('/static/app.css')) walkRules(sheet.cssRules);
         }
         declared.sort(([a], [b]) => a.localeCompare(b, 'en'));
+        // The lesson holds no picture, so a plate's caption is set into it
+        // here, in the lesson's own language, the way the renderer writes one.
+        if (!prose.querySelector('figcaption')) {
+          const plate = document.createElement('figure');
+          plate.className = 'mat';
+          const caption = document.createElement('figcaption');
+          caption.textContent = '図の説明';
+          plate.append(caption);
+          prose.append(plate);
+        }
         const sites = roles.flatMap(([selector, role]) => {
           const nodes = [...prose.querySelectorAll(selector)];
           if (!nodes.length) throw new Error(`missing authored prose component ${selector}`);
@@ -255,7 +266,7 @@ try {
       }
     } finally { await context.close(); }
   }
-  console.log(`PASS japanese-reading-face: ${measured} complete computed paragraph/rt/preference/language-boundary cases plus seven authored prose roles`);
+  console.log(`PASS japanese-reading-face: ${measured} complete computed paragraph/rt/preference/language-boundary cases plus ${PROSE_FACES.length} authored prose roles`);
 } catch (error) {
   console.error(error.message || error);
   if (error instanceof NotApplied) { console.log(`MUTATE-RESULT: not-applied ${MUTATE}`); process.exitCode = 2; }

@@ -48,6 +48,7 @@ probes=(
   "code-ligatures.mjs|/notes/Notes/reading-fidelity.md"
   "code-copy.mjs|/notes/Notes/code-copy.md"
   "wide-blocks.mjs|/notes/Notes/wide-code.md"
+  "tables-plates.mjs|/notes/Notes/tables-plates.md"
   "sidebar-content.mjs|/notes/Notes/alpha.md"
   "rail-disclosure-state.mjs|/notes/Course/C02.md"
   "rail-filter-state.mjs|/notes/Course/C02.md"
