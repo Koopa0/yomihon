@@ -6104,8 +6104,11 @@ html[data-js] .yomihon:has(.y-rail-left) .y-sidebtn {
    Folded, it is gone: no strip and nothing kept on the edge, the header's
    button being the way back. It fades and steps back ten pixels as it goes and
    leaves the tree when the fade ends, so nothing in it can be reached while it
-   is not drawn; opened, it is in the tree at once and fades in. Being hidden
-   rather than removed, it keeps its scroll position across a fold.
+   is not drawn; opened, it is in the tree at once and fades in, so the filter
+   the slash key opens it for can take focus in the same moment. The leaving
+   is the folded state's transition and the arriving the open state's, which
+   is why each state names its own. Being hidden rather than removed, it keeps
+   its scroll position across a fold.
 
    The rule reads the root, which the server writes from the cookie before
    anything is painted, so the first style the page computes is the final one
@@ -6115,8 +6118,8 @@ html[data-js] .yomihon:has(.y-rail-left) .y-sidebtn {
 
    The two widths are two rules because a media query cannot ask which page it
    is on; the list pages are named by the block their main holds. The page
-   kind is wrapped in :where() so that both rules weigh less than the restore
-   rule below. */
+   kind is wrapped in :where() so that no rule here weighs more than the
+   restore rule below, which comes later and so wins. */
 @media (min-width: 1321px) {
   .y-shell > .y-rail-left:not([data-drawer-only]),
   .y-shell2:where(:not(:has(> .y-main > :is(.y-home, .y-searchpage, .y-healthpage)))) > .y-rail-left:not([data-drawer-only]) {
@@ -6129,7 +6132,7 @@ html[data-js] .yomihon:has(.y-rail-left) .y-sidebtn {
     position: fixed;
     top: var(--hdr-h);
     transform: none;
-    transition: opacity var(--dur-base) var(--ease-standard), translate var(--dur-base) var(--ease-standard), visibility var(--dur-base);
+    transition: opacity var(--dur-base) var(--ease-standard), translate var(--dur-base) var(--ease-standard);
     width: var(--rail-w);
     z-index: 20;
   }
@@ -6137,6 +6140,7 @@ html[data-js] .yomihon:has(.y-rail-left) .y-sidebtn {
   html[data-rail='collapsed'] .y-shell > .y-rail-left:not([data-drawer-only]),
   html[data-rail='collapsed'] .y-shell2:where(:not(:has(> .y-main > :is(.y-home, .y-searchpage, .y-healthpage)))) > .y-rail-left:not([data-drawer-only]) {
     opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-standard), translate var(--dur-base) var(--ease-standard), visibility var(--dur-base);
     translate: -10px 0;
     visibility: hidden;
   }
@@ -6162,13 +6166,14 @@ html[data-js] .yomihon:has(.y-rail-left) .y-sidebtn {
     position: fixed;
     top: var(--hdr-h);
     transform: none;
-    transition: opacity var(--dur-base) var(--ease-standard), translate var(--dur-base) var(--ease-standard), visibility var(--dur-base);
+    transition: opacity var(--dur-base) var(--ease-standard), translate var(--dur-base) var(--ease-standard);
     width: var(--rail-w);
     z-index: 20;
   }
 
   html[data-rail='collapsed'] .y-shell2 > .y-rail-left:not([data-drawer-only]) {
     opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-standard), translate var(--dur-base) var(--ease-standard), visibility var(--dur-base);
     translate: -10px 0;
     visibility: hidden;
   }
@@ -6184,7 +6189,7 @@ html[data-js] .yomihon:has(.y-rail-left) .y-sidebtn {
 /* A page restored from the back/forward cache is put in the state its cookie
    names at once: the fold is answered by a transition only when the reader
    asked for it, and a restore is not the reader asking. */
-html[data-rail-settling] .y-rail-left:not([data-drawer-only]) {
+html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   transition: none;
 }
 
