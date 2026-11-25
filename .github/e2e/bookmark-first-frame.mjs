@@ -32,7 +32,7 @@ const OTHER_NOTE = 'Notes/alpha.md';
 // anchor above the window is a heading the browser alone would land on a long
 // way from it, so a frame at the heading cannot be mistaken for one at the place.
 const KEEP_AT = [
-  { width: 1440, height: 800, y: 1100 },
+  { width: 1440, height: 800, y: 1250 },
   { width: 375, height: 800, y: 1700 },
 ];
 // Each return is made twice over: as the page is served, and with the module

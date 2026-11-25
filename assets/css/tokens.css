@@ -221,12 +221,16 @@
   --fs-14: 0.875rem;
   --fs-16: 1rem;
 
-  /* Editorial scale */
+  /* Editorial scale. The 16 is a callout's words, a step under the text they
+     stand beside; the 22 is a section's heading, the size the Atelier note
+     sets one at. */
   --fs-ed-13: 0.8125rem;
   --fs-ed-14: 0.875rem;
   --fs-ed-15: 0.9375rem;
+  --fs-ed-16: 1rem;
   --fs-ed-17: 1.0625rem;
   --fs-ed-20: 1.25rem;
+  --fs-ed-22: 1.375rem;
   --fs-ed-24: 1.5rem;
   --fs-ed-30: 1.875rem;
   --fs-ed-36: 2.25rem;
@@ -490,8 +494,10 @@
   --fs-ed-13: 0.9375rem;
   --fs-ed-14: 1rem;
   --fs-ed-15: 1.0625rem;
+  --fs-ed-16: 1.125rem;
   --fs-ed-17: 1.1875rem;
   --fs-ed-20: 1.375rem;
+  --fs-ed-22: 1.5rem;
   --fs-ed-24: 1.625rem;
   --fs-ed-30: 2rem;
   --fs-ed-36: 2.375rem;
@@ -502,8 +508,10 @@
   --fs-ed-13: 1.0625rem;
   --fs-ed-14: 1.125rem;
   --fs-ed-15: 1.1875rem;
+  --fs-ed-16: 1.25rem;
   --fs-ed-17: 1.3125rem;
   --fs-ed-20: 1.5rem;
+  --fs-ed-22: 1.625rem;
   --fs-ed-24: 1.75rem;
   --fs-ed-30: 2.1875rem;
   --fs-ed-36: 2.5rem;
@@ -514,7 +522,7 @@
    arrives nearly as wide. Both come down; the rest of the scale is already
    small enough that narrowing it would cost legibility rather than buy any.
    Each root gets its own pair rather than one shared behind a combined
-   selector list: the second heading (--fs-ed-24) is never clamped, so it keeps
+   selector list: the second heading (--fs-ed-22) is never clamped, so it keeps
    climbing with the reader's size choice, and a single pair for the title and
    the first heading eventually meets or passes it — tied at 大, above it at
    特大. Every root is named because a media query adds no specificity: a rule
