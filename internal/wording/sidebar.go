@@ -6,17 +6,12 @@ package wording
 // VaultNavigation names the sidebar itself for whoever reaches it by key.
 var VaultNavigation = both("書庫導覽", "Vault navigation")
 
-// SidebarButton is the header's button that opens the left column as a drawer
-// at the widths where it is folded behind one. It names the thing it opens;
-// ToggleRail names the button that folds the column above those widths.
+// SidebarButton is the header's button that opens and folds the left column:
+// where the column stands beside the text it shows or folds it, and where the
+// column is a drawer it opens the drawer. It names the thing it acts on; the
+// name does not change with the state, which the button reports through
+// aria-expanded, so a screen reader is not told the state twice.
 var SidebarButton = both("側欄", "Sidebar")
-
-// ToggleRail names the button at the top of the left column that folds the
-// whole column away above the drawer width and brings it back. The name does
-// not change with the state: the button reports which state it is in through
-// aria-expanded, and a name that flipped as well would say the state twice
-// and, read by a screen reader, the wrong one.
-var ToggleRail = both("切換側欄", "Toggle sidebar")
 
 // HideRail and ShowRail are the button's tooltip: the action it will take from
 // the state it is in, and the key that takes it. The tooltip may change with

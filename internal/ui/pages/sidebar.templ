@@ -11,44 +11,44 @@ import (
 
 // sidebar is the left column: the one element every page's navigation is, in
 // whichever of its four modes the page asks for (Sidebar.Mode). The frame is
-// the same for all of them: the landmark, the fold button above the drawer
-// width, the name it keeps on its folded edge, the filter, what the model could
-// not project, and the foot that says which folder it is in. Only the list in
-// the middle differs, and it is drawn from the mode's own data.
+// the same for all of them: the landmark, the filter, what the model could not
+// project, and the foot that says which folder it is in. Only the list in the
+// middle differs, and it is drawn from the mode's own data. The button that
+// opens and folds it is the header's, outside the column, so it is still there
+// when the column is not.
 templ sidebar(s Sidebar, c layouts.Chrome) {
 	<aside class="y-rail-left" id="_y-nav-rail" aria-label={ wording.VaultNavigation.In(c.Lang) } data-sidebar-mode={ string(s.Mode) } data-drawer-only?={ s.DrawerOnly }>
-		@railHead(c, s.FilterShown(c.Lang))
-		@railSpine(s.spine(c.Lang))
-		<div class="y-railbody" id="_y-nav-rail-body">
-			<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
-			<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
-			if s.Model != nil {
-				if faults := s.CapabilityFaults(c.Lang); len(faults) > 0 {
-					<div class="y-railsep" aria-hidden="true"></div>
-					<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="_y-sidebar-navigation-diagnostics-title">
-						<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.CoursesAndMaps.In(c.Lang) }</h2>
-						for _, fault := range faults {
-							<p>
-								@browserDiagnostic(fault.Summary, fault.Detail)
-							</p>
-						}
-					</section>
-				}
-			}
-			switch s.Mode {
-				case SidebarLibrary:
-					@libraryBody(s, c.Lang)
-				case SidebarCourse:
-					@bookRail(s, c)
-				case SidebarFolder:
-					if s.Model != nil {
-						@folderRail(s, c)
+		if s.FilterShown(c.Lang) {
+			@railHead(c)
+		}
+		<p class="y-filter-empty" data-filter-empty hidden>{ wording.FilterNoMatch.In(c.Lang) }</p>
+		<p class="y-filter-partial" data-filter-partial data-filter-partial-one={ wording.FilterPartialOne.In(c.Lang) } data-filter-partial-many={ wording.FilterPartialMany.In(c.Lang) } data-filter-searchall={ wording.FilterSearchAll.In(c.Lang) } hidden></p>
+		if s.Model != nil {
+			if faults := s.CapabilityFaults(c.Lang); len(faults) > 0 {
+				<div class="y-railsep" aria-hidden="true"></div>
+				<section class="y-navdiag" data-sidebar-group="navigation-diagnostics" aria-labelledby="_y-sidebar-navigation-diagnostics-title">
+					<h2 class="y-railsummary y-railsummary--label" id="_y-sidebar-navigation-diagnostics-title">{ wording.CoursesAndMaps.In(c.Lang) }</h2>
+					for _, fault := range faults {
+						<p>
+							@browserDiagnostic(fault.Summary, fault.Detail)
+						</p>
 					}
-				case SidebarIndex:
-					@indexBody(s, c.Lang)
+				</section>
 			}
-			@railFoot(s.Vault, c.Lang)
-		</div>
+		}
+		switch s.Mode {
+			case SidebarLibrary:
+				@libraryBody(s, c.Lang)
+			case SidebarCourse:
+				@bookRail(s, c)
+			case SidebarFolder:
+				if s.Model != nil {
+					@folderRail(s, c)
+				}
+			case SidebarIndex:
+				@indexBody(s, c.Lang)
+		}
+		@railFoot(s.Vault, c.Lang)
 	</aside>
 	@settleRail(c, s.FilterShown(c.Lang))
 }
@@ -238,16 +238,6 @@ templ railContents(note *NoteView, lang wording.Lang) {
 		<nav class="y-railtoc" aria-label={ wording.OnThisPage.In(lang) }>
 			@tocList(*note, lang)
 		</nav>
-	}
-}
-
-// railSpine is the name the rail keeps on its folded edge, set along the strip
-// the way the spine of a book is: with the column folded it is what says which
-// course, folder or shelf the page is in. It is drawn into every rail that has
-// a name to give and shown only while the column is folded.
-templ railSpine(s railSpineView) {
-	if s.Title != "" {
-		<a class="y-railspine" href={ templ.URL(s.Href) } title={ s.Title }><span class="y-railspine__name">{ s.Title }</span></a>
 	}
 }
 

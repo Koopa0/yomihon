@@ -1,9 +1,45 @@
-// Narrow-screen navigation drawer. The no-JS rail remains ordinary stacked
-// content; this enhancement owns inertness, focus containment, and restoration.
+// The left column as a drawer, wherever it cannot stand beside the text. The
+// no-JS rail remains ordinary stacked content there; this enhancement owns
+// inertness, focus containment, and restoration. Its open state is the root's
+// data-nav and nothing else: it is never written to the cookie, which keeps
+// only the choice made where the column stands beside the text.
+
+// The pages whose block is a list, which is wider than a reading block and so
+// leaves the column room beside it only on a wider window. The stylesheet names
+// the same blocks in the panel rules under Responsive; the two have to agree.
+const LIST_PAGES = '.y-main > :is(.y-home, .y-searchpage, .y-healthpage)';
+
+// The widths at which the column is a drawer: below 1321 beside a reading
+// block, below 1481 beside a list, and at every width on a page whose column is
+// only a drawer. The stylesheet draws the panel from the same widths.
+export function drawerQuery(rail) {
+  if (!rail || rail.hasAttribute('data-drawer-only')) return window.matchMedia('all');
+  return window.matchMedia(document.querySelector(LIST_PAGES) ? '(max-width: 1480px)' : '(max-width: 1320px)');
+}
+
+// The header's button acts on whichever form the column is in, and says so in
+// the same words either way: aria-expanded is whether the drawer is open where
+// the column is one, and whether the column stands beside the text where it is
+// not; the tooltip names what a press will do from that state, with the key
+// that does the same while single keys are on. Every write that can change one
+// of those passes through here.
+export function syncSideButton() {
+  const root = document.documentElement;
+  const button = document.querySelector('[data-nav-toggle]');
+  const rail = document.querySelector('#_y-nav-rail');
+  if (!button || !rail) return;
+  const open = drawerQuery(rail).matches ? root.dataset.nav === 'open' : root.dataset.rail === 'open';
+  const keys = root.dataset.singleKeyShortcuts !== 'off';
+  button.setAttribute('aria-expanded', String(open));
+  button.title = (open ? button.dataset.titleHide : button.dataset.titleShow) + (keys ? button.dataset.titleKey : '');
+  if (keys) button.setAttribute('aria-keyshortcuts', '[');
+  else button.removeAttribute('aria-keyshortcuts');
+}
+
 export function initDrawer() {
   const root = document.documentElement;
-  const media = window.matchMedia('(max-width: 1023px)');
   const rail = document.querySelector('#_y-nav-rail');
+  const media = drawerQuery(rail);
   const toggleButton = document.querySelector('[data-nav-toggle]');
   // What leaves the accessibility tree while the drawer acts as a modal. The
   // test is whether the region paints under the scrim: anything covered is
@@ -13,8 +49,7 @@ export function initDrawer() {
   // the visible way back out, so it stays reachable. The skip link is here for
   // the opposite reason: it also paints above the scrim, but its destination is
   // in this list, so an open drawer would leave it offering a jump to somewhere
-  // nobody can go. The right rail needs no entry: it is display:none at every width the drawer exists, which is
-  // already out of the tree.
+  // nobody can go.
   const background = [
     document.querySelector('#_y-main'),
     document.querySelector('.y-skiplink'),
@@ -56,7 +91,7 @@ export function initDrawer() {
   function setOpen(open) {
     const modal = open && media.matches && Boolean(rail);
     root.dataset.nav = open ? 'open' : 'closed';
-    toggleButton?.setAttribute('aria-expanded', String(open));
+    syncSideButton();
     for (const region of background) region.inert = modal;
     if (!rail) return;
     if (!media.matches) {
@@ -153,10 +188,13 @@ export function initDrawer() {
   toggleButton.addEventListener('click', toggle);
   document.querySelector('[data-nav-close]')?.addEventListener('click', closeAndRestoreFocus);
   window.addEventListener('keydown', containFocus);
+  // Crossing the width closes the drawer. Focus inside the column goes back to
+  // the button when the column it is in stops being drawn: a drawer that has
+  // just closed, or a panel the reader had folded, which leaves the tree.
   media.addEventListener('change', () => {
-    const restoreFocus = media.matches && rail.contains(document.activeElement);
+    const inside = rail.contains(document.activeElement);
     setOpen(false);
-    if (restoreFocus) toggleButton.focus();
+    if (inside && (media.matches || root.dataset.rail !== 'open')) toggleButton.focus();
   });
 
   return { isNarrow: () => media.matches, isOpen, open, closeAndRestoreFocus, toggle };

@@ -15,6 +15,7 @@
 // after a cache restore, that the revived document still speaks the language
 // the cookie names — and asks for a fresh page when it does not, since no
 // script can retranslate a rendered document.
+import { drawerQuery, syncSideButton } from './drawer.js';
 import { forgetPositions } from './positions.js';
 
 export function initPreferences() {
@@ -45,7 +46,6 @@ export function initPreferences() {
     document.cookie = `yomihon_shortcuts=${value};path=/;max-age=31536000;samesite=lax`;
   }
 
-  const railToggle = document.querySelector('[data-rail-toggle]');
   // Drawn only on a page that carries furigana, so on most pages there is none.
   const rubyToggle = document.querySelector('[data-ruby-toggle]');
 
@@ -147,35 +147,20 @@ export function initPreferences() {
 
   function writeShortcuts(value) {
     setSingleKeyShortcuts(value);
-    // The fold button advertises a key, and only while that key works.
-    syncRailControl();
-  }
-
-  // What the fold button says, from the two settings it depends on. The
-  // tooltip names the action from the state the column is in, with the key that
-  // takes it, and the key is left off — here and in aria-keyshortcuts — while
-  // single-key shortcuts are off. The words come from the button, where the
-  // server wrote them; aria-expanded is the only place a reader who cannot see
-  // the column is told whether it is there.
-  function syncRailControl() {
-    if (!railToggle) return;
-    const collapsed = root.dataset.rail === 'collapsed';
-    const keys = root.dataset.singleKeyShortcuts !== 'off';
-    railToggle.setAttribute('aria-expanded', String(!collapsed));
-    railToggle.title = (collapsed ? railToggle.dataset.titleShow : railToggle.dataset.titleHide) + (keys ? railToggle.dataset.titleKey : '');
-    if (keys) railToggle.setAttribute('aria-keyshortcuts', '[');
-    else railToggle.removeAttribute('aria-keyshortcuts');
+    // The sidebar button advertises a key, and only while that key works.
+    syncSideButton();
   }
 
   // Focus inside a column about to leave the tree would fall to the body, so it
-  // is put on the button first — the one thing left standing. Every way the
-  // column can be folded passes through here, a key, a click, a setting, and a
-  // page restored from the cache.
+  // is put on the header's button first — the one thing left standing. Every
+  // way the column can be folded passes through here, a key, a click, a
+  // setting, and a page restored from the cache. Where the column is a drawer
+  // the stored choice hides nothing, and focus in an open drawer stays.
   function keepFocusOutOfFoldedRail(value) {
     const column = document.querySelector('#_y-nav-rail');
-    if (value === 'collapsed' && column?.contains(document.activeElement) && document.activeElement !== railToggle) {
-      railToggle?.focus();
-    }
+    if (value !== 'collapsed' || !column?.contains(document.activeElement)) return;
+    if (drawerQuery(column).matches) return;
+    document.querySelector('[data-nav-toggle]')?.focus();
   }
 
   // The left column's state reaches the root, the cookie, and the button that
@@ -183,7 +168,7 @@ export function initPreferences() {
   function writeRail(value) {
     keepFocusOutOfFoldedRail(value);
     setPreference('rail', value);
-    syncRailControl();
+    syncSideButton();
   }
 
   rubyToggle?.addEventListener('click', () => {
@@ -386,7 +371,7 @@ export function initPreferences() {
     root.dataset.railSettling = '';
     keepFocusOutOfFoldedRail(rail);
     root.dataset.rail = rail;
-    syncRailControl();
+    syncSideButton();
     void root.offsetWidth;
     delete root.dataset.railSettling;
     // On the page where these choices are set, the radios say which one is in

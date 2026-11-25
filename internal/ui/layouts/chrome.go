@@ -61,10 +61,10 @@ type Chrome struct {
 	// root, as the theme is; no choice leaves the attribute off and the
 	// stylesheet's base value answers.
 	Font string
-	// Rail is whether the left navigation column is shown above the drawer
-	// width: "open" or "collapsed". The root carries it so the first paint is
-	// already the column the reader left; it has no effect where the column is
-	// a drawer.
+	// Rail is whether the left navigation column stands beside the text on a
+	// window wide enough for it: "open" or "collapsed". The root carries it so
+	// the first paint is already the column the reader left; it has no effect
+	// where the column is a drawer, whose open state is never stored.
 	Rail string
 	// SectionButtons is when the buttons beside a section are drawn: "always"
 	// or "hover". The root carries it, so a stylesheet answering it needs no
@@ -273,4 +273,20 @@ func preferencesHref(returnTo string) string {
 		return "/preferences"
 	}
 	return "/preferences?from=" + url.QueryEscape(returnTo)
+}
+
+// sideButtonTitle is the tooltip the header's sidebar button carries on the
+// first byte: the action it will take from the state the cookie says the column
+// is in, with the key that takes it when single keys are on. The script keeps
+// it in step afterwards from the same phrases, which the button carries beside
+// it.
+func sideButtonTitle(rail string, lang wording.Lang, keys bool) string {
+	title := wording.ShowRail.In(lang)
+	if rail == "open" {
+		title = wording.HideRail.In(lang)
+	}
+	if keys {
+		title += wording.RailKeyHint.In(lang)
+	}
+	return title
 }

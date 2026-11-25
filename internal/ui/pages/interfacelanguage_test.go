@@ -74,8 +74,8 @@ func TestChromeSpeaksTheChosenLanguage(t *testing.T) {
 			if err := sidebar(NewLibrarySidebar(nav.Shell{}, LibraryNone, ""), chrome).Render(t.Context(), &rail); err != nil {
 				t.Fatalf("render rail: %v", err)
 			}
-			if !strings.Contains(rail.String(), wording.ToggleRail.In(lang)) {
-				t.Errorf("the rail is not speaking %q: want %q", lang, wording.ToggleRail.In(lang))
+			if !strings.Contains(rail.String(), wording.VaultNavigation.In(lang)) {
+				t.Errorf("the rail is not speaking %q: want %q", lang, wording.VaultNavigation.In(lang))
 			}
 		})
 	}

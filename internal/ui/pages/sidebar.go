@@ -44,8 +44,8 @@ const MarksAddress = "/marks"
 
 // Sidebar is the data of the left column for one request, whichever of its four
 // modes the page asks for: the mode, what the page stands on, and what that mode
-// lists. One component draws it, so what the four share (the landmark, the fold
-// button, the folded spine, the filter, the foot) is drawn once. A nil model is
+// lists. One component draws it, so what the four share (the landmark, the
+// filter, the foot) is drawn once. A nil model is
 // tolerated, because the column is drawn beside the not-found page a reader
 // reaches when the folder could not be projected at all, and stopping there
 // would take down the page that exists to explain why.
@@ -54,8 +54,9 @@ type Sidebar struct {
 	Model *nav.Model
 	// Vault is the folder this sidebar is of, which its foot states.
 	Vault nav.Vault
-	// DrawerOnly is a page with no column of its own: the sidebar is there to be
-	// opened below the width where it is a drawer and is not drawn above it.
+	// DrawerOnly is a page with no column of its own: the sidebar is a drawer
+	// at every width, opened by the header's button, and never stands beside
+	// the page.
 	DrawerOnly bool
 	// FaultsStated is a page that says, in its own body, why a projection is
 	// withheld: a cause is said once on a page, so the sidebar leaves it out.
@@ -100,8 +101,8 @@ func NewLibrarySidebar(shell nav.Shell, selected LibraryItem, inFolder string) S
 }
 
 // NewDrawerSidebar is the sidebar of a page that has no column: the library,
-// drawn only where the sidebar is a drawer, with the row the page stands on
-// marked where the page is one of them.
+// opened as a drawer at every width, with the row the page stands on marked
+// where the page is one of them.
 func NewDrawerSidebar(shell nav.Shell, selected LibraryItem) Sidebar {
 	s := NewLibrarySidebar(shell, selected, "")
 	s.DrawerOnly = true
@@ -203,39 +204,6 @@ func (s *Sidebar) where(lang wording.Lang) string {
 		return wording.VaultRoot.In(lang)
 	}
 	return s.hereDir
-}
-
-// railSpineView is the name a sidebar keeps on its folded edge and where that
-// name leads.
-type railSpineView struct {
-	Title string
-	Href  string
-}
-
-// spine is what this sidebar is called when it is folded to a strip: the
-// course's own title, the folder's path, the indexes, or the folder itself. A
-// sidebar that has none to give draws nothing there.
-func (s *Sidebar) spine(lang wording.Lang) railSpineView {
-	switch s.Mode {
-	case SidebarCourse:
-		if s.book != nil {
-			return railSpineView{Title: s.book.Title, Href: courseHrefFrom(s.book.RelPath, s.CurrentPath)}
-		}
-	case SidebarFolder:
-		if s.Model != nil {
-			if s.reports {
-				return railSpineView{Title: wording.Reports.In(lang), Href: indexHref(reportMode)}
-			}
-			return railSpineView{Title: s.where(lang), Href: folderHref(s.hereDir)}
-		}
-	case SidebarIndex:
-		return railSpineView{Title: wording.Maps.In(lang), Href: indexHref(mapMode)}
-	case SidebarLibrary:
-		if name := libraryName(s.Vault.Name, lang); name != "" {
-			return railSpineView{Title: name, Href: "/"}
-		}
-	}
-	return railSpineView{}
 }
 
 func (s *Sidebar) current(relPath string) bool {
@@ -359,7 +327,7 @@ func indexNotes(branches []nav.Branch) int {
 const filterRows = 20
 
 // FilterShown reports whether the sidebar's list is long enough to be worth
-// narrowing. The fold button is the head's own and is there either way.
+// narrowing. A list that is not has no head row at all.
 func (s *Sidebar) FilterShown(lang wording.Lang) bool {
 	return s.rows(lang) > filterRows
 }
@@ -625,19 +593,4 @@ func stepWordNext(course bool, lang wording.Lang) string {
 		return wording.Units.Next.In(lang)
 	}
 	return wording.NextFile.In(lang)
-}
-
-// railToggleTitle is the tooltip the rail's fold control carries on the first
-// byte: the action it will take from the state the cookie says the column is
-// in, with the key that takes it when single keys are on. The script keeps it
-// in step afterwards from the same phrases, which the control carries beside it.
-func railToggleTitle(rail string, lang wording.Lang, keys bool) string {
-	title := wording.HideRail.In(lang)
-	if rail == "collapsed" {
-		title = wording.ShowRail.In(lang)
-	}
-	if keys {
-		title += wording.RailKeyHint.In(lang)
-	}
-	return title
 }

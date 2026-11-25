@@ -33,7 +33,7 @@ func TestOnePageSpeaksOneLanguage(t *testing.T) {
 	}{
 		{carrier: "the chrome", phrase: wording.SearchNotes},
 		{carrier: "the note's own view", phrase: wording.RawFile},
-		{carrier: "the navigation rail", phrase: wording.ToggleRail},
+		{carrier: "the navigation rail", phrase: wording.VaultNavigation},
 	} {
 		if want := tt.phrase.In(wording.En); !strings.Contains(page, want) {
 			t.Errorf("%s did not receive the language: want %q in the page", tt.carrier, want)
