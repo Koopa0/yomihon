@@ -722,6 +722,27 @@ func TestABookmarkIsStampedInUTCToTheMillisecond(t *testing.T) {
 	}
 }
 
+// A bookmark put back with a time that is not in UTC, or that has finer than
+// milliseconds, is kept as the server stamps one: the file holds the same
+// instant in UTC to the millisecond.
+func TestABookmarkPutBackIsKeptInUTCToTheMillisecond(t *testing.T) {
+	t.Parallel()
+
+	store, routes := newProgressRoutes(t)
+	zone := time.FixedZone("UTC+9", 9*60*60)
+	at := time.Now().Add(-time.Hour).In(zone).Truncate(time.Second).Add(123456 * time.Microsecond)
+	body := aBookmarkBody(goCourse, "Notes/a.md")
+	body["at"] = at.Format(time.RFC3339Nano)
+	set := decodeMoved(t, putBookmark(t, routes, body))
+	want := at.UTC().Truncate(time.Millisecond)
+	if set.Bookmark.At.Location() != time.UTC || !set.Bookmark.At.Equal(want) {
+		t.Errorf("the bookmark answered %s, want %s", set.Bookmark.At.Format(time.RFC3339Nano), want.Format(time.RFC3339Nano))
+	}
+	if held := progressOf(t, store); !strings.Contains(held, `"at": "`+want.Format("2006-01-02T15:04:05.000Z07:00")+`"`) || strings.Contains(held, "+09:00") || strings.Contains(held, ".123456") {
+		t.Errorf("the file holds %s, want the time as %s", held, want.Format(time.RFC3339Nano))
+	}
+}
+
 // Clearing a bookmark and setting it back leaves the file as it was whatever
 // else is kept, through the routes.
 func TestClearingAndSettingBackABookmarkRestoresTheFileWithSeveralKeptOverHTTP(t *testing.T) {

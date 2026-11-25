@@ -289,7 +289,7 @@ func (h *Handler) putBookmark(w http.ResponseWriter, r *http.Request) {
 		Identity: request.Identity, At: now,
 	}
 	if request.At != nil {
-		kept.At = *request.At
+		kept.At = request.At.UTC().Truncate(time.Millisecond)
 		if kept.At.IsZero() || kept.At.After(now.Add(clockSkew)) {
 			h.refuseBookmark(w, r, fmt.Errorf("%w: the time is not one a bookmark was kept at", ErrInvalid), "put a bookmark")
 			return
