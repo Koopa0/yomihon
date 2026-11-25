@@ -3203,6 +3203,67 @@ button.y-freshness__action {
   font-size: var(--fs-12);
 }
 
+/* ============================================================
+   The wide measure
+   ============================================================ */
+/* A block whose content needs more than the text's width, a code block whose
+   longest line does not fit it, is set to the wide measure instead: 1040px,
+   centred on the same axis as the text, so the text keeps its place and its
+   line and the block runs out into the room either side. The renderer names
+   in data-wide each measure the block does not fit (codeMeasures), so a block
+   is wide only at the text sizes and in the articles where it needs to be;
+   everything else stays at the text's width. Only a block standing directly in
+   a note's or a file's text is set wide, never one inside a list, a quote, a
+   callout or an embed, and never in the compare page's columns, which have no
+   room beside them.
+
+   The block widens by negative margins on a block that stays in the flow,
+   rather than by a grid around the text: the text's vertical rhythm rests on
+   its margins collapsing into one another, which a grid's items never do.
+
+   The wings are the room the block may take on each side: half the difference
+   between the two measures, and never more than the room between the text and
+   whatever stands beyond it. That is the stage's edge and the reading gutter,
+   or, where the left column is open beside the page, the column and 32px. The
+   stage's inset is counted on the page's main, which is as wide as the window
+   less its scrollbar, so the text's middle is half of it. Below a main of
+   1120px there is not room enough to tell the two measures apart, so every
+   block is set at the text's width. */
+/* stylelint-disable length-zero-no-unit -- the wings are read inside calc(),
+   where a bare 0 is a number rather than a length and the margin built from
+   it would be dropped. */
+.y-main > .y-article {
+  --wing-start: 0px;
+  --wing-end: 0px;
+}
+/* stylelint-enable length-zero-no-unit */
+
+@container y-main (width >= 70rem) {
+  .y-main > .y-article {
+    --wing-edge: calc(max(0px, (100cqi - var(--stage-max)) / 2) + var(--gutter-read));
+    --wing-room: max(0px, 50cqi - var(--measure-read) / 2 - var(--wing-edge));
+    --wing-start: min(var(--wing-room), (var(--wide-read) - var(--measure-read)) / 2);
+    --wing-end: var(--wing-start);
+  }
+}
+
+@media (min-width: 1321px) {
+  @container y-main (width >= 70rem) {
+    :root:not([data-rail='collapsed']) .y-shell:has(> .y-rail-left:not([data-drawer-only])) > .y-main > .y-article {
+      --wing-edge: calc(max(0px, (100cqi - var(--stage-max)) / 2) + var(--rail-w) + 32px);
+    }
+  }
+}
+
+:root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article:not([lang]:not(:lang(zh), :lang(ja), :lang(ko))) > .y-prose > [data-wide~='m'],
+:root[data-textsize='l'] .y-main > .y-article:not([lang]:not(:lang(zh), :lang(ja), :lang(ko))) > .y-prose > [data-wide~='l'],
+:root[data-textsize='xl'] .y-main > .y-article:not([lang]:not(:lang(zh), :lang(ja), :lang(ko))) > .y-prose > [data-wide~='xl'],
+:root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article[lang]:not(:lang(zh), :lang(ja), :lang(ko)) > .y-prose > [data-wide~='latin-m'],
+:root[data-textsize='l'] .y-main > .y-article[lang]:not(:lang(zh), :lang(ja), :lang(ko)) > .y-prose > [data-wide~='latin-l'],
+:root[data-textsize='xl'] .y-main > .y-article[lang]:not(:lang(zh), :lang(ja), :lang(ko)) > .y-prose > [data-wide~='latin-xl'] {
+  margin-inline: calc(-1 * var(--wing-start)) calc(-1 * var(--wing-end));
+}
+
 /* The room beside the reading column: the column is centred in the window, so
    the margin stands at the window's middle, half the column, and the gap out
    from there, and the window has to hold it with sixteen pixels to spare at its
@@ -3223,7 +3284,13 @@ button.y-freshness__action {
 
    From 1760 the margin stands outside the wide lines instead, 520 from the
    middle and 36 beyond, where nothing set to the wide measure can run under
-   it. */
+   it. Below 1760, where it stands beside the text, a block set to the wide
+   measure would run under it, so on a page that has a margin the block gives
+   up its right wing and keeps its left: it ends where the text ends and
+   starts on the same wide line it starts on from 1760. Which wings a block
+   takes is a fact of the width and the page, never of where the margin's
+   words happen to fall, so no width or text size can set the two over one
+   another, and the text itself does not move. */
 @media (min-width: 1321px) {
   @container y-main (min-width: 80.25rem) {
     :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-sect {
@@ -3246,6 +3313,12 @@ button.y-freshness__action {
       }
     }
 
+    @media (width < 1760px) {
+      :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article:has(.y-margin) {
+        /* stylelint-disable-next-line length-zero-no-unit -- read inside calc(), as above */
+        --wing-end: 0px;
+      }
+    }
 
     :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin > * {
       align-self: flex-start;
@@ -3304,6 +3377,12 @@ button.y-freshness__action {
       }
     }
 
+    @media (width < 1760px) {
+      :root[data-textsize='l'] .y-main > .y-article:has(.y-margin) {
+        /* stylelint-disable-next-line length-zero-no-unit -- read inside calc(), as above */
+        --wing-end: 0px;
+      }
+    }
 
     :root[data-textsize='l'] .y-main > .y-article .y-margin > * {
       align-self: flex-start;
@@ -3358,6 +3437,12 @@ button.y-freshness__action {
       }
     }
 
+    @media (width < 1760px) {
+      :root[data-textsize='xl'] .y-main > .y-article:has(.y-margin) {
+        /* stylelint-disable-next-line length-zero-no-unit -- read inside calc(), as above */
+        --wing-end: 0px;
+      }
+    }
 
     :root[data-textsize='xl'] .y-main > .y-article .y-margin > * {
       align-self: flex-start;

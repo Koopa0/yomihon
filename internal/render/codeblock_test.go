@@ -304,6 +304,60 @@ func TestEveryCodeBlockHeadHoldsASlotForItsCopyControl(t *testing.T) {
 	}
 }
 
+// TestACodeBlockNamesTheMeasuresItsLongestLineDoesNotFit holds the count the
+// wide measure is decided by: a character of the code face is three fifths of
+// an em, a full-width one five, a tab runs to the next stop four characters
+// along, and a combining mark adds nothing. The boundaries are each measure's
+// longest fitting line and the next, so an off-by-one in the count or the table
+// is a block set at the wrong width.
+func TestACodeBlockNamesTheMeasuresItsLongestLineDoesNotFit(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	han := func(n int) string { return strings.Repeat("雪", n) }
+	for _, tt := range []struct {
+		name string
+		line string
+		want string
+	}{
+		{name: "a short line", line: "fmt.Println(x)", want: ""},
+		{name: "59 characters fit every measure", line: strings.Repeat("a", 59), want: ""},
+		{name: "60 do not fit the Latin measure at the largest size", line: strings.Repeat("a", 60), want: "latin-xl"},
+		{name: "62 fit the Latin measure at the base size", line: strings.Repeat("a", 62), want: "latin-xl latin-l"},
+		{name: "63 do not", line: strings.Repeat("a", 63), want: "latin-xl latin-l latin-m"},
+		{name: "68 fit the reading measure at the largest size", line: strings.Repeat("a", 68), want: "latin-xl latin-l latin-m"},
+		{name: "69 do not", line: strings.Repeat("a", 69), want: "latin-xl latin-l latin-m xl"},
+		{name: "73 fit the reading measure at the large size", line: strings.Repeat("a", 73), want: "latin-xl latin-l latin-m xl"},
+		{name: "79 fit the reading measure at the base size", line: strings.Repeat("a", 79), want: "latin-xl latin-l latin-m xl l"},
+		{name: "80 fit none", line: strings.Repeat("a", 80), want: "latin-xl latin-l latin-m xl l m"},
+		{name: "47 Han characters fit at the base size", line: han(47), want: "latin-xl latin-l latin-m xl l"},
+		{name: "48 do not", line: han(48), want: "latin-xl latin-l latin-m xl l m"},
+		{name: "kana and fullwidth forms are as wide as Han", line: strings.Repeat("かＡ", 24), want: "latin-xl latin-l latin-m xl l m"},
+		{name: "a tab runs to the next stop", line: "\t\t\t\t\t" + strings.Repeat("a", 60), want: "latin-xl latin-l latin-m xl l m"},
+		{name: "a tab after part of a stop runs only to it", line: "ab\t" + strings.Repeat("a", 75), want: "latin-xl latin-l latin-m xl l"},
+		{name: "combining marks add nothing", line: strings.Repeat("e\u0301", 79), want: "latin-xl latin-l latin-m xl l"},
+		{name: "the longest of several lines decides", line: "short\n" + strings.Repeat("a", 80) + "\nshort", want: "latin-xl latin-l latin-m xl l m"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			for _, body := range []string{"```go\n" + tt.line + "\n```\n", "Before.\n\n    " + strings.ReplaceAll(tt.line, "\n", "\n    ") + "\n\nAfter.\n"} {
+				html := r.HTML("note.md", "", body, wording.ZhHant).HTML
+				got := ""
+				if _, rest, ok := strings.Cut(html, `<div class="y-code" data-wide="`); ok {
+					got, _, _ = strings.Cut(rest, `"`)
+				} else if !strings.Contains(html, `<div class="y-code">`) {
+					t.Fatalf("no code box in %s", html)
+				}
+				if got != tt.want {
+					t.Errorf("data-wide = %q, want %q for %q", got, tt.want, body)
+				}
+			}
+		})
+	}
+	if got := render.SourceHTML("main.go", strings.Repeat("a", 80)+"\n"); !strings.Contains(got, `data-wide="latin-xl latin-l latin-m xl l m"`) {
+		t.Errorf("a whole file's longest line does not name the measures it misses: %s", got)
+	}
+}
+
 // TestCarriesDiagramsSeesOnlyThePlaceholderTheRendererWrites keeps the page's
 // answer to "is there a diagram to draw" the same as the browser's: an authored
 // tag of the same class reaches the page escaped, and the browser draws nothing

@@ -201,7 +201,7 @@ func (r codeBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer
 
 func (r codeBlockRenderer) renderIndentedCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
 	if entering {
-		if err := writeStrings(w, codeFigureOpen("")); err != nil {
+		if err := writeStrings(w, codeFigureOpen("", wideMeasures(blockSource(n, source)))); err != nil {
 			return ast.WalkStop, err
 		}
 		return r.indented(w, source, n, entering)
@@ -240,7 +240,7 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 
 	src := blockSource(node, source)
 	lang := string(node.Language(source))
-	if err := writeStrings(w, codeFigureOpen(lang)); err != nil {
+	if err := writeStrings(w, codeFigureOpen(lang, wideMeasures(src))); err != nil {
 		return ast.WalkStop, err
 	}
 	if err := writeStrings(w, fencedPre(n, lang, src), codeFigureClose); err != nil {
