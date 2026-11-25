@@ -392,6 +392,45 @@ func TestFinishedRoutesSayANoteIsFinishedAndKeepTheFirstTime(t *testing.T) {
 	}
 }
 
+// A note that is deleted or renamed can still be said not to be finished, in
+// the course it was read in or out of any: the entry the reader made is theirs
+// to take back, and the vault is not asked.
+func TestAFinishedNoteWhoseFileIsGoneCanStillBeReopened(t *testing.T) {
+	t.Parallel()
+
+	for name, query := range map[string]string{
+		"read outside any course": "",
+		"read in a course":        "course=" + goCourse,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			store := newStore(t)
+			school := theSchool()
+			mux := http.NewServeMux()
+			mark.NewHandler(store, school, slog.New(slog.DiscardHandler)).Register(mux)
+			if _, response := finishing(t, mux, http.MethodPut, "Notes/a.md", query); response.Code != http.StatusOK {
+				t.Fatalf("PUT = %d %q, want 200", response.Code, response.Body.String())
+			}
+			// The file is deleted, and the course no longer lists it.
+			delete(school.aVault, "Notes/a.md")
+			course := school.courses[goCourse]
+			course.rows = slices.DeleteFunc(slices.Clone(course.rows), func(row string) bool { return row == "Notes/a.md" })
+			school.courses[goCourse] = course
+
+			reopened, response := finishing(t, mux, http.MethodDelete, "Notes/a.md", query)
+			if response.Code != http.StatusOK || reopened.Finished || reopened.Path != "Notes/a.md" {
+				t.Fatalf("DELETE = %d %q, want 200 and not finished", response.Code, response.Body.String())
+			}
+			if _, finished, err := store.FinishedAt("Notes/a.md"); err != nil || finished {
+				t.Errorf("after reopening, finished = %v, %v; want the entry gone", finished, err)
+			}
+			if strings.Contains(progressOf(t, store), "Notes/a.md") {
+				t.Errorf("the file still holds the note: %s", progressOf(t, store))
+			}
+		})
+	}
+}
+
 // The count a course answers is of the rows on its main line, those not written
 // yet included, and of the rows the reader has finished: a note listed twice is
 // two rows, a note on a side branch is not one, and a note of another course is
@@ -427,30 +466,33 @@ func TestFinishedRoutesAnswerTheCountsOfTheCourseTheRequestNames(t *testing.T) {
 	}
 }
 
+// Saying a note is not finished asks only for the shape of what is named, so
+// what is refused for PUT because the vault or the course does not answer to it
+// is answered for DELETE, and writes nothing.
 func TestFinishedRoutesRefuseWhatTheyWillNotSayAndWriteNothing(t *testing.T) {
 	t.Parallel()
 
 	for name, tt := range map[string]struct {
 		note, query string
-		want        int
+		put, del    int
 	}{
-		"a note the course does not walk":     {"Notes/other.md", "course=" + goCourse, http.StatusUnprocessableEntity},
-		"a note no course walks, in a course": {"Notes/loose.md", "course=" + goCourse, http.StatusUnprocessableEntity},
-		"a course nothing answers to":         {"Notes/a.md", "course=Courses/nope.md", http.StatusUnprocessableEntity},
-		"a course that climbs out":            {"Notes/a.md", "course=../escape.md", http.StatusUnprocessableEntity},
-		"two courses":                         {"Notes/a.md", "course=" + goCourse + "&course=" + rustCourse, http.StatusUnprocessableEntity},
-		"a note the vault does not hold":      {"Notes/gone.md", "", http.StatusNotFound},
-		"a path with a line break in it":      {"Notes/a%0A.md", "", http.StatusUnprocessableEntity},
-		"a path that is not written in NFC":   {"Notes/e%CC%81.md", "", http.StatusUnprocessableEntity},
+		"a note the course does not walk":     {"Notes/other.md", "course=" + goCourse, http.StatusUnprocessableEntity, http.StatusOK},
+		"a note no course walks, in a course": {"Notes/loose.md", "course=" + goCourse, http.StatusUnprocessableEntity, http.StatusOK},
+		"a course nothing answers to":         {"Notes/a.md", "course=Courses/nope.md", http.StatusUnprocessableEntity, http.StatusOK},
+		"a course that climbs out":            {"Notes/a.md", "course=../escape.md", http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
+		"two courses":                         {"Notes/a.md", "course=" + goCourse + "&course=" + rustCourse, http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
+		"a note the vault does not hold":      {"Notes/gone.md", "", http.StatusNotFound, http.StatusOK},
+		"a path with a line break in it":      {"Notes/a%0A.md", "", http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
+		"a path that is not written in NFC":   {"Notes/e%CC%81.md", "", http.StatusUnprocessableEntity, http.StatusUnprocessableEntity},
 	} {
-		for _, method := range []string{http.MethodPut, http.MethodDelete} {
+		for method, want := range map[string]int{http.MethodPut: tt.put, http.MethodDelete: tt.del} {
 			t.Run(name+" "+method, func(t *testing.T) {
 				t.Parallel()
 				store, routes := newProgressRoutes(t)
 				before := progressOf(t, store)
 				_, response := finishing(t, routes, method, tt.note, tt.query)
-				if response.Code != tt.want {
-					t.Errorf("%s = %d %q, want %d", method, response.Code, response.Body.String(), tt.want)
+				if response.Code != want {
+					t.Errorf("%s = %d %q, want %d", method, response.Code, response.Body.String(), want)
 				}
 				if after := progressOf(t, store); after != before {
 					t.Errorf("a refusal changed the file:\nbefore %q\nafter  %q", before, after)

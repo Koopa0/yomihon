@@ -346,6 +346,14 @@ func (h *Handler) finish(finished bool) http.HandlerFunc {
 		case !ok || validatePath(rel) != nil:
 			h.refuseFinished(w, r, ErrInvalid, finished, "name a note")
 			return
+		case !finished:
+			// Saying a note is not finished asks only for the shape of what is
+			// named: the note may have been deleted or renamed since, and the
+			// entry is the reader's to take back. Saying it again changes nothing.
+			if course != NoCourse && validatePath(course) != nil {
+				h.refuseFinished(w, r, ErrInvalid, finished, "name a course")
+				return
+			}
 		case !h.places.HasPlace(rel, ""):
 			http.Error(w, wording.NoteNotFound.In(lang), http.StatusNotFound)
 			return
