@@ -75,8 +75,8 @@ func TestSchemaNoticesStandInReadingColumn(t *testing.T) {
 	v := NoteView{
 		Title:   "Probe",
 		RelPath: "Writing/lessons/japanese/L01.md",
-		SchemaNotices: [][]wording.SchemaPart{
-			{{Text: "mystery_key", Code: true}, {Text: " 不是 schema 認得的欄位。"}},
+		SchemaNotices: []SchemaNotice{
+			{Says: []wording.SchemaPart{{Text: "mystery_key", Code: true}, {Text: " 不是 schema 認得的欄位。"}}},
 		},
 	}
 	var buf bytes.Buffer

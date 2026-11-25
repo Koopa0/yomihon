@@ -238,27 +238,16 @@ func TestFrontmatterSchemaNoticeDistinguishesMissingAndUnclosedBlocks(t *testing
 	}
 }
 
-// schemaNoticeMarkup cuts the block of schema notices out of a reading page:
-// a block of notice paragraphs other than the one that says a frontmatter
-// fence never closes. ok is false where the page draws none.
+// schemaNoticeMarkup cuts the schema's findings out of a reading page's head:
+// from the first of them to the end of the head's notes. ok is false where the
+// page draws none.
 func schemaNoticeMarkup(page string) (notice string, ok bool) {
-	const opening = `<p class="y-statuspanel__notice y-statusflag">`
-	for rest := page; ; {
-		at := strings.Index(rest, opening)
-		if at < 0 {
-			return "", false
-		}
-		block, _, closed := strings.Cut(rest[at:], "</div>")
-		if !closed {
-			return "", false
-		}
-		unclosed := strings.Contains(block, wording.FrontmatterNeverCloses.In(wording.ZhHant)) ||
-			strings.Contains(block, wording.FrontmatterNeverCloses.In(wording.En))
-		if !unclosed {
-			return block, true
-		}
-		rest = rest[at+len(block):]
+	at := strings.Index(page, `<p class="y-headnote" data-schema-notice>`)
+	if at < 0 {
+		return "", false
 	}
+	block, _, closed := strings.Cut(page[at:], "</div>")
+	return block, closed
 }
 
 func frontmatterNoticePage(t *testing.T, server *httptest.Server, lang wording.Lang) string {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/koopa0/yomihon/internal/drill"
 	"github.com/koopa0/yomihon/internal/render"
+	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -477,4 +478,79 @@ func (v *NoteView) whereShown() bool {
 // entry starts.
 func (v *NoteView) readsAloud() bool {
 	return strings.Contains(v.BodyHTML, speakButtonMarker)
+}
+
+// NoteKind is what a note is to the vault besides a note: the index or the
+// course its rules make of its type, a report the vault keeps, or a template
+// it holds apart from its notes. The head says it, in the word the rest of the
+// interface already calls it by.
+type NoteKind uint8
+
+const (
+	// KindNote is an ordinary note, and says nothing about itself.
+	KindNote NoteKind = iota
+	// KindIndex is a note whose type the rules declare a map.
+	KindIndex
+	// KindCourse is a note whose type the rules declare a study path.
+	KindCourse
+	// KindReport is a file in the vault's reports.
+	KindReport
+	// KindTemplate is a file the rules hold apart as a template. Its fields
+	// are the ones a note made from it starts with, not facts about it, so a
+	// template that writes draft: true is not a draft.
+	KindTemplate
+)
+
+// standing is a word and pictogram the note's head ends on: what kind of note
+// it is, or that it is a draft. An ordinary finished note has none.
+type standing struct {
+	Icon string
+	Word string
+	// Draft marks the word as the note's own declaration that it is unfinished.
+	Draft bool
+}
+
+// standings are what the note says it is beyond its title. A kind outranks a
+// draft only for a template, whose draft field belongs to the notes made from
+// it; an index or a course that is still a draft says both, the kind first.
+// A template has no word of its own yet, and its row already ends on the folder
+// that holds templates, so it says nothing rather than borrow a wrong word.
+func (v *NoteView) standings(lang wording.Lang) []standing {
+	var out []standing
+	switch v.Kind {
+	case KindNote:
+	case KindIndex:
+		out = append(out, standing{Icon: "index", Word: wording.SearchKindIndex.In(lang)})
+	case KindCourse:
+		out = append(out, standing{Icon: "course", Word: wording.SearchKindCourse.In(lang)})
+	case KindReport:
+		out = append(out, standing{Icon: "report", Word: wording.Reports.In(lang)})
+	case KindTemplate:
+		return nil
+	}
+	if v.Draft {
+		out = append(out, standing{Icon: schema.DraftField, Word: wording.Draft.In(lang), Draft: true})
+	}
+	return out
+}
+
+// SchemaNotice is one thing the schema said about a note's frontmatter: the
+// sentence, in the reader's language and split into its words and the note's
+// own text, and, for a field the rules give a list of values, that list, which
+// the head folds under the sentence so the note's own title stays what the eye
+// meets first.
+type SchemaNotice struct {
+	Says []wording.SchemaPart
+	// Field is the field Known lists the values of. Known is nil where the
+	// rules give the field no list, and empty where the list they give is
+	// empty, which the fold says in so many words.
+	Field string
+	Known []string
+}
+
+// headNoted reports whether the head carries anything said about the file
+// rather than read from it: a reading kept from before, a fence that never
+// closes, or a finding of the schema.
+func (v *NoteView) headNoted() bool {
+	return v.ParsePanic || v.Stale || v.FrontmatterUnclosed || len(v.SchemaNotices) > 0
 }

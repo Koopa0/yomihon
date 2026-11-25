@@ -293,6 +293,11 @@ func enumReadingSurfaces(t *testing.T, rel, body string, contract *schema.Contra
 						return child != n && enumWholeHasAdvice(child, field, lang)
 					})) == 0
 				})
+				if sink == "note" {
+					// The note's head folds the values under a heading that names
+					// the field, so the advice is the whole fold.
+					advice = enumKnownFolds(node, field, lang)
+				}
 				for _, item := range advice {
 					matches++
 					if !invalid {
@@ -311,6 +316,12 @@ func enumReadingSurfaces(t *testing.T, rel, body string, contract *schema.Contra
 					separator, middle, end := "、", " 值：", "。"
 					if lang == wording.En {
 						separator, middle, end = ", ", " values: ", "."
+					}
+					if sink == "note" {
+						middle, end = " 值", ""
+						if lang == wording.En {
+							middle = " values"
+						}
 					}
 					sentence := enumGuidancePrefix(lang) + field + middle + strings.Join(want, separator) + end
 					text := enumText(item)
@@ -372,7 +383,11 @@ func TestEnumGuidanceReadsTheContractOnEveryReadingSurface(t *testing.T) {
 						if len(notices) != 1 {
 							t.Fatalf("schema notice blocks = %d, want 1", len(notices))
 						}
-						assertEnumList(t, notices[0], tc.field, want, lang)
+						folds := enumKnownFolds(notices[0], tc.field, lang)
+						if len(folds) != 1 {
+							t.Fatalf("folds of %s values = %d, want 1", tc.field, len(folds))
+						}
+						assertEnumList(t, folds[0], tc.field, want, lang)
 						health := enumGuidancePage(t, srv.Client(), srv.URL+"/health", lang)
 						t.Logf("hit: enum-guidance field=%s type=%s sink=health lang=%s", tc.field, tc.kind, lang)
 						rows := enumElements(health, func(n *html.Node) bool {
@@ -473,7 +488,11 @@ func assertEnumList(t *testing.T, node *html.Node, field string, want []string, 
 		t.Errorf("caught: no allowed %s code list", field)
 		return
 	}
-	node = candidates[len(candidates)-1]
+	// A fold names the field in its heading and lists the values under it, so
+	// the fold itself, not its heading, holds the whole list.
+	if node.Data != "details" {
+		node = candidates[len(candidates)-1]
+	}
 	codes := enumElements(node, func(n *html.Node) bool { return n.Type == html.ElementNode && n.Data == "code" })
 	var got []string
 	for _, code := range codes {
@@ -496,22 +515,31 @@ func enumGuidancePrefix(lang wording.Lang) string {
 	return "允許的 "
 }
 
-// enumSchemaNotices finds the block of schema notices a reading page draws
-// above the body: the element whose children are all notice paragraphs, other
-// than the one that says a frontmatter fence never closes.
+// enumSchemaNotices finds the block of notes a reading page's head draws under
+// the title, where it holds at least one of the schema's findings.
 func enumSchemaNotices(page *html.Node) []*html.Node {
 	return enumElements(page, func(n *html.Node) bool {
-		if n.Data != "div" || n.FirstChild == nil {
-			return false
-		}
-		for child := n.FirstChild; child != nil; child = child.NextSibling {
-			if child.Type != html.ElementNode || child.Data != "p" || !enumHasClass(child, "y-statusflag") {
-				return false
-			}
-		}
-		text := enumText(n)
-		return text != wording.FrontmatterNeverCloses.In(wording.ZhHant) && text != wording.FrontmatterNeverCloses.In(wording.En)
+		return n.Data == "div" && enumHasClass(n, "y-headnotes") && len(enumElements(n, func(c *html.Node) bool {
+			return c.Data == "p" && hasAttr(c, "data-schema-notice")
+		})) > 0
 	})
+}
+
+// enumKnownFolds finds the folds of values under a finding's sentence whose
+// heading names field.
+func enumKnownFolds(root *html.Node, field string, lang wording.Lang) []*html.Node {
+	return enumElements(root, func(n *html.Node) bool {
+		return n.Data == "details" && enumHasClass(n, "y-headnote__known") && enumWholeHasAdvice(n, field, lang)
+	})
+}
+
+func hasAttr(n *html.Node, name string) bool {
+	for _, a := range n.Attr {
+		if a.Key == name {
+			return true
+		}
+	}
+	return false
 }
 
 func enumElements(root *html.Node, matches func(*html.Node) bool) []*html.Node {

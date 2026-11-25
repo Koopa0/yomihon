@@ -53,10 +53,10 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 				Stale:        true,
 				VerifiedOn:   "2026-07-10",
 				VerifiedAt:   "2026-07-10",
-				SchemaNotices: [][]wording.SchemaPart{{
+				SchemaNotices: []SchemaNotice{{Says: []wording.SchemaPart{
 					{Text: "mystery_key", Code: true},
 					{Text: " is not a field the schema knows."},
-				}},
+				}}},
 				Prev:        nav.NoteRef{Name: "L00 はじめに", RelPath: "Writing/lessons/japanese/L00.md", Language: "ja"},
 				Next:        nav.NoteRef{Name: "L02", RelPath: "Writing/lessons/japanese/L02.md"},
 				StepsLabel:  "Japanese course",
@@ -69,7 +69,7 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 			html := buf.String()
 			for _, want := range []string{
 				`<article class="y-article" lang="ja">`,
-				`<div lang="` + tt.tag + `"><p class="y-statuspanel__notice y-statusflag">`,
+				`<div class="y-headnotes" lang="` + tt.tag + `"><p class="y-headnote" data-note-stale>`,
 				// The colophon is yomihon's own words and declares the interface
 				// language once for everything in it; the path's dd is the
 				// note's own path and carries none — the literal string between
@@ -78,7 +78,6 @@ func TestReadingPageInterfaceBlocksDeclareTheInterfaceLanguage(t *testing.T) {
 				`<footer class="y-colophon" lang="` + tt.tag + `">`,
 				`<dt class="y-offscreen">` + wording.RawFile.In(tt.lang) + `</dt><dd><a class="y-colophon__path" href="/raw/Writing/lessons/japanese/L01.md">`,
 				`<a class="y-colophon__door" lang="` + tt.tag + `" href="obsidian://open?path=/vault/Writing/lessons/japanese/L01.md">`,
-				`<p class="y-fileinfo__note" lang="` + tt.tag + `" data-note-stale>`,
 				`<nav class="y-steps y-steps--course" aria-label="Japanese course">`,
 				`<p class="y-notewhere" lang="` + tt.tag + `">`,
 				`data-note-draft>`,

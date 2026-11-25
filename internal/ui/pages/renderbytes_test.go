@@ -552,9 +552,11 @@ func renderedNoteView(t *testing.T, model *nav.Model, current, body string) Note
 		ContentIdentity:     "abc123",
 		MarkAddress:         "/bookmark",
 		TranscludedIdentity: "def456",
-		SchemaNotices: [][]wording.SchemaPart{
-			wording.SchemaSentence(wording.ZhHant, "schema.enum", "status", "seed"),
-		},
+		SchemaNotices: []SchemaNotice{{
+			Says:  wording.SchemaSentence(wording.ZhHant, "schema.enum", "status", "seed"),
+			Field: "status",
+			Known: []string{"seed", "growing", "evergreen"},
+		}},
 		Concepts: []drill.ConceptDoc{{ID: "c1", Title: "助詞", HTML: "<p>concept</p>"}},
 	}
 }

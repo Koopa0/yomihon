@@ -1724,11 +1724,83 @@ html[data-js][data-arrival='kept'] .y-main {
   margin: 0;
 }
 
-.y-notewhere__draft {
+.y-notewhere__draft,
+.y-notewhere__kind {
   --icon-size: 13px;
   align-items: center;
   display: inline-flex;
   gap: var(--sp-1);
+}
+
+/* What the page says about the file rather than reads from it — a reading kept
+   from before, a frontmatter fence that never closes, what the schema made of
+   the frontmatter — stands in the head under the title, as an editor's note
+   stands before a text: in the interface's small face and the secondary ink,
+   each sentence led by a hollow triangle in the diagnostics' ochre, which is
+   the one touch of colour. No box, no tint and no rule of its own: the double
+   rule under the head already parts it from the text, and the text reads in
+   full below it.
+
+   Every line is a whole pixel, because these lines stand above any place a
+   reader keeps, and a fraction here would land a restored place off by it. */
+.y-headnotes {
+  --icon-size: 13px;
+  color: var(--fg-muted);
+  display: grid;
+  font-family: var(--font-sans);
+  font-size: var(--fs-13);
+  gap: var(--sp-2);
+  line-height: round(1.6em, 1px);
+  margin-block-start: var(--sp-4);
+  overflow-wrap: anywhere;
+}
+
+.y-headnote {
+  align-items: start;
+  display: grid;
+  gap: var(--sp-2);
+  grid-template-columns: var(--icon-size) minmax(0, 1fr);
+  margin: 0;
+}
+
+/* The triangle sits on the first line's middle, whatever the line's height. */
+.y-headnote > .y-icon {
+  color: var(--warn);
+  margin-block-start: calc((round(1.6em, 1px) - var(--icon-size)) / 2);
+}
+
+.y-headnotes code {
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--fs-12);
+}
+
+/* A field's whole list of values, folded under the sentence that names the
+   value the note wrote, and set on the sentence's own left edge. Closed, it is
+   one quiet line with the chevron every other fold in the interface wears. */
+.y-headnote__known {
+  margin-block-start: calc(-1 * var(--sp-1));
+  margin-inline-start: calc(var(--icon-size) + var(--sp-2));
+}
+
+.y-headnote__known > summary {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  gap: var(--sp-1);
+  list-style: none;
+}
+
+.y-headnote__known > summary::-webkit-details-marker {
+  display: none;
+}
+
+.y-headnote__known > summary:hover {
+  color: var(--fg);
+}
+
+.y-headnote__known > p {
+  margin: var(--sp-1) 0 0;
 }
 
 .y-notefacts {
@@ -3711,15 +3783,6 @@ button.y-freshness__action {
   overflow-wrap: anywhere;
 }
 
-.y-statuspanel__notice {
-  color: var(--fg-subtle);
-  font-family: var(--font-serif);
-  font-size: var(--fs-13);
-  line-height: 1.6;
-  margin: 0;
-  padding: var(--sp-3) 0 0;
-}
-
 /* one plain control */
 .y-xbtn {
   background: transparent;
@@ -3744,18 +3807,6 @@ button.y-freshness__action {
 .y-xbtn--primary {
   box-shadow: inset 0 0 0 1px var(--line-strong);
   color: var(--fg);
-}
-
-/* the diagnostics rail's amber accent on a schema notice, so the notice reads
-   as a finding rather than as copy */
-.y-statusflag {
-  border-left: 2.5px solid var(--warn);
-}
-
-.y-statusflag code {
-  color: var(--fg);
-  font-family: var(--font-mono);
-  font-size: var(--fs-12);
 }
 
 /* ============================================================
@@ -5779,6 +5830,21 @@ button.y-freshness__action {
 .y-nothing--fault .y-nothing__mark,
 .y-nothing--fault .y-nothing__title {
   color: var(--warn);
+}
+
+/* A note that is there and could not be read is told in the voice of an address
+   that names nothing: the same column, the same title in the page's own ink,
+   and no tint behind it. Its word above the title is the one touch of the
+   diagnostics' ochre, which is all that says this is a fault and not an
+   absence: the reader did nothing wrong, and nothing is on fire. */
+.y-recovery > .y-nothing--fault[data-nothing='notfound'] {
+  background: none;
+  border-radius: 0;
+  padding: 0;
+}
+
+.y-recovery > .y-nothing--fault[data-nothing='notfound'] .y-nothing__title {
+  color: var(--fg);
 }
 
 /* A desk block is small and already has its own heading over it, so the notice

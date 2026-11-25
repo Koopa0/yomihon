@@ -3,6 +3,8 @@ package pages
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 )
@@ -31,4 +33,15 @@ func WriteNotFound(
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusNotFound)
 	return NotFound(view, chrome).Render(ctx, w)
+}
+
+// againHref is the address a file that could not be read is asked for again
+// at: the one the reader asked for, escaped as an address. Empty for an address
+// that names nothing, which another read would not change, and for anything
+// that is not a path on this server.
+func (v *NotFoundView) againHref() string {
+	if !v.Unreadable || !strings.HasPrefix(v.Asked, "/") || strings.HasPrefix(v.Asked, "//") {
+		return ""
+	}
+	return (&url.URL{Path: v.Asked}).EscapedPath()
 }
