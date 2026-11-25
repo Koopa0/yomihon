@@ -33,8 +33,15 @@ explicit ruling from the maintainer on the issue.
    package allowed to write at all; a test in `internal/archlock` reads every
    shipped file and fails on a write anywhere else.
 2. **Loopback only, no network call.** The listener binds `127.0.0.1` and only
-   the port varies, through `YOMIHON_PORT` — the one environment variable the
-   product reads. Adding another needs a ruling. A test in `cmd/yomihon` parses
+   the port varies, through `YOMIHON_PORT`. The home directory, which
+   `os.UserHomeDir` takes from `HOME` (`USERPROFILE` on Windows), is read in
+   exactly one place, so that a path under it is shown to a person as `~/…`. It
+   changes only how that path is spelt. The full path is kept in output for an
+   agent, in a path the person must type back (a quoted `~` is not expanded), and
+   in logs. When no home directory can be found, the full path is shown.
+   `os.UserConfigDir` already reads the same variable indirectly to find the
+   configuration directory. Adding another variable, or another use of these
+   two, needs a ruling. A test in `cmd/yomihon` parses
    every file the binary is built from, on each supported platform, and fails on
    any other reach for the environment. The process opens no outbound
    connection of any kind. A figure the owner approved runs scripts in the

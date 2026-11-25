@@ -51,7 +51,10 @@ where the platform has one, inside the standard library, so the allowlist
 cannot see the key. That call decides where the reader's marks are kept, and
 the same test refuses it anywhere but the one file in `cmd/yomihon` that
 resolves it at startup — a guard that stayed green over a widened surface would
-be worse than none. Search queries are capped at 4,096
+be worse than none. The home directory is read a second way, `os.UserHomeDir`,
+in the one file of `internal/vault` that spells a path under it as `~/…` for a
+person; the same test refuses it anywhere else, and the read changes how a path
+is written and nothing the program does. Search queries are capped at 4,096
 bytes and reject control characters. Go dependencies are pinned by
 `go.mod`/`go.sum`; redistributed assets carry their LICENSE files inside `assets/` (fonts/LICENSE.txt, js/mermaid/LICENSE).
 

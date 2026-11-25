@@ -73,6 +73,32 @@ func TestVaultsListsEachVaultsNamePathAndAddress(t *testing.T) {
 	}
 }
 
+// Not parallel: it sets the home directory.
+func TestVaultsSpellsAPathUnderHomeAsTildeForAPersonAndInFullForAnAgent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	configDir := t.TempDir()
+	notes := folderNamed(t, home, "notes")
+	if _, _, err := listOf(t, configDir).Add(notes, someFreePort(t)); err != nil {
+		t.Fatal(err)
+	}
+	spelled := filepath.Join("~", "notes")
+
+	exit, human, _ := runVaultsCommand(t, configDir, true)
+	if exit != 0 || !strings.Contains(human, spelled) || strings.Contains(human, notes) {
+		t.Errorf("the table = exit %d, %q; want the path spelled %s and not in full", exit, human, spelled)
+	}
+	exit, agent, _ := runVaultsCommand(t, configDir, false)
+	if exit != 0 || !strings.Contains(agent, strings.ReplaceAll(notes, `\`, `\\`)) || strings.Contains(agent, "~") {
+		t.Errorf("the JSON = exit %d, %q; want the full path and no ~", exit, agent)
+	}
+	exit, removed, _ := runVaultsCommand(t, configDir, true, "remove", "notes")
+	if exit != 0 || !strings.Contains(removed, spelled) || strings.Contains(removed, notes) {
+		t.Errorf("remove printed exit %d, %q; want the path spelled %s", exit, removed, spelled)
+	}
+}
+
 func TestVaultsOfAnEmptyListIsAnEmptyAnswerNotAnError(t *testing.T) {
 	t.Parallel()
 	exit, stdout, stderr := runVaultsCommand(t, t.TempDir(), false)

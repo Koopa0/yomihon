@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/yomihon/internal/snapshot"
 	"github.com/koopa0/yomihon/internal/ui/layouts"
 	"github.com/koopa0/yomihon/internal/ui/pages"
+	"github.com/koopa0/yomihon/internal/vault"
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
@@ -68,7 +69,7 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 	}
 	view := pages.HomeView{
 		VaultName:         visible.Vault.Name,
-		VaultPath:         h.sources.Source.Name(),
+		VaultPath:         vault.Tilde(h.sources.Source.Name()),
 		Fault:             fault,
 		Restart:           restart,
 		OpenThoughts:      open,

@@ -117,7 +117,7 @@ func init() {
 		// handle can do is judged by each method below, since a method of the type
 		// is a name of its own.
 		"os.File", "os.Root",
-		"os.Getenv", "os.Getpid", "os.Getwd", "os.UserConfigDir",
+		"os.Getenv", "os.Getpid", "os.Getwd", "os.UserConfigDir", "os.UserHomeDir",
 		// Looking at the filesystem without changing it.
 		"os.Stat", "os.ReadFile", "os.DirFS", "os.OpenRoot", "os.SameFile",
 		"os.DevNull", "os.ModeCharDevice", "os.ModeSymlink",
