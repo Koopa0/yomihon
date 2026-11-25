@@ -208,11 +208,11 @@ func TestTheDeskLinkBackToTheKeptPlaceWearsTheBookmarkAndASentenceDoesNot(t *tes
 	t.Parallel()
 
 	link := renderComponent(t, continueRow(ContinueRow{Show: true, Title: "Alpha", Href: "/notes/a.md"}, wording.En))
-	if !strings.Contains(link, `data-continue-link>`) || !strings.Contains(link, `<span class="y-bookmark__ribbon" aria-hidden="true"></span>`) {
+	if !strings.Contains(link, `data-continue-link>`) || !strings.Contains(link, `<svg class="y-continue__ribbon"`) {
 		t.Errorf("the way back to the place does not wear the bookmark: %s", link)
 	}
 	gone := renderComponent(t, continueRow(ContinueRow{Show: true, Title: "Alpha", Notice: "gone"}, wording.En))
-	if strings.Contains(gone, "y-bookmark__ribbon") {
+	if strings.Contains(gone, "y-continue__ribbon") {
 		t.Errorf("a row with nowhere to go wears the bookmark: %s", gone)
 	}
 }

@@ -1,6 +1,7 @@
 // Behavior lock for the desk of a reader who kept a place: the place is the
-// largest text on it. The name of the place is set at the page-title size and
-// no heading, row or figure on the desk is set as large, measured as the
+// largest text on it. The name of the place is set at the page-title size, the
+// 36px a page's own name takes, and no heading, row or figure on the desk is
+// set as large, measured as the
 // browser computed it over every piece of visible text rather than read from
 // the stylesheet's source.
 //
@@ -100,7 +101,7 @@ try {
   const place = sizes.filter((text) => text.inside);
   if (place.length === 0) fail(PLACE_SITE, 'the kept place has no name drawn at all');
   const size = Math.max(...place.map((text) => text.size));
-  if (size < 48) fail(PLACE_SITE, `the kept place is set at ${size}px, want the page-title size of at least 48px`);
+  if (size < 36) fail(PLACE_SITE, `the kept place is set at ${size}px, want the page-title size of at least 36px`);
   const overtaking = sizes.filter((text) => !text.inside && text.size >= size).sort((a, b) => b.size - a.size);
   if (overtaking.length > 0) {
     fail(PLACE_SITE, `${overtaking[0].what} (${JSON.stringify(overtaking[0].words)}) is set at ${overtaking[0].size}px, not smaller than the ${size}px kept place`);

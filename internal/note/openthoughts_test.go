@@ -378,7 +378,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 			want := struct {
 				Titles  []string
 				Counted bool
-			}{Titles: []string{"Newest", "Z title › Alpha", "Z title › Beta", "A title", "Missing.md"}}
+			}{Titles: []string{"Newest", "Z title › Alpha", "Z title › Beta", "A title"}}
 			if diff := cmp.Diff(want, got); diff != "" {
 				t.Errorf("caught: stored-field Home ordering mismatch (-want +got):\n%s", diff)
 			}

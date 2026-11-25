@@ -6,11 +6,12 @@ import (
 	"github.com/koopa0/yomihon/internal/wording"
 )
 
-// ListBar is the line above a list: what heads it, a field to narrow it, what
-// the page can unfold, and the order it is in. Each part is drawn only when the
-// list has something for it to do.
+// ListBar is the toolbar over a list, closed by the double rule a threshold
+// takes: what heads the list when one group's heading has risen into it, the
+// order it is in, what the page can unfold, and at the far end a field to
+// narrow it. Each part is drawn only when the list has something for it to do.
 templ ListBar(l List, lang wording.Lang) {
-	if l.Label != "" || l.Filter != nil || l.Toggle.Text != "" || (l.Count == "" && len(l.Switch.Choices) > 0) {
+	if l.Label != "" || l.Filter != nil || l.Toggle.Text != "" || len(l.Switch.Choices) > 0 {
 		<form class={ "y-listbar", templ.KV("y-listbar--ruled", l.Ruled) } method="get" role="search" data-list-bar>
 			if l.Label != "" {
 				<span class={ "y-listbar__label", templ.KV("y-listbar__label--authored", l.LabelAuthored) }>{ l.Label }</span>
@@ -18,14 +19,14 @@ templ ListBar(l List, lang wording.Lang) {
 					<span class="y-lgroup__count y-listbar__count">{ l.LabelCount }</span>
 				}
 			}
-			if l.Filter != nil {
-				@listFilter(l.Filter, lang)
+			if len(l.Switch.Choices) > 0 {
+				@listSwitch(l.Switch)
 			}
 			if l.Toggle.Text != "" {
 				<a class="y-listbar__toggle" href={ templ.URL(l.Toggle.Href) } data-list-link>{ l.Toggle.Text }</a>
 			}
-			if l.Count == "" && len(l.Switch.Choices) > 0 {
-				@listSwitch(l.Switch)
+			if l.Filter != nil {
+				@listFilter(l.Filter, lang)
 			}
 			for _, kv := range l.Keep {
 				<input type="hidden" name={ kv.Name } value={ kv.Value }/>
@@ -77,15 +78,13 @@ templ ListBody(l List, lang wording.Lang) {
 	</div>
 }
 
-// List draws a list: its bar, then its groups.
+// List draws a list: the line saying what it holds, its toolbar, then its
+// groups.
 templ ListView(l List, lang wording.Lang) {
 	<div class="y-list2" data-list>
 		if l.Count != "" {
 			<div class="y-countline">
 				<p class="y-indexcount">{ l.Count }</p>
-				if len(l.Switch.Choices) > 0 {
-					@listSwitch(l.Switch)
-				}
 			</div>
 		}
 		@ListBar(l, lang)

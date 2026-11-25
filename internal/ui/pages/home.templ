@@ -113,20 +113,22 @@ templ Home(v HomeView, c layouts.Chrome) {
 							</div>
 						}
 					}
-					<div class="y-homegrid">
-						if v.OpenThoughts.Title != "" {
-							@ShelfBlock(v.OpenThoughts, "marks", OpenThoughtsHomeRows, c.Lang, false) {
-								if v.OpenThoughtsFault != "" {
-									@nothingToShow(nothingNotice{Kind: "marks", Fault: true}) {
-										<p>{ v.OpenThoughtsFault }</p>
-									}
+					// What the reader left open stands next, across the desk, before
+					// the ways into the rest of the library.
+					if v.OpenThoughts.Title != "" {
+						@ShelfBlock(v.OpenThoughts, "marks", OpenThoughtsHomeRows, c.Lang, false) {
+							if v.OpenThoughtsFault != "" {
+								@nothingToShow(nothingNotice{Kind: "marks", Fault: true}) {
+									<p>{ v.OpenThoughtsFault }</p>
 								}
 							}
 						}
-						for _, block := range v.Blocks {
-							if !v.leads(&block) {
-								@ShelfBlock(block.Shelf, block.Mode, deskBlockItems, c.Lang, false)
-							}
+					}
+					<div class="y-homegrid">
+						for _, way := range v.ways() {
+							<div class={ "y-homeway", templ.KV("y-homeway--whole", way.Whole) }>
+								@ShelfBlock(way.Block.Shelf, way.Block.Mode, deskBlockItems, c.Lang, false)
+							</div>
 						}
 					</div>
 					// Below the four ways in the page stops being about reading and
@@ -177,22 +179,26 @@ templ Home(v HomeView, c layouts.Chrome) {
 							}
 						</section>
 					}
-					if !v.ReadmeMissing {
-						<p class="y-homereadme" data-home-readme>
-							<a href={ templ.URL(notesHref(HomeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
-						</p>
-					}
-					if v.VaultName != "" || v.VaultPath != "" {
-						<p class="y-deskvault" data-home-vault>
-							if v.VaultName != "" {
-								<span>{ v.VaultName }</span>
-							}
-							if v.VaultPath != "" {
-								<code>{ v.VaultPath }</code>
-							}
-						</p>
-					}
-					@deskHealth(c.Lang)
+					// The desk ends on its colophon: which folder it is of, where that
+					// folder is, and the two pages about the folder rather than in it.
+					<footer class="y-colophon">
+						if v.VaultName != "" || v.VaultPath != "" {
+							<p class="y-deskvault" data-home-vault>
+								if v.VaultName != "" {
+									<span>{ v.VaultName }</span>
+								}
+								if v.VaultPath != "" {
+									<code>{ v.VaultPath }</code>
+								}
+							</p>
+						}
+						if !v.ReadmeMissing {
+							<p class="y-homereadme" data-home-readme>
+								<a href={ templ.URL(notesHref(HomeReadmeRelPath)) }>{ wording.HomeReadmeTitle.In(c.Lang) }</a>
+							</p>
+						}
+						@deskHealth(c.Lang)
+					</footer>
 				</div>
 			</main>
 		</div>
