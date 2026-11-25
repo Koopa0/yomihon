@@ -43,8 +43,8 @@ const MUTATIONS = {
   },
   'duplicate-controls': {
     path: '/static/codecopy.js',
-    needle: "block.previousElementSibling?.matches('.y-codecopy')",
-    replacement: 'false',
+    needle: '|| enhanced(block)) continue;',
+    replacement: ') continue;',
     site: 'idempotent-controls',
   },
   'report-denial-as-success': {

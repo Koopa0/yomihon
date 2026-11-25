@@ -264,14 +264,16 @@ func scopeAt(t *testing.T, css, opener string) (enclosing []string, body string)
 	return nil, ""
 }
 
-// TestEveryCodeBlockStandsAfterASlotForItsCopyControl holds the page's elements
+// TestEveryCodeBlockHeadHoldsASlotForItsCopyControl holds the page's elements
 // still while script gives each block its control. The control takes a slot the
-// server drew, so the page has the same elements before script and after it; a
-// block the renderer wrote without one would have the control inserted beside
-// it later, which moves every element after it one place along and with them
-// the place a returning reader's browser looks for. The blocks differ in how
-// they are written, since each kind has its own way to produce its markup.
-func TestEveryCodeBlockStandsAfterASlotForItsCopyControl(t *testing.T) {
+// server drew in the block's head, so the page has the same elements before
+// script and after it; a block the renderer wrote without one would have the
+// control inserted later, which moves every element after it one place along and
+// with them the place a returning reader's browser looks for. The head comes
+// before the code, so the control never stands over the code's first line. The
+// blocks differ in how they are written, since each kind has its own way to
+// produce its markup.
+func TestEveryCodeBlockHeadHoldsASlotForItsCopyControl(t *testing.T) {
 	t.Parallel()
 	const slot = `<div class="y-codecopy-slot"></div>`
 	r := newRenderer(t, nil, nil, nil)
@@ -279,19 +281,21 @@ func TestEveryCodeBlockStandsAfterASlotForItsCopyControl(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		html string
+		head string
 	}{
-		{name: "a fence with a known language", html: r.HTML("note.md", "", "```go\npackage main\n```\n", wording.ZhHant).HTML},
-		{name: "a fence with no language", html: r.HTML("note.md", "", "```\nplain\n```\n", wording.ZhHant).HTML},
-		{name: "an indented block", html: r.HTML("note.md", "", "Before.\n\n    indented\n\nAfter.\n", wording.ZhHant).HTML},
-		{name: "a whole file read as source", html: render.SourceHTML("main.go", "package main\n")},
+		{name: "a fence with a known language", html: r.HTML("note.md", "", "```go\npackage main\n```\n", wording.ZhHant).HTML, head: `<span class="y-code__lang" data-text="go"></span>` + slot},
+		{name: "a fence with no language", html: r.HTML("note.md", "", "```\nplain\n```\n", wording.ZhHant).HTML, head: slot},
+		{name: "a fence whose info string says more than its language", html: r.HTML("note.md", "", "```go title=\"main.go\" {1,3}\npackage main\n```\n", wording.ZhHant).HTML, head: `<span class="y-code__lang" data-text="go"></span>` + slot},
+		{name: "an indented block", html: r.HTML("note.md", "", "Before.\n\n    indented\n\nAfter.\n", wording.ZhHant).HTML, head: slot},
+		{name: "a whole file read as source", html: render.SourceHTML("main.go", "package main\n"), head: slot},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if got := strings.Count(tt.html, "<pre"); got != 1 {
 				t.Fatalf("the fixture holds %d blocks, want 1: %s", got, tt.html)
 			}
-			if got := strings.Count(tt.html, slot+"<pre"); got != 1 {
-				t.Errorf("blocks standing directly after a slot = %d, want 1: %s", got, tt.html)
+			if want := `<div class="y-code"><div class="y-code__head">` + tt.head + `</div><pre`; strings.Count(tt.html, want) != 1 {
+				t.Errorf("the block does not stand under a head holding %s: %s", tt.head, tt.html)
 			}
 			if got := strings.Count(tt.html, slot); got != 1 {
 				t.Errorf("slots = %d, want 1: %s", got, tt.html)

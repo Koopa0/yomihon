@@ -48,7 +48,7 @@ func TestPrintGivesThePaperItsMarginsAndKeepsBlocksWhole(t *testing.T) {
 		why      string
 	}{
 		{"@page", "margin", "", "text printed to the sheet's edge has no gutter to hold and nothing for a staple to take"},
-		{".y-prose pre", "break-inside", "avoid", "a listing split across a page break loses the indentation the reader was following"},
+		{".y-prose .y-code", "break-inside", "avoid", "a listing split across a page break loses the indentation the reader was following, and its head stays with it"},
 		{".y-prose blockquote", "break-inside", "avoid", "a quotation split across sheets reads as two quotations"},
 		{".y-prose .callout", "break-inside", "avoid", "a callout's coloured rule stops at the page edge and its body carries on unmarked"},
 		{".y-prose .embed", "break-inside", "avoid", "an excerpt split across sheets loses the line that says which note it came from"},

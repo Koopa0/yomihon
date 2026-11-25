@@ -8,7 +8,6 @@ package render
 
 import (
 	"bytes"
-	"fmt"
 	"iter"
 	"runtime"
 	"strings"
@@ -171,15 +170,16 @@ func matchedLexer(filename string) chroma.Lexer {
 // an element to the page after the browser had already put the reader's
 // position back: the browser names where a reader left off by the elements
 // above it, counted from the top of their parent, and a count that has grown
-// since is a different place. The slot is that element, drawn by the server and
-// replaced in kind, so the page has the same elements and the same height
-// before and after script, and what the stylesheet holds for it is the control's
-// own height.
+// since is a different place. The slot is that element, drawn by the server in
+// the block's head and replaced in kind, so the page has the same elements and
+// the same height before and after script: the head's height is the
+// stylesheet's, whatever stands in it.
 const codeCopySlot = `<div class="y-codecopy-slot"></div>`
 
 // codeBlockRenderer renders a fenced code block via chroma in place of
 // goldmark's own default plain <pre><code> output, and an indented one with the
-// default's own markup. Both stand after a slot for the copy control.
+// default's own markup. Both stand in the box codeFigureOpen draws, under a head
+// holding a slot for the copy control.
 type codeBlockRenderer struct {
 	indented renderer.NodeRendererFunc
 }
@@ -201,11 +201,27 @@ func (r codeBlockRenderer) RegisterFuncs(reg renderer.NodeRendererFuncRegisterer
 
 func (r codeBlockRenderer) renderIndentedCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {
 	if entering {
-		if err := writeStrings(w, codeCopySlot); err != nil {
+		if err := writeStrings(w, codeFigureOpen("")); err != nil {
 			return ast.WalkStop, err
 		}
+		return r.indented(w, source, n, entering)
 	}
-	return r.indented(w, source, n, entering)
+	status, err := r.indented(w, source, n, entering)
+	if err != nil {
+		return status, err
+	}
+	return status, writeStrings(w, codeFigureClose+"\n")
+}
+
+// blockSource is a code block's text, its lines joined as the author wrote them.
+func blockSource(n ast.Node, source []byte) string {
+	var src strings.Builder
+	lines := n.Lines()
+	for i := range lines.Len() {
+		line := lines.At(i)
+		src.Write(line.Value(source))
+	}
+	return src.String()
 }
 
 // renderCodeBlock writes one fenced code block's highlighted HTML. An empty or
@@ -222,49 +238,43 @@ func renderCodeBlock(w util.BufWriter, source []byte, n ast.Node, entering bool)
 		return ast.WalkContinue, nil
 	}
 
-	if err := writeStrings(w, codeCopySlot); err != nil {
+	src := blockSource(node, source)
+	lang := string(node.Language(source))
+	if err := writeStrings(w, codeFigureOpen(lang)); err != nil {
 		return ast.WalkStop, err
 	}
-
-	var src strings.Builder
-	lines := node.Lines()
-	for i := range lines.Len() {
-		line := lines.At(i)
-		src.Write(line.Value(source))
+	if err := writeStrings(w, fencedPre(n, lang, src), codeFigureClose); err != nil {
+		return ast.WalkStop, err
 	}
+	return ast.WalkContinue, nil
+}
 
+// fencedPre is a fence's highlighted pre, or the degraded one: escaped,
+// readable, uncoloured, in the same chroma container every other block uses, so
+// a timeout does not drop the text into muted foreground. An empty or
+// unrecognized language is the plain-text lexer. It never fails the whole
+// render over one bad fence.
+func fencedPre(n ast.Node, lang, src string) string {
 	lexer := lexers.Fallback
-	if lang := node.Language(source); len(lang) > 0 {
-		if l := namedLexer(string(lang)); l != nil {
+	if lang != "" {
+		if l := namedLexer(lang); l != nil {
 			lexer = l
 		}
 	}
-
-	iterator, err := chroma.Coalesce(lexer).Tokenise(nil, src.String())
+	iterator, err := chroma.Coalesce(lexer).Tokenise(nil, src)
 	if err != nil {
-		// Never fail the whole render over one bad fence — fall
-		// back to plain, unhighlighted, still-escaped output.
-		return writePlainCodeBlock(w, src.String())
+		return plainSource(src)
 	}
 	highlighted, reason := highlightCode(iterator)
 	if reason != "" {
 		reportHighlightFailure(n, &Diagnostic{
 			Kind:    DiagHighlightFailed,
-			Target:  string(node.Language(source)),
+			Target:  lang,
 			Message: reason,
 		})
-		return writePlainCodeBlock(w, src.String())
+		return plainSource(src)
 	}
-	_, werr := w.Write(highlighted)
-	return ast.WalkContinue, werr
-}
-
-// writePlainCodeBlock is the degraded fence: escaped, readable, uncoloured,
-// in the same chroma container every other block uses, so a timeout does not
-// drop the text into muted foreground.
-func writePlainCodeBlock(w util.BufWriter, src string) (ast.WalkStatus, error) {
-	_, err := fmt.Fprintf(w, "%s\n", plainSource(src))
-	return ast.WalkContinue, err
+	return string(highlighted)
 }
 
 const (

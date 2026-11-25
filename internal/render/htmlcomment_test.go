@@ -28,7 +28,7 @@ func TestHTMLCommentsHideTheirContentsAndLinks(t *testing.T) {
 		{name: "short empty", body: "A<!-->B<!--->C", want: "<p>ABC</p>\n"},
 		{name: "escaped", body: `A\<!-- literal -->B`, want: "<p>A&lt;!-- literal --&gt;B</p>\n"},
 		{name: "code span", body: "`<!-- literal -->`", want: "<p><code>&lt;!-- literal --&gt;</code></p>\n"},
-		{name: "fenced code", body: "```text\n<!-- literal -->\n```", want: "<div class=\"y-codecopy-slot\"></div><pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\">&lt;!-- literal --&gt;\n</span></span></code></pre>"},
+		{name: "fenced code", body: "```text\n<!-- literal -->\n```", want: "<div class=\"y-code\"><div class=\"y-code__head\"><span class=\"y-code__lang\" data-text=\"text\"></span><div class=\"y-codecopy-slot\"></div></div><pre class=\"chroma\"><code><span class=\"line\"><span class=\"cl\">&lt;!-- literal --&gt;\n</span></span></code></pre></div>"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -120,7 +120,7 @@ func TestHTMLCommentsKeepMarkdownContainerBoundaries(t *testing.T) {
 		{name: "quoted close", body: "> Before <!-- private\n> secret --> after.", want: "<blockquote>\n<p>Before\nafter.</p>\n</blockquote>\n"},
 		{name: "unclosed quote", body: "> Before\n> <!-- private\n> secret\n\nAfter.", want: "<blockquote>\n<p>Before</p>\n</blockquote>\n<p>After.</p>\n", diagnostics: []render.Diagnostic{{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"}}},
 		{name: "unclosed list", body: "- Item\n  <!-- private\n  secret\n\nAfter.", want: "<ul>\n<li>Item</li>\n</ul>\n<p>After.</p>\n", diagnostics: []render.Diagnostic{{Kind: render.DiagnosticKind("comment-container-unclosed"), Target: "<!--", Message: "an unclosed <!-- comment opened at line 2 of the note body hides the rest of its Markdown container"}}},
-		{name: "indented code", body: "    <!-- literal -->\n\nAfter.", want: "<div class=\"y-codecopy-slot\"></div><pre><code>&lt;!-- literal --&gt;\n</code></pre>\n<p>After.</p>\n"},
+		{name: "indented code", body: "    <!-- literal -->\n\nAfter.", want: "<div class=\"y-code\"><div class=\"y-code__head\"><div class=\"y-codecopy-slot\"></div></div><pre><code>&lt;!-- literal --&gt;\n</code></pre>\n</div>\n<p>After.</p>\n"},
 		{name: "wrapped code span", body: "`begin\nmiddle <!-- literal --> end`", want: "<p><code>begin middle &lt;!-- literal --&gt; end</code></p>\n"},
 		{name: "indented paragraph continuation", body: "Before\n    <!-- private --> after.", want: "<p>Before\nafter.</p>\n"},
 	}
