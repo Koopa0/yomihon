@@ -47,7 +47,7 @@ func TestMain(m *testing.M) {
 // hold takes the lock, says so and keeps it: its standard input never ends, so
 // the only way out is being killed.
 func hold() int {
-	dir, err := confdir.Home(os.Getenv(configVar))
+	dir, err := confdir.Home(confdir.At(os.Getenv(configVar)))
 	if err == nil {
 		err = confdir.Exclusive(dir, lockName, 0, func() error {
 			if readyErr := ready(); readyErr != nil {
@@ -65,7 +65,7 @@ func hold() int {
 // it add one line of its own to the file under the lock, and the end of input
 // lets it go.
 func write() int {
-	dir, err := confdir.Home(os.Getenv(configVar))
+	dir, err := confdir.Home(confdir.At(os.Getenv(configVar)))
 	in := bufio.NewReader(os.Stdin)
 	for err == nil {
 		if err = ready(); err != nil {
@@ -167,7 +167,7 @@ func TestWritersInSeparateProcessesLoseNothing(t *testing.T) {
 			t.Errorf("a writer failed: %v", err)
 		}
 	}
-	dir, err := confdir.Home(config)
+	dir, err := confdir.Home(confdir.At(config))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestWritersInSeparateProcessesLoseNothing(t *testing.T) {
 func TestAHolderThatDiesReleasesTheLock(t *testing.T) {
 	t.Parallel()
 	config := t.TempDir()
-	dir, err := confdir.Home(config)
+	dir, err := confdir.Home(confdir.At(config))
 	if err != nil {
 		t.Fatal(err)
 	}

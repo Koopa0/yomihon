@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
 )
@@ -71,7 +72,7 @@ func readerSession(t *testing.T, root string, contract *schema.Contract, configD
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, contract, contract.Governance())
 	var err error
-	marks, err = mark.Open(configDir, source.Name())
+	marks, err = mark.Open(confdir.At(configDir), source.Name())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -44,11 +44,13 @@ import (
 //   - What it may be pointed at. Each package that writes works on a type only
 //     it makes, and takes one for everything that changes a file, so a write goes
 //     where that type was pointed: confdir's Dir, which only Home and VaultDir
-//     make, and machinefile's Folder, which only Open makes. shape and
-//     dirIsOpaque hold each package to that: a function or method that changes a
-//     file is handed one, and nothing but its makers makes one, sets what one
-//     holds or hands one out. machinefile is held further, to the few names its
-//     permits list and to what each of their calls is made with.
+//     make, and machinefile's Folder, which only Open makes. Home and VaultDir
+//     make a Dir only inside a ConfigDir, which only Platform, from what the
+//     platform names, and At, for a test, make. shape and dirIsOpaque hold each
+//     package to that: a function or method that changes a file is handed one,
+//     and nothing but its makers makes one, sets what one holds or hands one
+//     out. judge refuses At in shipped code. machinefile is held further, to the
+//     few names its permits list and to what each of their calls is made with.
 //   - What is linked. The program is more than this module: the modules it
 //     links are read by the same names, may be only those on reviewedModules,
 //     may not be swapped by a replace, and may not hold a file in a language the
@@ -58,13 +60,12 @@ import (
 //     inside. What a call may be made with is held for the few calls whose harm
 //     is in an argument: a signal other than 0, and a network other than tcp.
 //
-// What this does not read: the one string the configuration directory begins as,
-// which the command takes from the platform and hands to the stores, so a Dir can
-// still be aimed at a vault by the string it is made from; whether a function of
-// confdir that is handed a Dir writes inside it, which confdir's own name checks
-// and tests answer; what a reviewed module does with a path it is handed; and a
-// write through a descriptor that was open already, such as standard input on a
-// terminal opened read-write.
+// What this does not read: whether the directory the platform names is inside a
+// folder being read, which is a question about the disk and not the code;
+// whether a function of confdir that is handed a Dir writes inside it, which
+// confdir's own name checks and tests answer; what a reviewed module does with
+// a path it is handed; and a write through a descriptor that was open already,
+// such as standard input on a terminal opened read-write.
 // Reflection is not read either, so reflect and the template packages are
 // forbidden imports, and so are C, unsafe and go:linkname.
 
@@ -124,7 +125,7 @@ func init() {
 		// handle can do is judged by each method below, since a method of the type
 		// is a name of its own.
 		"os.File", "os.Root",
-		"os.Getenv", "os.Getpid", "os.Getwd", "os.UserConfigDir", "os.UserHomeDir",
+		"os.Getenv", "os.Getpid", "os.Getwd", "os.UserHomeDir",
 		// Looking at the filesystem without changing it.
 		"os.Stat", "os.ReadFile", "os.DirFS", "os.OpenRoot", "os.SameFile",
 		"os.DevNull", "os.ModeCharDevice", "os.ModeSymlink",
@@ -150,6 +151,19 @@ var processQueries = []string{
 	"golang.org/x/sys/windows.OpenProcess", "golang.org/x/sys/windows.PROCESS_QUERY_LIMITED_INFORMATION", "golang.org/x/sys/windows.SYNCHRONIZE",
 	"golang.org/x/sys/windows.WaitForSingleObject", "golang.org/x/sys/windows.WAIT_TIMEOUT", "golang.org/x/sys/windows.CloseHandle",
 }
+
+// platformQueries are the names the writer asks the platform with where the
+// configuration directory is: os.UserConfigDir, which reads the environment and
+// changes nothing. shape lets an exported function of the writer that uses it
+// take no Dir; that is Platform, which makes the ConfigDir every Dir is made in.
+// Outside the writer it is refused like any name not on readOnly, so where the
+// reader's files are kept is asked in one package, and the environment test in
+// cmd/yomihon holds the read to one file of it.
+var platformQueries = []string{"os.UserConfigDir"}
+
+// writerQueries are the names the writer may use in an exported function that
+// takes no Dir, since none of them changes a file or ends a process.
+var writerQueries = slices.Concat(processQueries, platformQueries)
 
 // writeFamilies are the prefixes of the names a handle that writes answers to.
 // They are prefixes because the standard library grows (Mkdir became MkdirAll
@@ -516,11 +530,13 @@ func judge(u *unit) (found []site, writerUses int, used map[string]bool) {
 			}
 			continue
 		}
-		if what, refused := refusedUse(obj, id, permitted, u.dependency); refused {
+		if why := testOnly[sym.key]; resolved && why != "" && u.path != rawWriter {
+			uses = append(uses, use{id.Pos(), sym.key + ", which " + why})
+		} else if what, refused := refusedUse(obj, id, permitted, u.dependency); refused {
 			uses = append(uses, use{id.Pos(), what})
 			// The writer may name anything, so what it uses says nothing of readOnly;
-			// it is what keeps processQueries from holding a name nothing asks with.
-			if u.path == rawWriter && resolved && slices.Contains(processQueries, sym.key) {
+			// it is what keeps writerQueries from holding a name nothing asks with.
+			if u.path == rawWriter && resolved && slices.Contains(writerQueries, sym.key) {
 				used[sym.key] = true
 			}
 		} else if resolved && readOnly[sym.key] && !u.dependency && u.path != rawWriter {
@@ -586,13 +602,14 @@ func shape(u *unit) []site {
 	}
 	permitted := permittedCalls(u)
 	// What a use outside the writer would be refused for, it changes here too,
-	// except asking whether a process is there with signal 0.
+	// except asking whether a process is there with signal 0, or where the
+	// configuration directory is.
 	changes := func(id *ast.Ident, obj types.Object) bool {
 		if _, refused := refusedUse(obj, id, permitted, false); !refused {
 			return false
 		}
 		sym, _ := resolve(obj)
-		if !slices.Contains(processQueries, sym.key) {
+		if !slices.Contains(writerQueries, sym.key) {
 			return true
 		}
 		_, constrained := constrainedCalls[sym.key]
@@ -678,6 +695,19 @@ func typeName(t types.Type) string {
 // Dir.
 var dirMakers = []string{"Home", "VaultDir"}
 
+// configDirMakers are the only functions of rawWriter that make a ConfigDir,
+// the configuration directory every Dir is made inside: Platform, from what the
+// platform names, and At, for a test, which judge refuses in shipped code.
+// Without ConfigDir, Home and VaultDir would take a string again, so a vault's
+// root could be the directory a Dir is made in.
+var configDirMakers = []string{"Platform", "At"}
+
+// testOnly are the names of rawWriter that tests use and shipped code may not,
+// each with why. judge refuses them outside rawWriter; a test is not read.
+var testOnly = map[string]string{
+	rawWriter + ".At": "makes a configuration directory of any path a test chooses, and shipped code takes the one confdir.Platform names",
+}
+
 // dirIsOpaque holds the types a writer is pointed with to what they say: the
 // carrier and each name type of writers, a struct nothing outside the package
 // can fill, that only its makers make, set or hand out, and that no variable of
@@ -742,6 +772,9 @@ func opaque(u *unit, kind opaqueType) []site {
 	name, makers := kind.name, strings.Join(kind.makers, " and ")
 	object := u.pkg.Scope().Lookup(name)
 	if object == nil {
+		if kind.optional {
+			return nil
+		}
 		return []site{at(u.files[0].Pos(), "there is no type "+name+", so no write is held to "+kind.place+" by its type")}
 	}
 	var found []site
@@ -1296,9 +1329,9 @@ func TestTheOnlyPlaceProductionCodeWritesIsTheReadersOwnFiles(t *testing.T) {
 			t.Errorf("%s is on readOnly and no shipped package outside %s names it; remove it", key, rawWriter)
 		}
 	}
-	for _, key := range processQueries {
+	for _, key := range writerQueries {
 		if !used[key] {
-			t.Errorf("%s is on processQueries and %s does not name it; remove it", key, rawWriter)
+			t.Errorf("%s is on writerQueries and %s does not name it; remove it", key, rawWriter)
 		}
 	}
 	for _, writer := range slices.Sorted(maps.Keys(writers)) {
@@ -1438,9 +1471,9 @@ func walkSystem(at target) systemWalk {
 // writes is refused whatever package it is in.
 func TestNoWriteIsOnTheReadOnlyList(t *testing.T) {
 	t.Parallel()
-	for _, key := range processQueries {
+	for _, key := range writerQueries {
 		if readOnly[key] {
-			t.Errorf("%s is on readOnly and on processQueries, and belongs on one", key)
+			t.Errorf("%s is on readOnly and on writerQueries, and belongs on one", key)
 		}
 	}
 	for _, problem := range readOnlyProblems(slices.Sorted(maps.Keys(readOnly))) {

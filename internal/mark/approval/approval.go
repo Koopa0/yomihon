@@ -87,7 +87,7 @@ type Store struct {
 
 // Open names this vault's approvals. It creates nothing: the directory and the
 // file appear when an owner first approves a figure.
-func Open(configDir, vaultRoot string) (*Store, error) {
+func Open(configDir confdir.ConfigDir, vaultRoot string) (*Store, error) {
 	dir, err := confdir.VaultDir(configDir, vaultRoot)
 	if err != nil {
 		return nil, err

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
 // anIdentity is a content identity in the one spelling a reading page stamps.
@@ -56,7 +57,7 @@ func newStore(t *testing.T) *mark.Store {
 
 func newStoreFor(t *testing.T, configDir, vaultRoot string) *mark.Store {
 	t.Helper()
-	store, err := mark.Open(configDir, vaultRoot)
+	store, err := mark.Open(confdir.At(configDir), vaultRoot)
 	if err != nil {
 		t.Fatalf("mark.Open(%q, %q): %v", configDir, vaultRoot, err)
 	}
@@ -75,28 +76,28 @@ func heldBookmark(t *testing.T, store *mark.Store) (mark.Bookmark, bool) {
 }
 
 // TestAStoreWithNothingNamingItIsRefused holds the one thing the constructor
-// checks. An empty configuration directory builds a relative path, which would
+// checks. No configuration directory builds a relative path, which would
 // put the reader's marks beside whatever folder the process started in and look
 // like it had worked.
 func TestAStoreWithNothingNamingItIsRefused(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name      string
-		configDir string
+		configDir confdir.ConfigDir
 		vaultRoot string
 	}{
-		{"no configuration directory", "", "/vaults/notes"},
-		{"no vault root", "/config", ""},
-		{"neither", "", ""},
+		{"no configuration directory", confdir.ConfigDir{}, "/vaults/notes"},
+		{"no vault root", confdir.At(t.TempDir()), ""},
+		{"neither", confdir.ConfigDir{}, ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			store, err := mark.Open(tt.configDir, tt.vaultRoot)
 			if err == nil {
-				t.Fatalf("mark.Open(%q, %q) built a store at %s", tt.configDir, tt.vaultRoot, store.Dir())
+				t.Fatalf("mark.Open(%v, %q) built a store at %s", tt.configDir, tt.vaultRoot, store.Dir())
 			}
 			if !errors.Is(err, mark.ErrNotNamed) {
-				t.Errorf("mark.Open(%q, %q) = %v, want it to be ErrNotNamed", tt.configDir, tt.vaultRoot, err)
+				t.Errorf("mark.Open(%v, %q) = %v, want it to be ErrNotNamed", tt.configDir, tt.vaultRoot, err)
 			}
 		})
 	}

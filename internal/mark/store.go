@@ -24,7 +24,7 @@ import (
 type Store struct {
 	// configDir is kept to name the directory of another vault's marks, which
 	// Adopt reads.
-	configDir string
+	configDir confdir.ConfigDir
 	dir       confdir.Dir
 	// vaultRoot is written inside each file, because the directory holding it
 	// is named after a digest.
@@ -38,10 +38,11 @@ type Store struct {
 // configDir is the platform's configuration directory, resolved once by the
 // command that composes this — reading the environment is the process's own
 // business, and a package handed a directory cannot widen the surface the
-// command promises. vaultRoot is the resolved absolute root being served,
-// which names which vault these marks belong to. Either one empty is refused
-// with ErrNotNamed.
-func Open(configDir, vaultRoot string) (*Store, error) {
+// command promises. It is a confdir.ConfigDir and not a string, so the vault
+// root cannot be passed in its place. vaultRoot is the resolved absolute root
+// being served, which names which vault these marks belong to. The zero
+// ConfigDir and an empty root are refused with ErrNotNamed.
+func Open(configDir confdir.ConfigDir, vaultRoot string) (*Store, error) {
 	dir, err := confdir.VaultDir(configDir, vaultRoot)
 	if err != nil {
 		return nil, err

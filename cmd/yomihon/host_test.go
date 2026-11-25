@@ -172,7 +172,7 @@ func newVaultFolder(t *testing.T) string {
 // process changes it.
 func listOf(t *testing.T, configDir string) *vaults.Store {
 	t.Helper()
-	store, err := vaults.Open(configDir, func(port int) bool { return portFree(t.Context(), port) })
+	store, err := vaults.Open(confdir.At(configDir), func(port int) bool { return portFree(t.Context(), port) })
 	if err != nil {
 		t.Fatalf("open the list: %v", err)
 	}
@@ -201,13 +201,13 @@ func startRunning(t *testing.T, configDir, root string, port int) *running {
 		}
 	})
 	r := &running{
-		host:   newHost(slog.New(slog.NewTextHandler(logged, nil)), configDir, listOf(t, configDir)),
+		host:   newHost(slog.New(slog.NewTextHandler(logged, nil)), confdir.At(configDir), listOf(t, configDir)),
 		out:    new(lockedBuffer),
 		cancel: cancel,
 		done:   make(chan error, 1),
 	}
 	r.host.wait = 300 * time.Millisecond
-	cfg := &config{root: root, port: strconv.Itoa(port), configDir: configDir}
+	cfg := &config{root: root, port: strconv.Itoa(port), configDir: confdir.At(configDir)}
 	go func() { r.done <- r.host.serveListed(ctx, func() {}, cfg, r.out) }()
 	t.Cleanup(func() { _ = r.stop(t) }) //nolint:errcheck // a test that cares about the result stopped it itself
 	return r
@@ -418,10 +418,10 @@ func TestASecondYomihonGivesItsFolderToTheRunningOne(t *testing.T) {
 	r.address(t)
 
 	given := newVaultFolder(t)
-	second := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
+	second := newHost(slog.New(slog.DiscardHandler), confdir.At(configDir), listOf(t, configDir))
 	second.wait = 10 * time.Second
 	out := new(lockedBuffer)
-	cfg := &config{root: given, port: strconv.Itoa(start), configDir: configDir}
+	cfg := &config{root: given, port: strconv.Itoa(start), configDir: confdir.At(configDir)}
 	if err := second.serveListed(t.Context(), func() {}, cfg, out); err != nil {
 		t.Fatalf("the second yomihon: %v", err)
 	}
@@ -531,10 +531,10 @@ func TestAHandOffNothingTakesLeavesNothingInTheListAndSaysWhichFileToRemove(t *t
 		t.Fatal(err)
 	}
 
-	h := newHost(slog.New(slog.DiscardHandler), configDir, store)
+	h := newHost(slog.New(slog.DiscardHandler), confdir.At(configDir), store)
 	h.wait = 300 * time.Millisecond
 	out := new(lockedBuffer)
-	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(someFreePort(t)), configDir: configDir}
+	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(someFreePort(t)), configDir: confdir.At(configDir)}
 	err := h.serveListed(t.Context(), func() {}, cfg, out)
 	fault := operatorFault(err)
 	if fault == nil {
@@ -568,9 +568,9 @@ func TestAHandOffThatFailsKeepsAFolderTheListAlreadyHad(t *testing.T) {
 	if err := store.WriteInstance(vaults.Instance{PID: os.Getpid(), Port: squatted, Started: time.Now().UTC()}); err != nil {
 		t.Fatal(err)
 	}
-	h := newHost(slog.New(slog.DiscardHandler), configDir, store)
+	h := newHost(slog.New(slog.DiscardHandler), confdir.At(configDir), store)
 	h.wait = 300 * time.Millisecond
-	cfg := &config{root: folder, port: strconv.Itoa(someFreePort(t)), configDir: configDir}
+	cfg := &config{root: folder, port: strconv.Itoa(someFreePort(t)), configDir: confdir.At(configDir)}
 	if operatorFault(h.serveListed(t.Context(), func() {}, cfg, io.Discard)) == nil {
 		t.Fatal("want a refusal")
 	}
@@ -592,8 +592,8 @@ func TestAPortNamedForAnotherYomihonThanTheRunningOneIsRefusedAndNothingIsAdded(
 	// Held by the test: a second yomihon that tried to bind it would be told it is
 	// held, and the refusal asked for below is about the running one's port.
 	_, other := heldListener(t)
-	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
-	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(other), portSet: true, configDir: configDir}
+	h := newHost(slog.New(slog.DiscardHandler), confdir.At(configDir), listOf(t, configDir))
+	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(other), portSet: true, configDir: confdir.At(configDir)}
 	err := h.serveListed(t.Context(), func() {}, cfg, io.Discard)
 	fault := operatorFault(err)
 	if fault == nil || !strings.Contains(fault.Error(), strconv.Itoa(start)) || !strings.Contains(fault.Error(), "YOMIHON_PORT") {
@@ -613,10 +613,10 @@ func TestTheRunningYomihonsOwnPortNamedAgainStillHandsTheFolderOver(t *testing.T
 	r := startRunning(t, configDir, newVaultFolder(t), start)
 	r.address(t)
 
-	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
+	h := newHost(slog.New(slog.DiscardHandler), confdir.At(configDir), listOf(t, configDir))
 	h.wait = 10 * time.Second
 	out := new(lockedBuffer)
-	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(start), portSet: true, configDir: configDir}
+	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(start), portSet: true, configDir: confdir.At(configDir)}
 	if err := h.serveListed(t.Context(), func() {}, cfg, out); err != nil {
 		t.Fatalf("serveListed = %v", err)
 	}
@@ -630,8 +630,8 @@ func TestTheRunningYomihonsOwnPortNamedAgainStillHandsTheFolderOver(t *testing.T
 func TestAStartingPortOfTheSystemsIsRefused(t *testing.T) {
 	t.Parallel()
 	configDir := t.TempDir()
-	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
-	cfg := &config{root: newVaultFolder(t), port: "80", portSet: true, configDir: configDir}
+	h := newHost(slog.New(slog.DiscardHandler), confdir.At(configDir), listOf(t, configDir))
+	cfg := &config{root: newVaultFolder(t), port: "80", portSet: true, configDir: confdir.At(configDir)}
 	if operatorFault(h.serveListed(t.Context(), func() {}, cfg, io.Discard)) == nil {
 		t.Fatal("want a refusal of port 80")
 	}
@@ -655,9 +655,9 @@ func TestAStartingPortAnotherProgramHoldsIsRefusedWithTheSettingThatMovesIt(t *t
 	port := int(heldAt.Port())
 
 	configDir := t.TempDir()
-	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
+	h := newHost(slog.New(slog.DiscardHandler), confdir.At(configDir), listOf(t, configDir))
 	h.wait = 100 * time.Millisecond
-	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(port), configDir: configDir}
+	cfg := &config{root: newVaultFolder(t), port: strconv.Itoa(port), configDir: confdir.At(configDir)}
 	err = h.serveListed(t.Context(), func() {}, cfg, io.Discard)
 	if operatorFault(err) == nil {
 		t.Fatalf("serveListed = %v, want the refusal an operator can correct", err)
@@ -911,7 +911,7 @@ func TestStoppingWaitsForTheRecordOfARead(t *testing.T) {
 	r.address(t)
 
 	// Another process is changing the list, so the record has to wait its turn.
-	home, err := confdir.Home(configDir)
+	home, err := confdir.Home(confdir.At(configDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -966,7 +966,7 @@ func TestARecordAskedForAfterTheHostBeganToEndIsDropped(t *testing.T) {
 	}
 	long := readLongAgo(t, configDir, &entry)
 
-	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
+	h := newHost(slog.New(slog.DiscardHandler), confdir.At(configDir), listOf(t, configDir))
 	if err = h.stopServing(); err != nil {
 		t.Fatal(err)
 	}
@@ -1273,7 +1273,7 @@ func TestOneEntryThatCannotBeUsedLeavesTheOtherVaultsOnTheirPortsAndIsSaid(t *te
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	typed := newVaultFolder(t)
-	cfg := &config{root: typed, port: strconv.Itoa(start + 20), configDir: configDir}
+	cfg := &config{root: typed, port: strconv.Itoa(start + 20), configDir: confdir.At(configDir)}
 	go func() {
 		done <- serveVault(ctx, func() {}, slog.New(slog.NewTextHandler(logged, nil)), cfg, out)
 	}()
@@ -1321,8 +1321,8 @@ func TestTheTypedVaultsPortBeingHeldIsRefusedWithWhatToDo(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = squatter.Close() }) //nolint:errcheck // the port is released either way
 
-	h := newHost(slog.New(slog.DiscardHandler), configDir, listOf(t, configDir))
-	cfg := &config{root: folder, port: strconv.Itoa(someFreePort(t)), configDir: configDir}
+	h := newHost(slog.New(slog.DiscardHandler), confdir.At(configDir), listOf(t, configDir))
+	cfg := &config{root: folder, port: strconv.Itoa(someFreePort(t)), configDir: confdir.At(configDir)}
 	err = h.serveListed(t.Context(), func() {}, cfg, io.Discard)
 	fault := operatorFault(err)
 	if fault == nil || !strings.Contains(fault.Error(), strconv.Itoa(taken)) || !strings.Contains(fault.Error(), "yomihon vaults remove") {
@@ -1350,13 +1350,13 @@ func TestAVaultJustAddedWhosePortIsHeldIsNotKeptInTheList(t *testing.T) {
 	// the list looked and found it free, which a list told every port is free
 	// shows.
 	holder(t, start+1)
-	store, err := vaults.Open(configDir, func(int) bool { return true })
+	store, err := vaults.Open(confdir.At(configDir), func(int) bool { return true })
 	if err != nil {
 		t.Fatal(err)
 	}
 	folder := newVaultFolder(t)
-	h := newHost(slog.New(slog.DiscardHandler), configDir, store)
-	cfg := &config{root: folder, port: strconv.Itoa(start), configDir: configDir}
+	h := newHost(slog.New(slog.DiscardHandler), confdir.At(configDir), store)
+	cfg := &config{root: folder, port: strconv.Itoa(start), configDir: confdir.At(configDir)}
 	err = h.serveListed(t.Context(), func() {}, cfg, io.Discard)
 	if operatorFault(err) == nil {
 		t.Fatalf("serveListed = %v, want a refusal the reader can correct", err)
@@ -1383,7 +1383,7 @@ func TestAVaultJustAddedWhosePortIsHeldIsNotKeptInTheList(t *testing.T) {
 
 func TestAHostThatIsEndingMountsNothingMore(t *testing.T) {
 	t.Parallel()
-	h := newHost(slog.New(slog.DiscardHandler), t.TempDir(), nil)
+	h := newHost(slog.New(slog.DiscardHandler), confdir.At(t.TempDir()), nil)
 	if err := h.stopServing(); err != nil {
 		t.Fatal(err)
 	}

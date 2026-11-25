@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -244,7 +245,7 @@ func TestExampleServeChild(t *testing.T) {
 	if diff := cmp.Diff(originals, exampleServeFiles(t, root)); diff != "" {
 		t.Fatalf("caught: example copy differs before serving (-want +got):\n%s", diff)
 	}
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatal(err)
 	}

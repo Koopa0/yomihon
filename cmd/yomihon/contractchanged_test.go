@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -31,7 +32,7 @@ func TestAContractEditedUnderARunningInstanceSaysToRestart(t *testing.T) {
 
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}

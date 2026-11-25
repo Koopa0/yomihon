@@ -18,6 +18,7 @@ import (
 	"golang.org/x/net/html"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -51,7 +52,7 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 			log := slog.New(slog.DiscardHandler)
 			store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 			authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
-			marks, err := mark.Open(t.TempDir(), source.Name())
+			marks, err := mark.Open(confdir.At(t.TempDir()), source.Name())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -201,7 +202,7 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 			log := slog.New(slog.DiscardHandler)
 			first, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 			authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
-			marks, err := mark.Open(t.TempDir(), source.Name())
+			marks, err := mark.Open(confdir.At(t.TempDir()), source.Name())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -299,7 +300,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
-	marks, err := mark.Open(t.TempDir(), source.Name())
+	marks, err := mark.Open(confdir.At(t.TempDir()), source.Name())
 	if err != nil {
 		t.Fatal(err)
 	}

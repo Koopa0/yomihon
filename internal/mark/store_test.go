@@ -495,7 +495,7 @@ func TestAChangeThatCannotTakeTheLockIsRefusedAndChangesNothing(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := directoryBytes(t, store.Dir())
-	dir, err := confdir.VaultDir(config, "/vaults/notes")
+	dir, err := confdir.VaultDir(confdir.At(config), "/vaults/notes")
 	if err != nil {
 		t.Fatal(err)
 	}

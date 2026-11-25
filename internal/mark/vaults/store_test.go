@@ -31,7 +31,7 @@ func folder(t *testing.T, name string) string {
 // up on a held lock quickly.
 func storeIn(t *testing.T, configDir string, free func(int) bool) (*Store, *time.Time) {
 	t.Helper()
-	s, err := Open(configDir, free)
+	s, err := Open(confdir.At(configDir), free)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestAVaultsIDIsTheNameOfItsDirectoryOfMarks(t *testing.T) {
 	s, _ := storeIn(t, config, nil)
 	e := mustAdd(t, s, folder(t, "a"))
 
-	marks, err := confdir.VaultDir(config, e.Path)
+	marks, err := confdir.VaultDir(confdir.At(config), e.Path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -779,7 +779,7 @@ func mkdirHome(s *Store) error { return os.MkdirAll(s.dir.Path(), 0o700) }
 // package under test is given to work in.
 func homeAt(t *testing.T, configDir string) confdir.Dir {
 	t.Helper()
-	home, err := confdir.Home(configDir)
+	home, err := confdir.Home(confdir.At(configDir))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1003,7 +1003,7 @@ func mustEncode(t *testing.T, list []Entry) []byte {
 // writeListReporting is writeList for a Store that says what it did into said.
 func writeListReporting(t *testing.T, configDir string, said *[]string, body string) *Store {
 	t.Helper()
-	s, err := Open(configDir, nil, Report(func(line string) { *said = append(*said, line) }))
+	s, err := Open(confdir.At(configDir), nil, Report(func(line string) { *said = append(*said, line) }))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -50,13 +50,17 @@ root comes from an argument or the working directory. One more value reaches it
 without being named: `os.UserConfigDir` reads `HOME`, and `XDG_CONFIG_HOME`
 where the platform has one, inside the standard library, so the allowlist
 cannot see the key. That call decides where the reader's marks are kept, and
-the same test refuses it anywhere but the one file in `cmd/yomihon` that
-resolves it at startup — a guard that stayed green over a widened surface would
-be worse than none. The home directory is read a second way, `os.UserHomeDir`,
-in the one file of `internal/vault` that spells a path under it as `~/…` for a
-person; the same test refuses it anywhere else, and the read changes how a path
-is written and nothing the program does. Search queries are capped at 4,096
-bytes and reject control characters. Go dependencies are pinned by
+the same test refuses it anywhere but the one file of `internal/mark/confdir`
+that makes the configuration directory, which the command calls at startup — a
+guard that stayed green over a widened surface would be worse than none. A
+directory the platform names that is not an absolute path is refused there, so
+it cannot be read against the folder being served; the command then runs with
+no configuration directory, as it does when the environment names none, and
+the server's log and `yomihon marks` say why. The home directory is read a
+second way, `os.UserHomeDir`, in the one file of `internal/vault` that spells a
+path under it as `~/…` for a person; the same test refuses it anywhere else,
+and the read changes how a path is written and nothing the program does.
+Search queries are capped at 4,096 bytes and reject control characters. Go dependencies are pinned by
 `go.mod`/`go.sum`; redistributed assets carry their LICENSE files inside `assets/` (fonts/LICENSE.txt, js/mermaid/LICENSE).
 
 `[privacy] never_egress_dirs` binds the agent-facing output contract — `check`,

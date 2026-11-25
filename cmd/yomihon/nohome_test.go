@@ -34,8 +34,8 @@ func TestAReadingRoomOpensWithNoConfigurationDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig with no configuration directory = %v, want a config the command can serve from", err)
 	}
-	if cfg.configDir != "" {
-		t.Fatalf("loadConfig resolved %q as the configuration directory with nothing naming one", cfg.configDir)
+	if !cfg.configDir.IsZero() {
+		t.Fatalf("loadConfig resolved %v as the configuration directory with nothing naming one", cfg.configDir)
 	}
 	if cfg.root != root || cfg.port != defaultPort {
 		t.Errorf("loadConfig = %+v, want the vault root and the default port unaffected", cfg)

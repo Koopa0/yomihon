@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/ui/pages"
 )
 
@@ -78,7 +79,7 @@ func TestNoRouteWritesIntoTheVault(t *testing.T) {
 	configDir := t.TempDir()
 	before := vaultState(t, root)
 
-	site, err := newReadingSite(t.Context(), root, configDir, slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(configDir), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}

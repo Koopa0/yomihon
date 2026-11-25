@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -30,7 +31,7 @@ func TestEveryReadingAddressAnswers(t *testing.T) {
 
 	root := t.TempDir()
 	writeDeskFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -132,7 +133,7 @@ func TestAWithheldDeclarationIsStatedOnTheModeIndexes(t *testing.T) {
 	if err := os.WriteFile(broken, []byte("this is not toml [[[\n"), 0o600); err != nil { // #nosec G703 -- fixed fixture path under t.TempDir
 		t.Fatalf("break the contract: %v", err)
 	}
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -268,7 +269,7 @@ func TestEmptyProbeVaultsGuideFirstRunOverHTTP(t *testing.T) {
 					t.Fatalf("write %s: %v", rel, err)
 				}
 			}
-			site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+			site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 			if err != nil {
 				t.Fatalf("newReadingSite: %v", err)
 			}
@@ -529,7 +530,7 @@ func siteOverAContract(t *testing.T, mutate func(string) string) *readingSite {
 	if err = os.WriteFile(contractPath, []byte(written), 0o600); err != nil { // #nosec G703 -- a fixture path under t.TempDir
 		t.Fatalf("write the contract: %v", err)
 	}
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -557,7 +558,7 @@ func TestEveryFaceRefusesAMissingNameTheSameWay(t *testing.T) {
 
 	root := t.TempDir()
 	writeDeskFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -837,7 +838,7 @@ func folderShelfSite(t *testing.T, contract string, rootFiles bool) *readingSite
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}
@@ -940,7 +941,7 @@ func TestAnEmptyDeskNamesTheDeclarationThatFillsIt(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			writeContractDeclaring(t, root, tt.pathType, tt.mapTypes)
-			site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+			site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 			if err != nil {
 				t.Fatalf("newReadingSite: %v", err)
 			}
@@ -1087,7 +1088,7 @@ func TestRetiredAddressesRedirectToTheirNewOnes(t *testing.T) {
 
 	root := t.TempDir()
 	writeDeskFixture(t, root)
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}

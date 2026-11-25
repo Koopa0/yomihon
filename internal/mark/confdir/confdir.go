@@ -10,9 +10,10 @@
 //
 // What it works on is a Dir, which only Home and VaultDir make. A function that
 // changes a file takes one and never a path, so every write lands in a directory
-// one of the two named. Which directory that is comes from the string they are
-// handed: any package may call them, and that the string is the configuration
-// directory rests on the command that resolves it, not on this package.
+// one of the two named. They make it inside a ConfigDir and never from a string,
+// and a ConfigDir is made by Platform, from what the platform names, or by At,
+// which shipped code may not call. That the platform's answer is not inside a
+// folder being read is not something this package checks.
 package confdir
 
 import (
@@ -33,7 +34,7 @@ import (
 
 // ErrNotNamed means a directory was asked for without both of the things that
 // name it: where this platform keeps a program's own files, and which vault the
-// files belong to.
+// files belong to. The zero ConfigDir is the first of them missing.
 var ErrNotNamed = errors.New("the vault's files need a configuration directory and a vault root")
 
 // ErrTooLarge means a file is longer than the limit it was read under. It is
@@ -55,8 +56,7 @@ const nameLength = 32
 // reader's home, or one vault's directory inside it. Home and VaultDir are the
 // only ways to have one, and nothing outside this package can fill one in or
 // change where it points, so the compiler keeps every change to a file inside a
-// directory one of them named. It does not keep that directory under the
-// configuration directory: they build it from the string they are handed. The
+// directory one of them named, and they name one only inside a ConfigDir. The
 // zero Dir names nothing and is refused by everything here.
 type Dir struct{ path string }
 
@@ -80,13 +80,13 @@ func (d Dir) named() error {
 // per-vault directories VaultDir names, and the files that belong to the reader
 // and not to one vault, such as the list of vaults they have opened.
 //
-// An empty configuration directory is refused rather than defaulted, for the
-// reason VaultDir gives.
-func Home(configDir string) (Dir, error) {
-	if configDir == "" {
-		return Dir{}, fmt.Errorf("%w: configuration directory %q", ErrNotNamed, configDir)
+// The zero ConfigDir is refused rather than defaulted, for the reason VaultDir
+// gives.
+func Home(configDir ConfigDir) (Dir, error) {
+	if configDir.IsZero() {
+		return Dir{}, fmt.Errorf("%w: no configuration directory", ErrNotNamed)
 	}
-	return Dir{path: filepath.Join(configDir, "yomihon")}, nil
+	return Dir{path: filepath.Join(configDir.dir, "yomihon")}, nil
 }
 
 // VaultID is what names one vault: the directory Dir gives it, and the id the
@@ -108,13 +108,13 @@ func VaultID(vaultRoot string) string {
 
 // VaultDir is where this vault's files sit inside configDir.
 //
-// Either argument empty is refused rather than defaulted. A path built from an
-// empty configuration directory is a relative one, which would put the reader's
-// files beside whatever folder the process happened to start in and look like
-// it had worked.
-func VaultDir(configDir, vaultRoot string) (Dir, error) {
-	if configDir == "" || vaultRoot == "" {
-		return Dir{}, fmt.Errorf("%w: configuration directory %q, vault root %q", ErrNotNamed, configDir, vaultRoot)
+// The zero ConfigDir and an empty vault root are refused rather than
+// defaulted. A path built from no configuration directory is a relative one,
+// which would put the reader's files beside whatever folder the process
+// happened to start in and look like it had worked.
+func VaultDir(configDir ConfigDir, vaultRoot string) (Dir, error) {
+	if configDir.IsZero() || vaultRoot == "" {
+		return Dir{}, fmt.Errorf("%w: configuration directory %q, vault root %q", ErrNotNamed, configDir.dir, vaultRoot)
 	}
 	home, err := Home(configDir)
 	if err != nil {

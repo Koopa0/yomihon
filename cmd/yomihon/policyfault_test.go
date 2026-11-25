@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
@@ -63,7 +64,7 @@ func siteWithPrivacySection(t *testing.T, privacySection string) *captureLogs {
 		t.Fatalf("write the contract: %v", err)
 	}
 	logs := &captureLogs{}
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(logs))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(logs))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/koopa0/yomihon/internal/judge"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/schema"
 )
 
@@ -44,7 +45,7 @@ func TestExcludedDirectoriesAreUnseenLikeHiddenOnes(t *testing.T) {
 			t.Fatalf("write %s: %v", rel, err)
 		}
 	}
-	site, err := newReadingSite(t.Context(), root, t.TempDir(), slog.New(slog.DiscardHandler))
+	site, err := newReadingSite(t.Context(), root, confdir.At(t.TempDir()), slog.New(slog.DiscardHandler))
 	if err != nil {
 		t.Fatalf("newReadingSite: %v", err)
 	}

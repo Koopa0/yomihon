@@ -22,6 +22,7 @@ import (
 	"github.com/koopa0/yomihon/internal/egress"
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -39,7 +40,7 @@ func leftOpen(t *testing.T, root, configDir string, args ...string) leftOpenResu
 	t.Helper()
 	var stdout, stderr bytes.Buffer
 	argv := append([]string{"--root", root}, args...)
-	exit := runOpenThoughts(t.Context(), argv, config{configDir: configDir}, &stdout, &stderr, false)
+	exit := runOpenThoughts(t.Context(), argv, config{configDir: confdir.At(configDir)}, &stdout, &stderr, false)
 	return leftOpenResult{stdout: stdout.String(), stderr: stderr.String(), exit: exit}
 }
 
@@ -55,7 +56,7 @@ func leftOpenMarks(t *testing.T, root, configDir string, marks ...mark.Mark) *ma
 	if closeErr := source.Close(); closeErr != nil {
 		t.Fatal(closeErr)
 	}
-	file, err := mark.Open(configDir, name)
+	file, err := mark.Open(confdir.At(configDir), name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,7 +409,7 @@ func TestLeftOpenChecksAuthorityAgainAfterAssembly(t *testing.T) {
 	root, configDir := leftOpenPrivateVault(t)
 	narrowed := strings.Replace(leftOpenContract, `never_egress_dirs = ["Private"]`, `never_egress_dirs = ["Private", "Inside"]`, 1)
 	var stdout, stderr bytes.Buffer
-	request := openRequest{root: root, configDir: configDir, format: judge.FormatJSON, afterAssemble: func() {
+	request := openRequest{root: root, configDir: confdir.At(configDir), format: judge.FormatJSON, afterAssemble: func() {
 		putOpenThoughtFile(t, root, schema.ContractRelPath, narrowed)
 	}}
 	exit := request.run(t.Context(), &stdout, &stderr)
@@ -523,7 +524,7 @@ func TestLeftOpenRefusesAFolderInsideOrAboveAVault(t *testing.T) {
 				t.Parallel()
 				root := shape.build(t)
 				var stdout, stderr bytes.Buffer
-				request := openRequest{root: root, configDir: t.TempDir(), format: format}
+				request := openRequest{root: root, configDir: confdir.At(t.TempDir()), format: format}
 				exit := request.run(t.Context(), &stdout, &stderr)
 				if exit != 2 || stdout.Len() != 0 {
 					t.Errorf("caught: marks listed from a folder inside or above a vault: exit %d, stdout %q", exit, stdout.String())
@@ -580,7 +581,7 @@ func TestLeftOpenRefusesAVaultMovedInAfterTheFirstLook(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			putOpenThoughtFile(t, root, "Notes/a.md", "# a\n")
-			request := openRequest{root: root, configDir: t.TempDir(), format: format, afterRules: func() {
+			request := openRequest{root: root, configDir: confdir.At(t.TempDir()), format: format, afterRules: func() {
 				putOpenThoughtFile(t, root, "Later/"+schema.ContractRelPath, leftOpenContract)
 				putOpenThoughtFile(t, root, "Later/Private/Hidden thought.md", openThoughtNote("Hidden thought", "thought", draftFlag, "2026-09-02"))
 			}}
@@ -605,7 +606,7 @@ func TestLeftOpenCancelledIsNotAPrivacyRefusal(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	var stdout, stderr bytes.Buffer
-	exit := (&openRequest{root: root, configDir: t.TempDir(), format: judge.FormatJSON}).run(ctx, &stdout, &stderr)
+	exit := (&openRequest{root: root, configDir: confdir.At(t.TempDir()), format: judge.FormatJSON}).run(ctx, &stdout, &stderr)
 	if exit != 2 || stdout.Len() != 0 {
 		t.Errorf("exit %d, stdout %q, want a refusal and nothing listed", exit, stdout.String())
 	}
@@ -624,7 +625,7 @@ func TestLeftOpenRefusesWhenARulesFileAppearsAfterAssembly(t *testing.T) {
 	putOpenThoughtFile(t, root, "Private/Thought.md", openThoughtNote("A private thought", "thought", draftFlag, "2026-09-01"))
 	leftOpenMarks(t, root, configDir, mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)})
 	var stdout, stderr bytes.Buffer
-	request := openRequest{root: root, configDir: configDir, format: judge.FormatJSON, afterAssemble: func() {
+	request := openRequest{root: root, configDir: confdir.At(configDir), format: judge.FormatJSON, afterAssemble: func() {
 		putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	}}
 	exit := request.run(t.Context(), &stdout, &stderr)
@@ -1173,7 +1174,7 @@ func movedFolder(t *testing.T) (root, configDir, earlier string) {
 	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
 	putOpenThoughtFile(t, root, "Private/Secret plan.md", "# Secret plan\n\n## Hidden heading\n\nwords\n")
-	kept, err := mark.Open(configDir, earlier)
+	kept, err := mark.Open(confdir.At(configDir), earlier)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1242,7 +1243,7 @@ func TestMarksAdoptBringsAcrossNothingThisFolderWithholdsOrHasNot(t *testing.T) 
 func TestMarksAdoptLeavesTheEarlierMarksAndTheVaultAsTheyWere(t *testing.T) {
 	t.Parallel()
 	root, configDir, earlier := movedFolder(t)
-	store, err := mark.Open(configDir, earlier)
+	store, err := mark.Open(confdir.At(configDir), earlier)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1290,11 +1291,11 @@ func TestMarksAdoptRefusesWhatItCannotAdoptWithoutNamingAPath(t *testing.T) {
 	// A directory copied by hand to the name another path gives records the path
 	// it was made for.
 	copiedRoot := filepath.Join(t.TempDir(), "copied")
-	earlierStore, err := mark.Open(configDir, earlier)
+	earlierStore, err := mark.Open(confdir.At(configDir), earlier)
 	if err != nil {
 		t.Fatal(err)
 	}
-	copied, err := mark.Open(configDir, copiedRoot)
+	copied, err := mark.Open(confdir.At(configDir), copiedRoot)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -634,6 +634,53 @@ func aim(d *Dir, path string) { p := &d.path; *p = path }`,
 		want: []string{"the address of path, a field of Dir"},
 	},
 
+	// A Dir is made only inside a ConfigDir, and only Platform and At make a
+	// ConfigDir, so a vault's root cannot become one inside the writer either.
+	{
+		name: "a third way to make a ConfigDir, from a path",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+type ConfigDir struct{ dir string }
+func Of(path string) ConfigDir { return ConfigDir{dir: path} }`,
+		want: []string{"Of returns a ConfigDir", "a ConfigDir is made here"},
+	},
+	{
+		name: "a ConfigDir that a string converts to",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+type ConfigDir string`,
+		want: []string{"ConfigDir is not a struct"},
+	},
+	{
+		name: "a ConfigDir with the fields of Dir, which converts to one",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+type ConfigDir struct{ path string }
+func Home(c ConfigDir) (Dir, error) { return Dir(c), nil }`,
+		want: []string{"a struct with the fields of Dir", "a struct with the fields of ConfigDir"},
+	},
+	{
+		name: "a pointer receiver that aims a ConfigDir at a vault",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+type ConfigDir struct{ dir string }
+func (c *ConfigDir) Aim(vaultRoot string) { c.dir = vaultRoot }`,
+		want: []string{"dir, a field of ConfigDir, is set here"},
+	},
+	{
+		name: "an exported variable that holds a ConfigDir",
+		as:   rawWriter,
+		src: `package confdir
+type Dir struct{ path string }
+type ConfigDir struct{ dir string }
+var Default ConfigDir`,
+		want: []string{"Default is a variable that holds a ConfigDir"},
+	},
+
 	// And what must stay quiet.
 	{
 		name: "reading",
@@ -703,8 +750,12 @@ func missing(err error) bool { fmt.Fprintln(os.Stderr, "x"); return errors.Is(er
 		src: `package confdir
 import "os"
 type Dir struct{ path string }
-func Home(configDir string) (Dir, error) { return Dir{path: configDir}, nil }
-func VaultDir(configDir, vaultRoot string) (Dir, error) { return Dir{path: configDir + vaultRoot}, nil }
+type ConfigDir struct{ dir string }
+func Platform() (ConfigDir, error) { path, err := os.UserConfigDir(); return ConfigDir{dir: path}, err }
+func At(path string) ConfigDir { return ConfigDir{dir: path} }
+func (c ConfigDir) IsZero() bool { return c.dir == "" }
+func Home(c ConfigDir) (Dir, error) { return Dir{path: c.dir}, nil }
+func VaultDir(c ConfigDir, vaultRoot string) (Dir, error) { return Dir{path: c.dir + vaultRoot}, nil }
 func (d Dir) Path() string { return d.path }
 func Wipe(dir Dir, name string) error { return os.Remove(dir.path + name) }
 func (d Dir) Clear(name string) error { return os.Remove(d.path + name) }
@@ -744,10 +795,81 @@ func save() error { return confdir.Replace("/vault", "marks.json", nil) }`,
 		noCompile: "Dir",
 	},
 	{
-		name: "a Dir from the configuration directory",
+		name: "a Dir from a vault's root, which is a string",
 		src: `package fixture
 import "github.com/koopa0/yomihon/internal/mark/confdir"
-func home(configDir string) error { _, err := confdir.Home(configDir); return err }`,
+func home(vaultRoot string) error { _, err := confdir.Home(vaultRoot); return err }`,
+		noCompile: "ConfigDir",
+	},
+	{
+		name: "a vault's directory inside a vault's root",
+		src: `package fixture
+import "github.com/koopa0/yomihon/internal/mark/confdir"
+func inside(vaultRoot string) error { _, err := confdir.VaultDir(vaultRoot, vaultRoot); return err }`,
+		noCompile: "ConfigDir",
+	},
+	{
+		name: "a ConfigDir from a path by conversion",
+		src: `package fixture
+import "github.com/koopa0/yomihon/internal/mark/confdir"
+var vault = confdir.ConfigDir("/vault")`,
+		noCompile: "ConfigDir",
+	},
+	{
+		name: "a ConfigDir from a path by literal",
+		src: `package fixture
+import "github.com/koopa0/yomihon/internal/mark/confdir"
+var vault = confdir.ConfigDir{"/vault"}`,
+		noCompile: "ConfigDir",
+	},
+	{
+		name: "the reader's marks kept inside a vault's root",
+		src: `package fixture
+import "github.com/koopa0/yomihon/internal/mark"
+func open(vaultRoot string) error { _, err := mark.Open(vaultRoot, vaultRoot); return err }`,
+		noCompile: "ConfigDir",
+	},
+	{
+		name: "the figure approvals kept inside a vault's root",
+		src: `package fixture
+import "github.com/koopa0/yomihon/internal/mark/approval"
+func open(vaultRoot string) error { _, err := approval.Open(vaultRoot, vaultRoot); return err }`,
+		noCompile: "ConfigDir",
+	},
+	{
+		name: "the list of vaults kept inside a vault's root",
+		src: `package fixture
+import "github.com/koopa0/yomihon/internal/mark/vaults"
+func open(vaultRoot string) error { _, err := vaults.Open(vaultRoot, nil); return err }`,
+		noCompile: "ConfigDir",
+	},
+	{
+		name: "the configuration directory asked for outside the writer",
+		src: `package fixture
+import "os"
+func where() (string, error) { return os.UserConfigDir() }`,
+		want: []string{"os.UserConfigDir, which is not one this guard knows"},
+	},
+	{
+		name: "a Dir from the configuration directory the platform names",
+		src: `package fixture
+import "github.com/koopa0/yomihon/internal/mark/confdir"
+func home() error {
+	configDir, err := confdir.Platform()
+	if err != nil {
+		return err
+	}
+	_, err = confdir.Home(configDir)
+	return err
+}`,
+	},
+	{
+		name: "a configuration directory a shipped package makes at a path",
+		src: `package fixture
+import "github.com/koopa0/yomihon/internal/mark/confdir"
+var at = confdir.At
+func home(vaultRoot string) error { _, err := confdir.Home(confdir.At(vaultRoot)); return err }`,
+		want: []string{rawWriter + ".At, which makes a configuration directory of any path", rawWriter + ".At, which makes a configuration directory of any path"},
 	},
 
 	// A program started through a value that only says it can Run, and the
@@ -1058,6 +1180,7 @@ func TestEveryFixtureOfTheWriteGuardSaysWhatItExpects(t *testing.T) {
 	}
 	var rows []string
 	rows = append(rows, alsoRefused...)
+	rows = append(rows, slices.Sorted(maps.Keys(testOnly))...)
 	rows = append(rows, slices.Sorted(maps.Keys(constrainedCalls))...)
 	for _, path := range forbiddenImports {
 		rows = append(rows, "imports "+path)
