@@ -193,7 +193,7 @@ func TestAFileIsOwnerOnlyAndNothingIsLeftBesideIt(t *testing.T) {
 		if _, err := store.Add(aHighlight()); err != nil {
 			t.Fatal(err)
 		}
-		if err := store.SetBookmark(mark.NoCourse, aPlace()); err != nil {
+		if err := moveBookmark(store, mark.NoCourse, aPlace()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -228,7 +228,7 @@ func TestTheFilesNameTheirVault(t *testing.T) {
 	if _, err := store.Add(aHighlight()); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SetBookmark(mark.NoCourse, aPlace()); err != nil {
+	if err := moveBookmark(store, mark.NoCourse, aPlace()); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{marksPath(store), progressPath(store)} {
@@ -350,13 +350,21 @@ func TestAskingToTakeAwayWhatIsNotThereLeavesNoDirectory(t *testing.T) {
 			return err
 		},
 		"clear a bookmark": func(s *mark.Store) error {
-			cleared, err := s.ClearBookmark(mark.NoCourse)
+			_, cleared, err := s.ClearBookmark(mark.NoCourse)
 			if cleared {
 				return errors.New("cleared a bookmark in a store that holds none")
 			}
 			return err
 		},
 		"say a note is not finished": func(s *mark.Store) error { return s.SetFinished("Notes/a.md", false) },
+		"move a bookmark that expects one kept": func(s *mark.Store) error {
+			at := time.Now()
+			_, _, err := s.MoveBookmark(mark.NoCourse, aPlace(), &mark.Expectation{At: &at})
+			if !errors.Is(err, mark.ErrChanged) {
+				return errors.Join(errors.New("a move that expects a bookmark in a store that holds none was not refused as ErrChanged"), err)
+			}
+			return nil
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

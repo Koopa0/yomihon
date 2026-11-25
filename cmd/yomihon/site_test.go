@@ -482,12 +482,17 @@ func TestTheSiteRefusesACrossSiteWrite(t *testing.T) {
 // cross-site is refused before a handler runs, and so is one addressed to
 // a name that is not this machine. Nothing is written for either, and the
 // same four requests from the reader's own page go through.
-func TestTheSiteRefusesAMarkWriteFromAnotherSiteOrAnotherName(t *testing.T) {
+func TestTheSiteRefusesAWriteToTheReadersFilesFromAnotherSiteOrAnotherName(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeRecoverySiteFixture(t, root)
 	if err := os.WriteFile(filepath.Join(root, "Plain.md"), []byte("# Plain\n\nThe topic particle marks what the sentence is about.\n"), 0o600); err != nil {
 		t.Fatalf("write a note with words in it: %v", err)
+	}
+	const course = "Maps/course.md"
+	walking := "---\ntype: study-path\n---\n\n# Course\n\n## Main {sequence=primary}\n\n- [[Plain]]\n"
+	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(course)), []byte(walking), 0o600); err != nil {
+		t.Fatalf("write a course that walks it: %v", err)
 	}
 	configDir := t.TempDir()
 	site, err := newReadingSite(t.Context(), root, configDir, slog.New(slog.DiscardHandler))
@@ -503,11 +508,16 @@ func TestTheSiteRefusesAMarkWriteFromAnotherSiteOrAnotherName(t *testing.T) {
 	id := strings.Repeat("a", 32)
 	thought := `{"kind":"thought","path":"Maps/study.md","body":"a thought"}`
 	put := `{"id":"` + id + `","kind":"thought","path":"Maps/study.md","body":"a thought","at":"2026-09-22T11:00:00Z"}`
+	bookmark := `{"course":"` + course + `","path":"Plain.md","anchor":"","offset":0,"identity":"` + strings.Repeat("b", 64) + `"}`
 	writes := []struct{ method, target, body string }{
 		{http.MethodPost, "/mark", thought},
 		{http.MethodPut, "/mark/" + id, put},
 		{http.MethodPatch, "/mark/" + id, `{"body":"changed"}`},
 		{http.MethodDelete, "/mark/" + id, ""},
+		{http.MethodPut, "/bookmark", bookmark},
+		{http.MethodDelete, "/bookmark?course=" + course, ""},
+		{http.MethodPut, "/finished/Plain.md?course=" + course, ""},
+		{http.MethodDelete, "/finished/Plain.md", ""},
 	}
 	send := func(method, target, body, fetchSite, host string) *httptest.ResponseRecorder {
 		t.Helper()
@@ -549,6 +559,13 @@ func TestTheSiteRefusesAMarkWriteFromAnotherSiteOrAnotherName(t *testing.T) {
 		// Words the note shows are kept, through the reading room's own text of the page.
 		{http.MethodPost, "/mark", `{"kind":"highlight","path":"Plain.md","quote":"topic particle marks"}`, http.StatusCreated},
 		{http.MethodPost, "/mark", `{"kind":"highlight","path":"Plain.md","quote":"words the note never had"}`, http.StatusUnprocessableEntity},
+		// A course the vault holds is one the routes can ask about, through the same
+		// navigation the sidebar reads.
+		{http.MethodPut, "/bookmark", bookmark, http.StatusOK},
+		{http.MethodPut, "/finished/Plain.md?course=" + course, "", http.StatusOK},
+		{http.MethodDelete, "/finished/Plain.md", "", http.StatusOK},
+		{http.MethodDelete, "/bookmark?course=" + course, "", http.StatusOK},
+		{http.MethodPut, "/finished/Plain.md?course=Maps/study.md", "", http.StatusUnprocessableEntity},
 	} {
 		if got := send(tt.method, tt.target, tt.body, "same-origin", "").Code; got != tt.want {
 			t.Errorf("same-origin %s %s %s = %d, want %d", tt.method, tt.target, tt.body, got, tt.want)

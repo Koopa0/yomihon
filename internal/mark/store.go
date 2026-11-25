@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -372,6 +373,9 @@ func (s *Store) saveProgress(p progress) error {
 	if p.bookmarks == nil {
 		p.bookmarks = []courseBookmark{}
 	}
+	// One order, so that clearing a bookmark and setting it back leaves the
+	// file as it was whatever else is kept.
+	slices.SortFunc(p.bookmarks, func(a, b courseBookmark) int { return strings.Compare(a.Course, b.Course) })
 	data, err := encode(progressDocument{Version: documentVersion, Vault: s.vaultRoot, Bookmarks: p.bookmarks, Finished: p.finished}, maxProgressFileBytes)
 	if err != nil {
 		return err

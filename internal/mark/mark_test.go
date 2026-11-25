@@ -179,8 +179,8 @@ func TestOrdinaryNoteNamesAreKept(t *testing.T) {
 			}
 			place := aPlace()
 			place.RelPath = tt.path
-			if err := newStore(t).SetBookmark(mark.NoCourse, place); err != nil {
-				t.Errorf("SetBookmark(%q) = %v, want it kept", tt.path, err)
+			if err := moveBookmark(newStore(t), mark.NoCourse, place); err != nil {
+				t.Errorf("MoveBookmark(%q) = %v, want it kept", tt.path, err)
 			}
 		})
 	}
@@ -222,7 +222,7 @@ func TestAnchorShapeSharedByReaderMarks(t *testing.T) {
 			_, questionErr := store.Toggle(question, admitAny)
 			for name, err := range map[string]error{
 				"shape":    mark.ValidateAnchor(tt.anchor),
-				"bookmark": store.SetBookmark(mark.NoCourse, place),
+				"bookmark": moveBookmark(store, mark.NoCourse, place),
 				"question": questionErr,
 			} {
 				if tt.accepted && err != nil {
@@ -234,4 +234,11 @@ func TestAnchorShapeSharedByReaderMarks(t *testing.T) {
 			}
 		})
 	}
+}
+
+// moveBookmark sets the bookmark of a course and asks nothing of what it
+// replaced, for the tests that are about something else.
+func moveBookmark(store *mark.Store, course string, b *mark.Bookmark) error {
+	_, _, err := store.MoveBookmark(course, b, nil)
+	return err
 }

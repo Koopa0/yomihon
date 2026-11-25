@@ -54,6 +54,10 @@ var ErrInvalid = errors.New("the mark is not a shape this file can hold")
 // mark is already back from a refusal of its shape.
 var ErrExists = errors.New("a mark already has that id")
 
+// ErrChanged is what a move is refused with when what it expected to replace is
+// not what is kept, because another page changed it first.
+var ErrChanged = errors.New("what was kept has changed")
+
 // ErrUnreadable means a stored file cannot be read safely: it is damaged, in a
 // shape this version does not know, or longer than anything written here. The
 // file is left as it is so the reader can recover it, and what depends on it

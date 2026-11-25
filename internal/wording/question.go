@@ -37,8 +37,10 @@ var QuestionPlaceOnly = both(
 	"Questions stay on this device. Only the location and time are kept, not the chosen sentence; a question may stop matching if the content changes.",
 )
 
-// QuestionNoteNotFound names a stored mark whose note is no longer readable.
-var QuestionNoteNotFound = both("找不到這篇筆記", "Note not found")
+// NoteNotFound says a note is not there to open: a stored mark whose note is no
+// longer readable, or a request that names one the vault does not let a reader
+// open.
+var NoteNotFound = both("找不到這篇筆記", "Note not found")
 
 // QuestionPlaceNotFound names a stored place absent from its current note.
 var QuestionPlaceNotFound = both("找不到這則疑問的位置", "Question location not found")

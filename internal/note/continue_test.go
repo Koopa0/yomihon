@@ -87,10 +87,10 @@ func TestTheDeskOffersTheKeptPlaceBack(t *testing.T) {
 	if !strings.Contains(page, "/notes/Notes/alpha.md?at=320#alpha") {
 		t.Errorf("the row does not lead to the anchor and the distance that were kept; page:\n%s", rowOf(page))
 	}
-	if !strings.Contains(page, wording.MarkPerDevice.In(wording.ZhHant)) {
+	if !strings.Contains(page, wording.BookmarkPerDevice.In(wording.ZhHant)) {
 		t.Error("the row does not say that the place is kept on this device only")
 	}
-	if strings.Contains(page, wording.MarkNoteChanged.In(wording.ZhHant)) {
+	if strings.Contains(page, wording.BookmarkNoteChanged.In(wording.ZhHant)) {
 		t.Error("the row says the note changed when its bytes are the ones the mark was taken against")
 	}
 }
@@ -103,7 +103,7 @@ func TestAChangedNoteIsSaidAndStillOffered(t *testing.T) {
 
 	page := deskWithMark(t, keptIn("Notes/alpha.md", "alpha", 320, strings.Repeat("f", 64)), true)
 
-	if !strings.Contains(page, wording.MarkNoteChanged.In(wording.ZhHant)) {
+	if !strings.Contains(page, wording.BookmarkNoteChanged.In(wording.ZhHant)) {
 		t.Error("the note changed since the place was kept and the row says nothing about it")
 	}
 	if !strings.Contains(page, "data-continue-link") {
@@ -119,7 +119,7 @@ func TestAMarkedNoteThatIsGoneSaysSo(t *testing.T) {
 
 	page := deskWithMark(t, keptIn("Notes/vanished.md", "somewhere", 10, strings.Repeat("a", 64)), true)
 
-	if !strings.Contains(page, wording.MarkNoteGone.In(wording.ZhHant)) {
+	if !strings.Contains(page, wording.BookmarkNoteGone.In(wording.ZhHant)) {
 		t.Error("the marked note is gone and the row does not say so")
 	}
 	if strings.Contains(page, "data-continue-link") {
