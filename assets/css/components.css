@@ -2209,16 +2209,96 @@ html[data-js][data-arrival='kept'] .y-main {
   padding: 1px 5px;
 }
 
-.y-prose pre {
+/* A code block is a box set into the page rather than laid on it: the code's
+   own ground, a hairline of light along its top edge and a faint ring, and no
+   border taking room from the code. Its head names the language the author
+   gave the fence and holds the copy control, so the control stands above the
+   code and never over its first line. The head is one height whatever stands
+   in it, so the control arriving moves nothing; a head with nothing to say
+   on a page that runs no script is not drawn, since no control will come. */
+.y-prose .y-code {
   background: var(--code-ground);
-  border: 1px solid var(--line);
-  border-radius: 0;
+  border-radius: var(--r-sm);
+  box-shadow: inset 0 1px 0 var(--code-edge), inset 0 0 0 1px var(--line-faint);
+  margin: var(--sp-block) 0 0;
+}
+
+.y-code__head {
+  align-items: center;
+  block-size: 36px;
+  border-bottom: 1px solid var(--line-faint);
+  box-sizing: border-box;
+  color: var(--fg-faint);
+  display: flex;
+  font-family: var(--font-sans);
+  font-size: var(--fs-12);
+  gap: var(--sp-3);
+  padding: 0 var(--sp-2) 0 20px;
+}
+
+:root:not([data-js='on']) .y-code__head:not(:has(> .y-code__lang)) {
+  display: none;
+}
+
+/* The language is a label over the code, not part of it: the mono face's
+   letters, set apart in capitals, cut short rather than wrapped. */
+.y-code__lang {
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.y-code__lang::before {
+  content: attr(data-text);
+}
+
+/* The control stands at the head's far end, the word it answers with just
+   before it. Where a pointer can rest on the block it is drawn faint, in the
+   faint ink with no ring, until the pointer rests there or focus is inside;
+   a touch screen has nothing to rest, so there it is always drawn whole. The
+   faint ink still reads at the normal-text ratio, so the word is never too
+   pale to read. */
+:root[data-js='on'] .y-code__head .y-codecopy {
+  flex-wrap: nowrap;
+  margin: 0 0 0 auto;
+}
+
+.y-code__head .y-codecopy__reply {
+  color: var(--fg-muted);
+  order: -1;
+  white-space: nowrap;
+}
+
+.y-code__head .y-xbtn {
+  font-size: var(--fs-12);
+  height: 28px;
+  padding: 0 var(--sp-2);
+}
+
+@media (pointer: fine) {
+  .y-code:not(:hover, :focus-within) .y-code__head .y-xbtn {
+    box-shadow: none;
+    color: var(--fg-faint);
+  }
+}
+
+/* The code itself, which scrolls inside the box rather than taking the page
+   sideways. A line is a whole number of pixels tall at every text size, so a
+   block's height is too and nothing below it is set on a fraction. The 20px
+   either side is what the renderer counts a measure's room from
+   (codeMeasures). */
+.y-prose pre {
+  background: none;
   font-family: var(--font-mono);
   font-size: var(--fs-ed-13);
-  line-height: 1.75;
-  margin: var(--sp-block) 0 0;
+  line-height: round(1.74em, 1px);
+  margin: 0;
   overflow-x: auto;
-  padding: var(--sp-4) 20px;
+  padding: 16px 20px 18px;
   white-space: pre;
 }
 
@@ -2242,20 +2322,6 @@ html[data-js][data-arrival='kept'] .y-main {
   margin-top: var(--sp-block);
 }
 
-/* The server draws the slot and the script replaces it with the control, so a
-   block's neighbours are the same elements, at the same height, before the
-   script and after it. The height is the control's own: .y-xbtn is 32px. */
-:root[data-js='on'] :is(.y-article, .y-syl) .y-codecopy-slot {
-  block-size: 32px;
-  display: block;
-  margin-top: var(--sp-block);
-}
-
-.y-codecopy + pre,
-:root[data-js='on'] :is(.y-article, .y-syl) .y-codecopy-slot + pre {
-  margin-top: var(--sp-2);
-}
-
 .y-codecopy__reply {
   margin: 0;
 }
@@ -2276,14 +2342,17 @@ html[data-js][data-arrival='kept'] .y-main {
    Every token returns to the ink first, so a class the palette colours and the
    rules below do not name (a JSON key, a YAML anchor, a deleted line) cannot
    bring its own colour back, and the palette's bold on function names, operators
-   and constants goes with it. Then keywords are the ink at weight 600, strings
-   their own green, and comments the quiet ink; a markdown block's strong and
-   heading keep a weight, since there it says what the text is. Each is a token,
-   so each follows the theme with no rule of its own for dark, and the rules
-   stand outside the highlighter's layer, so they apply after both of its dark
-   scopes. The reset is a type and a class (0,1,1) under the class rules
-   (0,2,0), which still win. Paper keeps the highlighter's light palette, which
-   is what it was drawn for. */
+   and constants goes with it. Then keywords are the code's ink at weight 600,
+   types, strings and numbers their own mineral colour, and comments the quiet
+   ink; a markdown block's strong and heading keep a weight, since there it says
+   what the text is. Each is a token, so each follows the theme with no rule of
+   its own for dark, and the rules stand outside the highlighter's layer, so
+   they apply after both of its dark scopes. The reset is a type and a class
+   (0,1,1) under the class rules (0,2,0), which still win. A comment is the
+   page's quiet ink rather than --code-comment, which reads at only 4.1:1 on
+   the code's ground, and stays upright: the mono face has no italic to set it
+   in. Paper keeps the highlighter's light palette, which is what it was drawn
+   for. */
 @media not print {
   .chroma span {
     background-color: transparent;
@@ -2295,13 +2364,21 @@ html[data-js][data-arrival='kept'] .y-main {
     font-weight: var(--fw-semibold);
   }
 
-  .chroma :is(.k, .kc, .kd, .kn, .kp, .kr, .kt) {
-    color: var(--fg);
+  .chroma :is(.k, .kc, .kd, .kn, .kp, .kr) {
+    color: var(--code-keyword);
     font-weight: var(--fw-semibold);
+  }
+
+  .chroma :is(.kt, .nc) {
+    color: var(--code-type);
   }
 
   .chroma :is(.s, .s1, .s2, .sa, .sb, .sc, .sd, .se, .sh, .si, .sr, .ss, .sx, .dl) {
     color: var(--code-string);
+  }
+
+  .chroma :is(.m, .mb, .mf, .mh, .mi, .il, .mo) {
+    color: var(--code-number);
   }
 
   .chroma :is(.c, .c1, .ch, .cm, .cp, .cpf, .cs) {
@@ -3126,6 +3203,67 @@ button.y-freshness__action {
   font-size: var(--fs-12);
 }
 
+/* ============================================================
+   The wide measure
+   ============================================================ */
+/* A block whose content needs more than the text's width, a code block whose
+   longest line does not fit it, is set to the wide measure instead: 1040px,
+   centred on the same axis as the text, so the text keeps its place and its
+   line and the block runs out into the room either side. The renderer names
+   in data-wide each measure the block does not fit (codeMeasures), so a block
+   is wide only at the text sizes and in the articles where it needs to be;
+   everything else stays at the text's width. Only a block standing directly in
+   a note's or a file's text is set wide, never one inside a list, a quote, a
+   callout or an embed, and never in the compare page's columns, which have no
+   room beside them.
+
+   The block widens by negative margins on a block that stays in the flow,
+   rather than by a grid around the text: the text's vertical rhythm rests on
+   its margins collapsing into one another, which a grid's items never do.
+
+   The wings are the room the block may take on each side: half the difference
+   between the two measures, and never more than the room between the text and
+   whatever stands beyond it. That is the stage's edge and the reading gutter,
+   or, where the left column is open beside the page, the column and 32px. The
+   stage's inset is counted on the page's main, which is as wide as the window
+   less its scrollbar, so the text's middle is half of it. Below a main of
+   1120px there is not room enough to tell the two measures apart, so every
+   block is set at the text's width. */
+/* stylelint-disable length-zero-no-unit -- the wings are read inside calc(),
+   where a bare 0 is a number rather than a length and the margin built from
+   it would be dropped. */
+.y-main > .y-article {
+  --wing-start: 0px;
+  --wing-end: 0px;
+}
+/* stylelint-enable length-zero-no-unit */
+
+@container y-main (width >= 70rem) {
+  .y-main > .y-article {
+    --wing-edge: calc(max(0px, (100cqi - var(--stage-max)) / 2) + var(--gutter-read));
+    --wing-room: max(0px, 50cqi - var(--measure-read) / 2 - var(--wing-edge));
+    --wing-start: min(var(--wing-room), (var(--wide-read) - var(--measure-read)) / 2);
+    --wing-end: var(--wing-start);
+  }
+}
+
+@media (min-width: 1321px) {
+  @container y-main (width >= 70rem) {
+    :root:not([data-rail='collapsed']) .y-shell:has(> .y-rail-left:not([data-drawer-only])) > .y-main > .y-article {
+      --wing-edge: calc(max(0px, (100cqi - var(--stage-max)) / 2) + var(--rail-w) + 32px);
+    }
+  }
+}
+
+:root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article:not([lang]:not(:lang(zh), :lang(ja), :lang(ko))) > .y-prose > [data-wide~='m'],
+:root[data-textsize='l'] .y-main > .y-article:not([lang]:not(:lang(zh), :lang(ja), :lang(ko))) > .y-prose > [data-wide~='l'],
+:root[data-textsize='xl'] .y-main > .y-article:not([lang]:not(:lang(zh), :lang(ja), :lang(ko))) > .y-prose > [data-wide~='xl'],
+:root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article[lang]:not(:lang(zh), :lang(ja), :lang(ko)) > .y-prose > [data-wide~='latin-m'],
+:root[data-textsize='l'] .y-main > .y-article[lang]:not(:lang(zh), :lang(ja), :lang(ko)) > .y-prose > [data-wide~='latin-l'],
+:root[data-textsize='xl'] .y-main > .y-article[lang]:not(:lang(zh), :lang(ja), :lang(ko)) > .y-prose > [data-wide~='latin-xl'] {
+  margin-inline: calc(-1 * var(--wing-start)) calc(-1 * var(--wing-end));
+}
+
 /* The room beside the reading column: the column is centred in the window, so
    the margin stands at the window's middle, half the column, and the gap out
    from there, and the window has to hold it with sixteen pixels to spare at its
@@ -3146,7 +3284,13 @@ button.y-freshness__action {
 
    From 1760 the margin stands outside the wide lines instead, 520 from the
    middle and 36 beyond, where nothing set to the wide measure can run under
-   it. */
+   it. Below 1760, where it stands beside the text, a block set to the wide
+   measure would run under it, so on a page that has a margin the block gives
+   up its right wing and keeps its left: it ends where the text ends and
+   starts on the same wide line it starts on from 1760. Which wings a block
+   takes is a fact of the width and the page, never of where the margin's
+   words happen to fall, so no width or text size can set the two over one
+   another, and the text itself does not move. */
 @media (min-width: 1321px) {
   @container y-main (min-width: 80.25rem) {
     :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-sect {
@@ -3166,6 +3310,13 @@ button.y-freshness__action {
     @media (min-width: 1760px) {
       :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-margin {
         inset-inline-start: calc(50% + var(--wide-read) / 2 + 36px);
+      }
+    }
+
+    @media (width < 1760px) {
+      :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article:has(.y-margin) {
+        /* stylelint-disable-next-line length-zero-no-unit -- read inside calc(), as above */
+        --wing-end: 0px;
       }
     }
 
@@ -3226,6 +3377,13 @@ button.y-freshness__action {
       }
     }
 
+    @media (width < 1760px) {
+      :root[data-textsize='l'] .y-main > .y-article:has(.y-margin) {
+        /* stylelint-disable-next-line length-zero-no-unit -- read inside calc(), as above */
+        --wing-end: 0px;
+      }
+    }
+
     :root[data-textsize='l'] .y-main > .y-article .y-margin > * {
       align-self: flex-start;
     }
@@ -3276,6 +3434,13 @@ button.y-freshness__action {
     @media (min-width: 1760px) {
       :root[data-textsize='xl'] .y-main > .y-article .y-margin {
         inset-inline-start: calc(50% + var(--wide-read) / 2 + 36px);
+      }
+    }
+
+    @media (width < 1760px) {
+      :root[data-textsize='xl'] .y-main > .y-article:has(.y-margin) {
+        /* stylelint-disable-next-line length-zero-no-unit -- read inside calc(), as above */
+        --wing-end: 0px;
       }
     }
 
@@ -5129,7 +5294,7 @@ button.y-freshness__action {
 /* File views — a vault file that is not a note. Source and pictures borrow the
    reading column's own type and code styling, so only the document frame and
    the information page need rules of their own. */
-.y-source .chroma {
+.y-source .y-code {
   margin-top: var(--sp-5);
 }
 
@@ -6590,6 +6755,14 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
     display: none;
   }
 
+  /* A forced palette draws no shadow, so the code's box keeps an edge of the
+     system's text colour instead, drawn inside it where it takes no room from
+     the code. */
+  .y-prose .y-code {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
+  }
+
   /* A bookmark is a fill, and a fill is what forced colours takes away; so is
      the diamond beside a section the reader is unsure of. The reader's chosen
      highlight keeps each a shape to be seen. */
@@ -6882,7 +7055,7 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
     margin: 18mm 16mm;
   }
 
-  .y-prose pre,
+  .y-prose .y-code,
   .y-prose blockquote,
   .y-prose .callout,
   .y-prose .embed,

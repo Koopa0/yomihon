@@ -264,14 +264,16 @@ func scopeAt(t *testing.T, css, opener string) (enclosing []string, body string)
 	return nil, ""
 }
 
-// TestEveryCodeBlockStandsAfterASlotForItsCopyControl holds the page's elements
+// TestEveryCodeBlockHeadHoldsASlotForItsCopyControl holds the page's elements
 // still while script gives each block its control. The control takes a slot the
-// server drew, so the page has the same elements before script and after it; a
-// block the renderer wrote without one would have the control inserted beside
-// it later, which moves every element after it one place along and with them
-// the place a returning reader's browser looks for. The blocks differ in how
-// they are written, since each kind has its own way to produce its markup.
-func TestEveryCodeBlockStandsAfterASlotForItsCopyControl(t *testing.T) {
+// server drew in the block's head, so the page has the same elements before
+// script and after it; a block the renderer wrote without one would have the
+// control inserted later, which moves every element after it one place along and
+// with them the place a returning reader's browser looks for. The head comes
+// before the code, so the control never stands over the code's first line. The
+// blocks differ in how they are written, since each kind has its own way to
+// produce its markup.
+func TestEveryCodeBlockHeadHoldsASlotForItsCopyControl(t *testing.T) {
 	t.Parallel()
 	const slot = `<div class="y-codecopy-slot"></div>`
 	r := newRenderer(t, nil, nil, nil)
@@ -279,24 +281,80 @@ func TestEveryCodeBlockStandsAfterASlotForItsCopyControl(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		html string
+		head string
 	}{
-		{name: "a fence with a known language", html: r.HTML("note.md", "", "```go\npackage main\n```\n", wording.ZhHant).HTML},
-		{name: "a fence with no language", html: r.HTML("note.md", "", "```\nplain\n```\n", wording.ZhHant).HTML},
-		{name: "an indented block", html: r.HTML("note.md", "", "Before.\n\n    indented\n\nAfter.\n", wording.ZhHant).HTML},
-		{name: "a whole file read as source", html: render.SourceHTML("main.go", "package main\n")},
+		{name: "a fence with a known language", html: r.HTML("note.md", "", "```go\npackage main\n```\n", wording.ZhHant).HTML, head: `<span class="y-code__lang" data-text="go"></span>` + slot},
+		{name: "a fence with no language", html: r.HTML("note.md", "", "```\nplain\n```\n", wording.ZhHant).HTML, head: slot},
+		{name: "a fence whose info string says more than its language", html: r.HTML("note.md", "", "```go title=\"main.go\" {1,3}\npackage main\n```\n", wording.ZhHant).HTML, head: `<span class="y-code__lang" data-text="go"></span>` + slot},
+		{name: "an indented block", html: r.HTML("note.md", "", "Before.\n\n    indented\n\nAfter.\n", wording.ZhHant).HTML, head: slot},
+		{name: "a whole file read as source", html: render.SourceHTML("main.go", "package main\n"), head: slot},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if got := strings.Count(tt.html, "<pre"); got != 1 {
 				t.Fatalf("the fixture holds %d blocks, want 1: %s", got, tt.html)
 			}
-			if got := strings.Count(tt.html, slot+"<pre"); got != 1 {
-				t.Errorf("blocks standing directly after a slot = %d, want 1: %s", got, tt.html)
+			if want := `<div class="y-code"><div class="y-code__head">` + tt.head + `</div><pre`; strings.Count(tt.html, want) != 1 {
+				t.Errorf("the block does not stand under a head holding %s: %s", tt.head, tt.html)
 			}
 			if got := strings.Count(tt.html, slot); got != 1 {
 				t.Errorf("slots = %d, want 1: %s", got, tt.html)
 			}
 		})
+	}
+}
+
+// TestACodeBlockNamesTheMeasuresItsLongestLineDoesNotFit holds the count the
+// wide measure is decided by: a character of the code face is three fifths of
+// an em, a full-width one five, a tab runs to the next stop four characters
+// along, and a combining mark adds nothing. The boundaries are each measure's
+// longest fitting line and the next, so an off-by-one in the count or the table
+// is a block set at the wrong width.
+func TestACodeBlockNamesTheMeasuresItsLongestLineDoesNotFit(t *testing.T) {
+	t.Parallel()
+	r := newRenderer(t, nil, nil, nil)
+	han := func(n int) string { return strings.Repeat("雪", n) }
+	for _, tt := range []struct {
+		name string
+		line string
+		want string
+	}{
+		{name: "a short line", line: "fmt.Println(x)", want: ""},
+		{name: "59 characters fit every measure", line: strings.Repeat("a", 59), want: ""},
+		{name: "60 do not fit the Latin measure at the largest size", line: strings.Repeat("a", 60), want: "latin-xl"},
+		{name: "62 fit the Latin measure at the base size", line: strings.Repeat("a", 62), want: "latin-xl latin-l"},
+		{name: "63 do not", line: strings.Repeat("a", 63), want: "latin-xl latin-l latin-m"},
+		{name: "68 fit the reading measure at the largest size", line: strings.Repeat("a", 68), want: "latin-xl latin-l latin-m"},
+		{name: "69 do not", line: strings.Repeat("a", 69), want: "latin-xl latin-l latin-m xl"},
+		{name: "73 fit the reading measure at the large size", line: strings.Repeat("a", 73), want: "latin-xl latin-l latin-m xl"},
+		{name: "79 fit the reading measure at the base size", line: strings.Repeat("a", 79), want: "latin-xl latin-l latin-m xl l"},
+		{name: "80 fit none", line: strings.Repeat("a", 80), want: "latin-xl latin-l latin-m xl l m"},
+		{name: "47 Han characters fit at the base size", line: han(47), want: "latin-xl latin-l latin-m xl l"},
+		{name: "48 do not", line: han(48), want: "latin-xl latin-l latin-m xl l m"},
+		{name: "kana and fullwidth forms are as wide as Han", line: strings.Repeat("かＡ", 24), want: "latin-xl latin-l latin-m xl l m"},
+		{name: "a tab runs to the next stop", line: "\t\t\t\t\t" + strings.Repeat("a", 60), want: "latin-xl latin-l latin-m xl l m"},
+		{name: "a tab after part of a stop runs only to it", line: "ab\t" + strings.Repeat("a", 75), want: "latin-xl latin-l latin-m xl l"},
+		{name: "combining marks add nothing", line: strings.Repeat("e\u0301", 79), want: "latin-xl latin-l latin-m xl l"},
+		{name: "the longest of several lines decides", line: "short\n" + strings.Repeat("a", 80) + "\nshort", want: "latin-xl latin-l latin-m xl l m"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			for _, body := range []string{"```go\n" + tt.line + "\n```\n", "Before.\n\n    " + strings.ReplaceAll(tt.line, "\n", "\n    ") + "\n\nAfter.\n"} {
+				html := r.HTML("note.md", "", body, wording.ZhHant).HTML
+				got := ""
+				if _, rest, ok := strings.Cut(html, `<div class="y-code" data-wide="`); ok {
+					got, _, _ = strings.Cut(rest, `"`)
+				} else if !strings.Contains(html, `<div class="y-code">`) {
+					t.Fatalf("no code box in %s", html)
+				}
+				if got != tt.want {
+					t.Errorf("data-wide = %q, want %q for %q", got, tt.want, body)
+				}
+			}
+		})
+	}
+	if got := render.SourceHTML("main.go", strings.Repeat("a", 80)+"\n"); !strings.Contains(got, `data-wide="latin-xl latin-l latin-m xl l m"`) {
+		t.Errorf("a whole file's longest line does not name the measures it misses: %s", got)
 	}
 }
 

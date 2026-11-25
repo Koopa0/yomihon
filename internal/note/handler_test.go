@@ -2351,8 +2351,8 @@ func TestAPageHoldsItsLayoutStillForAReturningReader(t *testing.T) {
 			if tt.reads > 0 && strings.Index(body, heights) > strings.Index(body, `<link rel="stylesheet"`) {
 				t.Errorf("GET %s reads the remembered heights after its first stylesheet", tt.path)
 			}
-			if got, want := strings.Count(body, `<div class="y-codecopy-slot"></div><pre`), strings.Count(body, "<pre"); got != want {
-				t.Errorf("GET %s has %d blocks after a slot for their control, want all %d", tt.path, got, want)
+			if got, want := strings.Count(body, `<div class="y-codecopy-slot"></div></div><pre`), strings.Count(body, "<pre"); got != want {
+				t.Errorf("GET %s has %d blocks under a head holding a slot for their control, want all %d", tt.path, got, want)
 			}
 		})
 	}

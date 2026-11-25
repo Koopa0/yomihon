@@ -94,8 +94,9 @@ var lexerAliases = map[string]string{
 // selects the lexer by name as well as extension, which is how an extensionless
 // build file reads as what it is; an unrecognized name falls back to plain text.
 // The formatter escapes the source, so a file carrying markup is shown, not run.
+// The page's title already names the file, so its box's head names no language.
 func SourceHTML(filename, source string) string {
-	return codeCopySlot + sourceMarkup(filename, source)
+	return codeFigure("", source, sourceMarkup(filename, source))
 }
 
 func sourceMarkup(filename, source string) string {
