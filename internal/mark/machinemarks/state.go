@@ -2,6 +2,7 @@ package machinemarks
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/koopa0/yomihon/internal/mark/ledger"
 )
@@ -21,6 +22,11 @@ const (
 	// converted to, whole, as one commit: a conversion is one line of the
 	// ledger however many marks it has, one sync and not one for each.
 	kindConverted = "converted"
+	// kindSkipped says one mark of the earlier file does not fit a line and was
+	// not taken in: its content is the mark's id and why. It is recorded before
+	// the conversion, which is the commit, so one killed between the two says
+	// it again and the mark is counted once.
+	kindSkipped = "convert-skipped"
 	// kindReplaced holds the bytes of this machine's file that a write was about
 	// to replace and that were not what this machine last wrote.
 	kindReplaced = "marks-replaced"
@@ -39,13 +45,16 @@ type machine struct {
 	unsaid bool
 	// converted says the earlier file's marks were taken in.
 	converted bool
+	// skipped are the ids of the marks of the earlier file that were not taken
+	// in because they do not fit a line.
+	skipped map[string]bool
 	// next is above every seq the ledger has said.
 	next uint64
 }
 
 // stateOf reads what the ledger's lines say of this machine.
 func stateOf(events []ledger.Event) machine {
-	st := machine{sessions: map[string]map[string]bool{}, next: 1}
+	st := machine{sessions: map[string]map[string]bool{}, skipped: map[string]bool{}, next: 1}
 	note := func(id, session string) {
 		if id == "" || session == "" {
 			return
@@ -68,6 +77,10 @@ func stateOf(events []ledger.Event) machine {
 			st.unsaid = true
 		case kindSaid:
 			st.unsaid = false
+		case kindSkipped:
+			if id, _, found := strings.Cut(string(e.Content), " "); found {
+				st.skipped[id] = true
+			}
 		case kindConverted:
 			st.converted = true
 			note(e.Writer, e.Session)

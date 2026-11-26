@@ -16,10 +16,12 @@
 #     not count.
 #  4. One line left is the mark's value. Several are a conflict: they are put in
 #     the order of t, the latest first, and the first of them that is not a
-#     deletion goes to the front, and it is the value.
+#     deletion goes to the front, and it is the value. If every line says another
+#     replaced it, each writer's newest line is what is left.
 #
 # What it does not do: check the checksum at the end of each line, which jq has
-# no SHA-256 to do, and read this machine's ledger, which is outside the vault.
+# no SHA-256 to do, hold a field to the bounds Yomihon holds it to (a path that
+# leaves the vault, a body past its size), and read this machine's ledger, which is outside the vault.
 # So a line changed by hand is read by it and not by Yomihon, and what git took
 # out of this machine's working tree is not seen.
 [inputs | fromjson? | select(type == "object" and .fmt == 1 and (.mark.id | type) == "string")]
@@ -36,7 +38,7 @@
             | not
           )
       ]
-    | if length == 0 then $group else . end
+    | if length == 0 then ($group | group_by(.w) | map(max_by(.rev))) else . end
     | sort_by([.t, .w, .rev]) | reverse
     | (map(.mark.deleted != true) | index(true) // 0) as $first
     | [.[$first]] + .[:$first] + .[$first + 1:]

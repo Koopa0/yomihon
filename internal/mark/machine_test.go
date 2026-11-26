@@ -67,7 +67,7 @@ func TestMarksJSONIsTakenInAndNeverTouched(t *testing.T) {
 	}
 	m := machineMarksOver(t, store, root, config)
 	first := machinemarks.Mark{ID: markID(4), Kind: machinemarks.Thought, Path: "Notes/b.md", Body: "new", At: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
-	if _, err = m.Put(&first, nil, nil); err != nil {
+	if _, err = m.Put(&first, nil, nil, allowed); err != nil {
 		t.Fatal(err)
 	}
 	v, err := m.View()
@@ -105,7 +105,7 @@ func TestMarksJSONIsTakenInAndNeverTouched(t *testing.T) {
 	}
 	second := first
 	second.ID = markID(5)
-	if _, err = m.Put(&second, nil, nil); err != nil {
+	if _, err = m.Put(&second, nil, nil, allowed); err != nil {
 		t.Fatal(err)
 	}
 	if v, err = m.View(); err != nil {
@@ -116,6 +116,48 @@ func TestMarksJSONIsTakenInAndNeverTouched(t *testing.T) {
 	}
 	if len(v.Entries(allowed)) != 5 {
 		t.Fatalf("%d marks after a second write, want 5", len(v.Entries(allowed)))
+	}
+	after, err := os.ReadFile(marksPath(store))
+	if err != nil || !bytes.Equal(after, before) {
+		t.Fatalf("marks.json changed: %v", err)
+	}
+}
+
+// One mark of marks.json that does not fit a line (a body of quotes that is
+// within the store's bound and past the line's once escaped) does not keep every
+// later write from going through: it is skipped and counted, the rest are taken
+// in, and marks.json, which still holds it, is not touched.
+func TestOneMarkThatDoesNotFitDoesNotLockTheWrites(t *testing.T) {
+	t.Parallel()
+	_, root, err := vault.ResolveRoot(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := t.TempDir()
+	store := newStoreFor(t, config, root)
+	big := strings.Repeat(`\"`, 32<<10) // 32 KiB of quote characters, as JSON text
+	writeFile(t, marksPath(store), aMarksFile(
+		`{"id":"`+markID(1)+`","kind":"thought","path":"Notes/a.md","body":"`+big+`","at":"2026-09-22T11:00:00Z"}`,
+		`{"id":"`+markID(2)+`","kind":"thought","path":"Notes/a.md","body":"fine","at":"2026-09-22T12:00:00Z"}`,
+	))
+	before, err := os.ReadFile(marksPath(store))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := machineMarksOver(t, store, root, config)
+	first := machinemarks.Mark{ID: markID(3), Kind: machinemarks.Thought, Path: "Notes/b.md", Body: "new", At: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
+	if _, err = m.Put(&first, nil, nil, allowed); err != nil {
+		t.Fatalf("Put = %v, want the write to go through", err)
+	}
+	v, err := m.View()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := v.Entry(markID(1), allowed); ok || v.LegacySkipped() != 1 {
+		t.Fatalf("the mark that does not fit is read=%v and %d are counted skipped, want it left out and 1 counted", ok, v.LegacySkipped())
+	}
+	if e, ok := v.Entry(markID(2), allowed); !ok || e.Mark().Body != "fine" {
+		t.Fatalf("the other mark of marks.json reads %+v, %v", e, ok)
 	}
 	after, err := os.ReadFile(marksPath(store))
 	if err != nil || !bytes.Equal(after, before) {
@@ -136,7 +178,7 @@ func TestAMarksFileThatCannotBeReadStopsTheFirstWrite(t *testing.T) {
 	writeFile(t, marksPath(store), `{"version":1,"marks":[`)
 	m := machineMarksOver(t, store, root, config)
 	mk := machinemarks.Mark{ID: markID(1), Kind: machinemarks.Thought, Path: "a.md", Body: "x", At: time.Now()}
-	if _, err = m.Put(&mk, nil, nil); err == nil {
+	if _, err = m.Put(&mk, nil, nil, allowed); err == nil {
 		t.Fatal("a write went through over a marks.json that cannot be read")
 	}
 	if _, err = os.Stat(filepath.Join(root, "reader-notes")); err == nil {

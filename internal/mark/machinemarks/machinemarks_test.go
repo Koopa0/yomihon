@@ -6,8 +6,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAWriteIsInTheLedgerAndInTheVault(t *testing.T) {
@@ -119,7 +121,7 @@ func TestAWholeSectionMarkIsNeverAHighlight(t *testing.T) {
 	before, ledgerBefore := tree(t, a.root), string(a.ledgerBytes())
 	section := a.entry(mid(1)).Mark()
 	section.Kind, section.Body, section.Quote = Highlight, "", ""
-	_, err := a.m.Put(&section, a.entry(mid(1)).Seen, nil)
+	_, err := a.m.Put(&section, a.entry(mid(1)).Seen, nil, open)
 	if !errors.Is(err, ErrInvalidMark) {
 		t.Fatalf("Put of a highlight with no quote = %v, want ErrInvalidMark", err)
 	}
@@ -288,7 +290,7 @@ func TestTheTripleFaultIsAConflict(t *testing.T) {
 		}
 		a.clock.tick()
 		e := a.entry(mid(1))
-		if _, err := a.m.Put(new(thought(1, "A after all that")), e.Seen, nil); err != nil {
+		if _, err := a.m.Put(new(thought(1, "A after all that")), e.Seen, nil, open); err != nil {
 			t.Fatalf("sameProcess=%v: %v", sameProcess, err)
 		}
 		pull(a, b)
@@ -336,11 +338,11 @@ func TestAChangeIsRefusedForAStalePageAndOnlyThen(t *testing.T) {
 	a.say(1, "two") // another page, or this one, wrote it since
 	m := thought(1, "from the old page")
 
-	_, err := a.m.Put(&m, nil, nil)
+	_, err := a.m.Put(&m, nil, nil, open)
 	if !errors.Is(err, ErrNoBase) {
 		t.Fatalf("Put of a mark that exists with no base = %v, want ErrNoBase", err)
 	}
-	_, err = a.m.Put(&m, first.Seen, nil)
+	_, err = a.m.Put(&m, first.Seen, nil, open)
 	stale, isStale := errors.AsType[*StaleError](err)
 	if !errors.Is(err, ErrStale) || !isStale {
 		t.Fatalf("Put on an old page = %v, want a StaleError", err)
@@ -351,7 +353,7 @@ func TestAChangeIsRefusedForAStalePageAndOnlyThen(t *testing.T) {
 	if got := a.words(1); got != "two" {
 		t.Fatalf("a refused change wrote: reads %q", got)
 	}
-	if _, err = a.m.Put(&m, stale.Seen, nil); err != nil {
+	if _, err = a.m.Put(&m, stale.Seen, nil, open); err != nil {
 		t.Fatalf("Put on what the StaleError said = %v", err)
 	}
 }
@@ -369,7 +371,7 @@ func TestTheSendsOfOneEdit(t *testing.T) {
 	send := func(body string, seq uint64, seen Seen, editID string) error {
 		m := thought(1, body)
 		a.clock.tick()
-		_, err := a.m.Put(&m, seen, &Edit{ID: editID, Seq: seq})
+		_, err := a.m.Put(&m, seen, &Edit{ID: editID, Seq: seq}, open)
 		return err
 	}
 	if err := send("first send", 1, base, "tab1"); err != nil {
@@ -417,10 +419,10 @@ func TestChooseTakesOnlyAValueInTheConflict(t *testing.T) {
 	}
 	// A value that is not in the conflict is stale, and nothing is written.
 	before := tree(t, a.root)
-	if _, err := a.m.Choose(mid(1), Pick{Writer: aValue.Writer, Rev: aValue.Rev + 99}, e.Seen); !errors.Is(err, ErrStale) {
+	if _, err := a.m.Choose(mid(1), Pick{Writer: aValue.Writer, Rev: aValue.Rev + 99}, e.Seen, open); !errors.Is(err, ErrStale) {
 		t.Fatalf("Choose of a value that is not there = %v, want ErrStale", err)
 	}
-	if _, err := a.m.Choose(mid(99), Pick{}, e.Seen); !errors.Is(err, ErrGone) {
+	if _, err := a.m.Choose(mid(99), Pick{}, e.Seen, open); !errors.Is(err, ErrGone) {
 		t.Fatalf("Choose of a mark that is not there = %v, want ErrGone", err)
 	}
 	if diff := changedPaths(before, tree(t, a.root)); diff != "" {
@@ -431,7 +433,7 @@ func TestChooseTakesOnlyAValueInTheConflict(t *testing.T) {
 	// so it stays beside the one chosen.
 	c.say(1, "C, unseen")
 	pull(c, a)
-	if _, err := a.m.Choose(mid(1), Pick{Writer: bValue.Writer, Rev: bValue.Rev}, e.Seen); err != nil {
+	if _, err := a.m.Choose(mid(1), Pick{Writer: bValue.Writer, Rev: bValue.Rev}, e.Seen, open); err != nil {
 		t.Fatalf("Choose of B's value = %v", err)
 	}
 	if got := a.words(1); got != "C, unseen | B's words" && got != "B's words | C, unseen" {
@@ -457,7 +459,7 @@ func TestAPageCannotClaimToHaveReadALineThatIsNotThereYet(t *testing.T) {
 		forged[w] += 1000
 	}
 	b.clock.tick()
-	if _, err := b.m.Put(new(thought(1, "B's words")), forged, nil); err != nil {
+	if _, err := b.m.Put(new(thought(1, "B's words")), forged, nil, open); err != nil {
 		t.Fatal(err)
 	}
 	a.say(1, "A's later words, which B had not read")
@@ -540,4 +542,65 @@ func TestTheCounterHasFloorsForWhatWasLost(t *testing.T) {
 			t.Fatalf("rev %d is not above seq %d, which the ledger still says", got, top)
 		}
 	})
+}
+
+// A process that is restarted writes over the line of the one before it, and a
+// later change of the mark, a deletion, must still cover that line: when git
+// puts the old file back, the old line must not be a value of the mark again.
+func TestADeletionAfterARestartCoversTheLineOfTheProcessBefore(t *testing.T) {
+	t.Parallel()
+	a := newClone(t, "A")
+	a.say(1, "written by the first process")
+	file := filepath.Join(a.marksDir(), a.id()+".jsonl")
+	old := readFile(t, file)
+	a.restart()
+	a.say(1, "written by the second process")
+	a.delete(1)
+	// git puts the file of the first process back.
+	if err := os.WriteFile(file, old, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	a.restart()
+	e := a.entry(mid(1))
+	if !e.Deleted() || e.Conflict() {
+		t.Fatalf("after the old file came back the mark is deleted=%v with %d values, want deleted and no conflict: %s", e.Deleted(), len(e.Values), a.words(1))
+	}
+}
+
+// Lines that say they had read what had not been written leave no line that
+// nothing replaces. Then each writer's newest line stands, and not the older
+// lines of a writer that its own newer line replaced.
+func TestWhenEveryLineIsReplacedEachWritersNewestStands(t *testing.T) {
+	t.Parallel()
+	const (
+		m1, m2 = "11111111", "22222222"
+		w2     = m2 + "/"
+	)
+	at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	line := func(m string, rev uint64, seen Seen, body string) *kept {
+		mark := thought(1, body)
+		mark.At = at
+		l := Line{Fmt: Format, M: m, Rev: rev, T: 1, Mark: mark, Seen: seen}
+		raw, err := l.encode()
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &kept{Line: l, raw: raw}
+	}
+	// 1's second line says it had read 2's first; 2's first says it had read 1's
+	// second: each replaces the other, and 1's first line is replaced by its own
+	// second.
+	got := resolve([]*kept{
+		line(m1, 1, nil, "one, first"),
+		line(m1, 2, Seen{w2: 1}, "one, second"),
+		line(m2, 1, Seen{m1 + "/": 2}, "two, first"),
+	})
+	var bodies []string
+	for _, h := range got.heads {
+		bodies = append(bodies, h.Mark.Body)
+	}
+	slices.Sort(bodies)
+	if want := []string{"one, second", "two, first"}; !slices.Equal(bodies, want) {
+		t.Fatalf("the lines that stand are %q, want %q", bodies, want)
+	}
 }

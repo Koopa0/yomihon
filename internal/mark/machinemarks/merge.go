@@ -94,8 +94,9 @@ func resolve(ls []*kept) resolved {
 	}
 	if len(heads) == 0 {
 		// Every line says another replaced it, which happens only if lines say
-		// they had read what had not been written. None is dropped: all stand.
-		heads = slices.Clone(all)
+		// they had read what had not been written. No writer is dropped: each
+		// writer's newest line stands, and not the older lines it replaced itself.
+		heads = slices.Collect(maps.Values(newest))
 	}
 	slices.SortFunc(heads, func(a, b *kept) int {
 		return cmp.Or(cmp.Compare(b.T, a.T), strings.Compare(b.Writer(), a.Writer()), cmp.Compare(b.Rev, a.Rev))

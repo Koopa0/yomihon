@@ -5,11 +5,17 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io/fs"
 	"slices"
+	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/mark/machinefile"
+	"github.com/koopa0/yomihon/internal/origin"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // Format is the one line format this version reads and writes. A line that
@@ -179,10 +185,103 @@ func (l *Line) wellFormed() bool {
 	if !isMachine(l.M) || (l.S != "" && !isMachine(l.S)) || l.Rev == 0 {
 		return false
 	}
-	if !isID(l.Mark.ID) || !l.Mark.Kind.valid() || !utf8.ValidString(l.Mark.Path) {
-		return false
+	return l.Mark.shape() == nil
+}
+
+// The bounds a mark is held to, the same as the file of marks that came before
+// this one holds a mark to: the size of the things themselves, so that a value
+// beyond them was not produced by a reading page. A line of another machine is
+// untrusted, and is held to them too.
+const (
+	maxPathBytes    = 1024
+	maxAnchorBytes  = 256
+	maxQuoteBytes   = 8 << 10
+	maxContextBytes = 512
+	maxBodyBytes    = 32 << 10
+	identityLength  = 2 * sha256.Size
+)
+
+// shape says whether a mark is one every writer here makes, and says what is
+// wrong when it is not.
+func (m *Mark) shape() error {
+	switch {
+	case !isID(m.ID):
+		return errors.New("the id is not 32 lowercase hex digits")
+	case !m.Kind.valid():
+		return fmt.Errorf("%q is not a kind of mark", string(m.Kind))
+	case m.At.IsZero():
+		return errors.New("the mark has no time")
+	case m.Kind == Highlight && m.Quote == "" && !m.Deleted:
+		return errors.New("a highlight is a passage and has its words")
+	case m.Quote == "" && (m.Before != "" || m.After != ""):
+		return errors.New("words around nothing")
+	case m.Identity != "" && !isHex(m.Identity, identityLength):
+		return errors.New("the identity is not a content identity")
 	}
-	return true
+	if err := checkPath(m.Path); err != nil {
+		return err
+	}
+	if err := checkAnchor(m.Anchor); err != nil {
+		return err
+	}
+	return m.checkWords()
+}
+
+// checkWords holds the reader's words to their sizes and to being text.
+func (m *Mark) checkWords() error {
+	for _, f := range [...]struct {
+		name  string
+		value string
+		limit int
+	}{
+		{"the quote", m.Quote, maxQuoteBytes},
+		{"the words before it", m.Before, maxContextBytes},
+		{"the words after it", m.After, maxContextBytes},
+		{"the body", m.Body, maxBodyBytes},
+	} {
+		switch {
+		case !utf8.ValidString(f.value) || strings.ContainsRune(f.value, 0):
+			return fmt.Errorf("%s is not text", f.name)
+		case len(f.value) > f.limit:
+			return fmt.Errorf("%s is too long", f.name)
+		}
+	}
+	return nil
+}
+
+// checkPath says p is a note path a mark may hold: local to the vault, in NFC,
+// and one line of text.
+func checkPath(p string) error {
+	switch {
+	case !utf8.ValidString(p):
+		return errors.New("the note path is not valid UTF-8")
+	case p == "" || len(p) > maxPathBytes:
+		return errors.New("the note path is empty or too long")
+	case !fs.ValidPath(p) || p == ".":
+		return fmt.Errorf("%q is not a local vault-relative path", p)
+	case strings.ContainsFunc(p, origin.EndsALine):
+		return fmt.Errorf("%q carries a control character", p)
+	case p != vault.NormalizeNFC(p):
+		return fmt.Errorf("%q is not written in NFC", p)
+	}
+	return nil
+}
+
+// checkAnchor says a is an anchor a mark may hold: an id a renderer wrote,
+// with no space, control character or character that ends the fragment of an
+// address.
+func checkAnchor(a string) error {
+	switch {
+	case !utf8.ValidString(a):
+		return errors.New("the anchor is not valid UTF-8")
+	case len(a) > maxAnchorBytes:
+		return errors.New("the anchor is too long")
+	case strings.ContainsFunc(a, func(r rune) bool {
+		return strings.ContainsRune(`#?/\"'<>`, r) || r <= ' ' || r == 0x7f
+	}):
+		return errors.New("the anchor carries a character an id cannot hold")
+	}
+	return nil
 }
 
 func (k Kind) valid() bool { return k == Highlight || k == Thought || k == Question }

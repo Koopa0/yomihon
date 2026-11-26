@@ -140,6 +140,11 @@ func FuzzMerge(f *testing.F) {
 			if len(r.heads) == 0 {
 				t.Fatalf("mark %s has lines and no value", id)
 			}
+			for _, h := range r.heads {
+				if r.newest[h.Writer()] != h {
+					t.Fatalf("mark %s shows a line of %s that its writer's newer line replaced", id, h.Writer())
+				}
+			}
 			anyAlive := slices.ContainsFunc(r.heads, func(h *kept) bool { return !h.Mark.Deleted })
 			if anyAlive && r.heads[0].Mark.Deleted {
 				t.Fatalf("mark %s shows a deletion with a live value beside it", id)

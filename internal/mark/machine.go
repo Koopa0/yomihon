@@ -1,8 +1,6 @@
 package mark
 
 import (
-	"fmt"
-
 	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
@@ -33,12 +31,6 @@ func (s *Store) MachineMarks() ([]machinemarks.Mark, error) {
 			Quote: m.Quote, Before: m.Before, After: m.After, Identity: m.Identity,
 			Body: words, Resolved: m.ResolvedAt, At: m.At,
 		}
-		if !isKind(m.Kind) {
-			return nil, fmt.Errorf("%w: %q is not a kind of mark", ErrUnreadable, string(m.Kind))
-		}
 	}
 	return out, nil
 }
-
-// isKind says k is one of the three states a mark is in.
-func isKind(k Kind) bool { return k == Highlight || k == Question || k == Thought }

@@ -78,7 +78,7 @@ func TestAnEarlierFileThatCannotBeReadStopsTheWrite(t *testing.T) {
 	a.legacy = func() ([]Mark, error) { return nil, errors.New("damaged") }
 	a.restart()
 	m := thought(1, "x")
-	if _, err := a.m.Put(&m, nil, nil); !errors.Is(err, ErrLegacy) {
+	if _, err := a.m.Put(&m, nil, nil, open); !errors.Is(err, ErrLegacy) {
 		t.Fatalf("Put = %v, want ErrLegacy", err)
 	}
 	if _, err := os.Stat(a.marksDir()); err == nil {
@@ -93,18 +93,38 @@ func TestAnEarlierFileThatCannotBeReadStopsTheWrite(t *testing.T) {
 	}
 }
 
-// A mark of the earlier file the machinemarks do not hold is refused whole and
-// is not dropped.
-func TestAnEarlierMarkThatDoesNotFitStopsTheWrite(t *testing.T) {
+// A mark of the earlier file that does not fit a line, whatever the reason, is
+// skipped and counted, and does not keep every later write from going through:
+// the others are taken in and written, and the skipped mark stays in the
+// earlier file, which is never changed.
+func TestAnEarlierMarkThatDoesNotFitIsSkippedAndTheRestAreTakenIn(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
-	bad := thought(2, "x")
-	bad.Kind = "idea"
-	a.legacy = legacyOf(thought(1, "fine"), bad)
+	wrongKind := thought(2, "x")
+	wrongKind.Kind = "idea"
+	// Quotes are escaped when written, so words that fit the bound as text do
+	// not fit as a line.
+	tooLong := thought(3, strings.Repeat(`"`, 40<<10))
+	noPath := thought(4, "no note to be about")
+	noPath.Path = ""
+	a.legacy = legacyOf(thought(1, "fine"), wrongKind, tooLong, noPath, thought(5, "also fine"))
 	a.restart()
-	m := thought(3, "x")
-	if _, err := a.m.Put(&m, nil, nil); !errors.Is(err, ErrLegacy) || !errors.Is(err, ErrInvalidMark) {
-		t.Fatalf("Put = %v, want ErrLegacy wrapping ErrInvalidMark", err)
+	if _, err := a.m.Put(new(thought(6, "the write that asked")), nil, nil, open); err != nil {
+		t.Fatalf("Put = %v, want the write to go through beside marks that cannot be taken in", err)
+	}
+	if v := a.view(); v.LegacySkipped() != 3 {
+		t.Fatalf("%d skipped, want 3", v.LegacySkipped())
+	}
+	for n, want := range map[int]string{1: "fine", 5: "also fine", 6: "the write that asked", 2: "(none)", 3: "(none)", 4: "(none)"} {
+		if got := a.words(n); got != want {
+			t.Errorf("mark %d reads %q, want %q", n, got, want)
+		}
+	}
+	// It is not taken in again, nor counted again, by a later write.
+	a.restart()
+	a.say(7, "a later write")
+	if v := a.view(); v.LegacySkipped() != 3 || a.words(2) != "(none)" {
+		t.Fatalf("%d skipped after a later write, and mark 2 reads %q", v.LegacySkipped(), a.words(2))
 	}
 }
 
@@ -139,7 +159,7 @@ func TestTheGateHoldsBackWhatTheLedgerHoldsToo(t *testing.T) {
 	reserved := a.entry(mid(3)).Mark()
 	reserved.Path, reserved.Body = "agent/x.md", "B's side, in a note an agent holds"
 	b.clock.tick()
-	if _, err := b.m.Put(&reserved, b.entry(mid(3)).Seen, nil); err != nil {
+	if _, err := b.m.Put(&reserved, b.entry(mid(3)).Seen, nil, open); err != nil {
 		t.Fatal(err)
 	}
 	pull(b, a)
@@ -162,7 +182,7 @@ func TestTheGateHoldsBackWhatTheLedgerHoldsToo(t *testing.T) {
 	older := b.entry(mid(4)).Mark()
 	older.Path, older.Body = "agent/y.md", "B's older side, in a note an agent holds"
 	b.clock.tick()
-	if _, err := b.m.Put(&older, b.entry(mid(4)).Seen, nil); err != nil {
+	if _, err := b.m.Put(&older, b.entry(mid(4)).Seen, nil, open); err != nil {
 		t.Fatal(err)
 	}
 	a.say(4, "A's newer side")
@@ -187,4 +207,88 @@ func TestTheGateHoldsBackWhatTheLedgerHoldsToo(t *testing.T) {
 		}()
 		v.Entries(nil)
 	}()
+}
+
+// A write is asked through the gate too: a mark the gate withholds answers a
+// Put, a Delete and a Choose exactly as a mark that is not there does, so that
+// the answer says nothing of it, and no error carries its writers or revs.
+func TestAWriteToAWithheldMarkAnswersAsIfThereWasNone(t *testing.T) {
+	t.Parallel()
+	a, b := newClone(t, "A"), newClone(t, "B")
+	secret := thought(1, "an agent's note")
+	secret.Path = "agent/secret.md"
+	a.put(secret, nil)
+	// A conflict whose second value is the reserved one.
+	b.say(2, "first")
+	pull(b, a)
+	older := b.entry(mid(2)).Mark()
+	older.Path, older.Body = "agent/y.md", "B's older side"
+	b.clock.tick()
+	if _, err := b.m.Put(&older, b.entry(mid(2)).Seen, nil, open); err != nil {
+		t.Fatal(err)
+	}
+	a.say(2, "A's newer side")
+	pull(b, a)
+	notReserved := func(m *Mark) bool { return !strings.HasPrefix(m.Path, "agent/") }
+	if e := a.entry(mid(2)); !e.Conflict() {
+		t.Fatal("no conflict was made")
+	}
+	seen1, seen2 := a.entry(mid(1)).Seen, a.entry(mid(2)).Seen
+	before := string(a.ledgerBytes())
+	tree1 := tree(t, a.root)
+
+	edit := thought(1, "an edit of a mark the gate withholds")
+	edit.Path = "notes/x.md"
+	edit2 := thought(2, "an edit of a conflict the gate withholds")
+	for name, call := range map[string]func() error{
+		"Put with the page's base":      func() error { _, err := a.m.Put(&edit, seen1, nil, notReserved); return err },
+		"Put with no base":              func() error { _, err := a.m.Put(&edit, nil, nil, notReserved); return err },
+		"Put with a stale base":         func() error { _, err := a.m.Put(&edit, Seen{"00000000/": 1}, nil, notReserved); return err },
+		"Put on a withheld conflict":    func() error { _, err := a.m.Put(&edit2, seen2, nil, notReserved); return err },
+		"Delete":                        func() error { _, err := a.m.Delete(mid(1), seen1, nil, notReserved); return err },
+		"Delete of a withheld conflict": func() error { _, err := a.m.Delete(mid(2), seen2, nil, notReserved); return err },
+		"Choose": func() error {
+			_, err := a.m.Choose(mid(2), Pick{Writer: a.writer(), Rev: 1}, seen2, notReserved)
+			return err
+		},
+		"Choose of a value that is not there": func() error {
+			_, err := a.m.Choose(mid(2), Pick{Writer: "ffffffff/", Rev: 99}, seen2, notReserved)
+			return err
+		},
+	} {
+		if err := call(); !saysGone(err) {
+			t.Errorf("%s = %#v, want what a mark that is not there answers, ErrGone and nothing more", name, err)
+		}
+	}
+	// What a mark that is not there answers.
+	if _, err := a.m.Delete(mid(99), nil, nil, notReserved); !saysGone(err) {
+		t.Fatalf("Delete of nothing = %v, want ErrGone", err)
+	}
+	if _, err := a.m.Choose(mid(99), Pick{}, nil, notReserved); !saysGone(err) {
+		t.Fatalf("Choose of nothing = %v, want ErrGone", err)
+	}
+	if string(a.ledgerBytes()) != before || changedPaths(tree1, tree(t, a.root)) != "" {
+		t.Fatal("a refused write changed the ledger or the vault")
+	}
+	for name, call := range map[string]func(){
+		"Put":    func() { _, _ = a.m.Put(&edit, nil, nil, nil) },        //nolint:errcheck // it panics
+		"Delete": func() { _, _ = a.m.Delete(mid(1), nil, nil, nil) },    //nolint:errcheck // it panics
+		"Choose": func() { _, _ = a.m.Choose(mid(1), Pick{}, nil, nil) }, //nolint:errcheck // it panics
+	} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("%s with no gate did not refuse", name)
+				}
+			}()
+			call()
+		}()
+	}
+}
+
+// saysGone says err is ErrGone with nothing of a mark in it: not a StaleError,
+// and a message that is ErrGone's own.
+func saysGone(err error) bool {
+	_, stale := errors.AsType[*StaleError](err)
+	return errors.Is(err, ErrGone) && !stale && err.Error() == ErrGone.Error()
 }

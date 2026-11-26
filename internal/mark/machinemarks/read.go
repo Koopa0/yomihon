@@ -106,6 +106,16 @@ func (v *View) Newer() int { return v.v.newer }
 // short.
 func (v *View) Unreadable() int { return v.v.unreadable }
 
+// OwnUnreadable says this machine's own file in the vault is there and could
+// not be read. The marks are shown without it, from the ledger, and no write is
+// made until it can be read.
+func (v *View) OwnUnreadable() bool { return v.v.ownUnreadable }
+
+// LegacySkipped is how many marks of the earlier file could not be taken in
+// when it was, because they do not fit a line: they stay in the earlier file,
+// which is never changed.
+func (v *View) LegacySkipped() int { return len(v.v.st.skipped) }
+
 // LedgerChanged is how many lines of the ledger were changed after they were
 // written, which is said and never read.
 func (v *View) LedgerChanged() int { return v.v.ledgerChanged }

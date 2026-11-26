@@ -118,7 +118,7 @@ func (c *clone) entry(id string) Entry {
 func (c *clone) put(m Mark, base Seen) Result { //nolint:gocritic // hugeParam: a test helper; the call sites read better with a value
 	c.t.Helper()
 	c.clock.tick()
-	res, err := c.m.Put(&m, base, nil)
+	res, err := c.m.Put(&m, base, nil, open)
 	if err != nil {
 		c.t.Fatalf("%s: Put: %v", c.name, err)
 	}
@@ -139,7 +139,7 @@ func (c *clone) say(n int, words string) Result {
 func (c *clone) delete(n int) Result {
 	c.t.Helper()
 	c.clock.tick()
-	res, err := c.m.Delete(mid(n), c.entry(mid(n)).Seen, nil)
+	res, err := c.m.Delete(mid(n), c.entry(mid(n)).Seen, nil, open)
 	if err != nil {
 		c.t.Fatalf("%s: Delete: %v", c.name, err)
 	}

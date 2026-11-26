@@ -43,12 +43,16 @@ type view struct {
 	// be.
 	ids map[string]bool
 
-	missing       int
-	damaged       int
-	damagedOwn    int
-	markers       int
-	newer         int
-	unreadable    int
+	missing    int
+	damaged    int
+	damagedOwn int
+	markers    int
+	newer      int
+	unreadable int
+	// ownUnreadable says this machine's own file is there and could not be read.
+	ownUnreadable bool
+	// ownErr is why.
+	ownErr        error
 	ledgerChanged int
 }
 
@@ -90,9 +94,10 @@ func (m *Marks) load() (*view, error) {
 		v.ids[f.ID] = true
 		if f.Err != nil {
 			if f.ID == v.st.id {
-				return nil, fmt.Errorf("%w: %w", ErrOwnFileUnreadable, f.Err)
+				v.ownUnreadable, v.ownErr = true, f.Err
+			} else {
+				v.unreadable++
 			}
-			v.unreadable++
 			continue
 		}
 		disk = append(disk, m.scan(v, f)...)
@@ -108,7 +113,7 @@ func (m *Marks) load() (*view, error) {
 	v.byMark = merge(all)
 	ownLines := map[string][]*kept{}
 	for _, line := range all {
-		if line.M == v.st.id && m.ours(&v.st, line) {
+		if m.ours(&v.st, line) {
 			ownLines[line.Mark.ID] = append(ownLines[line.Mark.ID], line)
 		}
 	}
@@ -183,10 +188,17 @@ func (v *view) note(m *Marks, l *kept) {
 }
 
 // ours says a line under one of this machine's ids was written by one of its
-// processes: one the ledger knows, or this one. A line with no process is the
-// machine's. A line of a machine that is not this one's is not.
+// processes: one the ledger knows, or this one. Under the id it has now, a line
+// with no process is its own too; under an id it has left, whose file is
+// another machine's, only a process this machine ran counts. A line of a
+// machine that is not this one's is not.
 func (m *Marks) ours(st *machine, l *kept) bool {
-	return st.owns(l.M) && (l.S == "" || l.S == m.currentSession() || st.sessions[l.M][l.S])
+	if !st.owns(l.M) {
+		return false
+	}
+	// Under an id this machine has left, the file is another machine's now, so
+	// only a line of a process this machine ran is taken for its own.
+	return (l.S == "" && l.M == st.id) || (l.S != "" && (l.S == m.currentSession() || st.sessions[l.M][l.S]))
 }
 
 // ledgerLines are the lines the ledger holds of this machine, the newest of

@@ -36,9 +36,7 @@ const (
 	MaxLines = 20000
 	// MaxLive is the most marks, of every machine, that are not deleted.
 	MaxLive = 5000
-	// maxPathBytes and maxEditBytes bound the two strings of a line that are
-	// not the reader's words.
-	maxPathBytes = 1024
+	// maxEditBytes bounds the id of an editing session.
 	maxEditBytes = 64
 )
 
@@ -178,26 +176,34 @@ type proposal struct {
 // Put writes mark as the whole new value of the mark of its ID: a new mark, or
 // a change of one the page had read, which base says how far. A change of state
 // is a Put of the same ID with another Kind. edit names the page's editing
-// session, nil when it has none.
-func (m *Marks) Put(mark *Mark, base Seen, edit *Edit) (Result, error) {
+// session, nil when it has none. A mark that exists and the gate withholds is
+// ErrGone, as a mark that is not there is for the changes that need one; the
+// gate is not optional and a nil one panics.
+func (m *Marks) Put(mark *Mark, base Seen, edit *Edit, gate Gate) (Result, error) {
+	needGate(gate)
 	if err := validate(mark, edit); err != nil {
 		return Result{}, err
 	}
 	return m.change(func(v *view) (*proposal, error) {
+		if withheld(v, mark.ID, gate) {
+			return nil, ErrGone
+		}
 		return &proposal{mark: *mark, base: base, edit: edit, grows: !live(v, mark.ID)}, nil
 	})
 }
 
 // Delete writes the mark as deleted, from the value that counts now. It is
 // ErrGone if there is no such mark or it is deleted already, which is what a
-// page that had not heard of another machine's deletion is told.
-func (m *Marks) Delete(id string, base Seen, edit *Edit) (Result, error) {
+// page that had not heard of another machine's deletion is told. A mark the
+// gate withholds is ErrGone too.
+func (m *Marks) Delete(id string, base Seen, edit *Edit, gate Gate) (Result, error) {
+	needGate(gate)
 	if err := validateEdit(edit); err != nil {
 		return Result{}, err
 	}
 	return m.change(func(v *view) (*proposal, error) {
 		r, ok := v.byMark[id]
-		if !ok || r.heads[0].Mark.Deleted {
+		if !ok || r.heads[0].Mark.Deleted || withheld(v, id, gate) {
 			return nil, ErrGone
 		}
 		mark := r.heads[0].Mark
@@ -216,11 +222,12 @@ type Pick struct {
 // what the page had read. Only a value the mark's conflict holds now can be
 // chosen; one that was replaced since, or that another page already chose, is
 // ErrStale and nothing is written. A line that appeared after the page read
-// stays beside the chosen one.
-func (m *Marks) Choose(id string, pick Pick, base Seen) (Result, error) {
+// stays beside the chosen one. A mark the gate withholds is ErrGone.
+func (m *Marks) Choose(id string, pick Pick, base Seen, gate Gate) (Result, error) {
+	needGate(gate)
 	return m.change(func(v *view) (*proposal, error) {
 		r, ok := v.byMark[id]
-		if !ok {
+		if !ok || withheld(v, id, gate) {
 			return nil, ErrGone
 		}
 		for _, l := range r.heads {
@@ -233,6 +240,22 @@ func (m *Marks) Choose(id string, pick Pick, base Seen) (Result, error) {
 		}
 		return nil, &StaleError{Seen: r.entry(func(*kept) bool { return false }).Seen}
 	})
+}
+
+// needGate refuses a write that names no gate: it would answer for a mark the
+// reader's rules hold back.
+func needGate(gate Gate) {
+	if gate == nil {
+		panic("machinemarks: a write with no gate")
+	}
+}
+
+// withheld says the gate refuses a value of the mark. A write to one is
+// answered as a write to a mark that is not there, so that nothing of it, not
+// that it exists, nor its writers and revs, is told by the answer.
+func withheld(v *view, id string, gate Gate) bool {
+	r, ok := v.byMark[id]
+	return ok && slices.ContainsFunc(r.heads, func(l *kept) bool { return !gate(&l.Mark) })
 }
 
 // Restore writes this machine's file as the ledger and the file together say it
@@ -291,29 +314,8 @@ func validate(m *Mark, edit *Edit) error {
 	if err := validateEdit(edit); err != nil {
 		return err
 	}
-	switch {
-	case !isID(m.ID):
-		return fmt.Errorf("%w: the id is not 32 lowercase hex digits", ErrInvalidMark)
-	case !m.Kind.valid():
-		return fmt.Errorf("%w: %q is not a kind of mark", ErrInvalidMark, string(m.Kind))
-	case m.Path == "" || len(m.Path) > maxPathBytes:
-		return fmt.Errorf("%w: the note path is empty or too long", ErrInvalidMark)
-	case m.At.IsZero():
-		return fmt.Errorf("%w: the mark has no time", ErrInvalidMark)
-	case m.Kind == Highlight && m.Quote == "" && !m.Deleted:
-		return fmt.Errorf("%w: a highlight is a passage and has its words", ErrInvalidMark)
-	case m.Quote == "" && (m.Before != "" || m.After != ""):
-		return fmt.Errorf("%w: words around nothing", ErrInvalidMark)
-	}
-	return validateText(m)
-}
-
-// validateText refuses a field that is not text.
-func validateText(m *Mark) error {
-	for _, field := range [...]string{m.Path, m.Anchor, m.Quote, m.Before, m.After, m.Identity, m.Body} {
-		if !utf8.ValidString(field) || strings.ContainsRune(field, 0) {
-			return fmt.Errorf("%w: a field is not text", ErrInvalidMark)
-		}
+	if err := m.shape(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidMark, err)
 	}
 	return nil
 }
@@ -361,6 +363,11 @@ func (m *Marks) locked(plan func(*view) (*proposal, error), res *Result) error {
 	v, err := m.load()
 	if err != nil {
 		return err
+	}
+	if v.ownUnreadable {
+		// A write replaces the whole file, so one that had not read it would
+		// throw away what it holds: nothing is written until it can be read.
+		return fmt.Errorf("%w: %w", ErrOwnFileUnreadable, v.ownErr)
 	}
 	if v, err = m.settle(v, record); err != nil {
 		return err
@@ -427,17 +434,47 @@ func (m *Marks) convert(v *view, record func(*ledger.Event) error) error {
 		if _, there := v.byMark[mark.ID]; there {
 			continue
 		}
-		if err = validate(&mark, nil); err != nil {
-			return fmt.Errorf("%w: %w", ErrLegacy, err)
-		}
-		line := Line{Fmt: Format, M: v.st.id, Rev: m.nextRev(v), T: t, Mark: mark, S: m.currentSession()}
-		raw, encodeErr := line.encode()
-		if encodeErr != nil || len(raw) > MaxLineBytes {
-			return fmt.Errorf("%w: a mark does not fit a line", ErrLegacy)
+		raw, why := m.legacyLine(v, &mark, t)
+		if why != nil {
+			// It stays in the earlier file, which is never changed, and does
+			// not keep every later write from going through.
+			if err := skip(record, v, &mark, why); err != nil {
+				return err
+			}
+			continue
 		}
 		batch = append(append(batch, raw...), '\n')
 	}
 	return record(&ledger.Event{Kind: kindConverted, Writer: v.st.id, Session: m.currentSession(), Content: batch})
+}
+
+// legacyLine is the line a mark of the earlier file becomes, or why it cannot.
+func (m *Marks) legacyLine(v *view, mark *Mark, t int64) ([]byte, error) {
+	if err := validate(mark, nil); err != nil {
+		return nil, err
+	}
+	line := Line{Fmt: Format, M: v.st.id, Rev: m.nextRev(v), T: t, Mark: *mark, S: m.currentSession()}
+	raw, err := line.encode()
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > MaxLineBytes {
+		return nil, fmt.Errorf("a line of %d bytes", len(raw))
+	}
+	return raw, nil
+}
+
+// skip records that a mark of the earlier file was not taken in.
+func skip(record func(*ledger.Event) error, v *view, mark *Mark, why error) error {
+	content := []byte(mark.ID + " " + why.Error())
+	if !isID(mark.ID) {
+		content = []byte(strings.Repeat("0", 32) + " " + why.Error())
+	}
+	err := record(&ledger.Event{Kind: kindSkipped, ID: v.st.id, Sum: checksum(content), Content: content})
+	if err != nil {
+		return fmt.Errorf("record a mark of the earlier file that was not taken in: %w", err)
+	}
+	return nil
 }
 
 // nextRev is the rev of the next line this process writes: above the ledger's
@@ -557,6 +594,7 @@ func (m *Marks) prepare(v *view, p *proposal) (*kept, error) {
 			line.Seen[w] = min(n, newest.Rev)
 		}
 	}
+	foldSeen(&line, v.own[id])
 	raw, err := line.encode()
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidMark, err)
@@ -565,6 +603,28 @@ func (m *Marks) prepare(v *view, p *proposal) (*kept, error) {
 		return nil, fmt.Errorf("%w: a line of %d bytes", ErrLimit, len(raw))
 	}
 	return &kept{Line: line, raw: raw}, nil
+}
+
+// foldSeen adds to a new line what the lines of this machine that it replaces
+// had read. Those lines are not kept, in the file or in the ledger, so a line
+// of another writer that only they covered would be a value of the mark again
+// when git put an old file back; the new line says it had read them too.
+func foldSeen(line *Line, replaced []*kept) {
+	self := line.Writer()
+	for _, ol := range replaced {
+		if !replaces(line, &ol.Line) {
+			continue
+		}
+		for w, n := range ol.Seen {
+			if w == self || n == 0 {
+				continue
+			}
+			if line.Seen == nil {
+				line.Seen = Seen{}
+			}
+			line.Seen[w] = max(line.Seen[w], n)
+		}
+	}
 }
 
 // checkBase refuses a change of a mark that is held when the page it came from

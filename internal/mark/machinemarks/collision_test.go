@@ -162,3 +162,69 @@ func TestACopyThatHasNotDivergedIsOneMachine(t *testing.T) {
 		t.Fatal("a machine left an id that no one else wrote under")
 	}
 }
+
+// The lines a machine wrote under an id it has left are its own, and the file
+// of that id is another machine's now: they are written into the file of the id
+// it has now, so that git carries them, they are not counted missing for ever,
+// and Restore brings them back.
+func TestTheLinesOfALeftIdAreKeptInTheFileOfTheNewId(t *testing.T) {
+	t.Parallel()
+	a, b := newClone(t, "A"), newClone(t, "B")
+	a.say(1, "before the copy")
+	copyConfig(t, a, b)
+	b.restart()
+	b.say(2, "B under the shared id")
+	pull(a, b)
+	a.restart()
+	a.say(3, "A under the shared id")
+	idA := a.id()
+	// The file of the shared id is A's in B's working tree now.
+	if err := os.WriteFile(filepath.Join(b.marksDir(), idA+".jsonl"), readFile(t, filepath.Join(a.marksDir(), idA+".jsonl")), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// A line under the shared id with no process in it, which no process of B
+	// wrote: it is not B's, whatever the id says.
+	foreign, err := (&Line{Fmt: Format, M: idA, Rev: 900, T: 1, Mark: thought(9, "no process wrote this under B's old id")}).encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileA := filepath.Join(b.marksDir(), idA+".jsonl")
+	if err = os.WriteFile(fileA, append(readFile(t, fileA), append(foreign, '\n')...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	b.say(4, "B leaves")
+	if b.id() == idA {
+		t.Fatal("B did not leave the id")
+	}
+	if strings.Contains(string(readFile(t, filepath.Join(b.marksDir(), b.id()+".jsonl"))), "no process wrote this") {
+		t.Fatal("a line under the id B left, that none of B's processes wrote, was written into B's own file")
+	}
+	if v := b.view(); v.Missing() != 0 {
+		t.Fatalf("%d lines are counted missing after B left the id: the lines it wrote under it are in no file of its own", v.Missing())
+	}
+	own := filepath.Join(b.marksDir(), b.id()+".jsonl")
+	if !strings.Contains(string(readFile(t, own)), `"m":"`+idA+`"`) {
+		t.Fatal("the file of B's new id holds none of the lines B wrote under the id it left")
+	}
+	// git takes the file away, and Restore puts everything back.
+	if err := os.Remove(own); err != nil {
+		t.Fatal(err)
+	}
+	if v := b.view(); v.Missing() == 0 {
+		t.Fatal("nothing is missing after B's file was taken away")
+	}
+	if _, err := b.m.Restore(); err != nil {
+		t.Fatal(err)
+	}
+	if v := b.view(); v.Missing() != 0 {
+		t.Fatalf("%d lines are still missing after Restore", v.Missing())
+	}
+	if !strings.Contains(string(readFile(t, own)), `"m":"`+idA+`"`) {
+		t.Fatal("Restore did not bring back the lines B wrote under the id it left")
+	}
+	for n, want := range map[int]string{2: "B under the shared id", 4: "B leaves"} {
+		if got := b.words(n); got != want {
+			t.Errorf("B reads mark %d as %q, want %q", n, got, want)
+		}
+	}
+}

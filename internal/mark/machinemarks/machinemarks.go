@@ -43,12 +43,22 @@
 // code of the same shape, written on every line it writes. A line under this
 // machine's id whose process this machine never ran was written by another
 // computer that has a copy of this one's configuration. The machine that finds
-// one leaves its id for a new one, its old lines stay its own, and the reader
-// is told once.
+// one leaves its id for a new one, and the reader is told once. The lines it
+// wrote under the old id stay its own and are written into the file of the new
+// id, since the file of the old one is another machine's now; the lines it
+// did not write are never taken for its own.
 //
 // A write is made under the vault's lock, machine-file.lock in the vault's
 // directory under the configuration directory, and takes the ledger's lock
-// inside it. Reading takes no lock and writes nothing, not even a folder.
+// inside it. Reading takes no lock and writes nothing, not even a folder. This
+// machine's own file that cannot be read is counted and the marks are still
+// shown, from the ledger; a write refuses, since it would replace what it did
+// not read.
+//
+// Every call that gives a mark out or changes one takes the privacy gate, and a
+// write to a mark the gate withholds is answered as a write to one that is not
+// there. A line is held to the shape the file of marks before this one held a
+// mark to, on the way in and on the way out.
 //
 // Nothing here is called by a route yet.
 package machinemarks
