@@ -82,6 +82,7 @@ probes=(
   "japanese-reading-face.mjs|/notes/Writing/lessons/japanese/L01.md"
   "preference-restore.mjs|/notes/Writing/lessons/japanese/L01.md"
   "preference-immediate.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
+  "preference-sheet.mjs|/preferences"
   "language-follows-browser.mjs|/"
   "preference-persistence.mjs|/preferences?from=%2Fnotes%2FNotes%2Falpha.md"
   "prefetch-stale-preference.mjs|/notes/Writing/lessons/japanese/L01.md"

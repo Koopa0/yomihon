@@ -338,13 +338,19 @@
      setting costs a few characters a line rather than pushing the line out
      past where the eye can carry it. The list measure is 884px, the width a
      row runs to inside the 940px column the Atelier handoff gives every list
-     page (D94). */
+     page (D94). The bench measure is the settings page's two columns: the
+     choices at --bench-choices and the sheet of reading beside them, in the
+     1140px band the Atelier handoff gives that page less its 28px sides.
+     Below a window of 1080px the two stack and the page takes the reading
+     measure. */
   --field-w: 240px;
   --measure-read: 660px;
   --gutter-read: 48px;
   --measure-list: 884px;
   --gutter-list: 48px;
   --measure-answer: 720px;
+  --measure-bench: 1084px;
+  --bench-choices: 500px;
   --gutter-answer: 24px;
   --gutter-mid: 32px;
   --gutter-phone: 20px;

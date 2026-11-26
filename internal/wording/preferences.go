@@ -182,6 +182,26 @@ var PrefApply = both("套用", "Apply")
 // everything and offers no way out of itself.
 var PrefReturn = both("回到剛才在讀的", "Back to what you were reading")
 
+// The sample the choices are drawn on, beside them: a section's heading and one
+// paragraph, set the way a note sets them. The words are not new. They are the
+// opening of the example vault's first lesson, in each language as that lesson
+// writes them (把 yomihon 指向你的資料夾, L01 Point yomihon at a folder), so
+// the sample says nothing the product does not already say. The paragraph is
+// cut where its two pieces of code stand, which both languages keep in the
+// same order, so the code can be set in the code face as it is in the lesson.
+// The address and the key are the lesson's literals and read the same in both.
+var (
+	PrefSampleHeading = both("把 yomihon 指向你的資料夾", "Point yomihon at a folder")
+	PrefSampleOpen    = both("開啟 ", "Open ")
+	PrefSampleAddress = both("http://127.0.0.1:9610", "http://127.0.0.1:9610")
+	PrefSampleMiddle  = both(
+		"，即可閱讀、瀏覽資料夾與搜尋。啟動不會改動筆記；閱讀期間讓指令持續執行，結束時在終端機按 ",
+		" to read, browse folders and search. Starting the server leaves the notes unchanged. Keep the command running while you read; press ",
+	)
+	PrefSampleKey   = both("Ctrl+C", "Ctrl+C")
+	PrefSampleClose = both("。", " in the terminal to stop it.")
+)
+
 // PrefSaveRefused is what a choice says for itself when the browser would not
 // keep it. The choice is put back to what it was, because a radio left sitting
 // on a value nothing stored is the page telling the reader something untrue —
