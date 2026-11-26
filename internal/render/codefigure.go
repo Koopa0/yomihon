@@ -57,9 +57,9 @@ func codeFigure(lang, source, pre string) string {
 // stylesheet's tab-size of 4 sets, four of the face's characters apart. A
 // combining mark, a joiner or a variation selector adds nothing.
 const (
-	codeNarrowAdvance = 3
+	codeNarrowAdvance = 3 // Geist Mono's advance, the first face of tokens.css --font-mono
 	codeWideAdvance   = 5
-	codeTabStop       = 4 * codeNarrowAdvance
+	codeTabStop       = 4 * codeNarrowAdvance // reset.css tab-size: 4
 )
 
 // A code block stands at the article's measure less the 20px either side the
@@ -74,10 +74,10 @@ const (
 // which at the base size is 79 characters of Latin code a line, or 62 in a
 // Latin article. The browser probe wide-blocks.mjs lays every fixture block out
 // at each measure and holds this table to what overflows there.
-const codePadding = 2 * 20
+const codePadding = 2 * 20 // components.css .y-prose pre padding, 20px either side
 
 // codeSize is the code face's pixel size at each text size, --fs-ed-13.
-var codeSize = [...]int{textM: 13, textL: 15, textXL: 17}
+var codeSize = [...]int{textM: 13, textL: 15, textXL: 17} // tokens.css --fs-ed-13 at each size, components.css .y-prose pre font-size
 
 // codeFits is the longest line, in fifths of an em of the code face, that fits
 // inside a measure.

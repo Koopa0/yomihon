@@ -10,13 +10,17 @@ import "strings"
 // neither Chinese, Japanese nor Korean takes instead, at the reading sizes of
 // 17, 19 and 21px. Each is read at one text size, which says how large the
 // block's own type is there. The order is the attribute's.
+//
+// Each width must equal the --measure-read the stylesheet gives that size and
+// article, and each token the [data-wide~=…] that sets it wide there;
+// stylesheet_internal_test.go holds the table to both sheets.
 var readingMeasures = []readingMeasure{
-	{token: "latin-xl", width: 31 * 21, size: textXL},
-	{token: "latin-l", width: 31 * 19, size: textL},
-	{token: "latin-m", width: 31 * 17, size: textM},
-	{token: "xl", width: 740, size: textXL},
-	{token: "l", width: 700, size: textL},
-	{token: "m", width: 660, size: textM},
+	{token: "latin-xl", width: 31 * 21, size: textXL}, // components.css .y-article[lang] --measure-read: --fs-ed-17 × 31 at xl
+	{token: "latin-l", width: 31 * 19, size: textL},   // components.css .y-article[lang] --measure-read: --fs-ed-17 × 31 at l
+	{token: "latin-m", width: 31 * 17, size: textM},   // components.css .y-article[lang] --measure-read: --fs-ed-17 × 31 at m
+	{token: "xl", width: 740, size: textXL},           // tokens.css :root[data-textsize='xl'] --measure-read
+	{token: "l", width: 700, size: textL},             // tokens.css :root[data-textsize='l'] --measure-read
+	{token: "m", width: 660, size: textM},             // tokens.css :root --measure-read
 }
 
 // readingMeasure is one measure a block can stand at: its token in data-wide,
