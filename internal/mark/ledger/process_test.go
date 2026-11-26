@@ -28,6 +28,19 @@ const (
 	childWriterVar = "YOMIHON_TEST_LEDGER_WRITER"
 )
 
+// processLockWait is how long a process of these tests waits for the ledger's
+// lock. The tests ask whether a line is lost, not how fast the lock comes free,
+// and a slow runner can keep it from a writer for longer than confdir.LockWait
+// without anything being wrong.
+const processLockWait = time.Minute
+
+// openForProcesses is open with the wait the tests that run more than one
+// process give the lock.
+func openForProcesses(t *testing.T, dir confdir.Dir) *Ledger {
+	t.Helper()
+	return OpenWaiting(dir, slog.New(slog.DiscardHandler), processLockWait)
+}
+
 func TestMain(m *testing.M) {
 	if mode := os.Getenv(childModeVar); mode != "" {
 		if err := runChild(mode, os.Getenv(childConfigVar), os.Getenv(childWriterVar)); err != nil {
@@ -79,7 +92,7 @@ func runChild(mode, config, writer string) error {
 	if err != nil {
 		return err
 	}
-	l := Open(dir, slog.New(slog.DiscardHandler))
+	l := OpenWaiting(dir, slog.New(slog.DiscardHandler), processLockWait)
 	out := bufio.NewWriter(os.Stdout)
 	say := func(format string, args ...any) error {
 		if _, writeErr := fmt.Fprintf(out, format+"\n", args...); writeErr != nil {
@@ -214,7 +227,7 @@ func (c *child) killAfter(t *testing.T, begins int, until func() bool, wait time
 // seqs in order. It answers the ledger's events.
 func checkAnswered(t *testing.T, dir confdir.Dir, mode string, answered []done) []Event {
 	t.Helper()
-	l, _ := open(t, dir)
+	l := openForProcesses(t, dir)
 	evs, changed := events(t, l)
 	if changed != 0 {
 		t.Fatalf("after a kill the ledger says %d lines were changed, want 0", changed)
@@ -310,7 +323,7 @@ func TestAWriterKilledWhileItAppendsLosesNoCommittedLine(t *testing.T) {
 			midRecord++
 		}
 
-		l, _ := open(t, dir)
+		l := openForProcesses(t, dir)
 		next := record(t, l, markEvent("aaaaaaaa", "test", "after", strconv.Itoa(kills)))
 		if latest, latestErr := l.LatestMarks("aaaaaaaa"); latestErr != nil || latest["after"].Seq != next {
 			t.Fatalf("after kill %d the test's own line is not read whole: %v, %v", kills, latest["after"], latestErr)
@@ -364,7 +377,7 @@ func TestAWriterKilledWhileItCompactsLosesNoLiveLine(t *testing.T) {
 		}
 		evs := checkAnswered(t, dir, "compact", answered)
 
-		l, _ := open(t, dir)
+		l := openForProcesses(t, dir)
 		seq := record(t, l, markEvent("aaaaaaaa", "test", "after", strconv.Itoa(kills)))
 		if len(evs) > 0 && seq <= evs[len(evs)-1].Seq {
 			t.Fatalf("after kill %d the next line took seq %d, not above the %d the ledger holds", kills, seq, evs[len(evs)-1].Seq)
