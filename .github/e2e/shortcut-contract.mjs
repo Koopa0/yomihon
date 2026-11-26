@@ -620,8 +620,18 @@ try {
   // closed at both widths and would let this pass without the viewport ever
   // having changed. The second press puts the column back, so the questions
   // after this one are asked of the layout they were written for.
+  //
+  // The query flips before the drawer has been told: a script reading it sees
+  // the new width at once, while the drawer's own change listener runs at the
+  // next rendering update, and until it does the column is still the closed
+  // drawer's, inert, and a focus asked of anything in it lands nowhere. Under
+  // load that gap was long enough for the filter questions below to fall into
+  // it, and the filter then "lost" a focus it had never been given. The column
+  // standing free of the drawer's inertness is the state those questions need,
+  // so that is what is waited on.
   await page.setViewportSize({ width: 1440, height: 800 });
-  await page.waitForFunction(() => !window.matchMedia('(max-width: 1320px)').matches);
+  await page.waitForFunction(() => !window.matchMedia('(max-width: 1320px)').matches
+    && document.querySelector('#_y-nav-rail')?.inert === false);
   const railBefore = (await state(page)).rail;
   if (!['open', 'collapsed'].includes(railBefore)) broken(`the wide column reads rail=${railBefore}, neither open nor folded`);
   const railTurned = railBefore === 'open' ? 'collapsed' : 'open';
