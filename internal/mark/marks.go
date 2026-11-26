@@ -32,11 +32,30 @@ type placedMark struct {
 
 	Placement string            `json:"placement"`
 	Seen      machinemarks.Seen `json:"seen"`
+	// Note is the mark as the reading page draws it in the margin, in the words
+	// of the page's language, for a page that has just kept or changed it. It is
+	// left out of a mark that is deleted, and where nothing draws one.
+	Note string `json:"note,omitempty"`
+}
+
+// NoteDrawer draws a mark as the reading page draws it beside its text. The page
+// that answers for a note is the one that knows how, so the routes ask it: a
+// page that drew the same mark twice, once on arrival and once in a script,
+// would be free to draw two different things.
+type NoteDrawer interface {
+	// Note is the margin note of m as a fragment of markup, or empty where the
+	// mark has none to draw: a highlight on a passage is drawn in the text alone.
+	Note(m *machinemarks.Mark, placement string, lang wording.Lang) string
 }
 
 // keepRequest is what a page sends to leave a mark. The id, the time and the
 // identity are not in it: the server makes them.
 type keepRequest struct {
+	// ID is an id the page made for this mark, 32 lowercase hex digits, and is
+	// optional. A page that sends one can send the same request again when an
+	// answer never reached it: the mark with that id is the answer, and nothing
+	// is kept twice.
+	ID     string            `json:"id"`
 	Kind   machinemarks.Kind `json:"kind"`
 	Path   string            `json:"path"`
 	Anchor string            `json:"anchor"`
@@ -51,8 +70,12 @@ type keepRequest struct {
 // that are new. A field it leaves out is left as it is, except seen, which is
 // what the change says it was made on top of and is not optional.
 type reviseRequest struct {
-	Seen     *machinemarks.Seen `json:"seen"`
-	Edit     *machinemarks.Edit `json:"edit"`
+	Seen *machinemarks.Seen `json:"seen"`
+	Edit *machinemarks.Edit `json:"edit"`
+	// Kind is the state the mark is turned into. A mark keeps its id and its
+	// words through a change of state; what the new state does not hold is
+	// refused.
+	Kind     *machinemarks.Kind `json:"kind"`
 	Body     *string            `json:"body"`
 	Resolved *bool              `json:"resolved"`
 }
@@ -100,9 +123,18 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, r, fmt.Errorf("%w: not a note this vault holds", machinemarks.ErrInvalidMark), "keep a mark")
 		return
 	}
-	id, err := newID()
-	if err != nil {
-		h.refuse(w, r, err, "keep a mark")
+	id := request.ID
+	if id == "" {
+		var err error
+		if id, err = newID(); err != nil {
+			h.refuse(w, r, err, "keep a mark")
+			return
+		}
+	} else if !isID(id) {
+		h.refuse(w, r, fmt.Errorf("%w: the id is not 32 lowercase hex digits", machinemarks.ErrInvalidMark), "keep a mark")
+		return
+	}
+	if request.ID != "" && h.answerKept(w, r, id) {
 		return
 	}
 	candidate := machinemarks.Mark{
@@ -110,7 +142,7 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 		Quote: request.Quote, Before: request.Before, After: request.After,
 		Identity: page.Identity, Body: request.Body, At: time.Now(),
 	}
-	if err = askedForWhatKindHolds(&candidate); err != nil {
+	if err := askedForWhatKindHolds(&candidate); err != nil {
 		h.refuse(w, r, err, "keep a mark")
 		return
 	}
@@ -136,10 +168,32 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err = h.landed(err, "keep a mark"); err != nil {
+		// A send of the same id that was still on its way when this one came
+		// has written the mark: that mark is the answer.
+		if request.ID != "" && errors.Is(err, machinemarks.ErrNoBase) && h.answerKept(w, r, id) {
+			return
+		}
 		h.refuse(w, r, err, "keep a mark")
 		return
 	}
 	h.send(w, r, status, &stored, res.Seen, lang)
+}
+
+// answerKept answers a request to keep a mark with an id the page made, when a
+// mark of that id is kept already: the same send again, which keeps nothing
+// twice. It reports whether it answered.
+func (h *Handler) answerKept(w http.ResponseWriter, r *http.Request, id string) bool {
+	view, err := h.kept.View()
+	if err != nil {
+		return false
+	}
+	entry, ok := view.Entry(id, h.kept.gate)
+	if !ok {
+		return false
+	}
+	shown := entry.Mark()
+	h.send(w, r, http.StatusOK, &shown, entry.Seen, origin.Language(r))
+	return true
 }
 
 // keepThought writes a thought. A thought is always new, with an id nobody has,
@@ -243,7 +297,7 @@ func (h *Handler) getMark(w http.ResponseWriter, r *http.Request) {
 	}
 	lang := origin.Language(r)
 	current := entry.Mark()
-	answer := placedMark{Mark: current, Placement: h.placement(&current, lang), Seen: entry.Seen}
+	answer := h.placed(&current, entry.Seen, lang)
 	h.reply(w, r, &answer, "send a mark")
 }
 
@@ -300,18 +354,26 @@ func (h *Handler) reviseMark(w http.ResponseWriter, r *http.Request) {
 }
 
 // revised is the mark m with what a request changes of it, which only a mark of
-// the kind that has it may have: words are a thought's and a question's, a
-// resolution a question's. Resolving a question that is resolved already leaves
-// the time it was resolved at; reopening it clears the time.
+// the state that has it may have: words are a thought's and a question's, a
+// resolution a question's. A state is turned into another with its words as they
+// are sent, so a thought turned into a highlight is sent with none. Resolving a
+// question that is resolved already leaves the time it was resolved at;
+// reopening it clears the time.
 func revised(was *machinemarks.Mark, r *reviseRequest, now time.Time) (machinemarks.Mark, error) {
 	m := *was
-	switch {
-	case r.Body == nil && r.Resolved == nil:
+	if r.Body == nil && r.Resolved == nil && r.Kind == nil {
 		return machinemarks.Mark{}, fmt.Errorf("%w: nothing to change", machinemarks.ErrInvalidMark)
-	case r.Resolved != nil && m.Kind != machinemarks.Question:
+	}
+	if r.Kind != nil {
+		switch *r.Kind {
+		case machinemarks.Highlight, machinemarks.Thought, machinemarks.Question:
+			m.Kind = *r.Kind
+		default:
+			return machinemarks.Mark{}, fmt.Errorf("%w: %q is not a state a mark is in", machinemarks.ErrInvalidMark, string(*r.Kind))
+		}
+	}
+	if r.Resolved != nil && m.Kind != machinemarks.Question {
 		return machinemarks.Mark{}, fmt.Errorf("%w: only a question is resolved", machinemarks.ErrInvalidMark)
-	case r.Body != nil && m.Kind == machinemarks.Highlight && *r.Body != "":
-		return machinemarks.Mark{}, fmt.Errorf("%w: a highlight carries no words of its own", machinemarks.ErrInvalidMark)
 	}
 	if r.Body != nil {
 		m.Body = *r.Body
@@ -519,10 +581,19 @@ func (h *Handler) refuse(w http.ResponseWriter, r *http.Request, err error, doin
 func (h *Handler) send(w http.ResponseWriter, r *http.Request, status int, m *machinemarks.Mark, seen machinemarks.Seen, lang wording.Lang) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	placed := placedMark{Mark: *m, Placement: h.placement(m, lang), Seen: seen}
+	placed := h.placed(m, seen, lang)
 	if err := json.NewEncoder(w).Encode(&placed); err != nil {
 		h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "send a mark", "error", err)
 	}
+}
+
+// placed is m as a route answers with it.
+func (h *Handler) placed(m *machinemarks.Mark, seen machinemarks.Seen, lang wording.Lang) placedMark {
+	answer := placedMark{Mark: *m, Placement: h.placement(m, lang), Seen: seen}
+	if drawer, ok := h.places.(NoteDrawer); ok && !m.Deleted {
+		answer.Note = drawer.Note(m, answer.Placement, lang)
+	}
+	return answer
 }
 
 // placement says where m stands in its note as the note is now.
