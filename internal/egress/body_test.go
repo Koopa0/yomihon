@@ -341,14 +341,21 @@ func TestBodyRefusesABodyThatStillHasItsFrontmatter(t *testing.T) {
 
 // TestBodyReadsLinksWithTheExtractorTheGateWasOpenedWith holds that a wikilink is
 // found by the extractor Open was given, which is what the archlock walk holds
-// every caller to: here it places a link no text spells.
+// every caller to: here it places a link no text spells, wherever HIDDEN stands,
+// and one to a readable note wherever shown does.
 func TestBodyReadsLinksWithTheExtractorTheGateWasOpenedWith(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
 	writeFile(t, root, "System/schemas/vault-schema.toml", rulesFile(t, `"Private"`))
-	gate, err := egress.Open(t.Context(), openFolder(t, root), func(string) []egress.Link {
-		return []egress.Link{{Target: "Secret Plan", Start: 4, End: 10}, {Target: "Plain", Start: 11, End: 16}}
+	gate, err := egress.Open(t.Context(), openFolder(t, root), func(text string) []egress.Link {
+		var links []egress.Link
+		for word, target := range map[string]string{"HIDDEN": "Secret Plan", "shown": "Plain"} {
+			if at := strings.Index(text, word); at >= 0 {
+				links = append(links, egress.Link{Target: target, Start: at, End: at + len(word)})
+			}
+		}
+		return links
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -41,10 +41,12 @@ var ErrFrontmatter = errors.New("a body is a note's text after its frontmatter b
 // whose text spells a withheld folder, in any of the forms Spells knows, goes
 // whole.
 //
-// The page parses a body only after it has taken its comments off and its own
-// runes out, which can join a link that was apart in the text as written, such
-// as [[Sec%%x%%ret Plan]]. So what was masked is read again as the page reads it
-// (render.PageSource), and when that reading still finds a link into withheld
+// Masking one link can make another: the token that replaces a wikilink inside
+// an embed leaves an embed the extractor reads. And the page parses a body only
+// after it has taken its comments off and its own runes out, which can join a
+// link that was apart in the text as written, such as [[Sec%%x%%ret Plan]]. So
+// what was masked is read again, as it stands and as the page reads it
+// (render.PageSource), and when either reading still finds a link into withheld
 // ground, the link has no place in body to mask and the whole body is Masked.
 //
 // What could reach withheld ground is decided as the page decides where a link
@@ -79,15 +81,28 @@ func (g *Gate) Body(rel, body string, names Names) (masked string, places int, e
 		return Masked, 1, nil
 	}
 	masked, places = mask(body, spans)
-	if page := render.PageSource(masked); page != masked {
-		// The page reads the text with its comments off and its own runes
-		// taken out, which can join a link that was apart in what was masked.
-		// Such a link has no place in body to mask, so nothing of it is shown.
-		if left, placed := g.reachingSpans(rel, page, names, readable); !placed || len(left) > 0 {
-			return Masked, 1, nil
-		}
+	if g.stillReaches(rel, masked, names, readable) {
+		// What is left still links into withheld ground, and that link has no
+		// place in body to mask, so nothing of it is shown.
+		return Masked, 1, nil
 	}
 	return masked, places, nil
+}
+
+// stillReaches is whether masked, read as it stands and as the page parses it,
+// still has a link into withheld ground. Masking one link can make another:
+// a wikilink inside an embed keeps the extractor from reading the embed, and
+// the token in its place leaves one it reads. The page also parses the text
+// only after its comments come off and its own runes come out, which can join
+// a link that was apart. Either way the link is new in masked, so it is read
+// for in masked and not in body.
+func (g *Gate) stillReaches(rel, masked string, names Names, readable func(string) bool) bool {
+	for _, text := range []string{masked, render.PageSource(masked)} {
+		if left, placed := g.reachingSpans(rel, text, names, readable); !placed || len(left) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // reachingSpans is where in body a link goes into withheld ground, as byte

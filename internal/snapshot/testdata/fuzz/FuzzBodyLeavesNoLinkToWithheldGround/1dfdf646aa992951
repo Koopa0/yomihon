@@ -1,0 +1,2 @@
+go test fuzz v1
+string("[[Secret Plan]] ![[Secret Plan#Go[[.]]000000000]]")

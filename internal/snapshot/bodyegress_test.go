@@ -68,6 +68,40 @@ func TestBodyMasksWhatTheGenerationSaysReachesWithheldGround(t *testing.T) {
 	}
 }
 
+// TestBodyReadsWhatItMaskedAgain holds that masking one link cannot leave
+// another standing that reaches withheld ground. A wikilink inside an embed
+// keeps the judge's extractor from reading the embed; masking the inner one
+// leaves an embed it does read, of a withheld note. No comment or rune is in the
+// text, so the page reads it as it stands.
+func TestBodyReadsWhatItMaskedAgain(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	contract := testContractDeclaringPrivacy(t, root, "Private")
+	writeNote(t, root, "Private/Secret Plan.md", "---\ntype: note\n---\nthe plan\n")
+	const note = "Notes/Citing.md"
+	writeNote(t, root, note, "---\ntype: note\n---\nbody\n")
+	store, reader := newTestStore(t, root, contract)
+	gate, err := egress.Open(t.Context(), reader, judge.LinkTargets)
+	if err != nil {
+		t.Fatalf("egress.Open() error = %v", err)
+	}
+
+	for _, body := range []string{
+		"[[Secret Plan]] ![[Secret Plan#Go[[.]]000000000]]",
+		"![[Secret Plan#Go[[.]]]]",
+		"[[Secret Plan|a[[.]]b]]",
+	} {
+		got, _, err := gate.Body(note, body, store.Current())
+		if err != nil {
+			t.Fatalf("Body(%q) error = %v", body, err)
+		}
+		if strings.Contains(got, "Secret Plan") {
+			t.Errorf("Body(%q) = %q, which still links to the withheld note", body, got)
+		}
+	}
+}
+
 var (
 	pageAddress = regexp.MustCompile(`(?:href|src)="(/(?:notes|raw)/[^"]*)"`)
 	pageMissing = regexp.MustCompile(`There is no (file|note) called &#34;([^&]*(?:&[^#][^&]*)*)&#34; yet`)
