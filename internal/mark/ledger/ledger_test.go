@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
@@ -692,8 +693,14 @@ func TestRecordsAtOnceLoseNothing(t *testing.T) {
 	t.Parallel()
 	const writers, each = 4, 25
 	dir := vaultDir(t)
+	// Eight writers poll one lock while compactions run under it; on a slow
+	// runner one of them can wait past confdir.LockWait without anything being
+	// wrong. This test asks whether a line is lost, so it waits as long as that
+	// takes.
+	const crowded = time.Minute
 	shared, _ := open(t, dir)
 	shared.compactAt = 4 << 10
+	shared.lockWait = crowded
 	var wg sync.WaitGroup
 	errs := make(chan error, 2*writers*each)
 	var names []string
@@ -702,6 +709,7 @@ func TestRecordsAtOnceLoseNothing(t *testing.T) {
 		if w >= writers {
 			l, _ = open(t, dir)
 			l.compactAt = 4 << 10
+			l.lockWait = crowded
 		}
 		names = append(names, name)
 		wg.Go(func() {
