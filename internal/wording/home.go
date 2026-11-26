@@ -69,4 +69,5 @@ var (
 )
 
 // RecentlyChanged heads the desk's band of the notes that changed last on disk.
-var RecentlyChanged = both("最近改動", "Recently changed")
+// A note's change is 變更, the word the order "by latest change" uses too.
+var RecentlyChanged = both("最近變更", "Recently changed")

@@ -71,9 +71,11 @@ func (h *Handler) home(w http.ResponseWriter, r *http.Request) {
 		keptRow.Age, keptRow.AgeAt = pages.Ago(kept.At, now, lang), kept.At.Format(time.RFC3339)
 	}
 	open, openFault := h.openThoughtShelf(snap, authority.Governed(), lang, pages.OpenThoughtsHomeRows, pages.OpenNewest)
-	// An empty block is not drawn where nothing declared the shelf: no answer
-	// role, or no rules file, which reads the built-in one.
-	if (snap.NavigationRoles().AnswerType() == "" || !authority.Governed()) && len(open.Rows) == 0 && openFault == "" {
+	// An empty block is not drawn, whether or not the rules declare a thought
+	// type: on the desk the shelf has no sentence for having nothing, so what
+	// would stand is its heading over nothing. The marks page says it is empty.
+	// A mark file that cannot be read is not an empty shelf, and is said.
+	if len(open.Rows) == 0 && openFault == "" {
 		open = pages.Shelf{}
 	}
 	view := pages.HomeView{

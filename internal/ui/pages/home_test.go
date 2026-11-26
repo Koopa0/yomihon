@@ -391,8 +391,8 @@ func TestTheRecentBandListsWhatChangedLast(t *testing.T) {
 			if got := lines(shelf); !slices.Equal(got, tt.want) {
 				t.Errorf("NewRecentShelf() rows = %v, want %v", got, tt.want)
 			}
-			if len(tt.want) > 0 && shelf.Title != "最近改動" {
-				t.Errorf("NewRecentShelf() title = %q, want 最近改動", shelf.Title)
+			if len(tt.want) > 0 && shelf.Title != "最近變更" {
+				t.Errorf("NewRecentShelf() title = %q, want 最近變更", shelf.Title)
 			}
 			page := renderHome(t, &HomeView{Recent: shelf}, wording.ZhHant)
 			if drawn := strings.Contains(page, `data-home-block="recent"`); drawn != (len(tt.want) > 0) {

@@ -356,7 +356,9 @@ func TestApprovedWordsReadAsApprovedInBothLanguages(t *testing.T) {
 		{"minutes ago", MinutesAgoFmt, "%d 分鐘前", "%d min ago"},
 		{"hours ago", HoursAgoFmt, "%d 小時前", "%d h ago"},
 		{"yesterday", Yesterday, "昨天", "Yesterday"},
-		{"recently changed", RecentlyChanged, "最近改動", "Recently changed"},
+		// The owner first approved 最近改動, then chose 變更 so the band and the
+		// order by latest change say one word for one idea.
+		{"recently changed", RecentlyChanged, "最近變更", "Recently changed"},
 		{"template", Template, "範本", "Template"},
 		{"report", Report, "報告", "Report"},
 		{"paper and type", PrefGroupPaper, "紙面與字體", "Paper and type"},

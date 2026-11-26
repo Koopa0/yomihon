@@ -11,9 +11,12 @@
 // blue, then where the note sits and how long ago the bookmark was added in the
 // faint ink; under the name it says where the reader stopped, the heading's own
 // words in the ink and heavier than the words round them. The notes that changed
-// last run across the desk in a band of their own, two columns wide and one on
+// last run across the desk in a band of their own, headed 最近變更 — the word
+// the order by latest change uses — two columns wide and one on
 // a phone, each row its name, then its day and its folder in the faint ink, and
-// never the reader's blue: nothing in them is the reader's. The folders run
+// never the reader's blue: nothing in them is the reader's. A band with
+// nothing in it is not drawn: every band the desk draws holds a row or says
+// why it holds none. The folders run
 // across the desk as a strip three to a row, two on a phone. A folder's order is one segmented control in its
 // toolbar. A hit on the results page lies on the faint hit ground, set
 // heavier. Every line of these pages' own text is a whole pixel tall at every
@@ -50,7 +53,11 @@ const FOLDER_BY_DATE = '/folders/Notes?sort=recent';
 const SEARCH = '/search?q=alpha';
 
 const css = (rule, site) => ({ css: rule, site });
+const html = (needle, replacement, site) => ({ html: [needle, replacement], site });
 const MODES = {
+  // The marks band drawn as it once was for a vault that declares a thought
+  // type and holds nothing open: its heading over nothing.
+  'band-with-nothing-in-it': html('<div class="y-homegrid">', '<section class="y-homeblock y-modeblock" data-home-block="marks" aria-labelledby="home-marks-title"><header class="y-homeblock__head"><h2 id="home-marks-title"><a href="/marks">我的標記</a></h2></header></section><div class="y-homegrid">', 'empty'),
   // A band's head with a single rule under it, as the desk had before.
   'band-head-single-rule': css('.y-homeblock__head::after{border-bottom:0 !important}', 'thresholds'),
   // The folder's toolbar with no rule at all.
@@ -84,6 +91,8 @@ const MODES = {
   'stopped-at-unmarked': css('.y-continue__place{color:inherit !important;font-weight:inherit !important}', 'plate-words'),
   // A recently changed note's folder in the reader's blue.
   'recent-folder-in-reader-blue': css('.y-modeblock__where{color:var(--reader) !important}', 'recent'),
+  // The band headed in the word the owner retired for a note's change.
+  'recent-headed-retired-word': html('<h2 id="home-recent-title">最近變更</h2>', '<h2 id="home-recent-title">最近改動</h2>', 'recent'),
   // The band of recent changes in one column on a wide desk.
   'recent-in-one-column': css(".y-homeway--whole [data-home-block='recent'] .y-modeblock__rows{column-count:1 !important}", 'recent'),
   // The age and the folder fainter than text may be.
@@ -173,7 +182,17 @@ try {
     ]);
     const page = await context.newPage();
     try {
-      if (mode) {
+      if (mode?.html) {
+        await page.route((url) => url.pathname === DESK, async (route) => {
+          if (route.request().method() !== 'GET' || route.request().resourceType() !== 'document') return route.continue();
+          const response = await route.fetch();
+          const original = await response.text();
+          const changed = original.replaceAll(mode.html[0], mode.html[1]);
+          if (changed !== original) planted += 1;
+          return route.fulfill({ response, body: changed });
+        });
+      }
+      if (mode?.css) {
         await page.route('**/static/app.css{,?*}', async (route) => {
           const response = await route.fetch();
           const original = await response.text();
@@ -313,6 +332,7 @@ try {
         if (await count(page, rows, DESK) < 2) broken('the band lists fewer than the two notes changed for it');
         const got = await page.evaluate((selector) => ({
           linked: document.querySelectorAll("[data-home-block='recent'] h2 a").length,
+          heading: document.querySelector("[data-home-block='recent'] h2")?.textContent.trim(),
           rows: [...document.querySelectorAll(selector)].map((row) => {
             const when = row.querySelector('.ui-navitem__when');
             const where = row.querySelector('.y-modeblock__where');
@@ -325,6 +345,7 @@ try {
           reader: (() => { const probe = document.createElement('span'); probe.style.color = 'var(--reader)'; document.body.append(probe); const ink = getComputedStyle(probe).color; probe.remove(); return ink; })(),
         }), rows);
         if (got.linked !== 0) fire('recent', `the band's name links somewhere, but no page stands behind it`);
+        if (got.heading !== '最近變更') fire('recent', `the band is headed ${JSON.stringify(got.heading)}, want 最近變更, the word the order by latest change uses`);
         const hrefs = got.rows.map((row) => row.href);
         if (hrefs[0] !== recentHrefs[0] || hrefs[1] !== recentHrefs[1]) fire('recent', `the band opens on ${JSON.stringify(hrefs.slice(0, 2))}, want ${JSON.stringify(recentHrefs)}, newest first`);
         for (const row of got.rows.slice(0, 2)) {
@@ -336,6 +357,24 @@ try {
       });
     }
     console.log('list-pages: the notes that changed last run newest first, two columns wide, with their day and folder in the faint ink');
+  }
+
+  // Every band the desk draws holds something: a row, or the sentence that
+  // says why it has none. A heading over nothing is an empty block.
+  if (runs('empty')) {
+    for (const width of [1512, 390]) {
+      await at({ path: DESK, width }, async (page) => {
+        const bands = await page.evaluate(() => [...document.querySelectorAll('.y-home [data-home-block]')].filter((band) => band.checkVisibility()).map((band) => ({
+          band: band.dataset.homeBlock,
+          holds: [...band.querySelectorAll('[data-desk-item], .y-nothing, [data-home-fault]')].some((item) => item.checkVisibility() && item.getBoundingClientRect().height > 0),
+        })));
+        if (bands.length < 3) broken(`only ${bands.length} bands were read on the desk`);
+        for (const { band, holds } of bands) {
+          if (!holds) fire('empty', `at ${width}px the ${band} band is drawn with nothing in it`);
+        }
+      });
+    }
+    console.log('list-pages: every band the desk draws holds a row or says why it has none');
   }
 
   // The folders as a strip: three to a row on a wide window, two on a phone.
@@ -430,7 +469,7 @@ try {
     console.log('list-pages: none of the three pages scrolls sideways at 390px');
   }
 
-  if (mode && planted === 0) throw new NotApplied(`the stylesheet was never requested, so ${MUTATE} reached no page`);
+  if (mode && planted === 0) throw new NotApplied(`nothing the mutation rewrites was requested, so ${MUTATE} reached no page`);
   if (MUTATE) failure = new Error(`no catch: ${MUTATE} left every lock standing`);
   else console.log('PASS list-pages');
 } catch (err) {
