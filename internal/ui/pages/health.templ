@@ -253,7 +253,7 @@ templ healthGroupSection(v HealthView, group healthGroup, c layouts.Chrome) {
 						</td>
 						<td class="y-findings__severity" data-col={ wording.HealthColumnSeverity.In(c.Lang) }>
 							if row.Weighed {
-								@healthSeverityBadge(row.Severity)
+								@healthSeverityBadge(row.Severity, row.Kind == healthBlocked)
 							}
 						</td>
 						<td class="y-findings__count" data-col={ wording.HealthColumnCount.In(c.Lang) }>{ strconv.Itoa(row.Count) }</td>
@@ -303,9 +303,11 @@ templ healthCoverage(v HealthView, c layouts.Chrome) {
 // face's own word. It is marked English because that vocabulary never
 // localises, and it is one component rather than two copies of the same
 // three classes so the table's rows and the shape line above them are always
-// drawn from the same mark.
-templ healthSeverityBadge(s judge.Severity) {
-	<span class={ "y-severity", "y-severity--" + s.String() } lang="en">{ s.String() }</span>
+// drawn from the same mark. A file the folder cannot read is marked as such,
+// because that one fault takes the crimson; the shape line counts weights
+// across kinds and so never marks one.
+templ healthSeverityBadge(s judge.Severity, unreadable bool) {
+	<span class={ "y-severity", "y-severity--" + s.String(), templ.KV("y-severity--unreadable", unreadable) } lang="en">{ s.String() }</span>
 }
 
 // healthShapeLine states the complete findings total, each weight the judge
@@ -319,7 +321,7 @@ templ healthShapeLine(shape healthShape, lang wording.Lang) {
 			for _, weight := range shape.Weights {
 				<span aria-hidden="true">·</span>
 				<a class="y-healthshape__weight" href={ templ.URL(HealthBySeverity.href()) }>
-					@healthSeverityBadge(weight.Severity)
+					@healthSeverityBadge(weight.Severity, false)
 					{ strconv.Itoa(weight.Count) }
 				</a>
 			}

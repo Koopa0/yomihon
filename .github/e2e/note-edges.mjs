@@ -4,8 +4,8 @@
 //
 // What the page says about the file stands in the head, under the title and
 // above the double rule that parts the head from the text: one sentence each,
-// in the interface's small face, led by a hollow triangle in the diagnostics'
-// ochre. It is never boxed, tinted or red, it needs no script, and a field the
+// in the interface's small face, led by a hollow triangle in the ink. It is
+// never boxed, tinted, ochre or red, it needs no script, and a field the
 // rules list the values of folds that list under its sentence, closed. Every
 // line is a whole pixel at every text size, since these lines stand above any
 // place a reader keeps, and every word reads at 4.5:1 or more in light and
@@ -15,7 +15,8 @@
 // template is never called a draft, because the draft it writes belongs to the
 // notes made from it. An address that names nothing, and a file that could not
 // be read, are the same column with the same title in the page's ink; the
-// fault's one sign is its word above the title in the ochre, with no box.
+// fault's one sign is its word above the title in the crimson the design keeps
+// for a file that cannot be read, with no box.
 //
 // Env: YOMIHON_BASE, PAGE_PATH (a note whose type the rules do not know) and
 // MUTATE (MUTATE=list prints the modes).
@@ -36,10 +37,12 @@ const doc = (path, needle, replacement, site) => ({ doc: { path, needle, replace
 const MODES = {
   // The notes moved out of the head, under the double rule.
   'notes-below-the-rule': doc(PAGE, '<div class="y-headnotes"', '</header><div class="y-headnotes"', 'head'),
-  // A note boxed on the warning's ground.
-  'note-boxed': css('.y-headnote{background:var(--warn-bg) !important;padding:8px !important}', 'quiet'),
+  // A note boxed on a tinted ground.
+  'note-boxed': css('.y-headnote{background:var(--panel) !important;padding:8px !important}', 'quiet'),
   // The triangle in the colour kept for writes that failed.
   'triangle-red': css('.y-headnote > .y-icon{color:var(--crimson) !important}', 'quiet'),
+  // The triangle in the ochre a question keeps.
+  'triangle-ochre': css('.y-headnote > .y-icon{color:var(--ochre) !important}', 'quiet'),
   // A note set in the reading face.
   'note-in-the-reading-face': css('.y-headnotes{font-family:var(--font-serif) !important}', 'quiet'),
   // The list of values drawn open.
@@ -56,10 +59,12 @@ const MODES = {
   'kind-dropped': css('.y-notewhere__kind{display:none !important}', 'kind'),
   // A template called a draft.
   'template-called-draft': doc(TEMPLATE, '<p class="y-notewhere" lang="zh-Hant">', '<p class="y-notewhere" lang="zh-Hant"><span class="y-notewhere__draft" data-note-draft>草稿</span>', 'kind'),
-  // A file that could not be read boxed on the warning's ground again.
-  'fault-boxed': css('.y-recovery > .y-nothing--fault[data-nothing="notfound"]{background:var(--warn-bg) !important;padding:24px !important}', 'error'),
+  // A file that could not be read boxed on a tinted ground again.
+  'fault-boxed': css('.y-recovery > .y-nothing--fault[data-nothing="notfound"]{background:var(--panel) !important;padding:24px !important}', 'error'),
   // Its title in the ochre.
-  'fault-title-ochre': css('.y-recovery > .y-nothing--fault[data-nothing="notfound"] .y-nothing__title{color:var(--warn) !important}', 'error'),
+  'fault-title-ochre': css('.y-recovery > .y-nothing--fault[data-nothing="notfound"] .y-nothing__title{color:var(--ochre) !important}', 'error'),
+  // Its word in the ink, as if it were any other fault.
+  'unreadable-word-in-ink': css('.y-nothing--unreadable .y-nothing__mark{color:var(--fg) !important}', 'error'),
 };
 
 if (MUTATE === 'list') {
@@ -96,7 +101,7 @@ const contrast = (a, b) => {
 // The fault page is the address that names nothing with the fault's class, which
 // is how the server draws a file it could not read; the fixture holds no such
 // file, so the probe asks the stylesheet about the same markup.
-const asFault = (body) => body.replace('class="y-nothing" data-nothing="notfound"', 'class="y-nothing y-nothing--fault" data-nothing="notfound"');
+const asFault = (body) => body.replace('class="y-nothing" data-nothing="notfound"', 'class="y-nothing y-nothing--fault y-nothing--unreadable" data-nothing="notfound"');
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 let failure = null;
@@ -192,11 +197,11 @@ try {
   }
 
   // Quiet: no box, no tint, no rule of their own, the interface's face, and the
-  // triangle in the diagnostics' ochre.
+  // triangle in the ink.
   if (runs('quiet')) {
     for (const theme of ['light', 'dark']) {
       await at({ theme }, async (page) => {
-        const warn = await resolve(page, 'var(--warn)');
+        const ink = await resolve(page, 'var(--fg)');
         const sans = await page.evaluate(() => {
           const probe = document.createElement('span');
           probe.style.fontFamily = 'var(--font-sans)';
@@ -221,11 +226,11 @@ try {
           if (part.ground !== 'rgba(0, 0, 0, 0)') fire('quiet', `in ${theme} ${part.what} stands on ${part.ground}, want no ground`);
           if (part.borders.slice(0, 4).some((width) => width !== '0px') || part.borders[4] !== 'none') fire('quiet', `in ${theme} ${part.what} draws an edge: ${part.borders}`);
           if (part.face !== sans) fire('quiet', `in ${theme} ${part.what} is set in ${part.face}, want the interface's ${sans}`);
-          if (part.what === 'y-headnote' && (part.triangle?.name !== 'warning' || part.triangle.colour !== warn)) fire('quiet', `in ${theme} a note is led by ${JSON.stringify(part.triangle)}, want the warning triangle in ${warn}`);
+          if (part.what === 'y-headnote' && (part.triangle?.name !== 'warning' || part.triangle.colour !== ink)) fire('quiet', `in ${theme} a note is led by ${JSON.stringify(part.triangle)}, want the warning triangle in the ink ${ink}`);
         }
       });
     }
-    console.log('note-edges: no box, tint or edge; the interface face; the triangle in the ochre');
+    console.log('note-edges: no box, tint or edge; the interface face; the triangle in the ink');
   }
 
   // The list of values is folded closed under its sentence, and opens on a press.
@@ -336,14 +341,14 @@ try {
   }
 
   // An address that names nothing and a file that could not be read: one
-  // column, no ground, the title in the page's ink, and the fault's word in the
-  // ochre, which reads at 4.5:1.
+  // column, no ground, the title in the page's ink, and the word of a file that
+  // cannot be read in the crimson, which reads at 4.5:1.
   if (runs('error')) {
     for (const theme of ['light', 'dark']) {
       for (const fault of [false, true]) {
         await at({ path: MISSING, theme, status: 404, fault }, async (page) => {
           const fg = await resolve(page, 'var(--fg)');
-          const warn = await resolve(page, 'var(--warn)');
+          const crimson = await resolve(page, 'var(--crimson)');
           const got = await page.evaluate(() => {
             const notice = document.querySelector('.y-recovery > .y-nothing');
             const style = getComputedStyle(notice);
@@ -362,14 +367,14 @@ try {
           if (got.ground !== 'rgba(0, 0, 0, 0)' || got.padding !== '0px') fire('error', `in ${theme} the ${fault ? 'fault' : 'absence'} stands on ${got.ground} with ${got.padding} of padding, want neither`);
           if (Math.abs(got.left - got.next) > 0.5) fire('error', `in ${theme} the notice starts at ${got.left} and the address under it at ${got.next}, want one left edge`);
           if (got.title !== fg) fire('error', `in ${theme} the ${fault ? 'fault' : 'absence'}'s title is ${got.title}, want the page's ink ${fg}`);
-          if (fault && got.mark !== warn) fire('error', `in ${theme} the fault's word is ${got.mark}, want the ochre ${warn}`);
+          if (fault && got.mark !== crimson) fire('error', `in ${theme} the unreadable file's word is ${got.mark}, want the crimson ${crimson}`);
           const parse = (value) => value.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
           const ratio = contrast(parse(got.mark), parse(got.body));
           if (ratio < 4.5) fire('error', `in ${theme} the word above the title reads at ${ratio.toFixed(2)}:1, want 4.5:1 or more`);
         });
       }
     }
-    console.log('note-edges: an absence and a fault share one column with no ground; the fault says so in the ochre');
+    console.log('note-edges: an absence and a fault share one column with no ground; a file that cannot be read says so in the crimson');
   }
 
   if (mode && (requests < 1 || planted !== requests)) throw new NotApplied(`NOT-APPLIED note-edges: the mutation reached ${planted} of ${requests} requests`);

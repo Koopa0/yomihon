@@ -21,7 +21,9 @@ import (
 //
 // The expected word is written out rather than taken from the vocabulary's own
 // constant: it is what a reader sees, and comparing the page against the same
-// symbol the page is drawn from would hold whatever that symbol became.
+// symbol the page is drawn from would hold whatever that symbol became. The
+// row is marked as a file that cannot be read, the one finding the crimson is
+// kept for, while the shape line, which counts weights across kinds, is not.
 func TestTheFileNothingCouldReadIsWeighed(t *testing.T) {
 	t.Parallel()
 	view := HealthView{Blocked: sealedVaultBlocked(t)}
@@ -38,8 +40,11 @@ func TestTheFileNothingCouldReadIsWeighed(t *testing.T) {
 			if len(cells) != 1 {
 				t.Fatalf("the page draws %d weight cells, want the one row the sealed reading produced", len(cells))
 			}
-			if !strings.Contains(cells[0][1], `<span class="y-severity y-severity--error" lang="en">error</span>`) {
-				t.Errorf("the unreadable file's weight cell holds %q, want the judging face's error badge", cells[0][1])
+			if !strings.Contains(cells[0][1], `<span class="y-severity y-severity--error y-severity--unreadable" lang="en">error</span>`) {
+				t.Errorf("the unreadable file's weight cell holds %q, want the judging face's error badge marked as a file that cannot be read", cells[0][1])
+			}
+			if got := strings.Count(page, "y-severity--unreadable"); got != 1 {
+				t.Errorf("the page marks %d weights as a file that cannot be read, want the one row and not the shape line", got)
 			}
 
 			shapeMatch := healthShapeLineRe.FindStringSubmatch(page)

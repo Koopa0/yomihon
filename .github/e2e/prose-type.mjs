@@ -45,7 +45,9 @@ const MODES = {
   // A link whose line hugs the words.
   'link-line-tight': css('.y-prose a{text-underline-offset:0.1em !important}', 'links'),
   // A broken link drawn with a border under it rather than the link's line.
-  'broken-link-border': css('.y-prose .wikilink-broken{text-decoration:none !important;border-bottom:1px dashed var(--warn) !important}', 'links'),
+  'broken-link-border': css('.y-prose .wikilink-broken{text-decoration:none !important;border-bottom:1px dashed var(--fg-muted) !important}', 'links'),
+  // A broken link's line in the ochre a question keeps.
+  'broken-link-ochre': css('.y-prose .wikilink-broken{text-decoration-color:var(--ochre) !important}', 'links'),
   // A quotation on a 2px rule.
   'heavy-quote-rule': css('.y-prose blockquote{box-shadow:inset 2px 0 0 var(--line-strong) !important}', 'rules'),
   // A callout without the hairline inside its rule.
@@ -197,7 +199,8 @@ try {
   // A link's line, and a link at fault keeping that line.
   if (runs('links')) {
     await at({}, async (page) => {
-      const warn = await resolve(page, '.y-prose', 'var(--warn)');
+      // A link at fault is told by its line's pattern, in the secondary ink.
+      const warn = await resolve(page, '.y-prose', 'var(--fg-muted)');
       const read = (a) => {
         const style = getComputedStyle(a);
         return { line: style.textDecorationLine, pattern: style.textDecorationStyle, colour: style.textDecorationColor, offset: Number.parseFloat(style.textUnderlineOffset) / Number.parseFloat(style.fontSize), border: Number.parseFloat(style.borderBottomWidth) > 0 && style.borderBottomStyle !== 'none' ? style.borderBottomStyle : 'none' };

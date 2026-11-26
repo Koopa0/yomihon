@@ -131,10 +131,10 @@
   --outline: light-dark(#827d73, #8c877c);
   --outline-variant: var(--line);
 
-  /* ---- Honest diagnostics: a muted ochre a step yellower than a question's,
-     never an angry red (金繼ぎ) ---- */
-  --warn: light-dark(#7a5a0e, #e0c27a);
-  --warn-bg: light-dark(#f1e7cc, #332c1b);
+  /* ---- Diagnostics have no colour of their own. A warning, two machines
+     that differ, a source that changed, a note no longer in the vault: each is
+     the ink, told apart by a shape or a word, because ochre is a question
+     still open and nothing else. ---- */
   /* A finding that blocks the folder is a file that cannot be read, so it
      takes the crimson. */
   --error: var(--crimson);

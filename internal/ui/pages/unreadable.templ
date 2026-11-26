@@ -23,7 +23,7 @@ templ VaultUnreadable(v VaultUnreadableView, c layouts.Chrome) {
 		<div class="y-shell2">
 			<main id="_y-main" tabindex="-1" class="y-main">
 				<article class="y-recovery" lang={ c.Lang.Tag() } aria-labelledby="unreadable-title">
-					@nothingToShow(nothingNotice{Kind: "unreadable", Mark: wording.NotReadableKicker.In(c.Lang), Title: v.VaultName, TitleID: "unreadable-title", Page: true, Fault: true}) {
+					@nothingToShow(nothingNotice{Kind: "unreadable", Mark: wording.NotReadableKicker.In(c.Lang), Title: v.VaultName, TitleID: "unreadable-title", Page: true, Fault: true, Unreadable: true}) {
 						<div class="y-facts">
 							<dl class="y-notefacts">
 								<div>

@@ -169,7 +169,7 @@ func VaultUnreadable(v VaultUnreadableView, c layouts.Chrome) templ.Component {
 				}
 				return nil
 			})
-			templ_7745c5c3_Err = nothingToShow(nothingNotice{Kind: "unreadable", Mark: wording.NotReadableKicker.In(c.Lang), Title: v.VaultName, TitleID: "unreadable-title", Page: true, Fault: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = nothingToShow(nothingNotice{Kind: "unreadable", Mark: wording.NotReadableKicker.In(c.Lang), Title: v.VaultName, TitleID: "unreadable-title", Page: true, Fault: true, Unreadable: true}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var4), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

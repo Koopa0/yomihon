@@ -56,10 +56,14 @@ const MODES = {
   'title-in-sans': css('.y-steps__name{font-family:var(--font-sans) !important}', 'nav'),
   // A course's title pushed to the start.
   'course-title-at-start': css('.y-steps__source{text-align:start !important}', 'nav'),
-  // A finding boxed on the warning's ground.
-  'finding-boxed': css('.y-diag{background:var(--warn-bg) !important;border-radius:var(--r-lg) !important}', 'quiet'),
+  // A finding boxed on a tinted ground.
+  'finding-boxed': css('.y-diag{background:var(--panel) !important;border-radius:var(--r-lg) !important}', 'quiet'),
   // The count as a badge.
-  'count-as-badge': css('.y-related .y-diagcount{background:var(--warn-bg) !important;padding:0 4px !important}', 'quiet'),
+  'count-as-badge': css('.y-related .y-diagcount{background:var(--panel) !important;padding:0 4px !important}', 'quiet'),
+  // A finding's rule in the ochre a question keeps.
+  'finding-rule-ochre': css('.y-diag{box-shadow:inset 1.5px 0 0 var(--ochre) !important}', 'quiet'),
+  // A finding's kind in the ochre a question keeps.
+  'finding-kind-ochre': css('.y-diag__label{color:var(--ochre) !important}', 'quiet'),
   // A finding without its rule.
   'finding-unruled': css('.y-diag{box-shadow:none !important}', 'quiet'),
   // A label fainter than text may be.
@@ -284,12 +288,16 @@ try {
     console.log('note-end: the way on is previous left and next right, a small word over a reading-face title, for a folder and a course; the course and its branch centred');
   }
 
-  // What the check found: each on a thin ochre rule, nothing boxed, the count
-  // a figure and not a badge.
+  // What the check found: each on a thin rule in the secondary ink, its kind
+  // and the count in the full ink, nothing boxed and no colour, the count a
+  // figure and not a badge. Ochre is a question still open and nothing else.
   if (runs('quiet')) {
     await at({}, async (page) => {
-      const warn = await resolve(page, 'var(--warn)');
+      const secondary = await resolve(page, 'var(--fg-muted)');
+      const ink = await resolve(page, 'var(--fg)');
       const got = await page.evaluate(() => ({
+        kinds: [...document.querySelectorAll('.y-related .y-diag__label')].map((label) => getComputedStyle(label).color),
+        countInk: getComputedStyle(document.querySelector('.y-related .y-diagcount')).color,
         findings: [...document.querySelectorAll('.y-related .y-diag')].map((finding) => {
           const style = getComputedStyle(finding);
           return { ground: style.backgroundColor, radius: style.borderTopLeftRadius, rule: style.boxShadow, border: style.borderTopWidth };
@@ -300,11 +308,12 @@ try {
       for (const finding of got.findings) {
         const rule = finding.rule.match(/^(.*\))\s+([\d.]+)px\s+0px\s+0px\s+0px\s+inset$/);
         if (finding.ground !== 'rgba(0, 0, 0, 0)' || finding.radius !== '0px' || finding.border !== '0px') fire('quiet', `a finding is drawn as a box: ${JSON.stringify(finding)}`);
-        if (!rule || rule[1] !== warn || Number(rule[2]) !== 1.5) fire('quiet', `a finding hangs on ${finding.rule}, want a 1.5px rule in ${warn}`);
+        if (!rule || rule[1] !== secondary || Number(rule[2]) !== 1.5) fire('quiet', `a finding hangs on ${finding.rule}, want a 1.5px rule in ${secondary}`);
       }
       if (got.count !== 'rgba(0, 0, 0, 0)') fire('quiet', `the findings' count sits on ${got.count}, want no ground`);
+      if (got.kinds.length < 1 || got.kinds.some((kind) => kind !== ink) || got.countInk !== ink) fire('quiet', `a finding's kind or the count is drawn in ${JSON.stringify([...got.kinds, got.countInk])}, want the ink ${ink}`);
     });
-    console.log('note-end: each finding hangs on a 1.5px ochre rule, unboxed, and the count is a bare figure');
+    console.log('note-end: each finding hangs on a 1.5px rule in the secondary ink, unboxed, its kind and the bare count in the ink');
   }
 
   // Every word at the end reads at 4.5:1 or more, in light and in dark.

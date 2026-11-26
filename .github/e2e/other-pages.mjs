@@ -16,6 +16,11 @@
 // 4.5:1 or more on its ground in light and in dark, and none of them scrolls
 // sideways on a phone.
 //
+// Colour keeps the roles the design gives it: a finding is the ink, told
+// apart by a shape and a word, and ochre is never a diagnostic's; a file the
+// folder cannot read is the one finding drawn in the crimson. A fault notice
+// on a mode's page is the ink on a line down its start.
+//
 // The marks it leaves open are its own, made on the disposable fixture and
 // taken off again before it ends.
 //
@@ -53,8 +58,14 @@ const MODES = {
   'weeks-unruled': css('.y-month tbody tr + tr{border-top:0 !important}', 'boxes'),
   // A finding's weight as a box round its word.
   'weight-boxed': css('.y-severity--warn{background:var(--panel) !important;border:1px solid var(--outline) !important}', 'boxes'),
-  // An error drawn in the alarm's red.
-  'error-in-red': css('.y-severity--error{color:var(--crimson) !important}', 'boxes'),
+  // Every error drawn in the crimson a file that cannot be read keeps.
+  'error-in-red': css('.y-severity--error{color:var(--crimson) !important}', 'roles'),
+  // A diagnostic painted in the ochre a question keeps.
+  'error-in-ochre': css('.y-severity--error{color:var(--ochre) !important}', 'roles'),
+  // A file that cannot be read drawn in the ink, as any other error.
+  'unreadable-in-ink': css('.y-severity--unreadable{color:var(--fg) !important}', 'roles'),
+  // A standing notice's line in the ochre.
+  'notice-in-ochre': css('.y-nothing--fault{border-inline-start-color:var(--ochre) !important}', 'roles'),
   // The shelf's order as loose words.
   'order-without-segments': css('.y-order button{border:0 !important}', 'segments'),
   // The control that levels the columns as loose words.
@@ -123,12 +134,6 @@ const readInk = (selector) => {
     return [r, g, b, a / 255];
   };
   const over = (top, under) => [0, 1, 2].map((i) => top[i] * top[3] + under[i] * (1 - top[3]));
-  // The crimson as this theme resolves it, read off an element that wears it.
-  const swatch = document.createElement('span');
-  swatch.style.color = 'var(--crimson)';
-  document.body.append(swatch);
-  const crimson = rgba(getComputedStyle(swatch).color);
-  swatch.remove();
   return [...document.querySelectorAll(selector)].filter((element) => element.getClientRects().length > 0).map((element) => {
     const layers = [];
     for (let node = element; node; node = node.parentElement) {
@@ -139,7 +144,7 @@ const readInk = (selector) => {
     let ground = [255, 255, 255];
     for (const layer of layers.reverse()) ground = over(layer, ground);
     const ink = rgba(getComputedStyle(element).color);
-    return { what: `${element.tagName.toLowerCase()}.${element.className}`, ink: over(ink, ground), ground, crimson };
+    return { what: `${element.tagName.toLowerCase()}.${element.className}`, ink: over(ink, ground), ground };
   });
 };
 
@@ -151,7 +156,7 @@ try {
   console.log(`other-pages: Chrome ${browser.version()}`);
   const mode = MUTATE ? MODES[MUTATE] : null;
   let planted = 0;
-  const at = async ({ path, width = 1512, theme = 'light', size = '', script = true }, fn) => {
+  const at = async ({ path, width = 1512, theme = 'light', size = '', script = true, rewrite = null }, fn) => {
     const context = await browser.newContext({ viewport: { width, height: 900 }, deviceScaleFactor: 2, colorScheme: theme, reducedMotion: 'reduce', javaScriptEnabled: script });
     await context.addCookies([
       { name: 'yomihon_rail', value: 'collapsed', url: BASE },
@@ -166,6 +171,15 @@ try {
           const original = await response.text();
           planted += 1;
           return route.fulfill({ response, body: `${original}\n${mode.css}\n` });
+        });
+      }
+      if (rewrite) {
+        await page.route(BASE + path, async (route) => {
+          const response = await route.fetch();
+          const original = await response.text();
+          const changed = original.replace(...rewrite);
+          if (changed === original) broken(`${path} holds no ${rewrite[0]} to rewrite`);
+          return route.fulfill({ response, body: changed });
         });
       }
       const response = await page.goto(BASE + path, { waitUntil: 'load' });
@@ -250,11 +264,6 @@ try {
       for (const weight of weights) {
         if (weight.ground !== 'rgba(0, 0, 0, 0)' || weight.edge > 0) fire('boxes', `a finding's weight is drawn as a box: ${JSON.stringify(weight)}`);
       }
-      const inks = await page.evaluate(readInk, '.y-severity--error');
-      if (inks.length < 1) broken(`${HEALTH} shows no error to read the ink of`);
-      for (const { ink, crimson } of inks) {
-        if (ink.every((value, i) => Math.abs(value - crimson[i]) < 2)) fire('boxes', 'an error is drawn in the crimson that is kept for a failed write');
-      }
     });
     await at({ path: COMPARE }, async (page) => {
       await count(page, '.y-compare__head', COMPARE);
@@ -262,6 +271,48 @@ try {
       if (heads.some((line) => line > 0)) fire('boxes', `a column's head is ruled off from its note: ${JSON.stringify(heads)}`);
     });
     console.log('other-pages: nothing on the pages is boxed, and an error is not red');
+  }
+
+  // Colour keeps its roles. The fixture's folder has no file it cannot read, so
+  // the first error's mark is rewritten into one, as the template marks a row
+  // of that kind, and the crimson is read off it; every other weight is read
+  // as the ink. The fixture's mode pages raise no fault either, so a fault
+  // notice is planted after the courses page's head the same way.
+  if (runs('roles')) {
+    const tokens = (page) => page.evaluate(() => {
+      const swatch = document.createElement('span');
+      document.body.append(swatch);
+      const read = (value) => {
+        swatch.style.color = value;
+        return getComputedStyle(swatch).color;
+      };
+      const out = { fg: read('var(--fg)'), muted: read('var(--fg-muted)'), faint: read('var(--fg-faint)'), crimson: read('var(--crimson)'), ochre: read('var(--ochre)') };
+      swatch.remove();
+      return out;
+    });
+    for (const theme of ['light', 'dark']) {
+      await at({ path: `${HEALTH}?page=all`, theme, rewrite: [/(<td class="y-findings__severity"[^>]*><span class="y-severity y-severity--error)"/, '$1 y-severity--unreadable"'] }, async (page) => {
+        const ink = await tokens(page);
+        const marks = await page.locator('.y-findings .y-severity').evaluateAll((all) => all.map((mark) => ({ what: mark.className, colour: getComputedStyle(mark).color })));
+        const unreadable = marks.filter((mark) => mark.what.includes('y-severity--unreadable'));
+        if (unreadable.length !== 1) broken(`the rewrite marked ${unreadable.length} rows as a file that cannot be read, want 1`);
+        if (unreadable[0].colour !== ink.crimson) fire('roles', `in ${theme} a file that cannot be read is drawn in ${unreadable[0].colour}, want the crimson ${ink.crimson}`);
+        const want = { 'y-severity--error': ink.fg, 'y-severity--warn': ink.muted, 'y-severity--info': ink.faint };
+        for (const mark of marks.filter((m) => !m.what.includes('y-severity--unreadable'))) {
+          const weight = Object.keys(want).find((name) => mark.what.includes(name));
+          if (mark.colour === ink.ochre || mark.colour === ink.crimson || (weight && mark.colour !== want[weight])) fire('roles', `in ${theme} a finding's weight ${mark.what} is drawn in ${mark.colour}, want the ink ${weight ? want[weight] : ''}`);
+        }
+      });
+      await at({ path: COURSES, theme, rewrite: ['</a></div></header>', '</a></div></header><div class="y-nothing y-nothing--fault" data-nothing="probe"><p class="y-nothing__mark">!</p><div class="y-nothing__says"><p>!</p></div></div>'] }, async (page) => {
+        const ink = await tokens(page);
+        const notice = await page.locator('.y-nothing--fault').evaluate((element) => {
+          const s = getComputedStyle(element);
+          return { line: s.borderInlineStartColor, width: s.borderInlineStartWidth, ground: s.backgroundColor, mark: getComputedStyle(element.querySelector('.y-nothing__mark')).color };
+        });
+        if (notice.ground !== 'rgba(0, 0, 0, 0)' || notice.line !== ink.muted || notice.mark !== ink.fg) fire('roles', `in ${theme} a fault notice is drawn ${JSON.stringify(notice)}, want the ink on a line down its start and no ground`);
+      });
+    }
+    console.log('other-pages: a finding is the ink and a file that cannot be read the crimson; a fault notice is the ink');
   }
 
   // The order of a shelf and the control that levels two columns are segments.
