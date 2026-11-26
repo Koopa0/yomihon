@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
 
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/ledger"
 	"github.com/koopa0/yomihon/internal/vault"
 )
 
@@ -26,16 +28,24 @@ var ErrOwnPath = errors.New("that path is this vault's own")
 var ErrOtherVault = errors.New("what is kept for that path records another folder")
 
 // Adopt brings the marks, the bookmarks and the finished notes the reader kept
-// for the vault at old, the path it had before it moved, into this vault's own.
-// A vault's marks directory is named from its path, so a vault that moved is a
-// vault with no marks until they are brought across.
+// for the vault at old, the path it had before it moved, into this vault's own,
+// and the ledger of what this machine wrote there. A vault's marks directory is
+// named from its path, so a vault that moved is a vault with no marks until
+// they are brought across.
 //
 // admit is asked, for each note a thing names, whether this vault holds that
 // note and lets it be read. What it refuses stays where it was. That is the
 // whole of what is left behind: a mark on a note this vault has not got has
 // nowhere to be drawn, and a mark on ground this vault withholds must not
 // reach an output through a list that was never asked about it. A nil admit
-// refuses everything.
+// refuses every mark, bookmark and finished note.
+//
+// The ledger is not a list and admit is not asked of it: it is this machine's
+// record of what it wrote into the vault's own files of marks, which moved
+// with the vault, and it is carried whole, byte for byte, so that this machine
+// goes on under the machine id it wrote them under (ledger.Carry). It is
+// carried only into a vault that has no ledger of its own; one that has keeps
+// it, and the earlier ledger stays where it was.
 //
 // The old directory is only read, never changed, so the same call can be made
 // again and brings across only what was not. Where this vault already has a
@@ -71,8 +81,20 @@ func (s *Store) Adopt(old string, admit func(relPath string) bool) error {
 		if len(marks) > MaxMarks || len(progress.bookmarks) > maxBookmarks || len(progress.finished) > maxFinished {
 			return fmt.Errorf("%w: what is kept for that path does not fit beside what is kept here", ErrInvalid)
 		}
-		return s.install(&adopted{marks: marks, marksChanged: marksChanged, progress: progress, progressChanged: progressChanged})
+		err = s.install(&adopted{marks: marks, marksChanged: marksChanged, progress: progress, progressChanged: progressChanged})
+		if err != nil {
+			return err
+		}
+		_, err = s.ledger().Carry(theirs.dir)
+		return err
 	})
+}
+
+// ledger is this vault's ledger. Nothing Adopt asks of it is said in a log: a
+// carry compacts nothing, and a temporary file a stopped compaction left that
+// it could not remove is said by the next process that records a line.
+func (s *Store) ledger() *ledger.Ledger {
+	return ledger.Open(s.dir, slog.New(slog.DiscardHandler))
 }
 
 // earlier is what was kept for the vault at old, or the reason there is none to
@@ -90,13 +112,21 @@ func (s *Store) earlier(old string) (kept, error) {
 	if err != nil {
 		return kept{}, err
 	}
-	theirs, found, err := (&Store{dir: oldDir, vaultRoot: old}).read()
+	earlierStore := &Store{dir: oldDir, vaultRoot: old}
+	theirs, found, err := earlierStore.read()
 	if err != nil {
 		return kept{}, err
 	}
-	if !found {
+	// A ledger is kept too: a vault whose marks are all in its machine files
+	// has nothing else for the earlier path. Reading it writes nothing.
+	lines, changed, err := earlierStore.ledger().Events()
+	if err != nil {
+		return kept{}, fmt.Errorf("%w: the ledger: %w", ErrUnreadable, err)
+	}
+	if !found && len(lines) == 0 && changed == 0 {
 		return kept{}, ErrNothingKept
 	}
+	theirs.dir = oldDir
 	return theirs, nil
 }
 
@@ -136,10 +166,12 @@ func (s *Store) install(a *adopted) error {
 	return nil
 }
 
-// kept is everything the reader has for one vault.
+// kept is everything the reader has for one vault, and the directory it is
+// kept in.
 type kept struct {
 	marks    []Mark
 	progress progress
+	dir      confdir.Dir
 }
 
 // read is what this store's directory holds, converted where it is in a file an
