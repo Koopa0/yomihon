@@ -71,6 +71,10 @@ const MODES = {
   // The buttons beside the sheet's heading drawn whatever the choice, or never.
   'sheet-buttons-always-drawn': css('.y-prefs__sheet .y-margin__act{opacity:1 !important}', 'section-buttons'),
   'sheet-buttons-never-drawn': css('.y-prefs__sheet .y-margin__act{opacity:0 !important}', 'section-buttons'),
+  // Every paper's chip on one ground, or a ground written out instead of read
+  // from the paper.
+  'chips-on-one-ground': css('.y-papersample{background:var(--panel) !important}', 'chips'),
+  'chip-ground-written-out': css(".y-papersample[data-paper='washi']{background:#fff !important}", 'chips'),
   // The caption gone, or fainter than text may be.
   'caption-gone': css('.y-prefs__caption{display:none !important}', 'caption'),
   'caption-too-faint': css('.y-prefs__caption{color:var(--fg-ornament) !important}', 'caption'),
@@ -311,6 +315,32 @@ try {
       if (await shown(page)) fire('paper-row', 'with no script and the night lamp stored the paper row stands; want it gone');
     });
     console.log('preference-sheet: the paper row goes under the night lamp and the dark system, and stands by day, with or without a script');
+  }
+
+  // Each paper's name carries a chip of that paper: its ground is the ground
+  // the page takes when that paper is kept, whichever paper the page is on now.
+  if (runs('chips')) {
+    const papers = ['stone', 'washi', 'white'];
+    const chips = (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll("[data-pref-field='paper'] .y-papersample")].map((chip) => [chip.dataset.paper, { ground: getComputedStyle(chip).backgroundColor, width: chip.getBoundingClientRect().width, label: chip.parentElement.textContent.trim() }])));
+    const grounds = {};
+    for (const paper of papers) {
+      await at({ stored: { paper } }, async (page) => {
+        grounds[paper] = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+        const got = await chips(page);
+        if (Object.keys(got).length !== papers.length) broken(`the paper row holds chips for ${Object.keys(got)}, want ${papers}`);
+        grounds[`chip-${paper}`] = got;
+      });
+    }
+    if (new Set(papers.map((p) => grounds[p])).size !== papers.length) broken(`the three papers are not three grounds: ${JSON.stringify(papers.map((p) => grounds[p]))}`);
+    for (const paper of papers) {
+      for (const on of papers) {
+        const chip = grounds[`chip-${on}`][paper];
+        if (chip.ground !== grounds[paper]) fire('chips', `on the ${on} paper the ${paper} chip is ${chip.ground}, want the ${paper} paper's ground ${grounds[paper]}`);
+        if (chip.width < 10 || chip.width > 16) fire('chips', `the ${paper} chip is ${chip.width}px wide, want a small chip`);
+        if (!chip.label) fire('chips', `the ${paper} chip stands beside no name`);
+      }
+    }
+    console.log('preference-sheet: each paper\'s name carries a chip of that paper, read from the paper and the same on any paper');
   }
 
   // The buttons beside the heading, as a note on the same window draws them.

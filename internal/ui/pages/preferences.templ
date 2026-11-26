@@ -216,7 +216,13 @@ templ preferenceField(f PreferenceField) {
 						if f.Note != "" {
 							aria-describedby={ "pref-note-" + f.Name }
 						}
-					/><span>{ option.Label }</span>
+					/>
+					<span>
+						if f.Name == "paper" {
+							<span class="y-papersample" data-paper={ option.Value } aria-hidden="true"></span>
+						}
+						{ option.Label }
+					</span>
 				</label>
 			}
 		</div>

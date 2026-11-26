@@ -52,6 +52,46 @@ func TestDeskFolderBlockSkipsFoldersWithoutNotes(t *testing.T) {
 	}
 }
 
+// The strip has room for three folders, so which three matters: the biggest,
+// whatever order the vault holds them in. The full page keeps the vault's order
+// and every folder.
+func TestDeskFolderBlockLeadsWithTheBiggestFolders(t *testing.T) {
+	t.Parallel()
+	root, _ := buildVault(t)
+	// Writing is the last folder in the vault's order and now holds the most.
+	for _, name := range []string{"a", "b", "c", "d"} {
+		path := filepath.Join(root, "Writing", name+".md")
+		if err := os.WriteFile(path, []byte("body\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	model := modelOf(t, root)
+	for _, lang := range []wording.Lang{wording.ZhHant, wording.En} {
+		page := NewFolderIndex(model, ContractGoverning, lang, nil)
+		var inOrder []string
+		for _, row := range page.Shelf.Rows {
+			if row.Href != "" && row.Mark != "" {
+				inOrder = append(inOrder, row.Text)
+			}
+		}
+		if len(inOrder) < 4 || inOrder[0] == "Writing" {
+			t.Fatalf("the full page lists %v in %s, want every folder in the vault's order, Writing not first", inOrder, lang)
+		}
+		for _, block := range NewDeskBlocks(model, schema.NavigationRoles{}, ContractGoverning, lang, nil) {
+			if block.Mode != folderMode {
+				continue
+			}
+			var names []string
+			for _, row := range shelfRows(&block.Shelf, deskBlockItems) {
+				names = append(names, row.Text)
+			}
+			if len(names) != deskBlockItems || names[0] != "Writing" {
+				t.Errorf("caught: the desk strip in %s lists %v, want the biggest folder, Writing, first", lang, names)
+			}
+		}
+	}
+}
+
 func TestFolderCountLeavesOutATermThatIsZero(t *testing.T) {
 	t.Parallel()
 

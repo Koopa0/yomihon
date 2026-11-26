@@ -608,7 +608,7 @@ func listGroup(g ListGroup) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var31 = []any{"y-lgroup", templ.KV("y-lgroup--headed", g.Heading != "")}
+			var templ_7745c5c3_Var31 = []any{"y-lgroup", templ.KV("y-lgroup--headed", g.Heading != ""), templ.KV("y-lgroup--split", g.Split)}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_ElementWriter, templ_7745c5c3_Var31...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err

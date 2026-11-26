@@ -83,6 +83,7 @@ const SITES = [
   'crossing-the-width-leaves-nothing-stale',
   'wide-fold-sets-no-inertness',
   'restore-does-not-animate',
+  'crossing-does-not-fade-the-column',
   'restore-moves-focus-out',
   'off-shortcuts-do-not-advertise-the-key',
 ];
@@ -356,6 +357,12 @@ const MUTATIONS = {
   'animate-the-restore': {
     target: 'restore-does-not-animate',
     apply: rewriteAsset('**/preferences.js{,?*}', "    root.dataset.railSettling = '';\n", ''),
+  },
+  // The width crossing left to animate: a folded column fading out where it
+  // now stands.
+  'animate-the-crossing': {
+    target: 'crossing-does-not-fade-the-column',
+    apply: rewriteAsset('**/drawer.js{,?*}', "      if (animation instanceof CSSTransition) animation.finish();\n", ''),
   },
   // The restore forgetting to move focus out of a column it hides.
   'restore-strands-focus': {
@@ -1038,6 +1045,43 @@ try {
     }
     if (ran.length > 0) fail('restore-does-not-animate', `a restore ran transitions ${JSON.stringify(ran)}`);
     await context.close();
+  });
+
+  // A window that grows past the width turns the drawer into the folded panel
+  // beside the text. That is the window's doing and no press of the reader's, so
+  // the column is simply gone: it never fades from a drawer's full opacity,
+  // which a reader would see as a ghost of it over the page.
+  await run('crossing-does-not-fade-the-column', async () => {
+    for (const from of [1100, 390]) {
+      const { page, context, checkProof } = await open('crossing-does-not-fade-the-column', PAGE, { width: from, collapsed: true });
+      await checkProof();
+      await page.waitForSelector('html.is-ready', { state: 'attached' });
+      await settled(page);
+      // What a reader could see once the window has crossed the width: the
+      // column's opacity read just after the crossing is announced and over the
+      // fade's length. A read before it would only be the probe asking the
+      // browser for a style it has not yet written for the new window. The probe
+      // listens to the same query the drawer does and registers first, so it
+      // reads after the script's own answer by way of the timers.
+      await page.evaluate(() => {
+        window.__ghost = [];
+        window.matchMedia('(max-width: 1320px)').addEventListener('change', () => {
+          const column = document.querySelector('#_y-nav-rail');
+          const look = () => window.__ghost.push(Number(getComputedStyle(column).opacity));
+          setTimeout(look, 0);
+          for (const wait of [30, 60, 90, 120, 150, 200]) setTimeout(look, wait);
+        });
+      });
+      await page.setViewportSize({ width: WIDE, height: 800 });
+      await page.waitForFunction(() => !window.matchMedia('(max-width: 1320px)').matches);
+      await page.waitForTimeout(300);
+      const seen = await page.evaluate(() => window.__ghost.slice());
+      if (seen.length < 5) broken(`the crossing was heard ${seen.length} times, want the column read over the fade`);
+      if (Math.max(...seen) > 0.01) {
+        fail('crossing-does-not-fade-the-column', `growing from ${from}px to ${WIDE}px the folded column was seen at opacity ${JSON.stringify(seen.map((v) => Math.round(v * 100) / 100))}, want it gone at once`);
+      }
+      await context.close();
+    }
   });
 
   await run('restore-moves-focus-out', async () => {

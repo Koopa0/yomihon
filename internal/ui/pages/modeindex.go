@@ -1,6 +1,7 @@
 package pages
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strconv"
@@ -446,6 +447,13 @@ func NewDeskBlocks(model *nav.Model, roles schema.NavigationRoles, contract Cont
 			readableFolders = append(readableFolders, folder)
 		}
 	}
+	// The strip has room for three, and the vault's own order says nothing
+	// about which three a reader wants: the biggest folders are where most of
+	// the notes are, as the Atelier's strip lists them. The full index keeps
+	// the vault's order and every folder.
+	slices.SortStableFunc(readableFolders, func(a, b nav.Folder) int {
+		return cmp.Compare(countNotes(b.Notes, b.Subfolders), countNotes(a.Notes, a.Subfolders))
+	})
 	folderIndex.Shelf.Rows = folderRows(model.RootNotes(), readableFolders, lang, true, articleLang)
 	folderBlock := deskBlock(&folderIndex)
 	// A plain folder already has a way to read. Put it before the modes whose

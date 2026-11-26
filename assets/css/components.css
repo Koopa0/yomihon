@@ -714,16 +714,18 @@ samp {
 }
 
 /* The mark's page shape is nearly the dark header's own ink, so in the dark
-   theme the mark sits on a paper tile. The artwork's own margin is the tile's
-   inset. */
+   theme the mark sits on a tile. The tile is the header's ink and no
+   brighter: the Atelier draws the mark in the ink, and a paper-white tile
+   would be the brightest thing on a dark page. The artwork's own margin is
+   the tile's inset. */
 :root[data-theme='dark'] .y-brand__mark {
-  background: #F5F1E6;
+  background: var(--fg);
   border-radius: var(--r-sm);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) .y-brand__mark {
-    background: #F5F1E6;
+    background: var(--fg);
     border-radius: var(--r-sm);
   }
 }
@@ -898,13 +900,17 @@ samp {
    the one that is a switch says so by its pressed state (the selected ground).
    They stand at the end of the row under the title, where the head's quiet
    controls are kept, so the title and the text below it are what the eye
-   meets first. Both depend on script, which is what they act through. */
+   meets first. The head carries no line of facts for them to share the row
+   with (a note's facts wait at its end), so the row is the tools alone, one
+   title-margin under the title as the frontispiece sets its meta row, and the
+   head's closing rule follows at its usual distance. Both depend on script,
+   which is what they act through. */
 .y-notetools {
   display: flex;
   flex-wrap: wrap;
   gap: var(--sp-2);
   justify-content: flex-end;
-  margin-block-start: 20px;
+  margin-block-start: 14px;
 }
 
 html:not([data-js]) .y-toolbtn {
@@ -939,8 +945,17 @@ html:not([data-js]) .y-toolbtn {
   font-weight: var(--fw-semibold);
 }
 
+/* On a phone the press is 44px tall and the row is not: the button's hit area
+   overflows the row by 8px above and below instead of growing it, so a head
+   with only tools is no taller than the same head on a desk. Where the tools
+   wrap, the rows stand a hit area apart. */
 @media (max-width: 720px) {
+  .y-notetools {
+    row-gap: var(--sp-4);
+  }
+
   .y-toolbtn {
+    margin-block: -8px;
     min-height: 44px;
   }
 }
@@ -1547,7 +1562,9 @@ html[data-js][data-arrival='kept'] .y-main {
   font-family: var(--font-serif);
   font-size: var(--fs-ed-36);
   font-weight: var(--fw-medium);
-  line-height: 1.2222;
+  /* Whole pixels at every text size: a title sits above the reading place, and
+     a fractional line moves everything under it onto fractional offsets. */
+  line-height: round(1.2222em, 1px);
   margin: var(--sp-3) 0 0;
   overflow-wrap: anywhere;
   scroll-margin-top: var(--header-clearance);
@@ -1563,7 +1580,7 @@ html[data-js][data-arrival='kept'] .y-main {
 .y-title:lang(ja),
 .y-title:lang(ko),
 .y-title:lang(zh) {
-  line-height: 1.4;
+  line-height: round(1.4em, 1px);
 }
 
 .y-metarow {
@@ -8602,6 +8619,21 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   outline-offset: -2px;
 }
 
+/* A small chip of each paper beside its name. It is scoped by the paper's own
+   name (tokens.css), so --bg resolves to that paper's ground on it and no
+   colour is written here; the chip is always the daytime paper, whichever
+   paper or theme the page is in. */
+.y-papersample {
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 2px;
+  display: inline-block;
+  height: var(--sp-3);
+  margin-inline-end: var(--sp-2);
+  vertical-align: -1px;
+  width: var(--sp-3);
+}
+
 /* The sizes and the faces say themselves: each size is named a step larger
    than the one before, and each face is named in that face. The steps are the
    interface's own, so the names hold still while the reading they choose
@@ -10012,6 +10044,7 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
    reach and its own padding brings the words back. */
 .y-lrow {
   align-items: baseline;
+  break-inside: avoid-column;
   color: var(--fg);
   display: flex;
   margin-inline: calc(-1 * var(--sp-3));
@@ -10094,6 +10127,19 @@ html[data-rail-settling][data-rail] .y-rail-left:not([data-drawer-only]) {
   .y-listbody--wide {
     column-count: 2;
     column-gap: var(--sp-7);
+  }
+
+  /* One long run of rows is two balanced columns of its own, so the groups
+     after it stand below it at the full width instead of beside it. Its
+     heading spans both columns and can never be left at a column's foot. */
+  .y-lgroup--split {
+    column-count: 2;
+    column-gap: var(--sp-7);
+  }
+
+  .y-lgroup--split > .y-lgroup__head,
+  .y-lgroup--split > .y-lgroup__link {
+    column-span: all;
   }
 }
 

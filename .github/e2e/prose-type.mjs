@@ -36,6 +36,12 @@ const CALLOUT_WORDS_PX = 16;
 
 const css = (rule, site) => ({ css: rule, site });
 const MODES = {
+  // The head's tools a title's margin and more under the title.
+  'tools-far-below-title': css('.y-notetools{margin-block-start:44px !important}', 'head'),
+  // A title on a line that is not a whole pixel, in Chinese, in a note's head.
+  'fractional-title-line': css(".y-title:lang(zh), .y-frontis .y-title{line-height:1.4 !important}", 'head-lines'),
+  // On a phone the tools' hit area grows the head instead of overflowing it.
+  'tools-hit-area-grows-head': css('@media (max-width:720px){.y-toolbtn{margin-block:0 !important}}', 'head'),
   // A section's heading back at the size it was before.
   'section-heading-24': css(".y-prose [data-level='2']{font-size:var(--fs-ed-24) !important}", 'headings'),
   // A section's heading on a line of 1.42 that is not rounded.
@@ -157,6 +163,63 @@ try {
     if (found < 1) broken(`${PAGE} holds no ${selector}`);
     return page.locator(selector).first().evaluate(read);
   };
+
+  // The head's tools sit right-aligned on a row of their own, tight under the
+  // title: a title's margin under it, the head's closing rule 30px under them,
+  // and no taller on a phone, where only the press is 44px.
+  if (runs('head')) {
+    for (const width of [1280, 390]) {
+      await at({ width }, async (page) => {
+        const got = await page.evaluate(() => {
+          const box = (element) => { const r = element?.getBoundingClientRect(); return r && { top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height }; };
+          const head = document.querySelector('.y-frontis');
+          return { head: box(head), title: box(head?.querySelector('.y-title')), tools: box(head?.querySelector('.y-notetools')), button: box(head?.querySelector('[data-ruby-toggle]')) };
+        });
+        if (!got.head || !got.title || !got.tools || !got.button) broken(`${PAGE} has no head with a title and tools`);
+        const gap = got.tools.top - got.title.bottom;
+        if (gap < 13 || gap > 15) fire('head', `at ${width}px the tools stand ${gap}px under the title, want 14`);
+        const under = got.head.bottom - got.tools.bottom;
+        if (under < 29 || under > 31) fire('head', `at ${width}px the head's rule stands ${under}px under the tools, want 30`);
+        if (got.tools.height > 30) fire('head', `at ${width}px the tools' row is ${got.tools.height}px tall, want the button's own 27 or 28`);
+        if (Math.abs(got.button.right - got.title.right) > 1) fire('head', `at ${width}px the tools end ${got.title.right - got.button.right}px short of the text's right edge`);
+        if (width < 720 && got.button.height < 44) fire('head', `at ${width}px the button is ${got.button.height}px tall, want a press of 44`);
+      });
+    }
+    console.log('prose-type: the head\'s tools stand right-aligned and tight under the title, at the same height on a phone');
+  }
+
+  // A title is a whole pixel tall a line, whatever its script and at every text
+  // size: it stands above the reading place, and a fraction left over moves
+  // everything below it onto fractional offsets. The note's own title is read,
+  // and so is one of each script the rule names, set in the page the way a
+  // note nested in another would carry it.
+  if (runs('head-lines')) {
+    for (const size of ['', 'l', 'xl']) {
+      await at({ size }, async (page) => {
+        const lines = await page.evaluate(() => {
+          const read = (title) => ({ lang: title.lang || document.documentElement.lang, line: getComputedStyle(title).lineHeight, size: getComputedStyle(title).fontSize });
+          const own = [...document.querySelectorAll('.y-frontis .y-title')].map(read);
+          const made = ['zh-Hant', 'ja', 'ko', 'en'].map((lang) => {
+            const title = document.createElement('h2');
+            title.className = 'y-title';
+            title.lang = lang;
+            title.textContent = 'x';
+            document.querySelector('.y-article').prepend(title);
+            const got = read(title);
+            title.remove();
+            return got;
+          });
+          return [...own, ...made];
+        });
+        if (lines.length < 5) broken(`only ${lines.length} titles were read`);
+        for (const { lang, line, size: fontSize } of lines) {
+          const px = Number.parseFloat(line);
+          if (!line.endsWith('px') || Math.abs(px - Math.round(px)) > 0.001) fire('head-lines', `at text size ${size || 'm'} a ${lang} title of ${fontSize} is set on a ${line} line, want a whole pixel`);
+        }
+      });
+    }
+    console.log('prose-type: a title in each script is a whole pixel a line at all three text sizes');
+  }
 
   // The section's heading: 22 at the base size, on a whole-pixel line.
   if (runs('headings')) {

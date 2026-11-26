@@ -7,9 +7,10 @@
 //
 // A tab and a README under a dark colour scheme are grounds no stylesheet
 // reaches, so the favicon is a second file: the same mark on a rounded tile of
-// the paper colour the header already uses. That file is held to the same
-// standard by rendering: the tile fills the frame and is rounded, the mark
-// stays legible on it, and its colour is the header's paper, not a new one.
+// paper. That file is held to the same standard by rendering: the tile fills
+// the frame and is rounded, and the mark stays legible on it. The header's own
+// dark-theme tile is the header's ink and no brighter, so the mark is never the
+// brightest thing on a dark page.
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './support/base.mjs';
@@ -36,7 +37,7 @@ const SITES = [
   'tile-is-rounded',
   'tile-mark-render',
   'mark-on-tile',
-  'tile-is-header-paper',
+  'tile-no-brighter-than-ink',
 ];
 
 class LockFired extends Error {
@@ -202,8 +203,14 @@ const MUTATIONS = {
   'dim-tile': rewriteTileFill('tile', '#6B7075', 'mark-on-tile'),
   // The tile painted after the mark covers it.
   'tile-over-the-mark': rewriteServedSVG(TILE_PATH, moveTileOverMark, 'the on-paper tile path', 'mark-on-tile'),
-  // A tile that is a different white from the header's paper.
-  'recolour-tile': rewriteTileFill('tile', '#FFFFFF', 'tile-is-header-paper'),
+  // The header's dark tile back to the paper white, brighter than the ink.
+  'paper-white-header-tile': {
+    target: 'tile-no-brighter-than-ink',
+    after: async (page) => {
+      if (await page.locator('.y-brand__mark').count() !== 1) notApplied('the header mark is not unique');
+      await page.addStyleTag({ content: ':root[data-theme="dark"] .y-brand__mark { background: #F5F1E6 !important; }' });
+    },
+  },
   'expose-decorative-mark': {
     target: 'decorative-mark',
     after: async (page) => {
@@ -745,7 +752,7 @@ try {
     { name: 'system dark', theme: null, scheme: 'dark', light: false },
   ];
   const grounds = {};
-  let headerPaper = null;
+  const darkTiles = [];
   for (const { name, theme, scheme, light } of themes) {
     await page.emulateMedia({ colorScheme: scheme });
     await page.evaluate((selected) => {
@@ -788,7 +795,19 @@ try {
     }
     const pageInk = [0x28, 0x2a, 0x2d];
     const ribbonInk = [0x53, 0x6d, 0x85];
-    if (name === 'dark') headerPaper = mark.ground;
+    if (!light) {
+      // The tile is seen against the header's own ink, the wordmark's colour.
+      const ink = await page.locator('.y-brand__word').evaluate((word) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const context = canvas.getContext('2d', { willReadFrequently: true });
+        context.fillStyle = getComputedStyle(word).color;
+        context.fillRect(0, 0, 1, 1);
+        return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+      });
+      darkTiles.push({ name, ground: mark.ground, ink });
+    }
     grounds[name] = {
       page: Math.round(contrast(pageInk, mark.ground) * 100) / 100,
       ribbon: Math.round(contrast(ribbonInk, mark.ground) * 100) / 100,
@@ -802,10 +821,13 @@ try {
   }
   console.log(`brand-contract channel: ${analysis.channel}px at 256px; grounds: ${JSON.stringify(grounds)}`);
   console.log(`brand-contract tile: footprints ${JSON.stringify(tile.areas)}; ground rgb(${tile.ground}); on tile ${JSON.stringify(onTile)}`);
-  // One paper in the product: the favicon's tile is the colour the stylesheet
-  // gives the header mark in the dark theme, not a second near-white.
-  if (!headerPaper || headerPaper.some((value, channel) => Math.abs(value - tile.ground[channel]) > 1)) {
-    fail('tile-is-header-paper', `the tile renders rgb(${tile.ground}), the header mark's dark-theme tile is rgb(${headerPaper}), want the same paper`);
+  // The header's tile in the dark is no brighter than the ink the header is
+  // written in: a tile of paper white is the brightest object on a dark page.
+  if (darkTiles.length < 3) broken(`only ${darkTiles.length} dark-theme tiles were read, want 3`);
+  for (const { name, ground, ink } of darkTiles) {
+    if (luminance(ground) > luminance(ink) * 1.05 + 0.01) {
+      fail('tile-no-brighter-than-ink', `in the ${name} theme the header mark's tile is rgb(${ground}), brighter than the header's ink rgb(${ink})`);
+    }
   }
   await page.emulateMedia({ colorScheme: 'light' });
 
@@ -851,7 +873,7 @@ try {
     fail('header-fit', `360px header geometry = ${JSON.stringify(fit)}`);
   }
 
-  console.log(`PASS brand-contract: one canonical mark keeps its page whole and its ribbon clear of the page, with an accessible projection, a legible ground in every theme, and a 360px fit; the same mark on the header's paper tile fills the favicon frame and keeps its contrast`);
+  console.log(`PASS brand-contract: one canonical mark keeps its page whole and its ribbon clear of the page, with an accessible projection, a legible ground in every theme, and a 360px fit; the same mark on a paper tile fills the favicon frame and keeps its contrast`);
 } catch (error) {
   if (error instanceof NotApplied) {
     console.error(error.message);
