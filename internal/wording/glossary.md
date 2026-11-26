@@ -74,6 +74,20 @@ The command line speaks English only. These are the words `yomihon marks` writes
 | `create_time` | When the location was marked, in RFC 3339 and in UTC. | |
 | `create_date` | The date a thought's `created` field declares. Thoughts sort among the marks by it, newest first, and a thought with none sorts after every dated item. | |
 
+## The words of `marks --export`
+
+The command line speaks English only, and `marks --export` writes Markdown, not JSON. Its headings and the line under the title are the words a page says when it copies a group of marks, so they are kept in `internal/wording` in both languages; the rest are the command's own.
+
+| Words | Means | In code |
+| --- | --- | --- |
+| `# Marks` | The title. The export has no other header: no vault name, no path, no time. | `exportTitle` |
+| `Links are relative to the vault's root folder.` | The one line under the title. | `wording.ExportLede` |
+| `## Open questions`, `## Thoughts`, `## Highlights`, `## Resolved questions` | The four groups, in this order. A group with nothing in it is left out. | `wording.ExportOpenQuestions`, `ExportThoughts`, `ExportHighlights`, `ExportResolvedQuestions` |
+| `No marks.` | All an export of a vault with no marks says after the line under the title. | `exportNone` |
+| `— [Title](path), Section` | The source line of every mark, which `note.Cite` writes: a link relative to the vault's root, and after it the section, left out before the first heading. | `note.Cite`, `wording.CiteSectionSep` |
+| `Other version:`, `Other versions:` | What stands above the values of a mark that do not count: the other side of a conflict and what this computer set aside. Each is `- {time}: {state}. {words}` or `- {time}: deleted.`, with the time in UTC. It does not say which computer wrote a value. | `exportOtherOne`, `exportOtherMany` |
+| `Some marks could not be read; this export may be incomplete.` | One line on stderr, with no count. | `exportIncomplete` |
+
 ## Retired words
 
 Each line below is `retired => replacement`, for the bilingual strings in `internal/wording`. A word is retired together with its plural and `'s`; a word that is ordinary English elsewhere, such as the verb *judge* in a sentence, is not retired there. Nothing reads these blocks mechanically: a reviewer checks new screen text against them.

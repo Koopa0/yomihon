@@ -45,7 +45,7 @@ To turn your notes into a course, follow [Make a course](docs/authoring.md). It 
 - **Find.** Search works in English, Chinese and Japanese. A note's sections stand in the sidebar, and the notes that cite it close the text. A map lists the notes under one subject.
 - **Reports.** Markdown reports written directly in `System/reports/` are listed newest first by the day in their `created` field, or the date their file name begins with, each by its title. They are tied together by the links they carry.
 - **Check.** The Health page lists wikilinks that point at nothing and notes no other note links to. `yomihon check` lists broken links and frontmatter problems in a terminal.
-- **Pick up your marks.** `yomihon marks` lists your questions and your thoughts that still declare `draft: true`, newest first, so an agent can read them. Nothing under a directory your rules file withholds is listed.
+- **Pick up your marks.** `yomihon marks` lists your questions and your thoughts that still declare `draft: true`, newest first, so an agent can read them. Nothing under a directory your rules file withholds is listed. `yomihon marks --export` prints your highlights, thoughts and questions with the words you wrote, as Markdown to hand to another program; without it your words are never printed.
 
 The interface is available in English and Traditional Chinese. A note keeps the language it was written in.
 

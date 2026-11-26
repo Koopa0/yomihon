@@ -231,7 +231,19 @@ func (l Loss) String() string {
 // place set the shelf and the mark route accept. A card's words are given in
 // lang where the card has no pattern of its own to show.
 func LocateMark(snap *snapshot.Generation, rel, anchor string, lang wording.Lang) MarkedLocation {
+	return MarkLocator(snap, lang)(rel, anchor)
+}
+
+// MarkLocator is LocateMark for a list of marks: each note is read and rendered
+// once however many marks it holds, so the answers are the same and the cost
+// is not paid once for each mark. The function it returns is not safe to call
+// from more than one goroutine.
+func MarkLocator(snap *snapshot.Generation, lang wording.Lang) func(rel, anchor string) MarkedLocation {
 	places := newPlaceResolver(snap)
+	return func(rel, anchor string) MarkedLocation { return locateMark(snap, places, rel, anchor, lang) }
+}
+
+func locateMark(snap *snapshot.Generation, places *placeResolver, rel, anchor string, lang wording.Lang) MarkedLocation {
 	n := places.note(rel)
 	if !n.readable {
 		return MarkedLocation{Lost: LostNote}
