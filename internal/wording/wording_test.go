@@ -308,6 +308,7 @@ func TestTraditionalChineseUsesFullWidthPunctuation(t *testing.T) {
 		"NoDeclaredTypeEmptyFmt":         "quotes the YAML type: 值 line a reader would write",
 		"NoDeclaredTypesEmptyFmt":        "quotes the YAML type: 值 line a reader would write",
 		"PrefSampleAddress":              "the address the example lesson quotes, set as code",
+		"MarksReasonLimit":               "the limit is written with a thousands separator, as the number is everywhere it is shown",
 	}
 	halfWidth := regexp.MustCompile(`[,;():]`)
 	for _, p := range writtenPhrases(t) {

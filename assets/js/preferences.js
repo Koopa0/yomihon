@@ -220,6 +220,9 @@ export function initPreferences() {
       setPreference('position', value);
       if (value === 'off') forgetPositions();
     },
+    marks(value) {
+      setPreference('marks', value);
+    },
     shortcuts: writeShortcuts,
   };
 
@@ -359,6 +362,7 @@ export function initPreferences() {
     // Only the literal "off" is off, as for the furigana. A page revived from the
     // cache may have been left while the setting was on, and what the browser
     // kept is emptied the way a page drawn with it off empties it.
+    root.dataset.marks = readCookie('yomihon_marks') === 'hide' ? 'hide' : 'show';
     root.dataset.position = readCookie('yomihon_position') === 'off' ? 'off' : 'on';
     if (root.dataset.position === 'off') forgetPositions();
     // The column is put in its stored state at once. The fold answers a

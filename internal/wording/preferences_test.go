@@ -181,10 +181,10 @@ func TestThePositionRowSaysWhereThePlaceIsKept(t *testing.T) {
 		}
 	}
 	// The cookie list names the row by the same words as its heading.
-	if got, want := PrefStorageCookies.In(ZhHant), "、"+PrefPosition.In(ZhHant); !strings.HasSuffix(got, want) {
+	if got, want := PrefStorageCookies.In(ZhHant), "、"+PrefMarks.In(ZhHant); !strings.HasSuffix(got, want) {
 		t.Errorf("the Chinese cookie list reads %q, want it to end with %q", got, want)
 	}
-	if got, want := PrefStorageCookies.In(En), ", "+strings.ToLower(PrefPosition.In(En)[:1])+PrefPosition.In(En)[1:]; !strings.HasSuffix(got, want) {
+	if got, want := PrefStorageCookies.In(En), ", "+strings.ToLower(PrefMarks.In(En)[:1])+PrefMarks.In(En)[1:]; !strings.HasSuffix(got, want) {
 		t.Errorf("the English cookie list reads %q, want it to end with %q", got, want)
 	}
 }

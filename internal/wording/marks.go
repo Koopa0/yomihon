@@ -111,7 +111,7 @@ var (
 	MarksChanged      = both("原文已變動", "The passage has changed")
 	// MarksOfThePassageFmt wraps the first words of a passage that a question
 	// with no words of its own stands for.
-	MarksOfThePassageFmt = both("「%s」", "“%s”")
+	MarksOfThePassageFmt = both("「%s」", "\"%s\"")
 	// The accessible names, which begin with the state. The argument is the
 	// first words of the thought, the question or the passage.
 	MarksNameHighlightFmt = both("劃線：%s", "Highlight: %s")
@@ -134,7 +134,3 @@ var (
 	KeysNeighbour = both("上一則／下一則留下的", "Previous / next mark")
 	KeysShowMarks = both("顯示或隱藏文中留下的", "Show or hide marks in the text")
 )
-
-// MarksShownName is what the stored choice of showing marks is called where the
-// browser's own storage is accounted for.
-var MarksShownName = both("文中留下的", "marks in the text")
