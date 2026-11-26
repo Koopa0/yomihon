@@ -2,11 +2,14 @@
 //
 // Below the width that has room for a margin, and in a page that runs no script,
 // a note stands after the paragraph it is about, where the server drew it. Where
-// the margin is there, the notes are taken out of the text and set down in it,
-// each as near the passage it belongs to as the ones above it allow: in the
-// order of the text, only ever pushed down, never over one another or over the
-// controls beside a heading. The same elements move, so a field that has focus,
-// and what is typed in it, goes with its place.
+// the margin is there, each note is set down in it, as near the passage it
+// belongs to as the ones above it allow: in the order of the text, only ever
+// pushed down, never over one another or over the controls beside a heading.
+//
+// A note never leaves its place in the text. It is set in the margin by its
+// position and nothing else, so the keyboard meets it where the words are: after
+// the mark it is about, before whatever comes next, as in a page without script.
+// A field that has focus, and what is typed in it, is not touched by the move.
 //
 // The layout is worked out when the page is drawn and again when its size
 // changes, not when it scrolls: a note is fixed to the document, so scrolling
@@ -20,23 +23,22 @@ const GAP = 8;
 const OBSTACLE_PAD = 4;
 
 const NOTES = '.y-mnote, .y-mfield';
+const SET = '[data-lifted]';
 
 export function initMarksLayout(prose) {
   const root = document.documentElement;
+  // The layer holds nothing. It is where the margin is: the page's own stylesheet
+  // shows it only where there is room, and the notes are set to its box.
   const layer = document.createElement('div');
   layer.className = 'y-mlayer';
   layer.dataset.markSkip = '';
   prose.append(layer);
-  // Items taken out of the text, with the place they left in it.
-  const lifted = new Map();
   let composing = false;
   let queued = 0;
-  // True while items are being moved, so that the focus the move takes away for
-  // a moment is not read as the reader leaving.
-  let moving = false;
 
-  // A note that has the keyboard shows all its words and its actions, so what
-  // stands below it is moved again; one that loses it is short again.
+  // A note that has the keyboard shows all its words and its actions, and a field
+  // grows as it is written in, so what stands below is moved again; one that
+  // loses the keyboard is short again.
   prose.addEventListener('focusin', () => schedule());
   prose.addEventListener('focusout', () => schedule());
   prose.addEventListener('compositionstart', () => { composing = true; });
@@ -44,50 +46,22 @@ export function initMarksLayout(prose) {
     composing = false;
     schedule();
   });
+  const grown = new ResizeObserver(() => schedule());
 
-  // The page's own stylesheet says whether there is room: the layer is shown only
-  // where the margin is.
+  // The page's own stylesheet says whether there is room.
   const capable = () => getComputedStyle(layer).display !== 'none';
 
   function lift(item) {
-    if (lifted.has(item)) return;
-    const place = document.createComment('mnote');
-    item.replaceWith(place);
-    lifted.set(item, place);
-    layer.append(item);
+    item.dataset.lifted = '';
+    grown.observe(item);
   }
 
   function drop(item) {
-    const place = lifted.get(item);
-    if (!place) return;
-    lifted.delete(item);
-    if (place.parentNode) place.replaceWith(item);
-    else item.remove();
-    item.style.removeProperty('top');
-    item.style.removeProperty('--shift');
+    grown.unobserve(item);
+    delete item.dataset.lifted;
     delete item.dataset.displaced;
+    for (const property of ['top', 'left', 'width', '--shift']) item.style.removeProperty(property);
   }
-
-  // keepFocus moves nodes and puts back the focus, and the text selected in a
-  // field, that the move took away.
-  function keepFocus(move) {
-    const active = document.activeElement;
-    const inside = active && active !== document.body && prose.contains(active) && active.matches?.(`${NOTES}, ${NOTES} *, .y-mark`) ? active : null;
-    const field = inside?.matches?.('textarea') ? { from: inside.selectionStart, to: inside.selectionEnd, dir: inside.selectionDirection } : null;
-    moving = true;
-    try {
-      move();
-    } finally {
-      moving = false;
-    }
-    if (inside && document.activeElement !== inside && inside.isConnected) {
-      inside.focus({ preventScroll: true });
-      if (field) inside.setSelectionRange(field.from, field.to, field.dir);
-    }
-  }
-
-  // placeOf is the node an item left behind, or the item itself where it stands.
-  const placeOf = (item) => lifted.get(item) ?? item;
 
   // targetOf is where the words an item is about are, measured down from the top
   // of the text.
@@ -100,8 +74,8 @@ export function initMarksLayout(prose) {
     }
     // A mark of a whole section, or of words that are no longer there, stands at
     // what comes before it in the text.
-    let before = placeOf(item).previousSibling;
-    while (before && (before.nodeType !== Node.ELEMENT_NODE || before.matches(NOTES))) before = before.previousSibling;
+    let before = item.previousElementSibling;
+    while (before?.matches(NOTES)) before = before.previousElementSibling;
     if (!before) return 0;
     const rect = before.getBoundingClientRect();
     return (before.matches('.y-sect') ? rect.top : rect.bottom) - top;
@@ -116,9 +90,21 @@ export function initMarksLayout(prose) {
       .sort((a, b) => a.top - b.top);
   }
 
+  // setBox puts an item at a height of the text and in the column of the margin.
+  // The box it is measured from is the nearest one the item is positioned in,
+  // which is the text itself unless something between has a position of its own.
+  function setBox(item, y, top, column) {
+    const from = item.offsetParent ?? prose;
+    const box = from.getBoundingClientRect();
+    item.style.top = `${Math.round(y + top - box.top - from.clientTop)}px`;
+    item.style.left = `${Math.round(column.left - box.left - from.clientLeft)}px`;
+    item.style.width = `${Math.round(column.width)}px`;
+  }
+
   function solve() {
     const top = prose.getBoundingClientRect().top;
-    const items = [...lifted.keys()];
+    const column = layer.getBoundingClientRect();
+    const items = [...prose.querySelectorAll(SET)].filter((item) => !item.hidden);
     const wants = new Map(items.map((item, index) => [item, { target: targetOf(item, top), index }]));
     items.sort((a, b) => wants.get(a).target - wants.get(b).target || wants.get(a).index - wants.get(b).index);
     const blocks = obstacles(top);
@@ -142,7 +128,7 @@ export function initMarksLayout(prose) {
         docked.push(item);
         continue;
       }
-      item.style.top = `${Math.round(y)}px`;
+      setBox(item, y, top, column);
       if (y - target > TICK_AFTER) {
         item.dataset.displaced = '';
         item.style.setProperty('--shift', `${Math.round(y - target)}px`);
@@ -158,33 +144,25 @@ export function initMarksLayout(prose) {
   function layout() {
     queued = 0;
     if (composing) return;
-    for (const [item, place] of lifted) {
-      if (!item.isConnected || !layer.contains(item)) {
-        place.remove();
-        lifted.delete(item);
+    if (!capable()) {
+      for (const item of prose.querySelectorAll(SET)) drop(item);
+      root.dataset.marksLifted = '';
+      return;
+    }
+    for (const item of prose.querySelectorAll(NOTES)) {
+      if (!item.hasAttribute('data-lifted') && !item.hasAttribute('data-docked')) lift(item);
+    }
+    // Putting a note that has been pushed too far back into the text moves the
+    // text, so the notes are laid out again against the words where they now are.
+    for (let pass = 0; pass < 3; pass++) {
+      const docked = solve();
+      if (docked.length === 0) break;
+      for (const item of docked) {
+        drop(item);
+        item.dataset.docked = '';
       }
     }
-    keepFocus(() => {
-      if (!capable()) {
-        for (const item of [...lifted.keys()]) drop(item);
-        root.dataset.marksLifted = '';
-        return;
-      }
-      for (const item of prose.querySelectorAll(NOTES)) {
-        if (!layer.contains(item) && !item.hasAttribute('data-docked')) lift(item);
-      }
-      // Putting a note that has been pushed too far back into the text moves the
-      // text, so the notes are laid out again against the words where they now are.
-      for (let pass = 0; pass < 3; pass++) {
-        const docked = solve();
-        if (docked.length === 0) break;
-        for (const item of docked) {
-          drop(item);
-          item.dataset.docked = '';
-        }
-      }
-      root.dataset.marksLifted = '';
-    });
+    root.dataset.marksLifted = '';
   }
 
   function schedule() {
@@ -210,19 +188,21 @@ export function initMarksLayout(prose) {
   addEventListener('resize', () => relayout({ retry: true }));
   document.fonts?.ready.then(() => relayout());
   layout();
+
   // swap puts a note where an older one of the same mark stood, in the margin or
   // in the text, so what replaces it needs no laying out again from nothing.
   function swap(old, next) {
-    const place = lifted.get(old);
-    if (place) {
-      lifted.delete(old);
-      lifted.set(next, place);
+    for (const name of ['data-lifted', 'data-docked', 'data-displaced']) {
+      if (old.hasAttribute(name)) next.setAttribute(name, '');
     }
+    next.style.cssText = old.style.cssText;
+    grown.unobserve(old);
+    if (next.hasAttribute('data-lifted')) grown.observe(next);
     old.replaceWith(next);
     schedule();
   }
 
-  return { relayout, capable, swap, moving: () => moving };
+  return { relayout, capable, swap };
 }
 
 // The mark and its note light each other: pointing at or focusing either marks

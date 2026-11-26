@@ -10848,6 +10848,7 @@ mark[data-mark] {
 
 :root:not([data-marks='hide']) .y-mark.is-lit:is([data-state='highlight'], [data-state='thought']) {
   background: var(--reader-wash-strong);
+  box-shadow: inset 0 -1.5px 0 var(--reader);
 }
 
 :root:not([data-marks='hide']) .y-mark.is-lit[data-state='question'] {
@@ -10873,7 +10874,7 @@ mark[data-mark] {
    text it stands after its paragraph; in the margin it stands level with the
    words it is about. */
 .y-mnote {
-  border-inline-start: 1.5px solid var(--reader-line);
+  border-inline-start: 1.5px solid var(--reader);
   color: var(--fg);
   font-family: var(--font-sans);
   font-size: var(--fs-13);
@@ -10884,7 +10885,7 @@ mark[data-mark] {
 }
 
 .y-mnote[data-kind='question']:not([data-state='resolved']) {
-  border-inline-start-color: var(--ochre-line);
+  border-inline-start-color: var(--ochre);
 }
 
 .y-mnote[data-state='resolved'] {
@@ -11012,23 +11013,23 @@ mark[data-mark] {
   padding-inline-start: calc(var(--sp-3) - 1.5px);
 }
 
-/* The layer the notes are set in beside the text. Nothing is drawn in it until
-   the window has room for a margin. */
+/* Where the margin is. Nothing is drawn in the layer: it is only the box the
+   notes are set to, shown only when the window has room for a margin. A note
+   stays in the text, after what it is about, and is set in the margin by its
+   position alone, so the keyboard meets it where its words are. */
 .y-mlayer {
   display: none;
 }
 
-.y-mlayer > :is(.y-mnote, .y-mfield) {
-  inset-inline: 0;
+.y-prose :is(.y-mnote, .y-mfield)[data-lifted] {
   margin: 0;
-  pointer-events: auto;
   position: absolute;
 }
 
 /* A note pushed down from its words says so with a short rule at the height of
    the words, drawn in the gutter beside it. */
-.y-mlayer > .y-mnote[data-displaced]::after {
-  background: var(--reader-line);
+.y-mnote[data-lifted][data-displaced]::after {
+  background: var(--reader);
   block-size: 2px;
   content: '';
   inline-size: 8px;
@@ -11037,12 +11038,16 @@ mark[data-mark] {
   position: absolute;
 }
 
-.y-mlayer > .y-mnote[data-kind='question']:not([data-state='resolved'])[data-displaced]::after {
-  background: var(--ochre-line);
+.y-mnote[data-lifted][data-kind='question']:not([data-state='resolved'])[data-displaced]::after {
+  background: var(--ochre);
 }
 
-.y-mlayer > .y-mnote.is-lit::before {
-  background: var(--reader-line);
+.y-mnote[data-lifted][data-state='resolved'][data-displaced]::after {
+  background: var(--line-strong);
+}
+
+.y-mnote[data-lifted].is-lit::before {
+  background: var(--reader);
   block-size: 1px;
   content: '';
   inline-size: 18px;
@@ -11051,17 +11056,23 @@ mark[data-mark] {
   position: absolute;
 }
 
+.y-mnote[data-lifted][data-kind='question']:not([data-state='resolved']).is-lit::before {
+  background: var(--ochre);
+}
+
+.y-mnote[data-lifted][data-state='resolved'].is-lit::before {
+  background: var(--line-strong);
+}
+
 /* Until the script has set the notes in the margin they are kept out of the
-   flow and out of sight, so the text does not move when it does. A page whose
-   script never comes keeps them: after a delay they stand where the server drew
-   them, after their paragraphs. The keyframes only flip position and
-   visibility, and a page without scripting was never hidden. */
+   flow and out of sight, so the text does not move when it does: where the
+   margin is, and only there. A page whose script never comes keeps them: after
+   a delay they stand where the server drew them, after their paragraphs. The
+   keyframes only flip position and visibility, and a page without scripting
+   was never hidden. */
 @media (min-width: 1321px) {
-  :root[data-js='on']:not([data-marks-lifted]) .y-main > .y-article .y-prose > :is(.y-mnote, .y-mfield),
-  :root[data-js='on']:not([data-marks-lifted]) .y-main > .y-article .y-prose :is(p, li, blockquote, div, details) > :is(.y-mnote, .y-mfield) {
+  :root[data-js='on']:not([data-marks-lifted]) .y-main > .y-article .y-prose :is(.y-mnote, .y-mfield) {
     animation: y-mnote-late 0s 3s forwards;
-    position: absolute;
-    visibility: hidden;
   }
 }
 
@@ -11074,6 +11085,11 @@ mark[data-mark] {
 
 @media (min-width: 1321px) {
   @container y-main (min-width: 80.25rem) {
+    :root[data-js='on']:not([data-marks-lifted], [data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-prose :is(.y-mnote, .y-mfield) {
+      position: absolute;
+      visibility: hidden;
+    }
+
     :root:not([data-textsize='l'], [data-textsize='xl']) .y-main > .y-article .y-mlayer {
       display: block;
       inset-block: 0;
@@ -11093,6 +11109,11 @@ mark[data-mark] {
 }
 @media (min-width: 1321px) {
   @container y-main (min-width: 82.75rem) {
+    :root[data-js='on']:not([data-marks-lifted])[data-textsize='l'] .y-main > .y-article .y-prose :is(.y-mnote, .y-mfield) {
+      position: absolute;
+      visibility: hidden;
+    }
+
     :root[data-textsize='l'] .y-main > .y-article .y-mlayer {
       display: block;
       inset-block: 0;
@@ -11112,6 +11133,11 @@ mark[data-mark] {
 }
 @media (min-width: 1321px) {
   @container y-main (min-width: 85.25rem) {
+    :root[data-js='on']:not([data-marks-lifted])[data-textsize='xl'] .y-main > .y-article .y-prose :is(.y-mnote, .y-mfield) {
+      position: absolute;
+      visibility: hidden;
+    }
+
     :root[data-textsize='xl'] .y-main > .y-article .y-mlayer {
       display: block;
       inset-block: 0;
@@ -11177,7 +11203,7 @@ mark[data-mark] {
 }
 
 .y-mfield__done {
-  background: var(--reader);
+  background: var(--fg);
   border: 0;
   border-radius: var(--r-lg);
   color: var(--bg);
@@ -11252,7 +11278,7 @@ mark[data-mark] {
 }
 
 .y-mbar__act:is(:hover, :focus-visible) {
-  background: var(--reader-wash);
+  background: var(--wash);
 }
 
 .y-mbar__act:focus-visible {
@@ -11281,8 +11307,21 @@ mark[data-mark] {
   z-index: 4;
 }
 
-.y-mstatus[hidden] {
-  display: none;
+/* With nothing to say it is drawn as nothing, and is not taken out of the page:
+   its two regions stay for a screen reader, empty, so that the words put in
+   them are announced. */
+.y-mstatus[data-idle] {
+  background: none;
+  block-size: 1px;
+  border: 0;
+  box-shadow: none;
+  clip-path: inset(50%);
+  inline-size: 1px;
+  inset-inline: auto;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+  pointer-events: none;
 }
 
 .y-mstatus__said {
@@ -11292,7 +11331,7 @@ mark[data-mark] {
 }
 
 .y-mstatus__said:empty {
-  display: none;
+  position: absolute;
 }
 
 .y-mstatus__said[role='alert']:not(:empty) {
@@ -11302,15 +11341,22 @@ mark[data-mark] {
 .y-mstatus__act {
   background: none;
   border: 0;
-  color: var(--reader);
+  color: var(--fg);
   cursor: pointer;
   font: inherit;
   font-weight: var(--fw-semibold);
   min-height: 32px;
   padding: 0 var(--sp-1);
+  text-decoration: underline;
+  text-decoration-color: var(--link-line);
+  text-underline-offset: 0.2em;
 }
 
 .y-mstatus__act[hidden] {
+  display: none;
+}
+
+.y-mstatus__close[hidden] {
   display: none;
 }
 

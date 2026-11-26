@@ -379,14 +379,14 @@ func marksTools(lang wording.Lang) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" data-marks-status hidden><p class=\"y-mstatus__said\" role=\"status\" data-mstatus-said></p><p class=\"y-mstatus__said\" role=\"alert\" data-mstatus-alert></p><button type=\"button\" class=\"y-mstatus__act\" data-mstatus-act hidden></button> <button type=\"button\" class=\"y-mstatus__close\" data-mstatus-close aria-label=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" data-marks-status data-idle><p class=\"y-mstatus__said\" role=\"status\" data-mstatus-said></p><p class=\"y-mstatus__said\" role=\"alert\" data-mstatus-alert></p><button type=\"button\" class=\"y-mstatus__act\" data-mstatus-act hidden></button> <button type=\"button\" class=\"y-mstatus__close\" data-mstatus-close hidden aria-label=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templruntime.NewAttributeExpression(wording.CloseControl.In(lang)).Resolve(ctx)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/marks.templ`, Line: 67, Col: 110}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/marks.templ`, Line: 67, Col: 117}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var22)
 		if templ_7745c5c3_Err != nil {

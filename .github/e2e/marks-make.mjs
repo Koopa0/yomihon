@@ -15,7 +15,7 @@
 // where a mark is kept or what else it reaches.
 //
 // Env: YOMIHON_BASE and MUTATE. MUTATE=list prints every watched regression.
-import { BASE, STORAGE_WORDS, choose, defineProbe, drawn } from './support/marks-probe.mjs';
+import { BASE, STORAGE_WORDS, choose, defineProbe, drawn, keepByHand } from './support/marks-probe.mjs';
 
 const SITES = [
   'a-highlight-is-kept',
@@ -27,6 +27,15 @@ const SITES = [
   'a-lost-answer-keeps-one',
   'a-stale-write-is-rebased-quietly',
   'a-failed-write-is-said',
+  'a-section-thought-is-one',
+  'a-section-thought-keeps-its-id',
+  'typed-words-outlive-a-delete',
+  'a-leaving-write-is-sent-at-once',
+  'an-undo-does-not-rebase',
+  'one-field-is-open-at-a-time',
+  'a-cancelled-section-thought-comes-back',
+  'a-name-keeps-the-words-as-they-are',
+  'a-too-long-write-says-so',
   'no-storage-words',
 ];
 
@@ -47,7 +56,7 @@ const MODES = {
   // A thought turned to a question loses its words.
   'turn-drops-the-words': script("    const patch = { kind };\n    if (kind === 'highlight') patch.body = '';", "    const patch = { kind, body: '' };", 'a-state-changes'),
   // The word that brings a deleted mark back does nothing.
-  'undo-brings-nothing-back': script("const back = await change('PUT', id, {});", 'const back = { ok: true };', 'a-delete-is-undone'),
+  'undo-brings-nothing-back': script("const back = await change('PUT', id, {}, { rebase: false });", 'const back = { ok: true };', 'a-delete-is-undone'),
   // A highlight whose actions are never shown: a pointer cannot delete it.
   'highlight-bar-never-shown': script('    actions.hidden = false;', '    actions.hidden = true;', 'a-highlight-is-acted-on-by-its-bar'),
   // A mark whose answer was lost is told as not kept although it is.
@@ -60,6 +69,26 @@ const MODES = {
   'no-quiet-resend': script("if (reason === 'stale' && attempt === 0) {", 'if (false) {', 'a-stale-write-is-rebased-quietly'),
   // A write that was refused says so only in a line that is not announced.
   'failure-not-announced': script("said.setAttribute('role', 'alert');", "said.setAttribute('role', 'status');", 'a-failed-write-is-said'),
+  // A field left in a hurry makes the section's thought twice.
+  'section-thought-not-waited': script('    while (session.creating) await session.creating;\n', '', 'a-section-thought-is-one'),
+  // A section's thought whose first try was lost is made again under a new id.
+  'section-id-per-attempt': script('const id = session.id ?? session.draftId;', 'const id = session.id ?? newId();', 'a-section-thought-keeps-its-id'),
+  // A mark deleted elsewhere takes the typed words with it.
+  'gone-takes-the-words': script('if (result.gone && !restored && session.parts.text.value !== \'\') {', 'if (false) {', 'typed-words-outlive-a-delete'),
+  // A send made as the page is left waits behind the one in flight.
+  'leaving-write-queued': script('const queued = immediate ? run() : before.then(run, run);', 'const queued = before.then(run, run);', 'a-leaving-write-is-sent-at-once'),
+  // A send made as the page is left is not one that survives it.
+  'leaving-write-not-keepalive': script('const answer = await send(method, `\x24{endpoint}/\x24{id}`, { seen: base, ...patch }, { keepalive });', 'const answer = await send(method, `\x24{endpoint}/\x24{id}`, { seen: base, ...patch }, {});', 'a-leaving-write-is-sent-at-once'),
+  // Taking a step back writes over what another tab has since changed.
+  'undo-rebases': script("if (reason === 'stale' && !rebase) return { ok: false, stale: true };", '', 'an-undo-does-not-rebase'),
+  // Two presses before the first field is open make two fields.
+  'two-fields-open': script('    if (claimed) return;\n', '', 'one-field-is-open-at-a-time'),
+  // A section's thought that was thrown away cannot be got back.
+  'cancelled-thought-is-lost': script("undoMade = record(strings.whatWords, () => change('PUT', id, {}, { rebase: false }));", 'undoMade = null;', 'a-cancelled-section-thought-comes-back'),
+  // A passage whose words hold a replacement pattern is named by something else.
+  'name-eats-the-dollar-signs': script("const fmt = (text, value) => text.replace('%s', () => value);", "const fmt = (text, value) => text.replace('%s', value);", 'a-name-keeps-the-words-as-they-are'),
+  // A write that is twice as long as the page allows is told as not kept for no reason.
+  'too-long-is-twice-too-long': script('const TOO_LONG = 32 * 1024;', 'const TOO_LONG = 64 * 1024;', 'a-too-long-write-says-so'),
   // A reason that names where the words would have gone.
   'reason-names-the-storage': { site: 'no-storage-words', doc: { needle: '書庫現在不能寫入', replacement: '無法同步到其他電腦的檔案' } },
 };
@@ -300,6 +329,242 @@ await probe.run(async ({ open }) => {
     if (/另一個分頁|別的分頁|其他分頁|another tab|other tab|changed elsewhere/i.test(spoken)) fire('a-stale-write-is-rebased-quietly', `the page says another tab changed the mark: ${spoken}`);
     console.log('marks-make: a write over a newer change is sent again once, quietly, and the newest words are shown');
     await third.close();
+  }
+
+  // A section's thought, left in a hurry: the field is left by a press elsewhere
+  // while its first send is still on its way. It is one thought, sent once.
+  if (runs('a-section-thought-is-one')) {
+    const hurry = await open();
+    await watch(hurry.page);
+    const posts = [];
+    await hurry.page.route('**/mark', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      posts.push(route.request().postDataJSON());
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      return route.fallback();
+    });
+    await hurry.page.locator('[data-section-thought]').first().evaluate((button) => button.click());
+    await field(hurry.page).waitFor({ timeout: 3000 }).catch(() => {});
+    const SAID = 'a thought for the whole section';
+    await hurry.page.keyboard.type(SAID);
+    await hurry.page.evaluate(() => document.activeElement.blur());
+    await hurry.page.waitForFunction(() => !document.querySelector('.y-mfield'), null, { timeout: 6000 }).catch(() => {});
+    await hurry.page.waitForTimeout(800);
+    if (posts.length !== 1) fire('a-section-thought-is-one', `a field left in a hurry sent ${posts.length} requests to make the thought, want one`);
+    await reload(hurry.page);
+    const notes = (await drawn(hurry.page)).filter((e) => e.note?.words === SAID);
+    if (notes.length !== 1) fire('a-section-thought-is-one', `after a reload the section carries ${notes.length} notes saying ${JSON.stringify(SAID)}, want one`);
+    console.log('marks-make: a section thought whose field is left in a hurry is made once');
+    await hurry.close();
+  }
+
+  // The first try of a section's thought was kept and its answer lost, and the
+  // check for it was lost too: the reader asks again, and it is still one.
+  if (runs('a-section-thought-keeps-its-id')) {
+    const lostTwice = await open();
+    await watch(lostTwice.page);
+    let lost = 0;
+    await lostTwice.page.route('**/mark', async (route) => {
+      if (route.request().method() !== 'POST' || lost > 0) return route.fallback();
+      lost += 1;
+      await route.fetch();
+      return route.abort('connectionreset');
+    });
+    await lostTwice.page.route('**/mark/*', (route) => (route.request().method() === 'GET' && lost === 1 ? route.abort('connectionreset') : route.fallback()));
+    await lostTwice.page.locator('[data-section-thought]').nth(1).evaluate((button) => button.click());
+    await field(lostTwice.page).waitFor({ timeout: 3000 }).catch(() => {});
+    const SAID = 'a thought whose answer was lost';
+    await lostTwice.page.keyboard.type(SAID);
+    await lostTwice.page.waitForSelector('.y-mfield__said:not([hidden])', { timeout: 4000 }).catch(() => {});
+    await lostTwice.page.unroute('**/mark/*');
+    await lostTwice.page.click('.y-mfield__retry').catch(() => {});
+    await lostTwice.page.waitForTimeout(800);
+    await lostTwice.page.keyboard.press('Meta+Enter');
+    await settled(lostTwice.page);
+    await reload(lostTwice.page);
+    const notes = (await drawn(lostTwice.page)).filter((e) => e.note?.words === SAID);
+    if (lost !== 1) broken(`the answer was lost ${lost} times, want once`);
+    if (notes.length !== 1) fire('a-section-thought-keeps-its-id', `after the answer was lost and the thought was asked for again, the section carries ${notes.length} notes, want one`);
+    console.log('marks-make: a section thought asked for again after a lost answer is still one');
+    await lostTwice.close();
+  }
+
+  // The mark is deleted elsewhere while the reader is writing in it: what was
+  // typed is not dropped, the mark comes back with it.
+  if (runs('typed-words-outlive-a-delete')) {
+    const gone = await open();
+    await watch(gone.page);
+    const NU = 'Nu passage opens the third section';
+    await choose(gone.page, NU);
+    await gone.page.keyboard.press('h');
+    await field(gone.page).waitFor({ timeout: 3000 }).catch(() => {});
+    await gone.page.keyboard.type('kept words');
+    await gone.page.waitForTimeout(900);
+    const id = await gone.page.evaluate(() => document.querySelector('.y-mfield')?.dataset.mfield ?? '');
+    if (!id) broken('the field of the mark has no id after its first words were sent');
+    const seen = (await (await gone.context.request.get(`${BASE}/mark/${id}`)).json()).seen;
+    const deleted = await gone.context.request.delete(`${BASE}/mark/${id}`, { data: { seen } });
+    if (deleted.status() !== 200) broken(`the other tab's delete answered ${deleted.status()}, want 200`);
+    await gone.page.keyboard.type(' and typed while it was gone');
+    await gone.page.waitForTimeout(900);
+    const typing = await gone.page.locator('.y-mfield textarea').count();
+    if (typing !== 1) fire('typed-words-outlive-a-delete', 'the field closed when its mark was found deleted, and the words typed after it were not in it');
+    await gone.page.keyboard.press('Meta+Enter');
+    await settled(gone.page);
+    const back = await (await gone.context.request.get(`${BASE}/mark/${id}`)).json();
+    if (back.deleted || back.body !== 'kept words and typed while it was gone') fire('typed-words-outlive-a-delete', `the server keeps ${JSON.stringify({ deleted: back.deleted, body: back.body })}, want the mark back with "kept words and typed while it was gone"`);
+    await reload(gone.page);
+    entry = await find(gone.page, 'kept words and typed while it was gone');
+    if (!entry || entry.text !== NU) fire('typed-words-outlive-a-delete', `after a reload the mark is ${JSON.stringify(entry)}, want it on "${NU}" with the typed words`);
+    console.log('marks-make: words typed into a mark that was deleted elsewhere are kept, and the mark with them');
+    await gone.close();
+  }
+
+  // What is typed goes at once when the page is hidden, whatever is in flight,
+  // and as a send that survives the page.
+  if (runs('a-leaving-write-is-sent-at-once')) {
+    const leaving = await open();
+    await leaving.page.addInitScript(() => {
+      window.__sends = [];
+      const original = window.fetch;
+      window.fetch = (url, init) => {
+        window.__sends.push({ method: init?.method ?? 'GET', url: String(url), keepalive: Boolean(init?.keepalive) });
+        return original.call(window, url, init);
+      };
+    });
+    await reload(leaving.page);
+    const XI = 'Xi passage is a short one';
+    await choose(leaving.page, XI);
+    await leaving.page.keyboard.press('h');
+    await field(leaving.page).waitFor({ timeout: 3000 }).catch(() => {});
+    await leaving.page.keyboard.type('one');
+    await leaving.page.waitForTimeout(900);
+    const arrived = [];
+    await leaving.page.route('**/mark/*', async (route) => {
+      if (route.request().method() !== 'PATCH') return route.fallback();
+      arrived.push(route.request().postDataJSON().body);
+      if (arrived.length === 1) await new Promise((resolve) => setTimeout(resolve, 1800));
+      return route.fallback();
+    });
+    await leaving.page.keyboard.type(' two');
+    for (let waited = 0; arrived.length < 1 && waited < 3000; waited += 50) await leaving.page.waitForTimeout(50);
+    await leaving.page.keyboard.type(' three');
+    await leaving.page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    await leaving.page.waitForTimeout(500);
+    const sends = await leaving.page.evaluate(() => window.__sends.filter((s) => s.method === 'PATCH'));
+    const last = sends[sends.length - 1];
+    if (arrived.length < 2 || !arrived[arrived.length - 1].endsWith('three')) fire('a-leaving-write-is-sent-at-once', `with a send in flight the words typed after it were sent as ${JSON.stringify(arrived)}, want the last of them to reach the server at once, ending in "three"`);
+    if (!last?.keepalive) fire('a-leaving-write-is-sent-at-once', `the send made as the page is hidden is ${JSON.stringify(last)}, want one that survives the page, with keepalive`);
+    console.log('marks-make: what is typed goes at once as the page is hidden, ahead of what is in flight, and survives it');
+    await leaving.page.unroute('**/mark/*');
+    await leaving.page.keyboard.press('Escape');
+    await leaving.close();
+  }
+
+  // A step is taken back only if the mark is as that step left it. If another
+  // tab has changed it since, the step cannot be undone, and is said so.
+  if (runs('an-undo-does-not-rebase')) {
+    const undo = await open();
+    await watch(undo.page);
+    const MU = 'Mu passage is code and is chosen as code.';
+    await choose(undo.page, MU);
+    await undo.page.keyboard.press('h');
+    await field(undo.page).waitFor({ timeout: 3000 }).catch(() => {});
+    await undo.page.keyboard.type('a thought on code');
+    await undo.page.keyboard.press('Meta+Enter');
+    await settled(undo.page);
+    const mine = await find(undo.page, MU);
+    if (!mine?.note) broken('the thought that is turned and taken back was not made');
+    await undo.page.locator(`#mn-${mine.id}`).focus();
+    await undo.page.keyboard.press('q');
+    await undo.page.waitForFunction((id) => document.getElementById(`mn-${id}`)?.dataset.state === 'question', mine.id, { timeout: 3000 }).catch(() => {});
+    const seen = (await (await undo.context.request.get(`${BASE}/mark/${mine.id}`)).json()).seen;
+    const other = await undo.context.request.patch(`${BASE}/mark/${mine.id}`, { data: { seen, body: 'from the other tab' } });
+    if (other.status() !== 200) broken(`the other tab's change answered ${other.status()}, want 200`);
+    await undo.page.keyboard.press('Meta+z');
+    await undo.page.waitForFunction(() => document.querySelector('[data-marks-status]')?.textContent.includes('不能復原') ?? false, null, { timeout: 3000 }).catch(() => {});
+    const line = await undo.page.locator('[data-marks-status]').innerText();
+    const now = await (await undo.context.request.get(`${BASE}/mark/${mine.id}`)).json();
+    if (now.kind !== 'question' || now.body !== 'from the other tab') fire('an-undo-does-not-rebase', `the undo wrote over the other tab's change: the server keeps ${JSON.stringify({ kind: now.kind, body: now.body })}, want a question saying "from the other tab"`);
+    if (!line.includes('已經不能復原')) fire('an-undo-does-not-rebase', `after an undo that could not be made the line says ${JSON.stringify(line)}, want 這一步已經不能復原了`);
+    console.log('marks-make: a step that another tab has changed since is not undone over it, and is said so');
+    await undo.close();
+  }
+
+  // Asking to write in two marks at once leaves one field, not two.
+  if (runs('one-field-is-open-at-a-time')) {
+    const seed = await open();
+    await keepByHand(seed.context, { kind: 'thought', quote: 'Kappa passage', body: 'first of the two' });
+    await keepByHand(seed.context, { kind: 'thought', quote: 'Lambda passage', body: 'second of the two' });
+    await reload(seed.page);
+    await seed.page.evaluate(() => {
+      const [first, second] = [...document.querySelectorAll('.y-mnote [data-act="edit"]')];
+      first.click();
+      second.click();
+    });
+    await seed.page.waitForTimeout(800);
+    const fields = await seed.page.locator('.y-mfield').count();
+    if (fields !== 1) fire('one-field-is-open-at-a-time', `two presses to write, one after the other, left ${fields} fields open, want one`);
+    console.log('marks-make: two presses to write leave one field open');
+    await seed.page.keyboard.press('Escape');
+    await seed.close();
+  }
+
+  // A section's thought is written and then thrown away with Cancel: the line says
+  // so with the word that brings it back, and it comes back as it was.
+  if (runs('a-cancelled-section-thought-comes-back')) {
+    const thrown = await open();
+    await watch(thrown.page);
+    await thrown.page.locator('[data-section-thought]').nth(2).evaluate((button) => button.click());
+    await field(thrown.page).waitFor({ timeout: 3000 }).catch(() => {});
+    const SAID = 'a thought that is thrown away';
+    await thrown.page.keyboard.type(SAID);
+    await thrown.page.waitForTimeout(900);
+    await thrown.page.click('.y-mfield__cancel');
+    await settled(thrown.page);
+    const line = await thrown.page.locator('[data-marks-status]').innerText();
+    if (!line.includes('復原')) fire('a-cancelled-section-thought-comes-back', `after Cancel the line says ${JSON.stringify(line)}, want the word that brings the thought back, 復原`);
+    else {
+      if ((await drawn(thrown.page)).some((e) => e.note?.words === SAID)) fire('a-cancelled-section-thought-comes-back', 'a thought that was thrown away is still drawn');
+      await thrown.page.click('[data-mstatus-act]');
+      await thrown.page.waitForFunction((words) => [...document.querySelectorAll('.y-mnote .y-mnote__words')].some((e) => (e.textContent || e.dataset.text) === words), SAID, { timeout: 3000 }).catch(() => {});
+      await reload(thrown.page);
+      const back = (await drawn(thrown.page)).filter((e) => e.note?.words === SAID);
+      if (back.length !== 1) fire('a-cancelled-section-thought-comes-back', `after 復原 and a reload the section carries ${back.length} notes saying ${JSON.stringify(SAID)}, want one`);
+    }
+    console.log('marks-make: a section thought thrown away with Cancel comes back by 復原');
+    await thrown.close();
+  }
+
+  // The name a mark is given is its words, as they are: a passage that holds the
+  // marks a replacement pattern is made of is still named by itself.
+  if (runs('a-name-keeps-the-words-as-they-are')) {
+    const dollars = await open();
+    const RHO = 'Rho passage costs $& and';
+    await choose(dollars.page, RHO);
+    await dollars.page.keyboard.press('h');
+    await field(dollars.page).waitFor({ timeout: 3000 }).catch(() => {});
+    await dollars.page.keyboard.press('Meta+Enter');
+    await settled(dollars.page);
+    const named = await dollars.page.locator('mark[data-mark]', { hasText: 'Rho passage' }).first().getAttribute('aria-label');
+    if (!named?.includes('Rho passage costs $&')) fire('a-name-keeps-the-words-as-they-are', `a passage that holds $& is named ${JSON.stringify(named)}, want its own words, "Rho passage costs $&"`);
+    console.log('marks-make: a passage is named by its own words, whatever characters they hold');
+    await dollars.close();
+  }
+
+  // A write longer than the page can keep is told so, and in no other way.
+  if (runs('a-too-long-write-says-so')) {
+    const long = await open();
+    await long.page.locator('[data-section-thought]').nth(3).evaluate((button) => button.click());
+    await field(long.page).waitFor({ timeout: 3000 }).catch(() => {});
+    await long.page.locator('.y-mfield textarea').fill('a'.repeat(40 * 1024));
+    await long.page.waitForSelector('.y-mfield__said:not([hidden])', { timeout: 6000 }).catch(() => {});
+    const refusal = await long.page.locator('.y-mfield__said').textContent();
+    if (!refusal.includes('太長')) fire('a-too-long-write-says-so', `a write of 40KB is refused with ${JSON.stringify(refusal)}, want the words that say it is too long`);
+    console.log('marks-make: a write that is too long is said to be too long');
+    await long.page.locator('.y-mfield textarea').fill('');
+    await long.page.keyboard.press('Escape');
+    await long.close();
   }
 
   // A write that is refused is said where the reader is writing, announced, in

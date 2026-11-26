@@ -22,9 +22,9 @@ const UNDO_STEPS = 40;
 const TYPING_PAUSE = 300;
 // A mark is a line in a file with a bound on its size, and a page that is about
 // to send more than that says so rather than guess at the reason.
-const TOO_LONG = 60 * 1024;
+const TOO_LONG = 32 * 1024;
 
-const fmt = (text, value) => text.replace('%s', value);
+const fmt = (text, value) => text.replace('%s', () => value);
 const newId = () => [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
 
 export function initMarks() {
@@ -146,17 +146,19 @@ export function initMarks() {
   // answer and sends the change again once, quietly: both changes are kept and
   // the newer is what is shown.
   function change(method, id, patch, options = {}) {
+    const { rebase = true, keepalive = false, immediate = false } = options;
     const run = async () => {
       let base = bases.get(id) ?? (await ensure(id))?.seen;
       if (!base) return { ok: false, gone: true };
       for (let attempt = 0; attempt < 2; attempt++) {
-        const answer = await send(method, `${endpoint}/${id}`, { seen: base, ...patch }, options);
+        const answer = await send(method, `${endpoint}/${id}`, { seen: base, ...patch }, { keepalive });
         if (answer.status === 200) {
           draw(answer.json);
           return { ok: true, mark: answer.json };
         }
         if (answer.status === 409) {
           const reason = answer.json?.reason;
+          if (reason === 'stale' && !rebase) return { ok: false, stale: true };
           if (reason === 'stale' && attempt === 0) {
             base = answer.json.seen;
             continue;
@@ -174,8 +176,11 @@ export function initMarks() {
       }
       return { ok: false, status: 409 };
     };
-    const queued = (queues.get(id) ?? Promise.resolve()).then(run, run);
-    queues.set(id, queued.catch(() => {}));
+    // A send made as the page is leaving does not wait behind another: the
+    // server judges which of the two is newer by their edit numbers.
+    const before = queues.get(id) ?? Promise.resolve();
+    const queued = immediate ? run() : before.then(run, run);
+    queues.set(id, Promise.allSettled([before, queued]));
     return queued.catch(() => ({ ok: false, status: 0 }));
   }
 
@@ -195,8 +200,6 @@ export function initMarks() {
     if (!sect) return { parent: prose, before: prose.querySelector(':scope > .y-mlayer') };
     let at = sect;
     while (at.nextElementSibling?.matches('.y-mnote[data-section], .y-mfield[data-section]')) at = at.nextElementSibling;
-    // A note lifted out into the margin left a place behind it.
-    while (at.nextSibling?.nodeType === Node.COMMENT_NODE && at.nextSibling.data === 'mnote') at = at.nextSibling;
     return { parent: at.parentNode, before: at.nextSibling };
   }
 
@@ -339,7 +342,8 @@ export function initMarks() {
       status.say(fmt(strings.undone, entry.label));
       return;
     }
-    status.say(result?.gone ? strings.cannotUndo : fmt(strings.notUndone, reasonOf(result)), { failed: !result?.gone });
+    const cannot = result?.gone || result?.stale;
+    status.say(cannot ? strings.cannotUndo : fmt(strings.notUndone, reasonOf(result)), { failed: !cannot });
   }
 
   async function undoLast() {
@@ -412,7 +416,7 @@ export function initMarks() {
       return;
     }
     const id = result.mark.id;
-    record(strings.whatHighlight, () => change('DELETE', id, {}));
+    record(strings.whatHighlight, () => change('DELETE', id, {}, { rebase: false }));
     openField(id, { fresh: true });
   }
 
@@ -431,7 +435,7 @@ export function initMarks() {
       return;
     }
     const id = result.mark.id;
-    const entry = record(strings.whatQuestion, () => change('DELETE', id, {}));
+    const entry = record(strings.whatQuestion, () => change('DELETE', id, {}, { rebase: false }));
     sayWithUndo(strings.askedUndo, entry);
   }
 
@@ -460,7 +464,7 @@ export function initMarks() {
       return;
     }
     const back = { kind: before.kind, body: before.body };
-    const entry = record(kind === 'highlight' ? strings.whatToHighlight : kind === 'thought' ? strings.whatThought : strings.whatQuestion, () => change('PATCH', id, back));
+    const entry = record(kind === 'highlight' ? strings.whatToHighlight : kind === 'thought' ? strings.whatThought : strings.whatQuestion, () => change('PATCH', id, back, { rebase: false }));
     const said = kind === 'question' ? strings.askedUndo : kind === 'thought' ? strings.nowThought : strings.nowHighlight;
     sayWithUndo(said, entry);
     focusMark(id);
@@ -474,7 +478,7 @@ export function initMarks() {
       if (!result.gone) status.say(fmt(strings.notKept, reasonOf(result)), { failed: true });
       return;
     }
-    record(resolved ? strings.whatResolve : strings.whatQuestion, () => change('PATCH', id, { resolved: !resolved }));
+    record(resolved ? strings.whatResolve : strings.whatQuestion, () => change('PATCH', id, { resolved: !resolved }, { rebase: false }));
     focusMark(id);
   }
 
@@ -516,7 +520,7 @@ export function initMarks() {
     }
     focusAfter(order, id, carrier);
     const entry = record(strings.whatDelete, async () => {
-      const back = await change('PUT', id, {});
+      const back = await change('PUT', id, {}, { rebase: false });
       if (back.ok) focusMark(id);
       return back;
     });
@@ -562,7 +566,20 @@ export function initMarks() {
     return { element, text, said, done, cancel };
   }
 
-  async function openField(id, { fresh = false, anchor = '' } = {}) {
+  // claimed is the one field that is being opened, claimed at once so that two
+  // presses before the first has its mark cannot make two fields.
+  let claimed = false;
+  async function openField(id, options = {}) {
+    if (claimed) return;
+    claimed = true;
+    try {
+      await openOne(id, options);
+    } finally {
+      claimed = false;
+    }
+  }
+
+  async function openOne(id, { fresh = false, anchor = '' } = {}) {
     if (field) {
       await finish(field);
       if (field) return;
@@ -577,6 +594,11 @@ export function initMarks() {
       fresh,
       parts,
       edit: { id: newId(), seq: 0 },
+      // A thought on a section is not made yet, and is made under this id each
+      // time it is tried, so that a try whose answer was lost is not a second.
+      draftId: id ? null : newId(),
+      creating: null,
+      createdEntry: null,
       before: mark ? { kind: mark.kind, body: mark.body } : null,
       sent: mark?.body ?? '',
       timer: 0,
@@ -610,7 +632,7 @@ export function initMarks() {
       settle();
     });
     text.addEventListener('blur', () => {
-      if (!session.composing && !layout.moving()) flush(session, { keepalive: true });
+      if (!session.composing) flush(session, { keepalive: true });
     });
     text.addEventListener('keydown', (event) => {
       if (event.isComposing) return;
@@ -636,7 +658,7 @@ export function initMarks() {
     // Leaving the field for anywhere else closes it, as long as what was written
     // was kept.
     element.addEventListener('focusout', (event) => {
-      if (session.closing || layout.moving() || element.contains(event.relatedTarget)) return;
+      if (session.closing || element.contains(event.relatedTarget)) return;
       if (event.relatedTarget === null && document.visibilityState === 'hidden') return;
       finish(session);
     });
@@ -661,7 +683,10 @@ export function initMarks() {
     return { patch: { kind: 'thought', body: value } };
   }
 
-  async function flush(session, { final = false, keepalive = false } = {}) {
+  async function flush(session, { final = false, keepalive = false, leaving = false, restored = false } = {}) {
+    // A thought that is being made is waited for, so that what comes after it is
+    // a change of that thought and not the making of a second.
+    while (session.creating) await session.creating;
     clearTimeout(session.timer);
     const want = intended(session, final);
     session.parts.said.hidden = true;
@@ -674,15 +699,23 @@ export function initMarks() {
       return { ok: true };
     }
     const size = new Blob([session.parts.text.value]).size;
+    // A send that has to outlive the page can carry only so much.
+    const survive = keepalive && size <= TOO_LONG;
     let result;
     if (want.create !== undefined) {
-      result = await keepSectionThought(session, want.create);
+      session.creating = keepSectionThought(session, want.create, { keepalive: survive }).finally(() => {
+        session.creating = null;
+      });
+      result = await session.creating;
     } else {
       session.edit.seq += 1;
-      result = await change('PATCH', session.id, { edit: { ...session.edit }, ...want.patch }, { keepalive });
+      result = await change('PATCH', session.id, { edit: { ...session.edit }, ...want.patch }, { keepalive: survive, immediate: leaving });
     }
     if (result.silent) return { ok: true };
     if (!result.ok) {
+      if (result.gone && !restored && session.parts.text.value !== '') {
+        return bringBack(session, { final, keepalive, leaving });
+      }
       if (result.gone) {
         closeNow(session);
         return result;
@@ -696,16 +729,31 @@ export function initMarks() {
     return result;
   }
 
-  async function keepSectionThought(session, body) {
-    const id = session.id ?? newId();
+  // bringBack answers a mark that was deleted elsewhere while the reader was
+  // writing in it. What was written is the newest thing said of the mark, so the
+  // mark is brought back and the words are put on it; they are never dropped.
+  async function bringBack(session, options) {
+    const result = await change('PUT', session.id, {}, { rebase: false });
+    if (!result.ok) {
+      session.failed = true;
+      showFieldFailure(session, result, new Blob([session.parts.text.value]).size);
+      return result;
+    }
+    session.note = noteOf(session.id);
+    if (session.note) session.note.hidden = true;
+    return flush(session, { ...options, restored: true });
+  }
+
+  async function keepSectionThought(session, body, { keepalive = false } = {}) {
+    const id = session.id ?? session.draftId;
     const request = { id, kind: 'thought', path, anchor: session.anchor, body };
     let answer;
     try {
-      answer = await send('POST', endpoint, request);
+      answer = await send('POST', endpoint, request, { keepalive });
     } catch {
       try {
         answer = await send('GET', `${endpoint}/${id}`);
-        if (answer.status !== 200) answer = await send('POST', endpoint, request);
+        if (answer.status !== 200) answer = await send('POST', endpoint, request, { keepalive });
       } catch {
         return { ok: false, status: 0 };
       }
@@ -720,7 +768,7 @@ export function initMarks() {
     // The note drawn for it is the field's own, hidden while the field is open.
     session.note = noteOf(id);
     if (session.note) session.note.hidden = true;
-    record(strings.whatWords, () => change('DELETE', id, {}));
+    session.createdEntry = record(strings.whatWords, () => change('DELETE', id, {}, { rebase: false }));
     return { ok: true, mark: answer.json };
   }
 
@@ -760,7 +808,7 @@ export function initMarks() {
     const was = session.before;
     if (was && !session.created && (now.kind !== was.kind || now.body !== was.body)) {
       const id = session.id;
-      const entry = record(now.kind === 'highlight' ? strings.whatToHighlight : strings.whatWords, () => change('PATCH', id, { kind: was.kind, body: was.body }));
+      const entry = record(now.kind === 'highlight' ? strings.whatToHighlight : strings.whatWords, () => change('PATCH', id, { kind: was.kind, body: was.body }, { rebase: false }));
       if (now.kind === 'highlight') sayWithUndo(strings.nowHighlight, entry);
     }
     focusMark(session.id);
@@ -771,24 +819,42 @@ export function initMarks() {
   async function abandon(session) {
     if (session.closing) return;
     clearTimeout(session.timer);
+    if (session.creating) await session.creating;
     const typed = session.parts.text.value;
     session.closing = true;
-    if (session.id && session.before && !session.created) {
-      const had = known.get(session.id);
+    const id = session.id;
+    // Going back is made only on a mark that is as the field left it: another
+    // tab's change since is not written over.
+    let stale = false;
+    let undoMade = null;
+    if (id && session.before && !session.created) {
+      const had = known.get(id);
       if (had && (had.kind !== session.before.kind || had.body !== session.before.body)) {
-        await change('PATCH', session.id, { kind: session.before.kind, body: session.before.body });
+        const result = await change('PATCH', id, { kind: session.before.kind, body: session.before.body }, { rebase: false });
+        stale = Boolean(result.stale);
       }
     } else if (session.created) {
-      await change('DELETE', session.id, {});
+      const result = await change('DELETE', id, {}, { rebase: false });
+      stale = Boolean(result.stale);
+      if (result.ok) {
+        // The step that made the thought is gone with it, and what is left to
+        // take back is that it was thrown away.
+        const at = undoable.indexOf(session.createdEntry);
+        if (at >= 0) undoable.splice(at, 1);
+        undoMade = record(strings.whatWords, () => change('PUT', id, {}, { rebase: false }));
+      }
     }
     if (session.note?.isConnected) session.note.hidden = false;
     session.parts.element.remove();
     if (field === session) field = null;
     layout.relayout();
-    const id = session.id;
-    if (id && typed !== (session.before?.body ?? '') && !session.created) {
-      const entry = record(strings.whatWords, () => change('PATCH', id, { kind: 'thought', body: typed }));
+    if (stale) {
+      status.say(strings.cannotUndo);
+    } else if (id && typed !== (session.before?.body ?? '') && !session.created) {
+      const entry = record(strings.whatWords, () => change('PATCH', id, { kind: 'thought', body: typed }, { rebase: false }));
       sayWithUndo(strings.cancelled, entry);
+    } else if (undoMade) {
+      sayWithUndo(strings.cancelled, undoMade);
     } else {
       status.say(strings.cancelled);
     }
@@ -797,10 +863,10 @@ export function initMarks() {
 
   // What is typed and not yet sent goes when the page is hidden or left.
   document.addEventListener('visibilitychange', () => {
-    if (field && document.visibilityState === 'hidden') flush(field, { keepalive: true });
+    if (field && document.visibilityState === 'hidden') flush(field, { keepalive: true, leaving: true });
   });
   addEventListener('pagehide', () => {
-    if (field) flush(field, { keepalive: true });
+    if (field) flush(field, { keepalive: true, leaving: true });
   });
   // A reader who closes the page with words that were not kept is told once.
   addEventListener('beforeunload', (event) => {

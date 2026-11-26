@@ -410,7 +410,7 @@ try {
   // is all it adds, and it is taken out of both before they are compared.
   const withoutOwnMarks = (html) => html
     .replace(/ data-marks-endpoint="[^"]*" data-marks-path="[^"]*" data-marks-strings="[^"]*"/, '')
-    .replace(/<div class="y-mbar" role="toolbar"[^>]*data-marks-toolbar hidden>[\s\S]*?<\/div><div class="y-mstatus"[^>]*data-marks-status hidden>[\s\S]*?<\/svg><\/button><\/div>/, '')
+    .replace(/<div class="y-mbar" role="toolbar"[^>]*data-marks-toolbar hidden>[\s\S]*?<\/div><div class="y-mstatus"[^>]*data-marks-status data-idle>[\s\S]*?<\/svg><\/button><\/div>/, '')
     .replace(/<button type="button" class="y-margin__act" data-section-thought [^>]*><\/button>/g, '')
     .replace(/<a class="y-margin__act" href="\/thought\/[^"]*" aria-label="[^"]*" data-text="[^"]*"><\/a>/g, '')
     .replace(/ {2,}</g, ' <');

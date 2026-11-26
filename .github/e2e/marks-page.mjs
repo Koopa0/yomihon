@@ -15,7 +15,7 @@
 // level.
 //
 // Env: YOMIHON_BASE and MUTATE. MUTATE=list prints every watched regression.
-import { BASE, channels, choose, contrast, defineProbe, keepByHand, resolveColour } from './support/marks-probe.mjs';
+import { BASE, axOf, channels, choose, contrast, defineProbe, keepByHand, resolveColour } from './support/marks-probe.mjs';
 
 const SITES = [
   'marks-read-without-script',
@@ -26,6 +26,8 @@ const SITES = [
   'colour-roles',
   'every-word-is-readable',
   'touch-section-buttons',
+  'the-status-line-stays-in-the-tree',
+  'the-first-frame-hides-notes-only-where-the-margin-is',
 ];
 
 const script = (needle, replacement, site, file = 'marks.js') => ({ site, script: { file, needle, replacement } });
@@ -49,7 +51,21 @@ const MODES = {
   // An open question underlined in the colour of a failed write.
   'question-in-crimson': { site: 'colour-roles', css: ":root:not([data-marks='hide']) .y-mark[data-state='question']{text-decoration-color:var(--crimson) !important}" },
   // A question that was answered keeps the ochre rule.
-  'answered-keeps-ochre': { site: 'colour-roles', css: ".y-mnote[data-state='resolved']{border-inline-start-color:var(--ochre-line) !important}" },
+  'answered-keeps-ochre': { site: 'colour-roles', css: ".y-mnote[data-state='resolved']{border-inline-start-color:var(--ochre) !important}" },
+  // A thought's rule fainter than the reader's own indigo.
+  'thought-rule-faint': { site: 'colour-roles', css: ".y-mnote[data-kind='thought']{border-inline-start-color:var(--reader-line) !important}" },
+  // An open question's rule as faint as the line the page draws between things.
+  'question-rule-faint': { site: 'colour-roles', css: ".y-mnote[data-kind='question']:not([data-state='resolved']){border-inline-start-color:var(--ochre-line) !important}" },
+  // A lit highlight that is washed more and underlined by nothing.
+  'lit-highlight-without-rule': { site: 'colour-roles', css: '.y-mark.is-lit{box-shadow:none !important}' },
+  // The line from a lit note to its words in indigo, whatever the mark is.
+  'connector-always-indigo': { site: 'colour-roles', css: '.y-mnote[data-lifted].is-lit::before{background:var(--reader) !important}' },
+  // The Done button in the reader's indigo.
+  'done-in-indigo': { site: 'colour-roles', css: '.y-mfield .y-mfield__done{background:var(--reader) !important}' },
+  // The word that undoes in the reader's indigo.
+  'undo-in-indigo': { site: 'colour-roles', css: '.y-mstatus .y-mstatus__act{color:var(--reader) !important}' },
+  // The toolbar's hover in the reader's wash.
+  'toolbar-hover-in-indigo': { site: 'colour-roles', css: '.y-mbar .y-mbar__act:hover{background:var(--reader-wash) !important}' },
   // A highlight in the colour of a question.
   'highlight-in-ochre': { site: 'colour-roles', css: ":root:not([data-marks='hide']) .y-mark[data-state='highlight']{background:var(--ochre-wash) !important}" },
   // A failed write that is not told in crimson.
@@ -58,6 +74,12 @@ const MODES = {
   'day-too-faint': { site: 'every-word-is-readable', css: '.y-mnote .y-mnote__meta{color:var(--fg-ornament) !important}' },
   // Buttons on every level on a touch screen.
   'touch-buttons-on-every-level': { site: 'touch-section-buttons', css: '@media (pointer: coarse){.y-prose .y-sect .y-margin .y-margin__act{display:inline-flex !important}}' },
+  // The line is taken out of the page when it has nothing to say, and put back
+  // with its words, which a screen reader does not announce.
+  'status-removed-when-idle': script("element.dataset.idle = '';", 'element.hidden = true;', 'the-status-line-stays-in-the-tree', 'marks-status.js'),
+  // The notes are held out of sight in every window the margin might be in, and
+  // not only where it is.
+  'hidden-where-there-is-no-margin': { site: 'the-first-frame-hides-notes-only-where-the-margin-is', css: ":root[data-js='on']:not([data-marks-lifted]) .y-main > .y-article .y-prose :is(.y-mnote, .y-mfield){position:absolute !important;visibility:hidden !important}" },
   // Buttons that are too small for a finger.
   'touch-buttons-small': { site: 'touch-section-buttons', css: '@media (pointer: coarse){.y-margin .y-margin__act,.y-mbar__act{min-height:20px !important;padding-block:0 !important}}' },
 };
@@ -111,12 +133,12 @@ await probe.run(async ({ open }) => {
               noteTop: note?.getBoundingClientRect().top ?? null,
               wordsBottom: last?.bottom ?? null,
               noteRight: note?.getBoundingClientRect().right ?? null,
-              first: pieces[0] ? { tabindex: pieces[0].getAttribute('tabindex'), label: pieces[0].getAttribute('aria-label'), describedby: pieces[0].getAttribute('aria-describedby') } : null,
+              first: pieces[0] ? { tabindex: pieces[0].getAttribute('tabindex'), describedby: pieces[0].getAttribute('aria-describedby') } : null,
               noteLabel: note?.getAttribute('aria-label') ?? null,
               wide: document.documentElement.scrollWidth,
               inner: innerWidth,
               toolbarShown: Boolean(document.querySelector('[data-marks-toolbar]')?.checkVisibility()),
-              statusShown: Boolean(document.querySelector('[data-marks-status]')?.checkVisibility()),
+              statusShown: Boolean(document.querySelector('[data-marks-status]:not([data-idle])')?.checkVisibility()),
               sectionButtonEnabled: [...document.querySelectorAll('[data-section-thought]')].some((b) => !b.disabled),
             };
           }),
@@ -148,7 +170,11 @@ await probe.run(async ({ open }) => {
             if (!row.noteLabel?.startsWith(kind.label)) fire('every-mark-has-a-name', `the thought on a whole section is named ${JSON.stringify(row.noteLabel)}, want a name that begins with ${kind.label}`);
             continue;
           }
-          const name = row.first?.label ?? '';
+          // The name a screen reader is given, read from the accessibility tree
+          // and not from the markup that was meant to give it.
+          const ax = await axOf(page, `mark[data-mark="${kind.id}"]`);
+          const name = ax?.name ?? '';
+          if (!ax || ax.ignored || ax.role !== 'mark') fire('every-mark-has-a-name', `the ${row.name} is ${JSON.stringify(ax)} in the accessibility tree, want a mark that is not left out of it`);
           if (!name.startsWith(kind.label)) fire('every-mark-has-a-name', `the ${row.name} is named ${JSON.stringify(name)}, want a name that begins with its state, ${kind.label}`);
           if (row.first.tabindex !== '0') fire('every-mark-has-a-name', `the first piece of the ${row.name} has tabindex ${row.first.tabindex}, want 0 so that a keyboard meets it`);
           if (kind.body.body && row.first.describedby !== `mn-${kind.id}`) fire('every-mark-has-a-name', `the ${row.name} is described by ${row.first.describedby}, want its note`);
@@ -246,13 +272,56 @@ await probe.run(async ({ open }) => {
     await close();
   }
 
+  // The line the changes are said in is always there for a screen reader, empty:
+  // a region that comes into the page with its words is not announced.
+  if (runs('the-status-line-stays-in-the-tree')) {
+    const { page, close } = await open({ width: 1512, height: 900 });
+    await lifted(page);
+    const regions = async () => ({ said: await axOf(page, '[data-mstatus-said]'), alert: await axOf(page, '[data-mstatus-alert]') });
+    let now = await regions();
+    if (!now.said || now.said.ignored || now.said.role !== 'status' || !now.alert || now.alert.ignored || now.alert.role !== 'alert') fire('the-status-line-stays-in-the-tree', `before anything is said the regions are ${JSON.stringify(now)} in the accessibility tree, want a status and an alert that are not left out of it`);
+    const box = () => page.locator('[data-marks-status]').evaluate((element) => ({ width: element.getBoundingClientRect().width, height: element.getBoundingClientRect().height, text: element.textContent.replace(/\s+/g, '') }));
+    const idle = await box();
+    if (idle.width > 2 || idle.height > 2 || idle.text !== '') fire('the-status-line-stays-in-the-tree', `before anything is said the line is ${JSON.stringify(idle)}, want nothing drawn and nothing in it`);
+    await page.keyboard.press('m');
+    await page.keyboard.press('}');
+    await page.waitForFunction(() => document.querySelector('[data-mstatus-said]').textContent !== '', null, { timeout: 2000 }).catch(() => {});
+    const said = await box();
+    if (said.width < 100 || !said.text) fire('the-status-line-stays-in-the-tree', `after something is said the line is ${JSON.stringify(said)}, want it drawn with its words`);
+    await page.click('[data-mstatus-close]');
+    now = await regions();
+    if (!now.said || now.said.ignored || !now.alert || now.alert.ignored) fire('the-status-line-stays-in-the-tree', `after the line is dismissed the regions are ${JSON.stringify(now)} in the accessibility tree, want them still there, empty`);
+    const after = await box();
+    if (after.width > 2 || after.height > 2 || after.text !== '') fire('the-status-line-stays-in-the-tree', `after the line is dismissed it is ${JSON.stringify(after)}, want nothing drawn`);
+    console.log('marks-page: the status and alert regions stay in the accessibility tree, empty and undrawn, and are drawn with their words');
+    await close();
+  }
+
+  // Before the script has set the notes in the margin they are kept out of sight,
+  // where the margin is, and nowhere else: a window with no room for one shows
+  // them after their paragraphs at once, and does not hold them back.
+  if (runs('the-first-frame-hides-notes-only-where-the-margin-is')) {
+    for (const [width, size, hides] of [[1512, '', true], [1330, 'xl', false]]) {
+      const { page, close } = await open({ width, height: 900, size, settle: false, before: (page) => page.route(/\/static\/marks[a-z-]*\.js(\?.*)?$/, (route) => route.abort()) });
+      const got = await page.evaluate(() => {
+        const notes = [...document.querySelectorAll('.y-mnote')];
+        return { count: notes.length, hidden: notes.filter((n) => getComputedStyle(n).visibility === 'hidden').length, lifted: document.documentElement.dataset.marksLifted !== undefined, js: document.documentElement.dataset.js };
+      });
+      if (got.js !== 'on' || got.lifted || got.count < 3) broken(`at ${width}px the page is ${JSON.stringify(got)}, want a page with script that has not set its notes`);
+      if (hides && got.hidden !== got.count) fire('the-first-frame-hides-notes-only-where-the-margin-is', `at ${width}px, where the margin is, ${got.hidden} of ${got.count} notes are held out of sight before the script sets them, want all`);
+      if (!hides && got.hidden > 0) fire('the-first-frame-hides-notes-only-where-the-margin-is', `at ${width}px at text size ${size}, with no room for a margin, ${got.hidden} of ${got.count} notes are held out of sight, want them shown after their paragraphs`);
+      await close();
+    }
+    console.log('marks-page: before the script has run the notes are held out of sight where the margin is and shown where it is not');
+  }
+
   // The colours.
   if (runs('colour-roles') || runs('every-word-is-readable')) {
     for (const theme of ['light', 'dark']) {
       const { page, close } = await open({ width: 1512, height: 900, theme });
       await lifted(page);
       const token = (name) => resolveColour(page, `var(${name})`);
-      const tokens = { reader: await token('--reader'), readerWash: await token('--reader-wash'), ochre: await token('--ochre'), ochreLine: await token('--ochre-line'), ochreWash: await token('--ochre-wash'), crimson: await token('--crimson'), crimsonWash: await token('--crimson-wash'), line: await token('--line-strong') };
+      const tokens = { ink: await token('--fg'), reader: await token('--reader'), readerLine: await token('--reader-line'), readerWashStrong: await token('--reader-wash-strong'), readerWash: await token('--reader-wash'), ochre: await token('--ochre'), ochreLine: await token('--ochre-line'), ochreWash: await token('--ochre-wash'), crimson: await token('--crimson'), crimsonWash: await token('--crimson-wash'), line: await token('--line-strong') };
       const ochres = new Set([tokens.ochre, tokens.ochreLine, tokens.ochreWash, await token('--ochre-wash-strong')]);
       const crimsons = new Set([tokens.crimson, tokens.crimsonWash]);
       const paint = await page.evaluate(
@@ -294,7 +363,45 @@ await probe.run(async ({ open }) => {
         const asking = paint.filter((row) => row.state === 'question' && row.tag === 'mark');
         if (!asking.some((row) => row.used.some(([prop, value]) => prop === 'textDecorationColor' && value === tokens.ochre))) fire('colour-roles', `in ${theme} an open question is not underlined in ochre`);
         const noteRule = paint.find((row) => row.state === 'question' && row.tag === 'aside');
-        if (noteRule && !noteRule.used.some(([prop, value]) => prop === 'borderInlineStartColor' && value === tokens.ochreLine)) fire('colour-roles', `in ${theme} the rule down an open question's note is not the ochre line`);
+        const ruleOf = (row) => row?.used.find(([prop]) => prop === 'borderInlineStartColor')?.[1];
+        if (noteRule && ruleOf(noteRule) !== tokens.ochre) fire('colour-roles', `in ${theme} the rule down an open question's note is ${ruleOf(noteRule)}, want ochre ${tokens.ochre}, as strong as the underline under its words`);
+        const thoughtRule = paint.find((row) => row.name === 'thought' && row.tag === 'aside');
+        if (ruleOf(thoughtRule) !== tokens.reader) fire('colour-roles', `in ${theme} the rule down a thought's note is ${ruleOf(thoughtRule)}, want the reader's indigo ${tokens.reader}, as strong as the wash on its words`);
+        const answeredRule = paint.find((row) => row.state === 'resolved' && row.tag === 'aside');
+        if (ruleOf(answeredRule) !== tokens.line) fire('colour-roles', `in ${theme} the rule down an answered question's note is ${ruleOf(answeredRule)}, want the line colour ${tokens.line}`);
+        // A mark that is lit says so on its words and not in the wash alone.
+        const litShadow = await page.evaluate(() => {
+          const piece = document.querySelector('mark[data-kind="highlight"]');
+          piece.classList.add('is-lit');
+          const shadow = getComputedStyle(piece).boxShadow;
+          piece.classList.remove('is-lit');
+          return shadow;
+        });
+        if (!litShadow.includes(tokens.reader)) fire('colour-roles', `in ${theme} a lit highlight has the shadow ${JSON.stringify(litShadow)}, want a line under it in the reader's indigo ${tokens.reader}`);
+        // The line from a lit note to its words, and the rule that says it was pushed
+        // down, follow the state of the mark.
+        const links = await page.evaluate(() => {
+          const out = [];
+          for (const kind of ['thought', 'question', 'resolved']) {
+            const note = document.querySelector(`.y-mnote[data-state="${kind}"]`);
+            if (!note) continue;
+            const was = [note.hasAttribute('data-lifted'), note.hasAttribute('data-displaced')];
+            note.setAttribute('data-lifted', '');
+            note.setAttribute('data-displaced', '');
+            note.classList.add('is-lit');
+            out.push({ kind, connector: getComputedStyle(note, '::before').backgroundColor, tick: getComputedStyle(note, '::after').backgroundColor });
+            note.classList.remove('is-lit');
+            if (!was[0]) note.removeAttribute('data-lifted');
+            if (!was[1]) note.removeAttribute('data-displaced');
+          }
+          return out;
+        });
+        const wantLink = { thought: tokens.reader, question: tokens.ochre, resolved: tokens.line };
+        if (links.length < 3) broken(`only ${links.length} of the three states of a note are drawn`);
+        for (const link of links) {
+          if (link.connector !== wantLink[link.kind]) fire('colour-roles', `in ${theme} the line from a lit ${link.kind} note to its words is ${link.connector}, want ${wantLink[link.kind]}`);
+          if (link.tick !== wantLink[link.kind]) fire('colour-roles', `in ${theme} the rule that says a ${link.kind} note was pushed down is ${link.tick}, want ${wantLink[link.kind]}`);
+        }
         const answered = paint.filter((row) => row.state === 'resolved');
         if (answered.length === 0) broken('the answered question is not drawn as one');
         for (const kind of ['highlight', 'thought']) {
@@ -312,8 +419,26 @@ await probe.run(async ({ open }) => {
         await failing.waitForSelector('.y-mfield__said:not([hidden])', { timeout: 4000 });
         const said = await failing.evaluate(() => getComputedStyle(document.querySelector('.y-mfield__said')).color);
         if (said !== tokens.crimson) fire('colour-roles', `in ${theme} a failed write is said in ${said}, want crimson ${tokens.crimson}`);
+        // Indigo is the reader's own marks and the focus ring, and not the buttons:
+        // the Done button is ink.
+        const done = await failing.evaluate(() => getComputedStyle(document.querySelector('.y-mfield__done')).backgroundColor);
+        if (done !== tokens.ink) fire('colour-roles', `in ${theme} the Done button is ${done}, want ink ${tokens.ink}: indigo is for the reader's own marks`);
         await failing.keyboard.press('Escape');
         await second.close();
+        // The word that undoes, and the toolbar under a pointer.
+        const third = await open({ width: 1512, height: 900, theme });
+        await lifted(third.page);
+        await third.page.keyboard.press('m');
+        await third.page.keyboard.press('}');
+        await third.page.waitForSelector('[data-mstatus-act]:not([hidden])', { timeout: 3000 });
+        const act = await third.page.evaluate(() => getComputedStyle(document.querySelector('[data-mstatus-act]')).color);
+        if (act !== tokens.ink) fire('colour-roles', `in ${theme} the word on the status line that does what it says is ${act}, want ink ${tokens.ink}`);
+        await third.page.keyboard.press('m');
+        await choose(third.page, 'Theta passage opens the second section');
+        await third.page.hover('[data-mbar="highlight"]');
+        const hover = await third.page.evaluate(() => getComputedStyle(document.querySelector('[data-mbar="highlight"]')).backgroundColor);
+        if ([tokens.reader, tokens.readerWash, tokens.readerWashStrong, tokens.readerLine].includes(hover)) fire('colour-roles', `in ${theme} the toolbar under a pointer is washed ${hover}, in the reader's indigo: that is for the reader's marks`);
+        await third.close();
       }
       if (runs('every-word-is-readable')) {
         const probes = await page.evaluate(() => {

@@ -76,6 +76,7 @@ var clientOwned = []string{
 	"data-displaced",
 	"data-docked",
 	"data-for",
+	"data-lifted",
 	"data-mark-skip",
 	"data-marks-lifted",
 	"data-mfield",

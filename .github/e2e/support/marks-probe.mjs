@@ -6,12 +6,32 @@
 // table of mutations, each with the site that has to fire for it. MUTATE=list
 // prints the table; a mutation that fires its own site prints
 // `MUTATE-RESULT: caught <mode>`, and one that reached nothing prints
-// `MUTATE-RESULT: not-applied <mode>`.
+// `MUTATE-RESULT: not-applied <mode>`. ONLY=<site> runs the one site that is named
+// and nothing else, for a probe whose sites do not lean on one another.
 import { chromium } from 'playwright-core';
 
 import { baseUrl as BASE } from './base.mjs';
 
 export const NOTE = '/notes/Notes/marks-on-page.md';
+
+// What Chrome's own accessibility tree says of the first element a selector
+// finds: its role and name, and whether it is left out of the tree. A probe that
+// reads this reads what a screen reader is given, not the markup that was meant
+// to give it.
+export async function axOf(page, selector) {
+  const client = await page.context().newCDPSession(page);
+  try {
+    const { root } = await client.send('DOM.getDocument', { depth: 0 });
+    const { nodeId } = await client.send('DOM.querySelector', { nodeId: root.nodeId, selector });
+    if (!nodeId) return null;
+    const { node } = await client.send('DOM.describeNode', { nodeId });
+    const { nodes } = await client.send('Accessibility.getPartialAXTree', { backendNodeId: node.backendNodeId, fetchRelatives: false });
+    const found = nodes.find((n) => n.backendDOMNodeId === node.backendNodeId) ?? nodes[0];
+    return found ? { role: found.role?.value ?? '', name: found.name?.value ?? '', ignored: Boolean(found.ignored) } : null;
+  } finally {
+    await client.detach();
+  }
+}
 export { BASE };
 
 // The words a page of marks must never say: where a mark is kept, what keeps it
@@ -42,7 +62,8 @@ export function defineProbe(name, sites, modes) {
   const mode = MUTATE ? modes[MUTATE] : null;
   const planted = { seen: 0, matched: 0 };
 
-  const runs = (site) => !mode || mode.site === site;
+  const only = process.env.ONLY || '';
+  const runs = (site) => (!mode || mode.site === site) && (!only || only === site);
   const fire = (site, message) => {
     if (!sites.includes(site)) throw new Error(`BROKEN ${name}: unknown assertion site ${site}`);
     throw new LockFired(site, `FAIL ${name}: ${message}`);
@@ -98,7 +119,7 @@ export function defineProbe(name, sites, modes) {
       console.log(`${name}: Chrome ${browser.version()}`);
       // open is one page in a context of its own: cookies the page reads, the
       // window it is read in, and the mutation if this run has one.
-      const open = async ({ path = NOTE, width = 1512, height = 1000, theme = 'light', script = true, touch = false, cookies = {}, size = '', plantHere = true } = {}) => {
+      const open = async ({ path = NOTE, width = 1512, height = 1000, theme = 'light', script = true, touch = false, cookies = {}, size = '', plantHere = true, before = null, settle = true } = {}) => {
         const context = await browser.newContext({
           viewport: { width, height },
           colorScheme: theme,
@@ -111,10 +132,11 @@ export function defineProbe(name, sites, modes) {
         );
         const page = await context.newPage();
         if (plantHere) await plant(page);
+        if (before) await before(page);
         const response = await page.goto(BASE + path, { waitUntil: 'load' });
         if (response?.status() !== 200) broken(`${path} answered ${response?.status()}, want 200`);
         await page.evaluate(() => document.fonts.ready);
-        if (script) await page.waitForFunction(() => document.documentElement.dataset.marksLifted !== undefined, null, { timeout: 5000 }).catch(() => {});
+        if (script && settle) await page.waitForFunction(() => document.documentElement.dataset.marksLifted !== undefined, null, { timeout: 5000 }).catch(() => {});
         return { page, context, close: () => context.close() };
       };
       await body({ browser, open });
@@ -176,7 +198,7 @@ export const drawn = (page) =>
     for (const note of document.querySelectorAll('.y-mnote[data-mnote]')) {
       const id = note.dataset.mnote;
       const entry = out.get(id) ?? { id, kind: note.dataset.kind, state: note.dataset.state, text: '', note: null };
-      entry.note = { words: note.querySelector('.y-mnote__words')?.textContent ?? '', label: note.getAttribute('aria-label'), state: note.dataset.state };
+      entry.note = { words: note.querySelector('.y-mnote__words')?.textContent || note.querySelector('.y-mnote__words')?.dataset.text || '', label: note.getAttribute('aria-label'), state: note.dataset.state };
       out.set(id, entry);
     }
     return [...out.values()];

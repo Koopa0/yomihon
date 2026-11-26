@@ -38,3 +38,5 @@ Nu passage opens the third section. Xi passage is a short one. Omicron passage i
 ### A smaller heading
 
 Pi passage stands under a heading of the third level, which a touch screen is not given buttons for.
+
+Rho passage costs $& and $' each time, which no reader should have to see turned into something else.

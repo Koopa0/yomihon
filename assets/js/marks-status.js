@@ -4,6 +4,10 @@
 // takes it away on a timer, because a line that goes by itself is read by those
 // who happened to look. A failure is a separate region with the alert role, so a
 // screen reader says it at once; everything else is polite.
+//
+// The two regions are in the page from the start and never taken out of it: a
+// region that comes into the page with its words in it is not announced, so what
+// is idle is drawn as nothing and not removed.
 
 export function createStatus(element) {
   const said = element.querySelector('[data-mstatus-said]');
@@ -18,7 +22,8 @@ export function createStatus(element) {
     act.hidden = true;
     act.textContent = '';
     run = null;
-    element.hidden = true;
+    close.hidden = true;
+    element.dataset.idle = '';
   }
 
   // say puts words in the line. action is a button beside them, which does what
@@ -30,7 +35,8 @@ export function createStatus(element) {
     run = action?.run ?? null;
     act.hidden = !action;
     act.textContent = action?.label ?? '';
-    element.hidden = false;
+    close.hidden = false;
+    delete element.dataset.idle;
   }
 
   act.addEventListener('click', () => {
@@ -38,5 +44,5 @@ export function createStatus(element) {
     if (go) go();
   });
   close.addEventListener('click', clear);
-  return { say, clear, shown: () => !element.hidden, element };
+  return { say, clear, shown: () => !('idle' in element.dataset), element };
 }

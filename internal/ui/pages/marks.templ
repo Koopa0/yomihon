@@ -60,11 +60,11 @@ templ marksTools(lang wording.Lang) {
 		<button type="button" class="y-mbar__act" data-mbar="question">{ wording.MarksAskAbout.In(lang) } <kbd class="ui-kbd">q</kbd></button>
 		<button type="button" class="y-mbar__act" data-mbar="copy" hidden>{ wording.MarksCopy.In(lang) } <kbd class="ui-kbd">c</kbd></button>
 	</div>
-	<div class="y-mstatus" lang={ lang.Tag() } data-marks-status hidden>
+	<div class="y-mstatus" lang={ lang.Tag() } data-marks-status data-idle>
 		<p class="y-mstatus__said" role="status" data-mstatus-said></p>
 		<p class="y-mstatus__said" role="alert" data-mstatus-alert></p>
 		<button type="button" class="y-mstatus__act" data-mstatus-act hidden></button>
-		<button type="button" class="y-mstatus__close" data-mstatus-close aria-label={ wording.CloseControl.In(lang) }>
+		<button type="button" class="y-mstatus__close" data-mstatus-close hidden aria-label={ wording.CloseControl.In(lang) }>
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
 		</button>
 	</div>

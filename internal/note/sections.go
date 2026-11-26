@@ -43,7 +43,9 @@ func (h *Handler) sectionsIn(ctx context.Context, snap *snapshot.Generation, n *
 		IDPrefix: idPrefix,
 		Marks:    questionAddress != "",
 		Door:     door,
-		Own:      idPrefix == "" && h.sources.Kept != nil,
+		// A folder that cannot be written to has no route to keep a mark at, and
+		// draws no button that would answer nothing.
+		Own:      idPrefix == "" && h.sources.Kept != nil && questionAddress != "",
 		Sections: make(map[string]pages.SectionMargin),
 	}
 	marked := h.marksIn(n.RelPath)
