@@ -31,12 +31,6 @@ var QuestionUnavailable = both(
 // QuestionRefused reports a malformed location without echoing its fields.
 var QuestionRefused = both("這個位置無法標為疑問。", "That location could not be marked as a question.")
 
-// QuestionPlaceOnly states the deliberately small persistence promise.
-var QuestionPlaceOnly = both(
-	"疑問只記在這台裝置上，只存位置與時間，不存選出的句子；內容變動後，這則疑問可能對不上原文。",
-	"Questions stay on this device. Only the location and time are kept, not the chosen sentence; a question may stop matching if the content changes.",
-)
-
 // NoteNotFound says a note is not there to open: a stored mark whose note is no
 // longer readable, or a request that names one the vault does not let a reader
 // open.

@@ -119,13 +119,20 @@ const keep = async (page, quote) => {
       const response = await fetch('/mark', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'highlight', path, anchor: '', quote: words, before: '', after: '', reason: '', body: '' }),
+        body: JSON.stringify({ kind: 'highlight', path, anchor: '', quote: words, before: '', after: '', body: '' }),
       });
       return { status: response.status, body: await response.json().catch(() => null) };
     },
     [NOTE, quote],
   );
-  const removed = sent.status === 201 ? await page.evaluate(async (id) => (await fetch(`/mark/${id}`, { method: 'DELETE' })).status, sent.body.id) : null;
+  const removed =
+    sent.status === 201
+      ? await page.evaluate(
+          async ([id, seen]) =>
+            (await fetch(`/mark/${id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seen }) })).status,
+          [sent.body.id, sent.body.seen],
+        )
+      : null;
   check(sent.status === 201, `a highlight of ${JSON.stringify(quote)} was answered ${sent.status}, want 201: the server does not find the words the reader selected`);
   same(sent.body.placement, 'found', `placement of the highlight of ${JSON.stringify(quote)}`);
   same(sent.body.quote, quote, 'the words kept');

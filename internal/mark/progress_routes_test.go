@@ -19,12 +19,84 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/wording"
 )
 
 const (
 	goCourse   = "Courses/go.md"
 	rustCourse = "Courses/rust.md"
 )
+
+// aVault is the notes a route can place a bookmark in: each path with the words
+// its page holds. Every note has one place, "section-one", and the note as a
+// whole.
+type aVault map[string]string
+
+func (v aVault) HasPlace(rel, anchor string) bool {
+	_, ok := v[rel]
+	return ok && (anchor == "" || anchor == "section-one")
+}
+
+func (v aVault) Reading(rel string, _ wording.Lang) (mark.Page, bool) {
+	text, ok := v[rel]
+	return mark.Page{Text: text, Identity: anIdentity}, ok
+}
+
+func asJSON(t *testing.T, v any) string {
+	t.Helper()
+	data, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+func write(t *testing.T, handler http.Handler, method, target, contentType, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	request := httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body))
+	if contentType != "" {
+		request.Header.Set("Content-Type", contentType)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	return response
+}
+
+func writeJSON(t *testing.T, handler http.Handler, method, target, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	return write(t, handler, method, target, "application/json", body)
+}
+
+// treeOf is every file and directory under dir, with each file's bytes.
+func treeOf(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if closeErr := root.Close(); closeErr != nil {
+			t.Error(closeErr)
+		}
+	})
+	tree := map[string]string{}
+	err = fs.WalkDir(root.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			tree[path+"/"] = ""
+			return nil
+		}
+		data, err := fs.ReadFile(root.FS(), path)
+		tree[path] = string(data)
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tree
+}
 
 // aSchool is aVault with courses: each course path and what it walks.
 type aSchool struct {
@@ -80,7 +152,7 @@ func newProgressRoutes(t *testing.T) (*mark.Store, http.Handler) {
 	t.Helper()
 	store := newStore(t)
 	mux := http.NewServeMux()
-	mark.NewHandler(store, theSchool(), slog.New(slog.DiscardHandler)).Register(mux)
+	mark.NewHandler(store, newKept(t, store, resolvedRoot(t)), theSchool(), slog.New(slog.DiscardHandler)).Register(mux)
 	return store, mux
 }
 
@@ -407,7 +479,7 @@ func TestAFinishedNoteWhoseFileIsGoneCanStillBeReopened(t *testing.T) {
 			store := newStore(t)
 			school := theSchool()
 			mux := http.NewServeMux()
-			mark.NewHandler(store, school, slog.New(slog.DiscardHandler)).Register(mux)
+			mark.NewHandler(store, newKept(t, store, resolvedRoot(t)), school, slog.New(slog.DiscardHandler)).Register(mux)
 			if _, response := finishing(t, mux, http.MethodPut, "Notes/a.md", query); response.Code != http.StatusOK {
 				t.Fatalf("PUT = %d %q, want 200", response.Code, response.Body.String())
 			}
@@ -567,7 +639,7 @@ func TestProgressRoutesWriteNothingIntoTheFolderBeingRead(t *testing.T) {
 	configDir := t.TempDir()
 	store := newStoreFor(t, configDir, vaultRoot)
 	mux := http.NewServeMux()
-	mark.NewHandler(store, theSchool(), slog.New(slog.DiscardHandler)).Register(mux)
+	mark.NewHandler(store, newKept(t, store, vaultRoot), theSchool(), slog.New(slog.DiscardHandler)).Register(mux)
 	before := treeOf(t, vaultRoot)
 
 	first := decodeMoved(t, putBookmark(t, mux, aBookmarkBody(goCourse, "Notes/a.md"))).Bookmark

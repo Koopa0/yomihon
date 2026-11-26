@@ -124,3 +124,17 @@ func (v *View) LedgerChanged() int { return v.v.ledgerChanged }
 // writing under its old one, and the reader has not been told. NoticeNewID
 // records that they were.
 func (v *View) NewIDUnsaid() bool { return v.v.st.unsaid }
+
+// OwnBytes is the length of this machine's own file in the vault, 0 where there
+// is none or it could not be read.
+func (v *View) OwnBytes() int { return len(v.v.ownDisk) }
+
+// Live is how many marks of every machine are not deleted, which is what the
+// limit counts.
+func (v *View) Live() int { return v.v.live() }
+
+// AwaitsTakeIn says the marks of the earlier file have not been taken in yet:
+// this machine has no file of marks and no conversion in its ledger, so its next
+// write takes them in. Until then they are in the earlier file only, and a page
+// that listed only what a read finds would not show them.
+func (v *View) AwaitsTakeIn() bool { return !v.v.st.converted && !v.v.ownFound }

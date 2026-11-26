@@ -132,3 +132,48 @@ func TestValidExcludePattern(t *testing.T) {
 		})
 	}
 }
+
+// The reader folder is outside every scan, with no rules file and no boundary
+// set: what is in it is the reader's, and yomihon reads nothing there but its
+// own machine files, which the scan does not.
+func TestReaderFolderIsOutsideEveryScan(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeReaderFixture(t, root, "reader-notes/mine.md", "# Mine\n")
+	writeReaderFixture(t, root, "reader-notes/deep/more.md", "# More\n")
+	writeReaderFixture(t, root, "Reader-Notes/cased.md", "# Cased\n")
+	writeReaderFixture(t, root, "notes/reader-notes/nested.md", "# Nested\n")
+	writeReaderFixture(t, root, "notes/kept.md", "# Kept\n")
+
+	reader := openTestReader(t, root)
+	available, err := reader.ScanAvailable(t.Context())
+	if err != nil {
+		t.Fatalf("ScanAvailable() error = %v", err)
+	}
+	for name, scan := range map[string]Scan{"complete": scanCompleteFixture(t, reader), "available": available} {
+		var got []string
+		for _, entry := range scan.Files() {
+			got = append(got, entry.Path())
+		}
+		want := []string{"notes/kept.md", "notes/reader-notes/nested.md"}
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Errorf("%s scan files mismatch (-want +got):\n%s", name, diff)
+		}
+		for _, p := range []string{"reader-notes/mine.md", "reader-notes/deep/more.md", "Reader-Notes/cased.md"} {
+			if scan.Contains(p) || !scan.OutsideScan(p) {
+				t.Errorf("%s scan: %s is in the scan (Contains %v, OutsideScan %v)", name, p, scan.Contains(p), scan.OutsideScan(p))
+			}
+		}
+		if scan.OutsideScan("notes/reader-notes/nested.md") {
+			t.Errorf("%s scan: a folder of that name below the top is not the reader folder", name)
+		}
+	}
+	for _, p := range []string{"reader-notes/.yomihon/marks/ab.jsonl", "READER-NOTES/x.md"} {
+		if !OutsideScan(p) || !(Boundary{}).OutsideScan(p) {
+			t.Errorf("OutsideScan(%q) = false, want true", p)
+		}
+	}
+	if OutsideScan("notes/reader-notes/x.md") || OutsideScan("reader-notes") {
+		t.Error("OutsideScan says a nested folder, or the bare name of a file, is the reader folder")
+	}
+}

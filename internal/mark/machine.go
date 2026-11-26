@@ -12,25 +12,16 @@ import (
 //
 // A question's reason becomes its words, since the machine file has one field
 // for the reader's words in every state, and the marks of the files an earlier
-// version still kept are included, as List has them. A file that cannot be read
-// is ErrUnreadable, and the write that asked stops with it.
+// version still kept are included, as the file has them. A file that cannot be
+// read is ErrUnreadable, and the write that asked stops with it.
 func (s *Store) MachineMarks() ([]machinemarks.Mark, error) {
-	held, err := s.List()
+	held, _, err := s.loadMarks()
 	if err != nil {
 		return nil, err
 	}
 	out := make([]machinemarks.Mark, len(held))
 	for i := range held {
-		m := &held[i]
-		words := m.Body
-		if m.Kind == Question {
-			words = m.Reason
-		}
-		out[i] = machinemarks.Mark{
-			ID: m.ID, Kind: machinemarks.Kind(m.Kind), Path: m.RelPath, Anchor: m.Anchor,
-			Quote: m.Quote, Before: m.Before, After: m.After, Identity: m.Identity,
-			Body: words, Resolved: m.ResolvedAt, At: m.At,
-		}
+		out[i] = toMachine(&held[i])
 	}
 	return out, nil
 }

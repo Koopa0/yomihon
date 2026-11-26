@@ -1,6 +1,7 @@
 // yomihon is the local reading-and-adjudication interface for the Obsidian
-// vault. Its HTTP server listens only on 127.0.0.1 and writes nothing into the
-// vault. Nothing here contacts a network.
+// vault. Its HTTP server listens only on 127.0.0.1 and writes into the vault
+// only the reader's own marks, under reader-notes/.yomihon/marks/. Nothing here
+// contacts a network.
 package main
 
 import (

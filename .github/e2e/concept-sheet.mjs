@@ -103,12 +103,19 @@ try {
           const control = dialog.querySelector('[data-question-control]');
           const button = control.querySelector('button');
           const said = control.querySelector('.y-question__said');
-          const scope = control.querySelector('.y-fileinfo__note');
+          // The control no longer carries a paragraph of its own beside the
+          // feedback, so the quiet note the stylesheet pairs it with is drawn
+          // here for the comparison and taken away again.
+          const scope = document.createElement('p');
+          scope.className = 'y-fileinfo__note';
+          control.append(scope);
           const d = dialog.getBoundingClientRect();
           const b = body.getBoundingClientRect();
           const style = getComputedStyle(body);
           const s = getComputedStyle(said);
           const n = getComputedStyle(scope);
+          const reference = [n.color, n.fontFamily, n.fontSize, n.margin];
+          scope.remove();
           // The sheet docks to the box a fixed element fills, which is what a
           // scrollbar or a reserved gutter shrinks; a window width is not.
           const edge = document.createElement('div');
@@ -123,7 +130,7 @@ try {
             buttonLeft: button.getBoundingClientRect().left,
             inside: body.contains(control),
             feedback: [s.color, s.fontFamily, s.fontSize, s.margin],
-            scope: [n.color, n.fontFamily, n.fontSize, n.margin],
+            scope: reference,
             disabled: button.disabled, status: said.getAttribute('role'),
             controls: dialog.querySelectorAll('[data-question-control]').length,
             theme: document.documentElement.dataset.theme,

@@ -16,6 +16,7 @@ import (
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
 	"github.com/koopa0/yomihon/internal/mark/ledger"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 )
 
 func admitEverything(string) bool { return true }
@@ -42,17 +43,15 @@ func movedVault(t *testing.T) aMovedVault {
 }
 
 // keepEverything leaves one of each thing in the old vault's directory: a
-// highlight, a question, a thought, a bookmark for no course and one for a
-// course, and two finished notes.
+// highlight, a question and a thought in marks.json, a bookmark for no course and
+// one for a course, and two finished notes.
 func (v aMovedVault) keepEverything(t *testing.T) {
 	t.Helper()
 	thought := aHighlight()
 	thought.Kind, thought.Body, thought.Quote, thought.Anchor = mark.Thought, "this is why", "second", "section-two"
-	for _, m := range []*mark.Mark{aHighlight(), aQuestion(), thought} {
-		if _, err := v.old.Add(m); err != nil {
-			t.Fatalf("keep a %s: %v", m.Kind, err)
-		}
-	}
+	// Nothing writes marks.json any more, so the marks of the earlier version
+	// are left as it left them, by hand.
+	writeFile(t, marksPath(v.old), marksJSON(t, v.oldRoot, *aHighlight(), *aQuestion(), *thought))
 	if err := moveBookmark(v.old, mark.NoCourse, aPlace()); err != nil {
 		t.Fatal(err)
 	}
@@ -127,11 +126,12 @@ func finishedAtFor(t *testing.T, store *mark.Store, note string) time.Time {
 	return at
 }
 
-func listedMarks(t *testing.T, store *mark.Store) []mark.Mark {
+// listedMarks is the marks of marks.json, as a machine file takes them in.
+func listedMarks(t *testing.T, store *mark.Store) []machinemarks.Mark {
 	t.Helper()
-	held, err := store.List()
+	held, err := store.MachineMarks()
 	if err != nil {
-		t.Fatalf("List: %v", err)
+		t.Fatalf("MachineMarks: %v", err)
 	}
 	return held
 }
@@ -204,21 +204,20 @@ func TestAdoptKeepsWhatTheVaultAlreadyHas(t *testing.T) {
 	v := movedVault(t)
 	v.keepEverything(t)
 
-	ownHighlight, err := v.now.Add(aHighlight())
-	if err != nil {
-		t.Fatal(err)
-	}
+	ownHighlight := *aHighlight()
+	ownHighlight.ID = markID(10)
+	writeFile(t, marksPath(v.now), marksJSON(t, v.newRoot, ownHighlight))
 	ownBookmark := aPlace()
 	ownBookmark.Anchor, ownBookmark.Offset = "a-newer-place", 7
-	if err = moveBookmark(v.now, mark.NoCourse, ownBookmark); err != nil {
+	if err := moveBookmark(v.now, mark.NoCourse, ownBookmark); err != nil {
 		t.Fatal(err)
 	}
-	if err = v.now.SetFinished("Notes/source.md", true); err != nil {
+	if err := v.now.SetFinished("Notes/source.md", true); err != nil {
 		t.Fatal(err)
 	}
 	ownFinishedAt := finishedAtFor(t, v.now, "Notes/source.md")
 
-	if err = v.now.Adopt(v.oldRoot, admitEverything); err != nil {
+	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
 	held := listedMarks(t, v.now)
@@ -251,12 +250,10 @@ func TestAdoptDoesNotTakeAThoughtForTheOneAlreadyThere(t *testing.T) {
 		m.Kind, m.Body = mark.Thought, body
 		return m
 	}
-	if _, err := v.old.Add(thought("what the old one said")); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := v.now.Add(thought("what this one says")); err != nil {
-		t.Fatal(err)
-	}
+	older, newer := thought("what the old one said"), thought("what this one says")
+	older.ID, newer.ID = markID(1), markID(2)
+	writeFile(t, marksPath(v.old), marksJSON(t, v.oldRoot, *older))
+	writeFile(t, marksPath(v.now), marksJSON(t, v.newRoot, *newer))
 	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
@@ -277,8 +274,8 @@ func TestAdoptBringsAcrossOnlyWhatIsAdmitted(t *testing.T) {
 		t.Fatalf("Adopt: %v", err)
 	}
 	for _, m := range listedMarks(t, v.now) {
-		if m.RelPath != "Notes/source.md" {
-			t.Errorf("a mark on %q came across", m.RelPath)
+		if m.Path != "Notes/source.md" {
+			t.Errorf("a mark on %q came across", m.Path)
 		}
 	}
 	if got := len(listedMarks(t, v.now)); got != 3 {
@@ -316,10 +313,9 @@ func TestAdoptRefusesWhatCannotBeAdoptedAndNamesNoPath(t *testing.T) {
 	v.keepEverything(t)
 
 	roots := t.TempDir()
-	other := newStoreFor(t, v.config, filepath.Join(roots, "elsewhere"))
-	if _, err := other.Add(aQuestion()); err != nil {
-		t.Fatal(err)
-	}
+	elsewhereRoot := filepath.Join(roots, "elsewhere")
+	other := newStoreFor(t, v.config, elsewhereRoot)
+	writeFile(t, marksPath(other), marksJSON(t, elsewhereRoot, *aQuestion()))
 	// A directory copied by hand to the name another path gives records the path
 	// it was made for, and says so.
 	copiedRoot := filepath.Join(roots, "copied")
@@ -384,7 +380,7 @@ func TestAdoptTakesADirectoryThatOnlyAnEarlierVersionWrote(t *testing.T) {
 	if err := v.now.Adopt(v.oldRoot, admitEverything); err != nil {
 		t.Fatalf("Adopt: %v", err)
 	}
-	if held := listedMarks(t, v.now); len(held) != 1 || held[0].Kind != mark.Question {
+	if held := listedMarks(t, v.now); len(held) != 1 || held[0].Kind != machinemarks.Question {
 		t.Errorf("marks %+v came across, want the one question", held)
 	}
 	if got, found, err := v.now.Bookmark(mark.NoCourse); err != nil || !found || got.Offset != 3 {
@@ -399,9 +395,11 @@ func TestAdoptTakesADirectoryThatOnlyAnEarlierVersionWrote(t *testing.T) {
 func TestAdoptThatWouldPassTheBoundWritesNothing(t *testing.T) {
 	t.Parallel()
 	v := movedVault(t)
-	if _, err := v.old.Add(aQuestion()); err != nil {
-		t.Fatal(err)
-	}
+	// An id that none of the full file's marks has, so that this mark is the one
+	// that does not fit.
+	question := aQuestion()
+	question.ID = markID(mark.MaxMarks + 1)
+	writeFile(t, marksPath(v.old), marksJSON(t, v.oldRoot, *question))
 	if err := moveBookmark(v.old, mark.NoCourse, aPlace()); err != nil {
 		t.Fatal(err)
 	}

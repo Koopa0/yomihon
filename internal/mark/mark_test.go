@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
@@ -47,8 +48,6 @@ func aHighlight() *mark.Mark {
 		At:       time.Date(2026, 9, 22, 11, 0, 0, 0, time.UTC),
 	}
 }
-
-func admitAny(*mark.Mark) bool { return true }
 
 func newStore(t *testing.T) *mark.Store {
 	t.Helper()
@@ -103,10 +102,14 @@ func TestAStoreWithNothingNamingItIsRefused(t *testing.T) {
 	}
 }
 
-// TestAMarkIsRefusedWhenItIsNotAShapeTheFilesHold: what reaches a store came in
-// over a route anyone on this machine can post to, and a value kept unchecked
-// is handed back to a later page as though a reader had chosen it.
-func TestAMarkIsRefusedWhenItIsNotAShapeTheFilesHold(t *testing.T) {
+// TestAMarkOfMarksJSONIsUnreadableWhenItIsNotAShapeTheFilesHold: marks.json is
+// the reader's own file and they may edit it, and a value that arrived by hand
+// reaches the same page that a posted one does, so each mark in it is held to the
+// shape a write would have made. A file with one that is not is damaged: it is
+// left as it is and reported, never read as empty. The two cases that spoil the
+// text itself are not here, since a file's JSON cannot carry a byte that is not
+// UTF-8 in a way that reads back as one.
+func TestAMarkOfMarksJSONIsUnreadableWhenItIsNotAShapeTheFilesHold(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
 		name  string
@@ -122,7 +125,6 @@ func TestAMarkIsRefusedWhenItIsNotAShapeTheFilesHold(t *testing.T) {
 		{"a thought with a reason", func(m *mark.Mark) { m.Kind = mark.Thought; m.Body = "x"; m.Reason = "y" }},
 		{"a thought that is resolved", func(m *mark.Mark) { m.Kind = mark.Thought; m.Body = "x"; m.ResolvedAt = m.At }},
 		{"words around nothing", func(m *mark.Mark) { m.Before = "before" }},
-		{"a quote that is not text", func(m *mark.Mark) { m.Quote = "a\xffb" }},
 		{"a quote carrying a NUL", func(m *mark.Mark) { m.Quote = "a\x00b" }},
 		{"a quote too long", func(m *mark.Mark) { m.Quote = strings.Repeat("a", 8<<10+1) }},
 		{"context too long", func(m *mark.Mark) { m.Quote = "q"; m.After = strings.Repeat("a", 513) }},
@@ -138,7 +140,6 @@ func TestAMarkIsRefusedWhenItIsNotAShapeTheFilesHold(t *testing.T) {
 		{"a path carrying a line feed", func(m *mark.Mark) { m.RelPath = "Notes/a\nb.md" }},
 		{"a path carrying an escape", func(m *mark.Mark) { m.RelPath = "Notes/\x1b[2J.md" }},
 		{"a path carrying a line separator", func(m *mark.Mark) { m.RelPath = "Notes/a\u2028b.md" }},
-		{"a path that is not UTF-8", func(m *mark.Mark) { m.RelPath = "Notes/a\xffb.md" }},
 		{"a path too long", func(m *mark.Mark) { m.RelPath = strings.Repeat("a", 1025) }},
 		{"an anchor that could cut the address", func(m *mark.Mark) { m.Anchor = "here#elsewhere" }},
 	} {
@@ -147,16 +148,29 @@ func TestAMarkIsRefusedWhenItIsNotAShapeTheFilesHold(t *testing.T) {
 			store := newStore(t)
 			refused := aQuestion()
 			tt.spoil(refused)
-			if _, err := store.Add(refused); !errors.Is(err, mark.ErrInvalid) {
-				t.Fatalf("Add(%s) = %v, want ErrInvalid", tt.name, err)
+			refused.ID = strings.Repeat("a", 32)
+			written := marksJSON(t, "/vaults/notes", *refused)
+			writeFile(t, marksPath(store), written)
+			if held, err := store.MachineMarks(); !errors.Is(err, mark.ErrUnreadable) {
+				t.Fatalf("MachineMarks over a file with %s = %v, %v; want ErrUnreadable", tt.name, held, err)
 			}
-			if _, err := store.Toggle(refused, admitAny); !errors.Is(err, mark.ErrInvalid) {
-				t.Fatalf("Toggle(%s) = %v, want ErrInvalid", tt.name, err)
-			}
-			if held, err := store.List(); err != nil || len(held) != 0 {
-				t.Errorf("a refused mark was stored: %v, %v", held, err)
+			if contents(t, marksPath(store)) != written {
+				t.Error("the file was changed")
 			}
 		})
+	}
+}
+
+// TestAnUnspoiledMarkOfMarksJSONIsRead is the control of the table above: what
+// the spoilt marks are made from is a mark the file takes.
+func TestAnUnspoiledMarkOfMarksJSONIsRead(t *testing.T) {
+	t.Parallel()
+	store := newStore(t)
+	kept := aQuestion()
+	kept.ID = strings.Repeat("a", 32)
+	writeFile(t, marksPath(store), marksJSON(t, "/vaults/notes", *kept))
+	if held, err := store.MachineMarks(); err != nil || len(held) != 1 {
+		t.Fatalf("MachineMarks = %v, %v; want the one question", held, err)
 	}
 }
 
@@ -169,14 +183,17 @@ func TestOrdinaryNoteNamesAreKept(t *testing.T) {
 		{"a space", "Notes/A published note.md"},
 		{"Chinese", "Notes/go/提早返回的管線.md"},
 		{"an ideographic space", "Notes/日本　語.md"},
-		{"a dotted name", "Notes/v1.2.md"},
+		{"a dotted name", "Notes/release-1.2.md"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			question := aQuestion()
 			question.RelPath = tt.path
-			if _, err := newStore(t).Add(question); err != nil {
-				t.Errorf("Add(%q) = %v, want it kept", tt.path, err)
+			question.ID = strings.Repeat("a", 32)
+			store := newStore(t)
+			writeFile(t, marksPath(store), marksJSON(t, "/vaults/notes", *question))
+			if held, err := store.MachineMarks(); err != nil || len(held) != 1 || held[0].Path != tt.path {
+				t.Errorf("MachineMarks over a question of %q = %v, %v, want it read", tt.path, held, err)
 			}
 			place := aPlace()
 			place.RelPath = tt.path
@@ -218,13 +235,9 @@ func TestAnchorShapeSharedByReaderMarks(t *testing.T) {
 			store := newStore(t)
 			place := aPlace()
 			place.Anchor = tt.anchor
-			question := aQuestion()
-			question.Anchor = tt.anchor
-			_, questionErr := store.Toggle(question, admitAny)
 			for name, err := range map[string]error{
 				"shape":    mark.ValidateAnchor(tt.anchor),
 				"bookmark": moveBookmark(store, mark.NoCourse, place),
-				"question": questionErr,
 			} {
 				if tt.accepted && err != nil {
 					t.Errorf("%s rejected %q: %v", name, tt.anchor, err)
@@ -232,6 +245,24 @@ func TestAnchorShapeSharedByReaderMarks(t *testing.T) {
 				if !tt.accepted && !errors.Is(err, mark.ErrInvalid) {
 					t.Errorf("%s accepted %q or returned %v; want ErrInvalid", name, tt.anchor, err)
 				}
+			}
+			// A question in marks.json is read under the same shape, as damage
+			// where a write would have been refused. A text that is not UTF-8
+			// cannot be written into a file's JSON and read back as one, so it
+			// is left to the two above.
+			if !utf8.ValidString(tt.anchor) {
+				return
+			}
+			question := aQuestion()
+			question.ID, question.Anchor = strings.Repeat("a", 32), tt.anchor
+			questionStore := newStore(t)
+			writeFile(t, marksPath(questionStore), marksJSON(t, "/vaults/notes", *question))
+			_, questionErr := questionStore.MachineMarks()
+			if tt.accepted && questionErr != nil {
+				t.Errorf("question rejected %q: %v", tt.anchor, questionErr)
+			}
+			if !tt.accepted && !errors.Is(questionErr, mark.ErrUnreadable) {
+				t.Errorf("question accepted %q or returned %v; want ErrUnreadable", tt.anchor, questionErr)
 			}
 		})
 	}

@@ -9,9 +9,10 @@ import (
 )
 
 // questionAttrs gives the enhancement its endpoint and translated words.
-// A page with no local storage offers no control.
+// A page with no place to keep a question, or whose reader folder cannot be
+// written to (Writable is then why), offers no control: the marks pages say why.
 func questionAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
-	if v.QuestionAddress == "" || v.RelPath == "" {
+	if v.QuestionAddress == "" || v.RelPath == "" || v.Writable != "" {
 		return nil
 	}
 	return templ.Attributes{
@@ -23,7 +24,6 @@ func questionAttrs(v *NoteView, lang wording.Lang) templ.Attributes {
 		"data-question-cleared":     wording.QuestionCleared.In(lang),
 		"data-question-failed":      wording.QuestionNotStored.In(lang),
 		"data-question-unavailable": wording.QuestionUnavailable.In(lang),
-		"data-question-scope":       wording.QuestionPlaceOnly.In(lang),
 		"data-question-lang":        lang.Tag(),
 	}
 }

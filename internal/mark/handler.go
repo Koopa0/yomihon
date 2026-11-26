@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/origin"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -58,25 +59,33 @@ type Places interface {
 // page reads the kept marks back from.
 //
 // A page cannot write a file, so a mark travels over a route of its own on the
-// same loopback listener, with a body cap and a replace-by-rename discipline.
-// They are not a face an agent has any business calling: these endpoints are the
-// reader's.
+// same loopback listener, with a body cap. They are not a face an agent has any
+// business calling: these endpoints are the reader's. The routes that write
+// refuse a request another origin made (the command wraps them in
+// http.NewCrossOriginProtection and origin.LoopbackOnly) and a vault whose reader folder cannot be
+// written to.
 //
 // It keeps a mark only in a note the vault holds now. The path is the one field
 // of a mark that can reach the desk as text, so a path nobody's note carries is
-// refused rather than stored for a later page to print. It reaches the marks
-// only through a Store.
+// refused rather than stored for a later page to print. It reaches the
+// highlights, thoughts and questions only through Kept, which keeps them in the
+// vault's machine files, and the bookmarks and finished notes only through a
+// Store, which keeps them in the configuration directory.
 type Handler struct {
 	store  *Store
+	kept   *Kept
 	places Places
 	log    *slog.Logger
 }
 
-// NewHandler wires the routes around a Store and the vault whose notes a mark
-// may name.
-func NewHandler(store *Store, places Places, log *slog.Logger) *Handler {
+// NewHandler wires the routes around a Store, the Kept marks of the vault and
+// the vault whose notes a mark may name.
+func NewHandler(store *Store, kept *Kept, places Places, log *slog.Logger) *Handler {
 	if store == nil {
 		panic("mark: NewHandler requires a non-nil Store")
+	}
+	if kept == nil {
+		panic("mark: NewHandler requires a non-nil Kept")
 	}
 	if places == nil {
 		panic("mark: NewHandler requires a non-nil Places")
@@ -84,7 +93,7 @@ func NewHandler(store *Store, places Places, log *slog.Logger) *Handler {
 	if log == nil {
 		panic("mark: NewHandler requires a non-nil logger")
 	}
-	return &Handler{store: store, places: places, log: log}
+	return &Handler{store: store, kept: kept, places: places, log: log}
 }
 
 // Register mounts the routes, and the retired addresses that lead to them. The
@@ -100,6 +109,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET "+retiredQuestionPath, movedTo(Paths.Question))
 	mux.HandleFunc("POST "+retiredQuestionPath, movedTo(Paths.Question))
 	mux.HandleFunc("POST "+Paths.Mark, h.keepMark)
+	mux.HandleFunc("GET "+Paths.Mark+"/{id}", h.getMark)
 	mux.HandleFunc("PUT "+Paths.Mark+"/{id}", h.putBack)
 	mux.HandleFunc("PATCH "+Paths.Mark+"/{id}", h.reviseMark)
 	mux.HandleFunc("DELETE "+Paths.Mark+"/{id}", h.removeMark)
@@ -255,11 +265,22 @@ func courseOf(r *http.Request) (string, bool) {
 	}
 }
 
-// getQuestions answers the questions kept now, as the page draws them: the note,
-// the anchor and the day.
+// questionOf is the whole-section question a path and an anchor name, the mark
+// the question button makes and takes away.
+func questionOf(path, anchor string) machinemarks.Mark {
+	return machinemarks.Mark{Kind: machinemarks.Question, Path: path, Anchor: anchor}
+}
+
+// isSectionQuestion reports whether m is a question of a whole section.
+func isSectionQuestion(m *machinemarks.Mark) bool {
+	return m.Kind == machinemarks.Question && m.Quote == ""
+}
+
+// getQuestions answers the questions of whole sections kept now, as the page
+// draws them: the note, the anchor and the day.
 func (h *Handler) getQuestions(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	held, err := h.store.List(Question)
+	view, err := h.kept.View()
 	if err != nil {
 		h.log.Error("read the questions", "directory", h.store.Dir(), "error", err)
 		http.Error(w, wording.QuestionUnavailable.In(origin.Language(r)), http.StatusInternalServerError)
@@ -270,9 +291,22 @@ func (h *Handler) getQuestions(w http.ResponseWriter, r *http.Request) {
 		Anchor string    `json:"anchor"`
 		Time   time.Time `json:"time"`
 	}
-	entries := make([]entry, len(held))
-	for i := range held {
-		entries[i] = entry{Path: held[i].RelPath, Anchor: held[i].Anchor, Time: held[i].At}
+	pending, err := h.kept.Pending(view)
+	if err != nil {
+		h.log.Error("read the questions", "directory", h.store.Dir(), "error", err)
+		http.Error(w, wording.QuestionUnavailable.In(origin.Language(r)), http.StatusInternalServerError)
+		return
+	}
+	entries := []entry{}
+	for _, e := range view.Entries(h.kept.gate) {
+		if m := e.Mark(); !e.Deleted() && isSectionQuestion(&m) {
+			entries = append(entries, entry{Path: m.Path, Anchor: m.Anchor, Time: m.At})
+		}
+	}
+	for i := range pending {
+		if isSectionQuestion(&pending[i]) {
+			entries = append(entries, entry{Path: pending[i].Path, Anchor: pending[i].Anchor, Time: pending[i].At})
+		}
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	if err = json.NewEncoder(w).Encode(entries); err != nil {
@@ -281,7 +315,10 @@ func (h *Handler) getQuestions(w http.ResponseWriter, r *http.Request) {
 }
 
 // postQuestion marks the section this submission names as a question, or
-// removes the mark when it already is one.
+// removes the mark when it already is one. Both are one step under the vault's
+// lock. A question that two computers changed differently is not taken away
+// blind: it is answered 409 with what is read now, and the reader sees it before
+// the next press.
 func (h *Handler) postQuestion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	lang := origin.Language(r)
@@ -290,29 +327,38 @@ func (h *Handler) postQuestion(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, wording.MarkFormUnreadable.In(lang), http.StatusBadRequest)
 		return
 	}
-	kept := &Mark{
-		Kind:    Question,
-		RelPath: r.PostForm.Get("path"),
-		Anchor:  r.PostForm.Get("anchor"),
-		At:      time.Now(),
+	if h.refuseWrite(w, r) {
+		return
 	}
-	marked, err := h.store.Toggle(kept, func(m *Mark) bool { return h.places.HasPlace(m.RelPath, m.Anchor) })
+	id, err := newID()
+	if err != nil {
+		h.refuse(w, r, err, "mark a question")
+		return
+	}
+	candidate := questionOf(r.PostForm.Get("path"), r.PostForm.Get("anchor"))
+	candidate.ID, candidate.At = id, time.Now()
+	marks, err := h.kept.Marks()
+	if err != nil {
+		h.refuse(w, r, err, "mark a question")
+		return
+	}
+	same := func(m *machinemarks.Mark) bool {
+		return isSectionQuestion(m) && m.Path == candidate.Path && m.Anchor == candidate.Anchor
+	}
+	admit := func(m *machinemarks.Mark) bool { return h.places.HasPlace(m.Path, m.Anchor) }
+	out, err := marks.Toggle(&candidate, same, admit, h.kept.gate)
 	switch {
 	case err == nil:
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		if err = json.NewEncoder(w).Encode(struct {
+		// Marked is whether the section is marked now: a question made by
+		// another computer that this one had not read stays beside the one just
+		// taken away, and is taken away by pressing again.
+		h.reply(w, r, struct {
 			Marked bool `json:"marked"`
-		}{Marked: marked}); err != nil {
-			h.log.Log(r.Context(), origin.WriteFailureLevel(r, err), "send the question result", "error", err)
-		}
-	case errors.Is(err, ErrInvalid):
+		}{Marked: !out.Mark.Deleted || out.Remaining > 0}, "send the question result")
+	case errors.Is(err, machinemarks.ErrInvalidMark):
 		h.log.Warn("a question was refused", "error", err)
 		http.Error(w, wording.QuestionRefused.In(lang), http.StatusUnprocessableEntity)
-	case errors.Is(err, ErrUnreadable):
-		h.log.Error("read the questions", "directory", h.store.Dir(), "error", err)
-		http.Error(w, wording.QuestionUnavailable.In(lang), http.StatusInternalServerError)
 	default:
-		h.log.Error("write the questions", "directory", h.store.Dir(), "error", err)
-		http.Error(w, wording.QuestionNotStored.In(lang), http.StatusInternalServerError)
+		h.refuse(w, r, err, "mark a question")
 	}
 }

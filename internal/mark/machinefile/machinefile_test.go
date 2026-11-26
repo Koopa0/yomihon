@@ -556,3 +556,74 @@ func TestTheMachineFileHoldsExactlyTheBytesWritten(t *testing.T) {
 		t.Errorf("the machine file holds %q, want %q", got, data)
 	}
 }
+
+// A refusal says whether the name is a link or something that is not a folder,
+// so the reader is told which, and both are ErrNotAFolder.
+func TestARefusalSaysALinkIsALink(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name     string
+		build    func(t *testing.T, root string)
+		wantLink bool
+	}{
+		{"a link", func(t *testing.T, root string) {
+			t.Helper()
+			symlink(t, "courses", filepath.Join(root, "reader-notes"))
+		}, true},
+		{"a file", func(t *testing.T, root string) { t.Helper(); write(t, root, "reader-notes", "x\n") }, false},
+		{"marks is a link", func(t *testing.T, root string) {
+			t.Helper()
+			symlink(t, filepath.Join("..", "..", "courses"), filepath.Join(root, "reader-notes", ".yomihon", "marks"))
+		}, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := aVault(t)
+			tt.build(t, root)
+			r, err := vault.Open(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer r.Close() //nolint:errcheck // the test is over
+			f, err := machinefile.Open(r)
+			if err == nil {
+				_ = f.Close() //nolint:errcheck // the failure below is the report
+			}
+			if !errors.Is(err, machinefile.ErrNotAFolder) || errors.Is(err, machinefile.ErrLink) != tt.wantLink {
+				t.Errorf("Open = %v, want ErrNotAFolder, and ErrLink = %v", err, tt.wantLink)
+			}
+		})
+	}
+}
+
+// ReadOnly asks the deepest folder that is there, writes nothing, and makes
+// nothing.
+func TestReadOnlyAsksTheDeepestFolderThatIsThere(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("a folder's mode is not what stops a write on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root writes wherever it likes; the mode is still read, but the test below cannot tell")
+	}
+	root := aVault(t)
+	f := opened(t, root)
+	before := snapshot(t, root)
+	if ro, err := f.ReadOnly(); err != nil || ro {
+		t.Fatalf("ReadOnly on a vault the reader can write = %v, %v; want false", ro, err)
+	}
+	if got := changed(before, snapshot(t, root)); len(got) != 0 {
+		t.Errorf("asking changed %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(root, "reader-notes")); err == nil {
+		t.Error("asking made the reader folder")
+	}
+	if err := os.Chmod(root, 0o500); err != nil { // #nosec G302 -- a test's own folder
+		t.Fatal(err)
+	}
+	// #nosec G302 -- a test restoring its own temporary folder so that it can be removed
+	t.Cleanup(func() { _ = os.Chmod(root, 0o700) }) //nolint:errcheck // best-effort so the temp dir is removed
+	if ro, err := f.ReadOnly(); err != nil || !ro {
+		t.Errorf("ReadOnly on a vault folder with no write bit = %v, %v; want true", ro, err)
+	}
+}

@@ -25,12 +25,18 @@ reader's prose to make it parse.
 These are what a person trusts yomihon for. None of them moves without an
 explicit ruling from the maintainer on the issue.
 
-1. **Nothing writes into the folder being read.** No byte of a note, the rules
-   file or anything else under the vault directory is written, renamed or
-   removed. What an author claims about a note — `draft: true` included — stays
-   in the author's editor. The reader's own marks live in files of yomihon's own
-   under the platform's configuration directory, and `internal/mark` is the only
-   package allowed to write at all; a test in `internal/archlock` reads every
+1. **Only one file is written into the folder being read, and it is the
+   reader's.** No byte of a note, the rules file or any attachment is written,
+   renamed or removed, and nothing is created beside them. What an author claims
+   about a note — `draft: true` included — stays in the author's editor. The one
+   thing yomihon writes in the vault is the reader's own highlights, thoughts
+   and questions, in `reader-notes/.yomihon/marks/<machine id>.jsonl`: one file
+   for each computer, written by that computer alone, so that git carries them.
+   The scan never lists `reader-notes/`, so a mark is never read as a note. The
+   rest of the reader's state (bookmarks, the local backup, caches) lives in the
+   platform's configuration directory, outside the vault. `internal/mark` is the
+   only package allowed to write at all, and inside a vault only through
+   `internal/mark/machinefile`; a test in `internal/archlock` reads every
    shipped file and fails on a write anywhere else.
 2. **Loopback only, no network call.** The listener binds `127.0.0.1` and only
    the port varies, through `YOMIHON_PORT`. The home directory, which
@@ -453,5 +459,6 @@ reports the new version.
 Report privately through
 [GitHub's private advisory form](https://github.com/koopa0/yomihon/security/advisories/new),
 never in a public issue, and attach no vault content. Anything that writes
-into the vault, or leaves the machine, is worth reporting. See
+into the vault outside `reader-notes/.yomihon/marks/`, or leaves the machine,
+is worth reporting. See
 [the security policy](.github/SECURITY.md) for what is supported.

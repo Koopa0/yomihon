@@ -19,6 +19,8 @@ import (
 
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
+	"github.com/koopa0/yomihon/internal/mark/marktest"
 	"github.com/koopa0/yomihon/internal/note"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/snapshot"
@@ -52,21 +54,18 @@ func TestOpenThoughtsRetainsLostQuestionMarks(t *testing.T) {
 			log := slog.New(slog.DiscardHandler)
 			store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 			authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
-			marks, err := mark.Open(confdir.At(t.TempDir()), source.Name())
-			if err != nil {
-				t.Fatal(err)
-			}
+			marks, kept := openKept(t, source, t.TempDir())
 			current := store.Current()
 			handler := note.New(&note.Sources{
 				Source: source, Authority: authority,
 				Snapshot: func() *snapshot.Generation { return current },
 
-				Bookmark: noMark, Questions: func() ([]mark.Mark, error) { return marks.List(mark.Question) },
+				Bookmark: noMark, Questions: kept.Questions, Kept: kept,
 				QuestionAddress: mark.Paths.Question, Log: log,
 			})
 			mux := http.NewServeMux()
 			handler.Register(mux)
-			mark.NewHandler(marks, handler, log).Register(mux)
+			mark.NewHandler(marks, kept, handler, log).Register(mux)
 			form := url.Values{"path": {rel}, "anchor": {"chapter"}}.Encode()
 			if diff := cmp.Diff("{\"marked\":true}\n", lostMarkRequest(t, mux, http.MethodPost, "/questions", form, tt.lang)); diff != "" {
 				t.Fatalf("add mark mismatch (-want +got):\n%s", diff)
@@ -202,10 +201,8 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 			log := slog.New(slog.DiscardHandler)
 			first, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 			authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
-			marks, err := mark.Open(confdir.At(t.TempDir()), source.Name())
-			if err != nil {
-				t.Fatal(err)
-			}
+			configDir := t.TempDir()
+			marks, kept := openKept(t, source, configDir)
 			reads := 0
 			second := first
 			handler := note.New(&note.Sources{
@@ -218,22 +215,17 @@ func TestOpenThoughtsClassifiesInsideItsCapturedGeneration(t *testing.T) {
 					return first.Current()
 				},
 
-				Bookmark: noMark, Questions: func() ([]mark.Mark, error) { return marks.List(mark.Question) },
+				Bookmark: noMark, Questions: kept.Questions, Kept: kept,
 				QuestionAddress: mark.Paths.Question, Log: log,
 			})
-			marked, err := marks.Toggle(&mark.Mark{Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, func(u *mark.Mark) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !marked {
-				t.Fatal("initial real mark was not added")
-			}
+			marktest.Keep(t, root, confdir.At(configDir), marktest.Question("Source.md", "chapter", time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)))
 			initial := http.NewServeMux()
-			mark.NewHandler(marks, handler, log).Register(initial)
+			mark.NewHandler(marks, kept, handler, log).Register(initial)
 			assertLostMarkPair(t, initial, "en", "Source.md", "chapter")
 			if writeErr := os.WriteFile(file, []byte("---\n---\n# Later title\n\n## Renamed\n"), 0o600); writeErr != nil {
 				t.Fatal(writeErr)
 			}
+			var err error
 			second, err = snapshot.New(t.Context(), source, log, nil, schema.Ungoverned())
 			if err != nil {
 				t.Fatal(err)
@@ -300,19 +292,19 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	log := slog.New(slog.DiscardHandler)
 	store, source := newSnapshotStore(t, root, log, nil, schema.Ungoverned())
 	authority := func() schema.Authority { return schema.CaptureAuthority(nil, schema.Ungoverned()) }
-	marks, err := mark.Open(confdir.At(t.TempDir()), source.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
+	configDir := t.TempDir()
+	marks, kept := openKept(t, source, configDir)
 	current := store.Current()
 	handler := note.New(&note.Sources{
 		Source: source, Authority: authority,
 		Snapshot: func() *snapshot.Generation { return current },
 
-		Bookmark: noMark, Questions: func() ([]mark.Mark, error) { return marks.List(mark.Question) },
+		Bookmark: noMark, Questions: kept.Questions, Kept: kept,
 		QuestionAddress: mark.Paths.Question, Log: log,
 	})
-	for _, kept := range []mark.Mark{
+	// Marks made at one moment are listed by id, so the ids rise in the order
+	// the fixture names them.
+	for i, left := range []mark.Mark{
 		{Kind: mark.Question, RelPath: "Oldest.md", At: time.Date(2026, 9, 6, 0, 0, 0, 0, time.UTC)},
 		{Kind: mark.Question, RelPath: "Missing.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
 		{Kind: mark.Question, RelPath: "B.md", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
@@ -320,15 +312,9 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 		{Kind: mark.Question, RelPath: "A.md", Anchor: "alpha", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)},
 		{Kind: mark.Question, RelPath: "Newest.md", At: time.Date(2026, 9, 8, 0, 0, 0, 0, time.UTC)},
 	} {
-		marked, markErr := marks.Toggle(&kept, func(u *mark.Mark) bool { return handler.HasPlace(u.RelPath, u.Anchor) })
-		if markErr != nil {
-			t.Fatal(markErr)
-		}
-		if !marked {
-			t.Fatalf("initial mark %s #%s was not added", kept.RelPath, kept.Anchor)
-		}
+		marktest.Keep(t, root, confdir.At(configDir), machinemarks.Mark{ID: markID(i + 1), Kind: machinemarks.Question, Path: left.RelPath, Anchor: left.Anchor, At: left.At})
 	}
-	held, err := marks.List(mark.Question)
+	held, err := kept.Questions()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,7 +339,7 @@ func TestOpenThoughtsSortsStoredLocationsBeforeHomeNarrowing(t *testing.T) {
 	current = rebuilt.Current()
 	mux := http.NewServeMux()
 	handler.Register(mux)
-	mark.NewHandler(marks, handler, log).Register(mux)
+	mark.NewHandler(marks, kept, handler, log).Register(mux)
 	for _, tt := range []struct {
 		lang  string
 		count string

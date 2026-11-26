@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"html"
 	"io"
@@ -508,22 +509,31 @@ func TestTheSiteRefusesAWriteToTheReadersFilesFromAnotherSiteOrAnotherName(t *te
 
 	id := strings.Repeat("a", 32)
 	thought := `{"kind":"thought","path":"Maps/study.md","body":"a thought"}`
-	put := `{"id":"` + id + `","kind":"thought","path":"Maps/study.md","body":"a thought","at":"2026-09-22T11:00:00Z"}`
+	// The changes ask to be made on top of what the page had read of the mark, so
+	// the refused ones carry a base too: it is the protection that refuses them.
+	const base = `"seen":{"machine/1":1}`
+	put := `{` + base + `}`
 	bookmark := `{"course":"` + course + `","path":"Plain.md","anchor":"","offset":0,"identity":"` + strings.Repeat("b", 64) + `"}`
 	writes := []struct{ method, target, body string }{
 		{http.MethodPost, "/mark", thought},
 		{http.MethodPut, "/mark/" + id, put},
-		{http.MethodPatch, "/mark/" + id, `{"body":"changed"}`},
-		{http.MethodDelete, "/mark/" + id, ""},
+		{http.MethodPatch, "/mark/" + id, `{` + base + `,"body":"changed"}`},
+		{http.MethodDelete, "/mark/" + id, `{` + base + `}`},
 		{http.MethodPut, "/bookmark", bookmark},
 		{http.MethodDelete, "/bookmark?course=" + course, ""},
 		{http.MethodPut, "/finished/Plain.md?course=" + course, ""},
 		{http.MethodDelete, "/finished/Plain.md", ""},
+		// The question button's form changes what the reader has and is as closed
+		// to another site as the routes above.
+		{http.MethodPost, "/questions", "path=Plain.md&anchor="},
 	}
 	send := func(method, target, body, fetchSite, host string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := siteRequest(t, method, target, strings.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
+		if !strings.HasPrefix(body, "{") && strings.Contains(body, "=") {
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		}
 		if fetchSite != "" {
 			req.Header.Set("Sec-Fetch-Site", fetchSite)
 		}
@@ -548,16 +558,47 @@ func TestTheSiteRefusesAWriteToTheReadersFilesFromAnotherSiteOrAnotherName(t *te
 	}
 
 	// From the reader's own page the same requests are admitted, so the
-	// refusals above are the protections and not routes that are missing.
+	// refusals above are the protections and not routes that are missing. A
+	// mark is changed, deleted and put back only once it is kept, and on top of
+	// what the page read of it, so the page's own sequence is followed.
+	kept := send(http.MethodPost, "/mark", thought, "same-origin", "")
+	if kept.Code != http.StatusCreated {
+		t.Fatalf("same-origin POST /mark %s = %d, want %d: %s", thought, kept.Code, http.StatusCreated, kept.Body.String())
+	}
+	var read struct {
+		ID   string            `json:"id"`
+		Seen map[string]uint64 `json:"seen"`
+	}
+	if err = json.Unmarshal(kept.Body.Bytes(), &read); err != nil || read.ID == "" || len(read.Seen) == 0 {
+		t.Fatalf("the kept thought answered %q, want its id and what the page has read: %v", kept.Body.String(), err)
+	}
+	for _, step := range []struct{ method, body string }{
+		{http.MethodPatch, `"body":"changed"`},
+		{http.MethodDelete, ``},
+		{http.MethodPut, ``},
+	} {
+		seen, marshalErr := json.Marshal(read.Seen)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		body := `{"seen":` + string(seen)
+		if step.body != "" {
+			body += "," + step.body
+		}
+		body += "}"
+		got := send(step.method, "/mark/"+read.ID, body, "same-origin", "")
+		if got.Code != http.StatusOK {
+			t.Fatalf("same-origin %s /mark/%s %s = %d, want %d: %s", step.method, read.ID, body, got.Code, http.StatusOK, got.Body.String())
+		}
+		read.Seen = nil
+		if err = json.Unmarshal(got.Body.Bytes(), &read); err != nil || len(read.Seen) == 0 {
+			t.Fatalf("%s answered %q, want what the page has read: %v", step.method, got.Body.String(), err)
+		}
+	}
 	for _, tt := range []struct {
 		method, target, body string
 		want                 int
 	}{
-		{http.MethodPut, "/mark/" + id, put, http.StatusOK},
-		{http.MethodPatch, "/mark/" + id, `{"body":"changed"}`, http.StatusOK},
-		{http.MethodDelete, "/mark/" + id, "", http.StatusOK},
-		{http.MethodPost, "/mark", thought, http.StatusCreated},
-		// Words the note shows are kept, through the reading room's own text of the page.
 		{http.MethodPost, "/mark", `{"kind":"highlight","path":"Plain.md","quote":"topic particle marks"}`, http.StatusCreated},
 		{http.MethodPost, "/mark", `{"kind":"highlight","path":"Plain.md","quote":"words the note never had"}`, http.StatusUnprocessableEntity},
 		// A course the vault holds is one the routes can ask about, through the same
@@ -567,6 +608,7 @@ func TestTheSiteRefusesAWriteToTheReadersFilesFromAnotherSiteOrAnotherName(t *te
 		{http.MethodDelete, "/finished/Plain.md", "", http.StatusOK},
 		{http.MethodDelete, "/bookmark?course=" + course, "", http.StatusOK},
 		{http.MethodPut, "/finished/Plain.md?course=Maps/study.md", "", http.StatusUnprocessableEntity},
+		{http.MethodPost, "/questions", "path=Plain.md&anchor=", http.StatusOK},
 	} {
 		if got := send(tt.method, tt.target, tt.body, "same-origin", "").Code; got != tt.want {
 			t.Errorf("same-origin %s %s %s = %d, want %d", tt.method, tt.target, tt.body, got, tt.want)

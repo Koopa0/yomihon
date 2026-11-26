@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-// jqOf is what the program in testdata reads of the machine files in dir: one
+// jqOf is what the program in read-marks.jq reads of the machine files in dir: one
 // entry for each mark, by its id. It skips the test when jq is not installed,
 // unless YOMIHON_REQUIRE_JQ is set, which a CI job that is meant to have it sets.
 type jqEntry struct {
@@ -38,7 +38,7 @@ func jqOf(t *testing.T, dir string) map[string]jqEntry {
 		t.Fatal(err)
 	}
 	slices.Sort(files)
-	args := append([]string{"-c", "-n", "-R", "-f", filepath.Join("testdata", "read-marks.jq")}, files...)
+	args := append([]string{"-c", "-n", "-R", "-f", "read-marks.jq"}, files...)
 	cmd := exec.CommandContext(t.Context(), path, args...) // #nosec G204 -- jq, with the test's own program and files
 	var out, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &stderr
@@ -74,7 +74,7 @@ func asJSON(t *testing.T, m *Mark) map[string]any {
 }
 
 // agree holds what Yomihon reads of the files in a vault no ledger helps with to
-// what the program in testdata reads of them, mark by mark.
+// what the program in read-marks.jq reads of them, mark by mark.
 func agree(t *testing.T, reader *clone) map[string]jqEntry {
 	t.Helper()
 	want := jqOf(t, reader.marksDir())
@@ -108,7 +108,7 @@ func agree(t *testing.T, reader *clone) map[string]jqEntry {
 // A vault of three machines with a conflict, deletions, a mark that changes
 // state across machines, a file where an old line and a new one both are, git's
 // conflict markers, a line that is not JSON and a line of a later format: what
-// Yomihon reads and what the program in testdata reads are the same for every
+// Yomihon reads and what the program in read-marks.jq reads are the same for every
 // mark, and each is what is written here by hand.
 func TestMachineFilesReadWithoutYomihon(t *testing.T) {
 	a, b, c := newClone(t, "A"), newClone(t, "B"), newClone(t, "C")
@@ -208,7 +208,7 @@ func TestMachineFilesReadWithoutYomihon(t *testing.T) {
 	}
 }
 
-// The line a hand changed is where the two part, which the program in testdata
+// The line a hand changed is where the two part, which the program in read-marks.jq
 // says: it has no way to check a checksum.
 func TestTheProgramInTestdataDoesNotCheckAChecksum(t *testing.T) {
 	t.Parallel()
@@ -280,5 +280,33 @@ func TestRandomVaultsReadTheSameWithoutYomihon(t *testing.T) {
 		if t.Failed() {
 			t.Fatalf("round %d disagrees; the files are in %s", round, d.marksDir())
 		}
+	}
+}
+
+// The command a reader is shown to run is the program the tests hold to the
+// screen: run as shown, in the vault's folder, it prints the marks.
+func TestTheShownCommandReadsTheMarks(t *testing.T) {
+	t.Parallel()
+	if _, err := exec.LookPath("jq"); err != nil {
+		if os.Getenv("YOMIHON_REQUIRE_JQ") != "" {
+			t.Fatalf("jq is required and is not installed: %v", err)
+		}
+		t.Skip("jq is not installed")
+	}
+	command := ReadMarksCommand()
+	if strings.Contains(command, "\n#") || strings.HasPrefix(strings.TrimPrefix(command, "jq -c -n -R '"), "#") {
+		t.Fatal("the command carries a comment of the program")
+	}
+	a := newClone(t, "A")
+	a.say(1, "first words")
+	a.say(2, "second words")
+	cmd := exec.CommandContext(t.Context(), "sh", "-c", command) // #nosec G204 -- the command the page shows
+	cmd.Dir = a.root
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("the shown command failed: %v", err)
+	}
+	if n := len(lines(out)); n != 2 || !bytes.Contains(out, []byte("first words")) || !bytes.Contains(out, []byte("second words")) {
+		t.Fatalf("the shown command printed %d marks: %s", n, out)
 	}
 }

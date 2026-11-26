@@ -31,7 +31,7 @@
 // notes by date. Its writes go through confdir, under a lock of its own,
 // ledger.lock, so two processes on one vault, or two goroutines of one, append
 // and compact one at a time; a caller that holds the lock of what it writes
-// into the vault takes that one first. No route calls it yet.
+// into the vault takes that one first. The marks of internal/mark call it.
 package ledger
 
 import (

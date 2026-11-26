@@ -1215,8 +1215,8 @@ func hiddenName(name string) bool {
 // A judgement about such a path cannot rest on the scan, which holds no
 // evidence either way.
 func OutsideScan(relPath string) bool {
-	for segment := range strings.SplitSeq(relPath, "/") {
-		if hiddenName(segment) {
+	for i, segment := range strings.Split(relPath, "/") {
+		if hiddenName(segment) || (i == 0 && readerFolder(segment) && strings.Contains(relPath, "/")) {
 			return true
 		}
 	}

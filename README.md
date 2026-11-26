@@ -10,7 +10,7 @@ English | [繁體中文](README.zh-TW.md)
 
 [![A lesson in a course: the course on the left with the current lesson marked, the lesson in the centre, and beside a section its two buttons, Not sure yet and Leave a thought](.github/media/reading-en.png)](.github/media/reading-en.png)
 
-A course lists its parts and marks the lesson you are on. Search, backlinks and reports are built in. yomihon runs on your machine and never edits your text. yomihon itself makes no network request. A figure — an interactive HTML file a note embeds — runs no script unless you approve its exact bytes, and the browser fetches nothing it names on its own (a link in it that you click opens a connection before the page refuses the request); a figure you approved runs its scripts in your browser and can send data anywhere.
+A course lists its parts and marks the lesson you are on. Search, backlinks and reports are built in. yomihon runs on your machine and never edits your text: the one thing it writes into your vault is your own highlights, thoughts and questions, in a file of their own for each computer under `reader-notes/.yomihon/marks/`, which git carries to your other computers. yomihon itself makes no network request. A figure — an interactive HTML file a note embeds — runs no script unless you approve its exact bytes, and the browser fetches nothing it names on its own (a link in it that you click opens a connection before the page refuses the request); a figure you approved runs its scripts in your browser and can send data anywhere.
 
 ## Try it
 

@@ -28,6 +28,6 @@ A name resolves to one file, to several, or to none.
 
 `![[Name]]` pulls the whole note in; with a section after the name, only that section:
 
-![[Drafts#Nothing is written back]]
+![[Drafts#No note is written back]]
 
 An embed whose section is not found shows nothing of the note: a notice names the address, and the note's name above it leads to the whole note.

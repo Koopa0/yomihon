@@ -3,31 +3,32 @@
 //
 // A mark is the reader's, never the author's: a note's status is the author's
 // word about the material, and a mark is the reader's word about their own
-// reading. It lives in files of yomihon's own, under the configuration
-// directory the platform gives the person running it, one directory per vault.
-// The vault therefore keeps no field of it, no folder needs an ignore entry,
-// two machines never write one file between them, and the scanner never meets
-// it. What it costs is that a mark does not travel: one left on this machine is
-// invisible on the next, which the interface says in words rather than leaving
-// the reader to find out.
+// reading. Highlights, thoughts and questions live in the vault, in one file for
+// each computer under reader-notes/.yomihon/marks/, written by package
+// machinemarks and read together, so that git carries them between computers
+// and two machines never write one file. The vault keeps no field of them, the
+// scanner never meets them (it leaves out reader-notes/), and the one place in
+// the vault yomihon writes is that folder. The ledger, which is the local
+// backup, and everything else of the reader's stay in files of yomihon's own,
+// under the configuration directory the platform gives the person running it,
+// one directory per vault.
 //
-// Marks are in marks.json, each with the note, the id of the nearest anchor
-// above it, and, for a span of text, the words chosen and a little of what
-// surrounds them, so a mark can find its place again after the note is edited.
-// Bookmarks are in progress.json, one for each course and one for reading
-// outside any course. Both are replaced whole through confdir, and a file that
-// cannot be read is kept as it is and reported, never replaced by the next
-// mark.
+// Each mark has the note, the id of the nearest anchor above it, and, for a span
+// of text, the words chosen and a little of what surrounds them, so a mark can
+// find its place again after the note is edited. Bookmarks are in progress.json,
+// one for each course and one for reading outside any course, replaced whole
+// through confdir; a file that cannot be read is kept as it is and reported,
+// never replaced by the next change.
 //
-// Files an earlier version wrote, reader.json and uncertainty.json, are read
-// and converted when the new file is not there yet, and are never touched. See
-// migrate.go.
+// Files an earlier version wrote, marks.json, reader.json and uncertainty.json,
+// are read, and the first write of a machine that has no file of marks takes
+// marks.json in. They are never changed or removed. See migrate.go.
 //
-// The reading server writes them. The marks command, which answers about the
-// reader, reads, and writes only when it is asked to adopt what was kept for
-// the vault's earlier path (see adopt.go). The adjudication commands — check,
-// coverage, exists — never read any of it: what they answer is about the
-// vault, and this is about the reader.
+// The reading server writes the marks, through the routes of this package. The
+// marks command, which answers about the reader, reads, and writes only when it
+// is asked to adopt what was kept for the vault's earlier path (see adopt.go).
+// The adjudication commands — check, coverage, exists — never read any of it:
+// what they answer is about the vault, and this is about the reader.
 package mark
 
 import (

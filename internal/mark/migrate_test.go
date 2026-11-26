@@ -4,12 +4,15 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 
 	"github.com/koopa0/yomihon/internal/mark"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
+	"github.com/koopa0/yomihon/internal/vault"
 )
 
 // The files an earlier version wrote, as bytes written out by hand rather than
@@ -51,26 +54,39 @@ func bytesOf(t *testing.T, path string) string {
 	return string(data)
 }
 
-func wantOldQuestions() []mark.Mark {
-	return []mark.Mark{
-		{Kind: mark.Question, RelPath: "Notes/source.md", Anchor: "section-one", At: time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC)},
-		{Kind: mark.Question, RelPath: "Notes/other.md", At: time.Date(2026, 9, 23, 1, 0, 0, 0, time.UTC)},
+// wantOldQuestions is the questions of oldQuestions as a machine file takes
+// them in, which is how they are read now. Their ids are derived from the place
+// each marked and are not written here.
+func wantOldQuestions() []machinemarks.Mark {
+	return []machinemarks.Mark{
+		{Kind: machinemarks.Question, Path: "Notes/source.md", Anchor: "section-one", At: time.Date(2026, 9, 22, 10, 0, 0, 0, time.UTC)},
+		{Kind: machinemarks.Question, Path: "Notes/other.md", At: time.Date(2026, 9, 23, 1, 0, 0, 0, time.UTC)},
 	}
+}
+
+// aRealVault is the folder of a vault that is really there, and the
+// configuration directory and the store of its marks, which a test of the marks
+// a machine file takes in needs.
+func aRealVault(t *testing.T) (store *mark.Store, root, config string) {
+	t.Helper()
+	_, root, err := vault.ResolveRoot(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	config = t.TempDir()
+	return newStoreFor(t, config, root), root, config
 }
 
 func TestOldQuestionsAreReadAsQuestionsWithoutWritingAnything(t *testing.T) {
 	t.Parallel()
 	store := newStore(t)
 	writeFile(t, oldQuestionsPath(store), oldQuestions)
-	held, err := store.List(mark.Question)
+	held, err := store.MachineMarks()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if diff := cmp.Diff(wantOldQuestions(), held, withoutIDs); diff != "" {
 		t.Errorf("converted questions (-want +got):\n%s", diff)
-	}
-	if !store.Stored() {
-		t.Error("a store with an old questions file reports no marks file")
 	}
 	entries, err := os.ReadDir(store.Dir())
 	if err != nil || len(entries) != 1 || entries[0].Name() != "uncertainty.json" {
@@ -105,13 +121,13 @@ func TestOldBookmarkIsTheBookmarkOutsideAnyCourse(t *testing.T) {
 // version that wrote them finds them as they left them.
 func TestTheFirstWriteConvertsAndTheOldFilesStayAsTheyWere(t *testing.T) {
 	t.Parallel()
-	store := newStore(t)
+	store, root, config := aRealVault(t)
 	writeFile(t, oldQuestionsPath(store), oldQuestions)
 	writeFile(t, oldBookmarkPath(store), oldBookmark)
 
-	added := aQuestion()
-	added.Anchor = "new-section"
-	if _, err := store.Toggle(added, admitAny); err != nil {
+	added := machinemarks.Mark{ID: markID(9), Kind: machinemarks.Question, Path: "Notes/source.md", Anchor: "new-section", At: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
+	m := machineMarksOver(t, store, root, config)
+	if _, err := m.Put(&added, nil, nil, allowed); err != nil {
 		t.Fatal(err)
 	}
 	course := aPlace()
@@ -120,11 +136,16 @@ func TestTheFirstWriteConvertsAndTheOldFilesStayAsTheyWere(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	held, err := store.List()
+	v, err := m.View()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff(append(wantOldQuestions(), *added), held, withoutIDs); diff != "" {
+	var held []machinemarks.Mark
+	for _, e := range v.Entries(allowed) {
+		held = append(held, e.Mark())
+	}
+	slices.SortFunc(held, func(a, b machinemarks.Mark) int { return a.At.Compare(b.At) })
+	if diff := cmp.Diff(append(wantOldQuestions(), added), held, withoutIDs); diff != "" {
 		t.Errorf("marks after the first write (-want +got):\n%s", diff)
 	}
 	if got, found, bookmarkErr := store.Bookmark(mark.NoCourse); bookmarkErr != nil || !found || got.RelPath != aPlace().RelPath {
@@ -143,52 +164,81 @@ func TestTheFirstWriteConvertsAndTheOldFilesStayAsTheyWere(t *testing.T) {
 // conversion is not brought back from the old file that still holds it.
 func TestASecondStartDoesNotConvertAgainOrBringBackWhatWasDeleted(t *testing.T) {
 	t.Parallel()
-	config := t.TempDir()
-	first := newStoreFor(t, config, "/vaults/notes")
+	first, root, config := aRealVault(t)
 	writeFile(t, oldQuestionsPath(first), oldQuestions)
 	writeFile(t, oldBookmarkPath(first), oldBookmark)
 
 	// The reader clears the first old question; that is the first write.
 	cleared := wantOldQuestions()[0]
-	if added, err := first.Toggle(&cleared, admitAny); err != nil || added {
-		t.Fatalf("clearing an old question = %v, %v; want it removed", added, err)
+	cleared.ID = markID(1)
+	same := func(m *machinemarks.Mark) bool {
+		return m.Kind == cleared.Kind && m.Path == cleared.Path && m.Anchor == cleared.Anchor
+	}
+	out, err := machineMarksOver(t, first, root, config).Toggle(&cleared, same, allowedPlace, allowed)
+	if err != nil || !out.Mark.Deleted {
+		t.Fatalf("clearing an old question = %+v, %v; want it removed", out, err)
 	}
 	// And sets a bookmark of their own over the old one.
 	moved := aPlace()
 	moved.Offset = 7
-	if err := moveBookmark(first, mark.NoCourse, moved); err != nil {
+	if err = moveBookmark(first, mark.NoCourse, moved); err != nil {
 		t.Fatal(err)
 	}
 
-	second := newStoreFor(t, config, "/vaults/notes")
-	held, err := second.List()
+	second := newStoreFor(t, config, root)
+	m := machineMarksOver(t, second, root, config)
+	v, err := m.View()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if diff := cmp.Diff(wantOldQuestions()[1:], held, withoutIDs); diff != "" {
-		t.Errorf("after a second start (-want +got):\n%s", diff)
+	if got := liveQuestions(v); !slices.Equal(got, []string{"Notes/other.md#"}) {
+		t.Errorf("after a second start the questions are %v, want only the one that was not cleared", got)
 	}
 	if got, _ := heldBookmark(t, second); got.Offset != 7 {
 		t.Errorf("a second start read the old bookmark (offset %d), not the one kept after it", got.Offset)
 	}
 	// Writing again does not convert again either.
-	if _, err = second.Add(aHighlight()); err != nil {
+	highlight := machinemarks.Mark{ID: markID(9), Kind: machinemarks.Highlight, Path: "Notes/source.md", Quote: "words", At: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
+	if _, err = m.Put(&highlight, nil, nil, allowed); err != nil {
 		t.Fatal(err)
 	}
-	if held, err = second.List(mark.Question); err != nil || len(held) != 1 {
-		t.Errorf("a write after a second start left %d questions (%v), want 1", len(held), err)
+	if v, err = m.View(); err != nil {
+		t.Fatal(err)
 	}
+	if got := liveQuestions(v); !slices.Equal(got, []string{"Notes/other.md#"}) {
+		t.Errorf("a write after a second start left the questions %v, want the one", got)
+	}
+}
+
+// allowedPlace admits any place for a mark that is new.
+func allowedPlace(*machinemarks.Mark) bool { return true }
+
+// liveQuestions is where each question that is not deleted is, as the note and
+// the anchor, in the order they were made.
+func liveQuestions(v *machinemarks.View) []string {
+	var held []machinemarks.Mark
+	for _, e := range v.Entries(allowed) {
+		if m := e.Mark(); !e.Deleted() && m.Kind == machinemarks.Question {
+			held = append(held, m)
+		}
+	}
+	slices.SortFunc(held, func(a, b machinemarks.Mark) int { return a.At.Compare(b.At) })
+	places := make([]string, len(held))
+	for i := range held {
+		places[i] = held[i].Path + "#" + held[i].Anchor
+	}
+	return places
 }
 
 func TestConvertingTheSameOldFileTwiceNamesTheSameMarks(t *testing.T) {
 	t.Parallel()
 	store := newStore(t)
 	writeFile(t, oldQuestionsPath(store), oldQuestions)
-	first, err := store.List()
+	first, err := store.MachineMarks()
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := newStoreFor(t, filepath.Dir(filepath.Dir(store.Dir())), "/vaults/notes").List()
+	second, err := newStoreFor(t, filepath.Dir(filepath.Dir(store.Dir())), "/vaults/notes").MachineMarks()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,57 +255,52 @@ func TestConvertingTheSameOldFileTwiceNamesTheSameMarks(t *testing.T) {
 // empty and never replaced.
 func TestAnOldFileThatCannotBeConvertedIsReportedAndKept(t *testing.T) {
 	t.Parallel()
+	// a write of a mark is the first write of a machine file, which takes the
+	// earlier file in.
+	writeMark := func(t *testing.T, s *mark.Store, root, config string) error {
+		t.Helper()
+		put := machinemarks.Mark{ID: markID(1), Kind: machinemarks.Thought, Path: "a.md", Body: "x", At: time.Now()}
+		_, err := machineMarksOver(t, s, root, config).Put(&put, nil, nil, allowed)
+		return err
+	}
+	writeBookmark := func(t *testing.T, s *mark.Store, _, _ string) error {
+		t.Helper()
+		return moveBookmark(s, mark.NoCourse, aPlace())
+	}
+	readBookmark := func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err }
+	readMarks := func(s *mark.Store) error { _, err := s.MachineMarks(); return err }
 	for _, tt := range []struct {
 		name, file, body string
 		read             func(*mark.Store) error
-		write            func(*mark.Store) error
+		write            func(*testing.T, *mark.Store, string, string) error
 	}{
-		{
-			"a bookmark in another version", "reader.json", `{"version":2,"vault":"/v","continuation":{"path":"a.md"}}`,
-			func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err },
-			func(s *mark.Store) error { return moveBookmark(s, mark.NoCourse, aPlace()) },
-		},
-		{
-			"a bookmark that is not JSON", "reader.json", "not json",
-			func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err },
-			func(s *mark.Store) error { return moveBookmark(s, mark.NoCourse, aPlace()) },
-		},
+		{"a bookmark in another version", "reader.json", `{"version":2,"vault":"/v","continuation":{"path":"a.md"}}`, readBookmark, writeBookmark},
+		{"a bookmark that is not JSON", "reader.json", "not json", readBookmark, writeBookmark},
 		{
 			"a bookmark the shape refuses", "reader.json", `{"version":1,"continuation":{"path":"../out.md","offset":0,"identity":"` + anIdentity + `","at":"2026-09-17T10:00:00Z"}}`,
-			func(s *mark.Store) error { _, _, err := s.Bookmark(mark.NoCourse); return err },
-			func(s *mark.Store) error { return moveBookmark(s, mark.NoCourse, aPlace()) },
+			readBookmark, writeBookmark,
 		},
-		{
-			"questions that are not an array", "uncertainty.json", `{"version":1}`,
-			func(s *mark.Store) error { _, err := s.List(); return err },
-			func(s *mark.Store) error { _, err := s.Toggle(aQuestion(), admitAny); return err },
-		},
+		{"questions that are not an array", "uncertainty.json", `{"version":1}`, readMarks, writeMark},
 		{
 			"questions with a field it does not know", "uncertainty.json", `[{"path":"a.md","anchor":"","time":"2026-09-22T10:00:00Z","content":"private"}]`,
-			func(s *mark.Store) error { _, err := s.List(); return err },
-			func(s *mark.Store) error { _, err := s.Add(aHighlight()); return err },
+			readMarks, writeMark,
 		},
 		{
 			"a question twice", "uncertainty.json", `[{"path":"a.md","anchor":"","time":"2026-09-22T10:00:00Z"},{"path":"a.md","anchor":"","time":"2026-09-23T10:00:00Z"}]`,
-			func(s *mark.Store) error { _, err := s.List(); return err },
-			func(s *mark.Store) error { _, err := s.Toggle(aQuestion(), admitAny); return err },
+			readMarks, writeMark,
 		},
-		{
-			"a question the shape refuses", "uncertainty.json", `[{"path":"Source.md\nForged","anchor":"","time":"2026-09-22T10:00:00Z"}]`,
-			func(s *mark.Store) error { _, err := s.List(); return err },
-			func(s *mark.Store) error { _, err := s.Toggle(aQuestion(), admitAny); return err },
-		},
+		{"a question the shape refuses", "uncertainty.json", `[{"path":"Source.md\nForged","anchor":"","time":"2026-09-22T10:00:00Z"}]`, readMarks, writeMark},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			store := newStore(t)
+			store, root, config := aRealVault(t)
 			path := filepath.Join(store.Dir(), tt.file)
 			writeFile(t, path, tt.body)
 			if err := tt.read(store); !errors.Is(err, mark.ErrUnreadable) {
 				t.Errorf("reading %s = %v, want ErrUnreadable", tt.name, err)
 			}
-			if err := tt.write(store); !errors.Is(err, mark.ErrUnreadable) || errors.Is(err, mark.ErrInvalid) {
-				t.Errorf("writing over %s = %v, want ErrUnreadable and not ErrInvalid", tt.name, err)
+			if err := tt.write(t, store, root, config); err == nil || errors.Is(err, mark.ErrInvalid) {
+				t.Errorf("writing over %s = %v, want a refusal that is not ErrInvalid", tt.name, err)
 			}
 			if bytesOf(t, path) != tt.body {
 				t.Errorf("%s was changed", tt.file)
@@ -264,6 +309,9 @@ func TestAnOldFileThatCannotBeConvertedIsReportedAndKept(t *testing.T) {
 				if _, err := os.Stat(filepath.Join(store.Dir(), written)); !os.IsNotExist(err) {
 					t.Errorf("a refused write created %s", written)
 				}
+			}
+			if _, err := os.Stat(filepath.Join(root, "reader-notes")); !os.IsNotExist(err) {
+				t.Errorf("a refused write made the reader folder: %v", err)
 			}
 		})
 	}

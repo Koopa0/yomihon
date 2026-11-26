@@ -23,6 +23,7 @@ import (
 	"github.com/koopa0/yomihon/internal/judge"
 	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/vault"
 )
@@ -45,27 +46,11 @@ func leftOpen(t *testing.T, root, configDir string, args ...string) leftOpenResu
 }
 
 // leftOpenMarks keeps marks for root under configDir, as the reading room
-// would, admitting any location so a lost one can be stored too.
-func leftOpenMarks(t *testing.T, root, configDir string, marks ...mark.Mark) *mark.Store {
+// would: in the vault's own machine files, admitting any location so a lost one
+// can be kept too.
+func leftOpenMarks(t *testing.T, root, configDir string, marks ...machinemarks.Mark) {
 	t.Helper()
-	source, err := vault.Open(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	name := source.Name()
-	if closeErr := source.Close(); closeErr != nil {
-		t.Fatal(closeErr)
-	}
-	file, err := mark.Open(confdir.At(configDir), name)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i := range marks {
-		if _, err := file.Toggle(&marks[i], admitMark); err != nil {
-			t.Fatal(err)
-		}
-	}
-	return file
+	keptMarks{t: t, root: root, config: configDir}.keep(marks...)
 }
 
 func leftOpenDay(day int) time.Time { return time.Date(2026, 9, day, 3, 4, 5, 0, time.UTC) }
@@ -83,15 +68,15 @@ func leftOpenVault(t *testing.T) (root, configDir string) {
 	putOpenThoughtFile(t, root, "Inside/Done.md", openThoughtNote("Done note", "reflection", "draft: false\n", "2026-09-10"))
 	putOpenThoughtFile(t, root, "Inside/Undated.md", "---\ntype: reflection\ndraft: true\n---\n# Undated\n\nA thought.\n")
 	leftOpenMarks(t, root, configDir,
-		mark.Mark{Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(7)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", Anchor: "chapter", At: leftOpenDay(7)},
 		// Marked west of UTC on the evening before: the list says the moment in
 		// UTC, and so the day UTC gives it, never the zone the reader was in.
-		mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: time.Date(2026, 9, 4, 20, 4, 5, 0, time.FixedZone("", -7*60*60))},
-		mark.Mark{Kind: mark.Question, RelPath: "Source.md", Anchor: "vanished", At: leftOpenDay(4)},
-		mark.Mark{Kind: mark.Question, RelPath: "Source.md", Anchor: "twice", At: leftOpenDay(3)},
-		mark.Mark{Kind: mark.Question, RelPath: "Gone.md", Anchor: "x", At: leftOpenDay(2)},
-		mark.Mark{Kind: mark.Question, RelPath: "Titled.md", Anchor: "titled", At: leftOpenDay(1)},
-		mark.Mark{Kind: mark.Question, RelPath: "Titled.md", Anchor: "gone-heading", At: leftOpenDay(0)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", At: time.Date(2026, 9, 4, 20, 4, 5, 0, time.FixedZone("", -7*60*60))},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", Anchor: "vanished", At: leftOpenDay(4)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", Anchor: "twice", At: leftOpenDay(3)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Gone.md", Anchor: "x", At: leftOpenDay(2)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Titled.md", Anchor: "titled", At: leftOpenDay(1)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Titled.md", Anchor: "gone-heading", At: leftOpenDay(0)},
 	)
 	return root, configDir
 }
@@ -137,7 +122,7 @@ func TestLeftOpenTitlesANoteOnlyByItsFirstHeading(t *testing.T) {
 	putOpenThoughtFile(t, root, "Inside/Fenced.md", "---\ntype: reflection\ndraft: true\ncreated: 2026-09-03\n---\n```\n# Inside a fence\n```\n\n# Past the fence\n")
 	putOpenThoughtFile(t, root, "Inside/Written.md", "---\ntitle: Written above\ntype: reflection\ndraft: true\ncreated: 2026-09-02\n---\n# Said in the body\n")
 	putOpenThoughtFile(t, root, "Plain.md", "Words.\n\n## Part\n\nmore\n")
-	leftOpenMarks(t, root, configDir, mark.Mark{Kind: mark.Question, RelPath: "Plain.md", Anchor: "part", At: leftOpenDay(1)})
+	leftOpenMarks(t, root, configDir, machinemarks.Mark{Kind: machinemarks.Question, Path: "Plain.md", Anchor: "part", At: leftOpenDay(1)})
 	got := leftOpen(t, root, configDir, "--format", "json")
 	if got.exit != 0 {
 		t.Fatalf("marks exit %d: %s", got.exit, got.stderr)
@@ -172,15 +157,11 @@ func TestLeftOpenListsWhatTheShelfShowsInItsOrder(t *testing.T) {
 	}
 	putOpenThoughtFile(t, root, "Inside/Same day.md", openThoughtNote("Same day", "reflection", draftFlag, leftOpenDay(4).Format(time.DateOnly)))
 	site, marks := openThoughtSite(t, root)
-	for _, kept := range []mark.Mark{
-		{Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(5)},
-		{Kind: mark.Question, RelPath: "Other.md", At: leftOpenDay(4)},
-		{Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)},
-	} {
-		if _, err := marks.Toggle(&kept, admitMark); err != nil {
-			t.Fatal(err)
-		}
-	}
+	marks.keep(
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", Anchor: "chapter", At: leftOpenDay(5)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Other.md", At: leftOpenDay(4)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", At: leftOpenDay(1)},
+	)
 	page := openThoughtPage(t, site, "/marks", "en")
 	var shelf []string
 	name := regexp.MustCompile(`class="y-openitem__name" href="/notes/([^"]*)"`)
@@ -198,7 +179,7 @@ func TestLeftOpenListsWhatTheShelfShowsInItsOrder(t *testing.T) {
 	if len(shelf) == 0 {
 		t.Fatalf("no shelf row was read from the page:\n%s", page)
 	}
-	got := leftOpen(t, root, filepath.Dir(filepath.Dir(marks.Dir())), "--format", "json")
+	got := leftOpen(t, root, marks.config, "--format", "json")
 	if got.exit != 0 {
 		t.Fatalf("marks exit %d: %s", got.exit, got.stderr)
 	}
@@ -239,7 +220,7 @@ func leftOpenItems(t *testing.T, stdout string) []map[string]any {
 // point into it from outside, beside one plainly allowed thought and mark.
 func leftOpenPrivateVault(t *testing.T) (root, configDir string) {
 	t.Helper()
-	var marks []mark.Mark
+	var marks []machinemarks.Mark
 	root, configDir = t.TempDir(), t.TempDir()
 	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
@@ -262,19 +243,19 @@ func leftOpenPrivateVault(t *testing.T) (root, configDir string) {
 		putOpenThoughtFile(t, root, fmt.Sprintf("Inside/Raw %d.md", i),
 			fmt.Sprintf("---\ntype: reflection\ndraft: true\ncreated: 2026-09-07\n---\n# %s\n\nA thought.\n", title))
 		putOpenThoughtFile(t, root, fmt.Sprintf("Raw %d.md", i), fmt.Sprintf("# %s\n\n## Sec\n\nwords\n", title))
-		marks = append(marks, mark.Mark{Kind: mark.Question, RelPath: fmt.Sprintf("Raw %d.md", i), Anchor: "sec", At: leftOpenDay(7)})
+		marks = append(marks, machinemarks.Mark{Kind: machinemarks.Question, Path: fmt.Sprintf("Raw %d.md", i), Anchor: "sec", At: leftOpenDay(7)})
 	}
 	// The heading the anchor was made from has been rewritten since; the
 	// anchor still spells the withheld note it once cited.
 	putOpenThoughtFile(t, root, "Renamed.md", "# Renamed\n\n## Other\n\nwords\n")
 	// The note is gone, and with it any way to tell what its anchor's words cited.
 	leftOpenMarks(t, root, configDir, append(marks,
-		mark.Mark{Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(4)},
-		mark.Mark{Kind: mark.Question, RelPath: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(5)},
-		mark.Mark{Kind: mark.Question, RelPath: "Public.md", Anchor: "about-private-secret-plan", At: leftOpenDay(6)},
-		mark.Mark{Kind: mark.Question, RelPath: "Retitled.md", Anchor: "sec", At: leftOpenDay(7)},
-		mark.Mark{Kind: mark.Question, RelPath: "Renamed.md", Anchor: "about-private-secret-plan", At: leftOpenDay(8)},
-		mark.Mark{Kind: mark.Question, RelPath: "Deleted.md", Anchor: "about-private-secret-plan", At: leftOpenDay(9)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", Anchor: "chapter", At: leftOpenDay(4)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(5)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Public.md", Anchor: "about-private-secret-plan", At: leftOpenDay(6)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Retitled.md", Anchor: "sec", At: leftOpenDay(7)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Renamed.md", Anchor: "about-private-secret-plan", At: leftOpenDay(8)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Deleted.md", Anchor: "about-private-secret-plan", At: leftOpenDay(9)},
 	)...)
 	return root, configDir
 }
@@ -623,7 +604,7 @@ func TestLeftOpenRefusesWhenARulesFileAppearsAfterAssembly(t *testing.T) {
 	root, configDir := t.TempDir(), t.TempDir()
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n")
 	putOpenThoughtFile(t, root, "Private/Thought.md", openThoughtNote("A private thought", "thought", draftFlag, "2026-09-01"))
-	leftOpenMarks(t, root, configDir, mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)})
+	leftOpenMarks(t, root, configDir, machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", At: leftOpenDay(1)})
 	var stdout, stderr bytes.Buffer
 	request := openRequest{root: root, configDir: confdir.At(configDir), format: judge.FormatJSON, afterAssemble: func() {
 		putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
@@ -743,7 +724,7 @@ func TestLeftOpenRefusesWithoutPrivacyAuthority(t *testing.T) {
 			}
 			putOpenThoughtFile(t, root, "Source.md", "# Source\n")
 			putOpenThoughtFile(t, root, "Inside/Thought.md", openThoughtNote("A thought", "reflection", draftFlag, "2026-09-01"))
-			leftOpenMarks(t, root, configDir, mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)})
+			leftOpenMarks(t, root, configDir, machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", At: leftOpenDay(1)})
 			got := leftOpen(t, root, configDir, "--format", "json")
 			if got.exit != 2 || got.stdout != "" {
 				t.Errorf("caught: %s: exit %d, stdout %q; want 2 and nothing", tt.name, got.exit, got.stdout)
@@ -807,7 +788,7 @@ func TestLeftOpenReadsAFolderWithNoRulesFile(t *testing.T) {
 	root, configDir := t.TempDir(), t.TempDir()
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n")
 	putOpenThoughtFile(t, root, "Private/Thought.md", openThoughtNote("Under a directory a rules file might withhold", "thought", draftFlag, "2026-09-01"))
-	leftOpenMarks(t, root, configDir, mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)})
+	leftOpenMarks(t, root, configDir, machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", At: leftOpenDay(1)})
 
 	machine := leftOpen(t, root, configDir, "--format", "json")
 	if machine.exit != 0 {
@@ -837,57 +818,65 @@ const leftOpenNoLocationListed = "yomihon: no question is listed from the marks 
 // lives, since that path spells the home directory.
 func TestLeftOpenTellsTheStatesOfTheMarksFileApart(t *testing.T) {
 	t.Parallel()
-	root := t.TempDir()
-	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
-	putOpenThoughtFile(t, root, "Source.md", "# Source\n")
-
-	missing := t.TempDir()
-	cleared := t.TempDir()
-	file := leftOpenMarks(t, root, cleared, mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)})
-	if _, err := file.Toggle(&mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)}, admitMark); err != nil {
-		t.Fatal(err)
+	// The reader's marks live in the vault's own files, so each state has a
+	// vault of its own: one vault shared between them would hand every state
+	// the marks of the others.
+	fresh := func() string {
+		root := t.TempDir()
+		putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
+		putOpenThoughtFile(t, root, "Source.md", "# Source\n")
+		return root
 	}
+
+	missingRoot, missing := fresh(), t.TempDir()
+	clearedRoot, cleared := fresh(), t.TempDir()
+	leftOpenMarks(t, clearedRoot, cleared, machinemarks.Mark{ID: markID(1), Kind: machinemarks.Question, Path: "Source.md", At: leftOpenDay(1)})
+	keptMarks{t: t, root: clearedRoot, config: cleared}.forget(markID(1))
 	// Marks that all lie in withheld ground list nothing, and must say exactly
 	// what a file whose marks were all cleared says.
-	withheld := t.TempDir()
-	leftOpenMarks(t, root, withheld,
-		mark.Mark{Kind: mark.Question, RelPath: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(1)},
-		mark.Mark{Kind: mark.Question, RelPath: "Private/Gone.md", At: leftOpenDay(2)})
-	damaged := t.TempDir()
-	broken := leftOpenMarks(t, root, damaged)
-	if err := os.MkdirAll(broken.Dir(), 0o700); err != nil {
+	withheldRoot, withheld := fresh(), t.TempDir()
+	leftOpenMarks(t, withheldRoot, withheld,
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(1)},
+		machinemarks.Mark{Kind: machinemarks.Question, Path: "Private/Gone.md", At: leftOpenDay(2)})
+	// The earlier file of marks, which is read until the vault's own files take
+	// it in, is where a reader's marks can still be damaged or out of reach.
+	damagedRoot, damaged := fresh(), t.TempDir()
+	damagedDir := earlierMarksDir(t, damaged, damagedRoot)
+	if err := os.MkdirAll(damagedDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(broken.Dir(), "marks.json"), []byte("{broken"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(damagedDir, "marks.json"), []byte("{broken"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	// A file the machine refuses to open is the case whose own error names
 	// the file's absolute path, and so the configuration directory's.
-	locked := t.TempDir()
-	unopenable := leftOpenMarks(t, root, locked, mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)})
-	if err := os.Chmod(filepath.Join(unopenable.Dir(), "marks.json"), 0); err != nil {
+	lockedRoot, locked := fresh(), t.TempDir()
+	writeEarlierMarks(t, locked, vaultNameOf(t, lockedRoot), mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: "Source.md", At: leftOpenDay(1)})
+	lockedFile := filepath.Join(earlierMarksDir(t, locked, lockedRoot), "marks.json")
+	if err := os.Chmod(lockedFile, 0); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(filepath.Join(unopenable.Dir(), "marks.json"), 0o600) }) //nolint:errcheck // TempDir removal reports what is left
-	_, lockedErr := os.ReadFile(filepath.Join(unopenable.Dir(), "marks.json"))
+	t.Cleanup(func() { _ = os.Chmod(lockedFile, 0o600) }) //nolint:errcheck // TempDir removal reports what is left
+	_, lockedErr := os.ReadFile(lockedFile)               // #nosec G304 -- a test's own path
 
 	for _, tt := range []struct {
 		name      string
+		root      string
 		configDir string
 		want      leftOpenResult
 	}{
-		{name: "no marks file", configDir: missing, want: leftOpenResult{stderr: "yomihon: no question is listed; there is no marks file for this folder as spelled\n"}},
-		{name: "every mark cleared", configDir: cleared, want: leftOpenResult{stderr: leftOpenNoLocationListed}},
-		{name: "only withheld marks", configDir: withheld, want: leftOpenResult{stderr: leftOpenNoLocationListed}},
-		{name: "damaged marks file", configDir: damaged, want: leftOpenResult{exit: 2, stderr: "yomihon: the marks for this folder cannot be read; nothing was listed\n"}},
-		{name: "unopenable marks file", configDir: locked, want: leftOpenResult{exit: 2, stderr: "yomihon: the marks for this folder cannot be read; nothing was listed\n"}},
+		{name: "no marks file", root: missingRoot, configDir: missing, want: leftOpenResult{stderr: "yomihon: no question is listed; there is no marks file for this folder as spelled\n"}},
+		{name: "every mark cleared", root: clearedRoot, configDir: cleared, want: leftOpenResult{stderr: leftOpenNoLocationListed}},
+		{name: "only withheld marks", root: withheldRoot, configDir: withheld, want: leftOpenResult{stderr: leftOpenNoLocationListed}},
+		{name: "damaged marks file", root: damagedRoot, configDir: damaged, want: leftOpenResult{exit: 2, stderr: "yomihon: the marks for this folder cannot be read; nothing was listed\n"}},
+		{name: "unopenable marks file", root: lockedRoot, configDir: locked, want: leftOpenResult{exit: 2, stderr: "yomihon: the marks for this folder cannot be read; nothing was listed\n"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if tt.configDir == locked && lockedErr == nil {
 				t.Skip("this user can read a mode-0 file, so no read fails")
 			}
-			got := leftOpen(t, root, tt.configDir, "--format", "json")
+			got := leftOpen(t, tt.root, tt.configDir, "--format", "json")
 			if strings.Contains(got.stderr, tt.configDir) || strings.Contains(got.stderr, filepath.Base(tt.configDir)) {
 				t.Errorf("caught: %s: stderr names the configuration directory: %q", tt.name, got.stderr)
 			}
@@ -899,7 +888,10 @@ func TestLeftOpenTellsTheStatesOfTheMarksFileApart(t *testing.T) {
 	if entries, err := os.ReadDir(missing); err != nil || len(entries) != 0 {
 		t.Errorf("caught: listing created %d entries under a configuration directory with no marks (err %v)", len(entries), err)
 	}
-	if data, err := os.ReadFile(filepath.Join(broken.Dir(), "marks.json")); err != nil || string(data) != "{broken" {
+	if _, err := os.Stat(filepath.Join(missingRoot, "reader-notes")); !os.IsNotExist(err) {
+		t.Errorf("caught: listing made the reader folder in a vault with no marks (err %v)", err)
+	}
+	if data, err := os.ReadFile(filepath.Join(damagedDir, "marks.json")); err != nil || string(data) != "{broken" { // #nosec G304 -- a test's own path
 		t.Errorf("caught: listing changed a damaged marks file: %q, %v", data, err)
 	}
 }
@@ -1174,21 +1166,12 @@ func movedFolder(t *testing.T) (root, configDir, earlier string) {
 	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
 	putOpenThoughtFile(t, root, "Private/Secret plan.md", "# Secret plan\n\n## Hidden heading\n\nwords\n")
-	kept, err := mark.Open(confdir.At(configDir), earlier)
-	if err != nil {
-		t.Fatal(err)
-	}
-	marks := []mark.Mark{
-		{Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(1)},
-		{Kind: mark.Question, RelPath: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(2)},
-		{Kind: mark.Question, RelPath: "Private/Gone.md", Anchor: "lost", At: leftOpenDay(3)},
-		{Kind: mark.Question, RelPath: "NotHere.md", Anchor: "elsewhere", At: leftOpenDay(4)},
-	}
-	for i := range marks {
-		if _, err := kept.Toggle(&marks[i], admitMark); err != nil {
-			t.Fatalf("keep mark %d: %v", i, err)
-		}
-	}
+	writeEarlierMarks(t, configDir, earlier,
+		mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(1)},
+		mark.Mark{ID: markID(2), Kind: mark.Question, RelPath: "Private/Secret plan.md", Anchor: "hidden-heading", At: leftOpenDay(2)},
+		mark.Mark{ID: markID(3), Kind: mark.Question, RelPath: "Private/Gone.md", Anchor: "lost", At: leftOpenDay(3)},
+		mark.Mark{ID: markID(4), Kind: mark.Question, RelPath: "NotHere.md", Anchor: "elsewhere", At: leftOpenDay(4)},
+	)
 	return root, configDir, earlier
 }
 
@@ -1231,31 +1214,41 @@ func TestMarksAdoptBringsAcrossNothingThisFolderWithholdsOrHasNot(t *testing.T) 
 			}
 		}
 	}
-	held, err := leftOpenMarks(t, root, configDir).List()
-	if err != nil {
-		t.Fatal(err)
-	}
+	held := heldQuestions(t, root, configDir)
 	if len(held) != 1 || held[0].RelPath != "Source.md" {
 		t.Errorf("the folder holds %+v after adopting, want only the question on Source.md", held)
 	}
 }
 
-func TestMarksAdoptLeavesTheEarlierMarksAndTheVaultAsTheyWere(t *testing.T) {
+// Adopting takes the marks into the vault's own machine files, so the reader
+// folder is where it writes in the vault, and nowhere else: not a note, not the
+// rules, and not the earlier marks.
+func TestMarksAdoptLeavesTheEarlierMarksAndTheNotesAsTheyWere(t *testing.T) {
 	t.Parallel()
 	root, configDir, earlier := movedFolder(t)
-	store, err := mark.Open(confdir.At(configDir), earlier)
-	if err != nil {
-		t.Fatal(err)
+	earlierDir := nameMarksDir(t, configDir, earlier)
+	readerFolder := filepath.Join(root, "reader-notes")
+	outsideReaderFolder := func() map[string]string {
+		files := treeBytes(t, root)
+		for path := range files {
+			if strings.HasPrefix(path, readerFolder+string(filepath.Separator)) {
+				delete(files, path)
+			}
+		}
+		return files
 	}
-	beforeEarlier, beforeVault := treeBytes(t, store.Dir()), treeBytes(t, root)
+	beforeEarlier, beforeVault := treeBytes(t, earlierDir), outsideReaderFolder()
 	if got := leftOpen(t, root, configDir, "--adopt", earlier); got.exit != 0 {
 		t.Fatalf("exit %d: %s", got.exit, got.stderr)
 	}
-	if diff := cmp.Diff(beforeEarlier, treeBytes(t, store.Dir())); diff != "" {
+	if diff := cmp.Diff(beforeEarlier, treeBytes(t, earlierDir)); diff != "" {
 		t.Errorf("the marks kept for the earlier path changed (-before +after):\n%s", diff)
 	}
-	if diff := cmp.Diff(beforeVault, treeBytes(t, root)); diff != "" {
-		t.Errorf("caught: adopting wrote into the folder (-before +after):\n%s", diff)
+	if diff := cmp.Diff(beforeVault, outsideReaderFolder()); diff != "" {
+		t.Errorf("caught: adopting wrote into the folder beyond the reader folder (-before +after):\n%s", diff)
+	}
+	if _, err := os.Stat(filepath.Join(readerFolder, ".yomihon", "marks")); err != nil {
+		t.Errorf("adopting left no machine file of marks in the reader folder: %v", err)
 	}
 }
 
@@ -1291,22 +1284,15 @@ func TestMarksAdoptRefusesWhatItCannotAdoptWithoutNamingAPath(t *testing.T) {
 	// A directory copied by hand to the name another path gives records the path
 	// it was made for.
 	copiedRoot := filepath.Join(t.TempDir(), "copied")
-	earlierStore, err := mark.Open(confdir.At(configDir), earlier)
+	copiedDir := nameMarksDir(t, configDir, copiedRoot)
+	data, err := os.ReadFile(filepath.Join(nameMarksDir(t, configDir, earlier), "marks.json")) // #nosec G304 -- a file of this test's own temporary directory
 	if err != nil {
 		t.Fatal(err)
 	}
-	copied, err := mark.Open(confdir.At(configDir), copiedRoot)
-	if err != nil {
+	if err = os.MkdirAll(copiedDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(earlierStore.Dir(), "marks.json")) // #nosec G304 -- a file of this test's own temporary directory
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = os.MkdirAll(copied.Dir(), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err = os.WriteFile(filepath.Join(copied.Dir(), "marks.json"), data, 0o600); err != nil { // #nosec G703 -- fixture path under t.TempDir
+	if err = os.WriteFile(filepath.Join(copiedDir, "marks.json"), data, 0o600); err != nil { // #nosec G703 -- fixture path under t.TempDir
 		t.Fatal(err)
 	}
 
@@ -1356,5 +1342,29 @@ func TestOnlyMarksTakesAdopt(t *testing.T) {
 		if wantLine := "yomihon: " + command + " does not accept --adopt\n"; exit != 2 || stdout.Len() != 0 || stderr.String() != wantLine {
 			t.Errorf("%s --adopt: exit %d, stdout %q, stderr %q; want 2, nothing, %q", command, exit, stdout.String(), stderr.String(), wantLine)
 		}
+	}
+}
+
+// A reader who has not marked anything since the upgrade still has the marks the
+// earlier file kept, and the command lists them: they are not hidden until a
+// first write takes them into the vault, and the listing writes nothing, not
+// even the reader folder.
+func TestLeftOpenListsTheEarlierFilesQuestionsBeforeAnyWrite(t *testing.T) {
+	t.Parallel()
+	root, configDir := t.TempDir(), t.TempDir()
+	putOpenThoughtFile(t, root, schema.ContractRelPath, leftOpenContract)
+	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
+	writeEarlierMarks(t, configDir, vaultNameOf(t, root),
+		mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(1)})
+	before := treeBytes(t, root, configDir)
+	got := leftOpen(t, root, configDir, "--format", "json")
+	if got.exit != 0 || !strings.Contains(got.stdout, `"Source.md"`) || !strings.Contains(got.stdout, "chapter") {
+		t.Fatalf("marks: exit %d, stdout %q, stderr %q; want the earlier file's question listed", got.exit, got.stdout, got.stderr)
+	}
+	if diff := cmp.Diff(before, treeBytes(t, root, configDir)); diff != "" {
+		t.Errorf("caught: listing the earlier file's marks wrote files (-before +after):\n%s", diff)
+	}
+	if _, err := os.Stat(filepath.Join(root, "reader-notes")); !os.IsNotExist(err) {
+		t.Errorf("caught: listing made the reader folder (err %v)", err)
 	}
 }

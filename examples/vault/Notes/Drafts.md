@@ -20,6 +20,6 @@ A note with no `draft` field is finished. Writing `draft: false` says the same t
 
 A note that writes `draft: true` is marked as a draft, quietly, on its own page, in the sidebar and on its course. A reader's own thought that still carries it stays on the My marks page, and `yomihon marks` lists it for a program.
 
-## Nothing is written back
+## No note is written back
 
-yomihon never writes into the vault. It sets no field, `draft` or any other, and offers no button that would: the flag changes only in the author's editor. A note that another note replaces is deleted in the editor too, and its name goes into the replacement's `aliases`, so links written to the deleted note's name still arrive.
+yomihon never edits a note. It sets no field, `draft` or any other, and offers no button that would: the flag changes only in the author's editor. A note that another note replaces is deleted in the editor too, and its name goes into the replacement's `aliases`, so links written to the deleted note's name still arrive. The one thing it writes into the vault is the reader's own marks, in `reader-notes/.yomihon/marks/`, which no scan lists as a note.

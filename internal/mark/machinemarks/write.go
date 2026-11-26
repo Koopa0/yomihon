@@ -173,6 +173,9 @@ type proposal struct {
 	// fresh is the mark asked for is a new one, or a deleted one made again:
 	// the marks that are not deleted grow by one.
 	grows bool
+	// noWrite says the change finds nothing to write: the answer is base, and
+	// the vault and the ledger are left as they are.
+	noWrite bool
 }
 
 // Put writes mark as the whole new value of the mark of its ID: a new mark, or
@@ -335,13 +338,19 @@ func validateEdit(e *Edit) error {
 // conversion and a clone's retirement about, lets plan say what to write, and
 // writes it.
 func (m *Marks) change(plan func(*view) (*proposal, error)) (Result, error) {
+	return m.run(false, plan)
+}
+
+// run is change, and says whether the earlier file of marks is to be taken in
+// again whether or not it was, which is what an adoption asks for.
+func (m *Marks) run(takeIn bool, plan func(*view) (*proposal, error)) (Result, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	start := time.Now()
 	var res Result
 	err := confdir.Exclusive(m.dir, lockName, confdir.LockWait, func() error {
 		res.LockWait = time.Since(start)
-		return m.locked(plan, &res)
+		return m.locked(takeIn, plan, &res)
 	})
 	res.Total = time.Since(start)
 	if err != nil {
@@ -351,7 +360,7 @@ func (m *Marks) change(plan func(*view) (*proposal, error)) (Result, error) {
 }
 
 // locked is change inside the lock.
-func (m *Marks) locked(plan func(*view) (*proposal, error), res *Result) error {
+func (m *Marks) locked(takeIn bool, plan func(*view) (*proposal, error), res *Result) error {
 	ledgerTime := time.Duration(0)
 	record := func(e *ledger.Event) error {
 		began := time.Now()
@@ -373,12 +382,19 @@ func (m *Marks) locked(plan func(*view) (*proposal, error), res *Result) error {
 		// throw away what it holds: nothing is written until it can be read.
 		return fmt.Errorf("%w: %w", ErrOwnFileUnreadable, v.ownErr)
 	}
-	if v, err = m.settle(v, record); err != nil {
+	if v, err = m.settle(v, takeIn, record); err != nil {
 		return err
 	}
 	p, err := plan(v)
 	if err != nil {
 		return err
+	}
+	if p.noWrite {
+		res.Seen = maps.Clone(p.base)
+		if res.Seen == nil {
+			res.Seen = Seen{}
+		}
+		return nil
 	}
 	return m.commit(v, p, record, res)
 }
@@ -386,7 +402,7 @@ func (m *Marks) locked(plan func(*view) (*proposal, error), res *Result) error {
 // settle brings about what a write needs before the write: an id for this
 // machine, the retirement of an id another machine has a copy of, and the
 // taking in of the earlier file. It answers the view as it is after.
-func (m *Marks) settle(v *view, record func(*ledger.Event) error) (*view, error) {
+func (m *Marks) settle(v *view, takeIn bool, record func(*ledger.Event) error) (*view, error) {
 	// apply records events and reads again what they changed.
 	apply := func(events ...*ledger.Event) error {
 		for _, e := range events {
@@ -412,8 +428,8 @@ func (m *Marks) settle(v *view, record func(*ledger.Event) error) (*view, error)
 			return nil, err
 		}
 	}
-	if !v.st.converted && !v.ownFound && m.opts.Legacy != nil {
-		if err := m.convert(v, record); err != nil {
+	if m.opts.Legacy != nil && (takeIn || (!v.st.converted && !v.ownFound)) {
+		if err := m.convert(v, takeIn, record); err != nil {
 			return nil, err
 		}
 		if err := apply(); err != nil {
@@ -426,7 +442,13 @@ func (m *Marks) settle(v *view, record func(*ledger.Event) error) (*view, error)
 // convert takes in the marks of the earlier file, once: as one line of the
 // ledger holding every line, so that a conversion is one commit and one sync
 // however many marks there are. The earlier file is only read.
-func (m *Marks) convert(v *view, record func(*ledger.Event) error) error {
+//
+// takeIn is a conversion made after the first, which takes in only the marks of
+// the earlier file that no line of any machine and no earlier conversion has: a
+// mark that was taken in and then deleted has its deletion in the vault and is
+// not brought back, and one that was set aside as not fitting a line is not set
+// aside again.
+func (m *Marks) convert(v *view, takeIn bool, record func(*ledger.Event) error) error {
 	legacy, err := m.opts.Legacy()
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrLegacy, err)
@@ -435,7 +457,7 @@ func (m *Marks) convert(v *view, record func(*ledger.Event) error) error {
 	t := m.now().UnixMilli()
 	for i := range legacy {
 		mark := legacy[i]
-		if _, there := v.byMark[mark.ID]; there {
+		if _, there := v.byMark[mark.ID]; there || (takeIn && v.st.skipped[mark.ID]) {
 			continue
 		}
 		raw, why := m.legacyLine(v, &mark, t)
@@ -448,6 +470,9 @@ func (m *Marks) convert(v *view, record func(*ledger.Event) error) error {
 			continue
 		}
 		batch = append(append(batch, raw...), '\n')
+	}
+	if takeIn && len(batch) == 0 {
+		return nil
 	}
 	return record(&ledger.Event{Kind: kindConverted, Writer: v.st.id, Session: m.currentSession(), Content: batch})
 }
@@ -659,13 +684,30 @@ func checkBase(v *view, p *proposal) error {
 		default:
 			// Another page, or an old one, wrote the mark since: that is told
 			// before a late send is.
-			return &StaleError{Seen: entrySeen(v, id)}
+			return &StaleError{Seen: staleSeen(v, p)}
 		}
 	}
 	if superseded {
 		return ErrSuperseded
 	}
 	return nil
+}
+
+// staleSeen is what a page that is told it is stale may write on top of: what it
+// had read, and this machine's own lines of the mark that it had not. A line of
+// another computer that arrived after the page was drawn is not in it, since the
+// page was never shown it: writing on top of this answer replaces the words of
+// the other tab, which the reader chooses to, and leaves the other computer's
+// beside them as a conflict.
+func staleSeen(v *view, p *proposal) Seen {
+	seen := maps.Clone(p.base)
+	if seen == nil {
+		seen = Seen{}
+	}
+	for _, ol := range v.own[p.mark.ID] {
+		seen[ol.Writer()] = max(seen[ol.Writer()], ol.Rev)
+	}
+	return seen
 }
 
 // replaces says line o replaces line l of the same mark.

@@ -15,8 +15,8 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/koopa0/yomihon/internal/mark"
 	"github.com/koopa0/yomihon/internal/mark/confdir"
+	"github.com/koopa0/yomihon/internal/mark/machinemarks"
 	"github.com/koopa0/yomihon/internal/schema"
 	"github.com/koopa0/yomihon/internal/wording"
 )
@@ -52,10 +52,7 @@ func TestOpenThoughtsComposesBothSourcesAndReachesOlderRows(t *testing.T) {
 	putOpenThoughtFile(t, root, "Inside/WrongRole.md", openThoughtNote("Wrong role", "other", draftFlag, "2026-09-11"))
 	putOpenThoughtFile(t, root, "Inside/Invalid.md", openThoughtNote("Invalid flag", "reflection", "draft: \"true\"\n", "2026-09-12"))
 	site, marks := openThoughtSite(t, root)
-	_, err := marks.Toggle(&mark.Mark{Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, admitMark)
-	if err != nil {
-		t.Fatal(err)
-	}
+	marks.keep(machinemarks.Mark{Kind: machinemarks.Question, Path: "Source.md", Anchor: "chapter", At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)})
 	for _, lang := range []string{"en", "zh-Hant"} {
 		t.Run(lang, func(t *testing.T) {
 			t.Parallel()
@@ -106,17 +103,12 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 			putOpenThoughtFile(t, root, "Source.md", "source\n")
 			putOpenThoughtFile(t, root, "LooksLikeAnAnswer.md", openThoughtNote("Never guessed", "reflection", draftFlag, "2026-09-01"))
 			site, marks := openThoughtSite(t, root)
-			kept := &mark.Mark{Kind: mark.Question, RelPath: "Source.md", At: time.Now()}
-			if _, err := marks.Toggle(kept, admitMark); err != nil {
-				t.Fatal(err)
-			}
+			marks.keep(machinemarks.Mark{ID: markID(1), Kind: machinemarks.Question, Path: "Source.md", At: time.Now()})
 			page := openThoughtPage(t, site, "/marks", "en")
 			if strings.Count(page, "data-index-row") != 1 || strings.Contains(page, "Never guessed") {
 				t.Error("ungoverned/invalid shelf must show marks without guessing an answer role")
 			}
-			if _, err := marks.Toggle(kept, admitMark); err != nil {
-				t.Fatal(err)
-			}
+			marks.forget(markID(1))
 			if strings.Contains(openThoughtPage(t, site, "/", "en"), `data-home-block="marks"`) {
 				t.Error("an empty marks-only block displaced the ordinary folder entry")
 			}
@@ -125,8 +117,21 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 					t.Errorf("marks-only empty state is missing %q", sentence)
 				}
 			}
+			// A damaged earlier file of marks that nothing has been taken in from
+			// yet is the one damage that makes the marks unreadable: once the
+			// vault's own files hold them, the earlier file is not asked again.
+			damaged := t.TempDir()
+			if contractText != "" {
+				putOpenThoughtFile(t, damaged, schema.ContractRelPath, contractText)
+			}
+			putOpenThoughtFile(t, damaged, "Source.md", "source\n")
+			putOpenThoughtFile(t, damaged, "LooksLikeAnAnswer.md", openThoughtNote("Never guessed", "reflection", draftFlag, "2026-09-01"))
+			site, marks = openThoughtSite(t, damaged)
 			const corrupt = "{broken"
-			if err := os.WriteFile(filepath.Join(marks.Dir(), "marks.json"), []byte(corrupt), 0o600); err != nil {
+			if err := os.MkdirAll(marks.earlierDir(), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(marks.earlierDir(), "marks.json"), []byte(corrupt), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			page = openThoughtPage(t, site, "/marks", "en")
@@ -140,7 +145,7 @@ func TestOpenThoughtsKeepsMarksWithoutGovernanceAndReportsCorruption(t *testing.
 			if !strings.Contains(home, "Marks cannot be read right now") || strings.Contains(openThoughtBlock(t, home), "No questions yet") {
 				t.Error("Home hid unavailable marks behind an empty shelf")
 			}
-			data, err := os.ReadFile(filepath.Join(marks.Dir(), "marks.json"))
+			data, err := os.ReadFile(filepath.Join(marks.earlierDir(), "marks.json"))
 			if err != nil || string(data) != corrupt {
 				t.Error("reading Home overwrote corrupt mark data")
 			}
@@ -213,9 +218,7 @@ func TestOpenThoughtsKeepsAMarkWhoseNoteIsNotInTheSnapshot(t *testing.T) {
 	site, marks := openThoughtSite(t, root)
 	const stray = "Visit example dot com for free prizes.md"
 	for _, rel := range []string{stray, "Source.md"} {
-		if _, err := marks.Toggle(&mark.Mark{Kind: mark.Question, RelPath: rel, At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)}, admitMark); err != nil {
-			t.Fatal(err)
-		}
+		marks.keep(machinemarks.Mark{Kind: machinemarks.Question, Path: rel, At: time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)})
 	}
 	for _, tt := range []struct {
 		name    string
@@ -281,9 +284,8 @@ func TestOpenThoughtsHomeShowsFourAndStatesNoCount(t *testing.T) {
 	}
 }
 
-func admitMark(*mark.Mark) bool { return true }
-
-func openThoughtSite(t *testing.T, root string) (*readingSite, *mark.Store) {
+// openThoughtSite serves root and returns where a test leaves marks in it.
+func openThoughtSite(t *testing.T, root string) (*readingSite, keptMarks) {
 	t.Helper()
 	config := t.TempDir()
 	site, err := newReadingSite(t.Context(), root, confdir.At(config), slog.New(slog.DiscardHandler))
@@ -299,11 +301,7 @@ func openThoughtSite(t *testing.T, root string) (*readingSite, *mark.Store) {
 	// happened between writing and reading.
 	site.cancel()
 	site.watchers.Wait()
-	marks, err := mark.Open(confdir.At(config), site.source.Name())
-	if err != nil {
-		t.Fatal(err)
-	}
-	return site, marks
+	return site, keptMarks{t: t, root: root, config: config}
 }
 
 func openThoughtPage(t *testing.T, site *readingSite, address, lang string) string {

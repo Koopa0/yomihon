@@ -18,7 +18,17 @@ import (
 
 const openThoughtsAddress = pages.MarksAddress
 
+// mend puts back what git took out of this computer's file of marks, as a page
+// that reads the marks is drawn, and tells the reader nothing of it.
+func (h *Handler) mend() {
+	if h.sources.Kept != nil {
+		h.sources.Kept.Mend()
+	}
+}
+
+// openThoughts draws the page of the reader's marks.
 func (h *Handler) openThoughts(w http.ResponseWriter, r *http.Request) {
+	h.mend()
 	lang := origin.Language(r)
 	snap := h.sources.Snapshot().Capture()
 	order := pages.ParseOpenOrder(r.URL.Query().Get("order"))
@@ -76,7 +86,8 @@ func (h *Handler) openThoughtShelf(snap *snapshot.Generation, governed bool, lan
 		shelf.Lede, shelf.Empty = wording.OpenThoughtsLede.In(lang), ""
 	}
 	orderOpenCandidates(candidates, order)
-	shelf.Rows = openRows(candidates, limit, lang, snap, newPlaceResolver(snap))
+	_, notWritable := h.questionAddress()
+	shelf.Rows = openRows(candidates, limit, lang, snap, newPlaceResolver(snap), notWritable == "")
 	if fault != "" {
 		// A failed source is not an empty source.
 		shelf.Empty = ""
@@ -175,14 +186,14 @@ func OpenMarks(kept []mark.Mark) []snapshot.OpenMark {
 // openRows draws the ordered candidates as up to limit rows, all of them when
 // limit is zero. Only the rows drawn are read for their sentence, so the desk's
 // five cost five notes however many things are open.
-func openRows(candidates []openThoughtCandidate, limit int, lang wording.Lang, snap *snapshot.Generation, places *placeResolver) []pages.Row {
+func openRows(candidates []openThoughtCandidate, limit int, lang wording.Lang, snap *snapshot.Generation, places *placeResolver, removable bool) []pages.Row {
 	var rows []pages.Row
 	for i := range candidates {
 		if limit > 0 && len(rows) >= limit {
 			break
 		}
 		if candidates[i].kept != nil {
-			rows = append(rows, openMarkRow(candidates[i].kept, places, lang))
+			rows = append(rows, openMarkRow(candidates[i].kept, places, lang, removable))
 			continue
 		}
 		rows = append(rows, openNoteRow(candidates[i].note, snap, lang))
@@ -239,7 +250,7 @@ func openSources(snap *snapshot.Generation, rel string, lang wording.Lang) []pag
 }
 
 // openMarkRow projects a stored identity without moving or deleting it.
-func openMarkRow(kept *snapshot.OpenMark, places *placeResolver, lang wording.Lang) pages.Row {
+func openMarkRow(kept *snapshot.OpenMark, places *placeResolver, lang wording.Lang, removable bool) pages.Row {
 	resolved := places.note(kept.RelPath)
 	row := pages.Row{Text: kept.RelPath, When: kept.At.Format(time.DateOnly)}
 	if resolved.readable {
@@ -262,9 +273,27 @@ func openMarkRow(kept *snapshot.OpenMark, places *placeResolver, lang wording.La
 		row.Mark = wording.NoteNotFound.In(lang)
 	}
 	row.Fault = true
+	if !removable {
+		return row
+	}
 	row.Removal = &pages.QuestionRemoval{Endpoint: mark.Paths.Question, Path: kept.RelPath, Anchor: kept.Anchor,
 		Label: wording.QuestionClearControl.In(lang), Unavailable: wording.QuestionUnavailable.In(lang),
 		Failed: wording.QuestionNotStored.In(lang), Cleared: wording.QuestionCleared.In(lang), Language: string(lang),
 	}
 	return row
+}
+
+// questionAddress is where the page posts a section's question to, and why it
+// cannot where the reader folder cannot be written to: the control is then not
+// drawn, and the page says why in the word the reader folder's check gave.
+func (h *Handler) questionAddress() (address, writable string) {
+	if h.sources.QuestionAddress == "" {
+		return "", ""
+	}
+	if h.sources.Kept != nil {
+		if why := h.sources.Kept.Writable(); why != mark.WritableOK {
+			return "", why
+		}
+	}
+	return h.sources.QuestionAddress, ""
 }

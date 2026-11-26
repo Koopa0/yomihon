@@ -290,13 +290,7 @@ func TestMarksAdoptRefusesAFolderThatHoldsTheConfigurationDirectory(t *testing.T
 	putOpenThoughtFile(t, root, "Source.md", "# Source\n\n## Chapter\n\nwords\n")
 	configDir := filepath.Join(root, ".config")
 	earlier := filepath.Join(t.TempDir(), "earlier")
-	kept, err := mark.Open(confdir.At(configDir), earlier)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = kept.Toggle(&mark.Mark{Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(1)}, admitMark); err != nil {
-		t.Fatal(err)
-	}
+	writeEarlierMarks(t, configDir, earlier, mark.Mark{ID: markID(1), Kind: mark.Question, RelPath: "Source.md", Anchor: "chapter", At: leftOpenDay(1)})
 	before := vaultState(t, root)
 	got := leftOpen(t, root, configDir, "--adopt", earlier)
 	if got.exit != 2 || !strings.Contains(got.stderr, refusalSays) || !strings.Contains(got.stderr, "nothing was adopted") {

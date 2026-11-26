@@ -162,3 +162,31 @@ func TestCompareColumnCanRenderAgainWithoutDeepeningItsOutline(t *testing.T) {
 		t.Errorf("caught: repeated column rendering changed its outline (-first +second):\n%s", diff)
 	}
 }
+
+// A note whose reader folder cannot be written to draws no control to ask a
+// question: the control would press into a refusal. One that can be written to
+// draws it, with the endpoint the script posts to.
+func TestANoteDrawsTheQuestionControlOnlyWhereItCanBeKept(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name     string
+		writable string
+		want     bool
+	}{
+		{"writable", "", true},
+		{"a link", "link", false},
+		{"not a folder", "not_a_folder", false},
+		{"read only", "read_only", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			note := comparedNote("", "First", "Writing/First.md", "en")
+			note.QuestionAddress = "/questions"
+			note.Writable = tt.writable
+			got := strings.Contains(renderedBytes(t, t.Context(), Note(note, recordedChrome())), `data-question-endpoint="/questions"`)
+			if got != tt.want {
+				t.Errorf("Note(writable %q) draws the question control = %v, want %v", tt.writable, got, tt.want)
+			}
+		})
+	}
+}
