@@ -191,6 +191,8 @@ func parseOpenArgs(args []string, stdoutIsTerminal bool) (openRequest, error) {
 		return openRequest{}, errors.New(openCommand + " does not accept --baseline")
 	case len(parsed.positionals) > 0:
 		return openRequest{}, errors.New(openCommand + " takes no positional arguments")
+	case parsed.export && parsed.adopt != "":
+		return openRequest{}, errors.New("--export writes nothing and does not accept --adopt")
 	case parsed.adopt != "" && !filepath.IsAbs(parsed.adopt):
 		return openRequest{}, errOpenAdoptRelative
 	case parsed.export && parsed.format != nil:

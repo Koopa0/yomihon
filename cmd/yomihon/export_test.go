@@ -120,6 +120,15 @@ func (c computer) pull(from computer) {
 	}
 }
 
+// tryPut writes mark m as new, and says whether the marks took it: a path a
+// machine file refuses is not kept, and a test of spellings goes on.
+func (c computer) tryPut(m *machinemarks.Mark) bool {
+	c.t.Helper()
+	time.Sleep(3 * time.Millisecond)
+	_, err := c.hand().Put(m, machinemarks.Seen{}, nil, mark.AllMarks)
+	return err == nil
+}
+
 func (c computer) export(args ...string) leftOpenResult {
 	c.t.Helper()
 	return leftOpen(c.t, c.root, c.config, append([]string{"--export"}, args...)...)
@@ -513,6 +522,112 @@ func TestExportPrintsAMarkOnce(t *testing.T) {
 	}
 }
 
+// A side of a conflict that says what the mark says, but of another note or of
+// another place in the note, is not the same side: the reader moved the mark on
+// one computer, and the other computer's value is where it stood. It is printed,
+// with the place it was at.
+func TestExportPrintsASideThatMovedAsAnotherVersion(t *testing.T) {
+	t.Parallel()
+	c, d := newComputer(t, leftOpenContract), newComputer(t, leftOpenContract)
+	c.say(machinemarks.Mark{ID: markID(2), Kind: machinemarks.Thought, Path: exPipeline, Body: "first", At: exportDay(1)})
+	d.pull(c)
+	c.say(machinemarks.Mark{ID: markID(2), Kind: machinemarks.Thought, Path: exPipeline, Body: "SAME-WORDS", At: exportDay(1)})
+	d.say(machinemarks.Mark{ID: markID(2), Kind: machinemarks.Thought, Path: exSpace, Body: "SAME-WORDS", At: exportDay(1)})
+	c.pull(d)
+	const want = "# Marks\n" +
+		"\n" +
+		"Links are relative to the vault's root folder.\n" +
+		"\n" +
+		"## Thoughts\n" +
+		"\n" +
+		"— [A title \\[with\\] marks](<Notes/My notes (draft)/Space.md>)\n" +
+		"\n" +
+		"SAME-WORDS\n" +
+		"\n" +
+		"Other version:\n" +
+		"- <time>: thought. — [Pipeline](Notes/go/Pipeline.md)\n" +
+		"  SAME-WORDS\n"
+	if diff := cmp.Diff(want, withoutTimes(mustExport(t, c))); diff != "" {
+		t.Errorf("marks --export of a side that moved (-want +got):\n%s", diff)
+	}
+
+	// Moved within the note: the same words under another heading.
+	e, f := newComputer(t, leftOpenContract), newComputer(t, leftOpenContract)
+	e.say(machinemarks.Mark{ID: markID(3), Kind: machinemarks.Thought, Path: exPipeline, Body: "first", At: exportDay(1)})
+	f.pull(e)
+	e.say(machinemarks.Mark{ID: markID(3), Kind: machinemarks.Thought, Path: exPipeline, Anchor: "other", Body: "SAME-WORDS", At: exportDay(1)})
+	f.say(machinemarks.Mark{ID: markID(3), Kind: machinemarks.Thought, Path: exPipeline, Anchor: "two-signals", Body: "SAME-WORDS", At: exportDay(1)})
+	e.pull(f)
+	out := withoutTimes(mustExport(t, e))
+	if !strings.Contains(out, "Other version:\n- <time>: thought. — [Pipeline](Notes/go/Pipeline.md), Other\n  SAME-WORDS") {
+		t.Errorf("a side that moved to another heading of the note is not printed with its place:\n%s", out)
+	}
+}
+
+// A mark's path is the spelling its file holds, and a file can hold any. The
+// gate is asked of the path as it is written, and a spelling that names
+// withheld ground in another way (another case, another normalisation of the
+// same letters, a detour through a folder) is withheld as that ground is.
+func TestExportWithholdsEverySpellingOfWithheldGround(t *testing.T) {
+	t.Parallel()
+	contract := strings.Replace(openThoughtContract, "never_egress_dirs = []", `never_egress_dirs = ["Privé"]`, 1)
+	spellings := []string{
+		"Privé/Secret.md",             // as the rule spells it
+		"PRIVÉ/Secret.md",             // upper case
+		"privé/secret.md",             // lower case
+		"Prive\u0301/Secret.md",       // the same letters, decomposed
+		"./Privé/Secret.md",           // a leading dot
+		"Notes/../Privé/Secret.md",    // a detour
+		"Privé//Secret.md",            // a doubled slash
+		"Privé/./Secret.md",           // a dot in the middle
+		"PRIVE\u0301/Secret.md",       // both
+		"Notes\\..\\Privé\\Secret.md", // backslashes
+	}
+	build := func(contract string) computer {
+		c := newComputer(t, contract)
+		putOpenThoughtFile(t, c.root, "Privé/Secret.md", "# Secret\n\nwords\n")
+		return c
+	}
+	routes := []struct {
+		name string
+		put  func(c computer, spelling string)
+	}{
+		{"machine files", func(c computer, spelling string) {
+			c.tryPut(&machinemarks.Mark{ID: markID(10), Kind: machinemarks.Thought, Path: spelling, Quote: "SECRET-QUOTE", Body: "SECRET-MACHINE", At: exportDay(1)})
+		}},
+		{"a hand-edited earlier file", func(c computer, spelling string) {
+			writeEarlierMarks(t, c.config, vaultNameOf(t, c.root),
+				mark.Mark{ID: markID(30), Kind: mark.Question, RelPath: spelling, Anchor: "x", Reason: "SECRET-LEGACY", At: exportDay(1)})
+		}},
+	}
+	for _, route := range routes {
+		t.Run(route.name, func(t *testing.T) {
+			t.Parallel()
+			reached := 0
+			for _, spelling := range spellings {
+				// The control first: with nothing withheld, what the test plants is
+				// printed, so a silence below is the gate's. A spelling the store
+				// itself refuses never reaches the export, and is not counted.
+				open := build("")
+				route.put(open, spelling)
+				if got := open.export(); got.exit != 0 || !strings.Contains(got.stdout, "SECRET-") {
+					continue
+				}
+				reached++
+				c := build(contract)
+				route.put(c, spelling)
+				got := c.export()
+				if found := leaks(got, []string{"SECRET-", "Secret", "Priv", "PRIV", "priv"}); len(found) > 0 {
+					t.Errorf("the export prints %q of the path %q, a spelling of withheld ground:\n%s", found, spelling, got.stdout)
+				}
+			}
+			if reached < 2 {
+				t.Errorf("only %d of %d spellings reached the export: the test cannot tell a leak from silence", reached, len(spellings))
+			}
+		})
+	}
+}
+
 // Without --export no output carries a word the reader wrote: the words they
 // chose, what they wrote about it, and the words of a conflict's other side.
 func TestMarksWithoutExportPrintsNoWords(t *testing.T) {
@@ -732,6 +847,10 @@ func TestExportIsOnlyForMarksAndTakesNoFormat(t *testing.T) {
 	c := newComputer(t, leftOpenContract)
 	if got := c.export("--format", "json"); got.exit != 2 || got.stdout != "" || got.stderr != "yomihon: --export writes Markdown and does not accept --format\n" {
 		t.Errorf("marks --export --format json: exit %d, stdout %q, stderr %q", got.exit, got.stdout, got.stderr)
+	}
+	// The export writes nothing, and --adopt writes: the two are not one run.
+	if got := c.export("--adopt", filepath.Join(c.root, "earlier")); got.exit != 2 || got.stdout != "" || got.stderr != "yomihon: --export writes nothing and does not accept --adopt\n" {
+		t.Errorf("marks --export --adopt: exit %d, stdout %q, stderr %q", got.exit, got.stdout, got.stderr)
 	}
 	for _, command := range []string{"check", "coverage", "exists"} {
 		args := []string{"--root", c.root, "--export"}

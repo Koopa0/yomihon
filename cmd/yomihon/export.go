@@ -283,12 +283,15 @@ func otherValues(values, aside []machinemarks.Value) []machinemarks.Value {
 	})
 }
 
-// valueKey is what a value says, for telling one that repeats another.
+// valueKey is what a value says, for telling one that repeats another: its
+// words and where it stands. A side that says the same words of another note,
+// or of another place in the note, is where the mark stood on another
+// computer, and is not said twice only when it stood in the same place.
 func valueKey(m *machinemarks.Mark) string {
 	if m.Deleted {
 		return "deleted"
 	}
-	return fmt.Sprintf("%s\x00%t\x00%s", m.Kind, m.Resolved.IsZero(), m.Body)
+	return fmt.Sprintf("%s\x00%t\x00%s\x00%s\x00%s", m.Kind, m.Resolved.IsZero(), m.Body, m.Path, m.Anchor)
 }
 
 // write is the export as the Markdown it is handed over as.
@@ -337,19 +340,36 @@ func (x *exporter) entry(e *exportedMark) string {
 	}
 	b.WriteString(heading + "\n")
 	for i := range e.others {
-		b.WriteString(otherLine(&e.others[i]) + "\n")
+		b.WriteString(x.otherLine(&e.others[i], &e.mark) + "\n")
 	}
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
 // otherLine is one value of a mark that does not count, as an item of a list:
-// when it was written, what it is, and the reader's words in it.
-func otherLine(v *machinemarks.Value) string {
+// when it was written, what it is, where it stood when that is not where the
+// mark stands, and the reader's words in it.
+func (x *exporter) otherLine(v *machinemarks.Value, shown *machinemarks.Mark) string {
 	line := "- " + v.Time.UTC().Format(exportTimeLayout) + ": "
 	if v.Mark.Deleted {
 		return line + exportDeleted
 	}
 	line += stateWord(&v.Mark) + "."
+	if v.Mark.Path != shown.Path || v.Mark.Anchor != shown.Anchor {
+		// The place is written as every place is, and the gate was asked of it
+		// with the rest of the value when the mark was read.
+		cite, ok := x.citation(&v.Mark)
+		if !ok {
+			panic("main: a value the gate let in is withheld")
+		}
+		place := note.Cite(&note.Citation{Title: cite.Title, Path: cite.Path, Section: cite.Section}, x.lang, func(markdown string) string {
+			return x.snap.Render(v.Mark.Path, markdown, x.lang).HTML
+		})
+		line += " " + place
+		if words := splitWords(escapeText(v.Mark.Body)); len(words) > 0 {
+			line += "\n  " + strings.Join(words, "\n  ")
+		}
+		return line
+	}
 	words := splitWords(escapeText(v.Mark.Body))
 	if len(words) == 0 {
 		return line

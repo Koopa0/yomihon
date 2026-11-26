@@ -50,7 +50,9 @@ type Citation struct {
 //
 // A quote is what the reader saw, so it is written in a quotation block only
 // when that block, drawn by the page's own renderer, shows those words again,
-// ignoring the spaces between them. Otherwise it is put in a fence inside the
+// ignoring the spaces between them, and holds nothing a consumer of Markdown
+// that draws more than the page does would read as markup: "<", "[", "]" and
+// "&". Otherwise it is put in a fence inside the
 // block, which draws exactly what is in it, and the fence is longer than any
 // run of backticks in the quote so that nothing in the quote can end it.
 // htmlOf is that renderer: it turns Markdown into the HTML the page would draw.
@@ -146,6 +148,13 @@ func prefixed(lines []string) string {
 // nothing between two Chinese characters on another, and a reader selecting it
 // gets either.
 func drawnAsWritten(block string, lines []string, htmlOf func(string) string) bool {
+	// What a quote holds that a consumer other than the page reads differently
+	// is not shown by the page's words: raw HTML, which the page writes out as
+	// text and another renders; a reference label, which words of the reader's
+	// own can define as a link; and a character reference.
+	if strings.ContainsAny(strings.Join(lines, "\n"), "<[]&") {
+		return false
+	}
 	return withoutSpace(render.TextContent(htmlOf(block))) == withoutSpace(strings.Join(lines, " "))
 }
 
@@ -205,6 +214,19 @@ func escapeInline(text string) string {
 	return b.String()
 }
 
+// inVault is a path that stays a place in the vault when it is read as a
+// relative reference. A path comes from a file, and a file can come from another
+// computer: one that starts with a scheme ("javascript:"), a host ("//") or the
+// root, or with a backslash, which a browser reads as a slash, would be a link
+// to somewhere else. Written after "./" it is a name in the vault again.
+func inVault(rel string) string {
+	first, _, _ := strings.Cut(rel, "/")
+	if strings.ContainsRune(first, ':') || strings.HasPrefix(rel, "/") || strings.HasPrefix(rel, `\`) {
+		return "./" + rel
+	}
+	return rel
+}
+
 // destination is a path as the destination of a link: written between angle
 // brackets when it holds a space or a parenthesis, which end one without
 // them, and so is anything else that is only plain between them.
@@ -219,7 +241,7 @@ func destination(rel string) string {
 		}
 		b.WriteRune(r)
 	}
-	plain := b.String()
+	plain := inVault(b.String())
 	if plain != "" && !strings.ContainsAny(plain, " \t()<>\\&") {
 		return plain
 	}

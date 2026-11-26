@@ -2,6 +2,7 @@ package note_test
 
 import (
 	"log/slog"
+	neturl "net/url"
 	"os"
 	pathpkg "path"
 	"path/filepath"
@@ -150,6 +151,13 @@ func TestCiteFencesWhatAQuotationBlockWouldDrawAsSomethingElse(t *testing.T) {
 		{name: "a line that reads as a heading", quote: "# not a heading", want: "> ```\n> # not a heading\n> ```"},
 		{name: "asterisks", quote: "a *b* c", want: "> ```\n> a *b* c\n> ```"},
 		{name: "a callout marker", quote: "[!note] words", want: "> ```\n> [!note] words\n> ```"},
+		{name: "raw HTML a consumer that renders HTML would draw", quote: "<img src=x onerror=1>", want: "> ```\n> <img src=x onerror=1>\n> ```"},
+		{name: "a link written as HTML", quote: "<a href=\"http://evil.example\">go</a>", want: "> ```\n> <a href=\"http://evil.example\">go</a>\n> ```"},
+		{name: "an HTML comment", quote: "before <!-- after", want: "> ```\n> before <!-- after\n> ```"},
+		{name: "a reference label a reader's words may define", quote: "see [a] now", want: "> ```\n> see [a] now\n> ```"},
+		{name: "an opening bracket alone", quote: "a [b c", want: "> ```\n> a [b c\n> ```"},
+		{name: "an ampersand alone", quote: "AT&T", want: "> ```\n> AT&T\n> ```"},
+		{name: "a closing bracket alone", quote: "a] b", want: "> ```\n> a] b\n> ```"},
 		{name: "a character reference", quote: "AT&amp;T", want: "> ```\n> AT&amp;T\n> ```"},
 		{name: "a block of code, whatever it holds", quote: "x := 1", code: true, lang: "go", want: "> ```go\n> x := 1\n> ```"},
 		{name: "a fence is longer than any run of backticks in the quote", quote: "a ````` b\n```", code: true, want: "> ``````\n> a ````` b\n> ```\n> ``````"},
@@ -160,6 +168,32 @@ func TestCiteFencesWhatAQuotationBlockWouldDrawAsSomethingElse(t *testing.T) {
 			t.Parallel()
 			in := note.Citation{Title: "T", Path: "N.md", Quote: tt.quote, Code: tt.code, Language: tt.lang}
 			if diff := cmp.Diff(tt.want+"\n\n— [T](N.md)", note.Cite(&in, wording.En, html)); diff != "" {
+				t.Errorf("Cite() mismatch (-want +got):\n%s", diff)
+			}
+		})
+	}
+}
+
+// A path is a place in the vault, and the link to it is never a link to
+// anywhere else: a path another computer wrote may start with something a
+// Markdown reader takes for a scheme or a host.
+func TestCiteWritesAPathAsAPlaceInTheVaultAndNoOther(t *testing.T) {
+	t.Parallel()
+	html := pageHTML(t)
+	for _, tt := range []struct{ name, path, want string }{
+		{"a scheme", "javascript:alert(1).md", "<./javascript:alert(1).md>"},
+		{"a scheme with one slash", "http:/x/y.md", "./http:/x/y.md"},
+		{"a colon in the first name", "a:b/c.md", "./a:b/c.md"},
+		{"a colon after the first name is no scheme", "Notes/a:b.md", "Notes/a:b.md"},
+		{"a host", "//evil.example/x.md", ".///evil.example/x.md"},
+		{"the root", "/etc/x.md", ".//etc/x.md"},
+		{"a backslash a browser reads as a slash", "\\\\evil.example\\x.md", "<./\\\\\\\\evil.example\\\\x.md>"},
+		{"a path inside the vault is left as it is", "Notes/go/Pipeline.md", "Notes/go/Pipeline.md"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			in := note.Citation{Title: "T", Path: tt.path}
+			if diff := cmp.Diff("— [T]("+tt.want+")", note.Cite(&in, wording.En, html)); diff != "" {
 				t.Errorf("Cite() mismatch (-want +got):\n%s", diff)
 			}
 		})
@@ -242,6 +276,11 @@ func FuzzCite(f *testing.F) {
 		{"x", "T", "a)b.md", "S", "", false, "x y"},
 		{"\x00\x1b[31m" + string(rune(0x2028)) + string(rune(0x202e)) + " x", "\x00", "\x1b.md", string(rune(0x2029)), "", false, "go c"},
 		{"   \n \t\n", "T", "N.md", "S", "w", false, ""},
+		{"x", "T", "javascript:alert(1).md", "S", "", false, ""},
+		{"x", "T", "http:/x/y.md", "S", "", false, ""},
+		{"x", "T", "//evil.example/x.md", "S", "", false, ""},
+		{"x", "T", "\\\\evil.example/x.md", "S", "", false, ""},
+		{"<img src=x onerror=1> <!-- [a] &#60;", "T", "N.md", "S", "", false, ""},
 	} {
 		f.Add(s.quote, s.title, s.path, s.section, s.words, s.code, s.language)
 	}
@@ -286,8 +325,11 @@ func FuzzCite(f *testing.F) {
 		if len(links) != 1 {
 			t.Fatalf("Cite(title %q, path %q, section %q) = %q has %d links in the source line, want 1", title, path, section, out, len(links))
 		}
-		if got, want := string(util.UnescapePunctuations(links[0].Destination)), controlsEscaped(path); got != want {
+		if got, want := string(util.UnescapePunctuations(links[0].Destination)), inVault(controlsEscaped(path)); got != want {
 			t.Fatalf("Cite(path %q) = %q links to %q, want %q", path, out, got, want)
+		}
+		if dest := string(util.UnescapePunctuations(links[0].Destination)); linksElsewhere(dest) {
+			t.Fatalf("Cite(path %q) = %q links to %q, which a Markdown reader takes for another place than the vault", path, out, dest)
 		}
 		if got := linkText(links[0], src); got != wantTitle(title, path) {
 			t.Fatalf("Cite(title %q, path %q) = %q reads the link as %q, want %q", title, path, out, got, wantTitle(title, path))
@@ -331,7 +373,12 @@ func checkQuotation(t *testing.T, top ast.Node, src []byte, in *note.Citation, o
 	case in.Code:
 		t.Fatalf("Cite(%q, code) = %q is not a fence", quote, out)
 	default:
-		// Not fenced, so the page draws these words and no others.
+		// Not fenced, so the page draws these words and no others, and nothing
+		// in them is read as HTML, a reference or a character reference by a
+		// consumer that reads more than the page does.
+		if strings.ContainsAny(quote, "<[]&") {
+			t.Fatalf("Cite(%q) = %q is not fenced and holds markup a consumer may read", quote, out)
+		}
 		drawn := render.TextContent(html(out[:strings.LastIndex(out, "\n\n— [")]))
 		if noSpace(drawn) != noSpace(strings.Join(trimmedLines(quote), " ")) {
 			t.Fatalf("Cite(%q) = %q is not fenced and the page draws %q", quote, out, drawn)
@@ -375,6 +422,32 @@ func controlsEscaped(path string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// inVault is a link destination as the vault's own: one that starts with
+// something a reader takes for a scheme, a host or the root gets "./".
+func inVault(dest string) string {
+	if linksElsewhere(dest) {
+		return "./" + dest
+	}
+	return dest
+}
+
+// linksElsewhere says a destination, read as a relative reference, is not one:
+// it has a scheme, starts at a host or at the root, or starts with a backslash,
+// which a browser reads as a slash.
+func linksElsewhere(dest string) bool {
+	if strings.HasPrefix(dest, "/") || strings.HasPrefix(dest, "\\") {
+		return true
+	}
+	first, _, _ := strings.Cut(dest, "/")
+	if strings.Contains(first, ":") {
+		return true
+	}
+	if u, err := neturl.Parse(dest); err == nil && (u.Scheme != "" || u.Host != "") {
+		return true
+	}
+	return false
 }
 
 // wantTitle is the words of the link: the title on one line, or the file's name.
