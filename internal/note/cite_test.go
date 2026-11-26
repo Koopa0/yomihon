@@ -188,6 +188,10 @@ func TestCiteWritesAPathAsAPlaceInTheVaultAndNoOther(t *testing.T) {
 		{"a host", "//evil.example/x.md", ".///evil.example/x.md"},
 		{"the root", "/etc/x.md", ".//etc/x.md"},
 		{"a backslash a browser reads as a slash", "\\\\evil.example\\x.md", "<./\\\\\\\\evil.example\\\\x.md>"},
+		{"a number sign is part of the name, not a fragment", "Notes/C#.md", "Notes/C%23.md"},
+		{"a question mark is part of the name, not a query", "Notes/Why?.md", "Notes/Why%3F.md"},
+		{"a percent sign is itself and not the start of an escape", "Notes/100%.md", "Notes/100%25.md"},
+		{"a name that looks like an escape is not one", "Notes/%41.md", "Notes/%2541.md"},
 		{"a path inside the vault is left as it is", "Notes/go/Pipeline.md", "Notes/go/Pipeline.md"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -279,6 +283,10 @@ func FuzzCite(f *testing.F) {
 		{"x", "T", "javascript:alert(1).md", "S", "", false, ""},
 		{"x", "T", "http:/x/y.md", "S", "", false, ""},
 		{"x", "T", "//evil.example/x.md", "S", "", false, ""},
+		{"x", "T", "Notes/C#.md", "S", "", false, ""},
+		{"x", "T", "Notes/Why?.md", "S", "", false, ""},
+		{"x", "T", "Notes/100%.md", "S", "", false, ""},
+		{"x", "T", "Notes/%41#a?b.md", "S", "", false, ""},
 		{"x", "T", "\\\\evil.example/x.md", "S", "", false, ""},
 		{"<img src=x onerror=1> <!-- [a] &#60;", "T", "N.md", "S", "", false, ""},
 	} {
@@ -327,6 +335,13 @@ func FuzzCite(f *testing.F) {
 		}
 		if got, want := string(util.UnescapePunctuations(links[0].Destination)), inVault(controlsEscaped(path)); got != want {
 			t.Fatalf("Cite(path %q) = %q links to %q, want %q", path, out, got, want)
+		}
+		// Read as a reference, the destination names the path of the note, whole:
+		// no part of the name is a query, a fragment or an escape.
+		if u, err := neturl.Parse(string(util.UnescapePunctuations(links[0].Destination))); err != nil {
+			t.Fatalf("Cite(path %q) = %q links to what does not parse as a reference: %v", path, out, err)
+		} else if u.RawQuery != "" || u.Fragment != "" || u.ForceQuery || u.Path != inVault(path) {
+			t.Fatalf("Cite(path %q) = %q links to the path %q with query %q and fragment %q, want the path alone", path, out, u.Path, u.RawQuery, u.Fragment)
 		}
 		if dest := string(util.UnescapePunctuations(links[0].Destination)); linksElsewhere(dest) {
 			t.Fatalf("Cite(path %q) = %q links to %q, which a Markdown reader takes for another place than the vault", path, out, dest)
@@ -408,12 +423,13 @@ func trimmedLines(quote string) []string {
 	return lines
 }
 
-// controlsEscaped is a path as a link holds it: a control character is a
-// percent escape, and nothing else is changed.
+// controlsEscaped is a path as a link holds it: a control character and the
+// three that would start a query, a fragment or an escape are percent escapes,
+// and nothing else is changed.
 func controlsEscaped(path string) string {
 	var b strings.Builder
 	for _, r := range path {
-		if unicode.IsControl(r) {
+		if unicode.IsControl(r) || r == '#' || r == '?' || r == '%' {
 			for _, by := range []byte(string(r)) {
 				b.WriteString("%" + strings.ToUpper(string("0123456789abcdef"[by>>4])+string("0123456789abcdef"[by&15])))
 			}

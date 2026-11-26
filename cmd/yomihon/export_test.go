@@ -841,6 +841,21 @@ func TestExportChangesNothing(t *testing.T) {
 	}
 }
 
+// The help says what the command refuses beside --export, as the command does.
+func TestExportHelpSaysItTakesNeitherFormatNorAdopt(t *testing.T) {
+	t.Parallel()
+	text, handled, err := helpRequest([]string{"marks", "--help"})
+	if !handled || err != nil {
+		t.Fatalf("helpRequest(marks --help) = %q, %v, %v", text, handled, err)
+	}
+	flat := strings.Join(strings.Fields(text), " ")
+	for _, want := range []string{"It takes no --format and no --adopt", "writes nothing"} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("the help of marks does not say %q:\n%s", want, text)
+		}
+	}
+}
+
 // --export belongs to marks alone, and writes Markdown, which no format names.
 func TestExportIsOnlyForMarksAndTakesNoFormat(t *testing.T) {
 	t.Parallel()

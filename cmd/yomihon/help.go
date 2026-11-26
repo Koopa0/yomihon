@@ -173,10 +173,10 @@ var commandHelp = map[string]string{
 		"the vault's root, and your own words, grouped as open questions, thoughts,\n" +
 		"highlights and resolved questions. A mark that two computers changed\n" +
 		"differently is printed with every version, and so are the values this\n" +
-		"computer set aside. It takes no --format and writes nothing. The rules\n" +
-		"apply as they do to the list; a note this command could not read does not\n" +
-		"stop it, and its marks are printed as they were kept. When a file of marks\n" +
-		"could not be read, the rest is printed and one line on stderr says the\n" +
+		"computer set aside. It takes no --format and no --adopt, and writes nothing.\n" +
+		"The rules apply as they do to the list; a note this command could not read\n" +
+		"does not stop it, and its marks are printed as they were kept. When a file\n" +
+		"of marks could not be read, the rest is printed and one line on stderr says\n" +
 		"export may be incomplete.\n",
 	approveFigureCommand: "Usage: yomihon " + approveFigureCommand + " [--root <dir>] <path>\n" +
 		"\n" +

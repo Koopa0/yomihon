@@ -227,13 +227,18 @@ func inVault(rel string) string {
 	return rel
 }
 
-// destination is a path as the destination of a link: written between angle
-// brackets when it holds a space or a parenthesis, which end one without
-// them, and so is anything else that is only plain between them.
+// destination is a path as the destination of a link: the path whole, with
+// what a reader of a link would take for something else written as a percent
+// escape. It is written between angle brackets when it holds a space or a
+// parenthesis, which end one without them, and so is anything else that is only
+// plain between them.
 func destination(rel string) string {
 	var b strings.Builder
 	for _, r := range rel {
-		if unicode.IsControl(r) {
+		// A control character cannot stand in a line, and a number sign, a
+		// question mark and a percent sign would be read as the start of a
+		// fragment, a query and an escape: the name of a note is neither.
+		if unicode.IsControl(r) || r == '#' || r == '?' || r == '%' {
 			for _, by := range []byte(string(r)) {
 				fmt.Fprintf(&b, "%%%02X", by)
 			}
