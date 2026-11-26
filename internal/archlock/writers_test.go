@@ -127,7 +127,7 @@ var machineFilePermits = map[string]permit{
 
 func init() {
 	for _, name := range []string{
-		"ByHandleFileInformation", "CloseHandle", "ERROR_FILENAME_EXCED_RANGE", "FILE_FLAG_BACKUP_SEMANTICS",
+		"ByHandleFileInformation", "CloseHandle", "ERROR_ACCESS_DENIED", "ERROR_FILENAME_EXCED_RANGE", "ERROR_SHARING_VIOLATION", "FILE_FLAG_BACKUP_SEMANTICS",
 		"FILE_FLAG_OPEN_REPARSE_POINT", "FILE_SHARE_DELETE", "FILE_SHARE_READ", "FILE_SHARE_WRITE", "FlushFileBuffers",
 		"GENERIC_WRITE", "GetFileInformationByHandle", "GetFinalPathNameByHandle", "Handle", "MAX_LONG_PATH",
 		"OPEN_EXISTING", "UTF16ToString",
@@ -391,7 +391,13 @@ const (
 )
 func CreateFile(name *uint16, access uint32, mode uint32, sa *SecurityAttributes, createmode uint32, attrs uint32, templatefile Handle) (Handle, error) { return 0, nil }
 func FlushFileBuffers(h Handle) error { return nil }
-func CloseHandle(h Handle) error { return nil }`
+func CloseHandle(h Handle) error { return nil }
+type Errno uintptr
+func (Errno) Error() string { return "" }
+const (
+	ERROR_ACCESS_DENIED Errno = 5
+	ERROR_SHARING_VIOLATION Errno = 32
+)`
 
 // one is a fixture file of machinefile with a body that needs os at most.
 func one(body string) map[string]string {
@@ -578,6 +584,31 @@ func flush(path *uint16) error {
 	}
 	return errors.Join(windows.FlushFileBuffers(h), windows.CloseHandle(h))
 }`},
+	},
+	{
+		name: "the Windows errors a rename is tried again for, in the file that flushes", prelude: true,
+		stubs: map[string]string{windowsSystemCalls: flushStub},
+		files: map[string]string{flushFile: `package machinefile
+import (
+	"errors"
+	"golang.org/x/sys/windows"
+)
+func transient(err error) bool {
+	return errors.Is(err, windows.ERROR_ACCESS_DENIED) || errors.Is(err, windows.ERROR_SHARING_VIOLATION)
+}`},
+	},
+	{
+		name: "the Windows errors a rename is tried again for, in another file", prelude: true,
+		stubs: map[string]string{windowsSystemCalls: flushStub},
+		files: map[string]string{"fixture.go": `package machinefile
+import (
+	"errors"
+	"golang.org/x/sys/windows"
+)
+func transient(err error) bool {
+	return errors.Is(err, windows.ERROR_ACCESS_DENIED) || errors.Is(err, windows.ERROR_SHARING_VIOLATION)
+}`},
+		want: []string{windowsSystemCalls + ".ERROR_ACCESS_DENIED, which this writer may name only in " + flushFile, windowsSystemCalls + ".ERROR_SHARING_VIOLATION, which this writer may name only in " + flushFile},
 	},
 	{
 		name: "the Windows names in another file", prelude: true,

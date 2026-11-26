@@ -27,6 +27,7 @@ import (
 	"io/fs"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/koopa0/yomihon/internal/vault"
@@ -56,6 +57,14 @@ const (
 	staleAfter = 10 * time.Minute
 	folderMode = 0o755
 	fileMode   = 0o644
+	// renameAttempts and renameWait are how long a rename that failed for a
+	// reason that passes is tried again: on Windows a rename over a file
+	// someone has open to read is refused until they close it, and a reader of
+	// the folder holds a file open for the instant it takes to read it. Nothing
+	// else is retried, and on other platforms no rename is, since none of their
+	// failures is one that passes.
+	renameAttempts = 8
+	renameWait     = 10 * time.Millisecond
 )
 
 // MaxFileBytes is the most a machine file may hold. Every reader of the folder
@@ -186,6 +195,88 @@ func (f *Folder) ReplaceMachineFile(machineID string, data []byte) (Measurement,
 	return m, errors.Join(err, d.close())
 }
 
+// File is one machine file as ReadMachineFiles found it.
+type File struct {
+	// ID is the machine id the file's name says.
+	ID string
+	// Data is what the file holds. It is nil when Err is not.
+	Data []byte
+	// Err is why the file could not be read: it is longer than MaxFileBytes, it
+	// is not a regular file, or the system refused it. One file that cannot be
+	// read does not stop the others being read.
+	Err error
+}
+
+// ErrNotRegular means a name in the marks folder that ends as a machine file's
+// does is a folder, a link, a named pipe or some other thing than a file. It is
+// not opened: a named pipe would wait for ever for a writer that never comes.
+var ErrNotRegular = errors.New("is not a regular file")
+
+// ErrFileTooLarge means a machine file is longer than MaxFileBytes, the most
+// any machine writes, so it was not written by one.
+var ErrFileTooLarge = errors.New("is longer than a machine file may be")
+
+// ReadMachineFiles reads every machine file in the marks folder, in the order
+// of their names: every entry whose name is a machine id and the extension. It
+// reads through the folders it enters one at a time, as a write does, so a link
+// on the way is refused, and it makes nothing and changes nothing: a vault with
+// no marks folder answers no files, and nil.
+//
+// The folder is listed and each file then opened, so a file replaced between
+// the two is read as the new one, whole, and one removed is left out. A rename
+// never shows a reader part of a file.
+func (f *Folder) ReadMachineFiles() (files []File, err error) {
+	if f == nil || f.vault == nil {
+		return nil, errors.New("read the machine files: no folder")
+	}
+	d, err := f.enter()
+	defer func() { err = errors.Join(err, d.close()) }()
+	if err != nil || d.marks == nil {
+		return nil, err
+	}
+	entries, err := fs.ReadDir(d.marks.FS(), ".")
+	if err != nil {
+		return nil, fmt.Errorf("list the marks folder: %w", err)
+	}
+	for _, entry := range entries {
+		id, found := strings.CutSuffix(entry.Name(), extension)
+		if !found || !machineIDShape.MatchString(id) {
+			continue
+		}
+		file := File{ID: id}
+		if !entry.Type().IsRegular() {
+			file.Err = fmt.Errorf("%s %w", entry.Name(), ErrNotRegular)
+		} else if file.Data, file.Err = readWhole(d.marks, entry.Name()); file.Err != nil {
+			file.Data = nil
+		}
+		files = append(files, file)
+	}
+	return files, nil
+}
+
+// readWhole reads the machine file called name, up to MaxFileBytes.
+func readWhole(marks *os.Root, name string) ([]byte, error) {
+	file, err := marks.Open(name)
+	if err != nil {
+		return nil, fmt.Errorf("read %s: %w", name, err)
+	}
+	info, err := file.Stat()
+	if err == nil && !info.Mode().IsRegular() {
+		err = fmt.Errorf("%s %w", name, ErrNotRegular)
+	}
+	var data []byte
+	if err == nil {
+		data, err = io.ReadAll(io.LimitReader(file, MaxFileBytes+1))
+	}
+	if err = errors.Join(err, file.Close()); err != nil {
+		return nil, fmt.Errorf("read %s: %w", name, err)
+	}
+	if len(data) > MaxFileBytes {
+		return nil, fmt.Errorf("%s %w", name, ErrFileTooLarge)
+	}
+	return data, nil
+}
+
 // folders are the three folders on the way to the machine files, each opened
 // through the one above it.
 type folders struct {
@@ -208,7 +299,14 @@ func (d *folders) replace(name machineFileName, data []byte, m *Measurement, sta
 		return err
 	}
 	installed := time.Now()
-	if err = d.marks.Rename(t.temp, name.file); err != nil {
+	for attempt := 1; ; attempt++ {
+		err = d.marks.Rename(t.temp, name.file)
+		if err == nil || attempt == renameAttempts || !transient(err) {
+			break
+		}
+		time.Sleep(time.Duration(attempt) * renameWait)
+	}
+	if err != nil {
 		_ = d.marks.Remove(t.temp) //nolint:errcheck // best-effort: the failed rename is what the caller acts on
 		return fmt.Errorf("install the machine file: %w", err)
 	}

@@ -203,7 +203,7 @@ jobs:
 
       - name: Run the configuration directory's, the ledger's and the machine file's tests on Windows
         if: runner.os == 'Windows'
-        run: go test ./internal/mark/confdir ./internal/mark/ledger ./internal/mark/machinefile/... -count=1 -v
+        run: go test ./internal/mark/confdir ./internal/mark/ledger ./internal/mark/machinefile/... ./internal/mark/machinemarks/... -count=1 -v
 
       # The contract test is asked for by name before it is run. A -run
       # pattern that matches nothing is not an error to Go and exits 0 without

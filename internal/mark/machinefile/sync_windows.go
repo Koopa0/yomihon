@@ -58,6 +58,15 @@ func reopenToFlush(read windows.Handle) (directory, error) {
 	return d, nil
 }
 
+// transient says whether a rename that failed is worth trying again. Windows
+// refuses a rename over a file another process has open without sharing
+// deletion, as access denied or a sharing violation, until the other closes it;
+// a permission that is missing refuses it the same way, and is tried the same
+// few times before it is reported.
+func transient(err error) bool {
+	return errors.Is(err, windows.ERROR_ACCESS_DENIED) || errors.Is(err, windows.ERROR_SHARING_VIOLATION)
+}
+
 func (d directory) sync() error {
 	if err := windows.FlushFileBuffers(d.handle); err != nil {
 		return fmt.Errorf("flush the folder: %w", err)
