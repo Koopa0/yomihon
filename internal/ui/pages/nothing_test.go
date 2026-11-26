@@ -12,10 +12,14 @@ import (
 )
 
 // noticeKind reads back which notice each recorded page drew and in what order.
-var noticeKind = regexp.MustCompile(`<div class="y-nothing(?: y-nothing--fault)?" data-nothing="([a-z]+)"`)
+var noticeKind = regexp.MustCompile(`<div class="y-nothing(?: y-nothing--fault)?(?: y-nothing--unreadable)?" data-nothing="([a-z]+)"`)
 
 // faultedNoticeKind reads back only the ones drawn as faults.
-var faultedNoticeKind = regexp.MustCompile(`<div class="y-nothing y-nothing--fault" data-nothing="([a-z]+)"`)
+var faultedNoticeKind = regexp.MustCompile(`<div class="y-nothing y-nothing--fault(?: y-nothing--unreadable)?" data-nothing="([a-z]+)"`)
+
+// unreadableNoticeKind reads back only the faults that are a file that cannot
+// be read, the one fault whose word takes the crimson.
+var unreadableNoticeKind = regexp.MustCompile(`<div class="y-nothing y-nothing--fault y-nothing--unreadable" data-nothing="([a-z]+)"`)
 
 // TestEverySurfaceWithNothingToShowDrawsTheOneNotice holds the whole point of
 // that component: six surfaces used to say "there is nothing here" in six
@@ -44,26 +48,30 @@ func TestEverySurfaceWithNothingToShowDrawsTheOneNotice(t *testing.T) {
 		notices []string
 		// faulted are the ones drawn as faults rather than as absences.
 		faulted []string
+		// unreadable are the faults that are a file that cannot be read.
+		unreadable []string
 		// retired is markup this page may no longer draw.
 		retired []string
 	}{
-		{"notfound-page", []string{"notfound"}, nil, []string{ownRecoveryShape}},
-		{"notfound-page-english", []string{"notfound"}, nil, []string{ownRecoveryShape}},
-		{"notfound-page-unreadable", []string{"notfound"}, []string{"notfound"}, []string{ownRecoveryShape}},
-		{"health-page-clear", []string{"health"}, nil, []string{ownParagraph}},
-		{"health-page-clear-english", []string{"health"}, nil, []string{ownParagraph}},
+		{"notfound-page", []string{"notfound"}, nil, nil, []string{ownRecoveryShape}},
+		{"notfound-page-english", []string{"notfound"}, nil, nil, []string{ownRecoveryShape}},
+		{"notfound-page-unreadable", []string{"notfound"}, []string{"notfound"}, []string{"notfound"}, []string{ownRecoveryShape}},
+		{"health-page-clear", []string{"health"}, nil, nil, []string{ownParagraph}},
+		{"health-page-clear-english", []string{"health"}, nil, nil, []string{ownParagraph}},
 		{
 			// The desk carries four at once: the two shelves a declaration has
 			// not filled, and the two notices about the reading itself.
 			"home-page-empty",
 			[]string{"shelf", "shelf", "privacy", "degraded"},
 			[]string{"privacy", "degraded"},
+			nil,
 			[]string{ownParagraph},
 		},
 		{
 			"home-page-empty-english",
 			[]string{"shelf", "shelf", "privacy", "degraded"},
 			[]string{"privacy", "degraded"},
+			nil,
 			[]string{ownParagraph},
 		},
 	}
@@ -79,6 +87,9 @@ func TestEverySurfaceWithNothingToShowDrawsTheOneNotice(t *testing.T) {
 			}
 			if diff := cmp.Diff(tt.faulted, noticeKinds(faultedNoticeKind, page)); diff != "" {
 				t.Errorf("%s marks the wrong notices as faults (-want +recorded):\n%s", tt.recording, diff)
+			}
+			if diff := cmp.Diff(tt.unreadable, noticeKinds(unreadableNoticeKind, page)); diff != "" {
+				t.Errorf("%s marks the wrong notices as a file that cannot be read (-want +recorded):\n%s", tt.recording, diff)
 			}
 			for _, shape := range tt.retired {
 				if strings.Contains(page, shape) {

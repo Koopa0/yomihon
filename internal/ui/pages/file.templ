@@ -59,24 +59,28 @@ templ File(v FileView, c layouts.Chrome) {
 }
 
 // fileHead is the file's breadcrumb, name and byte-level meta: the shape a
-// note's head takes, without the status chip a file cannot have.
+// note's head takes, a frontispiece closed by the double rule, without the
+// status chip a file cannot have. The folders it lies in run as a note's do,
+// parted by the same sign.
 templ fileHead(v FileView, lang wording.Lang) {
-	if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
-		<div class="y-crumbs">
-			for i, seg := range crumbs {
-				if i > 0 {
-					<span class="y-crumbs__sep" aria-hidden="true">/</span>
+	<header class="y-frontis">
+		if crumbs := Breadcrumb(v.RelPath); len(crumbs) > 0 {
+			<div class="y-crumbs">
+				for i, seg := range crumbs {
+					if i > 0 {
+						<span class="y-crumbs__sep" aria-hidden="true">›</span>
+					}
+					<a class="y-crumbs__link" href={ templ.URL(folderHref(seg.RelPath)) }>{ seg.Name }</a>
 				}
-				<a class="y-crumbs__link" href={ templ.URL(folderHref(seg.RelPath)) }>{ seg.Name }</a>
-			}
+			</div>
+		}
+		<h1 class="y-title">{ v.Title }</h1>
+		<div class="y-metarow">
+			<span class="ui-type">{ fileKindLabel(v.Kind, lang) }</span>
+			<span>{ v.RelPath }</span>
+			@documentRawDoor(v, lang)
 		</div>
-	}
-	<h1 class="y-title">{ v.Title }</h1>
-	<div class="y-metarow">
-		<span class="ui-type">{ fileKindLabel(v.Kind, lang) }</span>
-		<span>{ v.RelPath }</span>
-		@documentRawDoor(v, lang)
-	</div>
+	</header>
 }
 
 // fileInfo is what yomihon says when it cannot show a file: what it is, how big

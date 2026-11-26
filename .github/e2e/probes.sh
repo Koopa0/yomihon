@@ -106,6 +106,7 @@ probes=(
   "search-overflow.mjs|/search?q=stoppedAt"
   "largest-text.mjs|/search?q=alpha"
   "shelf-order.mjs|/marks"
+  "other-pages.mjs|/"
   "schema-notice-visibility.mjs|/notes/Notes/schema-notice-probe.md"
   "compare-columns.mjs|/compare/Notes/cutover.md?with=Notes%2Fcutover-zh-tw.md"
   "note-outline-position.mjs|/notes/Notes/Glass%20Tide.md"

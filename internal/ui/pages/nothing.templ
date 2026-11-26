@@ -9,7 +9,7 @@ package pages
 // It offers no control and nothing that waits. None of these surfaces fetches
 // anything, so a spinner or a retry would be a promise the page cannot keep.
 templ nothingToShow(n nothingNotice) {
-	<div class={ "y-nothing", templ.KV("y-nothing--fault", n.Fault) } data-nothing={ n.Kind }>
+	<div class={ "y-nothing", templ.KV("y-nothing--fault", n.Fault), templ.KV("y-nothing--unreadable", n.Unreadable) } data-nothing={ n.Kind }>
 		if n.Mark != "" {
 			<p class="y-nothing__mark">{ n.Mark }</p>
 		}

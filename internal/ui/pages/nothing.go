@@ -32,8 +32,11 @@ type nothingNotice struct {
 	Page bool
 	// Fault says the news is a fault rather than an absence — something could
 	// not be read, or could not be honoured. An absence stays quiet; a fault
-	// takes the warning colour.
+	// says so in the full ink.
 	Fault bool
+	// Unreadable says the fault is a file that cannot be read, the one fault
+	// the crimson is kept for, so its word is drawn in it.
+	Unreadable bool
 }
 
 // titleAttrs names the heading only where the surface gave it a name, so a

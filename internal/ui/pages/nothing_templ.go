@@ -43,7 +43,7 @@ func nothingToShow(n nothingNotice) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var2 = []any{"y-nothing", templ.KV("y-nothing--fault", n.Fault)}
+			var templ_7745c5c3_Var2 = []any{"y-nothing", templ.KV("y-nothing--fault", n.Fault), templ.KV("y-nothing--unreadable", n.Unreadable)}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_ElementWriter, templ_7745c5c3_Var2...)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
@@ -64,7 +64,7 @@ func nothingToShow(n nothingNotice) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templruntime.NewAttributeExpression(n.Kind).Resolve(ctx)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/nothing.templ`, Line: 12, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pages/nothing.templ`, Line: 12, Col: 137}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ_7745c5c3_Var4)
 			if templ_7745c5c3_Err != nil {

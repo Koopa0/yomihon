@@ -85,7 +85,9 @@ const read = (reply) => reply.evaluate((element) => {
   document.body.append(swatch);
   swatch.style.color = 'var(--fg-muted)';
   const muted = getComputedStyle(swatch).color;
-  swatch.style.color = 'var(--warn)';
+  // A refusal is said in the full ink, a step firmer than a reply that kept;
+  // it takes no colour of its own.
+  swatch.style.color = 'var(--fg)';
   const warning = getComputedStyle(swatch).color;
   swatch.remove();
   return {
