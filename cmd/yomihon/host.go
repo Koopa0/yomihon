@@ -104,9 +104,11 @@ func newHost(log *slog.Logger, configDir confdir.ConfigDir, store *vaults.Store)
 }
 
 // mount answers for entry on its port, binding the port unless the caller
-// already has. The read of the vault starts at the first request, or now when
-// eager, which is for the vault the reader just typed. Its failure is then the
-// process's.
+// already has. The read of the vault starts at the first request, or when the
+// caller asks for it with startEager after the address is said, when eager,
+// which is for the vault the reader just typed. Its failure is then the
+// process's. mount itself never starts that read: the reader is owed the
+// address before it, and on a small vault the read can end first.
 func (h *host) mount(ctx context.Context, entry *vaults.Entry, listener net.Listener, eager bool) error {
 	// Checked before the port is bound: a vault listed before yomihon refused
 	// such a folder is not served, and stays listed for `yomihon vaults remove`.
@@ -137,10 +139,16 @@ func (h *host) mount(ctx context.Context, entry *vaults.Entry, listener net.List
 	h.serving.Go(func() { h.serve(ctx, m, srv) })
 	h.mu.Unlock()
 	h.log.Info("yomihon serving", "addr", listener.Addr().String(), "vault", entry.Path)
-	if eager {
+	return nil
+}
+
+// startEager begins the read of the vault just typed, which mount left for the
+// caller to start once the reader has been told the address. A vault that is
+// not mounted has nothing to read.
+func (h *host) startEager(id string) {
+	if m := h.find(id); m != nil {
 		m.front.start()
 	}
-	return nil
 }
 
 // touchTimeout bounds reading the rules file for the name the list keeps.
@@ -444,6 +452,7 @@ func (h *host) serveOne(ctx context.Context, stop func(), cfg *config, out io.Wr
 		return err
 	}
 	h.printAddress(out, listener)
+	h.startEager(entry.ID)
 	return h.await(serveCtx, cancel, stop)
 }
 
@@ -514,6 +523,7 @@ func (h *host) serveListed(ctx context.Context, stop func(), cfg *config, out io
 	}
 	if m := h.find(typed.ID); m != nil {
 		h.printAddress(out, m.listener)
+		h.startEager(typed.ID)
 	}
 	h.serving.Go(func() { h.watch(serveCtx) })
 	return h.await(serveCtx, cancel, stop)

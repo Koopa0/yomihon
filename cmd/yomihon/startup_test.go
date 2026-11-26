@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -125,13 +126,6 @@ func (o *ordered) snapshot() []string {
 	return append([]string(nil), o.events...)
 }
 
-type orderedWriter struct{ o *ordered }
-
-func (w orderedWriter) Write(p []byte) (int, error) {
-	w.o.add("out: " + strings.TrimSpace(string(p)))
-	return len(p), nil
-}
-
 type orderedHandler struct {
 	slog.Handler
 
@@ -159,42 +153,99 @@ func indexOf(events []string, prefix string) int {
 	return -1
 }
 
+// heldWriter is where the address is printed, held at that moment until the
+// test lets it go, so that what the process does meanwhile can be watched.
+type heldWriter struct {
+	o *ordered
+
+	reached chan struct{}
+	release chan struct{}
+}
+
+func (w heldWriter) Write(p []byte) (int, error) {
+	w.o.add("out: " + strings.TrimSpace(string(p)))
+	close(w.reached)
+	<-w.release
+	return len(p), nil
+}
+
 // TestServingGivesTheAddressBeforeTheVaultIsRead locks the order the first
 // minute depends on: the reader is told where to go, and the port is theirs,
-// before the vault has been read.
+// before the vault has been read. The print is held open, so a read that began
+// before it would finish while it waits, however small the vault.
 func TestServingGivesTheAddressBeforeTheVaultIsRead(t *testing.T) {
 	t.Parallel()
-	root := t.TempDir()
-	writeRecoverySiteFixture(t, root)
-	events := new(ordered)
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	result := make(chan error, 1)
-	go func() {
-		result <- serveVault(ctx, func() {}, orderedLog(events),
-			&config{root: root, port: "0", configDir: confdir.At(t.TempDir())}, orderedWriter{events})
-	}()
-	deadline := time.After(10 * time.Second)
-	for indexOf(events.snapshot(), "log: vault snapshot built") < 0 {
-		select {
-		case <-deadline:
-			t.Fatalf("the vault was never read; events = %v", events.snapshot())
-		case <-time.After(5 * time.Millisecond):
-		}
-	}
-	cancel()
-	if err := <-result; err != nil {
-		t.Fatalf("serveVault: %v", err)
-	}
+	for _, tt := range []struct {
+		name string
+		// A process that remembers serves the list; one that does not serves
+		// the folder alone.
+		port string
+		// list is whether the port is a free one of the test's own, which is
+		// what makes the process one that remembers.
+		list bool
+	}{
+		{name: "a folder served alone", port: "0"},
+		{name: "a list of vaults", list: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeRecoverySiteFixture(t, root)
+			events := new(ordered)
+			out := heldWriter{o: events, reached: make(chan struct{}), release: make(chan struct{})}
+			// Let go of the print however the test ends, so a failure leaves
+			// no process held in it.
+			letGo := sync.OnceFunc(func() { close(out.release) })
+			defer letGo()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			cfg := &config{root: root, port: tt.port, configDir: confdir.At(t.TempDir())}
+			if tt.list {
+				cfg.port, cfg.portSet = strconv.Itoa(someFreePort(t)), true
+			}
+			result := make(chan error, 1)
+			go func() {
+				result <- serveVault(ctx, func() {}, orderedLog(events), cfg, out)
+			}()
+			select {
+			case <-out.reached:
+			case <-time.After(10 * time.Second):
+				t.Fatalf("the address was never printed; events = %v", events.snapshot())
+			}
+			// A read that had begun would be done within this long on a vault
+			// of one note. Waiting too short can only miss the defect, never
+			// raise it.
+			for stop := time.After(500 * time.Millisecond); ; {
+				if indexOf(events.snapshot(), "log: vault snapshot built") >= 0 {
+					t.Fatalf("the vault was read before the address was printed; events = %v", events.snapshot())
+				}
+				select {
+				case <-stop:
+				case <-time.After(5 * time.Millisecond):
+					continue
+				}
+				break
+			}
+			letGo()
 
-	seen := events.snapshot()
-	address := indexOf(seen, "out: http://127.0.0.1:")
-	read := indexOf(seen, "log: vault snapshot built")
-	if address < 0 || !regexp.MustCompile(`^out: http://127\.0\.0\.1:\d+/$`).MatchString(seen[address]) {
-		t.Fatalf("no clickable address was printed; events = %v", seen)
-	}
-	if address > read {
-		t.Errorf("the address came after the vault was read; events = %v", seen)
+			deadline := time.After(10 * time.Second)
+			for indexOf(events.snapshot(), "log: vault snapshot built") < 0 {
+				select {
+				case <-deadline:
+					t.Fatalf("the vault was never read; events = %v", events.snapshot())
+				case <-time.After(5 * time.Millisecond):
+				}
+			}
+			cancel()
+			if err := <-result; err != nil {
+				t.Fatalf("serveVault: %v", err)
+			}
+			seen := events.snapshot()
+			address := indexOf(seen, "out: http://127.0.0.1:")
+			if address < 0 || !regexp.MustCompile(`^out: http://127\.0\.0\.1:\d+/$`).MatchString(seen[address]) {
+				t.Fatalf("no clickable address was printed; events = %v", seen)
+			}
+		})
 	}
 }
 
