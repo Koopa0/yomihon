@@ -403,7 +403,18 @@ try {
   if (folded === '' || sidebar === '' || JSON.stringify(entries(folded)) !== JSON.stringify(entries(sidebar))) {
     fail('column-is-the-note', `the column's folded contents ${JSON.stringify(entries(folded))} are not what the note's own sidebar lists ${JSON.stringify(entries(sidebar))}`);
   }
-  if (renamed.replace(folded, '').replace(columnPrefix, alonePrefix) !== nestedArticle(aloneHTML)) {
+  // A note that stands alone can also keep the reader's own marks, and a column
+  // keeps none: the page of the note adds the attributes the script reads them
+  // by, the toolbar and the line they are changed in, and a button that writes a
+  // thought in the margin where a column offers the link that opens a draft. That
+  // is all it adds, and it is taken out of both before they are compared.
+  const withoutOwnMarks = (html) => html
+    .replace(/ data-marks-endpoint="[^"]*" data-marks-path="[^"]*" data-marks-strings="[^"]*"/, '')
+    .replace(/<div class="y-mbar" role="toolbar"[^>]*data-marks-toolbar hidden>[\s\S]*?<\/div><div class="y-mstatus"[^>]*data-marks-status hidden>[\s\S]*?<\/svg><\/button><\/div>/, '')
+    .replace(/<button type="button" class="y-margin__act" data-section-thought [^>]*><\/button>/g, '')
+    .replace(/<a class="y-margin__act" href="\/thought\/[^"]*" aria-label="[^"]*" data-text="[^"]*"><\/a>/g, '')
+    .replace(/ {2,}</g, ' <');
+  if (withoutOwnMarks(renamed.replace(folded, '').replace(columnPrefix, alonePrefix)) !== withoutOwnMarks(nestedArticle(aloneHTML))) {
     fail('column-is-the-note', 'the second column is not what the note reads as on its own page');
   }
 

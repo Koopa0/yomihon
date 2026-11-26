@@ -105,6 +105,27 @@ func TestMkPatchRefusesAStateTheMarkCannotBeIn(t *testing.T) {
 	}
 }
 
+// A request sent again after the mark was changed is answered with the mark as it
+// is now, and never writes the words it carried over the newer ones.
+func TestMkAMarkSentAgainAfterItChangedIsAnsweredAsItIsNow(t *testing.T) {
+	t.Parallel()
+	r := newMkRig(t)
+	const id = "00112233445566778899aabbccddeeff"
+	thought := `{"id":"` + id + `","kind":"thought","path":"` + mkNote + `","anchor":"section-one","body":"first words"}`
+	created := mkDecode[mkAnswer](t, r.do(http.MethodPost, "/mark", thought))
+	mkStatus(t, r.do(http.MethodPatch, "/mark/"+id, `{"seen":`+mkSeenJSON(t, created.Seen)+`,"kind":"thought","body":"newer words"}`), http.StatusOK)
+	before := len(r.mkLines())
+
+	again := r.do(http.MethodPost, "/mark", thought)
+	mkStatus(t, again, http.StatusOK)
+	if got := mkDecode[mkAnswer](t, again); got.Body != "newer words" {
+		t.Errorf("the request sent again was answered with %q, want the words the mark has now, %q", got.Body, "newer words")
+	}
+	if got := len(r.mkLines()); got != before {
+		t.Errorf("sending it again wrote %d lines, want none", got-before)
+	}
+}
+
 // A page that makes the id of a mark can send the same request again, when no
 // answer reached it, and never keeps the mark twice: not for a thought, which
 // is always new, and not for requests that arrive together.
@@ -199,5 +220,29 @@ func TestKeptLiveListsTheMarksOfOneNoteThatAreNotDeleted(t *testing.T) {
 	}
 	if elsewhere.ID == "" {
 		t.Fatal("a mark of another note was not kept")
+	}
+}
+
+// A reader who has marked nothing since the upgrade still has the marks of the
+// earlier file, and the page of a note lists those of that note which are not
+// deleted, before the first write takes them in.
+func TestKeptLiveListsTheEarlierMarksOfThatNoteToo(t *testing.T) {
+	t.Parallel()
+	r := newMkRig(t)
+	writeFile(t, marksPath(r.store), aMarksFile(
+		`{"id":"`+markID(1)+`","kind":"thought","path":"`+mkNote+`","body":"earlier thought","at":"2026-09-22T11:00:00Z"}`,
+		`{"id":"`+markID(3)+`","kind":"highlight","path":"`+mkSecret+`","quote":"a passage elsewhere","at":"2026-09-22T12:00:00Z"}`,
+	))
+
+	live, err := r.kept.Live(mkNote)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for i := range live {
+		got = append(got, live[i].ID+":"+live[i].Body)
+	}
+	if diff := cmp.Diff([]string{markID(1) + ":earlier thought"}, got); diff != "" {
+		t.Errorf("Live() over the earlier file (-want +got):\n%s", diff)
 	}
 }

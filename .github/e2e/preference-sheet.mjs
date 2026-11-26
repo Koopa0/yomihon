@@ -348,7 +348,7 @@ try {
     const opacity = (page, selector) => page.evaluate((s) => getComputedStyle(document.querySelector(s)).opacity, selector);
     for (const choice of ['hover', 'always']) {
       const stored = { sectionbuttons: choice, lang: 'en' };
-      const want = await at({ path: NOTE_LATIN, stored }, (page) => opacity(page, '.y-main > .y-article .y-sect a.y-margin__act'));
+      const want = await at({ path: NOTE_LATIN, stored }, (page) => opacity(page, '.y-main > .y-article .y-sect .y-margin__act:is(a, [data-section-thought])'));
       await at({ stored }, async (page) => {
         const got = await opacity(page, '.y-prefs__sheet .y-margin__act');
         if (got !== want) fire('section-buttons', `with the buttons beside sections set to ${choice}, the sheet's are at opacity ${got} and a note's at ${want}`);
@@ -450,7 +450,7 @@ try {
       });
       const want = [
         { title: '紙面與字體', fields: ['theme', 'paper', 'textsize', 'font'] },
-        { title: '閱讀行為', fields: ['ruby', 'rail', 'sectionbuttons', 'position', 'shortcuts'] },
+        { title: '閱讀行為', fields: ['ruby', 'rail', 'sectionbuttons', 'position', 'marks', 'shortcuts'] },
       ];
       if (JSON.stringify(got.lead) !== JSON.stringify(['lang'])) fire('groups', `ahead of the groups stand ${JSON.stringify(got.lead)}, want the language alone`);
       const shape = got.groups.map(({ title, fields }) => ({ title, fields }));

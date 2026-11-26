@@ -35,6 +35,10 @@ export function initMarksLayout(prose) {
   // a moment is not read as the reader leaving.
   let moving = false;
 
+  // A note that has the keyboard shows all its words and its actions, so what
+  // stands below it is moved again; one that loses it is short again.
+  prose.addEventListener('focusin', () => schedule());
+  prose.addEventListener('focusout', () => schedule());
   prose.addEventListener('compositionstart', () => { composing = true; });
   prose.addEventListener('compositionend', () => {
     composing = false;

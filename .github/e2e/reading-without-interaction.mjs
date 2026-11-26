@@ -222,7 +222,7 @@ try {
     const offer = await page.evaluate(() => ({
       sections: document.querySelectorAll('.y-prose .y-sect [data-section-margin]').length,
       marks: document.querySelectorAll('[data-section-mark]').length,
-      doors: document.querySelectorAll('.y-margin a.y-margin__act').length,
+      doors: document.querySelectorAll('.y-margin :is(a.y-margin__act, button[data-section-thought])').length,
       prompts: document.querySelectorAll('.y-predict + details[data-callout="question"]:not([open])').length,
     }));
     if (offer.sections < 3 || offer.marks < 3 || offer.doors < 3 || offer.prompts < 1) {
@@ -265,7 +265,7 @@ try {
         const box = element.getBoundingClientRect();
         const style = getComputedStyle(element);
         return {
-          id: `${element.tagName}.${element.className}|${element.getAttribute('href') ?? element.getAttribute('data-section-anchor') ?? element.textContent.slice(0, 20)}`,
+          id: `${element.tagName}.${element.className}|${element.getAttribute('href') ?? element.getAttribute('data-section-anchor') ?? element.textContent.slice(0, 20)}${element.hasAttribute('data-section-thought') ? '|thought' : ''}`,
           inArticle: Boolean(element.closest('.y-article')),
           seen: box.width > 0 && box.height > 0 && box.right > 0 && box.left < innerWidth && style.visibility !== 'hidden' && Number(style.opacity) > 0.05,
           end: Boolean(element.closest('.y-related, .y-steps')),

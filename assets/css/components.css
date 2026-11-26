@@ -10906,7 +10906,7 @@ mark[data-mark] {
   white-space: pre-wrap;
 }
 
-.y-mnote:is(:focus, :focus-within, .is-lit) .y-mnote__words {
+.y-mnote:is(:focus, :focus-within) .y-mnote__words {
   display: block;
   -webkit-line-clamp: unset;
 }
