@@ -14,8 +14,9 @@
 // one of the two named. They make it inside a ConfigDir and never from a string,
 // and a ConfigDir is made by Platform, from what the platform names, or by At,
 // which shipped code may not call. Whether the platform's answer and a folder
-// are one inside the other is a question about the disk, which ConfigDir.Apart
-// answers for the command that serves the folder.
+// are one inside the other is a question about the disk, which
+// ConfigDir.Classify answers for each place that serves the folder or writes
+// for it.
 package confdir
 
 import (
@@ -196,6 +197,15 @@ func Replace(dir Dir, name string, data []byte) error {
 	return err
 }
 
+// renameAttempts and renameWait are how long a rename that failed for a reason
+// that passes is tried again: on Windows a rename over a file someone has open
+// to read is refused until they close it. Nothing else is retried, and on other
+// platforms no rename is, since none of their failures is one that passes.
+const (
+	renameAttempts = 8
+	renameWait     = 10 * time.Millisecond
+)
+
 // install writes data to a sibling of the file called name, syncs it, renames it
 // over the file, syncs directories, and reads the file back.
 func install(dir Dir, name string, data []byte, directories []directory) error {
@@ -213,7 +223,14 @@ func install(dir Dir, name string, data []byte, directories []directory) error {
 	if err = tmp.Close(); err != nil {
 		return abandon(nil, temporary, fmt.Errorf("close the temporary file for %s: %w", name, err))
 	}
-	if err = os.Rename(temporary, dir.Join(name)); err != nil {
+	for attempt := 1; ; attempt++ {
+		err = os.Rename(temporary, dir.Join(name))
+		if err == nil || attempt == renameAttempts || !transient(err) {
+			break
+		}
+		time.Sleep(time.Duration(attempt) * renameWait)
+	}
+	if err != nil {
 		return abandon(nil, temporary, fmt.Errorf("install %s: %w", name, err))
 	}
 	for _, d := range directories {

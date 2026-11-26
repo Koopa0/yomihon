@@ -337,13 +337,13 @@ func (h *host) ensure(ctx context.Context, entry *vaults.Entry) {
 	}
 }
 
-// overlaps is why the vault is not to be served because it and the
-// configuration directory are one inside the other, or nil. Anything else that
-// stops the comparison, such as a folder that is gone, is for the read of the
-// vault to say, as it was before the comparison was made.
+// overlaps is why the vault is not to be served because it overlaps the
+// configuration directory, or nil. A vault that cannot be compared with it is
+// mounted all the same, so that one whose folder is gone still answers that it
+// cannot be read; nothing of it is read until its site is built, which compares
+// again and refuses it (composeReadingSite).
 func (h *host) overlaps(entry *vaults.Entry) error {
-	err := h.configDir.Apart(entry.Path)
-	if _, overlaps := errors.AsType[*confdir.OverlapError](err); overlaps {
+	if relation, err := h.configDir.Classify(entry.Path); relation == confdir.Overlaps {
 		return err
 	}
 	return nil

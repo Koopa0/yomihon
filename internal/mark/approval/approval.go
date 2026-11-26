@@ -9,6 +9,7 @@ package approval
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -209,11 +210,12 @@ func without(held []Approval, relPath string) []Approval {
 }
 
 // exclusive runs change as the only writer of the approvals, in this process
-// and in any other on the same directory.
+// and in any other on the same directory. The store's methods take no context,
+// so the wait for the lock is bounded by confdir.LockWait alone.
 func (s *Store) exclusive(change func() error) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return confdir.Exclusive(s.dir, lockFile, confdir.LockWait, change)
+	return confdir.Exclusive(context.Background(), s.dir, lockFile, confdir.LockWait, change)
 }
 
 // write installs the whole list. It refuses one the next read would refuse, so

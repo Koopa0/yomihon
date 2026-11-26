@@ -1,6 +1,7 @@
 package mark
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -262,7 +263,9 @@ func (k *Kept) Mend() {
 		k.say("missing", "unwritable:"+why, "marks are missing from the vault and cannot be put back: the reader folder cannot be written to", "missing", missing, "why", why)
 		return
 	}
-	if _, err = marks.Restore(); err != nil {
+	// Mend is the vault's, not the page's that happened to call it: what it puts
+	// back is put back whether or not that page is still waiting.
+	if _, err = marks.Restore(context.Background()); err != nil {
 		k.say("missing", "failed:"+err.Error(), "marks are missing from the vault and could not be put back", "missing", missing, "error", err)
 		return
 	}
@@ -339,13 +342,13 @@ func toMachine(m *Mark) machinemarks.Mark {
 // TakeIn takes in the marks of the earlier file that were not taken in, which an
 // adoption of the marks of another path leaves to do when the vault had taken in
 // its own already. What a machine file already holds, a deleted mark included,
-// is not taken in again.
-func (k *Kept) TakeIn() error {
+// is not taken in again. ctx bounds its waits for the locks.
+func (k *Kept) TakeIn(ctx context.Context) error {
 	marks, err := k.Marks()
 	if err != nil {
 		return err
 	}
-	_, err = marks.TakeInLegacy()
+	_, err = marks.TakeInLegacy(ctx)
 	return err
 }
 

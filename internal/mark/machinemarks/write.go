@@ -1,6 +1,7 @@
 package machinemarks
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
@@ -98,7 +99,10 @@ type Options struct {
 
 // Marks is this machine's hand on the marks of one vault: every read and every
 // change of them. It is safe for use by several goroutines and by several
-// processes over one vault; a change takes the vault's lock for its whole.
+// processes over one vault; a change takes the vault's lock for its whole. A
+// change takes a context, which bounds its waits for the vault's lock and the
+// ledger's as confdir.Acquire says; a change of this process already under way
+// is waited for whatever the context says. A read waits for no change.
 type Marks struct {
 	folder *machinefile.Folder
 	dir    confdir.Dir
@@ -197,12 +201,12 @@ type proposal struct {
 // Put of an id that is not there is a new mark, so for it the answer does tell
 // the two apart, and only a caller who already holds the id of a withheld mark
 // can ask. The gate is not optional and a nil one panics.
-func (m *Marks) Put(mark *Mark, base Seen, edit *Edit, gate Gate) (Result, error) {
+func (m *Marks) Put(ctx context.Context, mark *Mark, base Seen, edit *Edit, gate Gate) (Result, error) {
 	needGate(gate)
 	if err := validate(mark, edit); err != nil {
 		return Result{}, err
 	}
-	return m.change(func(v *view) (*proposal, error) {
+	return m.change(ctx, func(v *view) (*proposal, error) {
 		if withheld(v, mark.ID, gate) {
 			return nil, ErrGone
 		}
@@ -214,12 +218,12 @@ func (m *Marks) Put(mark *Mark, base Seen, edit *Edit, gate Gate) (Result, error
 // ErrGone if there is no such mark or it is deleted already, which is what a
 // page that had not heard of another machine's deletion is told. A mark the
 // gate withholds is ErrGone too.
-func (m *Marks) Delete(id string, base Seen, edit *Edit, gate Gate) (Result, error) {
+func (m *Marks) Delete(ctx context.Context, id string, base Seen, edit *Edit, gate Gate) (Result, error) {
 	needGate(gate)
 	if err := validateEdit(edit); err != nil {
 		return Result{}, err
 	}
-	return m.change(func(v *view) (*proposal, error) {
+	return m.change(ctx, func(v *view) (*proposal, error) {
 		r, ok := v.byMark[id]
 		if !ok || r.coveredHead(base).Mark.Deleted || withheld(v, id, gate) {
 			return nil, ErrGone
@@ -244,9 +248,9 @@ type Pick struct {
 // chosen; one that was replaced since, or that another page already chose, is
 // ErrStale and nothing is written. A line that appeared after the page read
 // stays beside the chosen one. A mark the gate withholds is ErrGone.
-func (m *Marks) Choose(id string, pick Pick, base Seen, gate Gate) (Result, error) {
+func (m *Marks) Choose(ctx context.Context, id string, pick Pick, base Seen, gate Gate) (Result, error) {
 	needGate(gate)
-	return m.change(func(v *view) (*proposal, error) {
+	return m.change(ctx, func(v *view) (*proposal, error) {
 		r, ok := v.byMark[id]
 		if !ok || withheld(v, id, gate) {
 			return nil, ErrGone
@@ -282,42 +286,39 @@ func withheld(v *view, id string, gate Gate) bool {
 // Restore writes this machine's file as the ledger and the file together say it
 // is, which puts back what git took out of the working tree. It writes nothing
 // when the file is that already.
-func (m *Marks) Restore() (Result, error) {
-	return m.change(func(v *view) (*proposal, error) {
+func (m *Marks) Restore(ctx context.Context) (Result, error) {
+	return m.change(ctx, func(v *view) (*proposal, error) {
 		return &proposal{restore: true}, nil
 	})
 }
 
 // NoticeNewID records that the reader was told this machine took a new id, so
 // that it is said once.
-func (m *Marks) NoticeNewID() error {
+func (m *Marks) NoticeNewID(ctx context.Context) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// Looked at before the lock is taken, so that a machine with nothing to say
 	// leaves not even a lock file behind; the look is made again under it.
-	if said, err := m.said(); err != nil || said {
+	if st, err := m.machine(); err != nil || !st.unsaid {
 		return err
 	}
-	return confdir.Exclusive(m.dir, lockName, m.lockWait, func() error {
-		if said, err := m.said(); err != nil || said {
+	return confdir.Exclusive(ctx, m.dir, lockName, m.lockWait, func() error {
+		st, err := m.machine()
+		if err != nil || !st.unsaid {
 			return err
 		}
-		events, _, err := m.ledger.Events()
-		if err != nil {
-			return err
-		}
-		_, err = m.ledger.Record(&ledger.Event{Kind: kindSaid, ID: stateOf(events).id})
+		_, err = m.ledger.Record(ctx, &ledger.Event{Kind: kindSaid, ID: st.id})
 		return err
 	})
 }
 
-// said says there is no new id the reader has to be told of.
-func (m *Marks) said() (bool, error) {
+// machine is what the ledger says of this machine now.
+func (m *Marks) machine() (machine, error) {
 	events, _, err := m.ledger.Events()
 	if err != nil {
-		return false, err
+		return machine{}, err
 	}
-	return !stateOf(events).unsaid, nil
+	return stateOf(events), nil
 }
 
 // live says the mark is one that is not deleted.
@@ -351,20 +352,20 @@ func validateEdit(e *Edit) error {
 // change is every write: it takes the vault's lock, brings this machine's id, a
 // conversion and a clone's retirement about, lets plan say what to write, and
 // writes it.
-func (m *Marks) change(plan func(*view) (*proposal, error)) (Result, error) {
-	return m.run(false, plan)
+func (m *Marks) change(ctx context.Context, plan func(*view) (*proposal, error)) (Result, error) {
+	return m.run(ctx, false, plan)
 }
 
 // run is change, and says whether the earlier file of marks is to be taken in
 // again whether or not it was, which is what an adoption asks for.
-func (m *Marks) run(takeIn bool, plan func(*view) (*proposal, error)) (Result, error) {
+func (m *Marks) run(ctx context.Context, takeIn bool, plan func(*view) (*proposal, error)) (Result, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	start := time.Now()
 	var res Result
-	err := confdir.Exclusive(m.dir, lockName, m.lockWait, func() error {
+	err := confdir.Exclusive(ctx, m.dir, lockName, m.lockWait, func() error {
 		res.LockWait = time.Since(start)
-		return m.locked(takeIn, plan, &res)
+		return m.locked(ctx, takeIn, plan, &res)
 	})
 	res.Total = time.Since(start)
 	if errors.Is(err, ErrNotInVault) {
@@ -379,11 +380,11 @@ func (m *Marks) run(takeIn bool, plan func(*view) (*proposal, error)) (Result, e
 }
 
 // locked is change inside the lock.
-func (m *Marks) locked(takeIn bool, plan func(*view) (*proposal, error), res *Result) error {
+func (m *Marks) locked(ctx context.Context, takeIn bool, plan func(*view) (*proposal, error), res *Result) error {
 	ledgerTime := time.Duration(0)
 	record := func(e *ledger.Event) error {
 		began := time.Now()
-		_, err := m.ledger.Record(e)
+		_, err := m.ledger.Record(ctx, e)
 		ledgerTime += time.Since(began)
 		return err
 	}

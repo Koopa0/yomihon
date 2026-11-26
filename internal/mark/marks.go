@@ -1,6 +1,7 @@
 package mark
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -124,11 +125,11 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 	status := http.StatusCreated
 	if candidate.Kind == machinemarks.Thought {
 		stored = candidate
-		res, err = h.keepThought(marks, &stored, admit)
+		res, err = h.keepThought(writeContext(r), marks, &stored, admit)
 	} else {
 		var out machinemarks.Outcome
 		same := func(other *machinemarks.Mark) bool { return sameAct(other, &candidate) }
-		out, err = marks.Keep(&candidate, same, admit, h.kept.gate)
+		out, err = marks.Keep(writeContext(r), &candidate, same, admit, h.kept.gate)
 		res, stored = out.Result, out.Mark
 		if err == nil && !out.Written {
 			status = http.StatusOK
@@ -144,11 +145,11 @@ func (h *Handler) keepMark(w http.ResponseWriter, r *http.Request) {
 // keepThought writes a thought. A thought is always new, with an id nobody has,
 // so nothing a lock would protect is read first: the place is judged before it
 // is written.
-func (h *Handler) keepThought(marks *machinemarks.Marks, thought *machinemarks.Mark, admit func(*machinemarks.Mark) bool) (machinemarks.Result, error) {
+func (h *Handler) keepThought(ctx context.Context, marks *machinemarks.Marks, thought *machinemarks.Mark, admit func(*machinemarks.Mark) bool) (machinemarks.Result, error) {
 	if !admit(thought) {
 		return machinemarks.Result{}, fmt.Errorf("%w: the place is not one this vault renders", machinemarks.ErrInvalidMark)
 	}
-	return marks.Put(thought, nil, nil, h.kept.gate)
+	return marks.Put(ctx, thought, nil, nil, h.kept.gate)
 }
 
 // askedForWhatKindHolds refuses what a kind does not carry: a highlight is a
@@ -212,7 +213,7 @@ func (h *Handler) readable(w http.ResponseWriter, r *http.Request, write bool) (
 		// A change addressed to a mark that only the earlier file has takes the
 		// earlier marks in first, as the first write of any kind does, and is
 		// then made on what was taken in.
-		if err = h.kept.TakeIn(); err != nil {
+		if err = h.kept.TakeIn(writeContext(r)); err != nil {
 			h.refuse(w, r, err, "take in the earlier marks")
 			return machinemarks.Entry{}, false
 		}
@@ -290,7 +291,7 @@ func (h *Handler) reviseMark(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, r, err, "change a mark")
 		return
 	}
-	res, err := marks.Put(&next, *request.Seen, request.Edit, h.kept.gate)
+	res, err := marks.Put(writeContext(r), &next, *request.Seen, request.Edit, h.kept.gate)
 	if err = h.landed(err, "change a mark"); err != nil {
 		h.refuse(w, r, err, "change a mark")
 		return
@@ -358,7 +359,7 @@ func (h *Handler) removeMark(w http.ResponseWriter, r *http.Request) {
 		h.refuse(w, r, err, "delete a mark")
 		return
 	}
-	res, err := marks.Delete(entry.Mark().ID, *request.Seen, request.Edit, h.kept.gate)
+	res, err := marks.Delete(writeContext(r), entry.Mark().ID, *request.Seen, request.Edit, h.kept.gate)
 	if err = h.landed(err, "delete a mark"); err != nil {
 		h.refuse(w, r, err, "delete a mark")
 		return
@@ -408,7 +409,7 @@ func (h *Handler) putBack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	current.Deleted = false
-	res, err := marks.Put(&current, *request.Seen, request.Edit, h.kept.gate)
+	res, err := marks.Put(writeContext(r), &current, *request.Seen, request.Edit, h.kept.gate)
 	if err = h.landed(err, "put a mark back"); err != nil {
 		h.refuse(w, r, err, "put a mark back")
 		return

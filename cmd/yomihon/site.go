@@ -161,11 +161,14 @@ func composeReadingSite(ctx context.Context, source *vault.Reader, configDir con
 	var marks *mark.Store
 	var kept *mark.Kept
 	// The folder was compared with the configuration directory when it was
-	// mounted, and may have been put back, or a link to it changed, since. Its
-	// marks are named only for a folder apart from it, compared again now, and
-	// one that cannot be compared is not read.
-	if apartErr := configDir.Apart(source.Name()); apartErr != nil {
-		return nil, apartErr
+	// mounted, and may have been put back, or a link to it changed, since. It
+	// is compared again, and its site is built only when the two are apart: a
+	// process that keeps things in that directory reads no folder that overlaps
+	// it or cannot be told apart from it. A folder that could not be compared at
+	// the start reaches here with no configuration directory, which is apart
+	// from every folder.
+	if relation, notApart := configDir.Classify(source.Name()); relation != confdir.Apart {
+		return nil, notApart
 	}
 	if !configDir.IsZero() {
 		if marks, err = mark.Open(configDir, source.Name()); err != nil {

@@ -1,6 +1,7 @@
 package mark
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -85,7 +86,9 @@ func (s *Store) Adopt(old string, admit func(relPath string) bool) error {
 		if err != nil {
 			return err
 		}
-		_, err = s.ledger().Carry(theirs.dir)
+		// The store's methods take no context, so the ledger's lock is waited
+		// for as long as confdir.LockWait, as the store's own is.
+		_, err = s.ledger().Carry(context.Background(), theirs.dir)
 		return err
 	})
 }

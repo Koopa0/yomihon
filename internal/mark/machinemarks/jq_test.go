@@ -141,13 +141,13 @@ func TestMachineFilesReadWithoutYomihon(t *testing.T) {
 	q := a.entry(mid(5)).Mark()
 	q.Kind = Question
 	c.clock.tick()
-	if _, err := c.m.Put(&q, c.entry(mid(5)).Seen, nil, open); err != nil {
+	if _, err := c.m.Put(t.Context(), &q, c.entry(mid(5)).Seen, nil, open); err != nil {
 		t.Fatal(err)
 	}
 	th := a.entry(mid(5)).Mark()
 	th.Kind, th.Body = Thought, "now a thought"
 	b.clock.tick()
-	if _, err := b.m.Put(&th, b.entry(mid(5)).Seen, nil, open); err != nil {
+	if _, err := b.m.Put(t.Context(), &th, b.entry(mid(5)).Seen, nil, open); err != nil {
 		t.Fatal(err)
 	}
 	// 6: an old line and a newer line of one writer in one file, which is what

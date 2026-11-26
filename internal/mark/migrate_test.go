@@ -127,7 +127,7 @@ func TestTheFirstWriteConvertsAndTheOldFilesStayAsTheyWere(t *testing.T) {
 
 	added := machinemarks.Mark{ID: markID(9), Kind: machinemarks.Question, Path: "Notes/source.md", Anchor: "new-section", At: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
 	m := machineMarksOver(t, store, root, config)
-	if _, err := m.Put(&added, nil, nil, allowed); err != nil {
+	if _, err := m.Put(t.Context(), &added, nil, nil, allowed); err != nil {
 		t.Fatal(err)
 	}
 	course := aPlace()
@@ -174,7 +174,7 @@ func TestASecondStartDoesNotConvertAgainOrBringBackWhatWasDeleted(t *testing.T) 
 	same := func(m *machinemarks.Mark) bool {
 		return m.Kind == cleared.Kind && m.Path == cleared.Path && m.Anchor == cleared.Anchor
 	}
-	out, err := machineMarksOver(t, first, root, config).Toggle(&cleared, same, allowedPlace, allowed)
+	out, err := machineMarksOver(t, first, root, config).Toggle(t.Context(), &cleared, same, allowedPlace, allowed)
 	if err != nil || !out.Mark.Deleted {
 		t.Fatalf("clearing an old question = %+v, %v; want it removed", out, err)
 	}
@@ -199,7 +199,7 @@ func TestASecondStartDoesNotConvertAgainOrBringBackWhatWasDeleted(t *testing.T) 
 	}
 	// Writing again does not convert again either.
 	highlight := machinemarks.Mark{ID: markID(9), Kind: machinemarks.Highlight, Path: "Notes/source.md", Quote: "words", At: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)}
-	if _, err = m.Put(&highlight, nil, nil, allowed); err != nil {
+	if _, err = m.Put(t.Context(), &highlight, nil, nil, allowed); err != nil {
 		t.Fatal(err)
 	}
 	if v, err = m.View(); err != nil {
@@ -260,7 +260,7 @@ func TestAnOldFileThatCannotBeConvertedIsReportedAndKept(t *testing.T) {
 	writeMark := func(t *testing.T, s *mark.Store, root, config string) error {
 		t.Helper()
 		put := machinemarks.Mark{ID: markID(1), Kind: machinemarks.Thought, Path: "a.md", Body: "x", At: time.Now()}
-		_, err := machineMarksOver(t, s, root, config).Put(&put, nil, nil, allowed)
+		_, err := machineMarksOver(t, s, root, config).Put(t.Context(), &put, nil, nil, allowed)
 		return err
 	}
 	writeBookmark := func(t *testing.T, s *mark.Store, _, _ string) error {

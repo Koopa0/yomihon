@@ -1,6 +1,7 @@
 package mark
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +19,15 @@ import (
 // maxFormBytes bounds the body a mark arrives in: a path, an id, a number and a
 // digest never come near it.
 const maxFormBytes = 4096
+
+// writeContext is the context a change of the reader's marks is made under: the
+// request's, without its cancellation. A change the server has received is made
+// even when the page that sent it has gone, a page left as its words were sent
+// or a fetch the browser gave up on, since what the reader wrote is theirs to
+// keep; its waits for the locks are bounded by confdir.LockWait all the same.
+func writeContext(r *http.Request) context.Context {
+	return context.WithoutCancel(r.Context())
+}
 
 // Paths are where the Handler answers. They are exported because the route and
 // the address a reading page posts to are decided on two sides of a package
@@ -346,7 +356,7 @@ func (h *Handler) postQuestion(w http.ResponseWriter, r *http.Request) {
 		return isSectionQuestion(m) && m.Path == candidate.Path && m.Anchor == candidate.Anchor
 	}
 	admit := func(m *machinemarks.Mark) bool { return h.places.HasPlace(m.Path, m.Anchor) }
-	out, err := marks.Toggle(&candidate, same, admit, h.kept.gate)
+	out, err := marks.Toggle(writeContext(r), &candidate, same, admit, h.kept.gate)
 	err = h.landed(err, "mark a question")
 	switch {
 	case err == nil:

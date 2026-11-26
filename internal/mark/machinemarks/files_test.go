@@ -79,7 +79,7 @@ func TestThisMachinesOwnFileThatCannotBeReadIsNotWrittenOver(t *testing.T) {
 		t.Fatalf("mark 1 reads %q beside a file that cannot be read, want it from the ledger", got)
 	}
 	m := thought(2, "refused")
-	if _, err := a.m.Put(&m, nil, nil, open); !errors.Is(err, ErrOwnFileUnreadable) {
+	if _, err := a.m.Put(t.Context(), &m, nil, nil, open); !errors.Is(err, ErrOwnFileUnreadable) {
 		t.Fatalf("Put = %v, want ErrOwnFileUnreadable", err)
 	}
 	if diff := changedPaths(before, tree(t, a.root)); diff != "" || string(a.ledgerBytes()) != ledgerBefore {
@@ -235,7 +235,7 @@ func TestTheLimits(t *testing.T) {
 	// Within the bound on words, past the one on a line once its quotes are
 	// escaped.
 	big := thought(1, strings.Repeat(`"`, maxBodyBytes))
-	if _, err := a.m.Put(&big, nil, nil, open); !errors.Is(err, ErrLimit) {
+	if _, err := a.m.Put(t.Context(), &big, nil, nil, open); !errors.Is(err, ErrLimit) {
 		t.Fatalf("Put of a line past the limit = %v, want ErrLimit", err)
 	}
 	if got := a.view().Entries(open); len(got) != 0 || bytes.Contains(a.ledgerBytes(), []byte(`"kind":"mark"`)) {
@@ -253,14 +253,14 @@ func TestTheLimits(t *testing.T) {
 		{ID: mid(1), Kind: Thought, Path: "a.md", Body: "a\x00b", At: thought(1, "").At},
 		{ID: mid(1), Kind: Thought, Path: "a.md", Before: "words before nothing", At: thought(1, "").At},
 	} {
-		if _, err := a.m.Put(&mark, nil, nil, open); !errors.Is(err, ErrInvalidMark) {
+		if _, err := a.m.Put(t.Context(), &mark, nil, nil, open); !errors.Is(err, ErrInvalidMark) {
 			t.Errorf("Put(%+v) = %v, want ErrInvalidMark", mark, err)
 		}
 	}
-	if _, err := a.m.Put(nil, nil, nil, open); !errors.Is(err, ErrInvalidMark) {
+	if _, err := a.m.Put(t.Context(), nil, nil, nil, open); !errors.Is(err, ErrInvalidMark) {
 		t.Errorf("Put(nil) = %v", err)
 	}
-	if _, err := a.m.Put(new(thought(1, "x")), nil, &Edit{}, open); !errors.Is(err, ErrInvalidMark) {
+	if _, err := a.m.Put(t.Context(), new(thought(1, "x")), nil, &Edit{}, open); !errors.Is(err, ErrInvalidMark) {
 		t.Errorf("Put with an edit with no id = %v", err)
 	}
 }
@@ -280,7 +280,7 @@ func TestTheCountsAreBoundsOfAWriteAndNotOfARead(t *testing.T) {
 			a.m.maxLines = 3
 		}
 		fourth := thought(4, "one too many")
-		if _, err := a.m.Put(&fourth, nil, nil, open); !errors.Is(err, ErrLimit) {
+		if _, err := a.m.Put(t.Context(), &fourth, nil, nil, open); !errors.Is(err, ErrLimit) {
 			t.Fatalf("%s: the fourth mark = %v, want ErrLimit", name, err)
 		}
 		if got := len(a.view().Entries(open)); got != 3 {
@@ -289,7 +289,7 @@ func TestTheCountsAreBoundsOfAWriteAndNotOfARead(t *testing.T) {
 		// An edit of a mark that is there is not growth.
 		a.say(1, "edited")
 		a.delete(3)
-		_, err := a.m.Put(&fourth, nil, nil, open)
+		_, err := a.m.Put(t.Context(), &fourth, nil, nil, open)
 		switch name {
 		case "marks":
 			if err != nil {
@@ -334,7 +334,7 @@ func TestAMarkIsHeldToTheShapeTheEarlierFileHolds(t *testing.T) {
 			a := newClone(t, "A")
 			m := thought(1, "x")
 			tc.shape(&m)
-			if _, err := a.m.Put(&m, nil, nil, open); !errors.Is(err, ErrInvalidMark) {
+			if _, err := a.m.Put(t.Context(), &m, nil, nil, open); !errors.Is(err, ErrInvalidMark) {
 				t.Errorf("Put = %v, want ErrInvalidMark", err)
 			}
 			// The same shape in a line another machine wrote, whole and with its

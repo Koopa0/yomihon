@@ -1,6 +1,7 @@
 package confdir
 
 import (
+	"errors"
 	"os"
 
 	"golang.org/x/sys/windows"
@@ -41,4 +42,14 @@ func (d directory) close() error {
 		return &os.PathError{Op: "close", Path: d.path, Err: err}
 	}
 	return nil
+}
+
+// transient says whether a rename that failed is worth trying again. Windows
+// refuses a rename over a file another has open without sharing deletion, as
+// access denied or a sharing violation, until the other closes it; a reader of
+// the ledger, which takes no lock, holds it open for the instant it takes to
+// read it. A permission that is missing refuses it the same way, and is tried
+// the same few times before it is reported.
+func transient(err error) bool {
+	return errors.Is(err, windows.ERROR_ACCESS_DENIED) || errors.Is(err, windows.ERROR_SHARING_VIOLATION)
 }

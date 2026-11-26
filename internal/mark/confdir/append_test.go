@@ -257,7 +257,7 @@ func TestALockMakesItsDirectoryDurably(t *testing.T) {
 		t.Skip("this user opens a directory it may not read (a privileged user), so the fixture shows nothing")
 	}
 
-	err := confdir.Exclusive(dir, "marks.lock", 0, func() error {
+	err := confdir.Exclusive(t.Context(), dir, "marks.lock", 0, func() error {
 		return confdir.Replace(dir, "marks.json", []byte("{}"))
 	})
 	if err == nil {

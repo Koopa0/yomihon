@@ -3,6 +3,7 @@ package ledger
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -104,7 +105,7 @@ func runChild(mode, config, writer string) error {
 	case "together":
 		l.compactAt = 4 << 10
 		for i := range togetherLines {
-			if _, err = l.Record(togetherEvent(writer, i)); err != nil {
+			if _, err = l.Record(context.Background(), togetherEvent(writer, i)); err != nil {
 				return err
 			}
 		}
@@ -121,7 +122,7 @@ func runChild(mode, config, writer string) error {
 		if sayErr := say("begin %d", i); sayErr != nil {
 			return sayErr
 		}
-		seq, recordErr := l.Record(line)
+		seq, recordErr := l.Record(context.Background(), line)
 		if recordErr != nil {
 			return recordErr
 		}
@@ -325,10 +326,10 @@ func TestAWriterKilledWhileItAppendsLosesNoCommittedLine(t *testing.T) {
 
 		l := openForProcesses(t, dir)
 		next := record(t, l, markEvent("aaaaaaaa", "test", "after", strconv.Itoa(kills)))
-		if latest, latestErr := l.LatestMarks("aaaaaaaa"); latestErr != nil || latest["after"].Seq != next {
+		if latest, latestErr := latestIn(l, "aaaaaaaa"); latestErr != nil || latest["after"].Seq != next {
 			t.Fatalf("after kill %d the test's own line is not read whole: %v, %v", kills, latest["after"], latestErr)
 		}
-		if err = l.Compact(); err != nil {
+		if err = l.Compact(t.Context()); err != nil {
 			t.Fatal(err)
 		}
 		before = next
@@ -362,8 +363,10 @@ func TestAWriterKilledWhileItCompactsLosesNoLiveLine(t *testing.T) {
 		kills++
 		c := startChild(t, "compact", config, "")
 		answered := c.killAfter(t, 1+rand.IntN(16), nil, time.Duration(rand.IntN(20000))*time.Microsecond) // #nosec G404 -- the moment of a kill, not a secret
+		// A first kill that lands before the child's first Record has made the
+		// vault's directory leaves nothing there at all.
 		entries, err := os.ReadDir(dir.Path())
-		if err != nil {
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			t.Fatal(err)
 		}
 		left := 0

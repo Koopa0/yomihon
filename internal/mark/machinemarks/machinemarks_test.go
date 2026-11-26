@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/koopa0/yomihon/internal/mark/confdir"
 )
 
 func TestAWriteIsInTheLedgerAndInTheVault(t *testing.T) {
@@ -36,6 +38,93 @@ func TestAWriteIsInTheLedgerAndInTheVault(t *testing.T) {
 	}
 }
 
+// A page that reads the marks while a change waits for the ledger's lock, which
+// another process holds, is answered at once and not when the change is made.
+func TestAReadIsNotHeldBehindAChangeThatWaitsForTheLedger(t *testing.T) {
+	t.Parallel()
+	a := newClone(t, "A")
+	a.say(1, "first")
+	// The ledger's lock, held as another process would hold it.
+	other, err := confdir.Acquire(t.Context(), a.dir, "ledger.lock", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	released := false
+	release := func() {
+		if !released {
+			released = true
+			if err := other.Release(); err != nil {
+				t.Errorf("Release: %v", err)
+			}
+		}
+	}
+	t.Cleanup(release)
+
+	changed := make(chan error, 1)
+	base := a.entry(mid(1)).Seen
+	go func() {
+		next := thought(1, "second")
+		_, err := a.m.Put(t.Context(), &next, base, nil, open)
+		changed <- err
+	}()
+	for until := time.Now().Add(200 * time.Millisecond); time.Now().Before(until); {
+		read := make(chan string, 1)
+		go func() {
+			v, err := a.m.View()
+			if err != nil {
+				read <- err.Error()
+				return
+			}
+			e, _ := v.Entry(mid(1), open)
+			read <- e.Mark().Body
+		}()
+		select {
+		case got := <-read:
+			if got != "first" {
+				t.Fatalf("a read while the change waits says %q, want %q", got, "first")
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("a read waited 5s behind a change that waits for the ledger's lock")
+		}
+	}
+	release()
+	if err := <-changed; err != nil {
+		t.Fatalf("the change once the lock came free: %v", err)
+	}
+	if got := a.words(1); got != "second" {
+		t.Errorf("after the change the mark says %q, want %q", got, "second")
+	}
+}
+
+// A ledger that cannot be read fails the read and the write alike, and the
+// vault is left as it was: a view made without the ledger would lack the marks
+// only the ledger holds, and a write made from it would leave them out of this
+// machine's file.
+func TestALedgerThatCannotBeReadFailsTheReadAndTheWrite(t *testing.T) {
+	t.Parallel()
+	a := newClone(t, "A")
+	a.say(1, "first")
+	file := filepath.Join(a.marksDir(), a.id()+".jsonl")
+	before := readFile(t, file)
+	ledgerFile := a.dir.Join("ledger.jsonl")
+	if err := os.Remove(ledgerFile); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(ledgerFile, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := a.m.View(); !errors.Is(err, ErrLedgerUnreadable) {
+		t.Errorf("View with a ledger that cannot be read = %v, want ErrLedgerUnreadable", err)
+	}
+	next := thought(2, "second")
+	if _, err := a.m.Put(t.Context(), &next, nil, nil, open); !errors.Is(err, ErrLedgerUnreadable) {
+		t.Errorf("Put with a ledger that cannot be read = %v, want ErrLedgerUnreadable", err)
+	}
+	if after := readFile(t, file); !bytes.Equal(after, before) {
+		t.Errorf("the machine file changed to %q, want it as it was, %q", after, before)
+	}
+}
+
 func TestAReadMakesNothing(t *testing.T) {
 	t.Parallel()
 	a := newClone(t, "A")
@@ -47,7 +136,7 @@ func TestAReadMakesNothing(t *testing.T) {
 	for _, step := range []func(){
 		func() { a.view() },
 		func() {
-			if err := a.m.NoticeNewID(); err != nil {
+			if err := a.m.NoticeNewID(t.Context()); err != nil {
 				t.Error(err)
 			}
 		},
@@ -121,7 +210,7 @@ func TestAWholeSectionMarkIsNeverAHighlight(t *testing.T) {
 	before, ledgerBefore := tree(t, a.root), string(a.ledgerBytes())
 	section := a.entry(mid(1)).Mark()
 	section.Kind, section.Body, section.Quote = Highlight, "", ""
-	_, err := a.m.Put(&section, a.entry(mid(1)).Seen, nil, open)
+	_, err := a.m.Put(t.Context(), &section, a.entry(mid(1)).Seen, nil, open)
 	if !errors.Is(err, ErrInvalidMark) {
 		t.Fatalf("Put of a highlight with no quote = %v, want ErrInvalidMark", err)
 	}
@@ -239,7 +328,7 @@ func TestWhatGitTookAwayIsStillReadAndComesBack(t *testing.T) {
 	if diff := changedPaths(before, tree(t, a.root)); diff != "" {
 		t.Fatalf("reading wrote %s", diff)
 	}
-	if _, err := a.m.Restore(); err != nil {
+	if _, err := a.m.Restore(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if a.view().Missing() != 0 || len(lines(readFile(t, file))) != 2 {
@@ -247,7 +336,7 @@ func TestWhatGitTookAwayIsStillReadAndComesBack(t *testing.T) {
 	}
 	// A second Restore has nothing to do and writes nothing.
 	before = tree(t, a.root)
-	if res, err := a.m.Restore(); err != nil || res.Bytes != 0 {
+	if res, err := a.m.Restore(t.Context()); err != nil || res.Bytes != 0 {
 		t.Fatalf("Restore of a file that is held = %+v, %v", res, err)
 	}
 	if diff := changedPaths(before, tree(t, a.root)); diff != "" {
@@ -290,7 +379,7 @@ func TestTheTripleFaultIsAConflict(t *testing.T) {
 		}
 		a.clock.tick()
 		e := a.entry(mid(1))
-		if _, err := a.m.Put(new(thought(1, "A after all that")), e.Seen, nil, open); err != nil {
+		if _, err := a.m.Put(t.Context(), new(thought(1, "A after all that")), e.Seen, nil, open); err != nil {
 			t.Fatalf("sameProcess=%v: %v", sameProcess, err)
 		}
 		pull(a, b)
@@ -319,7 +408,7 @@ func TestTheCounterDoesNotDependOnTheClock(t *testing.T) {
 	}
 	a.clock.ms -= 3_600_000
 	a.restart()
-	if err := a.m.ledger.Compact(); err != nil {
+	if err := a.m.ledger.Compact(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	res := a.say(1, "after the clock went back, and a restart and a compaction")
@@ -338,11 +427,11 @@ func TestAChangeIsRefusedForAStalePageAndOnlyThen(t *testing.T) {
 	a.say(1, "two") // another page, or this one, wrote it since
 	m := thought(1, "from the old page")
 
-	_, err := a.m.Put(&m, nil, nil, open)
+	_, err := a.m.Put(t.Context(), &m, nil, nil, open)
 	if !errors.Is(err, ErrNoBase) {
 		t.Fatalf("Put of a mark that exists with no base = %v, want ErrNoBase", err)
 	}
-	_, err = a.m.Put(&m, first.Seen, nil, open)
+	_, err = a.m.Put(t.Context(), &m, first.Seen, nil, open)
 	stale, isStale := errors.AsType[*StaleError](err)
 	if !errors.Is(err, ErrStale) || !isStale {
 		t.Fatalf("Put on an old page = %v, want a StaleError", err)
@@ -353,7 +442,7 @@ func TestAChangeIsRefusedForAStalePageAndOnlyThen(t *testing.T) {
 	if got := a.words(1); got != "two" {
 		t.Fatalf("a refused change wrote: reads %q", got)
 	}
-	if _, err = a.m.Put(&m, stale.Seen, nil, open); err != nil {
+	if _, err = a.m.Put(t.Context(), &m, stale.Seen, nil, open); err != nil {
 		t.Fatalf("Put on what the StaleError said = %v", err)
 	}
 }
@@ -371,7 +460,7 @@ func TestTheSendsOfOneEdit(t *testing.T) {
 	send := func(body string, seq uint64, seen Seen, editID string) error {
 		m := thought(1, body)
 		a.clock.tick()
-		_, err := a.m.Put(&m, seen, &Edit{ID: editID, Seq: seq}, open)
+		_, err := a.m.Put(t.Context(), &m, seen, &Edit{ID: editID, Seq: seq}, open)
 		return err
 	}
 	if err := send("first send", 1, base, "tab1"); err != nil {
@@ -419,10 +508,10 @@ func TestChooseTakesOnlyAValueInTheConflict(t *testing.T) {
 	}
 	// A value that is not in the conflict is stale, and nothing is written.
 	before := tree(t, a.root)
-	if _, err := a.m.Choose(mid(1), Pick{Writer: aValue.Writer, Rev: aValue.Rev + 99}, e.Seen, open); !errors.Is(err, ErrStale) {
+	if _, err := a.m.Choose(t.Context(), mid(1), Pick{Writer: aValue.Writer, Rev: aValue.Rev + 99}, e.Seen, open); !errors.Is(err, ErrStale) {
 		t.Fatalf("Choose of a value that is not there = %v, want ErrStale", err)
 	}
-	if _, err := a.m.Choose(mid(99), Pick{}, e.Seen, open); !errors.Is(err, ErrGone) {
+	if _, err := a.m.Choose(t.Context(), mid(99), Pick{}, e.Seen, open); !errors.Is(err, ErrGone) {
 		t.Fatalf("Choose of a mark that is not there = %v, want ErrGone", err)
 	}
 	if diff := changedPaths(before, tree(t, a.root)); diff != "" {
@@ -433,7 +522,7 @@ func TestChooseTakesOnlyAValueInTheConflict(t *testing.T) {
 	// so it stays beside the one chosen.
 	c.say(1, "C, unseen")
 	pull(c, a)
-	if _, err := a.m.Choose(mid(1), Pick{Writer: bValue.Writer, Rev: bValue.Rev}, e.Seen, open); err != nil {
+	if _, err := a.m.Choose(t.Context(), mid(1), Pick{Writer: bValue.Writer, Rev: bValue.Rev}, e.Seen, open); err != nil {
 		t.Fatalf("Choose of B's value = %v", err)
 	}
 	if got := a.words(1); got != "C, unseen | B's words" && got != "B's words | C, unseen" {
@@ -459,7 +548,7 @@ func TestAPageCannotClaimToHaveReadALineThatIsNotThereYet(t *testing.T) {
 		forged[w] += 1000
 	}
 	b.clock.tick()
-	if _, err := b.m.Put(new(thought(1, "B's words")), forged, nil, open); err != nil {
+	if _, err := b.m.Put(t.Context(), new(thought(1, "B's words")), forged, nil, open); err != nil {
 		t.Fatal(err)
 	}
 	a.say(1, "A's later words, which B had not read")
@@ -618,12 +707,12 @@ func TestAnAnswerSaysOnlyWhatThePageHadRead(t *testing.T) {
 	b.say(1, "B's edit")
 	pull(b, a) // a git pull brings it in while the page is open
 	e := Edit{ID: "page-1", Seq: 1}
-	first, err := a.m.Put(new(thought(1, "A, typing")), page, &e, open)
+	first, err := a.m.Put(t.Context(), new(thought(1, "A, typing")), page, &e, open)
 	if err != nil {
 		t.Fatal(err)
 	}
 	e.Seq = 2
-	if _, err = a.m.Put(new(thought(1, "A, typing on")), first.Seen, &e, open); err != nil {
+	if _, err = a.m.Put(t.Context(), new(thought(1, "A, typing on")), first.Seen, &e, open); err != nil {
 		t.Fatalf("the second send: %v", err)
 	}
 	got := a.entry(mid(1))

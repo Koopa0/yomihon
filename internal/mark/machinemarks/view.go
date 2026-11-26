@@ -75,7 +75,10 @@ func (v *view) live() int {
 // load reads the ledger, then the vault. In that order, so that a line a writer
 // has put in the vault since the ledger was read is one the ledger holds too
 // when it is read next, and nothing is counted missing for want of a look: a
-// writer records a line before it writes it.
+// writer records a line before it writes it. The ledger is read once, and a
+// ledger that cannot be read fails the whole read: a view made without the
+// ledger's lines of this machine would lack the marks only the ledger holds,
+// and a write made from it would leave them out of this machine's file.
 func (m *Marks) load() (*view, error) {
 	events, changed, err := m.ledger.Events()
 	if err != nil {
@@ -90,7 +93,7 @@ func (m *Marks) load() (*view, error) {
 	// What the ledger holds of this machine comes first, so that of two lines of
 	// one writer and one rev, which only a hand makes, it is the ledger's that
 	// is read.
-	all := m.ledgerLines(events, &v.st)
+	all := ledgerLines(events, &v.st)
 	ledgerNewest := newestOf(all)
 
 	var disk []*kept
@@ -208,8 +211,8 @@ func (m *Marks) ours(st *machine, l *kept) bool {
 
 // ledgerLines are the lines the ledger holds of this machine, the newest of
 // each mark under each of its ids and every line of a conversion, read as lines
-// of the vault are.
-func (m *Marks) ledgerLines(events []ledger.Event, st *machine) []*kept {
+// of the vault are, all from events, the one read of the ledger load made.
+func ledgerLines(events []ledger.Event, st *machine) []*kept {
 	var out []*kept
 	add := func(raw []byte) {
 		if l, verdict := decode(raw); verdict == readable && st.owns(l.M) {
@@ -217,10 +220,7 @@ func (m *Marks) ledgerLines(events []ledger.Event, st *machine) []*kept {
 		}
 	}
 	for _, id := range st.ids() {
-		latest, err := m.ledger.LatestMarks(id)
-		if err != nil {
-			continue // read again by whoever asked for the events; the same failure is theirs
-		}
+		latest := ledger.LatestMarks(events, id)
 		for _, mark := range slices.Sorted(maps.Keys(latest)) {
 			add(latest[mark].Content)
 		}

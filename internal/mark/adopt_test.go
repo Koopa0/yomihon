@@ -512,7 +512,7 @@ func TestAdoptCarriesTheLedgerOfTheEarlierPath(t *testing.T) {
 		{Kind: "header", ID: "1f3a9c07", Session: "7a1f03d2"},
 		{Kind: ledger.KindMark, Writer: "1f3a9c07", Session: "7a1f03d2", Content: []byte(`{"mark":{"id":"m1","body":"words"}}`)},
 	} {
-		if _, err := earlier.Record(e); err != nil {
+		if _, err := earlier.Record(t.Context(), e); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -526,7 +526,8 @@ func TestAdoptCarriesTheLedgerOfTheEarlierPath(t *testing.T) {
 			t.Fatalf("after Adopt %d this vault's ledger is %q, want the earlier one byte for byte", i+1, got)
 		}
 	}
-	if latest, err := now.LatestMarks("1f3a9c07"); err != nil || len(latest) != 1 {
+	carried, _, err := now.Events()
+	if latest := ledger.LatestMarks(carried, "1f3a9c07"); err != nil || len(latest) != 1 {
 		t.Errorf("the carried ledger's marks are %v, %v; want m1", latest, err)
 	}
 	if got := readOrEmpty(t, earlierFile); got != before {
@@ -541,11 +542,11 @@ func TestAdoptKeepsTheLedgerThisVaultHas(t *testing.T) {
 	v := movedVault(t)
 	v.keepEverything(t)
 	earlier, _ := ledgerOf(t, v.config, v.oldRoot)
-	if _, err := earlier.Record(&ledger.Event{Kind: "header", ID: "1f3a9c07"}); err != nil {
+	if _, err := earlier.Record(t.Context(), &ledger.Event{Kind: "header", ID: "1f3a9c07"}); err != nil {
 		t.Fatal(err)
 	}
 	now, nowFile := ledgerOf(t, v.config, v.newRoot)
-	if _, err := now.Record(&ledger.Event{Kind: "header", ID: "2b4d6f80"}); err != nil {
+	if _, err := now.Record(t.Context(), &ledger.Event{Kind: "header", ID: "2b4d6f80"}); err != nil {
 		t.Fatal(err)
 	}
 	mine := readOrEmpty(t, nowFile)
